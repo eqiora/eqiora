@@ -6,7 +6,7 @@ are recorded here.
 
 ## [Unreleased]
 
-## [0.1.0a10] - 2026-09-13
+## [0.1.0a11] - 2026-09-13
 
 ### Added
 
@@ -20,6 +20,9 @@ are recorded here.
   path. Record constructors, enum members, and finite-space counts preserve the
   exact import alias, while private, unknown, transitive, and equal-shaped foreign
   declarations reject through the existing Module resolver.
+- Kept `ImportedRecord` distinct from locally owned `Record` while sharing their
+  nominal construction behavior, so the published stubs expose each descriptor's
+  exact member value type.
 
 ## [0.1.0a9] - 2026-09-11
 

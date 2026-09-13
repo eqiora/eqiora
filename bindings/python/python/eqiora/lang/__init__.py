@@ -464,7 +464,13 @@ class _Field(Expression):
         object.__setattr__(self, "_name", name)
 
 
-from ._records import ImportedRecord, Record, RecordField, RecordParameter, declare_record as _declare_record
+from ._records import _ImportedRecord, Record, RecordField, RecordParameter, declare_record as _declare_record
+
+
+class ImportedRecord(_ImportedRecord):
+    """A read-only public Record descriptor from an explicit import."""
+
+    __slots__ = ()
 
 
 class Relation:
@@ -1360,15 +1366,16 @@ class Component:
         self,
         name: str,
         *,
-        value_type: ValueType | Record,
+        value_type: ValueType | Record | ImportedRecord,
         doc: str | None = None,
     ) -> Expression:
-        if not isinstance(value_type, (ValueType, Record)):
+        if not isinstance(value_type, (ValueType, Record, ImportedRecord)):
             raise TypeError("value_type must be an eqiora.ValueType or Module Record")
-        syntax = value_type._type_syntax(self._source) if isinstance(value_type, Record) else self._type_syntax(value_type)
+        is_record = isinstance(value_type, (Record, ImportedRecord))
+        syntax = value_type._type_syntax(self._source) if is_record else self._type_syntax(value_type)
         doc_lines = _doc(doc)
         admitted = self._add_name(name)
-        parameter = RecordParameter(self._component_token, admitted, value_type) if isinstance(value_type, Record) else _Parameter(self._component_token, admitted)
+        parameter = RecordParameter(self._component_token, admitted, value_type) if is_record else _Parameter(self._component_token, admitted)
         self._parameters.append((parameter, syntax, doc_lines))
         self._requirements.add(parameter)
         return parameter
@@ -1463,7 +1470,7 @@ class Component:
         name: str,
         *,
         on: Support | None = None,
-        value_type: ValueType | Record,
+        value_type: ValueType | Record | ImportedRecord,
         role: FieldRole,
         at: Clock | None = None,
         doc: str | None = None,
@@ -1475,14 +1482,15 @@ class Component:
             raise ModuleError(
                 "the initial Module vocabulary admits fields on volumes only"
             )
-        if not isinstance(value_type, (ValueType, Record)):
+        if not isinstance(value_type, (ValueType, Record, ImportedRecord)):
             raise TypeError("value_type must be an eqiora.ValueType or Module Record")
-        syntax = value_type._type_syntax(self._source) if isinstance(value_type, Record) else self._type_syntax(value_type)
+        is_record = isinstance(value_type, (Record, ImportedRecord))
+        syntax = value_type._type_syntax(self._source) if is_record else self._type_syntax(value_type)
         if not isinstance(role, FieldRole):
             raise TypeError("role must be an eqiora.FieldRole")
         doc_lines = _doc(doc)
         admitted = self._add_name(name)
-        expression = RecordField(self._component_token, admitted, value_type) if isinstance(value_type, Record) else _Field(self._component_token, admitted)
+        expression = RecordField(self._component_token, admitted, value_type) if is_record else _Field(self._component_token, admitted)
         self._fields.append((expression, on, syntax, role, at, doc_lines))
         return expression
 
