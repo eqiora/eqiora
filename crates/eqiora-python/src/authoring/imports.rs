@@ -1,12 +1,77 @@
 //! Read-only descriptors over declarations in the explicit imported Module.
 
 use eqiora::language::{
-    ComponentDecl, ConnectorSyntax, Module, PortSyntax, SignatureItem, SupportSlotSyntax,
+    ComponentDecl, ConnectorSyntax, ExprKind, Module, PortSyntax, SignatureItem, SupportSlotSyntax,
     VisibilitySyntax,
 };
 use pyo3::prelude::*;
 
 use super::expression::syntax_error;
+
+pub(super) fn record(module: &Module, name: &str) -> PyResult<Vec<(String, String)>> {
+    let mut found = module
+        .document()
+        .records()
+        .iter()
+        .filter(|value| value.name() == name);
+    let value = found
+        .next()
+        .ok_or_else(|| syntax_error("import requires one public Record declaration"))?;
+    if found.next().is_some() || value.visibility() != VisibilitySyntax::Public {
+        return Err(syntax_error(
+            "import requires one public Record declaration",
+        ));
+    }
+    Ok(value
+        .members()
+        .iter()
+        .map(|member| (member.name().to_owned(), member.value_type().to_source()))
+        .collect())
+}
+
+pub(super) fn enumeration(module: &Module, name: &str) -> PyResult<Vec<String>> {
+    let mut found = module
+        .document()
+        .enumerations()
+        .iter()
+        .filter(|value| value.name() == name);
+    let value = found
+        .next()
+        .ok_or_else(|| syntax_error("import requires one public Enum declaration"))?;
+    if found.next().is_some() || value.visibility() != VisibilitySyntax::Public {
+        return Err(syntax_error("import requires one public Enum declaration"));
+    }
+    Ok(value.tags().iter().map(|tag| tag.to_string()).collect())
+}
+
+pub(super) fn finite_space(module: &Module, name: &str) -> PyResult<Vec<String>> {
+    let mut found = module
+        .document()
+        .finite_spaces()
+        .iter()
+        .filter(|value| value.name() == name);
+    let value = found
+        .next()
+        .ok_or_else(|| syntax_error("import requires one public finite Space declaration"))?;
+    if found.next().is_some() || value.visibility() != VisibilitySyntax::Public {
+        return Err(syntax_error(
+            "import requires one public finite Space declaration",
+        ));
+    }
+    let ExprKind::Call { callee, arguments } = value.value().kind() else {
+        return Err(syntax_error("invalid finite Space declaration"));
+    };
+    if callee.as_str() != "orthonormal" {
+        return Err(syntax_error("invalid finite Space declaration"));
+    }
+    arguments
+        .expressions()
+        .map(|label| match label.kind() {
+            ExprKind::Name(name) => Ok(name.clone()),
+            _ => Err(syntax_error("invalid finite Space basis label")),
+        })
+        .collect()
+}
 
 pub(super) fn connector(
     module: &Module,
