@@ -10,12 +10,15 @@ from . import Expression, ModuleError, ValueType, _Ast, _AstModule, _CREATE, _MI
 class Record:
     """One ordered, closed record declaration belonging to an exact Module."""
 
-    __slots__ = ("_source", "_name", "_members", "_syntax", "_doc")
+    __slots__ = ("_source", "_name", "_syntax_name", "_members", "_syntax", "_doc")
 
-    def __init__(self, token=_MISSING, *, source=None, name="", members=(), syntax=(), doc=()):
+    def __init__(self, token=_MISSING, *, source=None, name="", syntax_name=None,
+                 members=(), syntax=(), doc=()):
         if token is not _CREATE:
             raise TypeError("records are created by Module.record()")
-        for key, value in (("_source", source), ("_name", name), ("_members", members),
+        for key, value in (("_source", source), ("_name", name),
+                           ("_syntax_name", name if syntax_name is None else syntax_name),
+                           ("_members", members),
                            ("_syntax", syntax), ("_doc", doc)):
             object.__setattr__(self, key, value)
 
@@ -33,7 +36,7 @@ class Record:
     def _type_syntax(self, source):
         if self._source is not source:
             raise ModuleError("record declaration must belong to this Module")
-        return _AstModule.record_type(self._name)
+        return _AstModule.record_type(self._syntax_name)
 
     def __call__(self, /, **members: object) -> Expression:
         from . import _expression, _MAX_EXPRESSION_DEPTH, _MAX_EXPRESSION_NODES
@@ -53,9 +56,20 @@ class Record:
             raise ModuleError("record constructor exceeds the expression depth limit")
         if sum(value._nodes for value in values) + 1 > _MAX_EXPRESSION_NODES:
             raise ModuleError("record constructor exceeds the expression node limit")
-        return Expression(_CREATE, _Ast.call(self._name, [value._ast for value in values], names), owner,
+        return Expression(_CREATE, _Ast.call(self._syntax_name, [value._ast for value in values], names), owner,
                           _binders=frozenset().union(*(value._binders for value in values)),
                           _sources=frozenset((self._source._owner,)))
+
+
+class ImportedRecord(Record):
+    """Read-only descriptor for one public Record in an explicit import."""
+
+    __slots__ = ()
+
+    @property
+    def members(self) -> Mapping[str, str]:
+        """Declaration-ordered member names mapped to exact qualified source types."""
+        return MappingProxyType(dict(self._members))
 
 
 def declare_record(source, name, *, members, doc=None) -> Record:

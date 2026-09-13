@@ -783,6 +783,12 @@ ports keep their declaring connector's nominal identity, including boundary
 family selection binders. A locally declared connector with equal quantity types
 is a distinct connector.
 
+`ModuleRef.record(name)`, `ModuleRef.enum(name)`, and `ModuleRef.space(name)`
+return read-only nominal type handles for the exact imported declaration.
+Component fields, parameters, enum members, record constructors, and finite-space
+counts keep the qualified import path in emitted source; the provider declaration
+is not copied into the consumer.
+
 `ModuleRef.operator(name)` returns an immutable callable for a public pure operator
 in the exact imported Module. Calls supply every formal by name and preserve the
 provider's declared argument order and types. For example,

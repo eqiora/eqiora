@@ -16,6 +16,11 @@ pub(super) fn name_path(name: &str) -> PyResult<NamePath> {
         .map_err(|error| PyValueError::new_err(error.to_string()))
 }
 
+fn qualified_name_path(name: &str) -> PyResult<NamePath> {
+    NamePath::from_segments(name.split('.'), TextRange::default())
+        .map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
 /// Immutable exact finite basis, independent of numerical discretization spaces.
 #[pyclass(
     name = "FiniteSpace",
@@ -131,23 +136,19 @@ impl PyIndexSet {
 #[pyfunction]
 pub(crate) fn _nominal_type(
     value_type: &PyValueType,
-    spaces: Vec<PyRef<'_, PyFiniteSpace>>,
-    sets: Vec<PyRef<'_, PyIndexSet>>,
-    enums: Vec<PyRef<'_, super::enumeration::PyEnum>>,
+    spaces: Vec<(PyRef<'_, PyFiniteSpace>, String)>,
+    sets: Vec<(PyRef<'_, PyIndexSet>, String)>,
+    enums: Vec<(PyRef<'_, super::enumeration::PyEnum>, String)>,
 ) -> PyResult<crate::authoring::PyAstType> {
     let mut names = Vec::with_capacity(spaces.len() + sets.len() + enums.len());
-    for space in spaces {
-        names.push((space.value.id().erase(), name_path(&space.name)?));
+    for (space, name) in spaces {
+        names.push((space.value.id().erase(), qualified_name_path(&name)?));
     }
-    for set in sets {
-        names.push((set.value.id().erase(), name_path(&set.name)?));
+    for (set, name) in sets {
+        names.push((set.value.id().erase(), qualified_name_path(&name)?));
     }
-    for definition in enums {
-        let name = definition
-            .name
-            .as_deref()
-            .ok_or_else(|| PyValueError::new_err("enum has no lexical name"))?;
-        names.push((definition.value.id().erase(), name_path(name)?));
+    for (definition, name) in enums {
+        names.push((definition.value.id().erase(), qualified_name_path(&name)?));
     }
     ValueTypeSyntax::from_checked(&value_type.value, |id| {
         names

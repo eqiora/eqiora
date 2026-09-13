@@ -311,14 +311,15 @@ def equation(lhs: object, rhs: object) -> Equation:
 class Enum:
     """A closed enum declaration in one Module; members are exact symbolic paths."""
 
-    __slots__ = ("_source", "_definition")
+    __slots__ = ("_source", "_definition", "_syntax_name")
 
     def __init__(self, _token: object = _MISSING, *, _source: Module | None = None,
-                 _definition: _NativeEnum | None = None) -> None:
+                 _definition: _NativeEnum | None = None, _syntax_name: str | None = None) -> None:
         if _token is not _CREATE:
             raise TypeError("Module enum handles are created by Module.enum()")
         object.__setattr__(self, "_source", _source)
         object.__setattr__(self, "_definition", _definition)
+        object.__setattr__(self, "_syntax_name", _definition.name if _syntax_name is None else _syntax_name)
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("Enum handles are immutable")
@@ -344,7 +345,7 @@ class _EnumMember(Expression):
     __slots__ = ("_enumeration", "_member_name")
 
     def __init__(self, enumeration: Enum, name: str) -> None:
-        super().__init__(_CREATE, _Ast.name(f"{enumeration.name}.{name}"), None,
+        super().__init__(_CREATE, _Ast.name(f"{enumeration._syntax_name}.{name}"), None,
                          _sources=frozenset((enumeration._source._owner,)))
         object.__setattr__(self, "_enumeration", enumeration)
         object.__setattr__(self, "_member_name", name)
@@ -463,7 +464,7 @@ class _Field(Expression):
         object.__setattr__(self, "_name", name)
 
 
-from ._records import Record, RecordField, RecordParameter, declare_record as _declare_record
+from ._records import ImportedRecord, Record, RecordField, RecordParameter, declare_record as _declare_record
 
 
 class Relation:
@@ -1093,9 +1094,23 @@ class Component:
 
     def _type_syntax(self, value_type: ValueType) -> str:
         try:
-            return _nominal_type(value_type, [space for space, _ in self._source._spaces], [item for item, _ in self._index_sets], [item._definition for item, _ in self._source._enums])
+            spaces = [(space, space.name) for space, _ in self._source._spaces]
+            spaces += self._source._imported_spaces
+            sets = [(item, item.name) for item, _ in self._index_sets]
+            enums = [(item._definition, item.name) for item, _ in self._source._enums]
+            enums += [(item._definition, name) for item, name in self._source._imported_enums]
+            return _nominal_type(value_type, spaces, sets, enums)
         except ValueError as error:
             raise ModuleError(str(error)) from error
+
+    def _space_syntax(self, space: FiniteSpace) -> str:
+        for value, _ in self._source._spaces:
+            if space == value:
+                return value.name
+        for value, syntax in self._source._imported_spaces:
+            if space == value:
+                return syntax
+        raise ModuleError("finite space must belong to this Module")
 
     def _nominal_value(self, function: str, name: str, value: Expression) -> Expression:
         if value._owner is not None and value._owner is not self._component_token:
@@ -1104,15 +1119,15 @@ class Component:
 
     def counts(self, space: FiniteSpace, components: Sequence[object]) -> Expression:
         """Construct nonnegative counts in an exact basis registered by this Module."""
-        if not isinstance(space, FiniteSpace) or not any(space == item for item, _ in self._source._spaces):
+        if not isinstance(space, FiniteSpace):
             raise ModuleError("count space must belong to this Module")
-        return self._nominal_value("counts", space.name, array(components))
+        return self._nominal_value("counts", self._space_syntax(space), array(components))
 
     def coordinates(self, space: FiniteSpace, components: Sequence[object]) -> Expression:
         """Construct signed integer coordinates in this Module's exact finite basis."""
-        if not isinstance(space, FiniteSpace) or not any(space == item for item, _ in self._source._spaces):
+        if not isinstance(space, FiniteSpace):
             raise ModuleError("coordinate space must belong to this Module")
-        return self._nominal_value("coordinates", space.name, array(components))
+        return self._nominal_value("coordinates", self._space_syntax(space), array(components))
 
     def index(self, set: IndexSet, value: object) -> Expression:
         """Construct a checked ordinal in an index set registered by this Component."""
@@ -1831,12 +1846,13 @@ class ComponentRef:
 class ModuleRef:
     """An explicit module import, with no ambient lookup registry."""
 
-    __slots__ = ("_owner", "_alias", "_target")
+    __slots__ = ("_source", "_owner", "_alias", "_target")
 
     def __init__(self, token, owner, alias, target):
         if token is not _CREATE:
             raise TypeError("Module references come from import_module()")
-        object.__setattr__(self, "_owner", owner)
+        object.__setattr__(self, "_source", owner)
+        object.__setattr__(self, "_owner", owner._owner)
         object.__setattr__(self, "_alias", alias)
         object.__setattr__(self, "_target", target)
 
@@ -1863,6 +1879,21 @@ class ModuleRef:
         """Resolve one public imported structural dimension through the compiler."""
         from . import _dimensions
         return _dimensions.imported(self, name)
+
+    def record(self, name: str) -> ImportedRecord:
+        """Refer to one public closed Record in this exact imported Module."""
+        name = _name(name)
+        members = self._target._freeze().record_descriptor(name)
+        return ImportedRecord(_CREATE, source=self._source, name=name,
+                              syntax_name=f"{self._alias}.{name}", members=tuple(members))
+
+    def enum(self, name: str) -> Enum:
+        """Refer to one public Enum in this exact imported Module."""
+        return self._source._imported_enum(self, _name(name))
+
+    def space(self, name: str) -> FiniteSpace:
+        """Refer to one public finite Space in this exact imported Module."""
+        return self._source._imported_space(self, _name(name))
 
     def operator(self, name: str) -> Operator:
         """Call one public pure operator from this exact imported Module."""
@@ -1891,7 +1922,9 @@ class Module:
         "_top_names",
         "_notations",
         "_spaces",
+        "_imported_spaces",
         "_enums",
+        "_imported_enums",
         "_records",
         "_name",
         "_package",
@@ -1916,7 +1949,9 @@ class Module:
         self._top_names: set[str] = set()
         self._notations: dict[str, Notation] = {}
         self._spaces: list[tuple[FiniteSpace, tuple[str, ...]]] = []
+        self._imported_spaces: list[tuple[FiniteSpace, str]] = []
         self._enums: list[tuple[Enum, tuple[str, ...]]] = []
+        self._imported_enums: list[tuple[Enum, str]] = []
         self._records: list[Record] = []
         self._frozen_text: str | None = None
 
@@ -1931,9 +1966,35 @@ class Module:
 
     def _type_syntax(self, value_type: ValueType) -> str:
         try:
-            return _nominal_type(value_type, [space for space, _ in self._spaces], [], [item._definition for item, _ in self._enums])
+            spaces = [(space, space.name) for space, _ in self._spaces] + self._imported_spaces
+            enums = [(item._definition, item.name) for item, _ in self._enums]
+            enums += [(item._definition, name) for item, name in self._imported_enums]
+            return _nominal_type(value_type, spaces, [], enums)
         except ValueError as error:
             raise ModuleError(str(error)) from error
+
+    def _imported_enum(self, imported: ModuleRef, name: str) -> Enum:
+        self._ensure_open()
+        syntax_name = f"{imported._alias}.{name}"
+        for value, syntax in self._imported_enums:
+            if syntax == syntax_name:
+                return value
+        members = imported._target._freeze().enum_descriptor(name)
+        value = Enum(_CREATE, _source=self,
+                     _definition=_NativeEnum(name, members=members),
+                     _syntax_name=syntax_name)
+        self._imported_enums.append((value, syntax_name))
+        return value
+
+    def _imported_space(self, imported: ModuleRef, name: str) -> FiniteSpace:
+        self._ensure_open()
+        syntax_name = f"{imported._alias}.{name}"
+        for value, syntax in self._imported_spaces:
+            if syntax == syntax_name:
+                return value
+        value = FiniteSpace(name, labels=imported._target._freeze().finite_space_descriptor(name))
+        self._imported_spaces.append((value, syntax_name))
+        return value
 
     def field_connector(self, name: str, *, trace: tuple[str, ValueType],
                         flux: tuple[str, ValueType], spatial_vector: bool = False,
@@ -2056,7 +2117,7 @@ class Module:
             if imports.get(alias) != f"{module._package}.{module._name}":
                 raise ModuleError("a frozen Module only permits attaching an exact existing import")
         self._imports[alias] = module
-        return ModuleRef(_CREATE, self._owner, alias, module)
+        return ModuleRef(_CREATE, self, alias, module)
 
     def _closure(self):
         units, active, visited = {}, set(), set()
@@ -2421,6 +2482,7 @@ __all__ = [
     "Expression",
     "Enum",
     "Record",
+    "ImportedRecord",
     "RecordField",
     "RecordParameter",
     "Event",

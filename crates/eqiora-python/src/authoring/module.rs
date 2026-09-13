@@ -267,6 +267,18 @@ impl PyAstModule {
         super::imports::supports(&self.value, name)
     }
 
+    fn record_descriptor(&self, name: &str) -> PyResult<Vec<(String, String)>> {
+        super::imports::record(&self.value, name)
+    }
+
+    fn enum_descriptor(&self, name: &str) -> PyResult<Vec<String>> {
+        super::imports::enumeration(&self.value, name)
+    }
+
+    fn finite_space_descriptor(&self, name: &str) -> PyResult<Vec<String>> {
+        super::imports::finite_space(&self.value, name)
+    }
+
     fn with_space(&self, name: String, labels: Vec<String>, ordinal: u32) -> PyResult<Self> {
         let declaration = Ast::finite_space(VisibilitySyntax::Public, name, labels, range(ordinal))
             .map_err(syntax_error)?;
