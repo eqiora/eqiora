@@ -110,34 +110,9 @@ impl Token {
     }
 }
 
-/// Lossless tokens plus lexical diagnostics.
-#[derive(Debug, Clone, PartialEq)]
-pub struct LexResult {
-    tokens: Vec<Token>,
-    diagnostics: Vec<Diagnostic>,
-}
-
-impl LexResult {
-    /// Tokens including trivia and EOF.
-    #[must_use]
-    pub fn tokens(&self) -> &[Token] {
-        &self.tokens
-    }
-
-    /// Every lexical diagnostic in source order.
-    #[must_use]
-    pub fn diagnostics(&self) -> &[Diagnostic] {
-        &self.diagnostics
-    }
-
-    pub(crate) fn into_parts(self) -> (Vec<Token>, Vec<Diagnostic>) {
-        (self.tokens, self.diagnostics)
-    }
-}
-
 /// Tokenize one UTF-8 source file without discarding bytes.
 #[must_use]
-pub fn lex(file: impl Into<String>, source: &str) -> LexResult {
+pub fn lex(file: impl Into<String>, source: &str) -> (Vec<Token>, Vec<Diagnostic>) {
     let file = file.into();
     let mut tokens = Vec::new();
     let mut diagnostics = Vec::new();
@@ -265,10 +240,7 @@ pub fn lex(file: impl Into<String>, source: &str) -> LexResult {
         text: String::new(),
         range: range(source.len(), source.len()),
     });
-    LexResult {
-        tokens,
-        diagnostics,
-    }
+    (tokens, diagnostics)
 }
 
 fn scan_number(source: &str, mut offset: usize) -> usize {
@@ -326,14 +298,13 @@ mod tests {
     #[test]
     fn lexer_retains_every_source_byte() {
         let source = "model thermal() { // state\n variable t: K; }";
-        let result = lex("thermal.eqi", source);
-        let reconstructed = result.tokens().iter().map(Token::text).collect::<String>();
+        let (tokens, diagnostics) = lex("thermal.eqi", source);
+        let reconstructed = tokens.iter().map(Token::text).collect::<String>();
 
         assert_eq!(reconstructed, source);
-        assert!(result.diagnostics().is_empty());
+        assert!(diagnostics.is_empty());
         assert!(
-            result
-                .tokens()
+            tokens
                 .iter()
                 .any(|token| token.kind() == TokenKind::LineComment)
         );
@@ -342,18 +313,16 @@ mod tests {
     #[test]
     fn lexer_distinguishes_qualified_names_from_decimal_points() {
         let source = "connect drive.motor.positive, 1.25;";
-        let result = lex("qualified.eqi", source);
-        let dots = result
-            .tokens()
+        let (tokens, diagnostics) = lex("qualified.eqi", source);
+        let dots = tokens
             .iter()
             .filter(|token| token.kind() == TokenKind::Dot)
             .count();
 
         assert_eq!(dots, 2);
-        assert!(result.diagnostics().is_empty());
+        assert!(diagnostics.is_empty());
         assert!(
-            result
-                .tokens()
+            tokens
                 .iter()
                 .any(|token| { token.kind() == TokenKind::Number && token.text() == "1.25" })
         );
@@ -362,24 +331,19 @@ mod tests {
     #[test]
     fn lexer_retains_component_index_delimiters() {
         let source = "let component = velocity[2, 3];";
-        let result = lex("shape.eqi", source);
+        let (tokens, diagnostics) = lex("shape.eqi", source);
 
-        assert!(result.diagnostics().is_empty());
+        assert!(diagnostics.is_empty());
         assert!(
-            result
-                .tokens()
+            tokens
                 .iter()
                 .any(|token| { token.kind() == TokenKind::LeftBracket && token.text() == "[" })
         );
         assert!(
-            result
-                .tokens()
+            tokens
                 .iter()
                 .any(|token| { token.kind() == TokenKind::RightBracket && token.text() == "]" })
         );
-        assert_eq!(
-            result.tokens().iter().map(Token::text).collect::<String>(),
-            source
-        );
+        assert_eq!(tokens.iter().map(Token::text).collect::<String>(), source);
     }
 }

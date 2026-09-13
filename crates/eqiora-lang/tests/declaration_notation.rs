@@ -195,21 +195,16 @@ fn bytes_depth_scripts_and_lexer_allocation_are_bounded() {
         "model M() {{ variable x @{{{} }}: 1; }}",
         "x".repeat(50_000)
     );
-    let lexed = eqiora_lang::lex("long.eqi", &long);
-    assert!(!lexed.diagnostics().is_empty());
+    let (tokens, diagnostics) = eqiora_lang::lex("long.eqi", &long);
+    assert!(!diagnostics.is_empty());
     assert!(
-        lexed
-            .tokens()
+        tokens
             .iter()
             .filter(|token| token.kind() == eqiora_lang::TokenKind::Notation)
             .all(|token| token.text().len() <= 1024)
     );
     assert_eq!(
-        lexed
-            .tokens()
-            .iter()
-            .map(|token| token.text())
-            .collect::<String>(),
+        tokens.iter().map(|token| token.text()).collect::<String>(),
         long
     );
 }

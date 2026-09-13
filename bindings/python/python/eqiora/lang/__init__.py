@@ -1087,7 +1087,7 @@ class Component:
         ] = []
         self._observables: list[tuple[str, Expression, str, tuple[str, ...]]] = []
         self._relations: list[
-            tuple[str, Support | None, tuple[tuple[Expression, Expression], ...], Clock | Event | None, tuple[str, ...]]
+            tuple[str, Support | None, tuple[tuple[str, Expression, Expression], ...], Clock | Event | None, tuple[str, ...]]
         ] = []
         self._laws: list[tuple[str, Support, Expression, Expression, tuple[str, ...]]] = []
         self._formulations: list[
@@ -1533,18 +1533,18 @@ class Component:
     def relation(
         self,
         name: str,
-        equality: Equation,
-        *additional_equalities: Equation,
+        condition: Equation | Inequality | Complementarity,
+        *additional_conditions: Equation | Inequality | Complementarity,
         on: Support | None = None,
         at: Clock | Event | None = None,
         doc: str | None = None,
     ) -> Relation:
-        """Declare simultaneous equalities owned by one Relation and activation."""
-        equalities = (equality, *additional_equalities)
+        """Declare ordered mathematical conditions owned by one Relation and activation."""
+        equalities = (condition, *additional_conditions)
         if len(equalities) > _MAX_DECLARATIONS:
-            raise ModuleError("relation exceeds the 256-equation limit")
-        if any(not isinstance(item, Equation) for item in equalities):
-            raise TypeError("relation requires equation(lhs, rhs)")
+            raise ModuleError("relation exceeds the 256-condition limit")
+        if any(not isinstance(item, (Equation, Inequality, Complementarity)) for item in equalities):
+            raise TypeError("relation requires equation(), inequality(), or complementarity()")
         at = self._activation(at)
         on = None if on is None else self._support(on)
         if isinstance(on, BoundarySet):
@@ -1564,15 +1564,16 @@ class Component:
                 raise ModuleError("relation expressions must belong to this Component")
             return expression
 
-        pairs = tuple((admit(item.lhs), admit(item.rhs)) for item in equalities)
+        pairs = tuple(("equality" if isinstance(item, Equation) else item._kind,
+                       admit(item.lhs), admit(item.rhs)) for item in equalities)
         doc_lines = _doc(doc)
         total_nodes = (
             sum(
                 left._nodes + right._nodes
-                for item in self._relations for left, right in item[2]
+                for item in self._relations for _, left, right in item[2]
             )
             + sum(sum(term._nodes for term in item[2:4]) for item in self._laws)
-            + sum(left._nodes + right._nodes for left, right in pairs)
+            + sum(left._nodes + right._nodes for _, left, right in pairs)
         )
         if total_nodes > _MAX_EXPRESSION_NODES:
             raise ModuleError(
@@ -1627,7 +1628,7 @@ class Component:
         total_nodes = (
             sum(
                 left._nodes + right._nodes
-                for item in self._relations for left, right in item[2]
+                for item in self._relations for _, left, right in item[2]
             )
             + sum(sum(term._nodes for term in item[2:4]) for item in self._laws)
             + left_expression._nodes
@@ -2461,6 +2462,7 @@ from ._connections import Connector, Port
 from . import _boundaries
 from ._boundaries import BoundarySet, BoundaryMember, BoundarySelectionSet, FieldConnector, FieldPort
 from . import _imports
+from ._constraints import Inequality, Complementarity, inequality, complementarity
 
 
 __all__ = [
@@ -2469,6 +2471,7 @@ __all__ = [
     "BoundarySelectionSet",
     "FieldConnector",
     "FieldPort",
+    "Inequality", "Complementarity", "inequality", "complementarity",
     "Connector",
     "Port",
     "Equation",

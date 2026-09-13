@@ -2,6 +2,8 @@
 
 from ._eqiora import (
     Linear,
+    ConstraintTolerance,
+    ActiveSet,
     AlgebraicPlanView,
     LinearSolver,
     Preconditioner,
@@ -18,6 +20,8 @@ Fast = SolverPlanningObjective.Fast
 LowMemory = SolverPlanningObjective.LowMemory
 
 __all__ = [
+    "ConstraintTolerance",
+    "ActiveSet",
     "SolverPlanningObjective",
     "Robust",
     "Fast",

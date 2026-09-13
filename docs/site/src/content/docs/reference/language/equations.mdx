@@ -22,6 +22,32 @@ zero can take the other side's dimension after expression admission; multiplying
 an invalid expression by zero does not make it admissible. A valid equation does
 not by itself establish that a numerical backend can solve it.
 
+## Inequalities and complementarity
+
+Conditions remain distinct from Boolean expressions and from their numerical enforcement:
+
+```eqi
+relation contact {
+  2[N/m] * gap - force = load;
+  complementarity(0[m] <= gap, force >= 0[N]);
+  inequality(gap <= 4[m]);
+}
+```
+
+`inequality(a <= b)` and `inequality(b >= a)` retain the same non-strict ordering. Their
+operands must be invariant real scalars with the same physical type and support.
+`complementarity(first, second)` requires two explicit nonnegativity predicates; the retained
+physical operands may have different dimensions, such as gap and force, but must share support.
+A bare operand, reversed sign, strict comparison, complex value or unsupported inclusion is
+rejected.
+
+The current executable profile is a finite, nonspatial affine active set. A Plan must name each
+constraint, give coherent-SI tolerances for its operands and bound complete branch enumeration.
+Execution checks the original Model conditions again after the linear backend succeeds and
+retains the measured operands and active/inactive state in the Result. It does not introduce an
+implicit penalty, clipping or smoothing. Spatial contact, friction, nonlinear constraints and
+other formulations remain separate capabilities.
+
 `derivative(x)` denotes the time derivative of an eligible continuous state, dividing its dimension by
 time. Spatial operators such as `grad`, `div`, `trace` and `normal` have separate
 support rules; the [continuum examples](/reference/standard-packages/continuum/)

@@ -3,8 +3,8 @@ import compileV2SchemaDocument from "../../crates/eqiora-api/schemas/compile-v2.
 
 export const CONTROL_PROTOCOL_V2 = "eqiora.control/v2" as const;
 export const COMPILE_COMMAND_V1 = "model.compile-check/v1" as const;
-export const CURRENT_MODEL_SCHEMA = "eqiora.model-envelope/v25" as const;
-export const CURRENT_MODEL_TRANSACTION_SCHEMA = "eqiora.model-transaction-envelope/v25" as const;
+export const CURRENT_MODEL_SCHEMA = "eqiora.model-envelope/v26" as const;
+export const CURRENT_MODEL_TRANSACTION_SCHEMA = "eqiora.model-transaction-envelope/v26" as const;
 
 const requestDefinition = compileV2SchemaDocument.$defs.request;
 const diagnosticDefinition = compileV2SchemaDocument.$defs.diagnostic;

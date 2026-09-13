@@ -25,6 +25,7 @@ use crate::realization::PyLinearSolveSummary;
 use crate::steady_stokes::PySteadyStokesEvidence;
 use crate::trajectory::{PyBoundaryFlux, PyBoundaryForce, PyState, PyTrajectory};
 
+mod constraints;
 mod field_output;
 mod observe;
 mod time_observe;
@@ -176,6 +177,12 @@ impl PyRunResult {
 
 #[pymethods]
 impl PyRunResult {
+    /// Independently evaluated original mathematical conditions with operand units.
+    #[getter]
+    fn constraints(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyTuple>> {
+        constraints::measurements(self, py)
+    }
+
     /// Evaluate at the accepted terminal State, independently of output cadence.
     fn observe_terminal(
         &self,
@@ -895,5 +902,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PySeries>()?;
     module.add_class::<PyFieldOutput>()?;
     module.add_class::<PyRunResult>()?;
+    module.add_class::<constraints::PyConstraintMeasurement>()?;
     Ok(())
 }

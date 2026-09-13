@@ -6,6 +6,14 @@ impl ExecutionPlan {
     pub(super) fn new(program: &KernelProgram) -> Result<Self, Diagnostic> {
         direct_assignments::validate_storage_budget(program)?;
         for node in program.nodes() {
+            if let KernelNode::Relation(relation) = node
+                && relation.has_constraints()
+            {
+                return Err(Diagnostic::error(
+                    codes::NOT_IMPLEMENTED,
+                    "inequalities and complementarity require an explicit finite constrained realization",
+                ));
+            }
             if let KernelNode::Parameter(parameter) = node
                 && !direct_assignments::supported_type(parameter.value_type())
                 && !(parameter.value_type().scalar_domain() == eqiora_core::ScalarDomain::Complex

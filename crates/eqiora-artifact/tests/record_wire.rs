@@ -142,7 +142,7 @@ fn closed_record_replay_retains_exact_order_types_and_membership() {
         .canonical_json()
         .unwrap();
     let mut displaced: Value = serde_json::from_slice(&transaction_wire).unwrap();
-    assert_eq!(displaced["schema"], "eqiora.model-transaction-envelope/v25");
+    assert_eq!(displaced["schema"], "eqiora.model-transaction-envelope/v26");
     displaced["schema"] = json!("eqiora.model-transaction-envelope/v21");
     assert!(
         ModelTransactionEnvelope::from_json(
@@ -164,7 +164,7 @@ fn closed_record_replay_retains_exact_order_types_and_membership() {
     );
     let original = wire(&program);
     assert_eq!(reopen(&original).unwrap(), program);
-    assert_eq!(original["schema"], "eqiora.model-envelope/v25");
+    assert_eq!(original["schema"], "eqiora.model-envelope/v26");
     let mut displaced = original.clone();
     displaced["schema"] = json!("eqiora.model-envelope/v21");
     assert!(reopen(&displaced).is_err());

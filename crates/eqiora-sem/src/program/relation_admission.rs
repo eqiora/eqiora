@@ -39,7 +39,9 @@ pub(super) fn validate_relations(
                 spatial_supports,
             },
             scope,
-            if relation.is_initial() {
+            if relation.has_constraints() {
+                RootContract::RelationOperands
+            } else if relation.is_initial() {
                 RootContract::InitialConditions
             } else {
                 RootContract::EquationSides

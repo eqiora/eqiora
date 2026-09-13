@@ -14,18 +14,19 @@ use conversions::{
     decode_shape, dimension_from_wire, dimension_to_wire, encode_shape, positive_usize, to_u64,
     to_usize,
 };
+pub(super) use validate::require_plan_solver;
 use validate::{
-    require_family, require_finite, require_finite_nonnegative, require_plan_solver,
-    require_reference_assembly, require_text, require_trajectory_family, validate_fields,
+    require_family, require_finite, require_finite_nonnegative, require_reference_assembly,
+    require_text, require_trajectory_family, validate_fields,
 };
 
-const SCHEMA: &str = "eqiora.common-result/v3";
+const SCHEMA: &str = "eqiora.common-result/v4";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 512 * 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireCommonResultV3 {
+struct WireCommonResultV4 {
     schema: String,
     encoding: String,
     identity: String,
@@ -61,6 +62,7 @@ enum WireResultPayload {
         solve: Box<WireSolve>,
         state_identity: String,
         reference_residual_norm: f64,
+        active_set_mask: Option<u32>,
     },
     Static {
         fields: Vec<WireField>,
@@ -236,7 +238,7 @@ struct WireFsiInterfaceAction {
 impl CommonResult {
     /// Encode all accepted Fields, observations, evidence, and Trajectory content canonically.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&WireCommonResultV3::from_result(self)?)
+        serde_json::to_vec(&WireCommonResultV4::from_result(self)?)
             .map_err(|error| invalid(format!("cannot encode common Result artifact: {error}")))
     }
 
@@ -248,7 +250,7 @@ impl CommonResult {
                 bytes.len()
             )));
         }
-        let wire: WireCommonResultV3 = serde_json::from_slice(bytes)
+        let wire: WireCommonResultV4 = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid common Result JSON: {error}")))?;
         if wire.schema != SCHEMA || wire.encoding != ENCODING {
             return Err(invalid("common Result has an unknown schema or encoding"));
@@ -263,7 +265,7 @@ impl CommonResult {
     }
 }
 
-impl WireCommonResultV3 {
+impl WireCommonResultV4 {
     fn from_result(result: &CommonResult) -> Result<Self, Diagnostic> {
         let content = WireResultContent::from_result(result)?;
         let identity = identity(&content)?;
@@ -304,11 +306,13 @@ impl WireResultContent {
                 solve,
                 state_identity,
                 reference_residual_norm,
+                assessment,
             } => WireResultPayload::Algebraic {
                 values: values.clone(),
                 solve: Box::new(WireSolve::from_solve(solve)?),
                 state_identity: state_identity.clone(),
                 reference_residual_norm: *reference_residual_norm,
+                active_set_mask: assessment.as_ref().map(|value| value.active_set_mask()),
             },
             CommonResultPayload::Static(payload) => WireResultPayload::Static {
                 fields: payload
@@ -347,17 +351,17 @@ impl WireResultContent {
                 solve,
                 state_identity,
                 reference_residual_norm,
+                active_set_mask,
             } => {
                 let native = plan
                     .as_algebraic()
                     .ok_or_else(|| invalid("finite Result requires finite Plan"))?;
                 let solve = solve.replay()?;
                 require_plan_solver(plan, &solve)?;
+                let (derived_norm, assessment) =
+                    native.validate_values(values, solve.residual_target(), *active_set_mask)?;
                 if state_identity != native.initial_state()?.identity()
-                    || native
-                        .validate_values(values, solve.residual_target())?
-                        .to_bits()
-                        != reference_residual_norm.to_bits()
+                    || derived_norm.to_bits() != reference_residual_norm.to_bits()
                 {
                     return Err(invalid(
                         "finite Result State or original residual evidence is inconsistent",
@@ -368,6 +372,7 @@ impl WireResultContent {
                     solve: Box::new(solve),
                     state_identity: state_identity.clone(),
                     reference_residual_norm: *reference_residual_norm,
+                    assessment,
                 }
             }
             WireResultPayload::Static {
@@ -888,7 +893,7 @@ fn identity(content: &WireResultContent) -> Result<String, Diagnostic> {
     let bytes = serde_json::to_vec(content)
         .map_err(|error| invalid(format!("cannot encode common Result identity: {error}")))?;
     Ok(
-        Sha256::digest([b"eqiora.common-result/v3\0".as_slice(), &bytes].concat())
+        Sha256::digest([b"eqiora.common-result/v4\0".as_slice(), &bytes].concat())
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect(),

@@ -1,7 +1,7 @@
 //! Relation declaration and natural-equation parsing.
 
 use crate::ast::{
-    ActivationSyntax, Equation, InitialDecl, RelationDecl, RelationFamilyDecl, TextRange,
+    ActivationSyntax, InitialDecl, RelationCondition, RelationDecl, RelationFamilyDecl, TextRange,
 };
 use crate::lexer::TokenKind;
 
@@ -18,7 +18,12 @@ impl Parser<'_> {
         self.expect(TokenKind::LeftBrace, "`{` before initialization equations")?;
         let mut equations = Vec::new();
         while !self.at(TokenKind::RightBrace) && !self.at(TokenKind::Eof) {
-            equations.push(self.parse_relation_statement()?);
+            let condition = self.parse_relation_statement()?;
+            if condition.kind() != eqiora_schema::kernel::RelationConditionKind::Equality {
+                self.error_here("initial blocks admit only equality conditions");
+                return None;
+            }
+            equations.push(condition);
         }
         if equations.is_empty() {
             self.error_here("initial requires at least one equation");
@@ -75,7 +80,7 @@ impl Parser<'_> {
             name,
             activation,
             domain,
-            body: crate::ast::RelationBody::Equations(equations),
+            body: crate::ast::RelationBody::Conditions(equations),
             range: TextRange::new(start, end),
         };
         let Some(binder) = binder else {
@@ -87,12 +92,24 @@ impl Parser<'_> {
         }))
     }
 
-    fn parse_relation_statement(&mut self) -> Option<Equation> {
+    fn parse_relation_statement(&mut self) -> Option<RelationCondition> {
+        if self.at_keyword("inequality") || self.at_keyword("complementarity") {
+            return self.parse_constraint_statement();
+        }
+        if self.at_keyword("inclusion") {
+            self.error_here("differential inclusions require an explicitly supported mathematical contract; no penalty substitution is available");
+            return None;
+        }
         let left = self.parse_expression(0)?;
         self.expect(TokenKind::Equal, "`=` after Relation left-hand expression")?;
         let right = self.parse_expression(0)?;
         self.expect(TokenKind::Semicolon, "`;` after equation")?;
         let range = TextRange::new(left.range().start(), right.range().end());
-        Some(Equation { left, right, range })
+        Some(RelationCondition {
+            kind: eqiora_schema::kernel::RelationConditionKind::Equality,
+            left,
+            right,
+            range,
+        })
     }
 }

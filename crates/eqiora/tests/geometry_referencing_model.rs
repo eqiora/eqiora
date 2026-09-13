@@ -141,12 +141,12 @@ fn geometry_identity_names_and_topology_are_fingerprint_meaning() {
         StructuralSemanticFingerprint::from_program(&baseline.program).unwrap();
     assert_eq!(
         baseline_fingerprint.generation(),
-        SemanticFingerprintGeneration::V20
+        SemanticFingerprintGeneration::V21
     );
     assert!(
         baseline_fingerprint
             .to_string()
-            .starts_with("eqiora.structural-semantic-fingerprint/v20:")
+            .starts_with("eqiora.structural-semantic-fingerprint/v21:")
     );
 
     let mut changed_digest = GeometryMeaning::default();

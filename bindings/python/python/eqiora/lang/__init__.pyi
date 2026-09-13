@@ -166,6 +166,48 @@ def equation(lhs: object, rhs: object) -> Equation:
     ...
 
 @final
+class Inequality:
+    """A non-strict mathematical condition with lhs greater than or equal to rhs.
+
+    Authority: ``bindings/python/python/eqiora/lang/_constraints.py::Inequality``.
+    """
+    def __init__(self, token: Never, lhs: Expression, rhs: Expression) -> None: ...
+
+    @property
+    def lhs(self) -> Expression: ...
+    @property
+    def rhs(self) -> Expression: ...
+    def __bool__(self) -> bool: ...
+
+@final
+class Complementarity:
+    """Two explicit nonnegativity predicates whose physical operands are complementary.
+
+    Authority: ``bindings/python/python/eqiora/lang/_constraints.py::Complementarity``.
+    """
+    def __init__(self, token: Never, lhs: Expression, rhs: Expression) -> None: ...
+
+    @property
+    def lhs(self) -> Expression: ...
+    @property
+    def rhs(self) -> Expression: ...
+    def __bool__(self) -> bool: ...
+
+def inequality(lhs: object, rhs: object) -> Inequality:
+    """Require lhs >= rhs with an explicit, separate numerical enforcement policy.
+
+    Authority: ``bindings/python/python/eqiora/lang/_constraints.py::inequality``.
+    """
+    ...
+
+def complementarity(left: Expression, right: Expression) -> Complementarity:
+    """Require two explicit nonnegative predicates with at least one operand zero.
+
+    Authority: ``bindings/python/python/eqiora/lang/_constraints.py::complementarity``.
+    """
+    ...
+
+@final
 class Event:
     """Identify a crossing event in its exact Component.
 
@@ -406,8 +448,8 @@ class Component:
     def relation(
         self,
         name: str,
-        equality: Equation,
-        *additional_equalities: Equation,
+        condition: Equation | Inequality | Complementarity,
+        *additional_conditions: Equation | Inequality | Complementarity,
         on: Support | None = None,
         at: Clock | Event | None = None,
         doc: str | None = None,
@@ -850,6 +892,7 @@ def quantity(value: int | float | Decimal, unit: Unit) -> Expression:
     ...
 
 __all__ = [
+    "Inequality", "Complementarity", "inequality", "complementarity",
     "equal",
     "not_equal",
     "less",

@@ -32,7 +32,7 @@ pub(in crate::hierarchy::body_check) fn validate_relation_expression(
             "Activation syntax is newer than definition-body validation",
         )),
     }
-    let conditions = declaration.equations();
+    let conditions = declaration.conditions();
     if conditions.is_some_and(|conditions| conditions.is_empty()) {
         diagnostics.push(source_error(
             codes::LANGUAGE_LOWERING_ERROR,
@@ -117,7 +117,7 @@ pub(in crate::hierarchy::body_check) fn validate_relation_family_expression(
             "boundary Relation family support must name its binder member",
         ));
     }
-    let conditions = relation.equations().ok_or_else(|| {
+    let conditions = relation.conditions().ok_or_else(|| {
         vec![source_error(
             codes::LANGUAGE_TYPE_ERROR,
             scope.file,

@@ -44,7 +44,7 @@ pub(super) fn relation(
 ) -> Result<RelationDecl, Diagnostic> {
     let declaration = family.relation();
     let equations = declaration
-        .equations()
+        .conditions()
         .ok_or_else(|| {
             super::super::hierarchy_error("indexed Laws require retained term lowering")
         })?
@@ -62,7 +62,7 @@ pub(super) fn relation(
                 family.binder(),
                 ordinal,
             )?;
-            SourceAstFactory::equation(left, right, equation.range())
+            SourceAstFactory::condition(equation.kind(), left, right, equation.range())
                 .map_err(|error| construction(file, family.range(), error))
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;

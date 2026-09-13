@@ -8,6 +8,7 @@ mod comments;
 mod compile_time;
 mod component;
 mod connection;
+mod constraint;
 mod dimension;
 mod document;
 mod domain;
@@ -134,7 +135,7 @@ impl ParseResult {
 #[must_use]
 pub fn parse(file: impl Into<String>, source: &str) -> ParseResult {
     let file = file.into();
-    let (tokens, mut diagnostics) = lex(file.clone(), source).into_parts();
+    let (tokens, mut diagnostics) = lex(file.clone(), source);
     let mut parser = Parser {
         file: file.clone(),
         tokens: &tokens,

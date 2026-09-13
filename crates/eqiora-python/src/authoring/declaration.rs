@@ -1,6 +1,7 @@
 //! Immutable typed declaration construction over the source AST factory.
 
 use eqiora::kernel::EventDirection;
+use eqiora::kernel::RelationConditionKind;
 use eqiora::language::{
     ActivationSyntax, ComponentItem, FieldRoleSyntax, SignatureItem, SourceAstFactory as Ast,
     SupportSlotSyntax, TextRange, ValueTypeSyntax, VisibilitySyntax,
@@ -82,10 +83,14 @@ impl PyAstDeclaration {
         name: String,
         member: String,
         set: String,
-        equations: Vec<(PyRef<'_, PyAstExpression>, PyRef<'_, PyAstExpression>)>,
+        conditions: Vec<(
+            String,
+            PyRef<'_, PyAstExpression>,
+            PyRef<'_, PyAstExpression>,
+        )>,
         ordinal: u32,
     ) -> PyResult<Self> {
-        super::boundaries::relation(name, member, set, equations, ordinal)
+        super::boundaries::relation(name, member, set, conditions, ordinal)
     }
 
     #[staticmethod]
@@ -277,17 +282,28 @@ impl PyAstDeclaration {
         name: String,
         support: Option<String>,
         clock: Option<String>,
-        equations: Vec<(PyRef<'_, PyAstExpression>, PyRef<'_, PyAstExpression>)>,
+        equations: Vec<(
+            String,
+            PyRef<'_, PyAstExpression>,
+            PyRef<'_, PyAstExpression>,
+        )>,
         ordinal: u32,
     ) -> PyResult<Self> {
         if equations.len() > 256 {
-            return Err(syntax_error("relation exceeds the 256-equation limit"));
+            return Err(syntax_error("relation exceeds the 256-condition limit"));
         }
         let range = range(ordinal);
         let equations = equations
             .into_iter()
-            .map(|(left, right)| {
-                Ast::equation(left.value.clone(), right.value.clone(), range).map_err(syntax_error)
+            .map(|(kind, left, right)| {
+                let kind = match kind.as_str() {
+                    "equality" => RelationConditionKind::Equality,
+                    "inequality" => RelationConditionKind::Inequality,
+                    "complementarity" => RelationConditionKind::Complementarity,
+                    _ => return Err(syntax_error("unknown mathematical condition kind")),
+                };
+                Ast::condition(kind, left.value.clone(), right.value.clone(), range)
+                    .map_err(syntax_error)
             })
             .collect::<PyResult<_>>()?;
         Ok(Self {

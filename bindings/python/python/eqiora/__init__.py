@@ -88,6 +88,8 @@ from ._eqiora import (
     Parameter,
     Observable,
     ObservableRef,
+    ConstraintRef,
+    ConstraintMeasurement,
     Observation,
     TrajectoryObservation,
     ObservableStateTangent,
@@ -238,6 +240,8 @@ __all__ = [
     "Parameter",
     "Observable",
     "ObservableRef",
+    "ConstraintRef",
+    "ConstraintMeasurement",
     "Observation",
     "TrajectoryObservation",
     "ObservableStateTangent",
@@ -373,6 +377,7 @@ def resolve(
     solve: solve.Linear | solve.Newton | None = None,
     scaling=None,
     temporal=None,
+    enforcement=None,
 ) -> Plan:
     """Resolve an exact Model and caller-owned Mesh into an immutable common Plan."""
 
@@ -384,6 +389,7 @@ def resolve(
         solve=solve,
         scaling=scaling,
         temporal=temporal,
+        enforcement=enforcement,
     )
 
 

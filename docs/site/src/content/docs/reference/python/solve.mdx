@@ -13,6 +13,49 @@ Linear and nonlinear solver policies.
 
 <ExactSourceLink path="bindings/python/python/eqiora/solve.pyi" kind="blob">View source</ExactSourceLink>
 
+<a id="api-eqiora-solve-ConstraintTolerance"></a>
+
+## `ConstraintTolerance`
+
+Explicit absolute operand tolerances carrying physical dimensions.
+
+```python
+@final
+class ConstraintTolerance:
+    @staticmethod
+    def inequality(reference: ConstraintRef, value: float, dimension: Dimension) -> ConstraintTolerance: ...
+    @staticmethod
+    def complementarity(reference: ConstraintRef, left_value: float, left_dimension: Dimension, right_value: float, right_dimension: Dimension) -> ConstraintTolerance: ...
+    @property
+    def reference(self) -> ConstraintRef: ...
+    @property
+    def left_value(self) -> float: ...
+    @property
+    def left_dimension(self) -> Dimension: ...
+    @property
+    def right_value(self) -> float | None: ...
+    @property
+    def right_dimension(self) -> Dimension | None: ...
+```
+
+<a id="api-eqiora-solve-ActiveSet"></a>
+
+## `ActiveSet`
+
+Bounded finite affine active-set realization; Model meaning is unchanged.
+
+```python
+@final
+class ActiveSet:
+    def __new__(cls, *, tolerances: tuple[ConstraintTolerance, ...], max_active_sets: int) -> Self: ...
+    @property
+    def tolerances(self) -> tuple[ConstraintTolerance, ...]: ...
+    @property
+    def model_digest(self) -> str: ...
+    @property
+    def max_active_sets(self) -> int: ...
+```
+
 <a id="api-eqiora-solve-SolverPlanningObjective"></a>
 
 ## `SolverPlanningObjective`

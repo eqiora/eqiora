@@ -314,7 +314,7 @@ model decay() {
     fn ordinary_python_authoring_and_replay_use_the_current_contract() {
         let document = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
         let bytes = document.canonical_json().unwrap();
-        assert!(String::from_utf8_lossy(&bytes).contains("eqiora.model-envelope/v25"));
+        assert!(String::from_utf8_lossy(&bytes).contains("eqiora.model-envelope/v26"));
         let replayed = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(replayed.canonical_json().unwrap(), bytes);
         assert_eq!(replayed.digest().unwrap(), document.digest().unwrap());

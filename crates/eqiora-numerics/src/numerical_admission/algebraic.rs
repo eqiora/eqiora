@@ -1,19 +1,22 @@
-//! Exact no-Mesh lifecycle for a finite scalar affine physical closure.
+//! Exact no-Mesh lifecycle for admitted finite algebraic mathematics.
 
 use super::*;
+mod problem;
+use crate::finite_constraints::{ConstraintAssessment, FiniteConstraintEnforcement};
 use crate::physical_network::{
     ScalarPhysicalAffineProblem, lower_scalar_physical_affine, solve_scalar_physical_affine,
 };
 use eqiora_schema::kernel::{KernelNode, SymbolRef};
 use eqiora_sem::PhysicalUnknown;
 use eqiora_solver::{FixedOrderInnerProduct, ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION};
+use problem::AlgebraicProblem;
 
-/// One exact finite scalar physical Model and its admitted linear policy.
+/// One exact finite algebraic Model and its explicit numerical realization.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonAlgebraicPlan {
     model: Arc<ModelEnvelope>,
     kernel: KernelProgram,
-    problem: ScalarPhysicalAffineProblem,
+    problem: AlgebraicProblem,
     pub(super) linear: NativeLinearPolicy,
     symbols: Vec<SymbolRef>,
     dimensions: Vec<DimExponents>,
@@ -67,6 +70,7 @@ impl CommonAlgebraicPlan {
     pub fn resolve(
         model: &ModelEnvelope,
         solve: CommonSolvePolicy,
+        enforcement: Option<FiniteConstraintEnforcement>,
         backend: &dyn LinearSolverBackend,
     ) -> Result<Self, Diagnostic> {
         let CommonSolvePolicy::Linear(request) = solve else {
@@ -78,58 +82,11 @@ impl CommonAlgebraicPlan {
                 .next()
                 .unwrap_or_else(|| invalid("finite Model replay failed"))
         })?;
-        if kernel.nodes().any(|node| {
-            matches!(node, KernelNode::Field(_) | KernelNode::ClockDomain(_))
-                || matches!(node, KernelNode::Port(port) if port.signal_contract().is_some())
-        }) {
-            return Err(invalid(
-                "finite physical Plan does not admit unresolved Fields or clocked/signal execution",
-            ));
-        }
+        let problem = AlgebraicProblem::admit(&kernel, enforcement)?;
+        let symbols = problem.symbols();
+        let dimensions = problem.dimensions();
         if request.objective().is_some() {
-            return Err(invalid(
-                "finite affine Plan requires an exact SparseLU/Identity/Fast request",
-            ));
-        }
-        let connection = kernel
-            .nodes()
-            .filter_map(|node| match node {
-                KernelNode::Connection(value) => Some(value.id()),
-                _ => None,
-            })
-            .min_by_key(|id| id.ulid())
-            .ok_or_else(|| invalid("finite physical Plan requires a conserving Connection"))?;
-        let problem = lower_scalar_physical_affine(&kernel, connection, None)?;
-        let composed = problem.composed_system();
-        let symbols = composed
-            .unknowns()
-            .iter()
-            .map(|unknown| match unknown {
-                PhysicalUnknown::Across(port) => SymbolRef::Across(*port),
-                PhysicalUnknown::Through(port) => SymbolRef::Through(*port),
-            })
-            .collect();
-        let dimensions = composed
-            .unknown_types()
-            .iter()
-            .map(|value| value.dimension())
-            .collect();
-        let physical_ports = kernel
-            .nodes()
-            .filter(
-                |node| matches!(node, KernelNode::Port(port) if port.physical_domain().is_some()),
-            )
-            .count();
-        let relation_count = kernel
-            .nodes()
-            .filter(|node| matches!(node, KernelNode::Relation(_)))
-            .count();
-        if physical_ports * 2 != composed.unknowns().len()
-            || relation_count != composed.relations().len()
-        {
-            return Err(invalid(
-                "finite Plan requires one complete connected physical closure with no omitted Relations",
-            ));
+            return Err(invalid("finite affine Plan requires exact linear controls"));
         }
         let linear = solver_planning::resolve_linear(
             request,
@@ -150,7 +107,11 @@ impl CommonAlgebraicPlan {
         let model_digest = reference.artifact().to_string();
         let mut bytes = model_digest.as_bytes().to_vec();
         push_framed(&mut bytes, &plan_artifact::linear_intent_bytes(request)?);
-        let identity = finite_digest(b"eqiora.common-algebraic-plan/v2\0", &bytes);
+        push_framed(
+            &mut bytes,
+            &super::plan_artifact::finite_enforcement_bytes(problem.enforcement())?,
+        );
+        let identity = finite_digest(b"eqiora.common-algebraic-plan/v3\0", &bytes);
         Ok(Self {
             model: Arc::new(model.clone()),
             kernel,
@@ -204,6 +165,11 @@ impl CommonAlgebraicPlan {
     pub const fn linear(&self) -> SolverPlan {
         self.linear.solver
     }
+    /// Explicit mathematical enforcement retained by this numerical Plan.
+    #[must_use]
+    pub fn enforcement(&self) -> Option<&FiniteConstraintEnforcement> {
+        self.problem.enforcement()
+    }
     pub fn initial_state(&self) -> Result<CommonAlgebraicState, Diagnostic> {
         let values = vec![0.0; self.symbols.len()];
         Ok(CommonAlgebraicState {
@@ -225,34 +191,27 @@ impl CommonAlgebraicPlan {
                 "finite Run requires its exact Plan-bound State and admitted provider",
             ));
         }
-        let checked_backend = self.linear.checked_backend(backend)?;
-        let solution = solve_scalar_physical_affine(
-            &self.problem,
+        let checked = self.linear.checked_backend(backend)?;
+        let solution = self.problem.solve(
             &state.values,
-            LinearSolveRequest::new(&checked_backend, self.linear.solver),
+            LinearSolveRequest::new(&checked, self.linear.solver),
         )?;
-        crate::CommonResult::from_algebraic(self, state, &solution)
+        crate::CommonResult::from_algebraic(
+            self,
+            state,
+            solution.values,
+            solution.report,
+            solution.active_set_mask,
+        )
     }
-    pub(crate) fn validate_values(&self, values: &[f64], target: f64) -> Result<f64, Diagnostic> {
-        let rhs = self.problem.canonical_system().right_hand_side();
-        let rhs_norm = SERIAL_LINEAR_EXECUTION
-            .inner_product(FixedOrderInnerProduct::new(rhs, rhs)?)?
-            .sqrt();
-        if self.linear.solver.residual_target(rhs_norm)?.to_bits() != target.to_bits() {
-            return Err(invalid(
-                "finite Result target differs from exact original right-hand side",
-            ));
-        }
-        let residuals = self.problem.reference_residuals(values)?;
-        let norm = SERIAL_LINEAR_EXECUTION
-            .inner_product(FixedOrderInnerProduct::new(&residuals, &residuals)?)?
-            .sqrt();
-        if !norm.is_finite() || norm > target {
-            return Err(invalid(
-                "finite Result original semantic residual exceeds acceptance target",
-            ));
-        }
-        Ok(norm)
+    pub(crate) fn validate_values(
+        &self,
+        values: &[f64],
+        target: f64,
+        mask: Option<u32>,
+    ) -> Result<(f64, Option<ConstraintAssessment>), Diagnostic> {
+        self.problem
+            .validate_values(values, self.linear.solver, target, mask)
     }
 }
 

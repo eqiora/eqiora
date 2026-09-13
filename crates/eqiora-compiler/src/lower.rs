@@ -13,8 +13,10 @@ use std::sync::Arc;
 mod binding;
 mod connection;
 mod declaration;
+mod diagnostics;
 mod domain;
 mod domain_contract;
+use diagnostics::{normalize_zero, unresolved};
 mod expression;
 pub(crate) use expression::partial_result_type;
 mod external;
@@ -36,6 +38,7 @@ use declaration::lower_port;
 pub(crate) use domain_contract::{LoweringDomainContract, LoweringPortContract};
 mod relation_body;
 pub(crate) use relation_body::LoweringRelationBody;
+pub(crate) mod constraints;
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
@@ -811,7 +814,14 @@ pub(crate) fn lower_typed_model(
                         } else if *initial {
                             RelationDef::initial(relation, lowered.expression)
                         } else {
-                            RelationDef::new(relation, lowered.expression)
+                            let LoweringRelationBody::Equations(conditions) = body else {
+                                unreachable!("Law lowering retains conservation terms");
+                            };
+                            RelationDef::with_conditions(
+                                relation,
+                                lowered.expression,
+                                conditions.iter().map(|condition| condition.kind).collect(),
+                            )
                         }?
                         .into(),
                     );
@@ -981,17 +991,4 @@ pub(crate) fn lower_typed_model(
         physical_exposures: PhysicalExposureProjectionMap::default(),
         authored_formulations: Vec::new(),
     })
-}
-
-fn unresolved(file: &str, range: TextRange, name: &str, expected: &str) -> Diagnostic {
-    source_error(
-        codes::LANGUAGE_TYPE_ERROR,
-        file,
-        range,
-        format!("unresolved {expected} `{name}`"),
-    )
-}
-
-fn normalize_zero(value: f64) -> f64 {
-    if value == 0.0 { 0.0 } else { value }
 }

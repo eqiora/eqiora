@@ -121,7 +121,7 @@ fn relation(
     visit: &mut impl FnMut(Option<&str>, &mut Expr),
 ) {
     match &mut value.body {
-        crate::RelationBody::Equations(values) => equations(scope, values, visit),
+        crate::RelationBody::Conditions(values) => equations(scope, values, visit),
         crate::RelationBody::Conservation(law) => {
             expression(scope, &mut law.flux, visit);
             expression(scope, &mut law.source, visit);
@@ -130,7 +130,7 @@ fn relation(
 }
 fn equations(
     scope: Option<&str>,
-    values: &mut [crate::Equation],
+    values: &mut [crate::RelationCondition],
     visit: &mut impl FnMut(Option<&str>, &mut Expr),
 ) {
     for equation in values {

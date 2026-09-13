@@ -17,6 +17,8 @@ The [ion-transport specimen](ion-transport.md) combines species identity, molar 
 
 The [calculus and branching rules](calculus.md) include the foundation audit's explicit
 partials, continuous time, second-order oscillator, and piecewise constitutive examples.
+The [finite constraint rules](constraints.md) define equality, ordered inequality and
+complementarity meaning separately from numerical enforcement.
 The [coordinate and measure rules](coordinates.md) specify product supports and partial integrals.
 The [tensor and local-map rules](tensors.md) include the rank-four constitutive specimen.
 The [numeric catalog](numeric-catalog.md) defines exact integers and bounded scalar operations.

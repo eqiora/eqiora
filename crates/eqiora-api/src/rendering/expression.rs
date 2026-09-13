@@ -14,7 +14,8 @@ impl ModelDocument {
     /// Render the admitted, ordered left/right equations of one exact Relation.
     ///
     /// # Errors
-    /// Rejects a non-Relation ID or an expression exceeding presentation limits.
+    /// Rejects a non-Relation ID, a constrained Relation, or an expression exceeding
+    /// presentation limits.
     pub fn render_equations(
         &self,
         relation: RawId,
@@ -25,6 +26,11 @@ impl ModelDocument {
                 "mathematical rendering requires an exact Relation ID",
             ));
         };
+        if relation.has_constraints() {
+            return Err(failure(
+                "equation rendering does not admit inequality or complementarity conditions",
+            ));
+        }
         relation
             .equation_sides()
             .map(|(left, right)| {

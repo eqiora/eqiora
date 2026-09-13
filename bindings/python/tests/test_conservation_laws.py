@@ -81,6 +81,20 @@ def test_law_rejects_foreign_terms_and_boundary_support_before_mutating_draft():
     assert module.to_eqi().count("law balance") == 1
 
 
+def test_component_relation_before_law_preserves_both_authoring_paths():
+    module = eqiora.Module("mixed_relation_law")
+    component = module.component("Balance")
+    body = component.volume("body", dimensions=1)
+    boundary = component.boundary("left", parent=body)
+    value = component.field("value", on=body, role=eqiora.FieldRole.Variable,
+                            value_type=eqiora.ValueType.real())
+    component.relation("trace", q.equation(q.trace(value), 0), on=boundary)
+    component.law("balance", on=body, flux=-q.grad(value), source=0)
+    text = module.to_eqi()
+    assert "relation trace on left" in text
+    assert "law balance on body" in text
+
+
 def test_steady_law_model_replay_executes_with_exact_geometry_admission():
     import numpy as np
     from test_external_geometry_round_trip import bindings, execute, interval

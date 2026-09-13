@@ -7,8 +7,8 @@ use eqiora_core::GraphPath;
 
 use super::{DraftDeclaration, connection_path, value_type};
 use crate::ast::{
-    ActivationSyntax, ConnectionDecl, ConnectionSyntax, DomainDecl, DomainSyntax, Equation, Expr,
-    ExprKind, FieldDecl, Item, ModelDecl, NamePath, ParameterDecl, PortDecl, PortSyntax,
+    ActivationSyntax, ConnectionDecl, ConnectionSyntax, DomainDecl, DomainSyntax, Expr, ExprKind,
+    FieldDecl, Item, ModelDecl, NamePath, ParameterDecl, PortDecl, PortSyntax, RelationCondition,
     RelationDecl, TextRange, VisibilitySyntax,
 };
 
@@ -207,7 +207,7 @@ impl super::ModelDeclarations {
                         .domain
                         .as_ref()
                         .map(|domain| domain.name().to_owned()),
-                    body: crate::ast::RelationBody::Equations(
+                    body: crate::ast::RelationBody::Conditions(
                         relation
                             .equations
                             .iter()
@@ -231,7 +231,12 @@ impl super::ModelDeclarations {
                                     )
                                     .expect("validated native expression scope");
                                 let range = left.range();
-                                Equation { left, right, range }
+                                RelationCondition {
+                                    kind: eqiora_schema::kernel::RelationConditionKind::Equality,
+                                    left,
+                                    right,
+                                    range,
+                                }
                             })
                             .collect(),
                     ),
@@ -261,7 +266,12 @@ impl super::ModelDeclarations {
                                 )
                                 .expect("validated native expression scope");
                             let range = left.range();
-                            Equation { left, right, range }
+                            RelationCondition {
+                                kind: eqiora_schema::kernel::RelationConditionKind::Equality,
+                                left,
+                                right,
+                                range,
+                            }
                         })
                         .collect(),
                     range,

@@ -192,6 +192,12 @@ fn enum_reopen_rejects_numeric_spellings_and_wrong_nominal_profiles() {
         .as_array_mut()
         .unwrap()
         .drain(..2);
+    // Removing an equality also removes its descriptor; keep the nominal-literal
+    // falsifier focused on unreachable expression payload admission.
+    relation["definition"]["meaning"]["conditions"]
+        .as_array_mut()
+        .unwrap()
+        .remove(0);
     let unused = ModelEnvelope::from_json(
         &serde_json::to_vec(&original).unwrap(),
         ModelDecoderLimits::default(),

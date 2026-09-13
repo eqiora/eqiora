@@ -1364,7 +1364,7 @@ assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
-`eqiora.model-envelope/v25` schema, but callers do not select that suffix.
+`eqiora.model-envelope/v26` schema, but callers do not select that suffix.
 `.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
 Only the current schema is accepted; decoding never sniffs, retries, or silently
 migrates an older artifact.
@@ -1423,3 +1423,77 @@ Integer inputs retain their decimal digits. Float inputs use Python's shortest
 round-trip decimal spelling; this is a source-authoring policy, not a claim of
 exact binary-ratio rescaling. Native numerical inputs remain binary64 values in
 coherent SI. Quantity literal spellings are limited to 256 bytes.
+
+
+## Finite inequalities and complementarity
+
+`eqiora.lang.inequality(left, right)` declares `left >= right`. A Boolean
+comparison remains an expression and cannot stand in for a Relation condition.
+`eqiora.lang.complementarity` takes two explicit nonnegativity predicates. Its
+operands can have different dimensions, such as gap in metres and force in newtons:
+
+```python
+import eqiora
+
+q = eqiora.lang
+length = eqiora.Dimension(length=1)
+force_unit = eqiora.Dimension(mass=1, length=1, time=-2)
+source = eqiora.Module("main")
+component = source.model("Contact")
+gap = component.field("gap", value_type=eqiora.ValueType.real(length),
+                      role=eqiora.FieldRole.Variable)
+force = component.field("force", value_type=eqiora.ValueType.real(force_unit),
+                        role=eqiora.FieldRole.Variable)
+component.relation(
+    "contact",
+    q.equation(q.quantity(2, eqiora.units.N / eqiora.units.m) * gap - force,
+               q.quantity(-6, eqiora.units.N)),
+    q.complementarity(q.greater_equal(gap, q.quantity(0, eqiora.units.m)),
+                      q.greater_equal(force, q.quantity(0, eqiora.units.N))),
+)
+model = eqiora.compile(source=source, entry="Contact")
+reference = model.constraint("contact", 1)
+enforcement = eqiora.solve.ActiveSet(
+    tolerances=(eqiora.solve.ConstraintTolerance.complementarity(
+        reference, 1e-10, length, 1e-10, force_unit,
+    ),),
+    max_active_sets=2,
+)
+linear = eqiora.solve.Linear(
+    relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=8,
+    algorithm=eqiora.solve.LinearSolver.SparseLu,
+    preconditioner=eqiora.solve.Preconditioner.Identity,
+    reduction=eqiora.solve.Reduction.Fast,
+    provider=eqiora.solve.SolverProvider.faer(),
+)
+plan = eqiora.resolve(model, solve=linear, enforcement=enforcement)
+result = eqiora.run(plan, state=eqiora.State.initial(plan))
+receipt = result.constraints[0]
+assert receipt.activity == "active"
+assert abs(receipt.left_value) <= receipt.left_tolerance
+assert abs(receipt.right_value - 6) <= receipt.right_tolerance
+```
+
+Here `2 gap - force = -6`, so the admissible solution is zero gap and 6 N force.
+Changing the load to +6 N gives gap 3 m and zero force, the inactive branch.
+Both operands must be nonnegative within their respective declared tolerances;
+at least one must be zero within its own tolerance. “Biactive” means both meet
+that zero test. These are bounded numerical acceptance statements, not a claim
+of exact satisfaction. Each inequality also requires its own dimensioned
+`ConstraintTolerance.inequality(reference, value, dimension)`.
+
+The Model retains the mathematical conditions. The Plan separately retains the
+explicit active-set algorithm, operand tolerances, search bound and linear solver
+provider. Results expose original operand values, dimensions and activity.
+Plan, State and Result replay preserve their exact ownership. Result replay
+reevaluates the original expressions and selected branch rather than trusting a
+persisted mask, solver success or claimed residual target.
+
+This profile admits static affine real scalar Fields without spatial support,
+with at most 256 unknowns, 16 complementarity pairs and 65,536 candidate sets.
+The number of equalities plus complementarity pairs must equal the number of
+unknowns. Every operand must be affine, including inactive branches. Mixed
+conserving Ports and Fields, spatial or dynamic enforcement, nonlinear contact,
+friction, inclusions and regularized penalties are unsupported. Missing or
+wrong-unit tolerances, omitted nonnegativity and reversed nonnegativity signs
+are errors. Equality-only mathematical rendering rejects constrained Relations.

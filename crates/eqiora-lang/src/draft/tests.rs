@@ -342,9 +342,9 @@ fn physical_vocabulary_projects_only_to_existing_source_ast_forms() {
     let Item::Relation(relation) = &items[4] else {
         panic!("fifth item must be a Relation");
     };
-    assert_eq!(relation.equations().unwrap().len(), 2);
+    assert_eq!(relation.conditions().unwrap().len(), 2);
     let mut quantities = std::collections::BTreeSet::new();
-    for equation in relation.equations().unwrap() {
+    for equation in relation.conditions().unwrap() {
         let _ = equation.left().rewrite_name_paths(|path| {
             quantities.insert(path.as_str().to_owned());
             None
@@ -666,11 +666,11 @@ fn spatial_draft_projects_only_to_existing_source_ast_forms() {
     };
     assert_eq!(relation.domain(), Some("interval"));
     assert!(expression_contains_call(
-        relation.equations().unwrap()[0].left(),
+        relation.conditions().unwrap()[0].left(),
         "grad"
     ));
     assert!(expression_contains_call(
-        relation.equations().unwrap()[0].left(),
+        relation.conditions().unwrap()[0].left(),
         "div"
     ));
 }

@@ -1193,6 +1193,7 @@ class Model:
     def parameter(self, selection: str) -> ParameterRef: ...
     def field(self, selection: str) -> FieldRef: ...
     def observable(self, selection: str) -> ObservableRef: ...
+    def constraint(self, selection: str, ordinal: int) -> ConstraintRef: ...
     def domain(self, selection: str) -> DomainRef: ...
     def notation_labels(self, profile: Literal['latex', 'mathml', 'unicode', 'plain', 'speech']='latex', *, identities: Sequence[str] | None=None) -> tuple[QuantityLabel, ...]: ...
     def render_equations(self, relation: str, profile: Literal['latex', 'mathml', 'unicode', 'plain', 'speech']='latex') -> tuple[MathRendering, ...]: ...
@@ -1329,6 +1330,54 @@ class ObservableRef:
     def id(self) -> str: ...
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
+```
+
+<a id="api-eqiora-ConstraintRef"></a>
+
+### `eqiora.ConstraintRef`
+
+One exact Model-owned mathematical inequality or complementarity condition.
+
+```python
+@final
+class ConstraintRef:
+    @property
+    def model_digest(self) -> str: ...
+    @property
+    def relation_id(self) -> str: ...
+    @property
+    def ordinal(self) -> int: ...
+    @property
+    def kind(self) -> Literal['inequality', 'complementarity']: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
+<a id="api-eqiora-ConstraintMeasurement"></a>
+
+### `eqiora.ConstraintMeasurement`
+
+Independently evaluated original operands, their units, and accepted activity.
+
+```python
+@final
+class ConstraintMeasurement:
+    @property
+    def reference(self) -> ConstraintRef: ...
+    @property
+    def activity(self) -> Literal['active', 'inactive', 'biactive', 'inequality']: ...
+    @property
+    def left_value(self) -> float: ...
+    @property
+    def right_value(self) -> float: ...
+    @property
+    def left_dimension(self) -> Dimension: ...
+    @property
+    def right_dimension(self) -> Dimension: ...
+    @property
+    def left_tolerance(self) -> float: ...
+    @property
+    def right_tolerance(self) -> float | None: ...
 ```
 
 <a id="api-eqiora-Observation"></a>
@@ -1556,6 +1605,8 @@ capability-specific field roles and policies through one closed typed view;
 ```python
 @final
 class Plan:
+    @property
+    def enforcement(self) -> solve.ActiveSet | None: ...
     @staticmethod
     def from_bytes(data: bytes) -> Plan: ...
     @staticmethod
@@ -1663,6 +1714,8 @@ Accepted execution occurrence with typed output relationships.
 ```python
 @final
 class Result:
+    @property
+    def constraints(self) -> tuple[ConstraintMeasurement, ...]: ...
     @property
     def model_id(self) -> str: ...
     @property
@@ -2153,7 +2206,7 @@ resource. Spatial paths retain their exact Mesh without regeneration;
 structural no-Mesh ODE paths reject spatial resources.
 
 ```python
-def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, formulation: FormulationKind | None=None, solve: solve.Linear | solve.Newton | None=None, scaling: fluid.IncompressibleScaling | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | None=None) -> Plan: ...
+def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, formulation: FormulationKind | None=None, solve: solve.Linear | solve.Newton | None=None, scaling: fluid.IncompressibleScaling | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | None=None, enforcement: solve.ActiveSet | None=None) -> Plan: ...
 ```
 
 <a id="api-eqiora-ProjectUpdate"></a>
@@ -2673,6 +2726,60 @@ Author Eqiora Modules, Components, expressions, and equations in Python.
 
 [View source](../../bindings/python/python/eqiora/lang/__init__.pyi)
 
+<a id="api-eqiora-lang-Inequality"></a>
+
+### `eqiora.lang.Inequality`
+
+A non-strict mathematical condition with lhs greater than or equal to rhs.
+
+```python
+@final
+class Inequality:
+    def __init__(self, token: Never, lhs: Expression, rhs: Expression) -> None: ...
+    @property
+    def lhs(self) -> Expression: ...
+    @property
+    def rhs(self) -> Expression: ...
+    def __bool__(self) -> bool: ...
+```
+
+<a id="api-eqiora-lang-Complementarity"></a>
+
+### `eqiora.lang.Complementarity`
+
+Two explicit nonnegativity predicates whose physical operands are complementary.
+
+```python
+@final
+class Complementarity:
+    def __init__(self, token: Never, lhs: Expression, rhs: Expression) -> None: ...
+    @property
+    def lhs(self) -> Expression: ...
+    @property
+    def rhs(self) -> Expression: ...
+    def __bool__(self) -> bool: ...
+```
+
+<a id="api-eqiora-lang-inequality"></a>
+
+### `eqiora.lang.inequality`
+
+Require lhs >= rhs with an explicit, separate numerical enforcement policy.
+
+```python
+def inequality(lhs: object, rhs: object) -> Inequality: ...
+```
+
+<a id="api-eqiora-lang-complementarity"></a>
+
+### `eqiora.lang.complementarity`
+
+Require two explicit nonnegative predicates with at least one operand zero.
+
+```python
+def complementarity(left: Expression, right: Expression) -> Complementarity: ...
+```
+
 <a id="api-eqiora-lang-equal"></a>
 
 ### `eqiora.lang.equal`
@@ -2811,7 +2918,7 @@ class Component:
     @overload
     def field(self, name: str, *, on: Support | None=None, value_type: ValueType, role: FieldRole, at: Clock | None=None, doc: str | None=None) -> Expression: ...
     def observable(self, name: str, expression: Expression | int | float | complex, *, value_type: ValueType, doc: str | None=None) -> None: ...
-    def relation(self, name: str, equality: Equation, *additional_equalities: Equation, on: Support | None=None, at: Clock | Event | None=None, doc: str | None=None) -> Relation: ...
+    def relation(self, name: str, condition: Equation | Inequality | Complementarity, *additional_conditions: Equation | Inequality | Complementarity, on: Support | None=None, at: Clock | Event | None=None, doc: str | None=None) -> Relation: ...
     def law(self, name: str, *, on: Support, flux: Expression, source: Expression, doc: str | None=None) -> Relation: ...
     def primal_form(self, relation: Relation, *, left: Expression, right: Expression, doc: str | None=None) -> None: ...
     def port(self, name: str, *, connector: Connector, on: Support | None=None, doc: str | None=None) -> Port | FieldPort: ...
@@ -4090,6 +4197,49 @@ class CellCenteredTpfa:
 Linear and nonlinear solver policies.
 
 [View source](../../bindings/python/python/eqiora/solve.pyi)
+
+<a id="api-eqiora-solve-ConstraintTolerance"></a>
+
+### `eqiora.solve.ConstraintTolerance`
+
+Explicit absolute operand tolerances carrying physical dimensions.
+
+```python
+@final
+class ConstraintTolerance:
+    @staticmethod
+    def inequality(reference: ConstraintRef, value: float, dimension: Dimension) -> ConstraintTolerance: ...
+    @staticmethod
+    def complementarity(reference: ConstraintRef, left_value: float, left_dimension: Dimension, right_value: float, right_dimension: Dimension) -> ConstraintTolerance: ...
+    @property
+    def reference(self) -> ConstraintRef: ...
+    @property
+    def left_value(self) -> float: ...
+    @property
+    def left_dimension(self) -> Dimension: ...
+    @property
+    def right_value(self) -> float | None: ...
+    @property
+    def right_dimension(self) -> Dimension | None: ...
+```
+
+<a id="api-eqiora-solve-ActiveSet"></a>
+
+### `eqiora.solve.ActiveSet`
+
+Bounded finite affine active-set realization; Model meaning is unchanged.
+
+```python
+@final
+class ActiveSet:
+    def __new__(cls, *, tolerances: tuple[ConstraintTolerance, ...], max_active_sets: int) -> Self: ...
+    @property
+    def tolerances(self) -> tuple[ConstraintTolerance, ...]: ...
+    @property
+    def model_digest(self) -> str: ...
+    @property
+    def max_active_sets(self) -> int: ...
+```
 
 <a id="api-eqiora-solve-SolverPlanningObjective"></a>
 

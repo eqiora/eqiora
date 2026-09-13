@@ -29,7 +29,7 @@ fn formatting_canonicalizes_examples_without_losing_authored_comments() {
         let formatted = format(&document);
         let comments = |text: &str| {
             lex(*filename, text)
-                .tokens()
+                .0
                 .iter()
                 .filter(|token| {
                     matches!(token.kind(), TokenKind::LineComment | TokenKind::DocComment)

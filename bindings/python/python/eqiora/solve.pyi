@@ -2,6 +2,7 @@
 
 Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyLinear``.
 """
+from . import ConstraintRef, Dimension
 from typing import ClassVar, Final, Self, final
 
 @final
@@ -211,6 +212,8 @@ class ResolvedNewton:
     def __repr__(self) -> str: ...
 
 __all__ = [
+    "ConstraintTolerance",
+    "ActiveSet",
     "SolverPlanningObjective",
     "Robust",
     "Fast",
@@ -236,3 +239,39 @@ class AlgebraicPlanView:
     def kind(self) -> str: ...
     @property
     def unknown_count(self) -> int: ...
+
+
+@final
+class ConstraintTolerance:
+    """Explicit absolute operand tolerances carrying physical dimensions.
+
+    Authority: ``crates/eqiora-python/src/common_plan/enforcement.rs::PyConstraintTolerance``.
+    """
+    @staticmethod
+    def inequality(reference: ConstraintRef, value: float, dimension: Dimension) -> ConstraintTolerance: ...
+    @staticmethod
+    def complementarity(reference: ConstraintRef, left_value: float, left_dimension: Dimension, right_value: float, right_dimension: Dimension) -> ConstraintTolerance: ...
+    @property
+    def reference(self) -> ConstraintRef: ...
+    @property
+    def left_value(self) -> float: ...
+    @property
+    def left_dimension(self) -> Dimension: ...
+    @property
+    def right_value(self) -> float | None: ...
+    @property
+    def right_dimension(self) -> Dimension | None: ...
+
+@final
+class ActiveSet:
+    """Bounded finite affine active-set realization; Model meaning is unchanged.
+
+    Authority: ``crates/eqiora-python/src/common_plan/enforcement.rs::PyActiveSet``.
+    """
+    def __new__(cls, *, tolerances: tuple[ConstraintTolerance, ...], max_active_sets: int) -> Self: ...
+    @property
+    def tolerances(self) -> tuple[ConstraintTolerance, ...]: ...
+    @property
+    def model_digest(self) -> str: ...
+    @property
+    def max_active_sets(self) -> int: ...

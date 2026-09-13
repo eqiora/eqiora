@@ -114,6 +114,7 @@ fn typed_literal_lowering_preserves_type_through_detachment_and_zero_negation() 
                 initial: false,
                 range: TextRange::new(0, 1),
                 body: vec![LoweringEquation {
+                    kind: eqiora_schema::kernel::RelationConditionKind::Equality,
                     left: literal,
                     right: LoweringExpression::number(
                         eqiora_lang::DecimalLiteral::parse("0").unwrap(),
@@ -582,7 +583,7 @@ model assigned() {
         // This unit exercises staged Kernel IDs, below lexical source lookup.
         // The frontend already resolves the two declared members to these roles.
         body: vec![LoweringEquation::rewritten(
-            &relation.equations().unwrap()[0],
+            &relation.conditions().unwrap()[0],
             LoweringExpression::binary(
                 eqiora_lang::BinaryOp::Sub,
                 LoweringExpression::call(

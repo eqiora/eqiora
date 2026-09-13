@@ -52,7 +52,7 @@ fn direct_sources_resolve_once_and_match_both_precommitted_revisions() {
         StructuralSemanticFingerprint::from_program(&base)
             .unwrap()
             .generation(),
-        SemanticFingerprintGeneration::V20
+        SemanticFingerprintGeneration::V21
     );
 
     let before = base.value(parameter.erase()).unwrap();

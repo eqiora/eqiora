@@ -21,7 +21,7 @@ def declare(
         if value._owner is not None and value._owner is not component._component_token:
             raise ModuleError("Law expressions must belong to this Component")
     total = sum(left._nodes + right._nodes
-                for item in component._relations for left, right in item[2])
+                for item in component._relations for _, left, right in item[2])
     total += sum(sum(term._nodes for term in item[2:4])
                  for item in component._laws)
     total += sum(term._nodes for term in terms)
