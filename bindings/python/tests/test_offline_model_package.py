@@ -21,7 +21,7 @@ import eqiora
 ROOT = Path(__file__).resolve().parents[3]
 HOME_SCRATCH = Path.home() / ".cache/eqiora/oracle-tests"
 
-CURRENT_COMPILER_VERSION = "0.1.0-alpha.10"
+CURRENT_COMPILER_VERSION = "0.1.0-alpha.11"
 CURRENT_SEMANTIC_CANONICALIZATION_VERSION = 2
 CONFORMANCE = ROOT / "verify/interfaces/python-package-conformance"
 FALSE_CLAIM = CONFORMANCE / "models/false-scientific-claim"

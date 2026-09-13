@@ -23,6 +23,8 @@ def test_imported_record_enum_and_space_compile_without_copying_declarations():
     sample = types.record("Sample")
     mode = types.enum("Mode")
     species = types.space("Species")
+    assert isinstance(sample, q.ImportedRecord)
+    assert not isinstance(sample, q.Record)
 
     consumer = source.component("Consumer")
     config = consumer.parameter("config", value_type=sample)

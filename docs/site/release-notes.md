@@ -1,9 +1,9 @@
 # Release notes
 
-Eqiora `0.1.0a10` is the current public alpha. APIs and saved-file formats may
+Eqiora `0.1.0a11` is the current public alpha. APIs and saved-file formats may
 change before 1.0; review the changes below when upgrading.
 
-## 0.1.0a10 — exact imported nominal types
+## 0.1.0a11 — exact imported nominal types
 
 Python `eqiora.Module` consumers can reference public Record, Enum, and finite
 Space declarations through `ModuleRef.record`, `ModuleRef.enum`, and
@@ -14,8 +14,9 @@ provider declaration in its owning module.
 These handles use the existing exact Module graph. Private, unknown, transitive,
 and equal-shaped foreign nominal declarations remain invalid, and the compiler
 continues to own visibility, identity, member typing, source locations, and
-locked-package resolution. This alpha adds no loader, schema migration, or
-compatibility alias.
+locked-package resolution. Imported Record descriptors remain distinct from
+locally owned Records while sharing nominal construction behavior. This alpha
+adds no loader, schema migration, or compatibility alias.
 
 ## 0.1.0a9 — structured execution profiling
 

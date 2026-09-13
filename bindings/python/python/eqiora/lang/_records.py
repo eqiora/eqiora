@@ -7,15 +7,15 @@ from types import MappingProxyType
 from . import Expression, ModuleError, ValueType, _Ast, _AstModule, _CREATE, _MISSING, _Field, _Parameter
 
 
-class Record:
-    """One ordered, closed record declaration belonging to an exact Module."""
+class _RecordBase:
+    """Shared nominal behavior without conflating local and imported descriptors."""
 
     __slots__ = ("_source", "_name", "_syntax_name", "_members", "_syntax", "_doc")
 
     def __init__(self, token=_MISSING, *, source=None, name="", syntax_name=None,
                  members=(), syntax=(), doc=()):
         if token is not _CREATE:
-            raise TypeError("records are created by Module.record()")
+            raise TypeError("records are created by Module.record() or ModuleRef.record()")
         for key, value in (("_source", source), ("_name", name),
                            ("_syntax_name", name if syntax_name is None else syntax_name),
                            ("_members", members),
@@ -28,10 +28,6 @@ class Record:
     @property
     def name(self) -> str:
         return self._name
-
-    @property
-    def members(self) -> Mapping[str, ValueType]:
-        return MappingProxyType(dict(self._members))
 
     def _type_syntax(self, source):
         if self._source is not source:
@@ -61,7 +57,17 @@ class Record:
                           _sources=frozenset((self._source._owner,)))
 
 
-class ImportedRecord(Record):
+class Record(_RecordBase):
+    """One ordered, closed record declaration belonging to an exact Module."""
+
+    __slots__ = ()
+
+    @property
+    def members(self) -> Mapping[str, ValueType]:
+        return MappingProxyType(dict(self._members))
+
+
+class _ImportedRecord(_RecordBase):
     """Read-only descriptor for one public Record in an explicit import."""
 
     __slots__ = ()

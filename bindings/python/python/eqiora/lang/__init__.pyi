@@ -107,7 +107,7 @@ class Record:
 
     Authority: ``bindings/python/python/eqiora/lang/_records.py::Record``.
     """
-    def __init__(self, token: Never = ..., *, source: Module | None = None, name: str = "", members: Sequence[tuple[str, ValueType]] = (), syntax: Sequence[object] = (), doc: tuple[str, ...] = ()) -> None: ...
+    def __init__(self, token: Never = ..., *, source: Module | None = None, name: str = "", syntax_name: str | None = None, members: Sequence[tuple[str, ValueType]] = (), syntax: Sequence[object] = (), doc: tuple[str, ...] = ()) -> None: ...
     @property
     def name(self) -> str: ...
     @property
@@ -115,13 +115,16 @@ class Record:
     def __call__(self, /, **members: object) -> Expression: ...
 
 @final
-class ImportedRecord(Record):
+class ImportedRecord:
     """A read-only public Record descriptor from an explicit import.
 
     Authority: ``bindings/python/python/eqiora/lang/_records.py::ImportedRecord``.
     """
     @property
+    def name(self) -> str: ...
+    @property
     def members(self) -> Mapping[str, str]: ...
+    def __call__(self, /, **members: object) -> Expression: ...
 
 @final
 class RecordField(Expression):
@@ -356,7 +359,7 @@ class Component:
                           doc: str | None = None) -> BoundarySet: ...
     def boundaries(self, *members: Support) -> BoundarySelectionSet: ...
     @overload
-    def parameter(self, name: str, *, value_type: Record, doc: str | None = None) -> RecordParameter: ...
+    def parameter(self, name: str, *, value_type: Record | ImportedRecord, doc: str | None = None) -> RecordParameter: ...
     @overload
     def parameter(
         self,
@@ -383,7 +386,7 @@ class Component:
         doc: str | None = None,
     ) -> PropertyRequirement: ...
     @overload
-    def field(self, name: str, *, on: Support | None = None, value_type: Record,
+    def field(self, name: str, *, on: Support | None = None, value_type: Record | ImportedRecord,
               role: FieldRole, at: Clock | None = None, doc: str | None = None) -> RecordField: ...
     @overload
     def field(
@@ -872,6 +875,7 @@ __all__ = [
     "Expression",
     "Enum",
     "Record",
+    "ImportedRecord",
     "RecordField",
     "RecordParameter",
     "Event",
