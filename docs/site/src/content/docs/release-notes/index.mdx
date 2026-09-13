@@ -9,6 +9,18 @@ Find new features and migration changes below. The
 <ExactSourceLink path="CHANGELOG.md" kind="blob">changelog</ExactSourceLink>
 contains the detailed release history. APIs may change during the pre-1.0 series.
 
+## 0.1.0a10 — exact imported nominal types
+
+[Eqiora 0.1.0a10](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a10)
+adds `ModuleRef.record`, `ModuleRef.enum`, and `ModuleRef.space` to Python
+authoring. Independent components can use public nominal types from an explicit
+Module import while emitted source preserves the qualified provider path.
+
+The existing Module resolver remains authoritative for visibility, nominal
+identity, member typing, source locations, and exact locked-package resolution.
+Private, unknown, transitive, and equal-shaped foreign declarations reject, and
+provider definitions are not copied into the consumer.
+
 ## 0.1.0a9 — structured execution profiling
 
 [Eqiora 0.1.0a9](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a9)

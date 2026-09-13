@@ -6,6 +6,21 @@ are recorded here.
 
 ## [Unreleased]
 
+## [0.1.0a10] - 2026-09-13
+
+### Added
+
+- Added `ModuleRef.record`, `ModuleRef.enum`, and `ModuleRef.space` to Python
+  authoring. Independent components can now consume public nominal types from
+  an explicit local or locked package graph without copying provider declarations.
+
+### Changed
+
+- Unified local and imported nominal type emission through one qualified syntax
+  path. Record constructors, enum members, and finite-space counts preserve the
+  exact import alias, while private, unknown, transitive, and equal-shaped foreign
+  declarations reject through the existing Module resolver.
+
 ## [0.1.0a9] - 2026-09-11
 
 ### Added
