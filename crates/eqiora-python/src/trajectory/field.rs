@@ -135,13 +135,34 @@ impl ProjectedValues {
             Self::Vector(values) => Ok(values.numpy(py)?.into_any()),
         }
     }
+
+    pub(crate) fn scalar_snapshot(&self, py: Python<'_>) -> PyResult<Option<Vec<f64>>> {
+        match self {
+            Self::Scalar(values) => Ok(Some(values.snapshot(py)?)),
+            Self::Vector(_) => Ok(None),
+        }
+    }
 }
 
-struct ProjectedBlock {
+pub(crate) struct ProjectedBlock {
     association: &'static str,
     digest: String,
     values: ProjectedValues,
     support_indices: Arc<ReadOnlyVector<u32>>,
+}
+
+impl ProjectedBlock {
+    pub(crate) const fn association(&self) -> &'static str {
+        self.association
+    }
+
+    pub(crate) fn scalar_snapshot(&self, py: Python<'_>) -> PyResult<Option<Vec<f64>>> {
+        self.values.scalar_snapshot(py)
+    }
+
+    pub(crate) fn support_indices_snapshot(&self, py: Python<'_>) -> PyResult<Vec<u32>> {
+        self.support_indices.snapshot(py)
+    }
 }
 
 /// One exact semantic Field observation in an accepted trajectory state.
@@ -204,6 +225,38 @@ impl Hash for PyDerivedFieldSnapshot {
 }
 
 impl PyDerivedFieldSnapshot {
+    pub(crate) fn exact_digest(&self) -> &str {
+        &self.digest
+    }
+
+    pub(crate) fn source_field_handle(&self, py: Python<'_>) -> Py<PyModelFieldRef> {
+        self.source_field.clone_ref(py)
+    }
+
+    pub(crate) fn exact_mesh_digest(&self) -> &str {
+        &self.mesh_digest
+    }
+
+    pub(crate) const fn operator_value(&self) -> &'static str {
+        self.operator
+    }
+
+    pub(crate) const fn dimension_value(&self) -> DimExponents {
+        self.dimension
+    }
+
+    pub(crate) fn value_shape_value(&self) -> &[u32] {
+        &self.value_shape
+    }
+
+    pub(crate) const fn frame_value(&self) -> &'static str {
+        self.frame
+    }
+
+    pub(crate) fn blocks(&self) -> &[ProjectedBlock] {
+        &self.blocks
+    }
+
     pub(super) fn from_cell_average_curl(
         py: Python<'_>,
         model_digest: &str,

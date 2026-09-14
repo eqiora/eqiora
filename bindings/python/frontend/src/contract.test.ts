@@ -75,6 +75,28 @@ describe("private typed scene admission", () => {
 		);
 	});
 
+	it("admits exact cell-average curl identity and rejects inconsistent derivation", () => {
+		const fixture = viewerFixture();
+		const document = metadata(fixture);
+		const layers = document.layers as Array<Record<string, unknown>>;
+		const field = layers[4];
+		field.observation_digest = "a".repeat(64);
+		field.operator = "curl";
+		field.frame = "spatial-axial";
+		field.space = "cell-average";
+		expect(
+			decodeScene(JSON.stringify(document), fixture.buffers).metadata.layers[4],
+		).toMatchObject({
+			observation_digest: "a".repeat(64),
+			operator: "curl",
+		});
+
+		field.frame = "scalar";
+		expect(() => decodeScene(JSON.stringify(document), fixture.buffers)).toThrow(
+			"unsupported or inconsistent",
+		);
+	});
+
 	it("rejects unknown layers and unsupported available selection dimensions", () => {
 		const fixture = viewerFixture();
 		const document = metadata(fixture);

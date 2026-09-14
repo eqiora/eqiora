@@ -3,14 +3,14 @@
 The shared viewer starts with one narrow, read-only presentation path for current
 accepted Python values. The implemented slice stops at V3: a private typed
 scene (V0), shared Geometry/Mesh/Selection interaction (V1), scalar
-`FieldOutput` inspection (V2), and installed-wheel rich display (V3).
+field inspection (V2), and installed-wheel rich display (V3).
 Studio integration and every V4-or-later concern remain separate work.
 
 ## Ownership boundary
 
 Rust is the only semantic projection owner. `_compose_view` admits exact
-`Geometry`, `Mesh`, and scalar `FieldOutput` objects, validates their identity
-and correspondence, then snapshots immutable little-endian `f64`/`u32`
+`Geometry`, `Mesh`, scalar `FieldOutput`, and scalar `DerivedFieldSnapshot`
+objects, validates their identity and correspondence, then snapshots immutable little-endian `f64`/`u32`
 buffers. The browser cannot infer selections, field association, units, model
 ownership, or Mesh ownership. A scalar field is admitted only when its exact
 Mesh is present in the same scene.
@@ -29,7 +29,9 @@ The current projection is deliberately bounded:
 - two-dimensional triangular or quadrilateral `Mesh` values;
 - exact edge/face named-selection membership supplied by Geometry topology or
   Mesh correspondence;
-- scalar vertex- or cell-associated `FieldOutput` values; and
+- scalar vertex- or cell-associated `FieldOutput` values;
+- dense scalar `DerivedFieldSnapshot` values such as cell-average curl, with
+  their exact observation and source-field identity; and
 - copied scenes below the private layer and byte budgets.
 
 Face selection on a line-only Geometry projection is reported unavailable;

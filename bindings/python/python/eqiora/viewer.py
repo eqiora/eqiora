@@ -8,11 +8,12 @@ from functools import lru_cache
 from importlib import resources
 from typing import Any, Final
 
-from ._eqiora import FieldOutput, Geometry, Mesh, _compose_view
+from ._eqiora import DerivedFieldSnapshot, FieldOutput, Geometry, Mesh, _compose_view
 
 _TEXT_MIME: Final = "text/plain"
 _WIDGET_MIME: Final = "application/vnd.jupyter.widget-view+json"
-_SUPPORTED = (Geometry, Mesh, FieldOutput)
+_SUPPORTED = (Geometry, Mesh, FieldOutput, DerivedFieldSnapshot)
+_ViewValue = Geometry | Mesh | FieldOutput | DerivedFieldSnapshot
 
 
 class View:
@@ -25,18 +26,18 @@ class View:
     __slots__ = ("_values", "_delegate", "_closed")
 
     def __init__(self) -> None:
-        self._values: list[Geometry | Mesh | FieldOutput] = []
+        self._values: list[_ViewValue] = []
         self._delegate: object | None = None
         self._closed = False
 
-    def add(self, value: Geometry | Mesh | FieldOutput, /) -> View:
+    def add(self, value: _ViewValue, /) -> View:
         """Add one accepted typed value; semantic admission occurs in Rust."""
 
         if self._closed:
             raise RuntimeError("View is closed")
         if type(value) not in _SUPPORTED:
             raise TypeError(
-                "View.add accepts only accepted Geometry, Mesh, or scalar FieldOutput values"
+                "View.add accepts only accepted Geometry, Mesh, scalar FieldOutput, or scalar DerivedFieldSnapshot values"
             )
         self._close_delegate()
         self._values.append(value)

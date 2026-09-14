@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import gc
 import io
+import json
 import os
 import struct
 import sys
@@ -12,6 +13,7 @@ import numpy as np
 import pytest
 
 import eqiora
+from eqiora._eqiora import _compose_view
 
 
 assert "matplotlib" not in sys.modules
@@ -210,6 +212,8 @@ def transient_vorticity(cylinder_case):
     result = eqiora.run(plan, state=state, steps=1, output_steps=(1,))
     wake_state = result.trajectory.state(1)
     return (
+        geometry,
+        mesh,
         plan,
         result,
         wake_state.curl(plan.capability.velocity),
@@ -265,7 +269,7 @@ def test_cell_scalar_uses_exact_derived_snapshot_and_diverging_scale(
     transient_vorticity,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _, result, vorticity, initial_vorticity = transient_vorticity
+    _, _, _, result, vorticity, initial_vorticity = transient_vorticity
     trajectory = result.trajectory
     support = vorticity.support_indices("cell")
     expected_cells = trajectory.cells[support]
@@ -301,6 +305,34 @@ def test_cell_scalar_uses_exact_derived_snapshot_and_diverging_scale(
         eqplot.plot_scalar_field(trajectory, step=1, field=initial_vorticity)
     with pytest.raises(TypeError, match="requires a Trajectory"):
         eqplot.plot_scalar_field(result, field=vorticity)
+
+
+def test_viewer_composes_the_exact_transient_vorticity(transient_vorticity) -> None:
+    geometry, mesh, _, _, vorticity, _ = transient_vorticity
+    expected_values = np.asarray(vorticity.values("cell")).copy()
+    view = eqiora.View().add(geometry).add(mesh).add(vorticity)
+    assert repr(view) == (
+        "View(layers=[Geometry, Mesh, DerivedFieldSnapshot], closed=False)"
+    )
+
+    scene = _compose_view((geometry, mesh, vorticity))
+    metadata = json.loads(scene.metadata_json)
+    field = next(
+        layer for layer in metadata["layers"] if layer["kind"] == "scalar-field"
+    )
+    assert field["mesh_digest"] == mesh.digest == vorticity.mesh_digest
+    assert field["model_digest"] == vorticity.source_field.model_digest
+    assert field["field_id"] == vorticity.source_field.id
+    assert field["observation_digest"] == vorticity.digest
+    assert field["operator"] == "curl"
+    assert field["association"] == "cell"
+    assert field["dimension"] == [
+        [value.numerator, value.denominator] for value in vorticity.dimension
+    ]
+    assert field["frame"] == vorticity.frame
+    assert field["space"] == "cell-average"
+    values = np.frombuffer(scene.buffers[field["values"]["buffer"]], dtype="<f8")
+    np.testing.assert_array_equal(values, expected_values)
 
 
 def test_deformed_field_uses_exact_plan_field_output(

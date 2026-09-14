@@ -102,6 +102,8 @@ pub(super) struct ScalarFieldLayer {
     pub(super) mesh_digest: String,
     pub(super) model_digest: String,
     pub(super) field_id: String,
+    pub(super) observation_digest: Option<String>,
+    pub(super) operator: Option<String>,
     pub(super) association: String,
     pub(super) component_shape: Vec<usize>,
     pub(super) unit: String,

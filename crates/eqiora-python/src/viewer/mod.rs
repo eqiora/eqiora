@@ -17,6 +17,7 @@ use crate::error::{diagnostic_error, validation_error};
 use crate::geometry::PyGeometry;
 use crate::meshing::PyMesh;
 use crate::result::PyFieldOutput;
+use crate::trajectory::PyDerivedFieldSnapshot;
 
 use scene::{FinishedScene, SceneBuilder};
 
@@ -63,12 +64,13 @@ impl PyViewerScene {
 fn compose_view(py: Python<'_>, values: &Bound<'_, PyTuple>) -> PyResult<PyViewerScene> {
     if values.is_empty() {
         return Err(PyTypeError::new_err(
-            "View requires at least one Geometry, Mesh, or FieldOutput",
+            "View requires at least one Geometry, Mesh, FieldOutput, or DerivedFieldSnapshot",
         ));
     }
     let mut geometries = Vec::new();
     let mut meshes = Vec::new();
     let mut fields = Vec::new();
+    let mut derived_fields = Vec::new();
     for value in values.iter() {
         if let Ok(value) = value.extract::<Py<PyGeometry>>() {
             geometries.push(value);
@@ -76,9 +78,11 @@ fn compose_view(py: Python<'_>, values: &Bound<'_, PyTuple>) -> PyResult<PyViewe
             meshes.push(value);
         } else if let Ok(value) = value.extract::<Py<PyFieldOutput>>() {
             fields.push(value);
+        } else if let Ok(value) = value.extract::<Py<PyDerivedFieldSnapshot>>() {
+            derived_fields.push(value);
         } else {
             return Err(PyTypeError::new_err(
-                "View.add accepts only accepted Geometry, Mesh, or scalar FieldOutput values",
+                "View.add accepts only accepted Geometry, Mesh, scalar FieldOutput, or scalar DerivedFieldSnapshot values",
             ));
         }
     }
@@ -98,7 +102,10 @@ fn compose_view(py: Python<'_>, values: &Bound<'_, PyTuple>) -> PyResult<PyViewe
         mesh::add_mesh(py, &mut builder, &mesh.borrow(py))?;
     }
     for field in fields {
-        field::add_scalar_field(py, &mut builder, &field.borrow(py))?;
+        field::add_field_output(py, &mut builder, &field.borrow(py))?;
+    }
+    for field in derived_fields {
+        field::add_derived_field(py, &mut builder, &field.borrow(py))?;
     }
     let FinishedScene {
         metadata_json,
