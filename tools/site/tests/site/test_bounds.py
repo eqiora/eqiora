@@ -22,7 +22,7 @@ class ArtifactBoundTests(unittest.TestCase):
                 side_effect=AssertionError("content read after raw-cap rejection"),
             ):
                 errors = checker.check_artifact(
-                    artifact, SOURCE_SHA, "0.1.0a1", identities
+                    artifact, SOURCE_SHA, "0.1.0", identities
                 )
             self.assertTrue(any("exceeds read cap" in error for error in errors))
 
@@ -46,7 +46,7 @@ class ArtifactBoundTests(unittest.TestCase):
                     ),
                 ):
                     errors = checker.check_artifact(
-                        artifact, SOURCE_SHA, "0.1.0a1", identities
+                        artifact, SOURCE_SHA, "0.1.0", identities
                     )
                 self.assertTrue(any(phrase in error for error in errors), errors)
 

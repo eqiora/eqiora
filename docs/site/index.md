@@ -41,8 +41,8 @@ making a numerical method or hardware backend part of the model.
 
 </div>
 
-!!! note "Alpha 0.1.0a1"
-    Eqiora is alpha research software under active development. The
+!!! note "Release 0.1.0"
+    Eqiora is pre-1.0 research software under active development. The
     [capability matrix](capabilities.md) and generated
     [verification guide](evidence/index.md) bound what is currently supported;
     this site does not widen those claims.

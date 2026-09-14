@@ -30,8 +30,8 @@ from candidate_manifest import (  # noqa: E402
 from testpypi_replay import release_files  # noqa: E402
 
 
-VERSION = "0.1.0a1"
-RAW_VERSION = "0.1.0-alpha.1"
+VERSION = "0.1.0"
+RAW_VERSION = "0.1.0"
 NONCLAIMS = [
     "reproducible-build-certification",
     "artifact-signature",

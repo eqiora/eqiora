@@ -70,35 +70,18 @@ def candidate_payload_identity(
 
 
 def python_distribution_version(cargo_version: str) -> str:
-    """Map admitted Cargo SemVer release forms to normalized Python versions."""
+    """Admit one canonical stable SemVer identity for Cargo and Python."""
 
-    if "+" in cargo_version:
-        raise CandidateError(
-            "Cargo release versions with build metadata are unsupported"
-        )
-    release, separator, prerelease = cargo_version.partition("-")
-    release_components = release.split(".")
-    if len(release_components) != 3 or any(
-        not component or not component.isascii() or not component.isdecimal()
-        for component in release_components
+    components = cargo_version.split(".")
+    if len(components) != 3 or any(
+        not component
+        or not component.isascii()
+        or not component.isdecimal()
+        or (component != "0" and component.startswith("0"))
+        for component in components
     ):
         raise CandidateError(f"invalid Cargo release version: {cargo_version}")
-    if not separator:
-        return release
-    prerelease_components = prerelease.split(".")
-    if len(prerelease_components) != 2:
-        raise CandidateError(f"unsupported Cargo prerelease identity: {cargo_version}")
-    label, serial = prerelease_components
-    markers = {"alpha": "a", "beta": "b", "rc": "rc"}
-    if (
-        label not in markers
-        or not serial
-        or not serial.isascii()
-        or not serial.isdecimal()
-        or str(int(serial)) != serial
-    ):
-        raise CandidateError(f"unsupported Cargo prerelease identity: {cargo_version}")
-    return f"{release}{markers[label]}{serial}"
+    return cargo_version
 
 
 @dataclass(frozen=True)

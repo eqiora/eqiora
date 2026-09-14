@@ -1,6 +1,6 @@
 # Security policy
 
-Eqiora is alpha research software. It must not be used as a safety control,
+Eqiora is pre-1.0 research software. It must not be used as a safety control,
 certification authority, or sole basis for an engineering decision.
 
 ## Report a vulnerability
@@ -20,8 +20,8 @@ beyond what is necessary to reproduce the problem.
 
 ## Supported versions
 
-During alpha, security fixes target the latest published prerelease and
-current `main`. Older prereleases may be yanked when leaving them available
+Security fixes target the latest published release and current `main`. Older
+releases may be yanked when leaving them available
 would materially mislead or endanger users. A correction is published under a
 new version; artifacts under an existing version are never replaced. See the
 [Python release policy](docs/development/python-release-policy.md).

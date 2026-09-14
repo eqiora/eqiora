@@ -12,10 +12,6 @@ import reducedMotion from '../../../assets/gallery/transient-cylinder-startup-re
 import startupWebm from '../../../assets/gallery/transient-cylinder-startup.webm';
 import startupMp4 from '../../../assets/gallery/transient-cylinder-startup.mp4';
 
-export const colabRelease = /^0\.1\.0a([0-9]+)$/u.exec(process.env.EQIORA_SITE_PYTHON_VERSION ?? '');
-export const colabMinimumSerial = 4;
-export const colabMinimumRelease = `0.1.0a${colabMinimumSerial}`;
-export const colabReady = colabRelease !== null && Number(colabRelease[1]) >= colabMinimumSerial;
 export const colabUrl = `https://colab.research.google.com/github/nkiyohara/eqiora/blob/${process.env.EQIORA_SITE_SOURCE_SHA}/examples/python/transient_cylinder_wake_colab.ipynb`;
 
 [Gallery](/gallery/)
@@ -120,12 +116,9 @@ result = eqiora.run(
 )
 ```
 
-{colabReady && (
-  <LinkButton href={colabUrl} variant="primary">Open in Colab</LinkButton>
-)}
+<LinkButton href={colabUrl} variant="primary">Open in Colab</LinkButton>
 
-The Colab entry is published beginning with the <code>{colabMinimumRelease}</code>
-documentation build. It opens the notebook in your Colab runtime.
+The link opens the exact release notebook in your Colab runtime.
 
 </NotebookStage>
 

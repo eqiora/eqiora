@@ -59,9 +59,9 @@ EXACT_WHEEL_PAYLOAD_SHA256 = {
     "313": "d4bd81bf36f65d2f43263a7ce2c7f6ac2263dfd371c8bd0941fe7b57c69e535b",
     "314": "a74b13b0da0238bae641c0f82943f6e33f56f519f79077cbdd8c56e1140b8c69",
 }
-EXACT_WHEEL_MEMBER = "eqiora-0.1.0a1.dist-info/WHEEL"
-EXACT_RECORD_MEMBER = "eqiora-0.1.0a1.dist-info/RECORD"
-def exact_wheel_name(compact_python: str, *, version: str = "0.1.0a1") -> str:
+EXACT_WHEEL_MEMBER = "eqiora-0.1.0.dist-info/WHEEL"
+EXACT_RECORD_MEMBER = "eqiora-0.1.0.dist-info/RECORD"
+def exact_wheel_name(compact_python: str, *, version: str = "0.1.0") -> str:
     return (
         f"eqiora-{version}-cp{compact_python}-cp{compact_python}-"
         f"{EXACT_PHYSICAL_PLATFORM}.whl"
@@ -178,7 +178,7 @@ def write_maturin_wheel(
 def wheel_byte_identity(
     path: Path,
     *,
-    version: str = "0.1.0a1",
+    version: str = "0.1.0",
 ) -> tuple[bytes, bytes, bytes]:
     archive_bytes = path.read_bytes()
     with zipfile.ZipFile(path, mode="r") as archive:
@@ -291,7 +291,7 @@ def reject_post_producer_wheel_writes(
 class PythonCandidateTests(unittest.TestCase):
     def config(self) -> DistributionConfig:
         return DistributionConfig(
-            cargo_version="0.1.0-alpha.1",
+            cargo_version="0.1.0",
             interpreters=("3.11", "3.12", "3.13", "3.14"),
             wheel_platform="manylinux_2_17_x86_64",
             extras_interpreter="3.13",
@@ -309,45 +309,38 @@ class PythonCandidateTests(unittest.TestCase):
         )
 
     def test_release_identity_has_one_python_version_and_exact_tag(self) -> None:
-        self.assertEqual(
-            python_distribution_version("0.1.0-alpha.1"),
-            "0.1.0a1",
-        )
-        self.assertEqual(self.config().expected_tag, "v0.1.0a1")
+        self.assertEqual(python_distribution_version("0.1.0"), "0.1.0")
+        self.assertEqual(self.config().expected_tag, "v0.1.0")
         require_expected_tag(
-            SourceIdentity(commit="0" * 40, tags=("v0.1.0a1",)),
+            SourceIdentity(commit="0" * 40, tags=("v0.1.0",)),
             self.config().expected_tag,
         )
         with self.assertRaisesRegex(
             CandidateError,
-            "requires exact tag v0.1.0a1",
+            "requires exact tag v0.1.0",
         ):
             require_expected_tag(
-                SourceIdentity(commit="0" * 40, tags=("v0.1.0",)),
+                SourceIdentity(commit="0" * 40, tags=("v0.1.1",)),
                 self.config().expected_tag,
             )
         for rejected in (
-            "0.1.0-dev.1",
-            "0.1.0-alpha",
-            "0.1.0-alpha.01",
-            "0.1.0-alpha.1.extra",
+            "0.1.0-alpha.1",
+            "0.1.0-beta.1",
+            "0.1.0-rc.1",
             "0.1.0+local",
+            "00.1.0",
+            "0.01.0",
+            "0.1.00",
         ):
             with self.assertRaises(CandidateError, msg=rejected):
                 python_distribution_version(rejected)
 
-    def test_role_d_producer_removes_the_operative_alpha1_singleton(self) -> None:
-        self.assertEqual(
-            python_distribution_version("0.1.0-alpha.2"),
-            "0.1.0a2",
-        )
+    def test_candidate_producer_has_no_handwritten_release_identity(self) -> None:
         source = (
             REPOSITORY_ROOT / "tools/release/python_candidate.py"
         ).read_text(encoding="utf-8")
-        if 'config.python_version != "0.1.0a1"' in source:
-            self.fail("Role D producer still pins the operative alpha.1 singleton")
-        if '"0.1.0a2"' in source or '"v0.1.0a2"' in source:
-            self.fail("Role D producer added a handwritten alpha.2 singleton")
+        self.assertNotIn('config.python_version != "0.1.0"', source)
+        self.assertNotIn('"v0.1.0"', source)
 
     def test_standard_release_tools_group_is_the_only_uv_version_source(self) -> None:
         document = tomllib.loads(
@@ -430,7 +423,7 @@ class PythonCandidateTests(unittest.TestCase):
             python=Path("/candidate/bin/python"),
             extracted=Path("/sdist"),
             run_root=Path("/consumer"),
-            expected_version="0.1.0a1",
+            expected_version="0.1.0",
             profile="base",
         )
 
@@ -440,7 +433,7 @@ class PythonCandidateTests(unittest.TestCase):
                 "-I",
                 "/sdist/tools/release/python_public_smoke.py",
                 "--expected-version",
-                "0.1.0a1",
+                "0.1.0",
                 "--profile",
                 "base",
             ],
@@ -453,7 +446,7 @@ class PythonCandidateTests(unittest.TestCase):
         metadata = b"""\
 Metadata-Version: 2.4
 Name: eqiora
-Version: 0.1.0a1
+Version: 0.1.0
 Requires-Python: <3.15,>=3.11
 License-Expression: Apache-2.0
 License-File: LICENSE
@@ -475,7 +468,7 @@ typed candidate
 """
         with tempfile.TemporaryDirectory() as temporary:
             wheel = Path(temporary) / exact_wheel_name("313")
-            dist_info = "eqiora-0.1.0a1.dist-info/"
+            dist_info = "eqiora-0.1.0.dist-info/"
             with zipfile.ZipFile(wheel, mode="w") as archive:
                 for name in (
                     "eqiora/__init__.py",
@@ -515,7 +508,7 @@ typed candidate
                 notice_bytes=notice_bytes,
             )
 
-        self.assertEqual(version, "0.1.0a1")
+        self.assertEqual(version, "0.1.0")
         self.assertEqual(record["filename"], exact_wheel_name("313"))
         self.assertEqual(record["python"], "3.13")
         self.assertEqual(record["platform"], "manylinux_2_17_x86_64")
@@ -527,7 +520,7 @@ typed candidate
         metadata = b"""\
 Metadata-Version: 2.4
 Name: eqiora
-Version: 0.1.0a1
+Version: 0.1.0
 Requires-Python: <3.15,>=3.11
 License-Expression: Apache-2.0
 License-File: LICENSE
@@ -549,7 +542,7 @@ invalid candidate
 """
         with tempfile.TemporaryDirectory() as temporary:
             wheel = Path(temporary) / exact_wheel_name("313")
-            dist_info = "eqiora-0.1.0a1.dist-info/"
+            dist_info = "eqiora-0.1.0.dist-info/"
             with zipfile.ZipFile(wheel, mode="w") as archive:
                 for name in (
                     "eqiora/__init__.py",
@@ -903,14 +896,14 @@ invalid candidate
         }
         mutant_names = {
             "old-canonical-only-optional-alias": (
-                "eqiora-0.1.0a1-cp311-cp311-manylinux_2_17_x86_64.whl"
+                "eqiora-0.1.0-cp311-cp311-manylinux_2_17_x86_64.whl"
             ),
             "alias-first": (
-                "eqiora-0.1.0a1-cp311-cp311-"
+                "eqiora-0.1.0-cp311-cp311-"
                 "manylinux2014_x86_64.manylinux_2_17_x86_64.whl"
             ),
             "broadened-dotted-suffix": (
-                "eqiora-0.1.0a1-cp311-cp311-"
+                "eqiora-0.1.0-cp311-cp311-"
                 f"{EXACT_PHYSICAL_PLATFORM}.manylinux_2_28_x86_64.whl"
             ),
         }
@@ -1012,9 +1005,9 @@ invalid candidate
     def test_producer_output_collision_fails_without_overwrite_or_cleanup(self) -> None:
         config = self.config()
         collisions = (
-            "eqiora-0.1.0a1-cp311-cp311-manylinux_2_17_x86_64.whl",
+            "eqiora-0.1.0-cp311-cp311-manylinux_2_17_x86_64.whl",
             exact_wheel_name("311"),
-            ".eqiora-0.1.0a1-cp311.partial.whl",
+            ".eqiora-0.1.0-cp311.partial.whl",
         )
         for filename in collisions:
             with (
@@ -1391,7 +1384,7 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
 
     def test_base_public_smoke_rejects_gmsh_imported_with_eqiora(self) -> None:
         smoke = importlib.import_module("python_public_smoke")
-        expected_version = "0.1.0a1"
+        expected_version = "0.1.0"
 
         def reached_base_execution(*_args: object, **_kwargs: object) -> object:
             raise RuntimeError("base smoke continued after importing Gmsh")
@@ -1449,10 +1442,10 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
         extracted.mkdir(parents=True)
         (extracted / "LICENSE").write_text("license\n", encoding="utf-8")
         (extracted / "NOTICE").write_text("notice\n", encoding="utf-8")
-        sdist = scratch / "eqiora-0.1.0a1.tar.gz"
+        sdist = scratch / "eqiora-0.1.0.tar.gz"
         sdist.write_bytes(b"sdist")
         wheels = {
-            version: scratch / f"eqiora-0.1.0a1-cp{version.replace('.', '')}.whl"
+            version: scratch / f"eqiora-0.1.0-cp{version.replace('.', '')}.whl"
             for version in config.interpreters
         }
         for version, wheel in wheels.items():
@@ -1965,13 +1958,13 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
             for index, report in enumerate((forward, reversed_completion)):
                 output = root / str(index)
                 output.mkdir()
-                sdist = output / "eqiora-0.1.0a1.tar.gz"
+                sdist = output / "eqiora-0.1.0.tar.gz"
                 sdist.write_bytes(b"one immutable source distribution")
                 manifest = python_candidate_module.write_manifest(
                     output=output,
                     source=SourceIdentity("0" * 40, ()),
                     sdist=sdist,
-                    version="0.1.0a1",
+                    version="0.1.0",
                     wheel_records=[],
                     checks=list(report.checks),
                     config=self.config(),
@@ -2000,7 +1993,7 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
 class CandidateFamilyAdmissionTests(unittest.TestCase):
     @staticmethod
     def write_family(root: Path) -> None:
-        (root / "eqiora-0.1.0a1.tar.gz").write_bytes(b"sdist")
+        (root / "eqiora-0.1.0.tar.gz").write_bytes(b"sdist")
         for compact_python in EXACT_WHEEL_INTERPRETERS:
             write_maturin_wheel(
                 root / exact_wheel_name(compact_python),
@@ -2014,7 +2007,7 @@ class CandidateFamilyAdmissionTests(unittest.TestCase):
             self.write_family(root)
             family = family_module.admit_candidate_family(root)
 
-        self.assertEqual(family.version, "0.1.0a1")
+        self.assertEqual(family.version, "0.1.0")
         self.assertEqual(
             tuple(path.name for path in family.wheels),
             tuple(exact_wheel_name(python) for python in EXACT_WHEEL_INTERPRETERS),

@@ -1,10 +1,39 @@
 # Changelog
 
 Eqiora follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
-Semantic Versioning. During alpha, compatibility changes remain possible and
+Semantic Versioning. Before 1.0, compatibility changes remain possible and
 are recorded here.
 
 ## [Unreleased]
+
+## [0.1.0] - 2026-09-14
+
+### Added
+
+- Completed the maintained pre-1.0 language corpus with installed voltage-divider,
+  sampled-control, property-composition, and transient heated-body workflows.
+  Their ordinary package locks, Models, Plans, Results, replay paths, and physical
+  balances are checked independently of the implementation output.
+- Added equation- and formulation-driven numerical resolution across the current
+  scalar, elasticity, Stokes, transient-flow, and FSI paths. Exact Field, Domain,
+  Connection, constraint, gauge, solver, provider, and placement facts survive
+  Plan replay and reach the common execution boundary.
+- Added plural FSI execution for an ordinary three-Domain/two-Connection problem.
+  One immutable Field/DOF map now owns partitioning, assembly, State extraction,
+  interface reactions, Result recovery, and the matching Python topology views.
+
+### Changed
+
+- Prepared transient MINI assembly once per Run, evaluating each local packet once
+  per nonlinear candidate, retaining canonical sparse structure, and materializing
+  full residuals and reactions only at the accepted boundary. Faer reuses symbolic
+  analysis while the exact sparse pattern is unchanged.
+- Made profile totals, self time, call counts, and repeated solver phases explicit.
+  Transient trajectories now derive time from the exact accepted-step grid.
+- Graduated the distribution identity from Cargo `0.1.0-alpha.14` and Python
+  `0.1.0a14` to the stable package spelling `0.1.0`. This remains a pre-1.0 API:
+  published bytes are immutable, while later pre-1.0 releases may make breaking
+  changes without compatibility shims.
 
 ### Fixed
 
@@ -18,6 +47,9 @@ are recorded here.
   Python-export, and packaged DC-drive workflows. The retained browser Studio
   is an explicit interaction preview over fixed projections and has no native
   runtime dependency.
+- Removed singleton FSI execution records, positional Field recovery, duplicate
+  assembly paths, and stale solver lifecycle entry points after all repository
+  consumers moved to the exact plural mapping and prepared execution routes.
 
 ## [0.1.0a14] - 2026-09-14
 
@@ -495,7 +527,12 @@ Detailed claims and nonclaims are the responsibility of the
 [capability matrix](docs/capability-matrix.md) and registered
 [`verify/`](verify/) cases rather than this summary.
 
-[Unreleased]: https://github.com/nkiyohara/eqiora/compare/v0.1.0a7...HEAD
+[Unreleased]: https://github.com/nkiyohara/eqiora/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0
+[0.1.0a14]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a14
+[0.1.0a11]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a11
+[0.1.0a9]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a9
+[0.1.0a8]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a8
 [0.1.0a7]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a7
 [0.1.0a6]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a6
 [0.1.0a5]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a5

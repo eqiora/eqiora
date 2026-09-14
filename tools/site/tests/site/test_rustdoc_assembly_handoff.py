@@ -313,8 +313,8 @@ class RustdocAssemblyHandoffTests(unittest.TestCase):
             script,
             "#!/usr/bin/env bash\n"
             "set -euo pipefail\n"
-            "cargo_version=0.1.0-alpha.1\n"
-            "python_version=0.1.0a1\n"
+            "cargo_version=0.1.0\n"
+            "python_version=0.1.0\n"
             + segment,
         )
         script.chmod(0o755)

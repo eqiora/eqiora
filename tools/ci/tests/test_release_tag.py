@@ -18,7 +18,7 @@ from python_candidate import (  # noqa: E402
 
 class AnnotatedReleaseTagTests(unittest.TestCase):
     commit = "a" * 40
-    tag = "v0.1.0a1"
+    tag = "v0.1.0"
 
     def source(self) -> SourceIdentity:
         return SourceIdentity(commit=self.commit, tags=(self.tag,))
@@ -61,7 +61,7 @@ class AnnotatedReleaseTagTests(unittest.TestCase):
 
         with self.assertRaisesRegex(CandidateError, "requires exact tag"):
             require_annotated_expected_tag(
-                SourceIdentity(commit=self.commit, tags=("v0.1.0",)),
+                SourceIdentity(commit=self.commit, tags=("v0.1.1",)),
                 self.tag,
                 git_query=unexpected_query,
             )

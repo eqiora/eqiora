@@ -12,7 +12,7 @@ import ReleaseIdentity from './ReleaseIdentity.astro';
         <a class="eq-button eq-button--primary" href="/get-started/">Get started <span aria-hidden="true">↗</span></a>
         <a class="eq-button" href="/gallery/">Explore simulations <span aria-hidden="true">→</span></a>
       </div>
-      <p class="eq-alpha">Alpha <ReleaseIdentity /> · Actively developed. <a href="/capabilities/">See what works today.</a></p>
+      <p class="eq-release">Release <ReleaseIdentity /> · Actively developed. <a href="/capabilities/">See what works today.</a></p>
     </div>
     <figure class="eq-preview">
       <div class="eq-preview__label"><span>Inside a simulation</span><span>01 / Fluid mechanics</span></div>
@@ -69,7 +69,7 @@ import ReleaseIdentity from './ReleaseIdentity.astro';
   .eq-button { display: inline-flex; align-items: center; justify-content: space-between; gap: 1.25rem; min-height: 3rem; padding: 0.75rem 1rem; border: 1px solid var(--eq-color-border-strong); border-radius: 0.5rem; color: var(--eq-color-text); text-decoration: none; font-weight: 650; }
   .eq-button--primary { background: var(--eq-color-action-bg); border-color: var(--eq-color-action-bg); color: var(--eq-color-action-text); }
   .eq-button:hover { text-decoration: underline; text-underline-offset: 0.2em; }
-  .eq-alpha { font-size: 0.875rem; color: var(--eq-color-text-muted); }
+  .eq-release { font-size: 0.875rem; color: var(--eq-color-text-muted); }
   .eq-preview { margin: 0; min-width: 0; padding: 1rem; border: 1px solid var(--eq-color-border); border-radius: 0.875rem; background: var(--eq-color-surface); }
   .eq-preview__label, .eq-preview figcaption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem; font-size: 0.75rem; color: var(--eq-color-text-muted); }
   .eq-preview img { display: block; width: 100%; height: auto; margin-block: 1rem; border-radius: 0.25rem; }

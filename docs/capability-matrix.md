@@ -68,7 +68,7 @@ The columns describe four independent aspects:
 | **M — Maturity** | Is the capability broad, robust, documented, performant, and suitable for general users? |
 
 Read each status together with the row's scope. Execution and verification are
-separate: a runnable path may have no registered verification. Eqiora is alpha;
+separate: a runnable path may have no registered verification. Eqiora is pre-1.0;
 no technical product area is marked fully mature.
 
 ### Detailed status records
@@ -1091,7 +1091,7 @@ Studio currently provides a browser interaction preview over fixed Relations and
 | Governance and RFC process | ✅ | ✅ | 🟨 | 🟨 | Present; community operation has not yet been exercised at scale |
 | Security policy | ✅ | ✅ | — | 🟨 | Present; release response history does not yet exist |
 | Contributor guide | ✅ | ✅ | 🟨 | 🟨 | Present; onboarding examples and public feedback remain |
-| API semantic-version policy | 🟨 | 🟨 | 🟨 | ⬜ | The API is alpha. Pre-1.0 releases may introduce breaking changes; pin versions when reproducing a workflow. |
+| API semantic-version policy | 🟨 | 🟨 | 🟨 | ⬜ | Pre-1.0 releases may introduce breaking changes; pin versions when reproducing a workflow. Published release bytes remain immutable. |
 | Changelog discipline | ✅ | ✅ | 🟨 | 🟨 | Present; automated release linkage remains |
 | Release automation | ✅ | ✅ | 🟨 | ⬜ | Python and Rust publication workflows build release packages and check their contents before publication. Repeated release operation, signed attestations, automated GitHub release assembly, and broader platform coverage remain planned. [Release topology](development/ci-topology.md#release-separation). |
 | Reproducible builds | 🟨 | 🟨 | 🟨 | ⬜ | Locked dependencies exist; byte-reproducible cross-platform artifacts remain |

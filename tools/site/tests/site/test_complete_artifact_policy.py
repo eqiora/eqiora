@@ -411,7 +411,7 @@ def _ordinary(root: Path):
 
 
 def _artifact_errors(artifact: Path, identities) -> list[str]:
-    return checker.check_artifact(artifact, SOURCE_SHA, "0.1.0a1", identities)
+    return checker.check_artifact(artifact, SOURCE_SHA, "0.1.0", identities)
 
 
 def _append_main(path: Path, value: str) -> None:

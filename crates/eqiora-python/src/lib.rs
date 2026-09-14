@@ -51,41 +51,17 @@ const MAX_PYTHON_COMPILE_FILENAME_BYTES: usize = 4_096;
 const MAX_PYTHON_COMPILE_SOURCE_BYTES: usize = 8 * 1_024 * 1_024;
 
 fn python_distribution_version(cargo_version: &str) -> Option<String> {
-    if cargo_version.contains('+') {
-        return None;
-    }
-    let (release, prerelease) = match cargo_version.split_once('-') {
-        Some((release, prerelease)) => (release, Some(prerelease)),
-        None => (cargo_version, None),
-    };
-    let release_components = release.split('.').collect::<Vec<_>>();
-    if release_components.len() != 3
-        || release_components.iter().any(|component| {
-            component.is_empty() || !component.bytes().all(|byte| byte.is_ascii_digit())
+    let components = cargo_version.split('.').collect::<Vec<_>>();
+    if components.len() != 3
+        || components.iter().any(|component| {
+            component.is_empty()
+                || !component.bytes().all(|byte| byte.is_ascii_digit())
+                || (*component != "0" && component.starts_with('0'))
         })
     {
         return None;
     }
-    let Some(prerelease) = prerelease else {
-        return Some(release.to_owned());
-    };
-    let mut components = prerelease.split('.');
-    let label = components.next()?;
-    let serial = components.next()?;
-    if components.next().is_some()
-        || serial.is_empty()
-        || !serial.bytes().all(|byte| byte.is_ascii_digit())
-        || serial.parse::<u64>().ok()?.to_string() != serial
-    {
-        return None;
-    }
-    let marker = match label {
-        "alpha" => "a",
-        "beta" => "b",
-        "rc" => "rc",
-        _ => return None,
-    };
-    Some(format!("{release}{marker}{serial}"))
+    Some(cargo_version.to_owned())
 }
 
 /// Project the compiler-owned unit catalog without duplicating conversion rules.
@@ -281,27 +257,19 @@ model decay() {
     #[test]
     fn python_distribution_version_is_derived_fail_closed_from_cargo_semver() {
         assert_eq!(
-            python_distribution_version("0.1.0-alpha.1").as_deref(),
-            Some("0.1.0a1")
-        );
-        assert_eq!(
-            python_distribution_version("1.2.3-beta.4").as_deref(),
-            Some("1.2.3b4")
-        );
-        assert_eq!(
-            python_distribution_version("1.2.3-rc.5").as_deref(),
-            Some("1.2.3rc5")
-        );
-        assert_eq!(
             python_distribution_version("1.2.3").as_deref(),
             Some("1.2.3")
         );
         for rejected in [
             "0.1.0-dev.1",
+            "0.1.0-alpha.1",
+            "1.2.3-beta.4",
+            "1.2.3-rc.5",
             "0.1.0-alpha",
             "0.1.0-alpha.01",
             "0.1.0-alpha.1.extra",
             "0.1.0+local",
+            "01.0.0",
         ] {
             assert!(
                 python_distribution_version(rejected).is_none(),
