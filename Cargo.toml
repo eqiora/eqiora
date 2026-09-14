@@ -13,11 +13,10 @@ rust-version = "1.89"
 # External dependencies are pinned here; member crates use `workspace = true`.
 base64 = "0.23"
 # Safe, handle-relative filesystem access for the untrusted package store. The
-# last v3 release keeps one io-lifetimes/Windows support line and passes the
-# workspace-MSRV plus Linux/macOS/Windows build gates; re-audit before moving
-# to v4.
-cap-fs-ext = "=3.4.5"
-cap-std = "=3.4.5"
+# Keep the capability filesystem crates on one major so their `Dir` extension
+# traits and concrete directory handles remain type-identical.
+cap-fs-ext = "=4.0.3"
+cap-std = "=4.0.3"
 ulid = "3"
 # Canonical artifact bytes must preserve every finite IEEE-754 value across
 # serialize -> decode -> serialize. The default fast parser may choose an
