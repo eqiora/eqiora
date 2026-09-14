@@ -37,12 +37,11 @@ regeneration revisions. Repair and raw kernel-face selection are stronger
 type-level exclusions: V1 has no repaired disposition or public face-rank field
 that a caller could submit.
 
-Studio has a native bridge over the same public plan and a closed CAD
-sub-protocol. Its local native, TypeScript, and Playwright suites check stale
-requests, unknown fields, keyboard table/viewport parity, responsive layout,
-and accessibility. Those UI checks are local Studio validation; they are not
-an additional Cargo evidence target in the root registry. This case's
-registered claim stops at the canonical application projection.
+Browser Studio contains a fixed, explicitly noncanonical example projection
+with local TypeScript and Playwright checks for stale selection, unknown fields,
+keyboard table/viewport parity, responsive layout, and accessibility. Those UI
+checks do not exercise this plan and are not an additional Cargo evidence target.
+This case's registered claim stops at the canonical application projection.
 
 Run:
 

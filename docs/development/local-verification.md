@@ -158,8 +158,6 @@ narrow the claim or stop.
   with Chrome present, remains a failure.
 - Run `tools/ci/python_package_gate.py` for installed Python evidence. A hand-written
   `uv run --with .` may reuse a stale cached wheel.
-- Do not verify `icon.icns` regeneration with a whole-file hash; the pinned Tauri tool may
-  reorder equivalent chunks. Compare chunk type, length, payload hash, or decoded pixels.
 
 ## Optional implementation-agent provenance
 

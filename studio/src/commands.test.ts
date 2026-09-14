@@ -7,8 +7,9 @@ describe("command catalog", () => {
   });
 
   it("matches all query terms across group, label, and description", () => {
-    expect(matchingCommands("three-package").map((command) => command.id)).toEqual([
-      "example.dc-drive",
+    expect(matchingCommands("bounded CAD").map((command) => command.id)).toEqual([
+      "workspace.geometry",
+      "example.cad",
     ]);
     expect(matchingCommands("focus canonical").map((command) => command.id)).toEqual([
       "focus.source",

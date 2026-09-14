@@ -1,46 +1,27 @@
 # Eqiora Studio
 
-Eqiora Studio is an accessible desktop projection of canonical Eqiora models.
-It is a client of the public Rust facade, not a second model implementation.
+Eqiora Studio is an accessible browser projection for exploring the shape and interaction model of canonical Eqiora models. It contains fixed, runtime-validated example projections; it is not a second model implementation.
 
-The current Studio surface contains:
+The current surface demonstrates:
 
-- Eqiora source compile/check, semantic outline, relation view, inspector, and
-  source-linked diagnostics;
-- coherent-SI `Parameter` value-edit preview, atomic commit, and a
-  bounded immutable revision lineage;
-- workspace-only graph layout and keyboard-accessible commands;
-- the verified packaged DC-drive presentation, using its existing pinned
-  package closure and accepted sampled trajectory;
-- exact bounded CAD replay and Domain selection; and
-- authored-CAD construction, replay, inspection, and export.
+- source, semantic outline, relation, inspector, and source-linked diagnostic presentation;
+- local `Parameter` value-edit preview and bounded revision navigation over the fixed example;
+- workspace-only graph layout and keyboard-accessible commands; and
+- one fixed CAD projection with Domain selection.
 
-Studio does not currently expose scalar PDE, exact-cylinder flow, structural,
-FSI, or generic ODE Plan/State/Run workflows. Those application-shaped
-lifecycles were retired instead of being adapted around the common Model-first
-API without a truthful caller-owned Geometry path.
+The browser does not compile or execute Eqiora models, construct canonical CAD identity, render generated Python, save files, or run solver and package workflows. Those operations require a future runtime that can use the public Eqiora facade without inheriting the retired GTK3 desktop dependency.
 
 ## Boundaries
 
 ```text
-React presentation
+fixed example projection
       ↓ runtime-validated Studio DTO
-Tauri command adapter
-      ↓ public Eqiora facade
-canonical compiler / value transaction / CAD / packaged DC owner
+React presentation and local interaction state
 ```
 
-The bridge is `eqiora.studio.bridge/v5`; it is independent of the canonical
-Model wire. The browser development view is explicitly a preview: it does not
-parse or execute Eqiora semantics and never fabricates scientific results.
+The bridge schema remains `eqiora.studio.bridge/v5`; it is independent of the canonical Model wire. Browser examples carry preview identities and never represent scientific execution or canonical artifact identity.
 
-`src/application-registry.ts` owns the closed presentation registry.
-Applicability is derived from typed accepted state, never source-text or
-component-tree inspection. CAD remains bound to the exact current Model
-digest. The packaged DC command is a presentation composition over its existing
-scientific owner; React derives no physical quantities.
-
-The Tauri shell has no filesystem, shell, or remote-content permission.
+`src/application-registry.ts` owns the closed presentation registry. Applicability is derived from typed accepted state, never source-text or component-tree inspection. Layout and local value-edit history remain presentation state.
 
 ## Develop and verify
 
@@ -51,7 +32,5 @@ npm ci
 npm run check
 npm test
 npm run build
+npm run test:e2e
 ```
-
-Rust formatting and checks are owned by the workspace tasks described in
-`docs/development/local-verification.md`.

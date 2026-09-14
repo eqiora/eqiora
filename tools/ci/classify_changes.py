@@ -108,12 +108,6 @@ def dependency_policy_path(path: str) -> bool:
     name = PurePosixPath(path).name
     return (
         path in {"Cargo.toml", "Cargo.lock"}
-        or path
-        in {
-            "studio/src-tauri/Cargo.toml",
-            "studio/src-tauri/Cargo.lock",
-            "studio/src-tauri/deny.toml",
-        }
         or (name == "Cargo.toml" and path.startswith(("crates/", "tools/xtask/")))
         or path == "deny.toml"
         or path.startswith(".cargo/")

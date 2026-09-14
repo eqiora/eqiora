@@ -27,8 +27,6 @@ htmlcov/
 /studio/node_modules
 /studio/.vite
 /studio/dist
-/studio/src-tauri/target
-/studio/src-tauri/gen
 /studio/test-results
 /studio/playwright-report
 **/__pycache__/

@@ -818,7 +818,7 @@ fn current_registry_collision_counts_match_the_frozen_execution_contract() {
             .sum::<usize>()
     };
     assert_eq!(count_for_script("tools/ci/python_distribution_gate.py"), 4);
-    assert_eq!(count_for_script("tools/ci/python_package_gate.py"), 3);
+    assert_eq!(count_for_script("tools/ci/python_package_gate.py"), 2);
 
     let mut distribution_cases = selecting_cases
         .iter()

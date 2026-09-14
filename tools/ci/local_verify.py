@@ -257,30 +257,15 @@ def _surface_commands(
 ) -> list[PlannedCommand]:
     commands: list[PlannedCommand] = []
     if surfaces["dependency_policy"]:
-        commands.extend(
-            [
-                command(
-                    "Root dependency policy",
-                    "cargo",
-                    "deny",
-                    "--locked",
-                    "check",
-                    lane=DEPENDENCY_POLICY_LANE,
-                ),
-                command(
-                    "Studio dependency policy",
-                    "cargo",
-                    "deny",
-                    "--all-features",
-                    "--locked",
-                    "--manifest-path",
-                    "studio/src-tauri/Cargo.toml",
-                    "--config",
-                    "studio/src-tauri/deny.toml",
-                    "check",
-                    lane=DEPENDENCY_POLICY_LANE,
-                ),
-            ]
+        commands.append(
+            command(
+                "Root dependency policy",
+                "cargo",
+                "deny",
+                "--locked",
+                "check",
+                lane=DEPENDENCY_POLICY_LANE,
+            )
         )
     if surfaces["python"]:
         commands.append(
@@ -294,17 +279,6 @@ def _surface_commands(
     if surfaces["studio"]:
         commands.extend(
             [
-                command(
-                    "Studio native formatting",
-                    "cargo",
-                    "+stable",
-                    "fmt",
-                    "--manifest-path",
-                    "studio/src-tauri/Cargo.toml",
-                    "--",
-                    "--check",
-                    lane=STUDIO_LANE,
-                ),
                 command(
                     "Studio quality",
                     "npm",
@@ -343,39 +317,6 @@ def _surface_commands(
                     )
                     if chrome_available
                     else ()
-                ),
-                command(
-                    "Studio native MSRV",
-                    "cargo",
-                    "+1.89.0",
-                    "check",
-                    "--manifest-path",
-                    "studio/src-tauri/Cargo.toml",
-                    "--locked",
-                    "--all-targets",
-                    lane=STUDIO_LANE,
-                ),
-                command(
-                    "Studio native Clippy",
-                    "cargo",
-                    "clippy",
-                    "--manifest-path",
-                    "studio/src-tauri/Cargo.toml",
-                    "--locked",
-                    "--all-targets",
-                    "--",
-                    "-D",
-                    "warnings",
-                    lane=STUDIO_LANE,
-                ),
-                command(
-                    "Studio native tests",
-                    "cargo",
-                    "test",
-                    "--manifest-path",
-                    "studio/src-tauri/Cargo.toml",
-                    "--locked",
-                    lane=STUDIO_LANE,
                 ),
             ]
         )
@@ -540,7 +481,7 @@ def build_plan(
         limitations = (
             "Python coverage is the current interpreter, not the complete 3.11-3.14 matrix.",
             "Physical multi-node MPI and GPU evidence requires an explicit matching environment run.",
-            "Studio native and browser commands require their documented system dependencies.",
+            "Studio browser interaction coverage requires its documented Chrome dependency.",
         )
     else:
         surfaces = impact_plan(

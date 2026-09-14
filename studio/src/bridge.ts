@@ -1,41 +1,19 @@
-import { invoke } from "@tauri-apps/api/core";
-import { z } from "zod";
 import { checkedRequest, protocolFailure } from "./bridge-contract";
-import {
-  type CompileRequestV2,
-  type ControlDiagnosticV2,
-  compileRequestV2Schema,
-  compileResponseMatchesRequest,
-  compileResponseV2Schema,
-} from "./control-protocol";
-import type { DcMotorDemoRequest, DcMotorDemoResult } from "./dc-motor-demo-protocol";
-import { nativeDemoBridge, previewDemoBridge } from "./demo-bridge";
+import { type CompileRequestV2, compileRequestV2Schema } from "./control-protocol";
 import { CAD_EXAMPLE_SOURCE, CAD_PREVIEW_MODEL_DIGEST, EXAMPLE_SOURCE } from "./example";
-import {
-  BRIDGE_PROTOCOL,
-  type BridgeEnvelope,
-  bridgeEnvelopeSchema,
-  type DocumentProjection,
-  diagnosticSchema,
-  documentProjectionSchema,
-  type StudioDiagnostic,
-} from "./protocol";
+import { BRIDGE_PROTOCOL, type BridgeEnvelope, type DocumentProjection } from "./protocol";
 import {
   type ValueEditCommitRequest,
   type ValueEditPlan,
   type ValueEditPreviewRequest,
   type ValueEditResult,
   valueEditCommitRequestSchema,
-  valueEditPlanSchema,
   valueEditPreviewRequestSchema,
-  valueEditResultSchema,
 } from "./value-edit-protocol";
 
-export type BridgeMode = "native" | "preview";
 export type StudioExample = "decay" | "cad";
 
 export interface StudioBridge {
-  readonly mode: BridgeMode;
   compile(request: CompileRequestV2): Promise<BridgeEnvelope<DocumentProjection>>;
   loadReadOnlyExample(
     example: StudioExample,
@@ -43,28 +21,6 @@ export interface StudioBridge {
   ): Promise<BridgeEnvelope<DocumentProjection>>;
   previewValueEdit(request: ValueEditPreviewRequest): Promise<BridgeEnvelope<ValueEditPlan>>;
   commitValueEdit(request: ValueEditCommitRequest): Promise<BridgeEnvelope<ValueEditResult>>;
-  runDcMotorDemo(request: DcMotorDemoRequest): Promise<BridgeEnvelope<DcMotorDemoResult>>;
-}
-
-const compileCommandEnvelopeSchema = z
-  .object({
-    protocol: z.literal(BRIDGE_PROTOCOL),
-    control: compileResponseV2Schema.nullable(),
-    projection: documentProjectionSchema.nullable(),
-    diagnostics: z.array(diagnosticSchema).max(10_000),
-  })
-  .strict();
-
-function studioDiagnostic(diagnostic: ControlDiagnosticV2): StudioDiagnostic {
-  return {
-    source: diagnostic.source,
-    severity: diagnostic.severity,
-    code: diagnostic.code,
-    message: diagnostic.message,
-    graphPath: diagnostic.graphPath,
-    span: diagnostic.span,
-    patch: diagnostic.patch,
-  };
 }
 
 function exampleSource(example: StudioExample): string {
@@ -79,112 +35,6 @@ function exampleSource(example: StudioExample): string {
 function exampleRequestMatchesSource(example: StudioExample, request: CompileRequestV2): boolean {
   return request.source === exampleSource(example);
 }
-
-async function nativeCompile(
-  request: CompileRequestV2,
-): Promise<BridgeEnvelope<DocumentProjection>> {
-  const checked = checkedRequest(compileRequestV2Schema, request, "Compile/check");
-  if (!checked.ok) {
-    return checked.failure;
-  }
-  let response: unknown;
-  try {
-    response = await invoke("compile_model", { requestJson: JSON.stringify(checked.value) });
-  } catch (error: unknown) {
-    const detail = error instanceof Error ? error.message : String(error);
-    return protocolFailure(`Native bridge call compile_model failed: ${detail}`);
-  }
-  const decoded = compileCommandEnvelopeSchema.safeParse(response);
-  if (!decoded.success) {
-    return protocolFailure("Native bridge returned an invalid compile_model response.");
-  }
-  const envelope = decoded.data;
-  if (envelope.control === null) {
-    return envelope.projection === null && envelope.diagnostics.length > 0
-      ? { protocol: BRIDGE_PROTOCOL, result: null, diagnostics: envelope.diagnostics }
-      : protocolFailure("Native bridge returned an incoherent rejected compile/check response.");
-  }
-  if (!compileResponseMatchesRequest(checked.value, envelope.control)) {
-    return protocolFailure("Native bridge returned compile/check metadata for another request.");
-  }
-  if (envelope.control.outcome.status === "rejected") {
-    return envelope.projection === null && envelope.diagnostics.length === 0
-      ? {
-          protocol: BRIDGE_PROTOCOL,
-          result: null,
-          diagnostics: envelope.control.outcome.diagnostics.map(studioDiagnostic),
-        }
-      : protocolFailure("Native bridge mixed a rejected compile/check response with Studio state.");
-  }
-  if (envelope.projection === null) {
-    return envelope.diagnostics.length > 0
-      ? { protocol: BRIDGE_PROTOCOL, result: null, diagnostics: envelope.diagnostics }
-      : protocolFailure("Native bridge omitted the accepted Model projection.");
-  }
-  const model = envelope.control.outcome.model;
-  if (
-    envelope.diagnostics.length > 0 ||
-    envelope.projection.digest !== model.digest ||
-    envelope.projection.modelId !== model.modelId ||
-    envelope.projection.revision !== model.semanticRevision
-  ) {
-    return protocolFailure("Studio projection identity differs from the accepted canonical Model.");
-  }
-  return { protocol: BRIDGE_PROTOCOL, result: envelope.projection, diagnostics: [] };
-}
-
-async function checkedInvoke<T>(
-  command: string,
-  args: Record<string, unknown>,
-  schema: ReturnType<typeof bridgeEnvelopeSchema>,
-): Promise<BridgeEnvelope<T>> {
-  try {
-    const response: unknown = await invoke(command, args);
-    const decoded = schema.safeParse(response);
-    if (!decoded.success) {
-      return protocolFailure(`Native bridge returned an invalid ${command} response.`);
-    }
-    return decoded.data as BridgeEnvelope<T>;
-  } catch (error: unknown) {
-    const detail = error instanceof Error ? error.message : String(error);
-    return protocolFailure(`Native bridge call ${command} failed: ${detail}`);
-  }
-}
-
-const nativeBridge: StudioBridge = {
-  mode: "native",
-  compile: nativeCompile,
-  async loadReadOnlyExample(example, request) {
-    return exampleRequestMatchesSource(example, request)
-      ? nativeCompile(request)
-      : protocolFailure("Read-only example identity does not match its immutable source.");
-  },
-  async previewValueEdit(request) {
-    const checked = checkedRequest(valueEditPreviewRequestSchema, request, "Value edit preview");
-    if (!checked.ok) {
-      return checked.failure;
-    }
-    return checkedInvoke<ValueEditPlan>(
-      "preview_value_edit",
-      { request: checked.value },
-      bridgeEnvelopeSchema(valueEditPlanSchema),
-    );
-  },
-  async commitValueEdit(request) {
-    const checked = checkedRequest(valueEditCommitRequestSchema, request, "Value edit commit");
-    if (!checked.ok) {
-      return checked.failure;
-    }
-    return checkedInvoke<ValueEditResult>(
-      "commit_value_edit",
-      { request: checked.value },
-      bridgeEnvelopeSchema(valueEditResultSchema),
-    );
-  },
-  async runDcMotorDemo(request) {
-    return nativeDemoBridge.runDcMotor(request);
-  },
-};
 
 const PREVIEW_DIGEST = "preview-4b6ec236856d4bf394168dbac7f5851b";
 
@@ -430,8 +280,7 @@ function previewValuePlan(
   };
 }
 
-const previewBridge: StudioBridge = {
-  mode: "preview",
+export const studioBridge: StudioBridge = {
   async compile(request) {
     const checked = checkedRequest(compileRequestV2Schema, request, "Compile/check");
     if (!checked.ok) {
@@ -447,7 +296,7 @@ const previewBridge: StudioBridge = {
           severity: "error",
           code: "STPREVIEW",
           message:
-            "Browser preview cannot compile source. Open a read-only example or launch the native shell for canonical diagnostics.",
+            "Browser preview cannot compile source. Open a read-only example to inspect the browser projection.",
           graphPath: null,
           span: null,
         },
@@ -521,11 +370,4 @@ const previewBridge: StudioBridge = {
       diagnostics: [],
     };
   },
-  async runDcMotorDemo(request) {
-    return previewDemoBridge.runDcMotor(request);
-  },
 };
-
-const hasTauriRuntime = "__TAURI_INTERNALS__" in window;
-
-export const studioBridge = hasTauriRuntime ? nativeBridge : previewBridge;

@@ -2,7 +2,7 @@
 
 This case fixes one current-only authoring profile. Rust
 `ModelDocument::compile` and `compile_module`, Python `compile` with text or a `Module`, and
-Studio's authoring request all select the same current semantic vocabulary
+the browser Studio request schema all select the same current semantic vocabulary
 without accepting a wire or codec argument from the user.
 
 The [public compile schema](../../../crates/eqiora-api/schemas/compile-v2.schema.json)
@@ -13,9 +13,9 @@ owner. Schema identifiers are read from that public contract, not a second
 version mapping in this case.
 
 Installed-wheel Python tests separately check text/Module compilation and replay against
-the same schema. Studio's TypeScript tests check client constants and rejection;
-its native tests exercise the shared control owner and cache admission. Those
-companion checks run in their own client gates, not in this registered Rust case.
+the same schema. Studio's TypeScript tests check only client constants and rejection. That
+companion check runs in the browser client gate and adds no compile capability to
+this registered Rust case.
 
 Run:
 

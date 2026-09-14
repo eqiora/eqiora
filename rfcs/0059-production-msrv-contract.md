@@ -101,8 +101,8 @@ historical 0.16.0 and reference-backend version strings byte for byte.
 
 ### Separate workspaces
 
-The Tauri application and CubeCL experiment have independent manifests and
-lockfiles. They continue to declare and test their own floors. In particular,
+The CubeCL experiment has an independent manifest and lockfile. It continues
+to declare and test its own floor. In particular,
 the CubeCL 0.10 investigation remains Rust 1.92 and does not enter the
 production dependency graph.
 

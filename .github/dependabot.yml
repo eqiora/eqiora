@@ -5,11 +5,6 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 5
-  - package-ecosystem: cargo
-    directory: "/studio/src-tauri"
-    schedule:
-      interval: monthly
-    open-pull-requests-limit: 5
   - package-ecosystem: github-actions
     directory: "/"
     schedule:

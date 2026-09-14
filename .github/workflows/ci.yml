@@ -332,14 +332,6 @@ jobs:
         with:
           arguments: --all-features --locked
           command: check
-      - name: Check Studio dependency policy
-        if: needs.changes.outputs.dependency_policy == 'true'
-        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
-        with:
-          manifest-path: studio/src-tauri/Cargo.toml
-          arguments: --all-features --locked --config studio/src-tauri/deny.toml
-          command: check
-
   cubecl_experiment:
     name: Isolated CubeCL contract experiment
     needs: changes
@@ -416,7 +408,7 @@ jobs:
         run: python tools/ci/python_package_gate.py
 
   studio:
-    name: Studio projection and native boundary
+    name: Studio browser projection
     needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -429,7 +421,7 @@ jobs:
         run: |
           test -n "$TARGET_SHA"
           test -n "$LANE_REASON"
-          printf 'Studio projection and native boundary: %s; heavy execution did not run on %s.\n' \
+          printf 'Studio browser projection: %s; heavy execution did not run on %s.\n' \
             "$LANE_REASON" "$TARGET_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.changes.outputs.studio == 'true'
@@ -442,16 +434,6 @@ jobs:
           node-version: 24.18.1
           cache: npm
           cache-dependency-path: studio/package-lock.json
-      - name: Install native WebView dependencies
-        if: needs.changes.outputs.studio == 'true'
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
-      - name: Install stable Rust
-        if: needs.changes.outputs.studio == 'true'
-        run: |
-          rustup toolchain install stable --profile minimal --component rustfmt,clippy
-          rustup toolchain install 1.89.0 --profile minimal
       - name: Install locked frontend dependencies
         if: needs.changes.outputs.studio == 'true'
         working-directory: studio
@@ -467,22 +449,6 @@ jobs:
         if: needs.changes.outputs.studio == 'true'
         working-directory: studio
         run: npm run test:e2e
-      - name: Native adapter formatting
-        if: needs.changes.outputs.studio == 'true'
-        run: cargo +stable fmt --manifest-path studio/src-tauri/Cargo.toml -- --check
-      - name: Native adapter MSRV
-        if: needs.changes.outputs.studio == 'true'
-        run: cargo +1.89.0 check --manifest-path studio/src-tauri/Cargo.toml --locked --all-targets
-      - name: Native adapter Clippy
-        if: needs.changes.outputs.studio == 'true'
-        run: cargo +stable clippy --manifest-path studio/src-tauri/Cargo.toml --locked --all-targets -- -D warnings
-      - name: Native adapter tests
-        if: needs.changes.outputs.studio == 'true'
-        run: cargo +stable test --manifest-path studio/src-tauri/Cargo.toml --locked
-      - name: Production shell build
-        if: needs.changes.outputs.studio == 'true'
-        working-directory: studio
-        run: npm run tauri build -- --no-bundle
 
   gate:
     name: CI gate

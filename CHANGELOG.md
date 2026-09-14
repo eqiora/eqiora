@@ -6,6 +6,13 @@ are recorded here.
 
 ## [Unreleased]
 
+### Removed
+
+- Retired the GTK3/Tauri Studio shell and its native-only authored-CAD,
+  Python-export, and packaged DC-drive workflows. The retained browser Studio
+  is an explicit interaction preview over fixed projections and has no native
+  runtime dependency.
+
 ## [0.1.0a14] - 2026-09-14
 
 ### Added
