@@ -11,11 +11,11 @@ pub(crate) fn advance_prepared_actions<C, P, A, B, E>(
     maximum_actions: usize,
     prepare: impl FnOnce(&C) -> Result<P, E>,
     mut step_span: impl FnMut(usize, &C) -> tracing::Span,
-    mut advance: impl FnMut(&P, &C) -> Result<A, E>,
+    mut advance: impl FnMut(&mut P, &C) -> Result<A, E>,
     mut accept: impl FnMut(&mut C, usize, A) -> Result<(), E>,
     mut stop_at_boundary: impl FnMut(usize, &C) -> Option<B>,
 ) -> Result<ControlFlow<B, C>, E> {
-    let prepared = {
+    let mut prepared = {
         let _setup =
             eqiora_execution::telemetry_span!(setup("discretization_preparation")).entered();
         prepare(&context)?
@@ -25,7 +25,7 @@ pub(crate) fn advance_prepared_actions<C, P, A, B, E>(
     }
     for accepted_actions in 1..=maximum_actions {
         let _step = step_span(accepted_actions, &context).entered();
-        let candidate = advance(&prepared, &context)?;
+        let candidate = advance(&mut prepared, &context)?;
         accept(&mut context, accepted_actions, candidate)?;
         if let Some(stopped) = stop_at_boundary(accepted_actions, &context) {
             return Ok(ControlFlow::Break(stopped));

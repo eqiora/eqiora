@@ -356,7 +356,7 @@ ceiling = 18
 
 [[public_surface]]
 crate = "eqiora-execution"
-ceiling = 22
+ceiling = 21
 
 [[public_surface]]
 crate = "eqiora-geometry"

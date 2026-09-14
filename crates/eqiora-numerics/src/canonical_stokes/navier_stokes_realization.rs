@@ -39,7 +39,8 @@ use crate::simplicial_elliptic::SimplicialP1Field;
 use crate::simplicial_navier_stokes::{
     MiniNavierStokesStepPlan2d, PreparedStepStructure, SimplicialMiniNavierStokesState2d,
     SimplicialMiniNavierStokesStepEvidence2d,
-    advance_simplicial_mini_navier_stokes_2d_with_prepared_structure, prepare_step_structure,
+    advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_and_linear,
+    prepare_step_structure,
 };
 use crate::simplicial_stokes::{
     SimplicialMiniStokesPressureReference2d, SimplicialMiniVelocityField2d,

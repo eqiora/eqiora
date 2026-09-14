@@ -26,6 +26,17 @@ impl PreparedResolvedTransientMiniRun2d<'_> {
         run: TransientNavierStokesRun2d,
         solver: &dyn LinearSolverBackend,
     ) -> Result<ResolvedTransientNavierStokesTrajectory2d, Diagnostic> {
+        let mut prepared_linear = solver.prepare_linear(self.numerical_plan.linear_solver())?;
+        self.advance_with_linear(initial, run, solver, prepared_linear.as_deref_mut())
+    }
+
+    pub(crate) fn advance_with_linear(
+        &self,
+        initial: TransientNavierStokesInitialState2d,
+        run: TransientNavierStokesRun2d,
+        solver: &dyn LinearSolverBackend,
+        prepared_linear: Option<&mut (dyn eqiora_solver::PreparedLinearSolver + '_)>,
+    ) -> Result<ResolvedTransientNavierStokesTrajectory2d, Diagnostic> {
         if initial.mesh_artifact != self.mesh_artifact
             || initial.velocity_field != velocity_id(&self.common)
             || initial.pressure_field != pressure_id(&self.common)
@@ -62,18 +73,20 @@ impl PreparedResolvedTransientMiniRun2d<'_> {
             let force = common.conservative_body_force(&coordinate)?;
             Ok([length * force[0] / pressure, length * force[1] / pressure])
         };
-        let numerical = advance_simplicial_mini_navier_stokes_2d_with_prepared_structure(
-            &self.normalized.mesh,
-            &self.step_structure,
-            &body_force,
-            numerical_initial,
-            run.step_count,
-            self.numerical_plan,
-            &self.cell_quadrature,
-            &self.facet_quadrature,
-            &checked_assembly,
-            solver,
-        )?;
+        let numerical =
+            advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_and_linear(
+                &self.normalized.mesh,
+                &self.step_structure,
+                &body_force,
+                numerical_initial,
+                run.step_count,
+                self.numerical_plan,
+                &self.cell_quadrature,
+                &self.facet_quadrature,
+                &checked_assembly,
+                solver,
+                prepared_linear,
+            )?;
         let validated_block_materializations = checked_assembly.validated_materialization_count();
         if validated_block_materializations == 0 {
             return Err(invalid_realization(

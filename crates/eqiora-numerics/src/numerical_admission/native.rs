@@ -133,6 +133,21 @@ impl LinearSolverBackend for ProfileCheckedBackend<'_> {
     fn capabilities(&self) -> SolverCapabilities {
         self.backend.capabilities()
     }
+    fn prepare_linear(
+        &self,
+        plan: SolverPlan,
+    ) -> Result<Option<Box<dyn eqiora_solver::PreparedLinearSolver>>, Diagnostic> {
+        if plan != self.plan {
+            return Err(invalid("execution changed the admitted exact solver plan"));
+        }
+        let Some(prepared) = self.backend.prepare_linear(plan)? else {
+            return Ok(None);
+        };
+        Ok(Some(Box::new(ProfileCheckedPreparedLinear {
+            prepared,
+            profile: self.profile.clone(),
+        })))
+    }
     fn solve_with_execution(
         &self,
         problem: &eqiora_solver::LinearProblem<'_>,
@@ -146,6 +161,25 @@ impl LinearSolverBackend for ProfileCheckedBackend<'_> {
             profile.require_problem(problem)?;
         }
         self.backend.solve_with_execution(problem, plan, execution)
+    }
+}
+
+#[derive(Debug)]
+struct ProfileCheckedPreparedLinear {
+    prepared: Box<dyn eqiora_solver::PreparedLinearSolver>,
+    profile: Option<eqiora_solver::HostSerialSolverProfile>,
+}
+
+impl eqiora_solver::PreparedLinearSolver for ProfileCheckedPreparedLinear {
+    fn solve(
+        &mut self,
+        structure: &eqiora_solver::PreparedLinearStructureIdentity,
+        problem: &eqiora_solver::LinearProblem<'_>,
+    ) -> Result<eqiora_solver::LinearSolution, Diagnostic> {
+        if let Some(profile) = &self.profile {
+            profile.require_problem(problem)?;
+        }
+        self.prepared.solve(structure, problem)
     }
 }
 

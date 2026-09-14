@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::num::{NonZeroU64, NonZeroUsize};
 
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, Id, OntologyId, ScalarType};
+use eqiora_core::{Id, OntologyId, ScalarType};
 use eqiora_device::{
     BufferId, Completion, DeviceBufferDescriptor, DeviceCapability, DeviceDescriptor, DeviceId,
     Fence, HostBufferDescriptor, MemoryRegion, QueueId, QueueSlot, QueueTimeline, RuntimeId,
@@ -28,7 +28,6 @@ use super::binding::{DistributedExecutorDescriptor, ProcessGroupSlot};
 use super::*;
 
 mod cuda_validation;
-mod prepared_validation;
 
 const TEST_PROVIDER_VERSION: &str = "0.1.0-test";
 const SUBSTITUTED_LIBRARIES: &[ProviderLibrary] =

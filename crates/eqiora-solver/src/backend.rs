@@ -318,7 +318,7 @@ pub trait LinearSolverBackend: Debug + Sync {
     fn prepare_linear(
         &self,
         _plan: SolverPlan,
-    ) -> Result<Option<Box<dyn PreparedLinearSolver + '_>>, Diagnostic> {
+    ) -> Result<Option<Box<dyn PreparedLinearSolver>>, Diagnostic> {
         Ok(None)
     }
 

@@ -13,7 +13,7 @@ use super::assembly::{
     prepare_step_structure,
 };
 use super::element::FixedDomainViscousForm;
-use super::{COMPONENTS, DIMENSION, solve_failed};
+use super::{COMPONENTS, DIMENSION, invalid, solve_failed};
 use crate::simplicial_stokes::SimplicialMiniStokesBoundary2d;
 use crate::step_count::NonZeroStepCount;
 
@@ -123,7 +123,8 @@ where
         cell_quadrature,
         facet_quadrature,
     )?;
-    advance_simplicial_mini_navier_stokes_2d_with_prepared_structure(
+    let mut prepared_linear = solver.prepare_linear(plan.linear_solver())?;
+    advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_and_linear(
         mesh,
         &prepared,
         body_force,
@@ -134,11 +135,12 @@ where
         facet_quadrature,
         assembly,
         solver,
+        prepared_linear.as_deref_mut(),
     )
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn advance_simplicial_mini_navier_stokes_2d_with_prepared_structure<F>(
+pub(crate) fn advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_and_linear<F>(
     mesh: &SimplicialMesh,
     prepared: &PreparedStepStructure,
     body_force: &F,
@@ -149,6 +151,7 @@ pub(crate) fn advance_simplicial_mini_navier_stokes_2d_with_prepared_structure<F
     facet_quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
+    mut prepared_linear: Option<&mut (dyn eqiora_solver::PreparedLinearSolver + '_)>,
 ) -> Result<SimplicialMiniNavierStokesTrajectory2d, Diagnostic>
 where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
@@ -170,6 +173,7 @@ where
             facet_quadrature,
             assembly,
             solver,
+            &mut prepared_linear,
             FixedDomainViscousForm::SymmetricNewtonian,
         )?;
         trajectory.push(next, evidence)?;
@@ -188,6 +192,7 @@ fn solve_one_step<F>(
     facet_quadrature: &QuadratureRule,
     assembly_backend: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
+    prepared_linear: &mut Option<&mut (dyn eqiora_solver::PreparedLinearSolver + '_)>,
     viscous_form: FixedDomainViscousForm,
 ) -> Result<
     (
@@ -259,7 +264,17 @@ where
             .relation
             .state_jacobian()
             .linear_problem_with_right_hand_side(&right_hand_side)?;
-        let solution = solver.solve(&linear_problem, plan.linear_solver())?;
+        let solution = if let Some(prepared_linear) = prepared_linear.as_deref_mut() {
+            let structure = current
+                .assembly_report
+                .structure_identity()
+                .ok_or_else(|| {
+                    invalid("prepared linear solve requires an exact assembly structure identity")
+                })?;
+            prepared_linear.solve(structure, &linear_problem)?
+        } else {
+            solver.solve(&linear_problem, plan.linear_solver())?
+        };
         reports.push(solution.report().clone());
         let correction = solution.values();
         let mut accepted = None;

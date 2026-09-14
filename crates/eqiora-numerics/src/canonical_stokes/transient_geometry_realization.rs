@@ -35,7 +35,8 @@ use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQua
 use crate::discrete_block::DiscreteBlockSystem;
 use crate::simplicial_navier_stokes::{
     MiniNavierStokesStepPlan2d, PreparedStepStructure,
-    advance_simplicial_mini_navier_stokes_2d_with_prepared_structure, prepare_step_structure,
+    advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_and_linear,
+    prepare_step_structure,
 };
 use crate::simplicial_stokes::{
     SimplicialMiniStokesBoundary2d, SimplicialMiniStokesBoundaryCondition2d,
@@ -317,11 +318,12 @@ pub(crate) struct PreparedResolvedTransientGeometryMiniRun2d<'a> {
 }
 
 impl PreparedResolvedTransientGeometryMiniRun2d<'_> {
-    pub(crate) fn advance(
+    pub(crate) fn advance_with_linear(
         &self,
         initial: TransientNavierStokesInitialState2d,
         run: TransientNavierStokesRun2d,
         solver: &dyn LinearSolverBackend,
+        prepared_linear: Option<&mut (dyn eqiora_solver::PreparedLinearSolver + '_)>,
     ) -> Result<Vec<ResolvedTransientNavierStokesState2d>, Diagnostic> {
         let common = self.binding.model();
         if initial.mesh_artifact != self.mesh_artifact
@@ -355,18 +357,20 @@ impl PreparedResolvedTransientGeometryMiniRun2d<'_> {
             let force = common.conservative_body_force(&coordinate)?;
             Ok([length * force[0] / pressure, length * force[1] / pressure])
         };
-        let numerical = advance_simplicial_mini_navier_stokes_2d_with_prepared_structure(
-            &self.normalized,
-            &self.step_structure,
-            &body_force,
-            numerical_initial,
-            run.step_count(),
-            self.numerical_plan,
-            &self.cell_quadrature,
-            &self.facet_quadrature,
-            &checked_assembly,
-            solver,
-        )?;
+        let numerical =
+            advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_and_linear(
+                &self.normalized,
+                &self.step_structure,
+                &body_force,
+                numerical_initial,
+                run.step_count(),
+                self.numerical_plan,
+                &self.cell_quadrature,
+                &self.facet_quadrature,
+                &checked_assembly,
+                solver,
+                prepared_linear,
+            )?;
         if checked_assembly.validated_materialization_count() == 0 {
             return Err(invalid_realization(
                 "transient execution returned without a validated block materialization",

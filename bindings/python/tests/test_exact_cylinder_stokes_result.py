@@ -251,14 +251,19 @@ def test_profile_reports_common_and_sparse_lu_phases_without_changing_the_plan()
         ),
     )
     transient = eqiora.run(
-        plan, state=state, steps=1, output_steps=(1,), profile=True
+        plan, state=state, steps=2, output_steps=(2,), profile=True
     )
     assert transient.profile is not None
     events = transient.profile.events
-    step = next(event for event in events if event.fields.get("phase") == "time_step")
-    assert step.fields["step"] == "1"
-    assert float(step.fields["time_s"]) == 0.0001
-    assert float(step.fields["dt_s"]) == 0.0001
+    time_steps = [
+        event for event in events if event.fields.get("phase") == "time_step"
+    ]
+    assert [step.fields["step"] for step in time_steps] == ["1", "2"]
+    assert [float(step.fields["time_s"]) for step in time_steps] == [
+        0.0001,
+        0.0002,
+    ]
+    assert all(float(step.fields["dt_s"]) == 0.0001 for step in time_steps)
     assert any(
         event.fields.get("event") == "nonlinear_status"
         and event.fields.get("nonlinear_solver") == "newton"
@@ -303,7 +308,7 @@ def test_profile_reports_common_and_sparse_lu_phases_without_changing_the_plan()
     scatter_calls = sum(
         phase.calls for phase in prepared_phases["assembly_scatter_update"]
     )
-    assert scatter_calls == 3
+    assert scatter_calls == 3 * len(time_steps)
     assert (
         sum(phase.calls for phase in prepared_phases["assembly_finalization"])
         == scatter_calls
@@ -317,3 +322,25 @@ def test_profile_reports_common_and_sparse_lu_phases_without_changing_the_plan()
             assert phase.calls > 0
             assert phase.inclusive_seconds >= phase.self_seconds >= 0.0
             assert phase.mean_seconds == phase.inclusive_seconds / phase.calls
+    phase_calls = {
+        path: sum(
+            phase.calls
+            for phase in transient.profile.phases
+            if tuple(phase.path) == path
+        )
+        for path in {tuple(phase.path) for phase in transient.profile.phases}
+    }
+    linear_path = (
+        "run",
+        "solve",
+        "time_step",
+        "nonlinear_iteration",
+        "linear_solve",
+    )
+    symbolic_path = (*linear_path, "symbolic_factorization")
+    numeric_path = (*linear_path, "numeric_factorization")
+    backsolve_path = (*linear_path, "backsolve")
+    assert phase_calls[linear_path] > 1
+    assert phase_calls[symbolic_path] == 1
+    assert phase_calls[numeric_path] == phase_calls[linear_path]
+    assert phase_calls[backsolve_path] == phase_calls[linear_path]

@@ -1,85 +1,32 @@
 id = "numerics.faer-sparse-lu-reuse-private"
 status = "implemented"
-scope = "crate-private-faer-sparse-lu-reuse-state-ledger-and-falsifiers"
-reference_kind = "independent-exact-phase-inventory-and-injected-component-mutants"
+scope = "crate-private-faer-prepared-sparse-lu-identity-topology-and-failure-falsifiers"
+reference_kind = "focused-production-state-tests"
 
 capabilities = [
-  "acceptance-time-reuse-state-commit",
+  "exact-structure-encoding-equality",
+  "actual-csr-topology-equality",
+  "coefficient-sensitive-numeric-refactorization",
   "failed-candidate-state-retention",
-  "private-preflight-factorization-solve-acceptance-and-commit-ledger",
-  "componentwise-reuse-validation-falsifiers",
-  "invalid-factor-state-fail-closed-validation",
 ]
 
 [authority]
 required_primary_case = "numerics.faer-sparse-lu-reuse"
 verification_requires_both_cases = true
-state_oracle = "../faer-sparse-lu-reuse/expected/state-machine.json"
-private_falsifier_owner = "crates/eqiora-backend-faer/src/sparse_lu_reuse/tests.rs"
-test_support_visibility = "cfg(test), crate-private, and shared-production-seam-only"
+private_falsifier_owner = "crates/eqiora-backend-faer/src/prepared_sparse_lu.rs"
 
-[phase_inventory]
-vocabulary = [
-  "preflight-attempt",
-  "preflight-success",
-  "preflight-rejected",
-  "symbolic-attempt",
-  "symbolic-success",
-  "numeric-attempt",
-  "numeric-success",
-  "retained-factor-solve",
-  "candidate-factor-solve",
-  "solver-acceptance-attempt",
-  "solver-acceptance-success",
-  "execution-acceptance-attempt",
-  "execution-acceptance-success",
-  "state-commit",
-]
-p0_p1_p2_final_counters = [3, 3, 1, 2]
-p0_singular_p1_after_failure_counters = [2, 1, 1, 1]
-p0_singular_p1_final_counters = [3, 2, 1, 1]
-
-[candidate_failures]
-numeric_factorization = "no numeric-success or later phase; retained state unchanged"
-candidate_solve = "no solver-acceptance phase or commit; retained state unchanged"
-solver_acceptance = "attempt without success or commit; retained state unchanged"
-execution_acceptance = "attempt without success or commit; retained state unchanged"
-candidate_identity_public_before_commit = false
-
-[targeted_mutants]
-existing_full_csr_omits_rhs = true
-reuse_omits_structure = true
-reuse_omits_coefficients = true
-reuse_omits_policy = true
-reuse_omits_provider = true
-reuse_omits_portable_realization_graph = true
-mutant_rule = "the complete baseline rejects RHS, structure, policy, provider, and graph mismatches; the complete coefficient baseline rebuilds numeric; omitting only the named equality authorizes the otherwise-single-component mismatch"
-
-[invalid_factor_states]
-states = ["stale", "foreign", "partially-constructed", "failed", "singular"]
-error_code = "EQ0807"
-rejection_phase = "preflight"
-numerical_attempt_delta = 0
-committed_state_changes = false
+[falsifiers]
+same_dimensions_changed_structure_identity = "symbolic state is rebuilt"
+same_dimensions_changed_csr_topology = "symbolic state is rebuilt"
+same_structure_changed_coefficients = "numeric state is rebuilt without symbolic analysis"
+singular_numeric_candidate = "failure cannot replace the last accepted factors"
 
 [claim_boundary]
-adds_public_api = false
 adds_durable_telemetry_or_artifact = false
 adds_general_cache = false
-duplicates_production_state_machine = false
-test_support_must_drive_shared_production_validators_and_phase_ledger = true
 performance_or_scale = false
-phase_count_order_independence = false
-
-[precommitment]
-precommitted = true
-authored_before_implementation_by_a_fresh_context_nonimplementer = true
-base_revision = "46f77e3cc5eb19c6d4d023db890b118a62834c8f"
-implementation_read = false
-writer_scratch_read = false
-expected_predecessor_result = "the production-private module and cfg(test) wiring are absent, so this exact library oracle is intentionally missing until implementation composition"
 
 [evidence]
 runner = "cargo-library-test"
 package = "eqiora-backend-faer"
-test = "sparse_lu_reuse::tests::registered_state_machine_oracle_executes_all_private_falsifiers"
+test = "prepared_sparse_lu::tests::registered_exact_structure_reuse_falsifiers"

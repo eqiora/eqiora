@@ -6,16 +6,14 @@
 //! returns Eqiora-owned convergence evidence after independent true-residual
 //! verification.
 
+mod prepared_sparse_lu;
 mod sparse_lu;
 mod sparse_lu_factor;
-mod sparse_lu_identity;
-mod sparse_lu_reuse;
 
 use std::sync::{Arc, Mutex};
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, ScalarType};
-use eqiora_execution::{AcceptedLinearExecution, AdmittedExecution};
 use eqiora_solver::{
     BackendId, ConvergenceReason, DiagonalAvailability, ExecutionReport, LinearOperator,
     LinearOperatorProperties, LinearProblem, LinearSolution, LinearSolver, LinearSolverBackend,
@@ -47,29 +45,6 @@ pub const FAER_SOLVER_PROVIDER: SolverProvider = SolverProvider::new(
 /// Stateless faer adapter for host-local `f64` CG, BiCGSTAB, and sparse LU.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FaerLinearSolver;
-
-impl FaerLinearSolver {
-    /// Scope repeated run-local solves inside one private prepared sparse-LU
-    /// session.
-    ///
-    /// Eqiora owns compatibility and commit authorization through each
-    /// admitted execution. Faer factors never escape this call, and a failed
-    /// candidate cannot replace the last accepted reusable state.
-    ///
-    /// # Errors
-    /// Returns a structured diagnostic for an unsupported plan, incompatible
-    /// candidate, factorization/solve failure, numerical acceptance failure,
-    /// or an operation-level failure.
-    pub fn with_prepared_linear<R>(
-        &self,
-        plan: SolverPlan,
-        operation: impl FnOnce(
-            &mut dyn FnMut(AdmittedExecution<'_>) -> Result<AcceptedLinearExecution, Diagnostic>,
-        ) -> Result<R, Diagnostic>,
-    ) -> Result<R, Diagnostic> {
-        sparse_lu_reuse::with_prepared_linear(plan, operation)
-    }
-}
 
 // Materialize every initial residual through Eqiora's operator instead of
 // relying on a library-specific implicit-zero workspace path.
@@ -133,6 +108,26 @@ impl LinearSolverBackend for FaerLinearSolver {
             },
         ])
         .expect("faer exact capability set is nonempty")
+    }
+
+    fn prepare_linear(
+        &self,
+        plan: SolverPlan,
+    ) -> Result<Option<Box<dyn eqiora_solver::PreparedLinearSolver>>, Diagnostic> {
+        if plan.algorithm() != LinearSolver::SparseLu
+            || plan.preconditioner() != PreconditionerPolicy::Identity
+            || plan.reduction() != ReductionPolicy::Fast
+        {
+            return Ok(None);
+        }
+        self.capabilities().require_problem(
+            plan,
+            ScalarType::F64,
+            LinearOperatorProperties::General,
+        )?;
+        Ok(Some(Box::new(
+            prepared_sparse_lu::FaerPreparedSparseLu::new(plan),
+        )))
     }
 
     fn solve_with_execution(
