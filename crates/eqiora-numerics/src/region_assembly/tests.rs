@@ -27,21 +27,22 @@ fn dense(system: &LinearSystem) -> Vec<f64> {
 }
 
 #[test]
-fn component_reactions_keep_only_selected_rows_from_the_exact_packet_groups() {
+fn domain_reactions_keep_only_selected_rows_from_exact_packet_ownership() {
     let fixture = Fixture::new(3, true);
     let prepared = fixture.prepare().unwrap();
     let n = fixture.rhs.len();
     let rows = [0, 4, n - 1].into_iter().collect::<BTreeSet<_>>();
-    let groups = vec![vec![0, 1], vec![2, 3], vec![4, 5]];
     let target = fixture.plan.target_id(1).unwrap();
-    let reactions = prepare_reaction_rows(&prepared, target, n, &groups, &rows).unwrap();
+    let reactions =
+        DomainReactions::prepare(&prepared, target, n, &fixture.domains, &rows).unwrap();
     let values = (0..n)
         .map(|index| 0.25 + index as f64 / 7.0)
         .collect::<Vec<_>>();
-    for (group, reaction) in reactions.iter().enumerate() {
+    let recovered = reactions.recover(&values).unwrap();
+    for (group, domain) in fixture.domains.as_chunks::<2>().0.iter().enumerate() {
         let first = 3 * group * (group + 1) / 2;
         let end = first + 3 * (group + 1);
-        let actual = reaction.residual(&values).unwrap();
+        let actual = &recovered.values[&domain[0]];
         for (row, actual) in actual.iter().enumerate() {
             let expected = if rows.contains(&row) && (first..end).contains(&row) {
                 fixture.matrix[row * n..(row + 1) * n]
@@ -55,14 +56,38 @@ fn component_reactions_keep_only_selected_rows_from_the_exact_packet_groups() {
             };
             close(*actual, expected);
         }
-        assert!(reaction.residual(&values[..n - 1]).is_err());
+        assert!(reactions.recover(&values[..n - 1]).is_err());
     }
-    assert!(prepare_reaction_rows(&prepared, target, n, &[vec![0], vec![0]], &rows).is_err());
     assert!(
-        prepare_reaction_rows(&prepared, target, n, &groups, &[n].into_iter().collect()).is_err()
+        DomainReactions::prepare(
+            &prepared,
+            target,
+            n,
+            &fixture.domains[..fixture.domains.len() - 1],
+            &rows
+        )
+        .is_err()
     );
-    let empty = prepare_reaction_rows(&prepared, target, n, &[vec![]], &BTreeSet::new()).unwrap();
-    assert_eq!(empty[0].residual(&values).unwrap(), vec![0.0; n]);
+    assert!(
+        DomainReactions::prepare(
+            &prepared,
+            target,
+            n,
+            &fixture.domains,
+            &[n].into_iter().collect()
+        )
+        .is_err()
+    );
+    let empty =
+        DomainReactions::prepare(&prepared, target, n, &fixture.domains, &BTreeSet::new()).unwrap();
+    assert!(
+        empty
+            .recover(&values)
+            .unwrap()
+            .values
+            .values()
+            .all(|values| values == &vec![0.0; n])
+    );
 }
 
 #[test]

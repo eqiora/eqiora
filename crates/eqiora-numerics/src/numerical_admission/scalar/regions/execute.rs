@@ -14,6 +14,11 @@ impl ExecutableScalarEquations {
         admission: &NativeNumericalAdmission,
         request: LinearSolveRequest<'_>,
         mesh: &CartesianMesh,
+        complete: impl FnOnce(
+            &crate::region_assembly::InterfaceReactions,
+            &[f64],
+        )
+            -> Result<crate::region_assembly::RecoveredInterfaceReactions, Diagnostic>,
     ) -> Result<CommonScalarRunOutput, Diagnostic> {
         let dimension = mesh.topological_dimension();
         let domains = self.cell_domains(mesh)?;
@@ -118,12 +123,21 @@ impl ExecutableScalarEquations {
             }
         }
         let mapping = RegionDofMap::new(mesh, &layouts, reference, &domains, &traces, &prescribed)?;
-        let plan = AssemblyPlan::new(vec![AssemblyTarget::new(mapping.free_count())?])?;
+        let plan = AssemblyPlan::new(vec![
+            AssemblyTarget::new(mapping.free_count())?,
+            AssemblyTarget::new(mapping.full_count())?,
+        ])?;
         let maps = |index| {
-            Ok::<_, Diagnostic>(vec![TargetAssemblyMap::new(
-                plan.target_id(0).expect("target"),
-                mapping.cell_map(index, true)?,
-            )])
+            Ok::<_, Diagnostic>(vec![
+                TargetAssemblyMap::new(
+                    plan.target_id(0).expect("target"),
+                    mapping.cell_map(index, true)?,
+                ),
+                TargetAssemblyMap::new(
+                    plan.target_id(1).expect("full target"),
+                    mapping.cell_map(index, false)?,
+                ),
+            ])
         };
         let cells = domains
             .iter()
@@ -139,9 +153,13 @@ impl ExecutableScalarEquations {
                 })
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
+        let mut packet_domains = domains.clone();
         let packets = natural
             .into_iter()
-            .map(|(index, local)| AssemblyPacket::new(local, maps(index)?))
+            .map(|(index, local)| {
+                packet_domains.push(domains[index]);
+                AssemblyPacket::new(local, maps(index)?)
+            })
             .collect::<Result<Vec<_>, _>>()?;
         let quadrature = QuadratureRule::tensor_product_gauss_legendre(dimension, 2)?;
         let forms = self
@@ -156,6 +174,12 @@ impl ExecutableScalarEquations {
             &domains,
             cells,
             packets,
+        )?;
+        let reactions = crate::region_assembly::InterfaceReactions::prepare(
+            &work,
+            plan.target_id(1).expect("full target"),
+            &mapping,
+            &packet_domains,
         )?;
         let (systems, assembly_report) = REFERENCE_ASSEMBLY_BACKEND
             .assemble(&plan, &work)?
@@ -175,6 +199,7 @@ impl ExecutableScalarEquations {
         let solution = request.solve(&core.linear_problem()?)?;
         core.validate_solution(&solution)?;
         let (values, solve_report) = solution.into_parts();
+        complete(&reactions, &mapping.lift(&values, false)?)?;
         let expected =
             self.regions
                 .iter()

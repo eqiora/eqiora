@@ -107,6 +107,8 @@ pub(crate) struct TraceBinding {
 pub(crate) struct RegionDofMap {
     globals: BTreeMap<FieldDof, usize>,
     cells: Vec<Vec<usize>>,
+    cell_domains: Vec<RawId>,
+    traces: Vec<(ConformingTraceQuotient, BTreeSet<FieldDof>)>,
     constraints: ConstrainedDofLayout,
     full_count: usize,
     fields: BTreeMap<RawId, (RawId, RegionFieldLayout)>,
@@ -355,9 +357,47 @@ impl RegionDofMap {
             .iter()
             .map(|keys| keys.iter().map(|key| globals[key]).collect())
             .collect();
+        let mut mapped_traces: Vec<_> = traces
+            .iter()
+            .map(|trace| {
+                let fields = trace
+                    .quotient
+                    .endpoints()
+                    .map(|endpoint| endpoint.field().erase());
+                let keys = globals
+                    .keys()
+                    .copied()
+                    .filter(|key| {
+                        fields.contains(&key.field)
+                            && trace.facets.iter().any(|witness| {
+                                key.entity == witness.facet
+                                    || (key.entity.dimension() < witness.facet.dimension()
+                                        && mesh
+                                            .incidence(witness.facet, key.entity.dimension())
+                                            .is_some_and(|closure| {
+                                                closure
+                                                    .iter()
+                                                    .any(|entry| entry.entity == key.entity)
+                                            }))
+                            })
+                    })
+                    .collect();
+                (trace.quotient, keys)
+            })
+            .collect();
+        mapped_traces.sort_by_key(|(quotient, _)| {
+            (
+                quotient.connection().erase(),
+                quotient
+                    .endpoints()
+                    .map(|endpoint| endpoint.field().erase()),
+            )
+        });
         Ok(Self {
             globals,
             cells,
+            cell_domains: cell_domains.to_vec(),
+            traces: mapped_traces,
             constraints: ConstrainedDofLayout::new(fixed)?,
             full_count: indices.len(),
             fields: fields
@@ -365,6 +405,14 @@ impl RegionDofMap {
                 .map(|(field, (domain, layout))| (field, (domain, layout.clone())))
                 .collect(),
         })
+    }
+
+    pub(crate) fn cell_domains(&self) -> &[RawId] {
+        &self.cell_domains
+    }
+
+    pub(crate) fn traces(&self) -> &[(ConformingTraceQuotient, BTreeSet<FieldDof>)] {
+        &self.traces
     }
 
     pub(crate) fn keys(&self) -> impl Iterator<Item = FieldDof> + '_ {

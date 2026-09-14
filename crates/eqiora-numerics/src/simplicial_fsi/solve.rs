@@ -26,7 +26,7 @@ use super::element::{fluid_local, solid_local};
 use super::invalid;
 use super::layout::FsiLayout;
 use super::partition::{CellMaterial, FixedReferenceFsiPartition};
-use crate::region_assembly::ReactionRows;
+use crate::region_assembly::InterfaceReactions;
 
 /// Captured symmetric-indefinite step plus private acceptance state.
 #[derive(Debug, Clone, PartialEq)]
@@ -291,51 +291,14 @@ impl<'a, const D: usize> PreparedFixedReferenceFsiAssembly<'a, D> {
     pub(crate) fn reactions(
         &self,
         work: &dyn AssemblyWork,
-    ) -> Result<[ReactionRows; 2], Diagnostic> {
-        let vertices = self
-            .partition
-            .interface_vertices()
-            .iter()
-            .filter(|vertex| !self.layout.fixed_velocity(vertex.index()))
-            .map(|vertex| vertex.index())
-            .collect::<std::collections::BTreeSet<_>>();
-        let rows = vertices
-            .iter()
-            .flat_map(|&vertex| {
-                (0..D).map(move |component| self.layout.full_vertex_velocity(vertex, component))
-            })
-            .collect();
-        let groups = [self.partition.fluid_cells(), self.partition.solid_cells()]
-            .into_iter()
-            .map(|cells| {
-                cells
-                    .iter()
-                    .filter_map(|cell| {
-                        self.mesh
-                            .entity_vertices(MeshEntity::new(D, cell.index()))
-                            .expect("validated cell vertex closure")
-                            .iter()
-                            .any(|vertex| vertices.contains(&vertex.index()))
-                            .then_some(cell.index())
-                    })
-                    .collect()
-            })
-            .collect::<Vec<_>>();
-        crate::region_assembly::prepare_reaction_rows(
-            work,
-            self.target_roles.full(),
-            self.layout.full_size(),
-            &groups,
-            &rows,
-        )?
-        .try_into()
-        .map_err(|_| invalid("FSI reaction recovery requires its two component targets"))
+    ) -> Result<InterfaceReactions, Diagnostic> {
+        self.layout.reactions(work, self.target_roles.full())
     }
 
     pub(crate) fn finish(
         self,
         result: AssemblyResult,
-        reactions: [ReactionRows; 2],
+        reactions: InterfaceReactions,
     ) -> Result<FinalizedFixedReferenceFsiStep<D>, Diagnostic> {
         let (systems, assembly_report) = result.into_parts();
         if assembly_report.packet_count() != self.cell_count
@@ -507,7 +470,7 @@ struct FinalizedState<const D: usize> {
     assembly_target_roles: FixedReferenceFsiAssemblyTargetRoles,
     pressure_constant_action_norm: f64,
     assembly_report: AssemblyReport,
-    reactions: [ReactionRows; 2],
+    reactions: InterfaceReactions,
 }
 
 impl<const D: usize> FinalizedState<D> {
@@ -594,8 +557,7 @@ impl<const D: usize> FinalizedState<D> {
             )));
         }
 
-        let fluid_residual = self.reactions[0].residual(&full_values)?;
-        let solid_residual = self.reactions[1].residual(&full_values)?;
+        let reactions = self.reactions.recover(&full_values)?;
         let dimensionless_to_action = self.config.scale().power() / self.config.scale().velocity();
         let interface_actions = self
             .partition
@@ -603,20 +565,15 @@ impl<const D: usize> FinalizedState<D> {
             .iter()
             .copied()
             .filter(|vertex| !self.layout.fixed_velocity(vertex.index()))
-            .map(|vertex| FixedReferenceFsiInterfaceAction {
-                vertex,
-                fluid: std::array::from_fn(|component| {
-                    dimensionless_to_action
-                        * fluid_residual
-                            [self.layout.full_vertex_velocity(vertex.index(), component)]
-                }),
-                solid: std::array::from_fn(|component| {
-                    dimensionless_to_action
-                        * solid_residual
-                            [self.layout.full_vertex_velocity(vertex.index(), component)]
-                }),
+            .map(|vertex| {
+                let (fluid, solid) = self.layout.interface_actions(&reactions, vertex.index())?;
+                Ok(FixedReferenceFsiInterfaceAction {
+                    vertex,
+                    fluid: fluid.map(|value| dimensionless_to_action * value),
+                    solid: solid.map(|value| dimensionless_to_action * value),
+                })
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
         let interface_action_imbalance_norm = interface_actions
             .iter()
             .flat_map(|action| action.imbalance())

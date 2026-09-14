@@ -298,6 +298,46 @@ fn plural_chain_failed_run_publishes_no_result_and_leaves_reusable_plan() {
 }
 
 #[test]
+fn plural_chain_last_connection_completion_failure_publishes_no_result() {
+    let names = ["alpha", "beta", "gamma"];
+    let (model, _) = source_model(&chain_source(&[0, 1, 2], &names), &names);
+    let resolved = chain_plan(&model, 3).unwrap();
+    let before = resolved.to_bytes().unwrap();
+    let plan = resolved.as_scalar().unwrap();
+    let mut completed = Vec::new();
+    let result = plan
+        .admission
+        .execute_scalar_with_completion(&REFERENCE_LINEAR_SOLVER, |reactions, full| {
+            // The real solver and the sole Domain/Connection recovery have completed.
+            // Fail validation of the last exact Connection before publishing any Result.
+            let recovered = reactions.recover(full)?;
+            let connections = recovered.connections();
+            assert_eq!(connections.len(), 2);
+            for connection in connections {
+                completed.push(connection);
+                if completed.len() == 2 {
+                    return Err(Diagnostic::error(
+                        eqiora_core::diagnostic::codes::INVALID_REALIZATION,
+                        "injected final Connection completion failure",
+                    ));
+                }
+            }
+            Ok(recovered)
+        })
+        .and_then(|output| crate::CommonResult::accept_scalar(plan.clone(), 0.0, output));
+    assert!(result.is_err());
+    assert_eq!(completed.len(), 2);
+    assert_ne!(completed[0], completed[1]);
+    assert_eq!(resolved.to_bytes().unwrap(), before);
+    assert_eq!(
+        plan.run_result(&REFERENCE_LINEAR_SOLVER)
+            .unwrap()
+            .field_count(),
+        3
+    );
+}
+
+#[test]
 fn plural_chain_rejects_partial_misbound_and_wrong_support_result_inventory() {
     let names = ["alpha", "beta", "gamma"];
     let (model, _) = source_model(&chain_source(&[0, 1, 2], &names), &names);
@@ -343,6 +383,7 @@ fn plural_chain_permutation_retains_exact_field_identity_and_result_recovery() {
             &plan.admission,
             LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.admission.linear.solver),
             mesh.mesh(),
+            |reactions, full| reactions.recover(full),
         )
         .unwrap();
     let result = crate::CommonResult::accept_scalar(plan.clone(), 0.0, output).unwrap();
