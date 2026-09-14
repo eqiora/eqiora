@@ -155,7 +155,7 @@ pub struct ForwardSensitivityPlan {
 }
 
 impl ForwardSensitivityPlan {
-    /// Construct positive finite sensitivity tolerances.
+    /// Construct positive finite sensitivity tolerances in parameter-major state order.
     ///
     /// # Errors
     /// Returns `EQ0501` for empty, non-positive, or non-finite controls.
@@ -177,14 +177,19 @@ impl ForwardSensitivityPlan {
         })
     }
 
-    /// Validate one absolute tolerance per state.
+    /// Validate one absolute tolerance per (parameter, state) pair.
     ///
     /// # Errors
-    /// Returns `EQ0501` for a state-shape mismatch.
+    /// Returns `EQ0501` for a parameter/state shape mismatch.
     pub fn validate_for(&self, problem: &ForwardSensitivityProblem<'_>) -> Result<(), Diagnostic> {
-        if self.absolute_tolerances.len() != problem.primal().dimension() {
+        if problem
+            .primal()
+            .dimension()
+            .checked_mul(problem.parameter_dimension())
+            != Some(self.absolute_tolerances.len())
+        {
             return Err(invalid_plan(
-                "forward-sensitivity plan must provide one absolute tolerance per state",
+                "forward-sensitivity plan must provide one absolute tolerance per parameter and state",
             ));
         }
         Ok(())
@@ -196,7 +201,7 @@ impl ForwardSensitivityPlan {
         self.relative_tolerance
     }
 
-    /// Per-state absolute sensitivity tolerances.
+    /// Parameter-major absolute sensitivity tolerances, with contiguous state columns.
     #[must_use]
     pub fn absolute_tolerances(&self) -> &[f64] {
         &self.absolute_tolerances

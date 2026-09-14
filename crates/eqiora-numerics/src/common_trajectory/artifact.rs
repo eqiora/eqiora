@@ -6,8 +6,9 @@ use serde::{Deserialize, Serialize};
 
 use super::*;
 use crate::ResolvedCommonPlan;
+mod event_history;
 
-const SCHEMA: &str = "eqiora.common-trajectory/v2";
+const SCHEMA: &str = "eqiora.common-trajectory/v3";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 512 * 1024 * 1024;
 
@@ -22,6 +23,8 @@ enum WireTrajectoryPayload {
         output_times_s: Vec<f64>,
         states_base64: Vec<String>,
         history: Vec<WireTimeStep>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        events: Vec<event_history::WireEvent>,
     },
     TransientFlow {
         plan_identity: String,
@@ -60,7 +63,7 @@ struct WireSpatialState {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireCommonTrajectoryV2 {
+struct WireCommonTrajectoryV3 {
     schema: String,
     encoding: String,
     identity: String,
@@ -70,7 +73,7 @@ struct WireCommonTrajectoryV2 {
 impl CommonTrajectory {
     /// Encode the immutable Run request and every requested State canonically.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&WireCommonTrajectoryV2::from_trajectory(self)?)
+        serde_json::to_vec(&WireCommonTrajectoryV3::from_trajectory(self)?)
             .map_err(|error| invalid(format!("cannot encode common Trajectory artifact: {error}")))
     }
 
@@ -82,7 +85,7 @@ impl CommonTrajectory {
                 bytes.len()
             )));
         }
-        let wire: WireCommonTrajectoryV2 = serde_json::from_slice(bytes)
+        let wire: WireCommonTrajectoryV3 = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid common Trajectory JSON: {error}")))?;
         if wire.schema != SCHEMA || wire.encoding != ENCODING {
             return Err(invalid(
@@ -99,7 +102,7 @@ impl CommonTrajectory {
     }
 }
 
-impl WireCommonTrajectoryV2 {
+impl WireCommonTrajectoryV3 {
     fn from_trajectory(trajectory: &CommonTrajectory) -> Result<Self, Diagnostic> {
         let payload = match trajectory {
             CommonTrajectory::Ode {
@@ -113,6 +116,7 @@ impl WireCommonTrajectoryV2 {
                 initial_state_base64: encode(&request.state().to_bytes()?),
                 until_s: request.until_s(),
                 output_times_s: request.output_times_s().to_vec(),
+                events: event_history::encode(history.events())?,
                 history: history
                     .steps()
                     .iter()
@@ -177,6 +181,7 @@ impl WireCommonTrajectoryV2 {
                     output_times_s,
                     states_base64,
                     history,
+                    events,
                 },
                 ResolvedCommonPlan::Ode(plan),
             ) => {
@@ -196,6 +201,7 @@ impl WireCommonTrajectoryV2 {
                     .iter()
                     .map(|bytes| CommonOdeState::from_bytes(&decode(bytes, "output State")?, plan))
                     .collect::<Result<Vec<_>, _>>()?;
+                let events = event_history::replay(events, plan)?;
                 let steps = history
                     .iter()
                     .map(|step| {
@@ -208,7 +214,8 @@ impl WireCommonTrajectoryV2 {
                         )
                     })
                     .collect::<Result<Vec<_>, _>>()?;
-                let history = AcceptedTimeHistory::accepted(plan.field_dimensions().len(), steps)?;
+                let history =
+                    AcceptedTimeHistory::accepted(plan.field_dimensions().len(), steps, events)?;
                 CommonTrajectory::accept_ode_states(request, states, history)?
             }
             (

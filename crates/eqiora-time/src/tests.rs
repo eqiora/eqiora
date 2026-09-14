@@ -324,8 +324,8 @@ fn root_registration_rejects_overlap_and_callback_count_mismatch() {
 #[test]
 fn backend_identity_is_an_atomic_validated_token_pair() {
     let identity = TimeBackendIdentity::new("eqiora.time.reference", "1.2.3-rc.1");
-    assert_eq!(identity.id().as_str(), "eqiora.time.reference");
-    assert_eq!(identity.version().as_str(), "1.2.3-rc.1");
+    assert_eq!(identity.id(), "eqiora.time.reference");
+    assert_eq!(identity.version(), "1.2.3-rc.1");
 
     assert!(std::panic::catch_unwind(|| TimeBackendIdentity::new("Eqiora Time", "1.0.0")).is_err());
     assert!(

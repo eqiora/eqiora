@@ -126,6 +126,7 @@ EXPECTED_EQIORA_ALL = [
     "ObservableRef",
     "ConstraintRef",
     "ConstraintMeasurement",
+    "ActivationRef",
     "Observation",
     "TrajectoryObservation",
     "ObservableStateTangent",

@@ -7,61 +7,11 @@ use crate::plan::TimeMethod;
 use crate::problem::InitialConditionPolicy;
 use eqiora_core::Diagnostic;
 
-/// Stable Eqiora-owned identity for a time-execution backend.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TimeBackendId(&'static str);
-
-impl TimeBackendId {
-    /// Construct a namespaced compile-time backend identity.
-    ///
-    /// # Panics
-    /// Panics during constant evaluation unless `value` is non-empty lowercase
-    /// dotted/kebab ASCII.
-    #[must_use]
-    pub const fn new(value: &'static str) -> Self {
-        assert!(is_backend_id(value), "invalid time backend identity");
-        Self(value)
-    }
-
-    /// Namespaced backend identity.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        self.0
-    }
-}
-
-/// Exact release identity supplied by a time-execution adapter.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TimeBackendVersion(&'static str);
-
-impl TimeBackendVersion {
-    /// Construct a compile-time backend release identity.
-    ///
-    /// Adapter crates own this value. Artifact callers receive it through an
-    /// accepted [`TimeExecutionReport`] rather than supplying an unrelated
-    /// string after execution.
-    ///
-    /// # Panics
-    /// Panics during constant evaluation unless `value` is a non-empty token
-    /// composed of visible ASCII without whitespace.
-    #[must_use]
-    pub const fn new(value: &'static str) -> Self {
-        assert!(is_backend_version(value), "invalid time backend version");
-        Self(value)
-    }
-
-    /// Exact backend release identity.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        self.0
-    }
-}
-
 /// Atomic adapter identity attached to accepted time execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TimeBackendIdentity {
-    id: TimeBackendId,
-    version: TimeBackendVersion,
+    id: &'static str,
+    version: &'static str,
 }
 
 impl TimeBackendIdentity {
@@ -69,24 +19,23 @@ impl TimeBackendIdentity {
     ///
     /// # Panics
     /// Panics during constant evaluation if either token violates the
-    /// contracts of [`TimeBackendId::new`] or [`TimeBackendVersion::new`].
+    /// backend identity and version token contracts.
     #[must_use]
     pub const fn new(id: &'static str, version: &'static str) -> Self {
-        Self {
-            id: TimeBackendId::new(id),
-            version: TimeBackendVersion::new(version),
-        }
+        assert!(is_backend_id(id), "invalid time backend identity");
+        assert!(is_backend_version(version), "invalid time backend version");
+        Self { id, version }
     }
 
     /// Stable namespaced adapter identity.
     #[must_use]
-    pub const fn id(self) -> TimeBackendId {
+    pub const fn id(self) -> &'static str {
         self.id
     }
 
     /// Exact adapter/library release.
     #[must_use]
-    pub const fn version(self) -> TimeBackendVersion {
+    pub const fn version(self) -> &'static str {
         self.version
     }
 }
@@ -119,13 +68,13 @@ impl TimeExecutionReport {
 
     /// Adapter identity.
     #[must_use]
-    pub const fn backend(self) -> TimeBackendId {
+    pub const fn backend(self) -> &'static str {
         self.backend.id()
     }
 
     /// Exact release supplied by the adapter that produced this report.
     #[must_use]
-    pub const fn backend_version(self) -> TimeBackendVersion {
+    pub const fn backend_version(self) -> &'static str {
         self.backend.version()
     }
 

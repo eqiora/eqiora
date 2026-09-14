@@ -246,7 +246,7 @@ impl TimeRunManifestV1 {
         plan: &TimePlan,
         report: TimeExecutionReport,
     ) -> Result<Self, Diagnostic> {
-        let backend_version = report.backend_version().as_str().to_owned();
+        let backend_version = report.backend_version().to_owned();
         validate_text("time backend version", &backend_version)?;
         let proof = lowering.proof()?;
         if report.method() != plan.method()
@@ -267,7 +267,7 @@ impl TimeRunManifestV1 {
                 lowering_sha256: lowering.digest()?.0,
                 plan: WireTimePlan::encode(plan)?,
                 execution: WireTimeExecution {
-                    backend: report.backend().as_str().to_owned(),
+                    backend: report.backend().to_owned(),
                     backend_version,
                     method: WireTimeMethod::encode(report.method())?,
                     equation_class: WireTimeEquationClass::encode(report.equation_class())?,

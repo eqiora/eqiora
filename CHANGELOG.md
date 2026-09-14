@@ -8,6 +8,8 @@ are recorded here.
 
 ### Added
 
+- Added event-aware ODE terminal and accepted-step integral functionals with explicit forward Parameter JVPs through localized event times and resets. Exact event sides, derivative coordinates, tolerances, and Result lineage survive canonical replay and ordinary Python execution.
+- Added unit-bearing event and forward-sensitivity controls directly to the existing Tsitouras45 request, keeping the internal policy representation out of the public numerical API.
 - Added native source, Rust, and Python equality, inequality, and complementarity
   conditions with an explicit bounded active-set realization for finite affine
   real-scalar Models. Plans retain operand-specific coherent-SI tolerances, and
@@ -18,9 +20,7 @@ are recorded here.
 
 ### Changed
 
-- Advanced Model/Transaction artifacts to v26, Source identity to v18,
-  structural fingerprints to v21, and common Plan/Result artifacts to v4.
-  Earlier pre-1.0 encodings reject instead of entering compatibility paths.
+- Advanced Model/Transaction artifacts to v26, Source identity to v18, structural fingerprints to v21, common Plan and Result artifacts to v5, and common Trajectory artifacts to v3. Earlier pre-1.0 encodings reject instead of entering compatibility paths.
 
 ## [0.1.0a11] - 2026-09-13
 

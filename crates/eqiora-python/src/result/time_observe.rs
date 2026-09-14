@@ -1,9 +1,10 @@
 //! Typed time functionals delegate to the accepted native integration history.
 use super::*;
-use crate::model::PyObservableRef;
-use crate::modeling::PyValueType;
-use eqiora::ValueLiteral;
+use crate::model::{PyModelParameterRef, PyObservableRef};
+use crate::modeling::{PyDimension, PyValueType};
+use eqiora::{DynQuantity, ValueLiteral};
 use eqiora_numerics::TimeFunctionalQuadrature;
+use pyo3::types::PyDict;
 
 /// Numerical quadrature over retained native steps, independent of requested outputs.
 #[pyclass(
@@ -27,6 +28,16 @@ impl From<PyTimeFunctionalQuadrature> for TimeFunctionalQuadrature {
     }
 }
 
+struct TrajectoryObservationParts<'a> {
+    literal: &'a ValueLiteral,
+    trajectory_identity: &'a str,
+    observable: eqiora::Id<eqiora::kinds::Observable>,
+    quadrature: Option<TimeFunctionalQuadrature>,
+    parameter_jvp: bool,
+    interval_s: [f64; 2],
+    endpoint_convention: &'static str,
+}
+
 /// Typed terminal or time-integrated value with exact trajectory lineage.
 #[pyclass(name = "TrajectoryObservation", module = "eqiora._eqiora", frozen)]
 pub(crate) struct PyTrajectoryObservation {
@@ -45,6 +56,8 @@ pub(crate) struct PyTrajectoryObservation {
     interval_s: (f64, f64),
     #[pyo3(get)]
     endpoint_convention: &'static str,
+    #[pyo3(get)]
+    parameter_jvp: bool,
 }
 
 #[pymethods]
@@ -69,6 +82,54 @@ impl PyTrajectoryObservation {
 }
 
 impl PyRunResult {
+    fn trajectory_observation(
+        &self,
+        parts: TrajectoryObservationParts<'_>,
+    ) -> PyTrajectoryObservation {
+        let quadrature = parts.quadrature.map(|rule| match rule {
+            TimeFunctionalQuadrature::AcceptedStepSimpson => {
+                PyTimeFunctionalQuadrature::AcceptedStepSimpson
+            }
+        });
+        PyTrajectoryObservation {
+            value: parts.literal.clone(),
+            result_identity: self.native.identity().to_owned(),
+            trajectory_identity: parts.trajectory_identity.to_owned(),
+            observable_id: parts.observable.ulid().to_string(),
+            evaluation_kind: match (quadrature.is_some(), parts.parameter_jvp) {
+                (false, false) => "terminal",
+                (true, false) => "time-integral",
+                (false, true) => "terminal-parameter-jvp",
+                (true, true) => "time-integral-parameter-jvp",
+            },
+            quadrature,
+            interval_s: (parts.interval_s[0], parts.interval_s[1]),
+            endpoint_convention: parts.endpoint_convention,
+            parameter_jvp: parts.parameter_jvp,
+        }
+    }
+
+    fn parameter_direction(
+        &self,
+        directions: &Bound<'_, PyDict>,
+    ) -> PyResult<Vec<(eqiora::Id<eqiora::kinds::Parameter>, DynQuantity)>> {
+        let mut native = Vec::with_capacity(directions.len());
+        for (parameter, direction) in directions.iter() {
+            let parameter = parameter.extract::<PyRef<'_, PyModelParameterRef>>()?;
+            if parameter.value.model().artifact().to_string() != self.identity.model_digest() {
+                return Err(PyValueError::new_err(
+                    "ParameterRef belongs to a different exact Model artifact",
+                ));
+            }
+            let (dimension, value) = direction.extract::<(PyRef<'_, PyDimension>, f64)>()?;
+            native.push((
+                parameter.value.id(),
+                DynQuantity::new(value, dimension.native()),
+            ));
+        }
+        Ok(native)
+    }
+
     pub(super) fn observe_trajectory(
         &self,
         py: Python<'_>,
@@ -91,25 +152,62 @@ impl PyRunResult {
             }
         }
         .map_err(|error| diagnostic_error(py, &[error]))?;
-        let quadrature = value.quadrature().map(|rule| match rule {
-            TimeFunctionalQuadrature::AcceptedStepSimpson => {
-                PyTimeFunctionalQuadrature::AcceptedStepSimpson
-            }
-        });
-        Ok(PyTrajectoryObservation {
-            value: value.value().clone(),
-            result_identity: self.native.identity().to_owned(),
-            trajectory_identity: value.trajectory_identity().to_owned(),
-            observable_id: value.observable().ulid().to_string(),
-            evaluation_kind: if quadrature.is_some() {
-                "time-integral"
-            } else {
-                "terminal"
-            },
-            quadrature,
-            interval_s: (value.interval_s()[0], value.interval_s()[1]),
+        Ok(self.trajectory_observation(TrajectoryObservationParts {
+            literal: value.value(),
+            trajectory_identity: value.trajectory_identity(),
+            observable: value.observable(),
+            quadrature: value.quadrature(),
+            parameter_jvp: value.is_parameter_jvp(),
+            interval_s: value.interval_s(),
             endpoint_convention: value.endpoint_convention(),
-        })
+        }))
+    }
+
+    pub(super) fn observe_trajectory_parameter_jvp(
+        &self,
+        py: Python<'_>,
+        observable: &PyObservableRef,
+        quadrature: Option<PyTimeFunctionalQuadrature>,
+        directions: &Bound<'_, PyDict>,
+    ) -> PyResult<PyTrajectoryObservation> {
+        if observable.model_digest != self.identity.model_digest() {
+            return Err(PyValueError::new_err(
+                "ObservableRef belongs to a different exact Model artifact",
+            ));
+        }
+        let trajectory = self.native.trajectory().ok_or_else(|| {
+            PyValueError::new_err("trajectory Parameter JVP requires an accepted Trajectory")
+        })?;
+        let sensitivity = self.native.parameter_sensitivity().ok_or_else(|| {
+            PyValueError::new_err("Result has no accepted forward Parameter products")
+        })?;
+        let model = self.native.plan().model_artifact();
+        let direction = self.parameter_direction(directions)?;
+        let value = match quadrature {
+            None => trajectory.observe_terminal_parameter_jvp(
+                model,
+                observable.id,
+                sensitivity,
+                direction,
+            ),
+            Some(quadrature) => trajectory.observe_time_integral_parameter_jvp(
+                model,
+                observable.id,
+                quadrature.into(),
+                sensitivity,
+                direction,
+            ),
+        }
+        .map_err(|error| diagnostic_error(py, &[error]))?;
+        Ok(self.trajectory_observation(TrajectoryObservationParts {
+            literal: value.value(),
+            trajectory_identity: value.trajectory_identity(),
+            observable: value.observable(),
+            quadrature: value.quadrature(),
+            parameter_jvp: value.is_parameter_jvp(),
+            interval_s: value.interval_s(),
+            endpoint_convention: value.endpoint_convention(),
+        }))
     }
 }
 

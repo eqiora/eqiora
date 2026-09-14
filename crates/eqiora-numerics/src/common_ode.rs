@@ -15,6 +15,14 @@ use eqiora_time::{
 };
 use sha2::{Digest, Sha256};
 
+mod controls;
+mod events;
+mod forward_policy;
+pub(crate) use forward_policy::{CommonForwardSensitivity, CommonSensitivityTolerance};
+pub(crate) mod parameter_system;
+mod run;
+pub(crate) use events::{CommonEventPolicy, CommonGuardTolerance};
+mod sensitivity;
 mod state_artifact;
 
 /// One exact Field-bound absolute tolerance for Tsitouras 5(4).
@@ -50,6 +58,8 @@ pub struct CommonTsitouras45 {
     initial_step_s: f64,
     relative_tolerance: f64,
     absolute_tolerances: Vec<CommonTsitourasTolerance>,
+    events: Option<CommonEventPolicy>,
+    forward_sensitivities: Option<CommonForwardSensitivity>,
 }
 
 impl CommonTsitouras45 {
@@ -79,6 +89,8 @@ impl CommonTsitouras45 {
             initial_step_s,
             relative_tolerance,
             absolute_tolerances,
+            events: None,
+            forward_sensitivities: None,
         })
     }
 
@@ -108,6 +120,9 @@ pub struct CommonOdePlan {
     program: FirstOrderProgram,
     temporal: CommonTsitouras45,
     ordered_absolute_tolerances: Vec<f64>,
+    ordered_guard_tolerances: Vec<eqiora_core::DynQuantity>,
+    forward_sensitivity_plan: Option<eqiora_time::ForwardSensitivityPlan>,
+    forward_parameter_ids: Option<Vec<Id<kinds::Parameter>>>,
     field_dimensions: Vec<DimExponents>,
     identity: String,
     lowering_digest: String,
@@ -136,29 +151,25 @@ impl CommonOdePlan {
                 invalid("canonical explicit-ODE lowering failed without a diagnostic")
             })
         })?;
-        let relations = kernel
-            .nodes()
-            .filter_map(|node| match node {
-                KernelNode::Relation(relation) if !relation.is_initial() => Some(relation.id()),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        let activations = kernel
-            .nodes()
-            .filter_map(|node| match node {
-                KernelNode::Activation(activation) => Some(activation.kind()),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        if relations.len() != 1
-            || activations.len() != 1
-            || !matches!(activations[0], ActivationKind::Continuous)
-        {
-            return Err(invalid(
-                "no-Mesh explicit-ODE resolution requires exactly one continuously activated Relation and no other activation family",
-            ));
-        }
-        let program = FirstOrderProgram::lower(&cpu, relations[0])?;
+        let flow = events::flow(kernel, temporal.events())?;
+        let program = FirstOrderProgram::lower(&cpu, flow)?;
+        let ordered_guard_tolerances = if let Some(policy) = temporal.events() {
+            let roots = events::roots(model, kernel, &cpu, &program, policy)?;
+            roots
+                .events()
+                .iter()
+                .map(|event| {
+                    policy
+                        .guard_tolerances()
+                        .iter()
+                        .find(|entry| entry.activation() == event.activations()[0])
+                        .map(CommonGuardTolerance::quantity)
+                        .ok_or_else(|| invalid("root group omits its representative tolerance"))
+                })
+                .collect::<Result<Vec<_>, _>>()?
+        } else {
+            Vec::new()
+        };
         if program.equation_class() != TimeEquationClass::ExplicitOde {
             return Err(invalid(
                 "Tsitouras45 admits only a structurally proven explicit ODE",
@@ -225,17 +236,26 @@ impl CommonOdePlan {
         for tolerance in &ordered_absolute_tolerances {
             identity.extend_from_slice(&tolerance.to_bits().to_be_bytes());
         }
+        if let Some(policy) = temporal.events() {
+            push(&mut identity, &policy.identity_bytes());
+        }
+        if let Some(policy) = temporal.forward_sensitivities() {
+            push(&mut identity, &policy.identity_bytes());
+        }
         push(&mut identity, b"tsitouras45");
-        push(&mut identity, backend.id().as_str().as_bytes());
-        push(&mut identity, backend.version().as_str().as_bytes());
+        push(&mut identity, backend.id().as_bytes());
+        push(&mut identity, backend.version().as_bytes());
         push(&mut identity, b"host-serial");
         let identity = digest(b"eqiora.common-ode-plan/v1\0", &identity);
 
-        Ok(Self {
+        let mut plan = Self {
             model: Arc::new(model.clone()),
             program,
             temporal,
             ordered_absolute_tolerances,
+            ordered_guard_tolerances,
+            forward_sensitivity_plan: None,
+            forward_parameter_ids: None,
             field_dimensions,
             identity,
             lowering_digest,
@@ -244,7 +264,9 @@ impl CommonOdePlan {
             model_revision,
             state_space_identity,
             backend,
-        })
+        };
+        plan.admit_forward_policy(kernel)?;
+        Ok(plan)
     }
 
     /// Exact Plan identity excluding Run horizon and output schedule.
@@ -520,6 +542,11 @@ impl CommonOdeRunRequest {
 
     /// Reconstruct the backend-neutral problem from exact Plan and State.
     pub fn problem(&self) -> Result<TimeProblem<'_>, Diagnostic> {
+        if self.plan.event_policy().is_some() {
+            return Err(invalid(
+                "registered-event ODE requires the canonical event driver",
+            ));
+        }
         self.plan.problem(&self.state)
     }
 
@@ -816,6 +843,7 @@ model decay() {
                 eqiora_time::TimeHistoryStep::accepted(0.0, 0.2, vec![1.0], vec![0.9], vec![0.8])
                     .unwrap(),
             ],
+            vec![],
         )
         .unwrap();
         let trajectory =

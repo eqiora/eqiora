@@ -586,8 +586,10 @@ fn root_is_only_a_proposal_and_reset_restarts_explicitly() {
         let first_plan =
             TimePlan::new(method, 0.0, 1.0e-3, 1.0e-9, vec![1.0e-11], vec![2.0]).unwrap();
         let first = DiffsolTimeBackend::new()
-            .propose_first_root(&problem, &roots, &first_plan)
-            .unwrap()
+            .solve_until_root(&problem, &roots, &first_plan)
+            .unwrap();
+        let first = first
+            .proposal()
             .expect("unit fall crosses zero before the horizon");
         assert_eq!(first.registration(), registration);
         assert_relative(first.time(), 1.0, 2.0e-8);
@@ -608,8 +610,10 @@ fn root_is_only_a_proposal_and_reset_restarts_explicitly() {
         )
         .unwrap();
         let second = DiffsolTimeBackend::new()
-            .propose_first_root(&restarted, &roots, &second_plan)
-            .unwrap()
+            .solve_until_root(&restarted, &roots, &second_plan)
+            .unwrap();
+        let second = second
+            .proposal()
             .expect("post-reset unit fall crosses zero again");
         assert_relative(second.time(), first.time() + 0.5, 3.0e-8);
         assert_relative(second.state()[0], 0.0, 3.0e-8);
@@ -718,5 +722,192 @@ fn samples_at_retained_stencil_times_are_bit_exact() {
                 sensitivity.end_state()
             );
         }
+    }
+}
+
+#[test]
+fn localized_history_is_cut_natively_and_defers_event_time_output() {
+    for method in [TimeMethod::Tsitouras45, TimeMethod::Bdf] {
+        let proof = RootRegistrationProof::new(vec![
+            RootActivationGroup::new(vec![Id::<kinds::Activation>::new()]).unwrap(),
+        ])
+        .unwrap();
+        let roots =
+            RegisteredRootProblem::new(RootRegistrationId::from_sha256([9; 32]), proof, &ZeroState)
+                .unwrap();
+        let problem = TimeProblem::new(
+            &UnitFall,
+            TimeEquationClass::ExplicitOde,
+            InitialConditionPolicy::Provided,
+            vec![1.0],
+        )
+        .unwrap();
+        let solve = |times| {
+            let plan = TimePlan::new(method, 0.0, 1.0e-3, 1.0e-9, vec![1.0e-11], times).unwrap();
+            DiffsolTimeBackend::new()
+                .solve_until_root(&problem, &roots, &plan)
+                .unwrap()
+        };
+        let sparse = solve(vec![2.0]);
+        let event_time = sparse.proposal().unwrap().time();
+        assert!(sparse.samples().is_none());
+        let dense = solve(vec![0.25, 0.5, event_time, 2.0]);
+        assert_eq!(sparse.history(), dense.history());
+        assert_eq!(dense.samples().unwrap().times(), &[0.25, 0.5]);
+        assert_relative(dense.samples().unwrap().state(0).unwrap()[0], 0.75, 2.0e-8);
+        assert_eq!(
+            dense.history().steps().last().unwrap().end_time(),
+            event_time
+        );
+        assert_eq!(
+            dense.history().steps().last().unwrap().end_state(),
+            dense.proposal().unwrap().state()
+        );
+        for step in dense.history().steps() {
+            let midpoint = step.start_time() + 0.5 * (step.end_time() - step.start_time());
+            assert_relative(step.midpoint_state()[0], 1.0 - midpoint, 2.0e-8);
+        }
+        let horizon = solve(vec![0.2, 0.4]);
+        assert!(horizon.proposal().is_none());
+        assert_eq!(horizon.samples().unwrap().times(), &[0.2, 0.4]);
+        assert_eq!(horizon.history().steps().last().unwrap().end_time(), 0.4);
+        assert_relative(horizon.samples().unwrap().state(1).unwrap()[0], 0.6, 2.0e-8);
+    }
+}
+
+struct ParametricRamp {
+    // Both are real declared inputs: speed enters the flow; threshold enters only the guard.
+    parameters: [f64; 2],
+}
+impl TimeSystem for ParametricRamp {
+    fn dimension(&self) -> usize {
+        1
+    }
+    fn rhs(&self, _time: f64, _state: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
+        output[0] = self.parameters[0];
+        Ok(())
+    }
+    fn rhs_jvp(
+        &self,
+        _time: f64,
+        _state: &[f64],
+        _direction: &[f64],
+        output: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        output[0] = 0.0;
+        Ok(())
+    }
+}
+impl ParametricTimeSystem for ParametricRamp {
+    fn parameter_dimension(&self) -> usize {
+        2
+    }
+    fn parameters(&self) -> &[f64] {
+        &self.parameters
+    }
+    fn rhs_parameter_jvp(
+        &self,
+        _time: f64,
+        _state: &[f64],
+        direction: &[f64],
+        output: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        output[0] = direction[0];
+        Ok(())
+    }
+    fn initial_parameter_jvp(
+        &self,
+        _time: f64,
+        _direction: &[f64],
+        output: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        output[0] = 0.0;
+        Ok(())
+    }
+}
+impl RootFunctions for ParametricRamp {
+    fn count(&self) -> usize {
+        1
+    }
+    fn evaluate(&self, _time: f64, state: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
+        output[0] = state[0] - self.parameters[1];
+        Ok(())
+    }
+}
+
+#[test]
+fn native_root_prefix_sensitivities_are_fixed_time_and_keep_guard_only_parameters() {
+    let system = ParametricRamp {
+        parameters: [2.0, 1.25],
+    };
+    let proof = RootRegistrationProof::new(vec![
+        RootActivationGroup::new(vec![Id::<kinds::Activation>::new()]).unwrap(),
+    ])
+    .unwrap();
+    let roots =
+        RegisteredRootProblem::new(RootRegistrationId::from_sha256([11; 32]), proof, &system)
+            .unwrap();
+    let problem = ForwardSensitivityProblem::new(
+        &system,
+        TimeEquationClass::ExplicitOde,
+        InitialConditionPolicy::Provided,
+        vec![0.25],
+    )
+    .unwrap();
+    let incomplete = ForwardSensitivityPlan::new(1.0e-9, vec![1.0e-11]).unwrap();
+    assert!(incomplete.validate_for(&problem).is_err());
+    let sensitivities = ForwardSensitivityPlan::new(1.0e-9, vec![1.0e-11, 3.0e-12]).unwrap();
+    sensitivities.validate_for(&problem).unwrap();
+    for method in [TimeMethod::Tsitouras45, TimeMethod::Bdf] {
+        let solve = |times| {
+            let plan = TimePlan::new(method, 0.0, 0.03, 1.0e-9, vec![1.0e-11], times).unwrap();
+            DiffsolTimeBackend::new()
+                .solve_until_root_forward_sensitivities(&problem, &roots, &plan, &sensitivities)
+                .unwrap()
+        };
+        // Success proves the fail-closed native root derivative callbacks were never used.
+        let sparse = solve(vec![1.0]);
+        let dense = solve(vec![0.1, 0.3, 1.0]);
+        assert_eq!(sparse.primal().history(), dense.primal().history());
+        assert_eq!(sparse.sensitivity_history(), dense.sensitivity_history());
+        assert_eq!(dense.parameter_dimension(), 2);
+        let root = dense.primal().proposal().unwrap();
+        assert_relative(root.time(), 0.5, 2.0e-8);
+        assert_relative(root.state()[0], 1.25, 2.0e-8);
+        for step in dense.sensitivity_history().steps() {
+            let midpoint = step.start_time() + 0.5 * (step.end_time() - step.start_time());
+            assert_relative(step.start_state()[0], step.start_time(), 2.0e-8);
+            assert_relative(step.midpoint_state()[0], midpoint, 2.0e-8);
+            assert_relative(step.end_state()[0], step.end_time(), 2.0e-8);
+            assert_eq!(step.start_state()[1], 0.0);
+            assert_eq!(step.midpoint_state()[1], 0.0);
+            assert_eq!(step.end_state()[1], 0.0);
+        }
+        // These are partial derivatives at fixed t: (dx/dv,dx/dp)=(t,0).
+        // Event-time derivatives (-1/4,1/2) are intentionally not applied here.
+        let at_root = dense.sensitivity_history().steps().last().unwrap();
+        assert_eq!(at_root.end_time(), root.time());
+        assert_relative(at_root.end_state()[0], 0.5, 2.0e-8);
+        assert_eq!(at_root.end_state()[1], 0.0);
+        assert!(
+            eqiora_time::TimeRootSensitivityOutcome::accepted(
+                dense.primal().clone(),
+                0,
+                dense.sensitivity_history().clone()
+            )
+            .is_err()
+        );
+        let horizon = solve(vec![0.1, 0.2]);
+        assert!(horizon.primal().proposal().is_none());
+        assert_relative(
+            horizon
+                .sensitivity_history()
+                .steps()
+                .last()
+                .unwrap()
+                .end_state()[0],
+            0.2,
+            2.0e-8,
+        );
     }
 }

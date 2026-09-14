@@ -169,8 +169,8 @@ impl RunIdentity {
             model_digest: plan.model_digest().to_owned(),
             model_revision: plan.model_revision(),
             plan_key: request.identity().to_owned(),
-            adapter: plan.backend().id().as_str(),
-            adapter_version: plan.backend().version().as_str(),
+            adapter: plan.backend().id(),
+            adapter_version: plan.backend().version(),
         }
     }
 

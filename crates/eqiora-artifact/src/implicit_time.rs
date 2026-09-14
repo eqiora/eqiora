@@ -458,7 +458,7 @@ impl ImplicitTimeRunManifestV1 {
     ) -> Result<Self, Diagnostic> {
         input.validate_against(lowering)?;
         accepted.validate_against(lowering)?;
-        let backend_version = report.backend_version().as_str().to_owned();
+        let backend_version = report.backend_version().to_owned();
         validate_text("implicit time backend version", &backend_version)?;
         let proof = lowering.proof()?;
         if accepted.initial_condition() != InitialConditionPolicy::Provided
@@ -482,7 +482,7 @@ impl ImplicitTimeRunManifestV1 {
                 accepted_initial_data_sha256: accepted.digest()?.0,
                 plan: WireImplicitTimePlan::encode(plan)?,
                 execution: WireImplicitTimeExecution {
-                    backend: report.backend().as_str().to_owned(),
+                    backend: report.backend().to_owned(),
                     backend_version,
                     method: WireImplicitTimeMethod::encode(report.method())?,
                     equation_class: WireImplicitEquationClass::GeneralImplicitDae,

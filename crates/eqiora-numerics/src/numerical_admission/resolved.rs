@@ -217,7 +217,7 @@ impl ResolvedCommonPlan {
     pub fn solver_backend(&self) -> &'static str {
         match self {
             Self::Algebraic(plan) => plan.solver_provider().id().as_str(),
-            Self::Ode(plan) => plan.backend().id().as_str(),
+            Self::Ode(plan) => plan.backend().id(),
             Self::Scalar(plan) => plan.admission.linear.provider.id().as_str(),
             Self::Elasticity(plan) => plan.admission.linear.provider.id().as_str(),
             Self::SteadyStokes(plan) => plan.admission.linear.provider.id().as_str(),
@@ -231,7 +231,7 @@ impl ResolvedCommonPlan {
     pub fn solver_backend_version(&self) -> &'static str {
         match self {
             Self::Algebraic(plan) => plan.solver_provider().implementation_version(),
-            Self::Ode(plan) => plan.backend().version().as_str(),
+            Self::Ode(plan) => plan.backend().version(),
             Self::Scalar(plan) => plan.admission.linear.provider.implementation_version(),
             Self::Elasticity(plan) => plan.admission.linear.provider.implementation_version(),
             Self::SteadyStokes(plan) => plan.admission.linear.provider.implementation_version(),

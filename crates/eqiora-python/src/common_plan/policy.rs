@@ -507,6 +507,8 @@ impl PyBackwardEuler {
 pub(crate) struct PyTsitouras45 {
     pub(super) native: CommonTsitouras45,
     fields: Vec<Py<PyModelFieldRef>>,
+    events: Option<super::event_policy::PyEventPolicy>,
+    forward_sensitivities: Option<super::forward_policy::PyForwardSensitivity>,
 }
 
 impl PyTsitouras45 {
@@ -514,6 +516,7 @@ impl PyTsitouras45 {
         py: Python<'_>,
         model_digest: &str,
         native: CommonTsitouras45,
+        document: &eqiora::api::ModelDocument,
     ) -> PyResult<Self> {
         let fields = native
             .absolute_tolerances()
@@ -528,25 +531,72 @@ impl PyTsitouras45 {
                 )
             })
             .collect::<PyResult<Vec<_>>>()?;
-        Ok(Self { native, fields })
+        let events = native
+            .events()
+            .map(|policy| super::event_policy::PyEventPolicy {
+                model_digest: model_digest.to_owned(),
+                max_events: policy.max_events(),
+                entries: policy
+                    .guard_tolerances()
+                    .iter()
+                    .map(|entry| super::event_policy::PyGuardTolerance {
+                        activation: crate::model::PyActivationRef {
+                            model_digest: model_digest.to_owned(),
+                            id: entry.activation(),
+                        },
+                        quantity: entry.quantity(),
+                    })
+                    .collect(),
+            });
+        let forward_sensitivities = native
+            .forward_sensitivities()
+            .map(|policy| {
+                super::forward_policy::PyForwardSensitivity::from_native(
+                    py,
+                    document,
+                    policy.relative_tolerance(),
+                    policy
+                        .absolute_tolerances()
+                        .iter()
+                        .map(|entry| (entry.field(), entry.parameter(), entry.quantity()))
+                        .collect(),
+                )
+            })
+            .transpose()?;
+        Ok(Self {
+            native,
+            fields,
+            events,
+            forward_sensitivities,
+        })
     }
 
     pub(super) fn belongs_to_model(&self, py: Python<'_>, model_digest: &str) -> bool {
-        self.fields
-            .iter()
-            .all(|field| field.borrow(py).exact_model_digest() == model_digest)
+        self.forward_sensitivities
+            .as_ref()
+            .is_none_or(|policy| policy.model_digest == model_digest)
+            && self
+                .events
+                .as_ref()
+                .is_none_or(|events| events.model_digest == model_digest)
+            && self
+                .fields
+                .iter()
+                .all(|field| field.borrow(py).exact_model_digest() == model_digest)
     }
 }
 
 #[pymethods]
 impl PyTsitouras45 {
     #[new]
-    #[pyo3(signature = (*, initial_step_s, relative_tolerance, absolute_tolerances))]
+    #[pyo3(signature = (*, initial_step_s, relative_tolerance, absolute_tolerances, events=None, forward_sensitivities=None))]
     fn new(
         py: Python<'_>,
         #[pyo3(from_py_with = exact_time_float)] initial_step_s: f64,
         #[pyo3(from_py_with = exact_time_float)] relative_tolerance: f64,
         absolute_tolerances: &Bound<'_, PyDict>,
+        events: Option<&super::event_policy::PyEventPolicy>,
+        forward_sensitivities: Option<&super::forward_policy::PyForwardSensitivity>,
     ) -> PyResult<Self> {
         let mut native = Vec::with_capacity(absolute_tolerances.len());
         let mut fields = Vec::with_capacity(absolute_tolerances.len());
@@ -567,9 +617,53 @@ impl PyTsitouras45 {
             fields.push(field);
         }
         fields.sort_by_key(|field| field.borrow(py).exact_id().to_owned());
-        CommonTsitouras45::new(initial_step_s, relative_tolerance, native)
-            .map(|native| Self { native, fields })
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+        let mut native = CommonTsitouras45::new(initial_step_s, relative_tolerance, native)
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        if let Some(events) = events {
+            native = native
+                .with_events(
+                    events.max_events,
+                    events
+                        .entries
+                        .iter()
+                        .map(|entry| (entry.activation.id, entry.quantity))
+                        .collect(),
+                )
+                .map_err(|error| validation_error(py, &[error]))?;
+        }
+        if let Some(policy) = forward_sensitivities {
+            native = native
+                .with_forward_sensitivities(
+                    policy.relative_tolerance,
+                    policy
+                        .entries
+                        .iter()
+                        .map(|entry| {
+                            let field = Ulid::from_string(entry.field.exact_id())
+                                .map(Id::<kinds::Field>::from_ulid)
+                                .expect("validated exact FieldRef");
+                            (field, entry.parameter.value.id(), entry.quantity)
+                        })
+                        .collect(),
+                )
+                .map_err(|error| validation_error(py, &[error]))?;
+        }
+        Ok(Self {
+            native,
+            fields,
+            events: events.cloned(),
+            forward_sensitivities: forward_sensitivities.cloned(),
+        })
+    }
+
+    #[getter]
+    fn forward_sensitivities(&self) -> Option<super::forward_policy::PyForwardSensitivity> {
+        self.forward_sensitivities.clone()
+    }
+
+    #[getter]
+    fn events(&self) -> Option<super::event_policy::PyEventPolicy> {
+        self.events.clone()
     }
 
     #[getter]

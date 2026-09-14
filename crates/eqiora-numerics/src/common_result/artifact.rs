@@ -9,6 +9,8 @@ use super::evidence::{CommonExecutionEvidence, CommonExecutionTopology, CommonPr
 use super::*;
 
 mod conversions;
+mod parameter_sensitivity;
+use parameter_sensitivity::WireParameterSensitivity;
 mod validate;
 use conversions::{
     decode_shape, dimension_from_wire, dimension_to_wire, encode_shape, positive_usize, to_u64,
@@ -20,13 +22,13 @@ use validate::{
     require_text, require_trajectory_family, validate_fields,
 };
 
-const SCHEMA: &str = "eqiora.common-result/v4";
+const SCHEMA: &str = "eqiora.common-result/v5";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 512 * 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireCommonResultV4 {
+struct WireCommonResultV5 {
     schema: String,
     encoding: String,
     identity: String,
@@ -73,6 +75,7 @@ enum WireResultPayload {
     Trajectory {
         trajectory_base64: String,
         fsi: Option<WireFsiEvidence>,
+        parameter_sensitivity: Option<WireParameterSensitivity>,
     },
 }
 
@@ -238,7 +241,7 @@ struct WireFsiInterfaceAction {
 impl CommonResult {
     /// Encode all accepted Fields, observations, evidence, and Trajectory content canonically.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&WireCommonResultV4::from_result(self)?)
+        serde_json::to_vec(&WireCommonResultV5::from_result(self)?)
             .map_err(|error| invalid(format!("cannot encode common Result artifact: {error}")))
     }
 
@@ -250,7 +253,7 @@ impl CommonResult {
                 bytes.len()
             )));
         }
-        let wire: WireCommonResultV4 = serde_json::from_slice(bytes)
+        let wire: WireCommonResultV5 = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid common Result JSON: {error}")))?;
         if wire.schema != SCHEMA || wire.encoding != ENCODING {
             return Err(invalid("common Result has an unknown schema or encoding"));
@@ -265,7 +268,7 @@ impl CommonResult {
     }
 }
 
-impl WireCommonResultV4 {
+impl WireCommonResultV5 {
     fn from_result(result: &CommonResult) -> Result<Self, Diagnostic> {
         let content = WireResultContent::from_result(result)?;
         let identity = identity(&content)?;
@@ -326,7 +329,14 @@ impl WireResultContent {
                     &payload.observation,
                 )?),
             },
-            CommonResultPayload::Trajectory { trajectory, fsi } => WireResultPayload::Trajectory {
+            CommonResultPayload::Trajectory {
+                trajectory,
+                fsi,
+                parameter_sensitivity,
+            } => WireResultPayload::Trajectory {
+                parameter_sensitivity: parameter_sensitivity
+                    .as_ref()
+                    .map(WireParameterSensitivity::from_native),
                 trajectory_base64: BASE64_STANDARD.encode(trajectory.to_bytes()?),
                 fsi: fsi
                     .as_ref()
@@ -410,6 +420,7 @@ impl WireResultContent {
             WireResultPayload::Trajectory {
                 trajectory_base64,
                 fsi,
+                parameter_sensitivity,
             } => {
                 if matches!(
                     self.family,
@@ -434,7 +445,19 @@ impl WireResultContent {
                         "Result FSI evidence presence contradicts its family",
                     ));
                 }
-                CommonResultPayload::Trajectory { trajectory, fsi }
+                let parameter_sensitivity = parameter_sensitivity
+                    .as_ref()
+                    .map(|value| value.replay(&trajectory))
+                    .transpose()?;
+                CommonResult::validate_parameter_sensitivity(
+                    &trajectory,
+                    parameter_sensitivity.as_ref(),
+                )?;
+                CommonResultPayload::Trajectory {
+                    trajectory,
+                    fsi,
+                    parameter_sensitivity,
+                }
             }
         };
         Ok(CommonResult {
@@ -893,7 +916,7 @@ fn identity(content: &WireResultContent) -> Result<String, Diagnostic> {
     let bytes = serde_json::to_vec(content)
         .map_err(|error| invalid(format!("cannot encode common Result identity: {error}")))?;
     Ok(
-        Sha256::digest([b"eqiora.common-result/v4\0".as_slice(), &bytes].concat())
+        Sha256::digest([b"eqiora.common-result/v5\0".as_slice(), &bytes].concat())
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect(),

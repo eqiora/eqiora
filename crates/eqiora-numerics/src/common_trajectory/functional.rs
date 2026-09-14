@@ -10,6 +10,8 @@ use eqiora_sem::KernelProgram;
 use super::{CommonTrajectory, invalid};
 use crate::CommonOdePlan;
 
+mod sensitivity;
+
 /// Numerical policy for integrating a retained Observable through time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TimeFunctionalQuadrature {
@@ -24,6 +26,7 @@ pub struct CommonTrajectoryObservation {
     trajectory_identity: String,
     value: ValueLiteral,
     quadrature: Option<TimeFunctionalQuadrature>,
+    parameter_jvp: bool,
     interval_s: [f64; 2],
 }
 
@@ -46,20 +49,26 @@ impl CommonTrajectoryObservation {
         &self.value
     }
 
-    /// Fixed physical interval in coherent SI seconds; terminal scope repeats its time.
+    /// Exact physical interval in coherent SI seconds; terminal scope repeats its time.
     #[must_use]
     pub const fn interval_s(&self) -> [f64; 2] {
         self.interval_s
     }
 
-    /// Endpoint meaning of this smooth, fixed-interval profile.
+    /// Fixed endpoint meaning used by this admitted functional profile.
     #[must_use]
     pub const fn endpoint_convention(&self) -> &'static str {
         if self.quadrature.is_some() {
             "fixed-interval-dt"
         } else {
-            "terminal-fixed-time"
+            "terminal-after-events"
         }
+    }
+
+    /// Whether this value is a first variation in an admitted Parameter direction.
+    #[must_use]
+    pub const fn is_parameter_jvp(&self) -> bool {
+        self.parameter_jvp
     }
 
     /// Effective time quadrature; absent for terminal evaluation.
@@ -81,17 +90,25 @@ impl CommonTrajectory {
         observable: Id<kinds::Observable>,
     ) -> Result<CommonTrajectoryObservation, Diagnostic> {
         let evaluator = OdeObservable::new(self, model, observable)?;
-        let history = evaluator.history;
+        let history = self.ode_history().ok_or_else(|| {
+            invalid("terminal Observable requires accepted ODE integration history")
+        })?;
         let terminal = history
             .steps()
             .last()
             .ok_or_else(|| invalid("terminal Observable has no accepted integration step"))?;
-        let value = evaluator.evaluate(terminal.end_time(), terminal.end_state())?;
+        let terminal_state = history
+            .events()
+            .last()
+            .filter(|event| event.proposal().time() == terminal.end_time())
+            .map_or(terminal.end_state(), |event| event.after_state());
+        let value = evaluator.evaluate(terminal.end_time(), terminal_state)?;
         Ok(CommonTrajectoryObservation {
             observable,
             trajectory_identity: self.identity().to_owned(),
             value,
             quadrature: None,
+            parameter_jvp: false,
             interval_s: [terminal.end_time(), terminal.end_time()],
         })
     }
@@ -108,7 +125,9 @@ impl CommonTrajectory {
         quadrature: TimeFunctionalQuadrature,
     ) -> Result<CommonTrajectoryObservation, Diagnostic> {
         let evaluator = OdeObservable::new(self, model, observable)?;
-        let history = evaluator.history;
+        let history = self
+            .ode_history()
+            .ok_or_else(|| invalid("time Observable requires accepted ODE integration history"))?;
         let mut integral = 0.0;
         for step in history.steps() {
             let start = step.start_time();
@@ -137,6 +156,7 @@ impl CommonTrajectory {
             trajectory_identity: self.identity().to_owned(),
             value,
             quadrature: Some(quadrature),
+            parameter_jvp: false,
             interval_s: [
                 history.steps()[0].start_time(),
                 history.steps().last().expect("nonempty history").end_time(),
@@ -147,7 +167,6 @@ impl CommonTrajectory {
 
 struct OdeObservable<'a> {
     plan: &'a CommonOdePlan,
-    history: &'a eqiora_time::AcceptedTimeHistory,
     program: KernelProgram,
     operator: ScalarOperatorIr,
     root: eqiora_schema::kernel::ExprId,
@@ -160,10 +179,7 @@ impl<'a> OdeObservable<'a> {
         model: &ModelEnvelope,
         observable: Id<kinds::Observable>,
     ) -> Result<Self, Diagnostic> {
-        let CommonTrajectory::Ode {
-            request, history, ..
-        } = trajectory
-        else {
+        let CommonTrajectory::Ode { request, .. } = trajectory else {
             return Err(invalid(
                 "time functional requires the admitted scalar ODE profile",
             ));
@@ -199,7 +215,6 @@ impl<'a> OdeObservable<'a> {
         let root = typed.expression().roots()[0];
         Ok(Self {
             plan,
-            history,
             program,
             operator,
             root,

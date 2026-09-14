@@ -857,7 +857,7 @@ fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_field_results(
         );
         let old = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.common-result/v4", "eqiora.common-result/v2");
+            .replace("eqiora.common-result/v5", "eqiora.common-result/v2");
         assert!(crate::CommonResult::from_bytes(old.as_bytes(), &replayed).is_err());
     }
 }

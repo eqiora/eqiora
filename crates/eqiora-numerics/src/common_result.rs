@@ -6,6 +6,7 @@ use eqiora_solver::{
     ReductionPolicy,
 };
 
+use crate::common_trajectory::CommonTrajectoryParameterSensitivity;
 use crate::numerical_admission::{
     CommonElasticityRunOutput, CommonScalarRunOutput, CommonSteadyStokesRunOutput,
 };
@@ -285,6 +286,7 @@ enum CommonResultPayload {
     Trajectory {
         trajectory: CommonTrajectory,
         fsi: Option<CommonFsiEvidence>,
+        parameter_sensitivity: Option<CommonTrajectoryParameterSensitivity>,
     },
 }
 
@@ -553,7 +555,25 @@ impl CommonResult {
         elapsed_seconds: f64,
         trajectory: CommonTrajectory,
     ) -> Result<Self, Diagnostic> {
+        Self::accept_trajectory_payload(elapsed_seconds, trajectory, None)
+    }
+
+    /// Retain the exact forward Parameter products accepted with this Trajectory.
+    pub fn accept_trajectory_with_parameter_sensitivity(
+        elapsed_seconds: f64,
+        trajectory: CommonTrajectory,
+        sensitivity: CommonTrajectoryParameterSensitivity,
+    ) -> Result<Self, Diagnostic> {
+        Self::accept_trajectory_payload(elapsed_seconds, trajectory, Some(sensitivity))
+    }
+
+    fn accept_trajectory_payload(
+        elapsed_seconds: f64,
+        trajectory: CommonTrajectory,
+        parameter_sensitivity: Option<CommonTrajectoryParameterSensitivity>,
+    ) -> Result<Self, Diagnostic> {
         require_elapsed(elapsed_seconds)?;
+        Self::validate_parameter_sensitivity(&trajectory, parameter_sensitivity.as_ref())?;
         let (plan, family, fsi) = match &trajectory {
             CommonTrajectory::Ode { request, .. } => (
                 ResolvedCommonPlan::Ode(Box::new(request.plan().clone())),
@@ -618,7 +638,11 @@ impl CommonResult {
             family,
             elapsed_seconds,
             identity: String::new(),
-            payload: CommonResultPayload::Trajectory { trajectory, fsi },
+            payload: CommonResultPayload::Trajectory {
+                trajectory,
+                fsi,
+                parameter_sensitivity,
+            },
         }
         .refresh_identity()
     }
@@ -836,6 +860,35 @@ impl CommonResult {
             CommonResultPayload::Algebraic { .. } | CommonResultPayload::Static(_) => None,
             CommonResultPayload::Trajectory { trajectory, .. } => Some(trajectory),
         }
+    }
+    /// Forward Parameter products, present only when computed with this exact Result.
+    #[must_use]
+    pub fn parameter_sensitivity(&self) -> Option<&CommonTrajectoryParameterSensitivity> {
+        match &self.payload {
+            CommonResultPayload::Trajectory {
+                parameter_sensitivity,
+                ..
+            } => parameter_sensitivity.as_ref(),
+            _ => None,
+        }
+    }
+
+    fn validate_parameter_sensitivity(
+        trajectory: &CommonTrajectory,
+        sensitivity: Option<&CommonTrajectoryParameterSensitivity>,
+    ) -> Result<(), Diagnostic> {
+        if let Some(sensitivity) = sensitivity {
+            sensitivity.validate_for(trajectory)?;
+        }
+        if let CommonTrajectory::Ode { request, .. } = trajectory
+            && request.plan().forward_sensitivity_plan().is_some()
+            && sensitivity.is_none()
+        {
+            return Err(invalid(
+                "forward-sensitivity Plan requires its accepted Parameter products in the Result",
+            ));
+        }
+        Ok(())
     }
     #[must_use]
     pub fn fsi_state_count(&self) -> usize {
