@@ -23,7 +23,7 @@ except ImportError as error:  # pragma: no cover - depends on optional install
     ) from error
 
 
-_SUPPORTED_TORCH_SERIES = (2, 13)
+_SUPPORTED_TORCH_SERIES = (2, 14)
 
 
 class _ProgramIdentity(NamedTuple):
@@ -55,7 +55,7 @@ def _torch_series(version: str) -> tuple[int, int]:
 
 if _torch_series(torch.__version__) != _SUPPORTED_TORCH_SERIES:
     raise ImportError(
-        "eqiora.torch supports PyTorch >=2.13,<2.14; "
+        "eqiora.torch supports PyTorch >=2.14,<2.15; "
         f"found {torch.__version__}"
     )
 

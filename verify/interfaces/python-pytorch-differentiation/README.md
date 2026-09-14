@@ -31,8 +31,8 @@ wrapper. Accepted evaluations and linearizations are never cached; losing
 reuse cannot change a gradient. Unknown tokens, mismatched metadata, and
 cross-process use fail closed.
 
-The installed-wheel gate uses the declared `torch>=2.13,<2.14` extra and the
-exact tested release 2.13.0. It exercises:
+The installed-wheel gate uses the declared `torch>=2.14,<2.15` extra and the
+exact tested release 2.14.0. It exercises:
 
 - Q1 FEM and TPFA FVM forward values against the native accepted primal;
 - backward gradients against the native Eqiora VJP;

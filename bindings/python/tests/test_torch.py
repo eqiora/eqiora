@@ -317,6 +317,6 @@ def test_unknown_or_mismatched_tokens_fail_closed() -> None:
 
 
 def test_supported_torch_series_is_exact() -> None:
-    assert eqtorch._torch_series(torch.__version__) == (2, 13)
+    assert eqtorch._torch_series(torch.__version__) == (2, 14)
     if expected := os.environ.get("EQIORA_TEST_TORCH_VERSION"):
         assert torch.__version__.split("+", maxsplit=1)[0] == expected

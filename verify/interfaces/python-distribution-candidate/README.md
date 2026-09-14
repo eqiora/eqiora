@@ -7,7 +7,7 @@ only from that extracted source.
 
 Every wheel is installed outside the checkout and runs the base, NumPy
 ownership, synchronous/awaitable execution, cancellation, public-smoke, and
-strict-typing checks. CPython 3.13 additionally runs the PyTorch 2.13.0,
+strict-typing checks. CPython 3.13 additionally runs the PyTorch 2.14.0,
 JAX/JAXLIB 0.11.0, and Matplotlib 3.11.1 profiles. A separate CPython 3.12
 environment proves the declared NumPy 2.1.0 floor.
 

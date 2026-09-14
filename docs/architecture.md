@@ -782,7 +782,7 @@ snapshots, and one host-serial lifecycle for bounded FEM/FVM execution. The
 accepted-point differentiation adapter additionally admits exact CPU:0 DLPack
 Parameter-point/JVP/VJP inputs through a no-copy protocol view, validates that
 view, and owns one staging copy before native work detaches from Python.
-The optional PyTorch 2.13 adapter projects that same immutable program as a
+The optional PyTorch 2.14 adapter projects that same immutable program as a
 functional CPU `float64` custom operator. Its fake kernel is metadata-only,
 its registered first-order backward calls a separate native VJP operator, and
 its fresh DLPack outputs never alias Tensor inputs or accepted evidence.

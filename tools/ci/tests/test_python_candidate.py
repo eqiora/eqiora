@@ -302,7 +302,7 @@ class PythonCandidateTests(unittest.TestCase):
             pytest="pytest==9.1.1",
             mypy="mypy==2.3.0",
             twine="twine==6.2.0",
-            torch="torch==2.13.0",
+            torch="torch==2.14.0",
             jax=("jax==0.11.0", "jaxlib==0.11.0"),
             matplotlib="matplotlib==3.11.1",
             rust="1.89",
@@ -465,7 +465,7 @@ Provides-Extra: torch
 Provides-Extra: viewer
 Requires-Dist: numpy<3,>=2.1
 Requires-Dist: gmsh==4.15.2 ; extra == 'gmsh'
-Requires-Dist: torch>=2.13,<2.14; extra == "torch"
+Requires-Dist: torch>=2.14,<2.15; extra == "torch"
 Requires-Dist: jax==0.11.0; python_version >= "3.12" and extra == "jax"
 Requires-Dist: jaxlib==0.11.0; python_version >= "3.12" and extra == "jax"
 Requires-Dist: matplotlib>=3.10,<3.12; extra == "matplotlib"
@@ -539,7 +539,7 @@ Provides-Extra: torch
 Provides-Extra: viewer
 Requires-Dist: numpy<3,>=2.1
 Requires-Dist: gmsh==4.15.2; extra == "gmsh"
-Requires-Dist: torch>=2.13,<2.14
+Requires-Dist: torch>=2.14,<2.15
 Requires-Dist: jax==0.11.0; extra == "jax"
 Requires-Dist: jaxlib==0.11.0; extra == "jax"
 Requires-Dist: matplotlib>=3.10,<3.12; extra == "matplotlib"
