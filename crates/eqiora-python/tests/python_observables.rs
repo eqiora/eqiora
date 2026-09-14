@@ -176,6 +176,7 @@ else:
 
 #[test]
 fn python_event_functionals_use_reset_history_and_explicit_policy() -> PyResult<()> {
+    let _fixture = MODULE_FIXTURE.lock().expect("Python package fixture lock");
     Python::initialize();
     Python::attach(|py| {
         let locals = PyDict::new(py);
