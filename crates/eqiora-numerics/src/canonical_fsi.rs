@@ -1,4 +1,4 @@
-//! Method-neutral recognition of one exact fixed-reference fluid-solid pair.
+//! Method-neutral recognition of exact fixed-reference fluid-solid networks.
 
 mod ale;
 mod ale_realization;
@@ -183,11 +183,11 @@ struct LiveSide {
 
 /// Lower one complete, flat fixed-reference 2D FSI semantic network.
 ///
-/// Recognition is identity-parametric and package-neutral. Exactly one
-/// Cartesian Domain must have inertial incompressible Newtonian meaning and
-/// exactly one must have first-order isotropic elastodynamic meaning. Their
-/// only live sides must be coincident, opposite, and members of the same
-/// exact two-Port conserving velocity/traction Connection.
+/// Recognition is identity-parametric and package-neutral. Every Cartesian
+/// Domain must have either inertial incompressible Newtonian meaning or
+/// first-order isotropic elastodynamic meaning. Every live side must have one
+/// coincident opposite endpoint in an exact two-Port conserving
+/// velocity/traction Connection.
 ///
 /// # Errors
 /// Returns `EQ0703` when the typed physics assignment is not unique, either
