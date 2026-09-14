@@ -360,3 +360,94 @@ fn plural_chain_permutation_retains_exact_field_identity_and_result_recovery() {
     let replay = crate::CommonResult::from_bytes(&result.to_bytes().unwrap(), &resolved).unwrap();
     assert_eq!(replay.identity(), result.identity());
 }
+
+#[test]
+fn plural_solver_admits_and_rechecks_exact_fields_for_manual_and_planned_runs() {
+    use eqiora_solver::{AlgebraicStructure, HostSerialSolverProfile};
+    let names = ["alpha", "beta", "gamma"];
+    let (model, ids) = source_model(&chain_source(&[0, 1, 2], &names), &names);
+    let expected =
+        AlgebraicStructure::new(names.iter().map(|name| ids[*name].downcast().unwrap()), [])
+            .unwrap();
+    for (planned, request) in [
+        (
+            false,
+            exact_reference_linear(
+                LinearSolver::BiConjugateGradientStabilized,
+                1e-10,
+                1e-12,
+                NonZeroUsize::new(1000).unwrap(),
+            ),
+        ),
+        (
+            true,
+            CommonLinearRequest::program_controlled(
+                1e-10,
+                1e-12,
+                NonZeroUsize::new(1000).unwrap(),
+                SolverPlanningObjective::LowMemory,
+            )
+            .unwrap(),
+        ),
+    ] {
+        let supplied: &dyn LinearSolverBackend = if planned {
+            &PlanningFaerBackend
+        } else {
+            &REFERENCE_LINEAR_SOLVER
+        };
+        let resolved = resolve_common_plan(
+            &model,
+            chain_resources(3),
+            CommonSpatialPolicy::Q1,
+            CommonSolvePolicy::Linear(request),
+            None,
+            None,
+            supplied,
+            None,
+        )
+        .unwrap();
+        let resolved = replay_plan(resolved, supplied);
+        let plan = resolved.as_scalar().unwrap();
+        let profile = plan.admission.linear.planning_profile.as_ref().unwrap();
+        profile.require_structure(Some(&expected)).unwrap();
+        assert!(profile.require_structure(None).is_err());
+        if !planned {
+            let accepted = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+            assert_eq!(accepted.field_count(), 3);
+            for index in 0..3 {
+                let (id, _, _, _) = accepted.field(index).unwrap();
+                let region = names
+                    .iter()
+                    .position(|name| ids[*name].ulid().to_string() == id)
+                    .unwrap();
+                let (_, values, _) = accepted.field_block(index, 0).unwrap();
+                for (vertex, value) in values.iter().enumerate() {
+                    // Independent exact harmonic profile on [0,3], with endpoints 0 and 1.
+                    assert!((value - (region as f64 + vertex as f64 / 2.0) / 3.0).abs() < 1e-9);
+                }
+            }
+        }
+        let missing = AlgebraicStructure::new([ids["alpha"].downcast().unwrap()], []).unwrap();
+        let foreign = AlgebraicStructure::new(
+            [eqiora_core::Id::from_ulid(
+                "01ARZ3NDEKTSV4RRFFQ69G5FAV".parse().unwrap(),
+            )],
+            [],
+        )
+        .unwrap();
+        for stale in [None, Some(missing), Some(foreign)] {
+            let mut changed = plan.clone();
+            let replacement = HostSerialSolverProfile::canonical_csr(
+                LinearOperatorProperties::General,
+                None,
+                None,
+            );
+            changed.admission.linear.planning_profile = Some(match stale {
+                Some(structure) => replacement.with_structure(structure).unwrap(),
+                None => replacement,
+            });
+            let error = changed.run_result(supplied).unwrap_err();
+            assert!(error.message().contains("structure"), "{error:?}");
+        }
+    }
+}

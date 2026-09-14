@@ -502,8 +502,6 @@ impl NativeNumericalAdmission {
                 "scalar execution backend differs from admitted provider or capabilities",
             ));
         }
-        let checked_backend = self.linear.checked_backend(backend, None)?;
-        let backend: &dyn LinearSolverBackend = &checked_backend;
         let NativeMeshResources::Cartesian { mesh, .. } = self.resources() else {
             return Err(invalid(
                 "scalar elliptic execution requires Cartesian resources",
@@ -514,6 +512,9 @@ impl NativeNumericalAdmission {
                 "native numerical admission does not own recognized scalar-elliptic meaning",
             ));
         };
+        let structure = lowered.algebraic_structure()?;
+        let checked_backend = self.linear.checked_backend(backend, Some(&structure))?;
+        let backend: &dyn LinearSolverBackend = &checked_backend;
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
         if self.spatial == NativeSpatialPolicy::ScalarQ1 {
             return lowered.execute(self, solve, mesh.mesh());

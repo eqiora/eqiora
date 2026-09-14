@@ -137,6 +137,19 @@ impl ExecutableScalarEquations {
         fields.sort_by_key(|(field, _)| *field);
         fields
     }
+    /// Semantic Field blocks supplied to the sole solver authority before selection.
+    pub(in crate::numerical_admission) fn algebraic_structure(
+        &self,
+    ) -> Result<eqiora_solver::AlgebraicStructure, Diagnostic> {
+        eqiora_solver::AlgebraicStructure::new(
+            self.fields().into_iter().map(|(field, _)| {
+                field
+                    .downcast()
+                    .expect("compiled scalar unknown is a Field")
+            }),
+            [],
+        )
+    }
     pub(in crate::numerical_admission) fn primal_form(
         &self,
         program: &KernelProgram,
