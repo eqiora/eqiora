@@ -726,19 +726,15 @@ fn assert_consecutive_geometry_and_evidence(
             .domain_vertices(solid_domain(&fixture.canonical))
             .unwrap()
         {
-            for component in 0..COMPONENTS {
+            let exact_velocity = solid_velocity_values[&MeshEntity::new(0, vertex.index())];
+            for (component, exact_component) in exact_velocity.iter().enumerate() {
                 let quotient = (states[1].geometry().coordinates()[vertex.index()][component]
                     - states[0].geometry().coordinates()[vertex.index()][component])
                     / time_step;
                 let velocity = action.vertex_velocities()[vertex.index()][component];
                 assert_eq!(velocity.to_bits(), quotient.to_bits());
                 let scale = 1.0_f64.max(velocity.abs());
-                assert!(
-                    (velocity
-                        - solid_velocity_values[&MeshEntity::new(0, vertex.index())][component])
-                        .abs()
-                        < 2.0e-13 * scale
-                );
+                assert!((velocity - exact_component).abs() < 2.0e-13 * scale);
             }
         }
         for cell in action.cells() {
