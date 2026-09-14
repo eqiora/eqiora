@@ -141,7 +141,7 @@ The reset is incomplete until every row reaches the current owner:
 | compiler and package paths | emit the current Transaction and Model only; recompute dependent exact artifact references without changing source/package semantics |
 | Rust applications and examples | replace fixed historical codec choices with the current ordinary path |
 | Python extension, package, stubs, and tests | expose one ordinary current path and reject old persisted Model bytes |
-| Studio native commands and demonstrations | consume the same current Rust owner without a route-local switch |
+| Browser Studio request schemas | reference the same current identifiers without a route-local switch |
 | spatial authored-field/context projections | change only their Model input to the current typed owner; retain the spatial artifact schemas and replay rules |
 | verification and documentation | preserve semantic and scientific assertions, remove compatibility-only claims, and index only the current artifact boundary |
 

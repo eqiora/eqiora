@@ -1,7 +1,0 @@
-{
-  "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "main-window",
-  "description": "Minimal core permissions for the local Eqiora Studio window.",
-  "windows": ["main"],
-  "permissions": ["core:default"]
-}

@@ -616,25 +616,19 @@ jobs:
             )
 
 
-    def test_studio_checks_its_independent_manifest_at_the_same_msrv(self) -> None:
+    def test_studio_checks_the_locked_browser_projection(self) -> None:
         workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
             encoding="utf-8"
         )
         studio = workflow.split("  studio:\n", maxsplit=1)[1].split(
             "\n  gate:", maxsplit=1
         )[0]
-        formatting = (
-            "cargo +stable fmt --manifest-path studio/src-tauri/Cargo.toml -- --check"
-        )
-        self.assertEqual(workflow.count(formatting), 1)
-        self.assertIn("rustup toolchain install 1.89.0", studio)
         self.assertIn("node-version: 24.18.1", studio)
-        self.assertIn(
-            "cargo +1.89.0 check --manifest-path studio/src-tauri/Cargo.toml --locked --all-targets",
-            studio,
-        )
+        self.assertIn("run: npm ci", studio)
+        self.assertIn("run: npm run test:e2e", studio)
+        self.assertNotIn("src-tauri", studio)
 
-    def test_dependency_policy_checks_both_independent_cargo_workspaces(self) -> None:
+    def test_dependency_policy_checks_the_root_cargo_workspace(self) -> None:
         workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text(
             encoding="utf-8"
         )
@@ -644,18 +638,10 @@ jobs:
         action = (
             "EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25"
         )
-        self.assertEqual(dependency.count(action), 2)
+        self.assertEqual(dependency.count(action), 1)
         self.assertIn("name: Check root dependency policy", dependency)
-        self.assertIn("name: Check Studio dependency policy", dependency)
         self.assertIn("arguments: --all-features --locked", dependency)
-        self.assertIn(
-            "manifest-path: studio/src-tauri/Cargo.toml",
-            dependency,
-        )
-        self.assertIn(
-            "arguments: --all-features --locked --config studio/src-tauri/deny.toml",
-            dependency,
-        )
+        self.assertNotIn("src-tauri", dependency)
 
         dependabot = (REPOSITORY_ROOT / ".github/dependabot.yml").read_text(
             encoding="utf-8"
@@ -708,13 +694,7 @@ class DependencyIdentityTests(unittest.TestCase):
         root = tomllib.loads(
             (REPOSITORY_ROOT / "Cargo.toml").read_text(encoding="utf-8")
         )
-        studio = tomllib.loads(
-            (REPOSITORY_ROOT / "studio/src-tauri/Cargo.toml").read_text(
-                encoding="utf-8"
-            )
-        )
         self.assertEqual(root["workspace"]["package"]["rust-version"], "1.89")
-        self.assertEqual(studio["package"]["rust-version"], "1.89")
 
     def test_diffsol_backend_release_matches_exact_manifest_and_lock(self) -> None:
         manifest = tomllib.loads(
@@ -1172,17 +1152,11 @@ class ChangeClassificationTests(unittest.TestCase):
         self.assertFalse(selected["studio"])
         self.assertFalse(selected["rust"])
 
-    def test_studio_dependency_inputs_select_both_owned_gates(self) -> None:
-        for path in (
-            "studio/src-tauri/Cargo.toml",
-            "studio/src-tauri/Cargo.lock",
-            "studio/src-tauri/deny.toml",
-        ):
-            with self.subTest(path=path):
-                selected = classify([path])
-                self.assertTrue(selected["studio"])
-                self.assertTrue(selected["dependency_policy"])
-                self.assertFalse(selected["rust"])
+    def test_studio_npm_lock_selects_only_the_studio_gate(self) -> None:
+        selected = classify(["studio/package-lock.json"])
+        self.assertTrue(selected["studio"])
+        self.assertFalse(selected["dependency_policy"])
+        self.assertFalse(selected["rust"])
 
     def test_dependency_and_experiment_inputs_are_independent(self) -> None:
         dependency = classify(["crates/eqiora-core/Cargo.toml"])
@@ -1561,7 +1535,6 @@ class PreviousRunAuthenticationTests(unittest.TestCase):
             ("Python 3.14 installed wheel", "Test installed wheel"),
             ("MSRV 1.89", "Check every production feature and target"),
             ("Dependency policy", "Check root dependency policy"),
-            ("Dependency policy", "Check Studio dependency policy"),
             ("Isolated CubeCL contract experiment", "Device-independent contract tests"),
         )
         jobs = [
@@ -1605,9 +1578,9 @@ class PreviousRunAuthenticationTests(unittest.TestCase):
 
         run["conclusion"] = "failure"
         jobs.append({
-            "name": "Studio projection and native boundary",
+            "name": "Studio browser projection",
             "status": "completed", "conclusion": "failure",
-            "steps": [{"name": "Production shell build", "status": "completed",
+            "steps": [{"name": "Accessible interaction tests", "status": "completed",
                        "conclusion": "success"}],
         })
         partial = authenticate(

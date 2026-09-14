@@ -1,23 +1,28 @@
 # RFC 0016: Studio as an accessible canonical projection
 
-- Status: Implemented through the closed workflow-registry slice
+- Status: Native shell retired; browser projection retained
 - Authors: Eqiora contributors
 - Created: 2026-07-18
 
 ## Summary
 
-Eqiora Studio is a thin, accessible desktop client over the same application,
-transaction, artifact, Realization, run, and diagnostic contracts used by
-source, Rust, Python, and agents. Studio presents multiple coordinated views
-of one immutable canonical revision. Diagram positions, camera, selection,
-panel arrangement, and recent files are UI/workspace state and never acquire
-mathematical meaning.
+Eqiora Studio is an accessible browser projection over fixed, runtime-validated
+example identities. It demonstrates coordinated semantic views and local
+workspace interaction without compiling, executing, or persisting canonical
+Eqiora content. Diagram positions, camera, selection, and panel arrangement are
+UI/workspace state and never acquire mathematical meaning.
 
-The first implementation uses a Tauri 2 shell, a semantic-DOM React frontend,
+The first implementation used a Tauri 2 shell, a semantic-DOM React frontend,
 and React Flow for the relation view. Rust remains the only authority for
 compilation, validation, graph commit, and execution. The WebView is an
 untrusted client behind versioned runtime-validated IPC DTOs and least-
 privilege Tauri capabilities.
+
+The native shell was retired before 0.1.0 because its GTK3 dependency closure
+could not satisfy the repository security policy. The retained browser surface
+is a presentation prototype over fixed preview identities. The native runtime,
+IPC, execution, authored-CAD, export, and persistence decisions below remain a
+historical design record rather than current capability claims.
 
 ## Motivation
 
@@ -534,9 +539,7 @@ non-drag graph movement, minimum-shell containment, and stale-result labelling.
 Automated checks are intentionally not claimed as complete WCAG conformance;
 manual keyboard and inclusive user testing remain release responsibilities.
 The executable commands and falsifying cases are collected in
-[`docs/verification/studio-capability-evidence.md`](../docs/verification/studio-capability-evidence.md)
-and
-[`docs/verification/studio-typed-value-edit.md`](../docs/verification/studio-typed-value-edit.md).
+[`docs/verification/studio-capability-evidence.md`](../docs/verification/studio-capability-evidence.md).
 The controlled-run boundary, exact-identity routing, and lifecycle UI have a
 separate case in
 [`docs/verification/studio-run-lifecycle.md`](../docs/verification/studio-run-lifecycle.md).

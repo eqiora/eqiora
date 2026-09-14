@@ -1,6 +1,6 @@
 import type { CommandDefinition, WorkflowDefinition } from "./application";
 
-const ALL = ["relations", "packaged-dc-drive", "cad-box", "cad-authored"] as const;
+const ALL = ["relations", "cad-box"] as const;
 export const COMMAND_REGISTRY = [
   {
     id: "model.compile",
@@ -57,39 +57,12 @@ export const COMMAND_REGISTRY = [
     workflows: ALL,
   },
   {
-    id: "workspace.trajectory",
-    group: "view",
-    label: "command.workspace.trajectory.label",
-    description: "command.workspace.trajectory.description",
-    shortcut: null,
-    focusTarget: "trajectory-viewport",
-    workflows: ALL,
-  },
-  {
     id: "workspace.geometry",
     group: "view",
     label: "command.workspace.geometry.label",
     description: "command.workspace.geometry.description",
     shortcut: null,
     focusTarget: "cad-viewport",
-    workflows: ALL,
-  },
-  {
-    id: "workspace.cad-authoring",
-    group: "view",
-    label: "command.workspace.cad-authoring.label",
-    description: "command.workspace.cad-authoring.description",
-    shortcut: null,
-    focusTarget: "cad-authored-workspace",
-    workflows: ALL,
-  },
-  {
-    id: "example.dc-drive",
-    group: "model",
-    label: "command.example.dc-drive.label",
-    description: "command.example.dc-drive.description",
-    shortcut: null,
-    focusTarget: null,
     workflows: ALL,
   },
   {
@@ -128,16 +101,8 @@ export const COMMAND_REGISTRY = [
     focusTarget: "selection-inspector",
     workflows: ALL,
   },
-  {
-    id: "focus.evidence",
-    group: "navigate",
-    label: "command.focus.evidence.label",
-    description: "command.focus.evidence.description",
-    shortcut: null,
-    focusTarget: "evidence-inspector",
-    workflows: ["packaged-dc-drive"],
-  },
 ] as const satisfies readonly CommandDefinition[];
+
 export const WORKFLOW_REGISTRY = [
   {
     id: "relations",
@@ -147,24 +112,10 @@ export const WORKFLOW_REGISTRY = [
     primaryFocus: "relation-view",
   },
   {
-    id: "packaged-dc-drive",
-    workspace: "trajectory",
-    label: "workflow.dc-drive.label",
-    description: "workflow.dc-drive.description",
-    primaryFocus: "trajectory-viewport",
-  },
-  {
     id: "cad-box",
     workspace: "geometry",
     label: "workflow.cad.label",
     description: "workflow.cad.description",
     primaryFocus: "cad-viewport",
-  },
-  {
-    id: "cad-authored",
-    workspace: "cad-authoring",
-    label: "workflow.cad-authored.label",
-    description: "workflow.cad-authored.description",
-    primaryFocus: "cad-authored-workspace",
   },
 ] as const satisfies readonly WorkflowDefinition[];

@@ -1731,98 +1731,30 @@ boundary.
 
 ## Studio projection boundary
 
-Studio is an L4 client of the same application service used by language
-bindings, not another implementation of Eqiora semantics. `eqiora-api` owns
-the shared compile, transaction-envelope round trip, atomic commit, canonical
-artifact reconstruction, and reference-run path. The native shell depends
-only on the public `eqiora` facade and exposes a small set of versioned,
-runtime-validated DTOs across the Tauri trust boundary.
+Studio is currently an L4 browser presentation over fixed, runtime-validated
+example projections. It does not call the application service, compile or
+execute models, construct canonical CAD identity, or persist artifacts. The
+GTK3 desktop shell was retired because its runtime dependency closure could
+not satisfy the repository security policy.
 
-Canonical document state and workspace state are intentionally disjoint.
-Graph coordinates, panel sizes, selection, camera position, and color theme
-are workspace preferences keyed by stable canonical identity; they cannot
-change a model digest, dependency, activation order, or execution result.
-Model edits instead produce typed transactions against an explicit base
-revision. React component types, renderer node shapes, and Tauri command
-arguments never become canonical wire formats.
+Projection data and workspace state remain disjoint. Graph coordinates,
+selection, and local revision navigation are bounded presentation state and
+never claim canonical model, artifact, or Run identity. React component types
+and renderer node shapes do not become canonical wire formats. The fixed
+examples use explicit preview identities so they cannot be confused with
+outputs from the public Eqiora facade.
 
-The first relation projection is semantic HTML around an accessible graph
-view. Every graph operation has a keyboard and non-drag path, focus is visible,
-and diagnostics/results are live regions with stable structured identity.
-Source-diagnostic provenance owns the explicit UTF-8-byte to DOM-UTF-16 span
-projection; a diagnostic can navigate only while its input still matches the
-editor. Editable run strings become finite, positive, resource-bounded numbers
-before a request exists. Completed evidence retains its validated run
-configuration and remains content-addressed; source or semantic run-input
-changes mark it visibly stale. Long runs execute outside the WebView thread
-and return owned result data; the renderer never calls into numerical inner
-loops. RFC 0016 specifies the interaction, security, protocol, and verification
-contracts.
+The relation projection is semantic HTML around an accessible graph view.
+Every graph operation has a keyboard and non-drag path, focus is visible, and
+status is announced through semantic live regions. The local
+`eqiora.studio.workspace/v1` schema stores only preview-digest-bound finite
+view coordinates. Command definitions and availability are presentation data
+over the same local actions.
 
-The former Studio-specific `ReferenceRunPlan` lifecycle is retired. Studio may
-present artifacts produced by the root Model-first
-`.eqi -> compile(Geometry) -> resolve(Model, Mesh, typed policies) -> Plan ->
-run/submit` lifecycle, but React neither infers support nor translates a second
-solver configuration. Any future Studio execution projection must preserve the
-root Plan and Run identities and earn claim-local evidence on that shared path.
-The local `eqiora.studio.workspace/v1` schema stores only digest-bound finite
-view coordinates and is decoded independently of model/artifact wires.
-Command definitions and availability are presentation data over the same
-typed actions. Result SVG and semantic-table projections have fixed budgets;
-owned result arrays do not become unbounded DOM state.
-
-Bridge v5 also retains the first canonical model-edit path without adding UI
-semantics. A finite coherent-SI scalar replacement for a
-`Parameter` becomes the current `eqiora.model-transaction-envelope/v27`,
-containing both `RevisionIs` and typed `ValueEquals` preconditions. Preview
-exposes the transaction's domain-separated identity; exact-key commit
-reconstructs and atomically replays it through the same current owner,
-returning a current child document and typed result lineage while leaving the
-base unchanged. The frontend
-navigates a bounded sequence of those documents for undo/redo rather than
-applying inverse patches. Source remains an explicitly labelled basis for the
-lineage; recompilation starts a new lineage because lossless source rewriting
-is not yet a supported contract. Connection/topology edits, portable history,
-unit conversion, and aggregate values remain later independent gates.
-
-The same bridge adds controlled reference execution without making Studio a
-scheduler. `eqiora-sem` observes only the fully accepted initial state and
-nonterminal accepted time/event boundaries; it never calls the observer from
-expression evaluation, Newton iteration, event localization, or an atomic
-activation commit. `eqiora-api` projects this as a typed completed/cancelled
-outcome and constructs no partial series or successful evidence on
-cancellation. Studio binds one UUID-owned active run to a Rust atomic token,
-coalesces advisory progress to at most one IPC emission per 100 ms except for
-the first and cancellation observations, and keeps the terminal outcome on the
-command response. The reducer accepts only exact-identity monotone progress and
-stores the last completed result separately, so a running, cancelled, or
-failed successor cannot overwrite accepted evidence. Cooperative latency is
-one safe-point boundary plus the work already inside that boundary; hard
-preemption and real-time latency are not claimed.
-
-Bridge v5 adds a separate spatial Realization application path rather than
-teaching the frontend how to assemble or solve. Canonical scalar elliptic
-lowering derives dimension, scalar type, and vector layout. A typed intent adds
-only method, generated Cartesian resolution, worker request, and an independent
-Realization revision. `eqiora-api` bounds implied mesh and field counts before
-allocation, constructs one coherent FEM/Q1/Gauss or FVM/cell/centroid policy,
-resolves the shared host capability, and returns a content-addressed plan tied
-to a `RealizationEnvelopeV1`. Exact-key replay precedes allocation and
-execution.
-
-The native Studio session captures a bounded host parallelism estimate once as
-an admission budget. Its protocol label, `studio-session-budget`, prevents the
-UI from presenting it as a physical-core or exclusive-capacity fact. Serial and
-run-owned Rayon placements remain execution adapters below the same plan;
-React never converts one solver configuration into another. The first Studio
-spatial result crosses IPC as bounded summary and evidence: field location/count/range,
-assembly and solve provenance, independently recomputed true residual and
-target, and continuous boundary/source balance. It carries no mesh or field
-array. The shared application service now exposes exact `PlanReplayed`,
-`SystemFinalized`, and `SolutionAccepted` phases; the linear solve remains one
-atomic interval and no client infers a percentage. Python consumes this
-contract. The current Studio spatial command has not yet bound cancellation or
-phase progress, so its existing summary-only claim is unchanged.
+Future compilation, execution, authored CAD, export, or persistence must call
+the public Model-first application surface and earn claim-local evidence on
+that ordinary path. The browser projection must not infer scientific support
+or fabricate canonical identity while those capabilities are absent.
 
 ## Dependency layers
 

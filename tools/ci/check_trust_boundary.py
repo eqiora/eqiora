@@ -34,7 +34,6 @@ PROTECTED_PATHS = frozenset(
         "CODEOWNERS",
         ".github/CODEOWNERS",
         "deny.toml",
-        "studio/src-tauri/deny.toml",
     }
 )
 ARCHITECTURE_DEBT = "tools/ci/architecture-debt.toml"

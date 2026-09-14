@@ -18,19 +18,19 @@ const document: DocumentProjection = {
 const inputs = {
   acceptedProjection: document,
   cad: { status: "ready" as const, acceptedModelDigest: document.digest },
-  dcMotorStatus: "idle" as const,
 };
-describe("retained Studio application registry", () => {
-  test("contains only compiler, packaged DC, and CAD workflows", () =>
-    expect(WORKFLOW_REGISTRY.map((item) => item.id)).toEqual([
-      "relations",
-      "packaged-dc-drive",
-      "cad-box",
-      "cad-authored",
-    ]));
-  test("contains no retired execution commands", () =>
-    expect(COMMAND_REGISTRY.map((item) => item.id)).not.toContain("run.execute"));
-  test("binds CAD availability to the compiled digest", () => {
+describe("browser Studio application registry", () => {
+  test("contains only fixed relation and CAD projections", () =>
+    expect(WORKFLOW_REGISTRY.map((item) => item.id)).toEqual(["relations", "cad-box"]));
+
+  test("contains no execution or authored-CAD commands", () => {
+    const commands: readonly string[] = COMMAND_REGISTRY.map((item) => item.id);
+    expect(commands).not.toContain("run.execute");
+    expect(commands).not.toContain("example.dc-drive");
+    expect(commands).not.toContain("workspace.cad-authoring");
+  });
+
+  test("binds fixed CAD availability to the preview digest", () => {
     expect(resolveApplication(inputs, "geometry").workspace).toBe("geometry");
     expect(
       resolveApplication(
@@ -39,13 +39,8 @@ describe("retained Studio application registry", () => {
       ).workspace,
     ).toBe("relations");
   });
-  test("opens packaged DC only after its accepted result exists", () => {
-    expect(resolveApplication(inputs, "trajectory").workspace).toBe("relations");
-    expect(resolveApplication({ ...inputs, dcMotorStatus: "ready" }, "trajectory").workspace).toBe(
-      "trajectory",
-    );
-  });
-  test("retains compile and CAD authoring commands", () => {
+
+  test("retains browser interaction commands", () => {
     const availability = resolveCommandAvailability({
       activeWorkflow: "relations",
       compiling: false,
@@ -56,12 +51,9 @@ describe("retained Studio application registry", () => {
       canUndo: false,
       canRedo: false,
       selectedEntity: false,
-      evidenceAvailable: false,
-      trajectoryAvailable: false,
-      dcMotorRunning: false,
       cadAvailability: { kind: "available", reason: null },
     });
     expect(availability["model.compile"].enabled).toBe(true);
-    expect(availability["workspace.cad-authoring"].enabled).toBe(true);
+    expect(availability["workspace.geometry"].enabled).toBe(true);
   });
 });

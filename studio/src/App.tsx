@@ -9,19 +9,14 @@ import {
   type WorkspaceId,
 } from "./application";
 import { type StudioExample, studioBridge } from "./bridge";
-import { CadAuthoredWorkspace } from "./cad-authored-workspace";
 import { useCadSession } from "./cad-session";
 import { CadWorkspace } from "./cad-workspace";
 import { type CommandAvailability, CommandPalette } from "./command-palette";
 import type { CommandId } from "./commands";
 import { Icon, Inspector, ModelOutline, SourceEditor } from "./components";
 import { studioCompileRequest } from "./control-protocol";
-import { DcMotorDemoSession, type DcMotorDemoSessionState } from "./dc-motor-demo-session";
-import { DcMotorDemoWorkspace } from "./dc-motor-demo-workspace";
-import { DemoFailureBanner, DemoLoadState } from "./demo-state";
 import { type DiagnosticPresentation, Diagnostics } from "./diagnostics";
 import { CAD_EXAMPLE_SOURCE, EXAMPLE_SOURCE } from "./example";
-import { ExampleMenu } from "./example-menu";
 import { formatMessage } from "./messages";
 import { ModelCanvas } from "./projection";
 import { BRIDGE_PROTOCOL, type SourceSpan, type StudioDiagnostic } from "./protocol";
@@ -40,8 +35,6 @@ export function App() {
     relationView = useRef<HTMLElement>(null);
   const latestSource = useRef(state.source);
   const [requestedWorkspace, setRequestedWorkspace] = useState<WorkspaceId>("relations");
-  const [dcMotorState, setDcMotorState] = useState<DcMotorDemoSessionState>({ kind: "idle" });
-  const dcMotorSession = useMemo(() => new DcMotorDemoSession(studioBridge, setDcMotorState), []);
   latestSource.current = state.source;
   const sourceEdited = state.compiledSource !== state.source;
   const {
@@ -57,11 +50,10 @@ export function App() {
         {
           acceptedProjection: state.document,
           cad: { status: cadStatus, acceptedModelDigest: cadProjection?.modelDigest ?? null },
-          dcMotorStatus: dcMotorState.kind,
         },
         requestedWorkspace,
       ),
-    [cadProjection?.modelDigest, cadStatus, dcMotorState.kind, requestedWorkspace, state.document],
+    [cadProjection?.modelDigest, cadStatus, requestedWorkspace, state.document],
   );
   const activeWorkspace = application.workspace;
   const sourceAncestor =
@@ -242,10 +234,6 @@ export function App() {
     state.valueEditStatus,
     valueValidation.value,
   ]);
-  const openDcMotorDemo = useCallback(async () => {
-    setRequestedWorkspace("trajectory");
-    await dcMotorSession.run();
-  }, [dcMotorSession]);
   const cadAvailability = application.workflows.find(
     (workflow) => workflow.definition.id === "cad-box",
   )?.availability;
@@ -267,9 +255,6 @@ export function App() {
       application.activeWorkflow === "cad-box"
         ? cadSelectionState.accepted !== null
         : selectedNode !== null,
-    evidenceAvailable: dcMotorState.kind === "ready",
-    trajectoryAvailable: dcMotorState.kind === "running" || dcMotorState.kind === "ready",
-    dcMotorRunning: dcMotorState.kind === "running",
     cadAvailability,
   });
   const commandAvailability = Object.fromEntries(
@@ -312,18 +297,9 @@ export function App() {
         case "workspace.relations":
           setRequestedWorkspace("relations");
           break;
-        case "workspace.trajectory":
-          setRequestedWorkspace("trajectory");
-          break;
         case "workspace.geometry":
           setRequestedWorkspace("geometry");
           break;
-        case "workspace.cad-authoring":
-          setRequestedWorkspace("cad-authoring");
-          break;
-        case "example.dc-drive":
-          void openDcMotorDemo();
-          return;
         case "example.cad":
           void openCadExample();
           return;
@@ -332,7 +308,7 @@ export function App() {
       }
       focusCommand(command);
     },
-    [commandAvailability, commitValueEdit, compile, focusCommand, openCadExample, openDcMotorDemo],
+    [commandAvailability, commitValueEdit, compile, focusCommand, openCadExample],
   );
   useEffect(() => {
     const listener = (event: KeyboardEvent) => {
@@ -374,11 +350,7 @@ export function App() {
             </span>
           </div>
           <div className="app-bar__context">
-            <span className="document-name">
-              {application.activeWorkflow === "packaged-dc-drive"
-                ? "org.example.dc_motor_control@0.1.0"
-                : "untitled.eqi"}
-            </span>
+            <span className="document-name">untitled.eqi</span>
             <fieldset aria-label="Revision lineage" className="history-actions">
               <button
                 aria-label="Previous revision"
@@ -417,15 +389,6 @@ export function App() {
               >
                 Relations
               </button>
-              {commandAvailability["workspace.trajectory"].enabled ? (
-                <button
-                  aria-current={activeWorkspace === "trajectory" ? "page" : undefined}
-                  onClick={() => executeCommand("workspace.trajectory")}
-                  type="button"
-                >
-                  Trajectory
-                </button>
-              ) : null}
               {commandAvailability["workspace.geometry"].enabled ? (
                 <button
                   aria-current={activeWorkspace === "geometry" ? "page" : undefined}
@@ -435,21 +398,9 @@ export function App() {
                   Geometry
                 </button>
               ) : null}
-              <button
-                aria-current={activeWorkspace === "cad-authoring" ? "page" : undefined}
-                onClick={() => executeCommand("workspace.cad-authoring")}
-                type="button"
-              >
-                CAD authoring
-              </button>
             </nav>
           </div>
           <div className="app-bar__actions">
-            <ExampleMenu
-              availability={commandAvailability}
-              dcMotorStatus={dcMotorState.kind}
-              onExecute={executeCommand}
-            />
             <button
               className="secondary-action command-trigger"
               onClick={() => dispatch({ type: "command-palette-opened" })}
@@ -469,42 +420,10 @@ export function App() {
             </button>
           </div>
         </header>
-        {studioBridge.mode === "preview" ? (
-          <div className="preview-banner" role="status">
-            The browser preview demonstrates interaction and layout only. Tauri performs canonical
-            compilation through the Rust facade.
-          </div>
-        ) : null}
-        {dcMotorState.kind === "failed" ? (
-          <DemoFailureBanner
-            message={dcMotorState.message}
-            onRetry={() => void openDcMotorDemo()}
-          />
-        ) : null}
-        <main
-          className="cad-authored-workspace-shell"
-          hidden={activeWorkspace !== "cad-authoring"}
-          id={activeWorkspace === "cad-authoring" ? "workspace" : undefined}
-          tabIndex={-1}
-        >
-          <CadAuthoredWorkspace />
-        </main>
-        <main
-          className="trajectory-workspace-shell"
-          hidden={activeWorkspace !== "trajectory"}
-          id={activeWorkspace === "trajectory" ? "workspace" : undefined}
-          tabIndex={-1}
-        >
-          {dcMotorState.kind === "ready" ? (
-            <DcMotorDemoWorkspace result={dcMotorState.result} />
-          ) : (
-            <DemoLoadState
-              detail="The native runtime is compiling the exact package closure and executing its accepted sampled trajectory."
-              glyph="⌁"
-              title="Running packaged DC drive…"
-            />
-          )}
-        </main>
+        <div className="preview-banner" role="status">
+          The browser Studio demonstrates interaction and layout with fixed example projections. It
+          does not compile or execute models.
+        </div>
         <main
           className="geometry-workspace-shell"
           hidden={activeWorkspace !== "geometry"}

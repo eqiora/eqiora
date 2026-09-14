@@ -8,7 +8,7 @@ export default defineConfig({
     strictPort: true,
     port: 1420,
   },
-  envPrefix: ["VITE_", "TAURI_ENV_"],
+  envPrefix: "VITE_",
   build: {
     target: "es2024",
     minify: "oxc",

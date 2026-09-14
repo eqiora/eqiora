@@ -1,7 +1,7 @@
 id = "interfaces.current-authoring-profile"
 status = "implemented"
 scope = "current-only-authoring-edit-and-artifact-replay"
-reference_kind = "shared-rust-python-studio-profile-and-current-owner-replay"
+reference_kind = "shared-rust-python-profile-and-browser-schema-current-owner-replay"
 
 capabilities = [
   "current-semantic-authoring-profile",
@@ -13,7 +13,7 @@ capabilities = [
 [claim_boundary]
 rust_compile_module_current = true
 python_compile_module_current = true
-studio_compile_current = true
+studio_request_schema_current = true
 model_owner = "current"
 current_artifact_replay = true
 value_edit_retains_current_owner = true

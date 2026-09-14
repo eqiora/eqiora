@@ -44,7 +44,7 @@ missing_split_merged_or_ambiguous_successor = "inherited from registered geometr
 
 [type_level_exclusions]
 repaired_output = "unrepresentable because V1 exposes only CadRepairDispositionV1::None"
-kernel_face_selection = "unrepresentable in the public artifact, API, and Studio CAD sub-protocol"
+kernel_face_selection = "unrepresentable in the public artifact and API; browser Studio exposes semantic Domain rows only"
 
 [claim_boundary]
 one_closed_planar_cuboid_step_source = true

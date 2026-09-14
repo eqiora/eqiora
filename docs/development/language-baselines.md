@@ -153,32 +153,22 @@ References:
 - <https://docs.pytorch.org/tutorials/advanced/python_custom_ops.html>
 - <https://docs.pytorch.org/tutorials/advanced/python_custom_ops_registrations.html>
 
-## TypeScript and Tauri (first vertical slice active)
+## TypeScript and browser Studio (preview active)
 
 - Baselines checked 2026-08-03: Node.js 24.18.1 LTS with npm 11.16.0,
-  TypeScript 7.0.2,
-  Tauri 2.11.5 with `@tauri-apps/api` 2.11.1, React/React DOM 19.2.7,
-  React Flow 12.11.2, Vite 8.1.5, Vitest 4.1.10, Playwright 1.61.1,
-  axe-core/Playwright 4.12.1, Biome 2.5.4, and Zod 4.4.3. The Studio owns
-  exact npm and Cargo lockfiles and tests its platform shell separately from
-  the core Rust workspace.
-- The native Studio package declares the same Rust 1.89 support floor as the
-  core crates it consumes and is checked at that MSRV through its independent
-  Cargo manifest. A separate workspace is not a separate compatibility claim.
+  TypeScript 7.0.2, React/React DOM 19.2.7, React Flow 12.11.2,
+  Vite 8.1.5, Vitest 4.1.10, Playwright 1.61.1, axe-core/Playwright
+  4.12.1, Biome 2.5.4, and Zod 4.4.3. Studio owns one exact npm lockfile.
 - TypeScript 7.0 has no supported programmatic compiler API. Studio therefore
   uses `tsc` only as a command-line type checker and Vite/Biome for build and
   source tooling. A future tool requiring compiler APIs must use the official
   TypeScript 6 compatibility package or wait for a supported TypeScript 7 API;
   it must not depend on TypeScript internals.
 - `strict` and explicit safety options are enabled rather than inherited from
-  floating compiler defaults. Runtime input is validated at every IPC and
-  artifact boundary because TypeScript types are erased.
-- Packages use ESM. Versioned transport DTOs remain separate from handwritten
-  reducer state and React component types. Canonical edits cross the boundary
-  only as typed transactions against an explicit base revision.
-- Tauri commands use least-privilege capabilities, permissions, and scopes.
-  The WebView is untrusted, receives no shell or filesystem capability, and
-  cannot bypass the public Rust facade or typed transaction API.
+  floating compiler defaults. Fixed example projections are runtime validated
+  because TypeScript types are erased.
+- Packages use ESM. Versioned projection DTOs remain separate from handwritten
+  reducer state and React component types.
 - The interaction baseline is WCAG 2.2 AA. Every operation is keyboard
   reachable, focus is visible, status is announced semantically, and dragging
   always has a non-pointer alternative. Canvas layout is a view preference,
@@ -194,8 +184,6 @@ References:
 - <https://playwright.dev/docs/accessibility-testing>
 - <https://github.com/dequelabs/axe-core/blob/develop/doc/API.md>
 - <https://vite.dev/guide/>
-- <https://v2.tauri.app/security/>
-- <https://v2.tauri.app/security/permissions/>
 - <https://www.w3.org/TR/WCAG22/>
 
 ## Eqiora Language (active)

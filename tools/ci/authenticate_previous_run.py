@@ -31,10 +31,9 @@ CI_WITNESSES = {
         ("Python 3.11 installed wheel", "Test installed wheel"),
         ("Python 3.14 installed wheel", "Test installed wheel"),
     ),
-    "studio": (("Studio projection and native boundary", "Production shell build"),),
+    "studio": (("Studio browser projection", "Accessible interaction tests"),),
     "dependency_policy": (
         ("Dependency policy", "Check root dependency policy"),
-        ("Dependency policy", "Check Studio dependency policy"),
     ),
     "cubecl_experiment": (
         ("Isolated CubeCL contract experiment", "Device-independent contract tests"),

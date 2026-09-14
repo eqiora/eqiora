@@ -1,7 +1,8 @@
 # Compile/check control-plane verification
 
-This case fixes one small application contract across Rust, Studio, and
-Python. The already-public
+This case fixes one small application contract across Rust and Python. Browser
+Studio checks the current request schema separately without becoming a compile
+client. The already-public
 `ModelDocument::compile(&str, &str) -> Result<ModelDocument, Vec<Diagnostic>>`
 operation is the only owner of compilation meaning. A closed
 `eqiora.control/v2` request adapts that operation by selecting the
@@ -42,16 +43,15 @@ The product tests compare returned Model schema identities with the current
 public control schema. They do not pin whole request files, source hashes, or
 copies of retired schemas.
 
-Client adapters may choose native function calls, Tauri invocation, or Python
-objects, but they consume this meaning rather than recreating it. Responses
+Client adapters may choose native function calls or Python objects, but they
+consume this meaning rather than recreating it. Responses
 must not contain source, meshes, Fields, or trajectories. Preview, execution,
 cancellation, artifact inspection/diff, remote transport, and bulk data remain
 separate slices defined by
 [RFC 0054](../../../rfcs/0054-curated-facade-and-control-plane.md).
 No CLI, MCP, HTTP, stdio, remote execution, preview, run, cancellation, or
-data-plane operation is added by this evidence. Studio remains an unchanged
-control-v2 regression consumer; this case makes no Studio capability or
-workflow claim.
+data-plane operation is added by this evidence. This case makes no Studio
+capability or workflow claim.
 
 Run:
 

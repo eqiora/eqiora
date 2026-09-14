@@ -160,27 +160,6 @@ class PlanTests(unittest.TestCase):
         self.assertIn("--all-targets", msrv.argv)
         self.assertIn("--all-features", msrv.argv)
         self.assertIn("--locked", msrv.argv)
-        studio = next(
-            item for item in plan.commands if item.label == "Studio native MSRV"
-        )
-        self.assertEqual(studio.argv[0:2], ("cargo", "+1.89.0"))
-        self.assertIn("studio/src-tauri/Cargo.toml", studio.argv)
-        self.assertIn("--all-targets", studio.argv)
-        studio_format = next(
-            item for item in plan.commands if item.label == "Studio native formatting"
-        )
-        self.assertEqual(
-            studio_format.argv,
-            (
-                "cargo",
-                "+stable",
-                "fmt",
-                "--manifest-path",
-                "studio/src-tauri/Cargo.toml",
-                "--",
-                "--check",
-            ),
-        )
 
     def test_site_only_changes_select_source_check_without_building(self) -> None:
         expected = (
@@ -299,7 +278,7 @@ class PlanTests(unittest.TestCase):
         self.assertNotIn("Studio interaction tests", labels)
         self.assertIn("Studio unit tests", labels)
         self.assertIn("Studio build", labels)
-        self.assertIn("Studio native tests", labels)
+        self.assertFalse(any(label.startswith("Studio native") for label in labels))
         self.assertTrue(any("hosted Studio lane" in item for item in plan.limitations))
 
     def test_affected_present_chrome_keeps_interaction_tests(self) -> None:
@@ -470,9 +449,7 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(plan.packages, tuple(sorted(workspace())))
         self.assertIn("CI contract tests", labels)
         self.assertIn("Root dependency policy", labels)
-        self.assertIn("Studio dependency policy", labels)
         self.assertIn("Python isolated wheel and tests", labels)
-        self.assertIn("Studio native formatting", labels)
         self.assertIn("Studio unit tests", labels)
         studio_e2e = next(
             item for item in plan.commands if item.label == "Studio interaction tests"
@@ -495,32 +472,16 @@ class PlanTests(unittest.TestCase):
             any("maturin develop" in item.render() for item in python_commands)
         )
 
-    def test_studio_lock_change_runs_both_dependency_policies(self) -> None:
+    def test_studio_npm_lock_change_runs_browser_checks_only(self) -> None:
         plan = build_plan(
             "affected",
-            ["studio/src-tauri/Cargo.lock"],
+            ["studio/package-lock.json"],
             [],
             workspace(),
         )
-        dependency_commands = {
-            item.label: item.render()
-            for item in plan.commands
-            if item.label.endswith("dependency policy")
-        }
-        self.assertEqual(
-            set(dependency_commands),
-            {"Root dependency policy", "Studio dependency policy"},
-        )
-        self.assertEqual(
-            dependency_commands["Root dependency policy"],
-            "cargo deny --locked check",
-        )
-        self.assertIn(
-            "cargo deny --all-features --locked --manifest-path "
-            "studio/src-tauri/Cargo.toml --config "
-            "studio/src-tauri/deny.toml check",
-            dependency_commands["Studio dependency policy"],
-        )
+        labels = {item.label for item in plan.commands}
+        self.assertIn("Studio unit tests", labels)
+        self.assertFalse(any(label.endswith("dependency policy") for label in labels))
 
     def test_adapter_dependency_identity_inputs_schedule_ci_contracts(self) -> None:
         inputs = [
@@ -547,9 +508,6 @@ class PlanTests(unittest.TestCase):
         )
         lanes = {item.label: item.lane for item in plan.commands}
         self.assertEqual(lanes["Root dependency policy"].name, "dependency-policy")
-        self.assertEqual(
-            lanes["Root dependency policy"], lanes["Studio dependency policy"]
-        )
         self.assertEqual(lanes["Rust tests"].name, "root-cargo")
         self.assertEqual(lanes["Studio unit tests"].name, "studio")
         self.assertNotIn(

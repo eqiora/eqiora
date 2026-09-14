@@ -81,8 +81,6 @@ exclude = [
     "bindings/python/dist/**",
     "studio/node_modules/**",
     "studio/dist/**",
-    "studio/src-tauri/target/**",
-    "studio/src-tauri/gen/**",
     "studio/test-results/**",
     "studio/playwright-report/**",
 ]

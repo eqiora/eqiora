@@ -1,4 +1,3 @@
-import { invoke } from "@tauri-apps/api/core";
 import { protocolFailure } from "./bridge-contract";
 import {
   CAD_VIEW_PROTOCOL,
@@ -9,44 +8,13 @@ import {
   cadProjectionRequestSchema,
   cadProjectionSchema,
   cadSelectionRequestSchema,
-  cadSelectionResultSchema,
 } from "./cad-protocol";
 import { CAD_PREVIEW_MODEL_DIGEST } from "./example";
-import { BRIDGE_PROTOCOL, type BridgeEnvelope, bridgeEnvelopeSchema } from "./protocol";
+import { BRIDGE_PROTOCOL, type BridgeEnvelope } from "./protocol";
 
 export interface CadBridge {
   preview(request: CadProjectionRequest): Promise<BridgeEnvelope<CadProjection>>;
   select(request: CadSelectionRequest): Promise<BridgeEnvelope<CadSelectionResult>>;
-}
-
-async function checkedInvoke<T>(
-  command: string,
-  args: Record<string, unknown>,
-  schema: ReturnType<typeof bridgeEnvelopeSchema>,
-): Promise<BridgeEnvelope<T>> {
-  try {
-    const response: unknown = await invoke(command, args);
-    const decoded = schema.safeParse(response);
-    return decoded.success
-      ? (decoded.data as BridgeEnvelope<T>)
-      : protocolFailure(`Native bridge returned an invalid ${command} response.`);
-  } catch (error: unknown) {
-    const detail = error instanceof Error ? error.message : String(error);
-    return protocolFailure(`Native bridge call ${command} failed: ${detail}`);
-  }
-}
-
-function selectionMatchesRequest(
-  request: CadSelectionRequest,
-  result: CadSelectionResult,
-): boolean {
-  return (
-    result.modelDigest === request.modelDigest &&
-    result.planKey === request.planKey &&
-    result.geometryDigest === request.geometryDigest &&
-    result.domainId === request.domainId &&
-    result.entity.domainId === request.domainId
-  );
 }
 
 export function cadProjectionMatchesRequest(
@@ -55,34 +23,6 @@ export function cadProjectionMatchesRequest(
 ): boolean {
   return projection.modelDigest === request.modelDigest;
 }
-
-const nativeCadBridge: CadBridge = {
-  async preview(request) {
-    const checked = cadProjectionRequestSchema.safeParse(request);
-    if (!checked.success) return protocolFailure("CAD preview request is not canonical.");
-    const response = await checkedInvoke<CadProjection>(
-      "preview_cad_box",
-      { request: checked.data },
-      bridgeEnvelopeSchema(cadProjectionSchema),
-    );
-    return response.result !== null && !cadProjectionMatchesRequest(checked.data, response.result)
-      ? protocolFailure("Native CAD projection differs from the exact Model request.")
-      : response;
-  },
-
-  async select(request) {
-    const checked = cadSelectionRequestSchema.safeParse(request);
-    if (!checked.success) return protocolFailure("CAD selection request is not canonical.");
-    const response = await checkedInvoke<CadSelectionResult>(
-      "select_cad_entity",
-      { request: checked.data },
-      bridgeEnvelopeSchema(cadSelectionResultSchema),
-    );
-    return response.result !== null && !selectionMatchesRequest(checked.data, response.result)
-      ? protocolFailure("Native CAD selection differs from the exact request.")
-      : response;
-  },
-};
 
 const roles = [
   [0, "lower"],
@@ -199,7 +139,7 @@ const previewProjection = cadProjectionSchema.parse({
   ],
 });
 
-const previewCadBridge: CadBridge = {
+export const cadBridge: CadBridge = {
   async preview(request) {
     const checked = cadProjectionRequestSchema.safeParse(request);
     if (!checked.success || checked.data.modelDigest !== previewProjection.modelDigest) {
@@ -234,8 +174,3 @@ const previewCadBridge: CadBridge = {
     return { protocol: BRIDGE_PROTOCOL, result, diagnostics: [] };
   },
 };
-
-export const cadBridge: CadBridge =
-  typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
-    ? nativeCadBridge
-    : previewCadBridge;

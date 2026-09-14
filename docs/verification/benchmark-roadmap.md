@@ -176,12 +176,10 @@ Simulink, Simscape, Stateflow, production solvers, code generation, fixed
 point, real-time scheduling, MPI, GPU, broad component libraries, or dynamic
 plugins.
 
-The native Studio packaged DC-drive example does not widen that scientific
-claim. `interfaces.studio-packaged-dc-motor-demo` composes the same checked-in
-package closure and accepted executor into a bounded current/speed/held-voltage
-presentation with exact package, Model, Run, and binding lineage. Studio
-recomputes neither reference values nor residual, controller, power, or energy
-expressions; those remain solely owned by the hybrid case.
+The browser Studio does not execute or present this native package workflow.
+The checked-in package closure, accepted executor, reference values, residual,
+controller, power, and energy expressions remain solely owned by the hybrid
+case.
 
 ## Structural mechanics candidates
 
