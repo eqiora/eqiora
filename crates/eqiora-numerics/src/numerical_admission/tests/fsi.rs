@@ -2,10 +2,7 @@ use super::*;
 
 #[test]
 pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_pressure_gauge() {
-    use eqiora_core::{
-        Id,
-        entity::kinds::{Domain, Field},
-    };
+    use eqiora_core::entity::kinds::{Domain, Field};
 
     let geometry = fsi_geometry();
     let model = fsi_model(&geometry);
@@ -14,13 +11,25 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
     let RecognizedNativeModel::Fsi(canonical) = &recognized.recognized else {
         panic!("component FSI source was not recognized as FSI")
     };
-    let fluid_domain = Id::<Domain>::from_ulid(canonical.fluid().domain().ulid());
-    let solid_domain = Id::<Domain>::from_ulid(canonical.solid().continuum().domain().ulid());
+    let fluids = canonical.fluids().collect::<Vec<_>>();
+    let [fluid] = fluids.as_slice() else {
+        panic!("fixture must recognize one exact fluid Domain")
+    };
+    let solids = canonical.solids().collect::<Vec<_>>();
+    let [solid] = solids.as_slice() else {
+        panic!("fixture must recognize one exact solid Domain")
+    };
+    let fluid_domain = fluid.domain().downcast::<Domain>().unwrap();
+    let solid_domain = solid.continuum().domain().downcast::<Domain>().unwrap();
     let field_ids = [
-        Id::<Field>::from_ulid(canonical.fluid().velocity().ulid()),
-        Id::<Field>::from_ulid(canonical.fluid().pressure().ulid()),
-        Id::<Field>::from_ulid(canonical.solid().velocity().ulid()),
-        Id::<Field>::from_ulid(canonical.solid().continuum().displacement().ulid()),
+        fluid.velocity().downcast::<Field>().unwrap(),
+        fluid.pressure().downcast::<Field>().unwrap(),
+        solid.velocity().downcast::<Field>().unwrap(),
+        solid
+            .continuum()
+            .displacement()
+            .downcast::<Field>()
+            .unwrap(),
     ];
     let digest = model.digest().unwrap();
     let scoped = CommonMethodRequest::Scoped(vec![
@@ -185,22 +194,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         let ranked = ranked.as_fsi().unwrap();
         assert_eq!(ranked.linear(), automatic.linear());
         let replayed = ranked.advance(&initial, &REFERENCE_LINEAR_SOLVER).unwrap();
-        assert_eq!(
-            replayed.velocity_vertex_values(),
-            accepted.velocity_vertex_values()
-        );
-        assert_eq!(
-            replayed.velocity_cell_values(),
-            accepted.velocity_cell_values()
-        );
-        assert_eq!(
-            replayed.pressure_vertex_values(),
-            accepted.pressure_vertex_values()
-        );
-        assert_eq!(
-            replayed.fsi_solid_displacement_values(),
-            accepted.fsi_solid_displacement_values()
-        );
+        assert_eq!(replayed.fsi_fields(), accepted.fsi_fields());
     }
     let unsupported = CommonLinearRequest::exact(
         SolverPlan::new(

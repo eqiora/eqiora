@@ -196,39 +196,49 @@ fn recognizes_exact_package_neutral_fixed_reference_meaning() {
     let program = compile_program(SOURCE);
     let model = lower_fixed_reference_fsi_cartesian_2d(&program)
         .expect("exact fixed-reference FSI semantics lower");
+    let fluids = model.fluids().collect::<Vec<_>>();
+    let [fluid] = fluids.as_slice() else {
+        panic!("fixture must lower one exact fluid Domain")
+    };
+    let solids = model.solids().collect::<Vec<_>>();
+    let [solid] = solids.as_slice() else {
+        panic!("fixture must lower one exact solid Domain")
+    };
+    let interfaces = model.interfaces().collect::<Vec<_>>();
+    let [interface] = interfaces.as_slice() else {
+        panic!("fixture must lower one exact Connection")
+    };
+    let fluid_endpoint = interface
+        .endpoint(fluid.domain())
+        .expect("Connection owns the fluid Domain endpoint");
+    let solid_endpoint = interface
+        .endpoint(solid.continuum().domain())
+        .expect("Connection owns the solid Domain endpoint");
 
-    assert_eq!(model.fluid().bounds(), &[[0.0, 1.0], [0.0, 1.0]]);
+    assert_eq!(fluid.bounds(), &[[0.0, 1.0], [0.0, 1.0]]);
+    assert_eq!(solid.continuum().bounds(), &[[1.0, 2.0], [0.0, 1.0]]);
+    assert_eq!(fluid.mass_density(), 2.0);
+    assert_eq!(fluid.dynamic_viscosity(), 0.5);
+    assert_eq!(solid.mass_density(), 3.0);
+    assert_eq!(solid.continuum().shear_modulus(), 4.0);
+    assert_eq!(solid.continuum().first_lame_parameter(), 5.0);
+    assert_eq!(interface.axis(), 0);
+    assert_eq!(fluid_endpoint.side(), BoundarySide::Upper);
+    assert_eq!(solid_endpoint.side(), BoundarySide::Lower);
+    assert_ne!(fluid_endpoint.port(), solid_endpoint.port());
     assert_eq!(
-        model.solid().continuum().bounds(),
-        &[[1.0, 2.0], [0.0, 1.0]]
-    );
-    assert_eq!(model.fluid().mass_density(), 2.0);
-    assert_eq!(model.fluid().dynamic_viscosity(), 0.5);
-    assert_eq!(model.solid().mass_density(), 3.0);
-    assert_eq!(model.solid().continuum().shear_modulus(), 4.0);
-    assert_eq!(model.solid().continuum().first_lame_parameter(), 5.0);
-    assert_eq!(model.interface().axis(), 0);
-    assert_eq!(model.interface().fluid().side(), BoundarySide::Upper);
-    assert_eq!(model.interface().solid().side(), BoundarySide::Lower);
-    assert_ne!(
-        model.interface().fluid().port(),
-        model.interface().solid().port()
-    );
-    assert_eq!(
-        model.fluid().conservative_body_force(&[0.5, 0.5]).unwrap(),
+        fluid.conservative_body_force(&[0.5, 0.5]).unwrap(),
         [0.0; 2]
     );
     assert_eq!(
-        model
-            .solid()
+        solid
             .continuum()
             .conservative_body_force(&[1.5, 0.5])
             .unwrap(),
         [0.0; 2]
     );
     assert!(matches!(
-        model
-            .fluid()
+        fluid
             .boundary_inventory()
             .boundary(0, BoundarySide::Upper)
             .expect("fluid interface entry")
@@ -236,8 +246,7 @@ fn recognizes_exact_package_neutral_fixed_reference_meaning() {
         PhysicalBoundaryDisposition::PortBinding { .. }
     ));
     assert!(matches!(
-        model
-            .solid()
+        solid
             .continuum()
             .boundary_inventory()
             .boundary(0, BoundarySide::Lower)
@@ -246,24 +255,24 @@ fn recognizes_exact_package_neutral_fixed_reference_meaning() {
         PhysicalBoundaryDisposition::PortBinding { .. }
     ));
     assert_ne!(
-        model.fluid().force_potential_definition(),
-        model.fluid().momentum_relation()
+        fluid.force_potential_definition(),
+        fluid.momentum_relation()
     );
     assert_ne!(
-        model.fluid().momentum_relation(),
-        model.fluid().incompressibility_relation()
+        fluid.momentum_relation(),
+        fluid.incompressibility_relation()
     );
     assert_ne!(
-        model.solid().continuum().load_definition_relation(),
-        model.solid().kinematic_relation()
+        solid.continuum().load_definition_relation(),
+        solid.kinematic_relation()
     );
     assert_ne!(
-        model.solid().kinematic_relation(),
-        model.solid().continuum().equilibrium_relation()
+        solid.kinematic_relation(),
+        solid.continuum().equilibrium_relation()
     );
     for bindings in [
-        model.fluid().boundary_relations(),
-        model.solid().continuum().boundary_relations(),
+        fluid.boundary_relations(),
+        solid.continuum().boundary_relations(),
     ] {
         assert!(!bindings.is_empty());
         assert!(bindings.windows(2).all(|pair| pair[0] < pair[1]));
@@ -292,8 +301,22 @@ fn recognizes_conservative_transient_fsi_without_adding_ale_meaning() {
     assert_eq!(model.fluid().mass_density(), 2.0);
     assert_eq!(model.fluid().dynamic_viscosity(), 0.5);
     assert_eq!(model.interface().axis(), 0);
-    assert_eq!(model.interface().fluid().side(), BoundarySide::Upper);
-    assert_eq!(model.interface().solid().side(), BoundarySide::Lower);
+    assert_eq!(
+        model
+            .interface()
+            .endpoint(model.fluid().domain())
+            .unwrap()
+            .side(),
+        BoundarySide::Upper
+    );
+    assert_eq!(
+        model
+            .interface()
+            .endpoint(model.solid().continuum().domain())
+            .unwrap()
+            .side(),
+        BoundarySide::Lower
+    );
     assert!(lower_fixed_reference_fsi_cartesian_2d(&program).is_err());
     assert!(lower_ale_fsi_cartesian_2d(&compile_program(SOURCE)).is_err());
 }
@@ -310,8 +333,22 @@ fn recognizes_the_same_conservative_ale_fsi_meaning_in_three_dimensions() {
         &[[1.0, 2.0], [0.0, 1.0], [0.0, 1.0]]
     );
     assert_eq!(model.interface().axis(), 0);
-    assert_eq!(model.interface().fluid().side(), BoundarySide::Upper);
-    assert_eq!(model.interface().solid().side(), BoundarySide::Lower);
+    assert_eq!(
+        model
+            .interface()
+            .endpoint(model.fluid().domain())
+            .unwrap()
+            .side(),
+        BoundarySide::Upper
+    );
+    assert_eq!(
+        model
+            .interface()
+            .endpoint(model.solid().continuum().domain())
+            .unwrap()
+            .side(),
+        BoundarySide::Lower
+    );
     assert_eq!(
         model.fluid().conservative_body_force(&[0.2; 3]).unwrap(),
         [0.0; 3]

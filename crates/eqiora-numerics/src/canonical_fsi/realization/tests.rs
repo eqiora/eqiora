@@ -1,7 +1,10 @@
-use std::num::{NonZeroU16, NonZeroUsize};
+use std::{
+    collections::BTreeSet,
+    num::{NonZeroU16, NonZeroUsize},
+};
 
 use eqiora_compiler::compile;
-use eqiora_core::{Diagnostic, DynQuantity, ScalarType, diagnostic::codes};
+use eqiora_core::{Diagnostic, DynQuantity, Id, ScalarType, diagnostic::codes, entity::kinds};
 use eqiora_distributed::PartitionId;
 use eqiora_execution::{
     AcceptedLinearExecution, AdmittedExecution, DeploymentBinding, ExecutionReceipt,
@@ -115,7 +118,7 @@ fn plan_is_the_exact_gauge_free_monolithic_selection() {
             .iter()
             .map(|state| state.pair())
             .collect::<Vec<_>>(),
-        vec![state_pair(&model)]
+        state_pairs(&model)
     );
     assert_eq!(
         plan.scaling().weak_functional_scale().quantity(),
@@ -564,20 +567,7 @@ fn distributed_assembly_binding_rejects_foreign_operator_evidence() {
     let fixture = Fixture::new(SOURCE);
     let (finalized, _) =
         finalize_with_loopback(&fixture, VectorLayoutKind::Distributed, &fixture.previous);
-    let zero_previous = FixedReferenceFsiState::<2>::new(
-        &fixture.mesh,
-        &fixture.partition,
-        vec![[0.0; 2]; fixture.mesh.vertices().len()],
-        fixture
-            .partition
-            .fluid_cells()
-            .iter()
-            .copied()
-            .map(|cell| (cell, [0.0; 2]))
-            .collect(),
-        vec![[0.0; 2]; fixture.mesh.vertices().len()],
-    )
-    .unwrap();
+    let zero_previous = fixture.state(None);
     let (_, foreign_evidence) =
         finalize_with_loopback(&fixture, VectorLayoutKind::Distributed, &zero_previous);
 
@@ -645,24 +635,66 @@ fn accepted_solution_reconstructs_exact_field_ids_and_supports() {
         solution.realization_revision(),
         expected_realization_revision
     );
-    assert_eq!(solution.fields(), field_identities(&fixture.model));
+    let actual_fields = solution
+        .state()
+        .fields()
+        .map(|(field, domain, _)| (field.erase(), domain.erase()))
+        .collect::<BTreeSet<_>>();
+    assert_eq!(actual_fields, expected_fields(&fixture.model));
+    let fluid = fixture.model.fluids().next().unwrap();
+    let solid = fixture.model.solids().next().unwrap();
+    let fluid_domain = fluid.domain().downcast().unwrap();
+    let solid_domain = solid.continuum().domain().downcast().unwrap();
+    let fluid_velocity = fluid.velocity().downcast().unwrap();
+    let fluid_pressure = fluid.pressure().downcast().unwrap();
+    let solid_velocity = solid.velocity().downcast().unwrap();
+    let solid_displacement = solid.continuum().displacement().downcast().unwrap();
+    let coefficients = |field| {
+        solution
+            .state()
+            .coefficients(field)
+            .unwrap()
+            .collect::<Vec<_>>()
+    };
     assert_eq!(
-        solution.fluid_velocity_cells().len(),
-        solution.fluid_velocity_bubble_coefficients().len()
+        fixture.partition.domain_cells(fluid_domain).unwrap().len() * 2,
+        coefficients(fluid_velocity)
+            .iter()
+            .filter(|(entity, _, _, _)| entity.dimension() == 2)
+            .count()
     );
     assert_eq!(
-        solution.fluid_pressure_vertices().len(),
-        solution.fluid_pressure_coefficients().len()
+        fixture
+            .partition
+            .domain_vertices(fluid_domain)
+            .unwrap()
+            .len(),
+        coefficients(fluid_pressure).len()
     );
-    let interface_vertex = fixture.partition.interface_vertices()[1];
+    let interface_vertex = fixture
+        .partition
+        .domain_vertices(fluid_domain)
+        .unwrap()
+        .iter()
+        .find(|vertex| {
+            fixture
+                .partition
+                .domain_vertices(solid_domain)
+                .unwrap()
+                .contains(vertex)
+        })
+        .unwrap();
     assert_eq!(
-        solution.fluid_velocity_coefficient(interface_vertex),
-        solution.solid_velocity_coefficient(interface_vertex)
+        vector_at_vertex(solution.state(), fluid_velocity, interface_vertex.index()),
+        vector_at_vertex(solution.state(), solid_velocity, interface_vertex.index())
     );
     assert!(
-        solution
-            .solid_displacement_coefficient(interface_vertex)
-            .is_some()
+        vector_at_vertex(
+            solution.state(),
+            solid_displacement,
+            interface_vertex.index()
+        )
+        .is_some()
     );
 }
 
@@ -680,29 +712,40 @@ impl Fixture {
         let model = super::super::lower_fixed_reference_fsi_cartesian_2d(&program)
             .expect("canonical FSI meaning");
         let mesh = physical_mesh();
-        let (fluid, solid, interface) = inventories(&mesh);
-        let partition =
-            FixedReferenceFsiPartition::<2>::new(&mesh, fluid, solid, interface).unwrap();
-        let mut displacement = vec![[0.0; 2]; mesh.vertices().len()];
+        let (fluid_cells, solid_cells, _) = inventories(&mesh);
+        let fluid = model.fluids().next().unwrap();
+        let solid = model.solids().next().unwrap();
+        let quotients = trace_quotients(&model);
+        let partition = FixedReferenceFsiPartition::<2>::new(
+            &mesh,
+            [
+                (fluid.domain().downcast().unwrap(), fluid_cells),
+                (solid.continuum().domain().downcast().unwrap(), solid_cells),
+            ],
+            &quotients,
+        )
+        .unwrap();
         let free_interface = mesh
             .vertices()
             .iter()
             .position(|point| point.as_slice() == [1.0, 0.5])
             .unwrap();
-        displacement[free_interface] = [0.02, 0.0];
-        let previous = FixedReferenceFsiState::<2>::new(
-            &mesh,
-            &partition,
-            vec![[0.0; 2]; mesh.vertices().len()],
-            partition
-                .fluid_cells()
-                .iter()
-                .copied()
-                .map(|cell| (cell, [0.0; 2]))
-                .collect(),
-            displacement,
+        let state_plan = fixed_reference_fsi_plan_2d(
+            &model,
+            mesh_reference(),
+            DynQuantity::new(0.1, TIME),
+            scales(),
+            reference_solver(),
         )
         .unwrap();
+        let previous = exact_state(
+            &program,
+            &model,
+            &state_plan,
+            &mesh,
+            &partition,
+            Some((free_interface, [0.02, 0.0])),
+        );
         Self {
             program,
             model,
@@ -737,6 +780,133 @@ impl Fixture {
         )
         .expect("coupled reference capability resolves")
     }
+
+    fn state(&self, displacement: Option<(usize, [f64; 2])>) -> FixedReferenceFsiState<2> {
+        let plan = fixed_reference_fsi_plan_2d(
+            &self.model,
+            mesh_reference(),
+            DynQuantity::new(0.1, TIME),
+            scales(),
+            reference_solver(),
+        )
+        .unwrap();
+        exact_state(
+            &self.program,
+            &self.model,
+            &plan,
+            &self.mesh,
+            &self.partition,
+            displacement,
+        )
+    }
+}
+
+fn exact_state(
+    program: &KernelProgram,
+    model: &FixedReferenceFsiCartesianModel2d,
+    plan: &CoupledFieldwiseRealizationPlan,
+    mesh: &SimplicialMesh,
+    partition: &FixedReferenceFsiPartition<2>,
+    displacement: Option<(usize, [f64; 2])>,
+) -> FixedReferenceFsiState<2> {
+    let mut values = Vec::new();
+    for fluid in model.fluids() {
+        let domain = fluid.domain().downcast().unwrap();
+        values.push((
+            fluid.velocity().downcast().unwrap(),
+            vector_coefficients(partition, domain, true, None),
+        ));
+        values.push((
+            fluid.pressure().downcast().unwrap(),
+            partition
+                .domain_vertices(domain)
+                .unwrap()
+                .iter()
+                .map(|vertex| (MeshEntity::new(0, vertex.index()), 0, 0, 0.0))
+                .collect(),
+        ));
+    }
+    for solid in model.solids() {
+        let domain = solid.continuum().domain().downcast().unwrap();
+        values.push((
+            solid.velocity().downcast().unwrap(),
+            vector_coefficients(partition, domain, false, None),
+        ));
+        values.push((
+            solid.continuum().displacement().downcast().unwrap(),
+            vector_coefficients(partition, domain, false, displacement),
+        ));
+    }
+    FixedReferenceFsiState::new(program, plan, mesh, partition, values).unwrap()
+}
+
+fn vector_coefficients(
+    partition: &FixedReferenceFsiPartition<2>,
+    domain: Id<kinds::Domain>,
+    bubbles: bool,
+    override_vertex: Option<(usize, [f64; 2])>,
+) -> Vec<(MeshEntity, usize, usize, f64)> {
+    let mut values = partition
+        .domain_vertices(domain)
+        .unwrap()
+        .iter()
+        .flat_map(|vertex| {
+            let vector = override_vertex
+                .filter(|(index, _)| *index == vertex.index())
+                .map_or([0.0; 2], |(_, value)| value);
+            vector
+                .into_iter()
+                .enumerate()
+                .map(move |(component, value)| {
+                    (MeshEntity::new(0, vertex.index()), 0, component, value)
+                })
+        })
+        .collect::<Vec<_>>();
+    if bubbles {
+        values.extend(
+            partition
+                .domain_cells(domain)
+                .unwrap()
+                .iter()
+                .flat_map(|cell| {
+                    (0..2)
+                        .map(move |component| (MeshEntity::new(2, cell.index()), 0, component, 0.0))
+                }),
+        );
+    }
+    values
+}
+
+fn expected_fields(
+    model: &FixedReferenceFsiCartesianModel2d,
+) -> BTreeSet<(eqiora_core::RawId, eqiora_core::RawId)> {
+    model
+        .fluids()
+        .flat_map(|fluid| {
+            [fluid.velocity(), fluid.pressure()]
+                .into_iter()
+                .map(move |field| (field, fluid.domain()))
+        })
+        .chain(model.solids().flat_map(|solid| {
+            [solid.velocity(), solid.continuum().displacement()]
+                .into_iter()
+                .map(move |field| (field, solid.continuum().domain()))
+        }))
+        .collect()
+}
+
+fn vector_at_vertex(
+    state: &FixedReferenceFsiState<2>,
+    field: Id<kinds::Field>,
+    vertex: usize,
+) -> Option<[f64; 2]> {
+    let mut value = [None; 2];
+    for (entity, slot, component, coefficient) in state.coefficients(field)? {
+        if entity == MeshEntity::new(0, vertex) && slot == 0 && component < 2 {
+            value[component] = Some(coefficient);
+        }
+    }
+    Some([value[0]?, value[1]?])
 }
 
 fn fsi_capabilities(vector_layout: VectorLayoutKind, target: Target) -> RealizationCapabilities {

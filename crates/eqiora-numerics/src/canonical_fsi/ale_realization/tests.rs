@@ -67,25 +67,11 @@ fn direct_tetrahedral_model_reaches_the_same_finalized_newton_boundary() {
     let program = compile_program(&ale_source_3d());
     let model = super::super::lower_ale_fsi_cartesian_3d(&program).unwrap();
     let mesh = mesh_3d(MeshQualityGate::new(0.1).unwrap());
-    let (fluid, solid, interface) = inventories_3d(&mesh);
-    let partition = FixedReferenceFsiPartition::<3>::new(
-        &mesh,
-        fluid.clone(),
-        solid.clone(),
-        interface.clone(),
-    )
-    .unwrap();
+    let (fluid, solid, _) = inventories_3d(&mesh);
+    let partition = exact_partition(&model, &mesh, fluid.clone(), solid.clone()).unwrap();
     let boundary = AleFsiBoundary::<3>::homogeneous_exterior(&mesh).unwrap();
     assert!(AleFsiBoundary::<2>::homogeneous_exterior(&mesh).is_err());
-    assert!(
-        FixedReferenceFsiPartition::<3>::new(
-            &mesh,
-            fluid,
-            solid,
-            interface[..interface.len() - 1].to_vec(),
-        )
-        .is_err()
-    );
+    assert!(exact_partition(&model, &mesh, fluid, solid[..solid.len() - 1].to_vec()).is_err());
     let requirements = fixed_topology_ale_fsi_requirements_3d(&model);
     assert_eq!(
         requirements.coupled().execution().spatial_dimension().get(),
@@ -104,22 +90,15 @@ fn direct_tetrahedral_model_reaches_the_same_finalized_newton_boundary() {
         3,
     );
 
-    let mut fixed_velocity = vec![[0.0; 3]; mesh.vertices().len()];
     let fixed = boundary.fixed_zero_velocity_vertices()[0];
-    fixed_velocity[fixed.index()][2] = 1.0;
-    let invalid = AleFsiInitialPhysicalState::<3>::new(
-        0.0,
-        fixed_velocity,
-        partition
-            .fluid_cells()
-            .iter()
-            .copied()
-            .map(|cell| (cell, [0.0; 3]))
-            .collect(),
-        vec![0.0; partition.fluid_vertices().len()],
-        vec![[0.0; 3]; mesh.vertices().len()],
-    )
-    .unwrap();
+    let invalid = exact_initial(
+        &program,
+        &model,
+        resolved.coupled().plan(),
+        &mesh,
+        &partition,
+        Some((fixed.index(), [0.0, 0.0, 1.0])),
+    );
     assert!(
         finalize_resolved_fixed_topology_ale_fsi_3d(
             &model,
@@ -137,9 +116,8 @@ fn direct_tetrahedral_model_reaches_the_same_finalized_newton_boundary() {
     );
 
     let short_mesh = mesh_3d_with_upper_z(0.9, MeshQualityGate::new(0.1).unwrap());
-    let (fluid, solid, interface) = inventories_3d(&short_mesh);
-    let short_partition =
-        FixedReferenceFsiPartition::<3>::new(&short_mesh, fluid, solid, interface).unwrap();
+    let (fluid, solid, _) = inventories_3d(&short_mesh);
+    let short_partition = exact_partition(&model, &short_mesh, fluid, solid).unwrap();
     let short_boundary = AleFsiBoundary::<3>::homogeneous_exterior(&short_mesh).unwrap();
     assert!(
         finalize_resolved_fixed_topology_ale_fsi_3d(
@@ -149,7 +127,14 @@ fn direct_tetrahedral_model_reaches_the_same_finalized_newton_boundary() {
             &short_mesh,
             &short_partition,
             &short_boundary,
-            initial_for_3d(&short_mesh, &short_partition),
+            exact_initial(
+                &program,
+                &model,
+                resolved.coupled().plan(),
+                &short_mesh,
+                &short_partition,
+                None,
+            ),
             &REFERENCE_LINEAR_SOLVER,
         )
         .unwrap_err()
@@ -165,7 +150,14 @@ fn direct_tetrahedral_model_reaches_the_same_finalized_newton_boundary() {
             &mesh,
             &partition,
             &boundary,
-            initial_for_3d(&mesh, &partition),
+            exact_initial(
+                &program,
+                &model,
+                resolved.coupled().plan(),
+                &mesh,
+                &partition,
+                None,
+            ),
             &REFERENCE_LINEAR_SOLVER,
         )
         .unwrap();
@@ -262,9 +254,8 @@ fn finalization_rejects_stale_model_revision_mesh_and_role() {
 fn finalization_rejects_quality_and_initial_boundary_drift() {
     let fixture = Fixture::new();
     let lower_quality_mesh = mesh(MeshQualityGate::new(0.2).unwrap());
-    let (fluid, solid, interface) = inventories(&lower_quality_mesh);
-    let partition =
-        FixedReferenceFsiPartition::<2>::new(&lower_quality_mesh, fluid, solid, interface).unwrap();
+    let (fluid, solid, _) = inventories(&lower_quality_mesh);
+    let partition = exact_partition(&fixture.model, &lower_quality_mesh, fluid, solid).unwrap();
     let boundary = AleFsiBoundary::<2>::homogeneous_exterior(&lower_quality_mesh).unwrap();
     assert!(
         finalize_resolved_fixed_topology_ale_fsi_2d(
@@ -274,7 +265,14 @@ fn finalization_rejects_quality_and_initial_boundary_drift() {
             &lower_quality_mesh,
             &partition,
             &boundary,
-            initial_for(&lower_quality_mesh, &partition),
+            exact_initial(
+                &fixture.program,
+                &fixture.model,
+                fixture.resolved.coupled().plan(),
+                &lower_quality_mesh,
+                &partition,
+                None,
+            ),
             &REFERENCE_LINEAR_SOLVER,
         )
         .unwrap_err()
@@ -282,22 +280,14 @@ fn finalization_rejects_quality_and_initial_boundary_drift() {
         .contains("exact resolved geometry-quality gate")
     );
 
-    let mut velocity = vec![[0.0; 2]; fixture.mesh.vertices().len()];
-    velocity[0] = [1.0, 0.0];
-    let initial = AleFsiInitialPhysicalState::<2>::new(
-        0.0,
-        velocity,
-        fixture
-            .partition
-            .fluid_cells()
-            .iter()
-            .copied()
-            .map(|cell| (cell, [0.0; 2]))
-            .collect(),
-        vec![0.0; fixture.partition.fluid_vertices().len()],
-        vec![[0.0; 2]; fixture.mesh.vertices().len()],
-    )
-    .unwrap();
+    let initial = exact_initial(
+        &fixture.program,
+        &fixture.model,
+        fixture.resolved.coupled().plan(),
+        &fixture.mesh,
+        &fixture.partition,
+        Some((0, [1.0, 0.0])),
+    );
     assert!(
         fixture
             .finalize(initial)
@@ -325,9 +315,8 @@ impl Fixture {
         let program = compile_program(source);
         let model = super::super::lower_ale_fsi_cartesian_2d(&program).unwrap();
         let mesh = mesh(MeshQualityGate::new(0.3).unwrap());
-        let (fluid, solid, interface) = inventories(&mesh);
-        let partition =
-            FixedReferenceFsiPartition::<2>::new(&mesh, fluid, solid, interface).unwrap();
+        let (fluid, solid, _) = inventories(&mesh);
+        let partition = exact_partition(&model, &mesh, fluid, solid).unwrap();
         let boundary = AleFsiBoundary::<2>::homogeneous_exterior(&mesh).unwrap();
         let plan = Self::build_plan(&model, fluid_pressure(&model), 0.3);
         let resolved = resolve(
@@ -348,7 +337,14 @@ impl Fixture {
     }
 
     fn initial(&self) -> AleFsiInitialPhysicalState<2> {
-        initial_for(&self.mesh, &self.partition)
+        exact_initial(
+            &self.program,
+            &self.model,
+            self.resolved.coupled().plan(),
+            &self.mesh,
+            &self.partition,
+            None,
+        )
     }
 
     fn plan(&self, pressure: Id<kinds::Field>) -> FixedTopologyAleCoupledRealizationPlan {
@@ -574,42 +570,100 @@ fn capabilities(dimension: usize) -> RealizationCapabilities {
     .unwrap()
 }
 
-fn initial_for(
+fn exact_partition<const D: usize>(
+    model: &AleFsiCartesianModel<D>,
     mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition<2>,
-) -> AleFsiInitialPhysicalState<2> {
-    AleFsiInitialPhysicalState::<2>::new(
-        0.0,
-        vec![[0.0; 2]; mesh.vertices().len()],
-        partition
-            .fluid_cells()
-            .iter()
-            .copied()
-            .map(|cell| (cell, [0.0; 2]))
-            .collect(),
-        vec![0.0; partition.fluid_vertices().len()],
-        vec![[0.0; 2]; mesh.vertices().len()],
+    fluid_cells: Vec<CellId>,
+    solid_cells: Vec<CellId>,
+) -> Result<FixedReferenceFsiPartition<D>, Diagnostic> {
+    FixedReferenceFsiPartition::new(
+        mesh,
+        [
+            (fluid_domain(model), fluid_cells),
+            (solid_domain(model), solid_cells),
+        ],
+        &[trace_quotient(model)],
     )
-    .unwrap()
 }
 
-fn initial_for_3d(
+fn exact_initial<const D: usize>(
+    program: &KernelProgram,
+    model: &AleFsiCartesianModel<D>,
+    plan: &CoupledFieldwiseRealizationPlan,
     mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition<3>,
-) -> AleFsiInitialPhysicalState<3> {
-    AleFsiInitialPhysicalState::<3>::new(
-        0.0,
-        vec![[0.0; 3]; mesh.vertices().len()],
-        partition
-            .fluid_cells()
-            .iter()
-            .copied()
-            .map(|cell| (cell, [0.0; 3]))
-            .collect(),
-        vec![0.0; partition.fluid_vertices().len()],
-        vec![[0.0; 3]; mesh.vertices().len()],
+    partition: &FixedReferenceFsiPartition<D>,
+    velocity_override: Option<(usize, [f64; D])>,
+) -> AleFsiInitialPhysicalState<D> {
+    let fluid_domain = fluid_domain(model);
+    let solid_domain = solid_domain(model);
+    let physical = crate::simplicial_fsi::FixedReferenceFsiState::new(
+        program,
+        plan,
+        mesh,
+        partition,
+        [
+            (
+                fluid_velocity(model),
+                vector_coefficients(partition, fluid_domain, true, velocity_override),
+            ),
+            (
+                fluid_pressure(model),
+                partition
+                    .domain_vertices(fluid_domain)
+                    .unwrap()
+                    .iter()
+                    .map(|vertex| (MeshEntity::new(0, vertex.index()), 0, 0, 0.0))
+                    .collect(),
+            ),
+            (
+                solid_velocity(model),
+                vector_coefficients(partition, solid_domain, false, velocity_override),
+            ),
+            (
+                solid_displacement(model),
+                vector_coefficients(partition, solid_domain, false, None),
+            ),
+        ],
     )
-    .unwrap()
+    .unwrap();
+    AleFsiInitialPhysicalState::new(0.0, physical).unwrap()
+}
+
+fn vector_coefficients<const D: usize>(
+    partition: &FixedReferenceFsiPartition<D>,
+    domain: Id<kinds::Domain>,
+    bubbles: bool,
+    override_vertex: Option<(usize, [f64; D])>,
+) -> Vec<(MeshEntity, usize, usize, f64)> {
+    let mut values = partition
+        .domain_vertices(domain)
+        .unwrap()
+        .iter()
+        .flat_map(|vertex| {
+            let vector = override_vertex
+                .filter(|(index, _)| *index == vertex.index())
+                .map_or([0.0; D], |(_, value)| value);
+            vector
+                .into_iter()
+                .enumerate()
+                .map(move |(component, value)| {
+                    (MeshEntity::new(0, vertex.index()), 0, component, value)
+                })
+        })
+        .collect::<Vec<_>>();
+    if bubbles {
+        values.extend(
+            partition
+                .domain_cells(domain)
+                .unwrap()
+                .iter()
+                .flat_map(|cell| {
+                    (0..D)
+                        .map(move |component| (MeshEntity::new(D, cell.index()), 0, component, 0.0))
+                }),
+        );
+    }
+    values
 }
 
 fn mesh(quality: MeshQualityGate) -> SimplicialMesh {

@@ -46,7 +46,14 @@ fn replay_graph_requires_exact_field_spaces_and_complete_quotient_inventory() {
         vec![ConformingTraceQuotient::new(Id::new(), endpoints[0], endpoints[1]).unwrap()],
     );
     assert!(!validate::exact_graph_inventory(&stale, &graph));
-    let pressure = fluid_pressure(&fixture.model);
+    let pressure = fixture
+        .model
+        .fluids()
+        .next()
+        .expect("fixture retains one exact fluid Domain")
+        .pressure()
+        .downcast()
+        .unwrap();
     let domains = plan
         .spatial()
         .domains()
