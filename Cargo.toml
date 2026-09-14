@@ -89,7 +89,7 @@ lsp-types = "=0.97.0"
 # an incidental bump can silently move a counted number, which moves a gate.
 # `proc-macro2/span-locations` is only there to turn a matched AST node back
 # into the `file:line` a violation report has to name.
-syn = { version = "=2.0.119", default-features = false, features = ["full", "parsing"] }
+syn = { version = "=3.0.4", default-features = false, features = ["full", "parsing"] }
 proc-macro2 = { version = "=1.0.107", default-features = false, features = ["span-locations"] }
 tracing = { version = "=0.1.44", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "=0.3.23", default-features = false, features = ["registry"] }
