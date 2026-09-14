@@ -1,7 +1,34 @@
 # Release notes
 
-Eqiora `0.1.0a14` is the current public alpha. APIs and saved-file formats may
-change before 1.0; review the changes below when upgrading.
+Eqiora `0.1.0` is the current release. APIs and saved-file formats may change
+before 1.0; review the changes below when upgrading.
+
+## 0.1.0 — equation-driven execution and exact plural coupling
+
+Eqiora 0.1.0 completes the maintained voltage-divider, sampled-control,
+property-composition, and transient heated-body workflows through ordinary
+installed Python packages. Equation- and formulation-driven resolution carries
+exact Field, Domain, Connection, constraint, gauge, solver, and provider facts
+from the Model into one common Plan and execution boundary.
+
+Fixed-reference FSI now executes an ordinary three-Domain/two-Connection problem
+through one exact Field/DOF mapping. The same mapping owns partitioning, assembly,
+State extraction, interface reactions, Result recovery, and immutable Python
+topology views. Transient MINI Runs prepare canonical assembly structure once,
+evaluate each local packet once per candidate, and defer full-system materialization
+to accepted boundaries. Faer reuses symbolic analysis for an unchanged sparse
+pattern, and profiles distinguish totals, self time, and call counts.
+
+The maintained Colab wake notebook reconciles its exact Eqiora and Gmsh releases
+with a supported coherent Matplotlib installation before plotting. The GTK3/Tauri
+Studio shell, singleton FSI records, positional recovery, duplicate assembly
+routes, and displaced solver lifecycle paths are removed.
+
+This pre-1.0 release permits breaking changes in later releases. Current APIs and
+artifact schemas have one accepted form with no compatibility shims. Python
+wheels cover ordinary-GIL CPython 3.11–3.14 on Linux x86-64; broader platforms,
+free-threaded Python, arbitrary PDE discretization, and general multiphysics
+composition remain outside this release.
 
 ## 0.1.0a14 — constraints, trajectory sensitivities, and shared regions
 

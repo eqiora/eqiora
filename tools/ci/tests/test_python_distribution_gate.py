@@ -29,9 +29,9 @@ class PythonDistributionGateTests(unittest.TestCase):
     @staticmethod
     def write_family(directory: Path) -> None:
         directory.mkdir()
-        (directory / "eqiora-0.1.0a1.tar.gz").write_bytes(b"sdist")
+        (directory / "eqiora-0.1.0.tar.gz").write_bytes(b"sdist")
         for python in ("311", "312", "313", "314"):
-            (directory / f"eqiora-0.1.0a1-cp{python}-cp{python}-linux.whl").write_bytes(
+            (directory / f"eqiora-0.1.0-cp{python}-cp{python}-linux.whl").write_bytes(
                 f"wheel-{python}".encode()
             )
 
@@ -53,7 +53,7 @@ class PythonDistributionGateTests(unittest.TestCase):
                 else:
                     output = self.option(argv, "--manifest-out")
                     output.mkdir()
-                    (output / "eqiora-0.1.0a1-python-candidate.json").write_bytes(
+                    (output / "eqiora-0.1.0-python-candidate.json").write_bytes(
                         b"opaque manifest"
                     )
                 return ""
@@ -96,7 +96,7 @@ class PythonDistributionGateTests(unittest.TestCase):
                     str(metadata),
                 ],
             )
-            manifest = metadata / "eqiora-0.1.0a1-python-candidate.json"
+            manifest = metadata / "eqiora-0.1.0-python-candidate.json"
             load_candidate_family.assert_called_once_with(
                 manifest,
                 family,
@@ -119,7 +119,7 @@ class PythonDistributionGateTests(unittest.TestCase):
                     family = self.option(argv, "--artifacts")
                     output = self.option(argv, "--manifest-out")
                     output.mkdir()
-                    (output / "eqiora-0.1.0a1-python-candidate.json").write_bytes(b"manifest")
+                    (output / "eqiora-0.1.0-python-candidate.json").write_bytes(b"manifest")
                     next(family.glob("*.whl")).write_bytes(b"mutated")
                 return ""
 

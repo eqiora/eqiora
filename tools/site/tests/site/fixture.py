@@ -455,7 +455,7 @@ def git_object_authority_status(
 
 def _load_checker():
     path = REPOSITORY / "tools/site/check_site.py"
-    spec = importlib.util.spec_from_file_location("alpha2_site_check", path)
+    spec = importlib.util.spec_from_file_location("release_site_check", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -567,7 +567,7 @@ def _workflow() -> str:
 def _runner() -> str:
     return """#!/usr/bin/env bash
 export npm_config_offline=true CARGO_NET_OFFLINE=true
-export EQIORA_SITE_CARGO_VERSION=0.1.0-alpha.1 EQIORA_SITE_PYTHON_VERSION=0.1.0a1
+export EQIORA_SITE_CARGO_VERSION=0.1.0 EQIORA_SITE_PYTHON_VERSION=0.1.0
 python3 tools/site/check_site.py source-topology --root "$EQIORA_SITE_SOURCE_ROOT"
 python3 tools/site/check_site.py browser-supply --site-root docs/site --browser-cache "$PLAYWRIGHT_BROWSERS_PATH" --expected-executable-sha256 "$EQIORA_SITE_BROWSER_SHA256" --expected-executable-bytes "$EQIORA_SITE_BROWSER_BYTES"
 python3 -m unittest tools.site.tests.test_site_tools -v
@@ -672,7 +672,7 @@ def _home_body() -> str:
 <article><h2>Capabilities</h2><p>See what is available, executable, checked, or verified.</p></article>
 <article><h2>Reference</h2><p>Browse exact-commit Python, Rust, CLI, control-v2, and MCP surfaces.</p></article>
 <p>Docs explains how to use Eqiora. Textbooks teach the mathematics, physics, and numerics. Gallery presents complete simulations. Reference records exact APIs and protocols. Capabilities states what runs and the boundary of each claim.</p>
-<p>Alpha {{python_version}}</p><p>Eqiora is alpha research software under active development. The capability matrix and verification guide bound what is currently supported; this site does not widen those claims.</p>
+<p>Release {{python_version}}</p><p>Eqiora is pre-1.0 research software under active development. The capability matrix and verification guide bound what is currently supported; this site does not widen those claims.</p>
 <h2>One source of truth</h2><p>This website is a curated projection, not a parallel specification. Detailed contracts remain in the repository's architecture, RFCs, capability matrix, and validated verify manifests.</p>"""
 
 
@@ -786,8 +786,8 @@ def _artifact(root: Path, blobs: dict[str, bytes], python_version: str) -> Path:
     return artifact
 
 
-def make_fixture(root: Path, cargo_version: str = "0.1.0-alpha.1"):
-    python_version = cargo_version.replace("-alpha.", "a")
+def make_fixture(root: Path, cargo_version: str = "0.1.0"):
+    python_version = cargo_version
     blobs = {
         "pressure": b"fixture admitted pressure",
         "social": b"<svg><title>Eqiora</title></svg>\n",
@@ -802,7 +802,7 @@ def make_fixture(root: Path, cargo_version: str = "0.1.0-alpha.1"):
     _write(
         root / "tools/release/python_candidate_common.py",
         "def python_distribution_version(version):\n"
-        "    return version.replace('-alpha.', 'a')\n",
+        "    return version\n",
     )
     _write(
         root / "tools/ci/classify_changes.py",

@@ -223,8 +223,8 @@ def _check_home(
 ) -> list[str]:
     errors: list[str] = []
     report = errors.append
-    if f"Alpha {expected_python_version}" not in home.visible_text:
-        report("/: current alpha release must be visible")
+    if f"Release {expected_python_version}" not in home.visible_text:
+        report("/: current release must be visible")
     start = home.visible_text.find("Featured walkthrough")
     end = home.visible_text.find("Get started", start + 1)
     featured = home.visible_text[start:end].casefold()

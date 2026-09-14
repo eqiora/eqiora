@@ -1,6 +1,5 @@
 ---
-const CARGO_ALPHA = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-alpha\.(0|[1-9][0-9]*)$/;
-const PYTHON_ALPHA = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)a(0|[1-9][0-9]*)$/;
+const RELEASE = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
 
 function fail(reason: string): never {
   throw new Error(`ReleaseIdentity: ${reason}`);
@@ -18,27 +17,20 @@ const cargoVersion = process.env.EQIORA_SITE_CARGO_VERSION;
 if (typeof cargoVersion !== 'string') {
   fail('EQIORA_SITE_CARGO_VERSION must be supplied by the build process');
 }
-const cargo = CARGO_ALPHA.exec(cargoVersion);
-if (cargo === null) {
-  fail('EQIORA_SITE_CARGO_VERSION must be exactly `<major>.<minor>.<patch>-alpha.<serial>`');
+if (!RELEASE.test(cargoVersion)) {
+  fail('EQIORA_SITE_CARGO_VERSION must be exactly `<major>.<minor>.<patch>`');
 }
 
 const pythonVersion = process.env.EQIORA_SITE_PYTHON_VERSION;
 if (typeof pythonVersion !== 'string') {
   fail('EQIORA_SITE_PYTHON_VERSION must be supplied by the build process');
 }
-const python = PYTHON_ALPHA.exec(pythonVersion);
-if (python === null) {
-  fail('EQIORA_SITE_PYTHON_VERSION must be exactly `<major>.<minor>.<patch>a<serial>`');
+if (!RELEASE.test(pythonVersion)) {
+  fail('EQIORA_SITE_PYTHON_VERSION must be exactly `<major>.<minor>.<patch>`');
 }
 
-if (
-  cargo[1] !== python[1] ||
-  cargo[2] !== python[2] ||
-  cargo[3] !== python[3] ||
-  cargo[4] !== python[4]
-) {
-  fail('the Cargo and Python workspace versions must share one release tuple and serial');
+if (cargoVersion !== pythonVersion) {
+  fail('the Cargo and Python workspace versions must be identical');
 }
 ---
 <span>{pythonVersion}</span>

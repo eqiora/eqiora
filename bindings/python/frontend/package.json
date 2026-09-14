@@ -1,6 +1,6 @@
 {
   "name": "@eqiora/viewer",
-  "version": "0.1.0-alpha.14",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.16.0",

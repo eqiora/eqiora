@@ -9,6 +9,29 @@ Find new features and migration changes below. The
 <ExactSourceLink path="CHANGELOG.md" kind="blob">changelog</ExactSourceLink>
 contains the detailed release history. APIs may change during the pre-1.0 series.
 
+## 0.1.0 — equation-driven execution and exact plural coupling
+
+[Eqiora 0.1.0](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0)
+completes the maintained voltage-divider, sampled-control, property-composition,
+and transient heated-body workflows through ordinary installed Python packages.
+Equation- and formulation-driven resolution carries exact Field, Domain,
+Connection, constraint, gauge, solver, and provider facts through the common
+Plan and execution boundary.
+
+Fixed-reference FSI executes an ordinary three-Domain/two-Connection problem
+through one exact Field/DOF mapping for partitioning, assembly, State extraction,
+interface reactions, Result recovery, and immutable Python topology views.
+Transient MINI Runs prepare canonical assembly structure once and evaluate local
+packets once per nonlinear candidate. Faer reuses symbolic analysis for an
+unchanged sparse pattern, and profiles distinguish totals, self time, and calls.
+
+The maintained Colab notebook reconciles Eqiora, Gmsh, and Matplotlib before
+plotting. The native GTK3/Tauri Studio shell and displaced singleton execution,
+positional recovery, assembly, and solver lifecycle paths are removed. This
+pre-1.0 release permits later breaking changes and supports ordinary-GIL CPython
+3.11–3.14 on Linux x86-64. Broader platforms, free-threaded Python, arbitrary PDE
+discretization, and general multiphysics composition remain outside its scope.
+
 ## 0.1.0a14 — constraints, trajectory sensitivities, and shared regions
 
 [Eqiora 0.1.0a14](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a14)

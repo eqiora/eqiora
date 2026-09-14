@@ -115,7 +115,7 @@ class InterfaceReferenceFixture:
         self.observed.mkdir(parents=True)
         _write(
             target / "Cargo.toml",
-            '[workspace]\nmembers = []\n[workspace.package]\nversion = "0.1.0-alpha.14"\n',
+            '[workspace]\nmembers = []\n[workspace.package]\nversion = "0.1.0"\n',
         )
         copied = [
             Path("crates/eqiora-api/schemas/compile-v2.schema.json"),
@@ -361,7 +361,7 @@ class InterfaceReferenceArchiveIdentityTests(unittest.TestCase):
             "a" * 20 + "\n" + "a" * 20,
             "HEAD",
             "main",
-            "v0.1.0-alpha.1",
+            "v0.1.0",
         )
         for source_sha in invalid:
             with (

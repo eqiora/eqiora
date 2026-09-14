@@ -3,22 +3,22 @@
 Use the `eqiora` crate to compile models, configure numerical plans, and run
 simulations from Rust.
 
-## Install the alpha
+## Install
 
-[`eqiora 0.1.0-alpha.14`](https://crates.io/crates/eqiora/0.1.0-alpha.14) is available
+[`eqiora 0.1.0`](https://crates.io/crates/eqiora/0.1.0) is available
 on crates.io.
 
 In a new Cargo project:
 
 ```console
-cargo add eqiora@=0.1.0-alpha.14
+cargo add eqiora@=0.1.0
 ```
 
 Or add this dependency to `Cargo.toml`:
 
 ```toml
 [dependencies]
-eqiora = "=0.1.0-alpha.14"
+eqiora = "=0.1.0"
 ```
 
 Building from source requires a Rust toolchain and linker. The minimum supported
@@ -80,9 +80,9 @@ mesh needs no external Gmsh executable; automatic mesh generation requires it.
 | `mpi`, `cuda`, `mpi-cuda` | Environment-specific distributed/GPU adapters requiring the corresponding native libraries and hardware. |
 
 Enable only the features needed by the chosen supported path, for example
-`eqiora = { version = "=0.1.0-alpha.14", features = ["faer"] }`.
+`eqiora = { version = "=0.1.0", features = ["faer"] }`.
 
 ## Compatibility
 
-This is an alpha, pre-1.0 API. Breaking corrections may appear in subsequent
-releases; pin the exact version and retain `Cargo.lock` when reproducing a result.
+This is a pre-1.0 API. Later releases may contain breaking changes; pin the exact
+version and retain `Cargo.lock` when reproducing a result.

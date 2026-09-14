@@ -19,21 +19,13 @@ from fixture import (
 
 
 class CompleteContractTests(unittest.TestCase):
-    def test_current_copy_rejects_stale_versions_but_release_history_remains(self) -> None:
+    def test_release_identity_rejects_the_displaced_alpha_form(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            _, identities = make_fixture(root)
-            self.assertEqual(checker.check_source(root, identities), [])
-            history = root / "docs/site/src/content/docs/release-notes/alpha-1.mdx"
-            history.parent.mkdir(parents=True, exist_ok=True)
-            history.write_text("Released 0.1.0a1\n", encoding="utf-8")
-            self.assertEqual(checker.check_source(root, identities), [])
-            current = root / "docs/site/src/content/docs/current.mdx"
-            current.write_text("Current release 0.1.0a1\n", encoding="utf-8")
-            self.assertTrue(
-                any("hard-codes product version" in error
-                    for error in checker.check_source(root, identities))
-            )
+            make_fixture(root, "0.1.0-alpha.14")
+            release, errors = checker.derive_release_identity(root)
+            self.assertIsNone(release)
+            self.assertTrue(any("release SemVer identity" in error for error in errors))
 
     def test_source_command_reports_checker_result(self) -> None:
         for errors, status in (([], 0), (["invalid site source"], 1)):
@@ -351,17 +343,6 @@ class CompleteContractTests(unittest.TestCase):
                 any("obsolete successor source remains" in error for error in errors)
             )
 
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            _, identities = make_fixture(root)
-            source = root / "docs/site/src/content/docs/current.mdx"
-            source.parent.mkdir(parents=True, exist_ok=True)
-            source.write_text("Alpha 0.1.0a1", encoding="utf-8")
-            errors = checker.check_source(root, identities)
-            self.assertTrue(
-                any("hard-codes product version" in error for error in errors)
-            )
-
     def test_provider_dependency_and_release_identity_mutants_fail(self) -> None:
         for relative in checker.PROVIDER_PATHS:
             with (
@@ -420,19 +401,6 @@ class CompleteContractTests(unittest.TestCase):
             lock.write_text(json.dumps(lock_document), encoding="utf-8")
             errors = checker.check_source(root, identities)
             self.assertTrue(any("exact direct set" in error for error in errors))
-
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            artifact, identities = make_fixture(root, "0.1.0-alpha.2")
-            self.assertEqual(
-                checker.check_site(root, artifact, SOURCE_SHA, identities), []
-            )
-            source = root / "docs/site/src/content/docs/current.mdx"
-            source.write_text("0.1.0-alpha.2", encoding="utf-8")
-            errors = checker.check_source(root, identities)
-            self.assertTrue(
-                any("hard-codes product version" in error for error in errors)
-            )
 
     @staticmethod
     def _replace(path: Path, old: str, new: str) -> None:

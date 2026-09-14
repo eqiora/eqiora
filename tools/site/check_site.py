@@ -172,13 +172,6 @@ PROVIDER_PATHS = (
     "docs/site/src/components/site/ExactSourceLink.astro",
     "docs/site/src/components/site/ReleaseIdentity.astro",
 )
-CURRENT_VERSION = re.compile(
-    r"(?<![A-Za-z0-9_.-])(?:\d+\.\d+\.\d+-alpha\.\d+|\d+\.\d+\.\d+a\d+)(?![A-Za-z0-9_.-])"
-)
-CURRENT_VERSION_SOURCE_EXCEPTIONS = {
-    "docs/site/src/content/docs/reference/cli/index.mdx",
-    "docs/site/src/content/docs/reference/mcp/index.mdx",
-}
 
 
 def _destination(raw: str) -> str:
@@ -274,13 +267,12 @@ def derive_release_identity(
         if "module_name" in locals():
             sys.modules.pop(module_name, None)
     if not isinstance(cargo_version, str) or not re.fullmatch(
-        r"\d+\.\d+\.\d+-alpha\.\d+", cargo_version
+        r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)",
+        cargo_version,
     ):
-        return None, ["Cargo version is not the required alpha SemVer identity"]
-    if not isinstance(python_version, str) or not re.fullmatch(
-        r"\d+\.\d+\.\d+a\d+", python_version
-    ):
-        return None, ["Python mapper did not produce the required alpha identity"]
+        return None, ["Cargo version is not the required release SemVer identity"]
+    if python_version != cargo_version:
+        return None, ["Python mapper did not preserve the release identity"]
     return ReleaseIdentity(cargo_version, python_version), []
 
 
@@ -655,18 +647,10 @@ def check_source(
     ]
     for source in sorted(source_files):
         text = source.read_text(encoding="utf-8")
-        relative = source.relative_to(root).as_posix()
-        is_release_history = "release-notes" in source.relative_to(site).parts
-        if not is_release_history and relative not in CURRENT_VERSION_SOURCE_EXCEPTIONS:
-            for forbidden_version in CURRENT_VERSION.findall(text):
-                errors.append(
-                    f"site source hard-codes product version {forbidden_version!r}: "
-                    f"{source.relative_to(root)}"
-                )
-            if OLD_SOCIAL_LINE in text:
-                errors.append(
-                    f"site source retains deprecated social-card copy: {source.relative_to(root)}"
-                )
+        if OLD_SOCIAL_LINE in text:
+            errors.append(
+                f"site source retains deprecated social-card copy: {source.relative_to(root)}"
+            )
         if re.search(r"\bfetch\s*\(", text):
             errors.append(
                 f"build/runtime content fetch is forbidden: {source.relative_to(root)}"

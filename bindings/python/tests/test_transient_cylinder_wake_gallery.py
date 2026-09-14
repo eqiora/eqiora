@@ -139,7 +139,7 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
         self.assertIn('f"eqiora=={EQIORA_VERSION}"', self.notebook_source)
         self.assertIn('f"gmsh=={GMSH_VERSION}"', self.notebook_source)
         self.assertIn('f"matplotlib{MATPLOTLIB_RANGE}"', self.notebook_source)
-        self.assertIn('EQIORA_VERSION = "0.1.0a14"', self.notebook_source)
+        self.assertIn('EQIORA_VERSION = "0.1.0"', self.notebook_source)
         self.assertIn('GMSH_VERSION = "4.15.2"', self.notebook_source)
         self.assertIn('MATPLOTLIB_RANGE = ">=3.10,<3.12"', self.notebook_source)
         self.assertNotIn('find_spec("eqiora")', self.notebook_source)
@@ -149,7 +149,7 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
     def test_colab_bootstrap_preserves_a_coherent_preloaded_matplotlib(self) -> None:
         namespace = bootstrap_namespace(self.notebook_source)
         installed = {
-            "eqiora": {"version": "0.1.0a14", "file": "/runtime/eqiora/__init__.py"},
+            "eqiora": {"version": "0.1.0", "file": "/runtime/eqiora/__init__.py"},
             "matplotlib": {
                 "version": "3.10.8",
                 "file": "/runtime/matplotlib/__init__.py",
@@ -173,14 +173,14 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
         namespace["_module_state"] = mock.Mock(return_value=loaded)
         namespace["_distribution_state"] = mock.Mock(return_value=installed)
         namespace["find_spec"] = mock.Mock(return_value=None)
-        namespace["version"] = mock.Mock(side_effect=("0.1.0a14", "4.15.2"))
+        namespace["version"] = mock.Mock(side_effect=("0.1.0", "4.15.2"))
         namespace["subprocess"] = types.SimpleNamespace(run=mock.Mock())
 
         observed = namespace["_prepare_environment"]()  # type: ignore[operator]
 
         self.assertEqual(observed, installed)
         command = namespace["subprocess"].run.call_args.args[0]  # type: ignore[union-attr]
-        self.assertIn("eqiora==0.1.0a14", command)
+        self.assertIn("eqiora==0.1.0", command)
         self.assertIn("gmsh==4.15.2", command)
         self.assertIn("matplotlib>=3.10,<3.12", command)
         self.assertEqual(command[command.index("--upgrade-strategy") + 1], "only-if-needed")
@@ -198,7 +198,7 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
         namespace["_distribution_state"] = mock.Mock(
             return_value={
                 "eqiora": {
-                    "version": "0.1.0a14",
+                    "version": "0.1.0",
                     "file": "/installed/eqiora/__init__.py",
                 },
                 "matplotlib": {
@@ -217,7 +217,7 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
         )
         namespace["find_spec"] = mock.Mock(return_value=object())
         namespace["find_library"] = mock.Mock(return_value="libGLU.so.1")
-        namespace["version"] = mock.Mock(side_effect=("0.1.0a14", "4.15.2"))
+        namespace["version"] = mock.Mock(side_effect=("0.1.0", "4.15.2"))
         namespace["subprocess"] = types.SimpleNamespace(run=mock.Mock())
         namespace["os"] = types.SimpleNamespace(getpid=mock.Mock(return_value=42), kill=mock.Mock())
 
@@ -309,8 +309,12 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
         self.assertIn("eq-gallery-motion__still", page)
         self.assertIn("startup-motion-description", page)
         self.assertIn("colab.research.google.com/github/nkiyohara/eqiora/blob/", page)
-        self.assertIn("colabMinimumSerial = 4", page)
-        self.assertIn("Number(colabRelease[1]) >= colabMinimumSerial", page)
+        self.assertIn(
+            '<LinkButton href={colabUrl} variant="primary">Open in Colab</LinkButton>',
+            page,
+        )
+        self.assertNotIn("colabMinimumSerial", page)
+        self.assertNotIn("colabReady", page)
         self.assertIn("prefers-reduced-motion: reduce", styles)
         self.assertIn("trajectory.states", producer)
         self.assertIn("FRAME_RATE = 2", producer)
