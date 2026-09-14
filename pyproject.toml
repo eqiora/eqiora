@@ -35,7 +35,7 @@ jax = [
 ]
 matplotlib = ["matplotlib>=3.10,<3.12"]
 viewer = ["anywidget==0.11.0"]
-torch = ["torch>=2.13,<2.14"]
+torch = ["torch>=2.13,<2.15"]
 
 [dependency-groups]
 release-tools = ["twine==7.0.0", "uv==0.12.13"]
