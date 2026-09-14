@@ -106,7 +106,7 @@ fn roles_follow_exact_equations_and_permuted_plan_inventory() {
 }
 
 #[test]
-fn roles_reject_stale_missing_equations_layout_and_plural_projection() {
+fn roles_reject_stale_missing_equations_and_layout_but_accept_plural_quotients() {
     let (equations, plan) = fixture();
     let roles = FsiRoles::derive(&equations, &plan).unwrap();
     let (&pressure, &fluid_velocity) = roles.constraints.iter().next().unwrap();
@@ -179,5 +179,8 @@ fn roles_reject_stale_missing_equations_layout_and_plural_projection() {
         plan.spatial().domains().to_vec(),
         vec![quotient, extra],
     );
-    assert!(FsiRoles::derive(&equations, &plural).is_err());
+    let plural_roles = FsiRoles::derive(&equations, &plural).unwrap();
+    assert_eq!(plural_roles.quotients.len(), 2);
+    assert!(plural_roles.quotients.contains(&quotient));
+    assert!(plural_roles.quotients.contains(&extra));
 }
