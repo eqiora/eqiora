@@ -185,6 +185,34 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
         self.assertIn("matplotlib>=3.10,<3.12", command)
         self.assertEqual(command[command.index("--upgrade-strategy") + 1], "only-if-needed")
 
+    def test_colab_distribution_state_uses_the_owning_distribution(self) -> None:
+        namespace = bootstrap_namespace(self.notebook_source)
+        packages = {
+            "eqiora": mock.Mock(
+                version="0.1.0",
+                locate_file=lambda relative: Path("/runtime") / relative,
+            ),
+            "matplotlib": mock.Mock(
+                version="3.10.8",
+                locate_file=lambda relative: Path("/runtime") / relative,
+            ),
+        }
+        namespace["distribution"] = mock.Mock(side_effect=packages.__getitem__)
+
+        installed = namespace["_distribution_state"]()  # type: ignore[operator]
+
+        self.assertEqual(
+            installed["mpl_toolkits.axes_grid1.axes_divider"],
+            {
+                "version": "3.10.8",
+                "file": "/runtime/mpl_toolkits/axes_grid1/axes_divider.py",
+            },
+        )
+        self.assertCountEqual(
+            [call.args[0] for call in namespace["distribution"].call_args_list],  # type: ignore[union-attr]
+            ["eqiora", "matplotlib"],
+        )
+
     def test_colab_bootstrap_restarts_after_loaded_distribution_changes(self) -> None:
         namespace = bootstrap_namespace(self.notebook_source)
         namespace["_module_state"] = mock.Mock(
