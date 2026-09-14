@@ -14,6 +14,9 @@ use crate::form_compiler::region::{RegionFieldLayout, basis, components};
 
 use super::invalid;
 
+mod binding;
+pub(crate) use binding::bind_region_topology;
+
 /// Bind topology without requiring an affine or linear equation compiler.
 pub(crate) fn field_layouts(
     program: &KernelProgram,

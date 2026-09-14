@@ -1,6 +1,6 @@
 use super::*;
 use crate::canonical_boundary::PhysicalBoundaryQuantity;
-use crate::region_assembly::mapping::{FieldDof, RegionDofMap, TraceBinding, TraceFacet};
+use crate::region_assembly::mapping::{FieldDof, RegionDofMap, bind_region_topology};
 use crate::region_assembly::{PreparedRegionAssembly, RegionAssemblyCell};
 use eqiora_assembly::{
     AssemblyBackend, AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyTarget,
@@ -23,31 +23,14 @@ impl ExecutableScalarEquations {
             .map(|region| (region.form.domain(), region.form.volume().fields().to_vec()))
             .collect();
         let reference = self.regions[0].form.volume().reference_cell();
-        let traces = self
-            .quotients()?
-            .into_iter()
-            .map(|quotient| {
-                let facets = (0..mesh.entity_count(dimension - 1).expect("facets"))
-                    .filter_map(|index| {
-                        let facet = MeshEntity::new(dimension - 1, index);
-                        let actual = mesh.incidence(facet, dimension)?;
-                        let sides = quotient.endpoints().map(|endpoint| {
-                            actual.iter().copied().find(|side| {
-                                domains[side.entity.index()] == endpoint.domain().erase()
-                            })
-                        });
-                        match sides {
-                            [Some(a), Some(b)] if a.entity != b.entity => Some(TraceFacet {
-                                facet,
-                                sides: [a, b],
-                            }),
-                            _ => None,
-                        }
-                    })
-                    .collect();
-                TraceBinding { quotient, facets }
-            })
-            .collect::<Vec<_>>();
+        let (domains, traces) = bind_region_topology(
+            mesh,
+            domains
+                .into_iter()
+                .enumerate()
+                .map(|(cell, domain)| (eqiora_meshing::CellId::new(cell), domain)),
+            &self.quotients()?,
+        )?;
         let mut prescribed = BTreeMap::new();
         let mut natural = Vec::new();
         let facet_rule = if dimension == 1 {
