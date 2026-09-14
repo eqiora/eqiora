@@ -133,6 +133,10 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
             self.assertEqual(cell["outputs"], [])
             compile("".join(cell["source"]), COLAB.as_posix(), "exec")
 
+        bootstrap = self.notebook["cells"][1]  # type: ignore[index]
+        self.assertEqual(bootstrap["id"], "wake-imports")
+        self.assertEqual(bootstrap["metadata"]["cellView"], "form")
+        self.assertEqual(bootstrap["source"][0], "# @title Eqiora を準備\n")
         self.assertIn('find_spec("google.colab") is not None', self.notebook_source)
         self.assertIn('find_library("GLU") is None', self.notebook_source)
         self.assertIn('"libglu1-mesa"', self.notebook_source)
