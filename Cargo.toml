@@ -17,7 +17,7 @@ base64 = "0.23"
 # workspace-MSRV plus Linux/macOS/Windows build gates; re-audit before moving
 # to v4.
 cap-fs-ext = "=3.4.5"
-cap-std = "=3.4.5"
+cap-std = "=4.0.3"
 ulid = "3"
 # Canonical artifact bytes must preserve every finite IEEE-754 value across
 # serialize -> decode -> serialize. The default fast parser may choose an
