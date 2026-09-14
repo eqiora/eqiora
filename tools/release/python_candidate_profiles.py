@@ -37,6 +37,7 @@ MIXED_BOUNDARY_REPOSITORY_SOURCE = Path(
     "verify/solid/mixed-boundary-elasticity-2d/models/direct.eqi"
 )
 PYTHON_TEST_FIXTURES = (
+    Path("examples/property-composition"),
     Path("verify/interfaces/control-plane-compile-check"),
     Path("verify/interfaces/current-authoring-profile"),
     Path("crates/eqiora-api/packages/org.example.poisson"),

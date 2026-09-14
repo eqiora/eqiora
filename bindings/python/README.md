@@ -5,17 +5,17 @@ Eqiora provides equation authoring, synchronous and asynchronous execution,
 NumPy and DLPack arrays, first-order differentiation with PyTorch and JAX,
 and optional Matplotlib plots and notebook views.
 
-**Alpha — `0.1.0a12`.** See [Capabilities](https://eqiora.org/capabilities/)
+**Alpha — `0.1.0a13`.** See [Capabilities](https://eqiora.org/capabilities/)
 for available models, methods, and platforms.
 
 ## Install
 
-Eqiora `0.1.0a12` supports ordinary-GIL CPython 3.11–3.14 on
+Eqiora `0.1.0a13` supports ordinary-GIL CPython 3.11–3.14 on
 manylinux x86-64:
 
 ```console
 uv venv --python 3.13 .venv
-uv pip install --python .venv/bin/python eqiora==0.1.0a12
+uv pip install --python .venv/bin/python eqiora==0.1.0a13
 ```
 
 Automatic exact-cylinder meshing requires Gmsh 4.15.2. The conventional Linux
@@ -23,7 +23,7 @@ installation is:
 
 ```console
 sudo apt-get install libglu1-mesa
-uv pip install --python .venv/bin/python "eqiora[gmsh]==0.1.0a12"
+uv pip install --python .venv/bin/python "eqiora[gmsh]==0.1.0a13"
 ```
 
 The Gmsh extra is separate so the base `manylinux_2_17` package keeps its
@@ -32,14 +32,14 @@ compatibility floor; the current Gmsh wheel has a newer Linux floor.
 Install plotting, notebook viewing, or first-order framework adapters as needed:
 
 ```console
-uv pip install --python .venv/bin/python "eqiora[torch]==0.1.0a12"
-uv pip install --python .venv/bin/python "eqiora[jax]==0.1.0a12"
-uv pip install --python .venv/bin/python "eqiora[matplotlib]==0.1.0a12"
-uv pip install --python .venv/bin/python "eqiora[viewer]==0.1.0a12"
+uv pip install --python .venv/bin/python "eqiora[torch]==0.1.0a13"
+uv pip install --python .venv/bin/python "eqiora[jax]==0.1.0a13"
+uv pip install --python .venv/bin/python "eqiora[matplotlib]==0.1.0a13"
+uv pip install --python .venv/bin/python "eqiora[viewer]==0.1.0a13"
 ```
 
 The exact-cylinder pressure example combines the mesher and plot adapter:
-`uv pip install --python .venv/bin/python "eqiora[gmsh,matplotlib]==0.1.0a12"`.
+`uv pip install --python .venv/bin/python "eqiora[gmsh,matplotlib]==0.1.0a13"`.
 
 Run scripts with `uv run --no-project --python .venv/bin/python your_script.py`
 to use this environment explicitly. Current-source features described in the
@@ -56,7 +56,7 @@ The JAX extra requires Python 3.12 or newer.
 
 Start with [Get started](https://eqiora.org/get-started/) for a complete decay
 example. The guides follow the current source revision; use their source-install
-instructions when trying features newer than `0.1.0a12`.
+instructions when trying features newer than `0.1.0a13`.
 
 A spatial workflow has five steps:
 
@@ -200,7 +200,7 @@ for complete setup, input shapes, and framework examples.
 
 ## Compatibility
 
-`0.1.0a12` is an alpha prerelease. Python APIs and saved-file formats may change
+`0.1.0a13` is an alpha prerelease. Python APIs and saved-file formats may change
 before 1.0; release notes describe changes and migrations. Corrections to a
 published package receive a new version.
 

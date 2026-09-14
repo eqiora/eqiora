@@ -1,9 +1,9 @@
 # Release notes
 
-Eqiora `0.1.0a12` is the current public alpha. APIs and saved-file formats may
+Eqiora `0.1.0a13` is the current public alpha. APIs and saved-file formats may
 change before 1.0; review the changes below when upgrading.
 
-## 0.1.0a12 — constraints, trajectory sensitivities, and shared regions
+## 0.1.0a13 — constraints, trajectory sensitivities, and shared regions
 
 Finite real-scalar Models can now carry equality, inequality, and
 complementarity conditions into a bounded active-set solve. ODE terminal and

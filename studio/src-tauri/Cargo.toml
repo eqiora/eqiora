@@ -16,7 +16,7 @@ crate-type = ["rlib"]
 tauri-build = { version = "=2.6.3", features = [] }
 
 [dependencies]
-eqiora = { version = "=0.1.0-alpha.12", path = "../../crates/eqiora", default-features = false, features = ["cad-truck", "faer", "rayon"] }
+eqiora = { version = "=0.1.0-alpha.13", path = "../../crates/eqiora", default-features = false, features = ["cad-truck", "faer", "rayon"] }
 serde = { version = "1.0.228", features = ["derive"] }
 tauri = { version = "=2.11.5", features = [] }
 tauri-plugin-dialog = "=2.7.2"

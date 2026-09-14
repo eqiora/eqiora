@@ -58,8 +58,8 @@ class StableDependencyCacheTests(unittest.TestCase):
         self.assertIn("SELECTED_TAG: ${{ inputs.tag }}", guard)
         self.assertLess(source.index(guard), source.index("uses: actions/checkout@"))
         for ref, tag, accepted in (
-            ("refs/heads/main", "v0.1.0a12", True),
-            ("refs/heads/candidate-review", "v0.1.0a12", False),
+            ("refs/heads/main", "v0.1.0a13", True),
+            ("refs/heads/candidate-review", "v0.1.0a13", False),
             ("refs/heads/main", "", False),
         ):
             with self.subTest(workflow="python-production-publish.yml", ref=ref, tag=tag):
