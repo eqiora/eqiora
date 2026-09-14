@@ -6,6 +6,12 @@ are recorded here.
 
 ## [Unreleased]
 
+### Added
+
+- Added `eqiora.colab.prepare()` to validate the installed notebook runtime,
+  restart stale Colab kernels before host imports, enable the custom widget
+  manager, and report concise package identity.
+
 ### Changed
 
 - Made the shared Viewer part of the base Python installation with exact

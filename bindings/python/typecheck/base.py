@@ -4,6 +4,7 @@ import numpy as np
 import numpy.typing as npt
 
 import eqiora
+from eqiora.colab import prepare
 from eqiora.fsi import (
     FsiConnectionEvidence,
     FsiDomainEvidence,
@@ -94,6 +95,7 @@ def check_viewer(
     assert_type(view.add(field), eqiora.View)
     assert_type(view.show(), eqiora.View)
     assert_type(view.close(), None)
+    assert_type(prepare(), None)
 
 
 def check_structural_result(plan: eqiora.Plan, result: eqiora.Result) -> None:

@@ -62,6 +62,12 @@ remains available. Widget disposal,
 listener removal, animation-frame cancellation, GPU resource disposal, and
 accepted-object release are explicit lifecycle steps.
 
+`eqiora.colab.prepare()` is the sole Colab host adapter. It validates installed
+and loaded distribution identity before importing the Colab API, restarts a
+stale runtime, supplies the native Gmsh prerequisite, enables the custom widget
+manager, and reports package paths and versions. It does not own scene meaning,
+rendering, package installation, or a general notebook environment manager.
+
 ## Verification boundary
 
 Focused Rust/Python product tests falsify foreign identity, unsupported shape,

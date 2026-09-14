@@ -515,7 +515,9 @@ typed candidate
         self.assertEqual(record["platform"], "manylinux_2_17_x86_64")
         self.assertRegex(record["sha256"], r"^[0-9a-f]{64}$")
 
-    def test_wheel_contract_rejects_framework_as_a_base_dependency(self) -> None:
+    def test_wheel_contract_rejects_optional_framework_as_a_base_dependency(
+        self,
+    ) -> None:
         license_bytes = b"license\n"
         notice_bytes = b"notice\n"
         metadata = b"""\

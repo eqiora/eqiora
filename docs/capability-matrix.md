@@ -212,7 +212,7 @@ These records describe the current implementations and their practical limits.
 | Incremental semantic analysis | ⬜ | ⬜ | ⬜ | ⬜ | Dependency-aware invalidation and partial diagnostics remain |
 | Language server protocol | ⬜ | ⬜ | ⬜ | ⬜ | Completion, hover, references, rename, symbols, and code actions remain |
 | Documentation generator | ⬜ | ⬜ | ⬜ | ⬜ | Component equations, connectors, parameters, examples, and provenance remain |
-| Colab authoring | ✅ | ✅ | ⬜ | ⬜ | The maintained transient-cylinder Colab reconciles the exact Eqiora release and optional dependencies before importing Eqiora, retains a supported preloaded Matplotlib without replacing its files, and terminates the kernel before importing Eqiora plotting code when reconciliation changes a loaded distribution. The notebook records the loaded renderer version and module paths; Google Colab itself is not a release-candidate verification host. |
+| Colab authoring | ✅ | ✅ | ⬜ | ⬜ | The maintained `0.1.0` transient-cylinder notebook keeps its verified environment reconciler in one folded preparation cell. Current-source `eqiora.colab.prepare()` owns CPython, Eqiora, NumPy, exact Gmsh, and notebook-widget distribution identity; it restarts stale Colab modules before host imports, supplies libGLU when absent, enables the custom widget manager, and prints one diagnostic. The notebook moves to that helper and the shared Viewer with the `0.1.1` publication; Google Colab itself remains outside release-candidate verification and requires a fresh production run. |
 | Command-line project workflow | 🟨 | 🟨 | 🟨 | ⬜ | Examples and verification runner exist; cohesive user CLI remains |
 
 ## 3. Geometry, CAD, and spatial selection
