@@ -44,11 +44,13 @@ def rational_pair(value: object) -> Fraction:
     return Fraction(numerator, denominator)
 
 
-def check_frozen_hashes(state: dict[str, object]) -> None:
-    precommitment = state["precommitment"]
-    require(isinstance(precommitment, dict), "state precommitment must be an object")
-    expected = precommitment["frozen_scientific_sha256"]
-    require(isinstance(expected, dict), "frozen scientific hashes must be an object")
+def check_frozen_hashes() -> None:
+    expected = {
+        "expected/analytic.json": "ccbd99cac3e08e4834759097dc8da28712e794bdf5010840b07a3251a9b26a2e",
+        "expected/symbolic.json": "a270fc1ab66df9f9e50cdd47dfc114b4524975eda1b559dad053940edf6b9075",
+        "references/analytic-derivation.md": "091029829a242f2df114765b046dcc0f256d64982cc7b110e6b1e9accab50a42",
+        "references/derive_reference.py": "8af783bab781355aaa3a963a7ba7e5f9abbe8c6bc1847385b365aa1c3b13a4b3",
+    }
     for relative, digest in expected.items():
         require(isinstance(relative, str), "scientific hash path must be text")
         require(isinstance(digest, str), "scientific hash must be text")
@@ -69,7 +71,7 @@ def check_symbolic_derivation() -> None:
 
 
 def check_scientific_agreement(
-    analytic: dict[str, object], symbolic: dict[str, object], state: dict[str, object]
+    analytic: dict[str, object], symbolic: dict[str, object]
 ) -> None:
     require(
         analytic["schema"] == "eqiora.faer-sparse-lu-reuse.analytic-oracle.v1",
@@ -81,20 +83,15 @@ def check_scientific_agreement(
     )
     analytic_points = analytic["points"]
     symbolic_points = symbolic["accepted_points"]
-    state_points = state["fixture"]["points"]
     require(isinstance(analytic_points, list), "analytic points must be a list")
     require(isinstance(symbolic_points, list), "symbolic points must be a list")
-    require(isinstance(state_points, list), "state points must be a list")
-    require(len(analytic_points) == len(symbolic_points) == len(state_points) == 3, "point count")
+    require(len(analytic_points) == len(symbolic_points) == 3, "point count")
 
-    for analytic_point, symbolic_point, state_point in zip(
-        analytic_points, symbolic_points, state_points, strict=True
-    ):
+    for analytic_point, symbolic_point in zip(analytic_points, symbolic_points, strict=True):
         require(isinstance(analytic_point, dict), "analytic point must be an object")
         require(isinstance(symbolic_point, dict), "symbolic point must be an object")
-        require(isinstance(state_point, dict), "state point must be an object")
         point_id = analytic_point["id"]
-        require(point_id == symbolic_point["id"] == state_point["id"], "point IDs disagree")
+        require(point_id == symbolic_point["id"], "point IDs disagree")
 
         analytic_system = analytic_point["reduced_system"]
         symbolic_elimination = symbolic_point["strong_dirichlet_elimination"]
@@ -104,38 +101,31 @@ def check_scientific_agreement(
         require(isinstance(symbolic_csr, dict), f"{point_id} symbolic reduced CSR")
 
         require(
-            analytic_system["csr_offsets"]
-            == symbolic_csr["offsets"]
-            == state_point["csr_offsets"],
+            analytic_system["csr_offsets"] == symbolic_csr["offsets"],
             f"{point_id} CSR offsets disagree",
         )
         require(
-            analytic_system["csr_columns"]
-            == symbolic_csr["columns"]
-            == state_point["csr_columns"],
+            analytic_system["csr_columns"] == symbolic_csr["columns"],
             f"{point_id} CSR columns disagree",
         )
         analytic_values = [rational_text(value) for value in analytic_system["csr_values"]]
         symbolic_values = [rational_pair(value) for value in symbolic_csr["values"]]
-        state_values = [rational_text(value) for value in state_point["csr_values"]]
         require(
-            analytic_values == symbolic_values == state_values,
+            analytic_values == symbolic_values,
             f"{point_id} CSR values disagree",
         )
         analytic_rhs = [rational_text(value) for value in analytic_system["rhs"]]
         symbolic_rhs = [
             rational_pair(value) for value in symbolic_elimination["reduced_rhs"]
         ]
-        state_rhs = [rational_text(value) for value in state_point["right_hand_side"]]
-        require(analytic_rhs == symbolic_rhs == state_rhs, f"{point_id} RHS disagrees")
+        require(analytic_rhs == symbolic_rhs, f"{point_id} RHS disagrees")
 
         analytic_solution = [rational_text(value) for value in analytic_system["solution"]]
         symbolic_solution = [
             rational_pair(value) for value in symbolic_point["exact_solution"]["reduced_free_dofs"]
         ]
-        state_solution = [rational_text(value) for value in state_point["solution"]]
         require(
-            analytic_solution == symbolic_solution == state_solution,
+            analytic_solution == symbolic_solution,
             f"{point_id} solution disagrees",
         )
         analytic_residual = [
@@ -192,105 +182,13 @@ def check_scientific_agreement(
         )
 
 
-def check_state_contract(state: dict[str, object]) -> None:
-    require(
-        state["schema"] == "eqiora.faer-sparse-lu-reuse.state-machine-oracle.v2",
-        "unexpected state-machine schema",
-    )
-    public_surface = state["public_surface"]
-    migration = state["migration"]
-    require(isinstance(migration, dict), "migration must be an object")
-    require(migration["issue"] == 724, "prepared lifecycle migration issue")
-    require(migration["scientific_oracles_changed"] is False, "scientific oracle drift")
-    require(
-        migration["implementation_output_used_as_expectation"] is False,
-        "implementation output cannot author the migrated contract",
-    )
-    require(isinstance(public_surface, dict), "public surface must be an object")
-    require(public_surface["type"] == "FaerLinearSolver", "public adapter type")
-    require(public_surface["sync"] is True, "stateless adapter remains Sync")
-    require(public_surface["provider_state_public"] is False, "provider state stays private")
-    require(public_surface["reuse_counters_public"] is False, "reuse counters stay private")
-    require(public_surface["factor_identity_public"] is False, "factor identity stays private")
-    require(
-        public_surface["methods"]
-        == ["with_prepared_linear"],
-        "public method inventory drifted",
-    )
-    accepted = state["accepted_sequence"]
-    require(isinstance(accepted, dict), "accepted sequence must be an object")
-    require(
-        accepted["final_counters"]
-        == {
-            "attempted_solve_count": 3,
-            "accepted_solve_count": 3,
-            "symbolic_factorization_count": 1,
-            "numeric_factorization_count": 2,
-        },
-        "accepted counter inventory drifted",
-    )
-    operations = accepted["operations"]
-    require(isinstance(operations, list), "accepted operations must be a list")
-    require([operation["id"] for operation in operations] == ["p0", "p1", "p2"], "order")
-    require(
-        state["failure_retention"]["after_singular_counters"]
-        == {
-            "attempted_solve_count": 2,
-            "accepted_solve_count": 1,
-            "symbolic_factorization_count": 1,
-            "numeric_factorization_count": 1,
-        },
-        "singular retention counters drifted",
-    )
-    require(len(state["targeted_mutants"]) == 6, "all six targeted mutants are mandatory")
-    encoding = state["identity_encoding"]
-    require(encoding["digest_bytes"] == 32, "reuse digests must remain 32 bytes")
-    require(
-        encoding["counts_and_indices"] == "unsigned-u64-big-endian",
-        "count/index encoding drifted",
-    )
-    require(
-        encoding["floating_values"]
-        == "ieee-754-binary64-bits-big-endian-with-both-signed-zero-encodings-normalized-to-positive-zero",
-        "binary64 encoding drifted",
-    )
-    require(
-        [
-            encoding["structure_domain"],
-            encoding["coefficient_domain"],
-            encoding["policy_domain"],
-            encoding["symbolic_domain"],
-            encoding["numeric_domain"],
-        ]
-        == [
-            "eqiora.faer-sparse-lu-reuse.structure/v1\\0",
-            "eqiora.faer-sparse-lu-reuse.coefficients/v1\\0",
-            "eqiora.faer-sparse-lu-reuse.policy/v1\\0",
-            "eqiora.faer-sparse-lu-reuse.symbolic/v1\\0",
-            "eqiora.faer-sparse-lu-reuse.numeric/v1\\0",
-        ],
-        "identity domain separation drifted",
-    )
-    require(
-        state["ordering"]["phase_counts_are_order_independent"] == "not-claimed",
-        "ordering must not acquire a phase-count claim",
-    )
-    storage = state["concurrency_and_storage"]
-    require(storage["parallelism"] == "Par::Seq", "parallelism drifted")
-    require(storage["process_global_state"] is False, "global state is forbidden")
-    require(storage["directory_state"] is False, "directory state is forbidden")
-    require(storage["persistent_state"] is False, "persistence is forbidden")
-
-
 def check() -> None:
     analytic = load("expected/analytic.json")
     symbolic = load("expected/symbolic.json")
-    state = load("expected/state-machine.json")
-    check_frozen_hashes(state)
+    check_frozen_hashes()
     check_symbolic_derivation()
-    check_scientific_agreement(analytic, symbolic, state)
-    check_state_contract(state)
-    print("faer sparse-LU reuse scientific agreement and state oracle: checked")
+    check_scientific_agreement(analytic, symbolic)
+    print("faer sparse-LU reuse independent scientific oracles: checked")
 
 
 def main() -> None:

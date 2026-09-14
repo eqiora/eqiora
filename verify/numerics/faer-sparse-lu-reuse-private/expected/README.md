@@ -1,7 +1,4 @@
-# Expected private observations
+# Expected behavior
 
-The exact phase vocabulary, operation traces, counter snapshots, identity
-relations, failure-retention observations, component mutants, and invalid
-factor states are frozen in
-`../../faer-sparse-lu-reuse/expected/state-machine.json`. This private case
-does not maintain a second machine-readable oracle.
+The crate-private tests directly exercise the production provider session. There is no separate
+phase-ledger or state-machine fixture to keep synchronized with that code.

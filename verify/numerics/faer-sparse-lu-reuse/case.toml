@@ -1,25 +1,22 @@
 id = "numerics.faer-sparse-lu-reuse"
 status = "implemented"
-scope = "one-host-serial-prepared-faer-sparse-lu-factorization-reuse"
-reference_kind = "dual-independent-exact-scientific-oracle-plus-independent-state-machine-oracle"
+scope = "host-serial-run-local-faer-sparse-lu-symbolic-reuse"
+reference_kind = "dual-independent-exact-scientific-oracle-plus-focused-provider-falsifiers"
 
 capabilities = [
-  "eqiora-owned-prepared-linear-candidate-accept-commit",
-  "provider-private-faer-sparse-lu-session",
-  "accepted-binding-structure-coefficient-policy-provider-and-graph-validation",
-  "right-hand-side-only-numeric-factor-reuse",
-  "same-structure-coefficient-change-symbolic-factor-reuse",
-  "acceptance-time-state-commit",
+  "backend-neutral-prepared-linear-provider-session",
+  "assembly-owned-exact-structure-identity",
+  "provider-private-symbolic-and-numeric-factors",
+  "same-identity-and-actual-csr-topology-symbolic-reuse",
+  "changed-coefficients-numeric-refactorization",
   "failed-candidate-state-retention",
-  "failed-candidate-cannot-mint-commit-authority",
-  "cold-warm-accepted-output-receipt-and-lineage-equality",
+  "cold-warm-solution-and-report-equality",
 ]
 
 [authority]
 required_companion_case = "numerics.faer-sparse-lu-reuse-private"
 verification_requires_both_cases = true
 public_observation_owner = "crates/eqiora/tests/faer_sparse_lu_reuse.rs"
-state_oracle = "expected/state-machine.json"
 scientific_oracle_a = "expected/analytic.json"
 scientific_oracle_b = "expected/symbolic.json"
 
@@ -29,95 +26,38 @@ boundary = "trace(potential) - boundary_offset = 0 at x=0 and x=1"
 domain = "[0, 1]"
 method = "continuous Q1 Galerkin"
 uniform_elements = 2
-quadrature = "two-point Gauss-Legendre"
-parameter_tuple_order = ["source_scale", "diffusion", "boundary_offset"]
 points = ["p0=(2,1,0)", "p1=(4,1,0)", "p2=(2,5/4,0)"]
 reduced_systems = ["[4]x=[1]", "[4]x=[2]", "[5]x=[1]"]
 exact_solutions = ["1/4", "1/2", "1/5"]
 
 [execution]
-realization_revision = 31
 target = "one host CPU"
-schedule = "offline"
 layout = "replicated"
 scalar = "f64"
-operator_property = "symmetric-positive-definite"
 solver = "SparseLu"
 preconditioner = "Identity"
 reduction = "Fast"
-relative_tolerance = "0 exactly"
-absolute_tolerance = "2^-30 exactly"
-maximum_iterations = 1
 parallelism = "Par::Seq"
 
 [acceptance]
 solution_error_ceiling = "2^-32"
-cold_warm_solution_bits_equal = true
-cold_warm_true_residual_bits_equal = true
-cold_warm_receipts_equal = true
-cold_warm_lineage_equal = true
-p0_p1_symbolic_identity_equal = true
-p0_p1_numeric_identity_equal = true
-p0_p1_existing_full_csr_identity_equal = false
-p1_p2_symbolic_identity_equal = true
-p1_p2_numeric_identity_equal = false
-ordered_p0_p1_p2_counters = [3, 3, 1, 2]
-all_compatible_permutations_preserve_pointwise_acceptance = true
-phase_count_order_independence = false
-
-[failure_retention]
-structure_mismatch = "EQ0807 before numerical work; no state or counter change"
-foreign_model = "EQ0807 before numerical work despite byte-identical CSR"
-foreign_provider = "EQ0807 before numerical work"
-singular_candidate = "numerical failure after one attempt; last committed factors and identities retained"
-p0_singular_p1 = "p1 accepts using the retained p0 numeric factor"
-preflight_rejection_consumes_attempt = false
-failed_numerical_candidate_consumes_attempt = true
-accepted_execution_consumes_attempt = true
-
-[falsifiers]
-rhs_omission = "p0 and p1 have equal matrix bytes but unequal existing full-CSR fingerprints"
-structure_omission = "same-graph 2x2 canonical CSR rejects before numerical work"
-coefficient_omission = "p2 requires a second numeric construction and changes numeric identity"
-policy_omission = "companion private targeted mutant"
-provider_omission = "foreign provider rejects before numerical work and companion targeted mutant survives only when provider equality is omitted"
-graph_omission = "foreign Model with byte-identical CSR rejects and companion targeted mutant survives only when graph equality is omitted"
+cold_warm_solution_and_report_equal = true
+same_structure_symbolic_factorizations = 1
+changed_value_numeric_factorizations = 2
+identity_change_rebuilds_symbolic_before_numeric = true
+actual_csr_topology_change_rebuilds_symbolic_before_numeric = true
+failed_numeric_candidate_retains_last_accepted_factors = true
 
 [claim_boundary]
-adds_public_types = 1
-changes_linear_solver_backend_trait = false
 general_cache = false
 process_global_state = false
-directory_state = false
 persistent_or_durable_factorization = false
 cross_process_machine_release_provider_or_hardware_reuse = false
 multi_rhs_or_block_solve = false
-parallel_parameter_study = false
-batching_doe_optimization_or_uq = false
-alternate_ordering_or_pivot_policy = false
-preconditioner = false
 cuda = false
-cuda_commit_semantics_only = true
 mpi = false
-distributed_or_out_of_core = false
 performance_or_scale = false
-phase_count_order_independence = false
-
-[precommitment]
-precommitted = true
-authored_before_implementation_by_a_fresh_context_nonimplementer = true
-base_revision = "46f77e3cc5eb19c6d4d023db890b118a62834c8f"
-scientific_oracles_agreed_before_state_oracle = true
-implementation_read = false
-writer_scratch_read = false
-expected_predecessor_result = "the historical public owner is displaced atomically by the general ephemeral prepared-execution authority while the scientific oracle remains unchanged"
 
 [evidence]
 package = "eqiora"
 test = "faer_sparse_lu_reuse"
-
-[migration]
-issue = 724
-basis = "accepted candidate-to-Eqiora-acceptance-to-commit lifecycle"
-scientific_oracles_changed = false
-implementation_output_used_as_expectation = false

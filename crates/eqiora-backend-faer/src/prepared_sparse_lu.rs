@@ -248,6 +248,11 @@ mod tests {
     }
 
     #[test]
+    fn registered_exact_structure_reuse_falsifiers() {
+        exact_structure_and_topology_control_symbolic_reuse();
+        failed_numeric_candidate_does_not_replace_accepted_factors();
+    }
+
     fn exact_structure_and_topology_control_symbolic_reuse() {
         let a = PreparedLinearStructureIdentity::new(&b"ordering-a"[..]).unwrap();
         let b = PreparedLinearStructureIdentity::new(&b"ordering-b"[..]).unwrap();
@@ -291,5 +296,46 @@ mod tests {
             .solve(&b, &systems[2].linear_problem().unwrap())
             .unwrap();
         assert_eq!(prepared.symbolic_factorizations, 3);
+    }
+
+    fn failed_numeric_candidate_does_not_replace_accepted_factors() {
+        let identity = PreparedLinearStructureIdentity::new(&b"stable-structure"[..]).unwrap();
+        let accepted = Storage {
+            offsets: vec![0, 1],
+            columns: vec![0],
+            values: vec![4.0],
+            rhs: vec![1.0],
+        };
+        let singular = Storage {
+            offsets: vec![0, 1],
+            columns: vec![0],
+            values: vec![0.0],
+            rhs: vec![1.0],
+        };
+        let same_coefficients_new_rhs = Storage {
+            offsets: vec![0, 1],
+            columns: vec![0],
+            values: vec![4.0],
+            rhs: vec![2.0],
+        };
+        let systems = [
+            system(&accepted),
+            system(&singular),
+            system(&same_coefficients_new_rhs),
+        ];
+        let mut prepared = FaerPreparedSparseLu::new(plan());
+        prepared
+            .solve(&identity, &systems[0].linear_problem().unwrap())
+            .unwrap();
+        assert!(
+            prepared
+                .solve(&identity, &systems[1].linear_problem().unwrap())
+                .is_err()
+        );
+        let retried = prepared
+            .solve(&identity, &systems[2].linear_problem().unwrap())
+            .unwrap();
+        assert_eq!(retried.values(), &[0.5]);
+        assert_eq!(prepared.symbolic_factorizations, 1);
     }
 }
