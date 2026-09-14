@@ -6,6 +6,11 @@ are recorded here.
 
 ## [Unreleased]
 
+### Fixed
+
+- Mapped Colab diagnostic modules to their owning distributions explicitly, so
+  Matplotlib's `mpl_toolkits` namespace cannot fail environment reconciliation.
+
 ## [0.1.0] - 2026-09-14
 
 ### Added
