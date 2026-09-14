@@ -152,16 +152,16 @@ fn steady_stokes_directional_certificate_rejects_structural_mutants() {
         .expect("canonical steady Stokes lowers");
     let common = model.common();
     let certified = common.correspondence().entries.clone();
-    super::mixed_certificate::check_model(&program, common, &certified)
+    super::mixed_certificate::check_model(&program, common, &certified, None)
         .expect("live DAG matches the admitted certificate");
 
     let mut missing = certified.clone();
     missing.pop();
-    assert!(super::mixed_certificate::check_model(&program, common, &missing).is_err());
+    assert!(super::mixed_certificate::check_model(&program, common, &missing, None).is_err());
 
     let mut duplicate = certified.clone();
     duplicate.push(duplicate[0]);
-    assert!(super::mixed_certificate::check_model(&program, common, &duplicate).is_err());
+    assert!(super::mixed_certificate::check_model(&program, common, &duplicate, None).is_err());
 
     let mut reversed = certified.clone();
     let momentum = reversed
@@ -172,7 +172,29 @@ fn steady_stokes_directional_certificate_rejects_structural_mutants() {
         MixedTermSign::Positive => MixedTermSign::Negative,
         MixedTermSign::Negative => MixedTermSign::Positive,
     };
-    assert!(super::mixed_certificate::check_model(&program, common, &reversed).is_err());
+    assert!(super::mixed_certificate::check_model(&program, common, &reversed, None).is_err());
+
+    let mut wrong_assumption = certified.clone();
+    wrong_assumption[0].assumptions = &["numerical-agreement-implies-equivalence"];
+    assert!(
+        super::mixed_certificate::check_model(&program, common, &wrong_assumption, None).is_err()
+    );
+    let definition =
+        super::support::typed_relation(&program, common.force_potential_definition()).unwrap();
+    let dag = definition.expression();
+    let field_node=dag.nodes().iter().position(|node|matches!(node,eqiora_schema::kernel::ExprNode::Symbol(eqiora_schema::kernel::SymbolRef::Field(id)) if id.erase()==common.force_potential())).unwrap();
+    let mut self_authenticating = certified.clone();
+    let entry = self_authenticating
+        .iter_mut()
+        .find(|e| e.role == MixedTermRole::SourceDefinition)
+        .unwrap();
+    entry.source_node = dag.node_id(field_node as u32).unwrap();
+    entry.source_sign = MixedTermSign::Positive;
+    entry.produced_sign = MixedTermSign::Positive;
+    assert!(
+        super::mixed_certificate::check_model(&program, common, &self_authenticating, None)
+            .is_err()
+    );
 
     let mut crosswired = certified;
     crosswired
@@ -180,7 +202,7 @@ fn steady_stokes_directional_certificate_rejects_structural_mutants() {
         .find(|entry| entry.role == MixedTermRole::ContinuityConstraint)
         .expect("continuity entry")
         .test = Some(common.velocity());
-    assert!(super::mixed_certificate::check_model(&program, common, &crosswired).is_err());
+    assert!(super::mixed_certificate::check_model(&program, common, &crosswired, None).is_err());
 
     let mut inward = common.correspondence().entries.clone();
     inward
@@ -188,7 +210,7 @@ fn steady_stokes_directional_certificate_rejects_structural_mutants() {
         .find(|entry| entry.role == MixedTermRole::BoundaryLaw)
         .expect("boundary entry")
         .normal = crate::form_compiler::vocabulary::MixedNormalOrientation::ParentOutward;
-    assert!(super::mixed_certificate::check_model(&program, common, &inward).is_err());
+    assert!(super::mixed_certificate::check_model(&program, common, &inward, None).is_err());
 }
 
 fn assert_transient_navier_stokes_rejected(source: &str) {

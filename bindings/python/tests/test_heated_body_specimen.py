@@ -15,7 +15,12 @@ spec.loader.exec_module(example)
 
 
 def check_heat(model, result, heating=1):
-    field = model.field(model.authored_formulations[0].trial_field_id)
+    form, = model.authored_formulations
+    trial_id, = form.trial_field_ids
+    (_, restriction_trial_id, zero_on), = form.test_restrictions
+    assert restriction_trial_id == trial_id
+    assert len(zero_on) == len(set(zero_on)) == 4
+    field = model.field(trial_id)
     temperatures = np.sort(result.output(field).values("vertex").numpy().reshape(-1))
     assert temperatures.shape == (9,)
     # Four h=1/2 Q1 squares: each central-hat stiffness contribution is 2/3.
@@ -38,7 +43,6 @@ def test_steady_heated_body_package_runs_and_moves_offline(tmp_path):
                                   geometry=geometry, bindings=bindings)
     plan = example.resolve(model, geometry)
     assert plan.formulation.requested == eqiora.FormulationSelectionMode.Authored
-    assert len(model.authored_formulations[0].zero_on_domain_ids) == 4
     result = eqiora.run(plan)
     check_heat(model, result)
     restored = eqiora.Plan.from_bytes(plan.to_bytes())

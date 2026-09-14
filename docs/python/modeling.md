@@ -561,7 +561,7 @@ essential Field values. Nonzero prescribed values, storage, arbitrary weak forms
 authored integral-conservative and mixed forms remain unsupported.
 
 Python uses `w = component.test("w", for_=temperature, zero_on=surface)` followed by
-`component.weak_form("weak_heat", heat_balance, left=..., right=...)`. Use
+`component.weak_form("weak_heat", [heat_balance], equations=[(left, right)])`. Use
 `component.boundaries(left, right, bottom, top)` for an explicit boundary collection.
 The former `primal_form` and global `test(field)` entry points are removed.
 `model.authored_formulations` exposes the form name, test name, exact trial and

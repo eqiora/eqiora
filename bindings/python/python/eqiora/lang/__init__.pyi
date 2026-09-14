@@ -466,14 +466,13 @@ class Component:
     ) -> Relation:
         ...
 
-    def test(self, name: str, *, for_: Expression, zero_on: Support | BoundarySelectionSet) -> Expression: ...
+    def test(self, name: str, *, for_: Expression, zero_on: Support | BoundarySelectionSet | None = None) -> Expression: ...
     def weak_form(
         self,
         name: str,
-        relation: Relation,
+        relations: Sequence[Relation],
         *,
-        left: Expression,
-        right: Expression,
+        equations: Sequence[tuple[object, object]],
         doc: str | None = None,
     ) -> None: ...
     def port(self, name: str, *, connector: Connector, on: Support | None = None,
@@ -871,6 +870,14 @@ def normal(value: Expression) -> Expression:
 
     ...
 
+def frobenius(left: Expression, right: Expression) -> Expression:
+    """Author the Frobenius contraction of two tensor expressions.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::frobenius``.
+    """
+    ...
+
+
 def symmetric_part(value: Expression) -> Expression:
     """Return the language symmetric part of one expression.
 
@@ -958,6 +965,7 @@ __all__ = [
     "remainder",
     "to_real",
     "to_integer",
+    "frobenius",
     "symmetric_part",
     "tensor_value",
     "trace",

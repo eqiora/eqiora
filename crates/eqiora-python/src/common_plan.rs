@@ -916,7 +916,7 @@ fn resolve_plan(
         temporal_native,
         &FaerLinearSolver,
         model_ref
-            .authored_scalar_primal_projection()
+            .authored_formulation_projection()
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
     )
     .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;

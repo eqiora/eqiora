@@ -369,7 +369,7 @@ fn compile(
                 .formulations()
                 .next()
                 .expect("nonempty authored forms")
-                .4;
+                .3;
             return Err(vec![source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 component.file,

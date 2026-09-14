@@ -967,6 +967,11 @@ def normal(value: object) -> Expression:
     return _unary("normal", value)
 
 
+def frobenius(left: object, right: object) -> Expression:
+    """Author the Frobenius contraction of two tensor expressions."""
+    return _binary_function("frobenius", left, right)
+
+
 def symmetric_part(value: object) -> Expression:
     return _unary("symmetric_part", value)
 
@@ -1030,7 +1035,7 @@ class Component:
         "_ports",
         "_connections",
         "_formulations",
-        "_test_restriction",
+        "_test_restrictions",
         "_instances",
         "_name",
         "_names",
@@ -1092,9 +1097,9 @@ class Component:
         self._laws: list[
             tuple[str, Support, Expression | None, Expression, Expression, tuple[str, ...]]
         ] = []
-        self._test_restriction = None
+        self._test_restrictions: list[tuple[str, str, tuple[str, ...]]] = []
         self._formulations: list[
-            tuple[str, Relation, Expression, Expression, tuple[str, ...]]
+            tuple[str, tuple[Relation, ...], tuple[tuple[Expression, Expression], ...], tuple[str, ...]]
         ] = []
         self._instances: list[tuple[str, Component, tuple[tuple[str, str], ...], tuple[str, ...]]] = []
         self._ports = []
@@ -1605,14 +1610,19 @@ class Component:
         from ._law import declare
         return declare(self, name, on, flux, source, storage, doc)
 
-    def test(self, name: str, *, for_: Expression, zero_on: Support | BoundarySelectionSet) -> Expression:
-        """Declare the dimensionless test and its exact homogeneous boundary restriction."""
+    def test(self, name: str, *, for_: Expression,
+             zero_on: Support | BoundarySelectionSet | None = None) -> Expression:
+        """Declare a test for an exact trial and an optional homogeneous boundary restriction."""
         self._source._ensure_open()
-        if self._test_restriction is not None:
-            raise ModuleError("one scalar weak form admits one test declaration")
         if not isinstance(for_, _Field) or for_._owner is not self._component_token:
             raise ModuleError("test trial must be a Field from this Component")
-        if isinstance(zero_on, BoundarySelectionSet):
+        if any(trial == for_._name for _, trial, _ in self._test_restrictions):
+            raise ModuleError("a trial Field may have only one test declaration")
+        if len(self._test_restrictions) >= 8:
+            raise ModuleError("weak form exceeds the 8-test limit")
+        if zero_on is None:
+            boundaries = ()
+        elif isinstance(zero_on, BoundarySelectionSet):
             if zero_on._component is not self._component_token:
                 raise ModuleError("test boundary selection must belong to this Component")
             boundaries = tuple(member._name for member in zero_on._members)
@@ -1622,57 +1632,57 @@ class Component:
                 raise ModuleError("test restriction must be closed outside a boundary binder")
             boundaries = (zero_on._name,)
         admitted = self._add_name(name)
-        self._test_restriction = (admitted, for_._name, boundaries)
+        self._test_restrictions.append((admitted, for_._name, boundaries))
         return Expression(_CREATE, _Ast.name(admitted), self._component_token)
 
     def weak_form(
         self,
         name: str,
-        relation: Relation,
+        relations: Sequence[Relation],
         *,
-        left: Expression,
-        right: Expression,
+        equations: Sequence[tuple[object, object]],
         doc: str | None = None,
     ) -> None:
-        """Attach one named scalar weak equality with its declared test restriction."""
-
+        """Attach one named weak form with ordered relations, tests, and equalities."""
         self._source._ensure_open()
-        if (
-            not isinstance(relation, Relation)
-            or relation._component is not self._component_token
-        ):
-            raise ModuleError("form relation must belong to this Component")
-        left_expression = _expression(left)
-        right_expression = _expression(right)
-        for expression in (left_expression, right_expression):
-            self._closed_expression(expression)
-            if expression._owner is not self._component_token:
-                raise ModuleError("form expressions must belong to this Component")
+        if not isinstance(relations, Sequence) or not 1 <= len(relations) <= 8:
+            raise ModuleError("weak form requires between 1 and 8 relations")
+        if any(not isinstance(relation, Relation)
+               or relation._component is not self._component_token for relation in relations):
+            raise ModuleError("form relations must belong to this Component")
+        if len({relation._name for relation in relations}) != len(relations):
+            raise ModuleError("weak form relations must be distinct")
+        if not isinstance(equations, Sequence) or not 1 <= len(equations) <= 8:
+            raise ModuleError("weak form requires between 1 and 8 equations")
+        pairs = []
+        for pair in equations:
+            if not isinstance(pair, tuple) or len(pair) != 2:
+                raise TypeError("weak form equations must be pairs of expressions")
+            left, right = (_expression(value) for value in pair)
+            for expression in (left, right):
+                self._closed_expression(expression)
+                if expression._owner is not None and expression._owner is not self._component_token:
+                    raise ModuleError("form expressions must belong to this Component")
+            pairs.append((left, right))
         if self._formulations:
-            raise ModuleError("the scalar-primal Module vocabulary admits one form")
+            raise ModuleError("a Component admits one named weak form")
         total_nodes = (
-            sum(
-                left._nodes + right._nodes
-                for item in self._relations for _, left, right in item[2]
-            )
+            sum(left._nodes + right._nodes
+                for item in self._relations for _, left, right in item[2])
             + sum(sum(term._nodes for term in item[2:5] if term is not None) for item in self._laws)
-            + left_expression._nodes
-            + right_expression._nodes
+            + sum(left._nodes + right._nodes for left, right in pairs)
         )
         if total_nodes > _MAX_EXPRESSION_NODES:
             raise ModuleError(
                 f"Component relation and form expressions exceed the {_MAX_EXPRESSION_NODES}-node limit"
             )
+        if not self._test_restrictions:
+            raise ModuleError("weak form requires explicit test declarations")
         if self._declaration_count >= _MAX_DECLARATIONS:
-            raise ModuleError(
-                f"Component exceeds the {_MAX_DECLARATIONS}-declaration limit"
-            )
+            raise ModuleError(f"Component exceeds the {_MAX_DECLARATIONS}-declaration limit")
+        admitted, doc_lines = _name(name), _doc(doc)
         self._declaration_count += 1
-        if self._test_restriction is None:
-            raise ModuleError("weak form requires an explicit test declaration")
-        self._formulations.append(
-            (_name(name), relation, left_expression, right_expression, _doc(doc))
-        )
+        self._formulations.append((admitted, tuple(relations), tuple(pairs), doc_lines))
 
     @_property
     def _qualified_name(self) -> str:
@@ -1782,7 +1792,7 @@ class Component:
         self._notations[name] = notation
 
     def _declaration(self, allocate) -> _AstDefinition:
-        if self._test_restriction is not None and not self._formulations:
+        if self._test_restrictions and not self._formulations:
             raise ModuleError("test declaration requires its owning weak form")
         declarations = []
         def add(name, doc, factory):
@@ -1850,9 +1860,9 @@ class Component:
                 name, component._qualified_name, bindings, n))
         form = None
         if self._formulations:
-            name, relation, left, right, doc = self._formulations[0]
-            test_name, trial, boundaries = self._test_restriction
-            form = ((name, relation._name, test_name, trial, boundaries), left._ast, right._ast, allocate(doc))
+            name, relations, equations, doc = self._formulations[0]
+            form = (name, [relation._name for relation in relations], self._test_restrictions,
+                    [(left._ast, right._ast) for left, right in equations], allocate(doc))
         ordinal = allocate(self._doc, self._source._notations.get(self._name))
         return _AstDefinition(self._name, self._kind == "model", declarations, form, ordinal)
 
@@ -2560,6 +2570,7 @@ __all__ = [
     "remainder",
     "to_real",
     "to_integer",
+    "frobenius",
     "symmetric_part",
     "tensor_value",
     "trace",

@@ -63,10 +63,18 @@ impl Parser<'_> {
             .text()
             .to_owned();
         self.expect_keyword("for")?;
-        let relation = self
-            .expect_identifier("Formulation Relation")?
-            .text()
-            .to_owned();
+        let mut relations = Vec::new();
+        loop {
+            relations.push(
+                self.expect_identifier("Formulation Relation")?
+                    .text()
+                    .to_owned(),
+            );
+            if !self.at(TokenKind::Comma) {
+                break;
+            }
+            self.bump();
+        }
         self.expect(TokenKind::LeftBrace, "`{` before authored Formulation")?;
         let binding = if self.at_keyword("interval") {
             self.bump();
@@ -95,56 +103,68 @@ impl Parser<'_> {
                 domain,
             }
         } else {
-            self.expect_keyword("test")?;
-            let test = self
-                .expect_identifier("test-function name")?
-                .text()
-                .to_owned();
-            self.expect(TokenKind::Colon, "`:` before test dimension")?;
-            let dimension = self.parse_expression(0)?;
-            if !matches!(dimension.kind(), crate::ast::ExprKind::Number(value) if value.to_i64().ok() == Some(1))
-            {
-                self.error_here(
-                    "scalar weak forms require an explicit dimensionless test (`test w: 1`)",
-                );
-                return None;
-            }
-            self.expect_keyword("for")?;
-            let trial = self
-                .expect_identifier("trial Field name")?
-                .text()
-                .to_owned();
-            self.expect_keyword("zero_on")?;
-            let mut zero_on = Vec::new();
+            let mut tests = Vec::new();
             loop {
-                zero_on.push(
-                    self.expect_identifier("essential test boundary")?
-                        .text()
-                        .to_owned(),
-                );
-                if !self.at(TokenKind::Comma) {
+                self.expect_keyword("test")?;
+                let name = self
+                    .expect_identifier("test-function name")?
+                    .text()
+                    .to_owned();
+                self.expect(TokenKind::Colon, "`:` before test dimension")?;
+                let dimension = self.parse_expression(0)?;
+                if !matches!(dimension.kind(), crate::ast::ExprKind::Number(value) if value.to_i64().ok() == Some(1))
+                {
+                    self.error_here(
+                        "weak forms require an explicit dimensionless test (`test w: 1`)",
+                    );
+                    return None;
+                }
+                self.expect_keyword("for")?;
+                let trial = self
+                    .expect_identifier("trial Field name")?
+                    .text()
+                    .to_owned();
+                let mut zero_on = Vec::new();
+                if self.at_keyword("zero_on") {
+                    self.bump();
+                    loop {
+                        zero_on.push(
+                            self.expect_identifier("essential test boundary")?
+                                .text()
+                                .to_owned(),
+                        );
+                        if !self.at(TokenKind::Comma) {
+                            break;
+                        }
+                        self.bump();
+                    }
+                }
+                self.expect(TokenKind::Semicolon, "`;` after test declaration")?;
+                tests.push((name, trial, zero_on));
+                if !self.at_keyword("test") {
                     break;
                 }
-                self.bump();
             }
-            self.expect(TokenKind::Semicolon, "`;` after test restriction")?;
-            FormulationBinding::WeakTest {
-                name: test,
-                trial,
-                zero_on,
-            }
+            FormulationBinding::WeakTests { tests }
         };
-        let left = self.parse_expression(0)?;
-        self.expect(TokenKind::Equal, "`=` in authored Formulation")?;
-        let right = self.parse_expression(0)?;
-        self.expect(
-            TokenKind::Semicolon,
-            "`;` after authored Formulation equality",
-        )?;
+        let mut equations = Vec::new();
+        loop {
+            let left = self.parse_expression(0)?;
+            self.expect(TokenKind::Equal, "`=` in authored Formulation")?;
+            let right = self.parse_expression(0)?;
+            self.expect(
+                TokenKind::Semicolon,
+                "`;` after authored Formulation equality",
+            )?;
+            equations.push((left, right));
+            if self.at(TokenKind::RightBrace) {
+                break;
+            }
+        }
         let end = self
             .expect(
                 TokenKind::RightBrace,
-                "`}` after the single authored Formulation equality",
+                "`}` after authored Formulation equalities",
             )?
             .range()
             .end();
@@ -152,9 +172,8 @@ impl Parser<'_> {
             comments: Default::default(),
             name,
             binding,
-            relation,
-            left,
-            right,
+            relations,
+            equations,
             range: TextRange::new(start, end),
         })
     }
@@ -184,10 +203,13 @@ component Diffusion(
         let document = parse("form.eqi", source).into_document().unwrap();
         let component = &document.components()[0];
         let forms = component.formulations().collect::<Vec<_>>();
-        let [(_, relation, left, right, _)] = forms.as_slice() else {
+        let [(_, relations, equations, _)] = forms.as_slice() else {
             panic!("one form expected")
         };
-        assert_eq!(*relation, "balance");
+        assert_eq!(*relations, ["balance"]);
+        let [(left, right)] = *equations else {
+            panic!("one equality expected")
+        };
         assert!(
             matches!(left.kind(), ExprKind::Call { callee, arguments } if callee.as_str() == "integrate" && arguments.expressions().len() == 2)
         );
@@ -209,12 +231,11 @@ component Diffusion(
         }));
     }
     #[test]
-    fn test_restriction_is_explicit_and_old_implicit_syntax_rejects() {
+    fn dimensionless_test_is_explicit_and_old_implicit_syntax_rejects() {
         for body in [
             "integrate(body, test(u)) = integrate(body, test(u));",
             "test w: K for u zero_on surface; integrate(body, w)=integrate(body,w);",
             "test w: 1.00000000000000000001 for u zero_on surface; integrate(body, w)=integrate(body,w);",
-            "test w: 1 for u; integrate(body, w)=integrate(body,w);",
         ] {
             let source = format!("component C() {{ form weak for balance {{ {body} }} }}");
             assert!(parse("invalid.eqi", &source).into_document().is_err());

@@ -53,7 +53,7 @@ impl SourceAstFactory {
         })
     }
 
-    /// Construct a Component with one bound scalar mathematical equality after its members.
+    /// Construct a Component with one bound mathematical formulation after its members.
     ///
     /// # Errors
     /// Returns an error for an invalid member, identifier, expression, or byte range.
@@ -62,35 +62,45 @@ impl SourceAstFactory {
         name: impl Into<String>,
         signature: Vec<crate::SignatureItem>,
         items: Vec<ComponentItem>,
-        form: (String, String, crate::FormulationBinding),
-        equality: (Expr, Expr, TextRange),
+        form: (String, Vec<String>, crate::FormulationBinding),
+        equalities: (Vec<(Expr, Expr)>, TextRange),
         range: TextRange,
     ) -> Result<ComponentDecl, AstConstructionError> {
         super::signature::validate_signature(&signature)?;
         for item in &items {
             validate_component_item(item)?;
         }
-        let (left, right, formulation_range) = equality;
-        validate_expression(&left)?;
-        validate_expression(&right)?;
-        let (form_name, relation, binding) = form;
+        let (equations, formulation_range) = equalities;
+        if equations.is_empty() {
+            return Err(AstConstructionError::new(
+                "Formulation requires an equality",
+            ));
+        }
+        for (left, right) in &equations {
+            validate_expression(left)?;
+            validate_expression(right)?;
+        }
+        let (form_name, relations, binding) = form;
         let form_name = checked_identifier(form_name, "Formulation")?;
-        let relation = checked_identifier(relation, "Formulation Relation")?;
+        if relations.is_empty() {
+            return Err(AstConstructionError::new("Formulation requires a Relation"));
+        }
+        for relation in &relations {
+            checked_identifier(relation.clone(), "Formulation Relation")?;
+        }
         match &binding {
-            crate::FormulationBinding::WeakTest {
-                name,
-                trial,
-                zero_on,
-            } => {
-                checked_identifier(name.clone(), "test function")?;
-                checked_identifier(trial.clone(), "trial Field")?;
-                if zero_on.is_empty() {
+            crate::FormulationBinding::WeakTests { tests } => {
+                if tests.is_empty() {
                     return Err(AstConstructionError::new(
-                        "test requires explicit zero_on boundaries",
+                        "weak Formulation requires a test",
                     ));
                 }
-                for name in zero_on {
-                    checked_identifier(name.clone(), "test boundary")?;
+                for (name, trial, zero_on) in tests {
+                    checked_identifier(name.clone(), "test function")?;
+                    checked_identifier(trial.clone(), "trial Field")?;
+                    for name in zero_on {
+                        checked_identifier(name.clone(), "test boundary")?;
+                    }
                 }
             }
             crate::FormulationBinding::Interval {
@@ -121,9 +131,8 @@ impl SourceAstFactory {
                 comments: Default::default(),
                 name: form_name,
                 binding,
-                relation,
-                left,
-                right,
+                relations,
+                equations,
                 range: formulation_range,
             }],
             range,
@@ -199,15 +208,15 @@ mod tests {
         .into_document()
         .unwrap();
         let source = &parsed.components()[0];
-        let (name, relation, left, right, range) = source.formulations().next().unwrap();
+        let (name, relations, equations, range) = source.formulations().next().unwrap();
         let binding = source.formulation_binding(name).unwrap();
         let component = SourceAstFactory::component_with_form(
             VisibilitySyntax::Private,
             "C",
             source.signature().to_vec(),
             source.items().to_vec(),
-            (name.into(), relation.into(), binding.clone()),
-            (left.clone(), right.clone(), range),
+            (name.into(), relations.to_vec(), binding.clone()),
+            (equations.to_vec(), range),
             source.range(),
         )
         .unwrap();
@@ -217,5 +226,36 @@ mod tests {
 
         assert_eq!(document.components()[0].formulations().len(), 1);
         assert!(format(&document).contains("form weak for balance"));
+    }
+    #[test]
+    fn constructs_plural_form_and_rejects_empty_inventories() {
+        let parsed = parse("mixed.eqi", "component C() { form weak for momentum,continuity { test v:1 for velocity zero_on surface; test q:1 for pressure; integrate(body,v)=integrate(body,0); integrate(body,q)=integrate(body,0); } }").into_document().unwrap();
+        let source = &parsed.components()[0];
+        let (name, relations, equations, range) = source.formulations().next().unwrap();
+        let binding = source.formulation_binding(name).unwrap();
+        let construct = |relations, equations, binding| {
+            SourceAstFactory::component_with_form(
+                VisibilitySyntax::Private,
+                "C",
+                vec![],
+                vec![],
+                (name.into(), relations, binding),
+                (equations, range),
+                source.range(),
+            )
+        };
+        let component = construct(relations.to_vec(), equations.to_vec(), binding.clone()).unwrap();
+        let native = SourceAstFactory::document(vec![], vec![], vec![component], vec![]).unwrap();
+        assert_eq!(format(&native), format(&parsed));
+        assert!(construct(vec![], equations.to_vec(), binding.clone()).is_err());
+        assert!(construct(relations.to_vec(), vec![], binding.clone()).is_err());
+        assert!(
+            construct(
+                relations.to_vec(),
+                equations.to_vec(),
+                crate::FormulationBinding::WeakTests { tests: vec![] }
+            )
+            .is_err()
+        );
     }
 }

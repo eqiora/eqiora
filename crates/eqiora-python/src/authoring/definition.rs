@@ -27,9 +27,10 @@ pub(super) struct PyAstDefinition {
 }
 
 type FormInput<'py> = (
-    (String, String, String, String, Vec<String>),
-    PyRef<'py, PyAstExpression>,
-    PyRef<'py, PyAstExpression>,
+    String,
+    Vec<String>,
+    Vec<(String, String, Vec<String>)>,
+    Vec<(PyRef<'py, PyAstExpression>, PyRef<'py, PyAstExpression>)>,
     u32,
 );
 
@@ -57,14 +58,17 @@ impl PyAstDefinition {
         let range = TextRange::new(ordinal, ordinal.saturating_add(1));
         let value = if model {
             if form.is_some() {
-                return Err(syntax_error("a primal form belongs to a Component"));
+                return Err(syntax_error("a weak form belongs to a Component"));
             }
             let items = items.into_iter().map(model_item).collect::<PyResult<_>>()?;
             Definition::Model(
                 Ast::model(VisibilitySyntax::Public, name, signature, items, range)
                     .map_err(syntax_error)?,
             )
-        } else if let Some((relation, left, right, form_ordinal)) = form {
+        } else if let Some((form_name, relations, tests, equations, form_ordinal)) = form {
+            if relations.len() > 8 || tests.len() > 8 || equations.len() > 8 {
+                return Err(syntax_error("weak form exceeds the 8-item inventory limit"));
+            }
             Definition::Component(
                 Ast::component_with_form(
                     VisibilitySyntax::Public,
@@ -72,17 +76,15 @@ impl PyAstDefinition {
                     signature,
                     items,
                     (
-                        relation.0,
-                        relation.1,
-                        eqiora::language::FormulationBinding::WeakTest {
-                            name: relation.2,
-                            trial: relation.3,
-                            zero_on: relation.4,
-                        },
+                        form_name,
+                        relations,
+                        eqiora::language::FormulationBinding::WeakTests { tests },
                     ),
                     (
-                        left.value.clone(),
-                        right.value.clone(),
+                        equations
+                            .into_iter()
+                            .map(|(left, right)| (left.value.clone(), right.value.clone()))
+                            .collect(),
                         TextRange::new(form_ordinal, form_ordinal.saturating_add(1)),
                     ),
                     range,

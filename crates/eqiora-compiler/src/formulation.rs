@@ -19,6 +19,7 @@ mod index;
 mod interval;
 use index::KernelIndex;
 mod restriction;
+mod typing;
 mod wire;
 
 pub use interval::check_derived_interval_conservation;
@@ -62,6 +63,9 @@ pub(crate) enum AuthoredFormExpressionKind {
     Pow(Box<AuthoredFormExpression>, i32),
     /// Spatial gradient.
     Gradient(Box<AuthoredFormExpression>),
+    Divergence(Box<AuthoredFormExpression>),
+    SymmetricPart(Box<AuthoredFormExpression>),
+    Frobenius(Box<AuthoredFormExpression>, Box<AuthoredFormExpression>),
     /// Scalar sine.
     Sin(Box<AuthoredFormExpression>),
     /// Euclidean inner product of equal vectors.
@@ -78,9 +82,9 @@ pub(crate) enum AuthoredFormExpressionKind {
 /// One compiler-owned authored Formulation retained beside a freshly compiled Model.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CompiledAuthoredFormulation {
-    relation: Id<kinds::Relation>,
+    relations: Vec<Id<kinds::Relation>>,
     domain: Id<kinds::Domain>,
-    trial: Id<kinds::Field>,
+    trials: Vec<Id<kinds::Field>>,
     projection: AuthoredFormulationProjection,
     file: String,
     range: TextRange,
@@ -93,10 +97,10 @@ impl CompiledAuthoredFormulation {
         self.projection.source_identity()
     }
 
-    /// Relation represented by this form.
+    /// Exact Relations represented by the explicitly owned equations.
     #[must_use]
-    pub const fn relation(&self) -> Id<kinds::Relation> {
-        self.relation
+    pub fn relations(&self) -> &[Id<kinds::Relation>] {
+        &self.relations
     }
 
     /// Exact integration and Relation Domain.
@@ -105,10 +109,10 @@ impl CompiledAuthoredFormulation {
         self.domain
     }
 
-    /// Scalar trial Field named by every test function.
+    /// Exact trial Fields associated with the named test inventory.
     #[must_use]
-    pub const fn trial(&self) -> Id<kinds::Field> {
-        self.trial
+    pub fn trials(&self) -> &[Id<kinds::Field>] {
+        &self.trials
     }
 
     /// Exact canonical projection consumed by resolution and Plan replay.
@@ -146,7 +150,7 @@ pub(crate) fn compile_component_formulations(
             codes::LANGUAGE_TYPE_ERROR,
             file,
             component.range(),
-            "the scalar-primal Formulation compiler accepts exactly one form per Component",
+            "the Formulation compiler accepts exactly one named form per Component",
         )]);
     }
     let source_identity = AuthoredFormSourceIdentity::from_component(component)
@@ -154,11 +158,18 @@ pub(crate) fn compile_component_formulations(
     let index = KernelIndex::new(transaction);
     component
         .formulations()
-        .map(|(name, relation, left, right, range)| {
+        .map(|(name, relations, equations, range)| {
             let binding = component
                 .formulation_binding(name)
-                .expect("retained form binder");
-            if let eqiora_lang::FormulationBinding::Interval { .. } = binding {
+                .expect("retained binder");
+            if matches!(binding, eqiora_lang::FormulationBinding::Interval { .. }) {
+                let ([relation], [(left, right)]) = (relations, equations) else {
+                    return Err(vec![error(
+                        file,
+                        range,
+                        "interval requires exactly one Law and equation",
+                    )]);
+                };
                 return interval::compile(
                     file,
                     (name, relation, left, right, range),
@@ -168,147 +179,159 @@ pub(crate) fn compile_component_formulations(
                     &index,
                     geometry,
                 )
-                .map_err(|diagnostic| vec![diagnostic]);
+                .map_err(|e| vec![e]);
             }
-            let eqiora_lang::FormulationBinding::WeakTest {
-                name: test,
-                trial,
-                zero_on,
-            } = binding
-            else {
+            let eqiora_lang::FormulationBinding::WeakTests { tests } = binding else {
                 unreachable!()
             };
-            let form = FormSource {
-                name,
-                relation,
-                test,
-                trial,
-                zero_on,
-                left,
-                right,
-                range,
-            };
-            compile_formulation(
+            compile_weak(
                 file,
-                form,
+                name,
+                relations,
+                equations,
+                tests,
+                range,
                 source_identity,
                 symbols,
                 &index,
-                (
-                    geometry.ambient_dimension(),
-                    geometry.topological_dimension(),
-                ),
+                geometry,
                 supports,
             )
-            .map_err(|diagnostic| vec![diagnostic])
+            .map_err(|e| vec![e])
         })
         .collect()
 }
 
-struct FormSource<'a> {
-    name: &'a str,
-    relation: &'a str,
-    test: &'a str,
-    trial: &'a str,
-    zero_on: &'a [String],
-    left: &'a Expr,
-    right: &'a Expr,
-    range: TextRange,
-}
-
-fn compile_formulation(
+#[allow(clippy::too_many_arguments)]
+fn compile_weak(
     file: &str,
-    form: FormSource<'_>,
+    name: &str,
+    relation_names: &[String],
+    equations: &[(Expr, Expr)],
+    tests: &[(String, String, Vec<String>)],
+    range: TextRange,
     source_identity: AuthoredFormSourceIdentity,
     symbols: &ModelSymbols,
     index: &KernelIndex<'_>,
-    geometry_dimensions: (usize, usize),
+    geometry: &eqiora_geometry::CanonicalGeometryV1,
     supports: &[crate::external::ExternalGeometrySupportBinding],
 ) -> Result<CompiledAuthoredFormulation, Diagnostic> {
-    let FormSource {
-        name,
-        relation: relation_name,
-        test: test_name,
-        trial: trial_name,
-        zero_on: boundaries,
-        left: left_source,
-        right: right_source,
-        range,
-    } = form;
-    let (ambient_dimension, topological_dimension) = geometry_dimensions;
-    if resolve_symbol(file, range, test_name, symbols).is_ok() {
+    if relation_names.len() != equations.len()
+        || tests.len() != equations.len()
+        || equations.is_empty()
+        || equations.len() > 8
+    {
         return Err(error(
             file,
             range,
-            "test name must not shadow a Model declaration",
+            "form requires one explicit Relation and test per equation",
         ));
     }
-    let relation_raw = resolve_symbol(file, range, relation_name, symbols)?;
-    let relation = relation_raw
-        .downcast::<kinds::Relation>()
-        .ok_or_else(|| error(file, range, format!("`{relation_name}` is not a Relation")))?;
+    let relations = relation_names
+        .iter()
+        .map(|name| {
+            resolve_symbol(file, range, name, symbols)?
+                .downcast::<kinds::Relation>()
+                .ok_or_else(|| error(file, range, "form owner is not a Relation"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let domain = index
         .applies_on
-        .get(&relation_raw)
+        .get(&relations[0].erase())
         .copied()
         .and_then(RawId::downcast::<kinds::Domain>)
-        .ok_or_else(|| {
-            error(
+        .ok_or_else(|| error(file, range, "form has no exact Domain"))?;
+    if relations
+        .iter()
+        .any(|r| index.applies_on.get(&r.erase()) != Some(&domain.erase()))
+    {
+        return Err(error(file, range, "form Relations have foreign support"));
+    }
+    let mut named_tests = BTreeMap::new();
+    let mut restrictions = Vec::new();
+    let mut trials = Vec::new();
+    for (test, trial, boundaries) in tests {
+        let declaration_suffix = format!(".{test}");
+        if symbols.get(test).is_some()
+            || symbols
+                .iter()
+                .any(|(candidate, _)| candidate.ends_with(&declaration_suffix))
+            || named_tests.insert(test.as_str(), trial.as_str()).is_some()
+        {
+            return Err(error(
                 file,
                 range,
-                "Formulation Relation has no exact AppliesOn Domain",
-            )
-        })?;
+                "test name must not shadow a declaration or another test",
+            ));
+        }
+        let trial = resolve_symbol(file, range, trial, symbols)?
+            .downcast::<kinds::Field>()
+            .ok_or_else(|| error(file, range, "test trial is not a Field"))?;
+        if trials.contains(&trial) {
+            return Err(error(file, range, "duplicate trial test"));
+        }
+        let zero_on = if tests.len() > 1 && boundaries.is_empty() {
+            vec![]
+        } else {
+            restriction::resolve(
+                file,
+                (range, boundaries),
+                domain.erase(),
+                symbols,
+                index,
+                supports,
+            )?
+        };
+        restrictions.push((test.clone(), trial.ulid().to_string(), zero_on));
+        trials.push(trial);
+    }
     let mut context = ExpressionContext {
         file,
         symbols,
         index,
-        ambient_dimension,
-        topological_dimension,
+        ambient_dimension: geometry.ambient_dimension(),
+        topological_dimension: geometry.topological_dimension(),
         relation_domain: domain,
-        trial: None,
-        test_name,
-        trial_name,
+        tests: named_tests,
+        used_tests: std::collections::BTreeSet::new(),
     };
-    let left = context.compile_root(left_source)?;
-    let right = context.compile_root(right_source)?;
-    if left.dimension != right.dimension || left.shape != right.shape {
-        return Err(error(
-            file,
-            range,
-            "Formulation equality sides must have identical dimension and shape",
+    let mut compiled = Vec::new();
+    for ((left, right), relation) in equations.iter().zip(&relations) {
+        let left = context.compile_root(left)?;
+        let right = context.compile_root(right)?;
+        let zero =
+            |v: &AuthoredFormExpression| matches!(v.kind, AuthoredFormExpressionKind::Number(0.0));
+        if (left.dimension != right.dimension && !zero(&left) && !zero(&right))
+            || left.shape != right.shape
+        {
+            return Err(error(
+                file,
+                range,
+                "Formulation equality sides must have identical dimension and shape",
+            ));
+        }
+        compiled.push((
+            relation.ulid().to_string(),
+            wire::expression(&left),
+            wire::expression(&right),
         ));
     }
-    let trial = context.trial.ok_or_else(|| {
-        error(
-            file,
-            range,
-            "scalar weak Formulation must use its declared test function",
-        )
-    })?;
-    let zero_on = restriction::resolve(
-        file,
-        (range, boundaries),
-        domain.erase(),
-        symbols,
-        index,
-        supports,
-    )?;
-    let projection = AuthoredFormulationProjection::encode(
+    if context.used_tests.len() != tests.len() {
+        return Err(error(file, range, "form must consume every declared test"));
+    }
+    let projection = AuthoredFormulationProjection::encode_weak(
         source_identity.to_string(),
-        relation.erase(),
+        name.into(),
         domain.erase(),
-        trial.erase(),
-        (name.to_owned(), test_name.to_owned(), zero_on),
-        &left,
-        &right,
-    );
+        restrictions,
+        compiled,
+    )?;
     Ok(CompiledAuthoredFormulation {
-        relation,
+        relations,
         domain,
-        trial,
+        trials,
         projection,
-        file: file.to_owned(),
+        file: file.into(),
         range,
     })
 }
@@ -320,514 +343,8 @@ struct ExpressionContext<'a> {
     ambient_dimension: usize,
     topological_dimension: usize,
     relation_domain: Id<kinds::Domain>,
-    trial: Option<Id<kinds::Field>>,
-    test_name: &'a str,
-    trial_name: &'a str,
-}
-
-impl ExpressionContext<'_> {
-    fn compile_root(&mut self, expression: &Expr) -> Result<AuthoredFormExpression, Diagnostic> {
-        let value = self.compile(expression)?;
-        match value.kind {
-            AuthoredFormExpressionKind::Integrate { .. } => Ok(value),
-            _ => Err(error(
-                self.file,
-                expression.range(),
-                "each scalar-primal equality side must be one integrate(domain, expression) call",
-            )),
-        }
-    }
-
-    fn compile(&mut self, expression: &Expr) -> Result<AuthoredFormExpression, Diagnostic> {
-        match expression.kind() {
-            ExprKind::Number(value) => Ok(typed(
-                AuthoredFormExpressionKind::Number(
-                    value
-                        .to_f64()
-                        .map_err(|e| error(self.file, expression.range(), e.message()))?,
-                ),
-                DimExponents::DIMENSIONLESS,
-                ValueShape::scalar(),
-                None,
-            )),
-            ExprKind::Name(name) if name == self.test_name => self.compile_test(expression),
-            ExprKind::Name(name) => self.compile_name(expression, name),
-            ExprKind::Path(path) => match crate::math::constant(path) {
-                Some(value) => Ok(typed(
-                    AuthoredFormExpressionKind::Number(value),
-                    DimExponents::DIMENSIONLESS,
-                    ValueShape::scalar(),
-                    None,
-                )),
-                None if crate::math::is_namespaced(path) => Err(error(
-                    self.file,
-                    expression.range(),
-                    format!("unknown compiler-owned scalar mathematics member `{path}`"),
-                )),
-                None => Err(error(
-                    self.file,
-                    expression.range(),
-                    "qualified names are not accepted in scalar-primal forms",
-                )),
-            },
-            ExprKind::BoundaryPortSelection { .. } => Err(error(
-                self.file,
-                expression.range(),
-                "boundary-selected names are not accepted in scalar-primal forms",
-            )),
-            ExprKind::Unary {
-                op: UnaryOp::Neg,
-                value,
-            } => {
-                let value = self.compile(value)?;
-                Ok(typed(
-                    AuthoredFormExpressionKind::Neg(Box::new(value.clone())),
-                    value.dimension,
-                    value.shape.clone(),
-                    value.support,
-                ))
-            }
-            ExprKind::Binary { op, left, right } => {
-                self.compile_binary(expression, *op, left, right)
-            }
-            ExprKind::Call {
-                callee,
-                arguments: eqiora_lang::CallArguments::Positional(arguments),
-            } => self.compile_call(expression, callee, arguments),
-            _ => Err(error(
-                self.file,
-                expression.range(),
-                "unsupported scalar-primal expression",
-            )),
-        }
-    }
-
-    fn compile_name(
-        &self,
-        expression: &Expr,
-        name: &str,
-    ) -> Result<AuthoredFormExpression, Diagnostic> {
-        let raw = resolve_symbol(self.file, expression.range(), name, self.symbols)?;
-        match self.index.nodes.get(&raw).copied() {
-            Some(KernelNode::Field(field))
-                if field.shape().is_scalar()
-                    && field.value_type().scalar_domain() == eqiora_core::ScalarDomain::Real =>
-            {
-                let support = self.field_support(expression, raw)?;
-                Ok(typed(
-                    AuthoredFormExpressionKind::Field(field.id()),
-                    field.dimension(),
-                    ValueShape::scalar(),
-                    Some(support),
-                ))
-            }
-            Some(KernelNode::Field(_)) => Err(error(
-                self.file,
-                expression.range(),
-                "scalar-primal forms accept only real scalar Fields",
-            )),
-            Some(KernelNode::Parameter(parameter)) if parameter.real_scalar_value().is_some() => {
-                Ok(parameter_expression(parameter))
-            }
-            Some(KernelNode::Parameter(_)) => Err(error(
-                self.file,
-                expression.range(),
-                "scalar-primal forms accept only real scalar Parameters",
-            )),
-            _ => Err(error(
-                self.file,
-                expression.range(),
-                format!("`{name}` is not a scalar Field or Parameter"),
-            )),
-        }
-    }
-
-    fn field_support(
-        &self,
-        expression: &Expr,
-        field: RawId,
-    ) -> Result<Id<kinds::Domain>, Diagnostic> {
-        let support = self
-            .index
-            .defined_on
-            .get(&field)
-            .copied()
-            .and_then(RawId::downcast::<kinds::Domain>)
-            .ok_or_else(|| {
-                error(
-                    self.file,
-                    expression.range(),
-                    "Formulation Field has no exact DefinedOn Domain",
-                )
-            })?;
-        if support != self.relation_domain {
-            return Err(error(
-                self.file,
-                expression.range(),
-                "Formulation Field support differs from the Relation Domain",
-            ));
-        }
-        Ok(support)
-    }
-
-    fn compile_binary(
-        &mut self,
-        expression: &Expr,
-        op: BinaryOp,
-        left: &Expr,
-        right: &Expr,
-    ) -> Result<AuthoredFormExpression, Diagnostic> {
-        if op == BinaryOp::Pow {
-            let base = self.compile(left)?;
-            require_scalar(self.file, left.range(), &base)?;
-            let exponent = integer_literal(right).ok_or_else(|| {
-                error(
-                    self.file,
-                    right.range(),
-                    "Formulation power requires an integer literal",
-                )
-            })?;
-            let dimension = base.dimension.pow(exponent, 1).ok_or_else(|| {
-                error(
-                    self.file,
-                    expression.range(),
-                    "Formulation dimension exponent overflows",
-                )
-            })?;
-            return Ok(typed(
-                AuthoredFormExpressionKind::Pow(Box::new(base.clone()), exponent),
-                dimension,
-                ValueShape::scalar(),
-                base.support,
-            ));
-        }
-        let left_value = self.compile(left)?;
-        let right_value = self.compile(right)?;
-        let support = merge_support(
-            self.file,
-            expression.range(),
-            left_value.support,
-            right_value.support,
-        )?;
-        let (kind, dimension, shape) = match op {
-            BinaryOp::Add | BinaryOp::Sub => {
-                if left_value.dimension != right_value.dimension
-                    || left_value.shape != right_value.shape
-                {
-                    return Err(error(
-                        self.file,
-                        expression.range(),
-                        "addition and subtraction require identical dimension and shape",
-                    ));
-                }
-                let operator = if op == BinaryOp::Add {
-                    BinaryOp::Add
-                } else {
-                    BinaryOp::Sub
-                };
-                let kind = binary(operator, left_value.clone(), right_value);
-                (kind, left_value.dimension, left_value.shape.clone())
-            }
-            BinaryOp::Mul => {
-                if !left_value.shape.is_scalar() && !right_value.shape.is_scalar() {
-                    return Err(error(
-                        self.file,
-                        expression.range(),
-                        "multiplication accepts at most one non-scalar operand",
-                    ));
-                }
-                let dimension =
-                    left_value
-                        .dimension
-                        .mul(right_value.dimension)
-                        .ok_or_else(|| {
-                            error(
-                                self.file,
-                                expression.range(),
-                                "Formulation dimension multiplication overflows",
-                            )
-                        })?;
-                let shape = if left_value.shape.is_scalar() {
-                    right_value.shape.clone()
-                } else {
-                    left_value.shape.clone()
-                };
-                (
-                    binary(BinaryOp::Mul, left_value, right_value),
-                    dimension,
-                    shape,
-                )
-            }
-            BinaryOp::Div => {
-                require_scalar(self.file, right.range(), &right_value)?;
-                let dimension =
-                    left_value
-                        .dimension
-                        .div(right_value.dimension)
-                        .ok_or_else(|| {
-                            error(
-                                self.file,
-                                expression.range(),
-                                "Formulation dimension division overflows",
-                            )
-                        })?;
-                let shape = left_value.shape.clone();
-                (
-                    binary(BinaryOp::Div, left_value, right_value),
-                    dimension,
-                    shape,
-                )
-            }
-            BinaryOp::Pow => unreachable!(),
-            _ => {
-                return Err(error(
-                    self.file,
-                    expression.range(),
-                    "Boolean predicates are not admitted in mathematical forms",
-                ));
-            }
-        };
-        Ok(typed(kind, dimension, shape, support))
-    }
-
-    fn compile_call(
-        &mut self,
-        expression: &Expr,
-        callee: &NamePath,
-        arguments: &[Expr],
-    ) -> Result<AuthoredFormExpression, Diagnostic> {
-        let name = unqualified_callee(self.file, expression.range(), callee)?;
-        match (name, arguments) {
-            ("coordinate", [axis]) => self.compile_coordinate(expression, axis),
-            ("math.sin", [argument]) => {
-                let argument = self.compile(argument)?;
-                require_scalar(self.file, expression.range(), &argument)?;
-                if argument.dimension != DimExponents::DIMENSIONLESS {
-                    return Err(error(
-                        self.file,
-                        expression.range(),
-                        "math.sin requires a dimensionless argument",
-                    ));
-                }
-                Ok(typed(
-                    AuthoredFormExpressionKind::Sin(Box::new(argument.clone())),
-                    DimExponents::DIMENSIONLESS,
-                    ValueShape::scalar(),
-                    argument.support,
-                ))
-            }
-            ("grad", [argument]) => {
-                let argument = self.compile(argument)?;
-                require_scalar(self.file, expression.range(), &argument)?;
-                let support = argument.support.ok_or_else(|| {
-                    error(
-                        self.file,
-                        expression.range(),
-                        "grad requires a spatially supported expression",
-                    )
-                })?;
-                let dimension = argument.dimension.div(length_dimension()).ok_or_else(|| {
-                    error(
-                        self.file,
-                        expression.range(),
-                        "gradient dimension overflows",
-                    )
-                })?;
-                let extent = u32::try_from(self.ambient_dimension)
-                    .ok()
-                    .filter(|value| *value > 0)
-                    .ok_or_else(|| {
-                        error(
-                            self.file,
-                            expression.range(),
-                            "Geometry ambient dimension is not representable",
-                        )
-                    })?;
-                let shape = ValueShape::new([extent]).map_err(|_| {
-                    error(
-                        self.file,
-                        expression.range(),
-                        "Geometry ambient dimension is not representable",
-                    )
-                })?;
-                Ok(typed(
-                    AuthoredFormExpressionKind::Gradient(Box::new(argument)),
-                    dimension,
-                    shape,
-                    Some(support),
-                ))
-            }
-            ("dot", [left, right]) => {
-                let left = self.compile(left)?;
-                let right = self.compile(right)?;
-                if left.shape.is_scalar() || left.shape != right.shape {
-                    return Err(error(
-                        self.file,
-                        expression.range(),
-                        "dot requires equal non-scalar vector shapes",
-                    ));
-                }
-                let support =
-                    merge_support(self.file, expression.range(), left.support, right.support)?;
-                let dimension = left.dimension.mul(right.dimension).ok_or_else(|| {
-                    error(
-                        self.file,
-                        expression.range(),
-                        "dot-product dimension overflows",
-                    )
-                })?;
-                Ok(typed(
-                    AuthoredFormExpressionKind::Dot(Box::new(left), Box::new(right)),
-                    dimension,
-                    ValueShape::scalar(),
-                    support,
-                ))
-            }
-            ("integrate", [domain, integrand]) => {
-                self.compile_integral(expression, domain, integrand)
-            }
-            _ => Err(error(
-                self.file,
-                expression.range(),
-                format!("unsupported scalar-primal operator `{name}` or arity"),
-            )),
-        }
-    }
-
-    fn compile_test(&mut self, expression: &Expr) -> Result<AuthoredFormExpression, Diagnostic> {
-        let raw = resolve_symbol(self.file, expression.range(), self.trial_name, self.symbols)?;
-        let Some(KernelNode::Field(field)) = self.index.nodes.get(&raw).copied() else {
-            return Err(error(
-                self.file,
-                expression.range(),
-                "test argument is not a Field",
-            ));
-        };
-        if !field.shape().is_scalar()
-            || field.value_type().scalar_domain() != eqiora_core::ScalarDomain::Real
-        {
-            return Err(error(
-                self.file,
-                expression.range(),
-                "test requires a scalar Field",
-            ));
-        }
-        let support = self.field_support(expression, raw)?;
-        if self
-            .trial
-            .replace(field.id())
-            .is_some_and(|trial| trial != field.id())
-        {
-            return Err(error(
-                self.file,
-                expression.range(),
-                "one scalar-primal form cannot mix test functions from different Fields",
-            ));
-        }
-        Ok(typed(
-            AuthoredFormExpressionKind::Test(field.id()),
-            DimExponents::DIMENSIONLESS,
-            ValueShape::scalar(),
-            Some(support),
-        ))
-    }
-
-    fn compile_coordinate(
-        &self,
-        expression: &Expr,
-        axis: &Expr,
-    ) -> Result<AuthoredFormExpression, Diagnostic> {
-        let axis = integer_literal(axis)
-            .and_then(|axis| usize::try_from(axis).ok())
-            .filter(|axis| *axis < self.ambient_dimension)
-            .ok_or_else(|| {
-                error(
-                    self.file,
-                    expression.range(),
-                    "coordinate axis must be a nonnegative literal below the Geometry ambient dimension",
-                )
-            })?;
-        Ok(typed(
-            AuthoredFormExpressionKind::Coordinate(axis),
-            length_dimension(),
-            ValueShape::scalar(),
-            Some(self.relation_domain),
-        ))
-    }
-
-    fn compile_integral(
-        &mut self,
-        expression: &Expr,
-        domain: &Expr,
-        integrand: &Expr,
-    ) -> Result<AuthoredFormExpression, Diagnostic> {
-        let ExprKind::Name(name) = domain.kind() else {
-            return Err(error(
-                self.file,
-                domain.range(),
-                "integrate Domain must be one unqualified name",
-            ));
-        };
-        let raw = resolve_symbol(self.file, domain.range(), name, self.symbols)?;
-        let domain_id = raw.downcast::<kinds::Domain>().ok_or_else(|| {
-            error(
-                self.file,
-                domain.range(),
-                "integrate first argument is not a Domain",
-            )
-        })?;
-        if !matches!(self.index.nodes.get(&raw), Some(KernelNode::Domain(_)))
-            || domain_id != self.relation_domain
-        {
-            return Err(error(
-                self.file,
-                domain.range(),
-                "integrate Domain must equal the Formulation Relation Domain",
-            ));
-        }
-        let integrand_range = integrand.range();
-        let integrand = self.compile(integrand)?;
-        require_scalar(self.file, integrand_range, &integrand)?;
-        if integrand.support != Some(domain_id) {
-            return Err(error(
-                self.file,
-                expression.range(),
-                "integrand support must equal its integration Domain",
-            ));
-        }
-        let topological_dimension = i32::try_from(self.topological_dimension).map_err(|_| {
-            error(
-                self.file,
-                expression.range(),
-                "Geometry dimension is not representable",
-            )
-        })?;
-        let measure_dimension = length_dimension()
-            .pow(topological_dimension, 1)
-            .ok_or_else(|| {
-                error(
-                    self.file,
-                    expression.range(),
-                    "integration-measure dimension overflows",
-                )
-            })?;
-        let dimension = integrand.dimension.mul(measure_dimension).ok_or_else(|| {
-            error(
-                self.file,
-                expression.range(),
-                "integral dimension overflows",
-            )
-        })?;
-        Ok(typed(
-            AuthoredFormExpressionKind::Integrate {
-                domain: domain_id,
-                integrand: Box::new(integrand),
-            },
-            dimension,
-            ValueShape::scalar(),
-            None,
-        ))
-    }
+    tests: BTreeMap<&'a str, &'a str>,
+    used_tests: std::collections::BTreeSet<String>,
 }
 
 fn parameter_expression(parameter: &ParameterDef) -> AuthoredFormExpression {

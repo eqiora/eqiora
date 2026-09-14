@@ -21,9 +21,22 @@ impl ModelDocument {
                     references: Vec::new(),
                     remaining: MAX_NODES,
                 };
-                let left = context.form(form.left(), 0)?;
-                let right = context.form(form.right(), 0)?;
-                let mut equation = Math::Binary("=", Box::new(left), Box::new(right));
+                let equations = form
+                    .equations()
+                    .iter()
+                    .map(|(_, left, right)| {
+                        Ok(Math::Binary(
+                            "=",
+                            Box::new(context.form(left, 0)?),
+                            Box::new(context.form(right, 0)?),
+                        ))
+                    })
+                    .collect::<Result<Vec<_>, Diagnostic>>()?;
+                let mut equation = if equations.len() == 1 {
+                    equations.into_iter().next().unwrap()
+                } else {
+                    Math::Function("system".into(), equations)
+                };
                 if let Some((interval, lower, upper)) = form.interval() {
                     let parent = context.exact(form.domain_ulid(), EntityKind::Domain)?;
                     context.reference(MathReference {
@@ -116,6 +129,16 @@ impl Context<'_> {
             }
             Form::Neg { value } => Math::Negative(Box::new(self.form(value, next)?)),
             Form::Gradient { value } => Math::Gradient(Box::new(self.form(value, next)?)),
+            Form::Divergence { value } => {
+                Math::Function("div".into(), vec![self.form(value, next)?])
+            }
+            Form::SymmetricPart { value } => {
+                Math::Function("symmetric_part".into(), vec![self.form(value, next)?])
+            }
+            Form::Frobenius { left, right } => Math::Function(
+                "frobenius".into(),
+                vec![self.form(left, next)?, self.form(right, next)?],
+            ),
             Form::Sin { value } => Math::Function("sin".into(), vec![self.form(value, next)?]),
             Form::Add { left, right }
             | Form::Sub { left, right }

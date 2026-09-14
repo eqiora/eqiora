@@ -29,8 +29,7 @@ model = eqiora.compile(source=source, geometry=geometry, entry="Balance", bindin
 form, = model.authored_formulations
 assert form.kind == "integral-conservative"
 assert form.interval == ("segment", "a", "b")
-assert form.test_name is None
-assert form.zero_on_domain_ids == []
+assert form.test_restrictions == []
 assert form.implication == "strong-implies-interval-conservation"
 assert form.assumptions == ["fixed-one-dimensional-domain", "classical-divergence-and-boundary-trace", "every-ordered-subinterval-of-parent"]
 assert "integral-conservative" in repr(form)
@@ -67,7 +66,7 @@ for plan in plans:
  result = eqiora.run(replay)
  recovered = eqiora.Result.from_bytes(replay,result.to_bytes())
  assert recovered.to_bytes() == result.to_bytes()
- field = model.field(form.trial_field_id)
+ field = model.field(form.trial_field_ids[0])
  values = recovered.output(field).values("cell").numpy().reshape(-1).tolist()
  assert len(values) == 4
  assert all(abs(actual-expected)<1e-9 for actual,expected in zip(values,[16,32,32,16]))
@@ -86,7 +85,7 @@ for label, mutant in [
  ("duplicate endpoint",projection.replace('"endpoint":"a"','"endpoint":"b"',1)),
  ("scope",projection.replace('"interval":"segment"','"interval":"body"',1)),
  ("assumptions",projection.replace('fixed-one-dimensional-domain','moving-domain')),
- ("foreign Law",projection.replace(projection_data["relation_ulid"],projection_data["trial_ulid"],1)),
+ ("foreign Law",projection.replace(projection_data["equations"][0][0],projection_data["trial_ulids"][0],1)),
 ]:
  assert mutant != projection
  forged = original.replace(encoded.encode(),base64.b64encode(mutant.encode()),1)

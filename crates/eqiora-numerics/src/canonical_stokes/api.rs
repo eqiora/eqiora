@@ -88,7 +88,7 @@ impl SteadyStokesNormalPressure2d {
 /// pressure gauge, trace spaces, assembly, solver, and execution target remain
 /// Realization concerns.
 #[derive(Debug, Clone, PartialEq)]
-pub(super) struct SteadyIncompressibleStokesModel2d {
+pub(crate) struct SteadyIncompressibleStokesModel2d {
     pub(super) correspondence: MixedGalerkinCorrespondence,
     pub(super) bounds: [[f64; 2]; 2],
     pub(super) dynamic_viscosity: ScalarSpatialExpression,

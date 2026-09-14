@@ -392,12 +392,12 @@ impl PyModel {
         &self.artifact
     }
 
-    pub(crate) fn authored_scalar_primal_projection(
+    pub(crate) fn authored_formulation_projection(
         &self,
     ) -> Result<Option<&eqiora::compiler::AuthoredFormulationProjection>, Diagnostic> {
         self.document
             .as_ref()
-            .map(ModelDocument::authored_scalar_primal_projection)
+            .map(ModelDocument::authored_formulation_projection)
             .transpose()
             .map(Option::flatten)
     }
