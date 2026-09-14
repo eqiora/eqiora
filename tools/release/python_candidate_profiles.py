@@ -370,7 +370,16 @@ for retired in (
 ):
     assert not hasattr(eqiora.fsi, retired)
     assert retired not in eqiora.fsi.__all__
-for optional in ("torch", "jax", "jaxlib", "matplotlib", "gmsh"):
+for optional in (
+    "torch",
+    "jax",
+    "jaxlib",
+    "matplotlib",
+    "gmsh",
+    "anywidget",
+    "ipywidgets",
+    "traitlets",
+):
     assert optional not in __import__("sys").modules
 """
     run(
@@ -579,6 +588,7 @@ def run_base_profile(
         f"cp{compact}:async-and-cancellation",
         f"cp{compact}:strict-base-typing",
         f"cp{compact}:public-smoke-base",
+        f"cp{compact}:public-smoke-base-viewer-rich-mime",
         f"cp{compact}:matplotlib-free-base",
     ]
 

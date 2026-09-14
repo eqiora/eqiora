@@ -44,7 +44,7 @@ from python_candidate_common import (
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = ROOT
 PYPROJECT = ROOT / "pyproject.toml"
-MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v4"
+MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v5"
 PYTHON_TEST_FIXTURES = candidate_profiles.PYTHON_TEST_FIXTURES
 PYTHON_TEST_RESOURCES = candidate_profiles.PYTHON_TEST_RESOURCES
 GIT_SHA = re.compile(r"[0-9a-f]{40}")
@@ -522,6 +522,8 @@ def inspect_wheel(
         required = (
             "eqiora/__init__.py",
             "eqiora/__init__.pyi",
+            "eqiora/colab.py",
+            "eqiora/colab.pyi",
             "eqiora/diff.pyi",
             "eqiora/fsi.pyi",
             "eqiora/jax.pyi",
@@ -588,7 +590,7 @@ def inspect_wheel(
     gmsh_requirements = [item for item in normalized if item.startswith("gmsh")]
     if gmsh_requirements != ['gmsh==4.15.2;extra=="gmsh"']:
         raise CandidateError("wheel must declare exactly the Gmsh 4.15.2 extra")
-    for framework in ("torch", "jax", "jaxlib", "matplotlib", "anywidget"):
+    for framework in ("torch", "jax", "jaxlib", "matplotlib"):
         declarations = [item for item in normalized if item.startswith(framework)]
         if not declarations or any("extra==" not in item for item in declarations):
             raise CandidateError(
@@ -597,9 +599,11 @@ def inspect_wheel(
     anywidget_requirements = [
         item for item in normalized if item.startswith("anywidget")
     ]
-    if anywidget_requirements != ['anywidget==0.11.0;extra=="viewer"']:
-        raise CandidateError("wheel must declare exactly the anywidget 0.11.0 extra")
-    expected_extras = ["gmsh", "jax", "matplotlib", "torch", "viewer"]
+    if anywidget_requirements != ["anywidget==0.11.0"]:
+        raise CandidateError(
+            "wheel must declare exactly anywidget 0.11.0 as a base dependency"
+        )
+    expected_extras = ["gmsh", "jax", "matplotlib", "torch"]
     if sorted(metadata.get_all("Provides-Extra", [])) != expected_extras:
         raise CandidateError(
             "wheel must expose exactly the reviewed optional extras"
@@ -1339,7 +1343,7 @@ def finalize_candidate(
     artifacts: Path,
     manifest_out: Path,
 ) -> Path:
-    """Run the release profiles and retain one closed v4 manifest."""
+    """Run the release profiles and retain one closed v5 manifest."""
 
     artifact_root = artifacts
     metadata_root = manifest_out

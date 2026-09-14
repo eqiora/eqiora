@@ -23,6 +23,7 @@ Browse the modules below for classes, functions, and signatures. Start with the 
 | [`eqiora.fsi`](#module-eqiora-fsi) | Inspect fluid–structure interaction results. |
 | [`eqiora.solid`](#module-eqiora-solid) | Configure linear elasticity and inspect structural results. |
 | [`eqiora.viewer`](#module-eqiora-viewer) | Compose read-only views of geometry, meshes, and fields. |
+| [`eqiora.colab`](#module-eqiora-colab) | Prepare a coherent Google Colab runtime for Eqiora's notebook viewer. |
 | [`eqiora.matplotlib`](#module-eqiora-matplotlib) | Plot Eqiora results with Matplotlib. |
 | [`eqiora.diff`](#module-eqiora-diff) | Implicit differentiation of Eqiora programs. |
 | [`eqiora.torch`](#module-eqiora-torch) | Use Eqiora differentiable programs with PyTorch autograd. |
@@ -5481,6 +5482,24 @@ class View:
     def __enter__(self) -> Self: ...
     def __exit__(self, *_exc: object) -> None: ...
     def __repr__(self) -> str: ...
+```
+
+<a id="module-eqiora-colab"></a>
+
+## `eqiora.colab`
+
+Prepare a coherent Google Colab runtime for Eqiora's notebook viewer.
+
+[View source](../../bindings/python/python/eqiora/colab.pyi)
+
+<a id="api-eqiora-colab-prepare"></a>
+
+### `eqiora.colab.prepare`
+
+Validate and prepare the current runtime for Eqiora's Colab viewer.
+
+```python
+def prepare() -> None: ...
 ```
 
 <a id="module-eqiora-matplotlib"></a>

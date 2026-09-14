@@ -1,4 +1,4 @@
-"""Composable read-only Eqiora viewer with a lazy optional Notebook host."""
+"""Composable read-only Eqiora viewer with a lazily loaded Notebook host."""
 
 from __future__ import annotations
 
@@ -99,14 +99,6 @@ class View:
                 )
                 self._delegate = delegate
             bundle = delegate._repr_mimebundle_(include=include, exclude=exclude)  # type: ignore[attr-defined]
-        except ModuleNotFoundError as error:
-            if error.name not in {"anywidget", "traitlets", "ipywidgets"}:
-                raise
-            diagnostic = (
-                "Viewer unavailable: install the optional dependency with "
-                "`pip install 'eqiora[viewer]'`."
-            )
-            return {_TEXT_MIME: f"{text}\n{diagnostic}"} if _TEXT_MIME in selected else {}
         except Exception as error:
             diagnostic = f"Viewer unavailable: {error}"
             return {_TEXT_MIME: f"{text}\n{diagnostic}"} if _TEXT_MIME in selected else {}
@@ -158,12 +150,12 @@ def _with_text(
             or not isinstance(bundle[0], Mapping)
             or not isinstance(bundle[1], Mapping)
         ):
-            raise TypeError("optional viewer returned an invalid MIME bundle")
+            raise TypeError("viewer returned an invalid MIME bundle")
         data = dict(bundle[0])
         data[_TEXT_MIME] = value
         return data, dict(bundle[1])
     if not isinstance(bundle, Mapping):
-        raise TypeError("optional viewer returned an invalid MIME bundle")
+        raise TypeError("viewer returned an invalid MIME bundle")
     data = dict(bundle)
     data[_TEXT_MIME] = value
     return data

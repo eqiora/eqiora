@@ -12,7 +12,7 @@ capabilities = [
 
 [claim_boundary]
 source_tree = "clean-commit"
-candidate_manifest_format = "eqiora.python-distribution-candidate/v4"
+candidate_manifest_format = "eqiora.python-distribution-candidate/v5"
 source_tag_required_by_registered_evidence = false
 wheel_source = "rebuilt-sdist"
 ordinary_gil_cpython = ["3.11", "3.12", "3.13", "3.14"]
@@ -25,6 +25,7 @@ base_and_numpy_each_wheel = true
 async_and_cancellation_each_wheel = true
 strict_base_typing_each_wheel = true
 public_base_smoke_each_wheel = true
+base_viewer_rich_mime_each_wheel = true
 numpy_floor_profile = "cpython-3.12-numpy-2.1.0"
 torch_profile = "cpython-3.13-torch-2.14.0"
 jax_profile = "cpython-3.13-jax-jaxlib-0.11.0"

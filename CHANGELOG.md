@@ -6,6 +6,18 @@ are recorded here.
 
 ## [Unreleased]
 
+### Added
+
+- Added `eqiora.colab.prepare()` to validate the installed notebook runtime,
+  restart stale Colab kernels before host imports, enable the custom widget
+  manager, and report concise package identity.
+
+### Changed
+
+- Made the shared Viewer part of the base Python installation with exact
+  `anywidget==0.11.0`, while retaining lazy notebook-framework imports. Removed
+  the `viewer` extra and added rich-MIME evidence for every installed base wheel.
+
 ### Fixed
 
 - Mapped Colab diagnostic modules to their owning distributions explicitly, so

@@ -3,7 +3,7 @@
 Define mathematical models, run them from Python, and inspect their results.
 Eqiora provides equation authoring, synchronous and asynchronous execution,
 NumPy and DLPack arrays, first-order differentiation with PyTorch and JAX,
-and optional Matplotlib plots and notebook views.
+and optional Matplotlib plots plus notebook views.
 
 **Release — `0.1.0`.** See [Capabilities](https://eqiora.org/capabilities/)
 for available models, methods, and platforms.
@@ -29,13 +29,12 @@ uv pip install --python .venv/bin/python "eqiora[gmsh]==0.1.0"
 The Gmsh extra is separate so the base `manylinux_2_17` package keeps its
 compatibility floor; the current Gmsh wheel has a newer Linux floor.
 
-Install plotting, notebook viewing, or first-order framework adapters as needed:
+Install plotting or first-order framework adapters as needed:
 
 ```console
 uv pip install --python .venv/bin/python "eqiora[torch]==0.1.0"
 uv pip install --python .venv/bin/python "eqiora[jax]==0.1.0"
 uv pip install --python .venv/bin/python "eqiora[matplotlib]==0.1.0"
-uv pip install --python .venv/bin/python "eqiora[viewer]==0.1.0"
 ```
 
 The exact-cylinder pressure example combines the mesher and plot adapter:
@@ -45,9 +44,10 @@ Run scripts with `uv run --no-project --python .venv/bin/python your_script.py`
 to use this environment explicitly. Current-source features described in the
 development guides may not yet be included in this published release.
 
-The base package imports none of these optional libraries. The viewer extra
-pins `anywidget==0.11.0`; its JavaScript and CSS are already carried inside the
-Eqiora wheel, so the host does not fetch renderer assets at display time. The PyTorch extra
+The base package pins `anywidget==0.11.0` and carries its viewer JavaScript and
+CSS, so a normal installation can emit the rich notebook view without fetching
+renderer assets at display time. Importing `eqiora` does not load anywidget,
+ipywidgets, or traitlets. The PyTorch extra
 declares `torch>=2.14,<2.15`; the tested version is PyTorch 2.14.0.
 JAX/JAXLIB 0.11.0 and Matplotlib 3.11.1 were also tested on CPython 3.13.
 The JAX extra requires Python 3.12 or newer.
@@ -97,7 +97,7 @@ The pressure scale is in pascals. The plotting helper supports scalar vertex
 and cell fields. The [Gallery](https://eqiora.org/gallery/) explains how to
 read pressure, displacement, and transient vorticity plots from worked examples.
 
-In a notebook with the viewer extra, display geometry, mesh, and a scalar field:
+In a notebook, display geometry, mesh, and a scalar field:
 
 ```python
 view = eqiora.View().add(geometry).add(mesh).add(pressure)
@@ -107,8 +107,8 @@ view.close()  # Release the widget when finished.
 
 The viewer supports planar geometry, 2D triangular or quadrilateral meshes,
 named edge/face selections, and scalar vertex/cell fields. A field must use
-the same mesh displayed in the view. Without the viewer extra or a rich
-notebook host, the view provides a text representation.
+the same mesh displayed in the view. Without a rich notebook host, the view
+provides a text representation.
 
 ## Structured diagnostics
 

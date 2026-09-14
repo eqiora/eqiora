@@ -3,7 +3,7 @@
 The shared viewer starts with one narrow, read-only presentation path for current
 accepted Python values. The implemented slice stops at V3: a private typed
 scene (V0), shared Geometry/Mesh/Selection interaction (V1), scalar
-`FieldOutput` inspection (V2), and optional installed-wheel rich display (V3).
+`FieldOutput` inspection (V2), and installed-wheel rich display (V3).
 Studio integration and every V4-or-later concern remain separate work.
 
 ## Ownership boundary
@@ -54,12 +54,19 @@ cell or nearest accepted vertex coefficient, never an interpolated value.
 Quadrilateral triangulation is renderer-only and exact cell edges remain
 separate.
 
-`eqiora.View` retains accepted objects until `close()`, lazily loads the exact
-`anywidget==0.11.0` extra only for rich display, and ships its JavaScript/CSS
-inside the wheel. Base import has no viewer dependency. Without the extra or a
-rich host, deterministic `text/plain` remains available. Widget disposal,
+`eqiora.View` retains accepted objects until `close()`, lazily imports the exact
+base dependency `anywidget==0.11.0` only for rich display, and ships its
+JavaScript/CSS inside the wheel. Importing `eqiora` does not load anywidget,
+ipywidgets, or traitlets. Without a rich host, deterministic `text/plain`
+remains available. Widget disposal,
 listener removal, animation-frame cancellation, GPU resource disposal, and
 accepted-object release are explicit lifecycle steps.
+
+`eqiora.colab.prepare()` is the sole Colab host adapter. It validates installed
+and loaded distribution identity before importing the Colab API, restarts a
+stale runtime, supplies the native Gmsh prerequisite, enables the custom widget
+manager, and reports package paths and versions. It does not own scene meaning,
+rendering, package installation, or a general notebook environment manager.
 
 ## Verification boundary
 
