@@ -342,6 +342,9 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
 
 pub(super) fn exercise_model_driven_common_mesh_admission_evidence() {
     scalar_q1_and_tpfa_consume_one_exact_anisotropic_common_mesh();
+    scalar_linear_blocks_execute_and_replay_complete_one_two_three_field_results();
+    common_elasticity_plan_consumes_exact_mesh_and_model_meaning();
+    mathematical_resolution_ignores_names_and_rejects_changed_operator_or_boundary_law();
     admission_rejects_policy_and_resource_cross_wires();
     transient_common_plan_resolves_exact_mini_and_supplied_cartesian_resources();
 }

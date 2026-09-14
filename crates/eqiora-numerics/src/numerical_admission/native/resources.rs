@@ -1,39 +1,32 @@
 use super::*;
 
 pub(crate) fn validate_resources(
-    capability: NativeCapability,
     spatial: NativeSpatialPolicy,
     resources: &NativeMeshResources,
 ) -> Result<(), Diagnostic> {
-    match (capability, spatial, resources) {
+    match (spatial, resources) {
         (
-            NativeCapability::ScalarElliptic,
             NativeSpatialPolicy::ScalarQ1 | NativeSpatialPolicy::ScalarTpfa,
             resources @ NativeMeshResources::Cartesian { .. },
         ) => validate_cartesian_resources(resources),
+        (NativeSpatialPolicy::ElasticityQ1, resources @ NativeMeshResources::Cartesian { .. }) => {
+            validate_cartesian_resources(resources)
+        }
         (
-            NativeCapability::IsotropicElasticity,
-            NativeSpatialPolicy::ElasticityQ1,
-            resources @ NativeMeshResources::Cartesian { .. },
-        ) => validate_cartesian_resources(resources),
-        (
-            NativeCapability::SteadyIncompressibleStokes,
             NativeSpatialPolicy::StokesMiniP1(_),
             resources @ NativeMeshResources::GmshSimplicial { .. },
         ) => validate_simplicial_resources(resources),
         (
-            NativeCapability::TransientIncompressibleFlow,
             NativeSpatialPolicy::TransientMiniP1(_),
             resources @ (NativeMeshResources::AffineTriangleSimplicial { .. }
             | NativeMeshResources::GmshSimplicial { .. }),
         ) => validate_simplicial_resources(resources),
         (
-            NativeCapability::TransientIncompressibleFlow,
             NativeSpatialPolicy::TransientCellCentered(_),
             resources @ NativeMeshResources::Cartesian { .. },
         ) => validate_cartesian_resources(resources),
         _ => Err(invalid(
-            "Model capability, spatial policy, and common Mesh kind are cross-wired",
+            "requested spatial realization and authenticated common Mesh kind are incompatible",
         )),
     }
 }

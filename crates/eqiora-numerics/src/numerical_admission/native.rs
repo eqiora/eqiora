@@ -1,14 +1,5 @@
 use super::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum NativeCapability {
-    ScalarElliptic,
-    IsotropicElasticity,
-    SteadyIncompressibleStokes,
-    TransientIncompressibleFlow,
-    FixedReferenceFsi,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) enum NativeSpatialPolicy {
     ScalarQ1,
@@ -293,7 +284,6 @@ pub(super) struct RecognizedNativeAdmission {
     pub(super) model: ModelEnvelope,
     pub(super) model_digest: String,
     pub(super) program: KernelProgram,
-    pub(super) capability: NativeCapability,
     pub(super) recognized: RecognizedNativeModel,
     pub(super) resources: NativeMeshResources,
 }
@@ -310,16 +300,19 @@ impl RecognizedNativeAdmission {
             recognize_transient_incompressible_navier_stokes_geometry_mathematics(&program);
         let fsi = lower_fixed_reference_fsi_geometry_2d(&program, resources.geometry());
         let scalar = lower_scalar_candidate(&program, &resources);
-        let capability =
-            recognize_capability(&program, &scalar, &transient, &transient_geometry, &fsi)?;
-        let recognized =
-            recognize_exact_model(capability, &program, &resources, scalar, transient, fsi)?;
+        let recognized = recognize_exact_model(
+            &program,
+            &resources,
+            scalar,
+            transient,
+            transient_geometry,
+            fsi,
+        )?;
         let model_digest = model.digest()?.to_string();
         Ok(Self {
             model: model.clone(),
             model_digest,
             program,
-            capability,
             recognized,
             resources,
         })
@@ -332,8 +325,9 @@ impl RecognizedNativeAdmission {
         temporal: Option<CommonBackwardEuler>,
         nonlinear: Option<NonlinearSolvePlan>,
     ) -> Result<NativeNumericalAdmission, Diagnostic> {
-        require_policy_compatibility(self.capability, spatial, &linear)?;
-        validate_resources(self.capability, spatial, &self.resources)?;
+        self.recognized.require_spatial_realization(spatial)?;
+        require_policy_compatibility(spatial, &linear)?;
+        validate_resources(spatial, &self.resources)?;
         if spatial == NativeSpatialPolicy::ScalarTpfa {
             let RecognizedNativeModel::Scalar(equations) = &self.recognized else {
                 return Err(invalid("TPFA requires scalar equations"));
@@ -349,6 +343,30 @@ impl RecognizedNativeAdmission {
             temporal,
             nonlinear,
         })
+    }
+}
+
+impl RecognizedNativeModel {
+    fn require_spatial_realization(&self, spatial: NativeSpatialPolicy) -> Result<(), Diagnostic> {
+        let admitted = matches!(
+            (self, spatial),
+            (
+                Self::Scalar(_),
+                NativeSpatialPolicy::ScalarQ1 | NativeSpatialPolicy::ScalarTpfa
+            ) | (Self::Elasticity(_), NativeSpatialPolicy::ElasticityQ1)
+                | (Self::Stokes(_), NativeSpatialPolicy::StokesMiniP1(_))
+                | (
+                    Self::Transient(_) | Self::TransientGeometry(_),
+                    NativeSpatialPolicy::TransientMiniP1(_)
+                        | NativeSpatialPolicy::TransientCellCentered(_)
+                )
+        );
+        if !admitted {
+            return Err(invalid(
+                "typed mathematical form and requested spatial realization are incompatible",
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -652,8 +670,8 @@ pub(super) use identity::{
     require_portable_realization, space_identity, static_plan_identity_lineage,
 };
 pub(super) use recognition::{
-    ResourceDigests, lower_scalar_candidate, recognize_capability, recognize_exact_model,
-    require_policy_compatibility, resource_artifact_digests, resource_digests,
+    ResourceDigests, lower_scalar_candidate, recognize_exact_model, require_policy_compatibility,
+    resource_artifact_digests, resource_digests,
 };
 pub(super) use resources::{
     derive_gmsh_resources, validate_cartesian_resources, validate_resources,

@@ -703,12 +703,13 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
     let reaction_transient =
         lower_transient_incompressible_navier_stokes_cartesian_2d(&reaction_program);
     assert!(
-        recognize_capability(
+        recognize_exact_model(
             &reaction_program,
-            &reaction_scalar,
-            &reaction_transient,
-            &Err(invalid("not Geometry transient")),
-            &Err(invalid("not FSI"))
+            &reaction_owner.resources,
+            reaction_scalar,
+            reaction_transient,
+            Err(invalid("not Geometry transient")),
+            Err(invalid("not coupled interface form")),
         )
         .is_err()
     );
@@ -721,12 +722,13 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
     let non_stokes_transient =
         lower_transient_incompressible_navier_stokes_cartesian_2d(&non_stokes_program);
     assert!(
-        recognize_capability(
+        recognize_exact_model(
             &non_stokes_program,
-            &Err(invalid("not scalar")),
-            &non_stokes_transient,
-            &Err(invalid("not Geometry transient")),
-            &Err(invalid("not FSI"))
+            &reaction_owner.resources,
+            Err(invalid("not scalar conservation form")),
+            non_stokes_transient,
+            Err(invalid("not Geometry transient")),
+            Err(invalid("not coupled interface form")),
         )
         .is_err()
     );
@@ -855,7 +857,7 @@ fn scalar_interval_parameter_point_uses_point_boundary_facets() {
 }
 
 #[test]
-fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_field_results() {
+pub(super) fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_field_results() {
     for count in [1_i32, 2, 3] {
         let mut source = String::from(
             "public component Coupled(
@@ -925,6 +927,126 @@ fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_field_results(
             .replace("eqiora.common-result/v5", "eqiora.common-result/v2");
         assert!(crate::CommonResult::from_bytes(old.as_bytes(), &replayed).is_err());
     }
+}
+
+#[test]
+pub(super) fn mathematical_resolution_ignores_names_and_rejects_changed_operator_or_boundary_law() {
+    let geometry = cartesian_interval();
+    let original_model = scalar_box_model(
+        &geometry,
+        POISSON_INTERVAL,
+        "PoissonInterval",
+        &["left", "right"],
+    );
+    let renamed_source = POISSON_INTERVAL
+        .replace("PoissonInterval", "RenamedInterval")
+        .replace("potential", "temperature")
+        .replace("balance", "thermal_equilibrium")
+        .replace("left_value", "cold_end")
+        .replace("right_value", "warm_end");
+    let renamed_model = scalar_box_model(
+        &geometry,
+        &renamed_source,
+        "RenamedInterval",
+        &["left", "right"],
+    );
+    let original = resolve_scalar_box(
+        &original_model,
+        cartesian_box_resources(&geometry, &[3]),
+        CommonSpatialPolicy::Q1,
+    );
+    let renamed = resolve_scalar_box(
+        &renamed_model,
+        cartesian_box_resources(&geometry, &[3]),
+        CommonSpatialPolicy::Q1,
+    );
+    assert_ne!(original.identity(), renamed.identity());
+    assert_eq!(original.formulation(), renamed.formulation());
+    assert_eq!(original.linear(), renamed.linear());
+    assert_eq!(
+        original
+            .run_result(&REFERENCE_LINEAR_SOLVER)
+            .unwrap()
+            .field_block(0, 0)
+            .unwrap()
+            .1,
+        renamed
+            .run_result(&REFERENCE_LINEAR_SOLVER)
+            .unwrap()
+            .field_block(0, 0)
+            .unwrap()
+            .1,
+    );
+
+    let nonlinear_flux = POISSON_INTERVAL.replace(
+        "-div(grad(potential))",
+        "-div(math.sin(potential) * grad(potential))",
+    );
+    let nonlinear_model = scalar_box_model(
+        &geometry,
+        &nonlinear_flux,
+        "PoissonInterval",
+        &["left", "right"],
+    );
+    let error = resolve_common_plan(
+        &nonlinear_model,
+        cartesian_box_resources(&geometry, &[3]),
+        CommonSpatialPolicy::Q1,
+        CommonSolvePolicy::Linear(exact_reference_linear(
+            LinearSolver::BiConjugateGradientStabilized,
+            1.0e-10,
+            1.0e-12,
+            NonZeroUsize::new(10_000).unwrap(),
+        )),
+        None,
+        None,
+        &ResolveOnlyBackend,
+        None,
+    )
+    .unwrap_err();
+    assert!(error.message().contains("scalar conservation form"));
+    assert!(
+        error
+            .message()
+            .contains("unknown-dependent diffusion coefficient")
+    );
+    assert!(!error.message().contains("native capability"));
+
+    let flux_boundary = POISSON_INTERVAL.replacen(
+        "relation right_value on right { trace(potential) = 0; }",
+        "relation right_value on right { normal(grad(potential)) = 0; }",
+        1,
+    );
+    let flux_model = scalar_box_model(
+        &geometry,
+        &flux_boundary,
+        "PoissonInterval",
+        &["left", "right"],
+    );
+    let error = resolve_common_plan(
+        &flux_model,
+        cartesian_box_resources(&geometry, &[3]),
+        CommonMethodRequest::Exact {
+            spatial: CommonSpatialPolicy::Q1,
+            formulation: FormulationKind::PrimalGalerkin,
+        },
+        CommonSolvePolicy::Linear(exact_reference_linear(
+            LinearSolver::BiConjugateGradientStabilized,
+            1.0e-10,
+            1.0e-12,
+            NonZeroUsize::new(10_000).unwrap(),
+        )),
+        None,
+        None,
+        &ResolveOnlyBackend,
+        None,
+    )
+    .unwrap_err();
+    assert!(
+        error
+            .message()
+            .contains("complete essential boundary class")
+    );
 }
 
 #[test]

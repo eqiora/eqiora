@@ -93,13 +93,14 @@ pub(crate) fn resource_artifact_digests(
     ))
 }
 
-pub(crate) fn recognize_capability(
+pub(crate) fn recognize_exact_model(
     program: &KernelProgram,
-    scalar: &Result<ExecutableScalarEquations, Diagnostic>,
-    transient: &Result<TransientIncompressibleNavierStokesCartesianModel2d, Diagnostic>,
-    transient_geometry: &Result<(), Diagnostic>,
-    fsi: &Result<FixedReferenceFsiCartesianModel2d, Diagnostic>,
-) -> Result<NativeCapability, Diagnostic> {
+    resources: &NativeMeshResources,
+    scalar: Result<ExecutableScalarEquations, Diagnostic>,
+    transient: Result<TransientIncompressibleNavierStokesCartesianModel2d, Diagnostic>,
+    transient_geometry: Result<(), Diagnostic>,
+    fsi: Result<FixedReferenceFsiCartesianModel2d, Diagnostic>,
+) -> Result<RecognizedNativeModel, Diagnostic> {
     let elasticity = recognize_isotropic_elasticity_geometry_mathematics(program);
     let stokes = recognize_steady_incompressible_stokes_geometry_mathematics(program);
     let recognized = [
@@ -115,24 +116,103 @@ pub(crate) fn recognize_capability(
         ));
     }
     if scalar.is_ok() {
-        return Ok(NativeCapability::ScalarElliptic);
+        if !matches!(resources, NativeMeshResources::Cartesian { .. }) {
+            return Err(invalid(
+                "scalar conservation realization requires authenticated Cartesian resources",
+            ));
+        }
+        return scalar.map(Box::new).map(RecognizedNativeModel::Scalar);
     }
     if elasticity.is_ok() {
-        return Ok(NativeCapability::IsotropicElasticity);
+        let NativeMeshResources::Cartesian {
+            geometry,
+            mesh,
+            correspondence,
+            ..
+        } = resources
+        else {
+            return Err(invalid(
+                "isotropic small-strain realization requires authenticated Cartesian resources",
+            ));
+        };
+        return lower_isotropic_elasticity_geometry_2d(program, geometry, mesh, correspondence)
+            .map(Box::new)
+            .map(RecognizedNativeModel::Elasticity);
     }
     if stokes.is_ok() {
-        return Ok(NativeCapability::SteadyIncompressibleStokes);
+        let NativeMeshResources::GmshSimplicial {
+            geometry,
+            mesh,
+            correspondence,
+            ..
+        } = resources
+        else {
+            return Err(invalid(
+                "steady incompressible mixed form requires authenticated Gmsh simplicial resources",
+            ));
+        };
+        return SteadyStokesGeometryBinding2d::new_authenticated(
+            program,
+            geometry,
+            mesh,
+            correspondence,
+        )
+        .map(Box::new)
+        .map(RecognizedNativeModel::Stokes);
     }
     if transient.is_ok() || transient_geometry.is_ok() {
-        return Ok(NativeCapability::TransientIncompressibleFlow);
+        if let NativeMeshResources::GmshSimplicial {
+            geometry,
+            mesh,
+            correspondence,
+            ..
+        } = resources
+        {
+            return TransientNavierStokesGeometryBinding2d::new_authenticated(
+                program,
+                geometry,
+                mesh,
+                correspondence,
+            )
+            .map(Box::new)
+            .map(RecognizedNativeModel::TransientGeometry);
+        }
+        let transient = transient?;
+        let exact_bounds = resources
+            .geometry()
+            .planar_rectangle_bounds()
+            .ok_or_else(|| {
+                invalid("transient storage realization requires an exact planar rectangle Geometry")
+            })?;
+        if !exact_bounds
+            .iter()
+            .zip(transient.bounds())
+            .all(|(caller, model)| {
+                caller[0].to_bits() == model[0].to_bits()
+                    && caller[1].to_bits() == model[1].to_bits()
+            })
+        {
+            return Err(invalid(
+                "caller Mesh Geometry bounds differ from Model-owned transient Domain",
+            ));
+        }
+        return Ok(RecognizedNativeModel::Transient(Box::new(transient)));
     }
     if fsi.is_ok() {
-        return Ok(NativeCapability::FixedReferenceFsi);
+        if !matches!(
+            resources,
+            NativeMeshResources::AdjacentPartitionSimplicial { .. }
+        ) {
+            return Err(invalid(
+                "coupled interface realization requires authenticated adjacent-partition simplicial resources",
+            ));
+        }
+        return fsi.map(Box::new).map(RecognizedNativeModel::Fsi);
     }
-    let scalar = scalar.as_ref().unwrap_err();
+    let scalar = scalar.unwrap_err();
     let elasticity = elasticity.unwrap_err();
     let stokes = stokes.unwrap_err();
-    let transient_message = match (transient.as_ref(), transient_geometry.as_ref()) {
+    let transient_message = match (&transient, &transient_geometry) {
         (Err(cartesian), Err(geometry)) => format!(
             "Cartesian [{}: {}]; Geometry [{}: {}]",
             cartesian.code(),
@@ -142,9 +222,9 @@ pub(crate) fn recognize_capability(
         ),
         _ => unreachable!("recognized transient handled above"),
     };
-    let fsi = fsi.as_ref().unwrap_err();
+    let fsi = fsi.unwrap_err();
     Err(invalid(format!(
-        "Model mathematical meaning matches no native capability: scalar [{}: {}]; elasticity [{}: {}]; Stokes [{}: {}]; transient flow [{transient_message}]; FSI [{}: {}]",
+        "Model has no admitted exact mathematical realization: scalar conservation form [{}: {}]; isotropic small-strain form [{}: {}]; steady incompressible mixed form [{}: {}]; transient storage form [{transient_message}]; coupled interface form [{}: {}]",
         scalar.code(),
         scalar.message(),
         elasticity.code(),
@@ -154,93 +234,6 @@ pub(crate) fn recognize_capability(
         fsi.code(),
         fsi.message(),
     )))
-}
-
-pub(crate) fn recognize_exact_model(
-    capability: NativeCapability,
-    program: &KernelProgram,
-    resources: &NativeMeshResources,
-    scalar: Result<ExecutableScalarEquations, Diagnostic>,
-    transient: Result<TransientIncompressibleNavierStokesCartesianModel2d, Diagnostic>,
-    fsi: Result<FixedReferenceFsiCartesianModel2d, Diagnostic>,
-) -> Result<RecognizedNativeModel, Diagnostic> {
-    match (capability, resources) {
-        (NativeCapability::ScalarElliptic, NativeMeshResources::Cartesian { .. }) => {
-            scalar.map(Box::new).map(RecognizedNativeModel::Scalar)
-        }
-        (
-            NativeCapability::IsotropicElasticity,
-            NativeMeshResources::Cartesian {
-                geometry,
-                mesh,
-                correspondence,
-                ..
-            },
-        ) => lower_isotropic_elasticity_geometry_2d(program, geometry, mesh, correspondence)
-            .map(Box::new)
-            .map(RecognizedNativeModel::Elasticity),
-        (
-            NativeCapability::SteadyIncompressibleStokes,
-            NativeMeshResources::GmshSimplicial {
-                geometry,
-                mesh,
-                correspondence,
-                ..
-            },
-        ) => SteadyStokesGeometryBinding2d::new_authenticated(
-            program,
-            geometry,
-            mesh,
-            correspondence,
-        )
-        .map(Box::new)
-        .map(RecognizedNativeModel::Stokes),
-        (
-            NativeCapability::TransientIncompressibleFlow,
-            NativeMeshResources::GmshSimplicial {
-                geometry,
-                mesh,
-                correspondence,
-                ..
-            },
-        ) => TransientNavierStokesGeometryBinding2d::new_authenticated(
-            program,
-            geometry,
-            mesh,
-            correspondence,
-        )
-        .map(Box::new)
-        .map(RecognizedNativeModel::TransientGeometry),
-        (NativeCapability::TransientIncompressibleFlow, _) => {
-            let transient = transient?;
-            let exact_bounds = resources
-                .geometry()
-                .planar_rectangle_bounds()
-                .ok_or_else(|| {
-                    invalid("transient flow requires an exact planar rectangle Geometry")
-                })?;
-            if !exact_bounds
-                .iter()
-                .zip(transient.bounds())
-                .all(|(caller, model)| {
-                    caller[0].to_bits() == model[0].to_bits()
-                        && caller[1].to_bits() == model[1].to_bits()
-                })
-            {
-                return Err(invalid(
-                    "caller Mesh Geometry bounds differ from Model-owned transient Domain",
-                ));
-            }
-            Ok(RecognizedNativeModel::Transient(Box::new(transient)))
-        }
-        (
-            NativeCapability::FixedReferenceFsi,
-            NativeMeshResources::AdjacentPartitionSimplicial { .. },
-        ) => fsi.map(Box::new).map(RecognizedNativeModel::Fsi),
-        _ => Err(invalid(
-            "recognized Model capability and authenticated common Mesh kind are cross-wired",
-        )),
-    }
 }
 
 pub(crate) fn lower_scalar_candidate(
@@ -275,32 +268,17 @@ pub(crate) fn lower_scalar_candidate(
 }
 
 pub(crate) fn require_policy_compatibility(
-    capability: NativeCapability,
     spatial: NativeSpatialPolicy,
     linear: &NativeLinearPolicy,
 ) -> Result<(), Diagnostic> {
-    let properties = match (capability, spatial) {
-        (NativeCapability::ScalarElliptic, NativeSpatialPolicy::ScalarQ1)
-        | (
-            NativeCapability::TransientIncompressibleFlow,
-            NativeSpatialPolicy::TransientMiniP1(_),
-        )
-        | (
-            NativeCapability::TransientIncompressibleFlow,
-            NativeSpatialPolicy::TransientCellCentered(_),
-        ) => LinearOperatorProperties::General,
-        (NativeCapability::ScalarElliptic, NativeSpatialPolicy::ScalarTpfa)
-        | (NativeCapability::IsotropicElasticity, NativeSpatialPolicy::ElasticityQ1) => {
+    let properties = match spatial {
+        NativeSpatialPolicy::ScalarQ1
+        | NativeSpatialPolicy::TransientMiniP1(_)
+        | NativeSpatialPolicy::TransientCellCentered(_) => LinearOperatorProperties::General,
+        NativeSpatialPolicy::ScalarTpfa | NativeSpatialPolicy::ElasticityQ1 => {
             LinearOperatorProperties::SymmetricPositiveDefinite
         }
-        (NativeCapability::SteadyIncompressibleStokes, NativeSpatialPolicy::StokesMiniP1(_)) => {
-            LinearOperatorProperties::SymmetricIndefinite
-        }
-        _ => {
-            return Err(invalid(
-                "Model capability and spatial policy are cross-wired",
-            ));
-        }
+        NativeSpatialPolicy::StokesMiniP1(_) => LinearOperatorProperties::SymmetricIndefinite,
     };
     if !linear.planning_audit_is_coherent()
         || linear.execution != SERIAL_EXECUTION_PROVIDER
