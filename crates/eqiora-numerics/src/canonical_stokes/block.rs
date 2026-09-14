@@ -499,7 +499,7 @@ pub(super) fn transient_navier_stokes_block_system(
     let mut contributions = vec![ContributionBatch::new(
         [BlockSupport::Volume(domain)],
         0..cell_count,
-        [0, 1],
+        [0],
         [
             ResidualOrigin::Relation(force_definition),
             ResidualOrigin::Relation(momentum),
@@ -531,7 +531,7 @@ pub(super) fn transient_navier_stokes_block_system(
         contributions.push(ContributionBatch::new(
             [BlockSupport::Volume(domain)],
             packet_cursor..end,
-            [0, 1],
+            [0],
             [ResidualOrigin::AlgebraicConstraint(constraint)],
             [],
             [
@@ -569,7 +569,7 @@ pub(super) fn transient_navier_stokes_block_system(
         contributions.push(ContributionBatch::new(
             supports,
             packet_cursor..packet_cursor + traction_count,
-            [0, 1],
+            [0],
             traction.iter().copied().map(ResidualOrigin::Relation),
             [],
             [AlgebraicBlock::Field(velocity)],
@@ -606,7 +606,7 @@ pub(super) fn transient_navier_stokes_block_system(
         closures,
         contributions,
         packet_cursor,
-        2,
+        1,
         0,
         LinearOperatorProperties::General,
     )

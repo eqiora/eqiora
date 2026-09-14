@@ -1599,7 +1599,7 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
         // These descriptors advertise only General capabilities. The correct
         // algorithm alone cannot admit the requested symmetric operator class.
         let profile = HostSerialSolverProfile::canonical_csr(properties, Some(false), None);
-        let rejected = plan_host_serial_solver_v2(
+        let rejected = ResolvedHostSerialSolverPlan::resolve(
             profile.clone(),
             SolverPlanningObjective::Robust,
             1e-12,
@@ -1619,7 +1619,7 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
         // Sparse LU accepts all three classes, but the provider must advertise
         // the exact class. Change only that field before admitting the direct candidate.
         faer.capability.operator_properties = properties;
-        let direct = plan_host_serial_solver_v2(
+        let direct = ResolvedHostSerialSolverPlan::resolve(
             profile.clone(),
             SolverPlanningObjective::Robust,
             1e-12,
@@ -1635,7 +1635,7 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
             operator_properties: properties,
             ..capability(exact)
         };
-        let accepted = plan_host_serial_solver_v2(
+        let accepted = ResolvedHostSerialSolverPlan::resolve(
             profile.clone(),
             SolverPlanningObjective::Robust,
             1e-12,
@@ -1683,7 +1683,7 @@ fn required_reduction_filters_before_objective_ranking_and_exact_admission() {
         SolverPlanningObjective::Fast,
         SolverPlanningObjective::LowMemory,
     ] {
-        let selected = plan_host_serial_solver_v2(
+        let selected = ResolvedHostSerialSolverPlan::resolve(
             profile.clone(),
             objective,
             1e-12,
@@ -1709,7 +1709,7 @@ fn required_reduction_filters_before_objective_ranking_and_exact_admission() {
         None,
         Some(ReductionPolicy::Fast),
     );
-    let fast = plan_host_serial_solver_v2(
+    let fast = ResolvedHostSerialSolverPlan::resolve(
         fast_profile,
         SolverPlanningObjective::Robust,
         1e-12,

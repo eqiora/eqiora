@@ -157,7 +157,7 @@ fn accept_independent<const D: usize>(
             gcl_active_moving_fluid_cell_count: free_stream.gcl_active_moving_fluid_cell_count,
             compatible_constant_free_stream_residual_norm: free_stream.residual_norm,
             omitted_gcl_witness_norm: free_stream.omitted_gcl_witness_norm,
-            assembly_report: *independent.assembly_report(),
+            assembly_report: independent.assembly_report().clone(),
             nonlinear_linear_solves: newton.linear_solves,
         },
     )?;

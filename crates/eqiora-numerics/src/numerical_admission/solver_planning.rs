@@ -38,7 +38,7 @@ pub(super) fn resolve_linear(
     let objective = request
         .objective()
         .expect("linear intent is exact or program-controlled");
-    let decision = eqiora_solver::plan_host_serial_solver_v2(
+    let decision = eqiora_solver::ResolvedHostSerialSolverPlan::resolve(
         profile,
         objective,
         request.relative_tolerance(),

@@ -144,7 +144,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-backend-mpi/src/runtime.rs"
-ceiling = 2288
+ceiling = 2287
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -210,7 +210,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-numerics/src/simplicial_mini_transient.rs"
-ceiling = 1927
+ceiling = 1455
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 

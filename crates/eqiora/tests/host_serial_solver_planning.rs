@@ -5,8 +5,8 @@ use std::process::Command;
 use eqiora::solver::{
     CanonicalCsrSystemView, CompleteCsrStorage, ExecutionProvider, HostSerialSolverProfile,
     LinearOperatorProperties, LinearSolveRequest, LinearSolver, LinearSolverBackend,
-    PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SERIAL_EXECUTION_PROVIDER,
-    SolverPlan, SolverPlanningObjective, SolverProvider, plan_host_serial_solver_v2,
+    PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, ResolvedHostSerialSolverPlan,
+    SERIAL_EXECUTION_PROVIDER, SolverPlan, SolverPlanningObjective, SolverProvider,
 };
 use eqiora_backend_faer::FaerLinearSolver;
 use serde_json::Value;
@@ -231,7 +231,7 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
     assert_eq!(bound.to_bits(), 0x3d70_0000_0000_0000);
     for expected in oracle["objectives"].as_array().unwrap() {
         let objective = objective(expected["objective"].as_str().unwrap());
-        let decision = plan_host_serial_solver_v2(
+        let decision = ResolvedHostSerialSolverPlan::resolve(
             HostSerialSolverProfile::general_canonical_csr(),
             objective,
             1.0e-12,
@@ -394,7 +394,7 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
             SolverPlanningObjective::Fast,
             SolverPlanningObjective::LowMemory,
         ] {
-            let decision = plan_host_serial_solver_v2(
+            let decision = ResolvedHostSerialSolverPlan::resolve(
                 HostSerialSolverProfile::canonical_csr(properties, Some(diagonal), None)
                     .with_structure(structure.clone())
                     .unwrap(),
@@ -492,7 +492,7 @@ fn unclaimed_diagonal_ranks_only_independently_admissible_candidates() {
     ] {
         let profile =
             HostSerialSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None);
-        let decision = plan_host_serial_solver_v2(
+        let decision = ResolvedHostSerialSolverPlan::resolve(
             profile,
             objective,
             1e-12,

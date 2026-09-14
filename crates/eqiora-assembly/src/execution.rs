@@ -1,10 +1,15 @@
+use std::collections::BTreeSet;
 use std::fmt;
+use std::sync::Arc;
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_solver::ExecutionReport;
+use eqiora_solver::{ExecutionReport, PreparedLinearStructureIdentity};
 
-use crate::{AssemblyDelta, AssemblyMap, CooAssembler, LinearSystem, LocalContribution};
+use crate::sparse::{CsrTopology, CsrValueAssembler};
+use crate::{
+    AssemblyDelta, AssemblyMap, CooAssembler, LinearSystem, LocalContribution, LocalUnknown,
+};
 
 /// Identity of the ordered logical entity set addressed by assembly packets.
 ///
@@ -87,6 +92,50 @@ impl AssemblyTarget {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssemblyPlan {
     targets: Vec<AssemblyTarget>,
+    prepared: Option<Arc<PreparedAssemblyStructure>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PreparedAssemblyStructure {
+    packet_encodings: Vec<Arc<[u8]>>,
+    topologies: Vec<CsrTopology>,
+    identity: PreparedLinearStructureIdentity,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct AssemblyPacketStructure {
+    rows: usize,
+    columns: usize,
+    mappings: Vec<TargetAssemblyMap>,
+}
+
+impl AssemblyPacketStructure {
+    fn new(mut mappings: Vec<TargetAssemblyMap>) -> Result<Self, Diagnostic> {
+        let Some(first) = mappings.first() else {
+            return Err(assembly_failed(
+                "a prepared assembly packet requires target mappings",
+            ));
+        };
+        let rows = first.map.equations().len();
+        let columns = first.map.unknowns().len();
+        if rows == 0 {
+            return Err(assembly_failed("a prepared assembly packet requires rows"));
+        }
+        mappings.sort_by_key(|mapping| mapping.target);
+        if mappings
+            .windows(2)
+            .any(|pair| pair[0].target == pair[1].target)
+        {
+            return Err(assembly_failed(
+                "a prepared packet maps one target more than once",
+            ));
+        }
+        Ok(Self {
+            rows,
+            columns,
+            mappings,
+        })
+    }
 }
 
 impl AssemblyPlan {
@@ -100,7 +149,74 @@ impl AssemblyPlan {
                 "an assembly plan requires at least one target",
             ));
         }
-        Ok(Self { targets })
+        Ok(Self {
+            targets,
+            prepared: None,
+        })
+    }
+
+    /// Seal fixed packet maps and canonical CSR topology for repeated value assembly.
+    pub fn prepare(mut self, packets: Vec<Vec<TargetAssemblyMap>>) -> Result<Self, Diagnostic> {
+        if packets.is_empty() {
+            return Err(assembly_failed(
+                "prepared assembly requires at least one packet",
+            ));
+        }
+        let packets = packets
+            .into_iter()
+            .map(AssemblyPacketStructure::new)
+            .collect::<Result<Vec<_>, _>>()?;
+        if packets
+            .iter()
+            .flat_map(|packet| &packet.mappings)
+            .any(|mapping| mapping.target.index() >= self.targets.len())
+        {
+            return Err(assembly_failed(
+                "prepared packet references a target outside the assembly plan",
+            ));
+        }
+        let packet_encodings = packets
+            .iter()
+            .map(encode_packet_structure)
+            .collect::<Result<Vec<_>, _>>()?;
+        let topologies = self
+            .targets
+            .iter()
+            .enumerate()
+            .map(|(target, shape)| build_topology(target, shape.size, &packets))
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut encoding = b"eqiora.assembly.structure/v1\0".to_vec();
+        push_usize(&mut encoding, self.targets.len())?;
+        for target in &self.targets {
+            push_usize(&mut encoding, target.size)?;
+        }
+        push_usize(&mut encoding, packet_encodings.len())?;
+        for packet in &packet_encodings {
+            push_usize(&mut encoding, packet.len())?;
+            encoding.extend_from_slice(packet);
+        }
+        for topology in &topologies {
+            push_usize(&mut encoding, topology.row_offsets.len())?;
+            for &offset in topology.row_offsets.iter() {
+                push_usize(&mut encoding, offset)?;
+            }
+            push_usize(&mut encoding, topology.column_indices.len())?;
+            for &column in topology.column_indices.iter() {
+                push_usize(&mut encoding, column)?;
+            }
+        }
+        self.prepared = Some(Arc::new(PreparedAssemblyStructure {
+            packet_encodings: packet_encodings.into_iter().map(Arc::from).collect(),
+            topologies,
+            identity: PreparedLinearStructureIdentity::new(encoding)?,
+        }));
+        Ok(self)
+    }
+
+    /// Exact identity of this plan's fixed packet maps and sparse topology.
+    #[must_use]
+    pub fn structure_identity(&self) -> Option<&PreparedLinearStructureIdentity> {
+        self.prepared.as_deref().map(|prepared| &prepared.identity)
     }
 
     /// Number of output systems.
@@ -122,18 +238,111 @@ impl AssemblyPlan {
     }
 }
 
+fn build_topology(
+    target: usize,
+    size: usize,
+    packets: &[AssemblyPacketStructure],
+) -> Result<CsrTopology, Diagnostic> {
+    let mut rows = vec![BTreeSet::new(); size];
+    for packet in packets {
+        for mapping in packet
+            .mappings
+            .iter()
+            .filter(|mapping| mapping.target.index() == target)
+        {
+            if mapping.map.equations().len() != packet.rows
+                || mapping.map.unknowns().len() != packet.columns
+            {
+                return Err(assembly_failed(
+                    "prepared packet shape differs from its map",
+                ));
+            }
+            for equation in mapping.map.equations().iter().flatten() {
+                if equation.index() >= size {
+                    return Err(assembly_failed("prepared equation is outside its target"));
+                }
+                for unknown in mapping.map.unknowns() {
+                    if let LocalUnknown::Free(column) = unknown {
+                        if column.index() >= size {
+                            return Err(assembly_failed("prepared unknown is outside its target"));
+                        }
+                        rows[equation.index()].insert(column.index());
+                    }
+                }
+            }
+        }
+    }
+    let mut offsets = Vec::with_capacity(size + 1);
+    let mut columns = Vec::new();
+    offsets.push(0);
+    for (row, entries) in rows.into_iter().enumerate() {
+        if entries.is_empty() {
+            return Err(assembly_failed(format!(
+                "prepared global row {row} has no structural entry"
+            )));
+        }
+        columns.extend(entries);
+        offsets.push(columns.len());
+    }
+    CsrTopology::new(size, offsets, columns)
+}
+
+fn encode_packet_structure(packet: &AssemblyPacketStructure) -> Result<Vec<u8>, Diagnostic> {
+    let mut out = Vec::new();
+    push_usize(&mut out, packet.rows)?;
+    push_usize(&mut out, packet.columns)?;
+    push_usize(&mut out, packet.mappings.len())?;
+    for mapping in &packet.mappings {
+        push_usize(&mut out, mapping.target.index())?;
+        push_usize(&mut out, mapping.map.equations().len())?;
+        for equation in mapping.map.equations() {
+            match equation {
+                Some(dof) => {
+                    out.push(1);
+                    push_usize(&mut out, dof.index())?;
+                }
+                None => out.push(0),
+            }
+        }
+        push_usize(&mut out, mapping.map.unknowns().len())?;
+        for unknown in mapping.map.unknowns() {
+            match unknown {
+                LocalUnknown::Free(dof) => {
+                    out.push(0);
+                    push_usize(&mut out, dof.index())?;
+                }
+                LocalUnknown::Fixed(value) => {
+                    out.push(1);
+                    out.extend_from_slice(&value.to_bits().to_be_bytes());
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
+fn push_usize(out: &mut Vec<u8>, value: usize) -> Result<(), Diagnostic> {
+    let value = u64::try_from(value)
+        .map_err(|_| assembly_failed("assembly structure exceeds portable u64"))?;
+    out.extend_from_slice(&value.to_be_bytes());
+    Ok(())
+}
+
 /// One local-to-global map addressed to a specific assembly target.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TargetAssemblyMap {
     target: AssemblyTargetId,
-    map: AssemblyMap,
+    map: Arc<AssemblyMap>,
 }
 
 impl TargetAssemblyMap {
     /// Bind one map to a target obtained from [`AssemblyPlan::target_id`].
     #[must_use]
-    pub const fn new(target: AssemblyTargetId, map: AssemblyMap) -> Self {
-        Self { target, map }
+    pub fn new(target: AssemblyTargetId, map: impl Into<Arc<AssemblyMap>>) -> Self {
+        Self {
+            target,
+            map: map.into(),
+        }
     }
 
     /// Destination target.
@@ -144,7 +353,7 @@ impl TargetAssemblyMap {
 
     /// Local-to-global map for this target.
     #[must_use]
-    pub const fn map(&self) -> &AssemblyMap {
+    pub fn map(&self) -> &AssemblyMap {
         &self.map
     }
 }
@@ -342,30 +551,37 @@ where
 }
 
 /// Evidence for one completely accepted assembly operation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssemblyReport {
     execution: ExecutionReport,
     packet_count: usize,
     target_count: usize,
+    structure_identity: Option<PreparedLinearStructureIdentity>,
 }
 
 impl AssemblyReport {
     /// Placement used to evaluate local packets.
     #[must_use]
-    pub const fn execution(self) -> ExecutionReport {
+    pub const fn execution(&self) -> ExecutionReport {
         self.execution
     }
 
     /// Accepted logical packet count.
     #[must_use]
-    pub const fn packet_count(self) -> usize {
+    pub const fn packet_count(&self) -> usize {
         self.packet_count
     }
 
     /// Finalized output target count.
     #[must_use]
-    pub const fn target_count(self) -> usize {
+    pub const fn target_count(&self) -> usize {
         self.target_count
+    }
+
+    /// Exact fixed assembly structure used by this operation, when prepared.
+    #[must_use]
+    pub const fn structure_identity(&self) -> Option<&PreparedLinearStructureIdentity> {
+        self.structure_identity.as_ref()
     }
 }
 
@@ -422,6 +638,7 @@ impl AssemblyResult {
                 execution,
                 packet_count,
                 target_count: plan.target_count(),
+                structure_identity: plan.structure_identity().cloned(),
             },
         })
     }
@@ -479,8 +696,14 @@ pub trait AssemblyBackend: fmt::Debug {
 #[derive(Debug)]
 pub struct AssemblyAccumulator {
     plan: AssemblyPlan,
-    assemblers: Vec<CooAssembler>,
+    assemblers: Vec<TargetAccumulator>,
     next_packet: usize,
+}
+
+#[derive(Debug)]
+enum TargetAccumulator {
+    Dynamic(CooAssembler),
+    Prepared(CsrValueAssembler),
 }
 
 impl AssemblyAccumulator {
@@ -489,11 +712,20 @@ impl AssemblyAccumulator {
     /// # Errors
     /// Propagates invalid target shape as `EQ0806`.
     pub fn new(plan: &AssemblyPlan) -> Result<Self, Diagnostic> {
-        let assemblers = plan
-            .targets
-            .iter()
-            .map(|target| CooAssembler::new(target.size))
-            .collect::<Result<Vec<_>, _>>()?;
+        let assemblers = if let Some(prepared) = &plan.prepared {
+            prepared
+                .topologies
+                .iter()
+                .cloned()
+                .map(CsrValueAssembler::new)
+                .map(TargetAccumulator::Prepared)
+                .collect()
+        } else {
+            plan.targets
+                .iter()
+                .map(|target| CooAssembler::new(target.size).map(TargetAccumulator::Dynamic))
+                .collect::<Result<Vec<_>, _>>()?
+        };
         Ok(Self {
             plan: plan.clone(),
             assemblers,
@@ -518,6 +750,21 @@ impl AssemblyAccumulator {
         packet: &AssemblyPacket,
     ) -> Result<Self, Diagnostic> {
         self.require_packet_index(packet_index)?;
+        if let Some(prepared) = &self.plan.prepared {
+            let expected = prepared.packet_encodings.get(packet_index).ok_or_else(|| {
+                assembly_failed("packet is outside the prepared assembly structure")
+            })?;
+            let actual = encode_packet_structure(&AssemblyPacketStructure {
+                rows: packet.local.rows(),
+                columns: packet.local.columns(),
+                mappings: packet.mappings.clone(),
+            })?;
+            if actual.as_slice() != expected.as_ref() {
+                return Err(assembly_failed(
+                    "packet shape or maps differ from the prepared assembly structure",
+                ));
+            }
+        }
         let projected = packet.project(&self.plan)?;
         self.scatter_projected(packet_index, &projected)
     }
@@ -559,7 +806,14 @@ impl AssemblyAccumulator {
                         target_delta.target.0, target_count
                     ))
                 })?;
-            assembler.scatter_delta(&target_delta.delta)?;
+            match assembler {
+                TargetAccumulator::Dynamic(assembler) => {
+                    assembler.scatter_delta(&target_delta.delta)?
+                }
+                TargetAccumulator::Prepared(assembler) => {
+                    assembler.scatter_delta(&target_delta.delta)?
+                }
+            }
         }
         self.next_packet += 1;
         Ok(self)
@@ -580,11 +834,24 @@ impl AssemblyAccumulator {
     /// # Errors
     /// Returns `EQ0806` if any target has an empty structural row.
     pub fn finish(self, execution: ExecutionReport) -> Result<AssemblyResult, Diagnostic> {
+        if self
+            .plan
+            .prepared
+            .as_ref()
+            .is_some_and(|prepared| prepared.packet_encodings.len() != self.next_packet)
+        {
+            return Err(assembly_failed(
+                "assembly did not cover the complete prepared packet structure",
+            ));
+        }
         let target_count = self.assemblers.len();
         let systems = self
             .assemblers
             .into_iter()
-            .map(CooAssembler::finish)
+            .map(|assembler| match assembler {
+                TargetAccumulator::Dynamic(assembler) => assembler.finish(),
+                TargetAccumulator::Prepared(assembler) => assembler.finish(),
+            })
             .collect::<Result<Vec<_>, _>>()?;
         Ok(AssemblyResult {
             systems,
@@ -592,6 +859,7 @@ impl AssemblyAccumulator {
                 execution,
                 packet_count: self.next_packet,
                 target_count,
+                structure_identity: self.plan.structure_identity().cloned(),
             },
         })
     }
@@ -629,281 +897,4 @@ fn assembly_failed(message: impl Into<String>) -> Diagnostic {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{DofId, LocalUnknown};
-
-    fn target_map(target: AssemblyTargetId, dof: usize) -> TargetAssemblyMap {
-        let dof = DofId::new(dof);
-        TargetAssemblyMap::new(
-            target,
-            AssemblyMap::new(vec![Some(dof)], vec![LocalUnknown::Free(dof)]).unwrap(),
-        )
-    }
-
-    #[test]
-    fn packet_canonicalizes_targets_and_rejects_duplicates() {
-        let plan = AssemblyPlan::new(vec![
-            AssemblyTarget::new(1).unwrap(),
-            AssemblyTarget::new(1).unwrap(),
-        ])
-        .unwrap();
-        let first = plan.target_id(0).unwrap();
-        let second = plan.target_id(1).unwrap();
-        let local = LocalContribution::new(1, 1, vec![1.0], vec![2.0]).unwrap();
-        let packet = AssemblyPacket::new(
-            local.clone(),
-            vec![target_map(second, 0), target_map(first, 0)],
-        )
-        .unwrap();
-        assert_eq!(packet.mappings()[0].target(), first);
-        assert_eq!(packet.mappings()[1].target(), second);
-        let projected = packet.project(&plan).unwrap();
-        assert_eq!(projected[0].target(), first);
-        assert_eq!(projected[1].target(), second);
-        assert_eq!(projected[0].delta().target_size(), 1);
-        assert_eq!(
-            AssemblyPacket::new(local, vec![target_map(first, 0), target_map(first, 0)])
-                .unwrap_err()
-                .code(),
-            codes::ASSEMBLY_FAILED
-        );
-    }
-
-    #[test]
-    fn reference_assembly_preserves_packet_accumulation_order() {
-        let plan = AssemblyPlan::new(vec![AssemblyTarget::new(1).unwrap()]).unwrap();
-        let target = plan.target_id(0).unwrap();
-        let values = [1.0e16, 1.0, -1.0e16];
-        let work = IndexedAssemblyWork::new(values.len(), |index| {
-            AssemblyPacket::new(
-                LocalContribution::new(1, 1, vec![1.0], vec![values[index]])?,
-                vec![target_map(target, 0)],
-            )
-        });
-        let result = REFERENCE_ASSEMBLY_BACKEND.assemble(&plan, &work).unwrap();
-        assert_eq!(result.system(target).unwrap().matrix().values(), &[3.0]);
-        assert_eq!(result.system(target).unwrap().rhs(), &[0.0]);
-        assert_eq!(result.report().packet_count(), values.len());
-        assert_eq!(result.report().target_count(), 1);
-    }
-
-    #[test]
-    fn packet_and_projected_scatter_share_ordered_accumulation() {
-        let plan = AssemblyPlan::new(vec![AssemblyTarget::new(1).unwrap()]).unwrap();
-        let target = plan.target_id(0).unwrap();
-        let packet = AssemblyPacket::new(
-            LocalContribution::new(1, 1, vec![2.0], vec![3.0]).unwrap(),
-            vec![target_map(target, 0)],
-        )
-        .unwrap();
-        let projected = packet.project(&plan).unwrap();
-
-        let packet_result = AssemblyAccumulator::new(&plan)
-            .unwrap()
-            .scatter_packet(0, &packet)
-            .unwrap()
-            .finish(ExecutionReport::host_serial())
-            .unwrap();
-        let projected_result = AssemblyAccumulator::new(&plan)
-            .unwrap()
-            .scatter_projected(0, &projected)
-            .unwrap()
-            .finish(ExecutionReport::host_serial())
-            .unwrap();
-
-        assert_eq!(packet_result.systems(), projected_result.systems());
-    }
-
-    #[test]
-    fn projected_scatter_still_rejects_out_of_order_packets() {
-        let plan = AssemblyPlan::new(vec![AssemblyTarget::new(1).unwrap()]).unwrap();
-        let foreign_plan = AssemblyPlan::new(vec![
-            AssemblyTarget::new(1).unwrap(),
-            AssemblyTarget::new(1).unwrap(),
-        ])
-        .unwrap();
-        let foreign_target = foreign_plan.target_id(1).unwrap();
-        let packet = AssemblyPacket::new(
-            LocalContribution::new(1, 1, vec![1.0], vec![0.0]).unwrap(),
-            vec![target_map(foreign_target, 0)],
-        )
-        .unwrap();
-
-        let diagnostic = AssemblyAccumulator::new(&plan)
-            .unwrap()
-            .scatter_packet(1, &packet)
-            .unwrap_err();
-        assert_eq!(diagnostic.code(), codes::ASSEMBLY_FAILED);
-        assert_eq!(
-            diagnostic.message(),
-            "ordered assembly expected packet 0, received 1"
-        );
-
-        let valid_target = plan.target_id(0).unwrap();
-        let valid_packet = AssemblyPacket::new(
-            LocalContribution::new(1, 1, vec![1.0], vec![0.0]).unwrap(),
-            vec![target_map(valid_target, 0)],
-        )
-        .unwrap();
-        let valid_projected = valid_packet.project(&plan).unwrap();
-        let projected_diagnostic = AssemblyAccumulator::new(&plan)
-            .unwrap()
-            .scatter_projected(1, &valid_projected)
-            .unwrap_err();
-        assert_eq!(projected_diagnostic.code(), codes::ASSEMBLY_FAILED);
-        assert_eq!(
-            projected_diagnostic.message(),
-            "ordered assembly expected packet 0, received 1"
-        );
-    }
-
-    #[test]
-    fn projected_scatter_rejects_empty_and_foreign_plan_deltas() {
-        let plan = AssemblyPlan::new(vec![AssemblyTarget::new(1).unwrap()]).unwrap();
-        let empty_diagnostic = AssemblyAccumulator::new(&plan)
-            .unwrap()
-            .scatter_projected(0, &[])
-            .unwrap_err();
-        assert_eq!(empty_diagnostic.code(), codes::ASSEMBLY_FAILED);
-        assert_eq!(
-            empty_diagnostic.message(),
-            "projected assembly packet requires at least one target delta"
-        );
-
-        let foreign_plan = AssemblyPlan::new(vec![
-            AssemblyTarget::new(1).unwrap(),
-            AssemblyTarget::new(1).unwrap(),
-        ])
-        .unwrap();
-        let foreign_target = foreign_plan.target_id(1).unwrap();
-        let foreign_packet = AssemblyPacket::new(
-            LocalContribution::new(1, 1, vec![1.0], vec![0.0]).unwrap(),
-            vec![target_map(foreign_target, 0)],
-        )
-        .unwrap();
-        let foreign_projected = foreign_packet.project(&foreign_plan).unwrap();
-        let foreign_diagnostic = AssemblyAccumulator::new(&plan)
-            .unwrap()
-            .scatter_projected(0, &foreign_projected)
-            .unwrap_err();
-        assert_eq!(foreign_diagnostic.code(), codes::ASSEMBLY_FAILED);
-        assert_eq!(
-            foreign_diagnostic.message(),
-            "projected assembly packet references target 1 outside plan count 1"
-        );
-    }
-
-    #[test]
-    fn empty_work_and_target_mismatch_fail_without_a_result() {
-        let plan = AssemblyPlan::new(vec![AssemblyTarget::new(1).unwrap()]).unwrap();
-        let empty = IndexedAssemblyWork::new(0, |_| unreachable!());
-        assert_eq!(
-            REFERENCE_ASSEMBLY_BACKEND
-                .assemble(&plan, &empty)
-                .unwrap_err()
-                .code(),
-            codes::ASSEMBLY_FAILED
-        );
-
-        let foreign_plan = AssemblyPlan::new(vec![
-            AssemblyTarget::new(1).unwrap(),
-            AssemblyTarget::new(1).unwrap(),
-        ])
-        .unwrap();
-        let foreign = foreign_plan.target_id(1).unwrap();
-        let work = IndexedAssemblyWork::new(1, |_| {
-            AssemblyPacket::new(
-                LocalContribution::new(1, 1, vec![1.0], vec![0.0])?,
-                vec![target_map(foreign, 0)],
-            )
-        });
-        assert_eq!(
-            REFERENCE_ASSEMBLY_BACKEND
-                .assemble(&plan, &work)
-                .unwrap_err()
-                .code(),
-            codes::ASSEMBLY_FAILED
-        );
-    }
-
-    fn diagonal_system(size: usize) -> LinearSystem {
-        LinearSystem::new(
-            crate::CsrMatrix::from_sorted_csr(
-                size,
-                size,
-                (0..=size).collect(),
-                (0..size).collect(),
-                vec![1.0; size],
-            )
-            .unwrap(),
-            vec![0.0; size],
-        )
-        .unwrap()
-    }
-
-    #[test]
-    fn complete_result_constructor_checks_packet_and_target_shape() {
-        let plan = AssemblyPlan::new(vec![
-            AssemblyTarget::new(1).unwrap(),
-            AssemblyTarget::new(2).unwrap(),
-        ])
-        .unwrap();
-        let execution = ExecutionReport::host_serial();
-
-        for result in [
-            AssemblyResult::from_complete_systems(
-                &plan,
-                vec![diagonal_system(1), diagonal_system(2)],
-                0,
-                execution,
-            ),
-            AssemblyResult::from_complete_systems(&plan, vec![diagonal_system(1)], 1, execution),
-            AssemblyResult::from_complete_systems(
-                &plan,
-                vec![diagonal_system(2), diagonal_system(1)],
-                1,
-                execution,
-            ),
-        ] {
-            assert_eq!(result.unwrap_err().code(), codes::ASSEMBLY_FAILED);
-        }
-
-        let accepted = AssemblyResult::from_complete_systems(
-            &plan,
-            vec![diagonal_system(1), diagonal_system(2)],
-            3,
-            execution,
-        )
-        .unwrap();
-        assert_eq!(accepted.report().packet_count(), 3);
-        assert_eq!(accepted.report().target_count(), 2);
-    }
-
-    #[derive(Debug)]
-    struct FailingWork;
-
-    impl AssemblyWork for FailingWork {
-        fn packet_set_identity(&self) -> AssemblyPacketSetIdentityV1 {
-            AssemblyPacketSetIdentityV1::Unbound
-        }
-
-        fn packet_count(&self) -> usize {
-            4
-        }
-
-        fn evaluate(&self, packet_index: usize) -> Result<AssemblyPacket, Diagnostic> {
-            Err(assembly_failed(format!("packet {packet_index} failed")))
-        }
-    }
-
-    #[test]
-    fn reference_reports_the_lowest_failing_packet() {
-        let plan = AssemblyPlan::new(vec![AssemblyTarget::new(1).unwrap()]).unwrap();
-        let diagnostic = REFERENCE_ASSEMBLY_BACKEND
-            .assemble(&plan, &FailingWork)
-            .unwrap_err();
-        assert_eq!(diagnostic.code(), codes::ASSEMBLY_FAILED);
-        assert!(diagnostic.message().contains("packet 0 failed"));
-    }
-}
+mod tests;

@@ -13,9 +13,12 @@ enum PreparedCommonTransientMethod<'a> {
 }
 
 impl PreparedCommonTransientExecution<'_> {
-    pub(super) fn advance(&self, state: &CommonState) -> Result<CommonState, Diagnostic> {
+    pub(super) fn advance(
+        &self,
+        state: &CommonState,
+        next_time: f64,
+    ) -> Result<CommonState, Diagnostic> {
         let run = TransientNavierStokesRun2d::new(NonZeroStepCount::new(NonZeroUsize::MIN));
-        let next_time = state.time_s() + self.plan.temporal().step().value();
         match &self.method {
             PreparedCommonTransientMethod::MiniP1(prepared) => {
                 let CommonStateKind::MiniP1(initial) = &state.kind else {
@@ -833,7 +836,8 @@ impl CommonTransientFlowPlan {
         state: &CommonState,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonState, Diagnostic> {
-        self.prepare_execution(state, backend)?.advance(state)
+        self.prepare_execution(state, backend)?
+            .advance(state, state.time_s() + self.temporal().step().value())
     }
 
     pub(super) fn authenticate_execution(

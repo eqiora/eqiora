@@ -11,6 +11,7 @@ mod execution;
 mod operator;
 mod plan;
 mod planning;
+mod prepared;
 mod provider;
 mod reference;
 mod report;
@@ -32,13 +33,13 @@ pub use operator::{
 pub use plan::{LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan};
 pub use planning::{
     HostSerialSolverProfile, ResolvedHostSerialSolverPlan, SolverPlanningObjective,
-    plan_host_serial_solver_v2,
 };
+pub use prepared::{PreparedLinearSolver, PreparedLinearStructureIdentity};
 pub use provider::{ExecutionProvider, ProviderLibrary, SolverProvider};
 pub use reference::{REFERENCE_LINEAR_SOLVER, REFERENCE_SOLVER_PROVIDER};
 pub use report::{
     ConvergenceReason, ExecutionId, ExecutionReport, ExecutionTopology, LinearAcceptanceWorkspace,
     LinearSolution, SolveReport, accept_linear_solution, accept_linear_solution_with_execution,
-    accept_linear_solution_with_verifier, accept_linear_solution_with_verifier_in,
+    accept_linear_solution_with_verifier,
 };
 pub use structure::{AlgebraicBlock, AlgebraicConstraint, AlgebraicStructure};

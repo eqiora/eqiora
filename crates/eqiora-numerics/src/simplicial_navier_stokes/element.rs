@@ -8,8 +8,9 @@ use super::{
     REQUIRED_CONVECTIVE_FACET_QUADRATURE_EXACTNESS, REQUIRED_CONVECTIVE_QUADRATURE_EXACTNESS,
     invalid,
 };
-use crate::operator::LocalOperator;
-use crate::simplicial_mini_transient::{MiniTransientCell, MiniTransport};
+use crate::simplicial_mini_transient::{
+    MiniFixedGeometryQuadrature, MiniTransientCell, MiniTransport,
+};
 use crate::simplicial_stokes::SimplicialMiniVelocityField2d;
 use crate::simplicial_stokes::element::{MiniSpaces, physical_gradients};
 use crate::simplicial_stokes::{
@@ -79,10 +80,10 @@ impl<F> MiniNavierStokesCell<'_, F>
 where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
 {
-    pub(crate) fn residual(
+    pub(crate) fn residual_prepared(
         &self,
         geometry: &AffineGeometryMap,
-        quadrature: &QuadratureRule,
+        quadrature: &MiniFixedGeometryQuadrature<DIMENSION>,
     ) -> Result<Vec<f64>, Diagnostic> {
         let (candidate, previous, pressure) = self.local_state();
         MiniTransientCell::<DIMENSION> {
@@ -95,13 +96,13 @@ where
             current_velocity: &candidate,
             current_pressure: &pressure,
         }
-        .residual_fixed_geometry_state(self.body_force, quadrature)
+        .residual_prepared_fixed_geometry_state(self.body_force, quadrature)
     }
 
-    pub(crate) fn linearize(
+    pub(crate) fn linearize_prepared(
         &self,
         geometry: &AffineGeometryMap,
-        quadrature: &QuadratureRule,
+        quadrature: &MiniFixedGeometryQuadrature<DIMENSION>,
     ) -> Result<MiniNavierStokesLocalLinearization, Diagnostic> {
         let (candidate, previous, pressure) = self.local_state();
         let (jacobian, residual) = MiniTransientCell::<DIMENSION> {
@@ -114,7 +115,7 @@ where
             current_velocity: &candidate,
             current_pressure: &pressure,
         }
-        .linearize_fixed_geometry_state(self.body_force, quadrature)?
+        .linearize_prepared_fixed_geometry_state(self.body_force, quadrature)?
         .into_parts();
 
         Ok(MiniNavierStokesLocalLinearization {
@@ -136,20 +137,6 @@ where
             local_velocity_coefficients(self.previous_velocity, self.cell, self.vertices),
             std::array::from_fn(|local| self.candidate_pressure[self.vertices[local].index()]),
         )
-    }
-}
-
-impl<F> LocalOperator<AffineGeometryMap> for MiniNavierStokesCell<'_, F>
-where
-    F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-{
-    fn evaluate(
-        &self,
-        geometry: &AffineGeometryMap,
-        quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution, Diagnostic> {
-        self.linearize(geometry, quadrature)?
-            .into_linear_contribution()
     }
 }
 
@@ -490,8 +477,9 @@ mod tests {
             candidate_pressure: &pressure,
             body_force: &body_force,
         };
-        let residual_only = operator.residual(&geometry, &quadrature).unwrap();
-        let linearization = operator.linearize(&geometry, &quadrature).unwrap();
+        let prepared = MiniFixedGeometryQuadrature::prepare(&geometry, &quadrature).unwrap();
+        let residual_only = operator.residual_prepared(&geometry, &prepared).unwrap();
+        let linearization = operator.linearize_prepared(&geometry, &prepared).unwrap();
 
         assert_eq!(
             bit_digest(&residual_only),

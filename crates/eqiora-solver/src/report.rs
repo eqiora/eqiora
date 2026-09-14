@@ -510,7 +510,7 @@ pub fn accept_linear_solution_with_verifier(
     verifier: &dyn ReplicatedLinearExecution,
 ) -> Result<LinearSolution, Diagnostic> {
     let mut workspace = LinearAcceptanceWorkspace::new(problem)?;
-    accept_linear_solution_with_verifier_in(
+    workspace.accept_with_verifier(
         problem,
         plan,
         solver_provider,
@@ -521,7 +521,6 @@ pub fn accept_linear_solution_with_verifier(
         reported_residual_norm,
         values,
         verifier,
-        &mut workspace,
     )
 }
 
@@ -548,67 +547,67 @@ impl LinearAcceptanceWorkspace {
             zero_initial: zeroed_vector(problem.operator().columns(), "acceptance initial guess")?,
         })
     }
-}
 
-/// Independently verify a backend-produced solution using admitted buffers.
-///
-/// This is the allocation-free execution counterpart of
-/// [`accept_linear_solution_with_verifier`]. It is intended for transports
-/// that must prove all dynamic workspace exists before communication begins.
-///
-/// # Errors
-/// Returns the same diagnostics as [`accept_linear_solution_with_verifier`],
-/// plus `EQ0802` when the supplied workspace has the wrong shape.
-#[allow(clippy::too_many_arguments)]
-pub fn accept_linear_solution_with_verifier_in(
-    problem: &LinearProblem<'_>,
-    plan: SolverPlan,
-    solver_provider: SolverProvider,
-    execution_provider: ExecutionProvider,
-    execution: ExecutionReport,
-    reason: ConvergenceReason,
-    completed_iterations: usize,
-    reported_residual_norm: f64,
-    values: Vec<f64>,
-    verifier: &dyn ReplicatedLinearExecution,
-    workspace: &mut LinearAcceptanceWorkspace,
-) -> Result<LinearSolution, Diagnostic> {
-    verifier.require_reduction(ReductionPolicy::Reproducible)?;
-    if values.len() != problem.operator().columns() {
-        return Err(solve_failed(format!(
-            "backend returned {} values for operator dimension {}",
-            values.len(),
-            problem.operator().columns()
-        )));
+    /// Independently verify a backend-produced solution using admitted buffers.
+    ///
+    /// This is the allocation-free execution counterpart of
+    /// [`accept_linear_solution_with_verifier`]. It is intended for transports
+    /// that must prove all dynamic workspace exists before communication begins.
+    ///
+    /// # Errors
+    /// Returns the same diagnostics as [`accept_linear_solution_with_verifier`],
+    /// plus `EQ0802` when this workspace has the wrong shape.
+    #[allow(clippy::too_many_arguments)]
+    pub fn accept_with_verifier(
+        &mut self,
+        problem: &LinearProblem<'_>,
+        plan: SolverPlan,
+        solver_provider: SolverProvider,
+        execution_provider: ExecutionProvider,
+        execution: ExecutionReport,
+        reason: ConvergenceReason,
+        completed_iterations: usize,
+        reported_residual_norm: f64,
+        values: Vec<f64>,
+        verifier: &dyn ReplicatedLinearExecution,
+    ) -> Result<LinearSolution, Diagnostic> {
+        verifier.require_reduction(ReductionPolicy::Reproducible)?;
+        if values.len() != problem.operator().columns() {
+            return Err(solve_failed(format!(
+                "backend returned {} values for operator dimension {}",
+                values.len(),
+                problem.operator().columns()
+            )));
+        }
+        if self.applied.len() != problem.operator().rows()
+            || self.zero_initial.len() != problem.operator().columns()
+        {
+            return Err(solve_failed(
+                "linear acceptance workspace does not match the admitted problem",
+            ));
+        }
+        let initial = problem.initial_guess().unwrap_or(&self.zero_initial);
+        let initial_residual_norm = residual_norm(verifier, problem, initial, &mut self.applied)?;
+        let true_residual_norm = residual_norm(verifier, problem, &values, &mut self.applied)?;
+        let right_hand_side_norm = euclidean_norm(verifier, problem.right_hand_side())?;
+        let residual_target = plan.residual_target(right_hand_side_norm)?;
+        let report = SolveReport::accepted_with_verification(
+            solver_provider,
+            execution_provider,
+            execution,
+            verifier.provider(),
+            verifier.report(),
+            problem.operator().orientation(),
+            plan,
+            reason,
+            completed_iterations,
+            initial_residual_norm,
+            reported_residual_norm,
+            true_residual_norm,
+            residual_target,
+        )?;
+        LinearSolution::new(values, report)
     }
-    if workspace.applied.len() != problem.operator().rows()
-        || workspace.zero_initial.len() != problem.operator().columns()
-    {
-        return Err(solve_failed(
-            "linear acceptance workspace does not match the admitted problem",
-        ));
-    }
-    let initial = problem.initial_guess().unwrap_or(&workspace.zero_initial);
-    let initial_residual_norm = residual_norm(verifier, problem, initial, &mut workspace.applied)?;
-    let true_residual_norm = residual_norm(verifier, problem, &values, &mut workspace.applied)?;
-    let right_hand_side_norm = euclidean_norm(verifier, problem.right_hand_side())?;
-    let residual_target = plan.residual_target(right_hand_side_norm)?;
-    let report = SolveReport::accepted_with_verification(
-        solver_provider,
-        execution_provider,
-        execution,
-        verifier.provider(),
-        verifier.report(),
-        problem.operator().orientation(),
-        plan,
-        reason,
-        completed_iterations,
-        initial_residual_norm,
-        reported_residual_norm,
-        true_residual_norm,
-        residual_target,
-    )?;
-    LinearSolution::new(values, report)
 }
 
 fn zeroed_vector(length: usize, purpose: &'static str) -> Result<Vec<f64>, Diagnostic> {

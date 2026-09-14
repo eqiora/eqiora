@@ -290,3 +290,30 @@ def test_profile_reports_common_and_sparse_lu_phases_without_changing_the_plan()
         ("run", "solve", "time_step", "nonlinear_iteration", "assembly"),
         (("role", "line_search_trial"),),
     ) in phase_identities
+    prepared_phases = {
+        name: [phase for phase in transient.profile.phases if phase.name == name]
+        for name in (
+            "assembly_preparation",
+            "assembly_local_evaluation",
+            "assembly_scatter_update",
+            "assembly_finalization",
+        )
+    }
+    assert sum(phase.calls for phase in prepared_phases["assembly_preparation"]) == 1
+    scatter_calls = sum(
+        phase.calls for phase in prepared_phases["assembly_scatter_update"]
+    )
+    assert scatter_calls == 3
+    assert (
+        sum(phase.calls for phase in prepared_phases["assembly_finalization"])
+        == scatter_calls
+    )
+    assert (
+        sum(phase.calls for phase in prepared_phases["assembly_local_evaluation"])
+        > scatter_calls
+    )
+    for phases in prepared_phases.values():
+        for phase in phases:
+            assert phase.calls > 0
+            assert phase.inclusive_seconds >= phase.self_seconds >= 0.0
+            assert phase.mean_seconds == phase.inclusive_seconds / phase.calls

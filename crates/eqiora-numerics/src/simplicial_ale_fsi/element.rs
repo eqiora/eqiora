@@ -427,6 +427,13 @@ mod tests {
         let vertices = mesh
             .entity_vertices(eqiora_meshing::MeshEntity::new(DIMENSION, 0))
             .unwrap();
+        let fixed_geometry = action.cell(0).unwrap().current_map();
+        let fixed_quadrature =
+            crate::simplicial_mini_transient::MiniFixedGeometryQuadrature::prepare(
+                fixed_geometry,
+                &quadrature,
+            )
+            .unwrap();
         let fixed = crate::simplicial_navier_stokes::element::MiniNavierStokesCell {
             cell: 0,
             vertices: &vertices,
@@ -438,7 +445,7 @@ mod tests {
             candidate_pressure: &pressure,
             body_force: &|_| Ok([0.0; COMPONENTS]),
         }
-        .linearize(action.cell(0).unwrap().current_map(), &quadrature)
+        .linearize_prepared(fixed_geometry, &fixed_quadrature)
         .unwrap();
         let zero_velocity = [[0.0; COMPONENTS]; VELOCITY_BASIS_COUNT];
         let zero_pressure = [0.0; P1_BASIS_COUNT];

@@ -12,21 +12,6 @@ pub(crate) struct MiniConstantTractionFacet {
     pub(crate) traction: [f64; COMPONENTS],
 }
 
-impl MiniConstantTractionFacet {
-    pub(crate) fn residual(
-        &self,
-        geometry: &AffineGeometryMap,
-        quadrature: &QuadratureRule,
-    ) -> Result<Vec<f64>, Diagnostic> {
-        Ok(
-            integrated_traction_action(self.traction, geometry, quadrature)?
-                .into_iter()
-                .map(|value| -value)
-                .collect(),
-        )
-    }
-}
-
 impl LocalOperator<AffineGeometryMap> for MiniConstantTractionFacet {
     fn evaluate(
         &self,
@@ -90,13 +75,5 @@ mod tests {
         assert_eq!(local.rows(), FACET_LOCAL_DOF_COUNT);
         assert!(local.matrix().iter().all(|value| *value == 0.0));
         assert_eq!(local.rhs(), &[-4.5, 0.0, -4.5, 0.0]);
-        assert_eq!(
-            MiniConstantTractionFacet {
-                traction: [-4.5, 0.0]
-            }
-            .residual(&geometry, &quadrature)
-            .unwrap(),
-            [4.5, 0.0, 4.5, 0.0]
-        );
     }
 }
