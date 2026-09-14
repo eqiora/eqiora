@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -113,9 +114,13 @@ class InterfaceReferenceFixture:
     def _populate(self, target: Path) -> None:
         target.mkdir(parents=True)
         self.observed.mkdir(parents=True)
+        workspace = tomllib.loads(
+            (REPOSITORY / "Cargo.toml").read_text(encoding="utf-8")
+        )
+        version = workspace["workspace"]["package"]["version"]
         _write(
             target / "Cargo.toml",
-            '[workspace]\nmembers = []\n[workspace.package]\nversion = "0.1.0"\n',
+            f'[workspace]\nmembers = []\n[workspace.package]\nversion = "{version}"\n',
         )
         copied = [
             Path("crates/eqiora-api/schemas/compile-v2.schema.json"),
