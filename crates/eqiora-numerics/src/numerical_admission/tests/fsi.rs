@@ -149,10 +149,13 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
     );
     assert!(
         initial
-            .pressure_vertex_values()
+            .fsi_fields()
             .unwrap()
-            .iter()
-            .all(|value| *value == 0.25)
+            .coefficients(field_ids[1])
+            .unwrap()
+            .all(|(entity, slot, component, value)| {
+                entity.dimension() == 0 && slot == 0 && component == 0 && value == 0.25
+            })
     );
     assert!(CommonFsiRunRequest::from_steps(manual.clone(), initial.clone(), 1, vec![1]).is_ok());
     let accepted = automatic
@@ -299,14 +302,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
     )
     .unwrap();
     assert_eq!(replayed_accepted.identity(), accepted.identity());
-    assert_eq!(
-        replayed_accepted.velocity_vertex_values(),
-        accepted.velocity_vertex_values()
-    );
-    assert_eq!(
-        replayed_accepted.pressure_vertex_values(),
-        accepted.pressure_vertex_values()
-    );
+    assert_eq!(replayed_accepted.fsi_fields(), accepted.fsi_fields());
     assert!(replayed_accepted.fsi_accepted_solution().is_none());
     assert!(
         automatic

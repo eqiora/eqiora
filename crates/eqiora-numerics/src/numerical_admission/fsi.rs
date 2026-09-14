@@ -618,6 +618,26 @@ impl CommonFsiPlan {
     pub fn domain_ids(&self) -> &[String] {
         &self.domain_ids
     }
+    pub(super) fn scoped_spatial_policies(&self) -> Vec<(Id<kinds::Domain>, CommonSpatialPolicy)> {
+        self.resolved
+            .plan()
+            .spatial()
+            .domains()
+            .iter()
+            .map(|domain| {
+                let policy = if domain
+                    .field_spaces()
+                    .iter()
+                    .any(|field| field.space() == Space::simplex_p1_bubble())
+                {
+                    CommonSpatialPolicy::MiniP1
+                } else {
+                    CommonSpatialPolicy::P1
+                };
+                (domain.domain(), policy)
+            })
+            .collect()
+    }
     #[must_use]
     pub const fn portable_realization(&self) -> &PortableRealizationGraph {
         &self.portable
