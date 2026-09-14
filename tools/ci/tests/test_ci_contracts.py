@@ -1817,6 +1817,20 @@ class AggregateGateTests(unittest.TestCase):
             "studio": "success",
         }
 
+    def test_architecture_ratchet_requires_the_measured_quality_gate(self) -> None:
+        relevance = classify(["tools/ci/architecture-debt.toml"])
+        self.assertTrue(relevance["rust"])
+        workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text()
+        quality = workflow.split("\n  quality:\n", 1)[1].split("\n  msrv:\n", 1)[0]
+        self.assertIn(
+            "      - name: Architecture predicates\n"
+            "        if: needs.changes.outputs.rust == 'true'\n"
+            "        run: cargo +stable xtask check-architecture\n",
+            quality,
+        )
+        self.results["quality"] = "failure"
+        self.assertTrue(evaluate(relevance, self.results))
+
     def test_documentation_only_run_is_accepted(self) -> None:
         self.assertEqual(evaluate(self.relevance, self.results), [])
 

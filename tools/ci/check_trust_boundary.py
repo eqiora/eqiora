@@ -48,10 +48,15 @@ REPOSITORY_COMPONENT = re.compile(r"[A-Za-z0-9_.-]+\Z")
 RUST_SOURCE_PATH = re.compile(
     r"crates/[A-Za-z0-9_.-]+/(?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]+\.rs\Z"
 )
-FILE_LINE_SECTION = re.compile(
-    rb"(?m)^\[\[file_lines\]\]\r?$.*?(?=^\[\[|\Z)", re.DOTALL
-)
-CEILING_LINE = re.compile(rb"(?m)^ceiling = ([1-9][0-9]*)\r?$")
+RATCHET_SECTIONS = {
+    name: re.compile(
+        rb"(?m)^\[\[" + name.encode("ascii") + rb"\]\]\r?$.*?(?=^\[\[|\Z)",
+        re.DOTALL,
+    )
+    for name in ("file_lines", "public_surface")
+}
+CRATE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*\Z")
+CEILING_LINE = re.compile(rb"(?m)^ceiling = (0|[1-9][0-9]*)\r?$")
 COMPARE_FILE_STATUSES = frozenset(
     {"added", "removed", "modified", "renamed", "copied", "changed", "unchanged"}
 )
@@ -422,87 +427,81 @@ def protected_changes(paths: Iterable[str]) -> list[str]:
     return sorted({path for path in paths if protected_path(path)})
 
 
-def _file_line_entries(payload: bytes) -> tuple[Mapping[str, Any], ...]:
+def _ratchet_entries(payload: bytes, section: str) -> tuple[Mapping[str, Any], ...]:
     try:
         parsed = tomllib.loads(payload.decode("utf-8"))
     except (UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
         raise ValueError("architecture debt is not valid UTF-8 TOML") from error
-    entries = parsed.get("file_lines")
-    if not isinstance(entries, list) or not entries:
-        raise ValueError("architecture debt has no file_lines entries")
-    result: list[Mapping[str, Any]] = []
+    entries = parsed.get(section, [])
+    if not isinstance(entries, list):
+        raise ValueError(f"architecture debt {section} must be an array")
+    key = "path" if section == "file_lines" else "crate"
+    identity_pattern = RUST_SOURCE_PATH if section == "file_lines" else CRATE_NAME
+    minimum = 1 if section == "file_lines" else 0
     seen: set[str] = set()
     for index, entry in enumerate(entries):
         if not isinstance(entry, dict):
-            raise ValueError(f"file_lines entry {index} is not a table")
-        path = entry.get("path")
+            raise ValueError(f"{section} entry {index} is not a table")
+        identity = entry.get(key)
         ceiling = entry.get("ceiling")
-        if not isinstance(path, str) or RUST_SOURCE_PATH.fullmatch(path) is None:
-            raise ValueError(f"file_lines entry {index} has an invalid Rust path")
-        if path in seen:
-            raise ValueError(f"file_lines path is duplicated: {path}")
-        if type(ceiling) is not int or ceiling <= 0:
-            raise ValueError(f"file_lines entry {path} has an invalid ceiling")
-        seen.add(path)
-        result.append(entry)
-    return tuple(result)
+        if not isinstance(identity, str) or identity_pattern.fullmatch(identity) is None:
+            raise ValueError(f"{section} entry {index} has an invalid {key}")
+        if identity in seen:
+            raise ValueError(f"{section} {key} is duplicated: {identity}")
+        if type(ceiling) is not int or ceiling < minimum:
+            raise ValueError(f"{section} entry {identity} has an invalid ceiling")
+        seen.add(identity)
+    return tuple(entries)
 
 
 def _reconstruct_exact_ratchet(
     base_blob: bytes,
     head_blob: bytes,
-) -> dict[str, tuple[int, int]]:
-    base_entries = _file_line_entries(base_blob)
-    head_entries = _file_line_entries(head_blob)
-    if len(base_entries) != len(head_entries):
-        raise ValueError("file_lines entry inventory changed")
-
-    sections = tuple(FILE_LINE_SECTION.finditer(base_blob))
-    if len(sections) != len(base_entries):
-        raise ValueError("base file_lines text does not match its TOML inventory")
-
+) -> dict[str, dict[str, tuple[int, int]]]:
     replacements: list[tuple[int, int, bytes]] = []
-    changed: dict[str, tuple[int, int]] = {}
-    for index, (base_entry, head_entry, section) in enumerate(
-        zip(base_entries, head_entries, sections, strict=True)
-    ):
-        path = base_entry["path"]
-        if head_entry.get("path") != path:
-            raise ValueError("file_lines path or order changed")
-        base_without_ceiling = dict(base_entry)
-        head_without_ceiling = dict(head_entry)
-        base_ceiling = base_without_ceiling.pop("ceiling")
-        head_ceiling = head_without_ceiling.pop("ceiling", None)
-        if base_without_ceiling != head_without_ceiling:
-            raise ValueError(f"file_lines entry metadata changed for {path}")
-        if type(head_ceiling) is not int or head_ceiling <= 0:
-            raise ValueError(f"file_lines entry {path} has an invalid head ceiling")
-
-        matches = tuple(CEILING_LINE.finditer(section.group(0)))
-        if len(matches) != 1:
-            raise ValueError(f"file_lines entry {index} has no unique ceiling token")
-        token = matches[0].group(1)
-        if token != str(base_ceiling).encode("ascii"):
-            raise ValueError(f"file_lines entry {path} has non-canonical base text")
-
-        if head_ceiling != base_ceiling:
-            if head_ceiling >= base_ceiling:
-                raise ValueError(
-                    f"file_lines ceiling does not strictly lower for {path}"
-                )
-            token_start = section.start() + matches[0].start(1)
-            token_end = section.start() + matches[0].end(1)
-            replacements.append(
-                (token_start, token_end, str(head_ceiling).encode("ascii"))
-            )
-            changed[path] = (base_ceiling, head_ceiling)
-
-    if not changed:
-        raise ValueError("architecture debt has no strict file-line ratchet")
-
+    changed: dict[str, dict[str, tuple[int, int]]] = {}
+    for name, section_pattern in RATCHET_SECTIONS.items():
+        base_entries = _ratchet_entries(base_blob, name)
+        head_entries = _ratchet_entries(head_blob, name)
+        if len(base_entries) != len(head_entries):
+            raise ValueError(f"{name} entry inventory changed")
+        sections = tuple(section_pattern.finditer(base_blob))
+        if len(sections) != len(base_entries):
+            raise ValueError(f"base {name} text does not match its TOML inventory")
+        key = "path" if name == "file_lines" else "crate"
+        changed[name] = {}
+        for base_entry, head_entry, section in zip(
+            base_entries, head_entries, sections, strict=True
+        ):
+            identity = base_entry[key]
+            if head_entry.get(key) != identity:
+                raise ValueError(f"{name} {key} or order changed")
+            base_metadata = dict(base_entry)
+            head_metadata = dict(head_entry)
+            base_ceiling = base_metadata.pop("ceiling")
+            head_ceiling = head_metadata.pop("ceiling")
+            if base_metadata != head_metadata:
+                raise ValueError(f"{name} entry metadata changed for {identity}")
+            matches = tuple(CEILING_LINE.finditer(section.group(0)))
+            if len(matches) != 1:
+                raise ValueError(f"{name} entry {identity} has no unique ceiling token")
+            token = matches[0].group(1)
+            if token != str(base_ceiling).encode("ascii"):
+                raise ValueError(f"{name} entry {identity} has non-canonical base text")
+            if head_ceiling != base_ceiling:
+                if head_ceiling >= base_ceiling:
+                    raise ValueError(f"{name} ceiling does not strictly lower for {identity}")
+                replacements.append((
+                    section.start() + matches[0].start(1),
+                    section.start() + matches[0].end(1),
+                    str(head_ceiling).encode("ascii"),
+                ))
+                changed[name][identity] = (base_ceiling, head_ceiling)
+    if not replacements:
+        raise ValueError("architecture debt has no strict ceiling ratchet")
     reconstructed = bytearray()
     cursor = 0
-    for start, end, replacement in replacements:
+    for start, end, replacement in sorted(replacements):
         reconstructed.extend(base_blob[cursor:start])
         reconstructed.extend(replacement)
         cursor = end
@@ -586,7 +585,18 @@ def _certify_coupled_exact_ratchet(
         raise ValueError("base architecture debt has no limits table")
 
     by_name = {entry["filename"]: entry for entry in entries}
-    for path, (base_ceiling, head_ceiling) in ratchets.items():
+    for crate in ratchets["public_surface"]:
+        if not any(
+            path.startswith(f"crates/{crate}/")
+            and RUST_SOURCE_PATH.fullmatch(path) is not None
+            and all(part not in {".", ".."} for part in path.split("/"))
+            and metadata.get("status") in {"added", "modified", "removed"}
+            and "previous_filename" not in metadata
+            for path, metadata in by_name.items()
+        ):
+            raise ValueError(f"public surface ratchet has no changed Rust source for {crate}")
+
+    for path, (base_ceiling, head_ceiling) in ratchets["file_lines"].items():
         metadata = by_name.get(path)
         if (
             metadata is None
@@ -681,7 +691,7 @@ def main() -> int:
                 token=token,
                 opener=urllib.request.urlopen,
             )
-            print("Coupled exact file-line ratchet certified by the protected base")
+            print("Coupled exact architecture ratchet certified by the protected base")
             return 0
     except (
         OSError,

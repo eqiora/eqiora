@@ -379,7 +379,7 @@ class CoupledRatchetEvidenceTests(unittest.TestCase):
     def assert_certified(self, api: FakeGitHub) -> None:
         result, stdout, stderr = self.run_classifier(api)
         self.assertEqual(result, 0, stderr)
-        self.assertIn("coupled exact file-line ratchet", stdout.lower())
+        self.assertIn("coupled exact architecture ratchet", stdout.lower())
         self.assertEqual(api.compare_reads, 1)
         self.assertEqual(
             api.pull_files_reads,
@@ -423,7 +423,7 @@ class CoupledRatchetEvidenceTests(unittest.TestCase):
         api = FakeGitHub(include_parser=False, head_repository=fork)
         result, stdout, stderr = self.run_classifier(api, head_repository=fork)
         self.assertEqual(result, 0, stderr)
-        self.assertIn("coupled exact file-line ratchet", stdout.lower())
+        self.assertIn("coupled exact architecture ratchet", stdout.lower())
 
     def test_03_head_blobs_are_inert_and_candidate_urls_are_never_followed(
         self,
@@ -618,6 +618,112 @@ class CoupledRatchetEvidenceTests(unittest.TestCase):
         self.assertEqual(capped.compare_reads, 0)
         self.assertEqual(capped.pull_files_reads, 0)
 
+    def public_surface_api(self, *, combined: bool = False) -> FakeGitHub:
+        api = FakeGitHub(include_parser=False)
+        base = exact_ratchet_ledger(include_parser=False) if combined else BASE_LEDGER
+        api.blobs[(HEAD_REPOSITORY, HEAD_SHA, ARCHITECTURE_DEBT)] = replace_once(
+            base, b"ceiling = 128", b"ceiling = 126"
+        )
+        return api
+
+    def test_public_surface_and_combined_decreases_are_certified(self) -> None:
+        for combined in (False, True):
+            with self.subTest(combined=combined):
+                self.assert_certified(self.public_surface_api(combined=combined))
+
+    def test_public_surface_requires_source_for_every_reduced_crate(self) -> None:
+        api = self.public_surface_api()
+        base_key = (BASE_REPOSITORY, BASE_SHA, ARCHITECTURE_DEBT)
+        head_key = (HEAD_REPOSITORY, HEAD_SHA, ARCHITECTURE_DEBT)
+        api.blobs[base_key] += b'\n[[public_surface]]\ncrate = "eqiora-other"\nceiling = 8\n'
+        api.blobs[head_key] += b'\n[[public_surface]]\ncrate = "eqiora-other"\nceiling = 7\n'
+        self.assert_rejected(api)
+
+    def test_public_surface_accepts_added_removed_modified_sources_but_not_rename(self) -> None:
+        for status in ("added", "removed", "modified"):
+            with self.subTest(status=status):
+                api = self.public_surface_api()
+                api.compare_files[0]["status"] = status
+                self.assert_certified(api)
+        api = self.public_surface_api()
+        api.compare_files[0].update(status="renamed", previous_filename="crates/eqiora-lang/src/old.rs")
+        self.assert_rejected(api)
+
+    def test_public_surface_zero_is_a_valid_strict_integer_decrease(self) -> None:
+        api = self.public_surface_api()
+        api.blobs[(HEAD_REPOSITORY, HEAD_SHA, ARCHITECTURE_DEBT)] = replace_once(
+            BASE_LEDGER, b"ceiling = 128", b"ceiling = 0"
+        )
+        self.assert_certified(api)
+
+    def test_public_surface_count_is_left_to_the_required_architecture_check(self) -> None:
+        api = self.public_surface_api()
+        # Trust consumes only authenticated change identities and inert ledgers.
+        # This source is not parsed or executed, and does not prove the item count.
+        del api.blobs[(BASE_REPOSITORY, BASE_SHA, FORMATTER)]
+        del api.blobs[(HEAD_REPOSITORY, HEAD_SHA, FORMATTER)]
+        self.assert_certified(api)
+        self.assertFalse(any(FORMATTER in request.full_url for request in api.requests))
+
+    def test_public_surface_invalid_or_non_decreasing_ceiling_fails_closed(self) -> None:
+        for value in (b"128", b"129", b"-1", b"true", b"126.0", b'"126"', b"1_26"):
+            with self.subTest(value=value):
+                api = self.public_surface_api()
+                api.blobs[(HEAD_REPOSITORY, HEAD_SHA, ARCHITECTURE_DEBT)] = replace_once(
+                    BASE_LEDGER, b"ceiling = 128", b"ceiling = " + value
+                )
+                self.assert_rejected(api)
+
+    def test_public_surface_inventory_order_and_metadata_are_immutable(self) -> None:
+        other = b'\n[[public_surface]]\ncrate = "eqiora-other"\nceiling = 42\n'
+        base = BASE_LEDGER + other
+        exact = replace_once(base, b"ceiling = 128", b"ceiling = 126")
+        mutations = {
+            "add": exact + b'\n[[public_surface]]\ncrate = "eqiora-new"\nceiling = 2\n',
+            "delete": exact.removesuffix(other),
+            "order": other + exact.removesuffix(other),
+            "identity": exact.replace(b'crate = "eqiora-lang"', b'crate = "eqiora-renamed"'),
+            "metadata": exact.replace(b"existing public surface", b"different public surface"),
+            "extra metadata": exact + b'reason = "new metadata"\n',
+            "whitespace": exact.replace(b"ceiling = 126", b"ceiling  = 126"),
+            "mixed increase": exact.replace(b"ceiling = 42", b"ceiling = 43"),
+            "duplicate": exact + other,
+        }
+        for name, ledger in mutations.items():
+            with self.subTest(name=name):
+                api = self.public_surface_api()
+                api.blobs[(BASE_REPOSITORY, BASE_SHA, ARCHITECTURE_DEBT)] = base
+                api.blobs[(HEAD_REPOSITORY, HEAD_SHA, ARCHITECTURE_DEBT)] = ledger
+                self.assert_rejected(api)
+
+    def test_public_surface_requires_rust_change_inside_each_exact_crate(self) -> None:
+        for path, status in (
+            ("docs/notes.md", "modified"),
+            ("crates/eqiora-lang-other/src/lib.rs", "modified"),
+            ("crates/eqiora-lang/Cargo.toml", "modified"),
+            (FORMATTER, "unchanged"),
+            ("crates/eqiora-lang/../eqiora-other/src/lib.rs", "modified"),
+        ):
+            with self.subTest(path=path, status=status):
+                api = self.public_surface_api()
+                api.compare_files[0].update(filename=path, status=status)
+                self.assert_rejected(api)
+        api = self.public_surface_api()
+        for key in ((BASE_REPOSITORY, BASE_SHA), (HEAD_REPOSITORY, HEAD_SHA)):
+            api.blobs[(*key, ARCHITECTURE_DEBT)] = api.blobs[(*key, ARCHITECTURE_DEBT)].replace(
+                b'crate = "eqiora-lang"', b'crate = "../eqiora-lang"'
+            )
+        self.assert_rejected(api)
+
+    def test_public_surface_mixed_protected_edits_never_use_the_exception(self) -> None:
+        for path in ("tools/ci/check_trust_boundary.py", ".github/workflows/ci.yml"):
+            with self.subTest(path=path):
+                api = self.public_surface_api(combined=True)
+                api.compare_files.append({"filename": path, "status": "modified", "sha": "f" * 40})
+                api.event_file_count += 1
+                api.pull["changed_files"] = api.event_file_count
+                self.assert_rejected(api)
+
     def test_10_non_decreasing_and_non_exact_numeric_changes_are_rejected(self) -> None:
         mutations = {
             "equal": b"ceiling = 1050",
@@ -690,11 +796,6 @@ removal = "split parser"\n"""
             "global limit": exact.replace(
                 b"production_file_lines = 1000",
                 b"production_file_lines = 999",
-                1,
-            ),
-            "public surface": exact.replace(
-                b'crate = "eqiora-lang"\nceiling = 128',
-                b'crate = "eqiora-lang"\nceiling = 127',
                 1,
             ),
             "glob": exact.replace(b"always | syntax::*", b"always | ast::*", 1),
