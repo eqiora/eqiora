@@ -9,8 +9,8 @@ macro_rules! telemetry_span {
     (run($family:expr)) => {
         tracing::span!(target: "eqiora::execution", tracing::Level::INFO, "eqiora_phase", phase = "run", family = $family)
     };
-    (setup) => {
-        tracing::span!(target: "eqiora::execution", tracing::Level::INFO, "eqiora_phase", phase = "setup")
+    (setup($role:expr)) => {
+        tracing::span!(target: "eqiora::execution", tracing::Level::INFO, "eqiora_phase", phase = "setup", role = $role)
     };
     (solve($index:expr)) => {
         tracing::span!(target: "eqiora::execution", tracing::Level::INFO, "eqiora_phase", phase = "solve", solve = $index)
@@ -18,8 +18,8 @@ macro_rules! telemetry_span {
     (time_step($step:expr, $time_s:expr, $dt_s:expr)) => {
         tracing::span!(target: "eqiora::execution", tracing::Level::INFO, "eqiora_phase", phase = "time_step", step = $step, time_s = $time_s, dt_s = $dt_s)
     };
-    (assembly) => {
-        tracing::span!(target: "eqiora::execution", tracing::Level::INFO, "eqiora_phase", phase = "assembly")
+    (assembly($role:expr)) => {
+        tracing::span!(target: "eqiora::execution", tracing::Level::INFO, "eqiora_phase", phase = "assembly", role = $role)
     };
     (nonlinear_iteration($solver:expr, $iteration:expr, $residual_norm:expr)) => {
         tracing::span!(target: "eqiora::execution", tracing::Level::INFO, "eqiora_phase", phase = "nonlinear_iteration", nonlinear_solver = $solver, iteration = $iteration, residual_norm = $residual_norm)

@@ -52,11 +52,18 @@ for event in result.profile.events:
     print(event.path, event.fields)
 ```
 
-The summary aggregates nested `run`, `setup`, `solve` or `time_step`,
-`assembly`, `nonlinear_iteration`, `linear_solve`, backend, and `postprocess`
-spans that occur on the selected path. Structured events retain available step,
-solver/provider/backend, residual, target, and convergence fields. Faer SparseLU
-distinguishes symbolic factorization, numeric factorization, and backsolve. A
+The summary names total inclusive time, self time, calls, and inclusive mean per
+call. Child time is subtracted once from its parent's self time, so rows must not
+be added to recover a run total. Each `ProfilePhase` exposes the same values as
+`inclusive_seconds`, `self_seconds`, `calls`, and `mean_seconds`.
+
+Aggregation uses the nested phase path together with semantic identity fields,
+available through `ProfilePhase.fields`. Occurrence observations such as step,
+time, iteration, and residual remain on `ProfileEvent` and do not split repeated
+calls. Backend resolution and discretization preparation have distinct setup
+roles; initial linearization and line-search trials have distinct assembly roles.
+Transient work nests under `run/solve/time_step`. Faer SparseLU distinguishes
+symbolic factorization, numeric factorization, and backsolve. A
 Result decoded from bytes has no profile because telemetry is deliberately not
 part of artifact or semantic identity. Leave profiling disabled for ordinary
 runs; library crates emit spans while subscriber configuration and presentation
