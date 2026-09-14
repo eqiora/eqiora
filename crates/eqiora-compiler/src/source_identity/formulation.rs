@@ -3,7 +3,7 @@
 use super::*;
 
 const MAGIC: &[u8; 8] = b"EQIORAFM";
-const CANONICAL_FORMULATION_VERSION: u16 = 2;
+const CANONICAL_FORMULATION_VERSION: u16 = 3;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct AuthoredFormSourceIdentity([u8; 32]);
@@ -18,24 +18,52 @@ impl AuthoredFormSourceIdentity {
             &declarations,
             &mut budget,
             |(name, relation, left, right, _), budget| {
-                let (test, trial, zero_on) = component
-                    .formulation_test(name)
-                    .expect("retained form test");
+                let binding = component
+                    .formulation_binding(name)
+                    .expect("retained form binder");
                 let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
                 encoder.field(1, |encoder| encoder.u16(1))?;
                 encoder.field(2, |encoder| encode_name(encoder, relation, budget))?;
                 encoder.field(3, |encoder| encode_expression(encoder, left, budget, 1))?;
                 encoder.field(4, |encoder| encode_expression(encoder, right, budget, 1))?;
                 encoder.field(5, |encoder| encode_name(encoder, name, budget))?;
-                encoder.field(6, |encoder| encode_name(encoder, test, budget))?;
-                encoder.field(7, |encoder| encode_name(encoder, trial, budget))?;
-                encoder.field(8, |encoder| {
-                    encoder.u32(as_u32(zero_on.len(), "test boundaries")?)?;
-                    for boundary in zero_on {
-                        encode_name(encoder, boundary, budget)?;
+                match binding {
+                    eqiora_lang::FormulationBinding::WeakTest {
+                        name,
+                        trial,
+                        zero_on,
+                    } => {
+                        encoder.field(6, |e| {
+                            e.u16(1)?;
+                            encode_name(e, name, budget)
+                        })?;
+                        encoder.field(7, |e| encode_name(e, trial, budget))?;
+                        encoder.field(8, |e| {
+                            e.u32(as_u32(zero_on.len(), "test boundaries")?)?;
+                            for name in zero_on {
+                                encode_name(e, name, budget)?;
+                            }
+                            Ok(())
+                        })?;
                     }
-                    Ok(())
-                })?;
+                    eqiora_lang::FormulationBinding::Interval {
+                        name,
+                        lower,
+                        upper,
+                        domain,
+                    } => {
+                        encoder.field(6, |e| {
+                            e.u16(2)?;
+                            encode_name(e, name, budget)
+                        })?;
+                        encoder.field(7, |e| {
+                            for name in [lower, upper, domain] {
+                                encode_name(e, name, budget)?;
+                            }
+                            Ok(())
+                        })?;
+                    }
+                }
                 encoder.finish()
             },
         )?;

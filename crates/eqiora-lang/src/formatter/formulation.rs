@@ -2,7 +2,7 @@
 
 use core::fmt::Write;
 
-use crate::ast::formulation::FormulationDecl;
+use crate::ast::formulation::{FormulationBinding, FormulationDecl};
 use crate::ast::{ComponentDecl, VisibilitySyntax};
 
 use super::{format_component_item, format_expression, write_indent};
@@ -44,13 +44,23 @@ pub(super) fn format_formulation(
     output.push_str(&declaration.name);
     writeln!(output, " for {} {{", declaration.relation).expect("String write");
     write_indent(output, indent + 2);
-    writeln!(
-        output,
-        "test {}: 1 for {} zero_on {};",
-        declaration.test,
-        declaration.trial,
-        declaration.zero_on.join(", ")
-    )
+    match &declaration.binding {
+        FormulationBinding::WeakTest {
+            name,
+            trial,
+            zero_on,
+        } => writeln!(
+            output,
+            "test {name}: 1 for {trial} zero_on {};",
+            zero_on.join(", ")
+        ),
+        FormulationBinding::Interval {
+            name,
+            lower,
+            upper,
+            domain,
+        } => writeln!(output, "interval {name}({lower}, {upper}) on {domain};"),
+    }
     .expect("String write");
     write_indent(output, indent + 2);
     format_expression(&declaration.left, 0, output);

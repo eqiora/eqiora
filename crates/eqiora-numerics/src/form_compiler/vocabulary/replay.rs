@@ -34,7 +34,7 @@ impl PrimalGalerkinCorrespondence {
             .map(|id| id.ulid().to_string())
             .collect::<Vec<_>>();
         boundaries.sort();
-        if authored.zero_on() != boundaries {
+        if authored.test_restriction().map(|(_, bounds)| bounds) != Some(boundaries.as_slice()) {
             return Err("test zero_on restriction differs from the complete essential boundary");
         }
         if authored.implication() != "strong-implies-weak"

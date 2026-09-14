@@ -26,12 +26,12 @@ pub use ast::{
     ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl,
     ConnectorQuantitySyntax, ConnectorSyntax, ConservationSyntax, DocComment, Document, DomainDecl,
     DomainSyntax, EnumDecl, EventDecl, ExactIntegerSyntax, Expr, ExprKind, FamilyBinderSyntax,
-    FieldDecl, FieldRoleSyntax, FrameSyntax, InitialDecl, InstanceDecl, Item, ModelDecl, NamePath,
-    NamedBindingDecl, NamedDefinitionDecl, ObservableDecl, ParameterDecl, PortDecl, PortSyntax,
-    PureOperatorDecl, PureOperatorFormal, PureValueClassSyntax, RecordDecl, RecordMemberDecl,
-    ReductionOp, RelationBody, RelationCondition, RelationDecl, RelationFamilyDecl,
-    SignalDirectionSyntax, SignatureItem, SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp,
-    ValueShapeSyntax, ValueTypeSyntax, ValueTypeSyntaxKind, VisibilitySyntax,
+    FieldDecl, FieldRoleSyntax, FormulationBinding, FrameSyntax, InitialDecl, InstanceDecl, Item,
+    ModelDecl, NamePath, NamedBindingDecl, NamedDefinitionDecl, ObservableDecl, ParameterDecl,
+    PortDecl, PortSyntax, PureOperatorDecl, PureOperatorFormal, PureValueClassSyntax, RecordDecl,
+    RecordMemberDecl, ReductionOp, RelationBody, RelationCondition, RelationDecl,
+    RelationFamilyDecl, SignalDirectionSyntax, SignatureItem, SupportSlotDecl, SupportSlotSyntax,
+    TextRange, UnaryOp, ValueShapeSyntax, ValueTypeSyntax, ValueTypeSyntaxKind, VisibilitySyntax,
 };
 pub use cartesian::CartesianCoordinateSyntax;
 pub use decimal::DecimalLiteral;

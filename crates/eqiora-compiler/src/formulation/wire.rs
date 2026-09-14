@@ -6,10 +6,10 @@ use ulid::Ulid;
 
 use super::{AuthoredFormExpression, AuthoredFormExpressionKind};
 
-const SCHEMA: &str = "eqiora.authored-scalar-primal-form/v2";
+const SCHEMA: &str = "eqiora.authored-scalar-form/v3";
 const MAX_BYTES: usize = 1024 * 1024;
 
-/// Exact compiler-owned projection of one authored scalar-primal Formulation.
+/// Exact compiler-owned projection of one authored scalar Formulation.
 ///
 /// This is a source-compilation sidecar rather than Model meaning. Its
 /// canonical bytes are retained in resolved Plan identity and may be decoded
@@ -30,12 +30,25 @@ struct WireForm {
     domain_ulid: String,
     trial_ulid: String,
     name: String,
-    test_name: String,
-    zero_on: Vec<String>,
+    binding: WireBinding,
     implication: String,
     assumptions: Vec<String>,
     left: AuthoredFormExpressionV1,
     right: AuthoredFormExpressionV1,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+pub(super) enum WireBinding {
+    WeakTest {
+        test_name: String,
+        zero_on: Vec<String>,
+    },
+    Interval {
+        name: String,
+        lower: String,
+        upper: String,
+    },
 }
 
 /// Closed expression vocabulary persisted by
@@ -45,6 +58,16 @@ struct WireForm {
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum AuthoredFormExpressionV1 {
+    EndpointFlux {
+        interval: String,
+        endpoint: String,
+        normal: i8,
+        flux: Box<Self>,
+    },
+    IntervalIntegral {
+        interval: String,
+        integrand: Box<Self>,
+    },
     Number {
         value: f64,
     },
@@ -116,8 +139,10 @@ impl AuthoredFormulationProjection {
             domain_ulid: ulid(domain),
             trial_ulid: ulid(trial),
             name: restriction.0,
-            test_name: restriction.1,
-            zero_on: restriction.2,
+            binding: WireBinding::WeakTest {
+                test_name: restriction.1,
+                zero_on: restriction.2,
+            },
             implication: "strong-implies-weak".into(),
             assumptions: Self::required_assumptions()
                 .iter()
@@ -135,7 +160,41 @@ impl AuthoredFormulationProjection {
         }
     }
 
-    /// Decode exactly one bounded canonical v1 projection.
+    pub(super) fn encode_interval(
+        source_identity: String,
+        relation: RawId,
+        domain: RawId,
+        trial: RawId,
+        name: String,
+        interval: (String, String, String),
+        equality: (AuthoredFormExpressionV1, AuthoredFormExpressionV1),
+    ) -> Result<Self, Diagnostic> {
+        let wire = WireForm {
+            schema: SCHEMA.into(),
+            source_identity,
+            relation_ulid: ulid(relation),
+            domain_ulid: ulid(domain),
+            trial_ulid: ulid(trial),
+            name,
+            binding: WireBinding::Interval {
+                name: interval.0,
+                lower: interval.1,
+                upper: interval.2,
+            },
+            implication: "strong-implies-interval-conservation".into(),
+            assumptions: super::interval::ASSUMPTIONS
+                .iter()
+                .map(|s| (*s).into())
+                .collect(),
+            left: equality.0,
+            right: equality.1,
+        };
+        let bytes = serde_json::to_vec(&wire)
+            .map_err(|_| rejection("interval form is not finite canonical JSON"))?;
+        Self::decode(&bytes)
+    }
+
+    /// Decode exactly one bounded canonical v3 projection.
     ///
     /// # Errors
     /// Returns a diagnostic for an oversized, malformed, noncanonical, or
@@ -175,40 +234,63 @@ impl AuthoredFormulationProjection {
                 )));
             }
         }
-        if wire.implication != "strong-implies-weak"
+        if wire.implication
+            != match wire.binding {
+                WireBinding::WeakTest { .. } => "strong-implies-weak",
+                WireBinding::Interval { .. } => "strong-implies-interval-conservation",
+            }
             || !wire
                 .assumptions
                 .iter()
                 .map(String::as_str)
-                .eq(Self::required_assumptions().iter().copied())
+                .eq(match wire.binding {
+                    WireBinding::WeakTest { .. } => Self::required_assumptions(),
+                    WireBinding::Interval { .. } => super::interval::ASSUMPTIONS,
+                }
+                .iter()
+                .copied())
         {
             return Err(rejection(
-                "scalar weak implication or required hypotheses differ from the admitted profile",
+                "scalar implication or required hypotheses differ from the admitted profile",
             ));
         }
-        for name in [&wire.name, &wire.test_name] {
+        let mut names = vec![wire.name.as_str()];
+        match &wire.binding {
+            WireBinding::WeakTest { test_name, zero_on } => {
+                names.push(test_name);
+                if zero_on.is_empty() || zero_on.windows(2).any(|pair| pair[0] >= pair[1]) {
+                    return Err(rejection(
+                        "test boundaries must be nonempty, sorted and unique",
+                    ));
+                }
+                for boundary in zero_on {
+                    if boundary
+                        .parse::<Ulid>()
+                        .ok()
+                        .map(|id| id.to_string())
+                        .as_ref()
+                        != Some(boundary)
+                    {
+                        return Err(rejection("test boundary is not one canonical ULID"));
+                    }
+                }
+            }
+            WireBinding::Interval { name, lower, upper } => {
+                if name == lower || name == upper || lower == upper {
+                    return Err(rejection("interval binders must be distinct"));
+                }
+                names.extend([name.as_str(), lower.as_str(), upper.as_str()]);
+            }
+        }
+        for name in names {
             if name.is_empty()
                 || !name.bytes().enumerate().all(|(i, c)| {
                     c.is_ascii_alphabetic() || c == b'_' || (i > 0 && c.is_ascii_digit())
                 })
             {
-                return Err(rejection("form and test names must be source identifiers"));
-            }
-        }
-        if wire.zero_on.is_empty() || wire.zero_on.windows(2).any(|pair| pair[0] >= pair[1]) {
-            return Err(rejection(
-                "test boundaries must be nonempty, sorted and unique",
-            ));
-        }
-        for boundary in &wire.zero_on {
-            if boundary
-                .parse::<Ulid>()
-                .ok()
-                .map(|id| id.to_string())
-                .as_ref()
-                != Some(boundary)
-            {
-                return Err(rejection("test boundary is not one canonical ULID"));
+                return Err(rejection(
+                    "form and binder names must be source identifiers",
+                ));
             }
         }
         Ok(Self {
@@ -242,15 +324,21 @@ impl AuthoredFormulationProjection {
     pub fn name(&self) -> &str {
         &self.wire.name
     }
-    /// Authored dimensionless test name.
+    /// Test name and exact zero-trace boundaries, only for a weak form.
     #[must_use]
-    pub fn test_name(&self) -> &str {
-        &self.wire.test_name
+    pub fn test_restriction(&self) -> Option<(&str, &[String])> {
+        match &self.wire.binding {
+            WireBinding::WeakTest { test_name, zero_on } => Some((test_name, zero_on)),
+            _ => None,
+        }
     }
-    /// Exact sorted boundary identities where the test vanishes.
+    /// Universally quantified interval and its ordered endpoint binders.
     #[must_use]
-    pub fn zero_on(&self) -> &[String] {
-        &self.wire.zero_on
+    pub fn interval(&self) -> Option<(&str, &str, &str)> {
+        match &self.wire.binding {
+            WireBinding::Interval { name, lower, upper } => Some((name, lower, upper)),
+            _ => None,
+        }
     }
 
     #[must_use]
@@ -289,7 +377,7 @@ impl AuthoredFormulationProjection {
     }
 }
 
-fn expression(value: &AuthoredFormExpression) -> AuthoredFormExpressionV1 {
+pub(super) fn expression(value: &AuthoredFormExpression) -> AuthoredFormExpressionV1 {
     match &value.kind {
         AuthoredFormExpressionKind::Number(value) => {
             AuthoredFormExpressionV1::Number { value: *value }
@@ -355,7 +443,7 @@ fn ulid(id: RawId) -> String {
 fn rejection(message: &str) -> Diagnostic {
     Diagnostic::error(
         codes::INVALID_DISCRETIZATION,
-        format!("authored scalar-primal Formulation rejected: {message}"),
+        format!("authored scalar Formulation rejected: {message}"),
     )
 }
 

@@ -66,12 +66,20 @@ impl PyAstDefinition {
             )
         } else if let Some((relation, left, right, form_ordinal)) = form {
             Definition::Component(
-                Ast::component_with_weak_form(
+                Ast::component_with_form(
                     VisibilitySyntax::Public,
                     name,
                     signature,
                     items,
-                    relation,
+                    (
+                        relation.0,
+                        relation.1,
+                        eqiora::language::FormulationBinding::WeakTest {
+                            name: relation.2,
+                            trial: relation.3,
+                            zero_on: relation.4,
+                        },
+                    ),
                     (
                         left.value.clone(),
                         right.value.clone(),

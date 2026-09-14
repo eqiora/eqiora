@@ -6,9 +6,7 @@ use super::{ComponentDecl, Expr, TextRange};
 pub(crate) struct FormulationDecl {
     pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) name: String,
-    pub(crate) test: String,
-    pub(crate) trial: String,
-    pub(crate) zero_on: Vec<String>,
+    pub(crate) binding: FormulationBinding,
     pub(crate) relation: String,
     pub(crate) left: Expr,
     pub(crate) right: Expr,
@@ -34,19 +32,13 @@ impl ComponentDecl {
         })
     }
 
-    /// Named test, trial and exact zero-trace support names for one authored form.
+    /// Exact mathematical binder owned by one authored form.
     #[must_use]
-    pub fn formulation_test(&self, name: &str) -> Option<(&str, &str, &[String])> {
+    pub fn formulation_binding(&self, name: &str) -> Option<&FormulationBinding> {
         self.formulations
             .iter()
             .find(|form| form.name == name)
-            .map(|form| {
-                (
-                    form.test.as_str(),
-                    form.trial.as_str(),
-                    form.zero_on.as_slice(),
-                )
-            })
+            .map(|form| &form.binding)
     }
 
     /// Full component declaration range, including a visibility modifier.
@@ -54,4 +46,22 @@ impl ComponentDecl {
     pub const fn range(&self) -> TextRange {
         self.range
     }
+}
+
+/// Mathematical variables introduced by an authored scalar formulation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FormulationBinding {
+    /// An admissible test with an exact trial and zero-trace boundary restriction.
+    WeakTest {
+        name: String,
+        trial: String,
+        zero_on: Vec<String>,
+    },
+    /// Every ordered mathematical interval within the named parent support.
+    Interval {
+        name: String,
+        lower: String,
+        upper: String,
+        domain: String,
+    },
 }

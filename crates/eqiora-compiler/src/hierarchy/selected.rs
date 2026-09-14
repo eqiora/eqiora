@@ -467,10 +467,7 @@ fn compile(
             component.declaration,
             compiled.symbols(),
             compiled.transaction(),
-            (
-                geometry.ambient_dimension(),
-                geometry.topological_dimension(),
-            ),
+            geometry,
             prepared.supports(),
         )?;
         Ok(compiled.with_authored_formulations(formulations))

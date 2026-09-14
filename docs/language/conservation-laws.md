@@ -38,3 +38,32 @@ method restrictions. The parser rejects storage terms; no stored quantity is adm
 until accumulation correspondence has a checked implementation. This does not implement
 transient thermal execution, moving-domain transport,
 arbitrary vector Laws, or general authored Law-to-form correspondence.
+
+A steady real scalar Law on an exact one-dimensional Geometry support can also
+carry an authored mathematical conservation form:
+
+```eqi
+form conservative for balance {
+  interval segment(a, b) on body;
+  outward_flux(segment, a, -k * grad(T))
+    + outward_flux(segment, b, -k * grad(T)) = integrate(segment, s);
+}
+```
+
+Here `balance` retains `flux -k * grad(T); source s;`, and `k` and `s` are
+explicit Component parameter bindings. The binder quantifies every ordered
+interval `(a,b)` contained in `body`. Its endpoints are mathematical variables;
+they are not mesh cells or the exterior endpoints of the parent support.
+`outward_flux` applies normal `-1` at `a` and `+1` at `b`.
+
+Fresh compilation checks dimensions and exact physical terms. The separate
+projection checker reads the live Law, Field support and authenticated Geometry
+again, without generating an expected form. The conditional implication assumes
+a fixed one-dimensional domain and classical divergence and boundary traces;
+it does not establish these regularity assumptions or the reverse implication.
+
+Native AST construction, source formatting, Python inspection and mathematical
+rendering retain the interval. The scalar projection uses one tagged v3 wire for
+weak-test and interval binders; the old v2 projection decoder is removed. Forms
+remain outside Model identity. Numerical Plan admission for authored interval
+forms, storage, multidimensional, mixed and complex forms remain unavailable.

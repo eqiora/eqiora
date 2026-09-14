@@ -1,6 +1,6 @@
 //! Closed authored-Formulation parsing.
 
-use crate::ast::formulation::FormulationDecl;
+use crate::ast::formulation::{FormulationBinding, FormulationDecl};
 use crate::ast::{ComponentDecl, TextRange, VisibilitySyntax};
 use crate::lexer::TokenKind;
 
@@ -68,39 +68,72 @@ impl Parser<'_> {
             .text()
             .to_owned();
         self.expect(TokenKind::LeftBrace, "`{` before authored Formulation")?;
-        self.expect_keyword("test")?;
-        let test = self
-            .expect_identifier("test-function name")?
-            .text()
-            .to_owned();
-        self.expect(TokenKind::Colon, "`:` before test dimension")?;
-        let dimension = self.parse_expression(0)?;
-        if !matches!(dimension.kind(), crate::ast::ExprKind::Number(value) if value.to_i64().ok() == Some(1))
-        {
-            self.error_here(
-                "scalar weak forms require an explicit dimensionless test (`test w: 1`)",
-            );
-            return None;
-        }
-        self.expect_keyword("for")?;
-        let trial = self
-            .expect_identifier("trial Field name")?
-            .text()
-            .to_owned();
-        self.expect_keyword("zero_on")?;
-        let mut zero_on = Vec::new();
-        loop {
-            zero_on.push(
-                self.expect_identifier("essential test boundary")?
-                    .text()
-                    .to_owned(),
-            );
-            if !self.at(TokenKind::Comma) {
-                break;
-            }
+        let binding = if self.at_keyword("interval") {
             self.bump();
-        }
-        self.expect(TokenKind::Semicolon, "`;` after test restriction")?;
+            let name = self
+                .expect_identifier("mathematical interval name")?
+                .text()
+                .to_owned();
+            self.expect(TokenKind::LeftParen, "`(` before interval endpoints")?;
+            let lower = self
+                .expect_identifier("lower endpoint binder")?
+                .text()
+                .to_owned();
+            self.expect(TokenKind::Comma, "`,` between endpoint binders")?;
+            let upper = self
+                .expect_identifier("upper endpoint binder")?
+                .text()
+                .to_owned();
+            self.expect(TokenKind::RightParen, "`)` after interval endpoints")?;
+            self.expect_keyword("on")?;
+            let domain = self.expect_identifier("parent Domain")?.text().to_owned();
+            self.expect(TokenKind::Semicolon, "`;` after interval binder")?;
+            FormulationBinding::Interval {
+                name,
+                lower,
+                upper,
+                domain,
+            }
+        } else {
+            self.expect_keyword("test")?;
+            let test = self
+                .expect_identifier("test-function name")?
+                .text()
+                .to_owned();
+            self.expect(TokenKind::Colon, "`:` before test dimension")?;
+            let dimension = self.parse_expression(0)?;
+            if !matches!(dimension.kind(), crate::ast::ExprKind::Number(value) if value.to_i64().ok() == Some(1))
+            {
+                self.error_here(
+                    "scalar weak forms require an explicit dimensionless test (`test w: 1`)",
+                );
+                return None;
+            }
+            self.expect_keyword("for")?;
+            let trial = self
+                .expect_identifier("trial Field name")?
+                .text()
+                .to_owned();
+            self.expect_keyword("zero_on")?;
+            let mut zero_on = Vec::new();
+            loop {
+                zero_on.push(
+                    self.expect_identifier("essential test boundary")?
+                        .text()
+                        .to_owned(),
+                );
+                if !self.at(TokenKind::Comma) {
+                    break;
+                }
+                self.bump();
+            }
+            self.expect(TokenKind::Semicolon, "`;` after test restriction")?;
+            FormulationBinding::WeakTest {
+                name: test,
+                trial,
+                zero_on,
+            }
+        };
         let left = self.parse_expression(0)?;
         self.expect(TokenKind::Equal, "`=` in authored Formulation")?;
         let right = self.parse_expression(0)?;
@@ -118,9 +151,7 @@ impl Parser<'_> {
         Some(FormulationDecl {
             comments: Default::default(),
             name,
-            test,
-            trial,
-            zero_on,
+            binding,
             relation,
             left,
             right,

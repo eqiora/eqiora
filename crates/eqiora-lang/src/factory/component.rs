@@ -53,16 +53,16 @@ impl SourceAstFactory {
         })
     }
 
-    /// Construct a Component with one scalar-primal equality after its members.
+    /// Construct a Component with one bound scalar mathematical equality after its members.
     ///
     /// # Errors
     /// Returns an error for an invalid member, identifier, expression, or byte range.
-    pub fn component_with_weak_form(
+    pub fn component_with_form(
         visibility: VisibilitySyntax,
         name: impl Into<String>,
         signature: Vec<crate::SignatureItem>,
         items: Vec<ComponentItem>,
-        form: (String, String, String, String, Vec<String>),
+        form: (String, String, crate::FormulationBinding),
         equality: (Expr, Expr, TextRange),
         range: TextRange,
     ) -> Result<ComponentDecl, AstConstructionError> {
@@ -73,20 +73,42 @@ impl SourceAstFactory {
         let (left, right, formulation_range) = equality;
         validate_expression(&left)?;
         validate_expression(&right)?;
-        let (form_name, relation, test, trial, zero_on) = form;
+        let (form_name, relation, binding) = form;
         let form_name = checked_identifier(form_name, "Formulation")?;
         let relation = checked_identifier(relation, "Formulation Relation")?;
-        let test = checked_identifier(test, "test function")?;
-        let trial = checked_identifier(trial, "trial Field")?;
-        if zero_on.is_empty() {
-            return Err(AstConstructionError::new(
-                "test requires explicit zero_on boundaries",
-            ));
+        match &binding {
+            crate::FormulationBinding::WeakTest {
+                name,
+                trial,
+                zero_on,
+            } => {
+                checked_identifier(name.clone(), "test function")?;
+                checked_identifier(trial.clone(), "trial Field")?;
+                if zero_on.is_empty() {
+                    return Err(AstConstructionError::new(
+                        "test requires explicit zero_on boundaries",
+                    ));
+                }
+                for name in zero_on {
+                    checked_identifier(name.clone(), "test boundary")?;
+                }
+            }
+            crate::FormulationBinding::Interval {
+                name,
+                lower,
+                upper,
+                domain,
+            } => {
+                for name in [name, lower, upper, domain] {
+                    checked_identifier(name.clone(), "interval binder")?;
+                }
+                if name == lower || name == upper || lower == upper {
+                    return Err(AstConstructionError::new(
+                        "interval binders must be distinct",
+                    ));
+                }
+            }
         }
-        let zero_on = zero_on
-            .into_iter()
-            .map(|name| checked_identifier(name, "test boundary"))
-            .collect::<Result<Vec<_>, _>>()?;
         let formulation_range = checked_range(formulation_range)?;
         let range = checked_range(range)?;
         Ok(ComponentDecl {
@@ -98,9 +120,7 @@ impl SourceAstFactory {
             formulations: vec![FormulationDecl {
                 comments: Default::default(),
                 name: form_name,
-                test,
-                trial,
-                zero_on,
+                binding,
                 relation,
                 left,
                 right,
@@ -180,19 +200,13 @@ mod tests {
         .unwrap();
         let source = &parsed.components()[0];
         let (name, relation, left, right, range) = source.formulations().next().unwrap();
-        let (test, trial, boundaries) = source.formulation_test(name).unwrap();
-        let component = SourceAstFactory::component_with_weak_form(
+        let binding = source.formulation_binding(name).unwrap();
+        let component = SourceAstFactory::component_with_form(
             VisibilitySyntax::Private,
             "C",
             source.signature().to_vec(),
             source.items().to_vec(),
-            (
-                name.into(),
-                relation.into(),
-                test.into(),
-                trial.into(),
-                boundaries.to_vec(),
-            ),
+            (name.into(), relation.into(), binding.clone()),
             (left.clone(), right.clone(), range),
             source.range(),
         )
