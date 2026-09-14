@@ -457,37 +457,50 @@ def _ratchet_entries(payload: bytes, section: str) -> tuple[Mapping[str, Any], .
 def _reconstruct_exact_ratchet(
     base_blob: bytes,
     head_blob: bytes,
-) -> dict[str, dict[str, tuple[int, int]]]:
+) -> dict[str, dict[str, tuple[int, int | None]]]:
     replacements: list[tuple[int, int, bytes]] = []
-    changed: dict[str, dict[str, tuple[int, int]]] = {}
+    changed: dict[str, dict[str, tuple[int, int | None]]] = {}
     for name, section_pattern in RATCHET_SECTIONS.items():
         base_entries = _ratchet_entries(base_blob, name)
         head_entries = _ratchet_entries(head_blob, name)
-        if len(base_entries) != len(head_entries):
+        if len(base_entries) < len(head_entries) or (
+            name != "file_lines" and len(base_entries) != len(head_entries)
+        ):
             raise ValueError(f"{name} entry inventory changed")
         sections = tuple(section_pattern.finditer(base_blob))
         if len(sections) != len(base_entries):
             raise ValueError(f"base {name} text does not match its TOML inventory")
         key = "path" if name == "file_lines" else "crate"
+        base_identities = tuple(entry[key] for entry in base_entries)
+        head_identities = tuple(entry[key] for entry in head_entries)
+        if any(identity not in base_identities for identity in head_identities):
+            raise ValueError(f"{name} {key} or order changed")
+        retained_identities = tuple(
+            identity for identity in base_identities if identity in head_identities
+        )
+        if head_identities != retained_identities:
+            raise ValueError(f"{name} {key} or order changed")
+        head_by_identity = {entry[key]: entry for entry in head_entries}
         changed[name] = {}
-        for base_entry, head_entry, section in zip(
-            base_entries, head_entries, sections, strict=True
-        ):
+        for base_entry, section in zip(base_entries, sections, strict=True):
             identity = base_entry[key]
-            if head_entry.get(key) != identity:
-                raise ValueError(f"{name} {key} or order changed")
+            matches = tuple(CEILING_LINE.finditer(section.group(0)))
+            if len(matches) != 1:
+                raise ValueError(f"{name} entry {identity} has no unique ceiling token")
+            token = matches[0].group(1)
+            if token != str(base_entry["ceiling"]).encode("ascii"):
+                raise ValueError(f"{name} entry {identity} has non-canonical base text")
+            head_entry = head_by_identity.get(identity)
+            if head_entry is None:
+                replacements.append((section.start(), section.end(), b""))
+                changed[name][identity] = (base_entry["ceiling"], None)
+                continue
             base_metadata = dict(base_entry)
             head_metadata = dict(head_entry)
             base_ceiling = base_metadata.pop("ceiling")
             head_ceiling = head_metadata.pop("ceiling")
             if base_metadata != head_metadata:
                 raise ValueError(f"{name} entry metadata changed for {identity}")
-            matches = tuple(CEILING_LINE.finditer(section.group(0)))
-            if len(matches) != 1:
-                raise ValueError(f"{name} entry {identity} has no unique ceiling token")
-            token = matches[0].group(1)
-            if token != str(base_ceiling).encode("ascii"):
-                raise ValueError(f"{name} entry {identity} has non-canonical base text")
             if head_ceiling != base_ceiling:
                 if head_ceiling >= base_ceiling:
                     raise ValueError(f"{name} ceiling does not strictly lower for {identity}")
@@ -604,7 +617,8 @@ def _certify_coupled_exact_ratchet(
             or "previous_filename" in metadata
         ):
             raise ValueError(f"ratcheted source is not an exact modified path: {path}")
-        if head_ceiling <= _role_limit(path, limits):
+        role_limit = _role_limit(path, limits)
+        if head_ceiling is not None and head_ceiling <= role_limit:
             raise ValueError(f"ratchet crosses the ordinary role limit for {path}")
 
         base_source = _fetch_blob(
@@ -625,7 +639,12 @@ def _certify_coupled_exact_ratchet(
         )
         if _physical_lines(base_source) != base_ceiling:
             raise ValueError(f"base source does not match its frozen ceiling: {path}")
-        if _physical_lines(head_source) != head_ceiling:
+        head_lines = _physical_lines(head_source)
+        if head_ceiling is None and head_lines > role_limit:
+            raise ValueError(
+                f"retired source still exceeds the ordinary role limit for {path}"
+            )
+        if head_ceiling is not None and head_lines != head_ceiling:
             raise ValueError(f"head source does not match its exact ratchet: {path}")
 
 
