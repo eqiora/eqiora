@@ -6,6 +6,7 @@
 //! both are derived. The accepted straight and circular wires remain separate,
 //! closed replay contracts behind one opaque public owner.
 
+mod planar_boundary;
 mod polyhedra;
 
 use crate::convex_polyhedra::ConvexPolyhedra;
@@ -223,10 +224,11 @@ impl CanonicalGeometryV1 {
             .is_ok_and(|index| std::ptr::eq(&self.entity_sets()[index], selection))
     }
 
-    /// Exact Cartesian embedding of a single primitive boundary and its parent.
+    /// Exact Cartesian embedding of one complete box side and its parent.
     ///
-    /// The primitive topology supplies the axis and outward side. Grouped
-    /// selections, curved shapes, and foreign or stale selections return `None`.
+    /// Primitive topology or exact authored rectangle coordinates supply the axis
+    /// and outward side. Grouped, incomplete, curved, nonrectangular, foreign,
+    /// or stale selections return `None`.
     #[must_use]
     pub fn cartesian_boundary_embedding(
         &self,
@@ -238,6 +240,13 @@ impl CanonicalGeometryV1 {
 
         if !self.selection_is_boundary_of(boundary, parent) {
             return None;
+        }
+        if let CanonicalGeometryKind::StraightEdgedPlanarV1 { region, .. } = &self.kind {
+            let ([edge], [face]) = (boundary.members(), parent.members()) else {
+                return None;
+            };
+            let (owner, embedding) = planar_boundary::rectangle_side(region, *edge)?;
+            return (owner == *face).then_some(embedding);
         }
         let bounds: &[[f64; 2]] = match &self.kind {
             CanonicalGeometryKind::CartesianBoxV1(geometry) => geometry.bounds(),
@@ -273,8 +282,9 @@ impl CanonicalGeometryV1 {
     /// A classification-free rectangle derives all four axis normals from its
     /// canonical boundary topology. The curved families expose a normal only
     /// for exact single-edge x-lower and x-upper sets. A circular member,
-    /// multi-side group, and every straight-edged or unknown geometry family
-    /// return `None`; callers must not infer a catalogue from entity indices.
+    /// multi-side group, and unsupported geometry return `None`. Authored planar
+    /// rectangles derive normals only for complete exact parent-relative sides;
+    /// callers must not infer a catalogue from entity indices.
     #[must_use]
     pub fn constant_parent_outward_normal(&self, name: &str) -> Option<[f64; 2]> {
         let set = self.entity_set(name)?;
@@ -298,7 +308,15 @@ impl CanonicalGeometryV1 {
                 1 => Some([1.0, 0.0]),
                 _ => None,
             },
-            CanonicalGeometryKind::StraightEdgedPlanarV1 { .. } => None,
+            CanonicalGeometryKind::StraightEdgedPlanarV1 { region, .. } => {
+                let (_, embedding) = planar_boundary::rectangle_side(region, *boundary)?;
+                let mut normal = [0.0; 2];
+                normal[embedding.normal_axis()] = match embedding.side() {
+                    eqiora_schema::kernel::BoundarySide::Lower => -1.0,
+                    eqiora_schema::kernel::BoundarySide::Upper => 1.0,
+                };
+                Some(normal)
+            }
             CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(_)
             | CanonicalGeometryKind::ConvexPolyhedraV1(_)
             | CanonicalGeometryKind::CartesianBoxV1(_) => None,
