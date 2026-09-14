@@ -21,7 +21,6 @@ pub(super) fn bind(
 ) -> Result<BTreeMap<RawId, BoundRegionForm>, Diagnostic> {
     let reference = ReferenceCell::simplex(2)?;
     let functional = plan.scaling().weak_functional_scale().quantity();
-    let state = plan.time_step().eliminated_state();
     model
         .region_forms
         .iter()
@@ -85,11 +84,16 @@ pub(super) fn bind(
                 .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
             let time = RegionTimeBinding {
                 step: plan.time_step().duration(),
-                states: fields
+                states: plan
+                    .time_step()
+                    .eliminated_states()
                     .iter()
-                    .any(|field| field.field == state.pair().rate().erase())
-                    .then_some(state)
-                    .into_iter()
+                    .copied()
+                    .filter(|state| {
+                        fields
+                            .iter()
+                            .any(|field| field.field == state.pair().rate().erase())
+                    })
                     .collect(),
             };
             form.bind(reference, &fields, &rows, Some(&time))

@@ -239,8 +239,13 @@ impl<'a, M: ReplayableCanonicalModelArtifact, R: ReplayableFixedTopologyAleReali
                 return Ok((domain.domain(), binding.space().family()));
             }
         }
-        let eliminated = plan.coupled().time_step().eliminated_state();
-        if eliminated.pair().state() == field {
+        if let Some(eliminated) = plan
+            .coupled()
+            .time_step()
+            .eliminated_states()
+            .iter()
+            .find(|state| state.pair().state() == field)
+        {
             let rate = eliminated.pair().rate();
             let domain = plan
                 .coupled()

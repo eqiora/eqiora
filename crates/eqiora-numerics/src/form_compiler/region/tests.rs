@@ -142,11 +142,15 @@ fn inputs(
     let states = form
         .roles
         .relations
-        .values()
-        .filter_map(|role| match role.kind {
+        .iter()
+        .filter_map(|(relation, role)| match role.kind {
             Role::Kinematic { state, rate } => Some(BackwardEulerStateBinding::new(
-                BackwardEulerStatePair::new(state.downcast().unwrap(), rate.downcast().unwrap())
-                    .unwrap(),
+                BackwardEulerStatePair::new(
+                    relation.downcast().unwrap(),
+                    state.downcast().unwrap(),
+                    rate.downcast().unwrap(),
+                )
+                .unwrap(),
                 p1(),
                 PositivePhysicalScale::new(DynQuantity::new(
                     4.0,

@@ -168,7 +168,16 @@ pub(crate) fn authored_model<const D: usize>(
         TraceFieldEndpoint::new(solid, vs),
     )
     .unwrap();
-    let pair = BackwardEulerStatePair::new(displacement, vs).unwrap();
+    let pair = BackwardEulerStatePair::new(
+        symbols
+            .get("definition.solid_kinematics")
+            .unwrap()
+            .downcast()
+            .unwrap(),
+        displacement,
+        vs,
+    )
+    .unwrap();
     let p1 = Space::continuous_lagrange(NonZeroU16::MIN);
     let scale = config.scale();
     let length =
@@ -210,7 +219,7 @@ pub(crate) fn authored_model<const D: usize>(
     .unwrap();
     let time = BackwardEulerStep::new(
         quantity(config.time_step(), [0, 0, 1, 0, 0, 0, 0]),
-        BackwardEulerStateBinding::new(pair, p1, length),
+        [BackwardEulerStateBinding::new(pair, p1, length)],
     )
     .unwrap();
     let scaling = SymmetricCongruenceScaling::new(

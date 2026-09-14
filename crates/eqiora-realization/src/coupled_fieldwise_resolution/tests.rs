@@ -38,8 +38,8 @@ fn exact_multidomain_inventory_is_canonical_and_resolves() {
     assert_eq!(resolved.realization_revision(), RealizationRevision::new(3));
     assert_eq!(resolved.requirements(), &requirements);
 
-    let kinematic_relation = Id::<kinds::Relation>::new();
-    let graph = resolved.portable_graph(kinematic_relation).unwrap();
+    let kinematic_relation = fixture.kinematic_relation;
+    let graph = resolved.portable_graph().unwrap();
     assert_eq!(
         crate::PortableRealizationGraph::from_bytes(&graph.to_bytes().unwrap()).unwrap(),
         graph
@@ -83,7 +83,7 @@ fn dimension_explicit_simplex_quadrature_resolves_and_projects_without_loss() {
         resolved.plan().spatial().discretization().quadrature(),
         quadrature
     );
-    let graph = resolved.portable_graph(Id::new()).unwrap();
+    let graph = resolved.portable_graph().unwrap();
     assert!(
         graph
             .domains()
@@ -149,7 +149,7 @@ fn domain_field_connection_and_trace_drift_fail_closed() {
             .unwrap(),
         ],
         [fixture.trace(fixture.connection)],
-        fixture.state_pair(),
+        [fixture.state_pair()],
         execution_requirements(),
     )
     .unwrap();
@@ -170,7 +170,7 @@ fn domain_field_connection_and_trace_drift_fail_closed() {
                 .unwrap(),
             ],
             [fixture.trace(fixture.connection)],
-            fixture.state_pair(),
+            [fixture.state_pair()],
             execution_requirements(),
         )
         .is_err()
@@ -183,14 +183,14 @@ fn step_duration_and_shared_imported_mesh_are_closed_choices() {
     assert!(
         BackwardEulerStep::new(
             DynQuantity::new(0.0, time_dimension()),
-            fixture.state_binding(),
+            [fixture.state_binding()],
         )
         .is_err()
     );
     assert!(
         BackwardEulerStep::new(
             DynQuantity::new(0.1, length_dimension()),
-            fixture.state_binding(),
+            [fixture.state_binding()],
         )
         .is_err()
     );
@@ -213,7 +213,7 @@ fn step_duration_and_shared_imported_mesh_are_closed_choices() {
     assert!(
         CoupledFieldwiseRealizationPlan::new(
             generated,
-            plan.time_step(),
+            plan.time_step().clone(),
             plan.scaling().clone(),
             plan.operator_properties(),
             plan.solver(),
@@ -241,7 +241,7 @@ fn quotient_requires_equal_trace_signature_and_shared_dof_scale() {
     assert!(
         CoupledFieldwiseRealizationPlan::new(
             plan.spatial().clone(),
-            plan.time_step(),
+            plan.time_step().clone(),
             fixture.scaling(2.0),
             plan.operator_properties(),
             plan.solver(),
@@ -282,7 +282,7 @@ fn eliminated_state_is_represented_but_never_an_algebraic_block() {
     assert!(
         CoupledFieldwiseRealizationPlan::new(
             duplicated,
-            plan.time_step(),
+            plan.time_step().clone(),
             plan.scaling().clone(),
             plan.operator_properties(),
             plan.solver(),
@@ -294,11 +294,11 @@ fn eliminated_state_is_represented_but_never_an_algebraic_block() {
 
     let wrong_space_step = BackwardEulerStep::new(
         plan.time_step().duration(),
-        BackwardEulerStateBinding::new(
+        [BackwardEulerStateBinding::new(
             fixture.state_pair(),
             Space::continuous_lagrange(NonZeroU16::new(2).unwrap()),
             physical_scale(length_dimension()),
-        ),
+        )],
     )
     .unwrap();
     assert!(
@@ -316,6 +316,7 @@ fn eliminated_state_is_represented_but_never_an_algebraic_block() {
 }
 
 struct Fixture {
+    kinematic_relation: Id<kinds::Relation>,
     first_domain: Id<kinds::Domain>,
     second_domain: Id<kinds::Domain>,
     first_trace: Id<kinds::Field>,
@@ -328,6 +329,7 @@ struct Fixture {
 impl Fixture {
     fn new() -> Self {
         Self {
+            kinematic_relation: Id::new(),
             first_domain: Id::new(),
             second_domain: Id::new(),
             first_trace: Id::new(),
@@ -373,7 +375,7 @@ impl Fixture {
         CoupledFieldwiseRealizationRequirements::new(
             domains,
             [self.trace(connection)],
-            self.state_pair(),
+            [self.state_pair()],
             execution_requirements_with_dimension(spatial_dimension),
         )
         .unwrap()
@@ -420,7 +422,7 @@ impl Fixture {
             spatial,
             BackwardEulerStep::new(
                 DynQuantity::new(0.1, time_dimension()),
-                self.state_binding(),
+                [self.state_binding()],
             )
             .unwrap(),
             self.scaling(1.0),
@@ -508,7 +510,12 @@ impl Fixture {
     }
 
     fn state_pair(&self) -> BackwardEulerStatePair {
-        BackwardEulerStatePair::new(self.displacement, self.second_trace).unwrap()
+        BackwardEulerStatePair::new(
+            self.kinematic_relation,
+            self.displacement,
+            self.second_trace,
+        )
+        .unwrap()
     }
 
     fn state_binding(&self) -> BackwardEulerStateBinding {

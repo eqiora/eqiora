@@ -143,7 +143,16 @@ impl CompiledRegionForm {
                 let pair = state.pair();
                 let id = pair.state().erase();
                 let rate = pair.rate().erase();
-                if eliminations.insert(id, rate).is_some() || expected.get(&id) != Some(&rate) {
+                if eliminations.insert(id, rate).is_some()
+                    || expected.get(&id) != Some(&rate)
+                    || self
+                        .roles
+                        .relations
+                        .get(&pair.relation().erase())
+                        .is_none_or(|relation| {
+                            relation.kind != (Role::Kinematic { state: id, rate })
+                        })
+                {
                     return Err(invalid(
                         "Plan state elimination differs from exact Model kinematics",
                     ));

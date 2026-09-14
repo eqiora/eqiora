@@ -102,7 +102,12 @@ impl<Q: WireQuadratureCodec + Clone> WireAlePlanWith<Q> {
         let coupled = value.coupled();
         let motion = value.mesh_motion();
         let fluid_step = value.fluid_time_step();
-        let eliminated = coupled.time_step().eliminated_state();
+        let eliminated = coupled
+            .time_step()
+            .eliminated_states()
+            .iter()
+            .find(|state| state.pair().state() == motion.solid_displacement())
+            .ok_or_else(|| invalid_artifact("ALE driver lacks exact state binding"))?;
         let [quotient] = coupled.spatial().trace_quotients() else {
             return Err(invalid_artifact(
                 "fixed-topology ALE requires exactly one trace quotient",
@@ -217,8 +222,16 @@ impl<Q: WireQuadratureCodec + Clone> WireAlePlanWith<Q> {
         if action_duration != fluid_step.duration()
             || eliminated_projection
                 != WireEliminationProjection::encode(
-                    value.solid_kinematic_relation(),
-                    value.coupled().time_step(),
+                    value
+                        .coupled()
+                        .time_step()
+                        .eliminated_states()
+                        .iter()
+                        .find(|state| state.pair().relation() == value.solid_kinematic_relation())
+                        .ok_or_else(|| {
+                            invalid_artifact("ALE Relation lacks exact state binding")
+                        })?,
+                    value.coupled().time_step().duration(),
                 )
             || [trace_projection] != value.coupled().spatial().trace_quotients()
         {
@@ -421,13 +434,15 @@ struct WireEliminationProjection {
 }
 
 impl WireEliminationProjection {
-    fn encode(relation: Id<kinds::Relation>, step: eqiora_realization::BackwardEulerStep) -> Self {
-        let eliminated = step.eliminated_state();
+    fn encode(
+        eliminated: &eqiora_realization::BackwardEulerStateBinding,
+        duration: DynQuantity,
+    ) -> Self {
         Self {
-            relation,
+            relation: eliminated.pair().relation(),
             state: eliminated.pair().state(),
             rate: eliminated.pair().rate(),
-            duration: step.duration(),
+            duration,
             state_scale: eliminated.state_scale(),
         }
     }

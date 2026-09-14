@@ -656,7 +656,10 @@ fn assert_normalized_solution_conformance(
         reference
             .realization_plan()
             .time_step()
-            .eliminated_state()
+            .eliminated_states()
+            .iter()
+            .find(|state| state.pair().state() == reference.fields().solid_displacement())
+            .unwrap()
             .state_scale()
             .quantity()
             .value(),

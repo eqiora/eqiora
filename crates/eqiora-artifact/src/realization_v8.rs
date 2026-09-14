@@ -248,36 +248,33 @@ impl RealizationEnvelopeV8 {
                 "coupled realization arrays or values are not in canonical closed form",
             ));
         }
-        let eliminated = plan.time_step().eliminated_state().pair();
-        let rate_domain = plan
-            .spatial()
-            .domains()
+        let eliminated = plan
+            .time_step()
+            .eliminated_states()
             .iter()
-            .find(|domain| {
-                domain
-                    .field_spaces()
-                    .iter()
-                    .any(|binding| binding.field() == eliminated.rate())
-            })
-            .map(|domain| domain.domain())
-            .ok_or_else(|| invalid_artifact("Backward Euler rate has no selected Domain"))?;
+            .map(|state| state.pair())
+            .collect::<Vec<_>>();
+        let represented = plan
+            .represented_physical_fields()
+            .map_err(|error| invalid_artifact(error.to_string()))?;
         let selected_domains = plan
             .spatial()
             .domains()
             .iter()
             .map(|domain| {
-                let fields = domain
-                    .field_spaces()
-                    .iter()
-                    .map(|binding| binding.field())
-                    .chain((domain.domain() == rate_domain).then_some(eliminated.state()));
-                eqiora_realization::DomainFieldInventory::new(domain.domain(), fields)
+                eqiora_realization::DomainFieldInventory::new(
+                    domain.domain(),
+                    represented
+                        .iter()
+                        .filter(|field| field.domain() == domain.domain())
+                        .map(|field| field.field()),
+                )
             })
             .collect::<Result<Vec<_>, _>>()
             .map_err(|error| invalid_artifact(error.to_string()))?;
         if requirements.domains() != selected_domains
             || requirements.trace_quotients() != plan.spatial().trace_quotients()
-            || requirements.eliminated_state() != eliminated
+            || requirements.eliminated_states() != eliminated
         {
             return Err(invalid_artifact(
                 "coupled plan does not bind the exact required Domain, Field, Connection, and trace-pair inventory",

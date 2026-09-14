@@ -55,11 +55,12 @@ pub(super) fn exact_graph_inventory(
             })
         })
         .collect::<std::collections::BTreeMap<_, _>>();
-    let state = plan.time_step().eliminated_state();
-    let Some(&(domain, _)) = expected.get(&state.pair().rate().erase()) else {
-        return false;
-    };
-    expected.insert(state.pair().state().erase(), (domain, state.state_space()));
+    for state in plan.time_step().eliminated_states() {
+        let Some(&(domain, _)) = expected.get(&state.pair().rate().erase()) else {
+            return false;
+        };
+        expected.insert(state.pair().state().erase(), (domain, state.state_space()));
+    }
     let actual = graph
         .fields()
         .iter()
@@ -564,8 +565,12 @@ pub(super) fn trace_quotient(model: &FixedReferenceFsiCartesianModel2d) -> Confo
 }
 
 pub(super) fn state_pair(model: &FixedReferenceFsiCartesianModel2d) -> BackwardEulerStatePair {
-    BackwardEulerStatePair::new(solid_displacement(model), solid_velocity(model))
-        .expect("lowered solid displacement and velocity are distinct Fields")
+    BackwardEulerStatePair::new(
+        solid_kinematic_relation(model),
+        solid_displacement(model),
+        solid_velocity(model),
+    )
+    .expect("lowered solid displacement and velocity are distinct Fields")
 }
 
 pub(super) fn field_identities(

@@ -51,8 +51,8 @@ fn requirements_keep_semantics_while_vector_layout_is_explicit() {
     assert_eq!(replicated.domains(), distributed.domains());
     assert_eq!(replicated.trace_quotients(), distributed.trace_quotients());
     assert_eq!(
-        replicated.eliminated_state(),
-        distributed.eliminated_state()
+        replicated.eliminated_states(),
+        distributed.eliminated_states()
     );
     assert_eq!(
         replicated.execution().spatial_dimension(),
@@ -110,8 +110,12 @@ fn plan_is_the_exact_gauge_free_monolithic_selection() {
         2
     );
     assert_eq!(
-        plan.time_step().eliminated_state().pair(),
-        state_pair(&model)
+        plan.time_step()
+            .eliminated_states()
+            .iter()
+            .map(|state| state.pair())
+            .collect::<Vec<_>>(),
+        vec![state_pair(&model)]
     );
     assert_eq!(
         plan.scaling().weak_functional_scale().quantity(),
@@ -296,7 +300,7 @@ fn finalization_replays_quadrature_and_mesh_identity_exactly() {
             ),
         )
         .unwrap(),
-        plan.time_step(),
+        plan.time_step().clone(),
         plan.scaling().clone(),
         plan.operator_properties(),
         plan.solver(),

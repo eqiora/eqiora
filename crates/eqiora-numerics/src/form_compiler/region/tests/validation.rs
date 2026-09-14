@@ -117,7 +117,12 @@ fn exact_plan_bindings_reject_wrong_units_spaces_state_pairs_and_coverage() {
     );
     wrong_time = time.clone();
     wrong_time.states[0] = BackwardEulerStateBinding::new(
-        BackwardEulerStatePair::new(state.pair().rate(), state.pair().state()).unwrap(),
+        BackwardEulerStatePair::new(
+            state.pair().relation(),
+            state.pair().rate(),
+            state.pair().state(),
+        )
+        .unwrap(),
         p1(),
         state.state_scale(),
     );

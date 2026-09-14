@@ -56,13 +56,7 @@ impl CommonFsiPlan {
     }
 
     fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
-        let relation = self
-            .canonical()
-            .solid()
-            .kinematic_relation()
-            .downcast::<eqiora_core::entity::kinds::Relation>()
-            .ok_or_else(|| invalid("FSI solid kinematic Relation lost its semantic kind"))?;
-        require_portable_realization(&self.portable, self.resolved.portable_graph(relation)?)
+        require_portable_realization(&self.portable, self.resolved.portable_graph()?)
     }
 
     pub(super) fn from_recognized(
@@ -190,12 +184,7 @@ impl CommonFsiPlan {
             fixed_reference_fsi_requirements_2d(canonical),
             &RealizationCapabilities::symmetric_mixed_simplicial_2d_reference(),
         )?;
-        let solid_kinematic_relation = canonical
-            .solid()
-            .kinematic_relation()
-            .downcast::<eqiora_core::entity::kinds::Relation>()
-            .ok_or_else(|| invalid("FSI solid kinematic Relation lost its semantic kind"))?;
-        let portable = resolved.portable_graph(solid_kinematic_relation)?;
+        let portable = resolved.portable_graph()?;
         let reference = model.artifact_reference()?;
         let solver_provider = linear.provider;
         let execution_provider = linear.execution;

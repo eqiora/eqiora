@@ -114,20 +114,11 @@ impl ResolvedFieldwiseRealization {
 }
 
 impl ResolvedCoupledFieldwiseRealization {
-    /// Normalize an accepted multi-Domain plan using a claimed kinematic Relation.
-    ///
-    /// The compatibility plan predates Relation-bound transformations, so the
-    /// equation-aware lowerer supplies the Relation it accepted. No anonymous
-    /// or inferred Relation is fabricated by this projection, but the
-    /// equation-aware execution finalizer owns the exact identity comparison.
+    /// Normalize every admitted Domain, Field, Connection and kinematic Relation.
     ///
     /// # Errors
-    /// Returns `EQ0807` if any Domain, Field, quotient, state/rate, block, or
-    /// solve reference cannot be represented losslessly.
-    pub fn portable_graph(
-        &self,
-        claimed_eliminated_state_relation: Id<kinds::Relation>,
-    ) -> Result<PortableRealizationGraph, Diagnostic> {
+    /// Returns `EQ0807` if the exact inventory cannot be represented losslessly.
+    pub fn portable_graph(&self) -> Result<PortableRealizationGraph, Diagnostic> {
         let plan = self.plan();
         let spatial = plan.spatial();
         let domains = spatial
@@ -155,32 +146,39 @@ impl ResolvedCoupledFieldwiseRealization {
                     })
             })
             .collect::<Vec<_>>();
-        let eliminated = plan.time_step().eliminated_state();
-        let pair = eliminated.pair();
-        let rate_domain = fields
-            .iter()
-            .find(|field| field.field == pair.rate())
-            .map(|field| field.domain)
-            .ok_or_else(|| {
-                invalid_realization(
-                    "coupled portable graph cannot locate the eliminated state's rate Domain",
-                )
-            })?;
-        fields.push(FieldRepresentationNode {
-            domain: rate_domain,
-            field: pair.state(),
-            space: eliminated.state_space(),
-        });
+        for eliminated in plan.time_step().eliminated_states() {
+            let pair = eliminated.pair();
+            let rate_domain = fields
+                .iter()
+                .find(|field| field.field == pair.rate())
+                .map(|field| field.domain)
+                .ok_or_else(|| {
+                    invalid_realization(
+                        "coupled portable graph cannot locate the eliminated state's rate Domain",
+                    )
+                })?;
+            fields.push(FieldRepresentationNode {
+                domain: rate_domain,
+                field: pair.state(),
+                space: eliminated.state_space(),
+            });
+        }
         fields.sort_by_key(|field| field.field.ulid());
-        let state = field_reference(&fields, pair.state())?;
-        let rate = field_reference(&fields, pair.rate())?;
-        let mut transformations = vec![TransformationNode::BackwardEulerElimination {
-            relation: claimed_eliminated_state_relation,
-            state,
-            rate,
-            duration: plan.time_step().duration(),
-            state_scale: eliminated.state_scale(),
-        }];
+        let mut transformations = plan
+            .time_step()
+            .eliminated_states()
+            .iter()
+            .map(|eliminated| {
+                let pair = eliminated.pair();
+                Ok(TransformationNode::BackwardEulerElimination {
+                    relation: pair.relation(),
+                    state: field_reference(&fields, pair.state())?,
+                    rate: field_reference(&fields, pair.rate())?,
+                    duration: plan.time_step().duration(),
+                    state_scale: eliminated.state_scale(),
+                })
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
         transformations.extend(spatial.trace_quotients().iter().map(|quotient| {
             TransformationNode::ConformingTraceQuotient {
                 connection: quotient.connection(),
@@ -559,7 +557,14 @@ impl ResolvedFixedTopologyAleCoupledRealization {
                     })
             })
             .collect::<Vec<_>>();
-        let eliminated = coupled.time_step().eliminated_state();
+        let eliminated = coupled
+            .time_step()
+            .eliminated_states()
+            .iter()
+            .find(|state| state.pair().state() == motion.solid_displacement())
+            .ok_or_else(|| {
+                invalid_realization("ALE motion driver has no exact eliminated-state binding")
+            })?;
         fields.push(FieldRepresentationNode {
             domain: solid_domain,
             field: eliminated.pair().state(),

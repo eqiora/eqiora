@@ -48,6 +48,9 @@ use crate::simplicial_fsi::{
 };
 use crate::step_count::NonZeroStepCount;
 
+mod roles;
+use roles::*;
+
 const LEGACY_TRIANGLE_DUFFY_POINTS_PER_AXIS: usize = 5;
 const TETRAHEDRON_DUFFY_POINTS_PER_AXIS: usize = 7;
 
@@ -464,7 +467,7 @@ fn fixed_topology_ale_fsi_requirements<const D: usize>(
             .expect("lowered ALE solid owns distinct velocity and displacement Fields"),
         ],
         [trace_quotient(model)],
-        state_pair(model),
+        [state_pair(model)],
         RealizationRequirements::new(
             NonZeroUsize::new(D).expect("supported ALE FSI dimension is non-zero"),
             ScalarType::F64,
@@ -1037,7 +1040,15 @@ fn require_exact_plan<const D: usize>(
     require_dimension(velocity.dim(), VELOCITY, "ALE FSI velocity scale")?;
     require_dimension(pressure.dim(), PRESSURE, "ALE FSI pressure scale")?;
     if solid_velocity_scale != velocity
-        || plan.time_step().eliminated_state().state_scale().quantity() != length
+        || plan
+            .time_step()
+            .eliminated_states()
+            .iter()
+            .find(|state| state.pair().state() == fields.solid_displacement)
+            .ok_or_else(|| invalid_realization("ALE eliminated state has no exact Field binding"))?
+            .state_scale()
+            .quantity()
+            != length
         || plan.scaling().weak_functional_scale().quantity()
             != weak_functional_power::<D>(pressure, velocity, length)?
     {
@@ -1390,101 +1401,6 @@ fn require_dimension(
         )));
     }
     Ok(())
-}
-
-fn field_identities<const D: usize>(model: &AleFsiCartesianModel<D>) -> AleFsiFieldIdentities<D> {
-    AleFsiFieldIdentities::<D> {
-        fluid_velocity: fluid_velocity(model),
-        fluid_pressure: fluid_pressure(model),
-        solid_velocity: solid_velocity(model),
-        solid_displacement: solid_displacement(model),
-    }
-}
-
-fn trace_quotient<const D: usize>(model: &AleFsiCartesianModel<D>) -> ConformingTraceQuotient {
-    ConformingTraceQuotient::new(
-        connection(model),
-        TraceFieldEndpoint::new(fluid_domain(model), fluid_velocity(model)),
-        TraceFieldEndpoint::new(solid_domain(model), solid_velocity(model)),
-    )
-    .expect("lowered ALE FSI interface joins distinct Domains")
-}
-
-fn state_pair<const D: usize>(model: &AleFsiCartesianModel<D>) -> BackwardEulerStatePair {
-    BackwardEulerStatePair::new(solid_displacement(model), solid_velocity(model))
-        .expect("lowered ALE FSI solid state and rate are distinct")
-}
-
-fn fluid_domain<const D: usize>(model: &AleFsiCartesianModel<D>) -> Id<kinds::Domain> {
-    model
-        .fluid()
-        .domain()
-        .downcast()
-        .expect("lowered ALE fluid Domain retains its kind")
-}
-
-fn solid_domain<const D: usize>(model: &AleFsiCartesianModel<D>) -> Id<kinds::Domain> {
-    let domain = model.solid().continuum().domain();
-    domain
-        .downcast()
-        .expect("lowered ALE solid Domain retains its kind")
-}
-
-fn fluid_velocity<const D: usize>(model: &AleFsiCartesianModel<D>) -> Id<kinds::Field> {
-    model
-        .fluid()
-        .velocity()
-        .downcast()
-        .expect("lowered ALE fluid velocity retains its kind")
-}
-
-fn fluid_pressure<const D: usize>(model: &AleFsiCartesianModel<D>) -> Id<kinds::Field> {
-    model
-        .fluid()
-        .pressure()
-        .downcast()
-        .expect("lowered ALE pressure retains its kind")
-}
-
-fn solid_velocity<const D: usize>(model: &AleFsiCartesianModel<D>) -> Id<kinds::Field> {
-    model
-        .solid()
-        .velocity()
-        .downcast()
-        .expect("lowered ALE solid velocity retains its kind")
-}
-
-fn solid_displacement<const D: usize>(model: &AleFsiCartesianModel<D>) -> Id<kinds::Field> {
-    let displacement = model.solid().continuum().displacement();
-    displacement
-        .downcast()
-        .expect("lowered ALE solid displacement retains its kind")
-}
-
-fn fluid_relation<const D: usize>(model: &AleFsiCartesianModel<D>) -> Id<kinds::Relation> {
-    model
-        .fluid()
-        .momentum_relation()
-        .downcast()
-        .expect("lowered ALE fluid momentum retains its kind")
-}
-
-fn solid_kinematic_relation<const D: usize>(
-    model: &AleFsiCartesianModel<D>,
-) -> Id<kinds::Relation> {
-    model
-        .solid()
-        .kinematic_relation()
-        .downcast()
-        .expect("lowered ALE solid kinematics retains its kind")
-}
-
-fn connection<const D: usize>(model: &AleFsiCartesianModel<D>) -> Id<kinds::Connection> {
-    model
-        .interface()
-        .connection()
-        .downcast()
-        .expect("lowered ALE FSI Connection retains its kind")
 }
 
 fn invalid_realization(message: impl Into<String>) -> Diagnostic {

@@ -870,7 +870,11 @@ fn realization_plan_with_scales(
         .unwrap(),
         BackwardEulerStep::new(
             duration,
-            BackwardEulerStateBinding::new(state_pair(model), p1, length),
+            [BackwardEulerStateBinding::new(
+                state_pair(model),
+                p1,
+                length,
+            )],
         )
         .unwrap(),
         SymmetricCongruenceScaling::new(
@@ -990,7 +994,12 @@ fn trace_quotient(model: &AleFsiCartesianModel<2>) -> ConformingTraceQuotient {
 }
 
 fn state_pair(model: &AleFsiCartesianModel<2>) -> BackwardEulerStatePair {
-    BackwardEulerStatePair::new(solid_displacement(model), solid_velocity(model)).unwrap()
+    BackwardEulerStatePair::new(
+        solid_kinematic_relation(model),
+        solid_displacement(model),
+        solid_velocity(model),
+    )
+    .unwrap()
 }
 
 fn two_domain_mesh(flip_diagonal: bool) -> SimplicialMesh {

@@ -63,7 +63,7 @@ fn spatial(
             plan.spatial().discretization(),
         )
         .unwrap(),
-        plan.time_step(),
+        plan.time_step().clone(),
         plan.scaling().clone(),
         plan.operator_properties(),
         plan.solver(),
@@ -92,7 +92,10 @@ fn roles_follow_exact_equations_and_permuted_plan_inventory() {
     assert_eq!(expected, FsiRoles::derive(&equations, &reversed).unwrap());
     assert_eq!(
         expected.solid_velocity,
-        plan.time_step().eliminated_state().pair().rate().erase()
+        plan.time_step().eliminated_states()[0]
+            .pair()
+            .rate()
+            .erase()
     );
     assert_ne!(expected.fluid_velocity, expected.pressure);
 }

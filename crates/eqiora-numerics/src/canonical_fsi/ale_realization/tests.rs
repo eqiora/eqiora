@@ -439,7 +439,11 @@ fn build_plan<const D: usize>(
         .unwrap(),
         BackwardEulerStep::new(
             DynQuantity::new(0.02, TIME),
-            BackwardEulerStateBinding::new(state_pair(model), p1, length),
+            [BackwardEulerStateBinding::new(
+                state_pair(model),
+                p1,
+                length,
+            )],
         )
         .unwrap(),
         SymmetricCongruenceScaling::new(
@@ -524,7 +528,7 @@ fn requirements_with_pressure(
             .unwrap(),
         ],
         requirements.coupled().trace_quotients(),
-        requirements.coupled().eliminated_state(),
+        requirements.coupled().eliminated_states().iter().copied(),
         requirements.coupled().execution(),
     )
     .unwrap();

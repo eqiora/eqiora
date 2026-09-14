@@ -295,8 +295,18 @@ impl FixedTopologyAleCoupledRealizationPlan {
             ));
         }
 
-        let eliminated = self.coupled.time_step().eliminated_state().pair();
-        if eliminated.state() != motion.solid_displacement {
+        let bindings = self.coupled.time_step().eliminated_states();
+        let eliminated = bindings
+            .iter()
+            .find(|state| state.pair().state() == motion.solid_displacement)
+            .filter(|_| bindings.len() == 1)
+            .ok_or_else(|| {
+                invalid_realization(
+                    "ALE geometry action must cover the complete exact eliminated-state inventory",
+                )
+            })?
+            .pair();
+        if eliminated.relation() != self.solid_kinematic_relation {
             return Err(invalid_realization(
                 "mesh motion must be driven by the exact eliminated solid-displacement Field",
             ));
@@ -359,8 +369,17 @@ impl FixedTopologyAleCoupledRealizationRequirements {
                 "fixed-topology ALE requirements need exactly two distinct fluid and solid Domains",
             ));
         }
-        let eliminated = coupled.eliminated_state();
-        if eliminated.state() != solid_displacement
+        let eliminated = coupled
+            .eliminated_states()
+            .iter()
+            .find(|state| state.state() == solid_displacement)
+            .filter(|_| coupled.eliminated_states().len() == 1)
+            .ok_or_else(|| {
+                invalid_realization(
+                    "ALE requirements must cover the complete exact eliminated-state inventory",
+                )
+            })?;
+        if eliminated.relation() != solid_kinematic_relation
             || !inventory_contains(&coupled, fluid_domain, fluid_velocity)
             || !inventory_contains(&coupled, solid_domain, solid_displacement)
             || !inventory_contains(&coupled, solid_domain, eliminated.rate())

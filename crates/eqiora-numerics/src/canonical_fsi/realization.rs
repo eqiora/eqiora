@@ -40,7 +40,7 @@ use validate::{
     field_identities, fluid_domain, fluid_pressure, fluid_velocity, invalid_realization,
     realization_error, require_boundary_meaning, require_dimension, require_exact_plan,
     require_mesh_partition, require_solver, require_zero_load, solid_displacement, solid_domain,
-    solid_kinematic_relation, solid_velocity, state_pair, trace_quotient,
+    solid_velocity, state_pair, trace_quotient,
 };
 
 const DIMENSION: usize = 2;
@@ -271,7 +271,7 @@ pub fn fixed_reference_fsi_requirements_2d_for_layout(
             .expect("lowered solid owns distinct displacement and velocity Fields"),
         ],
         [trace_quotient(model)],
-        state_pair(model),
+        [state_pair(model)],
         RealizationRequirements::new(
             NonZeroUsize::new(DIMENSION).expect("two is non-zero"),
             ScalarType::F64,
@@ -419,7 +419,11 @@ pub(super) fn fixed_reference_fsi_plan_2d_for_profile(
     .map_err(realization_error)?;
     let time_step = BackwardEulerStep::new(
         time_step,
-        BackwardEulerStateBinding::new(state_pair(model), p1, scales.length),
+        [BackwardEulerStateBinding::new(
+            state_pair(model),
+            p1,
+            scales.length,
+        )],
     )
     .map_err(realization_error)?;
     let scaling = SymmetricCongruenceScaling::new(
@@ -512,7 +516,7 @@ fn prepare_resolved_fixed_reference_fsi_run_2d_with_assembly<'a>(
     require_zero_load(model)?;
     require_boundary_meaning(model)?;
     require_mesh_partition(model, mesh, partition)?;
-    let realization_graph = resolved.portable_graph(solid_kinematic_relation(model))?;
+    let realization_graph = resolved.portable_graph()?;
     let scales = require_exact_plan(model, resolved, &realization_graph, mesh_artifact)?;
     let material = FixedReferenceFsiMaterial::<2>::from_admitted_solid(
         model.fluid().mass_density(),

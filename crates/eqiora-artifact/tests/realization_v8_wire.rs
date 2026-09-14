@@ -54,7 +54,7 @@ fn coupled_v8_round_trips_exact_inventory_step_and_run_binding() {
     assert!(text.contains("eqiora.realization-envelope/v8"));
     assert!(text.contains("\"trace_quotients\""));
     assert!(text.contains("time_step"));
-    assert!(text.contains("eliminated_state"));
+    assert!(text.contains("\"eliminated_states\""));
     assert!(text.contains("state_field_ulid"));
     assert!(text.contains("symmetric-indefinite"));
     assert!(text.contains("minimum-residual"));
@@ -129,7 +129,7 @@ fn coupled_v8_rejects_noncanonical_and_drifted_exact_choices() {
 
     let mut incompatible_trace: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     let rate_id =
-        incompatible_trace["plan"]["time_step"]["eliminated_state"]["pair"]["rate_field_ulid"]
+        incompatible_trace["plan"]["time_step"]["eliminated_states"][0]["pair"]["rate_field_ulid"]
             .clone();
     let domains = incompatible_trace["plan"]["spatial"]["domains"]
         .as_array_mut()
@@ -140,7 +140,7 @@ fn coupled_v8_rejects_noncanonical_and_drifted_exact_choices() {
         .find(|binding| binding["field_ulid"] == rate_id)
         .unwrap();
     trace_space["space"] = serde_json::json!({"continuous-lagrange": {"order": 2}});
-    incompatible_trace["plan"]["time_step"]["eliminated_state"]["state_space"] =
+    incompatible_trace["plan"]["time_step"]["eliminated_states"][0]["state_space"] =
         serde_json::json!({"continuous-lagrange": {"order": 2}});
     assert!(
         RealizationEnvelopeV8::from_json(
@@ -152,7 +152,7 @@ fn coupled_v8_rejects_noncanonical_and_drifted_exact_choices() {
 
     let mut scale_drift: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     let rate_id =
-        scale_drift["plan"]["time_step"]["eliminated_state"]["pair"]["rate_field_ulid"].clone();
+        scale_drift["plan"]["time_step"]["eliminated_states"][0]["pair"]["rate_field_ulid"].clone();
     let block = scale_drift["plan"]["scaling"]["block_scales"]
         .as_array_mut()
         .unwrap()
@@ -239,7 +239,8 @@ impl Fixture {
             TraceFieldEndpoint::new(second_domain, second_velocity),
         )
         .unwrap();
-        let state_pair = BackwardEulerStatePair::new(displacement, second_velocity).unwrap();
+        let state_pair =
+            BackwardEulerStatePair::new(Id::new(), displacement, second_velocity).unwrap();
         let execution = RealizationRequirements::new(
             NonZeroUsize::new(2).unwrap(),
             ScalarType::F64,
@@ -251,7 +252,7 @@ impl Fixture {
                 DomainFieldInventory::new(second_domain, [displacement, second_velocity]).unwrap(),
             ],
             [trace],
-            state_pair,
+            [state_pair],
             execution,
         )
         .unwrap();
@@ -320,11 +321,11 @@ impl Fixture {
             spatial,
             BackwardEulerStep::new(
                 DynQuantity::new(0.125, time_dimension()),
-                BackwardEulerStateBinding::new(
+                [BackwardEulerStateBinding::new(
                     state_pair,
                     Space::continuous_lagrange(NonZeroU16::MIN),
                     scale(length_dimension()),
-                ),
+                )],
             )
             .unwrap(),
             scaling,

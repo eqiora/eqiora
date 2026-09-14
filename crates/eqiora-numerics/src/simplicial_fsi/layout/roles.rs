@@ -18,7 +18,12 @@ impl FsiRoles {
         plan: &CoupledFieldwiseRealizationPlan,
     ) -> Result<Self, Diagnostic> {
         let domains = plan.spatial().domains();
-        let state = plan.time_step().eliminated_state().pair();
+        let [state] = plan.time_step().eliminated_states() else {
+            return Err(invalid(
+                "current FSI role projection requires complete single state-rate inventory",
+            ));
+        };
+        let state = state.pair();
         let state_rates = equations
             .relations
             .values()
