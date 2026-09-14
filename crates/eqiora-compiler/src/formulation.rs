@@ -14,6 +14,9 @@ use crate::dimensions::length_dimension;
 use crate::lower::ModelSymbols;
 use crate::source_identity::formulation::AuthoredFormSourceIdentity;
 
+mod index;
+mod interval;
+use index::KernelIndex;
 mod restriction;
 mod wire;
 
@@ -130,7 +133,7 @@ pub(crate) fn compile_component_formulations(
     component: &ComponentDecl,
     symbols: &ModelSymbols,
     transaction: &Transaction,
-    geometry_dimensions: (usize, usize),
+    geometry: &eqiora_geometry::CanonicalGeometryV1,
     supports: &[crate::external::ExternalGeometrySupportBinding],
 ) -> Result<Vec<CompiledAuthoredFormulation>, Vec<Diagnostic>> {
     if component.formulations().len() == 0 {
@@ -150,9 +153,29 @@ pub(crate) fn compile_component_formulations(
     component
         .formulations()
         .map(|(name, relation, left, right, range)| {
-            let (test, trial, zero_on) = component
-                .formulation_test(name)
-                .expect("retained form test");
+            let binding = component
+                .formulation_binding(name)
+                .expect("retained form binder");
+            if let eqiora_lang::FormulationBinding::Interval { .. } = binding {
+                return interval::compile(
+                    file,
+                    (name, relation, left, right, range),
+                    binding,
+                    source_identity,
+                    symbols,
+                    &index,
+                    geometry,
+                )
+                .map_err(|diagnostic| vec![diagnostic]);
+            }
+            let eqiora_lang::FormulationBinding::WeakTest {
+                name: test,
+                trial,
+                zero_on,
+            } = binding
+            else {
+                unreachable!()
+            };
             let form = FormSource {
                 name,
                 relation,
@@ -169,63 +192,15 @@ pub(crate) fn compile_component_formulations(
                 source_identity,
                 symbols,
                 &index,
-                geometry_dimensions,
+                (
+                    geometry.ambient_dimension(),
+                    geometry.topological_dimension(),
+                ),
                 supports,
             )
             .map_err(|diagnostic| vec![diagnostic])
         })
         .collect()
-}
-
-struct KernelIndex<'a> {
-    nodes: BTreeMap<RawId, &'a KernelNode>,
-    applies_on: BTreeMap<RawId, RawId>,
-    defined_on: BTreeMap<RawId, RawId>,
-    boundary_of: BTreeMap<RawId, RawId>,
-}
-
-impl<'a> KernelIndex<'a> {
-    fn new(transaction: &'a Transaction) -> Self {
-        let mut nodes = BTreeMap::new();
-        let mut applies_on = BTreeMap::new();
-        let mut defined_on = BTreeMap::new();
-        let mut boundary_of = BTreeMap::new();
-        for op in transaction.ops() {
-            match op {
-                Op::DefineKernelNode { node } => {
-                    nodes.insert(node.id(), node);
-                }
-                Op::Connect {
-                    from,
-                    to,
-                    edge: EdgeKind::AppliesOn,
-                } => {
-                    applies_on.insert(*from, *to);
-                }
-                Op::Connect {
-                    from,
-                    to,
-                    edge: EdgeKind::DefinedOn,
-                } if to.downcast::<kinds::Domain>().is_some() => {
-                    defined_on.insert(*from, *to);
-                }
-                Op::Connect {
-                    from,
-                    to,
-                    edge: EdgeKind::BoundaryOf,
-                } => {
-                    boundary_of.insert(*from, *to);
-                }
-                _ => {}
-            }
-        }
-        Self {
-            nodes,
-            applies_on,
-            defined_on,
-            boundary_of,
-        }
-    }
 }
 
 struct FormSource<'a> {

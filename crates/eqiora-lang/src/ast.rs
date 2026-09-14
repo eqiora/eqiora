@@ -33,6 +33,7 @@ pub use comments::DocComment;
 pub use compile_time::{NamedDefinitionDecl, ParameterDecl};
 pub use document::{Document, ModelDecl};
 
+pub use formulation::FormulationBinding;
 use formulation::FormulationDecl;
 use std::ops::Range;
 

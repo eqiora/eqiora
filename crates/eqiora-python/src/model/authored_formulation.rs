@@ -15,7 +15,8 @@ use pyo3::types::PyTuple;
 pub(super) struct PyAuthoredFormulation {
     source_identity: String,
     name: String,
-    test_name: String,
+    test_name: Option<String>,
+    interval: Option<(String, String, String)>,
     zero_on_domain_ids: Vec<String>,
     implication: String,
     assumptions: Vec<String>,
@@ -41,16 +42,24 @@ impl PyAuthoredFormulation {
         &self.name
     }
     #[getter]
-    fn test_name(&self) -> &str {
-        &self.test_name
+    fn test_name(&self) -> Option<&str> {
+        self.test_name.as_deref()
     }
     #[getter]
     fn zero_on_domain_ids(&self) -> Vec<String> {
         self.zero_on_domain_ids.clone()
     }
     #[getter]
+    fn interval(&self) -> Option<(String, String, String)> {
+        self.interval.clone()
+    }
+    #[getter]
     fn kind(&self) -> &'static str {
-        "primal"
+        if self.interval.is_some() {
+            "integral-conservative"
+        } else {
+            "primal"
+        }
     }
 
     #[getter]
@@ -85,7 +94,8 @@ impl PyAuthoredFormulation {
 
     fn __repr__(&self) -> String {
         format!(
-            "AuthoredFormulation(kind='primal', source_identity={:?}, relation_id={:?}, domain_id={:?}, trial_field_id={:?}, filename={:?}, source_range={:?})",
+            "AuthoredFormulation(kind={:?}, source_identity={:?}, relation_id={:?}, domain_id={:?}, trial_field_id={:?}, filename={:?}, source_range={:?})",
+            self.kind(),
             self.source_identity,
             self.relation_id,
             self.domain_id,
@@ -103,8 +113,18 @@ pub(super) fn project(py: Python<'_>, document: Option<&ModelDocument>) -> PyRes
         .map(|form| PyAuthoredFormulation {
             source_identity: form.source_identity().to_owned(),
             name: form.projection().name().to_owned(),
-            test_name: form.projection().test_name().to_owned(),
-            zero_on_domain_ids: form.projection().zero_on().to_vec(),
+            test_name: form
+                .projection()
+                .test_restriction()
+                .map(|(name, _)| name.to_owned()),
+            zero_on_domain_ids: form
+                .projection()
+                .test_restriction()
+                .map_or_else(Vec::new, |(_, bounds)| bounds.to_vec()),
+            interval: form
+                .projection()
+                .interval()
+                .map(|(name, lower, upper)| (name.into(), lower.into(), upper.into())),
             implication: form.projection().implication().into(),
             assumptions: form.projection().assumptions().to_vec(),
             relation_id: form.relation().ulid().to_string(),

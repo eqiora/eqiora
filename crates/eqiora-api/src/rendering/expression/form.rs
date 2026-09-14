@@ -23,11 +23,27 @@ impl ModelDocument {
                 };
                 let left = context.form(form.left(), 0)?;
                 let right = context.form(form.right(), 0)?;
-                super::super::output::render(
-                    Math::Binary("=", Box::new(left), Box::new(right)),
-                    context.references,
-                    profile,
-                )
+                let mut equation = Math::Binary("=", Box::new(left), Box::new(right));
+                if let Some((interval, lower, upper)) = form.interval() {
+                    let parent = context.exact(form.domain_ulid(), EntityKind::Domain)?;
+                    context.reference(MathReference {
+                        graph_id: Some(parent),
+                        role: None,
+                        declarations: vec![],
+                        operator: None,
+                    });
+                    let mut arguments = [interval, lower, upper, form.domain_ulid()]
+                        .into_iter()
+                        .map(|name| {
+                            NotationLabel::identifier(name)
+                                .map(Math::Label)
+                                .ok_or_else(|| failure("interval binder exceeds notation limit"))
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    arguments.push(equation);
+                    equation = Math::Function("for_all_ordered_intervals".into(), arguments);
+                }
+                super::super::output::render(equation, context.references, profile)
             })
             .collect()
     }
@@ -50,6 +66,36 @@ impl Context<'_> {
         self.remaining -= 1;
         let next = depth + 1;
         Ok(match node {
+            Form::EndpointFlux {
+                interval,
+                endpoint,
+                normal,
+                flux,
+            } => Math::Function(
+                "outward_flux".into(),
+                vec![
+                    Math::Label(
+                        NotationLabel::identifier(interval)
+                            .ok_or_else(|| failure("invalid interval binder"))?,
+                    ),
+                    Math::Label(
+                        NotationLabel::identifier(endpoint)
+                            .ok_or_else(|| failure("invalid endpoint binder"))?,
+                    ),
+                    Math::Number(normal.to_string()),
+                    self.form(flux, next)?,
+                ],
+            ),
+            Form::IntervalIntegral {
+                interval,
+                integrand,
+            } => Math::Integral(
+                Box::new(Math::Label(
+                    NotationLabel::identifier(interval)
+                        .ok_or_else(|| failure("invalid interval binder"))?,
+                )),
+                Box::new(self.form(integrand, next)?),
+            ),
             Form::Number { value } => Math::Number(value.to_string()),
             Form::Field { ulid } => {
                 self.quantity(self.exact(ulid, EntityKind::Field)?, QuantityRole::Value)?
