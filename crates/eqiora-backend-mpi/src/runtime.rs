@@ -17,7 +17,7 @@ use eqiora_solver::{
     ExecutionProvider, ExecutionReport, LinearAcceptanceWorkspace, LinearOperatorOrientation,
     LinearOperatorProperties, LinearSolution, LinearSolver, PreconditionerPolicy, ProviderLibrary,
     ReductionPolicy, SERIAL_LINEAR_EXECUTION, SolveReport, SolverCapabilities, SolverCapability,
-    SolverPlan, SolverProvider, accept_linear_solution_with_verifier_in,
+    SolverPlan, SolverProvider,
 };
 use mpi::Threading;
 use mpi::collective::SystemOperation;
@@ -948,7 +948,7 @@ impl AdmittedDistributedRun<'_, '_> {
         if self.take_fault(FaultPoint::HostVerifier) && !complete_values.is_empty() {
             complete_values[0] = f64::NAN;
         }
-        let accepted = accept_linear_solution_with_verifier_in(
+        let accepted = self.buffers.acceptance.accept_with_verifier(
             &self.complete_problem,
             self.plan,
             report.solver_provider(),
@@ -959,7 +959,6 @@ impl AdmittedDistributedRun<'_, '_> {
             report.reported_residual_norm(),
             complete_values,
             &SERIAL_LINEAR_EXECUTION,
-            &mut self.buffers.acceptance,
         );
         let accepted = self.synchronize(
             CollectivePhaseV1::HostAcceptance,

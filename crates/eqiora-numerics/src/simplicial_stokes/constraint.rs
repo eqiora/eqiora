@@ -10,29 +10,6 @@ use crate::operator::LocalOperator;
 /// Cell-local occurrence of one global zero-integral pressure constraint.
 pub(crate) struct MiniPressureMeanConstraintCell;
 
-impl MiniPressureMeanConstraintCell {
-    pub(crate) fn residual(
-        &self,
-        geometry: &AffineGeometryMap,
-        quadrature: &QuadratureRule,
-        point: &[f64],
-    ) -> Result<Vec<f64>, Diagnostic> {
-        if point.len() != CONSTRAINT_LOCAL_DOF_COUNT || point.iter().any(|value| !value.is_finite())
-        {
-            return Err(super::invalid(
-                "MINI pressure-constraint residual requires one finite local point",
-            ));
-        }
-        let pressure_integrals = integrated_pressure_basis(geometry, quadrature)?;
-        let mut residual = vec![0.0; CONSTRAINT_LOCAL_DOF_COUNT];
-        for pressure in 0..P1_BASIS_COUNT {
-            residual[pressure] = pressure_integrals[pressure] * point[CONSTRAINT_LOCAL_GAUGE];
-            residual[CONSTRAINT_LOCAL_GAUGE] += pressure_integrals[pressure] * point[pressure];
-        }
-        Ok(residual)
-    }
-}
-
 impl LocalOperator<AffineGeometryMap> for MiniPressureMeanConstraintCell {
     fn evaluate(
         &self,
@@ -109,26 +86,5 @@ mod tests {
                 }
             }
         }
-        let point = [0.2, -0.1, 0.4, 0.3];
-        let residual = MiniPressureMeanConstraintCell
-            .residual(
-                &geometry,
-                &triangle_duffy_gauss_legendre(3).unwrap(),
-                &point,
-            )
-            .unwrap();
-        let assembled = local
-            .matrix()
-            .as_chunks::<CONSTRAINT_LOCAL_DOF_COUNT>()
-            .0
-            .iter()
-            .map(|row| {
-                row.iter()
-                    .zip(point)
-                    .map(|(entry, value)| entry * value)
-                    .sum()
-            })
-            .collect::<Vec<f64>>();
-        assert_eq!(residual, assembled);
     }
 }

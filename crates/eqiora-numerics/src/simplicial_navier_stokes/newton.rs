@@ -116,7 +116,13 @@ where
     B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
 {
     super::element::require_convective_evidence_quadrature(cell_quadrature, facet_quadrature)?;
-    let prepared = prepare_step_structure(mesh, boundary, essential_velocity)?;
+    let prepared = prepare_step_structure(
+        mesh,
+        boundary,
+        essential_velocity,
+        cell_quadrature,
+        facet_quadrature,
+    )?;
     advance_simplicial_mini_navier_stokes_2d_with_prepared_structure(
         mesh,
         &prepared,
@@ -205,8 +211,6 @@ where
             previous,
             &point,
             plan,
-            cell_quadrature,
-            facet_quadrature,
             assembly_backend,
             viscous_form,
         )?
@@ -276,8 +280,6 @@ where
                     previous,
                     &candidate,
                     plan,
-                    cell_quadrature,
-                    facet_quadrature,
                     assembly_backend,
                     viscous_form,
                 )?

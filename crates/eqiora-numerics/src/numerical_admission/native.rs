@@ -623,7 +623,7 @@ impl NativeNumericalAdmission {
                         solution.cell_values().to_vec(),
                     )],
                     solve_report: solution.solve_report().clone(),
-                    assembly_report: *solution.assembly_report(),
+                    assembly_report: solution.assembly_report().clone(),
                 })
             }
             NativeSpatialPolicy::ElasticityQ1 => Err(invalid(

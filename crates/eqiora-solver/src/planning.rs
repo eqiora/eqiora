@@ -310,6 +310,58 @@ pub struct ResolvedHostSerialSolverPlan<'backend> {
 }
 
 impl<'backend> ResolvedHostSerialSolverPlan<'backend> {
+    /// Plan one exact executable candidate from the frozen v2 host-serial catalog
+    /// using structural operator facts and caller-owned convergence controls.
+    ///
+    /// # Errors
+    /// Returns `EQ0807` when controls, provider identity, the exact capability
+    /// tuples, or the structural profile fail admission. Planning performs no
+    /// numerical operator action and executes no backend.
+    pub fn resolve(
+        profile: HostSerialSolverProfile,
+        objective: SolverPlanningObjective,
+        relative_tolerance: f64,
+        absolute_tolerance: f64,
+        maximum_iterations: NonZeroUsize,
+        reference_backend: &'backend dyn crate::LinearSolverBackend,
+        faer_backend: &'backend dyn crate::LinearSolverBackend,
+    ) -> Result<Self, Diagnostic> {
+        let candidates = catalog_ids(profile.facts.properties)
+            .iter()
+            .map(|id| {
+                let expected = expected_candidate(id);
+                let backend = if expected.provider == REFERENCE_PROVIDER {
+                    reference_backend
+                } else {
+                    faer_backend
+                };
+                Ok(HostSerialSolverCandidate::new(
+                    id,
+                    expected.evidence_case,
+                    LinearSolveRequest::new(
+                        backend,
+                        catalog_plan(
+                            expected.algorithm,
+                            expected.preconditioner,
+                            expected.reduction,
+                            relative_tolerance,
+                            absolute_tolerance,
+                            maximum_iterations,
+                        )?,
+                    ),
+                ))
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        let resolved = resolve_candidates(profile.clone(), objective, &candidates)?;
+        Ok(Self {
+            profile,
+            objective,
+            selected: resolved.selected,
+            solver_provider: resolved.solver_provider,
+            reasons: resolved.reasons,
+        })
+    }
+
     /// Mathematical and structural assertions admitted before execution.
     #[must_use]
     pub fn profile(&self) -> HostSerialSolverProfile {
@@ -421,58 +473,6 @@ struct ResolvedCandidateSet<'backend> {
     selected: HostSerialSolverCandidate<'backend>,
     solver_provider: SolverProvider,
     reasons: Vec<(&'static str, &'static str)>,
-}
-
-/// Plan one exact executable candidate from the frozen v2 host-serial catalog
-/// using structural operator facts and caller-owned convergence controls.
-///
-/// # Errors
-/// Returns `EQ0807` when controls, provider identity, the exact capability
-/// tuples, or the structural profile fail admission. Planning performs no
-/// numerical operator action and executes no backend.
-pub fn plan_host_serial_solver_v2<'backend>(
-    profile: HostSerialSolverProfile,
-    objective: SolverPlanningObjective,
-    relative_tolerance: f64,
-    absolute_tolerance: f64,
-    maximum_iterations: NonZeroUsize,
-    reference_backend: &'backend dyn crate::LinearSolverBackend,
-    faer_backend: &'backend dyn crate::LinearSolverBackend,
-) -> Result<ResolvedHostSerialSolverPlan<'backend>, Diagnostic> {
-    let candidates = catalog_ids(profile.facts.properties)
-        .iter()
-        .map(|id| {
-            let expected = expected_candidate(id);
-            let backend = if expected.provider == REFERENCE_PROVIDER {
-                reference_backend
-            } else {
-                faer_backend
-            };
-            Ok(HostSerialSolverCandidate::new(
-                id,
-                expected.evidence_case,
-                LinearSolveRequest::new(
-                    backend,
-                    catalog_plan(
-                        expected.algorithm,
-                        expected.preconditioner,
-                        expected.reduction,
-                        relative_tolerance,
-                        absolute_tolerance,
-                        maximum_iterations,
-                    )?,
-                ),
-            ))
-        })
-        .collect::<Result<Vec<_>, Diagnostic>>()?;
-    let resolved = resolve_candidates(profile.clone(), objective, &candidates)?;
-    Ok(ResolvedHostSerialSolverPlan {
-        profile,
-        objective,
-        selected: resolved.selected,
-        solver_provider: resolved.solver_provider,
-        reasons: resolved.reasons,
-    })
 }
 
 fn catalog_plan(

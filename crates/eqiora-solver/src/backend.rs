@@ -6,8 +6,9 @@ use eqiora_core::diagnostic::codes;
 
 use crate::{
     CanonicalCsrSystemView, LinearOperatorOrientation, LinearOperatorProperties, LinearProblem,
-    LinearSolution, LinearSolver, PreconditionerPolicy, ReductionPolicy, ReplicatedLinearExecution,
-    SERIAL_LINEAR_EXECUTION, ScalarType, SolverPlan, SolverProvider, Transposed,
+    LinearSolution, LinearSolver, PreconditionerPolicy, PreparedLinearSolver, ReductionPolicy,
+    ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, ScalarType, SolverPlan, SolverProvider,
+    Transposed,
 };
 
 /// One exact numerical-policy tuple implemented by a solver adapter.
@@ -304,6 +305,22 @@ pub trait LinearSolverBackend: Debug + Sync {
 
     /// Exact numerical policy admitted by this adapter.
     fn capabilities(&self) -> SolverCapabilities;
+
+    /// Prepare provider-private state for repeated run-local solves.
+    ///
+    /// `None` means the provider has no prepared implementation and the caller
+    /// executes every candidate through `solve_with_execution`. A returned
+    /// session must validate the complete structure identity and actual sparse
+    /// topology before reusing provider state.
+    ///
+    /// # Errors
+    /// Returns a structured capability or policy diagnostic.
+    fn prepare_linear(
+        &self,
+        _plan: SolverPlan,
+    ) -> Result<Option<Box<dyn PreparedLinearSolver + '_>>, Diagnostic> {
+        Ok(None)
+    }
 
     /// Solve one validated problem under the exact plan.
     ///

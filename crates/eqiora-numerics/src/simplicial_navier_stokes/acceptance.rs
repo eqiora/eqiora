@@ -11,7 +11,8 @@ use super::element::{
 };
 use super::{invalid, solve_failed};
 use crate::simplicial_stokes::acceptance::{
-    integrate_pressure, require_weak_incompressibility, require_zero_gauge_multiplier,
+    integrate_pressure, require_weak_incompressibility_from_gauge_weights,
+    require_zero_gauge_multiplier,
 };
 use crate::simplicial_stokes::element::{MiniSpaces, physical_gradients};
 
@@ -130,10 +131,11 @@ pub(super) fn accept_step(
             newton.residual_target
         )));
     }
-    let continuity_residual_norm = require_weak_incompressibility(
-        &assembly.full_system,
-        &assembly.full_residual,
+    let (full_residual, gauge_weights) = assembly.materialize_acceptance_data()?;
+    let continuity_residual_norm = require_weak_incompressibility_from_gauge_weights(
+        &full_residual,
         &assembly.layout,
+        &gauge_weights,
         assembly.gauge_multiplier,
         newton.residual_target,
     )?;
@@ -195,8 +197,8 @@ pub(super) fn accept_step(
             let mut reaction = [0.0; super::COMPONENTS];
             for vertex in vertices {
                 for (component, value) in reaction.iter_mut().enumerate() {
-                    *value += assembly.full_residual
-                        [assembly.layout.full_vertex_velocity(*vertex, component)];
+                    *value +=
+                        full_residual[assembly.layout.full_vertex_velocity(*vertex, component)];
                 }
             }
             (name.clone(), reaction)

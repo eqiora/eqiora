@@ -88,7 +88,14 @@ where
         ));
     }
     super::element::require_convective_evidence_quadrature(cell_quadrature, facet_quadrature)?;
-    let point = initial_point(mesh, boundary, essential_velocity, accepted)?;
+    let point = initial_point(
+        mesh,
+        boundary,
+        essential_velocity,
+        accepted,
+        cell_quadrature,
+        facet_quadrature,
+    )?;
     let assembled = assemble_step_linearization(
         mesh,
         boundary,
@@ -102,7 +109,13 @@ where
         &REFERENCE_ASSEMBLY_BACKEND,
         FixedDomainViscousForm::SymmetricNewtonian,
     )?;
-    let pattern = build_step_jacobian_pattern(mesh, boundary, essential_velocity)?;
+    let pattern = build_step_jacobian_pattern(
+        mesh,
+        boundary,
+        essential_velocity,
+        cell_quadrature,
+        facet_quadrature,
+    )?;
     audit_centered_jacobian(
         &point,
         &pattern,
@@ -249,6 +262,7 @@ mod tests {
         let facet_quadrature = eqiora_meshing::simplex_duffy_gauss_legendre(1, 3).unwrap();
         let prepared_trace_evaluations = AtomicUsize::new(0);
         crate::jacobian_audit::reset_centered_residual_assembly_count();
+        super::super::assembly::reset_packet_evaluations();
         let trajectory = super::super::advance_simplicial_mini_navier_stokes_2d(
             &mesh,
             &boundary,
@@ -266,6 +280,19 @@ mod tests {
         )
         .unwrap();
         assert_eq!(trajectory.states().len(), 11);
+        assert_eq!(
+            super::super::assembly::packet_evaluations(),
+            [20, 20, 0],
+            "each of ten assemblies evaluates two cells and two gauge packets exactly once",
+        );
+        let structure = trajectory.steps()[0]
+            .assembly_report()
+            .structure_identity()
+            .expect("fixed transient assembly owns a prepared structure");
+        assert!(trajectory.steps().iter().all(|step| {
+            step.assembly_report().target_count() == 1
+                && step.assembly_report().structure_identity() == Some(structure)
+        }));
         assert_eq!(
             prepared_trace_evaluations.load(Ordering::Relaxed),
             mesh.vertices().len(),

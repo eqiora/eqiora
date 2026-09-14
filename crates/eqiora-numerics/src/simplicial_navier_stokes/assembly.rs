@@ -1,10 +1,29 @@
+use crate::simplicial_mini_transient::MiniFixedGeometryQuadrature;
 use eqiora_assembly::{
     AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget,
     IndexedAssemblyWork, LocalContribution, LocalUnknown, TargetAssemblyMap,
 };
 use eqiora_core::Diagnostic;
-use eqiora_meshing::{MeshEntity, MeshGeometry, MeshTopology, QuadratureRule, SimplicialMesh};
+use eqiora_meshing::{
+    AffineGeometryMap, MeshEntity, MeshGeometry, MeshTopology, QuadratureRule, SimplicialMesh,
+};
 use eqiora_solver::{CanonicalCsrSystemView, LinearOperatorProperties};
+use std::sync::{Arc, OnceLock};
+
+#[cfg(test)]
+thread_local! {
+    static PACKET_EVALUATIONS: std::cell::Cell<[usize; 3]> = const { std::cell::Cell::new([0; 3]) };
+}
+
+#[cfg(test)]
+pub(super) fn reset_packet_evaluations() {
+    PACKET_EVALUATIONS.set([0; 3]);
+}
+
+#[cfg(test)]
+pub(super) fn packet_evaluations() -> [usize; 3] {
+    PACKET_EVALUATIONS.get()
+}
 
 use super::api::{MiniNavierStokesStepPlan2d, SimplicialMiniNavierStokesState2d};
 use super::element::{FixedDomainViscousForm, MiniNavierStokesCell};
@@ -27,9 +46,7 @@ use crate::simplicial_stokes::{
 
 pub(super) struct StepAssembly {
     pub(super) relation: AssembledLinearizedRelation,
-    pub(super) full_system: eqiora_assembly::LinearSystem,
     pub(super) residual: Vec<f64>,
-    pub(super) full_residual: Vec<f64>,
     pub(super) layout: Arc<MixedLayout>,
     pub(super) velocity: SimplicialMiniVelocityField2d,
     pub(super) pressure: SimplicialP1Field,
@@ -37,6 +54,8 @@ pub(super) struct StepAssembly {
     pub(super) gauge_multiplier: Option<f64>,
     pub(super) named_reaction_vertices: Arc<Vec<(String, Vec<usize>)>>,
     pub(super) assembly_report: AssemblyReport,
+    evaluated_packets: Vec<EvaluatedStepPacket>,
+    full_maps: Arc<Vec<Arc<AssemblyMap>>>,
 }
 
 impl StepAssembly {
@@ -56,8 +75,53 @@ impl StepAssembly {
             .sum::<f64>()
             .sqrt()
     }
+
+    pub(super) fn materialize_acceptance_data(&self) -> Result<(Vec<f64>, Vec<f64>), Diagnostic> {
+        let mut full_residual = vec![0.0; self.layout.full_size];
+        let mut gauge_weights = vec![0.0; self.layout.vertex_count];
+        let gauge = self.layout.full_gauge();
+        for (packet, evaluated) in self.evaluated_packets.iter().enumerate() {
+            let map = self.full_maps.get(packet).ok_or_else(|| {
+                invalid("accepted packet is outside the prepared full map inventory")
+            })?;
+            scatter_residual(&mut full_residual, map, &evaluated.residual)?;
+            if let Some(gauge) = gauge {
+                for (local_row, equation) in map.equations().iter().enumerate() {
+                    let Some(equation) = equation else { continue };
+                    let Some(pressure) = equation
+                        .index()
+                        .checked_sub(self.layout.full_pressure_offset)
+                        .filter(|pressure| *pressure < self.layout.vertex_count)
+                    else {
+                        continue;
+                    };
+                    for (local_column, unknown) in map.unknowns().iter().enumerate() {
+                        if matches!(unknown, LocalUnknown::Free(column) if column.index() == gauge)
+                        {
+                            gauge_weights[pressure] += evaluated
+                                .assembly
+                                .local()
+                                .entry(local_row, local_column)
+                                .expect("accepted packet map matches its local contribution");
+                        }
+                    }
+                }
+            }
+        }
+        if full_residual
+            .iter()
+            .chain(&gauge_weights)
+            .any(|value| !value.is_finite())
+        {
+            return Err(invalid(
+                "accepted transient full residual data is non-finite",
+            ));
+        }
+        Ok((full_residual, gauge_weights))
+    }
 }
 
+#[derive(Clone)]
 struct EvaluatedStepPacket {
     assembly: AssemblyPacket,
     residual: Vec<f64>,
@@ -67,9 +131,14 @@ pub(crate) struct PreparedStepStructure {
     boundary: PreparedBoundary2d,
     layout: Arc<MixedLayout>,
     named_reaction_vertices: Arc<Vec<(String, Vec<usize>)>>,
-    reduced_maps: Vec<AssemblyMap>,
-    full_maps: Vec<AssemblyMap>,
+    reduced_maps: Vec<Arc<AssemblyMap>>,
+    full_maps: Arc<Vec<Arc<AssemblyMap>>>,
     local_sizes: Vec<usize>,
+    reduced_assembly_plan: AssemblyPlan,
+    cell_geometries: Vec<AffineGeometryMap>,
+    cell_quadratures: Vec<MiniFixedGeometryQuadrature<DIMENSION>>,
+    constraint_contributions: Vec<LocalContribution>,
+    traction_contributions: Vec<LocalContribution>,
     cell_count: usize,
     constraint_end: usize,
     packet_count: usize,
@@ -84,15 +153,13 @@ struct PreparedStepPoint<'a> {
 
 impl PreparedStepPoint<'_> {
     fn reduced_map(&self, packet: usize) -> Result<&AssemblyMap, Diagnostic> {
-        self.structure.reduced_maps.get(packet).ok_or_else(|| {
-            invalid("transient MINI packet is outside the prepared contribution inventory")
-        })
-    }
-
-    fn full_map(&self, packet: usize) -> Result<&AssemblyMap, Diagnostic> {
-        self.structure.full_maps.get(packet).ok_or_else(|| {
-            invalid("transient MINI packet is outside the prepared contribution inventory")
-        })
+        self.structure
+            .reduced_maps
+            .get(packet)
+            .map(AsRef::as_ref)
+            .ok_or_else(|| {
+                invalid("transient MINI packet is outside the prepared contribution inventory")
+            })
     }
 
     fn with_gauge(&self) -> bool {
@@ -105,11 +172,19 @@ pub(super) fn initial_point<B>(
     boundary: &SimplicialMiniStokesBoundary2d,
     essential_velocity: &B,
     state: &SimplicialMiniNavierStokesState2d,
+    cell_quadrature: &QuadratureRule,
+    facet_quadrature: &QuadratureRule,
 ) -> Result<Vec<f64>, Diagnostic>
 where
     B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
 {
-    let prepared = prepare_step_structure(mesh, boundary, essential_velocity)?;
+    let prepared = prepare_step_structure(
+        mesh,
+        boundary,
+        essential_velocity,
+        cell_quadrature,
+        facet_quadrature,
+    )?;
     initial_point_prepared(mesh, &prepared, state)
 }
 
@@ -136,10 +211,15 @@ pub(crate) fn prepare_step_structure<B>(
     mesh: &SimplicialMesh,
     boundary: &SimplicialMiniStokesBoundary2d,
     essential_velocity: &B,
+    cell_quadrature: &QuadratureRule,
+    facet_quadrature: &QuadratureRule,
 ) -> Result<PreparedStepStructure, Diagnostic>
 where
     B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
 {
+    let _preparation =
+        eqiora_execution::telemetry_span!(backend("assembly_preparation", "fixed-domain-mini"))
+            .entered();
     let named_reaction_vertices = Arc::new(boundary.named_reaction_vertices(mesh));
     let boundary = boundary.prepare(mesh, essential_velocity)?;
     let with_gauge = boundary.pressure_reference == PressureReferenceKind2d::ZeroIntegral;
@@ -158,6 +238,37 @@ where
     let packet_count = constraint_end
         .checked_add(boundary.traction_facets.len())
         .ok_or_else(|| invalid("transient MINI packet count overflows usize"))?;
+    let cell_geometries = (0..cell_count)
+        .map(|cell| {
+            mesh.geometry_map(MeshEntity::new(DIMENSION, cell))
+                .expect("accepted simplex cell owns geometry")
+        })
+        .collect::<Vec<_>>();
+    let cell_quadratures = cell_geometries
+        .iter()
+        .map(|geometry| MiniFixedGeometryQuadrature::prepare(geometry, cell_quadrature))
+        .collect::<Result<Vec<_>, _>>()?;
+    let constraint_contributions = if with_gauge {
+        cell_geometries
+            .iter()
+            .map(|geometry| MiniPressureMeanConstraintCell.evaluate(geometry, cell_quadrature))
+            .collect::<Result<Vec<_>, _>>()?
+    } else {
+        Vec::new()
+    };
+    let traction_contributions = boundary
+        .traction_facets
+        .iter()
+        .map(|facet| {
+            let geometry = mesh
+                .geometry_map(facet.facet)
+                .expect("validated traction facet owns geometry");
+            MiniConstantTractionFacet {
+                traction: facet.value,
+            }
+            .evaluate(&geometry, facet_quadrature)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let mut reduced_maps = Vec::with_capacity(packet_count);
     let mut full_maps = Vec::with_capacity(packet_count);
     let mut local_sizes = Vec::with_capacity(packet_count);
@@ -192,16 +303,30 @@ where
             )
         };
         local_sizes.push(local_size);
-        reduced_maps.push(reduced);
-        full_maps.push(full);
+        reduced_maps.push(Arc::new(reduced));
+        full_maps.push(Arc::new(full));
     }
+    let reduced_assembly_plan = AssemblyPlan::new(vec![AssemblyTarget::new(layout.reduced_size)?])?;
+    let reduced_target = reduced_assembly_plan
+        .target_id(0)
+        .expect("one-target plan owns its target");
+    let packet_structure = reduced_maps
+        .iter()
+        .map(|map| vec![TargetAssemblyMap::new(reduced_target, Arc::clone(map))])
+        .collect::<Vec<_>>();
+    let reduced_assembly_plan = reduced_assembly_plan.prepare(packet_structure)?;
     Ok(PreparedStepStructure {
         boundary,
         layout,
         named_reaction_vertices,
         reduced_maps,
-        full_maps,
+        full_maps: Arc::new(full_maps),
         local_sizes,
+        reduced_assembly_plan,
+        cell_geometries,
+        cell_quadratures,
+        constraint_contributions,
+        traction_contributions,
         cell_count,
         constraint_end,
         packet_count,
@@ -239,11 +364,19 @@ pub(super) fn build_step_jacobian_pattern<B>(
     mesh: &SimplicialMesh,
     boundary: &SimplicialMiniStokesBoundary2d,
     essential_velocity: &B,
+    cell_quadrature: &QuadratureRule,
+    facet_quadrature: &QuadratureRule,
 ) -> Result<StructuralJacobianPattern, Diagnostic>
 where
     B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
 {
-    let prepared = prepare_step_structure(mesh, boundary, essential_velocity)?;
+    let prepared = prepare_step_structure(
+        mesh,
+        boundary,
+        essential_velocity,
+        cell_quadrature,
+        facet_quadrature,
+    )?;
     build_step_jacobian_pattern_prepared(&prepared)
 }
 
@@ -287,7 +420,13 @@ where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
     B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
 {
-    let prepared = prepare_step_structure(mesh, boundary, essential_velocity)?;
+    let prepared = prepare_step_structure(
+        mesh,
+        boundary,
+        essential_velocity,
+        cell_quadrature,
+        facet_quadrature,
+    )?;
     assemble_step_residual_prepared(
         mesh,
         &prepared,
@@ -295,8 +434,6 @@ where
         previous,
         candidate,
         plan,
-        cell_quadrature,
-        facet_quadrature,
         viscous_form,
     )
 }
@@ -309,8 +446,6 @@ pub(crate) fn assemble_step_residual_prepared<F>(
     previous: &SimplicialMiniNavierStokesState2d,
     candidate: &[f64],
     plan: MiniNavierStokesStepPlan2d,
-    cell_quadrature: &QuadratureRule,
-    facet_quadrature: &QuadratureRule,
     viscous_form: FixedDomainViscousForm,
 ) -> Result<Vec<f64>, Diagnostic>
 where
@@ -322,9 +457,7 @@ where
         let map = step.reduced_map(packet)?;
         let local_residual = if packet < step.structure.cell_count {
             let cell = MeshEntity::new(DIMENSION, packet);
-            let geometry = mesh
-                .geometry_map(cell)
-                .expect("accepted simplex cell owns geometry");
+            let geometry = &step.structure.cell_geometries[packet];
             let vertices = mesh
                 .entity_vertices(cell)
                 .expect("accepted simplex cell owns vertices");
@@ -341,26 +474,21 @@ where
             };
             match viscous_form {
                 FixedDomainViscousForm::SymmetricNewtonian => {
-                    cell.residual(&geometry, cell_quadrature)?
+                    cell.residual_prepared(geometry, &step.structure.cell_quadratures[packet])?
                 }
             }
         } else if packet < step.structure.constraint_end {
-            let cell = MeshEntity::new(DIMENSION, packet - step.structure.cell_count);
-            let geometry = mesh
-                .geometry_map(cell)
-                .expect("accepted simplex cell owns geometry");
             let local_point = mapped_local_point(map, candidate)?;
-            MiniPressureMeanConstraintCell.residual(&geometry, cell_quadrature, &local_point)?
+            evaluate_local_residual(
+                &step.structure.constraint_contributions[packet - step.structure.cell_count],
+                &local_point,
+            )?
         } else {
-            let facet =
-                step.structure.boundary.traction_facets[packet - step.structure.constraint_end];
-            let geometry = mesh
-                .geometry_map(facet.facet)
-                .expect("validated traction facet owns geometry");
-            MiniConstantTractionFacet {
-                traction: facet.value,
-            }
-            .residual(&geometry, facet_quadrature)?
+            step.structure.traction_contributions[packet - step.structure.constraint_end]
+                .rhs()
+                .iter()
+                .map(|value| -*value)
+                .collect()
         };
         scatter_residual(&mut residual, map, &local_residual)?;
     }
@@ -390,7 +518,13 @@ where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
     B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
 {
-    let prepared = prepare_step_structure(mesh, boundary, essential_velocity)?;
+    let prepared = prepare_step_structure(
+        mesh,
+        boundary,
+        essential_velocity,
+        cell_quadrature,
+        facet_quadrature,
+    )?;
     assemble_step_linearization_prepared(
         mesh,
         &prepared,
@@ -398,8 +532,6 @@ where
         previous,
         candidate,
         plan,
-        cell_quadrature,
-        facet_quadrature,
         assembly,
         viscous_form,
     )
@@ -413,8 +545,6 @@ pub(crate) fn assemble_step_linearization_prepared<F>(
     previous: &SimplicialMiniNavierStokesState2d,
     candidate: &[f64],
     plan: MiniNavierStokesStepPlan2d,
-    cell_quadrature: &QuadratureRule,
-    facet_quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend,
     viscous_form: FixedDomainViscousForm,
 ) -> Result<StepAssembly, Diagnostic>
@@ -422,22 +552,27 @@ where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
 {
     let step = prepare_step_point(mesh, prepared, previous, candidate)?;
-    let assembly_plan = AssemblyPlan::new(vec![
-        AssemblyTarget::new(step.structure.layout.reduced_size)?,
-        AssemblyTarget::new(step.structure.layout.full_size)?,
-    ])?;
-    let reduced_target = assembly_plan
+    let reduced_target = step
+        .structure
+        .reduced_assembly_plan
         .target_id(0)
-        .expect("two-target plan owns reduced target");
-    let full_target = assembly_plan
-        .target_id(1)
-        .expect("two-target plan owns full target");
+        .expect("one-target plan owns reduced target");
     let evaluate_packet = |packet| {
+        #[cfg(test)]
+        PACKET_EVALUATIONS.set({
+            let mut counts = PACKET_EVALUATIONS.get();
+            counts[if packet < step.structure.cell_count {
+                0
+            } else if packet < step.structure.constraint_end {
+                1
+            } else {
+                2
+            }] += 1;
+            counts
+        });
         if packet < step.structure.cell_count {
             let cell = MeshEntity::new(DIMENSION, packet);
-            let geometry = mesh
-                .geometry_map(cell)
-                .expect("accepted simplex cell owns geometry");
+            let geometry = &step.structure.cell_geometries[packet];
             let vertices = mesh
                 .entity_vertices(cell)
                 .expect("accepted simplex cell owns vertices");
@@ -454,102 +589,98 @@ where
             };
             let linearization = match viscous_form {
                 FixedDomainViscousForm::SymmetricNewtonian => {
-                    cell.linearize(&geometry, cell_quadrature)?
+                    cell.linearize_prepared(geometry, &step.structure.cell_quadratures[packet])?
                 }
             };
             let residual = linearization.residual().to_vec();
             let local = linearization.into_linear_contribution()?;
-            let reduced = step.reduced_map(packet)?.clone();
-            let full = step.full_map(packet)?.clone();
+            let reduced = Arc::clone(&step.structure.reduced_maps[packet]);
             Ok(EvaluatedStepPacket {
                 assembly: AssemblyPacket::new(
                     local,
-                    vec![
-                        TargetAssemblyMap::new(reduced_target, reduced),
-                        TargetAssemblyMap::new(full_target, full),
-                    ],
+                    vec![TargetAssemblyMap::new(reduced_target, reduced)],
                 )?,
                 residual,
             })
         } else if packet < step.structure.constraint_end {
             let cell_index = packet - step.structure.cell_count;
-            let cell = MeshEntity::new(DIMENSION, cell_index);
-            let geometry = mesh
-                .geometry_map(cell)
-                .expect("accepted simplex cell owns geometry");
-            let local = MiniPressureMeanConstraintCell.evaluate(&geometry, cell_quadrature)?;
-            let reduced = step.reduced_map(packet)?.clone();
+            let local = step.structure.constraint_contributions[cell_index].clone();
+            let reduced = Arc::clone(&step.structure.reduced_maps[packet]);
             let residual = evaluate_linear_residual(&local, &reduced, candidate)?;
-            let full = step.full_map(packet)?.clone();
             Ok(EvaluatedStepPacket {
                 assembly: AssemblyPacket::new(
                     local,
-                    vec![
-                        TargetAssemblyMap::new(reduced_target, reduced),
-                        TargetAssemblyMap::new(full_target, full),
-                    ],
+                    vec![TargetAssemblyMap::new(reduced_target, reduced)],
                 )?,
                 residual,
             })
         } else {
-            let facet =
-                step.structure.boundary.traction_facets[packet - step.structure.constraint_end];
-            let geometry = mesh
-                .geometry_map(facet.facet)
-                .expect("validated traction facet owns geometry");
-            let local = MiniConstantTractionFacet {
-                traction: facet.value,
-            }
-            .evaluate(&geometry, facet_quadrature)?;
-            let reduced = step.reduced_map(packet)?.clone();
+            let local = step.structure.traction_contributions
+                [packet - step.structure.constraint_end]
+                .clone();
+            let reduced = Arc::clone(&step.structure.reduced_maps[packet]);
             let residual = evaluate_linear_residual(&local, &reduced, candidate)?;
-            let full = step.full_map(packet)?.clone();
             Ok(EvaluatedStepPacket {
                 assembly: AssemblyPacket::new(
                     local,
-                    vec![
-                        TargetAssemblyMap::new(reduced_target, reduced),
-                        TargetAssemblyMap::new(full_target, full),
-                    ],
+                    vec![TargetAssemblyMap::new(reduced_target, reduced)],
                 )?,
                 residual,
             })
         }
     };
-    let work = IndexedAssemblyWork::new(step.structure.packet_count, |packet| {
-        evaluate_packet(packet).map(|evaluated: EvaluatedStepPacket| evaluated.assembly)
+    let evaluated = (0..step.structure.packet_count)
+        .map(|_| OnceLock::<Result<EvaluatedStepPacket, Diagnostic>>::new())
+        .collect::<Vec<_>>();
+    let work = IndexedAssemblyWork::new(step.structure.packet_count, |packet: usize| {
+        evaluated[packet]
+            .get_or_init(|| {
+                let _evaluation = eqiora_execution::telemetry_span!(backend(
+                    "assembly_local_evaluation",
+                    "fixed-domain-mini"
+                ))
+                .entered();
+                evaluate_packet(packet)
+            })
+            .as_ref()
+            .map(|evaluated| evaluated.assembly.clone())
+            .map_err(Clone::clone)
     });
-    let (systems, assembly_report) = assembly.assemble(&assembly_plan, &work)?.into_parts();
+    let (systems, assembly_report) = {
+        let _scatter = eqiora_execution::telemetry_span!(backend(
+            "assembly_scatter_update",
+            "fixed-domain-mini"
+        ))
+        .entered();
+        assembly
+            .assemble(&step.structure.reduced_assembly_plan, &work)?
+            .into_parts()
+    };
     let mut residual = vec![0.0; step.structure.layout.reduced_size];
-    let mut full_residual = vec![0.0; step.structure.layout.full_size];
-    for packet in 0..step.structure.packet_count {
-        let evaluated = evaluate_packet(packet)?;
-        for mapping in evaluated.assembly.mappings() {
-            let output = match mapping.target().index() {
-                0 => &mut residual,
-                1 => &mut full_residual,
-                _ => {
-                    return Err(invalid(
-                        "transient residual assembly encountered an unknown target",
-                    ));
-                }
-            };
-            scatter_residual(output, mapping.map(), &evaluated.residual)?;
-        }
+    for (packet_index, evaluated) in evaluated.iter().enumerate() {
+        let packet = evaluated
+            .get()
+            .expect("successful assembly evaluated every packet")
+            .as_ref()
+            .expect("successful assembly accepted every packet");
+        scatter_residual(
+            &mut residual,
+            step.reduced_map(packet_index)?,
+            &packet.residual,
+        )?;
     }
-    if residual
-        .iter()
-        .chain(&full_residual)
-        .any(|value| !value.is_finite())
-    {
+    if residual.iter().any(|value| !value.is_finite()) {
         return Err(invalid(
             "direct transient residual assembly produced a non-finite value",
         ));
     }
-    let [linear_system, full_system]: [eqiora_assembly::LinearSystem; 2] =
+    let _finalization =
+        eqiora_execution::telemetry_span!(backend("assembly_finalization", "fixed-domain-mini"))
+            .entered();
+    let [linear_system]: [eqiora_assembly::LinearSystem; 1] =
         systems.try_into().map_err(|systems: Vec<_>| {
             invalid(format!(
-                "two-target transient MINI assembly returned {} systems",
+                "one-target transient MINI assembly returned {} systems",
                 systems.len()
             ))
         })?;
@@ -570,11 +701,20 @@ where
     } else {
         SimplicialMiniStokesPressureReference2d::BoundaryTraction
     };
+    let evaluated_packets = evaluated
+        .into_iter()
+        .enumerate()
+        .map(|(packet, evaluated)| {
+            evaluated.into_inner().ok_or_else(|| {
+                invalid(format!(
+                    "assembly backend omitted prepared transient packet {packet}"
+                ))
+            })?
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(StepAssembly {
         relation,
-        full_system,
         residual,
-        full_residual,
         layout: Arc::clone(&step.structure.layout),
         velocity: step.velocity,
         pressure: step.pressure,
@@ -582,6 +722,8 @@ where
         gauge_multiplier: step.gauge_multiplier,
         named_reaction_vertices: Arc::clone(&step.structure.named_reaction_vertices),
         assembly_report,
+        evaluated_packets,
+        full_maps: Arc::clone(&step.structure.full_maps),
     })
 }
 
@@ -591,13 +733,25 @@ fn evaluate_linear_residual(
     global_point: &[f64],
 ) -> Result<Vec<f64>, Diagnostic> {
     let local_point = mapped_local_point(map, global_point)?;
+    evaluate_local_residual(local, &local_point)
+}
+
+fn evaluate_local_residual(
+    local: &LocalContribution,
+    local_point: &[f64],
+) -> Result<Vec<f64>, Diagnostic> {
+    if local_point.len() != local.columns() {
+        return Err(invalid(
+            "local residual point does not match the prepared contribution shape",
+        ));
+    }
     Ok(local
         .matrix()
         .chunks_exact(local.columns())
         .zip(local.rhs())
         .map(|(row, rhs)| {
             row.iter()
-                .zip(&local_point)
+                .zip(local_point)
                 .map(|(entry, value)| entry * value)
                 .sum::<f64>()
                 - rhs
@@ -665,4 +819,3 @@ fn require_pressure_policy(
     }
     Ok(())
 }
-use std::sync::Arc;

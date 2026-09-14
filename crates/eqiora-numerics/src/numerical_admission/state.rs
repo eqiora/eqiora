@@ -322,13 +322,19 @@ impl CommonTransientRunRequest {
         let ResolvedCommonPlan::TransientFlow(plan) = &self.plan else {
             return Err(invalid("unsupported transient Plan"));
         };
+        let step_s = plan.temporal().step().value();
+        let start_s = self.state().time_s();
+        let mut accepted = 0;
         advance_common_prepared_actions(
             self.schedule.state.clone(),
             self.schedule.accepted_steps.get(),
             &self.schedule.output_steps,
-            plan.temporal().step().value(),
+            step_s,
             |state| plan.prepare_execution(state, backend),
-            |prepared, state| prepared.advance(state),
+            |prepared, state| {
+                accepted += 1;
+                prepared.advance(state, start_s + accepted as f64 * step_s)
+            },
             stop_at_boundary,
         )
     }

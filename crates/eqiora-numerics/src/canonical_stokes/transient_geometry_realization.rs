@@ -445,10 +445,14 @@ pub(crate) fn prepare_resolved_transient_navier_stokes_geometry_mini_run_2d<'a>(
                 )
             })
     };
+    let cell_quadrature = triangle_duffy_gauss_legendre(DUFFY_POINTS_PER_AXIS)?;
+    let facet_quadrature = simplex_duffy_gauss_legendre(DIMENSION - 1, 2)?;
     let step_structure = prepare_step_structure(
         &normalized,
         &geometry_boundary.boundary,
         &essential_velocity,
+        &cell_quadrature,
+        &facet_quadrature,
     )?;
     Ok(PreparedResolvedTransientGeometryMiniRun2d {
         binding,
@@ -459,8 +463,8 @@ pub(crate) fn prepare_resolved_transient_navier_stokes_geometry_mini_run_2d<'a>(
         scales,
         numerical_plan,
         block_system,
-        cell_quadrature: triangle_duffy_gauss_legendre(DUFFY_POINTS_PER_AXIS)?,
-        facet_quadrature: simplex_duffy_gauss_legendre(DIMENSION - 1, 2)?,
+        cell_quadrature,
+        facet_quadrature,
         with_gauge,
     })
 }

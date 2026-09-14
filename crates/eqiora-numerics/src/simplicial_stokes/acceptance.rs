@@ -105,14 +105,40 @@ pub(crate) fn require_weak_incompressibility(
     gauge_multiplier: Option<f64>,
     residual_target: f64,
 ) -> Result<f64, Diagnostic> {
+    let gauge_weights = (0..layout.vertex_count)
+        .map(|pressure| {
+            let row = layout.full_pressure_offset + pressure;
+            layout
+                .full_gauge()
+                .map(|gauge| full_system.matrix().entry(row, gauge).unwrap_or(0.0))
+                .unwrap_or(0.0)
+        })
+        .collect::<Vec<_>>();
+    require_weak_incompressibility_from_gauge_weights(
+        residual,
+        layout,
+        &gauge_weights,
+        gauge_multiplier,
+        residual_target,
+    )
+}
+
+pub(crate) fn require_weak_incompressibility_from_gauge_weights(
+    residual: &[f64],
+    layout: &MixedLayout,
+    gauge_weights: &[f64],
+    gauge_multiplier: Option<f64>,
+    residual_target: f64,
+) -> Result<f64, Diagnostic> {
+    if gauge_weights.len() != layout.vertex_count || residual.len() != layout.full_size {
+        return Err(invalid(
+            "MINI Stokes acceptance data differs from the exact full layout",
+        ));
+    }
     let mut squared_norm = 0.0;
     let mut squared_gauge_norm = 0.0;
-    for pressure in 0..layout.vertex_count {
+    for (pressure, &gauge_weight) in gauge_weights.iter().enumerate() {
         let row = layout.full_pressure_offset + pressure;
-        let gauge_weight = layout
-            .full_gauge()
-            .map(|gauge| full_system.matrix().entry(row, gauge).unwrap_or(0.0))
-            .unwrap_or(0.0);
         let multiplier = gauge_multiplier.unwrap_or(0.0);
         let continuity_residual = residual[row] - gauge_weight * multiplier;
         squared_norm += continuity_residual * continuity_residual;

@@ -417,9 +417,10 @@ fn assembly_report() -> AssemblyReport {
     let plan = AssemblyPlan::new(vec![AssemblyTarget::new(1).unwrap()]).unwrap();
     let matrix = CsrMatrix::from_sorted_csr(1, 1, vec![0, 1], vec![0], vec![1.0]).unwrap();
     let system = LinearSystem::new(matrix, vec![0.0]).unwrap();
-    *AssemblyResult::from_complete_systems(&plan, vec![system], 1, ExecutionReport::host_serial())
+    AssemblyResult::from_complete_systems(&plan, vec![system], 1, ExecutionReport::host_serial())
         .unwrap()
         .report()
+        .clone()
 }
 
 fn step_plan() -> AleFsiStepPlan<2> {
