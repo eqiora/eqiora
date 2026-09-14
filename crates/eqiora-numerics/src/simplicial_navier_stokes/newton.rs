@@ -196,7 +196,8 @@ where
     let mut point = initial_point_prepared(mesh, prepared, previous)?;
     require_consistent_initial_state(mesh, cell_quadrature, previous, plan)?;
     let mut current = {
-        let _assembly = eqiora_execution::telemetry_span!(assembly).entered();
+        let _assembly =
+            eqiora_execution::telemetry_span!(assembly("initial_linearization")).entered();
         assemble_step_linearization_prepared(
             mesh,
             prepared,
@@ -266,7 +267,8 @@ where
                 .map(|(point, correction)| point + scale * correction)
                 .collect::<Vec<_>>();
             let assembled = {
-                let _assembly = eqiora_execution::telemetry_span!(assembly).entered();
+                let _assembly =
+                    eqiora_execution::telemetry_span!(assembly("line_search_trial")).entered();
                 assemble_step_linearization_prepared(
                     mesh,
                     prepared,

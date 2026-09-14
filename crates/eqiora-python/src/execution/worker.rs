@@ -52,8 +52,8 @@ fn run_phase(family: &str) -> tracing::Span {
     tracing::span!(target: crate::profile::TELEMETRY_TARGET, tracing::Level::INFO, "eqiora_phase", phase = "run", family)
 }
 
-fn setup_phase() -> tracing::Span {
-    tracing::span!(target: crate::profile::TELEMETRY_TARGET, tracing::Level::INFO, "eqiora_phase", phase = "setup")
+fn setup_phase(role: &'static str) -> tracing::Span {
+    tracing::span!(target: crate::profile::TELEMETRY_TARGET, tracing::Level::INFO, "eqiora_phase", phase = "setup", role)
 }
 
 fn solve_phase(index: usize) -> tracing::Span {
@@ -72,7 +72,7 @@ enum NativeWorkerOutcome {
 fn resolved_linear_backend(
     provider: SolverProvider,
 ) -> Result<&'static dyn LinearSolverBackend, Vec<Diagnostic>> {
-    let _setup = setup_phase().entered();
+    let _setup = setup_phase("backend_resolution").entered();
     if provider == FAER_SOLVER_PROVIDER {
         Ok(&FaerLinearSolver)
     } else if provider == REFERENCE_SOLVER_PROVIDER {
@@ -155,6 +155,7 @@ fn execute_job(
                     .linear_solver_provider()
                     .expect("transient linear solver"),
             )?;
+            let _solve = solve_phase(1).entered();
             let outcome = request
                 .advance_accepted_actions(backend, |accepted_steps, state| {
                     if accepted_steps > 0 {
@@ -198,6 +199,7 @@ fn execute_job(
         NativeRunJob::Fsi(request) => {
             let started = Instant::now();
             let backend = resolved_linear_backend(request.plan().solver_provider())?;
+            let _solve = solve_phase(1).entered();
             let maximum_steps = request.accepted_steps().get();
             let outcome = request
                 .advance_accepted_actions(backend, |accepted_steps, state| {
@@ -242,7 +244,7 @@ fn execute_job(
         NativeRunJob::Ode(request) => {
             let started = Instant::now();
             let sensitivity_plan = {
-                let _setup = setup_phase().entered();
+                let _setup = setup_phase("sensitivity_preparation").entered();
                 request.plan().forward_sensitivity_plan().cloned()
             };
             let (trajectory, sensitivity) = {

@@ -178,7 +178,13 @@ def test_profile_reports_common_and_sparse_lu_phases_without_changing_the_plan()
     assert ("run", "solve", "linear_solve", "numeric_factorization") in paths
     assert ("run", "solve", "linear_solve", "backsolve") in paths
     assert result.profile.total_seconds >= 0.0
-    assert "numeric_factorization" in result.profile.summary()
+    summary = result.profile.summary()
+    assert "total inclusive" in summary
+    assert "self" in summary
+    assert "calls" in summary
+    assert "mean per call" in summary
+    assert "numeric_factorization" in summary
+    assert "×" not in summary
     linear_events = [
         event.fields
         for event in result.profile.events
@@ -262,8 +268,25 @@ def test_profile_reports_common_and_sparse_lu_phases_without_changing_the_plan()
     )
     assert (
         "run",
+        "solve",
         "time_step",
         "nonlinear_iteration",
         "linear_solve",
         "numeric_factorization",
     ) in {tuple(phase.path) for phase in transient.profile.phases}
+    phase_identities = {
+        (tuple(phase.path), tuple(sorted(phase.fields.items())))
+        for phase in transient.profile.phases
+    }
+    assert (
+        ("run", "solve", "setup"),
+        (("role", "discretization_preparation"),),
+    ) in phase_identities
+    assert (
+        ("run", "solve", "time_step", "assembly"),
+        (("role", "initial_linearization"),),
+    ) in phase_identities
+    assert (
+        ("run", "solve", "time_step", "nonlinear_iteration", "assembly"),
+        (("role", "line_search_trial"),),
+    ) in phase_identities

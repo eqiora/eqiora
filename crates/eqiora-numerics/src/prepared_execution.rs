@@ -16,7 +16,8 @@ pub(crate) fn advance_prepared_actions<C, P, A, B, E>(
     mut stop_at_boundary: impl FnMut(usize, &C) -> Option<B>,
 ) -> Result<ControlFlow<B, C>, E> {
     let prepared = {
-        let _setup = eqiora_execution::telemetry_span!(setup).entered();
+        let _setup =
+            eqiora_execution::telemetry_span!(setup("discretization_preparation")).entered();
         prepare(&context)?
     };
     if let Some(stopped) = stop_at_boundary(0, &context) {

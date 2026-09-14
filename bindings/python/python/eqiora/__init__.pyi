@@ -1730,7 +1730,10 @@ class ObservableStateTangent:
 
 @final
 class ProfilePhase:
-    """Aggregate timing for one hierarchical execution phase.
+    """Aggregate timing for one hierarchical phase and semantic identity.
+
+    Inclusive time contains nested children; self time excludes them. ``fields``
+    carries the identity that distinguishes otherwise equal paths.
 
     Authority: ``crates/eqiora-python/src/profile.rs::PyProfilePhase``.
     """
@@ -1739,9 +1742,15 @@ class ProfilePhase:
     @property
     def name(self) -> str: ...
     @property
-    def count(self) -> int: ...
+    def fields(self) -> dict[str, str]: ...
     @property
-    def total_seconds(self) -> float: ...
+    def calls(self) -> int: ...
+    @property
+    def inclusive_seconds(self) -> float: ...
+    @property
+    def self_seconds(self) -> float: ...
+    @property
+    def mean_seconds(self) -> float: ...
 
 @final
 class ProfileEvent:
