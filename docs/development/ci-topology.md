@@ -54,15 +54,29 @@ Changed-file pagination must match the provider-owned pull-request count.
 Pull requests beyond the API's complete 3,000-file visibility boundary fail
 closed instead of trusting a truncated list.
 
-The protected-base trust classifier may approve a coupled exact file-line
-ratchet when the only changed protected path is
-`tools/ci/architecture-debt.toml`, its only byte changes strictly lower
-existing `[[file_lines]]` ceiling tokens, and protected-base code measures each
-bound-head source at exactly the new ceiling. The source reduction and ratchet
-remain in one pull request. This is a successful required trust check, not an
-owner bypass: architecture review, exact-head mise gates, and every relevant
-hosted context remain mandatory. Entries, limits, public surfaces, globs,
-prose, paths, and every other protected change remain fail-closed.
+The protected-base trust classifier may approve a coupled architecture ratchet
+when the only changed protected path is `tools/ci/architecture-debt.toml`.
+Only canonical integer digits of existing `[[file_lines]]` and
+`[[public_surface]]` ceilings may change, and each changed ceiling must strictly
+decrease. Entry inventory, ordering, identities, metadata, comments, and all
+other bytes remain unchanged. The two kinds of reduction may share one change.
+
+For file-line reductions, protected-base code measures each bound-head source
+at exactly the new ceiling. For public surfaces, each reduced crate must have
+an authenticated added, modified, or removed Rust source path under that exact
+crate directory; a rename alone is insufficient. The classifier does not run
+head Rust or infer a public-item count. The ordinary architecture CI measures
+the actual public surface and rejects a count above the ceiling (its current
+exact-freeze rule also requires ratcheting unused allowance). Acceptance requires
+both the protected-base `CI definition trust` check and the architecture check
+within the required `CI gate` to pass on the candidate. A source edit alone is
+not evidence that the declared public surface was reduced.
+
+This is a successful required trust check, not an owner bypass: risk-focused
+review, exact-head local verification, and every relevant hosted context remain
+mandatory. Increases, added/deleted/reordered entries, altered metadata, public
+ratchets without a matching Rust change, and mixed protected-path changes fail
+closed. Limits, globs, and other protected definitions remain outside this exception.
 
 The live main ruleset is active and strict, binds required `CI gate` and
 `CI definition trust` contexts to the GitHub Actions provider, rejects deletion
