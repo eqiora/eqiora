@@ -371,6 +371,12 @@ impl RegionDofMap {
         self.globals.keys().copied()
     }
 
+    pub(crate) fn field_layout(&self, field: RawId) -> Option<(RawId, &RegionFieldLayout)> {
+        self.fields
+            .get(&field)
+            .map(|(domain, layout)| (*domain, layout))
+    }
+
     pub(crate) fn field_scale(&self, field: RawId) -> Result<f64, Diagnostic> {
         self.fields
             .get(&field)

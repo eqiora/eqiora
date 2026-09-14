@@ -196,13 +196,6 @@ pub(crate) fn polyhedral_layout(
         solver,
         ale,
     );
-    super::super::layout::FsiLayout::bind(
-        &model.program,
-        &model.plan,
-        mesh,
-        partition,
-        boundary,
-        model.fields,
-    )
-    .unwrap()
+    super::super::layout::FsiLayout::bind(&model.program, &model.plan, mesh, partition, boundary)
+        .unwrap()
 }

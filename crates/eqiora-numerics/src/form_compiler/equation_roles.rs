@@ -15,6 +15,8 @@ use expression::{coefficient_dependencies, field, kinematic, principal, strip_si
 pub(crate) struct EquationRoles {
     pub(crate) fields: BTreeMap<RawId, (RawId, ValueType)>,
     pub(crate) relations: BTreeMap<RawId, EquationRole>,
+    /// Exact constraint Relation -> (constrained trial, tested multiplier).
+    pub(crate) constraints: BTreeMap<RawId, (RawId, RawId)>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -39,6 +41,7 @@ impl EquationRoles {
         let mut roles = Self {
             fields: BTreeMap::new(),
             relations: BTreeMap::new(),
+            constraints: BTreeMap::new(),
         };
         for domain in domains {
             roles.domain(program, domain)?;
@@ -200,6 +203,7 @@ impl EquationRoles {
                 ));
             }
             let tested = *candidates.first().expect("one multiplier");
+            self.constraints.insert(id, (constrained, tested));
             self.insert(
                 program,
                 id,

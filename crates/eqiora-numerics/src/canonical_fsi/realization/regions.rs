@@ -103,6 +103,7 @@ pub(super) fn bind(
 pub(super) fn layout(
     model: &FixedReferenceFsiCartesianModel2d,
     forms: &BTreeMap<RawId, BoundRegionForm>,
+    plan: &CoupledFieldwiseRealizationPlan,
     mesh: &eqiora_meshing::SimplicialMesh,
     partition: &crate::simplicial_fsi::FixedReferenceFsiPartition<2>,
     boundary: &crate::simplicial_fsi::FixedReferenceFsiBoundary<2>,
@@ -131,15 +132,12 @@ pub(super) fn layout(
         &traces,
         &BTreeMap::new(),
     )?;
-    crate::simplicial_fsi::layout::FsiLayout::new(
+    crate::simplicial_fsi::layout::FsiLayout::from_mapping(
+        &model.equation_roles,
+        plan,
         mesh,
         partition,
         boundary,
         &mapping,
-        [
-            fluid_velocity(model).erase(),
-            fluid_pressure(model).erase(),
-            solid_velocity(model).erase(),
-        ],
     )
 }

@@ -246,3 +246,58 @@ fn mixed_constraint_requires_one_equation_paired_multiplier() {
             .contains("unique gradient multiplier")
     );
 }
+
+#[test]
+fn conservative_dyadic_role_uses_definition_identity_not_operator_name() {
+    let source = include_str!(
+        "../../../../../verify/fsi/fixed-reference-monolithic-step-2d/models/direct.eqi"
+    );
+    let source = format!("public operator outer_product(input left: spatial[1], input right: spatial[1]): spatial[2] = component(left, 0) * component(right, 1);\n{}", source.replace(
+        "fluid_density * derivative(fluid_velocity)",
+        "fluid_density * derivative(fluid_velocity) + div(fluid_density * outer_product(left = fluid_velocity, right = fluid_velocity))"));
+    let roles = derive(&source).unwrap();
+    assert_eq!(
+        signature(&roles),
+        signature(&derive(&source.replace("outer_product", "renamed_product")).unwrap())
+    );
+    let wrong_definition = source.replace(
+        "component(left, 0) * component(right, 1)",
+        "component(left, 0) * component(right, 1) + component(left, 0) * component(right, 1)",
+    );
+    assert!(derive(&wrong_definition).is_err());
+}
+
+#[test]
+fn conservative_dyadic_role_rejects_other_trials_and_nondivergence_use() {
+    use eqiora_core::{Id, entity::kinds};
+    use eqiora_schema::kernel::ExprDagBuilder;
+    let definition = eqiora_ir::PureOperatorDefinition::dyadic_product().unwrap();
+    for (same_trial, in_divergence) in [(true, true), (false, true), (true, false)] {
+        let mut builder = ExprDagBuilder::new();
+        let velocity = Id::<kinds::Field>::new();
+        let first = builder.symbol(SymbolRef::Field(velocity)).unwrap();
+        let second = builder
+            .symbol(SymbolRef::Field(if same_trial {
+                velocity
+            } else {
+                Id::new()
+            }))
+            .unwrap();
+        let product = builder.pure_operator(&definition, [first, second]).unwrap();
+        let root = if in_divergence {
+            builder.divergence(product).unwrap()
+        } else {
+            product
+        };
+        let dag = builder.finish([root]).unwrap();
+        let derived = expression::principal(&dag, root);
+        if same_trial && in_divergence {
+            assert_eq!(
+                derived.unwrap(),
+                (BTreeSet::from([velocity.erase()]), BTreeSet::new())
+            );
+        } else {
+            assert!(derived.is_err());
+        }
+    }
+}

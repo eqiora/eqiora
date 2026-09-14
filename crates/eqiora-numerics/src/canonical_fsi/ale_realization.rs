@@ -702,11 +702,6 @@ fn replay_resolved_fixed_topology_ale_fsi<const D: usize>(
         mesh,
         partition,
         boundary,
-        [
-            fields.fluid_velocity().erase(),
-            fields.fluid_pressure().erase(),
-            fields.solid_velocity().erase(),
-        ],
     )?;
     Ok(ReplayedResolvedFixedTopologyAleFsi::<D> {
         model: resolved.model(),

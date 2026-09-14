@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_compiler::{CompiledModel, StaticBindingValue};
-use eqiora_core::{DimExponents, DynQuantity, RawId};
+use eqiora_core::{DimExponents, DynQuantity};
 use eqiora_geometry::{CanonicalGeometryV1, NamedEntitySet};
 use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore};
 use eqiora_realization::*;
@@ -19,7 +19,6 @@ pub(crate) mod polyhedra;
 pub(crate) struct AuthoredFsiModel {
     pub(crate) program: KernelProgram,
     pub(crate) plan: CoupledFieldwiseRealizationPlan,
-    pub(crate) fields: [RawId; 3],
 }
 
 /// The caller authenticates the actual mesh and Region membership against this
@@ -239,11 +238,7 @@ pub(crate) fn authored_model<const D: usize>(
         ExecutionSchedule::Offline,
     )
     .unwrap();
-    AuthoredFsiModel {
-        program,
-        plan,
-        fields: [vf.erase(), pressure.erase(), vs.erase()],
-    }
+    AuthoredFsiModel { program, plan }
 }
 
 fn source(dimension: usize, ale: bool) -> String {
@@ -344,15 +339,7 @@ pub(crate) fn planar_layout(
         solver,
         ale,
     );
-    super::layout::FsiLayout::bind(
-        &model.program,
-        &model.plan,
-        mesh,
-        partition,
-        boundary,
-        model.fields,
-    )
-    .unwrap()
+    super::layout::FsiLayout::bind(&model.program, &model.plan, mesh, partition, boundary).unwrap()
 }
 
 pub(crate) fn adjacent_rectangles() -> eqiora_geometry::PlanarRegion {

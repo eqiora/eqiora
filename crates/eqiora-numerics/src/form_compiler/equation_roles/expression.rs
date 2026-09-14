@@ -92,6 +92,23 @@ pub(super) fn principal(
                 pending.push((*value, in_divergence));
             }
             ExprNode::Divergence(value) => pending.push((*value, true)),
+            ExprNode::PureOperatorApplication(application) if in_divergence => {
+                let dyadic = eqiora_ir::PureOperatorDefinition::dyadic_product()
+                    .expect("canonical closed dyadic definition");
+                let arguments = application.arguments();
+                let trial = arguments.first().and_then(|argument| field(dag, *argument));
+                if application.definition() != dyadic.digest()
+                    || arguments.len() != 2
+                    || trial.is_none()
+                    || arguments.get(1).and_then(|argument| field(dag, *argument)) != trial
+                {
+                    return Err(Diagnostic::error(
+                        eqiora_core::diagnostic::codes::INVALID_REALIZATION,
+                        "conservative dyadic role requires its exact definition and identical Field arguments",
+                    ));
+                }
+                trials.insert(trial.expect("checked exact dyadic trial"));
+            }
             ExprNode::Neg(value)
             | ExprNode::PowI(value, _)
             | ExprNode::UnaryMath(_, value)

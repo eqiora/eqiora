@@ -24,19 +24,103 @@ use super::{
 use crate::canonical_boundary::PhysicalBoundaryDisposition;
 use crate::simplicial_fsi::FixedReferenceFsiPartition;
 
+pub(super) fn exact_graph_inventory(
+    plan: &eqiora_realization::CoupledFieldwiseRealizationPlan,
+    graph: &PortableRealizationGraph,
+) -> bool {
+    let expected_domains = plan
+        .spatial()
+        .domains()
+        .iter()
+        .map(|domain| domain.domain().erase())
+        .collect::<BTreeSet<_>>();
+    let actual_domains = graph
+        .domains()
+        .iter()
+        .map(|domain| domain.domain().erase())
+        .collect::<BTreeSet<_>>();
+    if expected_domains != actual_domains || actual_domains.len() != graph.domains().len() {
+        return false;
+    }
+    let mut expected = plan
+        .spatial()
+        .domains()
+        .iter()
+        .flat_map(|domain| {
+            domain.field_spaces().iter().map(move |field| {
+                (
+                    field.field().erase(),
+                    (domain.domain().erase(), field.space()),
+                )
+            })
+        })
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let state = plan.time_step().eliminated_state();
+    let Some(&(domain, _)) = expected.get(&state.pair().rate().erase()) else {
+        return false;
+    };
+    expected.insert(state.pair().state().erase(), (domain, state.state_space()));
+    let actual = graph
+        .fields()
+        .iter()
+        .map(|field| {
+            graph.domain(field.domain()).map(|domain| {
+                (
+                    field.field().erase(),
+                    (domain.domain().erase(), field.space()),
+                )
+            })
+        })
+        .collect::<Option<std::collections::BTreeMap<_, _>>>();
+    if !actual.is_some_and(|actual| actual.len() == graph.fields().len() && actual == expected) {
+        return false;
+    }
+    let expected = plan
+        .spatial()
+        .trace_quotients()
+        .iter()
+        .map(|quotient| {
+            (
+                quotient.connection().erase(),
+                quotient
+                    .endpoints()
+                    .map(|endpoint| endpoint.field().erase()),
+            )
+        })
+        .collect::<BTreeSet<_>>();
+    let actual = graph
+        .transformations()
+        .iter()
+        .filter_map(|transformation| match transformation {
+            TransformationNode::ConformingTraceQuotient {
+                connection,
+                endpoints,
+            } => Some((connection, endpoints)),
+            _ => None,
+        })
+        .map(|(connection, endpoints)| {
+            let [Some(first), Some(second)] = endpoints.map(|endpoint| graph.field(endpoint))
+            else {
+                return None;
+            };
+            Some((
+                connection.erase(),
+                [first.field().erase(), second.field().erase()],
+            ))
+        })
+        .collect::<Option<Vec<_>>>();
+    actual.is_some_and(|actual| {
+        let unique = actual.iter().copied().collect::<BTreeSet<_>>();
+        unique.len() == actual.len() && unique == expected
+    })
+}
+
 pub(super) fn require_exact_plan(
     model: &FixedReferenceFsiCartesianModel2d,
     resolved: &ResolvedCoupledFieldwiseRealization,
     graph: &PortableRealizationGraph,
     mesh_artifact: MeshArtifactReference,
 ) -> Result<FixedReferenceFsiScaleProfile2d, Diagnostic> {
-    if resolved.plan().spatial().trace_quotients().len() != 1
-        || resolved.requirements().trace_quotients().len() != 1
-    {
-        return Err(invalid_realization(
-            "fixed-reference FSI requires exactly one trace quotient",
-        ));
-    }
     if resolved.model() != model.model()
         || resolved.semantic_revision().get() != model.semantic_revision()
     {
@@ -54,8 +138,7 @@ pub(super) fn require_exact_plan(
     }
     if graph.lineage().model() != resolved.model()
         || graph.lineage().semantic_revision() != resolved.semantic_revision()
-        || graph.domains().len() != 2
-        || graph.fields().len() != 4
+        || !exact_graph_inventory(resolved.plan(), graph)
         || graph.systems().len() != 1
     {
         return Err(invalid_realization(
@@ -88,7 +171,6 @@ pub(super) fn require_exact_plan(
         .iter()
         .position(|field| field.field() == solid_velocity(model))
         .ok_or_else(|| invalid_realization("fixed-reference FSI graph omits solid velocity"))?;
-    let quotient = trace_quotient(model);
     let transformation_matches = graph.transformations().iter().any(|transformation| {
         matches!(
             transformation,
@@ -102,12 +184,6 @@ pub(super) fn require_exact_plan(
                 && selected_state.index() == state
                 && selected_rate.index() == rate
                 && *duration == resolved.plan().time_step().duration()
-        )
-    }) && graph.transformations().iter().any(|transformation| {
-        matches!(
-            transformation,
-            TransformationNode::ConformingTraceQuotient { connection, .. }
-                if *connection == quotient.connection()
         )
     });
     if !transformation_matches {
