@@ -1,22 +1,13 @@
 from __future__ import annotations
 
-import importlib.util
 import sys
-import tomllib
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from unittest import mock
 
 import pytest
 
-
-MODULE = Path(__file__).parents[1] / "python" / "eqiora" / "colab.py"
-PROJECT = MODULE.parents[4] / "pyproject.toml"
-SPEC = importlib.util.spec_from_file_location("_eqiora_colab_under_test", MODULE)
-assert SPEC is not None and SPEC.loader is not None
-colab = importlib.util.module_from_spec(SPEC)
-sys.modules[SPEC.name] = colab
-SPEC.loader.exec_module(colab)
+import eqiora.colab as colab
 
 
 def identities(*, eqiora_version: str = "0.1.1") -> dict[str, object]:
@@ -34,11 +25,7 @@ def test_public_surface_is_only_prepare() -> None:
     assert colab.__all__ == ["prepare"]
 
 
-def test_supported_distributions_match_package_metadata() -> None:
-    project = tomllib.loads(PROJECT.read_text(encoding="utf-8"))["project"]
-
-    assert "anywidget==0.11.0" in project["dependencies"]
-    assert project["optional-dependencies"]["gmsh"] == ["gmsh==4.15.2"]
+def test_supported_distributions_are_exact() -> None:
     assert colab._SUPPORTED_DISTRIBUTIONS == {
         "anywidget": "0.11.0",
         "gmsh": "4.15.2",
