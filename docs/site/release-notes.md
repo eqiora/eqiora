@@ -1,7 +1,38 @@
 # Release notes
 
-Eqiora `0.1.0a11` is the current public alpha. APIs and saved-file formats may
+Eqiora `0.1.0a12` is the current public alpha. APIs and saved-file formats may
 change before 1.0; review the changes below when upgrading.
+
+## 0.1.0a12 — constraints, trajectory sensitivities, and shared regions
+
+Finite real-scalar Models can now carry equality, inequality, and
+complementarity conditions into a bounded active-set solve. ODE terminal and
+accepted-step integral Observables support forward Parameter JVPs through
+localized event times and resets. Fixed-volume conservation Laws retain storage
+and polynomial time chain rules through canonical replay and constant-capacity
+term admission.
+
+Named component-owned test functions carry exact zero-trace restrictions into
+the sole authored `weak_form` API. Complete, nonoverlapping chains of Cartesian
+scalar regions share one Region assembly and Field/DOF map, retain compact Field
+support in Results, and expose exact interface flux. The maintained Python
+property specimen now runs from an exact local package and reproduces its Model
+and Result identities after moving offline.
+
+This alpha deliberately keeps its capability boundaries narrow. Storage does
+not add transient spatial thermal execution. Plural regions do not yet add
+mixed/vector execution, arbitrary geometry, viewer blocks, or solver-owned
+block/quotient structure. Typed algebraic Field and gauge structure now reaches
+solver admission before provider selection for the supported Stokes/FSI path;
+exact block ranges, trace quotients, and arbitrary constraints remain open.
+
+The pre-1.0 authoring surface also converges in this release. Replace
+`primal_form` and global `test(field)` with named component-owned
+`test(..., zero_on=...)` and `weak_form(...)`. Rust language consumers must use
+`RelationCondition`; the former `Equation` and `LexResult` exports are gone.
+Model/Transaction v27, Source identity v19, structural fingerprint v22, Plan and
+Result v5, and Trajectory v3 are the only accepted current encodings. Recompile
+Models and regenerate saved artifacts; no compatibility decoder is provided.
 
 ## 0.1.0a11 — exact imported nominal types
 

@@ -30,7 +30,7 @@ class CandidateRunTests(unittest.TestCase):
     repository = "nkiyohara/eqiora"
     run_id = 12345
     commit = "a" * 40
-    tag = "v0.1.0a11"
+    tag = "v0.1.0a12"
 
     def accepted_payload(self) -> dict[str, object]:
         return {
