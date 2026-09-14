@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 #[cfg(test)]
-use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
+use eqiora_assembly::AssemblyBackend;
 use eqiora_assembly::{
     AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyReport, AssemblyResult,
     AssemblyTarget, AssemblyTargetId, AssemblyWork, LinearSystem, TargetAssemblyMap,
@@ -94,63 +94,6 @@ impl<const D: usize> FinalizedFixedReferenceFsiStep<D> {
         let solved = solver.solve(&self.canonical_system.linear_problem()?)?;
         self.finish(solved)
     }
-}
-
-/// Finalize one three-dimensional fixed-reference monolithic step.
-///
-/// # Errors
-/// Preserves generic fixed-reference admission and assembly diagnostics.
-#[allow(clippy::too_many_arguments)]
-#[cfg(test)]
-pub(crate) fn finalize_fixed_reference_fsi_step_3d(
-    mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition<3>,
-    boundary: &FixedReferenceFsiBoundary<3>,
-    previous: &FixedReferenceFsiState<3>,
-    config: FixedReferenceFsiStepConfig<3>,
-    quadrature: &QuadratureRule,
-    layout: &FsiLayout<3>,
-) -> Result<FinalizedFixedReferenceFsiStep<3>, Diagnostic> {
-    finalize_fixed_reference_fsi_step_with_assembly(
-        mesh,
-        partition,
-        boundary,
-        previous,
-        config,
-        quadrature,
-        &REFERENCE_ASSEMBLY_BACKEND,
-        layout,
-    )
-}
-
-/// Finalize one dimension-typed fixed-reference step through an explicit
-/// ordered assembly backend.
-///
-/// # Errors
-/// Preserves admission, local-action, and selected assembly diagnostics.
-#[allow(clippy::too_many_arguments)]
-#[cfg(test)]
-fn finalize_fixed_reference_fsi_step_with_assembly<const D: usize>(
-    mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition<D>,
-    boundary: &FixedReferenceFsiBoundary<D>,
-    previous: &FixedReferenceFsiState<D>,
-    config: FixedReferenceFsiStepConfig<D>,
-    quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
-    layout: &FsiLayout<D>,
-) -> Result<FinalizedFixedReferenceFsiStep<D>, Diagnostic> {
-    finalize_fixed_reference_fsi_step_with_packet_set(
-        mesh,
-        partition,
-        boundary,
-        previous,
-        config,
-        quadrature,
-        AssemblyPacketSetIdentityV1::Unbound,
-        assembly,
-        layout,
-    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -447,28 +390,6 @@ fn require_system_shape(
         )));
     }
     Ok(())
-}
-
-/// Finalize, execute, and accept one three-dimensional fixed-reference step.
-///
-/// # Errors
-/// Preserves all generic admission, assembly, solver, and acceptance diagnostics.
-#[allow(clippy::too_many_arguments)]
-#[cfg(test)]
-pub(crate) fn solve_fixed_reference_fsi_step_3d(
-    mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition<3>,
-    boundary: &FixedReferenceFsiBoundary<3>,
-    previous: &FixedReferenceFsiState<3>,
-    config: FixedReferenceFsiStepConfig<3>,
-    quadrature: &QuadratureRule,
-    solver: LinearSolveRequest<'_>,
-    layout: &FsiLayout<3>,
-) -> Result<FixedReferenceFsiSolution<3>, Diagnostic> {
-    finalize_fixed_reference_fsi_step_3d(
-        mesh, partition, boundary, previous, config, quadrature, layout,
-    )?
-    .solve(solver)
 }
 
 #[derive(Debug, Clone, PartialEq)]

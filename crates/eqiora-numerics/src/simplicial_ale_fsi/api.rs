@@ -135,9 +135,6 @@ pub(super) struct AleFsiStepEvidenceInput<const D: usize> {
     pub(super) nonlinear_linear_solves: Vec<SolveReport>,
 }
 
-#[cfg(test)]
-pub(super) type AleFsiStepEvidenceInput2d = AleFsiStepEvidenceInput<2>;
-
 /// Independently accepted evidence for one monolithic ALE FSI step.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AleFsiStepEvidence<const D: usize> {

@@ -557,10 +557,10 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         .is_err()
     );
     assert_eq!(mini_zero.velocity_vertex_values().unwrap().len(), 12);
-    assert_eq!(mini_zero.velocity_cell_values().len(), 12);
+    assert_eq!(mini_zero.velocity_cell_values().unwrap().len(), 12);
     assert_eq!(mini_zero.pressure_vertex_values().unwrap().len(), 12);
     assert!(mini_zero.method_history_values().is_empty());
-    assert_eq!(fvm_zero.velocity_cell_values().len(), 6);
+    assert_eq!(fvm_zero.velocity_cell_values().unwrap().len(), 6);
     assert_eq!(fvm_zero.pressure_cell_values().unwrap().len(), 6);
     assert!(!fvm_zero.method_history_values().is_empty());
     let curl = mini.cell_average_velocity_curl_2d(&mini_zero).unwrap();

@@ -64,11 +64,6 @@ pub(crate) struct PreparedResolvedFixedReferenceFsiRun2d<'a> {
 }
 
 impl PreparedResolvedFixedReferenceFsiRun2d<'_> {
-    #[cfg(test)]
-    pub(crate) fn layout(&self) -> &crate::simplicial_fsi::layout::FsiLayout<2> {
-        &self.layout
-    }
-
     /// Assemble and finalize one action against the immutable prepared structure.
     pub(crate) fn finalize(
         &self,

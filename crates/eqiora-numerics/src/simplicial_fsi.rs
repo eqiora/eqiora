@@ -39,8 +39,6 @@ pub use contract::{
 };
 pub use partition::FixedReferenceFsiPartition;
 pub use solve::FinalizedFixedReferenceFsiStep;
-#[cfg(test)]
-pub(crate) use solve::solve_fixed_reference_fsi_step_3d;
 pub(crate) use solve::{FixedReferenceFsiAssemblyTargetRoles, PreparedFixedReferenceFsiAssembly};
 
 const fn p1_count<const D: usize>() -> usize {

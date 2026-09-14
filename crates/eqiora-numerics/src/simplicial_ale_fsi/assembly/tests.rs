@@ -23,8 +23,6 @@ use crate::simplicial_fsi::{
     FixedReferenceFsiScale,
 };
 
-const COMPONENTS: usize = 2;
-
 struct Fixture {
     mesh: SimplicialMesh,
     partition: FixedReferenceFsiPartition<2>,
