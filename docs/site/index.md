@@ -41,7 +41,7 @@ making a numerical method or hardware backend part of the model.
 
 </div>
 
-!!! note "Release 0.1.0"
+!!! note "Release 0.1.1"
     Eqiora is pre-1.0 research software under active development. The
     [capability matrix](capabilities.md) and generated
     [verification guide](evidence/index.md) bound what is currently supported;

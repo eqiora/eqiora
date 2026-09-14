@@ -5,20 +5,20 @@ simulations from Rust.
 
 ## Install
 
-[`eqiora 0.1.0`](https://crates.io/crates/eqiora/0.1.0) is available
+[`eqiora 0.1.1`](https://crates.io/crates/eqiora/0.1.1) is available
 on crates.io.
 
 In a new Cargo project:
 
 ```console
-cargo add eqiora@=0.1.0
+cargo add eqiora@=0.1.1
 ```
 
 Or add this dependency to `Cargo.toml`:
 
 ```toml
 [dependencies]
-eqiora = "=0.1.0"
+eqiora = "=0.1.1"
 ```
 
 Building from source requires a Rust toolchain and linker. The minimum supported
@@ -80,7 +80,7 @@ mesh needs no external Gmsh executable; automatic mesh generation requires it.
 | `mpi`, `cuda`, `mpi-cuda` | Environment-specific distributed/GPU adapters requiring the corresponding native libraries and hardware. |
 
 Enable only the features needed by the chosen supported path, for example
-`eqiora = { version = "=0.1.0", features = ["faer"] }`.
+`eqiora = { version = "=0.1.1", features = ["faer"] }`.
 
 ## Compatibility
 
