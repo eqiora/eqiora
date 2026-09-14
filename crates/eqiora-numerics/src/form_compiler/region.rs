@@ -25,7 +25,8 @@ mod lowering;
 mod tests;
 
 pub(crate) use binding::{
-    BoundRegionForm, RegionFieldBinding, RegionFieldLayout, RegionTimeBinding, basis,
+    BoundRegionForm, RegionFieldBinding, RegionFieldLayout, RegionTimeBinding, basis, state_layout,
+    state_layouts,
 };
 
 #[derive(Debug, Clone, PartialEq)]

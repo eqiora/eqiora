@@ -28,7 +28,7 @@ impl<const D: usize> AleFsiStepPlan<D> {
     /// centered residual reconstruction.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn verify_accepted_jacobian(
-        self,
+        &self,
         reference: &SimplicialMesh,
         partition: &FixedReferenceFsiPartition<D>,
         boundary: &AleFsiBoundary<D>,
@@ -69,7 +69,7 @@ fn verify_simplicial_ale_fsi_jacobian<const D: usize>(
     motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     accepted: &AleFsiState<D>,
-    plan: AleFsiStepPlan<D>,
+    plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
     base_layout: &FsiLayout<D>,
 ) -> Result<CenteredJacobianVerification, Diagnostic> {

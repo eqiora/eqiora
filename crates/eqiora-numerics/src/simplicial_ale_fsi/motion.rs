@@ -8,13 +8,15 @@
 //! evaluation necessarily use the same action.
 
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, ScalarType};
+use eqiora_core::{Diagnostic, Id, ScalarType, entity::kinds};
 use eqiora_meshing::P1HarmonicCoordinateRelation;
 use eqiora_meshing::{SimplicialMesh, VertexId};
+use eqiora_realization::P1HarmonicMeshMotionPolicy;
 use eqiora_solver::{
     DiagonalAvailability, LinearOperator, LinearOperatorProperties, LinearProblem,
     LinearSolveRequest, LinearSolver, SolveReport,
 };
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::simplicial_fsi::FixedReferenceFsiPartition;
 
@@ -31,6 +33,7 @@ const MAX_DENSE_MOTION_COEFFICIENTS: usize = 8_000_000;
 #[derive(Debug, Clone, PartialEq)]
 pub struct P1HarmonicMeshMotionAction<const D: usize> {
     partition: FixedReferenceFsiPartition<D>,
+    policy: P1HarmonicMeshMotionPolicy,
     relation: P1HarmonicCoordinateRelation<D>,
     influence: Vec<f64>,
     influence_solve_reports: Vec<SolveReport>,
@@ -53,8 +56,23 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
     pub fn new(
         mesh: &SimplicialMesh,
         partition: &FixedReferenceFsiPartition<D>,
+        policy: P1HarmonicMeshMotionPolicy,
         solver: LinearSolveRequest<'_>,
     ) -> Result<Self, Diagnostic> {
+        if solver.plan() != policy.solver()
+            || partition.domains().collect::<Vec<_>>().len() != 2
+            || partition
+                .domains()
+                .any(|domain| domain != policy.fluid_domain() && domain != policy.solid_domain())
+            || partition
+                .quotients()
+                .any(|quotient| quotient.connection() != policy.interface())
+            || partition.quotients().next().is_none()
+        {
+            return Err(invalid(
+                "one harmonic motion policy requires its complete exact Domain/Connection inventory",
+            ));
+        }
         if solver.plan().algorithm() != LinearSolver::ConjugateGradient {
             return Err(invalid_realization(
                 "P1 harmonic ALE mesh motion requires the resolved conjugate-gradient policy",
@@ -67,9 +85,16 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
         )?;
         let replayed = FixedReferenceFsiPartition::<D>::new(
             mesh,
-            partition.fluid_cells().to_vec(),
-            partition.solid_cells().to_vec(),
-            partition.interface_facets().to_vec(),
+            partition.domains().map(|domain| {
+                (
+                    domain,
+                    partition
+                        .domain_cells(domain)
+                        .expect("exact Domain")
+                        .to_vec(),
+                )
+            }),
+            &partition.quotients().collect::<Vec<_>>(),
         )?;
         if &replayed != partition {
             return Err(invalid(
@@ -77,11 +102,27 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
             ));
         }
 
+        let facets = partition
+            .traces()
+            .iter()
+            .flat_map(|trace| {
+                trace
+                    .facets
+                    .iter()
+                    .map(|facet| eqiora_meshing::FacetId::new(facet.facet.index()))
+            })
+            .collect::<BTreeSet<_>>();
         let relation = P1HarmonicCoordinateRelation::<D>::new(
             mesh,
-            partition.fluid_cells().to_vec(),
-            partition.solid_cells().to_vec(),
-            partition.interface_facets().to_vec(),
+            partition
+                .domain_cells(policy.fluid_domain())
+                .expect("exact motion Domain")
+                .to_vec(),
+            partition
+                .domain_cells(policy.solid_domain())
+                .expect("exact driver Domain")
+                .to_vec(),
+            facets.into_iter().collect(),
         )?;
         if relation.fluid_interior_vertices().is_empty() {
             return Err(invalid(
@@ -138,6 +179,7 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
 
         Ok(Self {
             partition: partition.clone(),
+            policy,
             relation,
             influence,
             influence_solve_reports,
@@ -197,9 +239,16 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
     ) -> Result<(), Diagnostic> {
         let replayed = FixedReferenceFsiPartition::<D>::new(
             mesh,
-            partition.fluid_cells().to_vec(),
-            partition.solid_cells().to_vec(),
-            partition.interface_facets().to_vec(),
+            partition.domains().map(|domain| {
+                (
+                    domain,
+                    partition
+                        .domain_cells(domain)
+                        .expect("exact Domain")
+                        .to_vec(),
+                )
+            }),
+            &partition.quotients().collect::<Vec<_>>(),
         )?;
         if mesh != self.relation.reference_mesh()
             || partition != &self.partition
@@ -223,32 +272,48 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
     /// Returns `EQ0801` for an incompatible field shape, or `EQ0803` for
     /// non-finite data, non-zero data outside the solid closure, overflow, or
     /// failure of the harmonic residual certificate.
-    pub fn apply(&self, solid_displacement: &[[f64; D]]) -> Result<Vec<[f64; D]>, Diagnostic> {
-        self.apply_linear(solid_displacement)
+    pub fn apply(
+        &self,
+        field: Id<kinds::Field>,
+        values: &BTreeMap<VertexId, [f64; D]>,
+    ) -> Result<Vec<[f64; D]>, Diagnostic> {
+        self.apply_linear(field, values)
     }
 
-    /// Exact JVP of [`Self::apply`] with respect to solid displacement.
-    ///
-    /// The action is linear, so the tangent is evaluated by the same sealed
-    /// influence map. No finite difference or separately supplied velocity is
-    /// admitted.
-    ///
-    /// # Errors
-    /// Has the same shape, finiteness, and support requirements as [`Self::apply`].
+    /// Exact JVP of the same sealed action on the complete exact driver inventory.
     pub fn apply_jvp(
         &self,
-        solid_displacement_tangent: &[[f64; D]],
+        field: Id<kinds::Field>,
+        values: &BTreeMap<VertexId, [f64; D]>,
     ) -> Result<Vec<[f64; D]>, Diagnostic> {
-        self.apply_linear(solid_displacement_tangent)
+        self.apply_linear(field, values)
     }
 
-    fn apply_linear(&self, solid_input: &[[f64; D]]) -> Result<Vec<[f64; D]>, Diagnostic> {
-        if solid_input.len() != self.relation.reference_mesh().vertices().len() {
-            return Err(invalid(format!(
-                "P1 harmonic ALE solid displacement must be one finite {D}-vector per reference vertex"
-            )));
-        }
+    /// Exact admitted motion policy; no geometry position identifies its driver.
+    pub const fn policy(&self) -> P1HarmonicMeshMotionPolicy {
+        self.policy
+    }
 
+    fn apply_linear(
+        &self,
+        field: Id<kinds::Field>,
+        values: &BTreeMap<VertexId, [f64; D]>,
+    ) -> Result<Vec<[f64; D]>, Diagnostic> {
+        if field != self.policy.solid_displacement()
+            || !values
+                .keys()
+                .copied()
+                .eq(self.relation.solid_vertices().iter().copied())
+            || values.values().flatten().any(|value| !value.is_finite())
+        {
+            return Err(invalid(
+                "harmonic driver differs from exact Field/vertex inventory or is nonfinite",
+            ));
+        }
+        let mut solid_input = vec![[0.0; D]; self.relation.reference_mesh().vertices().len()];
+        for (&vertex, &value) in values {
+            solid_input[vertex.index()] = value;
+        }
         let mut displacement = vec![[0.0; D]; solid_input.len()];
         for vertex in self.relation.solid_vertices() {
             displacement[vertex.index()] = solid_input[vertex.index()];
@@ -288,7 +353,7 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
             .map(SolveReport::residual_target)
             .collect::<Vec<_>>();
         self.relation.validate_current_coordinates(
-            solid_input,
+            &solid_input,
             &current_coordinates,
             &residual_targets,
         )?;

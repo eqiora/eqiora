@@ -24,7 +24,7 @@ fn fixed_reference_fsi_distributed_assembly_loopback_2d() {
         .expect("fixed-reference FSI semantics lower");
     let spatial = spatial_context(document.program(), &canonical);
     let execution = execution_context(document.program(), &canonical, &spatial);
-    let previous = prestrained_state(&spatial);
+    let previous = prestrained_state(document.program(), &spatial, &execution);
     let mesh_sha256 = spatial
         .mesh_artifact
         .digest()
@@ -92,7 +92,7 @@ fn fixed_reference_fsi_distributed_assembly_loopback_2d() {
             let process_facets = layout
                 .partition_boundary_entities(1)
                 .expect("triangle layout owns a facet stratum");
-            for facet in spatial.partition.interface_facets() {
+            for facet in &spatial.interface_facets {
                 let entity = MeshEntity::new(1, facet.index());
                 assert!(process_facets.contains(&entity));
                 assert!(layout.entity_residents(entity).unwrap().len() > 1);

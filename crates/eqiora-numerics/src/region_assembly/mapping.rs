@@ -17,6 +17,7 @@ use super::invalid;
 mod binding;
 mod recovery;
 pub(crate) use binding::bind_region_topology;
+pub(crate) use recovery::RecoveredRegionField;
 
 /// Bind topology without requiring an affine or linear equation compiler.
 pub(crate) fn field_layouts(
@@ -107,6 +108,7 @@ pub(crate) struct TraceBinding {
 pub(crate) struct RegionDofMap {
     globals: BTreeMap<FieldDof, usize>,
     cells: Vec<Vec<usize>>,
+    cell_keys: Vec<Vec<FieldDof>>,
     cell_domains: Vec<RawId>,
     traces: Vec<(ConformingTraceQuotient, BTreeSet<FieldDof>)>,
     constraints: ConstrainedDofLayout,
@@ -396,6 +398,7 @@ impl RegionDofMap {
         Ok(Self {
             globals,
             cells,
+            cell_keys: local_keys,
             cell_domains: cell_domains.to_vec(),
             traces: mapped_traces,
             constraints: ConstrainedDofLayout::new(fixed)?,
@@ -487,6 +490,25 @@ impl RegionDofMap {
 
     pub(crate) fn restrict(&self, full: &[f64]) -> Result<Vec<f64>, Diagnostic> {
         self.constraints.restrict(full)
+    }
+
+    pub(crate) fn cell_field_keys(
+        &self,
+        cell: usize,
+        field: RawId,
+    ) -> Result<Vec<FieldDof>, Diagnostic> {
+        let keys = self
+            .cell_keys
+            .get(cell)
+            .ok_or_else(|| invalid("history cell is outside exact mapping"))?
+            .iter()
+            .filter(|key| key.field == field)
+            .copied()
+            .collect::<Vec<_>>();
+        if keys.is_empty() {
+            return Err(invalid("history Field has no exact local cell support"));
+        }
+        Ok(keys)
     }
 
     pub(crate) fn cell_map(&self, cell: usize, reduced: bool) -> Result<AssemblyMap, Diagnostic> {

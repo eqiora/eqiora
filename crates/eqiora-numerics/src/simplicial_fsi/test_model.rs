@@ -34,29 +34,47 @@ pub(crate) fn authored_model<const D: usize>(
     let [parents, outer, contact] = supports;
     let source = source(D, ale);
     let material = config.material();
+    let (fluid_domain, fluid_velocity, fluid_viscosity) = material
+        .viscosity_entries()
+        .next()
+        .expect("fixture owns one viscous Field");
+    let fluid_density = material
+        .density_entries()
+        .find(|(domain, field, _)| *domain == fluid_domain && *field == fluid_velocity)
+        .map(|(_, _, value)| value)
+        .expect("fixture viscous Field owns density");
+    let (solid_domain, _, solid_elasticity) = material
+        .elasticity_entries()
+        .next()
+        .expect("fixture owns one elastic state");
+    let solid_density = material
+        .density_entries()
+        .find(|(domain, _, _)| *domain == solid_domain)
+        .map(|(_, _, value)| value)
+        .expect("fixture solid Domain owns a rate density");
     let quantity =
         |value, powers| DynQuantity::new(value, DimExponents::from_integers(powers).unwrap());
     let parameters = [
         (
             "fluid_density",
-            quantity(material.fluid_density(), [1, -3, 0, 0, 0, 0, 0]),
+            quantity(fluid_density, [1, -3, 0, 0, 0, 0, 0]),
         ),
         (
             "fluid_viscosity",
-            quantity(material.fluid_dynamic_viscosity(), [1, -1, -1, 0, 0, 0, 0]),
+            quantity(fluid_viscosity, [1, -1, -1, 0, 0, 0, 0]),
         ),
         (
             "solid_density",
-            quantity(material.solid_density(), [1, -3, 0, 0, 0, 0, 0]),
+            quantity(solid_density, [1, -3, 0, 0, 0, 0, 0]),
         ),
         (
             "solid_mu",
-            quantity(material.solid_shear_modulus(), [1, -1, -2, 0, 0, 0, 0]),
+            quantity(solid_elasticity.shear_modulus(), [1, -1, -2, 0, 0, 0, 0]),
         ),
         (
             "solid_lambda",
             quantity(
-                material.solid_first_lame_parameter(),
+                solid_elasticity.first_lame_parameter(),
                 [1, -1, -2, 0, 0, 0, 0],
             ),
         ),

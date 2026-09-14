@@ -34,11 +34,16 @@ enum WireStatePayload {
         previous_face_volume_fluxes: Vec<f64>,
     },
     FixedReferenceFsi {
-        vertex_velocity: Vec<[f64; 2]>,
-        fluid_velocity_cell: Vec<[f64; 2]>,
-        pressure_vertex: Vec<f64>,
-        solid_displacement: Vec<[f64; 2]>,
+        fields: Vec<WirePhysicalField>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WirePhysicalField {
+    field: String,
+    domain: String,
+    coefficients: Vec<(usize, usize, usize, usize, f64)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -116,17 +121,28 @@ impl WireCommonSpatialStateV1 {
                 gauge_multiplier: value.gauge_multiplier(),
                 previous_face_volume_fluxes: value.previous_face_volume_fluxes().to_vec(),
             },
-            CommonStateKind::Fsi {
-                state, pressure, ..
-            } => WireStatePayload::FixedReferenceFsi {
-                vertex_velocity: state.vertex_velocity().to_vec(),
-                fluid_velocity_cell: state
-                    .fluid_cell_bubble_velocity()
-                    .values()
-                    .copied()
+            CommonStateKind::Fsi { state, .. } => WireStatePayload::FixedReferenceFsi {
+                fields: state
+                    .fields
+                    .iter()
+                    .map(|(id, field)| WirePhysicalField {
+                        field: id.ulid().to_string(),
+                        domain: field.domain.ulid().to_string(),
+                        coefficients: field
+                            .coefficients
+                            .iter()
+                            .map(|(key, value)| {
+                                (
+                                    key.entity.dimension(),
+                                    key.entity.index(),
+                                    key.slot,
+                                    key.component,
+                                    *value,
+                                )
+                            })
+                            .collect(),
+                    })
                     .collect(),
-                pressure_vertex: pressure.to_vec(),
-                solid_displacement: state.solid_displacement().to_vec(),
             },
         };
         Self {
@@ -293,37 +309,44 @@ impl WireCommonSpatialStateV1 {
     }
 
     fn replay_fsi(&self, plan: &CommonFsiPlan) -> Result<CommonState, Diagnostic> {
-        let WireStatePayload::FixedReferenceFsi {
-            vertex_velocity,
-            fluid_velocity_cell,
-            pressure_vertex,
-            solid_displacement,
-        } = &self.payload
-        else {
+        let WireStatePayload::FixedReferenceFsi { fields } = &self.payload else {
             unreachable!()
         };
-        if pressure_vertex.len() != plan.partition.fluid_vertices().len() {
-            return Err(invalid(
-                "FSI State pressure cardinality differs from its exact fluid support",
-            ));
-        }
-        if fluid_velocity_cell.len() != plan.partition.fluid_cells().len() {
-            return Err(invalid(
-                "FSI State bubble cardinality differs from its exact fluid support",
-            ));
-        }
+        let values = fields
+            .iter()
+            .map(|field| {
+                let id = ulid::Ulid::from_string(&field.field)
+                    .map(eqiora_core::Id::from_ulid)
+                    .map_err(|_| invalid("State has invalid exact Field ID"))?;
+                Ok((
+                    id,
+                    field
+                        .coefficients
+                        .iter()
+                        .map(|&(dimension, index, slot, component, value)| {
+                            (MeshEntity::new(dimension, index), slot, component, value)
+                        })
+                        .collect(),
+                ))
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
         let native = FixedReferenceFsiState::<2>::new(
+            &plan.recognized.program,
+            plan.resolved.plan(),
             plan.mesh(),
             &plan.partition,
-            vertex_velocity.clone(),
-            plan.partition
-                .fluid_cells()
-                .iter()
-                .copied()
-                .zip(fluid_velocity_cell.iter().copied())
-                .collect(),
-            solid_displacement.clone(),
+            values,
         )?;
+        for field in fields {
+            let id = ulid::Ulid::from_string(&field.field)
+                .map(eqiora_core::Id::<eqiora_core::entity::kinds::Field>::from_ulid)
+                .map_err(|_| invalid("State has invalid exact Field ID"))?;
+            if native.fields[&id.erase()].domain.ulid().to_string() != field.domain {
+                return Err(invalid(
+                    "State Field Domain differs from exact Plan ownership",
+                ));
+            }
+        }
         CommonState::new_with_boundary_forces(
             plan.state_space_identity(),
             self.time_s,
@@ -331,7 +354,6 @@ impl WireCommonSpatialStateV1 {
             Arc::new(plan.resources().clone()),
             CommonStateKind::Fsi {
                 state: Box::new(native),
-                pressure: pressure_vertex.clone().into_boxed_slice(),
                 accepted: None,
             },
             self.named_boundary_forces_on_domain.clone(),

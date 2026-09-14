@@ -26,9 +26,12 @@ use eqiora_artifact::{
     CanonicalModelArtifact, GeometryDefinitionV1, GeometryMeshCorrespondenceEnvelopeV1,
     ModelArtifactReference, ModelEnvelope, SimplicialMeshEnvelopeV1,
 };
-use eqiora_core::{Diagnostic, RawId};
+use eqiora_core::{Diagnostic, Id, RawId, entity::kinds};
 use eqiora_meshing::{
-    CellId, FacetId, FixedTopologyGeometryState2d, MeshEntity, MeshQualityGate, SimplicialMesh,
+    CellId, FixedTopologyGeometryState2d, MeshEntity, MeshQualityGate, SimplicialMesh,
+};
+use eqiora_realization::{
+    AleGeometryQualityGate, ConformingTraceQuotient, P1HarmonicMeshMotionPolicy, TraceFieldEndpoint,
 };
 use eqiora_sem::KernelProgram;
 use eqiora_solver::LinearSolveRequest;
@@ -343,8 +346,9 @@ impl StokesDissipationTopology2d {
         profile: &StokesDissipationProfileGeometry2d,
         solver: LinearSolveRequest<'_>,
     ) -> Result<RealizedStokesDissipationGeometry2d, Diagnostic> {
-        let (augmented, partition, original_vertices) = self.harmonic_auxiliary()?;
-        let action = P1HarmonicMeshMotionAction::<2>::new(&augmented, &partition, solver)?;
+        let (augmented, partition, policy, original_vertices) =
+            self.harmonic_auxiliary(solver.plan())?;
+        let action = P1HarmonicMeshMotionAction::<2>::new(&augmented, &partition, policy, solver)?;
         debug_assert_eq!(original_vertices, self.reference_mesh.vertices().len());
         let state = self.harmonic_state(profile, &action)?;
         let mesh = state.reconstruct_mesh(&self.reference_mesh)?;
@@ -387,22 +391,25 @@ impl StokesDissipationTopology2d {
         profile: &StokesDissipationProfileGeometry2d,
         action: &P1HarmonicMeshMotionAction<2>,
     ) -> Result<FixedTopologyGeometryState2d, Diagnostic> {
-        let (augmented, partition, original_vertices) = self.harmonic_auxiliary()?;
-        action.validate_reference(&augmented, &partition)?;
-        let mut solid_displacement = vec![[0.0; 2]; augmented.vertices().len()];
-        for (angle_index, displacement) in solid_displacement[..self.sector_count]
-            .iter_mut()
-            .enumerate()
-        {
+        let (augmented, _, _, original_vertices) =
+            self.harmonic_auxiliary(action.policy().solver())?;
+        let mut solid_displacement = (0..=self.sector_count)
+            .map(|vertex| (eqiora_meshing::VertexId::new(vertex), [0.0; 2]))
+            .collect::<BTreeMap<_, _>>();
+        for angle_index in 0..self.sector_count {
             let angle = std::f64::consts::TAU * angle_index as f64 / self.sector_count as f64;
             let radius = profile.radius(angle)?;
             let start = &augmented.vertices()[angle_index];
-            *displacement = [
-                radius * angle.cos() - start[0],
-                radius * angle.sin() - start[1],
-            ];
+            solid_displacement.insert(
+                eqiora_meshing::VertexId::new(angle_index),
+                [
+                    radius * angle.cos() - start[0],
+                    radius * angle.sin() - start[1],
+                ],
+            );
         }
-        let displacement = action.apply(&solid_displacement)?;
+        let displacement =
+            action.apply(action.policy().solid_displacement(), &solid_displacement)?;
         let coordinates = augmented
             .vertices()
             .iter()
@@ -419,7 +426,16 @@ impl StokesDissipationTopology2d {
     }
     fn harmonic_auxiliary(
         &self,
-    ) -> Result<(SimplicialMesh, FixedReferenceFsiPartition<2>, usize), Diagnostic> {
+        solver: eqiora_solver::SolverPlan,
+    ) -> Result<
+        (
+            SimplicialMesh,
+            FixedReferenceFsiPartition<2>,
+            P1HarmonicMeshMotionPolicy,
+            usize,
+        ),
+        Diagnostic,
+    > {
         let original_vertices = self.reference_mesh.vertices().len();
         let mut vertices = self.reference_mesh.vertices().to_vec();
         let center = vertices.len();
@@ -435,16 +451,36 @@ impl StokesDissipationTopology2d {
         let solid_cells = (fluid_count..fluid_count + self.sector_count)
             .map(CellId::new)
             .collect::<Vec<_>>();
-        let mut interface = (0..self.sector_count)
-            .map(|angle| {
-                mesh_facet_for_vertices(&augmented, [(angle + 1) % self.sector_count, angle])
-                    .map(|facet| FacetId::new(facet.index()))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        interface.sort_unstable();
-        let partition =
-            FixedReferenceFsiPartition::<2>::new(&augmented, fluid_cells, solid_cells, interface)?;
-        Ok((augmented, partition, original_vertices))
+        let exact_id = |suffix| {
+            let mut bytes = *b"eqiora-stokes-fi";
+            bytes[15] = suffix;
+            ulid::Ulid::from_bytes(bytes)
+        };
+        let fluid_domain = Id::<kinds::Domain>::from_ulid(exact_id(1));
+        let solid_domain = Id::<kinds::Domain>::from_ulid(exact_id(2));
+        let fluid_velocity = Id::<kinds::Field>::from_ulid(exact_id(3));
+        let solid_velocity = Id::<kinds::Field>::from_ulid(exact_id(4));
+        let solid_displacement = Id::<kinds::Field>::from_ulid(exact_id(5));
+        let connection = Id::<kinds::Connection>::from_ulid(exact_id(6));
+        let quotient = ConformingTraceQuotient::new(
+            connection,
+            TraceFieldEndpoint::new(fluid_domain, fluid_velocity),
+            TraceFieldEndpoint::new(solid_domain, solid_velocity),
+        )?;
+        let partition = FixedReferenceFsiPartition::<2>::new(
+            &augmented,
+            [(fluid_domain, fluid_cells), (solid_domain, solid_cells)],
+            &[quotient],
+        )?;
+        let policy = P1HarmonicMeshMotionPolicy::new(
+            fluid_domain,
+            solid_domain,
+            solid_displacement,
+            connection,
+            AleGeometryQualityGate::new(1.0e-12)?,
+            solver,
+        )?;
+        Ok((augmented, partition, policy, original_vertices))
     }
 }
 fn classified_vertex_ids(

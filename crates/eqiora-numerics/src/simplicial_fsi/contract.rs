@@ -1,6 +1,5 @@
 //! State, material, scale, load, and boundary contracts.
 
-use eqiora_meshing::CellId;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -15,96 +14,165 @@ use super::partition::FixedReferenceFsiPartition;
 use super::{invalid, required_quadrature_exactness};
 use crate::linear_elasticity::IsotropicElasticityMaterial;
 
-/// Positive material data for the bounded linear FSI realization.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// Exact Domain/Field-owned coefficients for transient kinetic, viscous and elastic terms.
+#[derive(Debug, Clone, PartialEq)]
 pub struct FixedReferenceFsiMaterial<const D: usize> {
-    fluid_density: f64,
-    fluid_dynamic_viscosity: f64,
-    solid_density: f64,
-    solid: IsotropicElasticityMaterial<D>,
+    pub(super) densities: BTreeMap<eqiora_core::RawId, (eqiora_core::RawId, f64)>,
+    pub(super) viscosities: BTreeMap<eqiora_core::RawId, (eqiora_core::RawId, f64)>,
+    pub(super) elasticities:
+        BTreeMap<eqiora_core::RawId, (eqiora_core::RawId, IsotropicElasticityMaterial<D>)>,
 }
 
 impl<const D: usize> FixedReferenceFsiMaterial<D> {
-    /// Construct stable Newtonian-fluid and isotropic-linear-solid data.
-    ///
+    /// Bind coherent-SI density/viscosity and admitted elastic witnesses to exact Fields.
+    /// Densities own velocity/rate Fields; elastic witnesses own displacement states.
+    /// The executing Plan authenticates the complete role and Domain inventory.
     /// # Errors
-    /// Rejects non-finite/non-positive densities, viscosity, or shear modulus,
-    /// and rejects a Lamé pair unless `lambda + 2 mu / D` is positive.
+    /// Rejects repeated Fields, nonpositive or nonfinite coefficients and incompatible ownership.
     pub fn new(
-        fluid_density: f64,
-        fluid_dynamic_viscosity: f64,
-        solid_density: f64,
-        solid_shear_modulus: f64,
-        solid_first_lame_parameter: f64,
+        densities: impl IntoIterator<
+            Item = (
+                eqiora_core::Id<eqiora_core::entity::kinds::Domain>,
+                eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+                f64,
+            ),
+        >,
+        viscosities: impl IntoIterator<
+            Item = (
+                eqiora_core::Id<eqiora_core::entity::kinds::Domain>,
+                eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+                f64,
+            ),
+        >,
+        elasticities: impl IntoIterator<
+            Item = (
+                eqiora_core::Id<eqiora_core::entity::kinds::Domain>,
+                eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+                IsotropicElasticityMaterial<D>,
+            ),
+        >,
     ) -> Result<Self, Diagnostic> {
         require_supported_dimension::<D>()?;
-        let solid =
-            IsotropicElasticityMaterial::<D>::new(solid_shear_modulus, solid_first_lame_parameter);
-        let Some(solid) = solid else {
-            return Err(invalid(
-                "fixed-reference FSI material data must be finite and coercive in its admitted dimension",
-            ));
+        let collect = |values: Vec<_>| -> Result<BTreeMap<_, _>, Diagnostic> {
+            let mut result = BTreeMap::new();
+            for (domain, field, value) in values {
+                if !f64::is_finite(value)
+                    || value <= 0.0
+                    || result.insert(field, (domain, value)).is_some()
+                {
+                    return Err(invalid(
+                        "transient coefficient is nonpositive, nonfinite or repeats an exact Field",
+                    ));
+                }
+            }
+            Ok(result)
         };
-        Self::from_admitted_solid(fluid_density, fluid_dynamic_viscosity, solid_density, solid)
-    }
-
-    pub(crate) fn from_admitted_solid(
-        fluid_density: f64,
-        fluid_dynamic_viscosity: f64,
-        solid_density: f64,
-        solid: IsotropicElasticityMaterial<D>,
-    ) -> Result<Self, Diagnostic> {
-        if !fluid_density.is_finite()
-            || fluid_density <= 0.0
-            || !fluid_dynamic_viscosity.is_finite()
-            || fluid_dynamic_viscosity <= 0.0
-            || !solid_density.is_finite()
-            || solid_density <= 0.0
+        let densities = collect(
+            densities
+                .into_iter()
+                .map(|(domain, field, value)| (domain.erase(), field.erase(), value))
+                .collect(),
+        )?;
+        let viscosities = collect(
+            viscosities
+                .into_iter()
+                .map(|(domain, field, value)| (domain.erase(), field.erase(), value))
+                .collect(),
+        )?;
+        if densities.is_empty()
+            || viscosities.iter().any(|(field, (domain, _))| {
+                densities
+                    .get(field)
+                    .is_none_or(|(owner, _)| owner != domain)
+            })
         {
             return Err(invalid(
-                "fixed-reference FSI material data must be finite and coercive in its admitted dimension",
+                "viscous term has no matching exact kinetic Domain/Field owner",
             ));
         }
+        let mut elastic = BTreeMap::new();
+        for (domain, field, material) in elasticities {
+            if densities.contains_key(&field.erase())
+                || elastic
+                    .insert(field.erase(), (domain.erase(), material))
+                    .is_some()
+            {
+                return Err(invalid(
+                    "elastic state coefficient repeats an exact Field role",
+                ));
+            }
+        }
         Ok(Self {
-            fluid_density,
-            fluid_dynamic_viscosity,
-            solid_density,
-            solid,
+            densities,
+            viscosities,
+            elasticities: elastic,
         })
     }
-
-    /// Fluid mass density.
-    #[must_use]
-    pub const fn fluid_density(self) -> f64 {
-        self.fluid_density
+    /// Density of one exact velocity/rate Field, if admitted.
+    pub fn density(
+        &self,
+        field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+    ) -> Option<f64> {
+        self.densities.get(&field.erase()).map(|(_, value)| *value)
+    }
+    /// Viscosity of one exact velocity Field, if admitted.
+    pub fn viscosity(
+        &self,
+        field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+    ) -> Option<f64> {
+        self.viscosities
+            .get(&field.erase())
+            .map(|(_, value)| *value)
+    }
+    /// Existing admitted elasticity witness of one exact displacement state.
+    pub(crate) fn elasticity(
+        &self,
+        field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+    ) -> Option<IsotropicElasticityMaterial<D>> {
+        self.elasticities
+            .get(&field.erase())
+            .map(|(_, material)| *material)
     }
 
-    /// Fluid dynamic viscosity.
-    #[must_use]
-    pub const fn fluid_dynamic_viscosity(self) -> f64 {
-        self.fluid_dynamic_viscosity
+    pub(crate) fn kinetic_fields(
+        &self,
+    ) -> impl Iterator<Item = eqiora_core::Id<eqiora_core::entity::kinds::Field>> + '_ {
+        self.densities
+            .keys()
+            .map(|field| field.downcast().expect("typed material Field"))
     }
 
-    /// Solid mass density.
-    #[must_use]
-    pub const fn solid_density(self) -> f64 {
-        self.solid_density
+    #[cfg(test)]
+    pub(crate) fn density_entries(
+        &self,
+    ) -> impl Iterator<Item = (eqiora_core::RawId, eqiora_core::RawId, f64)> + '_ {
+        self.densities
+            .iter()
+            .map(|(field, (domain, value))| (*domain, *field, *value))
     }
 
-    /// Solid shear modulus `mu`.
-    #[must_use]
-    pub const fn solid_shear_modulus(self) -> f64 {
-        self.solid.shear_modulus()
+    #[cfg(test)]
+    pub(crate) fn viscosity_entries(
+        &self,
+    ) -> impl Iterator<Item = (eqiora_core::RawId, eqiora_core::RawId, f64)> + '_ {
+        self.viscosities
+            .iter()
+            .map(|(field, (domain, value))| (*domain, *field, *value))
     }
 
-    /// Solid first Lamé parameter `lambda`.
-    #[must_use]
-    pub const fn solid_first_lame_parameter(self) -> f64 {
-        self.solid.first_lame_parameter()
-    }
-
-    pub(crate) const fn solid_material(self) -> IsotropicElasticityMaterial<D> {
-        self.solid
+    #[cfg(test)]
+    pub(crate) fn elasticity_entries(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            eqiora_core::RawId,
+            eqiora_core::RawId,
+            IsotropicElasticityMaterial<D>,
+        ),
+    > + '_ {
+        self.elasticities
+            .iter()
+            .map(|(field, (domain, value))| (*domain, *field, *value))
     }
 }
 
@@ -185,10 +253,10 @@ impl<const D: usize> FixedReferenceFsiScale<D> {
 }
 
 /// Complete time/material/scale selection for one backward-Euler step.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FixedReferenceFsiStepConfig<const D: usize> {
     time_step: f64,
-    material: FixedReferenceFsiMaterial<D>,
+    material: Arc<FixedReferenceFsiMaterial<D>>,
     scale: FixedReferenceFsiScale<D>,
     load: FixedReferenceFsiLoad,
 }
@@ -211,7 +279,7 @@ impl<const D: usize> FixedReferenceFsiStepConfig<D> {
         }
         Ok(Self {
             time_step,
-            material,
+            material: Arc::new(material),
             scale,
             load,
         })
@@ -219,25 +287,25 @@ impl<const D: usize> FixedReferenceFsiStepConfig<D> {
 
     /// Backward-Euler step width.
     #[must_use]
-    pub const fn time_step(self) -> f64 {
+    pub const fn time_step(&self) -> f64 {
         self.time_step
     }
 
     /// Material selection.
     #[must_use]
-    pub const fn material(self) -> FixedReferenceFsiMaterial<D> {
-        self.material
+    pub fn material(&self) -> &FixedReferenceFsiMaterial<D> {
+        &self.material
     }
 
     /// Acceptance scales.
     #[must_use]
-    pub const fn scale(self) -> FixedReferenceFsiScale<D> {
+    pub const fn scale(&self) -> FixedReferenceFsiScale<D> {
         self.scale
     }
 
     /// Explicit v1 load policy.
     #[must_use]
-    pub const fn load(self) -> FixedReferenceFsiLoad {
+    pub const fn load(&self) -> FixedReferenceFsiLoad {
         self.load
     }
 }
@@ -426,96 +494,14 @@ impl<const D: usize> FixedReferenceFsiBoundary<D> {
     }
 }
 
-/// Complete previous-step state for the fixed-reference spaces.
-#[derive(Debug, Clone, PartialEq)]
-pub struct FixedReferenceFsiState<const D: usize> {
-    vertex_velocity: Vec<[f64; D]>,
-    fluid_cell_bubble_velocity: BTreeMap<CellId, [f64; D]>,
-    solid_displacement: Vec<[f64; D]>,
-}
-
-impl<const D: usize> FixedReferenceFsiState<D> {
-    /// Admit one finite state in the exact partition layout.
-    ///
-    /// Solid displacement is represented in mesh-vertex order to make the
-    /// shared trace explicit; entries outside the solid closure must be exact
-    /// zero.  Fluid bubble entries are keyed by the exact owned `CellId` inventory.
-    ///
-    /// # Errors
-    /// Returns `EQ0801` for an incompatible shape, non-finite coefficient, or
-    /// non-zero displacement outside the solid closure.
-    pub fn new(
-        mesh: &SimplicialMesh,
-        partition: &FixedReferenceFsiPartition<D>,
-        vertex_velocity: Vec<[f64; D]>,
-        fluid_cell_bubble_velocity: BTreeMap<CellId, [f64; D]>,
-        solid_displacement: Vec<[f64; D]>,
-    ) -> Result<Self, Diagnostic> {
-        require_mesh_dimension::<D>(mesh)?;
-        let vertex_count = mesh.vertices().len();
-        if vertex_velocity.len() != vertex_count
-            || solid_displacement.len() != vertex_count
-            || !fluid_cell_bubble_velocity
-                .keys()
-                .copied()
-                .eq(partition.fluid_cells().iter().copied())
-            || vertex_velocity
-                .iter()
-                .chain(fluid_cell_bubble_velocity.values())
-                .chain(&solid_displacement)
-                .flatten()
-                .any(|value| !value.is_finite())
-        {
-            return Err(invalid(
-                "fixed-reference FSI state must be finite and match its exact partition layout",
-            ));
-        }
-        let solid = partition
-            .solid_vertices()
-            .iter()
-            .map(|vertex| vertex.index())
-            .collect::<BTreeSet<_>>();
-        if solid_displacement
-            .iter()
-            .enumerate()
-            .any(|(vertex, value)| !solid.contains(&vertex) && *value != [0.0; D])
-        {
-            return Err(invalid(
-                "fixed-reference FSI displacement must be exact zero outside the solid closure",
-            ));
-        }
-        Ok(Self {
-            vertex_velocity,
-            fluid_cell_bubble_velocity,
-            solid_displacement,
-        })
-    }
-
-    /// Previous shared mesh-vertex velocity coefficients.
-    #[must_use]
-    pub fn vertex_velocity(&self) -> &[[f64; D]] {
-        &self.vertex_velocity
-    }
-
-    /// Previous fluid MINI bubble coefficients keyed by exact fluid `CellId`.
-    #[must_use]
-    pub fn fluid_cell_bubble_velocity(&self) -> &BTreeMap<CellId, [f64; D]> {
-        &self.fluid_cell_bubble_velocity
-    }
-
-    /// Previous solid P1 displacement in mesh-vertex order.
-    #[must_use]
-    pub fn solid_displacement(&self) -> &[[f64; D]] {
-        &self.solid_displacement
-    }
-}
+pub use super::state::FixedReferenceFsiState;
 
 pub(crate) fn validate_problem<const D: usize>(
     mesh: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
     boundary: &FixedReferenceFsiBoundary<D>,
     previous: &FixedReferenceFsiState<D>,
-    config: FixedReferenceFsiStepConfig<D>,
+    config: &FixedReferenceFsiStepConfig<D>,
     quadrature: &QuadratureRule,
 ) -> Result<(), Diagnostic> {
     validate_problem_common(mesh, partition, previous, config, quadrature)?;
@@ -545,14 +531,20 @@ pub(crate) fn validate_problem<const D: usize>(
             ));
         }
     }
-    if fixed.iter().any(|&vertex| {
-        previous.vertex_velocity[vertex]
-            .iter()
-            .any(|value| value.to_bits() != 0.0_f64.to_bits())
-    }) {
-        return Err(invalid(
-            "fixed-reference FSI previous state violates the homogeneous velocity closure",
-        ));
+    for &field in config.material().densities.keys() {
+        let values = previous
+            .fields
+            .get(&field)
+            .ok_or_else(|| invalid("history omits exact velocity Field"))?;
+        if values.coefficients.iter().any(|(key, value)| {
+            key.entity.dimension() == 0
+                && fixed.contains(&key.entity.index())
+                && value.to_bits() != 0.0_f64.to_bits()
+        }) {
+            return Err(invalid(
+                "previous exact velocity Field violates homogeneous exterior closure",
+            ));
+        }
     }
     Ok(())
 }
@@ -561,15 +553,22 @@ fn validate_problem_common<const D: usize>(
     mesh: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
     previous: &FixedReferenceFsiState<D>,
-    config: FixedReferenceFsiStepConfig<D>,
+    config: &FixedReferenceFsiStepConfig<D>,
     quadrature: &QuadratureRule,
 ) -> Result<(), Diagnostic> {
     require_mesh_dimension::<D>(mesh)?;
     let replayed = FixedReferenceFsiPartition::<D>::new(
         mesh,
-        partition.fluid_cells().to_vec(),
-        partition.solid_cells().to_vec(),
-        partition.interface_facets().to_vec(),
+        partition.domains().map(|domain| {
+            (
+                domain,
+                partition
+                    .domain_cells(domain)
+                    .expect("exact Domain")
+                    .to_vec(),
+            )
+        }),
+        &partition.quotients().collect::<Vec<_>>(),
     )?;
     if &replayed != partition {
         return Err(invalid(
@@ -589,13 +588,22 @@ fn validate_problem_common<const D: usize>(
             "fixed-reference FSI requires matching simplex quadrature exact through degree {required_exactness}",
         )));
     }
-    FixedReferenceFsiState::<D>::new(
-        mesh,
-        partition,
-        previous.vertex_velocity.clone(),
-        previous.fluid_cell_bubble_velocity.clone(),
-        previous.solid_displacement.clone(),
-    )?;
+    if previous.fields.iter().any(|(&id, field)| {
+        partition
+            .domain_cells(field.domain.downcast().expect("Domain"))
+            .is_none()
+            || field.coefficients.iter().any(|(key, value)| {
+                key.field != id
+                    || !value.is_finite()
+                    || mesh
+                        .entity_count(key.entity.dimension())
+                        .is_none_or(|count| key.entity.index() >= count)
+            })
+    }) {
+        return Err(invalid(
+            "physical State has stale Domain/entity ownership or nonfinite values",
+        ));
+    }
     Ok(())
 }
 

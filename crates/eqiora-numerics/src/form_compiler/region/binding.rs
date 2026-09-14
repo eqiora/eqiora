@@ -118,76 +118,7 @@ impl CompiledRegionForm {
             }
             multipliers.push(multiplier.value());
         }
-        let expected = self
-            .roles
-            .relations
-            .values()
-            .filter_map(|role| match role.kind {
-                Role::Kinematic { state, rate } => Some((state, rate)),
-                _ => None,
-            })
-            .collect::<BTreeMap<_, _>>();
-        let mut eliminations = BTreeMap::new();
-        let mut states = BTreeMap::new();
-        let second = DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("time");
-        if let Some(time) = time {
-            if time.step.dim() != second
-                || !time.step.value().is_finite()
-                || time.step.value() <= 0.0
-            {
-                return Err(invalid(
-                    "region Backward Euler step must be positive finite time",
-                ));
-            }
-            for state in &time.states {
-                let pair = state.pair();
-                let id = pair.state().erase();
-                let rate = pair.rate().erase();
-                if eliminations.insert(id, rate).is_some()
-                    || expected.get(&id) != Some(&rate)
-                    || self
-                        .roles
-                        .relations
-                        .get(&pair.relation().erase())
-                        .is_none_or(|relation| {
-                            relation.kind != (Role::Kinematic { state: id, rate })
-                        })
-                {
-                    return Err(invalid(
-                        "Plan state elimination differs from exact Model kinematics",
-                    ));
-                }
-                let layout = layouts
-                    .iter()
-                    .find(|layout| layout.field == rate)
-                    .ok_or_else(|| invalid("eliminated state rate is not an algebraic Field"))?;
-                let value_type = &self.roles.fields[&id].1;
-                positive_scale(state.state_scale().quantity(), value_type)?;
-                if state.state_space() != layout.space
-                    || value_type.dimension().div(second) != Some(layout.value_type.dimension())
-                    || value_type.shape() != layout.value_type.shape()
-                    || value_type.frame() != layout.value_type.frame()
-                {
-                    return Err(invalid(
-                        "state elimination requires matching typed rate and discrete space",
-                    ));
-                }
-                states.insert(
-                    id,
-                    RegionFieldLayout {
-                        field: id,
-                        value_type: value_type.clone(),
-                        space: layout.space,
-                        range: 0..layout.range.len(),
-                        components: layout.components,
-                        scale: state.state_scale().quantity().value(),
-                    },
-                );
-            }
-        }
-        if expected != eliminations {
-            return Err(invalid("Plan must bind every exact Model kinematic pair"));
-        }
+        let (eliminations, states) = state_layouts(&self.roles, &layouts, time)?;
         let mut previous = BTreeMap::new();
         for term in self.rows.iter().flat_map(|row| &row.terms) {
             if let Some(state) = states.get(&term.trial) {
@@ -272,4 +203,89 @@ pub(crate) fn basis(
             "region form requires P1, Q1 or simplex P1-bubble bases",
         )),
     }
+}
+
+#[allow(clippy::type_complexity)]
+pub(crate) fn state_layouts(
+    roles: &super::EquationRoles,
+    layouts: &[RegionFieldLayout],
+    time: Option<&RegionTimeBinding>,
+) -> Result<(BTreeMap<RawId, RawId>, BTreeMap<RawId, RegionFieldLayout>), Diagnostic> {
+    let expected = roles
+        .relations
+        .values()
+        .filter_map(|role| match role.kind {
+            Role::Kinematic { state, rate } => Some((state, rate)),
+            _ => None,
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut eliminations = BTreeMap::new();
+    let mut states = BTreeMap::new();
+    let second = DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("time");
+    if let Some(time) = time {
+        if time.step.dim() != second || !time.step.value().is_finite() || time.step.value() <= 0.0 {
+            return Err(invalid(
+                "region Backward Euler step must be positive finite time",
+            ));
+        }
+        for state in &time.states {
+            let pair = state.pair();
+            let id = pair.state().erase();
+            let rate = pair.rate().erase();
+            if eliminations.insert(id, rate).is_some()
+                || expected.get(&id) != Some(&rate)
+                || roles
+                    .relations
+                    .get(&pair.relation().erase())
+                    .is_none_or(|relation| relation.kind != (Role::Kinematic { state: id, rate }))
+            {
+                return Err(invalid(
+                    "Plan state elimination differs from exact Model kinematics",
+                ));
+            }
+            let layout = layouts
+                .iter()
+                .find(|layout| layout.field == rate)
+                .ok_or_else(|| invalid("eliminated state rate is not an algebraic Field"))?;
+            let value_type = &roles.fields[&id].1;
+            if roles.fields[&id].0 != roles.fields[&rate].0 {
+                return Err(invalid(
+                    "state and rate have different exact Domain ownership",
+                ));
+            }
+            states.insert(id, state_layout(*state, value_type, layout)?);
+        }
+    }
+    if expected != eliminations {
+        return Err(invalid("Plan must bind every exact Model kinematic pair"));
+    }
+    Ok((eliminations, states))
+}
+
+pub(crate) fn state_layout(
+    state: BackwardEulerStateBinding,
+    value_type: &ValueType,
+    rate: &RegionFieldLayout,
+) -> Result<RegionFieldLayout, Diagnostic> {
+    let second = DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("time");
+    positive_scale(state.state_scale().quantity(), value_type)?;
+    if state.pair().rate().erase() != rate.field
+        || state.state_space() != rate.space
+        || value_type.dimension().div(second) != Some(rate.value_type.dimension())
+        || value_type.shape() != rate.value_type.shape()
+        || value_type.frame() != rate.value_type.frame()
+        || value_type.scalar_domain() != rate.value_type.scalar_domain()
+    {
+        return Err(invalid(
+            "state elimination requires matching typed rate and discrete space",
+        ));
+    }
+    Ok(RegionFieldLayout {
+        field: state.pair().state().erase(),
+        value_type: value_type.clone(),
+        space: rate.space,
+        range: 0..rate.range.len(),
+        components: rate.components,
+        scale: state.state_scale().quantity().value(),
+    })
 }

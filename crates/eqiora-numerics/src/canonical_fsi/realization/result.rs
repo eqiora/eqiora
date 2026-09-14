@@ -7,7 +7,6 @@ use eqiora_distributed::DistributedLinearSystem;
 use eqiora_execution::{
     AcceptedLinearExecution, AdmittedExecution, DeploymentBinding, ExecutionReceipt,
 };
-use eqiora_meshing::{CellId, FacetId, VertexId};
 use eqiora_realization::{
     CoupledFieldwiseRealizationPlan, MeshArtifactReference, PortableRealizationGraph,
     RealizationRevision, SemanticRevision, SolveRoot, Target, VectorLayoutKind,
@@ -22,58 +21,7 @@ use eqiora_spatial_distribution::{
 use crate::discrete_block::DiscreteBlockSystem;
 use crate::finalized_spatial::FinalizedLinearCore;
 use crate::simplicial_fsi::FixedReferenceFsiAssemblyTargetRoles;
-use crate::simplicial_fsi::{
-    FinalizedFixedReferenceFsiStep, FixedReferenceFsiPartition, FixedReferenceFsiSolution,
-};
-
-/// Exact semantic Field roles retained across numerical execution.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FixedReferenceFsiFieldIdentities2d {
-    fluid_velocity: Id<kinds::Field>,
-    fluid_pressure: Id<kinds::Field>,
-    solid_velocity: Id<kinds::Field>,
-    solid_displacement: Id<kinds::Field>,
-}
-
-impl FixedReferenceFsiFieldIdentities2d {
-    pub(super) const fn new(
-        fluid_velocity: Id<kinds::Field>,
-        fluid_pressure: Id<kinds::Field>,
-        solid_velocity: Id<kinds::Field>,
-        solid_displacement: Id<kinds::Field>,
-    ) -> Self {
-        Self {
-            fluid_velocity,
-            fluid_pressure,
-            solid_velocity,
-            solid_displacement,
-        }
-    }
-
-    /// Inertial-fluid velocity Field represented by MINI coefficients.
-    #[must_use]
-    pub const fn fluid_velocity(self) -> Id<kinds::Field> {
-        self.fluid_velocity
-    }
-
-    /// Incompressibility-multiplier Field represented by fluid-vertex P1 coefficients.
-    #[must_use]
-    pub const fn fluid_pressure(self) -> Id<kinds::Field> {
-        self.fluid_pressure
-    }
-
-    /// Dynamic-solid velocity Field represented by P1 coefficients.
-    #[must_use]
-    pub const fn solid_velocity(self) -> Id<kinds::Field> {
-        self.solid_velocity
-    }
-
-    /// Dynamic-solid displacement reconstructed after Backward Euler elimination.
-    #[must_use]
-    pub const fn solid_displacement(self) -> Id<kinds::Field> {
-        self.solid_displacement
-    }
-}
+use crate::simplicial_fsi::{FinalizedFixedReferenceFsiStep, FixedReferenceFsiSolution};
 
 /// Exact resolved FSI operator with semantic and Realization provenance.
 ///
@@ -86,8 +34,6 @@ pub struct FinalizedResolvedFixedReferenceFsiStep2d {
     semantic_revision: SemanticRevision,
     realization_revision: RealizationRevision,
     mesh_artifact: MeshArtifactReference,
-    fields: FixedReferenceFsiFieldIdentities2d,
-    partition: FixedReferenceFsiPartition<2>,
     realization_plan: CoupledFieldwiseRealizationPlan,
     realization_graph: PortableRealizationGraph,
     core: FinalizedLinearCore,
@@ -119,8 +65,6 @@ impl FinalizedResolvedFixedReferenceFsiStep2d {
         semantic_revision: SemanticRevision,
         realization_revision: RealizationRevision,
         mesh_artifact: MeshArtifactReference,
-        fields: FixedReferenceFsiFieldIdentities2d,
-        partition: FixedReferenceFsiPartition<2>,
         realization_plan: CoupledFieldwiseRealizationPlan,
         realization_graph: PortableRealizationGraph,
         block_system: DiscreteBlockSystem,
@@ -158,8 +102,6 @@ impl FinalizedResolvedFixedReferenceFsiStep2d {
             semantic_revision,
             realization_revision,
             mesh_artifact,
-            fields,
-            partition,
             realization_plan,
             realization_graph,
             core,
@@ -189,12 +131,6 @@ impl FinalizedResolvedFixedReferenceFsiStep2d {
     #[must_use]
     pub const fn mesh_artifact(&self) -> MeshArtifactReference {
         self.mesh_artifact
-    }
-
-    /// Exact semantic roles represented by the finalized coefficients.
-    #[must_use]
-    pub const fn fields(&self) -> FixedReferenceFsiFieldIdentities2d {
-        self.fields
     }
 
     /// Exact selected host-reproducible or CUDA-fast MINRES plan.
@@ -342,8 +278,6 @@ impl FinalizedResolvedFixedReferenceFsiStep2d {
             realization_plan,
             realization_graph,
             core,
-            fields,
-            partition,
             inner,
             ..
         } = self;
@@ -355,8 +289,6 @@ impl FinalizedResolvedFixedReferenceFsiStep2d {
             mesh_artifact,
             realization_plan,
             realization_graph,
-            fields,
-            partition,
             inner: inner.finish(solution)?,
         })
     }
@@ -620,8 +552,6 @@ pub struct ResolvedFixedReferenceFsiSolution2d {
     mesh_artifact: MeshArtifactReference,
     realization_plan: CoupledFieldwiseRealizationPlan,
     realization_graph: PortableRealizationGraph,
-    fields: FixedReferenceFsiFieldIdentities2d,
-    partition: FixedReferenceFsiPartition<2>,
     inner: FixedReferenceFsiSolution<2>,
 }
 
@@ -662,122 +592,9 @@ impl ResolvedFixedReferenceFsiSolution2d {
         &self.realization_graph
     }
 
-    /// Exact semantic roles represented by this result.
-    #[must_use]
-    pub const fn fields(&self) -> FixedReferenceFsiFieldIdentities2d {
-        self.fields
-    }
-
-    /// Fluid-closure vertices supporting P1 coefficients of `fluid_velocity`.
-    #[must_use]
-    pub fn fluid_velocity_vertices(&self) -> &[VertexId] {
-        self.partition.fluid_vertices()
-    }
-
-    /// Fluid cells supporting MINI bubble coefficients, in coefficient order.
-    #[must_use]
-    pub fn fluid_velocity_cells(&self) -> &[CellId] {
-        self.partition.fluid_cells()
-    }
-
-    /// Solid-closure vertices supporting P1 coefficients of `solid_velocity`.
-    #[must_use]
-    pub fn solid_velocity_vertices(&self) -> &[VertexId] {
-        self.partition.solid_vertices()
-    }
-
-    /// Solid cells supporting the P1 velocity and displacement Fields.
-    #[must_use]
-    pub fn solid_cells(&self) -> &[CellId] {
-        self.partition.solid_cells()
-    }
-
-    /// Exact interface facets whose vertex coefficients are shared by both velocities.
-    #[must_use]
-    pub fn interface_facets(&self) -> &[FacetId] {
-        self.partition.interface_facets()
-    }
-
-    /// Shared mesh-vertex physical velocity coefficients.
-    ///
-    /// Project with [`Self::fluid_velocity_vertices`] or
-    /// [`Self::solid_velocity_vertices`]. Both projections address the same
-    /// coefficients on the interface, which is the exact trace quotient.
-    #[must_use]
-    pub fn vertex_velocity_coefficients(&self) -> &[[f64; 2]] {
-        self.inner.vertex_velocity()
-    }
-
-    /// Fluid-velocity P1 coefficient at one vertex in the fluid closure.
-    #[must_use]
-    pub fn fluid_velocity_coefficient(&self, vertex: VertexId) -> Option<[f64; 2]> {
-        self.partition
-            .fluid_vertices()
-            .binary_search(&vertex)
-            .ok()
-            .map(|_| self.inner.vertex_velocity()[vertex.index()])
-    }
-
-    /// Solid-velocity P1 coefficient at one vertex in the solid closure.
-    #[must_use]
-    pub fn solid_velocity_coefficient(&self, vertex: VertexId) -> Option<[f64; 2]> {
-        self.partition
-            .solid_vertices()
-            .binary_search(&vertex)
-            .ok()
-            .map(|_| self.inner.vertex_velocity()[vertex.index()])
-    }
-
-    /// Fluid-cell MINI bubble coefficients keyed by exact [`Self::fluid_velocity_cells`] identity.
-    #[must_use]
-    pub fn fluid_velocity_bubble_coefficients(
-        &self,
-    ) -> &std::collections::BTreeMap<CellId, [f64; 2]> {
-        self.inner.fluid_cell_bubble_velocity()
-    }
-
-    /// Fluid pressure P1 support vertices in coefficient order.
-    #[must_use]
-    pub fn fluid_pressure_vertices(&self) -> &[VertexId] {
-        self.inner.fluid_pressure_vertices()
-    }
-
-    /// Physical pressure coefficients bound to the exact fluid pressure Field.
-    #[must_use]
-    pub fn fluid_pressure_coefficients(&self) -> &[f64] {
-        self.inner.fluid_pressure()
-    }
-
-    /// Fluid-pressure P1 coefficient at one supported vertex.
-    #[must_use]
-    pub fn fluid_pressure_coefficient(&self, vertex: VertexId) -> Option<f64> {
-        self.inner
-            .fluid_pressure_vertices()
-            .binary_search(&vertex)
-            .ok()
-            .map(|position| self.inner.fluid_pressure()[position])
-    }
-
-    /// Solid-closure vertices supporting reconstructed displacement coefficients.
-    #[must_use]
-    pub fn solid_displacement_vertices(&self) -> &[VertexId] {
-        self.partition.solid_vertices()
-    }
-
-    /// Physical displacement coefficients in mesh order, zero outside the solid.
-    #[must_use]
-    pub fn solid_displacement_coefficients(&self) -> &[[f64; 2]] {
-        self.inner.solid_displacement()
-    }
-
-    /// Reconstructed solid-displacement P1 coefficient at one supported vertex.
-    #[must_use]
-    pub fn solid_displacement_coefficient(&self, vertex: VertexId) -> Option<[f64; 2]> {
-        self.partition
-            .solid_vertices()
-            .binary_search(&vertex)
-            .ok()
-            .map(|_| self.inner.solid_displacement()[vertex.index()])
+    /// All physical Fields with exact Domain, entity and component ownership.
+    pub const fn state(&self) -> &crate::simplicial_fsi::FixedReferenceFsiState<2> {
+        self.inner.state()
     }
 
     /// Pure numerical Fields and all falsifying balance evidence.

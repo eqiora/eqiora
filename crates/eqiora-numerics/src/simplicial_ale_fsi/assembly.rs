@@ -123,7 +123,7 @@ pub(super) fn prepare_ale_fsi_structure<const D: usize>(
     boundary: &PreparedAleFsiBoundaryStep<D>,
     motion: &P1HarmonicMeshMotionAction<D>,
     initial: &AleFsiState<D>,
-    plan: AleFsiStepPlan<D>,
+    plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
     base_layout: &FsiLayout<D>,
 ) -> Result<PreparedAleFsiStructure<D>, Diagnostic> {
@@ -172,7 +172,7 @@ pub(super) fn prepare_ale_fsi_structure<const D: usize>(
             })?;
         require_simplex_closure::<D>(&vertices, reference.vertices().len())?;
         let (reduced_map, full_map, bubble_cell) = match layout.cell_domain(cell_index)? {
-            domain if domain == layout.fluid_domain() => {
+            domain if layout.pressure_field(domain).is_some() => {
                 let cell = CellId::new(cell_index);
                 (
                     layout.fluid_map(cell, &vertices, true)?,
@@ -180,7 +180,7 @@ pub(super) fn prepare_ale_fsi_structure<const D: usize>(
                     Some(cell),
                 )
             }
-            domain if domain == layout.solid_domain() => (
+            domain if layout.state_field(domain).is_some() => (
                 layout.solid_map(cell_index, &vertices, true)?,
                 layout.solid_map(cell_index, &vertices, false)?,
                 None,
@@ -228,11 +228,11 @@ impl<const D: usize> PreparedAleFsiStructure<D> {
     }
     pub(super) fn prepare_action(
         &self,
-        reference: &SimplicialMesh,
-        partition: &FixedReferenceFsiPartition<D>,
+        _reference: &SimplicialMesh,
+        _partition: &FixedReferenceFsiPartition<D>,
         boundary: PreparedAleFsiBoundaryStep<D>,
         previous: &AleFsiState<D>,
-        plan: AleFsiStepPlan<D>,
+        plan: &AleFsiStepPlan<D>,
     ) -> Result<PreparedAleFsiAction<D>, Diagnostic> {
         if !self.boundary_template.has_same_structure(&boundary) {
             return Err(invalid(
@@ -240,7 +240,7 @@ impl<const D: usize> PreparedAleFsiStructure<D> {
             ));
         }
         boundary.validate_action(previous, plan)?;
-        let previous_reference = previous.to_fixed_reference_state(reference, partition)?;
+        let previous_reference = previous.physical_state().clone();
         Ok(PreparedAleFsiAction {
             boundary,
             previous_reference,
@@ -251,7 +251,7 @@ impl<const D: usize> PreparedAleFsiStructure<D> {
         &self,
         action: &PreparedAleFsiAction<D>,
         previous: &AleFsiState<D>,
-        plan: AleFsiStepPlan<D>,
+        plan: &AleFsiStepPlan<D>,
     ) -> Result<Vec<f64>, Diagnostic> {
         action
             .boundary
@@ -266,7 +266,7 @@ pub(super) fn initial_point<const D: usize>(
     boundary: &AleFsiBoundary<D>,
     motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
-    plan: AleFsiStepPlan<D>,
+    plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
     base_layout: &FsiLayout<D>,
 ) -> Result<Vec<f64>, Diagnostic> {
@@ -296,7 +296,7 @@ pub(super) fn initial_point_prepared<const D: usize>(
     boundary: &PreparedAleFsiBoundaryStep<D>,
     motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
-    plan: AleFsiStepPlan<D>,
+    plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
     base_layout: &FsiLayout<D>,
 ) -> Result<Vec<f64>, Diagnostic> {
@@ -322,7 +322,7 @@ pub(super) fn assemble_step_linearization<const D: usize>(
     motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     candidate: &[f64],
-    plan: AleFsiStepPlan<D>,
+    plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend,
     base_layout: &FsiLayout<D>,
@@ -359,7 +359,7 @@ pub(super) fn assemble_step_linearization_prepared<const D: usize>(
     motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     candidate: &[f64],
-    plan: AleFsiStepPlan<D>,
+    plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend,
     base_layout: &FsiLayout<D>,
@@ -391,7 +391,7 @@ pub(super) fn assemble_step_linearization_with_structure<const D: usize>(
     motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     candidate: &[f64],
-    plan: AleFsiStepPlan<D>,
+    plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend,
 ) -> Result<StepAssembly<D>, Diagnostic> {
@@ -484,7 +484,7 @@ pub(super) fn assemble_step_residual<const D: usize>(
     motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     candidate: &[f64],
-    plan: AleFsiStepPlan<D>,
+    plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
     base_layout: &FsiLayout<D>,
 ) -> Result<Vec<f64>, Diagnostic> {
@@ -519,7 +519,7 @@ pub(super) fn assemble_step_residual_prepared<const D: usize>(
     motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
     candidate: &[f64],
-    plan: AleFsiStepPlan<D>,
+    plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
     base_layout: &FsiLayout<D>,
 ) -> Result<Vec<f64>, Diagnostic> {
@@ -557,7 +557,7 @@ fn prepare_step<const D: usize>(
     action: &PreparedAleFsiAction<D>,
     motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
-    plan: AleFsiStepPlan<D>,
+    plan: &AleFsiStepPlan<D>,
     candidate: &[f64],
 ) -> Result<PreparedStep<D>, Diagnostic> {
     if candidate.len() != structure.layout.reduced_size()
@@ -597,7 +597,7 @@ fn assemble_direct_residuals<const D: usize>(
     action: &PreparedAleFsiAction<D>,
     previous: &AleFsiState<D>,
     candidate: &[f64],
-    plan: AleFsiStepPlan<D>,
+    plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
     prepared: &PreparedStep<D>,
 ) -> Result<DirectResiduals, Diagnostic> {
@@ -625,8 +625,8 @@ fn assemble_direct_residuals<const D: usize>(
             &evaluated.residual,
         )?;
         let full = match evaluated.domain {
-            domain if domain == structure.layout.fluid_domain() => &mut full_fluid,
-            domain if domain == structure.layout.solid_domain() => &mut full_solid,
+            domain if structure.layout.pressure_field(domain).is_some() => &mut full_fluid,
+            domain if structure.layout.state_field(domain).is_some() => &mut full_solid,
             _ => {
                 return Err(invalid(format!(
                     "ALE FSI cell {cell_index} has no material assignment"
@@ -680,7 +680,7 @@ fn evaluate_cell<const D: usize>(
     previous_reference: &FixedReferenceFsiState<D>,
     current: &AleFsiState<D>,
     geometry_action: &FixedTopologyGeometryAction<D>,
-    plan: AleFsiStepPlan<D>,
+    plan: &AleFsiStepPlan<D>,
     candidate: &[f64],
     directions: &[AlgebraicDirection<D>],
     cell: &PreparedAleFsiCell,
@@ -702,6 +702,7 @@ fn evaluate_cell<const D: usize>(
     )?;
     let matrix = match &evaluated.source {
         CellResidualSource::Fluid { bubble_cell } => evaluate_fluid_jacobian(
+            layout,
             cell_index,
             *bubble_cell,
             reference,
@@ -742,13 +743,14 @@ fn evaluate_cell_residual<const D: usize>(
     previous_reference: &FixedReferenceFsiState<D>,
     current: &AleFsiState<D>,
     geometry_action: &FixedTopologyGeometryAction<D>,
-    plan: AleFsiStepPlan<D>,
+    plan: &AleFsiStepPlan<D>,
     candidate: &[f64],
     cell: &PreparedAleFsiCell,
 ) -> Result<EvaluatedCellResidual, Diagnostic> {
     let domain = layout.cell_domain(cell_index)?;
     let (residual, reduced_map, full_map, source) = match domain {
-        domain if domain == layout.fluid_domain() => evaluate_fluid_residual(
+        domain if layout.pressure_field(domain).is_some() => evaluate_fluid_residual(
+            layout,
             cell_index,
             cell,
             partition,
@@ -758,7 +760,8 @@ fn evaluate_cell_residual<const D: usize>(
             geometry_action,
             plan,
         )?,
-        domain if domain == layout.solid_domain() => evaluate_solid_residual(
+        domain if layout.state_field(domain).is_some() => evaluate_solid_residual(
+            layout,
             cell_index,
             MeshEntity::new(D, cell_index),
             cell,
@@ -792,6 +795,7 @@ fn evaluate_cell_residual<const D: usize>(
 }
 
 struct PreparedFluidCell<'a, const D: usize> {
+    velocity_field: eqiora_core::RawId,
     geometry: &'a eqiora_meshing::FixedTopologyCellGeometryAction<D>,
     previous_velocity: Vec<[f64; D]>,
     current_velocity: Vec<[f64; D]>,
@@ -799,44 +803,58 @@ struct PreparedFluidCell<'a, const D: usize> {
 }
 
 impl<const D: usize> PreparedFluidCell<'_, D> {
-    fn operator(&self, plan: AleFsiStepPlan<D>) -> AleMiniFluidCell<'_, D> {
-        AleMiniFluidCell::<D> {
+    fn operator(&self, plan: &AleFsiStepPlan<D>) -> Result<AleMiniFluidCell<'_, D>, Diagnostic> {
+        let field = self.velocity_field.downcast().expect("Field");
+        Ok(AleMiniFluidCell::<D> {
             geometry: self.geometry,
-            density: plan.material().fluid_density(),
-            viscosity: plan.material().fluid_dynamic_viscosity(),
+            density: plan
+                .material()
+                .density(field)
+                .ok_or_else(|| invalid("missing exact ALE density Field"))?,
+            viscosity: plan
+                .material()
+                .viscosity(field)
+                .ok_or_else(|| invalid("missing exact ALE viscosity Field"))?,
             time_step: plan.time_step(),
             previous_velocity: &self.previous_velocity,
             current_velocity: &self.current_velocity,
             current_pressure: &self.current_pressure,
-        }
+        })
     }
 }
 
 fn prepare_fluid_cell<'a, const D: usize>(
+    layout: &FsiLayout<D>,
     cell_index: usize,
     vertices: &[MeshEntity],
-    partition: &FixedReferenceFsiPartition<D>,
+    _partition: &FixedReferenceFsiPartition<D>,
     previous: &AleFsiState<D>,
     current: &AleFsiState<D>,
     geometry_action: &'a FixedTopologyGeometryAction<D>,
 ) -> Result<(CellId, PreparedFluidCell<'a, D>), Diagnostic> {
     let bubble_cell = CellId::new(cell_index);
-    let previous_bubble = previous
-        .fluid_cell_bubble_velocity()
-        .get(&bubble_cell)
-        .copied()
-        .ok_or_else(|| invalid("ALE FSI previous fluid bubble inventory is incomplete"))?;
-    let current_bubble = current
-        .fluid_cell_bubble_velocity()
-        .get(&bubble_cell)
-        .copied()
-        .ok_or_else(|| invalid("ALE FSI current fluid bubble inventory is incomplete"))?;
-    let previous_velocity =
-        local_velocity_coefficients(vertices, previous.vertex_velocity(), previous_bubble)?;
-    let current_velocity =
-        local_velocity_coefficients(vertices, current.vertex_velocity(), current_bubble)?;
-    let current_pressure =
-        local_pressure_coefficients(vertices, partition, current.fluid_pressure())?;
+    let domain = layout.cell_domain(cell_index)?;
+    let velocity_field = layout.velocity_field(domain)?;
+    let pressure_field = layout
+        .pressure_field(domain)
+        .ok_or_else(|| invalid("ALE cell has no exact constraint witness"))?;
+    let previous_velocity = local_velocity_coefficients(
+        vertices,
+        velocity_field,
+        &previous.physical_state().fields[&velocity_field].coefficients,
+        bubble_cell,
+    )?;
+    let current_velocity = local_velocity_coefficients(
+        vertices,
+        velocity_field,
+        &current.physical_state().fields[&velocity_field].coefficients,
+        bubble_cell,
+    )?;
+    let current_pressure = local_pressure_coefficients::<D>(
+        vertices,
+        pressure_field,
+        &current.physical_state().fields[&pressure_field].coefficients,
+    )?;
     let geometry = geometry_action.cell(cell_index).ok_or_else(|| {
         invalid(format!(
             "ALE FSI geometry action omits fluid cell {cell_index}"
@@ -845,6 +863,7 @@ fn prepare_fluid_cell<'a, const D: usize>(
     Ok((
         bubble_cell,
         PreparedFluidCell {
+            velocity_field,
             geometry,
             previous_velocity,
             current_velocity,
@@ -855,6 +874,7 @@ fn prepare_fluid_cell<'a, const D: usize>(
 
 #[allow(clippy::too_many_arguments)]
 fn evaluate_fluid_residual<const D: usize>(
+    layout: &FsiLayout<D>,
     cell_index: usize,
     cell: &PreparedAleFsiCell,
     partition: &FixedReferenceFsiPartition<D>,
@@ -862,9 +882,10 @@ fn evaluate_fluid_residual<const D: usize>(
     previous: &AleFsiState<D>,
     current: &AleFsiState<D>,
     geometry_action: &FixedTopologyGeometryAction<D>,
-    plan: AleFsiStepPlan<D>,
+    plan: &AleFsiStepPlan<D>,
 ) -> Result<(Vec<f64>, AssemblyMap, AssemblyMap, CellResidualSource), Diagnostic> {
     let (bubble_cell, prepared) = prepare_fluid_cell(
+        layout,
         cell_index,
         &cell.vertices,
         partition,
@@ -877,7 +898,7 @@ fn evaluate_fluid_residual<const D: usize>(
             "ALE FSI fluid cell identity changed after structural preparation",
         ));
     }
-    let primal = prepared.operator(plan).residual(quadrature)?;
+    let primal = prepared.operator(plan)?.residual(quadrature)?;
     let row_scales = fluid_row_scales(plan);
     if primal.len() != row_scales.len() {
         return Err(invalid(format!(
@@ -904,6 +925,7 @@ fn evaluate_fluid_residual<const D: usize>(
 
 #[allow(clippy::too_many_arguments)]
 fn evaluate_fluid_jacobian<const D: usize>(
+    layout: &FsiLayout<D>,
     cell_index: usize,
     expected_bubble_cell: CellId,
     reference: &SimplicialMesh,
@@ -912,7 +934,7 @@ fn evaluate_fluid_jacobian<const D: usize>(
     previous: &AleFsiState<D>,
     current: &AleFsiState<D>,
     geometry_action: &FixedTopologyGeometryAction<D>,
-    plan: AleFsiStepPlan<D>,
+    plan: &AleFsiStepPlan<D>,
     candidate_width: usize,
     directions: &[AlgebraicDirection<D>],
     vertices: &[MeshEntity],
@@ -923,6 +945,7 @@ fn evaluate_fluid_jacobian<const D: usize>(
         ));
     }
     let (bubble_cell, prepared) = prepare_fluid_cell(
+        layout,
         cell_index,
         vertices,
         partition,
@@ -935,22 +958,24 @@ fn evaluate_fluid_jacobian<const D: usize>(
             "ALE FSI fluid cell identity changed between residual and Jacobian evaluation",
         ));
     }
-    let cell_operator = prepared.operator(plan);
+    let cell_operator = prepared.operator(plan)?;
     let row_scales = fluid_row_scales(plan);
     let entry_count = fluid_local_size::<D>()
         .checked_mul(candidate_width)
         .ok_or_else(|| invalid("ALE FSI fluid cell Jacobian shape overflows usize"))?;
     let mut matrix = zeroed(entry_count, "fluid cell Jacobian")?;
     for (column, direction) in directions.iter().enumerate() {
-        let bubble_direction = direction
-            .fluid_bubbles
-            .get(&bubble_cell)
-            .copied()
-            .ok_or_else(|| invalid("ALE FSI fluid direction bubble inventory is incomplete"))?;
-        let velocity_direction =
-            local_velocity_coefficients(vertices, &direction.vertex_velocity, bubble_direction)?;
+        let velocity_direction = local_velocity_coefficients(
+            vertices,
+            prepared.velocity_field,
+            &direction.physical,
+            bubble_cell,
+        )?;
+        let pressure_field = layout
+            .pressure_field(layout.cell_domain(cell_index)?)
+            .ok_or_else(|| invalid("ALE Jacobian cell has no exact constraint witness"))?;
         let pressure_direction =
-            local_pressure_coefficients(vertices, partition, &direction.pressure)?;
+            local_pressure_coefficients::<D>(vertices, pressure_field, &direction.physical)?;
         if direction.coordinate.len() != reference.vertices().len() {
             return Err(invalid(
                 "ALE FSI coordinate direction differs from the mesh vertex inventory",
@@ -994,13 +1019,14 @@ fn evaluate_fluid_jacobian<const D: usize>(
 
 #[allow(clippy::too_many_arguments)]
 fn evaluate_solid_residual<const D: usize>(
+    layout: &FsiLayout<D>,
     cell_index: usize,
     entity: MeshEntity,
     cell: &PreparedAleFsiCell,
     reference: &SimplicialMesh,
     quadrature: &QuadratureRule,
     previous: &FixedReferenceFsiState<D>,
-    plan: AleFsiStepPlan<D>,
+    plan: &AleFsiStepPlan<D>,
     candidate: &[f64],
 ) -> Result<(Vec<f64>, AssemblyMap, AssemblyMap, CellResidualSource), Diagnostic> {
     let geometry = reference.geometry_map(entity).ok_or_else(|| {
@@ -1014,6 +1040,15 @@ fn evaluate_solid_residual<const D: usize>(
         plan.fixed_reference_config(),
         &cell.vertices,
         previous,
+        layout
+            .velocity_field(layout.cell_domain(cell_index)?)?
+            .downcast()
+            .expect("Field"),
+        layout
+            .state_field(layout.cell_domain(cell_index)?)
+            .ok_or_else(|| invalid("ALE elastic cell has no exact state"))?
+            .downcast()
+            .expect("Field"),
     )?;
     let reduced_map = cell.reduced_map.clone();
     let local_point = local_point(&reduced_map, candidate)?;
@@ -1105,14 +1140,14 @@ fn build_structural_jacobian_pattern<const D: usize>(
                 ))
             })?;
         let (local_size, map) = match layout.cell_domain(cell_index)? {
-            domain if domain == layout.fluid_domain() => {
+            domain if layout.pressure_field(domain).is_some() => {
                 let bubble_cell = CellId::new(cell_index);
                 (
                     fluid_local_size::<D>(),
                     layout.fluid_map(bubble_cell, &vertices, true)?,
                 )
             }
-            domain if domain == layout.solid_domain() => (
+            domain if layout.state_field(domain).is_some() => (
                 solid_local_size::<D>(),
                 layout.solid_map(cell_index, &vertices, true)?,
             ),
@@ -1131,7 +1166,11 @@ fn build_structural_jacobian_pattern<const D: usize>(
     // global singleton.
     for driver in motion.driver_vertices() {
         for component in 0..D {
-            if let Some(dof) = layout.reduced_vertex_velocity(driver.index(), component) {
+            if let Some(dof) = layout.reduced_vertex_velocity(
+                layout.state_rate(motion.policy().solid_displacement().erase())?,
+                driver.index(),
+                component,
+            ) {
                 pattern.mark_globally_coupled(dof.index())?;
             }
         }

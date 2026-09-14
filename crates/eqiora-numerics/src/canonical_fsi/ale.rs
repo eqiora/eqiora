@@ -162,6 +162,23 @@ fn lower_ale_fsi_cartesian<const D: usize>(
         "ALE FSI",
     )?;
 
+    let mut endpoints = [
+        FsiInterfaceSide {
+            domain: fluid.model.domain(),
+            field: fluid.model.velocity(),
+            boundary: fluid_side.boundary,
+            port: fluid_side.port,
+            side: fluid_side.side,
+        },
+        FsiInterfaceSide {
+            domain: solid.model.continuum().domain(),
+            field: solid.model.velocity(),
+            boundary: solid_side.boundary,
+            port: solid_side.port,
+            side: solid_side.side,
+        },
+    ];
+    endpoints.sort_by_key(|endpoint| endpoint.domain);
     Ok(AleFsiCartesianModel {
         program: program.clone(),
         model: program.model(),
@@ -171,16 +188,7 @@ fn lower_ale_fsi_cartesian<const D: usize>(
         interface: FsiInterface {
             connection: fluid_side.connection,
             axis: fluid_side.axis,
-            fluid: FsiInterfaceSide {
-                boundary: fluid_side.boundary,
-                port: fluid_side.port,
-                side: fluid_side.side,
-            },
-            solid: FsiInterfaceSide {
-                boundary: solid_side.boundary,
-                port: solid_side.port,
-                side: solid_side.side,
-            },
+            endpoints,
         },
     })
 }

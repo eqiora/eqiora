@@ -13,14 +13,11 @@ use crate::simplicial_fsi::{
     FixedReferenceFsiPartition, FixedReferenceFsiState, PreparedFixedReferenceFsiAssembly,
 };
 
-use super::super::validate::{
-    fluid_domain, fluid_velocity, invalid_realization, solid_displacement, solid_domain,
-    solid_velocity,
-};
+use super::super::validate::invalid_realization;
 
 #[allow(clippy::too_many_arguments)]
 pub(in super::super) fn prepare_cells(
-    model: &FixedReferenceFsiCartesianModel2d,
+    _model: &FixedReferenceFsiCartesianModel2d,
     forms: &BTreeMap<RawId, BoundRegionForm>,
     mesh: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<2>,
@@ -32,15 +29,9 @@ pub(in super::super) fn prepare_cells(
     let mut domains = vec![None; partition.cell_count()];
     let mut cells = Vec::new();
     for (&domain, form) in forms {
-        let selected = if domain == fluid_domain(model).erase() {
-            partition.fluid_cells()
-        } else if domain == solid_domain(model).erase() {
-            partition.solid_cells()
-        } else {
-            return Err(invalid_realization(
-                "region Domain has no authenticated mesh partition",
-            ));
-        };
+        let selected = partition
+            .domain_cells(domain.downcast().expect("Domain"))
+            .ok_or_else(|| invalid_realization("region Domain has no exact partition support"))?;
         for cell in selected {
             let index = cell.index();
             if domains[index].replace(domain).is_some() {
@@ -52,9 +43,6 @@ pub(in super::super) fn prepare_cells(
             let geometry = mesh
                 .geometry_map(entity)
                 .ok_or_else(|| invalid_realization("region cell has no affine geometry"))?;
-            let vertices = mesh
-                .entity_vertices(entity)
-                .ok_or_else(|| invalid_realization("region cell has no vertex closure"))?;
             let maps = [true, false]
                 .into_iter()
                 .map(|reduced| {
@@ -70,31 +58,49 @@ pub(in super::super) fn prepare_cells(
                 })
                 .collect::<Result<Vec<_>, Diagnostic>>()?;
             let mut history = BTreeMap::new();
-            for field in form.previous_fields().keys().copied() {
-                let values = if field == solid_displacement(model).erase() {
-                    previous.solid_displacement()
-                } else if field == fluid_velocity(model).erase()
-                    || field == solid_velocity(model).erase()
-                {
-                    previous.vertex_velocity()
-                } else {
+            for (&field, layout) in form.previous_fields() {
+                let physical = previous.fields.get(&field).ok_or_else(|| {
+                    invalid_realization("region history omits exact physical Field")
+                })?;
+                if physical.domain != domain || physical.value_type != layout.value_type {
                     return Err(invalid_realization(
-                        "region history has no exact physical State Field",
+                        "region history has stale Domain or ValueType",
                     ));
+                }
+                let algebraic = if prepared.layout().mapping().field_layout(field).is_some() {
+                    field
+                } else {
+                    prepared
+                        .layout()
+                        .state_bindings()
+                        .iter()
+                        .find(|binding| binding.pair().state().erase() == field)
+                        .ok_or_else(|| {
+                            invalid_realization("history has no exact state/rate binding")
+                        })?
+                        .pair()
+                        .rate()
+                        .erase()
                 };
-                let mut local = vertices
-                    .iter()
-                    .flat_map(|vertex| values[vertex.index()])
-                    .collect::<Vec<_>>();
-                if field == fluid_velocity(model).erase() {
-                    local.extend_from_slice(
-                        previous
-                            .fluid_cell_bubble_velocity()
-                            .get(&eqiora_meshing::CellId::new(index))
+                let local = prepared
+                    .layout()
+                    .mapping()
+                    .cell_field_keys(index, algebraic)?
+                    .into_iter()
+                    .map(|key| {
+                        physical
+                            .coefficients
+                            .get(&crate::region_assembly::mapping::FieldDof { field, ..key })
+                            .copied()
                             .ok_or_else(|| {
-                                invalid_realization("region history omits exact bubble cell")
-                            })?,
-                    );
+                                invalid_realization("region history omits exact local coordinate")
+                            })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                if local.len() != layout.range.len() {
+                    return Err(invalid_realization(
+                        "region history differs from exact local Field layout",
+                    ));
                 }
                 history.insert(field, local);
             }

@@ -47,7 +47,7 @@ fn cpu_and_cuda_realizations_finalize_one_exact_fsi_operator() {
         .expect("fixed-reference FSI semantics lower");
     let spatial = spatial_context(document.program(), &canonical);
     let host = execution_context(document.program(), &canonical, &spatial);
-    let previous = prestrained_state(&spatial);
+    let previous = prestrained_state(document.program(), &spatial, &host);
 
     let host_finalized = finalize_resolved_fixed_reference_fsi_step_2d(
         &canonical,
@@ -120,7 +120,7 @@ fn fixed_reference_fsi_runs_through_the_exact_cuda_execution_handoff() {
         .expect("fixed-reference FSI semantics lower");
     let spatial = spatial_context(document.program(), &canonical);
     let host = execution_context(document.program(), &canonical, &spatial);
-    let previous = prestrained_state(&spatial);
+    let previous = prestrained_state(document.program(), &spatial, &host);
 
     let host_finalized = finalize_resolved_fixed_reference_fsi_step_2d(
         &canonical,

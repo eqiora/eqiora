@@ -233,9 +233,11 @@ struct WireFsiStateEvidence {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct WireFsiInterfaceAction {
-    vertex: u64,
-    fluid: [f64; 2],
-    solid: [f64; 2],
+    connection: String,
+    entity_dimension: u64,
+    entity_index: u64,
+    slot: u64,
+    endpoints: [(String, String, [f64; 2]); 2],
 }
 
 impl CommonResult {
@@ -805,9 +807,16 @@ impl WireFsiStateEvidence {
                 .iter()
                 .map(|action| {
                     Ok(WireFsiInterfaceAction {
-                        vertex: to_u64(action.vertex, "FSI interface vertex")?,
-                        fluid: action.fluid,
-                        solid: action.solid,
+                        connection: action.connection().ulid().to_string(),
+                        entity_dimension: to_u64(
+                            action.entity().dimension(),
+                            "interface entity dimension",
+                        )?,
+                        entity_index: to_u64(action.entity().index(), "interface entity index")?,
+                        slot: to_u64(action.slot(), "interface local slot")?,
+                        endpoints: action.endpoints().map(|(domain, field, value)| {
+                            (domain.ulid().to_string(), field.ulid().to_string(), value)
+                        }),
                     })
                 })
                 .collect::<Result<_, Diagnostic>>()?,
@@ -860,27 +869,43 @@ impl WireFsiStateEvidence {
         let mut previous = None;
         let mut interface_actions = Vec::with_capacity(self.interface_actions.len());
         for action in &self.interface_actions {
-            let vertex = to_usize(action.vertex, "FSI interface vertex")?;
-            if previous.is_some_and(|value| value >= vertex) {
+            let parse = |value: &str| {
+                ulid::Ulid::from_string(value)
+                    .map_err(|_| invalid("interface action has invalid exact identity"))
+            };
+            let connection = eqiora_core::Id::from_ulid(parse(&action.connection)?);
+            let entity = eqiora_meshing::MeshEntity::new(
+                to_usize(action.entity_dimension, "interface entity dimension")?,
+                to_usize(action.entity_index, "interface entity index")?,
+            );
+            let slot = to_usize(action.slot, "interface local slot")?;
+            let key = (connection.erase(), entity, slot);
+            if previous.is_some_and(|value| value >= key) {
                 return Err(invalid(
-                    "FSI interface actions are not uniquely vertex-sorted",
+                    "interface actions are not uniquely exact-coordinate sorted",
                 ));
             }
-            previous = Some(vertex);
-            require_finite(
-                &[
-                    action.fluid[0],
-                    action.fluid[1],
-                    action.solid[0],
-                    action.solid[1],
-                ],
-                "FSI interface action",
-            )?;
-            interface_actions.push(CommonFsiInterfaceActionEvidence {
-                vertex,
-                fluid: action.fluid,
-                solid: action.solid,
-            });
+            previous = Some(key);
+            let mut endpoints = Vec::new();
+            for (domain, field, value) in &action.endpoints {
+                require_finite(value, "interface action")?;
+                endpoints.push((
+                    eqiora_core::Id::from_ulid(parse(domain)?),
+                    eqiora_core::Id::from_ulid(parse(field)?),
+                    *value,
+                ));
+            }
+            let recovered = crate::simplicial_fsi::FixedReferenceFsiInterfaceAction {
+                connection,
+                entity,
+                slot,
+                endpoints: endpoints.try_into().expect("two exact endpoints"),
+            };
+            let ResolvedCommonPlan::Fsi(fsi) = plan else {
+                return Err(invalid("interface action requires exact FSI Plan"));
+            };
+            fsi.validate_interface_action(&recovered)?;
+            interface_actions.push(recovered);
         }
         let solve = self.solve.replay()?;
         require_plan_solver(plan, &solve)?;

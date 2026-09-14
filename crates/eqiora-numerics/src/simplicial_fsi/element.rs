@@ -1,7 +1,7 @@
 //! Dimensionless MINI-fluid and P1-solid local operators.
 
 use eqiora_assembly::LocalContribution;
-use eqiora_core::Diagnostic;
+use eqiora_core::{Diagnostic, Id, entity::kinds};
 use eqiora_meshing::{AffineGeometryMap, MeshEntity, QuadratureRule};
 
 use super::contract::{
@@ -14,24 +14,40 @@ use crate::simplicial_solid_element::p1_solid_backward_euler_velocity;
 pub(crate) fn fluid_local<const D: usize>(
     geometry: &AffineGeometryMap,
     quadrature: &QuadratureRule,
-    config: FixedReferenceFsiStepConfig<D>,
+    config: &FixedReferenceFsiStepConfig<D>,
     vertices: &[MeshEntity],
     previous: &FixedReferenceFsiState<D>,
     cell: eqiora_meshing::CellId,
+    field: Id<kinds::Field>,
 ) -> Result<LocalContribution, Diagnostic> {
     require_geometry::<D>(geometry, quadrature)?;
     let p1_count = p1_count::<D>();
+    let values = previous.vector_entities(field, 0)?;
     let mut previous_velocity = vertices
         .iter()
         .take(p1_count)
-        .map(|vertex| previous.vertex_velocity()[vertex.index()])
-        .collect::<Vec<_>>();
-    previous_velocity.push(previous.fluid_cell_bubble_velocity()[&cell]);
+        .map(|vertex| {
+            values
+                .get(vertex)
+                .copied()
+                .ok_or_else(|| super::invalid("missing exact velocity entity"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    previous_velocity.push(
+        *previous
+            .vector_entities(field, D)?
+            .get(&MeshEntity::new(D, cell.index()))
+            .ok_or_else(|| super::invalid("missing exact velocity bubble"))?,
+    );
     let material = config.material();
     let (local_size, matrix, rhs) = MiniScaledAffineCell::<D> {
         geometry,
-        density: material.fluid_density(),
-        viscosity: material.fluid_dynamic_viscosity(),
+        density: material
+            .density(field)
+            .ok_or_else(|| super::invalid("missing exact kinetic Field material"))?,
+        viscosity: material
+            .viscosity(field)
+            .ok_or_else(|| super::invalid("missing exact viscous Field material"))?,
         time_step: config.time_step(),
         previous_velocity: &previous_velocity,
         scales: MiniAffineScales::new(
@@ -49,30 +65,48 @@ pub(crate) fn fluid_local<const D: usize>(
 pub(crate) fn solid_local<const D: usize>(
     geometry: &AffineGeometryMap,
     quadrature: &QuadratureRule,
-    config: FixedReferenceFsiStepConfig<D>,
+    config: &FixedReferenceFsiStepConfig<D>,
     vertices: &[MeshEntity],
     previous: &FixedReferenceFsiState<D>,
+    velocity: Id<kinds::Field>,
+    displacement: Id<kinds::Field>,
 ) -> Result<LocalContribution, Diagnostic> {
     require_geometry::<D>(geometry, quadrature)?;
     let p1_count = p1_count::<D>();
     let material = config.material();
     let velocity_scale = config.scale().velocity();
     let power_scale = config.scale().power();
+    let velocity_values = previous.vector_entities(velocity, 0)?;
+    let displacement_values = previous.vector_entities(displacement, 0)?;
     let previous_vertex_velocity = vertices
         .iter()
         .take(p1_count)
-        .map(|vertex| previous.vertex_velocity()[vertex.index()])
-        .collect::<Vec<_>>();
+        .map(|vertex| {
+            velocity_values
+                .get(vertex)
+                .copied()
+                .ok_or_else(|| super::invalid("missing exact velocity entity"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let previous_vertex_displacement = vertices
         .iter()
         .take(p1_count)
-        .map(|vertex| previous.solid_displacement()[vertex.index()])
-        .collect::<Vec<_>>();
+        .map(|vertex| {
+            displacement_values
+                .get(vertex)
+                .copied()
+                .ok_or_else(|| super::invalid("missing exact state entity"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     p1_solid_backward_euler_velocity::<D>(
         geometry,
         quadrature,
-        material.solid_density(),
-        material.solid_material(),
+        material
+            .density(velocity)
+            .ok_or_else(|| super::invalid("missing exact kinetic Field material"))?,
+        material
+            .elasticity(displacement)
+            .ok_or_else(|| super::invalid("missing exact elastic Field material"))?,
         config.time_step(),
         &previous_vertex_velocity,
         &previous_vertex_displacement,

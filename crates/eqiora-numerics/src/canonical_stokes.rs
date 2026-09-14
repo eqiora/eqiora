@@ -37,11 +37,7 @@ pub use geometry_realization::{
     SteadyStokesGeometryBinding2d, solve_resolved_steady_stokes_geometry_mini_2d,
 };
 pub use inertial::InertialIncompressibleNewtonianCartesianModel2d;
-pub(crate) use inertial::{
-    LoweredInertialIncompressibleNewtonianSubdomain2d,
-    lower_inertial_incompressible_newtonian_subdomain_2d,
-    lower_inertial_incompressible_newtonian_subdomain_2d_with_boundaries,
-};
+pub(crate) use inertial::lower_inertial_incompressible_newtonian_subdomain_2d_with_boundaries;
 pub(crate) use navier_stokes::lower_transient_incompressible_navier_stokes_subdomain;
 pub(crate) use navier_stokes::recognize_transient_incompressible_navier_stokes_geometry_mathematics;
 pub use navier_stokes::{

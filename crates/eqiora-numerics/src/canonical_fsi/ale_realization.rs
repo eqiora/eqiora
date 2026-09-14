@@ -7,7 +7,7 @@
 //! then constructs the initial moving state. Coordinates and mesh velocity are
 //! never accepted as inputs.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
@@ -15,8 +15,8 @@ use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id, OntologyId, ScalarType};
 use eqiora_meshing::{
-    CellId, MeshEntity, MeshTopology, QuadratureRule, SimplicialMesh, simplex_duffy_gauss_legendre,
-    triangle_duffy_gauss_legendre,
+    CellId, FacetId, MeshEntity, MeshTopology, QuadratureRule, SimplicialMesh,
+    simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre,
 };
 use eqiora_realization::{
     AleFsiRemeshTransferPlan2d, BackwardEulerStatePair, ConformingTraceQuotient,
@@ -68,49 +68,30 @@ const PRESSURE: DimExponents =
 #[derive(Debug, Clone, PartialEq)]
 pub struct AleFsiInitialPhysicalState<const D: usize> {
     time: f64,
-    vertex_velocity: Vec<[f64; D]>,
-    fluid_cell_bubble_velocity: BTreeMap<CellId, [f64; D]>,
-    fluid_pressure: Vec<f64>,
-    solid_displacement: Vec<[f64; D]>,
+    physical: crate::simplicial_fsi::FixedReferenceFsiState<D>,
 }
 
 impl<const D: usize> AleFsiInitialPhysicalState<D> {
-    /// Admit finite physical coefficients without inventing geometry.
-    ///
-    /// Shape, support, and boundary closure are checked against the exact
-    /// authenticated topology during finalization.
-    ///
+    /// Admit a complete exact physical Field inventory without inventing geometry.
     /// # Errors
-    /// Returns `EQ0807` for negative/non-finite time or a non-finite value.
+    /// Rejects invalid dimension, time or nonfinite physical coefficients.
     pub fn new(
         time: f64,
-        vertex_velocity: Vec<[f64; D]>,
-        fluid_cell_bubble_velocity: BTreeMap<CellId, [f64; D]>,
-        fluid_pressure: Vec<f64>,
-        solid_displacement: Vec<[f64; D]>,
+        physical: crate::simplicial_fsi::FixedReferenceFsiState<D>,
     ) -> Result<Self, Diagnostic> {
         require_supported_dimension::<D>()?;
         if !time.is_finite()
             || time < 0.0
-            || vertex_velocity
-                .iter()
-                .chain(fluid_cell_bubble_velocity.values())
-                .chain(&solid_displacement)
-                .flatten()
-                .chain(fluid_pressure.iter())
-                .any(|value| !value.is_finite())
+            || physical
+                .fields
+                .values()
+                .any(|field| field.coefficients.values().any(|value| !value.is_finite()))
         {
             return Err(invalid_realization(
-                "ALE FSI initial physical state must contain finite coefficients at finite non-negative time",
+                "ALE initial physical state requires finite exact coefficients and nonnegative time",
             ));
         }
-        Ok(Self {
-            time,
-            vertex_velocity,
-            fluid_cell_bubble_velocity,
-            fluid_pressure,
-            solid_displacement,
-        })
+        Ok(Self { time, physical })
     }
 
     fn into_state(
@@ -119,16 +100,7 @@ impl<const D: usize> AleFsiInitialPhysicalState<D> {
         partition: &FixedReferenceFsiPartition<D>,
         motion: &P1HarmonicMeshMotionAction<D>,
     ) -> Result<AleFsiState<D>, Diagnostic> {
-        AleFsiState::<D>::new(
-            self.time,
-            mesh,
-            partition,
-            motion,
-            self.vertex_velocity,
-            self.fluid_cell_bubble_velocity,
-            self.fluid_pressure,
-            self.solid_displacement,
-        )
+        AleFsiState::new(self.time, mesh, partition, motion, self.physical)
     }
 }
 
@@ -222,12 +194,21 @@ impl<const D: usize> ReplayedResolvedFixedTopologyAleFsi<D> {
         initial: AleFsiInitialPhysicalState<D>,
     ) -> Result<FinalizedResolvedFixedTopologyAleFsi<D>, Diagnostic> {
         let initial = initial.into_state(&self.reference, &self.partition, &self.motion)?;
-        if self
-            .boundary
-            .fixed_zero_velocity_vertices()
-            .iter()
-            .any(|vertex| initial.vertex_velocity()[vertex.index()] != [0.0; D])
-        {
+        let exterior_velocity_is_nonzero =
+            [self.fields.fluid_velocity(), self.fields.solid_velocity()]
+                .into_iter()
+                .try_fold(false, |nonzero, field| -> Result<bool, Diagnostic> {
+                    let values = initial.physical_state().vector_vertices(field)?;
+                    Ok(nonzero
+                        || self
+                            .boundary
+                            .fixed_zero_velocity_vertices()
+                            .iter()
+                            .any(|vertex| {
+                                values.get(vertex).is_some_and(|value| *value != [0.0; D])
+                            }))
+                })?;
+        if exterior_velocity_is_nonzero {
             return Err(invalid_realization(
                 "fixed-topology ALE FSI initial velocity violates the complete homogeneous exterior closure",
             ));
@@ -307,6 +288,16 @@ impl<const D: usize> FinalizedResolvedFixedTopologyAleFsi<D> {
         &self.realization_graph
     }
 
+    pub(crate) fn reference(&self) -> &SimplicialMesh {
+        &self.reference
+    }
+    pub(crate) fn partition(&self) -> &FixedReferenceFsiPartition<D> {
+        &self.partition
+    }
+    pub(crate) fn layout(&self) -> &crate::simplicial_fsi::layout::FsiLayout<D> {
+        &self.layout
+    }
+
     /// Sole sealed harmonic motion action, including its solve evidence.
     #[must_use]
     pub const fn motion(&self) -> &P1HarmonicMeshMotionAction<D> {
@@ -321,8 +312,8 @@ impl<const D: usize> FinalizedResolvedFixedTopologyAleFsi<D> {
 
     /// Common nonlinear, linear, material, scale, and time-step policy.
     #[must_use]
-    pub const fn step_plan(&self) -> AleFsiStepPlan<D> {
-        self.step_plan
+    pub const fn step_plan(&self) -> &AleFsiStepPlan<D> {
+        &self.step_plan
     }
 }
 
@@ -627,14 +618,11 @@ pub fn remesh_resolved_fixed_topology_ale_fsi_2d(
     let transfer_scale = numeric_remesh_scale(transfer_plan)?;
 
     let projection = project_simplicial_ale_fsi_remesh_2d(
-        &source.reference,
-        &source.partition,
-        &source.motion,
+        source,
         source_state,
         &target.reference,
         &target.partition,
         &target.motion,
-        source.step_plan.material(),
         transfer_scale,
         &target.quadrature,
         LinearSolveRequest::new(transfer_backend, transfer_plan.solver()),
@@ -676,13 +664,32 @@ fn replay_resolved_fixed_topology_ale_fsi<const D: usize>(
     let motion = P1HarmonicMeshMotionAction::<D>::new(
         mesh,
         partition,
+        motion_policy,
         LinearSolveRequest::new(harmonic_backend, motion_policy.solver()),
     )?;
-    let material = FixedReferenceFsiMaterial::<D>::from_admitted_solid(
-        model.fluid().mass_density(),
-        model.fluid().dynamic_viscosity(),
-        model.solid().mass_density(),
-        model.solid().continuum().material(),
+    let material = FixedReferenceFsiMaterial::<D>::new(
+        [
+            (
+                fluid_domain(model),
+                fluid_velocity(model),
+                model.fluid().mass_density(),
+            ),
+            (
+                solid_domain(model),
+                solid_velocity(model),
+                model.solid().mass_density(),
+            ),
+        ],
+        [(
+            fluid_domain(model),
+            fluid_velocity(model),
+            model.fluid().dynamic_viscosity(),
+        )],
+        [(
+            solid_domain(model),
+            solid_displacement(model),
+            model.solid().continuum().material(),
+        )],
     )?;
     let step_plan = AleFsiStepPlan::<D>::new(
         plan.fluid_time_step().duration().value(),
@@ -1147,14 +1154,18 @@ fn require_boundary_meaning<const D: usize>(
     require_physics_boundary(
         model.fluid().boundary_inventory(),
         interface.axis(),
-        interface.fluid(),
+        interface
+            .endpoint(model.fluid().domain())
+            .expect("lowered ALE interface owns the fluid Domain"),
         interface.connection(),
         "fluid",
     )?;
     require_physics_boundary(
         model.solid().continuum().boundary_inventory(),
         interface.axis(),
-        interface.solid(),
+        interface
+            .endpoint(model.solid().continuum().domain())
+            .expect("lowered ALE interface owns the solid Domain"),
         interface.connection(),
         "solid",
     )
@@ -1209,9 +1220,16 @@ fn require_mesh_partition<const D: usize>(
     }
     let replayed = FixedReferenceFsiPartition::<D>::new(
         mesh,
-        partition.fluid_cells().to_vec(),
-        partition.solid_cells().to_vec(),
-        partition.interface_facets().to_vec(),
+        partition.domains().map(|domain| {
+            (
+                domain,
+                partition
+                    .domain_cells(domain)
+                    .expect("exact Domain")
+                    .to_vec(),
+            )
+        }),
+        &partition.quotients().collect::<Vec<_>>(),
     )?;
     if &replayed != partition {
         return Err(invalid_realization(
@@ -1220,23 +1238,42 @@ fn require_mesh_partition<const D: usize>(
     }
     require_cells_in_bounds(
         mesh,
-        partition.fluid_cells(),
+        partition
+            .domain_cells(fluid_domain(model))
+            .expect("lowered ALE fluid Domain"),
         model.fluid().bounds(),
         "fluid",
     )?;
     require_cells_in_bounds(
         mesh,
-        partition.solid_cells(),
+        partition
+            .domain_cells(solid_domain(model))
+            .expect("lowered ALE solid Domain"),
         model.solid().continuum().bounds(),
         "solid",
     )?;
 
     let interface = model.interface();
-    let interface_coordinate = match interface.fluid().side() {
+    let fluid_side = interface
+        .endpoint(model.fluid().domain())
+        .expect("lowered ALE interface owns the fluid Domain");
+    let solid_side = interface
+        .endpoint(model.solid().continuum().domain())
+        .expect("lowered ALE interface owns the solid Domain");
+    let interface_coordinate = match fluid_side.side() {
         BoundarySide::Lower => model.fluid().bounds()[interface.axis()][0],
         BoundarySide::Upper => model.fluid().bounds()[interface.axis()][1],
     };
-    for facet in partition.interface_facets() {
+    let interface_facets = partition
+        .traces()
+        .iter()
+        .find(|trace| trace.quotient.connection().erase() == interface.connection())
+        .expect("lowered ALE quotient")
+        .facets
+        .iter()
+        .map(|witness| FacetId::new(witness.facet.index()))
+        .collect::<Vec<_>>();
+    for facet in &interface_facets {
         let vertices = mesh
             .entity_vertices(MeshEntity::new(D - 1, facet.index()))
             .ok_or_else(|| invalid_realization("ALE FSI interface facet is outside the mesh"))?;
@@ -1251,7 +1288,8 @@ fn require_mesh_partition<const D: usize>(
     }
 
     let fluid_cells = partition
-        .fluid_cells()
+        .domain_cells(fluid_domain(model))
+        .expect("lowered ALE fluid Domain")
         .iter()
         .map(|cell| cell.index())
         .collect::<BTreeSet<_>>();
@@ -1280,13 +1318,13 @@ fn require_mesh_partition<const D: usize>(
             (
                 model.fluid().bounds(),
                 &mut fluid_coverage,
-                interface.fluid().side(),
+                fluid_side.side(),
             )
         } else {
             (
                 model.solid().continuum().bounds(),
                 &mut solid_coverage,
-                interface.solid().side(),
+                solid_side.side(),
             )
         };
         let vertices = mesh
@@ -1325,18 +1363,8 @@ fn require_mesh_partition<const D: usize>(
         }
         coverage[axis][side_index] = true;
     }
-    require_exterior_coverage(
-        fluid_coverage,
-        interface.axis(),
-        interface.fluid().side(),
-        "fluid",
-    )?;
-    require_exterior_coverage(
-        solid_coverage,
-        interface.axis(),
-        interface.solid().side(),
-        "solid",
-    )
+    require_exterior_coverage(fluid_coverage, interface.axis(), fluid_side.side(), "fluid")?;
+    require_exterior_coverage(solid_coverage, interface.axis(), solid_side.side(), "solid")
 }
 
 fn require_cells_in_bounds<const D: usize>(

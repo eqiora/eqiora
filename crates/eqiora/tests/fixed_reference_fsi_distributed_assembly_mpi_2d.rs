@@ -61,7 +61,7 @@ fn fixed_reference_fsi_distributed_assembly_mpi_2d_child() {
         .expect("fixed-reference FSI semantics lower");
     let spatial = spatial_context(document.program(), &canonical);
     let execution = execution_context(document.program(), &canonical, &spatial);
-    let previous = prestrained_state(&spatial);
+    let previous = prestrained_state(document.program(), &spatial, &execution);
     let mesh_sha256 = spatial
         .mesh_artifact
         .digest()

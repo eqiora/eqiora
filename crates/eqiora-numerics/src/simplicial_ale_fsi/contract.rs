@@ -9,12 +9,10 @@
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_meshing::CellId;
 use eqiora_meshing::{FixedTopologyGeometryAction, FixedTopologyGeometryState};
 use eqiora_meshing::{MeshTopology, SimplicialMesh};
 use eqiora_realization::{NonlinearSolvePlan, Target};
 use eqiora_solver::{LinearOperatorProperties, LinearSolver, SolverPlan};
-use std::collections::BTreeMap;
 
 use super::{P1HarmonicMeshMotionAction, invalid};
 use crate::simplicial_fsi::{
@@ -30,170 +28,73 @@ use crate::simplicial_fsi::{
 /// closure and therefore reuses the fixed-reference FSI contract exactly.
 pub type AleFsiBoundary<const D: usize> = FixedReferenceFsiBoundary<D>;
 
-/// One accepted or restartable state on immutable reference topology.
-///
-/// Velocity and displacement coefficients use reference-vertex order. MINI
-/// bubble velocity is keyed by exact fluid `CellId`, while pressure uses
-/// its fluid-vertex order. The stored geometry is a derived value, never
-/// independent state.
+/// One accepted or restartable state on exact Field/entity and reference topology inventories.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AleFsiState<const D: usize> {
     time: f64,
-    vertex_velocity: Vec<[f64; D]>,
-    fluid_cell_bubble_velocity: BTreeMap<CellId, [f64; D]>,
-    fluid_pressure: Vec<f64>,
-    solid_displacement: Vec<[f64; D]>,
+    physical: FixedReferenceFsiState<D>,
     geometry: FixedTopologyGeometryState<D>,
 }
 
 impl<const D: usize> AleFsiState<D> {
-    /// Derive and admit one complete moving-domain state.
-    ///
-    /// `solid_displacement` is the sole geometry driver. It must use reference
-    /// vertex order and be exact zero outside the solid closure. The sealed
-    /// harmonic action supplies interface continuity, fixed fluid-exterior
-    /// values, and every fluid-interior value before coordinates are formed as
-    /// `reference + absolute_displacement`.
-    ///
+    /// Derive geometry from the exact admitted driver Field in one complete physical State.
     /// # Errors
-    /// Returns `EQ0801` for non-finite/negative time, an incompatible sealed
-    /// reference or partition, a non-finite or incorrectly shaped field,
-    /// displacement outside the solid closure, or coordinate overflow. Mesh
-    /// orientation and quality failures retain their `EQ0803` diagnostic.
-    #[allow(clippy::too_many_arguments)]
+    /// Rejects nonfinite time, stale Field/Domain/entity ownership and invalid derived geometry.
     pub fn new(
         time: f64,
         reference_mesh: &SimplicialMesh,
         partition: &FixedReferenceFsiPartition<D>,
         motion: &P1HarmonicMeshMotionAction<D>,
-        vertex_velocity: Vec<[f64; D]>,
-        fluid_cell_bubble_velocity: BTreeMap<CellId, [f64; D]>,
-        fluid_pressure: Vec<f64>,
-        solid_displacement: Vec<[f64; D]>,
+        physical: FixedReferenceFsiState<D>,
     ) -> Result<Self, Diagnostic> {
         if !time.is_finite() || time < 0.0 {
-            return Err(invalid(
-                "fixed-topology ALE FSI state time must be finite and non-negative",
-            ));
+            return Err(invalid("ALE state time must be finite and nonnegative"));
         }
         motion.validate_reference(reference_mesh, partition)?;
-        validate_state_fields(
+        validate_state_fields(reference_mesh, partition, &physical)?;
+        let field = motion.policy().solid_displacement();
+        let displacement = motion.apply(field, &physical.vector_vertices(field)?)?;
+        let geometry = FixedTopologyGeometryState::<D>::new(
             reference_mesh,
-            partition,
-            &vertex_velocity,
-            &fluid_cell_bubble_velocity,
-            &fluid_pressure,
-            &solid_displacement,
+            current_coordinates(reference_mesh, &displacement)?,
         )?;
-
-        let displacement = motion.apply(&solid_displacement)?;
-        let coordinates = current_coordinates(reference_mesh, &displacement)?;
-        let geometry = FixedTopologyGeometryState::<D>::new(reference_mesh, coordinates)?;
-        let value = Self {
+        Ok(Self {
             time,
-            vertex_velocity,
-            fluid_cell_bubble_velocity,
-            fluid_pressure,
-            solid_displacement,
+            physical,
             geometry,
-        };
-        value.validate_against(reference_mesh, partition, motion)?;
-        Ok(value)
+        })
     }
-
     /// Model time in coherent seconds.
-    #[must_use]
     pub const fn time(&self) -> f64 {
         self.time
     }
-
-    /// Shared fluid/solid P1 velocity in reference-vertex order.
-    #[must_use]
-    pub fn vertex_velocity(&self) -> &[[f64; D]] {
-        &self.vertex_velocity
+    /// Every physical Field with exact Domain/entity/component ownership.
+    pub const fn physical_state(&self) -> &FixedReferenceFsiState<D> {
+        &self.physical
     }
-
-    /// Fluid MINI bubble velocity keyed by exact owned `CellId`.
-    #[must_use]
-    pub fn fluid_cell_bubble_velocity(&self) -> &BTreeMap<CellId, [f64; D]> {
-        &self.fluid_cell_bubble_velocity
-    }
-
-    /// Fluid P1 pressure in canonical fluid-vertex order.
-    #[must_use]
-    pub fn fluid_pressure(&self) -> &[f64] {
-        &self.fluid_pressure
-    }
-
-    /// Absolute solid P1 displacement in reference-vertex order.
-    ///
-    /// Entries outside the solid closure are exact zero.
-    #[must_use]
-    pub fn solid_displacement(&self) -> &[[f64; D]] {
-        &self.solid_displacement
-    }
-
-    /// Current coordinates and recomputed quality derived from solid motion.
-    #[must_use]
+    /// Current geometry derived from the sole exact driver Field.
     pub const fn geometry(&self) -> &FixedTopologyGeometryState<D> {
         &self.geometry
     }
-
-    /// Revalidate this state against the exact sealed reference root.
-    ///
-    /// This is the restart/replay gate. In addition to field shape and support,
-    /// it independently reapplies the harmonic action and requires exact
-    /// equality with the stored derived geometry.
-    ///
-    /// # Errors
-    /// Returns `EQ0801` if any state field or derived geometry cannot replay
-    /// against the supplied immutable reference, partition, and motion action;
-    /// mesh reconstruction failures retain their `EQ0803` diagnostic.
+    /// Reapply the exact harmonic driver and reauthenticate stored derived geometry.
     pub fn validate_against(
         &self,
         reference_mesh: &SimplicialMesh,
         partition: &FixedReferenceFsiPartition<D>,
         motion: &P1HarmonicMeshMotionAction<D>,
     ) -> Result<(), Diagnostic> {
-        if !self.time.is_finite() || self.time < 0.0 {
-            return Err(invalid(
-                "fixed-topology ALE FSI state time must be finite and non-negative",
-            ));
-        }
-        motion.validate_reference(reference_mesh, partition)?;
-        validate_state_fields(
+        let replayed = Self::new(
+            self.time,
             reference_mesh,
             partition,
-            &self.vertex_velocity,
-            &self.fluid_cell_bubble_velocity,
-            &self.fluid_pressure,
-            &self.solid_displacement,
+            motion,
+            self.physical.clone(),
         )?;
-        let displacement = motion.apply(&self.solid_displacement)?;
-        let coordinates = current_coordinates(reference_mesh, &displacement)?;
-        let replayed = FixedTopologyGeometryState::<D>::new(reference_mesh, coordinates)?;
-        if replayed != self.geometry {
-            return Err(invalid(
-                "fixed-topology ALE FSI geometry must equal reference coordinates plus replayed absolute harmonic motion",
-            ));
+        if replayed.geometry != self.geometry {
+            return Err(invalid("ALE geometry differs from exact driver replay"));
         }
         self.geometry.reconstruct_mesh(reference_mesh)?;
         Ok(())
-    }
-
-    /// Exact bridge to the unchanged reference-layout velocity/displacement state.
-    pub(crate) fn to_fixed_reference_state(
-        &self,
-        reference_mesh: &SimplicialMesh,
-        partition: &FixedReferenceFsiPartition<D>,
-    ) -> Result<FixedReferenceFsiState<D>, Diagnostic> {
-        FixedReferenceFsiState::<D>::new(
-            reference_mesh,
-            partition,
-            self.vertex_velocity.clone(),
-            self.fluid_cell_bubble_velocity.clone(),
-            self.solid_displacement.clone(),
-        )
     }
 }
 
@@ -203,7 +104,7 @@ impl<const D: usize> AleFsiState<D> {
 /// common [`NonlinearSolvePlan`] and [`SolverPlan`] remain the sole nonlinear
 /// and linear controls; this type only closes their ALE-FSI compatibility and
 /// serial reference placement.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AleFsiStepPlan<const D: usize> {
     fixed_reference: FixedReferenceFsiStepConfig<D>,
     nonlinear: NonlinearSolvePlan,
@@ -263,55 +164,55 @@ impl<const D: usize> AleFsiStepPlan<D> {
 
     /// Backward-Euler step width.
     #[must_use]
-    pub const fn time_step(self) -> f64 {
+    pub const fn time_step(&self) -> f64 {
         self.fixed_reference.time_step()
     }
 
     /// Stable Newtonian-fluid and linear-solid material data.
     #[must_use]
-    pub const fn material(self) -> FixedReferenceFsiMaterial<D> {
+    pub fn material(&self) -> &FixedReferenceFsiMaterial<D> {
         self.fixed_reference.material()
     }
 
     /// Characteristic acceptance scales.
     #[must_use]
-    pub const fn scale(self) -> FixedReferenceFsiScale<D> {
+    pub const fn scale(&self) -> FixedReferenceFsiScale<D> {
         self.fixed_reference.scale()
     }
 
     /// Explicit bounded load policy.
     #[must_use]
-    pub const fn load(self) -> FixedReferenceFsiLoad {
+    pub const fn load(&self) -> FixedReferenceFsiLoad {
         self.fixed_reference.load()
     }
 
     /// Common nonlinear convergence and globalization policy.
     #[must_use]
-    pub const fn nonlinear(self) -> NonlinearSolvePlan {
+    pub const fn nonlinear(&self) -> NonlinearSolvePlan {
         self.nonlinear
     }
 
     /// Common linear plan used for every general Newton action.
     #[must_use]
-    pub const fn linear_solver(self) -> SolverPlan {
+    pub const fn linear_solver(&self) -> SolverPlan {
         self.linear_solver
     }
 
     /// Mathematical class of every admitted Newton action.
     #[must_use]
-    pub const fn operator_properties(self) -> LinearOperatorProperties {
+    pub const fn operator_properties(&self) -> LinearOperatorProperties {
         LinearOperatorProperties::General
     }
 
     /// Exact one-worker host placement of the bounded reference slice.
     #[must_use]
-    pub const fn target(self) -> Target {
+    pub const fn target(&self) -> Target {
         self.target
     }
 
     /// Unchanged material/scale/load bridge for reference-solid assembly.
-    pub(crate) const fn fixed_reference_config(self) -> FixedReferenceFsiStepConfig<D> {
-        self.fixed_reference
+    pub(crate) const fn fixed_reference_config(&self) -> &FixedReferenceFsiStepConfig<D> {
+        &self.fixed_reference
     }
 
     /// Revalidate two accepted states and derive their sole geometry action.
@@ -320,7 +221,7 @@ impl<const D: usize> AleFsiStepPlan<D> {
     /// to the previous time. Mesh velocity and all GCL coefficients then come
     /// only from the returned consecutive geometry action.
     pub(crate) fn geometry_action(
-        self,
+        &self,
         reference_mesh: &SimplicialMesh,
         partition: &FixedReferenceFsiPartition<D>,
         motion: &P1HarmonicMeshMotionAction<D>,
@@ -348,33 +249,37 @@ impl<const D: usize> AleFsiStepPlan<D> {
 }
 
 fn validate_state_fields<const D: usize>(
-    reference_mesh: &SimplicialMesh,
+    reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
-    vertex_velocity: &[[f64; D]],
-    fluid_cell_bubble_velocity: &BTreeMap<CellId, [f64; D]>,
-    fluid_pressure: &[f64],
-    solid_displacement: &[[f64; D]],
+    physical: &FixedReferenceFsiState<D>,
 ) -> Result<(), Diagnostic> {
     if !matches!(D, 2 | 3)
-        || reference_mesh.topological_dimension() != D
-        || reference_mesh
-            .vertices()
-            .iter()
-            .any(|coordinates| coordinates.len() != D)
-        || fluid_pressure.len() != partition.fluid_vertices().len()
-        || fluid_pressure.iter().any(|value| !value.is_finite())
+        || reference.topological_dimension() != D
+        || physical
+            .fields
+            .values()
+            .map(|field| field.domain)
+            .collect::<std::collections::BTreeSet<_>>()
+            != partition.domains().map(|domain| domain.erase()).collect()
     {
-        return Err(invalid(format!(
-            "fixed-topology ALE FSI state must own finite pressure in canonical fluid-vertex order on one intrinsic {D}D reference mesh with D equal to 2 or 3"
-        )));
+        return Err(invalid(
+            "ALE physical State differs from complete intrinsic Domain inventory",
+        ));
     }
-    FixedReferenceFsiState::<D>::new(
-        reference_mesh,
-        partition,
-        vertex_velocity.to_vec(),
-        fluid_cell_bubble_velocity.clone(),
-        solid_displacement.to_vec(),
-    )?;
+    for (&id, field) in &physical.fields {
+        for (key, value) in &field.coefficients {
+            if key.field != id
+                || !value.is_finite()
+                || reference
+                    .entity_count(key.entity.dimension())
+                    .is_none_or(|count| key.entity.index() >= count)
+            {
+                return Err(invalid(
+                    "ALE physical State has stale exact coordinates or nonfinite values",
+                ));
+            }
+        }
+    }
     Ok(())
 }
 

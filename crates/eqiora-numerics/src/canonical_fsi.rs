@@ -3,6 +3,7 @@
 mod ale;
 mod ale_realization;
 mod geometry_regions;
+mod network;
 mod realization;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -18,13 +19,11 @@ use eqiora_sem::KernelProgram;
 use crate::canonical_boundary::{CartesianBoundaryInventory, PhysicalBoundaryDisposition};
 use crate::canonical_elasticity::{
     IsotropicElastodynamicsCartesianModel, LoweredIsotropicElastodynamicsSubdomain,
-    LoweredIsotropicElastodynamicsSubdomain2d, lower_isotropic_elastodynamics_subdomain_2d,
+    lower_isotropic_elastodynamics_subdomain_2d,
     lower_isotropic_elastodynamics_subdomain_2d_with_boundaries,
 };
 use crate::canonical_stokes::{
-    InertialIncompressibleNewtonianCartesianModel2d,
-    LoweredInertialIncompressibleNewtonianSubdomain2d, LoweredStokesBoundary,
-    lower_inertial_incompressible_newtonian_subdomain_2d,
+    InertialIncompressibleNewtonianCartesianModel2d, LoweredStokesBoundary,
     lower_inertial_incompressible_newtonian_subdomain_2d_with_boundaries,
 };
 
@@ -41,9 +40,8 @@ pub use ale_realization::{
 };
 pub use realization::{
     AcceptedDistributedFixedReferenceFsiStep2d, FinalizedResolvedFixedReferenceFsiStep2d,
-    FixedReferenceFsiFieldIdentities2d, FixedReferenceFsiScaleProfile2d,
-    PreparedDistributedFixedReferenceFsiStep2d, ResolvedFixedReferenceFsiSolution2d,
-    finalize_resolved_fixed_reference_fsi_step_2d,
+    FixedReferenceFsiScaleProfile2d, PreparedDistributedFixedReferenceFsiStep2d,
+    ResolvedFixedReferenceFsiSolution2d, finalize_resolved_fixed_reference_fsi_step_2d,
     finalize_resolved_fixed_reference_fsi_step_2d_with_assembly, fixed_reference_fsi_cuda_plan_2d,
     fixed_reference_fsi_distributed_cuda_plan_2d, fixed_reference_fsi_plan_2d,
     fixed_reference_fsi_requirements_2d, fixed_reference_fsi_requirements_2d_for_layout,
@@ -57,12 +55,23 @@ type CartesianBounds<const D: usize> = [[f64; 2]; D];
 /// One exact physics-local end of an FSI interface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FsiInterfaceSide {
+    domain: RawId,
+    field: RawId,
     boundary: RawId,
     port: RawId,
     side: BoundarySide,
 }
 
 impl FsiInterfaceSide {
+    /// Exact parent Domain of this endpoint.
+    pub const fn domain(self) -> RawId {
+        self.domain
+    }
+    /// Exact trace Field carried by this endpoint.
+    pub const fn field(self) -> RawId {
+        self.field
+    }
+
     /// Exact semantic Boundary supporting the interface law.
     #[must_use]
     pub const fn boundary(self) -> RawId {
@@ -90,8 +99,7 @@ impl FsiInterfaceSide {
 pub struct FsiInterface {
     connection: RawId,
     axis: usize,
-    fluid: FsiInterfaceSide,
-    solid: FsiInterfaceSide,
+    endpoints: [FsiInterfaceSide; 2],
 }
 
 impl FsiInterface {
@@ -107,16 +115,15 @@ impl FsiInterface {
         self.axis
     }
 
-    /// Fluid-local interface identity.
-    #[must_use]
-    pub const fn fluid(self) -> FsiInterfaceSide {
-        self.fluid
+    /// Exact endpoint for one parent Domain; no endpoint position owns a role.
+    pub fn endpoint(self, domain: RawId) -> Option<FsiInterfaceSide> {
+        self.endpoints
+            .into_iter()
+            .find(|endpoint| endpoint.domain == domain)
     }
-
-    /// Solid-local interface identity.
-    #[must_use]
-    pub const fn solid(self) -> FsiInterfaceSide {
-        self.solid
+    /// Both exact endpoints in canonical Domain order.
+    pub const fn endpoints(self) -> [FsiInterfaceSide; 2] {
+        self.endpoints
     }
 }
 
@@ -130,9 +137,10 @@ impl FsiInterface {
 pub struct FixedReferenceFsiCartesianModel2d {
     model: OntologyId<Model>,
     semantic_revision: u64,
-    fluid: InertialIncompressibleNewtonianCartesianModel2d,
-    solid: IsotropicElastodynamicsCartesianModel<2>,
-    interface: FsiInterface,
+    fluids: BTreeMap<RawId, InertialIncompressibleNewtonianCartesianModel2d>,
+    solids: BTreeMap<RawId, IsotropicElastodynamicsCartesianModel<2>>,
+    interfaces: BTreeMap<RawId, FsiInterface>,
+    test_orientations: BTreeMap<RawId, f64>,
     equation_roles: crate::form_compiler::equation_roles::EquationRoles,
     region_forms: BTreeMap<RawId, crate::form_compiler::region::CompiledRegionForm>,
 }
@@ -150,22 +158,17 @@ impl FixedReferenceFsiCartesianModel2d {
         self.semantic_revision
     }
 
-    /// Exact canonical inertial-fluid submodel.
-    #[must_use]
-    pub const fn fluid(&self) -> &InertialIncompressibleNewtonianCartesianModel2d {
-        &self.fluid
+    /// Every exact admitted inertial incompressible submodel.
+    pub fn fluids(&self) -> impl Iterator<Item = &InertialIncompressibleNewtonianCartesianModel2d> {
+        self.fluids.values()
     }
-
-    /// Exact canonical dynamic-solid submodel.
-    #[must_use]
-    pub const fn solid(&self) -> &IsotropicElastodynamicsCartesianModel<2> {
-        &self.solid
+    /// Every exact admitted first-order elastic submodel.
+    pub fn solids(&self) -> impl Iterator<Item = &IsotropicElastodynamicsCartesianModel<2>> {
+        self.solids.values()
     }
-
-    /// Exact compatible live interface joining the two submodels.
-    #[must_use]
-    pub const fn interface(&self) -> FsiInterface {
-        self.interface
+    /// Every exact conserving velocity/traction Connection.
+    pub fn interfaces(&self) -> impl Iterator<Item = FsiInterface> + '_ {
+        self.interfaces.values().copied()
     }
 }
 
@@ -193,44 +196,13 @@ struct LiveSide {
 pub fn lower_fixed_reference_fsi_cartesian_2d(
     program: &KernelProgram,
 ) -> Result<FixedReferenceFsiCartesianModel2d, Diagnostic> {
-    let boxes = cartesian_boxes_2d(program)?;
-    if boxes.len() != 2 {
-        return Err(model_lowering_error(
-            program,
-            format!(
-                "fixed-reference FSI requires exactly two Cartesian boxes, found {}",
-                boxes.len()
-            ),
-        ));
-    }
-
-    let mut candidates = Vec::new();
-    for fluid_index in 0..2 {
-        let solid_index = 1 - fluid_index;
-        let fluid = lower_inertial_incompressible_newtonian_subdomain_2d(
-            program,
-            boxes[fluid_index].0,
-            boxes[fluid_index].1,
-        );
-        let solid = lower_isotropic_elastodynamics_subdomain_2d(
-            program,
-            boxes[solid_index].0,
-            boxes[solid_index].1,
-        );
-        if let (Ok(fluid), Ok(solid)) = (fluid, solid) {
-            candidates.push((fluid, solid));
-        }
-    }
-    if candidates.len() != 1 {
-        return Err(model_lowering_error(
-            program,
-            format!(
-                "fixed-reference FSI requires one unique inertial-fluid/dynamic-solid Domain assignment, found {}",
-                candidates.len()
-            ),
-        ));
-    }
-    finish_fixed_reference_fsi(program, candidates)
+    network::lower(
+        program,
+        cartesian_boxes_2d(program)?
+            .into_iter()
+            .map(|(domain, bounds)| (domain, bounds, None))
+            .collect(),
+    )
 }
 
 /// Lower the same exact FSI meaning from two external GeometryRegion supports.
@@ -238,126 +210,13 @@ pub fn lower_fixed_reference_fsi_geometry_2d(
     program: &KernelProgram,
     geometry: &CanonicalGeometryV1,
 ) -> Result<FixedReferenceFsiCartesianModel2d, Diagnostic> {
-    let domains = geometry_regions::cartesian_regions(program, geometry)?;
-    if domains.len() != 2 {
-        return Err(model_lowering_error(
-            program,
-            "fixed-reference numerical state projection currently requires two exact Regions",
-        ));
-    }
-    let mut candidates = Vec::new();
-    for fluid_index in 0..2 {
-        let solid_index = 1 - fluid_index;
-        let (fluid_domain, fluid_bounds, fluid_sides) = &domains[fluid_index];
-        let (solid_domain, solid_bounds, solid_sides) = &domains[solid_index];
-        let fluid = lower_inertial_incompressible_newtonian_subdomain_2d_with_boundaries(
-            program,
-            *fluid_domain,
-            *fluid_bounds,
-            Some(
-                fluid_sides
-                    .iter()
-                    .map(|(&(axis, side), &id)| ((side, axis), id))
-                    .collect(),
-            ),
-        );
-        let solid = lower_isotropic_elastodynamics_subdomain_2d_with_boundaries(
-            program,
-            *solid_domain,
-            *solid_bounds,
-            solid_sides.clone(),
-        );
-        if let (Ok(fluid), Ok(solid)) = (fluid, solid) {
-            candidates.push((fluid, solid));
-        }
-    }
-    finish_fixed_reference_fsi(program, candidates)
-}
-
-fn finish_fixed_reference_fsi(
-    program: &KernelProgram,
-    mut candidates: Vec<(
-        LoweredInertialIncompressibleNewtonianSubdomain2d,
-        LoweredIsotropicElastodynamicsSubdomain2d,
-    )>,
-) -> Result<FixedReferenceFsiCartesianModel2d, Diagnostic> {
-    if candidates.len() != 1 {
-        return Err(model_lowering_error(
-            program,
-            format!(
-                "fixed-reference FSI requires one unique inertial-fluid/dynamic-solid Domain assignment, found {}",
-                candidates.len()
-            ),
-        ));
-    }
-    let (fluid, solid) = candidates
-        .pop()
-        .expect("one unique typed FSI assignment was established");
-
-    reject_uninterpreted_live_relations(&fluid, &solid)?;
-    let fluid_side = unique_live_side(fluid.model.boundary_inventory(), "fluid")?;
-    let solid_side = unique_live_side(solid.model.continuum().boundary_inventory(), "solid")?;
-    require_exact_interface(program, fluid_side, solid_side)?;
-    require_coincident_bounds(
-        fluid.model.bounds(),
-        solid.model.continuum().bounds(),
-        fluid_side,
-        solid_side,
-    )?;
-    require_closed_fsi_model(program, &fluid, &solid)?;
-
-    let domains = program
-        .nodes()
-        .filter_map(|node| match node {
-            KernelNode::Domain(domain)
-                if !crate::canonical::continuum_fields_on(program, domain.id().erase())
-                    .is_empty() =>
-            {
-                Some(domain.id().erase())
-            }
-            _ => None,
-        })
-        .collect::<BTreeSet<_>>();
-    let equation_roles = crate::form_compiler::equation_roles::EquationRoles::derive(
+    network::lower(
         program,
-        domains.iter().copied(),
-    )?;
-    let region_forms = domains
-        .into_iter()
-        .map(|domain| {
-            crate::form_compiler::region::CompiledRegionForm::derive(program, domain, 2)
-                .map(|form| (domain, form))
-        })
-        .collect::<Result<_, _>>()?;
-    Ok(FixedReferenceFsiCartesianModel2d {
-        equation_roles,
-        region_forms,
-        model: program.model(),
-        semantic_revision: program.revision().0,
-        fluid: fluid.model,
-        solid: solid.model,
-        interface: FsiInterface {
-            connection: fluid_side.connection,
-            axis: fluid_side.axis,
-            fluid: FsiInterfaceSide {
-                boundary: fluid_side.boundary,
-                port: fluid_side.port,
-                side: fluid_side.side,
-            },
-            solid: FsiInterfaceSide {
-                boundary: solid_side.boundary,
-                port: solid_side.port,
-                side: solid_side.side,
-            },
-        },
-    })
-}
-
-fn reject_uninterpreted_live_relations(
-    fluid: &LoweredInertialIncompressibleNewtonianSubdomain2d,
-    solid: &LoweredIsotropicElastodynamicsSubdomain2d,
-) -> Result<(), Diagnostic> {
-    reject_uninterpreted_live_relation_sets(&fluid.boundary, solid)
+        geometry_regions::cartesian_regions(program, geometry)?
+            .into_iter()
+            .map(|(domain, bounds, sides)| (domain, bounds, Some(sides)))
+            .collect(),
+    )
 }
 
 fn reject_uninterpreted_live_relation_sets<const D: usize>(
@@ -489,27 +348,6 @@ fn require_coincident_bounds<const D: usize>(
     Ok(())
 }
 
-fn require_closed_fsi_model(
-    program: &KernelProgram,
-    fluid: &LoweredInertialIncompressibleNewtonianSubdomain2d,
-    solid: &LoweredIsotropicElastodynamicsSubdomain2d,
-) -> Result<(), Diagnostic> {
-    require_closed_fsi_model_parts(
-        program,
-        fluid.model.domain(),
-        [
-            fluid.model.velocity(),
-            fluid.model.pressure(),
-            fluid.model.force_potential(),
-        ],
-        fluid.representation,
-        &fluid.volume_relations,
-        &fluid.boundary,
-        solid,
-        "fixed-reference FSI",
-    )
-}
-
 #[allow(clippy::too_many_arguments)]
 fn require_closed_fsi_model_parts<const D: usize>(
     program: &KernelProgram,
@@ -552,49 +390,15 @@ fn require_closed_fsi_model_parts<const D: usize>(
     ports.extend(solid.boundary.ports.iter().copied());
     let mut connections = fluid_boundary.connections.clone();
     connections.extend(solid.boundary.connections.iter().copied());
-    let activations = program
-        .edges()
-        .iter()
-        .filter(|edge| edge.kind() == EdgeKind::Activates && relations.contains(&edge.to()))
-        .map(|edge| edge.from())
-        .collect::<BTreeSet<_>>();
-    let parameters = relations
-        .iter()
-        .copied()
-        .flat_map(|relation| match program.node(relation) {
-            Some(KernelNode::Relation(definition)) => definition.expression().nodes().iter(),
-            _ => unreachable!("admitted Relations were already inspected"),
-        })
-        .filter_map(|node| match node {
-            ExprNode::Symbol(SymbolRef::Parameter(parameter)) => Some(parameter.erase()),
-            _ => None,
-        })
-        .collect::<BTreeSet<_>>();
-
-    for node in program.nodes() {
-        let admitted = match node {
-            KernelNode::Domain(value) => domains.contains(&value.id().erase()),
-            KernelNode::Representation(value) => representations.contains(&value.id().erase()),
-            KernelNode::Field(value) => fields.contains(&value.id().erase()),
-            KernelNode::Parameter(value) => parameters.contains(&value.id().erase()),
-            KernelNode::Relation(value) => relations.contains(&value.id().erase()),
-            KernelNode::Activation(value) => activations.contains(&value.id().erase()),
-            KernelNode::Port(value) => ports.contains(&value.id().erase()),
-            KernelNode::Connection(value) => connections.contains(&value.id().erase()),
-            _ => false,
-        };
-        if !admitted {
-            return Err(model_lowering_error(
-                program,
-                format!(
-                    "closed {projection} lowering would ignore unexpected {:?} node {}",
-                    node.kind(),
-                    node.id()
-                ),
-            ));
-        }
-    }
-    Ok(())
+    let allowed = domains
+        .into_iter()
+        .chain(fields)
+        .chain(representations)
+        .chain(relations)
+        .chain(ports)
+        .chain(connections)
+        .collect();
+    network::require_closed(program, allowed, projection)
 }
 
 fn cartesian_boxes_2d(
@@ -668,16 +472,17 @@ impl FixedReferenceFsiCartesianModel2d {
         &self,
     ) -> Result<eqiora_solver::AlgebraicStructure, Diagnostic> {
         eqiora_solver::AlgebraicStructure::new(
-            [
-                self.fluid().velocity(),
-                self.fluid().pressure(),
-                self.solid().velocity(),
-            ]
-            .map(|field| {
-                field
-                    .downcast::<eqiora_core::entity::kinds::Field>()
-                    .expect("admitted Field")
-            }),
+            self.equation_roles
+                .relations
+                .values()
+                .filter_map(|relation| match relation.kind {
+                    crate::form_compiler::equation_roles::Role::Residual { tested } => Some(
+                        tested
+                            .downcast::<eqiora_core::entity::kinds::Field>()
+                            .expect("admitted Field"),
+                    ),
+                    _ => None,
+                }),
             [],
         )
     }

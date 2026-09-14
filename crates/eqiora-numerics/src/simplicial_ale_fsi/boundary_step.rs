@@ -337,7 +337,7 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
         partition: &FixedReferenceFsiPartition<D>,
         motion: &P1HarmonicMeshMotionAction<D>,
         previous: &AleFsiState<D>,
-        plan: AleFsiStepPlan<D>,
+        plan: &AleFsiStepPlan<D>,
         quadrature: &QuadratureRule,
     ) -> Result<(), Diagnostic> {
         motion.validate_reference(reference, partition)?;
@@ -351,24 +351,14 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
                 "ALE FSI prepared boundary endpoint or velocity-scale identity is stale",
             ));
         }
-        for (vertex, components) in self.previous_physical().iter().enumerate() {
-            for (component, physical) in components.iter().copied().enumerate() {
-                if physical.is_some_and(|expected| {
-                    previous.vertex_velocity()[vertex][component].to_bits() != expected.to_bits()
-                }) {
-                    return Err(invalid(
-                        "ALE FSI previous state differs from its prepared physical trace",
-                    ));
-                }
-            }
-        }
-        let previous_reference = previous.to_fixed_reference_state(reference, partition)?;
+        require_physical_trace(previous.physical_state(), self.previous_physical(), plan)?;
+        let previous_reference = previous.physical_state();
         let boundary = self.as_boundary();
         validate_problem(
             reference,
             partition,
             &boundary,
-            &previous_reference,
+            previous_reference,
             plan.fixed_reference_config(),
             quadrature,
         )?;
@@ -384,7 +374,7 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
     pub(super) fn validate_action(
         &self,
         previous: &AleFsiState<D>,
-        plan: AleFsiStepPlan<D>,
+        plan: &AleFsiStepPlan<D>,
     ) -> Result<(), Diagnostic> {
         if previous.time().to_bits() != self.previous_endpoint.time_bits()
             || (previous.time() + plan.time_step()).to_bits() != self.current_endpoint.time_bits()
@@ -395,17 +385,7 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
                 "ALE FSI prepared boundary endpoint or velocity-scale identity is stale",
             ));
         }
-        for (vertex, components) in self.previous_physical().iter().enumerate() {
-            for (component, physical) in components.iter().copied().enumerate() {
-                if physical.is_some_and(|expected| {
-                    previous.vertex_velocity()[vertex][component].to_bits() != expected.to_bits()
-                }) {
-                    return Err(invalid(
-                        "ALE FSI previous state differs from its prepared physical trace",
-                    ));
-                }
-            }
-        }
+        require_physical_trace(previous.physical_state(), self.previous_physical(), plan)?;
         Ok(())
     }
 
@@ -422,40 +402,29 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
     pub(super) fn reduce_initial_point(
         &self,
         previous: &AleFsiState<D>,
-        plan: AleFsiStepPlan<D>,
+        _plan: &AleFsiStepPlan<D>,
         layout: &FsiLayout<D>,
     ) -> Result<Vec<f64>, Diagnostic> {
-        let velocity_scale = plan.scale().velocity();
-        let pressure_scale = plan.scale().pressure();
-        let mut vertex_velocity = previous
-            .vertex_velocity()
-            .iter()
-            .map(|value| value.map(|component| component / velocity_scale))
-            .collect::<Vec<_>>();
-        for (vertex, components) in self.current_quotient().iter().enumerate() {
-            for (component, quotient) in components.iter().copied().enumerate() {
-                if let Some(quotient) = quotient {
-                    vertex_velocity[vertex][component] = quotient;
-                }
+        let mut values = dimensionless_state(previous.physical_state(), layout)?;
+        for (key, value) in &mut values {
+            let (domain, _) = layout
+                .mapping()
+                .field_layout(key.field)
+                .expect("mapped Field");
+            if key.entity.dimension() == 0
+                && layout.velocity_field(domain)? == key.field
+                && let Some(fixed) = self.current_quotient()[key.entity.index()][key.component]
+            {
+                *value = fixed;
             }
         }
-        let bubbles = previous
-            .fluid_cell_bubble_velocity()
-            .iter()
-            .map(|(&cell, value)| (cell, value.map(|component| component / velocity_scale)))
-            .collect::<std::collections::BTreeMap<_, _>>();
-        let pressure = previous
-            .fluid_pressure()
-            .iter()
-            .map(|value| value / pressure_scale)
-            .collect::<Vec<_>>();
-        layout.reduce(&vertex_velocity, &bubbles, &pressure)
+        layout.reduce(&values)
     }
 
     pub(super) fn reduce_current_point(
         &self,
         current: &AleFsiState<D>,
-        plan: AleFsiStepPlan<D>,
+        _plan: &AleFsiStepPlan<D>,
         layout: &FsiLayout<D>,
     ) -> Result<Vec<f64>, Diagnostic> {
         if current.time().to_bits() != self.current_endpoint.time_bits() {
@@ -463,24 +432,7 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
                 "ALE FSI verification state differs from its prepared current endpoint",
             ));
         }
-        let velocity_scale = plan.scale().velocity();
-        let pressure_scale = plan.scale().pressure();
-        let velocity = current
-            .vertex_velocity()
-            .iter()
-            .map(|value| value.map(|component| component / velocity_scale))
-            .collect::<Vec<_>>();
-        let bubbles = current
-            .fluid_cell_bubble_velocity()
-            .iter()
-            .map(|(&cell, value)| (cell, value.map(|component| component / velocity_scale)))
-            .collect::<std::collections::BTreeMap<_, _>>();
-        let pressure = current
-            .fluid_pressure()
-            .iter()
-            .map(|value| value / pressure_scale)
-            .collect::<Vec<_>>();
-        layout.reduce(&velocity, &bubbles, &pressure)
+        layout.reduce(&dimensionless_state(current.physical_state(), layout)?)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -491,51 +443,23 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
         motion: &P1HarmonicMeshMotionAction<D>,
         previous: &AleFsiState<D>,
         candidate: &[f64],
-        plan: AleFsiStepPlan<D>,
+        plan: &AleFsiStepPlan<D>,
         layout: &FsiLayout<D>,
     ) -> Result<AleFsiState<D>, Diagnostic> {
-        let (vertex_hat, bubbles_hat, pressure_hat) = layout.reconstruct_primal(candidate)?;
-        let velocity_scale = plan.scale().velocity();
-        let pressure_scale = plan.scale().pressure();
-        let vertex_velocity = vertex_hat
-            .iter()
-            .map(|value| value.map(|component| component * velocity_scale))
-            .collect::<Vec<_>>();
-        for (vertex, components) in self.current_physical().iter().enumerate() {
-            for (component, physical) in components.iter().copied().enumerate() {
-                if physical.is_some_and(|expected| {
-                    vertex_velocity[vertex][component].to_bits() != expected.to_bits()
-                }) {
-                    return Err(invalid(
-                        "ALE FSI reconstructed current state differs from its prepared physical trace",
-                    ));
-                }
-            }
-        }
-        let bubbles = bubbles_hat
-            .iter()
-            .map(|(&cell, value)| (cell, value.map(|component| component * velocity_scale)))
-            .collect::<std::collections::BTreeMap<_, _>>();
-        let pressure = pressure_hat
-            .iter()
-            .map(|value| value * pressure_scale)
-            .collect::<Vec<_>>();
-        let mut displacement = previous.solid_displacement().to_vec();
-        for vertex in partition.solid_vertices() {
-            for component in 0..D {
-                displacement[vertex.index()][component] +=
-                    plan.time_step() * vertex_velocity[vertex.index()][component];
-            }
-        }
-        AleFsiState::<D>::new(
+        let physical = crate::simplicial_fsi::FixedReferenceFsiState {
+            fields: layout.mapping().recover_step(
+                candidate,
+                &previous.physical_state().fields,
+                layout.time_step(),
+            )?,
+        };
+        require_physical_trace(&physical, self.current_physical(), plan)?;
+        AleFsiState::new(
             f64::from_bits(self.current_endpoint.time_bits()),
             reference,
             partition,
             motion,
-            vertex_velocity,
-            bubbles,
-            pressure,
-            displacement,
+            physical,
         )
     }
 
@@ -543,7 +467,7 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
         &self,
         partition: &FixedReferenceFsiPartition<D>,
         motion: &P1HarmonicMeshMotionAction<D>,
-        plan: AleFsiStepPlan<D>,
+        plan: &AleFsiStepPlan<D>,
         layout: &FsiLayout<D>,
     ) -> Result<Vec<AlgebraicDirection<D>>, Diagnostic> {
         let dimension = layout.reduced_size();
@@ -558,56 +482,51 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
                 .map_err(|_| invalid("ALE FSI reduced basis direction allocation failed"))?;
             basis.resize(dimension, 0.0);
             basis[column] = 1.0;
-            let (vertex_hat, bubble_hat, pressure_hat) = layout.reconstruct_direction(&basis)?;
-            self.require_zero_eliminated_direction(&vertex_hat)?;
-            let vertex_velocity = vertex_hat
-                .iter()
-                .map(|value| value.map(|component| component * plan.scale().velocity()))
-                .collect::<Vec<_>>();
-            let fluid_bubbles = bubble_hat
-                .iter()
-                .map(|(&cell, value)| {
-                    (
-                        cell,
-                        value.map(|component| component * plan.scale().velocity()),
-                    )
-                })
-                .collect::<std::collections::BTreeMap<_, _>>();
-            let pressure = pressure_hat
-                .iter()
-                .map(|value| value * plan.scale().pressure())
-                .collect::<Vec<_>>();
-            let mut displacement = vec![[0.0; D]; vertex_velocity.len()];
-            for vertex in partition.solid_vertices() {
-                displacement[vertex.index()] =
-                    vertex_velocity[vertex.index()].map(|value| plan.time_step() * value);
+            let mut physical = layout.reconstruct_direction(&basis)?;
+            for (key, value) in &mut physical {
+                let (domain, _) = layout
+                    .mapping()
+                    .field_layout(key.field)
+                    .expect("mapped Field");
+                if key.entity.dimension() == 0
+                    && layout.velocity_field(domain)? == key.field
+                    && self.current_quotient()[key.entity.index()][key.component].is_some()
+                    && *value != 0.0
+                {
+                    return Err(invalid(
+                        "ALE direction is nonzero at an eliminated exact velocity coordinate",
+                    ));
+                }
+                *value *= layout.mapping().field_scale(key.field)?;
+            }
+            let driver = motion.policy().solid_displacement();
+            let rate = layout.state_rate(driver.erase())?;
+            let mut displacement = BTreeMap::new();
+            for vertex in partition
+                .domain_vertices(motion.policy().solid_domain())
+                .ok_or_else(|| invalid("motion driver Domain support is absent"))?
+            {
+                let mut value = [0.0; D];
+                for (component, entry) in value.iter_mut().enumerate() {
+                    let key = crate::region_assembly::mapping::FieldDof {
+                        field: rate,
+                        entity: MeshEntity::new(0, vertex.index()),
+                        slot: 0,
+                        component,
+                    };
+                    *entry = plan.time_step()
+                        * physical.get(&key).ok_or_else(|| {
+                            invalid("motion derivative omits exact rate coordinate")
+                        })?;
+                }
+                displacement.insert(*vertex, value);
             }
             directions.push(AlgebraicDirection {
-                vertex_velocity,
-                fluid_bubbles,
-                pressure,
-                coordinate: motion.apply_jvp(&displacement)?,
+                physical,
+                coordinate: motion.apply_jvp(driver, &displacement)?,
             });
         }
         Ok(directions)
-    }
-
-    fn require_zero_eliminated_direction(&self, direction: &[[f64; D]]) -> Result<(), Diagnostic> {
-        if direction.len() != self.current_quotient().len() {
-            return Err(invalid(
-                "ALE FSI direction differs from its prepared vertex inventory",
-            ));
-        }
-        for (vertex, components) in self.current_quotient().iter().enumerate() {
-            for (component, fixed) in components.iter().enumerate() {
-                if fixed.is_some() && direction[vertex][component].to_bits() != 0.0_f64.to_bits() {
-                    return Err(invalid(
-                        "ALE FSI direction is nonzero at an eliminated velocity component",
-                    ));
-                }
-            }
-        }
-        Ok(())
     }
 }
 
@@ -616,7 +535,7 @@ impl<const D: usize> PreparedAleFsiBoundaryRun<D> {
         mesh: &SimplicialMesh,
         boundary: &AleFsiBoundary<D>,
         initial: &AleFsiState<D>,
-        plan: AleFsiStepPlan<D>,
+        plan: &AleFsiStepPlan<D>,
     ) -> Result<Self, Diagnostic> {
         let (template, homogeneous, _normalization_count) =
             match PreparedAleFsiBoundaryStep::from_boundary(boundary) {
@@ -653,7 +572,7 @@ impl<const D: usize> PreparedAleFsiBoundaryRun<D> {
     pub(super) fn action(
         &self,
         previous: &AleFsiState<D>,
-        plan: AleFsiStepPlan<D>,
+        plan: &AleFsiStepPlan<D>,
     ) -> Result<PreparedAleFsiBoundaryStep<D>, Diagnostic> {
         let current_time = previous.time() + plan.time_step();
         let action = if previous.time().to_bits() == self.template.previous_endpoint.time_bits()
@@ -691,7 +610,7 @@ pub(crate) fn advance_simplicial_ale_fsi_prepared_step<const D: usize>(
     expected_current: AleFsiBoundaryEndpointIdentity,
     motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
-    plan: AleFsiStepPlan<D>,
+    plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
@@ -727,10 +646,53 @@ pub(crate) fn advance_simplicial_ale_fsi_prepared_step<const D: usize>(
 }
 
 pub(super) struct AlgebraicDirection<const D: usize> {
-    pub(super) vertex_velocity: Vec<[f64; D]>,
-    pub(super) fluid_bubbles: std::collections::BTreeMap<eqiora_meshing::CellId, [f64; D]>,
-    pub(super) pressure: Vec<f64>,
+    pub(super) physical: BTreeMap<crate::region_assembly::mapping::FieldDof, f64>,
     pub(super) coordinate: Vec<[f64; D]>,
+}
+
+fn dimensionless_state<const D: usize>(
+    state: &crate::simplicial_fsi::FixedReferenceFsiState<D>,
+    layout: &FsiLayout<D>,
+) -> Result<BTreeMap<crate::region_assembly::mapping::FieldDof, f64>, Diagnostic> {
+    layout
+        .mapping()
+        .validate_step_history(&state.fields, layout.time_step())?;
+    let mut values = layout.reconstruct_primal(&vec![0.0; layout.reduced_size()])?;
+    for (key, value) in &mut values {
+        *value =
+            state.fields[&key.field].coefficients[key] / layout.mapping().field_scale(key.field)?;
+    }
+    Ok(values)
+}
+
+fn require_physical_trace<const D: usize>(
+    state: &crate::simplicial_fsi::FixedReferenceFsiState<D>,
+    trace: &[[Option<f64>; D]],
+    plan: &AleFsiStepPlan<D>,
+) -> Result<(), Diagnostic> {
+    for field in plan.material().kinetic_fields().map(eqiora_core::Id::erase) {
+        let values = state
+            .fields
+            .get(&field)
+            .ok_or_else(|| invalid("physical trace omits exact kinetic Field"))?;
+        for (key, value) in &values.coefficients {
+            if key.entity.dimension() == 0 {
+                let components = trace
+                    .get(key.entity.index())
+                    .ok_or_else(|| invalid("physical trace omits exact vertex"))?;
+                if components
+                    .get(key.component)
+                    .ok_or_else(|| invalid("physical trace component outside dimension"))?
+                    .is_some_and(|fixed| fixed.to_bits() != value.to_bits())
+                {
+                    return Err(invalid(
+                        "physical State differs from exact prepared velocity trace",
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 fn physical_inventory<const D: usize>(

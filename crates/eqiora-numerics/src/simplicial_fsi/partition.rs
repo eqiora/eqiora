@@ -1,276 +1,189 @@
-//! Exact conforming fluid/solid cell and interface partition.
-
-use std::collections::{BTreeSet, VecDeque};
-
-use eqiora_core::Diagnostic;
-use eqiora_meshing::{
-    CellId, FacetId, MeshEntity, MeshTopology, OrientationCode, SimplicialMesh, VertexId,
-};
+//! Exact Domain cell ownership and Connection-relative simplex incidence.
 
 use super::contract::require_mesh_dimension;
 use super::invalid;
+use crate::region_assembly::mapping::{TraceBinding, bind_region_topology};
+use eqiora_core::{Diagnostic, Id, RawId, entity::kinds};
+use eqiora_meshing::{
+    CellId, EntityIncidence, FacetId, MeshEntity, MeshTopology, SimplicialMesh, VertexId,
+};
+use eqiora_realization::ConformingTraceQuotient;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-/// Exact, exhaustive two-material partition of one conforming simplex mesh.
+/// Complete exact Region partition of one conforming simplex mesh.
+///
+/// Equation and state roles belong to the Plan. This owner retains only actual
+/// Domain membership and the admitted Connection-relative topology.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedReferenceFsiPartition<const D: usize> {
-    fluid_cells: Vec<CellId>,
-    solid_cells: Vec<CellId>,
-    interface_facets: Vec<FacetId>,
-    fluid_vertices: Vec<VertexId>,
-    solid_vertices: Vec<VertexId>,
-    interface_vertices: Vec<VertexId>,
-    interface_witnesses: Vec<FixedReferenceFsiInterfaceFacet<D>>,
-    cell_count: usize,
-}
-
-/// One oriented two-sided witness for a conforming material interface facet.
-///
-/// Fluid and solid ownership are explicit. Local ordinals and orientation
-/// codes come from the immutable reference topology and therefore cannot be
-/// reconstructed later from a facet number plus an assumed side.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FixedReferenceFsiInterfaceFacet<const D: usize> {
-    facet: FacetId,
-    fluid_cell: CellId,
-    solid_cell: CellId,
-    fluid_local_ordinal: usize,
-    solid_local_ordinal: usize,
-    fluid_orientation: OrientationCode,
-    solid_orientation: OrientationCode,
-}
-
-impl<const D: usize> FixedReferenceFsiInterfaceFacet<D> {
-    /// Shared `(D - 1)`-simplex facet.
-    #[must_use]
-    pub const fn facet(self) -> FacetId {
-        self.facet
-    }
-
-    /// Incident fluid cell.
-    #[must_use]
-    pub const fn fluid_cell(self) -> CellId {
-        self.fluid_cell
-    }
-
-    /// Incident solid cell.
-    #[must_use]
-    pub const fn solid_cell(self) -> CellId {
-        self.solid_cell
-    }
-
-    /// Facet ordinal in the fluid reference simplex.
-    #[must_use]
-    pub const fn fluid_local_ordinal(self) -> usize {
-        self.fluid_local_ordinal
-    }
-
-    /// Facet ordinal in the solid reference simplex.
-    #[must_use]
-    pub const fn solid_local_ordinal(self) -> usize {
-        self.solid_local_ordinal
-    }
-
-    /// Canonical-facet orientation relative to the fluid cell.
-    #[must_use]
-    pub const fn fluid_orientation(self) -> OrientationCode {
-        self.fluid_orientation
-    }
-
-    /// Canonical-facet orientation relative to the solid cell.
-    #[must_use]
-    pub const fn solid_orientation(self) -> OrientationCode {
-        self.solid_orientation
-    }
+    domains: BTreeMap<RawId, Vec<CellId>>,
+    vertices: BTreeMap<RawId, Vec<VertexId>>,
+    cell_domains: Vec<RawId>,
+    traces: Vec<TraceBinding>,
 }
 
 impl<const D: usize> FixedReferenceFsiPartition<D> {
-    /// Admit one exact conforming fluid/solid partition.
-    ///
-    /// Inputs must already be strictly ordered.  Every cell belongs to exactly
-    /// one material, and the supplied interface must equal (not merely be a
-    /// subset of) the complete set of cross-material facets.
-    ///
+    /// Authenticate a complete Domain inventory and every cross-Region quotient.
+    /// Input order carries no ownership meaning; duplicates, missing cells,
+    /// disconnected Regions and inexact quotient coverage reject.
     /// # Errors
-    /// Returns `EQ0801` for an incompatible mesh, invalid IDs, non-exhaustive or
-    /// disconnected material cells, or an inexact interface closure.
+    /// Returns `EQ0801` for an invalid topology or ownership inventory.
     pub fn new(
         mesh: &SimplicialMesh,
-        fluid_cells: Vec<CellId>,
-        solid_cells: Vec<CellId>,
-        interface_facets: Vec<FacetId>,
+        domains: impl IntoIterator<Item = (Id<kinds::Domain>, Vec<CellId>)>,
+        quotients: &[ConformingTraceQuotient],
     ) -> Result<Self, Diagnostic> {
         require_mesh_dimension::<D>(mesh)?;
-        require_strict_ids(
-            fluid_cells.iter().map(|id| id.index()),
-            "fluid cell inventory",
-        )?;
-        require_strict_ids(
-            solid_cells.iter().map(|id| id.index()),
-            "solid cell inventory",
-        )?;
-        require_strict_ids(
-            interface_facets.iter().map(|id| id.index()),
-            "interface facet inventory",
-        )?;
-        if fluid_cells.is_empty() || solid_cells.is_empty() || interface_facets.is_empty() {
-            return Err(invalid(
-                "fixed-reference FSI requires non-empty fluid, solid, and interface inventories",
-            ));
+        let mut owned = BTreeMap::new();
+        for (domain, cells) in domains {
+            let count = cells.len();
+            let cells = cells.into_iter().collect::<BTreeSet<_>>();
+            if cells.is_empty() || cells.len() != count {
+                return Err(invalid(
+                    "Region cell inventory is empty or repeats an exact CellId",
+                ));
+            }
+            if owned
+                .insert(domain.erase(), cells.into_iter().collect::<Vec<_>>())
+                .is_some()
+            {
+                return Err(invalid("partition repeats an exact Domain"));
+            }
         }
-
-        let cell_count = mesh
-            .entity_count(D)
-            .expect("accepted simplex mesh owns a cell stratum");
-        let facet_count = mesh
-            .entity_count(D - 1)
-            .expect("accepted simplex mesh owns a facet stratum");
-        let fluid = fluid_cells.iter().copied().collect::<BTreeSet<_>>();
-        let solid = solid_cells.iter().copied().collect::<BTreeSet<_>>();
-        if !fluid.is_disjoint(&solid)
-            || fluid.union(&solid).count() != cell_count
-            || fluid.union(&solid).any(|cell| cell.index() >= cell_count)
-        {
-            return Err(invalid(
-                "FSI cell inventories must cover the exact mesh once",
-            ));
+        let (cell_domains, mut traces) = bind_region_topology(
+            mesh,
+            owned
+                .iter()
+                .flat_map(|(&domain, cells)| cells.iter().map(move |&cell| (cell, domain))),
+            quotients,
+        )?;
+        traces.sort_by_key(|trace| {
+            (
+                trace.quotient.connection().erase(),
+                trace
+                    .quotient
+                    .endpoints()
+                    .map(|endpoint| endpoint.field().erase()),
+            )
+        });
+        let mut connection_domains = BTreeMap::new();
+        for trace in &traces {
+            let mut domains = trace
+                .quotient
+                .endpoints()
+                .map(|endpoint| endpoint.domain().erase());
+            domains.sort();
+            if connection_domains
+                .insert(trace.quotient.connection().erase(), domains)
+                .is_some_and(|old| old != domains)
+            {
+                return Err(invalid(
+                    "one exact Connection cannot own different Domain endpoint pairs",
+                ));
+            }
         }
-        if interface_facets
-            .iter()
-            .any(|facet| facet.index() >= facet_count)
-        {
-            return Err(invalid(
-                "fixed-reference FSI interface facet is outside the mesh revision",
-            ));
+        let mut vertices = BTreeMap::new();
+        for (&domain, cells) in &owned {
+            require_connected_cells::<D>(mesh, &cells.iter().copied().collect())?;
+            vertices.insert(domain, region_vertices::<D>(mesh, cells));
         }
-
-        let supplied_interface = interface_facets
-            .iter()
-            .map(|facet| facet.index())
-            .collect::<BTreeSet<_>>();
-        let mut exact_interface = BTreeSet::new();
-        let mut interface_witnesses = Vec::new();
-        for facet_index in 0..facet_count {
-            let facet = MeshEntity::new(D - 1, facet_index);
-            let adjacent = mesh
-                .incidence(facet, D)
-                .expect("accepted facet owns cell incidence");
-            if adjacent.len() == 2 {
-                let left = fluid.contains(&CellId::new(adjacent[0].entity.index()));
-                let right = fluid.contains(&CellId::new(adjacent[1].entity.index()));
-                if left != right {
-                    exact_interface.insert(facet_index);
-                    let (fluid, solid) = if left {
-                        (adjacent[0], adjacent[1])
-                    } else {
-                        (adjacent[1], adjacent[0])
-                    };
-                    interface_witnesses.push(FixedReferenceFsiInterfaceFacet {
-                        facet: FacetId::new(facet_index),
-                        fluid_cell: CellId::new(fluid.entity.index()),
-                        solid_cell: CellId::new(solid.entity.index()),
-                        fluid_local_ordinal: fluid.local_ordinal,
-                        solid_local_ordinal: solid.local_ordinal,
-                        fluid_orientation: fluid.orientation,
-                        solid_orientation: solid.orientation,
-                    });
+        // Shared vertices require actual shared-facet support. Touching Regions
+        // cannot acquire an implicit quotient from geometric coincidence alone.
+        for (&left, left_vertices) in &vertices {
+            for (&right, right_vertices) in
+                vertices.range((std::ops::Bound::Excluded(left), std::ops::Bound::Unbounded))
+            {
+                let shared = left_vertices
+                    .iter()
+                    .copied()
+                    .filter(|vertex| right_vertices.binary_search(vertex).is_ok())
+                    .collect::<BTreeSet<_>>();
+                let mut supported = BTreeSet::new();
+                for trace in &traces {
+                    let endpoints = trace
+                        .quotient
+                        .endpoints()
+                        .map(|endpoint| endpoint.domain().erase());
+                    if BTreeSet::from(endpoints) != BTreeSet::from([left, right]) {
+                        continue;
+                    }
+                    for facet in &trace.facets {
+                        supported.extend(
+                            mesh.entity_vertices(facet.facet)
+                                .expect("authenticated facet")
+                                .into_iter()
+                                .map(|vertex| VertexId::new(vertex.index())),
+                        );
+                    }
+                }
+                if shared != supported {
+                    return Err(invalid(
+                        "Region closures share vertices outside their exact quotient facets",
+                    ));
                 }
             }
         }
-        if supplied_interface != exact_interface {
-            return Err(invalid(
-                "fixed-reference FSI interface facets must equal the complete cross-material facet set",
-            ));
-        }
-
-        require_connected_cells::<D>(mesh, &fluid)?;
-        require_connected_cells::<D>(mesh, &solid)?;
-        let fluid_vertices = material_vertices::<D>(mesh, &fluid_cells);
-        let solid_vertices = material_vertices::<D>(mesh, &solid_cells);
-        let interface_vertices = facet_vertices::<D>(mesh, &interface_facets);
-        let shared = fluid_vertices
-            .iter()
-            .copied()
-            .filter(|vertex| solid_vertices.binary_search(vertex).is_ok())
-            .collect::<Vec<_>>();
-        if shared != interface_vertices {
-            return Err(invalid(
-                "fixed-reference FSI material closures may share vertices only through the exact interface facets",
-            ));
-        }
-
         Ok(Self {
-            fluid_cells,
-            solid_cells,
-            interface_facets,
-            fluid_vertices,
-            solid_vertices,
-            interface_vertices,
-            interface_witnesses,
-            cell_count,
+            domains: owned,
+            vertices,
+            cell_domains,
+            traces,
         })
     }
 
-    /// Fluid cells in deterministic mesh-cell order.
-    #[must_use]
-    pub fn fluid_cells(&self) -> &[CellId] {
-        &self.fluid_cells
+    /// Exact admitted Domain identities in canonical order.
+    pub fn domains(&self) -> impl Iterator<Item = Id<kinds::Domain>> + '_ {
+        self.domains
+            .keys()
+            .map(|id| id.downcast().expect("typed Domain constructor"))
     }
 
-    /// Solid cells in deterministic mesh-cell order.
+    /// Complete cell support of one exact Domain.
     #[must_use]
-    pub fn solid_cells(&self) -> &[CellId] {
-        &self.solid_cells
+    pub fn domain_cells(&self, domain: Id<kinds::Domain>) -> Option<&[CellId]> {
+        self.domains.get(&domain.erase()).map(Vec::as_slice)
     }
 
-    /// Complete conforming interface in deterministic mesh-facet order.
+    /// Complete vertex closure of one exact Domain.
     #[must_use]
-    pub fn interface_facets(&self) -> &[FacetId] {
-        &self.interface_facets
+    pub fn domain_vertices(&self, domain: Id<kinds::Domain>) -> Option<&[VertexId]> {
+        self.vertices.get(&domain.erase()).map(Vec::as_slice)
     }
 
-    /// Vertices in the fluid closure.
-    #[must_use]
-    pub fn fluid_vertices(&self) -> &[VertexId] {
-        &self.fluid_vertices
+    /// Every admitted exact trace quotient.
+    pub fn quotients(&self) -> impl Iterator<Item = ConformingTraceQuotient> + '_ {
+        self.traces.iter().map(|trace| trace.quotient)
     }
 
-    /// Vertices in the solid closure.
+    /// Exact oriented cell incidence for a Connection facet, ordered by quotient endpoints.
     #[must_use]
-    pub fn solid_vertices(&self) -> &[VertexId] {
-        &self.solid_vertices
-    }
-
-    /// Vertices in the exact shared interface closure.
-    #[must_use]
-    pub fn interface_vertices(&self) -> &[VertexId] {
-        &self.interface_vertices
-    }
-
-    /// Oriented fluid/solid incidence for every interface facet.
-    #[must_use]
-    pub fn interface_witnesses(&self) -> &[FixedReferenceFsiInterfaceFacet<D>] {
-        &self.interface_witnesses
+    pub fn facet_sides(
+        &self,
+        connection: Id<kinds::Connection>,
+        facet: FacetId,
+    ) -> Option<[(Id<kinds::Domain>, EntityIncidence); 2]> {
+        let trace = self
+            .traces
+            .iter()
+            .find(|trace| trace.quotient.connection() == connection)?;
+        let witness = trace
+            .facets
+            .iter()
+            .find(|witness| witness.facet.index() == facet.index())?;
+        Some(std::array::from_fn(|i| {
+            (trace.quotient.endpoints()[i].domain(), witness.sides[i])
+        }))
     }
 
     pub(crate) fn cell_count(&self) -> usize {
-        self.cell_count
+        self.cell_domains.len()
     }
-}
-
-fn require_strict_ids(
-    ids: impl Iterator<Item = usize>,
-    name: &'static str,
-) -> Result<(), Diagnostic> {
-    let mut previous = None;
-    for id in ids {
-        if previous.is_some_and(|previous| id <= previous) {
-            return Err(invalid(format!(
-                "fixed-reference FSI {name} must be strictly increasing"
-            )));
-        }
-        previous = Some(id);
+    pub(crate) fn cell_domains(&self) -> &[RawId] {
+        &self.cell_domains
     }
-    Ok(())
+    pub(crate) fn traces(&self) -> &[TraceBinding] {
+        &self.traces
+    }
 }
 
 fn require_connected_cells<const D: usize>(
@@ -301,31 +214,18 @@ fn require_connected_cells<const D: usize>(
     }
     if cells.iter().any(|cell| !visited[cell.index()]) {
         return Err(invalid(
-            "fixed-reference FSI requires each material cell set to be facet-connected",
+            "fixed-reference FSI requires each Region cell set to be facet-connected",
         ));
     }
     Ok(())
 }
 
-fn material_vertices<const D: usize>(mesh: &SimplicialMesh, cells: &[CellId]) -> Vec<VertexId> {
+fn region_vertices<const D: usize>(mesh: &SimplicialMesh, cells: &[CellId]) -> Vec<VertexId> {
     let mut vertices = BTreeSet::new();
     for cell in cells {
         for vertex in mesh
             .entity_vertices(MeshEntity::new(D, cell.index()))
             .expect("accepted cell owns vertices")
-        {
-            vertices.insert(VertexId::new(vertex.index()));
-        }
-    }
-    vertices.into_iter().collect()
-}
-
-fn facet_vertices<const D: usize>(mesh: &SimplicialMesh, facets: &[FacetId]) -> Vec<VertexId> {
-    let mut vertices = BTreeSet::new();
-    for facet in facets {
-        for vertex in mesh
-            .entity_vertices(MeshEntity::new(D - 1, facet.index()))
-            .expect("accepted facet owns vertices")
         {
             vertices.insert(VertexId::new(vertex.index()));
         }

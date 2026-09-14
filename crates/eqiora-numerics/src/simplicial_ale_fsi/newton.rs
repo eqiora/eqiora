@@ -52,7 +52,7 @@ pub(crate) fn advance_simplicial_ale_fsi_2d(
         motion,
         initial,
         step_count,
-        plan,
+        &plan,
         quadrature,
         &REFERENCE_ASSEMBLY_BACKEND,
         solver,
@@ -86,7 +86,7 @@ pub(crate) fn advance_simplicial_ale_fsi_2d_with_assembly(
         motion,
         initial,
         step_count,
-        plan,
+        &plan,
         quadrature,
         assembly,
         solver,
@@ -121,7 +121,7 @@ pub(crate) fn advance_simplicial_ale_fsi_3d(
         motion,
         initial,
         step_count,
-        plan,
+        &plan,
         quadrature,
         &REFERENCE_ASSEMBLY_BACKEND,
         solver,
@@ -156,7 +156,7 @@ pub(crate) fn advance_simplicial_ale_fsi_3d_with_assembly(
         motion,
         initial,
         step_count,
-        plan,
+        &plan,
         quadrature,
         assembly,
         solver,
@@ -198,7 +198,7 @@ impl<'a, const D: usize> PreparedAleFsiRun<'a, D> {
         boundary: &'a AleFsiBoundary<D>,
         motion: &'a P1HarmonicMeshMotionAction<D>,
         initial: &AleFsiState<D>,
-        plan: AleFsiStepPlan<D>,
+        plan: &AleFsiStepPlan<D>,
         quadrature: &'a QuadratureRule,
         assembly: &'a dyn AssemblyBackend,
         solver: &'a dyn LinearSolverBackend,
@@ -239,7 +239,7 @@ impl<'a, const D: usize> PreparedAleFsiRun<'a, D> {
             boundary,
             structure,
             motion,
-            plan,
+            plan: plan.clone(),
             quadrature,
             assembly,
             solver,
@@ -252,13 +252,13 @@ impl<'a, const D: usize> PreparedAleFsiRun<'a, D> {
         &self,
         previous: &AleFsiState<D>,
     ) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {
-        let boundary = self.boundary.action(previous, self.plan)?;
+        let boundary = self.boundary.action(previous, &self.plan)?;
         let action = self.structure.prepare_action(
             self.reference,
             self.partition,
             boundary,
             previous,
-            self.plan,
+            &self.plan,
         )?;
         solve_one_step_prepared(
             self.reference,
@@ -267,7 +267,7 @@ impl<'a, const D: usize> PreparedAleFsiRun<'a, D> {
             &action,
             self.motion,
             previous,
-            self.plan,
+            &self.plan,
             self.quadrature,
             self.assembly,
             self.solver,
@@ -283,7 +283,7 @@ fn advance_simplicial_ale_fsi_with_assembly<const D: usize>(
     motion: &P1HarmonicMeshMotionAction<D>,
     initial: AleFsiState<D>,
     step_count: NonZeroStepCount,
-    plan: AleFsiStepPlan<D>,
+    plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
@@ -343,7 +343,7 @@ pub(super) fn solve_one_step<const D: usize>(
     boundary: &AleFsiBoundary<D>,
     motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
-    plan: AleFsiStepPlan<D>,
+    plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
     assembly_backend: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
@@ -392,7 +392,7 @@ fn solve_one_step_prepared<const D: usize>(
     action: &PreparedAleFsiAction<D>,
     motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
-    plan: AleFsiStepPlan<D>,
+    plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
     assembly_backend: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
@@ -517,7 +517,7 @@ fn solve_one_step_prepared<const D: usize>(
 }
 
 fn nonlinear_target<const D: usize>(
-    plan: AleFsiStepPlan<D>,
+    plan: &AleFsiStepPlan<D>,
     initial_norm: f64,
 ) -> Result<f64, Diagnostic> {
     if !initial_norm.is_finite() || initial_norm < 0.0 {

@@ -1,6 +1,6 @@
 //! Compare package-neutral operators using independently named physical coordinates.
 
-use super::SpatialContext;
+use super::{FsiCaseFields, SpatialContext};
 use eqiora::meshing::MeshEntity;
 use eqiora::solver::CanonicalCsrSystemView;
 use eqiora_numerics::fsi::{
@@ -20,6 +20,7 @@ pub(crate) struct PhysicalOperator {
     system: CanonicalCsrSystemView,
     coordinates: BTreeMap<Coordinate, usize>,
     scales: BTreeMap<FieldRole, f64>,
+    fields: FsiCaseFields,
 }
 
 impl PhysicalOperator {
@@ -27,12 +28,12 @@ impl PhysicalOperator {
         finalized: &FinalizedResolvedFixedReferenceFsiStep2d,
         spatial: &SpatialContext,
     ) -> Self {
-        let fields = finalized.fields();
+        let fields = spatial.fields;
         let mut coordinates = BTreeMap::new();
         let scales = [
-            (FieldRole::FluidVelocity, fields.fluid_velocity()),
-            (FieldRole::FluidPressure, fields.fluid_pressure()),
-            (FieldRole::SolidVelocity, fields.solid_velocity()),
+            (FieldRole::FluidVelocity, fields.fluid_velocity),
+            (FieldRole::FluidPressure, fields.fluid_pressure),
+            (FieldRole::SolidVelocity, fields.solid_velocity),
         ]
         .into_iter()
         .map(|(role, field)| {
@@ -53,20 +54,29 @@ impl PhysicalOperator {
         for (role, field, vertices, components) in [
             (
                 FieldRole::FluidVelocity,
-                fields.fluid_velocity(),
-                spatial.partition.fluid_vertices(),
+                fields.fluid_velocity,
+                spatial
+                    .partition
+                    .domain_vertices(fields.fluid_domain)
+                    .unwrap(),
                 2,
             ),
             (
                 FieldRole::FluidPressure,
-                fields.fluid_pressure(),
-                spatial.partition.fluid_vertices(),
+                fields.fluid_pressure,
+                spatial
+                    .partition
+                    .domain_vertices(fields.fluid_domain)
+                    .unwrap(),
                 1,
             ),
             (
                 FieldRole::SolidVelocity,
-                fields.solid_velocity(),
-                spatial.partition.solid_vertices(),
+                fields.solid_velocity,
+                spatial
+                    .partition
+                    .domain_vertices(fields.solid_domain)
+                    .unwrap(),
                 2,
             ),
         ] {
@@ -79,26 +89,26 @@ impl PhysicalOperator {
                 }
             }
         }
-        for cell in spatial.partition.fluid_cells() {
+        for cell in spatial.partition.domain_cells(fields.fluid_domain).unwrap() {
             let entity = MeshEntity::new(2, cell.index());
             assert!(
                 finalized
-                    .free_field_dof(fields.fluid_pressure(), entity, 0, 0)
+                    .free_field_dof(fields.fluid_pressure, entity, 0, 0)
                     .is_none()
             );
             assert!(
                 finalized
-                    .free_field_dof(fields.solid_velocity(), entity, 0, 0)
+                    .free_field_dof(fields.solid_velocity, entity, 0, 0)
                     .is_none()
             );
             assert!(
                 finalized
-                    .free_field_dof(fields.fluid_velocity(), entity, 0, 2)
+                    .free_field_dof(fields.fluid_velocity, entity, 0, 2)
                     .is_none()
             );
             for component in 0..2 {
                 let dof = finalized
-                    .free_field_dof(fields.fluid_velocity(), entity, 0, component)
+                    .free_field_dof(fields.fluid_velocity, entity, 0, component)
                     .expect("each MINI bubble is an unconstrained fluid coordinate");
                 coordinates.insert(
                     (FieldRole::FluidVelocity, entity, 0, component),
@@ -110,7 +120,7 @@ impl PhysicalOperator {
         assert!(
             finalized
                 .free_field_dof(
-                    fields.fluid_velocity(),
+                    fields.fluid_velocity,
                     MeshEntity::new(0, spatial.mesh.vertices().len()),
                     0,
                     0
@@ -125,6 +135,7 @@ impl PhysicalOperator {
             system,
             coordinates,
             scales,
+            fields,
         }
     }
 
@@ -182,7 +193,8 @@ impl PhysicalOperator {
         assert!(!self.agrees(&Self {
             system: other.system.clone(),
             coordinates: wrong,
-            scales: other.scales.clone()
+            scales: other.scales.clone(),
+            fields: other.fields
         }));
         let mut wrong = other.coordinates.clone();
         let value = wrong.remove(first.0).unwrap();
@@ -194,7 +206,8 @@ impl PhysicalOperator {
             self.permutation(&Self {
                 system: other.system.clone(),
                 coordinates: wrong,
-                scales: other.scales.clone()
+                scales: other.scales.clone(),
+                fields: other.fields
             })
             .is_none()
         );
@@ -209,8 +222,9 @@ impl PhysicalOperator {
         assert!(self.agrees(other));
         let mut difference = vec![None; self.system.rows()];
         for (&coordinate, &index) in &self.coordinates {
-            let delta = physical_value(direct, coordinate) / self.scales[&coordinate.0]
-                - physical_value(packaged, coordinate) / other.scales[&coordinate.0];
+            let delta = physical_value(direct, self.fields, coordinate)
+                / self.scales[&coordinate.0]
+                - physical_value(packaged, other.fields, coordinate) / other.scales[&coordinate.0];
             if let Some(alias) = difference[index] {
                 assert_eq!(alias, delta);
             }
@@ -243,18 +257,27 @@ impl PhysicalOperator {
     }
 }
 
-fn physical_value(solution: &ResolvedFixedReferenceFsiSolution2d, coordinate: Coordinate) -> f64 {
+fn physical_value(
+    solution: &ResolvedFixedReferenceFsiSolution2d,
+    fields: FsiCaseFields,
+    coordinate: Coordinate,
+) -> f64 {
     let (role, entity, slot, component) = coordinate;
     assert_eq!(slot, 0);
-    let vertex = eqiora::meshing::VertexId::new(entity.index());
-    match role {
-        FieldRole::FluidVelocity if entity.dimension() == 2 => solution
-            .fluid_velocity_bubble_coefficients()[&eqiora::meshing::CellId::new(entity.index())]
-            [component],
-        FieldRole::FluidVelocity => solution.fluid_velocity_coefficient(vertex).unwrap()[component],
-        FieldRole::SolidVelocity => solution.solid_velocity_coefficient(vertex).unwrap()[component],
-        FieldRole::FluidPressure => solution.fluid_pressure_coefficient(vertex).unwrap(),
-    }
+    let field = match role {
+        FieldRole::FluidVelocity => fields.fluid_velocity,
+        FieldRole::SolidVelocity => fields.solid_velocity,
+        FieldRole::FluidPressure => fields.fluid_pressure,
+    };
+    solution
+        .state()
+        .coefficients(field)
+        .expect("exact accepted Field")
+        .find(|(actual, actual_slot, actual_component, _)| {
+            *actual == entity && *actual_slot == slot && *actual_component == component
+        })
+        .map(|(_, _, _, value)| value)
+        .expect("exact accepted coefficient")
 }
 
 fn entry(system: &CanonicalCsrSystemView, row: usize, column: usize) -> f64 {

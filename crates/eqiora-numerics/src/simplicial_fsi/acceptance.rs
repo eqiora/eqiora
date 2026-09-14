@@ -6,25 +6,21 @@ use eqiora_meshing::{MeshEntity, MeshGeometry, QuadratureRule, SimplicialMesh};
 use eqiora_solver::CanonicalCsrSystemView;
 
 use super::api::FixedReferenceFsiEnergyBalance;
-use super::contract::{
-    FixedReferenceFsiMaterial, FixedReferenceFsiState, FixedReferenceFsiStepConfig,
-};
+use super::contract::{FixedReferenceFsiState, FixedReferenceFsiStepConfig};
 use super::element::dot;
+use super::invalid;
 use super::layout::FsiLayout;
 use super::partition::FixedReferenceFsiPartition;
-use super::{invalid, mini_count, p1_count};
 use crate::affine_fem::physical_gradient;
 use crate::continuum_kinematics::{symmetric_gradient, twice_symmetric_gradient_squared_norm};
-use crate::discrete_space::{DiscreteSpace, SimplexP1BubbleSpace, SimplexP1Space};
 
 pub(super) struct EnergyEvaluation<'a, const D: usize = 2> {
     pub(super) mesh: &'a SimplicialMesh,
     pub(super) partition: &'a FixedReferenceFsiPartition<D>,
+    pub(super) layout: &'a FsiLayout<D>,
     pub(super) previous: &'a FixedReferenceFsiState<D>,
-    pub(super) next_vertex_velocity: &'a [[f64; D]],
-    pub(super) next_bubbles: &'a std::collections::BTreeMap<eqiora_meshing::CellId, [f64; D]>,
-    pub(super) next_displacement: &'a [[f64; D]],
-    pub(super) config: FixedReferenceFsiStepConfig<D>,
+    pub(super) next: &'a FixedReferenceFsiState<D>,
+    pub(super) config: &'a FixedReferenceFsiStepConfig<D>,
     pub(super) quadrature: &'a QuadratureRule,
 }
 
@@ -34,14 +30,13 @@ pub(super) fn energy_balance<const D: usize>(
     let EnergyEvaluation {
         mesh,
         partition,
+        layout,
         previous,
-        next_vertex_velocity,
-        next_bubbles,
-        next_displacement,
+        next,
         config,
         quadrature,
     } = evaluation;
-    let material = config.material();
+    layout.require_material(config)?;
     let mut previous_kinetic = 0.0;
     let mut next_kinetic = 0.0;
     let mut previous_elastic = 0.0;
@@ -49,124 +44,97 @@ pub(super) fn energy_balance<const D: usize>(
     let mut kinetic_increment = 0.0;
     let mut elastic_increment = 0.0;
     let mut viscous_dissipation = 0.0;
-    let p1_count = p1_count::<D>();
-    let mini_count = mini_count::<D>();
-    let mini = SimplexP1BubbleSpace::new(D)?;
-    let p1 = SimplexP1Space::new(D)?;
-
-    for cell in partition.fluid_cells().iter().copied() {
-        let entity = MeshEntity::new(D, cell.index());
-        let geometry = mesh
-            .geometry_map(entity)
-            .expect("accepted fluid cell owns geometry");
-        let inverse = geometry.inverse_jacobian()?;
-        let vertices = mesh
-            .entity_vertices(entity)
-            .expect("accepted cell owns vertices");
-        for point in quadrature.points() {
-            let basis = mini.tabulate(&point.coordinates)?;
-            let gradients = (0..mini_count)
-                .map(|index| {
-                    physical_gradient(
-                        basis.gradient(index).expect("accepted MINI basis"),
-                        &inverse,
-                        D,
-                    )
-                })
-                .collect::<Vec<_>>();
-            let mut old = [0.0; D];
-            let mut new = [0.0; D];
-            let mut new_gradient = [[0.0; D]; D];
-            for local in 0..p1_count {
-                for component in 0..D {
-                    old[component] += basis.values()[local]
-                        * previous.vertex_velocity()[vertices[local].index()][component];
-                    new[component] += basis.values()[local]
-                        * next_vertex_velocity[vertices[local].index()][component];
-                    for axis in 0..D {
-                        new_gradient[component][axis] += gradients[local][axis]
-                            * next_vertex_velocity[vertices[local].index()][component];
-                    }
+    for (&field, &(domain, density)) in &config.material().densities {
+        let (_, field_layout) = layout
+            .mapping()
+            .field_layout(field)
+            .expect("validated kinetic Field");
+        let basis = crate::form_compiler::region::basis(
+            field_layout.space,
+            eqiora_meshing::ReferenceCell::simplex(D)?,
+        )?;
+        for cell in partition
+            .domain_cells(domain.downcast().expect("Domain"))
+            .expect("validated Domain")
+        {
+            let entity = MeshEntity::new(D, cell.index());
+            let geometry = mesh
+                .geometry_map(entity)
+                .ok_or_else(|| invalid("kinetic cell has no exact geometry"))?;
+            let inverse = geometry.inverse_jacobian()?;
+            let keys = layout.mapping().cell_field_keys(cell.index(), field)?;
+            for point in quadrature.points() {
+                let tabulation = basis.tabulate(&point.coordinates)?;
+                let gradients = (0..tabulation.values().len())
+                    .map(|i| {
+                        physical_gradient(
+                            tabulation.gradient(i).expect("basis gradient"),
+                            &inverse,
+                            D,
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                let (old, _) = sample::<D>(previous, &keys, tabulation.values(), &gradients)?;
+                let (new, gradient) = sample::<D>(next, &keys, tabulation.values(), &gradients)?;
+                let difference: [f64; D] = std::array::from_fn(|i| new[i] - old[i]);
+                let weight = point.weight * geometry.measure_scale();
+                previous_kinetic += 0.5 * weight * density * dot(&old, &old);
+                next_kinetic += 0.5 * weight * density * dot(&new, &new);
+                kinetic_increment += 0.5 * weight * density * dot(&difference, &difference);
+                if let Some(&(_, viscosity)) = config.material().viscosities.get(&field) {
+                    viscous_dissipation +=
+                        weight * viscosity * twice_symmetric_gradient_squared_norm(&gradient);
                 }
             }
-            for component in 0..D {
-                old[component] += basis.values()[p1_count]
-                    * previous.fluid_cell_bubble_velocity()[&cell][component];
-                new[component] += basis.values()[p1_count] * next_bubbles[&cell][component];
-                for axis in 0..D {
-                    new_gradient[component][axis] +=
-                        gradients[p1_count][axis] * next_bubbles[&cell][component];
-                }
-            }
-            let weight = point.weight * geometry.measure_scale();
-            previous_kinetic += 0.5 * weight * material.fluid_density() * dot(&old, &old);
-            next_kinetic += 0.5 * weight * material.fluid_density() * dot(&new, &new);
-            let difference: [f64; D] =
-                std::array::from_fn(|component| new[component] - old[component]);
-            kinetic_increment +=
-                0.5 * weight * material.fluid_density() * dot(&difference, &difference);
-            viscous_dissipation += weight
-                * material.fluid_dynamic_viscosity()
-                * twice_symmetric_gradient_squared_norm(&new_gradient);
         }
     }
-
-    for cell in partition.solid_cells() {
-        let entity = MeshEntity::new(D, cell.index());
-        let geometry = mesh
-            .geometry_map(entity)
-            .expect("accepted solid cell owns geometry");
-        let inverse = geometry.inverse_jacobian()?;
-        let vertices = mesh
-            .entity_vertices(entity)
-            .expect("accepted cell owns vertices");
-        for point in quadrature.points() {
-            let basis = p1.tabulate(&point.coordinates)?;
-            let gradients = (0..p1_count)
-                .map(|index| {
-                    physical_gradient(
-                        basis.gradient(index).expect("accepted P1 basis"),
-                        &inverse,
-                        D,
-                    )
-                })
+    for (&field, &(domain, material)) in &config.material().elasticities {
+        let rate = layout.state_rate(field)?;
+        let (_, field_layout) = layout
+            .mapping()
+            .field_layout(rate)
+            .expect("validated state-rate Field");
+        let basis = crate::form_compiler::region::basis(
+            field_layout.space,
+            eqiora_meshing::ReferenceCell::simplex(D)?,
+        )?;
+        for cell in partition
+            .domain_cells(domain.downcast().expect("Domain"))
+            .expect("validated Domain")
+        {
+            let entity = MeshEntity::new(D, cell.index());
+            let geometry = mesh
+                .geometry_map(entity)
+                .ok_or_else(|| invalid("elastic cell has no exact geometry"))?;
+            let inverse = geometry.inverse_jacobian()?;
+            let keys = layout
+                .mapping()
+                .cell_field_keys(cell.index(), rate)?
+                .into_iter()
+                .map(|key| crate::region_assembly::mapping::FieldDof { field, ..key })
                 .collect::<Vec<_>>();
-            let mut old_velocity = [0.0; D];
-            let mut new_velocity = [0.0; D];
-            let mut old_displacement_gradient = [[0.0; D]; D];
-            let mut new_displacement_gradient = [[0.0; D]; D];
-            let mut increment_gradient = [[0.0; D]; D];
-            for local in 0..p1_count {
-                let vertex = vertices[local].index();
-                for component in 0..D {
-                    old_velocity[component] +=
-                        basis.values()[local] * previous.vertex_velocity()[vertex][component];
-                    new_velocity[component] +=
-                        basis.values()[local] * next_vertex_velocity[vertex][component];
-                    for axis in 0..D {
-                        old_displacement_gradient[component][axis] += gradients[local][axis]
-                            * previous.solid_displacement()[vertex][component];
-                        new_displacement_gradient[component][axis] +=
-                            gradients[local][axis] * next_displacement[vertex][component];
-                        increment_gradient[component][axis] += gradients[local][axis]
-                            * (next_displacement[vertex][component]
-                                - previous.solid_displacement()[vertex][component]);
-                    }
-                }
+            for point in quadrature.points() {
+                let tabulation = basis.tabulate(&point.coordinates)?;
+                let gradients = (0..tabulation.values().len())
+                    .map(|i| {
+                        physical_gradient(
+                            tabulation.gradient(i).expect("basis gradient"),
+                            &inverse,
+                            D,
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                let (_, old) = sample::<D>(previous, &keys, tabulation.values(), &gradients)?;
+                let (_, new) = sample::<D>(next, &keys, tabulation.values(), &gradients)?;
+                let difference =
+                    std::array::from_fn(|i| std::array::from_fn(|j| new[i][j] - old[i][j]));
+                let weight = point.weight * geometry.measure_scale();
+                previous_elastic +=
+                    weight * material.strain_energy_density(&symmetric_gradient(&old));
+                next_elastic += weight * material.strain_energy_density(&symmetric_gradient(&new));
+                elastic_increment +=
+                    weight * material.strain_energy_density(&symmetric_gradient(&difference));
             }
-            let weight = point.weight * geometry.measure_scale();
-            previous_kinetic +=
-                0.5 * weight * material.solid_density() * dot(&old_velocity, &old_velocity);
-            next_kinetic +=
-                0.5 * weight * material.solid_density() * dot(&new_velocity, &new_velocity);
-            let difference: [f64; D] =
-                std::array::from_fn(|component| new_velocity[component] - old_velocity[component]);
-            kinetic_increment +=
-                0.5 * weight * material.solid_density() * dot(&difference, &difference);
-            previous_elastic +=
-                weight * elastic_energy_density(&old_displacement_gradient, material);
-            next_elastic += weight * elastic_energy_density(&new_displacement_gradient, material);
-            elastic_increment += weight * elastic_energy_density(&increment_gradient, material);
         }
     }
     let viscous_dissipation = config.time_step() * viscous_dissipation;
@@ -174,7 +142,7 @@ pub(super) fn energy_balance<const D: usize>(
         + kinetic_increment
         + elastic_increment
         + viscous_dissipation;
-    let values = [
+    if [
         previous_kinetic,
         next_kinetic,
         previous_elastic,
@@ -183,11 +151,11 @@ pub(super) fn energy_balance<const D: usize>(
         elastic_increment,
         viscous_dissipation,
         defect,
-    ];
-    if values.into_iter().any(|value| !value.is_finite()) {
-        return Err(invalid(
-            "fixed-reference FSI energy evidence must be finite",
-        ));
+    ]
+    .into_iter()
+    .any(|value| !value.is_finite())
+    {
+        return Err(invalid("transient energy evidence must be finite"));
     }
     Ok(FixedReferenceFsiEnergyBalance {
         previous_kinetic,
@@ -201,13 +169,35 @@ pub(super) fn energy_balance<const D: usize>(
     })
 }
 
-fn elastic_energy_density<const D: usize>(
-    gradient: &[[f64; D]; D],
-    material: FixedReferenceFsiMaterial<D>,
-) -> f64 {
-    material
-        .solid_material()
-        .strain_energy_density(&symmetric_gradient(gradient))
+fn sample<const D: usize>(
+    state: &FixedReferenceFsiState<D>,
+    keys: &[crate::region_assembly::mapping::FieldDof],
+    values: &[f64],
+    gradients: &[Vec<f64>],
+) -> Result<([f64; D], [[f64; D]; D]), Diagnostic> {
+    if keys.len() != values.len() * D || gradients.len() != values.len() {
+        return Err(invalid(
+            "energy Field coordinates differ from exact vector basis",
+        ));
+    }
+    let mut value = [0.0; D];
+    let mut gradient = [[0.0; D]; D];
+    for local in 0..values.len() {
+        for component in 0..D {
+            let key = keys[local * D + component];
+            let coefficient = state
+                .fields
+                .get(&key.field)
+                .and_then(|field| field.coefficients.get(&key))
+                .copied()
+                .ok_or_else(|| invalid("energy history omits an exact Field coordinate"))?;
+            value[component] += values[local] * coefficient;
+            for axis in 0..D {
+                gradient[component][axis] += gradients[local][axis] * coefficient;
+            }
+        }
+    }
+    Ok((value, gradient))
 }
 
 pub(super) fn require_pressure_closed_by_complete_operator<const D: usize>(
@@ -268,25 +258,46 @@ pub(super) fn apply_canonical(
 }
 
 pub(super) fn kinematic_residual_norm<const D: usize>(
-    partition: &FixedReferenceFsiPartition<D>,
     previous: &FixedReferenceFsiState<D>,
-    velocity: &[[f64; D]],
-    displacement: &[[f64; D]],
-    time_step: f64,
-) -> f64 {
-    partition
-        .solid_vertices()
-        .iter()
-        .flat_map(|vertex| {
-            (0..D).map(move |component| {
-                displacement[vertex.index()][component]
-                    - previous.solid_displacement()[vertex.index()][component]
-                    - time_step * velocity[vertex.index()][component]
-            })
-        })
-        .map(|value| value * value)
-        .sum::<f64>()
-        .sqrt()
+    next: &FixedReferenceFsiState<D>,
+    step: &eqiora_realization::BackwardEulerStep,
+) -> Result<f64, Diagnostic> {
+    let mut squared = 0.0;
+    for binding in step.eliminated_states() {
+        let pair = binding.pair();
+        let old = previous
+            .fields
+            .get(&pair.state().erase())
+            .ok_or_else(|| invalid("kinematic history omits exact state"))?;
+        let state = next
+            .fields
+            .get(&pair.state().erase())
+            .ok_or_else(|| invalid("kinematic recovery omits exact state"))?;
+        let rate = next
+            .fields
+            .get(&pair.rate().erase())
+            .ok_or_else(|| invalid("kinematic recovery omits exact rate"))?;
+        for (&key, value) in &state.coefficients {
+            let old = old
+                .coefficients
+                .get(&key)
+                .ok_or_else(|| invalid("kinematic history omits exact coordinate"))?;
+            let rate_key = crate::region_assembly::mapping::FieldDof {
+                field: pair.rate().erase(),
+                ..key
+            };
+            let rate = rate
+                .coefficients
+                .get(&rate_key)
+                .ok_or_else(|| invalid("kinematic rate omits exact coordinate"))?;
+            squared += (value - old - step.duration().value() * rate).powi(2);
+        }
+    }
+    let norm = squared.sqrt();
+    if !norm.is_finite() {
+        return Err(invalid("kinematic residual is nonfinite"));
+    }
+    Ok(norm)
 }
 
 pub(super) fn norm(values: &[f64]) -> f64 {

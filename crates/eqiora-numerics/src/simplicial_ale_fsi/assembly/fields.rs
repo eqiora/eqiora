@@ -4,59 +4,67 @@ use super::*;
 
 pub(super) fn local_velocity_coefficients<const D: usize>(
     vertices: &[MeshEntity],
-    vertex_values: &[[f64; D]],
-    bubble: [f64; D],
+    field: eqiora_core::RawId,
+    values: &std::collections::BTreeMap<crate::region_assembly::mapping::FieldDof, f64>,
+    cell: CellId,
 ) -> Result<Vec<[f64; D]>, Diagnostic> {
     if vertices.len() != D + 1 {
-        return Err(invalid(format!(
-            "{D}D ALE FSI velocity closure must contain exactly {} vertices",
-            D + 1
-        )));
+        return Err(invalid(
+            "ALE velocity simplex has an incomplete vertex closure",
+        ));
     }
-    let mut coefficients = Vec::new();
-    coefficients
-        .try_reserve_exact(D + 2)
-        .map_err(|_| invalid("ALE FSI local velocity coefficient allocation failed"))?;
-    for vertex in vertices {
-        coefficients.push(
-            vertex_values.get(vertex.index()).copied().ok_or_else(|| {
-                invalid("ALE FSI velocity closure references a missing mesh vertex")
-            })?,
-        );
-    }
-    coefficients.push(bubble);
-    Ok(coefficients)
+    vertices
+        .iter()
+        .copied()
+        .chain(std::iter::once(MeshEntity::new(D, cell.index())))
+        .map(|entity| {
+            let mut vector = [0.0; D];
+            for (component, value) in vector.iter_mut().enumerate() {
+                *value = *values
+                    .get(&crate::region_assembly::mapping::FieldDof {
+                        field,
+                        entity,
+                        slot: 0,
+                        component,
+                    })
+                    .ok_or_else(|| {
+                        invalid("ALE velocity local projection omits exact Field/entity/component")
+                    })?;
+            }
+            Ok(vector)
+        })
+        .collect()
 }
 
 pub(super) fn local_pressure_coefficients<const D: usize>(
     vertices: &[MeshEntity],
-    partition: &FixedReferenceFsiPartition<D>,
-    pressure: &[f64],
+    field: eqiora_core::RawId,
+    values: &std::collections::BTreeMap<crate::region_assembly::mapping::FieldDof, f64>,
 ) -> Result<Vec<f64>, Diagnostic> {
-    let values = vertices
-        .iter()
-        .map(|vertex| {
-            let position = partition
-                .fluid_vertices()
-                .binary_search_by_key(&vertex.index(), |candidate| candidate.index())
-                .map_err(|_| {
-                    invalid("ALE FSI fluid cell vertex has no canonical pressure position")
-                })?;
-            pressure.get(position).copied().ok_or_else(|| {
-                invalid("ALE FSI pressure field differs from its partition ordering")
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    if values.len() != D + 1 {
-        return Err(invalid(format!(
-            "{D}D ALE FSI simplex pressure closure must contain {} vertices",
-            D + 1
-        )));
+    if vertices.len() != D + 1 {
+        return Err(invalid(
+            "ALE constraint simplex has an incomplete vertex closure",
+        ));
     }
-    Ok(values)
+    vertices
+        .iter()
+        .map(|&entity| {
+            values
+                .get(&crate::region_assembly::mapping::FieldDof {
+                    field,
+                    entity,
+                    slot: 0,
+                    component: 0,
+                })
+                .copied()
+                .ok_or_else(|| {
+                    invalid("ALE constraint projection omits exact Field/entity coordinate")
+                })
+        })
+        .collect()
 }
 
-pub(super) fn fluid_row_scales<const D: usize>(plan: AleFsiStepPlan<D>) -> Vec<f64> {
+pub(super) fn fluid_row_scales<const D: usize>(plan: &AleFsiStepPlan<D>) -> Vec<f64> {
     let scale = plan.scale();
     let power = scale.power();
     (0..fluid_local_size::<D>())

@@ -250,10 +250,14 @@ impl<'a, const D: usize> PreparedFixedReferenceFsiAssembly<'a, D> {
         layout: FsiLayout<D>,
     ) -> Result<Self, Diagnostic> {
         let boundary = layout.boundary();
-        validate_problem(mesh, partition, boundary, previous, config, quadrature)?;
+        validate_problem(mesh, partition, boundary, previous, &config, quadrature)?;
         layout.require_reference(mesh, partition)?;
         layout.require_boundary(boundary)?;
         layout.require_scale(config.scale())?;
+        layout.require_material(&config)?;
+        layout
+            .mapping()
+            .validate_step_history(&previous.fields, layout.time_step())?;
         let plan = AssemblyPlan::new(vec![
             AssemblyTarget::new(layout.reduced_size())?,
             AssemblyTarget::new(layout.full_size())?,
@@ -371,15 +375,19 @@ impl<const D: usize> AssemblyWork for PreparedFixedReferenceFsiAssembly<'_, D> {
             ))
         })?;
         match self.layout.cell_domain(packet_index)? {
-            domain if domain == self.layout.fluid_domain() => {
+            domain if self.layout.pressure_field(domain).is_some() => {
                 let cell = eqiora_meshing::CellId::new(packet_index);
                 let local = fluid_local(
                     &geometry,
                     self.quadrature,
-                    self.config,
+                    &self.config,
                     &vertices,
                     self.previous,
                     cell,
+                    self.layout
+                        .velocity_field(domain)?
+                        .downcast()
+                        .expect("Field"),
                 )?;
                 let reduced = self.layout.fluid_map(cell, &vertices, true)?;
                 let full = self.layout.fluid_map(cell, &vertices, false)?;
@@ -391,13 +399,22 @@ impl<const D: usize> AssemblyWork for PreparedFixedReferenceFsiAssembly<'_, D> {
                     ],
                 )
             }
-            domain if domain == self.layout.solid_domain() => {
+            domain if self.layout.state_field(domain).is_some() => {
                 let local = solid_local(
                     &geometry,
                     self.quadrature,
-                    self.config,
+                    &self.config,
                     &vertices,
                     self.previous,
+                    self.layout
+                        .velocity_field(domain)?
+                        .downcast()
+                        .expect("Field"),
+                    self.layout
+                        .state_field(domain)
+                        .expect("state role")
+                        .downcast()
+                        .expect("Field"),
                 )?;
                 let reduced = self.layout.solid_map(packet_index, &vertices, true)?;
                 let full = self.layout.solid_map(packet_index, &vertices, false)?;
@@ -482,15 +499,15 @@ impl<const D: usize> FinalizedState<D> {
         }
         let residual_target = solved.report().residual_target();
         let (algebraic_values, solve_report) = solved.into_parts();
-        let (dimensionless_vertex_velocity, dimensionless_fluid_bubbles, dimensionless_pressure) =
-            self.layout.reconstruct_primal(&algebraic_values)?;
-        let full_values = self.layout.fill_full(
-            &dimensionless_vertex_velocity,
-            &dimensionless_fluid_bubbles,
-            &dimensionless_pressure,
-        );
-        let (vertex_velocity, fluid_bubbles, pressure) =
-            self.layout.reconstruct_physical(&algebraic_values)?;
+        let dimensionless = self.layout.reconstruct_primal(&algebraic_values)?;
+        let full_values = self.layout.fill_full(&dimensionless)?;
+        let state = FixedReferenceFsiState {
+            fields: self.layout.mapping().recover_step(
+                &algebraic_values,
+                &self.previous.fields,
+                self.layout.time_step(),
+            )?,
+        };
 
         let mut reduced_residual = apply_canonical(&canonical_system, &algebraic_values)?;
         for (value, rhs) in reduced_residual
@@ -528,24 +545,22 @@ impl<const D: usize> FinalizedState<D> {
             )));
         }
 
-        let mut solid_displacement = self.previous.solid_displacement().to_vec();
-        for vertex in self.partition.solid_vertices() {
-            for component in 0..D {
-                solid_displacement[vertex.index()][component] +=
-                    self.config.time_step() * vertex_velocity[vertex.index()][component];
-            }
-        }
-        let kinematic_residual_norm = kinematic_residual_norm(
-            &self.partition,
-            &self.previous,
-            &vertex_velocity,
-            &solid_displacement,
-            self.config.time_step(),
-        );
+        let kinematic_residual_norm =
+            kinematic_residual_norm(&self.previous, &state, self.layout.time_step())?;
+        let state_coordinates = self
+            .layout
+            .state_bindings()
+            .iter()
+            .map(|binding| {
+                state.fields[&binding.pair().state().erase()]
+                    .coefficients
+                    .len()
+            })
+            .sum::<usize>();
         let kinematic_tolerance = 4096.0
             * f64::EPSILON
             * self.config.scale().length()
-            * (D as f64 * self.partition.solid_vertices().len() as f64).sqrt();
+            * (state_coordinates as f64).sqrt();
         if kinematic_residual_norm > kinematic_tolerance {
             return Err(invalid(format!(
                 "fixed-reference FSI kinematic residual {kinematic_residual_norm:e} exceeds {kinematic_tolerance:e}"
@@ -554,21 +569,61 @@ impl<const D: usize> FinalizedState<D> {
 
         let reactions = self.reactions.recover(&full_values)?;
         let dimensionless_to_action = self.config.scale().power() / self.config.scale().velocity();
-        let interface_actions = self
-            .partition
-            .interface_vertices()
-            .iter()
-            .copied()
-            .filter(|vertex| !self.layout.fixed_velocity(vertex.index()))
-            .map(|vertex| {
-                let (fluid, solid) = self.layout.interface_actions(&reactions, vertex.index())?;
-                Ok(FixedReferenceFsiInterfaceAction {
-                    vertex,
-                    fluid: fluid.map(|value| dimensionless_to_action * value),
-                    solid: solid.map(|value| dimensionless_to_action * value),
-                })
-            })
-            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        let mut interface_actions = Vec::new();
+        for (quotient, keys) in self.layout.mapping().traces() {
+            let endpoints = quotient.endpoints();
+            let support = keys
+                .iter()
+                .map(|key| (key.entity, key.slot))
+                .collect::<std::collections::BTreeSet<_>>();
+            let start = interface_actions.len();
+            for (entity, slot) in support {
+                if endpoints.iter().any(|endpoint| {
+                    (0..D).any(|component| {
+                        self.layout
+                            .free_field_dof(crate::region_assembly::mapping::FieldDof {
+                                field: endpoint.field().erase(),
+                                entity,
+                                slot,
+                                component,
+                            })
+                            .is_none()
+                    })
+                }) {
+                    continue;
+                }
+                let actions = endpoints
+                    .into_iter()
+                    .map(|endpoint| {
+                        let mut values = [0.0; D];
+                        for (component, value) in values.iter_mut().enumerate() {
+                            *value = dimensionless_to_action
+                                * reactions.action(
+                                    quotient.connection().erase(),
+                                    crate::region_assembly::mapping::FieldDof {
+                                        field: endpoint.field().erase(),
+                                        entity,
+                                        slot,
+                                        component,
+                                    },
+                                )?;
+                        }
+                        Ok((endpoint.domain(), endpoint.field(), values))
+                    })
+                    .collect::<Result<Vec<_>, Diagnostic>>()?;
+                interface_actions.push(FixedReferenceFsiInterfaceAction {
+                    connection: quotient.connection(),
+                    entity,
+                    slot,
+                    endpoints: actions.try_into().expect("two exact endpoints"),
+                });
+            }
+            if interface_actions.len() == start {
+                return Err(invalid(
+                    "Connection has no unconstrained exact interface action support",
+                ));
+            }
+        }
         let interface_action_imbalance_norm = interface_actions
             .iter()
             .flat_map(|action| action.imbalance())
@@ -593,10 +648,9 @@ impl<const D: usize> FinalizedState<D> {
             mesh: &self.mesh,
             partition: &self.partition,
             previous: &self.previous,
-            next_vertex_velocity: &vertex_velocity,
-            next_bubbles: &fluid_bubbles,
-            next_displacement: &solid_displacement,
-            config: self.config,
+            layout: &self.layout,
+            next: &state,
+            config: &self.config,
             quadrature: &self.quadrature,
         })?;
         let energy_tolerance = self.config.time_step()
@@ -620,11 +674,7 @@ impl<const D: usize> FinalizedState<D> {
         }
 
         Ok(FixedReferenceFsiSolution {
-            vertex_velocity,
-            fluid_cell_bubble_velocity: fluid_bubbles,
-            fluid_pressure_vertices: self.layout.pressure_vertices().to_vec(),
-            fluid_pressure: pressure,
-            solid_displacement,
+            state,
             algebraic_values,
             canonical_system,
             pressure_constant_action_norm: self.pressure_constant_action_norm,

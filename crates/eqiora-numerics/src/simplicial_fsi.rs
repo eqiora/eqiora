@@ -19,6 +19,7 @@ pub(crate) mod element;
 pub(crate) mod layout;
 pub(crate) mod partition;
 mod solve;
+mod state;
 
 #[cfg(test)]
 pub(crate) mod test_model;
@@ -36,7 +37,7 @@ pub use contract::{
     FixedReferenceFsiBoundary, FixedReferenceFsiLoad, FixedReferenceFsiMaterial,
     FixedReferenceFsiScale, FixedReferenceFsiState, FixedReferenceFsiStepConfig,
 };
-pub use partition::{FixedReferenceFsiInterfaceFacet, FixedReferenceFsiPartition};
+pub use partition::FixedReferenceFsiPartition;
 pub use solve::FinalizedFixedReferenceFsiStep;
 #[cfg(test)]
 pub(crate) use solve::solve_fixed_reference_fsi_step_3d;

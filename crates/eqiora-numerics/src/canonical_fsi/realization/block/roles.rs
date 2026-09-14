@@ -122,27 +122,6 @@ pub(super) fn volume_blocks(
     })
 }
 
-pub(super) fn coefficient_relation(
-    model: &FixedReferenceFsiCartesianModel2d,
-    domain: Id<kinds::Domain>,
-) -> Result<Id<kinds::Relation>, Diagnostic> {
-    unique(model, |entry| {
-        entry.domain == domain.erase() && matches!(entry.kind, Role::Coefficient { .. })
-    })
-}
-
-pub(super) fn residual_relation(
-    model: &FixedReferenceFsiCartesianModel2d,
-    tested: Id<kinds::Field>,
-) -> Result<Id<kinds::Relation>, Diagnostic> {
-    unique(model, |entry| {
-        entry.kind
-            == (Role::Residual {
-                tested: tested.erase(),
-            })
-    })
-}
-
 pub(super) fn kinematic_relation(
     model: &FixedReferenceFsiCartesianModel2d,
     state: Id<kinds::Field>,

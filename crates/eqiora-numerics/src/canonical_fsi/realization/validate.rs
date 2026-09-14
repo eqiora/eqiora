@@ -4,8 +4,7 @@ use eqiora_solver::AlgebraicBlock;
 use std::collections::BTreeSet;
 
 use eqiora_core::diagnostic::codes;
-use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id};
+use eqiora_core::{Diagnostic, DimExponents, DynQuantity};
 use eqiora_meshing::{CellId, MeshEntity, MeshTopology, SimplicialMesh};
 use eqiora_realization::{
     BackwardEulerStatePair, ConformingTraceQuotient, MeshArtifactReference,
@@ -15,8 +14,7 @@ use eqiora_realization::{
 use eqiora_schema::kernel::BoundarySide;
 use eqiora_solver::{LinearSolver, PreconditionerPolicy, SolverPlan};
 
-use super::super::{FixedReferenceFsiCartesianModel2d, FsiInterfaceSide};
-use super::result::FixedReferenceFsiFieldIdentities2d;
+use super::super::FixedReferenceFsiCartesianModel2d;
 use super::{
     DIMENSION, FixedReferenceFsiExecutionProfile, FixedReferenceFsiScaleProfile2d,
     fixed_reference_fsi_plan_2d_for_profile, fixed_reference_fsi_requirements_2d_for_layout,
@@ -162,34 +160,40 @@ pub(super) fn require_exact_plan(
             "fixed-reference FSI portable graph solver or exact admitted placement drifted",
         ));
     }
-    let state = graph
-        .fields()
+    let pairs = state_pairs(model);
+    for pair in &pairs {
+        let state = graph
+            .fields()
+            .iter()
+            .position(|field| field.field() == pair.state())
+            .ok_or_else(|| invalid_realization("graph omits exact eliminated state"))?;
+        let rate = graph
+            .fields()
+            .iter()
+            .position(|field| field.field() == pair.rate())
+            .ok_or_else(|| invalid_realization("graph omits exact algebraic rate"))?;
+        if !graph.transformations().iter().any(|transformation| matches!(transformation,
+            TransformationNode::BackwardEulerElimination { relation, state: selected_state,
+                rate: selected_rate, duration, .. }
+                if *relation == pair.relation() && selected_state.index() == state
+                    && selected_rate.index() == rate && *duration == resolved.plan().time_step().duration())) {
+            return Err(invalid_realization("portable state transformation differs from exact Relation/Field/duration"));
+        }
+    }
+    if graph
+        .transformations()
         .iter()
-        .position(|field| field.field() == solid_displacement(model))
-        .ok_or_else(|| invalid_realization("fixed-reference FSI graph omits displacement"))?;
-    let rate = graph
-        .fields()
-        .iter()
-        .position(|field| field.field() == solid_velocity(model))
-        .ok_or_else(|| invalid_realization("fixed-reference FSI graph omits solid velocity"))?;
-    let transformation_matches = graph.transformations().iter().any(|transformation| {
-        matches!(
-            transformation,
-            TransformationNode::BackwardEulerElimination {
-                relation,
-                state: selected_state,
-                rate: selected_rate,
-                duration,
-                ..
-            } if *relation == solid_kinematic_relation(model)
-                && selected_state.index() == state
-                && selected_rate.index() == rate
-                && *duration == resolved.plan().time_step().duration()
-        )
-    });
-    if !transformation_matches {
+        .filter(|transformation| {
+            matches!(
+                transformation,
+                TransformationNode::BackwardEulerElimination { .. }
+            )
+        })
+        .count()
+        != pairs.len()
+    {
         return Err(invalid_realization(
-            "fixed-reference FSI portable transformations differ from the exact kinematic Relation or interface Connection",
+            "portable graph has an extra state transformation",
         ));
     }
     let plan = resolved.plan();
@@ -207,10 +211,31 @@ pub(super) fn require_exact_plan(
                 invalid_realization("fixed-reference FSI plan omits an exact block scale")
             })
     };
+    let uniform_scale = |fields: Vec<eqiora_core::RawId>| -> Result<DynQuantity, Diagnostic> {
+        let values = fields
+            .into_iter()
+            .map(|field| scale_for(AlgebraicBlock::Field(field.downcast().expect("Field"))))
+            .collect::<Result<Vec<_>, _>>()?;
+        let [first, rest @ ..] = values.as_slice() else {
+            return Err(invalid_realization("scale role inventory is empty"));
+        };
+        if rest.iter().any(|value| value != first) {
+            return Err(invalid_realization(
+                "coupled velocity/pressure scales must agree within each exact role inventory",
+            ));
+        }
+        Ok(*first)
+    };
     let scales = FixedReferenceFsiScaleProfile2d::new(
         plan.spatial().coordinate_length_scale().quantity(),
-        scale_for(AlgebraicBlock::Field(fluid_velocity(model)))?,
-        scale_for(AlgebraicBlock::Field(fluid_pressure(model)))?,
+        uniform_scale(
+            model
+                .fluids()
+                .map(|fluid| fluid.velocity())
+                .chain(model.solids().map(|solid| solid.velocity()))
+                .collect(),
+        )?,
+        uniform_scale(model.fluids().map(|fluid| fluid.pressure()).collect())?,
     )?;
     let expected = fixed_reference_fsi_plan_2d_for_profile(
         model,
@@ -231,16 +256,19 @@ pub(super) fn require_exact_plan(
 pub(super) fn require_zero_load(
     model: &FixedReferenceFsiCartesianModel2d,
 ) -> Result<(), Diagnostic> {
-    if model.fluid().force_potential_expression().constant_value() != Some(0.0)
-        || model
-            .solid()
-            .continuum()
-            .load_potential_expression()
-            .constant_value()
-            != Some(0.0)
+    if model
+        .fluids()
+        .any(|fluid| fluid.force_potential_expression().constant_value() != Some(0.0))
+        || model.solids().any(|solid| {
+            solid
+                .continuum()
+                .load_potential_expression()
+                .constant_value()
+                != Some(0.0)
+        })
     {
         return Err(invalid_realization(
-            "fixed-reference FSI v1 requires exact zero canonical fluid and solid load potentials",
+            "current transient energy acceptance requires exact zero load potentials in every Region",
         ));
     }
     Ok(())
@@ -249,53 +277,46 @@ pub(super) fn require_zero_load(
 pub(super) fn require_boundary_meaning(
     model: &FixedReferenceFsiCartesianModel2d,
 ) -> Result<(), Diagnostic> {
-    let interface = model.interface();
-    require_physics_boundary(
-        model.fluid().boundary_inventory(),
-        interface.axis(),
-        interface.fluid(),
-        interface.connection(),
-        "fluid",
-    )?;
-    require_physics_boundary(
-        model.solid().continuum().boundary_inventory(),
-        interface.axis(),
-        interface.solid(),
-        interface.connection(),
-        "solid",
-    )
-}
-
-fn require_physics_boundary(
-    inventory: &crate::canonical_boundary::CartesianBoundaryInventory<2>,
-    interface_axis: usize,
-    interface_side: FsiInterfaceSide,
-    connection: eqiora_core::RawId,
-    physics: &str,
-) -> Result<(), Diagnostic> {
-    for axis in 0..DIMENSION {
-        for side in [BoundarySide::Lower, BoundarySide::Upper] {
-            let entry = inventory.boundary(axis, side).ok_or_else(|| {
-                invalid_realization(format!(
-                    "fixed-reference FSI {physics} boundary inventory omits axis {axis} {side:?}"
-                ))
-            })?;
-            if axis == interface_axis && side == interface_side.side() {
-                if entry.boundary() != interface_side.boundary()
-                    || entry.disposition()
-                        != (PhysicalBoundaryDisposition::PortBinding {
-                            connection,
-                            port: interface_side.port(),
-                        })
-                {
-                    return Err(invalid_realization(format!(
-                        "fixed-reference FSI {physics} interface boundary identity or live Port binding drifted"
-                    )));
+    for (domain, inventory) in model
+        .fluids()
+        .map(|fluid| (fluid.domain(), fluid.boundary_inventory()))
+        .chain(model.solids().map(|solid| {
+            (
+                solid.continuum().domain(),
+                solid.continuum().boundary_inventory(),
+            )
+        }))
+    {
+        for axis in 0..DIMENSION {
+            for side in [BoundarySide::Lower, BoundarySide::Upper] {
+                let entry = inventory.boundary(axis, side).ok_or_else(|| {
+                    invalid_realization("Region omits an exact Cartesian boundary")
+                })?;
+                match entry.disposition() {
+                    PhysicalBoundaryDisposition::TraceZero => {}
+                    PhysicalBoundaryDisposition::PortBinding { connection, port } => {
+                        let interface = model.interfaces.get(&connection).ok_or_else(|| {
+                            invalid_realization("Boundary has a foreign Connection")
+                        })?;
+                        let endpoint = interface.endpoint(domain).ok_or_else(|| {
+                            invalid_realization("Connection has a foreign parent Domain")
+                        })?;
+                        if interface.axis() != axis
+                            || endpoint.side() != side
+                            || endpoint.boundary() != entry.boundary()
+                            || endpoint.port() != port
+                        {
+                            return Err(invalid_realization(
+                                "Boundary differs from its exact Connection endpoint",
+                            ));
+                        }
+                    }
+                    _ => {
+                        return Err(invalid_realization(
+                            "current transient energy acceptance requires zero velocity on every exterior side",
+                        ));
+                    }
                 }
-            } else if entry.disposition() != PhysicalBoundaryDisposition::TraceZero {
-                return Err(invalid_realization(format!(
-                    "fixed-reference FSI v1 requires TraceZero on every exterior {physics} side"
-                )));
             }
         }
     }
@@ -311,131 +332,103 @@ pub(super) fn require_mesh_partition(
         || mesh.vertices().iter().any(|point| point.len() != DIMENSION)
     {
         return Err(invalid_realization(
-            "fixed-reference FSI canonical bridge requires an intrinsic 2D mesh",
+            "canonical bridge requires intrinsic two-dimensional mesh",
         ));
     }
-    require_cells_in_bounds(
-        mesh,
-        partition.fluid_cells(),
-        model.fluid().bounds(),
-        "fluid",
-    )?;
-    require_cells_in_bounds(
-        mesh,
-        partition.solid_cells(),
-        model.solid().continuum().bounds(),
-        "solid",
-    )?;
-
-    let interface = model.interface();
-    let interface_coordinate = match interface.fluid().side() {
-        BoundarySide::Lower => model.fluid().bounds()[interface.axis()][0],
-        BoundarySide::Upper => model.fluid().bounds()[interface.axis()][1],
-    };
-    for facet in partition.interface_facets() {
-        let vertices = mesh
-            .entity_vertices(MeshEntity::new(DIMENSION - 1, facet.index()))
-            .ok_or_else(|| {
-                invalid_realization(
-                    "fixed-reference FSI interface facet is outside the mesh revision",
-                )
-            })?;
-        if vertices
-            .iter()
-            .any(|vertex| mesh.vertices()[vertex.index()][interface.axis()] != interface_coordinate)
-        {
-            return Err(invalid_realization(
-                "fixed-reference FSI partition interface does not lie on the exact semantic interface",
-            ));
-        }
+    let bounds = model
+        .fluids()
+        .map(|fluid| (fluid.domain(), fluid.bounds()))
+        .chain(
+            model
+                .solids()
+                .map(|solid| (solid.continuum().domain(), solid.continuum().bounds())),
+        )
+        .collect::<std::collections::BTreeMap<_, _>>();
+    if bounds.keys().copied().collect::<BTreeSet<_>>()
+        != partition.domains().map(|domain| domain.erase()).collect()
+    {
+        return Err(invalid_realization(
+            "partition differs from complete exact Model Domain inventory",
+        ));
     }
-
-    let fluid_cells = partition
-        .fluid_cells()
-        .iter()
-        .map(|cell| cell.index())
-        .collect::<BTreeSet<_>>();
-    let mut fluid_coverage = [[false; 2]; DIMENSION];
-    let mut solid_coverage = [[false; 2]; DIMENSION];
-    let facet_count = mesh
-        .entity_count(DIMENSION - 1)
-        .ok_or_else(|| invalid_realization("fixed-reference FSI mesh omits its facet stratum"))?;
-    for facet_index in 0..facet_count {
-        let facet = MeshEntity::new(DIMENSION - 1, facet_index);
-        if !mesh.is_boundary_entity(facet).ok_or_else(|| {
-            invalid_realization("fixed-reference FSI facet is outside the mesh revision")
-        })? {
-            continue;
-        }
-        let adjacent = mesh.incidence(facet, DIMENSION).ok_or_else(|| {
-            invalid_realization("fixed-reference FSI facet has no cell-incidence relation")
-        })?;
-        let [cell] = adjacent.as_slice() else {
-            return Err(invalid_realization(
-                "fixed-reference FSI exterior facet must have exactly one adjacent cell",
-            ));
-        };
-        let (bounds, coverage, interface_side) = if fluid_cells.contains(&cell.entity.index()) {
+    let replay = FixedReferenceFsiPartition::<2>::new(
+        mesh,
+        partition.domains().map(|domain| {
             (
-                model.fluid().bounds(),
-                &mut fluid_coverage,
-                interface.fluid().side(),
+                domain,
+                partition
+                    .domain_cells(domain)
+                    .expect("exact Domain")
+                    .to_vec(),
             )
-        } else {
-            (
-                model.solid().continuum().bounds(),
-                &mut solid_coverage,
-                interface.solid().side(),
-            )
-        };
-        let vertices = mesh.entity_vertices(facet).ok_or_else(|| {
-            invalid_realization("fixed-reference FSI exterior facet has no vertex closure")
-        })?;
-        let mut matched = None;
-        for (axis, axis_bounds) in bounds.iter().enumerate() {
-            for (side_index, bound) in axis_bounds.iter().enumerate() {
-                if vertices
-                    .iter()
-                    .all(|vertex| mesh.vertices()[vertex.index()][axis] == *bound)
-                {
-                    if matched.is_some() {
+        }),
+        &trace_quotients(model),
+    )?;
+    if &replay != partition {
+        return Err(invalid_realization(
+            "partition quotient or topology differs from exact Model replay",
+        ));
+    }
+    for (&domain, &bounds) in &bounds {
+        require_cells_in_bounds(
+            mesh,
+            partition
+                .domain_cells(domain.downcast().expect("Domain"))
+                .expect("exact Domain"),
+            bounds,
+            "Region",
+        )?;
+        let mut coverage = [[false; 2]; DIMENSION];
+        for index in 0..mesh.entity_count(DIMENSION - 1).expect("facet stratum") {
+            let facet = MeshEntity::new(DIMENSION - 1, index);
+            let adjacent = mesh.incidence(facet, DIMENSION).expect("exact facet");
+            let own = adjacent
+                .iter()
+                .filter(|side| partition.cell_domains()[side.entity.index()] == domain)
+                .count();
+            if own != 1 {
+                continue;
+            }
+            let vertices = mesh.entity_vertices(facet).expect("exact facet closure");
+            let mut matched = None;
+            for (axis, axis_bounds) in bounds.iter().enumerate() {
+                for (side, &bound) in axis_bounds.iter().enumerate() {
+                    if vertices
+                        .iter()
+                        .all(|vertex| mesh.vertices()[vertex.index()][axis] == bound)
+                        && matched.replace((axis, side)).is_some()
+                    {
                         return Err(invalid_realization(
-                            "fixed-reference FSI exterior facet ambiguously belongs to multiple semantic sides",
+                            "Region facet has ambiguous Cartesian support",
                         ));
                     }
-                    matched = Some((axis, side_index));
                 }
             }
+            let (axis, side_index) = matched.ok_or_else(|| {
+                invalid_realization("Region frontier is outside its exact Cartesian sides")
+            })?;
+            let side = if side_index == 0 {
+                BoundarySide::Lower
+            } else {
+                BoundarySide::Upper
+            };
+            let expected_interface = model.interfaces().find(|interface| {
+                interface.axis() == axis
+                    && interface
+                        .endpoint(domain)
+                        .is_some_and(|endpoint| endpoint.side() == side)
+            });
+            if (adjacent.len() == 2) != expected_interface.is_some() {
+                return Err(invalid_realization(
+                    "semantic Connection and exact exterior facet ownership differ",
+                ));
+            }
+            coverage[axis][side_index] = true;
         }
-        let Some((axis, side_index)) = matched else {
-            return Err(invalid_realization(
-                "fixed-reference FSI mesh exterior does not lie on an exact semantic side",
-            ));
-        };
-        let side = if side_index == 0 {
-            BoundarySide::Lower
-        } else {
-            BoundarySide::Upper
-        };
-        if axis == interface.axis() && side == interface_side {
-            return Err(invalid_realization(
-                "fixed-reference FSI semantic interface appeared on the mesh exterior",
-            ));
+        if coverage.into_iter().flatten().any(|covered| !covered) {
+            return Err(invalid_realization("mesh omits an exact Region side"));
         }
-        coverage[axis][side_index] = true;
     }
-    require_exterior_coverage(
-        fluid_coverage,
-        interface.axis(),
-        interface.fluid().side(),
-        "fluid",
-    )?;
-    require_exterior_coverage(
-        solid_coverage,
-        interface.axis(),
-        interface.solid().side(),
-        "solid",
-    )?;
     Ok(())
 }
 
@@ -462,29 +455,6 @@ fn require_cells_in_bounds(
             return Err(invalid_realization(format!(
                 "fixed-reference FSI {physics} cell lies outside its exact semantic Domain"
             )));
-        }
-    }
-    Ok(())
-}
-
-fn require_exterior_coverage(
-    coverage: [[bool; 2]; DIMENSION],
-    interface_axis: usize,
-    interface_side: BoundarySide,
-    physics: &str,
-) -> Result<(), Diagnostic> {
-    for (axis, sides) in coverage.iter().enumerate() {
-        for (side_index, covered) in sides.iter().enumerate() {
-            let side = if side_index == 0 {
-                BoundarySide::Lower
-            } else {
-                BoundarySide::Upper
-            };
-            if !(*covered || axis == interface_axis && side == interface_side) {
-                return Err(invalid_realization(format!(
-                    "fixed-reference FSI mesh does not cover the exact exterior {physics} side on axis {axis} {side:?}"
-                )));
-            }
         }
     }
     Ok(())
@@ -555,101 +525,42 @@ pub(super) fn require_dimension(
     Ok(())
 }
 
-pub(super) fn trace_quotient(model: &FixedReferenceFsiCartesianModel2d) -> ConformingTraceQuotient {
-    ConformingTraceQuotient::new(
-        connection_id(model),
-        TraceFieldEndpoint::new(fluid_domain(model), fluid_velocity(model)),
-        TraceFieldEndpoint::new(solid_domain(model), solid_velocity(model)),
-    )
-    .expect("lowered FSI interface joins distinct Domains")
-}
-
-pub(super) fn state_pair(model: &FixedReferenceFsiCartesianModel2d) -> BackwardEulerStatePair {
-    BackwardEulerStatePair::new(
-        solid_kinematic_relation(model),
-        solid_displacement(model),
-        solid_velocity(model),
-    )
-    .expect("lowered solid displacement and velocity are distinct Fields")
-}
-
-pub(super) fn field_identities(
+pub(super) fn trace_quotients(
     model: &FixedReferenceFsiCartesianModel2d,
-) -> FixedReferenceFsiFieldIdentities2d {
-    FixedReferenceFsiFieldIdentities2d::new(
-        fluid_velocity(model),
-        fluid_pressure(model),
-        solid_velocity(model),
-        solid_displacement(model),
-    )
-}
-
-pub(super) fn fluid_domain(model: &FixedReferenceFsiCartesianModel2d) -> Id<kinds::Domain> {
+) -> Vec<ConformingTraceQuotient> {
     model
-        .fluid()
-        .domain()
-        .downcast()
-        .expect("lowered fluid Domain retains its entity kind")
+        .interfaces()
+        .map(|interface| {
+            let endpoints = interface.endpoints().map(|endpoint| {
+                TraceFieldEndpoint::new(
+                    endpoint.domain().downcast().expect("Domain"),
+                    endpoint.field().downcast().expect("Field"),
+                )
+            });
+            ConformingTraceQuotient::new(
+                interface.connection().downcast().expect("Connection"),
+                endpoints[0],
+                endpoints[1],
+            )
+            .expect("exact distinct Domain endpoints")
+        })
+        .collect()
 }
 
-pub(super) fn solid_domain(model: &FixedReferenceFsiCartesianModel2d) -> Id<kinds::Domain> {
-    model
-        .solid()
-        .continuum()
-        .domain()
-        .downcast()
-        .expect("lowered solid Domain retains its entity kind")
-}
-
-pub(super) fn fluid_velocity(model: &FixedReferenceFsiCartesianModel2d) -> Id<kinds::Field> {
-    model
-        .fluid()
-        .velocity()
-        .downcast()
-        .expect("lowered fluid velocity retains its Field kind")
-}
-
-pub(super) fn fluid_pressure(model: &FixedReferenceFsiCartesianModel2d) -> Id<kinds::Field> {
-    model
-        .fluid()
-        .pressure()
-        .downcast()
-        .expect("lowered fluid pressure retains its Field kind")
-}
-
-pub(super) fn solid_displacement(model: &FixedReferenceFsiCartesianModel2d) -> Id<kinds::Field> {
-    model
-        .solid()
-        .continuum()
-        .displacement()
-        .downcast()
-        .expect("lowered solid displacement retains its Field kind")
-}
-
-pub(super) fn solid_velocity(model: &FixedReferenceFsiCartesianModel2d) -> Id<kinds::Field> {
-    model
-        .solid()
-        .velocity()
-        .downcast()
-        .expect("lowered solid velocity retains its Field kind")
-}
-
-pub(super) fn solid_kinematic_relation(
+pub(super) fn state_pairs(
     model: &FixedReferenceFsiCartesianModel2d,
-) -> Id<kinds::Relation> {
+) -> Vec<BackwardEulerStatePair> {
     model
-        .solid()
-        .kinematic_relation()
-        .downcast()
-        .expect("lowered solid kinematic relation retains its Relation kind")
-}
-
-fn connection_id(model: &FixedReferenceFsiCartesianModel2d) -> Id<kinds::Connection> {
-    model
-        .interface()
-        .connection()
-        .downcast()
-        .expect("lowered FSI Connection retains its entity kind")
+        .solids()
+        .map(|solid| {
+            BackwardEulerStatePair::new(
+                solid.kinematic_relation().downcast().expect("Relation"),
+                solid.continuum().displacement().downcast().expect("Field"),
+                solid.velocity().downcast().expect("Field"),
+            )
+            .expect("exact distinct state/rate Fields")
+        })
+        .collect()
 }
 
 pub(super) fn realization_error(error: Diagnostic) -> Diagnostic {

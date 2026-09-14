@@ -33,14 +33,12 @@ mod validate;
 
 pub use result::{
     AcceptedDistributedFixedReferenceFsiStep2d, FinalizedResolvedFixedReferenceFsiStep2d,
-    FixedReferenceFsiFieldIdentities2d, PreparedDistributedFixedReferenceFsiStep2d,
-    ResolvedFixedReferenceFsiSolution2d,
+    PreparedDistributedFixedReferenceFsiStep2d, ResolvedFixedReferenceFsiSolution2d,
 };
 use validate::{
-    field_identities, fluid_domain, fluid_pressure, fluid_velocity, invalid_realization,
-    realization_error, require_boundary_meaning, require_dimension, require_exact_plan,
-    require_mesh_partition, require_solver, require_zero_load, solid_displacement, solid_domain,
-    solid_velocity, state_pair, trace_quotient,
+    invalid_realization, realization_error, require_boundary_meaning, require_dimension,
+    require_exact_plan, require_mesh_partition, require_solver, require_zero_load, state_pairs,
+    trace_quotients,
 };
 
 const DIMENSION: usize = 2;
@@ -81,7 +79,7 @@ impl PreparedResolvedFixedReferenceFsiRun2d<'_> {
             self.mesh,
             self.partition,
             previous,
-            self.config,
+            self.config.clone(),
             &self.quadrature,
             AssemblyPacketSetIdentityV1::from_sha256(self.mesh_artifact.sha256()),
             self.layout.clone(),
@@ -104,8 +102,6 @@ impl PreparedResolvedFixedReferenceFsiRun2d<'_> {
             self.resolved.semantic_revision(),
             self.resolved.realization_revision(),
             self.mesh_artifact,
-            field_identities(self.model),
-            self.partition.clone(),
             self.resolved.plan().clone(),
             self.realization_graph.clone(),
             self.block_system.clone(),
@@ -258,20 +254,30 @@ pub fn fixed_reference_fsi_requirements_2d_for_layout(
     vector_layout: VectorLayoutKind,
 ) -> CoupledFieldwiseRealizationRequirements {
     CoupledFieldwiseRealizationRequirements::new(
-        [
-            DomainFieldInventory::new(
-                fluid_domain(model),
-                [fluid_velocity(model), fluid_pressure(model)],
-            )
-            .expect("lowered fluid owns distinct velocity and pressure Fields"),
-            DomainFieldInventory::new(
-                solid_domain(model),
-                [solid_displacement(model), solid_velocity(model)],
-            )
-            .expect("lowered solid owns distinct displacement and velocity Fields"),
-        ],
-        [trace_quotient(model)],
-        [state_pair(model)],
+        model
+            .fluids()
+            .map(|fluid| {
+                DomainFieldInventory::new(
+                    fluid.domain().downcast().expect("Domain"),
+                    [
+                        fluid.velocity().downcast().expect("Field"),
+                        fluid.pressure().downcast().expect("Field"),
+                    ],
+                )
+                .expect("distinct exact Fields")
+            })
+            .chain(model.solids().map(|solid| {
+                DomainFieldInventory::new(
+                    solid.continuum().domain().downcast().expect("Domain"),
+                    [
+                        solid.continuum().displacement().downcast().expect("Field"),
+                        solid.velocity().downcast().expect("Field"),
+                    ],
+                )
+                .expect("distinct exact Fields")
+            })),
+        trace_quotients(model),
+        state_pairs(model),
         RealizationRequirements::new(
             NonZeroUsize::new(DIMENSION).expect("two is non-zero"),
             ScalarType::F64,
@@ -389,24 +395,35 @@ pub(super) fn fixed_reference_fsi_plan_2d_for_profile(
     let p1 = Space::continuous_lagrange(NonZeroU16::MIN);
     let spatial = CoupledFieldwiseSpatialDiscretization::new(
         scales.length,
-        [
-            DomainFieldDiscretization::new(
-                fluid_domain(model),
-                [
-                    FieldSpaceBinding::new(fluid_velocity(model), Space::simplex_p1_bubble()),
-                    FieldSpaceBinding::new(fluid_pressure(model), p1),
-                ],
-                [],
-            )
-            .map_err(realization_error)?,
-            DomainFieldDiscretization::new(
-                solid_domain(model),
-                [FieldSpaceBinding::new(solid_velocity(model), p1)],
-                [],
-            )
-            .map_err(realization_error)?,
-        ],
-        [trace_quotient(model)],
+        model
+            .fluids()
+            .map(|fluid| {
+                DomainFieldDiscretization::new(
+                    fluid.domain().downcast().expect("Domain"),
+                    [
+                        FieldSpaceBinding::new(
+                            fluid.velocity().downcast().expect("Field"),
+                            Space::simplex_p1_bubble(),
+                        ),
+                        FieldSpaceBinding::new(fluid.pressure().downcast().expect("Field"), p1),
+                    ],
+                    [],
+                )
+                .map_err(realization_error)
+            })
+            .chain(model.solids().map(|solid| {
+                DomainFieldDiscretization::new(
+                    solid.continuum().domain().downcast().expect("Domain"),
+                    [FieldSpaceBinding::new(
+                        solid.velocity().downcast().expect("Field"),
+                        p1,
+                    )],
+                    [],
+                )
+                .map_err(realization_error)
+            }))
+            .collect::<Result<Vec<_>, _>>()?,
+        trace_quotients(model),
         Discretization::new(
             DiscretizationMethod::ContinuousGalerkin,
             MeshPolicy::ImportedSimplicial { artifact: mesh },
@@ -419,28 +436,32 @@ pub(super) fn fixed_reference_fsi_plan_2d_for_profile(
     .map_err(realization_error)?;
     let time_step = BackwardEulerStep::new(
         time_step,
-        [BackwardEulerStateBinding::new(
-            state_pair(model),
-            p1,
-            scales.length,
-        )],
+        state_pairs(model)
+            .into_iter()
+            .map(|pair| BackwardEulerStateBinding::new(pair, p1, scales.length)),
     )
     .map_err(realization_error)?;
     let scaling = SymmetricCongruenceScaling::new(
-        [
-            AlgebraicBlockScale::new(
-                AlgebraicBlock::Field(fluid_velocity(model)),
-                scales.velocity,
-            ),
-            AlgebraicBlockScale::new(
-                AlgebraicBlock::Field(fluid_pressure(model)),
-                scales.pressure,
-            ),
-            AlgebraicBlockScale::new(
-                AlgebraicBlock::Field(solid_velocity(model)),
-                scales.velocity,
-            ),
-        ],
+        model
+            .fluids()
+            .flat_map(|fluid| {
+                [
+                    AlgebraicBlockScale::new(
+                        AlgebraicBlock::Field(fluid.velocity().downcast().expect("Field")),
+                        scales.velocity,
+                    ),
+                    AlgebraicBlockScale::new(
+                        AlgebraicBlock::Field(fluid.pressure().downcast().expect("Field")),
+                        scales.pressure,
+                    ),
+                ]
+            })
+            .chain(model.solids().map(|solid| {
+                AlgebraicBlockScale::new(
+                    AlgebraicBlock::Field(solid.velocity().downcast().expect("Field")),
+                    scales.velocity,
+                )
+            })),
         scales.weak_functional,
     )
     .map_err(realization_error)?;
@@ -518,11 +539,37 @@ fn prepare_resolved_fixed_reference_fsi_run_2d_with_assembly<'a>(
     require_mesh_partition(model, mesh, partition)?;
     let realization_graph = resolved.portable_graph()?;
     let scales = require_exact_plan(model, resolved, &realization_graph, mesh_artifact)?;
-    let material = FixedReferenceFsiMaterial::<2>::from_admitted_solid(
-        model.fluid().mass_density(),
-        model.fluid().dynamic_viscosity(),
-        model.solid().mass_density(),
-        model.solid().continuum().material(),
+    let material = FixedReferenceFsiMaterial::<2>::new(
+        model
+            .fluids()
+            .map(|fluid| {
+                (
+                    fluid.domain().downcast().expect("Domain"),
+                    fluid.velocity().downcast().expect("Field"),
+                    fluid.mass_density(),
+                )
+            })
+            .chain(model.solids().map(|solid| {
+                (
+                    solid.continuum().domain().downcast().expect("Domain"),
+                    solid.velocity().downcast().expect("Field"),
+                    solid.mass_density(),
+                )
+            })),
+        model.fluids().map(|fluid| {
+            (
+                fluid.domain().downcast().expect("Domain"),
+                fluid.velocity().downcast().expect("Field"),
+                fluid.dynamic_viscosity(),
+            )
+        }),
+        model.solids().map(|solid| {
+            (
+                solid.continuum().domain().downcast().expect("Domain"),
+                solid.continuum().displacement().downcast().expect("Field"),
+                solid.continuum().material(),
+            )
+        }),
     )
     .map_err(realization_error)?;
     let scale = FixedReferenceFsiScale::<2>::new(

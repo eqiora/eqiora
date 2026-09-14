@@ -82,8 +82,22 @@ fn exact_package_graph_lowers_to_three_dimensional_ale_fsi_roles() {
     assert_eq!(model.solid().continuum().shear_modulus(), 2.0);
     assert_eq!(model.solid().continuum().first_lame_parameter(), 1.0);
     assert_eq!(model.interface().axis(), 0);
-    assert_eq!(model.interface().fluid().side(), BoundarySide::Upper);
-    assert_eq!(model.interface().solid().side(), BoundarySide::Lower);
+    assert_eq!(
+        model
+            .interface()
+            .endpoint(model.fluid().domain())
+            .unwrap()
+            .side(),
+        BoundarySide::Upper
+    );
+    assert_eq!(
+        model
+            .interface()
+            .endpoint(model.solid().continuum().domain())
+            .unwrap()
+            .side(),
+        BoundarySide::Lower
+    );
     assert_eq!(
         model
             .fluid()
@@ -136,12 +150,28 @@ fn assert_same_canonical_roles(
     );
     assert_eq!(direct.interface().axis(), packaged.interface().axis());
     assert_eq!(
-        direct.interface().fluid().side(),
-        packaged.interface().fluid().side()
+        direct
+            .interface()
+            .endpoint(direct.fluid().domain())
+            .unwrap()
+            .side(),
+        packaged
+            .interface()
+            .endpoint(packaged.fluid().domain())
+            .unwrap()
+            .side()
     );
     assert_eq!(
-        direct.interface().solid().side(),
-        packaged.interface().solid().side()
+        direct
+            .interface()
+            .endpoint(direct.solid().continuum().domain())
+            .unwrap()
+            .side(),
+        packaged
+            .interface()
+            .endpoint(packaged.solid().continuum().domain())
+            .unwrap()
+            .side()
     );
     assert_eq!(
         direct
