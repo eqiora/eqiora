@@ -16,16 +16,14 @@ public component AuthoredPoisson(
 ) {
 
   variable potential: 1 on square;
-  relation balance on square {
-    -div(diffusion * grad(potential)) = source_scale;
-  }
+  law balance on square { flux -diffusion * grad(potential); source source_scale; }
   relation x_lower_value on x_lower { trace(potential) = 0; }
   relation x_upper_value on x_upper { trace(potential) = 0; }
   relation y_lower_value on y_lower { trace(potential) = 0; }
   relation y_upper_value on y_upper { trace(potential) = 0; }
-  form primal for balance {
-    integrate(square, dot(grad(test(potential)), diffusion * grad(potential)))
-      = integrate(square, test(potential) * source_scale);
+  form weak for balance { test w: 1 for potential zero_on x_lower, x_upper, y_lower, y_upper;
+    integrate(square, dot(grad(w), diffusion * grad(potential)))
+      = integrate(square, w * source_scale);
   }
 }
 "#;
@@ -51,7 +49,7 @@ geometry = graph.build(rectangle, named_topology={
 })
 parameters = {"diffusion": 1.0, "other_diffusion": 2.0, "source_scale": 1.0, "other_source": 3.0}
 model = eqiora.compile(source=source, geometry=geometry, entry='AuthoredPoisson', bindings={'square': geometry.selection('square'), 'x_lower': (geometry.selection('x_lower'), geometry.selection('square')), 'x_upper': (geometry.selection('x_upper'), geometry.selection('square')), 'y_lower': (geometry.selection('y_lower'), geometry.selection('square')), 'y_upper': (geometry.selection('y_upper'), geometry.selection('square')), **parameters})
-mesh_plan = eqiora.meshing.resolve(geometry, eqiora.meshing.CartesianMesher(cells=(3, 3)))
+mesh_plan = eqiora.meshing.resolve(geometry, eqiora.meshing.CartesianMesher(cells=(2, 2)))
 mesh = eqiora.meshing.generate(mesh_plan)
 linear = eqiora.solve.Linear(
     algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
@@ -63,10 +61,25 @@ linear = eqiora.solve.Linear(
     maximum_iterations=1000,
 )
 plan = eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
+assert model.authored_formulations[0].name == 'weak'
+assert model.authored_formulations[0].test_name == 'w'
+assert model.authored_formulations[0].implication == 'strong-implies-weak'
+assert model.authored_formulations[0].assumptions == ['fixed-domain', 'classical-divergence-and-boundary-trace', 'admissible-h1-test-with-zero-essential-trace']
+assert len(model.authored_formulations[0].zero_on_domain_ids) == 4
 assert plan.formulation.requested == eqiora.FormulationSelectionMode.Authored
 assert plan.formulation.requested_source_identity == model.authored_formulations[0].source_identity
 result = eqiora.run(plan)
 assert result.plan_key == plan.identity
+# Four h=1/2 Q1 squares leave one free central hat. Its assembled stiffness is
+# 4*(2/3)=8/3 and its load integral is 1/4, hence u_center=3/32.
+# The requested residual bound divided by 8/3 is below 1e-10 in these SI coordinates.
+def check_analytic_coefficients(model, accepted):
+    field = model.field(model.authored_formulations[0].trial_field_id)
+    values = sorted(accepted.output(field).values("vertex").numpy().reshape(-1))
+    assert len(values) == 9
+    assert all(abs(value) <= 1e-10 for value in values[:-1])
+    assert abs(values[-1] - 3/32) <= 1e-10
+check_analytic_coefficients(model, result)
 
 plan_bytes = plan.to_bytes()
 replayed = eqiora.Plan.from_bytes(plan_bytes)
@@ -87,10 +100,48 @@ plain_plan = eqiora.resolve(plain, mesh=mesh, spatial=eqiora.fem.Q1(), solve=lin
 assert plain_plan.formulation.requested == eqiora.FormulationSelectionMode.Automatic
 assert plain_plan.identity != plan.identity
 
+# The same retained Law/form vocabulary supports independently dimensioned heat and mass.
+for field_type, diffusion_type, source_type in (
+    ("K", "W / (m * K)", "W / m^3"),
+    ("kg / m^3", "m^2 / s", "kg / (m^3 * s)"),
+):
+    dimensional_source = source.replace("potential: 1", "potential: " + field_type)
+    dimensional_source = dimensional_source.replace("diffusion: 1", "diffusion: " + diffusion_type)
+    dimensional_source = dimensional_source.replace("source_scale: 1 / m ^ 2", "source_scale: " + source_type)
+    dimensional_source = dimensional_source.replace("other_source: 1 / m ^ 2", "other_source: " + source_type)
+    dimensional_source = dimensional_source.replace("trace(potential) = 0", "trace(potential) = 0[" + field_type + "]")
+    dimensional_model = eqiora.compile(source=dimensional_source, geometry=geometry, entry='AuthoredPoisson', bindings={'square': geometry.selection('square'), 'x_lower': (geometry.selection('x_lower'), geometry.selection('square')), 'x_upper': (geometry.selection('x_upper'), geometry.selection('square')), 'y_lower': (geometry.selection('y_lower'), geometry.selection('square')), 'y_upper': (geometry.selection('y_upper'), geometry.selection('square')), **parameters})
+    dimensional_plan = eqiora.resolve(dimensional_model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
+    check_analytic_coefficients(dimensional_model, eqiora.run(eqiora.Plan.from_bytes(dimensional_plan.to_bytes())))
+
+# Python authoring and source formatting retain one exact complete-exterior restriction.
+q = eqiora.lang
+module = eqiora.Module("main")
+component = module.component("Diffusion")
+body = component.volume("body", dimensions=2)
+surface = component.complete_exterior("surface", parent=body)
+u = component.field("u", value_type=eqiora.ValueType.real(), role=eqiora.FieldRole.Variable, on=body)
+k = component.parameter("k", value_type=eqiora.ValueType.real())
+f = component.parameter("f", value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)))
+heat = component.law("heat", on=body, flux=-k*q.grad(u), source=f)
+face = surface.member("face")
+component.relation("essential", q.equation(q.trace(u), 0), on=face)
+w = component.test("w", for_=u, zero_on=surface)
+component.weak_form("weak_heat", heat, left=q.integrate(body, q.dot(q.grad(w), k*q.grad(u))), right=q.integrate(body, w*f))
+source_bindings = {"body": geometry.selection("square"), "surface": (tuple(geometry.selection(name) for name in ("x_lower", "x_upper", "y_lower", "y_upper")), geometry.selection("square")), "k": 1.0, "f": 1.0}
+python_model = eqiora.compile(source=module, geometry=geometry, entry="Diffusion", bindings=source_bindings)
+assert "test w: 1 for u zero_on surface;" in module.to_eqi()
+emitted_model = eqiora.compile(source=module.to_eqi(), geometry=geometry, entry="Diffusion", bindings=source_bindings)
+assert python_model.digest == emitted_model.digest
+assert python_model.authored_formulations[0].zero_on_domain_ids == emitted_model.authored_formulations[0].zero_on_domain_ids
+python_plan = eqiora.resolve(python_model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
+check_analytic_coefficients(python_model, eqiora.run(eqiora.Plan.from_bytes(python_plan.to_bytes())))
+
 for changed, expected in (
+    (source.replace("zero_on x_lower, x_upper, y_lower, y_upper", "zero_on x_lower"), "zero_on"),
     (source.replace("diffusion * grad(potential)))", "other_diffusion * grad(potential)))"), "coefficient"),
-    (source.replace("test(potential) * source_scale", "test(potential) * other_source"), "source"),
-    (source.replace("test(potential) * source_scale", "-test(potential) * source_scale"), "source term"),
+    (source.replace("w * source_scale", "w * other_source"), "source"),
+    (source.replace("w * source_scale", "-w * source_scale"), "source term"),
     (source.replace("trace(potential) = 0;", "trace(potential) = 1;", 1), "homogeneous-essential"),
 ):
     mismatched = eqiora.compile(source=changed, geometry=geometry, entry='AuthoredPoisson', bindings={'square': geometry.selection('square'), 'x_lower': (geometry.selection('x_lower'), geometry.selection('square')), 'x_upper': (geometry.selection('x_upper'), geometry.selection('square')), 'y_lower': (geometry.selection('y_lower'), geometry.selection('square')), 'y_upper': (geometry.selection('y_upper'), geometry.selection('square')), **parameters})
@@ -101,7 +152,7 @@ for changed, expected in (
     else:
         raise AssertionError(f"mismatched authored Formulation was accepted: {expected}")
 "#),
-            None,
+            Some(&locals),
             Some(&locals),
         )
     })

@@ -7,6 +7,52 @@
 use super::*;
 
 impl PrimalGalerkinCorrespondence {
+    pub(in crate::form_compiler) fn replay_authored_restriction(
+        &self,
+        authored: &eqiora_compiler::AuthoredFormulationProjection,
+    ) -> Result<(), &'static str> {
+        if self
+            .law
+            .relations
+            .first()
+            .map(|id| id.ulid().to_string())
+            .as_deref()
+            != Some(authored.relation_ulid())
+        {
+            return Err("Relation differs from the admitted strong Law");
+        }
+        if self.law.domain.ulid().to_string() != authored.domain_ulid() {
+            return Err("integration support differs from the admitted Domain");
+        }
+        if self.formulation.trial.ulid().to_string() != authored.trial_ulid() {
+            return Err("trial/test Field differs from the admitted unknown");
+        }
+        let mut boundaries = self
+            .formulation
+            .zero_on
+            .iter()
+            .map(|id| id.ulid().to_string())
+            .collect::<Vec<_>>();
+        boundaries.sort();
+        if authored.zero_on() != boundaries {
+            return Err(
+                "test zero_on restriction differs from the complete homogeneous-essential boundary",
+            );
+        }
+        if authored.implication() != "strong-implies-weak"
+            || !authored.assumptions().iter().map(String::as_str).eq(self
+                .formulation
+                .assumptions
+                .iter()
+                .copied())
+        {
+            return Err(
+                "authored direction or regularity hypotheses differ from the checked implication",
+            );
+        }
+        Ok(())
+    }
+
     pub(in crate::form_compiler) fn replay(
         &self,
         source: PrimalGalerkinSource<'_>,
@@ -24,7 +70,16 @@ impl PrimalGalerkinCorrespondence {
         {
             return Err("scalar Law identity or ordered boundary resources are stale");
         }
-        if self.formulation.kind != FormulationKind::PrimalGalerkin
+        if self.formulation.direction != DirectionalProof::StrongImpliesWeak
+            || self.formulation.assumptions
+                != eqiora_compiler::AuthoredFormulationProjection::required_assumptions()
+            || !self
+                .formulation
+                .zero_on
+                .iter()
+                .copied()
+                .eq(source.boundaries.iter().map(|boundary| boundary.domain))
+            || self.formulation.kind != FormulationKind::PrimalGalerkin
             || self.formulation.trial != source.unknown
             || self.formulation.test != source.unknown
             || self.formulation.boundary_treatment
@@ -64,7 +119,7 @@ impl PrimalGalerkinCorrespondence {
                 test: MatrixSlot::Test,
                 trial: MatrixSlot::Trial,
             },
-            WeakSign::Positive,
+            source.divergence_sign,
         )?;
         for boundary in source.boundaries {
             check_entry(
@@ -75,7 +130,10 @@ impl PrimalGalerkinCorrespondence {
                 WeakTermSlot::Boundary {
                     test: MatrixSlot::Test,
                 },
-                WeakSign::Negative,
+                match source.divergence_sign {
+                    WeakSign::Positive => WeakSign::Negative,
+                    WeakSign::Negative => WeakSign::Positive,
+                },
             )?;
         }
         check_entry(

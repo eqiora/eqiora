@@ -11,46 +11,38 @@ pub(crate) fn admit(
     program: &KernelProgram,
     derived: &DerivedScalarGalerkinForm,
 ) -> Result<(), Diagnostic> {
-    let expected_relation = derived.volume_relation.ulid().to_string();
+    derived
+        .certificate
+        .replay_authored_restriction(projection)
+        .map_err(|message| rejection_with(projection, message))?;
     let expected_domain = derived.domain.ulid().to_string();
     let expected_trial = derived.field.ulid().to_string();
-    if projection.relation_ulid() != expected_relation {
-        return Err(rejection_with(
-            projection,
-            "Relation differs from the admitted strong Law",
-        ));
-    }
-    if projection.domain_ulid() != expected_domain {
-        return Err(rejection_with(
-            projection,
-            "integration support differs from the admitted Domain",
-        ));
-    }
-    if projection.trial_ulid() != expected_trial {
-        return Err(rejection_with(
-            projection,
-            "trial/test Field differs from the admitted unknown",
-        ));
-    }
-
     let typed = typed_relation(program, derived.volume_relation)?;
     let dag = typed.expression();
-    let ExprNode::Divergence(flux) = node(dag, derived.volume_nodes.divergence)? else {
-        return Err(rejection_with(
-            projection,
-            "admitted divergence certificate is stale",
-        ));
-    };
     let test = AuthoredFormExpressionV1::Test {
         field_ulid: expected_trial,
     };
+    let flux = from_dag(dag, derived.volume_nodes.bilinear_flux)?;
+    let flux =
+        if derived.volume_nodes.divergence_sign == super::super::vocabulary::WeakSign::Negative {
+            let (value, negative) = product_sign(flux);
+            if negative {
+                value
+            } else {
+                AuthoredFormExpressionV1::Neg {
+                    value: Box::new(value),
+                }
+            }
+        } else {
+            flux
+        };
     let left = AuthoredFormExpressionV1::Integrate {
         domain_ulid: expected_domain.clone(),
         integrand: Box::new(AuthoredFormExpressionV1::Dot {
             left: Box::new(AuthoredFormExpressionV1::Gradient {
                 value: Box::new(test.clone()),
             }),
-            right: Box::new(from_dag(dag, *flux)?),
+            right: Box::new(flux),
         }),
     };
     let right = AuthoredFormExpressionV1::Integrate {
@@ -73,6 +65,29 @@ pub(crate) fn admit(
         ));
     }
     Ok(())
+}
+
+// Exact unary-sign movement through multiplication; no coefficient substitution or sampling.
+fn product_sign(value: AuthoredFormExpressionV1) -> (AuthoredFormExpressionV1, bool) {
+    use AuthoredFormExpressionV1 as E;
+    match value {
+        E::Neg { value } => {
+            let (value, sign) = product_sign(*value);
+            (value, !sign)
+        }
+        E::Mul { left, right } => {
+            let (left, left_sign) = product_sign(*left);
+            let (right, right_sign) = product_sign(*right);
+            (
+                E::Mul {
+                    left: Box::new(left),
+                    right: Box::new(right),
+                },
+                left_sign ^ right_sign,
+            )
+        }
+        value => (value, false),
+    }
 }
 
 fn from_dag(dag: &ExprDag, id: ExprId) -> Result<AuthoredFormExpressionV1, Diagnostic> {

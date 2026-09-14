@@ -6,7 +6,7 @@ use ulid::Ulid;
 
 use super::{AuthoredFormExpression, AuthoredFormExpressionKind};
 
-const SCHEMA: &str = "eqiora.authored-scalar-primal-form/v1";
+const SCHEMA: &str = "eqiora.authored-scalar-primal-form/v2";
 const MAX_BYTES: usize = 1024 * 1024;
 
 /// Exact compiler-owned projection of one authored scalar-primal Formulation.
@@ -29,6 +29,11 @@ struct WireForm {
     relation_ulid: String,
     domain_ulid: String,
     trial_ulid: String,
+    name: String,
+    test_name: String,
+    zero_on: Vec<String>,
+    implication: String,
+    assumptions: Vec<String>,
     left: AuthoredFormExpressionV1,
     right: AuthoredFormExpressionV1,
 }
@@ -100,6 +105,7 @@ impl AuthoredFormulationProjection {
         relation: RawId,
         domain: RawId,
         trial: RawId,
+        restriction: (String, String, Vec<String>),
         left: &AuthoredFormExpression,
         right: &AuthoredFormExpression,
     ) -> Self {
@@ -109,6 +115,14 @@ impl AuthoredFormulationProjection {
             relation_ulid: ulid(relation),
             domain_ulid: ulid(domain),
             trial_ulid: ulid(trial),
+            name: restriction.0,
+            test_name: restriction.1,
+            zero_on: restriction.2,
+            implication: "strong-implies-weak".into(),
+            assumptions: Self::required_assumptions()
+                .iter()
+                .map(|s| (*s).into())
+                .collect(),
             left: expression(left),
             right: expression(right),
         };
@@ -161,10 +175,82 @@ impl AuthoredFormulationProjection {
                 )));
             }
         }
+        if wire.implication != "strong-implies-weak"
+            || !wire
+                .assumptions
+                .iter()
+                .map(String::as_str)
+                .eq(Self::required_assumptions().iter().copied())
+        {
+            return Err(rejection(
+                "scalar weak implication or required hypotheses differ from the admitted profile",
+            ));
+        }
+        for name in [&wire.name, &wire.test_name] {
+            if name.is_empty()
+                || !name.bytes().enumerate().all(|(i, c)| {
+                    c.is_ascii_alphabetic() || c == b'_' || (i > 0 && c.is_ascii_digit())
+                })
+            {
+                return Err(rejection("form and test names must be source identifiers"));
+            }
+        }
+        if wire.zero_on.is_empty() || wire.zero_on.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return Err(rejection(
+                "test boundaries must be nonempty, sorted and unique",
+            ));
+        }
+        for boundary in &wire.zero_on {
+            if boundary
+                .parse::<Ulid>()
+                .ok()
+                .map(|id| id.to_string())
+                .as_ref()
+                != Some(boundary)
+            {
+                return Err(rejection("test boundary is not one canonical ULID"));
+            }
+        }
         Ok(Self {
             wire,
             canonical_bytes: bytes.into(),
         })
+    }
+
+    /// Conditional scalar implication; the reverse implication is not admitted.
+    #[must_use]
+    pub fn implication(&self) -> &str {
+        &self.wire.implication
+    }
+    /// Closed hypotheses retained in the scalar projection, not proved by numerical execution.
+    #[must_use]
+    pub const fn required_assumptions() -> &'static [&'static str] {
+        &[
+            "fixed-domain",
+            "classical-divergence-and-boundary-trace",
+            "admissible-h1-test-with-zero-essential-trace",
+        ]
+    }
+    /// Exact hypotheses bound by this projection's identity.
+    #[must_use]
+    pub fn assumptions(&self) -> &[String] {
+        &self.wire.assumptions
+    }
+
+    /// Authored form name.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.wire.name
+    }
+    /// Authored dimensionless test name.
+    #[must_use]
+    pub fn test_name(&self) -> &str {
+        &self.wire.test_name
+    }
+    /// Exact sorted boundary identities where the test vanishes.
+    #[must_use]
+    pub fn zero_on(&self) -> &[String] {
+        &self.wire.zero_on
     }
 
     #[must_use]
@@ -293,9 +379,31 @@ mod tests {
             Id::<kinds::Relation>::from_ulid(id("01ARZ3NDEKTSV4RRFFQ69G5FAV")).erase(),
             Id::<kinds::Domain>::from_ulid(id("01ARZ3NDEKTSV4RRFFQ69G5FAW")).erase(),
             Id::<kinds::Field>::from_ulid(id("01ARZ3NDEKTSV4RRFFQ69G5FAX")).erase(),
+            (
+                "weak".into(),
+                "w".into(),
+                vec!["01ARZ3NDEKTSV4RRFFQ69G5FAY".into()],
+            ),
             &expression,
             &expression,
         )
+    }
+
+    #[test]
+    fn conditional_implication_rejects_changed_or_missing_hypotheses() {
+        let projection = projection();
+        let text = String::from_utf8(projection.canonical_bytes().to_vec()).unwrap();
+        for changed in [
+            text.replace("strong-implies-weak", "weak-implies-strong"),
+            text.replace("fixed-domain", "moving-domain"),
+        ] {
+            assert!(
+                AuthoredFormulationProjection::decode(changed.as_bytes())
+                    .unwrap_err()
+                    .message()
+                    .contains("hypotheses")
+            );
+        }
     }
 
     #[test]

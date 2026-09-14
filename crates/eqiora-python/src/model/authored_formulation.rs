@@ -14,6 +14,11 @@ use pyo3::types::PyTuple;
 #[derive(Debug, Clone)]
 pub(super) struct PyAuthoredFormulation {
     source_identity: String,
+    name: String,
+    test_name: String,
+    zero_on_domain_ids: Vec<String>,
+    implication: String,
+    assumptions: Vec<String>,
     relation_id: String,
     domain_id: String,
     trial_field_id: String,
@@ -23,6 +28,26 @@ pub(super) struct PyAuthoredFormulation {
 
 #[pymethods]
 impl PyAuthoredFormulation {
+    #[getter]
+    fn implication(&self) -> &str {
+        &self.implication
+    }
+    #[getter]
+    fn assumptions(&self) -> Vec<String> {
+        self.assumptions.clone()
+    }
+    #[getter]
+    fn name(&self) -> &str {
+        &self.name
+    }
+    #[getter]
+    fn test_name(&self) -> &str {
+        &self.test_name
+    }
+    #[getter]
+    fn zero_on_domain_ids(&self) -> Vec<String> {
+        self.zero_on_domain_ids.clone()
+    }
     #[getter]
     fn kind(&self) -> &'static str {
         "primal"
@@ -77,6 +102,11 @@ pub(super) fn project(py: Python<'_>, document: Option<&ModelDocument>) -> PyRes
         .flat_map(ModelDocument::authored_formulations)
         .map(|form| PyAuthoredFormulation {
             source_identity: form.source_identity().to_owned(),
+            name: form.projection().name().to_owned(),
+            test_name: form.projection().test_name().to_owned(),
+            zero_on_domain_ids: form.projection().zero_on().to_vec(),
+            implication: form.projection().implication().into(),
+            assumptions: form.projection().assumptions().to_vec(),
             relation_id: form.relation().ulid().to_string(),
             domain_id: form.domain().ulid().to_string(),
             trial_field_id: form.trial().ulid().to_string(),

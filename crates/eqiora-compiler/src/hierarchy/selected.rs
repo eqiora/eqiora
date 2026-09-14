@@ -369,7 +369,7 @@ fn compile(
                 .formulations()
                 .next()
                 .expect("nonempty authored forms")
-                .3;
+                .4;
             return Err(vec![source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 component.file,
@@ -467,8 +467,11 @@ fn compile(
             component.declaration,
             compiled.symbols(),
             compiled.transaction(),
-            geometry.ambient_dimension(),
-            geometry.topological_dimension(),
+            (
+                geometry.ambient_dimension(),
+                geometry.topological_dimension(),
+            ),
+            prepared.supports(),
         )?;
         Ok(compiled.with_authored_formulations(formulations))
     } else {

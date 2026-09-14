@@ -843,6 +843,7 @@ fn build_certificate(
         volume_relation: balance_relation,
         root: volume.root,
         divergence: volume.divergence,
+        divergence_sign: super::vocabulary::WeakSign::Positive,
         source: volume.load_gradient,
         boundaries: &boundary_sources,
     })
@@ -852,6 +853,7 @@ fn boundary_sources(boundaries: &[BoundaryRole]) -> Vec<BoundarySource> {
     boundaries
         .iter()
         .map(|boundary| BoundarySource {
+            domain: boundary.domain,
             relation: boundary.relation,
             trace_node: boundary.trace_node,
         })
@@ -871,6 +873,7 @@ fn correspondence_source<'a>(
         volume_relation: balance_relation,
         root: volume.root,
         divergence: volume.divergence,
+        divergence_sign: super::vocabulary::WeakSign::Positive,
         source: volume.load_gradient,
         boundaries,
     }

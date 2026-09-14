@@ -64,6 +64,8 @@ pub(crate) struct DerivedScalarGalerkinForm {
 struct VolumeNodes {
     root: ExprId,
     divergence: ExprId,
+    bilinear_flux: ExprId,
+    divergence_sign: super::vocabulary::WeakSign,
     gradient: ExprId,
     source: ExprId,
 }
@@ -154,6 +156,7 @@ impl DerivedScalarGalerkinForm {
             .boundary_roles
             .iter()
             .map(|boundary| BoundarySource {
+                domain: boundary.domain,
                 relation: boundary.relation,
                 trace_node: boundary.trace_node,
             })
@@ -165,6 +168,7 @@ impl DerivedScalarGalerkinForm {
                 volume_relation: self.volume_relation,
                 root: self.volume_nodes.root,
                 divergence: self.volume_nodes.divergence,
+                divergence_sign: self.volume_nodes.divergence_sign,
                 source: self.volume_nodes.source,
                 boundaries: &boundary_sources,
             })
@@ -583,19 +587,31 @@ fn recognize_volume(
             "volume residual must be exactly `-div(k grad(u)) - source`",
         ));
     };
-    let Some(ExprNode::Neg(divergence)) = expression.node(*operator) else {
-        return Err(certificate_error(
-            owner,
-            "volume residual must begin with negative divergence",
-        ));
+    let (divergence, flux, divergence_sign) = match expression.node(*operator) {
+        Some(ExprNode::Neg(divergence)) => match expression.node(*divergence) {
+            Some(ExprNode::Divergence(flux)) => {
+                (*divergence, *flux, super::vocabulary::WeakSign::Positive)
+            }
+            _ => {
+                return Err(certificate_error(
+                    owner,
+                    "negative operator must consume one divergence node",
+                ));
+            }
+        },
+        Some(ExprNode::Divergence(outward_flux)) => (
+            *operator,
+            *outward_flux,
+            super::vocabulary::WeakSign::Negative,
+        ),
+        _ => {
+            return Err(certificate_error(
+                owner,
+                "volume residual requires negative diffusion divergence",
+            ));
+        }
     };
-    let Some(ExprNode::Divergence(flux)) = expression.node(*divergence) else {
-        return Err(certificate_error(
-            owner,
-            "negative operator must consume one divergence node",
-        ));
-    };
-    let gradients = gradient_nodes(expression, *flux, field);
+    let gradients = gradient_nodes(expression, flux, field);
     if gradients.len() != 1 {
         return Err(certificate_error(
             owner,
@@ -604,7 +620,9 @@ fn recognize_volume(
     }
     Ok(VolumeNodes {
         root,
-        divergence: *divergence,
+        divergence,
+        bilinear_flux: flux,
+        divergence_sign,
         gradient: gradients[0],
         source: *source,
     })
@@ -913,6 +931,7 @@ fn build_certificate(
     let boundary_sources = boundaries
         .iter()
         .map(|boundary| BoundarySource {
+            domain: boundary.domain,
             relation: boundary.relation,
             trace_node: boundary.trace_node,
         })
@@ -923,6 +942,7 @@ fn build_certificate(
         volume_relation,
         root: volume.root,
         divergence: volume.divergence,
+        divergence_sign: volume.divergence_sign,
         source: volume.source,
         boundaries: &boundary_sources,
     }))

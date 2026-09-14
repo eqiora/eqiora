@@ -14,6 +14,7 @@ use crate::dimensions::length_dimension;
 use crate::lower::ModelSymbols;
 use crate::source_identity::formulation::AuthoredFormSourceIdentity;
 
+mod restriction;
 mod wire;
 
 pub use wire::{AuthoredFormExpressionV1, AuthoredFormulationProjection};
@@ -129,8 +130,8 @@ pub(crate) fn compile_component_formulations(
     component: &ComponentDecl,
     symbols: &ModelSymbols,
     transaction: &Transaction,
-    ambient_dimension: usize,
-    topological_dimension: usize,
+    geometry_dimensions: (usize, usize),
+    supports: &[crate::external::ExternalGeometrySupportBinding],
 ) -> Result<Vec<CompiledAuthoredFormulation>, Vec<Diagnostic>> {
     if component.formulations().len() == 0 {
         return Ok(Vec::new());
@@ -148,15 +149,28 @@ pub(crate) fn compile_component_formulations(
     let index = KernelIndex::new(transaction);
     component
         .formulations()
-        .map(|form| {
+        .map(|(name, relation, left, right, range)| {
+            let (test, trial, zero_on) = component
+                .formulation_test(name)
+                .expect("retained form test");
+            let form = FormSource {
+                name,
+                relation,
+                test,
+                trial,
+                zero_on,
+                left,
+                right,
+                range,
+            };
             compile_formulation(
                 file,
                 form,
                 source_identity,
                 symbols,
                 &index,
-                ambient_dimension,
-                topological_dimension,
+                geometry_dimensions,
+                supports,
             )
             .map_err(|diagnostic| vec![diagnostic])
         })
@@ -167,6 +181,7 @@ struct KernelIndex<'a> {
     nodes: BTreeMap<RawId, &'a KernelNode>,
     applies_on: BTreeMap<RawId, RawId>,
     defined_on: BTreeMap<RawId, RawId>,
+    boundary_of: BTreeMap<RawId, RawId>,
 }
 
 impl<'a> KernelIndex<'a> {
@@ -174,6 +189,7 @@ impl<'a> KernelIndex<'a> {
         let mut nodes = BTreeMap::new();
         let mut applies_on = BTreeMap::new();
         let mut defined_on = BTreeMap::new();
+        let mut boundary_of = BTreeMap::new();
         for op in transaction.ops() {
             match op {
                 Op::DefineKernelNode { node } => {
@@ -193,6 +209,13 @@ impl<'a> KernelIndex<'a> {
                 } if to.downcast::<kinds::Domain>().is_some() => {
                     defined_on.insert(*from, *to);
                 }
+                Op::Connect {
+                    from,
+                    to,
+                    edge: EdgeKind::BoundaryOf,
+                } => {
+                    boundary_of.insert(*from, *to);
+                }
                 _ => {}
             }
         }
@@ -200,20 +223,49 @@ impl<'a> KernelIndex<'a> {
             nodes,
             applies_on,
             defined_on,
+            boundary_of,
         }
     }
 }
 
+struct FormSource<'a> {
+    name: &'a str,
+    relation: &'a str,
+    test: &'a str,
+    trial: &'a str,
+    zero_on: &'a [String],
+    left: &'a Expr,
+    right: &'a Expr,
+    range: TextRange,
+}
+
 fn compile_formulation(
     file: &str,
-    form: (&str, &Expr, &Expr, TextRange),
+    form: FormSource<'_>,
     source_identity: AuthoredFormSourceIdentity,
     symbols: &ModelSymbols,
     index: &KernelIndex<'_>,
-    ambient_dimension: usize,
-    topological_dimension: usize,
+    geometry_dimensions: (usize, usize),
+    supports: &[crate::external::ExternalGeometrySupportBinding],
 ) -> Result<CompiledAuthoredFormulation, Diagnostic> {
-    let (relation_name, left_source, right_source, range) = form;
+    let FormSource {
+        name,
+        relation: relation_name,
+        test: test_name,
+        trial: trial_name,
+        zero_on: boundaries,
+        left: left_source,
+        right: right_source,
+        range,
+    } = form;
+    let (ambient_dimension, topological_dimension) = geometry_dimensions;
+    if resolve_symbol(file, range, test_name, symbols).is_ok() {
+        return Err(error(
+            file,
+            range,
+            "test name must not shadow a Model declaration",
+        ));
+    }
     let relation_raw = resolve_symbol(file, range, relation_name, symbols)?;
     let relation = relation_raw
         .downcast::<kinds::Relation>()
@@ -238,6 +290,8 @@ fn compile_formulation(
         topological_dimension,
         relation_domain: domain,
         trial: None,
+        test_name,
+        trial_name,
     };
     let left = context.compile_root(left_source)?;
     let right = context.compile_root(right_source)?;
@@ -252,14 +306,23 @@ fn compile_formulation(
         error(
             file,
             range,
-            "scalar primal Formulation must contain test(field)",
+            "scalar weak Formulation must use its declared test function",
         )
     })?;
+    let zero_on = restriction::resolve(
+        file,
+        (range, boundaries),
+        domain.erase(),
+        symbols,
+        index,
+        supports,
+    )?;
     let projection = AuthoredFormulationProjection::encode(
         source_identity.to_string(),
         relation.erase(),
         domain.erase(),
         trial.erase(),
+        (name.to_owned(), test_name.to_owned(), zero_on),
         &left,
         &right,
     );
@@ -281,6 +344,8 @@ struct ExpressionContext<'a> {
     topological_dimension: usize,
     relation_domain: Id<kinds::Domain>,
     trial: Option<Id<kinds::Field>>,
+    test_name: &'a str,
+    trial_name: &'a str,
 }
 
 impl ExpressionContext<'_> {
@@ -308,6 +373,7 @@ impl ExpressionContext<'_> {
                 ValueShape::scalar(),
                 None,
             )),
+            ExprKind::Name(name) if name == self.test_name => self.compile_test(expression),
             ExprKind::Name(name) => self.compile_name(expression, name),
             ExprKind::Path(path) => match crate::math::constant(path) {
                 Some(value) => Ok(typed(
@@ -555,7 +621,6 @@ impl ExpressionContext<'_> {
     ) -> Result<AuthoredFormExpression, Diagnostic> {
         let name = unqualified_callee(self.file, expression.range(), callee)?;
         match (name, arguments) {
-            ("test", [argument]) => self.compile_test(expression, argument),
             ("coordinate", [axis]) => self.compile_coordinate(expression, axis),
             ("math.sin", [argument]) => {
                 let argument = self.compile(argument)?;
@@ -652,30 +717,21 @@ impl ExpressionContext<'_> {
         }
     }
 
-    fn compile_test(
-        &mut self,
-        expression: &Expr,
-        argument: &Expr,
-    ) -> Result<AuthoredFormExpression, Diagnostic> {
-        let ExprKind::Name(name) = argument.kind() else {
-            return Err(error(
-                self.file,
-                argument.range(),
-                "test requires one unqualified scalar Field name",
-            ));
-        };
-        let raw = resolve_symbol(self.file, argument.range(), name, self.symbols)?;
+    fn compile_test(&mut self, expression: &Expr) -> Result<AuthoredFormExpression, Diagnostic> {
+        let raw = resolve_symbol(self.file, expression.range(), self.trial_name, self.symbols)?;
         let Some(KernelNode::Field(field)) = self.index.nodes.get(&raw).copied() else {
             return Err(error(
                 self.file,
-                argument.range(),
+                expression.range(),
                 "test argument is not a Field",
             ));
         };
-        if !field.shape().is_scalar() {
+        if !field.shape().is_scalar()
+            || field.value_type().scalar_domain() != eqiora_core::ScalarDomain::Real
+        {
             return Err(error(
                 self.file,
-                argument.range(),
+                expression.range(),
                 "test requires a scalar Field",
             ));
         }
@@ -693,7 +749,7 @@ impl ExpressionContext<'_> {
         }
         Ok(typed(
             AuthoredFormExpressionKind::Test(field.id()),
-            field.dimension(),
+            DimExponents::DIMENSIONLESS,
             ValueShape::scalar(),
             Some(support),
         ))

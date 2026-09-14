@@ -15,10 +15,12 @@ fn scalar_replay_rejects_foreign_resources_missing_terms_and_wrong_roles() {
     let root = dag.add(node, divergence).unwrap();
     let boundaries = [
         BoundarySource {
+            domain: Id::<kinds::Domain>::new().erase(),
             relation: relation(),
             trace_node: node,
         },
         BoundarySource {
+            domain: Id::<kinds::Domain>::new().erase(),
             relation: relation(),
             trace_node: divergence,
         },
@@ -29,6 +31,7 @@ fn scalar_replay_rejects_foreign_resources_missing_terms_and_wrong_roles() {
         volume_relation: relation(),
         root,
         divergence,
+        divergence_sign: WeakSign::Positive,
         source: node,
         boundaries: &boundaries,
     };
@@ -46,6 +49,10 @@ fn scalar_replay_rejects_foreign_resources_missing_terms_and_wrong_roles() {
         c.law.relations.pop();
     });
     reject(|c| c.law.relations.swap(1, 2));
+    reject(|c| c.formulation.zero_on.clear());
+    reject(|c| c.formulation.zero_on[0] = relation());
+    reject(|c| c.formulation.assumptions.clear());
+    reject(|c| c.formulation.assumptions.push("weak-implies-strong"));
     reject(|c| c.formulation.kind = FormulationKind::MixedGalerkin);
     reject(|c| c.formulation.trial = relation());
     reject(|c| c.formulation.test = relation());

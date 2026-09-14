@@ -26,6 +26,13 @@ pub(super) struct PyAstDefinition {
     pub(super) value: Definition,
 }
 
+type FormInput<'py> = (
+    (String, String, String, String, Vec<String>),
+    PyRef<'py, PyAstExpression>,
+    PyRef<'py, PyAstExpression>,
+    u32,
+);
+
 #[pymethods]
 impl PyAstDefinition {
     #[new]
@@ -33,12 +40,7 @@ impl PyAstDefinition {
         name: String,
         model: bool,
         declarations: Vec<PyRef<'_, PyAstDeclaration>>,
-        form: Option<(
-            String,
-            PyRef<'_, PyAstExpression>,
-            PyRef<'_, PyAstExpression>,
-            u32,
-        )>,
+        form: Option<FormInput<'_>>,
         ordinal: u32,
     ) -> PyResult<Self> {
         if declarations.len() > 256 {
@@ -64,7 +66,7 @@ impl PyAstDefinition {
             )
         } else if let Some((relation, left, right, form_ordinal)) = form {
             Definition::Component(
-                Ast::component_with_primal_form(
+                Ast::component_with_weak_form(
                     VisibilitySyntax::Public,
                     name,
                     signature,

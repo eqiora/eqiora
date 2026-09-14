@@ -72,7 +72,7 @@ pub(crate) mod tests {
             },
         )];
         let boundaries: &[&str] = if entry == "ScalarDiffusion" {
-            &[]
+            &["inlet"]
         } else {
             &["inlet", "outlet", "walls", "cylinder"]
         };
@@ -141,6 +141,7 @@ public component FluidBoundaryLaw(
     const SCALAR_PRIMAL_SOURCE: &str = r#"
 public component ScalarDiffusion(
   support fluid: volume(ambient_dimension = 2),
+  support inlet: boundary(parent = fluid),
   parameter diffusion: 1,
   parameter wave_number: 1 / m,
   parameter source_scale: 1 / m ^ 2
@@ -150,11 +151,11 @@ public component ScalarDiffusion(
     -div(diffusion * grad(potential))
       = source_scale * math.sin(wave_number * coordinate(0));
   }
-  form primal for balance {
-    integrate(fluid, dot(grad(test(potential)), diffusion * grad(potential)))
+  form weak for balance { test w: 1 for potential zero_on inlet;
+    integrate(fluid, dot(grad(w), diffusion * grad(potential)))
       = integrate(
           fluid,
-          test(potential) * source_scale * math.sin(wave_number * coordinate(0))
+          w * source_scale * math.sin(wave_number * coordinate(0))
         );
   }
 }
@@ -289,7 +290,7 @@ public component SteadyFlowPastCylinder(
         .unwrap();
         let without_form_source = format!(
             "{}}}\n",
-            SCALAR_PRIMAL_SOURCE.split_once("  form primal").unwrap().0
+            SCALAR_PRIMAL_SOURCE.split_once("  form weak").unwrap().0
         );
         let without_form = compile_geometry_fixture(
             "scalar-primal.eqi",
@@ -340,10 +341,7 @@ public component SteadyFlowPastCylinder(
     #[test]
     fn scalar_primal_form_dimension_mismatch_fails_closed() {
         let geometry = fixture_geometry();
-        let invalid = SCALAR_PRIMAL_SOURCE.replace(
-            "test(potential) * source_scale",
-            "test(potential) * diffusion",
-        );
+        let invalid = SCALAR_PRIMAL_SOURCE.replace("w * source_scale", "w * diffusion");
         let diagnostics = compile_geometry_fixture(
             "invalid-primal.eqi",
             &invalid,
@@ -415,17 +413,29 @@ public component SteadyFlowPastCylinder(
         ];
         let invalid = [
             (
+                SCALAR_PRIMAL_SOURCE.replace("zero_on inlet", "zero_on fluid"),
+                "zero_on requires a boundary",
+            ),
+            (
+                SCALAR_PRIMAL_SOURCE.replace("zero_on inlet", "zero_on inlet, inlet"),
+                "repeats an exact boundary",
+            ),
+            (
+                SCALAR_PRIMAL_SOURCE.replace("test w:", "test potential:"),
+                "must not shadow",
+            ),
+            (
                 SCALAR_PRIMAL_SOURCE.replace("for balance", "for missing"),
                 "unknown Formulation symbol `missing`",
             ),
             (
-                SCALAR_PRIMAL_SOURCE.replace("test(potential)", "test(diffusion)"),
+                SCALAR_PRIMAL_SOURCE.replace("for potential zero_on", "for diffusion zero_on"),
                 "test argument is not a Field",
             ),
             (
                 SCALAR_PRIMAL_SOURCE.replace(
-                    "dot(grad(test(potential)), diffusion * grad(potential))",
-                    "dot(test(potential), diffusion * grad(potential))",
+                    "dot(grad(w), diffusion * grad(potential))",
+                    "dot(w, diffusion * grad(potential))",
                 ),
                 "dot requires equal non-scalar vector shapes",
             ),
@@ -435,8 +445,8 @@ public component SteadyFlowPastCylinder(
             ),
             (
                 SCALAR_PRIMAL_SOURCE.replace(
-                    "test(potential) * source_scale * math.sin",
-                    "div(test(potential)) * source_scale * math.sin",
+                    "w * source_scale * math.sin",
+                    "div(w) * source_scale * math.sin",
                 ),
                 "unsupported scalar-primal operator `div`",
             ),

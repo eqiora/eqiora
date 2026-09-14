@@ -538,6 +538,42 @@ member. Enum values remain scalar and dimensionless; enum arrays, records, buses
 enabled-mode transition semantics are outside this profile. The scalar numerical trajectory
 API is not the discrete-value transport.
 
+## Named scalar weak forms
+
+A Component may own one named scalar weak form with an explicit dimensionless test.
+The test names its trial Field and the exact boundary supports on which it vanishes:
+
+```eqiora
+form weak_heat for heat_balance {
+  test w: 1 for temperature zero_on surface;
+  integrate(body, dot(grad(w), conductivity * grad(temperature)))
+    = integrate(body, w * heating);
+}
+```
+
+`surface` is a caller-bound complete-exterior support. A comma-separated list of
+individual boundary support names is also accepted. The compiler resolves exact
+Model boundary identities and rejects foreign parents and duplicate members.
+Resolution requires this restriction to equal the admitted complete homogeneous
+essential boundary; an incomplete list does not silently gain missing boundaries.
+The current execution profile is steady scalar diffusion with Cartesian Q1 and zero
+essential Field values. Nonzero prescribed values, storage, arbitrary weak forms,
+authored integral-conservative and mixed forms remain unsupported.
+
+Python uses `w = component.test("w", for_=temperature, zero_on=surface)` followed by
+`component.weak_form("weak_heat", heat_balance, left=..., right=...)`. Use
+`component.boundaries(left, right, bottom, top)` for an explicit boundary collection.
+The former `primal_form` and global `test(field)` entry points are removed.
+`model.authored_formulations` exposes the form name, test name, exact trial and
+`zero_on_domain_ids`. Plan replay preserves and rechecks the same restriction.
+
+The closed scalar certificate establishes strong-to-weak correspondence conditionally
+on a fixed domain, classical divergence and boundary traces, and an admissible H1 test
+with zero essential trace. It accounts for every boundary and the physical flux sign.
+It does not prove those regularity hypotheses, the reverse implication, coercivity,
+convergence or solver suitability. Model identity remains independent of authored forms;
+the authored source/projection identity changes when its test restriction changes.
+
 ## Resolve and lock a local package project
 
 An installed Eqiora distribution can add an exact standard fluid or solid
