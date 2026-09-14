@@ -11,7 +11,7 @@ const MAX_LINE_SEARCH_STEPS: usize = 10;
 const MAX_INTERNAL_STEPS: usize = 1_000_000;
 
 /// Stable identity of the deterministic residual-native reference oracle.
-pub const REFERENCE_IMPLICIT_TIME_BACKEND: TimeBackendIdentity = TimeBackendIdentity::new(
+const REFERENCE_IMPLICIT_TIME_BACKEND: TimeBackendIdentity = TimeBackendIdentity::new(
     "eqiora.time.reference-implicit-euler",
     env!("CARGO_PKG_VERSION"),
 );

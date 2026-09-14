@@ -1,19 +1,18 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, GraphPath, Id, RawId};
+use eqiora_core::{Diagnostic, DimExponents, Id, RawId};
 use eqiora_graph::EdgeKind;
-use eqiora_ir::{
-    DifferentiationRole, LinearizedRelation, RelationTangent, ScalarOperatorIr,
-    SymbolicLinearityFailure,
-};
+use eqiora_ir::{DifferentiationRole, LinearizedRelation, RelationTangent, ScalarOperatorIr};
 use eqiora_schema::kernel::{ActivationKind, EventDirection, KernelNode, SymbolRef};
 use eqiora_time::{
     EventFlowLinearization, EventGuardLinearization, EventResetLinearization,
     RegisteredRootProblem, RootFunctions, RootProposal, RootRegistrationId, RootRegistrationProof,
     TimeEquationClass, TimeSystem, TransversalEventLinearization,
 };
+
+mod validation;
+use validation::*;
 
 use crate::{CpuProgram, FirstOrderProgram};
 
@@ -31,6 +30,7 @@ pub struct CanonicalEventProgram {
     activations: Vec<Id<kinds::Activation>>,
     direction: EventDirection,
     guard: BoundOperator,
+    guard_dimension: DimExponents,
     resets: Vec<BoundOperator>,
     parameters: Vec<Id<kinds::Parameter>>,
     parameter_values: Vec<f64>,
@@ -115,6 +115,22 @@ impl CanonicalEventProgram {
             ));
         }
 
+        let typed_guard = program
+            .kernel()
+            .typed_event_guard(event)
+            .map_err(|diagnostics| {
+                invalid_event(
+                    event.erase(),
+                    diagnostics.first().map_or(
+                        "event guard has no accepted scalar type",
+                        Diagnostic::message,
+                    ),
+                )
+            })?;
+        let guard_dimension = typed_guard
+            .node_type(guard_expression.roots()[0])
+            .expect("semantic guard typing includes its root")
+            .dimension();
         let guard_operator = ScalarOperatorIr::lower(guard_expression)?;
         validate_guard_symbols(event.erase(), &guard_operator, flow.state_fields())?;
         let reset_operators = relation_ids
@@ -190,6 +206,7 @@ impl CanonicalEventProgram {
             activations,
             direction,
             guard,
+            guard_dimension,
             resets,
             parameters,
             parameter_values,
@@ -213,6 +230,14 @@ impl CanonicalEventProgram {
     #[must_use]
     pub const fn direction(&self) -> EventDirection {
         self.direction
+    }
+
+    /// Physical dimension of the normalized real scalar zero-crossing guard.
+    ///
+    /// Inferred by the immutable semantic Model's existing activation type contract.
+    #[must_use]
+    pub const fn guard_dimension(&self) -> DimExponents {
+        self.guard_dimension
     }
 
     /// Selected Parameter order shared by guard, reset, and sensitivity data.
@@ -469,6 +494,14 @@ impl CanonicalRootSet {
     #[must_use]
     pub const fn proof(&self) -> &RootRegistrationProof {
         &self.proof
+    }
+
+    /// Canonical event programs in the exact registration proof/root-index order.
+    ///
+    /// Each program exposes its real flow, guard, and reset Parameter columns.
+    #[must_use]
+    pub fn events(&self) -> &[CanonicalEventProgram] {
+        &self.events
     }
 
     /// Borrow this callback set through the backend-neutral registered seam.
@@ -911,84 +944,4 @@ impl MonomialNextProjection {
             ))
         }
     }
-}
-
-fn validate_guard_symbols(
-    owner: RawId,
-    operator: &ScalarOperatorIr,
-    states: &[Id<kinds::Field>],
-) -> Result<(), Diagnostic> {
-    let state_set = states.iter().copied().collect::<HashSet<_>>();
-    if operator.residual_count() != 1
-        || operator.symbols().iter().any(|symbol| match symbol {
-            SymbolRef::Field(field) => !state_set.contains(field),
-            SymbolRef::Parameter(_) | SymbolRef::Time => false,
-            _ => true,
-        })
-    {
-        Err(invalid_event(
-            owner,
-            "event guard must be one scalar expression of flow state, Parameter, and time",
-        ))
-    } else {
-        Ok(())
-    }
-}
-
-fn validate_reset_symbols(
-    owner: RawId,
-    operator: &ScalarOperatorIr,
-    states: &[Id<kinds::Field>],
-) -> Result<(), Diagnostic> {
-    let state_set = states.iter().copied().collect::<HashSet<_>>();
-    if operator.symbols().iter().any(|symbol| match symbol {
-        SymbolRef::Pre(field) | SymbolRef::Next(field) => !state_set.contains(field),
-        SymbolRef::Parameter(_) | SymbolRef::Time => false,
-        _ => true,
-    }) {
-        Err(invalid_event(
-            owner,
-            "event reset must be an implicit Relation of Pre, Next, Parameter, and time",
-        ))
-    } else {
-        Ok(())
-    }
-}
-
-fn append_operator_parameters(
-    parameters: &mut Vec<Id<kinds::Parameter>>,
-    operator: &ScalarOperatorIr,
-) {
-    for symbol in operator.symbols() {
-        if let SymbolRef::Parameter(parameter) = *symbol
-            && !parameters.contains(&parameter)
-        {
-            parameters.push(parameter);
-        }
-    }
-}
-
-fn state_coordinate(
-    owner: RawId,
-    states: &HashMap<Id<kinds::Field>, usize>,
-    field: Id<kinds::Field>,
-) -> Result<usize, Diagnostic> {
-    states
-        .get(&field)
-        .copied()
-        .ok_or_else(|| invalid_event(owner, "event references a Field outside the flow state"))
-}
-
-fn next_structure_error(owner: RawId, failure: SymbolicLinearityFailure) -> Diagnostic {
-    invalid_event(
-        owner,
-        format!("cannot prove constant implicit reset Next Jacobian: {failure:?}"),
-    )
-}
-
-fn invalid_event(owner: RawId, message: impl Into<String>) -> Diagnostic {
-    Diagnostic::error(codes::INVALID_TIME_LOWERING, message).with_graph_path(GraphPath::new([
-        "hybrid-lowering".to_owned(),
-        owner.to_string(),
-    ]))
 }

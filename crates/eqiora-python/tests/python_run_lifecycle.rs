@@ -216,6 +216,78 @@ asyncio.run(await_same_result())
     })
 }
 
+#[test]
+fn python_event_policy_binds_exact_activations_units_and_plan_bytes() -> PyResult<()> {
+    Python::initialize();
+    Python::attach(|py| {
+        let locals = PyDict::new(py);
+        locals.set_item("eqiora", public_module(py)?)?;
+        py.run(c_str!(r#"
+source = """
+model Ball() {
+ state height:m; state velocity:m/s;
+ parameter ground:m=0; parameter restitution:1=0.8;
+ initial {height=1[m];velocity=0[m/s];}
+ relation flight {derivative(height)=velocity;derivative(velocity)=-9.81[m/s^2];}
+ event impact_h=crossing(height-ground,direction=falling);
+ event impact_v=crossing(height-ground,direction=falling);
+ relation reset_h at impact_h {next(height)=ground;}
+ relation reset_v at impact_v {next(velocity)=-restitution*pre(velocity);}
+}
+"""
+model = eqiora.compile(source=source)
+h, v = model.activation('impact_h'), model.activation('impact_v')
+assert isinstance(h, eqiora.ActivationRef)
+assert h.model_digest == model.digest
+assert model.activation(h.id) == h
+assert eqiora.Model.from_bytes(model.to_bytes()).activation(h.id) == h
+length = eqiora.Dimension(length=1)
+h_tol = eqiora.time.GuardTolerance(h, 1e-8, length)
+v_tol = eqiora.time.GuardTolerance(v, 1e-8, length)
+events = eqiora.time.EventPolicy(max_events=8, guard_tolerances=(h_tol, v_tol))
+assert events.model_digest == model.digest
+assert {entry.activation for entry in events.guard_tolerances} == {h, v}
+assert all(entry.value == 1e-8 and entry.dimension == length for entry in events.guard_tolerances)
+def temporal(events=None):
+    return eqiora.time.Tsitouras45(initial_step_s=1e-3, relative_tolerance=1e-9, absolute_tolerances={model.field('height'):1e-11,model.field('velocity'):1e-11}, events=events)
+assert temporal().events is None
+try:
+    eqiora.resolve(model, temporal=temporal())
+except eqiora.ValidationError:
+    pass
+else:
+    raise AssertionError('Event Model requires explicit policy')
+plan = eqiora.resolve(model, temporal=temporal(events))
+assert plan.temporal.events.max_events == 8
+assert plan.temporal.events.model_digest == model.digest
+reopened = eqiora.Plan.from_bytes(plan.to_bytes())
+assert reopened.identity == plan.identity
+assert reopened.to_bytes() == plan.to_bytes()
+assert {entry.activation for entry in reopened.temporal.events.guard_tolerances} == {h, v}
+changed = eqiora.resolve(model, temporal=temporal(eqiora.time.EventPolicy(max_events=9,guard_tolerances=(h_tol,v_tol))))
+assert changed.identity != plan.identity
+foreign = eqiora.compile(source=source.replace('restitution:1=0.8', 'restitution:1=0.7')).activation('impact_v')
+for invalid in (
+ lambda: model.activation('height'),
+ lambda: eqiora.time.GuardTolerance('impact_h',1e-8,length),
+ lambda: eqiora.time.GuardTolerance(h,0,length),
+ lambda: eqiora.time.EventPolicy(max_events=0,guard_tolerances=(h_tol,v_tol)),
+ lambda: eqiora.time.EventPolicy(max_events=8,guard_tolerances=(h_tol,h_tol)),
+ lambda: eqiora.time.EventPolicy(max_events=8,guard_tolerances=(h_tol,eqiora.time.GuardTolerance(foreign,1e-8,length))),
+ lambda: eqiora.resolve(model,temporal=temporal(eqiora.time.EventPolicy(max_events=8,guard_tolerances=(h_tol,)))),
+ lambda: eqiora.resolve(model,temporal=temporal(eqiora.time.EventPolicy(max_events=8,guard_tolerances=(h_tol,eqiora.time.GuardTolerance(v,1e-8,eqiora.Dimension()))))),
+ lambda: eqiora.resolve(model,temporal=temporal(eqiora.time.EventPolicy(max_events=8,guard_tolerances=(h_tol,eqiora.time.GuardTolerance(v,2e-8,length))))),
+):
+    try:
+        invalid()
+    except (TypeError, ValueError, eqiora.ValidationError):
+        pass
+    else:
+        raise AssertionError('invalid Activation, unit, group tolerance or event budget was admitted')
+"#),Some(&locals),Some(&locals))
+    })
+}
+
 fn public_module(py: Python<'_>) -> PyResult<Bound<'_, PyModule>> {
     let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
     let package_directory = Path::new(env!("CARGO_MANIFEST_DIR"))

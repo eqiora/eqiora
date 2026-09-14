@@ -35,13 +35,17 @@ use capability_view::{
     PyFormulationSelectionMode, PyFormulationView, PyIncompressibleFlowPlanView, PyOdePlanView,
     PyScalarPlanView, space_name,
 };
+mod event_policy;
+mod forward_policy;
 mod policy;
+mod registration;
 mod solver_request;
 use policy::{
     PyBackwardEuler, PyCellCentered, PyCellCenteredTpfa, PyLinear, PyMiniP1, PyNewton, PyP1,
     PyPressureGauge2d, PyQ1, PyScopedSpatialBinding, PySolverPlanningObjective, PyTsitouras45,
     ScopedSpatialKind,
 };
+pub(crate) use registration::register;
 mod scaling;
 use scaling::{PyIncompressibleScales, PyIncompressibleScaling, PyIncompressibleScalingReceipt2d};
 mod resolved_solve;
@@ -96,10 +100,17 @@ pub(crate) struct PyPlan {
 
 impl PyPlan {
     fn from_native_artifact(py: Python<'_>, native: ResolvedCommonPlan) -> PyResult<Self> {
-        let model = Py::new(
-            py,
-            PyModel::from_artifact(py, native.model_artifact().clone())?,
-        )?;
+        let model_bytes = native
+            .model_artifact()
+            .canonical_json()
+            .map_err(|diagnostic| crate::error::internal_diagnostic_error(py, &[diagnostic]))?;
+        let model = match model_io::decode_model(&model_bytes)
+            .map_err(|diagnostics| crate::error::internal_diagnostic_error(py, &diagnostics))?
+        {
+            model_io::DecodedModel::Document(document) => PyModel::from_document(py, *document),
+            model_io::DecodedModel::Deferred(artifact) => PyModel::from_artifact(py, artifact),
+        }?;
+        let model = Py::new(py, model)?;
         let mesh = native
             .authenticated_mesh()
             .map(|owner| PyMesh::from_authenticated(py, owner).and_then(|mesh| Py::new(py, mesh)))
@@ -117,7 +128,15 @@ impl PyPlan {
         } else if let Some(temporal) = native.tsitouras45() {
             Some(TemporalHandle::Tsitouras45(Py::new(
                 py,
-                PyTsitouras45::from_native(py, native.model_digest(), temporal.clone())?,
+                PyTsitouras45::from_native(
+                    py,
+                    native.model_digest(),
+                    temporal.clone(),
+                    model
+                        .borrow(py)
+                        .document()
+                        .map_err(|error| validation_error(py, &[error]))?,
+                )?,
             )?))
         } else {
             None
@@ -419,8 +438,8 @@ impl PyPlan {
             ResolvedCommonPlan::Ode(plan) => Py::new(
                 py,
                 PyOdePlanView {
-                    backend: plan.backend().id().as_str(),
-                    backend_version: plan.backend().version().as_str(),
+                    backend: plan.backend().id(),
+                    backend_version: plan.backend().version(),
                 },
             )
             .map(Py::into_any),
@@ -959,40 +978,6 @@ fn resolve_plan(
         solve: Some(solve_handle),
         temporal: temporal_handle,
     })
-}
-
-pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    solver_request::register(module)?;
-    module.add_class::<PyQ1>()?;
-    module.add_class::<PyMiniP1>()?;
-    module.add_class::<PyP1>()?;
-    module.add_class::<PyScopedSpatialBinding>()?;
-    module.add_class::<PyCellCenteredTpfa>()?;
-    module.add_class::<PyCellCentered>()?;
-    module.add_class::<PySolverPlanningObjective>()?;
-    module.add_class::<PyLinear>()?;
-    module.add_class::<enforcement::PyConstraintTolerance>()?;
-    module.add_class::<enforcement::PyActiveSet>()?;
-    module.add_class::<PyNewton>()?;
-    module.add_class::<PyResolvedLinear>()?;
-    module.add_class::<PyResolvedNewton>()?;
-    module.add_class::<PyResolvedExecution>()?;
-    module.add_class::<algebraic::PyAlgebraicPlanView>()?;
-    module.add_class::<PyOdePlanView>()?;
-    module.add_class::<PyScalarPlanView>()?;
-    module.add_class::<PyElasticityPlanView>()?;
-    module.add_class::<PyIncompressibleFlowPlanView>()?;
-    module.add_class::<PyFormulationKind>()?;
-    module.add_class::<PyFormulationSelectionMode>()?;
-    module.add_class::<PyFormulationView>()?;
-    module.add_class::<PyFixedReferenceFsiPlanView>()?;
-    module.add_class::<PyPressureGauge2d>()?;
-    module.add_class::<PyBackwardEuler>()?;
-    module.add_class::<PyTsitouras45>()?;
-    module.add_class::<PyPlan>()?;
-    scaling::register(module)?;
-    module.add_function(wrap_pyfunction!(resolve_plan, module)?)?;
-    Ok(())
 }
 
 #[cfg(test)]

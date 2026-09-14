@@ -22,8 +22,12 @@ mod linear;
 use enforcement::WireEnforcement;
 use linear::WireLinearControls;
 pub(super) use linear::linear_intent_bytes;
+mod event_policy;
+mod forward_policy;
+use event_policy::WireEventPolicy;
+use forward_policy::WireForwardSensitivity;
 
-const SCHEMA: &str = "eqiora.resolved-common-plan/v4";
+const SCHEMA: &str = "eqiora.resolved-common-plan/v5";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 
@@ -124,12 +128,16 @@ enum WireTemporal {
         initial_step_s: f64,
         relative_tolerance: f64,
         absolute_tolerances: Vec<WireOdeTolerance>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        events: Option<WireEventPolicy>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        forward_sensitivities: Option<WireForwardSensitivity>,
     },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireResolvedCommonPlanV4 {
+struct WireResolvedCommonPlanV5 {
     schema: String,
     encoding: String,
     family: WirePlanFamily,
@@ -296,7 +304,7 @@ impl ResolvedCommonPlan {
 
     /// Encode this complete resolved Plan and its exact replay roots.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&WireResolvedCommonPlanV4::from_plan(self)?).map_err(|error| {
+        serde_json::to_vec(&WireResolvedCommonPlanV5::from_plan(self)?).map_err(|error| {
             invalid(format!(
                 "cannot encode resolved common Plan artifact: {error}"
             ))
@@ -318,7 +326,7 @@ impl ResolvedCommonPlan {
                 bytes.len()
             )));
         }
-        let wire: WireResolvedCommonPlanV4 = serde_json::from_slice(bytes)
+        let wire: WireResolvedCommonPlanV5 = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid resolved common Plan JSON: {error}")))?;
         wire.validate_header()?;
         let resolved = wire.resolve(linear_backend, time_backend)?;
@@ -331,7 +339,7 @@ impl ResolvedCommonPlan {
     }
 }
 
-impl WireResolvedCommonPlanV4 {
+impl WireResolvedCommonPlanV5 {
     fn from_plan(plan: &ResolvedCommonPlan) -> Result<Self, Diagnostic> {
         let model = plan_model_artifact(plan).canonical_json()?;
         let mesh = plan_authenticated_mesh(plan)
@@ -464,6 +472,8 @@ impl WireResolvedCommonPlanV4 {
                 initial_step_s,
                 relative_tolerance,
                 absolute_tolerances,
+                events,
+                forward_sensitivities,
             }) = &self.temporal
             else {
                 return Err(invalid("ODE Plan omitted its Tsitouras45 policy"));
@@ -475,8 +485,14 @@ impl WireResolvedCommonPlanV4 {
                         .and_then(|field| CommonTsitourasTolerance::new(field, entry.value))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            let temporal =
+            let mut temporal =
                 CommonTsitouras45::new(*initial_step_s, *relative_tolerance, tolerances)?;
+            if let Some(events) = events {
+                temporal = temporal.with_event_policy(events.to_native()?);
+            }
+            if let Some(policy) = forward_sensitivities {
+                temporal = temporal.with_forward_sensitivity_policy(policy.to_native()?);
+            }
             let program = model.to_program().map_err(|diagnostics| {
                 invalid(format!(
                     "persisted ODE Model did not replay: {}",
@@ -786,6 +802,11 @@ fn scaling_request(plan: &ResolvedCommonPlan) -> Option<WireScalingRequest> {
 fn temporal_request(plan: &ResolvedCommonPlan) -> Option<WireTemporal> {
     match plan {
         ResolvedCommonPlan::Ode(plan) => Some(WireTemporal::Tsitouras45 {
+            events: plan.event_policy().map(WireEventPolicy::from_native),
+            forward_sensitivities: plan
+                .temporal()
+                .forward_sensitivities()
+                .map(WireForwardSensitivity::from_native),
             initial_step_s: plan.temporal().initial_step_s(),
             relative_tolerance: plan.temporal().relative_tolerance(),
             absolute_tolerances: plan

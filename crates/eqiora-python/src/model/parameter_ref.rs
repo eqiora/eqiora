@@ -22,7 +22,7 @@ pub(crate) struct PyModelParameterRef {
 }
 
 impl PyModelParameterRef {
-    pub(super) fn from_document(
+    pub(crate) fn from_document(
         document: &ModelDocument,
         selection: &str,
     ) -> Result<Self, eqiora::Diagnostic> {

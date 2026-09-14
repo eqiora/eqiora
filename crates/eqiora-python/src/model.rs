@@ -25,8 +25,10 @@ pub(crate) use notation::PyQuantityLabel;
 pub(crate) use notation::parse_profile;
 mod rendering;
 pub(crate) use rendering::{PyMathReference, PyMathRendering};
+mod activation_ref;
 pub(crate) mod constraint;
 mod observable_ref;
+pub(crate) use activation_ref::PyActivationRef;
 mod parameter_ref;
 mod property;
 pub(crate) use observable_ref::PyObservableRef;
@@ -731,6 +733,11 @@ impl PyModel {
         constraint::select(self, py, selection, ordinal)
     }
 
+    /// Select an exact Activation from this Model's aliases or canonical IDs.
+    fn activation(&self, py: Python<'_>, selection: &str) -> PyResult<PyActivationRef> {
+        activation_ref::select(self, py, selection)
+    }
+
     /// Select an exact derived output from this Model's aliases or canonical IDs.
     fn observable(&self, py: Python<'_>, selection: &str) -> PyResult<PyObservableRef> {
         observable_ref::select(self, py, selection)
@@ -882,6 +889,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyModelDomainRef>()?;
     module.add_class::<PyObservableRef>()?;
     module.add_class::<constraint::PyConstraintRef>()?;
+    module.add_class::<PyActivationRef>()?;
     module.add_class::<PyModel>()?;
     Ok(())
 }

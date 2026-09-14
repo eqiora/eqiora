@@ -129,7 +129,7 @@ integral = sparse.observe_time_integral(observable, quadrature=rule)
 assert isinstance(terminal, eqiora.TrajectoryObservation)
 assert terminal.evaluation_kind == 'terminal' and terminal.quadrature is None
 assert terminal.interval_s == (1.0, 1.0)
-assert terminal.endpoint_convention == 'terminal-fixed-time'
+assert terminal.endpoint_convention == 'terminal-after-events'
 assert integral.interval_s == (0.0, 1.0)
 assert integral.endpoint_convention == 'fixed-interval-dt'
 assert integral.evaluation_kind == 'time-integral' and integral.quadrature == rule
@@ -170,6 +170,93 @@ except AttributeError:
     pass
 else:
     raise AssertionError('trajectory observation must be immutable')
+"#), Some(&locals), Some(&locals))
+    })
+}
+
+#[test]
+fn python_event_functionals_use_reset_history_and_explicit_policy() -> PyResult<()> {
+    Python::initialize();
+    Python::attach(|py| {
+        let locals = PyDict::new(py);
+        locals.set_item("eqiora", public_module(py)?)?;
+        py.run(c_str!(r#"
+import json
+import math
+source = "model Reset() { state x: 1; initial { x=0; } parameter threshold: 1=0.4; relation flow { derivative(x)=1[1/s]; } event hit=crossing(x-threshold,direction=rising); relation reset at hit { next(x)=0; } observable sample: 1=x; }"
+model = eqiora.compile(source=source)
+field, event = model.field('x'), model.activation('hit')
+threshold = model.parameter('threshold')
+observable = model.observable('sample')
+assert isinstance(event, eqiora.ActivationRef)
+assert model.activation(event.id) == event
+assert eqiora.Model.from_bytes(model.to_bytes()).activation(event.id) == event
+policy = eqiora.time.EventPolicy(max_events=1, guard_tolerances=(eqiora.time.GuardTolerance(event, 1e-10, eqiora.Dimension()),))
+forward = eqiora.time.ForwardSensitivity(
+    relative_tolerance=1e-10,
+    absolute_tolerances=(eqiora.time.SensitivityTolerance(
+        field, threshold, 1e-12, eqiora.Dimension(),
+    ),),
+)
+def temporal(events):
+    return eqiora.time.Tsitouras45(initial_step_s=1e-3, relative_tolerance=1e-11, absolute_tolerances={field:1e-13}, events=events, forward_sensitivities=forward)
+plan = eqiora.resolve(model, temporal=temporal(policy))
+rule = eqiora.time.TimeFunctionalQuadrature.AcceptedStepSimpson
+sparse = eqiora.run(plan, state=eqiora.State.initial(plan), until_s=0.7, output_times_s=(0.2,))
+dense = eqiora.run(plan, state=eqiora.State.initial(plan), until_s=0.7, output_times_s=(0.1,0.2,0.3,0.5,0.6))
+terminal = sparse.observe_terminal(observable)
+integral = sparse.observe_time_integral(observable, quadrature=rule)
+# x(t)=t for t<0.4 and t-0.4 afterwards: x(0.7)=0.3 and J=(0.4^2+0.3^2)/2=0.125.
+assert math.isclose(terminal.value, 0.3, abs_tol=1e-9, rel_tol=0)
+assert math.isclose(integral.value, 0.125, abs_tol=1e-9, rel_tol=0)
+assert terminal.value_type == eqiora.ValueType.real(eqiora.Dimension())
+assert integral.value_type == eqiora.ValueType.real(eqiora.Dimension(time=1))
+assert terminal.evaluation_kind == 'terminal' and terminal.quadrature is None
+assert integral.evaluation_kind == 'time-integral' and integral.quadrature == rule
+direction = {threshold: (eqiora.Dimension(), 1.0)}
+terminal_jvp = sparse.observe_terminal_parameter_jvp(observable, direction)
+integral_jvp = sparse.observe_time_integral_parameter_jvp(observable, direction, quadrature=rule)
+# Raising the reset threshold delays the reset: dx(0.7)/dthreshold=-1 and dJ/dthreshold=0.1.
+assert math.isclose(terminal_jvp.value, -1.0, abs_tol=1e-8, rel_tol=0)
+assert math.isclose(integral_jvp.value, 0.1, abs_tol=1e-8, rel_tol=0)
+assert terminal_jvp.parameter_jvp and integral_jvp.parameter_jvp
+assert terminal_jvp.evaluation_kind == 'terminal-parameter-jvp'
+assert integral_jvp.evaluation_kind == 'time-integral-parameter-jvp'
+assert terminal.observable_id == integral.observable_id == observable.id
+assert terminal.result_identity == integral.result_identity == json.loads(sparse.to_bytes())['identity']
+assert dense.observe_terminal(observable).value == terminal.value
+assert dense.observe_time_integral(observable, quadrature=rule).value == integral.value
+assert dense.observe_time_integral(observable, quadrature=rule).result_identity != integral.result_identity
+replayed_plan = eqiora.Plan.from_bytes(plan.to_bytes())
+replayed = eqiora.Result.from_bytes(replayed_plan, sparse.to_bytes())
+replayed_receipt = replayed.observe_time_integral(observable, quadrature=rule)
+assert replayed_receipt.value == integral.value
+assert replayed_receipt.result_identity == integral.result_identity
+assert replayed_receipt.trajectory_identity == integral.trajectory_identity
+assert replayed.observe_terminal(observable).value == terminal.value
+assert replayed.observe_terminal_parameter_jvp(observable, direction).value == terminal_jvp.value
+foreign = eqiora.compile(source=source.replace('1=0.4', '1=0.45'))
+wrong_dimension = eqiora.time.EventPolicy(max_events=1, guard_tolerances=(eqiora.time.GuardTolerance(event, 1e-10, eqiora.Dimension(time=1)),))
+foreign_policy = eqiora.time.EventPolicy(max_events=1, guard_tolerances=(eqiora.time.GuardTolerance(foreign.activation('hit'), 1e-10, eqiora.Dimension()),))
+for invalid in (lambda: eqiora.resolve(model, temporal=temporal(None)),
+                lambda: eqiora.resolve(model, temporal=temporal(wrong_dimension)),
+                lambda: eqiora.resolve(model, temporal=temporal(foreign_policy)),
+                lambda: eqiora.run(plan, until_s=0.9),
+                lambda: sparse.observe_terminal(foreign.observable('sample')),
+                lambda: sparse.observe_time_integral(observable)):
+    try:
+        invalid()
+    except (eqiora.ValidationError, ValueError, TypeError):
+        pass
+    else:
+        raise AssertionError('missing/wrong event policy, exhausted event bound, or foreign Observable was accepted')
+for receipt in (terminal, integral):
+    try:
+        receipt.value = 8
+    except AttributeError:
+        pass
+    else:
+        raise AssertionError('event functional receipt must be frozen')
 "#), Some(&locals), Some(&locals))
     })
 }

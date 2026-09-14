@@ -203,6 +203,28 @@ impl PyRunResult {
         self.observe_trajectory(py, observable, Some(quadrature))
     }
 
+    /// Apply one exact unit-bearing Parameter direction at the fixed terminal time.
+    fn observe_terminal_parameter_jvp(
+        &self,
+        py: Python<'_>,
+        observable: &crate::model::PyObservableRef,
+        direction: &Bound<'_, pyo3::types::PyDict>,
+    ) -> PyResult<time_observe::PyTrajectoryObservation> {
+        self.observe_trajectory_parameter_jvp(py, observable, None, direction)
+    }
+
+    /// Apply one exact Parameter direction to the accepted-step time integral.
+    #[pyo3(signature = (observable, direction, *, quadrature))]
+    fn observe_time_integral_parameter_jvp(
+        &self,
+        py: Python<'_>,
+        observable: &crate::model::PyObservableRef,
+        direction: &Bound<'_, pyo3::types::PyDict>,
+        quadrature: time_observe::PyTimeFunctionalQuadrature,
+    ) -> PyResult<time_observe::PyTrajectoryObservation> {
+        self.observe_trajectory_parameter_jvp(py, observable, Some(quadrature), direction)
+    }
+
     /// Evaluate one exact derived output; spatial reductions require points per axis.
     #[pyo3(signature = (observable, *, quadrature_points=None))]
     fn observe(

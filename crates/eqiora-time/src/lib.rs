@@ -13,9 +13,13 @@ mod lowering;
 mod plan;
 mod problem;
 mod reference_implicit;
+mod root_outcome;
+mod root_sensitivity_outcome;
+pub use root_sensitivity_outcome::TimeRootSensitivityOutcome;
 mod root_registration;
+pub use root_outcome::TimeRootOutcome;
 mod solution;
-pub use history::{AcceptedTimeHistory, TimeHistoryStep};
+pub use history::{AcceptedTimeHistory, TimeEventDiscontinuity, TimeHistoryStep};
 mod system;
 
 #[cfg(test)]
@@ -35,14 +39,13 @@ pub use problem::{
     ForwardSensitivityProblem, ImplicitDaeInitialization, ImplicitDaeProblem,
     InitialConditionPolicy, TimeProblem,
 };
-pub use reference_implicit::{REFERENCE_IMPLICIT_TIME_BACKEND, ReferenceImplicitTimeBackend};
+pub use reference_implicit::ReferenceImplicitTimeBackend;
 pub use root_registration::{
     RegisteredRootProblem, RootActivationGroup, RootProposal, RootRegistrationId,
     RootRegistrationProof,
 };
 pub use solution::{
-    ForwardSensitivitySolution, TimeBackendId, TimeBackendIdentity, TimeBackendVersion,
-    TimeExecutionReport, TimeSolution,
+    ForwardSensitivitySolution, TimeBackendIdentity, TimeExecutionReport, TimeSolution,
 };
 pub use system::{
     ImplicitTimeSystem, MassParameterDependence, ParametricTimeSystem, RootFunctions, TimeSystem,

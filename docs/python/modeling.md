@@ -231,7 +231,7 @@ requires `1`. Finite values omit this argument. A State direction is created wit
 with `result.observe_state_jvp(energy, direction, quadrature_points=2)`. Its
 `evaluation_kind` is `"state-jvp"`, and a different Result cannot reuse that direction.
 
-### Smooth trajectory functionals
+### ODE trajectory functionals and Parameter directions
 
 For a scalar ODE Observable, evaluate the accepted terminal state or integrate over
 its complete Run interval with an explicit numerical rule:
@@ -252,9 +252,24 @@ Simpson quadrature over retained native history, not an exact analytic integral.
 numerical scope. Terminal evaluation uses the fixed terminal time even when it
 was omitted from requested outputs. Result persistence retains the same history.
 
-The current profile admits smooth real scalar ODE expressions only. Missing
-history, foreign Model references, and event/reset histories are rejected.
-Spatial-time composition, interval clipping, moving endpoints, and trajectory
+An event-enabled Tsitouras45 Plan retains exact localized pre/post-reset sides.
+When the Plan also requests `ForwardSensitivity`, apply a unit-bearing exact
+Parameter direction to the same terminal or integral functional:
+
+```python
+direction = {threshold: (eqiora.Dimension(), 1.0)}
+terminal_jvp = result.observe_terminal_parameter_jvp(sample, direction)
+integral_jvp = result.observe_time_integral_parameter_jvp(
+    sample, direction,
+    quadrature=eqiora.time.TimeFunctionalQuadrature.AcceptedStepSimpson,
+)
+```
+
+These products include direct Observable dependence, continuous state
+sensitivity, localized event-time motion, and reset propagation. Missing
+history or sensitivity products, foreign coordinates, terminal-time events,
+and resumed sensitivity without admitted initial products reject. Spatial-time
+composition, adjoints, interval clipping, moving endpoints, and grazing-event
 derivatives remain outside this profile.
 
 ## Author Eqiora Language source

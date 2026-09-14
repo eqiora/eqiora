@@ -76,7 +76,7 @@ assert replayed.formulation.requested == eqiora.FormulationSelectionMode.Authore
 assert replayed.formulation.requested_source_identity == plan.formulation.requested_source_identity
 assert eqiora.run(replayed).plan_key == plan.identity
 try:
-    eqiora.Plan.from_bytes(plan_bytes.replace(b"resolved-common-plan/v4", b"resolved-common-plan/v1"))
+    eqiora.Plan.from_bytes(plan_bytes.replace(b"resolved-common-plan/v5", b"resolved-common-plan/v1"))
 except eqiora.ValidationError:
     pass
 else:

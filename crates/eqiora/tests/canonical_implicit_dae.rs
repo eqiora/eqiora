@@ -206,7 +206,7 @@ fn canonical_state_dependent_mass_dae_uses_only_the_residual_native_seam() {
     );
     assert_eq!(
         decoded_run.backend_version(),
-        first_solution.report().backend_version().as_str()
+        first_solution.report().backend_version()
     );
     assert_eq!(decoded_run.outputs(), [output]);
     decoded_run

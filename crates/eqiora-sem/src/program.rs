@@ -5,6 +5,7 @@ mod diagnostics;
 use diagnostics::{
     clock_error, expression_path, kernel_error, kernel_path, model_path, relation_dimension_error,
 };
+mod event_guards;
 pub(crate) mod geometry_admission;
 mod nominal_values;
 mod numerical_residuals;

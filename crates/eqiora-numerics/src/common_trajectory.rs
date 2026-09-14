@@ -14,7 +14,9 @@ use crate::{
 mod artifact;
 mod functional;
 mod history_boundary;
+mod sensitivity;
 pub use functional::TimeFunctionalQuadrature;
+pub(crate) use sensitivity::CommonTrajectoryParameterSensitivity;
 
 /// Accepted output States bound to the complete immutable Run request.
 #[derive(Debug, Clone, PartialEq)]
@@ -54,6 +56,16 @@ impl CommonTrajectory {
                 "adaptive backend result differs from the exact no-Mesh ODE request",
             ));
         }
+        let history = solution.history().cloned().ok_or_else(|| {
+            invalid("common ODE Trajectory requires accepted native integration history")
+        })?;
+        for (sample, &time) in solution.times().iter().enumerate() {
+            history_boundary::validate(
+                &history,
+                time,
+                solution.state(sample).expect("accepted sample shape"),
+            )?;
+        }
         let states = request
             .output_times_s()
             .iter()
@@ -65,9 +77,6 @@ impl CommonTrajectory {
                 CommonOdeState::new(request.plan(), time, values.to_vec(), "result")
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let history = solution.history().cloned().ok_or_else(|| {
-            invalid("common ODE Trajectory requires accepted native integration history")
-        })?;
         Self::accept_ode_states(request, states, history)
     }
 
@@ -89,6 +98,9 @@ impl CommonTrajectory {
                 "accepted ODE Trajectory differs from its exact Run request",
             ));
         }
+        for state in &states {
+            history_boundary::validate(&history, state.time_s(), state.values())?;
+        }
         let first = history.steps().first().expect("history is nonempty");
         let last = history.steps().last().expect("history is nonempty");
         if history.dimension() != request.plan().field_dimensions().len()
@@ -97,11 +109,38 @@ impl CommonTrajectory {
             || last.end_time().to_bits() != request.until_s().to_bits()
         {
             return Err(invalid(
-                "accepted ODE history differs from its exact Run interval or initial State",
+                "accepted ODE history differs from its exact Run interval, initial State, or activation profile",
             ));
         }
-        for state in &states {
-            history_boundary::validate(&history, state.time_s(), state.values())?;
+        if !history.events().is_empty() {
+            let roots = request.plan().root_set()?.ok_or_else(|| {
+                invalid("Trajectory events require an admitted registered root set")
+            })?;
+            let policy = request
+                .plan()
+                .event_policy()
+                .expect("admitted root set has policy");
+            if history.events().len() > policy.max_events() {
+                return Err(invalid("Trajectory exceeds its exact Plan event budget"));
+            }
+            for event in history.events() {
+                let proposal = event.proposal();
+                if proposal.report().backend_identity() != request.plan().backend()
+                    || proposal.report().method() != TimeMethod::Tsitouras45
+                    || proposal.report().initial_condition() != InitialConditionPolicy::Provided
+                {
+                    return Err(invalid(
+                        "Trajectory event report differs from its exact Plan",
+                    ));
+                }
+                let tolerance = request.plan().guard_tolerance(proposal.root_index())?;
+                let accepted = roots.linearize_proposal(proposal, tolerance.value())?;
+                if accepted.post_state() != event.after_state() {
+                    return Err(invalid(
+                        "Trajectory event post-State differs from the canonical registered reset",
+                    ));
+                }
+            }
         }
         let identity = ode_identity(request.identity(), &states, &history);
         Ok(Self::Ode {
@@ -250,6 +289,16 @@ fn ode_identity(
             bytes.extend_from_slice(&value.to_bits().to_be_bytes());
         }
     }
+    bytes.extend_from_slice(&(history.events().len() as u64).to_be_bytes());
+    for event in history.events() {
+        let proposal = event.proposal();
+        bytes.extend_from_slice(&proposal.registration().as_sha256());
+        bytes.extend_from_slice(&(proposal.root_index() as u64).to_be_bytes());
+        bytes.extend_from_slice(&proposal.time().to_bits().to_be_bytes());
+        for value in proposal.state().iter().chain(event.after_state()) {
+            bytes.extend_from_slice(&value.to_bits().to_be_bytes());
+        }
+    }
     digest(&bytes)
 }
 
@@ -273,7 +322,7 @@ fn spatial_identity(
 }
 
 fn digest(bytes: &[u8]) -> String {
-    Sha256::digest([b"eqiora.common-trajectory/v2\0".as_slice(), bytes].concat())
+    Sha256::digest([b"eqiora.common-trajectory/v3\0".as_slice(), bytes].concat())
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()

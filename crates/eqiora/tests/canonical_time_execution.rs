@@ -375,8 +375,10 @@ fn canonical_event_registration_drives_proposal_reset_saltation_and_restart() {
     )
     .unwrap();
     let proposal = DiffsolTimeBackend::new()
-        .propose_first_root(&problem, &root_problem, &plan)
-        .unwrap()
+        .solve_until_root(&problem, &root_problem, &plan)
+        .unwrap();
+    let proposal = proposal
+        .proposal()
         .expect("falling ball reaches the canonical guard");
 
     let gravity = 9.81;
@@ -386,7 +388,7 @@ fn canonical_event_registration_drives_proposal_reset_saltation_and_restart() {
     assert_relative(proposal.time(), impact_time, 3.0e-8);
     assert_relative(proposal.state()[0], 0.0, 3.0e-8);
     assert_relative(proposal.state()[1], impact_velocity, 3.0e-8);
-    let event = roots.linearize_proposal(&proposal, 3.0e-8).unwrap();
+    let event = roots.linearize_proposal(proposal, 3.0e-8).unwrap();
     assert_relative(event.post_state()[0], 0.0, 3.0e-8);
     assert_relative(
         event.post_state()[1],
@@ -1311,8 +1313,8 @@ fn assert_time_run_artifact_round_trip(
 
     assert_eq!(decoded.digest().unwrap(), manifest.digest().unwrap());
     assert_eq!(decoded.plan().unwrap(), *plan);
-    assert_eq!(decoded.backend(), report.backend().as_str());
-    assert_eq!(decoded.backend_version(), report.backend_version().as_str());
+    assert_eq!(decoded.backend(), report.backend());
+    assert_eq!(decoded.backend_version(), report.backend_version());
     assert_eq!(decoded.outputs(), [output]);
     decoded.validate_against(lowering).unwrap();
 

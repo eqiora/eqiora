@@ -1,4 +1,5 @@
 mod history;
+mod sensitivities;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -103,7 +104,7 @@ impl DiffsolTimeBackend {
         self.admit(problem.primal().equation_class(), plan.method())?;
         match problem.primal().equation_class() {
             TimeEquationClass::ExplicitOde => {
-                solve_ode_forward_sensitivities(problem, plan, sensitivity_plan)
+                sensitivities::solve(problem, plan, sensitivity_plan, None)?.smooth()
             }
             TimeEquationClass::MassMatrix { .. } => {
                 solve_mass_matrix_forward_sensitivities(problem, plan, sensitivity_plan)
@@ -114,6 +115,32 @@ impl DiffsolTimeBackend {
         }
     }
 
+    /// Integrate continuous fixed-time sensitivities through the first root or horizon.
+    ///
+    /// The caller supplies the real parameter layout. Native interpolation retains
+    /// pre-event sensitivities; event-time/reset derivatives remain canonical-owner work.
+    /// # Errors
+    /// Rejects non-ODE root problems and invalid controls, callbacks, or integration.
+    pub fn solve_until_root_forward_sensitivities(
+        &self,
+        problem: &ForwardSensitivityProblem<'_>,
+        roots: &RegisteredRootProblem<'_>,
+        plan: &TimePlan,
+        sensitivity_plan: &ForwardSensitivityPlan,
+    ) -> Result<eqiora_time::TimeRootSensitivityOutcome, Diagnostic> {
+        plan.validate_for(problem.primal())?;
+        sensitivity_plan.validate_for(problem)?;
+        self.admit(problem.primal().equation_class(), plan.method())?;
+        if problem.primal().equation_class() != TimeEquationClass::ExplicitOde
+            || roots.proof().root_count() == 0
+        {
+            return Err(unsupported(
+                "root sensitivities require an explicit ODE and at least one registered root",
+            ));
+        }
+        sensitivities::solve(problem, plan, sensitivity_plan, Some(roots))?.root()
+    }
+
     /// Localize the first zero crossing before the plan's final output time.
     ///
     /// The result is only a numerical proposal. Root direction, simultaneous
@@ -121,17 +148,17 @@ impl DiffsolTimeBackend {
     /// scheduler. A reset therefore restarts the same [`TimeProblem`] explicitly
     /// rather than invoking Diffsol's automatic-reset semantics.
     ///
-    /// The first admitted slice is an explicit ODE; `Ok(None)` means the search
-    /// horizon was reached without a root.
+    /// The first admitted slice is an explicit ODE. Native smooth history is retained
+    /// through the first root or the final requested output.
     ///
     /// # Errors
     /// Returns stable admission, callback, setup, and integration diagnostics.
-    pub fn propose_first_root(
+    pub fn solve_until_root(
         &self,
         problem: &TimeProblem<'_>,
         roots: &RegisteredRootProblem<'_>,
         plan: &TimePlan,
-    ) -> Result<Option<RootProposal>, Diagnostic> {
+    ) -> Result<eqiora_time::TimeRootOutcome, Diagnostic> {
         plan.validate_for(problem)?;
         self.admit(problem.equation_class(), plan.method())?;
         if problem.equation_class() != TimeEquationClass::ExplicitOde {
@@ -152,12 +179,11 @@ fn propose_ode_root(
     problem: &TimeProblem<'_>,
     roots: &RegisteredRootProblem<'_>,
     plan: &TimePlan,
-) -> Result<Option<RootProposal>, Diagnostic> {
+) -> Result<eqiora_time::TimeRootOutcome, Diagnostic> {
     let failures = CallbackFailures::default();
     let rhs_failures = failures.clone();
     let jacobian_failures = failures.clone();
     let root_failures = failures.clone();
-    let registration = roots.registration();
     let functions = roots.functions();
     let system = problem.system();
     let initial_state = problem.initial_state();
@@ -187,148 +213,18 @@ fn propose_ode_root(
         )
         .build()
         .map_err(|error| map_failure(&failures, "construct Diffsol root problem", error))?;
-    let horizon = *plan
-        .output_times()
-        .last()
-        .expect("TimePlan validates a non-empty output grid");
-
-    let (stop, state) = match plan.method() {
+    match plan.method() {
         TimeMethod::Tsitouras45 => {
             let mut solver = ode
                 .tsit45()
                 .map_err(|error| map_failure(&failures, "initialize Diffsol root search", error))?;
-            let (_values, _times, stop) = solver
-                .solve(horizon)
-                .map_err(|error| map_failure(&failures, "search for Diffsol root", error))?;
-            (stop, collect_vector(solver.state().y))
+            history::capture_until_root(&mut solver, problem, plan, roots, &failures)
         }
         TimeMethod::Bdf => {
             let mut solver = ode.bdf::<NalgebraLU<f64>>().map_err(|error| {
                 map_failure(&failures, "initialize Diffsol BDF root search", error)
             })?;
-            let (_values, _times, stop) = solver
-                .solve(horizon)
-                .map_err(|error| map_failure(&failures, "search for Diffsol BDF root", error))?;
-            (stop, collect_vector(solver.state().y))
-        }
-        TimeMethod::ImplicitEuler => {
-            unreachable!("Diffsol admission rejects the reference implicit-Euler method")
-        }
-    };
-    match stop {
-        OdeSolverStopReason::RootFound(time, root_index) => RootProposal::accepted(
-            registration,
-            time,
-            root_index,
-            functions.count(),
-            state,
-            problem.dimension(),
-            TimeExecutionReport::new(
-                DIFFSOL_TIME_BACKEND,
-                plan.method(),
-                problem.equation_class(),
-                problem.initial_condition(),
-            ),
-        )
-        .map(Some),
-        OdeSolverStopReason::TstopReached => Ok(None),
-        OdeSolverStopReason::InternalTimestep => Err(solve_failed(
-            "Diffsol root search returned an internal-step stop at the public boundary",
-        )),
-    }
-}
-
-fn solve_ode_forward_sensitivities(
-    problem: &ForwardSensitivityProblem<'_>,
-    plan: &TimePlan,
-    sensitivity_plan: &ForwardSensitivityPlan,
-) -> Result<ForwardSensitivitySolution, Diagnostic> {
-    let failures = CallbackFailures::default();
-    let rhs_failures = failures.clone();
-    let jacobian_failures = failures.clone();
-    let parameter_failures = failures.clone();
-    let initial_parameter_failures = failures.clone();
-    let system = problem.system();
-    let initial_state = problem.primal().initial_state();
-    let ode = OdeBuilder::<NalgebraMat<f64>>::new()
-        .t0(plan.start_time())
-        .h0(plan.initial_step())
-        .rtol(plan.relative_tolerance())
-        .atol(plan.absolute_tolerances().iter().copied())
-        .sens_rtol(sensitivity_plan.relative_tolerance())
-        .sens_atol(sensitivity_plan.absolute_tolerances().iter().copied())
-        .p(problem.parameters().iter().copied())
-        .use_coloring(false)
-        .rhs_sens_implicit(
-            move |state, _parameters, time, output| {
-                evaluate_rhs(system, &rhs_failures, time, state, output);
-            },
-            move |state, _parameters, time, direction, output| {
-                evaluate_rhs_jvp(system, &jacobian_failures, time, state, direction, output);
-            },
-            move |state, _parameters, time, parameter_direction, output| {
-                evaluate_rhs_parameter_jvp(
-                    system,
-                    &parameter_failures,
-                    time,
-                    state,
-                    parameter_direction,
-                    output,
-                );
-            },
-        )
-        .init_sens(
-            move |_parameters, _time, output| copy_initial_state(initial_state, output),
-            move |_parameters, time, parameter_direction, output| {
-                evaluate_initial_parameter_jvp(
-                    system,
-                    &initial_parameter_failures,
-                    time,
-                    parameter_direction,
-                    output,
-                );
-            },
-            problem.primal().dimension(),
-        )
-        .build()
-        .map_err(|error| {
-            map_failure(
-                &failures,
-                "construct Diffsol forward-sensitivity problem",
-                error,
-            )
-        })?;
-
-    match plan.method() {
-        TimeMethod::Tsitouras45 => {
-            let mut solver = ode.tsit45_sens().map_err(|error| {
-                map_failure(
-                    &failures,
-                    "initialize Diffsol Tsitouras45 sensitivities",
-                    error,
-                )
-            })?;
-            history::capture(
-                &mut solver,
-                problem.primal(),
-                plan,
-                problem.parameter_dimension(),
-                &failures,
-            )?
-            .sensitivities(problem.parameter_dimension())
-        }
-        TimeMethod::Bdf => {
-            let mut solver = ode.bdf_sens::<NalgebraLU<f64>>().map_err(|error| {
-                map_failure(&failures, "initialize Diffsol BDF sensitivities", error)
-            })?;
-            history::capture(
-                &mut solver,
-                problem.primal(),
-                plan,
-                problem.parameter_dimension(),
-                &failures,
-            )?
-            .sensitivities(problem.parameter_dimension())
+            history::capture_until_root(&mut solver, problem, plan, roots, &failures)
         }
         TimeMethod::ImplicitEuler => {
             unreachable!("Diffsol admission rejects the reference implicit-Euler method")

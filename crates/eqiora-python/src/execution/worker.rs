@@ -236,22 +236,70 @@ fn execute_job(
         }
         NativeRunJob::Ode(request) => {
             let started = Instant::now();
-            let problem = {
+            let sensitivity_plan = {
                 let _setup = setup_phase().entered();
-                request.problem().map_err(|diagnostic| vec![diagnostic])?
+                request.plan().forward_sensitivity_plan().cloned()
             };
-            let solution = {
+            let (trajectory, sensitivity) = {
                 let _solve = solve_phase(1).entered();
-                DiffsolTimeBackend::new()
-                    .solve(&problem, request.time_plan())
-                    .map_err(|diagnostic| vec![diagnostic])?
+                if let Some(sensitivity_plan) = sensitivity_plan {
+                    if request.plan().event_policy().is_some() {
+                        request.run_with_event_forward_sensitivities(|problem, roots, plan| {
+                            DiffsolTimeBackend::new().solve_until_root_forward_sensitivities(
+                                problem,
+                                roots,
+                                plan,
+                                &sensitivity_plan,
+                            )
+                        })
+                    } else {
+                        request
+                            .forward_sensitivity_problem()
+                            .and_then(|problem| {
+                                DiffsolTimeBackend::new().solve_forward_sensitivities(
+                                    &problem,
+                                    request.time_plan(),
+                                    &sensitivity_plan,
+                                )
+                            })
+                            .and_then(|solution| {
+                                CommonTrajectory::accept_ode_forward_sensitivities(
+                                    *request, solution,
+                                )
+                            })
+                    }
+                    .map(|(trajectory, sensitivity)| (trajectory, Some(sensitivity)))
+                } else {
+                    if request.plan().event_policy().is_some() {
+                        request.run_with_events(|problem, roots, plan| {
+                            DiffsolTimeBackend::new().solve_until_root(problem, roots, plan)
+                        })
+                    } else {
+                        request
+                            .problem()
+                            .and_then(|problem| {
+                                DiffsolTimeBackend::new().solve(&problem, request.time_plan())
+                            })
+                            .and_then(|solution| CommonTrajectory::accept_ode(*request, solution))
+                    }
+                    .map(|trajectory| (trajectory, None))
+                }
+                .map_err(|diagnostic| vec![diagnostic])?
             };
             let result = {
                 let _postprocess = postprocess_phase().entered();
-                let trajectory = CommonTrajectory::accept_ode(*request, solution)
-                    .map_err(|diagnostic| vec![diagnostic])?;
-                CommonResult::accept_trajectory(started.elapsed().as_secs_f64(), trajectory)
-                    .map_err(|diagnostic| vec![diagnostic])?
+                let elapsed = started.elapsed().as_secs_f64();
+                match sensitivity {
+                    Some(sensitivity) => {
+                        CommonResult::accept_trajectory_with_parameter_sensitivity(
+                            elapsed,
+                            trajectory,
+                            sensitivity,
+                        )
+                    }
+                    None => CommonResult::accept_trajectory(elapsed, trajectory),
+                }
+                .map_err(|diagnostic| vec![diagnostic])?
             };
             Ok(NativeWorkerOutcome::Completed(NativeRunOutput::Result(
                 Box::new(result),

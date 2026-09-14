@@ -25,6 +25,19 @@ fn canonical_bouncing_ball_produces_event_time_reset_and_saltation_derivatives()
     let cpu = CpuProgram::lower(&fixture.kernel).unwrap();
     let event = CanonicalEventProgram::lower(&cpu, fixture.flow, fixture.event).unwrap();
 
+    assert_eq!(
+        event.guard_dimension(),
+        DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap()
+    );
+    let typed_guard = fixture.kernel.typed_event_guard(fixture.event).unwrap();
+    assert_eq!(
+        typed_guard
+            .node_type(typed_guard.expression().roots()[0])
+            .unwrap()
+            .dimension(),
+        event.guard_dimension()
+    );
+    assert!(fixture.kernel.typed_event_guard(Id::new()).is_err());
     assert_eq!(event.activations().len(), 2);
     assert_eq!(
         event.flow().state_fields(),
