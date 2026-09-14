@@ -34,6 +34,7 @@ impl CompiledLinearBlockForm {
         program: &KernelProgram,
         domain: RawId,
         dimension: usize,
+        interface_boundaries: &BTreeSet<RawId>,
     ) -> Result<Self, Diagnostic> {
         let Some(KernelNode::Domain(definition)) = program.node(domain) else {
             return Err(invalid("linear block support is not a Domain"));
@@ -151,7 +152,14 @@ impl CompiledLinearBlockForm {
             })
             .collect();
         let volume = CompiledRegionForm::scalar(domain, dimension, roles.clone(), volume_rows)?;
-        let boundary = boundary::derive(program, domain, dimension, &fields, &volume)?;
+        let boundary = boundary::derive(
+            program,
+            domain,
+            dimension,
+            &fields,
+            &volume,
+            interface_boundaries,
+        )?;
         let all_relations = roles
             .relations
             .keys()

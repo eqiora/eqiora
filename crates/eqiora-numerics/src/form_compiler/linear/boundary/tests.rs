@@ -32,7 +32,12 @@ fn derive(source: &str) -> Result<CompiledLinearBlockForm, Diagnostic> {
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
     let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-    CompiledLinearBlockForm::derive(&program, symbols.get("body").unwrap(), 1)
+    CompiledLinearBlockForm::derive(
+        &program,
+        symbols.get("body").unwrap(),
+        1,
+        &std::collections::BTreeSet::new(),
+    )
 }
 
 #[test]

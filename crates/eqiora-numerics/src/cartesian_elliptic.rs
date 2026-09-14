@@ -1459,7 +1459,7 @@ pub fn linearize_scalar_elliptic_cartesian_fvm_output(
     )
 }
 
-mod support;
+pub(crate) mod support;
 use support::*;
 
 #[cfg(test)]

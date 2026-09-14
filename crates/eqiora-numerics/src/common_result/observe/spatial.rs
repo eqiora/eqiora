@@ -55,16 +55,15 @@ pub(super) fn integrate(
         .mesh();
     let dimension = mesh.topological_dimension();
     let (bounds, boundary) = plan.observation_support(domain.erase())?;
-    if bounds.len() != dimension
-        || bounds
-            .iter()
-            .enumerate()
-            .any(|(axis, bounds)| mesh.axis_bounds(axis) != Some(*bounds))
-    {
+    if bounds.len() != dimension {
         return Err(invalid(
-            "Observable exact Domain bounds differ from its Result mesh",
+            "Observable support dimension differs from Result mesh",
         ));
     }
+    let support = plan
+        .fields()
+        .map(|(id, _)| Ok((id.erase(), plan.field_support(id.erase())?.1)))
+        .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
     let measure_dimension = dimension - usize::from(boundary.is_some());
     let expected_cell = if measure_dimension == 0 {
         ReferenceCell::point()
@@ -83,21 +82,26 @@ pub(super) fn integrate(
         .expect("mesh top stratum exists")
     {
         let cell = MeshEntity::new(dimension, cell_index);
-        let indices = mesh
-            .cell_multi_index(cell)
-            .expect("mesh cell indices exist");
+        let geometry = mesh.geometry_map(cell).expect("mesh cell geometry exists");
+        let cell_vertices = mesh.entity_vertices(cell).expect("cell vertices");
+        if !cell_vertices.iter().all(|vertex| {
+            let point = mesh.vertex_coordinates(*vertex).expect("vertex");
+            bounds
+                .iter()
+                .enumerate()
+                .all(|(axis, b)| point[axis] >= b[0] && point[axis] <= b[1])
+        }) {
+            continue;
+        }
         if let Some((axis, side)) = boundary {
-            let expected = match side {
-                BoundarySide::Lower => 0,
-                BoundarySide::Upper => {
-                    mesh.axis_cell_count(axis).expect("boundary axis exists") - 1
-                }
-            };
-            if indices[axis] != expected {
+            let coordinate = bounds[axis][usize::from(side == BoundarySide::Upper)];
+            if !cell_vertices
+                .iter()
+                .any(|vertex| mesh.vertex_coordinates(*vertex).expect("vertex")[axis] == coordinate)
+            {
                 continue;
             }
         }
-        let geometry = mesh.geometry_map(cell).expect("mesh cell geometry exists");
         let inverse = geometry.inverse_jacobian()?;
         let vertices = mesh
             .entity_vertices(cell)
@@ -119,6 +123,13 @@ pub(super) fn integrate(
             geometry.map_point(&reference, &mut coordinates)?;
             let mut fields = BTreeMap::new();
             for (id, value_type) in plan.fields() {
+                let owned = &support[&id.erase()];
+                if !vertices
+                    .iter()
+                    .all(|vertex| owned.binary_search(&vertex.index()).is_ok())
+                {
+                    continue;
+                }
                 let accepted = payload
                     .fields
                     .iter()
@@ -143,10 +154,13 @@ pub(super) fn integrate(
                 let mut gradient_tangent = vec![0.0; dimension];
                 let mut gradient = vec![0.0; dimension];
                 for (local, vertex) in vertices.iter().enumerate() {
-                    let coefficient = block.values[vertex.index()];
+                    let owned_index = owned
+                        .binary_search(&vertex.index())
+                        .expect("checked Field cell closure");
+                    let coefficient = block.values[owned_index];
                     let delta = tangent
                         .and_then(|fields| fields.get(&id.erase()))
-                        .map_or(0.0, |values| values[vertex.index()]);
+                        .map_or(0.0, |values| values[owned_index]);
                     direction += delta * basis.values()[local];
                     value += coefficient * basis.values()[local];
                     let derivative = physical_gradient(

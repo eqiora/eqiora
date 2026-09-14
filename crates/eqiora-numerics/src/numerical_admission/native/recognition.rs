@@ -258,6 +258,17 @@ pub(crate) fn lower_scalar_candidate(
             "scalar elliptic lowering requires authenticated Cartesian resources",
         ));
     };
+    let source_domains = program
+        .nodes()
+        .filter(|node| {
+            matches!(node,
+        eqiora_schema::kernel::KernelNode::Domain(domain)
+            if matches!(domain.kind(), eqiora_schema::kernel::DomainKind::CartesianBox { .. }))
+        })
+        .count();
+    if source_domains > 0 {
+        return ExecutableScalarEquations::source_regions(program, mesh.mesh());
+    }
     let (domain, bounds, boundaries) =
         geometry_cartesian_support(program, geometry, mesh, correspondence)?;
     ExecutableScalarEquations::new(program, domain, bounds, boundaries)

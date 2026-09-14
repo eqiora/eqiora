@@ -25,17 +25,21 @@ fn resolve_common_elasticity_portable(
         ScalarType::F64,
         LinearOperatorProperties::SymmetricPositiveDefinite,
     )?;
-    PortableRealizationGraph::linear_fields(
+    PortableRealizationGraph::linear_regions(
         RealizationLineage::explicit(
             admission.program().model(),
             SemanticRevision::new(admission.program().revision().0),
             RealizationRevision::new(COMMON_ELASTICITY_REALIZATION_REVISION),
         ),
-        domain,
-        [eqiora_realization::FieldSpaceBinding::new(
-            displacement,
-            Space::continuous_lagrange(std::num::NonZeroU16::MIN),
-        )],
+        [eqiora_realization::DomainFieldDiscretization::new(
+            domain,
+            [eqiora_realization::FieldSpaceBinding::new(
+                displacement,
+                Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+            )],
+            [],
+        )?],
+        [],
         Discretization::new(
             DiscretizationMethod::ContinuousGalerkin,
             MeshPolicy::SuppliedCartesian {

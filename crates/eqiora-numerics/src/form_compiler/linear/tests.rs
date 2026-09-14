@@ -27,7 +27,8 @@ fn derive(source: &str) -> Result<CompiledLinearBlockForm, Diagnostic> {
             _ => None,
         })
         .unwrap();
-    let form = CompiledLinearBlockForm::derive(&program, domain, 1)?;
+    let form =
+        CompiledLinearBlockForm::derive(&program, domain, 1, &std::collections::BTreeSet::new())?;
     assert_eq!(form.domain(), domain);
     Ok(form)
 }
@@ -126,7 +127,9 @@ fn parameter_point_rebinding_preserves_the_original_compiled_form() {
             _ => None,
         })
         .unwrap();
-    let form = CompiledLinearBlockForm::derive(&program, domain, 1).unwrap();
+    let form =
+        CompiledLinearBlockForm::derive(&program, domain, 1, &std::collections::BTreeSet::new())
+            .unwrap();
     let fields = program
         .nodes()
         .filter_map(|node| match node {
@@ -184,7 +187,13 @@ fn bound_volume_preserves_field_order_and_rebound_diffusion_positivity() {
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
     let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-    let form = CompiledLinearBlockForm::derive(&program, symbols.get("body").unwrap(), 1).unwrap();
+    let form = CompiledLinearBlockForm::derive(
+        &program,
+        symbols.get("body").unwrap(),
+        1,
+        &std::collections::BTreeSet::new(),
+    )
+    .unwrap();
     assert_eq!(form.fields().len(), form.volume().fields().len());
     for (index, ((field, value_type), layout)) in
         form.fields().iter().zip(form.volume().fields()).enumerate()

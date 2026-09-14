@@ -1,99 +1,7 @@
 use super::*;
 
-/// Checked scalar equations and their exact Cartesian support.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct ExecutableScalarEquations {
-    pub(super) form: crate::form_compiler::linear::CompiledLinearBlockForm,
-    bounds: Vec<[f64; 2]>,
-    pub(super) boundaries: BTreeMap<(usize, BoundarySide), eqiora_core::RawId>,
-}
-
-impl ExecutableScalarEquations {
-    pub(super) fn new(
-        program: &KernelProgram,
-        domain: eqiora_core::RawId,
-        bounds: Vec<[f64; 2]>,
-        boundaries: BTreeMap<(usize, BoundarySide), eqiora_core::RawId>,
-    ) -> Result<Self, Diagnostic> {
-        let form = crate::form_compiler::linear::CompiledLinearBlockForm::derive(
-            program,
-            domain,
-            bounds.len(),
-        )?;
-        let expected = boundaries.values().copied().collect::<BTreeSet<_>>();
-        if form
-            .boundary_laws()
-            .values()
-            .any(|laws| laws.keys().copied().collect::<BTreeSet<_>>() != expected)
-        {
-            return Err(invalid(
-                "compiled boundary laws differ from authenticated Geometry support",
-            ));
-        }
-        Ok(Self {
-            form,
-            bounds,
-            boundaries,
-        })
-    }
-
-    pub(super) fn domain_id(&self) -> eqiora_core::Id<eqiora_core::entity::kinds::Domain> {
-        self.form
-            .domain()
-            .downcast()
-            .expect("compiled Domain identity")
-    }
-
-    /// Independently admit the bounded conservation subset for TPFA or differentiation.
-    pub(super) fn conservation_descriptor(
-        &self,
-        program: &KernelProgram,
-    ) -> Result<ScalarConservationDescriptor, Diagnostic> {
-        let descriptor = recognize_scalar_conservation_on_supports(
-            program,
-            vec![ScalarRegionSupport::new(
-                self.form.domain(),
-                self.bounds.clone(),
-                self.boundaries.clone(),
-            )],
-        )?;
-        let regions = descriptor.regions().collect::<Vec<_>>();
-        let [region] = regions.as_slice() else {
-            return Err(invalid("steady scalar conservation requires one region"));
-        };
-        if region.storage().is_some() || descriptor.interfaces().len() != 0 {
-            return Err(invalid(
-                "steady scalar conservation does not admit storage or interfaces",
-            ));
-        }
-        if region
-            .exterior()
-            .any(|boundary| matches!(boundary.law(), ScalarExteriorLaw::Robin { .. }))
-        {
-            return Err(invalid(
-                "steady scalar conservation does not admit Robin boundaries",
-            ));
-        }
-        Ok(descriptor)
-    }
-
-    /// Existing authored single-equation Formulation metadata, never an execution fallback.
-    fn primal_form(
-        &self,
-        program: &KernelProgram,
-    ) -> Result<Option<crate::form_compiler::DerivedScalarGalerkinForm>, Diagnostic> {
-        if self.form.fields().len() != 1 {
-            return Ok(None);
-        }
-        Ok(crate::form_compiler::derive_candidate_with_dimension(
-            program,
-            self.form.domain(),
-            self.bounds.len(),
-        )
-        .ok()
-        .flatten())
-    }
-}
+mod regions;
+pub(crate) use regions::ExecutableScalarEquations;
 
 fn describe_primal(
     kind: FormulationKind,
@@ -176,19 +84,14 @@ pub(super) fn resolve_common_scalar_portable(
         ScalarType::F64,
         scalar_operator_properties(admission.spatial),
     )?;
-    PortableRealizationGraph::linear_fields(
+    PortableRealizationGraph::linear_regions(
         RealizationLineage::explicit(
             admission.program().model(),
             SemanticRevision::new(admission.program().revision().0),
             RealizationRevision::new(COMMON_SCALAR_REALIZATION_REVISION),
         ),
-        lowered.domain_id(),
-        lowered.form.fields().iter().map(|(field, _)| {
-            eqiora_realization::FieldSpaceBinding::new(
-                field.downcast().expect("compiled Field identity"),
-                space,
-            )
-        }),
+        lowered.discretizations(space)?,
+        lowered.quotients()?,
         Discretization::new(method, mesh, quadrature),
         scalar_operator_properties(admission.spatial),
         ScalarType::F64,
@@ -266,7 +169,6 @@ impl CommonScalarPlan {
             ));
         };
         let fields = lowered
-            .form
             .fields()
             .iter()
             .map(|(field, value_type)| {
@@ -471,6 +373,7 @@ impl CommonScalarPlan {
             NativeSpatialPolicy::ScalarQ1 => {
                 let quadrature = QuadratureRule::tensor_product_gauss_legendre(dimension, 2)?;
                 let form = equations
+                    .single()?
                     .form
                     .bind_parameter_point(bound.parameter_fields(), bound.parameter_values())?;
                 let assembly =
@@ -479,7 +382,7 @@ impl CommonScalarPlan {
                         mesh,
                         &quadrature,
                         &REFERENCE_ASSEMBLY_BACKEND,
-                        &equations.boundaries,
+                        &equations.single()?.boundaries,
                     )?;
                 FinalizedScalarEllipticCartesianProblem::finite_element_blocks(
                     self.portable.clone(),
@@ -719,11 +622,71 @@ impl CommonScalarPlan {
         let RecognizedNativeModel::Scalar(equations) = self.admission.recognized_model() else {
             return Err(invalid("Observable requires the exact scalar Plan support"));
         };
-        let boundary = if domain == equations.form.domain() {
+        let region = equations
+            .regions
+            .iter()
+            .find(|region| {
+                region.form.domain() == domain
+                    || region
+                        .boundaries
+                        .values()
+                        .any(|boundary| *boundary == domain)
+            })
+            .ok_or_else(|| invalid("Observable Domain is outside exact Region inventory"))?;
+        let boundary = if domain == region.form.domain() {
             None
         } else {
-            Some(equations.boundaries.iter().find_map(|(side, id)| (*id == domain).then_some(*side)).ok_or_else(|| invalid("Observable Domain is not the exact volume or boundary realized by this Plan"))?)
+            Some(region.boundaries.iter().find_map(|(side, id)| (*id == domain).then_some(*side)).ok_or_else(|| invalid("Observable Domain is not the exact volume or boundary realized by this Plan"))?)
         };
-        Ok((equations.bounds.clone(), boundary))
+        Ok((region.bounds.clone(), boundary))
+    }
+}
+
+impl CommonScalarPlan {
+    pub(crate) fn field_support(
+        &self,
+        field: eqiora_core::RawId,
+    ) -> Result<(Vec<usize>, Vec<usize>), Diagnostic> {
+        let RecognizedNativeModel::Scalar(equations) = self.admission.recognized_model() else {
+            return Err(invalid("missing scalar inventory"));
+        };
+        let NativeMeshResources::Cartesian { mesh, .. } = self.admission.resources() else {
+            return Err(invalid("missing Cartesian mesh"));
+        };
+        let mesh = mesh.mesh();
+        let region = equations
+            .regions
+            .iter()
+            .find(|region| region.form.fields().iter().any(|(id, _)| *id == field))
+            .ok_or_else(|| invalid("Field absent from exact Region inventory"))?;
+        let mut shape = Vec::new();
+        for (axis, bounds) in region.bounds.iter().enumerate() {
+            let coordinates = mesh.axis_coordinates(axis).expect("axis");
+            let start = coordinates
+                .iter()
+                .position(|x| *x == bounds[0])
+                .ok_or_else(|| invalid("Field support lower bound absent"))?;
+            let end = coordinates
+                .iter()
+                .position(|x| *x == bounds[1])
+                .ok_or_else(|| invalid("Field support upper bound absent"))?;
+            shape.push(end - start + usize::from(self.spatial() == CommonSpatialPolicy::Q1));
+        }
+        let domains = equations.cell_domains(mesh)?;
+        let mut vertices = BTreeSet::new();
+        for (index, domain) in domains.iter().enumerate() {
+            if *domain == region.form.domain() {
+                vertices.extend(
+                    mesh.incidence(
+                        eqiora_meshing::MeshEntity::new(mesh.topological_dimension(), index),
+                        0,
+                    )
+                    .expect("cell closure")
+                    .iter()
+                    .map(|vertex| vertex.entity.index()),
+                );
+            }
+        }
+        Ok((shape, vertices.into_iter().collect()))
     }
 }
