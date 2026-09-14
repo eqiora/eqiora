@@ -402,29 +402,57 @@ impl DiscreteBlockSystem {
                 "every eliminated-state Relation requires one exact Backward Euler transformation",
             ));
         }
-        let domains = self
-            .fields
-            .iter()
-            .filter(|field| field.role == FieldBlockRole::Algebraic)
-            .map(|field| field.domain)
-            .fold(Vec::new(), |mut domains, domain| {
-                if !domains.contains(&domain) {
-                    domains.push(domain);
-                }
-                domains
-            });
-        let quotient_count = self
-            .transformations
-            .iter()
-            .filter(|entry| matches!(entry, BlockTransformation::ConformingTraceQuotient { .. }))
-            .count();
-        if (domains.len() > 1 && quotient_count != 1) || (domains.len() == 1 && quotient_count != 0)
-        {
-            return Err(invalid(
-                "the closed v1 block system requires exactly one quotient for a multi-Domain algebraic inventory and none for one Domain",
-            ));
-        }
+        self.validate_quotient_ownership()?;
         self.validate_boundary_treatments()?;
+        Ok(())
+    }
+
+    fn validate_quotient_ownership(&self) -> Result<(), Diagnostic> {
+        let mut identities = std::collections::BTreeSet::new();
+        for transformation in &self.transformations {
+            let BlockTransformation::ConformingTraceQuotient {
+                quotient,
+                interface_relations,
+            } = transformation
+            else {
+                continue;
+            };
+            let mut fields = quotient
+                .endpoints()
+                .map(|endpoint| endpoint.field().erase());
+            fields.sort();
+            if !identities.insert((quotient.connection().erase(), fields))
+                || interface_relations
+                    .iter()
+                    .collect::<std::collections::HashSet<_>>()
+                    .len()
+                    != interface_relations.len()
+            {
+                return Err(invalid("trace quotient ownership must be duplicate-free"));
+            }
+            for endpoint in quotient.endpoints() {
+                if !self.fields.iter().any(|field| {
+                    field.field == endpoint.field()
+                        && field.domain == endpoint.domain()
+                        && field.role == FieldBlockRole::Algebraic
+                }) || !interface_relations.iter().any(|relation| {
+                    self.relations.iter().any(|candidate| {
+                        candidate.relation == *relation
+                            && candidate.disposition
+                                == RelationDisposition::BoundaryCondition {
+                                    field: endpoint.field(),
+                                    treatment: BoundaryTreatment::ConformingInterface {
+                                        connection: quotient.connection(),
+                                    },
+                                }
+                    })
+                }) {
+                    return Err(invalid(
+                        "each trace endpoint requires its exact algebraic Field/Domain and interface Relation",
+                    ));
+                }
+            }
+        }
         Ok(())
     }
 

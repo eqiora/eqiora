@@ -427,3 +427,5 @@ fn checked_work_rejects_packet_target_drift_before_scatter() {
         .unwrap_err();
     assert_eq!(diagnostic.code(), codes::INVALID_REALIZATION);
 }
+
+mod plural;
