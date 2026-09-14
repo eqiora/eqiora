@@ -81,6 +81,13 @@ def check_analytic_coefficients(model, accepted):
     assert abs(values[-1] - 3/32) <= 1e-10
 check_analytic_coefficients(model, result)
 
+def check_nonzero_temperature(model, accepted):
+    field = model.field(model.authored_formulations[0].trial_field_id)
+    values = sorted(accepted.output(field).values("vertex").numpy().reshape(-1))
+    assert len(values) == 9
+    assert all(abs(value - 300.0) <= 1e-10 for value in values[:-1])
+    assert abs(values[-1] - (300.0 + 3/32)) <= 1e-10
+
 plan_bytes = plan.to_bytes()
 replayed = eqiora.Plan.from_bytes(plan_bytes)
 assert replayed.to_bytes() == plan_bytes
@@ -120,12 +127,12 @@ module = eqiora.Module("main")
 component = module.component("Diffusion")
 body = component.volume("body", dimensions=2)
 surface = component.complete_exterior("surface", parent=body)
-u = component.field("u", value_type=eqiora.ValueType.real(), role=eqiora.FieldRole.Variable, on=body)
-k = component.parameter("k", value_type=eqiora.ValueType.real())
-f = component.parameter("f", value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)))
+u = component.field("u", value_type=eqiora.ValueType.real(eqiora.Dimension(temperature=1)), role=eqiora.FieldRole.Variable, on=body)
+k = component.parameter("k", value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=1, time=-3, temperature=-1)))
+f = component.parameter("f", value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-3)))
 heat = component.law("heat", on=body, flux=-k*q.grad(u), source=f)
 face = surface.member("face")
-component.relation("essential", q.equation(q.trace(u), 0), on=face)
+component.relation("essential", q.equation(q.trace(u), q.quantity(300, eqiora.units.K)), on=face)
 w = component.test("w", for_=u, zero_on=surface)
 component.weak_form("weak_heat", heat, left=q.integrate(body, q.dot(q.grad(w), k*q.grad(u))), right=q.integrate(body, w*f))
 source_bindings = {"body": geometry.selection("square"), "surface": (tuple(geometry.selection(name) for name in ("x_lower", "x_upper", "y_lower", "y_upper")), geometry.selection("square")), "k": 1.0, "f": 1.0}
@@ -135,14 +142,16 @@ emitted_model = eqiora.compile(source=module.to_eqi(), geometry=geometry, entry=
 assert python_model.digest == emitted_model.digest
 assert python_model.authored_formulations[0].zero_on_domain_ids == emitted_model.authored_formulations[0].zero_on_domain_ids
 python_plan = eqiora.resolve(python_model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
-check_analytic_coefficients(python_model, eqiora.run(eqiora.Plan.from_bytes(python_plan.to_bytes())))
+assert python_plan.formulation.boundary_treatment == "complete-essential"
+assert "fem.derive.v2.boundary-discharge.zero-test-trace" in python_plan.formulation.rule_ids
+check_nonzero_temperature(python_model, eqiora.run(eqiora.Plan.from_bytes(python_plan.to_bytes())))
 
 for changed, expected in (
     (source.replace("zero_on x_lower, x_upper, y_lower, y_upper", "zero_on x_lower"), "zero_on"),
     (source.replace("diffusion * grad(potential)))", "other_diffusion * grad(potential)))"), "coefficient"),
     (source.replace("w * source_scale", "w * other_source"), "source"),
     (source.replace("w * source_scale", "-w * source_scale"), "source term"),
-    (source.replace("trace(potential) = 0;", "trace(potential) = 1;", 1), "homogeneous-essential"),
+    (source.replace("trace(potential) = 0;", "trace(potential) = trace(potential);", 1), "unmatched signed leaves"),
 ):
     mismatched = eqiora.compile(source=changed, geometry=geometry, entry='AuthoredPoisson', bindings={'square': geometry.selection('square'), 'x_lower': (geometry.selection('x_lower'), geometry.selection('square')), 'x_upper': (geometry.selection('x_upper'), geometry.selection('square')), 'y_lower': (geometry.selection('y_lower'), geometry.selection('square')), 'y_upper': (geometry.selection('y_upper'), geometry.selection('square')), **parameters})
     try:

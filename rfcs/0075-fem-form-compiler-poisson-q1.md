@@ -88,7 +88,8 @@ The derived plan represents exactly:
 - `coefficient * dot(grad(test), grad(trial))`;
 - `source * test`;
 - exact relation and field identities;
-- complete homogeneous essential boundary discharge.
+- complete essential boundary discharge through the zero trace of the test field;
+  the prescribed trial trace may be nonzero.
 
 Any other structure **fails**. No generic callback, no escape hatch, no
 backend identifier becomes mathematical meaning.
@@ -111,7 +112,7 @@ weak-term slot it produced. The rule set for this slice is closed:
 | --- | --- |
 | `fem.derive.v1.test-pairing` | Multiply the strong residual by a test function drawn from the declared test space. |
 | `fem.derive.v1.divergence-by-parts` | Rewrite `-div(k grad u) * v` as `k grad u . grad v` minus a boundary flux term. |
-| `fem.derive.v1.boundary-discharge.essential-homogeneous` | Discharge that boundary flux term because the test space vanishes on the essential boundary. Requires the essential boundary to cover the complete boundary of the relation scope. |
+| `fem.derive.v2.boundary-discharge.zero-test-trace` | Discharge that boundary flux term because the test space vanishes on the essential boundary. Requires the essential boundary to cover the complete boundary of the relation scope. |
 | `fem.derive.v1.source-pairing` | Rewrite `f` as `f * v`. |
 
 A derivation that terminates with any strong-form node unconsumed, or that
@@ -162,10 +163,11 @@ admission error rather than a tolerance question.
 The compiled path is taken if and only if all hold: the relation scope is a
 2D Cartesian box; the discretization is `ContinuousGalerkin` over
 `HypercubeQ1Space`; there is exactly one scalar unknown; every boundary of the
-scope carries a homogeneous essential relation; and every admission gate above
-passes. Any other configuration takes the existing path unchanged. The
-predicate is total and fail-closed: an unrecognized configuration never falls
-through to the compiled path.
+scope carries an essential relation with closed unknown-independent scalar
+spatial data; the Galerkin test is zero on that complete boundary; and every
+admission gate above passes. Any other configuration takes the existing path
+unchanged. The predicate is total and fail-closed: an unrecognized
+configuration never falls through to the compiled path.
 
 ### Admission gates
 

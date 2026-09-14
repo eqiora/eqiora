@@ -735,11 +735,11 @@ assert tpfa.capability.face_coefficient_policy == "direct-centroid-evaluation"
 assert isinstance(q1.formulation, package.FormulationView)
 assert q1.formulation.requested is package.FormulationSelectionMode.Automatic
 assert q1.formulation.effective is package.formulation.PrimalGalerkin
-assert q1.formulation.boundary_treatment == "complete-homogeneous-essential"
+assert q1.formulation.boundary_treatment == "complete-essential"
 assert q1.formulation.rule_ids == [
     "fem.derive.v1.test-pairing",
     "fem.derive.v1.divergence-by-parts",
-    "fem.derive.v1.boundary-discharge.essential-homogeneous",
+    "fem.derive.v2.boundary-discharge.zero-test-trace",
     "fem.derive.v1.source-pairing",
 ]
 assert q1.formulation.selection_reason_codes == [

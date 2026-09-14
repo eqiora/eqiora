@@ -215,13 +215,13 @@ impl CommonScalarPlan {
                 }
                 None if authored_formulation.is_some() => {
                     return Err(invalid(
-                        "authored scalar Q1 primal Formulation requires the admitted complete homogeneous-essential boundary class",
+                        "authored scalar Q1 primal Formulation requires the admitted complete essential boundary class",
                     ));
                 }
                 None if selection == FormulationSelectionMode::Automatic => None,
                 None => {
                     return Err(invalid(
-                        "exact scalar Q1 primal Formulation requires the admitted complete homogeneous-essential boundary class",
+                        "exact scalar Q1 primal Formulation requires the admitted complete essential boundary class",
                     ));
                 }
             },

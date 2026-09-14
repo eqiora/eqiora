@@ -78,10 +78,10 @@ fn e1_element_fixture_matches_frozen_matrix_loads_and_certificate() {
         [
             TEST_PAIRING,
             DIVERGENCE_BY_PARTS,
-            HOMOGENEOUS_ESSENTIAL_DISCHARGE,
-            HOMOGENEOUS_ESSENTIAL_DISCHARGE,
-            HOMOGENEOUS_ESSENTIAL_DISCHARGE,
-            HOMOGENEOUS_ESSENTIAL_DISCHARGE,
+            ZERO_TEST_TRACE_DISCHARGE,
+            ZERO_TEST_TRACE_DISCHARGE,
+            ZERO_TEST_TRACE_DISCHARGE,
+            ZERO_TEST_TRACE_DISCHARGE,
             SOURCE_PAIRING,
         ]
     );
@@ -233,6 +233,24 @@ fn ineligible_natural_boundary_has_no_semantic_derivation() {
     let domain = box_domain(&program);
     assert!(derive_candidate(&program, domain).unwrap().is_none());
     crate::canonical::lower_scalar_elliptic_cartesian(&program).unwrap();
+}
+
+#[test]
+fn complete_essential_boundary_accepts_nonzero_parameter_data() {
+    let source = SOURCE
+        .replace(
+            "  parameter source_scale: 1 / m ^ 2 = 19.739208802178716;",
+            "  parameter boundary_value: 1 = 2;\n  parameter source_scale: 1 / m ^ 2 = 19.739208802178716;",
+        )
+        .replace("trace(potential) = 0", "trace(potential) = boundary_value");
+    let form = compiled_form(&source);
+    assert_eq!(form.parameters.len(), 3);
+    assert_eq!(form.formulation_description().1, "complete-essential");
+    assert_eq!(
+        form.formulation_description().2[2],
+        ZERO_TEST_TRACE_DISCHARGE
+    );
+    form.validate_certificate().unwrap();
 }
 
 fn compiled_form(source: &str) -> DerivedScalarGalerkinForm {
@@ -556,6 +574,6 @@ fn reachable_extra_strong_form_term_is_not_dropped() {
     let domain = box_domain(&program);
     assert_gate(
         derive_candidate(&program, domain).map(|_| ()),
-        "derivation certificate",
+        "unmatched signed leaves",
     );
 }
