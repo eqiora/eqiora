@@ -35,7 +35,7 @@ jax = [
 ]
 matplotlib = ["matplotlib>=3.10,<3.12"]
 viewer = ["anywidget==0.11.0"]
-torch = ["torch>=2.13,<2.14"]
+torch = ["torch>=2.14,<2.15"]
 
 [dependency-groups]
 release-tools = ["twine==7.0.0", "uv==0.12.13"]
@@ -99,6 +99,6 @@ numpy-floor-python = "3.12"
 tested-numpy-floor = "numpy==2.1.0"
 pytest = "pytest==9.1.1"
 mypy = "mypy==2.3.0"
-tested-torch = "torch==2.13.0"
+tested-torch = "torch==2.14.0"
 tested-jax = ["jax==0.11.0", "jaxlib==0.11.0"]
 tested-matplotlib = "matplotlib==3.11.1"

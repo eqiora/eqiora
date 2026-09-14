@@ -48,7 +48,7 @@ development guides may not yet be included in this published release.
 The base package imports none of these optional libraries. The viewer extra
 pins `anywidget==0.11.0`; its JavaScript and CSS are already carried inside the
 Eqiora wheel, so the host does not fetch renderer assets at display time. The PyTorch extra
-declares `torch>=2.13,<2.14`; the tested version is PyTorch 2.13.0.
+declares `torch>=2.14,<2.15`; the tested version is PyTorch 2.14.0.
 JAX/JAXLIB 0.11.0 and Matplotlib 3.11.1 were also tested on CPython 3.13.
 The JAX extra requires Python 3.12 or newer.
 

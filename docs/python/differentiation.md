@@ -139,7 +139,7 @@ compiled_objective = torch.compile(
 )
 ```
 
-The current adapter declares PyTorch `>=2.13,<2.14` and verifies 2.13.0. It
+The current adapter declares PyTorch `>=2.14,<2.15` and verifies 2.14.0. It
 registers a functional project-namespaced custom operator, a metadata-only fake
 implementation, and a first-order autograd rule whose backward invokes
 Eqiora's accepted VJP through a second custom operator.

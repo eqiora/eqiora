@@ -1,6 +1,6 @@
 id = "interfaces.python-pytorch-differentiation"
 status = "implemented"
-scope = "installed-wheel-common-plan-supplied-rectangle-2d-in-process-cpu-f64-pytorch-2-13-first-order-autograd"
+scope = "installed-wheel-common-plan-supplied-rectangle-2d-in-process-cpu-f64-pytorch-2-14-first-order-autograd"
 reference_kind = "eqiora-vjp-and-centered-finite-difference"
 
 capabilities = [
@@ -19,8 +19,8 @@ inputs = ["source_scale", "diffusion", "boundary_offset"]
 output = "complete primary scalar Field"
 methods = ["continuous-q1-galerkin", "cell-centred-tpfa"]
 execution = "in-process-cpu:0-native-f64"
-torch_range = ">=2.13,<2.14"
-exact_tested_torch = "2.13.0"
+torch_range = ">=2.14,<2.15"
+exact_tested_torch = "2.14.0"
 
 [claim_boundary]
 functional_no_input_mutation = true

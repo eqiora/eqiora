@@ -129,7 +129,7 @@ References:
   NumPy path; DLPack exports are independent snapshots until consumer
   mutability can be guaranteed.
 - The first PyTorch adapter baseline, checked 2026-07-23, is
-  `torch>=2.13,<2.14`, with 2.13.0 tested exactly from an installed wheel.
+  `torch>=2.14,<2.15`, with 2.14.0 tested exactly from an installed wheel.
   It uses `torch.library.custom_op`, `register_fake`, and `register_autograd`;
   backward calls a separate Eqiora VJP custom operator. PyTorch remains an
   optional extra and base `eqiora` never imports it.

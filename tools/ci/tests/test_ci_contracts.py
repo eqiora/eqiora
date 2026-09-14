@@ -910,7 +910,7 @@ class PythonPackageGateTests(unittest.TestCase):
         command = torch_uv_gate_command("uv", "/usr/bin/python3")
 
         self.assertEqual(command[command.index("--extra") + 1], "torch")
-        self.assertIn("torch==2.13.0", command)
+        self.assertIn("torch==2.14.0", command)
         self.assertTrue(command[-1].endswith("bindings/python/tests/test_torch.py"))
 
     def test_jax_gate_installs_the_exact_verified_environment(self) -> None:
