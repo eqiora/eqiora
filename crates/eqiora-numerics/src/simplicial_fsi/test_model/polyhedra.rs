@@ -149,32 +149,6 @@ pub(crate) fn polyhedral_layout(
     correspondence
         .validate_against_polyhedra(&definition, &artifact)
         .unwrap();
-    for (name, cells) in [
-        ("fluid", partition.fluid_cells()),
-        ("solid", partition.solid_cells()),
-    ] {
-        let expected = correspondence
-            .polyhedral_entity_set_entities(&definition, name)
-            .unwrap()
-            .into_iter()
-            .map(|entity| entity.index())
-            .collect::<BTreeSet<_>>();
-        assert_eq!(expected, cells.iter().map(|cell| cell.index()).collect());
-    }
-    let expected = correspondence
-        .polyhedral_entity_set_entities(&definition, "fluid_contact")
-        .unwrap()
-        .into_iter()
-        .map(|entity| entity.index())
-        .collect::<BTreeSet<_>>();
-    assert_eq!(
-        expected,
-        partition
-            .interface_facets()
-            .iter()
-            .map(|facet| facet.index())
-            .collect()
-    );
     let model = authored_model(
         geometry,
         [
@@ -196,6 +170,84 @@ pub(crate) fn polyhedral_layout(
         solver,
         ale,
     );
+    let fluid = model
+        .plan
+        .spatial()
+        .domains()
+        .iter()
+        .find(|domain| {
+            domain
+                .field_spaces()
+                .iter()
+                .any(|field| field.space() == Space::simplex_p1_bubble())
+        })
+        .unwrap()
+        .domain();
+    let solid = model
+        .plan
+        .spatial()
+        .domains()
+        .iter()
+        .find(|domain| domain.domain() != fluid)
+        .unwrap()
+        .domain();
+    for (name, domain) in [("fluid", fluid), ("solid", solid)] {
+        let cells = partition.domain_cells(domain).unwrap();
+        let expected = correspondence
+            .polyhedral_entity_set_entities(&definition, name)
+            .unwrap()
+            .into_iter()
+            .map(|entity| entity.index())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(expected, cells.iter().map(|cell| cell.index()).collect());
+    }
+    let expected = correspondence
+        .polyhedral_entity_set_entities(&definition, "fluid_contact")
+        .unwrap()
+        .into_iter()
+        .map(|entity| entity.index())
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        expected,
+        partition.traces()[0]
+            .facets
+            .iter()
+            .map(|witness| witness.facet)
+            .map(|facet| facet.index())
+            .collect()
+    );
     super::super::layout::FsiLayout::bind(&model.program, &model.plan, mesh, partition, boundary)
         .unwrap()
+}
+
+pub(crate) fn polyhedral_model(
+    geometry: &CanonicalGeometryV1,
+    mesh: &eqiora_meshing::SimplicialMesh,
+    config: FixedReferenceFsiStepConfig<3>,
+    solver: SolverPlan,
+    ale: bool,
+) -> super::AuthoredFsiModel {
+    use eqiora_artifact::SimplicialMeshEnvelopeV1;
+    let artifact = SimplicialMeshEnvelopeV1::from_mesh(mesh).unwrap();
+    authored_model(
+        geometry,
+        [
+            [
+                geometry.entity_set("fluid").unwrap(),
+                geometry.entity_set("solid").unwrap(),
+            ],
+            [
+                geometry.entity_set("fluid_outer").unwrap(),
+                geometry.entity_set("solid_outer").unwrap(),
+            ],
+            [
+                geometry.entity_set("fluid_contact").unwrap(),
+                geometry.entity_set("solid_contact").unwrap(),
+            ],
+        ],
+        MeshArtifactReference::from_sha256(artifact.digest().unwrap().sha256_bytes()),
+        config,
+        solver,
+        ale,
+    )
 }

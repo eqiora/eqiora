@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_compiler::{CompiledModel, StaticBindingValue};
-use eqiora_core::{DimExponents, DynQuantity};
+use eqiora_core::{DimExponents, DynQuantity, Id, entity::kinds};
 use eqiora_geometry::{CanonicalGeometryV1, NamedEntitySet};
 use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore};
 use eqiora_realization::*;
@@ -19,6 +19,118 @@ pub(crate) mod polyhedra;
 pub(crate) struct AuthoredFsiModel {
     pub(crate) program: KernelProgram,
     pub(crate) plan: CoupledFieldwiseRealizationPlan,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ExactFsiTestFields {
+    pub(crate) fluid_domain: Id<kinds::Domain>,
+    pub(crate) solid_domain: Id<kinds::Domain>,
+    pub(crate) fluid_velocity: Id<kinds::Field>,
+    pub(crate) fluid_pressure: Id<kinds::Field>,
+    pub(crate) solid_velocity: Id<kinds::Field>,
+    pub(crate) displacement: Id<kinds::Field>,
+}
+
+pub(crate) fn exact_fields(plan: &CoupledFieldwiseRealizationPlan) -> ExactFsiTestFields {
+    let pair = plan.time_step().eliminated_states()[0].pair();
+    let solid_velocity = pair.rate();
+    let displacement = pair.state();
+    let solid_domain = plan
+        .spatial()
+        .domains()
+        .iter()
+        .find(|domain| {
+            domain
+                .field_spaces()
+                .iter()
+                .any(|field| field.field() == solid_velocity)
+        })
+        .unwrap()
+        .domain();
+    let fluid = plan
+        .spatial()
+        .domains()
+        .iter()
+        .find(|domain| domain.domain() != solid_domain)
+        .unwrap();
+    let fluid_velocity = fluid
+        .field_spaces()
+        .iter()
+        .find(|field| field.space() == Space::simplex_p1_bubble())
+        .unwrap()
+        .field();
+    let fluid_pressure = fluid
+        .field_spaces()
+        .iter()
+        .find(|field| field.field() != fluid_velocity)
+        .unwrap()
+        .field();
+    ExactFsiTestFields {
+        fluid_domain: fluid.domain(),
+        solid_domain,
+        fluid_velocity,
+        fluid_pressure,
+        solid_velocity,
+        displacement,
+    }
+}
+
+pub(crate) fn exact_state<const D: usize>(
+    program: &KernelProgram,
+    plan: &CoupledFieldwiseRealizationPlan,
+    mesh: &eqiora_meshing::SimplicialMesh,
+    partition: &super::FixedReferenceFsiPartition<D>,
+    mut value: impl FnMut(Id<kinds::Field>, eqiora_meshing::MeshEntity, usize) -> f64,
+) -> super::FixedReferenceFsiState<D> {
+    let fields = exact_fields(plan);
+    let vector = |field, domain, bubble, value: &mut dyn FnMut(_, _, _) -> _| {
+        let mut coefficients = Vec::new();
+        for vertex in partition.domain_vertices(domain).unwrap() {
+            let entity = eqiora_meshing::MeshEntity::new(0, vertex.index());
+            for component in 0..D {
+                coefficients.push((entity, 0, component, value(field, entity, component)));
+            }
+        }
+        if bubble {
+            for cell in partition.domain_cells(domain).unwrap() {
+                let entity = eqiora_meshing::MeshEntity::new(D, cell.index());
+                for component in 0..D {
+                    coefficients.push((entity, 0, component, value(field, entity, component)));
+                }
+            }
+        }
+        (field, coefficients)
+    };
+    let pressure = (
+        fields.fluid_pressure,
+        partition
+            .domain_vertices(fields.fluid_domain)
+            .unwrap()
+            .iter()
+            .map(|vertex| {
+                let entity = eqiora_meshing::MeshEntity::new(0, vertex.index());
+                (entity, 0, 0, value(fields.fluid_pressure, entity, 0))
+            })
+            .collect(),
+    );
+    super::FixedReferenceFsiState::new(
+        program,
+        plan,
+        mesh,
+        partition,
+        [
+            vector(fields.fluid_velocity, fields.fluid_domain, true, &mut value),
+            pressure,
+            vector(
+                fields.solid_velocity,
+                fields.solid_domain,
+                false,
+                &mut value,
+            ),
+            vector(fields.displacement, fields.solid_domain, false, &mut value),
+        ],
+    )
+    .unwrap()
 }
 
 /// The caller authenticates the actual mesh and Region membership against this
@@ -319,32 +431,6 @@ pub(crate) fn planar_layout(
     correspondence
         .validate_against_region(&definition, &mesh_artifact)
         .unwrap();
-    for (name, actual) in [
-        ("fluid", partition.fluid_cells()),
-        ("solid", partition.solid_cells()),
-    ] {
-        let expected = correspondence
-            .region_entity_set_entities(&definition, name)
-            .unwrap()
-            .into_iter()
-            .map(|entity| entity.index())
-            .collect::<BTreeSet<_>>();
-        assert_eq!(expected, actual.iter().map(|cell| cell.index()).collect());
-    }
-    let expected = correspondence
-        .region_entity_set_entities(&definition, "fluid_contact")
-        .unwrap()
-        .into_iter()
-        .map(|entity| entity.index())
-        .collect::<BTreeSet<_>>();
-    assert_eq!(
-        expected,
-        partition
-            .interface_facets()
-            .iter()
-            .map(|facet| facet.index())
-            .collect()
-    );
     let model = authored_model(
         &geometry,
         [
@@ -366,7 +452,86 @@ pub(crate) fn planar_layout(
         solver,
         ale,
     );
+    let fluid = model
+        .plan
+        .spatial()
+        .domains()
+        .iter()
+        .find(|domain| {
+            domain
+                .field_spaces()
+                .iter()
+                .any(|field| field.space() == Space::simplex_p1_bubble())
+        })
+        .unwrap()
+        .domain();
+    let solid = model
+        .plan
+        .spatial()
+        .domains()
+        .iter()
+        .find(|domain| domain.domain() != fluid)
+        .unwrap()
+        .domain();
+    for (name, domain) in [("fluid", fluid), ("solid", solid)] {
+        let actual = partition.domain_cells(domain).unwrap();
+        let expected = correspondence
+            .region_entity_set_entities(&definition, name)
+            .unwrap()
+            .into_iter()
+            .map(|entity| entity.index())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(expected, actual.iter().map(|cell| cell.index()).collect());
+    }
+    let expected = correspondence
+        .region_entity_set_entities(&definition, "fluid_contact")
+        .unwrap()
+        .into_iter()
+        .map(|entity| entity.index())
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        expected,
+        partition.traces()[0]
+            .facets
+            .iter()
+            .map(|witness| witness.facet)
+            .map(|facet| facet.index())
+            .collect()
+    );
     super::layout::FsiLayout::bind(&model.program, &model.plan, mesh, partition, boundary).unwrap()
+}
+
+pub(crate) fn planar_model(
+    region: &eqiora_geometry::PlanarRegion,
+    mesh: &eqiora_meshing::SimplicialMesh,
+    config: FixedReferenceFsiStepConfig<2>,
+    solver: SolverPlan,
+    ale: bool,
+) -> AuthoredFsiModel {
+    use eqiora_artifact::SimplicialMeshEnvelopeV1;
+    let geometry = CanonicalGeometryV1::from_region(region).unwrap();
+    let artifact = SimplicialMeshEnvelopeV1::from_mesh(mesh).unwrap();
+    authored_model(
+        &geometry,
+        [
+            [
+                geometry.entity_set("fluid").unwrap(),
+                geometry.entity_set("solid").unwrap(),
+            ],
+            [
+                geometry.entity_set("fluid_outer").unwrap(),
+                geometry.entity_set("solid_outer").unwrap(),
+            ],
+            [
+                geometry.entity_set("fluid_contact").unwrap(),
+                geometry.entity_set("solid_contact").unwrap(),
+            ],
+        ],
+        MeshArtifactReference::from_sha256(artifact.digest().unwrap().sha256_bytes()),
+        config,
+        solver,
+        ale,
+    )
 }
 
 pub(crate) fn adjacent_rectangles() -> eqiora_geometry::PlanarRegion {
