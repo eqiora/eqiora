@@ -169,9 +169,7 @@ fn uniform_stress_weak_volume_and_oriented_facet_loads_cancel_exactly() {
     );
     // For all-essential zero displacement, full residual reactions retain the
     // known stress instead of reporting zero from its zero strong divergence.
-    use crate::region_assembly::{
-        PreparedRegionAssembly, RegionAssemblyCell, prepare_reaction_rows,
-    };
+    use crate::region_assembly::{DomainReactions, PreparedRegionAssembly, RegionAssemblyCell};
     use eqiora_assembly::{
         AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyTarget, TargetAssemblyMap,
     };
@@ -196,8 +194,12 @@ fn uniform_stress_weak_volume_and_oriented_facet_loads_cancel_exactly() {
         vec![],
     )
     .unwrap();
-    let reactions = prepare_reaction_rows(&work, target, 6, &[vec![0]], &(0..6).collect()).unwrap();
-    for (actual, expected) in reactions[0].residual(&[0.0; 6]).unwrap().iter().zip(stress) {
+    let reactions =
+        DomainReactions::prepare(&work, target, 6, &[form.domain()], &(0..6).collect()).unwrap();
+    for (actual, expected) in reactions.recover(&[0.0; 6]).unwrap().values[&form.domain()]
+        .iter()
+        .zip(stress)
+    {
         close(*actual, expected);
     }
 }

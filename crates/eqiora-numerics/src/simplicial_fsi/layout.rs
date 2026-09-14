@@ -41,6 +41,40 @@ fn key(field: RawId, entity: MeshEntity, component: usize) -> FieldDof {
 }
 
 impl<const D: usize> FsiLayout<D> {
+    pub(crate) fn reactions(
+        &self,
+        work: &dyn eqiora_assembly::AssemblyWork,
+        target: eqiora_assembly::AssemblyTargetId,
+    ) -> Result<crate::region_assembly::InterfaceReactions, Diagnostic> {
+        crate::region_assembly::InterfaceReactions::prepare(
+            work,
+            target,
+            &self.mapping,
+            self.mapping.cell_domains(),
+        )
+    }
+
+    pub(crate) fn interface_actions(
+        &self,
+        reactions: &crate::region_assembly::RecoveredInterfaceReactions,
+        vertex: usize,
+    ) -> Result<([f64; D], [f64; D]), Diagnostic> {
+        let mut fluid = [0.0; D];
+        let mut solid = [0.0; D];
+        for component in 0..D {
+            let entity = MeshEntity::new(0, vertex);
+            fluid[component] = reactions.action(
+                self.roles.connection,
+                key(self.roles.fluid_velocity, entity, component),
+            )?;
+            solid[component] = reactions.action(
+                self.roles.connection,
+                key(self.roles.solid_velocity, entity, component),
+            )?;
+        }
+        Ok((fluid, solid))
+    }
+
     pub(crate) fn free_field_dof(&self, key: FieldDof) -> Option<eqiora_assembly::DofId> {
         self.mapping.free_dof(key)
     }

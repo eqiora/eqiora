@@ -300,6 +300,120 @@ fn model_derived_chain_assembles_solves_and_recovers_every_exact_field() {
         )
         .unwrap();
         let solution = REFERENCE_LINEAR_SOLVER.solve(&problem, solver).unwrap();
+        let reactions = crate::region_assembly::InterfaceReactions::prepare(
+            &work,
+            plan.target_id(1).unwrap(),
+            &mapping,
+            &domains,
+        )
+        .unwrap();
+        let full = mapping.lift(solution.values(), false).unwrap();
+        let actions = reactions.recover(&full).unwrap();
+        // Independent weak action: k=2 and u=x/L give endpoint actions ±2/L.
+        // For three Regions this is ±2/3, including BOTH ends of the middle Region.
+        for (quotient, keys) in mapping.traces() {
+            for key in keys {
+                let region = regions
+                    .iter()
+                    .find(|region| region.field() == key.field)
+                    .unwrap();
+                let x = key.entity.index() as f64 / 2.0;
+                let sign = if x == region.bounds()[0][0] {
+                    -1.0
+                } else {
+                    1.0
+                };
+                let actual = actions.action(quotient.connection().erase(), *key).unwrap();
+                assert!((actual - sign * 2.0 / count as f64).abs() < 1e-11);
+            }
+        }
+        assert!(actions.imbalance_norm < 1e-11);
+        let mut nonfinite = full.clone();
+        nonfinite[0] = f64::NAN;
+        assert!(reactions.recover(&nonfinite).is_err());
+        assert!(
+            crate::region_assembly::InterfaceReactions::prepare(
+                &work,
+                plan.target_id(1).unwrap(),
+                &mapping,
+                &domains[..domains.len() - 1],
+            )
+            .is_err()
+        );
+        let mut wrong_domain = domains.clone();
+        wrong_domain[0] = domains[domains.len() - 1];
+        assert!(
+            crate::region_assembly::InterfaceReactions::prepare(
+                &work,
+                plan.target_id(1).unwrap(),
+                &mapping,
+                &wrong_domain,
+            )
+            .is_err()
+        );
+        let mut permuted_traces = traces.clone();
+        permuted_traces.reverse();
+        let permuted_map = RegionDofMap::new(
+            &mesh,
+            &layouts,
+            reference,
+            &domains,
+            &permuted_traces,
+            &prescribed,
+        )
+        .unwrap();
+        let permuted_reactions = crate::region_assembly::InterfaceReactions::prepare(
+            &work,
+            plan.target_id(1).unwrap(),
+            &permuted_map,
+            &domains,
+        )
+        .unwrap();
+        assert_eq!(actions, permuted_reactions.recover(&full).unwrap());
+        let mut junction_traces = traces.clone();
+        let mut duplicate_trace = traces[0].clone();
+        let [first, second] = duplicate_trace.quotient.endpoints();
+        duplicate_trace.quotient =
+            ConformingTraceQuotient::new(eqiora_core::Id::new(), first, second).unwrap();
+        junction_traces.push(duplicate_trace);
+        let junction_mapping = RegionDofMap::new(
+            &mesh,
+            &layouts,
+            reference,
+            &domains,
+            &junction_traces,
+            &prescribed,
+        )
+        .unwrap();
+        let error = crate::region_assembly::InterfaceReactions::prepare(
+            &work,
+            plan.target_id(1).unwrap(),
+            &junction_mapping,
+            &domains,
+        )
+        .unwrap_err();
+        assert!(error.message().contains("exact facet dual"));
+        let (quotient, keys) = &mapping.traces()[0];
+        let key = *keys.first().unwrap();
+        assert!(
+            actions
+                .action(
+                    eqiora_core::Id::<eqiora_core::entity::kinds::Connection>::new().erase(),
+                    key
+                )
+                .is_err()
+        );
+        assert!(
+            actions
+                .action(
+                    quotient.connection().erase(),
+                    FieldDof {
+                        field: eqiora_core::Id::<eqiora_core::entity::kinds::Field>::new().erase(),
+                        ..key
+                    }
+                )
+                .is_err()
+        );
         let inventory = regions
             .iter()
             .map(|region| region.field())

@@ -13,7 +13,9 @@ use crate::form_compiler::region::BoundRegionForm;
 
 pub(crate) mod mapping;
 mod reactions;
-pub(crate) use reactions::{ReactionRows, prepare_reaction_rows};
+#[cfg(test)]
+pub(crate) use reactions::DomainReactions;
+pub(crate) use reactions::{InterfaceReactions, RecoveredInterfaceReactions};
 
 /// One cell's geometry, resolved algebraic maps and physical previous coefficients.
 #[derive(Debug, Clone, PartialEq)]

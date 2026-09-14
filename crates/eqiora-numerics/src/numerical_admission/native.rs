@@ -512,6 +512,18 @@ impl NativeNumericalAdmission {
         &self,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonScalarRunOutput, Diagnostic> {
+        self.execute_scalar_with_completion(backend, |reactions, full| reactions.recover(full))
+    }
+
+    pub(super) fn execute_scalar_with_completion(
+        &self,
+        backend: &dyn LinearSolverBackend,
+        complete: impl FnOnce(
+            &crate::region_assembly::InterfaceReactions,
+            &[f64],
+        )
+            -> Result<crate::region_assembly::RecoveredInterfaceReactions, Diagnostic>,
+    ) -> Result<CommonScalarRunOutput, Diagnostic> {
         self.revalidate()?;
         if backend.provider() != self.linear.provider
             || backend.capabilities() != self.linear.capabilities
@@ -535,7 +547,7 @@ impl NativeNumericalAdmission {
         let backend: &dyn LinearSolverBackend = &checked_backend;
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
         if self.spatial == NativeSpatialPolicy::ScalarQ1 {
-            return lowered.execute(self, solve, mesh.mesh());
+            return lowered.execute(self, solve, mesh.mesh(), complete);
         }
         let descriptor = lowered.conservation_descriptor(self.program())?;
         let region = descriptor

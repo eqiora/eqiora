@@ -5,6 +5,7 @@ use eqiora_realization::{CoupledFieldwiseRealizationPlan, Space};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct FsiRoles {
+    pub(super) connection: RawId,
     pub(super) fluid_velocity: RawId,
     pub(super) pressure: RawId,
     pub(super) solid_velocity: RawId,
@@ -76,6 +77,7 @@ impl FsiRoles {
             })
             .collect::<BTreeMap<_, _>>();
         let roles = Self {
+            connection: quotient.connection().erase(),
             fluid_velocity: fluid.field().erase(),
             pressure,
             solid_velocity: solid.field().erase(),
