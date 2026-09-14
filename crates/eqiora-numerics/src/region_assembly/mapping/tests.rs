@@ -168,6 +168,46 @@ fn model_derived_chain_assembles_solves_and_recovers_every_exact_field() {
                 TraceBinding { quotient, facets }
             })
             .collect::<Vec<_>>();
+        let membership = domains
+            .iter()
+            .copied()
+            .enumerate()
+            .map(|(cell, domain)| (eqiora_meshing::CellId::new(cell), domain))
+            .collect::<Vec<_>>();
+        let quotients = traces
+            .iter()
+            .map(|trace| trace.quotient)
+            .collect::<Vec<_>>();
+        let bound = bind_region_topology(&mesh, membership.clone(), &quotients).unwrap();
+        assert_eq!(bound, (domains.clone(), traces.clone()));
+        let mut reverse_membership = membership.clone();
+        reverse_membership.reverse();
+        assert_eq!(
+            bound,
+            bind_region_topology(&mesh, reverse_membership, &quotients).unwrap()
+        );
+        let mut duplicate = membership.clone();
+        duplicate.push(membership[0]);
+        assert!(bind_region_topology(&mesh, duplicate, &quotients).is_err());
+        assert!(bind_region_topology(&mesh, membership[1..].iter().copied(), &quotients).is_err());
+        let mut outside = membership.clone();
+        outside[0].0 = eqiora_meshing::CellId::new(domains.len());
+        assert!(bind_region_topology(&mesh, outside, &quotients).is_err());
+        assert!(bind_region_topology(&mesh, membership.clone(), &quotients[1..]).is_err());
+        let mut duplicate_quotient = quotients.clone();
+        duplicate_quotient.push(quotients[0]);
+        assert!(bind_region_topology(&mesh, membership.clone(), &duplicate_quotient).is_err());
+        let endpoints = quotients[0].endpoints();
+        let foreign = ConformingTraceQuotient::new(
+            quotients[0].connection(),
+            TraceFieldEndpoint::new(eqiora_core::Id::new(), endpoints[0].field()),
+            endpoints[1],
+        )
+        .unwrap();
+        let mut stale = quotients.clone();
+        stale[0] = foreign;
+        assert!(bind_region_topology(&mesh, membership, &stale).is_err());
+        let (domains, traces) = bound;
         let key = |field, vertex| FieldDof {
             field,
             entity: MeshEntity::new(0, vertex),

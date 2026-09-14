@@ -108,59 +108,27 @@ pub(super) fn layout(
     boundary: &crate::simplicial_fsi::FixedReferenceFsiBoundary<2>,
 ) -> Result<crate::simplicial_fsi::layout::FsiLayout<2>, Diagnostic> {
     use super::validate::{fluid_domain, solid_domain, trace_quotient};
-    use crate::region_assembly::mapping::{RegionDofMap, TraceBinding, TraceFacet};
-    use eqiora_meshing::{MeshEntity, MeshTopology};
+    use crate::region_assembly::mapping::{RegionDofMap, bind_region_topology};
     let layouts = forms
         .iter()
         .map(|(domain, form)| (*domain, form.fields().to_vec()))
         .collect();
-    let mut domains = vec![None; partition.cell_count()];
-    for (domain, cells) in [
-        (fluid_domain(model).erase(), partition.fluid_cells()),
-        (solid_domain(model).erase(), partition.solid_cells()),
-    ] {
-        for cell in cells {
-            domains[cell.index()] = Some(domain);
-        }
-    }
-    let domains = domains
+    let (domains, traces) = bind_region_topology(
+        mesh,
+        [
+            (fluid_domain(model).erase(), partition.fluid_cells()),
+            (solid_domain(model).erase(), partition.solid_cells()),
+        ]
         .into_iter()
-        .map(|domain| {
-            domain.ok_or_else(|| invalid_realization("authenticated partition omits a Domain cell"))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let quotient = trace_quotient(model);
-    let facets = partition
-        .interface_facets()
-        .iter()
-        .map(|facet| {
-            let facet = MeshEntity::new(1, facet.index());
-            let incidence = mesh
-                .incidence(facet, 2)
-                .ok_or_else(|| invalid_realization("interface has no exact parent incidence"))?;
-            let mut sides = Vec::new();
-            for endpoint in quotient.endpoints() {
-                sides.push(
-                    *incidence
-                        .iter()
-                        .find(|side| domains[side.entity.index()] == endpoint.domain().erase())
-                        .ok_or_else(|| {
-                            invalid_realization("interface has no exact Domain owner")
-                        })?,
-                );
-            }
-            Ok(TraceFacet {
-                facet,
-                sides: sides.try_into().expect("two quotient endpoints"),
-            })
-        })
-        .collect::<Result<Vec<_>, Diagnostic>>()?;
+        .flat_map(|(domain, cells)| cells.iter().map(move |&cell| (cell, domain))),
+        &[trace_quotient(model)],
+    )?;
     let mapping = RegionDofMap::new(
         mesh,
         &layouts,
         ReferenceCell::simplex(2)?,
         &domains,
-        &[TraceBinding { quotient, facets }],
+        &traces,
         &BTreeMap::new(),
     )?;
     crate::simplicial_fsi::layout::FsiLayout::new(
