@@ -2,6 +2,7 @@
 
 mod ale;
 mod ale_realization;
+mod geometry_regions;
 mod realization;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -237,100 +238,12 @@ pub fn lower_fixed_reference_fsi_geometry_2d(
     program: &KernelProgram,
     geometry: &CanonicalGeometryV1,
 ) -> Result<FixedReferenceFsiCartesianModel2d, Diagnostic> {
-    let (whole_bounds, interface_x) =
-        geometry
-            .planar_adjacent_rectangle_partition()
-            .ok_or_else(|| {
-                model_lowering_error(
-                    program,
-                    "geometry-backed FSI requires the exact adjacent-rectangle partition",
-                )
-            })?;
-    let geometry_digest = geometry.digest_bytes();
-    let expected = [
-        (
-            "fluid",
-            [[whole_bounds[0][0], interface_x], whole_bounds[1]],
-        ),
-        (
-            "solid",
-            [[interface_x, whole_bounds[0][1]], whole_bounds[1]],
-        ),
-    ];
-    let mut domains = Vec::with_capacity(2);
-    for (name, bounds) in expected {
-        let domain = program
-            .nodes()
-            .find_map(|node| match node {
-                KernelNode::Domain(domain) => match domain.kind() {
-                    DomainKind::GeometryRegion {
-                        geometry,
-                        entity_set,
-                    } if geometry.bytes() == geometry_digest && entity_set == name => {
-                        Some(domain.id().erase())
-                    }
-                    _ => None,
-                },
-                _ => None,
-            })
-            .ok_or_else(|| {
-                model_lowering_error(
-                    program,
-                    format!("geometry-backed FSI is missing exact `{name}` GeometryRegion"),
-                )
-            })?;
-        let mut sides = BTreeMap::new();
-        for node in program.nodes() {
-            let KernelNode::Domain(boundary) = node else {
-                continue;
-            };
-            let DomainKind::GeometryBoundary { entity_set } = boundary.kind() else {
-                continue;
-            };
-            let is_child = program.edges().iter().any(|edge| {
-                edge.kind() == EdgeKind::BoundaryOf
-                    && edge.from() == boundary.id().erase()
-                    && edge.to() == domain
-            });
-            if !is_child {
-                continue;
-            }
-            let suffix = entity_set
-                .strip_prefix(&format!("{name}_"))
-                .ok_or_else(|| {
-                    lowering_error(
-                        boundary.id().erase(),
-                        "FSI GeometryBoundary lacks its exact parent-prefixed Cartesian role",
-                    )
-                })?;
-            let key = match suffix {
-                "x_lower" => (0, BoundarySide::Lower),
-                "x_upper" => (0, BoundarySide::Upper),
-                "y_lower" => (1, BoundarySide::Lower),
-                "y_upper" => (1, BoundarySide::Upper),
-                _ => {
-                    return Err(lowering_error(
-                        boundary.id().erase(),
-                        "FSI GeometryBoundary has an unknown Cartesian role",
-                    ));
-                }
-            };
-            if sides.insert(key, boundary.id().erase()).is_some() {
-                return Err(lowering_error(
-                    boundary.id().erase(),
-                    "FSI GeometryBoundary duplicates one Cartesian role",
-                ));
-            }
-        }
-        if sides.len() != 4 {
-            return Err(lowering_error(
-                domain,
-                format!(
-                    "geometry-backed FSI `{name}` requires four exact Cartesian boundary roles"
-                ),
-            ));
-        }
-        domains.push((domain, bounds, sides));
+    let domains = geometry_regions::cartesian_regions(program, geometry)?;
+    if domains.len() != 2 {
+        return Err(model_lowering_error(
+            program,
+            "fixed-reference numerical state projection currently requires two exact Regions",
+        ));
     }
     let mut candidates = Vec::new();
     for fluid_index in 0..2 {

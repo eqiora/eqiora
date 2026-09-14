@@ -675,7 +675,12 @@ fn exact_circular_hole_reference_projects_only_one_supported_constant_normal() {
     .expect("straight-edged single-member inlet remains valid");
     let straight_inlet =
         CanonicalGeometryV1::from_region(&straight_inlet).expect("canonical straight inlet");
-    assert_eq!(straight_inlet.constant_parent_outward_normal("inlet"), None);
+    // The complete lower side of [0,1]^2 has outward normal -e_y,
+    // independently of the arbitrary selection name and admission tolerance.
+    assert_eq!(
+        straight_inlet.constant_parent_outward_normal("inlet"),
+        Some([0.0, -1.0]),
+    );
 }
 
 #[test]

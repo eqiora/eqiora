@@ -111,6 +111,21 @@ fn authored_multiple_faces_bind_imported_support_and_production_without_tag_role
         let (vertices, cells) = grid(2 * count, 2, count as f64);
         let mesh = import(&msh(&vertices, &cells, 7));
         assert_eq!(mesh, import(&msh(&vertices, &cells, 991)));
+        // The ordinary common Mesh owner rederives these same resources from provider bytes.
+        let common = eqiora_numerics::AuthenticatedCommonMesh::gmsh_4152(
+            geometry.canonical().clone(),
+            policy(),
+            msh(&vertices, &cells, 991),
+        )
+        .unwrap();
+        let bytes = common.to_bytes().unwrap();
+        assert_eq!(
+            eqiora_numerics::AuthenticatedCommonMesh::from_bytes(&bytes)
+                .unwrap()
+                .to_bytes()
+                .unwrap(),
+            bytes,
+        );
         let correspondence =
             GeometryMeshCorrespondenceEnvelopeV1::from_region(&geometry, &mesh).unwrap();
         let mut recovered = BTreeSet::new();
@@ -296,6 +311,14 @@ fn authored_production_rejects_incomplete_partition_and_changed_mesh() {
     let geometry = strips(3);
     // x=1 and x=2 cut these triangles, so no exact whole-cell support exists.
     let (vertices, cells) = grid(2, 2, 3.0);
+    assert!(
+        eqiora_numerics::AuthenticatedCommonMesh::gmsh_4152(
+            geometry.canonical().clone(),
+            policy(),
+            msh(&vertices, &cells, 1),
+        )
+        .is_err()
+    );
     let nonconforming = import(&msh(&vertices, &cells, 1));
     assert!(GeometryMeshCorrespondenceEnvelopeV1::from_region(&geometry, &nonconforming).is_err());
     let (vertices, cells) = grid(6, 2, 3.0);

@@ -166,6 +166,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
         ),
     );
 
+    // Geometry selection names deliberately encode no equation or Cartesian role.
     let graph = GeometryGraph::new();
     let fluid = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
     let solid = graph.rectangle([1.0, 2.0], [0.0, 1.0]).unwrap();
@@ -178,38 +179,38 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
         .build(
             &partition,
             &BTreeMap::from([
-                ("fluid".to_owned(), vec![fluid.region().into()]),
+                ("patch-z".to_owned(), vec![fluid.region().into()]),
                 (
-                    "fluid_x_lower".to_owned(),
+                    "edge-9".to_owned(),
                     vec![PlanarTopologyHandle::from(fluid_edges[0])],
                 ),
                 (
-                    "fluid_x_upper".to_owned(),
+                    "edge-2".to_owned(),
                     vec![PlanarTopologyHandle::from(fluid_edges[1])],
                 ),
                 (
-                    "fluid_y_lower".to_owned(),
+                    "edge-7".to_owned(),
                     vec![PlanarTopologyHandle::from(fluid_edges[2])],
                 ),
                 (
-                    "fluid_y_upper".to_owned(),
+                    "edge-4".to_owned(),
                     vec![PlanarTopologyHandle::from(fluid_edges[3])],
                 ),
-                ("solid".to_owned(), vec![solid.region().into()]),
+                ("patch-a".to_owned(), vec![solid.region().into()]),
                 (
-                    "solid_x_lower".to_owned(),
+                    "edge-8".to_owned(),
                     vec![PlanarTopologyHandle::from(solid_edges[0])],
                 ),
                 (
-                    "solid_x_upper".to_owned(),
+                    "edge-1".to_owned(),
                     vec![PlanarTopologyHandle::from(solid_edges[1])],
                 ),
                 (
-                    "solid_y_lower".to_owned(),
+                    "edge-6".to_owned(),
                     vec![PlanarTopologyHandle::from(solid_edges[2])],
                 ),
                 (
-                    "solid_y_upper".to_owned(),
+                    "edge-3".to_owned(),
                     vec![PlanarTopologyHandle::from(solid_edges[3])],
                 ),
             ]),
@@ -288,7 +289,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             "fluid",
             eqiora::compiler::StaticBindingValue::GeometrySupport {
                 geometry: &geometry,
-                selection: geometry.entity_set("fluid").unwrap(),
+                selection: geometry.entity_set("patch-z").unwrap(),
                 parent: None,
             },
         ),
@@ -296,7 +297,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             "solid",
             eqiora::compiler::StaticBindingValue::GeometrySupport {
                 geometry: &geometry,
-                selection: geometry.entity_set("solid").unwrap(),
+                selection: geometry.entity_set("patch-a").unwrap(),
                 parent: None,
             },
         ),
@@ -304,64 +305,64 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             "fluid_x_lower",
             eqiora::compiler::StaticBindingValue::GeometrySupport {
                 geometry: &geometry,
-                selection: geometry.entity_set("fluid_x_lower").unwrap(),
-                parent: Some(geometry.entity_set("fluid").unwrap()),
+                selection: geometry.entity_set("edge-9").unwrap(),
+                parent: Some(geometry.entity_set("patch-z").unwrap()),
             },
         ),
         (
             "fluid_x_upper",
             eqiora::compiler::StaticBindingValue::GeometrySupport {
                 geometry: &geometry,
-                selection: geometry.entity_set("fluid_x_upper").unwrap(),
-                parent: Some(geometry.entity_set("fluid").unwrap()),
+                selection: geometry.entity_set("edge-2").unwrap(),
+                parent: Some(geometry.entity_set("patch-z").unwrap()),
             },
         ),
         (
             "fluid_y_lower",
             eqiora::compiler::StaticBindingValue::GeometrySupport {
                 geometry: &geometry,
-                selection: geometry.entity_set("fluid_y_lower").unwrap(),
-                parent: Some(geometry.entity_set("fluid").unwrap()),
+                selection: geometry.entity_set("edge-7").unwrap(),
+                parent: Some(geometry.entity_set("patch-z").unwrap()),
             },
         ),
         (
             "fluid_y_upper",
             eqiora::compiler::StaticBindingValue::GeometrySupport {
                 geometry: &geometry,
-                selection: geometry.entity_set("fluid_y_upper").unwrap(),
-                parent: Some(geometry.entity_set("fluid").unwrap()),
+                selection: geometry.entity_set("edge-4").unwrap(),
+                parent: Some(geometry.entity_set("patch-z").unwrap()),
             },
         ),
         (
             "solid_x_lower",
             eqiora::compiler::StaticBindingValue::GeometrySupport {
                 geometry: &geometry,
-                selection: geometry.entity_set("solid_x_lower").unwrap(),
-                parent: Some(geometry.entity_set("solid").unwrap()),
+                selection: geometry.entity_set("edge-8").unwrap(),
+                parent: Some(geometry.entity_set("patch-a").unwrap()),
             },
         ),
         (
             "solid_x_upper",
             eqiora::compiler::StaticBindingValue::GeometrySupport {
                 geometry: &geometry,
-                selection: geometry.entity_set("solid_x_upper").unwrap(),
-                parent: Some(geometry.entity_set("solid").unwrap()),
+                selection: geometry.entity_set("edge-1").unwrap(),
+                parent: Some(geometry.entity_set("patch-a").unwrap()),
             },
         ),
         (
             "solid_y_lower",
             eqiora::compiler::StaticBindingValue::GeometrySupport {
                 geometry: &geometry,
-                selection: geometry.entity_set("solid_y_lower").unwrap(),
-                parent: Some(geometry.entity_set("solid").unwrap()),
+                selection: geometry.entity_set("edge-6").unwrap(),
+                parent: Some(geometry.entity_set("patch-a").unwrap()),
             },
         ),
         (
             "solid_y_upper",
             eqiora::compiler::StaticBindingValue::GeometrySupport {
                 geometry: &geometry,
-                selection: geometry.entity_set("solid_y_upper").unwrap(),
-                parent: Some(geometry.entity_set("solid").unwrap()),
+                selection: geometry.entity_set("edge-3").unwrap(),
+                parent: Some(geometry.entity_set("patch-a").unwrap()),
             },
         ),
     ];
