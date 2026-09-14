@@ -6,6 +6,12 @@ are recorded here.
 
 ## [Unreleased]
 
+### Fixed
+
+- Kept the maintained Colab wake notebook on one coherent Matplotlib installation
+  when the runtime preloads the renderer, and moved scalar colorbars onto
+  Matplotlib's public `Figure.colorbar` path.
+
 ### Removed
 
 - Retired the GTK3/Tauri Studio shell and its native-only authored-CAD,

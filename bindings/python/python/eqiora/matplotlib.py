@@ -7,7 +7,6 @@ import numpy as np
 try:
     from matplotlib.collections import LineCollection
     from matplotlib.figure import Figure
-    from mpl_toolkits.axes_grid1 import make_axes_locatable
 except ModuleNotFoundError as error:
     if error.name not in {"matplotlib", "matplotlib.figure"}:
         raise
@@ -144,9 +143,7 @@ def plot_scalar_field(
         axes.set_ylim(y_minimum, y_maximum)
         _finish_field_axes(axes)
         axes.set_title("Scalar field")
-    divider = make_axes_locatable(axes)
-    colorbar_axes = divider.append_axes("right", size="3%", pad=0.16)
-    colorbar = figure.colorbar(scalar, cax=colorbar_axes)
+    colorbar = figure.colorbar(scalar, ax=axes, fraction=0.03, pad=0.04)
     colorbar.set_label(scalar_label)
     return figure
 

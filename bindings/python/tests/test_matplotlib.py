@@ -20,6 +20,7 @@ matplotlib.use("Agg", force=True)
 
 import matplotlib.image as image  # noqa: E402
 from matplotlib.axes import Axes  # noqa: E402
+from matplotlib.figure import Figure  # noqa: E402
 
 import eqiora.matplotlib as eqplot  # noqa: E402
 
@@ -232,8 +233,9 @@ def test_scalar_field_uses_exact_plan_field_output(
     expected_coordinates = output.mesh.coordinates.copy()
     expected_cells = output.mesh.cells.copy()
     expected_values = output.values("vertex").numpy(copy=False).copy()
-    observed: dict[str, np.ndarray] = {}
+    observed: dict[str, object] = {}
     original = Axes.tripcolor
+    original_colorbar = Figure.colorbar
 
     def capture(axes: Axes, *args: object, **kwargs: object):
         observed["x"] = np.asarray(args[0]).copy()
@@ -243,11 +245,19 @@ def test_scalar_field_uses_exact_plan_field_output(
         return original(axes, *args, **kwargs)
 
     monkeypatch.setattr(Axes, "tripcolor", capture)
+
+    def capture_colorbar(figure: Figure, *args: object, **kwargs: object):
+        observed["colorbar_axes"] = kwargs["ax"]
+        assert "cax" not in kwargs
+        return original_colorbar(figure, *args, **kwargs)
+
+    monkeypatch.setattr(Figure, "colorbar", capture_colorbar)
     figure = eqplot.plot_scalar_field(result, field=field)
     np.testing.assert_array_equal(observed["x"], expected_coordinates[:, 0])
     np.testing.assert_array_equal(observed["y"], expected_coordinates[:, 1])
     np.testing.assert_array_equal(observed["cells"], expected_cells)
     np.testing.assert_array_equal(observed["values"], expected_values)
+    assert observed["colorbar_axes"] is figure.axes[0]
     assert figure.axes[1].get_ylabel() == "Pressure [Pa]"
 
 
