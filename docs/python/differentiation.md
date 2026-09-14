@@ -36,12 +36,12 @@ Each program selects one output field and computes first derivatives.
 
 ## Native ordered batches
 
-The batch API is included in `0.1.0a13`. Install the release in a clean
+The batch API is included in `0.1.0a14`. Install the release in a clean
 environment:
 
 ```console
 uv venv --python 3.13 .venv
-uv pip install --python .venv/bin/python eqiora==0.1.0a13
+uv pip install --python .venv/bin/python eqiora==0.1.0a14
 uv run --no-project --python .venv/bin/python your_batch.py
 ```
 

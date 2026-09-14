@@ -32,11 +32,11 @@ FAMILY_MEMBER_BYTES_LIMIT = 16_777_216
 FAMILY_TOTAL_BYTES_LIMIT = 67_108_864
 MANIFEST_BYTES_LIMIT = 1_048_576
 ARCHIVE_MEMBER_COUNT_LIMIT = 4_096
-# The reviewed manylinux extension is about 19 MiB uncompressed. Keep the
-# per-member ceiling distinct from the tighter raw-family and expanded-archive
-# ceilings so one native module fits without widening the whole admission
-# envelope.
-ARCHIVE_MEMBER_BYTES_LIMIT = 33_554_432
+# The reviewed ordinary-GIL manylinux extensions are under 33 MiB uncompressed.
+# Keep a bounded 40 MiB per-member envelope distinct from the tighter raw-family
+# and expanded-archive ceilings so one native module fits without widening the
+# whole-family admission boundary.
+ARCHIVE_MEMBER_BYTES_LIMIT = 41_943_040
 ARCHIVE_TOTAL_BYTES_LIMIT = 67_108_864
 
 
