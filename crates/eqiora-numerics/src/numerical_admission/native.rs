@@ -136,7 +136,7 @@ impl LinearSolverBackend for ProfileCheckedBackend<'_> {
     fn prepare_linear(
         &self,
         plan: SolverPlan,
-    ) -> Result<Option<Box<dyn eqiora_solver::PreparedLinearSolver + '_>>, Diagnostic> {
+    ) -> Result<Option<Box<dyn eqiora_solver::PreparedLinearSolver>>, Diagnostic> {
         if plan != self.plan {
             return Err(invalid("execution changed the admitted exact solver plan"));
         }
@@ -165,12 +165,12 @@ impl LinearSolverBackend for ProfileCheckedBackend<'_> {
 }
 
 #[derive(Debug)]
-struct ProfileCheckedPreparedLinear<'a> {
-    prepared: Box<dyn eqiora_solver::PreparedLinearSolver + 'a>,
+struct ProfileCheckedPreparedLinear {
+    prepared: Box<dyn eqiora_solver::PreparedLinearSolver>,
     profile: Option<eqiora_solver::HostSerialSolverProfile>,
 }
 
-impl eqiora_solver::PreparedLinearSolver for ProfileCheckedPreparedLinear<'_> {
+impl eqiora_solver::PreparedLinearSolver for ProfileCheckedPreparedLinear {
     fn solve(
         &mut self,
         structure: &eqiora_solver::PreparedLinearStructureIdentity,

@@ -21,7 +21,7 @@ pub use api::{
     SimplicialMiniNavierStokesStepEvidence2d, SimplicialMiniNavierStokesTrajectory2d,
 };
 pub(crate) use assembly::{PreparedStepStructure, prepare_step_structure};
-pub(crate) use newton::advance_simplicial_mini_navier_stokes_2d_with_prepared_structure;
+pub(crate) use newton::advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_and_linear;
 pub use newton::{
     advance_simplicial_mini_navier_stokes_2d,
     advance_simplicial_mini_navier_stokes_2d_with_assembly,

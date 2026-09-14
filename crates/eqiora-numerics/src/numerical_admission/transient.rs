@@ -3,6 +3,7 @@ use super::*;
 pub(super) struct PreparedCommonTransientExecution<'a> {
     plan: &'a CommonTransientFlowPlan,
     backend: super::native::ProfileCheckedBackend<'a>,
+    prepared_linear: Option<Box<dyn eqiora_solver::PreparedLinearSolver>>,
     method: PreparedCommonTransientMethod<'a>,
 }
 
@@ -14,7 +15,7 @@ enum PreparedCommonTransientMethod<'a> {
 
 impl PreparedCommonTransientExecution<'_> {
     pub(super) fn advance(
-        &self,
+        &mut self,
         state: &CommonState,
         next_time: f64,
     ) -> Result<CommonState, Diagnostic> {
@@ -26,7 +27,12 @@ impl PreparedCommonTransientExecution<'_> {
                         "prepared MINI Run received a non-MINI common State",
                     ));
                 };
-                let trajectory = prepared.advance(initial.as_ref().clone(), run, &self.backend)?;
+                let trajectory = prepared.advance_with_linear(
+                    initial.as_ref().clone(),
+                    run,
+                    &self.backend,
+                    self.prepared_linear.as_deref_mut(),
+                )?;
                 let accepted = trajectory
                     .states()
                     .last()
@@ -44,7 +50,12 @@ impl PreparedCommonTransientExecution<'_> {
                         "prepared MINI Run received a non-MINI common State",
                     ));
                 };
-                let states = prepared.advance(initial.as_ref().clone(), run, &self.backend)?;
+                let states = prepared.advance_with_linear(
+                    initial.as_ref().clone(),
+                    run,
+                    &self.backend,
+                    self.prepared_linear.as_deref_mut(),
+                )?;
                 let accepted = states.last().ok_or_else(|| {
                     invalid("Geometry MINI transient step returned no accepted State")
                 })?;
@@ -930,9 +941,17 @@ impl CommonTransientFlowPlan {
                 ));
             }
         };
+        let prepared_linear = match &method {
+            PreparedCommonTransientMethod::MiniP1(_)
+            | PreparedCommonTransientMethod::GeometryMiniP1(_) => {
+                checked_backend.prepare_linear(self.admission.linear.solver)?
+            }
+            PreparedCommonTransientMethod::CellCentered(_) => None,
+        };
         Ok(PreparedCommonTransientExecution {
             plan: self,
             backend: checked_backend,
+            prepared_linear,
             method,
         })
     }

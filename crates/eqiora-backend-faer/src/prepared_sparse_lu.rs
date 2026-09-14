@@ -184,6 +184,12 @@ impl PreparedLinearSolver for FaerPreparedSparseLu {
         structure: &PreparedLinearStructureIdentity,
         problem: &LinearProblem<'_>,
     ) -> Result<LinearSolution, Diagnostic> {
+        let algorithm = format!("{:?}", self.plan.algorithm());
+        let _linear = eqiora_execution::telemetry_span!(linear_solve(
+            &algorithm,
+            FAER_SOLVER_PROVIDER.id().as_str()
+        ))
+        .entered();
         self.solve_candidate(structure, problem)
     }
 }

@@ -50,7 +50,7 @@ fn advance_common_prepared_actions<P>(
     output_actions: &[usize],
     step_s: f64,
     prepare: impl FnOnce(&CommonState) -> Result<P, Diagnostic>,
-    mut advance: impl FnMut(&P, &CommonState) -> Result<CommonState, Diagnostic>,
+    mut advance: impl FnMut(&mut P, &CommonState) -> Result<CommonState, Diagnostic>,
     mut stop_at_boundary: impl FnMut(usize, &CommonState) -> bool,
 ) -> Result<ControlFlow<(usize, CommonState), Vec<(usize, CommonState)>>, Diagnostic> {
     let context = CommonAcceptedActions {

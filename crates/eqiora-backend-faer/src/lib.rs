@@ -113,7 +113,7 @@ impl LinearSolverBackend for FaerLinearSolver {
     fn prepare_linear(
         &self,
         plan: SolverPlan,
-    ) -> Result<Option<Box<dyn eqiora_solver::PreparedLinearSolver + '_>>, Diagnostic> {
+    ) -> Result<Option<Box<dyn eqiora_solver::PreparedLinearSolver>>, Diagnostic> {
         if plan.algorithm() != LinearSolver::SparseLu
             || plan.preconditioner() != PreconditionerPolicy::Identity
             || plan.reduction() != ReductionPolicy::Fast
