@@ -1,4 +1,4 @@
-use eqiora_solver::{AlgebraicBlock, AlgebraicConstraint};
+use eqiora_solver::{AlgebraicBlock, AlgebraicConstraint, AlgebraicStructure};
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
@@ -39,6 +39,16 @@ use super::navier_stokes_fvm_acceptance::accept_collocated_step;
 use super::navier_stokes_integral_formulation::{
     integral_conservative_correspondence, replay_integral_conservative_correspondence,
 };
+
+pub(crate) fn transient_cell_centered_algebraic_structure(
+    model: &TransientIncompressibleNavierStokesCartesianModel2d,
+) -> Result<AlgebraicStructure, Diagnostic> {
+    let pressure = pressure_id(model);
+    AlgebraicStructure::new(
+        [velocity_id(model), pressure],
+        [AlgebraicConstraint::ZeroIntegral { field: pressure }],
+    )
+}
 
 const DIMENSION: usize = 2;
 const TIME: DimExponents =
@@ -475,6 +485,7 @@ pub fn transient_navier_stokes_cell_centered_plan_2d(
     let velocity = velocity_id(model);
     let pressure = pressure_id(model);
     let momentum = momentum_id(model);
+    let structure = transient_cell_centered_algebraic_structure(model)?;
     let spatial = FieldwiseSpatialDiscretization::new(
         domain_id(model),
         PositivePhysicalScale::new(scales.length()).map_err(realization_error)?,
@@ -482,7 +493,7 @@ pub fn transient_navier_stokes_cell_centered_plan_2d(
             FieldSpaceBinding::new(velocity, Space::cell_constant()),
             FieldSpaceBinding::new(pressure, Space::cell_constant()),
         ],
-        [AlgebraicConstraint::ZeroIntegral { field: pressure }],
+        structure.constraints().iter().copied(),
         Discretization::new(
             DiscretizationMethod::CellCenteredFiniteVolume,
             mesh,
