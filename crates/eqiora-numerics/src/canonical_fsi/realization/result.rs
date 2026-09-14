@@ -728,9 +728,11 @@ impl ResolvedFixedReferenceFsiSolution2d {
             .map(|_| self.inner.vertex_velocity()[vertex.index()])
     }
 
-    /// Fluid-cell MINI bubble coefficients in [`Self::fluid_velocity_cells`] order.
+    /// Fluid-cell MINI bubble coefficients keyed by exact [`Self::fluid_velocity_cells`] identity.
     #[must_use]
-    pub fn fluid_velocity_bubble_coefficients(&self) -> &[[f64; 2]] {
+    pub fn fluid_velocity_bubble_coefficients(
+        &self,
+    ) -> &std::collections::BTreeMap<CellId, [f64; 2]> {
         self.inner.fluid_cell_bubble_velocity()
     }
 

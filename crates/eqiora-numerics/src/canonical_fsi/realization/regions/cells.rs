@@ -87,10 +87,14 @@ pub(in super::super) fn prepare_cells(
                     .flat_map(|vertex| values[vertex.index()])
                     .collect::<Vec<_>>();
                 if field == fluid_velocity(model).erase() {
-                    let position = partition.fluid_position(index).ok_or_else(|| {
-                        invalid_realization("region bubble history lacks its exact cell")
-                    })?;
-                    local.extend_from_slice(&previous.fluid_cell_bubble_velocity()[position]);
+                    local.extend_from_slice(
+                        previous
+                            .fluid_cell_bubble_velocity()
+                            .get(&eqiora_meshing::CellId::new(index))
+                            .ok_or_else(|| {
+                                invalid_realization("region history omits exact bubble cell")
+                            })?,
+                    );
                 }
                 history.insert(field, local);
             }

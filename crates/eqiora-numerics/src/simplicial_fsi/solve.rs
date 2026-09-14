@@ -25,7 +25,7 @@ use super::contract::{FixedReferenceFsiState, FixedReferenceFsiStepConfig, valid
 use super::element::{fluid_local, solid_local};
 use super::invalid;
 use super::layout::FsiLayout;
-use super::partition::{CellMaterial, FixedReferenceFsiPartition};
+use super::partition::FixedReferenceFsiPartition;
 use crate::region_assembly::InterfaceReactions;
 
 /// Captured symmetric-indefinite step plus private acceptance state.
@@ -370,23 +370,19 @@ impl<const D: usize> AssemblyWork for PreparedFixedReferenceFsiAssembly<'_, D> {
                 "fixed-reference FSI cell packet {packet_index} has no vertex closure"
             ))
         })?;
-        match self.partition.material(packet_index) {
-            CellMaterial::Fluid => {
-                let position = self.partition.fluid_position(packet_index).ok_or_else(|| {
-                    invalid(format!(
-                        "fixed-reference FSI fluid packet {packet_index} has no bubble position"
-                    ))
-                })?;
+        match self.layout.cell_domain(packet_index)? {
+            domain if domain == self.layout.fluid_domain() => {
+                let cell = eqiora_meshing::CellId::new(packet_index);
                 let local = fluid_local(
                     &geometry,
                     self.quadrature,
                     self.config,
                     &vertices,
                     self.previous,
-                    position,
+                    cell,
                 )?;
-                let reduced = self.layout.fluid_map(position, &vertices, true)?;
-                let full = self.layout.fluid_map(position, &vertices, false)?;
+                let reduced = self.layout.fluid_map(cell, &vertices, true)?;
+                let full = self.layout.fluid_map(cell, &vertices, false)?;
                 AssemblyPacket::new(
                     local,
                     vec![
@@ -395,7 +391,7 @@ impl<const D: usize> AssemblyWork for PreparedFixedReferenceFsiAssembly<'_, D> {
                     ],
                 )
             }
-            CellMaterial::Solid => {
+            domain if domain == self.layout.solid_domain() => {
                 let local = solid_local(
                     &geometry,
                     self.quadrature,
@@ -413,7 +409,7 @@ impl<const D: usize> AssemblyWork for PreparedFixedReferenceFsiAssembly<'_, D> {
                     ],
                 )
             }
-            CellMaterial::Unassigned => Err(invalid(format!(
+            _ => Err(invalid(format!(
                 "fixed-reference FSI cell packet {packet_index} has no material assignment"
             ))),
         }
@@ -487,8 +483,7 @@ impl<const D: usize> FinalizedState<D> {
         let residual_target = solved.report().residual_target();
         let (algebraic_values, solve_report) = solved.into_parts();
         let (dimensionless_vertex_velocity, dimensionless_fluid_bubbles, dimensionless_pressure) =
-            self.layout
-                .reconstruct_primal(&algebraic_values, self.partition.fluid_cells().len())?;
+            self.layout.reconstruct_primal(&algebraic_values)?;
         let full_values = self.layout.fill_full(
             &dimensionless_vertex_velocity,
             &dimensionless_fluid_bubbles,

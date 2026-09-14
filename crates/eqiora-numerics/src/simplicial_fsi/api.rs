@@ -1,5 +1,7 @@
 //! Accepted physical fields and falsifying numerical evidence.
 
+use eqiora_meshing::CellId;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use eqiora_assembly::AssemblyReport;
@@ -107,7 +109,7 @@ impl FixedReferenceFsiEnergyBalance {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FixedReferenceFsiSolution<const D: usize> {
     pub(super) vertex_velocity: Vec<[f64; D]>,
-    pub(super) fluid_cell_bubble_velocity: Vec<[f64; D]>,
+    pub(super) fluid_cell_bubble_velocity: BTreeMap<CellId, [f64; D]>,
     pub(super) fluid_pressure_vertices: Vec<VertexId>,
     pub(super) fluid_pressure: Vec<f64>,
     pub(super) solid_displacement: Vec<[f64; D]>,
@@ -132,9 +134,9 @@ impl<const D: usize> FixedReferenceFsiSolution<D> {
         &self.vertex_velocity
     }
 
-    /// Accepted fluid MINI bubble coefficients in fluid-cell order.
+    /// Accepted fluid MINI bubble coefficients keyed by exact fluid `CellId`.
     #[must_use]
-    pub fn fluid_cell_bubble_velocity(&self) -> &[[f64; D]] {
+    pub fn fluid_cell_bubble_velocity(&self) -> &BTreeMap<CellId, [f64; D]> {
         &self.fluid_cell_bubble_velocity
     }
 

@@ -7,7 +7,7 @@
 //! then constructs the initial moving state. Coordinates and mesh velocity are
 //! never accepted as inputs.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
@@ -66,7 +66,7 @@ const PRESSURE: DimExponents =
 pub struct AleFsiInitialPhysicalState<const D: usize> {
     time: f64,
     vertex_velocity: Vec<[f64; D]>,
-    fluid_cell_bubble_velocity: Vec<[f64; D]>,
+    fluid_cell_bubble_velocity: BTreeMap<CellId, [f64; D]>,
     fluid_pressure: Vec<f64>,
     solid_displacement: Vec<[f64; D]>,
 }
@@ -82,7 +82,7 @@ impl<const D: usize> AleFsiInitialPhysicalState<D> {
     pub fn new(
         time: f64,
         vertex_velocity: Vec<[f64; D]>,
-        fluid_cell_bubble_velocity: Vec<[f64; D]>,
+        fluid_cell_bubble_velocity: BTreeMap<CellId, [f64; D]>,
         fluid_pressure: Vec<f64>,
         solid_displacement: Vec<[f64; D]>,
     ) -> Result<Self, Diagnostic> {
@@ -91,7 +91,7 @@ impl<const D: usize> AleFsiInitialPhysicalState<D> {
             || time < 0.0
             || vertex_velocity
                 .iter()
-                .chain(&fluid_cell_bubble_velocity)
+                .chain(fluid_cell_bubble_velocity.values())
                 .chain(&solid_displacement)
                 .flatten()
                 .chain(fluid_pressure.iter())

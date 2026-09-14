@@ -571,7 +571,11 @@ fn zero_state(
         part,
         motion,
         vec![[0.0; 2]; mesh.vertices().len()],
-        vec![[0.0; 2]; part.fluid_cells().len()],
+        part.fluid_cells()
+            .iter()
+            .copied()
+            .map(|cell| (cell, [0.0; 2]))
+            .collect(),
         vec![0.0; mesh.vertices().len()],
         vec![[0.0; 2]; mesh.vertices().len()],
     )
@@ -711,9 +715,8 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
         let layout = prepared.layout(&base_layouts[level as usize])?;
         let prior = zero_state(mesh, part, motion)?;
         let initial = prepared.reduce_initial_point(&prior, plan, &layout)?;
-        let (primal, _, _) = layout.reconstruct_primal(&initial, part.fluid_cells().len())?;
-        let (direction, _, _) = layout
-            .reconstruct_direction(&vec![0.0; layout.reduced_size()], part.fluid_cells().len())?;
+        let (primal, _, _) = layout.reconstruct_primal(&initial)?;
+        let (direction, _, _) = layout.reconstruct_direction(&vec![0.0; layout.reduced_size()])?;
         let state = prepared
             .reconstruct_current_state(mesh, part, motion, &prior, &initial, plan, &layout)?;
         for row in NODAL.iter().filter(|r| r.mesh == level) {
@@ -765,7 +768,7 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
             let vertices = mesh
                 .entity_vertices(MeshEntity::new(2, cell))
                 .expect("vertices");
-            let map = layout.fluid_map(cell, &vertices, true)?;
+            let map = layout.fluid_map(eqiora_meshing::CellId::new(cell), &vertices, true)?;
             let local = vertices
                 .iter()
                 .position(|v| v.index() == row.vertex)
@@ -824,9 +827,8 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
     let layout = homogeneous.layout(&base_layouts[0])?;
     let prior = zero_state(mesh, part, motion)?;
     let initial = homogeneous.reduce_initial_point(&prior, plan, &layout)?;
-    let (primal, _, _) = layout.reconstruct_primal(&initial, part.fluid_cells().len())?;
-    let (direction, _, _) = layout
-        .reconstruct_direction(&vec![0.0; layout.reduced_size()], part.fluid_cells().len())?;
+    let (primal, _, _) = layout.reconstruct_primal(&initial)?;
+    let (direction, _, _) = layout.reconstruct_direction(&vec![0.0; layout.reduced_size()])?;
     let state = homogeneous
         .reconstruct_current_state(mesh, part, motion, &prior, &initial, plan, &layout)?;
     for (v, row) in homogeneous.current_physical().iter().enumerate() {
@@ -867,7 +869,11 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
         part,
         motion,
         current_as_previous_velocity,
-        vec![[0.0; 2]; part.fluid_cells().len()],
+        part.fluid_cells()
+            .iter()
+            .copied()
+            .map(|cell| (cell, [0.0; 2]))
+            .collect(),
         vec![0.0; mesh.vertices().len()],
         vec![[0.0; 2]; mesh.vertices().len()],
     )?;

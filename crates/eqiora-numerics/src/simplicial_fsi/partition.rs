@@ -20,8 +20,7 @@ pub struct FixedReferenceFsiPartition<const D: usize> {
     solid_vertices: Vec<VertexId>,
     interface_vertices: Vec<VertexId>,
     interface_witnesses: Vec<FixedReferenceFsiInterfaceFacet<D>>,
-    fluid_cell_position: Vec<Option<usize>>,
-    cell_material: Vec<CellMaterial>,
+    cell_count: usize,
 }
 
 /// One oriented two-sided witness for a conforming material interface facet.
@@ -125,34 +124,14 @@ impl<const D: usize> FixedReferenceFsiPartition<D> {
         let facet_count = mesh
             .entity_count(D - 1)
             .expect("accepted simplex mesh owns a facet stratum");
-        let mut cell_material = vec![CellMaterial::Unassigned; cell_count];
-        let mut fluid_cell_position = vec![None; cell_count];
-        for (position, cell) in fluid_cells.iter().copied().enumerate() {
-            let material = cell_material.get_mut(cell.index()).ok_or_else(|| {
-                invalid("fixed-reference FSI fluid cell is outside the mesh revision")
-            })?;
-            if *material != CellMaterial::Unassigned {
-                return Err(invalid(
-                    "fixed-reference FSI cell appears in more than one material inventory",
-                ));
-            }
-            *material = CellMaterial::Fluid;
-            fluid_cell_position[cell.index()] = Some(position);
-        }
-        for cell in &solid_cells {
-            let material = cell_material.get_mut(cell.index()).ok_or_else(|| {
-                invalid("fixed-reference FSI solid cell is outside the mesh revision")
-            })?;
-            if *material != CellMaterial::Unassigned {
-                return Err(invalid(
-                    "fixed-reference FSI cell appears in more than one material inventory",
-                ));
-            }
-            *material = CellMaterial::Solid;
-        }
-        if cell_material.contains(&CellMaterial::Unassigned) {
+        let fluid = fluid_cells.iter().copied().collect::<BTreeSet<_>>();
+        let solid = solid_cells.iter().copied().collect::<BTreeSet<_>>();
+        if !fluid.is_disjoint(&solid)
+            || fluid.union(&solid).count() != cell_count
+            || fluid.union(&solid).any(|cell| cell.index() >= cell_count)
+        {
             return Err(invalid(
-                "fixed-reference FSI material inventories must cover every mesh cell exactly once",
+                "FSI cell inventories must cover the exact mesh once",
             ));
         }
         if interface_facets
@@ -176,11 +155,11 @@ impl<const D: usize> FixedReferenceFsiPartition<D> {
                 .incidence(facet, D)
                 .expect("accepted facet owns cell incidence");
             if adjacent.len() == 2 {
-                let left = cell_material[adjacent[0].entity.index()];
-                let right = cell_material[adjacent[1].entity.index()];
+                let left = fluid.contains(&CellId::new(adjacent[0].entity.index()));
+                let right = fluid.contains(&CellId::new(adjacent[1].entity.index()));
                 if left != right {
                     exact_interface.insert(facet_index);
-                    let (fluid, solid) = if left == CellMaterial::Fluid {
+                    let (fluid, solid) = if left {
                         (adjacent[0], adjacent[1])
                     } else {
                         (adjacent[1], adjacent[0])
@@ -203,8 +182,8 @@ impl<const D: usize> FixedReferenceFsiPartition<D> {
             ));
         }
 
-        require_connected_material::<D>(mesh, &cell_material, CellMaterial::Fluid)?;
-        require_connected_material::<D>(mesh, &cell_material, CellMaterial::Solid)?;
+        require_connected_cells::<D>(mesh, &fluid)?;
+        require_connected_cells::<D>(mesh, &solid)?;
         let fluid_vertices = material_vertices::<D>(mesh, &fluid_cells);
         let solid_vertices = material_vertices::<D>(mesh, &solid_cells);
         let interface_vertices = facet_vertices::<D>(mesh, &interface_facets);
@@ -227,8 +206,7 @@ impl<const D: usize> FixedReferenceFsiPartition<D> {
             solid_vertices,
             interface_vertices,
             interface_witnesses,
-            fluid_cell_position,
-            cell_material,
+            cell_count,
         })
     }
 
@@ -275,23 +253,8 @@ impl<const D: usize> FixedReferenceFsiPartition<D> {
     }
 
     pub(crate) fn cell_count(&self) -> usize {
-        self.cell_material.len()
+        self.cell_count
     }
-
-    pub(crate) fn material(&self, cell: usize) -> CellMaterial {
-        self.cell_material[cell]
-    }
-
-    pub(crate) fn fluid_position(&self, cell: usize) -> Option<usize> {
-        self.fluid_cell_position[cell]
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum CellMaterial {
-    Unassigned,
-    Fluid,
-    Solid,
 }
 
 fn require_strict_ids(
@@ -310,16 +273,12 @@ fn require_strict_ids(
     Ok(())
 }
 
-fn require_connected_material<const D: usize>(
+fn require_connected_cells<const D: usize>(
     mesh: &SimplicialMesh,
-    materials: &[CellMaterial],
-    target: CellMaterial,
+    cells: &BTreeSet<CellId>,
 ) -> Result<(), Diagnostic> {
-    let start = materials
-        .iter()
-        .position(|material| *material == target)
-        .expect("non-empty material inventory has one cell");
-    let mut visited = vec![false; materials.len()];
+    let start = cells.first().expect("nonempty cells").index();
+    let mut visited = vec![false; mesh.entity_count(D).expect("cells")];
     let mut pending = VecDeque::from([start]);
     visited[start] = true;
     while let Some(cell_index) = pending.pop_front() {
@@ -333,18 +292,14 @@ fn require_connected_material<const D: usize>(
                 .expect("accepted facet owns adjacent cells")
             {
                 let index = adjacent.entity.index();
-                if materials[index] == target && !visited[index] {
+                if cells.contains(&CellId::new(index)) && !visited[index] {
                     visited[index] = true;
                     pending.push_back(index);
                 }
             }
         }
     }
-    if materials
-        .iter()
-        .enumerate()
-        .any(|(index, material)| *material == target && !visited[index])
-    {
+    if cells.iter().any(|cell| !visited[cell.index()]) {
         return Err(invalid(
             "fixed-reference FSI requires each material cell set to be facet-connected",
         ));

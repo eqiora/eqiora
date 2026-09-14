@@ -423,7 +423,7 @@ impl CommonState {
                     .vertex_velocity()
                     .iter()
                     .flatten()
-                    .chain(state.fluid_cell_bubble_velocity().iter().flatten())
+                    .chain(state.fluid_cell_bubble_velocity().values().flatten())
                     .chain(pressure.iter())
                     .chain(state.solid_displacement().iter().flatten())
                 {
@@ -487,11 +487,15 @@ impl CommonState {
     }
 
     #[must_use]
-    pub fn velocity_cell_values(&self) -> &[[f64; 2]] {
+    pub fn velocity_cell_values(&self) -> Vec<[f64; 2]> {
         match &self.kind {
-            CommonStateKind::MiniP1(state) => state.velocity().cell_bubble_values(),
-            CommonStateKind::CellCentered(state) => state.velocity().values(),
-            CommonStateKind::Fsi { state, .. } => state.fluid_cell_bubble_velocity(),
+            CommonStateKind::MiniP1(state) => state.velocity().cell_bubble_values().to_vec(),
+            CommonStateKind::CellCentered(state) => state.velocity().values().to_vec(),
+            CommonStateKind::Fsi { state, .. } => state
+                .fluid_cell_bubble_velocity()
+                .values()
+                .copied()
+                .collect(),
         }
     }
 

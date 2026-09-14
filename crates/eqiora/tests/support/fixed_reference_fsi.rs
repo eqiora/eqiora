@@ -304,7 +304,13 @@ pub(crate) fn prestrained_state(spatial: &SpatialContext) -> FixedReferenceFsiSt
         &spatial.mesh,
         &spatial.partition,
         vec![[0.0; 2]; spatial.mesh.vertices().len()],
-        vec![[0.0; 2]; spatial.partition.fluid_cells().len()],
+        spatial
+            .partition
+            .fluid_cells()
+            .iter()
+            .copied()
+            .map(|cell| (cell, [0.0; 2]))
+            .collect(),
         displacement,
     )
     .expect("finite prestrained previous state")
@@ -318,7 +324,7 @@ pub(crate) fn state_from_solution(
         &spatial.mesh,
         &spatial.partition,
         solution.vertex_velocity_coefficients().to_vec(),
-        solution.fluid_velocity_bubble_coefficients().to_vec(),
+        solution.fluid_velocity_bubble_coefficients().clone(),
         solution.solid_displacement_coefficients().to_vec(),
     )
     .expect("accepted solution re-enters the exact next-step state contract")

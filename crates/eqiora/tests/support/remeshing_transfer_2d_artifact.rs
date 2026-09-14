@@ -1355,11 +1355,7 @@ fn moving_snapshots(
         fluid_vertex_velocity[vertex.index()] = state.vertex_velocity()[vertex.index()];
     }
     let mut fluid_cell_velocity = vec![[0.0; COMPONENTS]; mesh.mesh().cells().len()];
-    for (cell, value) in partition
-        .fluid_cells()
-        .iter()
-        .zip(state.fluid_cell_bubble_velocity())
-    {
+    for (cell, value) in state.fluid_cell_bubble_velocity() {
         fluid_cell_velocity[cell.index()] = *value;
     }
     let mut pressure = vec![0.0; mesh.mesh().vertices().len()];

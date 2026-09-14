@@ -114,7 +114,11 @@ impl WireCommonSpatialStateV1 {
                 state, pressure, ..
             } => WireStatePayload::FixedReferenceFsi {
                 vertex_velocity: state.vertex_velocity().to_vec(),
-                fluid_velocity_cell: state.fluid_cell_bubble_velocity().to_vec(),
+                fluid_velocity_cell: state
+                    .fluid_cell_bubble_velocity()
+                    .values()
+                    .copied()
+                    .collect(),
                 pressure_vertex: pressure.to_vec(),
                 solid_displacement: state.solid_displacement().to_vec(),
             },
@@ -291,11 +295,21 @@ impl WireCommonSpatialStateV1 {
                 "FSI State pressure cardinality differs from its exact fluid support",
             ));
         }
+        if fluid_velocity_cell.len() != plan.partition.fluid_cells().len() {
+            return Err(invalid(
+                "FSI State bubble cardinality differs from its exact fluid support",
+            ));
+        }
         let native = FixedReferenceFsiState::<2>::new(
             plan.mesh(),
             &plan.partition,
             vertex_velocity.clone(),
-            fluid_velocity_cell.clone(),
+            plan.partition
+                .fluid_cells()
+                .iter()
+                .copied()
+                .zip(fluid_velocity_cell.iter().copied())
+                .collect(),
             solid_displacement.clone(),
         )?;
         CommonState::new_with_boundary_forces(

@@ -564,7 +564,13 @@ fn distributed_assembly_binding_rejects_foreign_operator_evidence() {
         &fixture.mesh,
         &fixture.partition,
         vec![[0.0; 2]; fixture.mesh.vertices().len()],
-        vec![[0.0; 2]; fixture.partition.fluid_cells().len()],
+        fixture
+            .partition
+            .fluid_cells()
+            .iter()
+            .copied()
+            .map(|cell| (cell, [0.0; 2]))
+            .collect(),
         vec![[0.0; 2]; fixture.mesh.vertices().len()],
     )
     .unwrap();
@@ -684,7 +690,12 @@ impl Fixture {
             &mesh,
             &partition,
             vec![[0.0; 2]; mesh.vertices().len()],
-            vec![[0.0; 2]; partition.fluid_cells().len()],
+            partition
+                .fluid_cells()
+                .iter()
+                .copied()
+                .map(|cell| (cell, [0.0; 2]))
+                .collect(),
             displacement,
         )
         .unwrap();

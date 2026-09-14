@@ -115,7 +115,12 @@ impl Case {
         eqiora_numerics::ale::AleFsiInitialPhysicalState::<2>::new(
             0.0,
             vec![[0.0; COMPONENTS]; self.source_mesh.vertices().len()],
-            vec![[0.0; COMPONENTS]; self.source_partition.fluid_cells().len()],
+            self.source_partition
+                .fluid_cells()
+                .iter()
+                .copied()
+                .map(|cell| (cell, [0.0; COMPONENTS]))
+                .collect(),
             vec![0.0; self.source_partition.fluid_vertices().len()],
             displacement,
         )
@@ -302,7 +307,7 @@ pub(super) fn assert_strong_source_witness(case: &Case, state: &AleFsiState<2>) 
     assert!(
         state
             .fluid_cell_bubble_velocity()
-            .iter()
+            .values()
             .flatten()
             .any(|value| value.abs() > 1.0e-12),
         "the source must exercise the MINI bubble rather than a disguised P1/P0 path"
@@ -531,14 +536,29 @@ pub(super) fn assert_scale_invariant_projection(
     // compare the resulting physical Fields in the Realization's common L/U/P
     // units. This is a deliberately non-semantic observation bound, not a
     // coefficient-error bound inferred from physical conservation residuals.
+    assert_eq!(
+        alternative
+            .fluid_cell_bubble_velocity()
+            .keys()
+            .collect::<Vec<_>>(),
+        base.fluid_cell_bubble_velocity().keys().collect::<Vec<_>>()
+    );
     let report = ScaleInvarianceReport {
         vertex_velocity_drift: maximum_vector_field_defect(
             alternative.vertex_velocity(),
             base.vertex_velocity(),
         ) / transfer_plan.scales().velocity().value(),
         bubble_velocity_drift: maximum_vector_field_defect(
-            alternative.fluid_cell_bubble_velocity(),
-            base.fluid_cell_bubble_velocity(),
+            &alternative
+                .fluid_cell_bubble_velocity()
+                .values()
+                .copied()
+                .collect::<Vec<_>>(),
+            &base
+                .fluid_cell_bubble_velocity()
+                .values()
+                .copied()
+                .collect::<Vec<_>>(),
         ) / transfer_plan.scales().velocity().value(),
         pressure_drift: maximum_scalar_field_defect(
             alternative.fluid_pressure(),

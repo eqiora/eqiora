@@ -631,8 +631,16 @@ fn assert_normalized_solution_conformance(
     );
     assert_close_vectors(
         "fluid bubble velocity/U",
-        reference.fluid_velocity_bubble_coefficients(),
-        candidate.fluid_velocity_bubble_coefficients(),
+        &reference
+            .fluid_velocity_bubble_coefficients()
+            .values()
+            .copied()
+            .collect::<Vec<_>>(),
+        &candidate
+            .fluid_velocity_bubble_coefficients()
+            .values()
+            .copied()
+            .collect::<Vec<_>>(),
         velocity_scale,
     );
     assert_close_slices(

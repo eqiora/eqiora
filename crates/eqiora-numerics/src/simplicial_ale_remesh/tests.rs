@@ -127,7 +127,12 @@ fn topology_distinct_remesh_reproduces_affine_absolute_fields() {
         &source_partition,
         &source_motion,
         vec![[0.0; COMPONENTS]; source_mesh.vertices().len()],
-        vec![[0.0; COMPONENTS]; source_partition.fluid_cells().len()],
+        source_partition
+            .fluid_cells()
+            .iter()
+            .copied()
+            .map(|cell| (cell, [0.0; COMPONENTS]))
+            .collect(),
         vec![0.0; source_partition.fluid_vertices().len()],
         displacement.clone(),
     )
@@ -150,7 +155,12 @@ fn topology_distinct_remesh_reproduces_affine_absolute_fields() {
         &source_partition,
         &source_motion,
         vec![[0.0; COMPONENTS]; source_mesh.vertices().len()],
-        vec![[0.0; COMPONENTS]; source_partition.fluid_cells().len()],
+        source_partition
+            .fluid_cells()
+            .iter()
+            .copied()
+            .map(|cell| (cell, [0.0; COMPONENTS]))
+            .collect(),
         pressure,
         displacement,
     )
@@ -429,7 +439,12 @@ fn scaled_projection_case(
     if violate_exterior {
         velocity[0][0] = velocity_scale * 1.0e-4;
     }
-    let bubbles = vec![[0.0; COMPONENTS]; source_partition.fluid_cells().len()];
+    let bubbles: std::collections::BTreeMap<_, _> = source_partition
+        .fluid_cells()
+        .iter()
+        .copied()
+        .map(|cell| (cell, [0.0; COMPONENTS]))
+        .collect();
     let provisional = AleFsiState::<2>::new(
         0.75,
         &source_mesh,
