@@ -4,6 +4,104 @@ fn newton_policy(linear: CommonLinearRequest, nonlinear: NonlinearSolvePlan) -> 
     CommonSolvePolicy::Newton { nonlinear, linear }
 }
 
+fn assert_solver_structure(
+    plan: &CommonTransientFlowPlan,
+    backend: &dyn LinearSolverBackend,
+    with_gauge: bool,
+) {
+    use eqiora_solver::{AlgebraicConstraint, AlgebraicStructure, HostSerialSolverProfile};
+    let (velocity, pressure) = match plan.admission.recognized_model() {
+        RecognizedNativeModel::Transient(model) => (model.velocity(), model.pressure()),
+        RecognizedNativeModel::TransientGeometry(binding) => {
+            (binding.velocity(), binding.pressure())
+        }
+        _ => panic!("transient fixture"),
+    };
+    let velocity = velocity.downcast().unwrap();
+    let pressure = pressure.downcast().unwrap();
+    let gauge = AlgebraicConstraint::ZeroIntegral { field: pressure };
+    let constraints: Vec<_> = with_gauge.then_some(gauge).into_iter().collect();
+    let expected = AlgebraicStructure::new([velocity, pressure], constraints.clone()).unwrap();
+    plan.admission
+        .linear
+        .planning_profile
+        .as_ref()
+        .unwrap()
+        .require_structure(Some(&expected))
+        .unwrap();
+    let foreign = eqiora_core::Id::from_ulid("01ARZ3NDEKTSV4RRFFQ69G5FAV".parse().unwrap());
+    let state = if with_gauge {
+        plan.zero_state(0.0).unwrap()
+    } else {
+        let NativeMeshResources::AffineTriangleSimplicial { mesh, .. } = plan.admission.resources()
+        else {
+            panic!("traction fixture owns affine triangles");
+        };
+        let vertices = mesh.mesh().vertices().len();
+        let cells = mesh.mesh().entity_count(2).unwrap();
+        let digest = plan.admission.model().digest().unwrap();
+        plan.initial_state(
+            0.0,
+            vec![
+                CommonInitialField::new(
+                    digest.clone(),
+                    velocity,
+                    Some(CommonInitialValues::Vector2(
+                        vec![[0.0; 2]; vertices].into_boxed_slice(),
+                    )),
+                    Some(CommonInitialValues::Vector2(
+                        vec![[0.0; 2]; cells].into_boxed_slice(),
+                    )),
+                )
+                .unwrap(),
+                CommonInitialField::new(
+                    digest,
+                    pressure,
+                    Some(CommonInitialValues::Scalar(
+                        vec![0.0; vertices].into_boxed_slice(),
+                    )),
+                    None,
+                )
+                .unwrap(),
+            ],
+        )
+        .unwrap()
+    };
+    for structure in [
+        None,
+        Some(AlgebraicStructure::new([velocity], []).unwrap()),
+        Some(AlgebraicStructure::new([pressure], constraints.clone()).unwrap()),
+        Some(AlgebraicStructure::new([foreign, pressure], constraints.clone()).unwrap()),
+        Some(AlgebraicStructure::new([velocity, pressure, foreign], constraints).unwrap()),
+        Some(
+            AlgebraicStructure::new(
+                [velocity, pressure],
+                [AlgebraicConstraint::ZeroIntegral { field: velocity }],
+            )
+            .unwrap(),
+        ),
+        Some(
+            AlgebraicStructure::new([velocity, pressure], (!with_gauge).then_some(gauge)).unwrap(),
+        ),
+    ] {
+        let mut changed = plan.clone();
+        let profile =
+            HostSerialSolverProfile::canonical_csr(LinearOperatorProperties::General, None, None);
+        changed.admission.linear.planning_profile = Some(match structure {
+            Some(structure) => profile.with_structure(structure).unwrap(),
+            None => profile,
+        });
+        let error = changed
+            .prepare_execution(&state, backend)
+            .err()
+            .expect("stale profile reached preparation");
+        assert!(error.message().contains("structure"), "{error:?}");
+    }
+    let mut omitted = plan.clone();
+    omitted.admission.linear.planning_profile = None;
+    assert!(omitted.prepare_execution(&state, backend).is_err());
+}
+
 #[test]
 fn prepared_transient_methods_keep_authoritative_common_grid_time_bits() {
     let geometry = rectangle();
@@ -206,6 +304,34 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
     let robust = resolve_program_controlled(SolverPlanningObjective::Robust);
     let fast = resolve_program_controlled(SolverPlanningObjective::Fast);
     let low_memory = resolve_program_controlled(SolverPlanningObjective::LowMemory);
+    assert_solver_structure(&mini, &ResolveOnlyBackend, true);
+    assert_solver_structure(&fvm, &REFERENCE_LINEAR_SOLVER, true);
+    for planned in [&robust, &fast, &low_memory] {
+        assert_solver_structure(planned, &PlanningFaerBackend, true);
+    }
+    // Replacing one essential boundary with zero traction removes the pressure
+    // nullspace mathematically; the solver profile must lose exactly that gauge.
+    let source = TRANSIENT_SOURCE.replace(
+        "relation y_upper_value on y_upper { trace(velocity) = 0; }",
+        "relation y_upper_value on y_upper { normal(2 * dynamic_viscosity * symmetric_part(grad(velocity)) - isotropic_lift(pressure)) = 0; }",
+    );
+    let compiled = eqiora_compiler::compile("mixed-transient.eqi", &source)
+        .unwrap()
+        .pop()
+        .unwrap();
+    let (transaction, model_id, _) = compiled.into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model_id).unwrap();
+    let traction_model = ModelEnvelope::from_program(&program).unwrap();
+    let traction = resolve(
+        &traction_model,
+        affine_resources(&geometry),
+        CommonSpatialPolicy::MiniP1,
+        None,
+    );
+    assert_solver_structure(&traction, &ResolveOnlyBackend, false);
+
     let mini_exact = resolve(
         &model,
         affine_resources(&geometry),

@@ -864,6 +864,22 @@ impl CommonTransientFlowPlan {
         backend: &'a dyn LinearSolverBackend,
     ) -> Result<PreparedCommonTransientExecution<'a>, Diagnostic> {
         self.authenticate_execution(state, backend)?;
+        let spatial = match &self.resolved {
+            CommonTransientResolvedSpatial::MiniP1(resolved) => {
+                resolved.plan().fieldwise().spatial()
+            }
+            CommonTransientResolvedSpatial::CellCentered(resolved) => {
+                resolved.plan().fieldwise().spatial()
+            }
+        };
+        let structure = eqiora_solver::AlgebraicStructure::new(
+            spatial.field_spaces().iter().map(|binding| binding.field()),
+            spatial.constraints().iter().copied(),
+        )?;
+        let checked_backend = self
+            .admission
+            .linear
+            .checked_backend(backend, Some(&structure))?;
         let method = match (&self.resolved, self.admission.resources()) {
             (
                 CommonTransientResolvedSpatial::MiniP1(resolved),
@@ -912,7 +928,7 @@ impl CommonTransientFlowPlan {
         };
         Ok(PreparedCommonTransientExecution {
             plan: self,
-            backend: self.admission.linear.checked_backend(backend, None)?,
+            backend: checked_backend,
             method,
         })
     }

@@ -182,7 +182,10 @@ pub fn resolve_common_plan(
                 LinearOperatorProperties::General,
                 None,
                 None,
-                None,
+                Some(transient_algebraic_structure(
+                    &recognized.recognized,
+                    spatial,
+                )?),
                 stokes_backend,
             )?;
             let native_spatial = spatial.with_scaling(scaling.scales());
@@ -223,6 +226,29 @@ pub fn resolve_common_plan(
             CommonFsiPlan::from_recognized(model, recognized, scaling, temporal, effective_linear)
                 .map(|plan| ResolvedCommonPlan::Fsi(Box::new(plan)))
         }
+    }
+}
+
+fn transient_algebraic_structure(
+    recognized: &RecognizedNativeModel,
+    spatial: TransientSpatialDecision,
+) -> Result<eqiora_solver::AlgebraicStructure, Diagnostic> {
+    use crate::canonical_stokes::{
+        transient_cell_centered_algebraic_structure, transient_mini_algebraic_structure,
+    };
+    match (recognized, spatial) {
+        (RecognizedNativeModel::Transient(model), TransientSpatialDecision::MiniP1) => {
+            transient_mini_algebraic_structure(&model.common_projection())
+        }
+        (RecognizedNativeModel::TransientGeometry(binding), TransientSpatialDecision::MiniP1) => {
+            transient_mini_algebraic_structure(binding.model())
+        }
+        (RecognizedNativeModel::Transient(model), TransientSpatialDecision::CellCentered) => {
+            transient_cell_centered_algebraic_structure(model)
+        }
+        _ => Err(invalid(
+            "transient algebraic structure requires matching Model and spatial meaning",
+        )),
     }
 }
 

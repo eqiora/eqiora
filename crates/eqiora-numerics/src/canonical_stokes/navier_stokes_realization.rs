@@ -1,6 +1,6 @@
 //! Coherent-SI reference realization of the fixed-domain transient flow subset.
 
-use eqiora_solver::{AlgebraicBlock, AlgebraicConstraint};
+use eqiora_solver::{AlgebraicBlock, AlgebraicConstraint, AlgebraicStructure};
 pub(super) mod boundary;
 
 use std::num::{NonZeroU16, NonZeroUsize};
@@ -286,6 +286,17 @@ pub fn transient_navier_stokes_mini_plan_2d(
     )
 }
 
+pub(crate) fn transient_mini_algebraic_structure(
+    model: &TransientIncompressibleNavierStokesModel2d,
+) -> Result<AlgebraicStructure, Diagnostic> {
+    let pressure = pressure_id(model);
+    AlgebraicStructure::new(
+        [velocity_id(model), pressure],
+        boundary::pressure_uses_gauge(model)?
+            .then_some(AlgebraicConstraint::ZeroIntegral { field: pressure }),
+    )
+}
+
 pub(super) fn transient_navier_stokes_mini_plan_for_2d(
     model: &TransientIncompressibleNavierStokesModel2d,
     mesh: MeshArtifactReference,
@@ -296,10 +307,7 @@ pub(super) fn transient_navier_stokes_mini_plan_for_2d(
 ) -> Result<TransientFieldwiseRealizationPlan, Diagnostic> {
     let velocity = velocity_id(model);
     let pressure = pressure_id(model);
-    let with_gauge = boundary::pressure_uses_gauge(model)?;
-    let constraints = with_gauge
-        .then_some(AlgebraicConstraint::ZeroIntegral { field: pressure })
-        .into_iter();
+    let structure = transient_mini_algebraic_structure(model)?;
     let spatial = FieldwiseSpatialDiscretization::new(
         domain_id(model),
         PositivePhysicalScale::new(scales.length()).map_err(realization_error)?,
@@ -307,7 +315,7 @@ pub(super) fn transient_navier_stokes_mini_plan_for_2d(
             FieldSpaceBinding::new(velocity, Space::simplex_p1_bubble()),
             FieldSpaceBinding::new(pressure, Space::continuous_lagrange(NonZeroU16::MIN)),
         ],
-        constraints,
+        structure.constraints().iter().copied(),
         Discretization::new(
             DiscretizationMethod::ContinuousGalerkin,
             MeshPolicy::ImportedSimplicial { artifact: mesh },
@@ -328,7 +336,7 @@ pub(super) fn transient_navier_stokes_mini_plan_for_2d(
             PositivePhysicalScale::new(scales.pressure()).map_err(realization_error)?,
         ),
     ];
-    if with_gauge {
+    if !structure.constraints().is_empty() {
         block_scales.push(AlgebraicBlockScale::new(
             AlgebraicBlock::ConstraintMultiplier { field: pressure },
             PositivePhysicalScale::new(scales.gauge()).map_err(realization_error)?,
