@@ -84,6 +84,15 @@ fn ordinary_source_and_formatter_retain_quantified_interval_and_live_replay() {
     );
     for source in [&source, &formatted] {
         let model = compile(source, &geometry).unwrap_or_else(|e| panic!("{e:?}"));
+        assert_eq!(
+            eqiora_compiler::check_derived_interval_conservation(
+                model.transaction(),
+                &geometry,
+                model.authored_formulations().next().unwrap().relation(),
+            )
+            .unwrap(),
+            Some(())
+        );
         let projection = model.authored_formulations().next().unwrap().projection();
         assert_eq!(projection.interval(), Some(("segment", "a", "b")));
         assert_eq!(
@@ -393,4 +402,58 @@ fn live_field_dimension_and_destructive_delta_are_not_typed_snapshots() {
     }
     removed.push(Op::RemoveNode { id: trial.erase() });
     assert!(projection.check_interval(&removed, &geometry).is_err());
+}
+
+#[test]
+fn canonical_parameter_values_are_typed_unique_snapshot_bindings() {
+    use eqiora_graph::{Op, Transaction};
+    use eqiora_schema::kernel::KernelNode;
+    let geometry = geometry();
+    let model = compile(&source(FORM), &geometry).unwrap();
+    let form = model.authored_formulations().next().unwrap();
+    let parameter = model
+        .transaction()
+        .ops()
+        .iter()
+        .find_map(|op| match op {
+            Op::DefineKernelNode {
+                node: KernelNode::Parameter(p),
+            } => Some(p),
+            _ => None,
+        })
+        .unwrap();
+    let mut snapshot = Transaction::new("exact complete value binding");
+    for op in model.transaction().ops() {
+        snapshot.push(op.clone());
+    }
+    snapshot.push(Op::SetValue {
+        target: parameter.id().erase(),
+        value: parameter.value().clone(),
+    });
+    form.projection()
+        .check_interval(&snapshot, &geometry)
+        .unwrap();
+    assert_eq!(
+        eqiora_compiler::check_derived_interval_conservation(&snapshot, &geometry, form.relation())
+            .unwrap(),
+        Some(())
+    );
+    snapshot.push(Op::SetValue {
+        target: parameter.id().erase(),
+        value: parameter.value().clone(),
+    });
+    assert!(
+        form.projection()
+            .check_interval(&snapshot, &geometry)
+            .is_err()
+    );
+    let mut wrong = Transaction::new("value binding to Field");
+    for op in model.transaction().ops() {
+        wrong.push(op.clone());
+    }
+    wrong.push(Op::SetValue {
+        target: form.trial().erase(),
+        value: parameter.value().clone(),
+    });
+    assert!(form.projection().check_interval(&wrong, &geometry).is_err());
 }

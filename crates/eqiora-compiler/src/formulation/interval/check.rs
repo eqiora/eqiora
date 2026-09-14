@@ -10,17 +10,42 @@ fn reject() -> Diagnostic {
     )
 }
 
+pub(super) struct Statement<'a> {
+    pub relation: &'a str,
+    pub domain: &'a str,
+    pub trial: &'a str,
+    pub binder: Option<(&'a str, &'a str, &'a str)>,
+    pub implication: &'a str,
+    pub assumptions: &'a [String],
+    pub left: &'a AuthoredFormExpressionV1,
+    pub right: &'a AuthoredFormExpressionV1,
+}
+impl<'a> From<&'a AuthoredFormulationProjection> for Statement<'a> {
+    fn from(form: &'a AuthoredFormulationProjection) -> Self {
+        Self {
+            relation: form.relation_ulid(),
+            domain: form.domain_ulid(),
+            trial: form.trial_ulid(),
+            binder: form.interval(),
+            implication: form.implication(),
+            assumptions: form.assumptions(),
+            left: form.left(),
+            right: form.right(),
+        }
+    }
+}
+
 pub(super) fn check(
-    form: &AuthoredFormulationProjection,
+    form: Statement<'_>,
     index: &KernelIndex<'_>,
     geometry: &eqiora_geometry::CanonicalGeometryV1,
 ) -> Result<(), Diagnostic> {
-    let Some((interval, lower, upper)) = form.interval() else {
+    let Some((interval, lower, upper)) = form.binder else {
         return Err(reject());
     };
-    if form.implication() != "strong-implies-interval-conservation"
+    if form.implication != "strong-implies-interval-conservation"
         || !form
-            .assumptions()
+            .assumptions
             .iter()
             .map(String::as_str)
             .eq(super::ASSUMPTIONS.iter().copied())
@@ -30,9 +55,7 @@ pub(super) fn check(
     let relation = index
         .nodes
         .iter()
-        .find_map(|(id, node)| {
-            (id.ulid().to_string() == form.relation_ulid()).then_some((*id, *node))
-        })
+        .find_map(|(id, node)| (id.ulid().to_string() == form.relation).then_some((*id, *node)))
         .ok_or_else(reject)?;
     let KernelNode::Relation(law) = relation.1 else {
         return Err(reject());
@@ -45,7 +68,7 @@ pub(super) fn check(
         return Err(reject());
     }
     let domain = index.applies_on.get(&relation.0).ok_or_else(reject)?;
-    if domain.ulid().to_string() != form.domain_ulid() {
+    if domain.ulid().to_string() != form.domain {
         return Err(reject());
     }
     let Some(KernelNode::Domain(definition)) = index.nodes.get(domain).copied() else {
@@ -67,7 +90,7 @@ pub(super) fn check(
     let trial = index
         .nodes
         .iter()
-        .find_map(|(id, node)| (id.ulid().to_string() == form.trial_ulid()).then_some((*id, *node)))
+        .find_map(|(id, node)| (id.ulid().to_string() == form.trial).then_some((*id, *node)))
         .ok_or_else(reject)?;
     let KernelNode::Field(field) = trial.1 else {
         return Err(reject());
@@ -113,7 +136,7 @@ pub(super) fn check(
         },
     )
     .map_err(|_| reject())?;
-    let AuthoredFormExpressionV1::Add { left, right } = form.left() else {
+    let AuthoredFormExpressionV1::Add { left, right } = form.left else {
         return Err(reject());
     };
     let mut endpoints = std::collections::BTreeSet::new();
@@ -145,7 +168,7 @@ pub(super) fn check(
     let AuthoredFormExpressionV1::IntervalIntegral {
         interval: owner,
         integrand,
-    } = form.right()
+    } = form.right
     else {
         return Err(reject());
     };
