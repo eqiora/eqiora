@@ -17,7 +17,7 @@ use artifact::assert_artifact_vertical_slice;
 use case::{
     Case, TIME_STEP, assert_exact_interface_bisection, assert_genuine_many_to_many,
     assert_interface_witness, assert_numerical_falsifiers, assert_scale_invariant_projection,
-    assert_strong_source_witness, one_step, transfer_plan,
+    assert_strong_source_witness, one_step, state_fields, transfer_plan,
 };
 
 #[test]
@@ -31,7 +31,7 @@ fn cpu_reference_closes_remesh_target_continuation_and_v3_trajectory_replay() {
         &case.source_mesh,
         &case.source_partition,
         &case.source_boundary,
-        case.initial_physical(),
+        case.initial_physical(&source_resolved),
         &FaerLinearSolver,
     )
     .unwrap();
@@ -47,9 +47,13 @@ fn cpu_reference_closes_remesh_target_continuation_and_v3_trajectory_replay() {
     let material_probe = SimplicialRevisionOverlap2d::new(
         OverlapCoordinateChart2d::Material,
         &case.source_mesh,
-        case.source_partition.solid_cells(),
+        case.source_partition
+            .domain_cells(case.fields.solid_domain)
+            .unwrap(),
         &case.target_mesh,
-        case.target_partition.solid_cells(),
+        case.target_partition
+            .domain_cells(case.fields.solid_domain)
+            .unwrap(),
     )
     .unwrap();
     assert_genuine_many_to_many(&material_probe, "material solid");
@@ -79,15 +83,27 @@ fn cpu_reference_closes_remesh_target_continuation_and_v3_trajectory_replay() {
         projection.evidence().fluid_current_overlap(),
         "current-spatial fluid",
     );
+    let projected_fields = state_fields(
+        &case,
+        projection.physical_state(),
+        &case.target_mesh,
+        &case.target_partition,
+    );
     assert_interface_witness(
         &case.target_mesh,
-        projection.vertex_velocity(),
-        projection.solid_displacement(),
+        &projected_fields.vertex_velocity,
+        &projected_fields.solid_displacement,
         "target",
+    );
+    let source_fields = state_fields(
+        &case,
+        source_state.physical_state(),
+        &case.source_mesh,
+        &case.source_partition,
     );
     assert_exact_interface_bisection(
         &case.source_mesh,
-        source_state.solid_displacement(),
+        &source_fields.solid_displacement,
         &case.target_mesh,
         projection.evidence().target_geometry().coordinates(),
     );
