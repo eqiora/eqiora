@@ -46,10 +46,10 @@ fn dimensional_linear_fields_have_complete_canonical_bindings() {
         FieldSpaceBinding::new(Id::new(), space),
     ];
     let build = |bindings: Vec<FieldSpaceBinding>| {
-        PortableRealizationGraph::linear_fields(
+        PortableRealizationGraph::linear_regions(
             lineage,
-            domain,
-            bindings,
+            [crate::DomainFieldDiscretization::new(domain, bindings, [])?],
+            [],
             crate::Discretization::new(
                 DiscretizationMethod::ContinuousGalerkin,
                 MeshPolicy::GeneratedUniform {

@@ -384,20 +384,13 @@ impl CommonResult {
                 "scalar output differs from the complete typed Plan Field inventory",
             ));
         }
-        let (association, logical_shape, space) = match plan.spatial() {
-            crate::CommonSpatialPolicy::Q1 => (
-                CommonFieldAssociation::Vertex,
-                plan.cells()
-                    .iter()
-                    .map(|count| count + 1)
-                    .collect::<Vec<_>>(),
-                "continuous-lagrange-p1",
-            ),
-            crate::CommonSpatialPolicy::CellCenteredTpfa => (
-                CommonFieldAssociation::Cell,
-                plan.cells().to_vec(),
-                "cell-constant",
-            ),
+        let (association, space) = match plan.spatial() {
+            crate::CommonSpatialPolicy::Q1 => {
+                (CommonFieldAssociation::Vertex, "continuous-lagrange-p1")
+            }
+            crate::CommonSpatialPolicy::CellCenteredTpfa => {
+                (CommonFieldAssociation::Cell, "cell-constant")
+            }
             _ => {
                 return Err(invalid(
                     "scalar Result received a non-scalar spatial policy",
@@ -416,7 +409,7 @@ impl CommonResult {
                     vec![CommonResultFieldBlock::new(
                         association,
                         values,
-                        logical_shape.clone(),
+                        plan.field_support(field.erase())?.0,
                     )?],
                 )
             })

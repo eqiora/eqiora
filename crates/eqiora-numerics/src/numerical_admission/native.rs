@@ -516,35 +516,7 @@ impl NativeNumericalAdmission {
         };
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
         if self.spatial == NativeSpatialPolicy::ScalarQ1 {
-            let quadrature = QuadratureRule::tensor_product_gauss_legendre(mesh.dimension(), 2)?;
-            let output = crate::cartesian_elliptic::linear::CartesianLinearAssembly::assemble(
-                &lowered.form,
-                mesh.mesh(),
-                &quadrature,
-                &REFERENCE_ASSEMBLY_BACKEND,
-                &lowered.boundaries,
-            )?
-            .solve(
-                solve,
-                Target::HostCpu {
-                    threads: self.linear.workers,
-                },
-            )?;
-            return Ok(CommonScalarRunOutput {
-                fields: output
-                    .fields
-                    .into_iter()
-                    .map(|(field, value_type, values)| {
-                        (
-                            field.downcast().expect("compiled Field identity"),
-                            value_type,
-                            values.into_vertex_values(),
-                        )
-                    })
-                    .collect(),
-                solve_report: output.solve_report,
-                assembly_report: output.assembly_report,
-            });
+            return lowered.execute(self, solve, mesh.mesh());
         }
         let descriptor = lowered.conservation_descriptor(self.program())?;
         let region = descriptor
@@ -610,7 +582,7 @@ impl NativeNumericalAdmission {
                 let (system, state) = finalized.into_canonical()?;
                 let solved = solve.solve(&system.linear_problem()?)?;
                 let solution = state.finish(solved, system)?;
-                let [(field, value_type)] = lowered.form.fields() else {
+                let [(field, value_type)] = lowered.single()?.form.fields() else {
                     return Err(invalid("TPFA requires one admitted Field"));
                 };
                 Ok(CommonScalarRunOutput {

@@ -907,3 +907,5 @@ fn planned_common_execution_reauthenticates_before_backend_or_operator_work() {
     // PlanningFaerBackend's solve also panics: the test cannot pass by reaching
     // a provider and relabeling its failure as profile rejection.
 }
+
+mod plural_regions;

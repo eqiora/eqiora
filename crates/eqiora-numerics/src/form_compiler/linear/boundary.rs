@@ -20,8 +20,12 @@ pub(super) fn derive(
     dimension: usize,
     fields: &[(RawId, ValueType)],
     volume: &BoundRegionForm,
+    interface_boundaries: &BTreeSet<RawId>,
 ) -> Result<Inventory, Diagnostic> {
-    let mut boundaries = BTreeMap::new();
+    let mut boundaries = fields
+        .iter()
+        .map(|(field, _)| (*field, BTreeMap::new()))
+        .collect::<BTreeMap<_, _>>();
     let mut sides = BTreeSet::new();
     let mut dependencies = BTreeMap::new();
     let geometry_backed = matches!(program.node(parent), Some(KernelNode::Domain(definition)) if matches!(definition.kind(), DomainKind::GeometryRegion { .. }));
@@ -49,6 +53,9 @@ pub(super) fn derive(
             }
         }
         boundary_count += 1;
+        if interface_boundaries.contains(&domain.id().erase()) {
+            continue;
+        }
         let mut covered = BTreeSet::new();
         for relation in relations_on(program, domain.id().erase()) {
             let law = volume.boundary_law(program, domain.id().erase(), relation)?;

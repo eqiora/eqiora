@@ -17,18 +17,13 @@ pub(super) fn validate_fields(
 ) -> Result<(), Diagnostic> {
     let valid = match plan {
         ResolvedCommonPlan::Scalar(plan) => {
-            let cells = plan.cells();
-            let (space, association, shape) = match plan.spatial() {
-                crate::CommonSpatialPolicy::Q1 => (
-                    "continuous-lagrange-p1",
-                    CommonFieldAssociation::Vertex,
-                    cells.iter().map(|count| count + 1).collect(),
-                ),
-                crate::CommonSpatialPolicy::CellCenteredTpfa => (
-                    "cell-constant",
-                    CommonFieldAssociation::Cell,
-                    cells.to_vec(),
-                ),
+            let (space, association) = match plan.spatial() {
+                crate::CommonSpatialPolicy::Q1 => {
+                    ("continuous-lagrange-p1", CommonFieldAssociation::Vertex)
+                }
+                crate::CommonSpatialPolicy::CellCenteredTpfa => {
+                    ("cell-constant", CommonFieldAssociation::Cell)
+                }
                 _ => {
                     return Err(invalid(
                         "scalar Result Plan has a non-scalar spatial policy",
@@ -37,6 +32,9 @@ pub(super) fn validate_fields(
             };
             fields.len() == plan.fields().len()
                 && plan.fields().all(|(id, value_type)| {
+                    let Ok((shape, _)) = plan.field_support(id.erase()) else {
+                        return false;
+                    };
                     let id = id.ulid().to_string();
                     fields
                         .iter()

@@ -9,16 +9,12 @@ use eqiora_assembly::{
 };
 use eqiora_core::{Diagnostic, RawId, ValueType};
 use eqiora_meshing::{CartesianMesh, MeshEntity, MeshGeometry, MeshTopology, QuadratureRule};
-use eqiora_realization::{Target, VectorLayoutKind};
 use eqiora_schema::kernel::BoundarySide;
-use eqiora_solver::{
-    CanonicalCsrSystemView, LinearOperatorProperties, LinearSolveRequest, SolveReport,
-};
+use eqiora_solver::{CanonicalCsrSystemView, LinearOperatorProperties};
 
-use super::{CartesianBoundaryValue, CartesianQ1Field};
+use super::CartesianBoundaryValue;
 use crate::canonical_boundary::PhysicalBoundaryQuantity;
 use crate::constrained_dofs::ConstrainedDofLayout;
-use crate::finalized_spatial::FinalizedLinearCore;
 use crate::form_compiler::linear::CompiledLinearBlockForm;
 use crate::region_assembly::{PreparedRegionAssembly, RegionAssemblyCell};
 
@@ -31,13 +27,6 @@ pub(crate) struct CartesianLinearAssembly {
     pub(crate) full_system: LinearSystem,
     pub(crate) report: AssemblyReport,
     source_integrals: Vec<f64>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct CartesianLinearSolution {
-    pub(crate) fields: Vec<(RawId, ValueType, CartesianQ1Field)>,
-    pub(crate) solve_report: SolveReport,
-    pub(crate) assembly_report: AssemblyReport,
 }
 
 #[cfg(test)]
@@ -72,51 +61,6 @@ impl CartesianLinearAssembly {
                 assembly_report: self.report,
             },
         ))
-    }
-
-    /// Validate the complete algebraic solution before publishing any Field.
-    pub(crate) fn solve(
-        self,
-        request: LinearSolveRequest<'_>,
-        target: Target,
-    ) -> Result<CartesianLinearSolution, Diagnostic> {
-        let canonical = Arc::new(CanonicalCsrSystemView::new(
-            &self.system,
-            LinearOperatorProperties::General,
-        )?);
-        let core = FinalizedLinearCore::new(
-            request.plan(),
-            VectorLayoutKind::Replicated,
-            target,
-            canonical,
-        );
-        let solution = request.solve(&core.linear_problem()?)?;
-        core.validate_solution(&solution)?;
-        let (algebraic, solve_report) = solution.into_parts();
-        let values = self.constraints.lift(&algebraic)?;
-        let vertices = self.mesh.entity_count(0).expect("Cartesian vertices");
-        if self.fields.len().checked_mul(vertices) != Some(values.len()) {
-            return Err(super::invalid(
-                "linear solution does not cover the complete Field inventory",
-            ));
-        }
-        let fields = self
-            .fields
-            .into_iter()
-            .zip(values.chunks_exact(vertices))
-            .map(|((field, value_type), values)| {
-                Ok((
-                    field,
-                    value_type,
-                    CartesianQ1Field::new(self.mesh.clone(), values.to_vec())?,
-                ))
-            })
-            .collect::<Result<Vec<_>, Diagnostic>>()?;
-        Ok(CartesianLinearSolution {
-            fields,
-            solve_report,
-            assembly_report: self.report,
-        })
     }
 
     pub(crate) fn assemble(

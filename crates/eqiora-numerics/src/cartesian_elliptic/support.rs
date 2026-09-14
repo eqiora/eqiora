@@ -427,7 +427,7 @@ pub(super) fn boundary_sides(
     Ok(sides)
 }
 
-pub(super) fn require_compatible_boundary_value(
+pub(crate) fn require_compatible_boundary_value(
     accepted: Option<f64>,
     candidate: f64,
 ) -> Result<Option<f64>, Diagnostic> {

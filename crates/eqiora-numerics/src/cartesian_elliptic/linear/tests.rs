@@ -71,7 +71,13 @@ fn compiled(source: &str) -> (CompiledLinearBlockForm, ModelSymbols) {
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
     let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-    let form = CompiledLinearBlockForm::derive(&program, symbols.get("body").unwrap(), 1).unwrap();
+    let form = CompiledLinearBlockForm::derive(
+        &program,
+        symbols.get("body").unwrap(),
+        1,
+        &std::collections::BTreeSet::new(),
+    )
+    .unwrap();
     (form, symbols)
 }
 
@@ -226,50 +232,6 @@ fn exercise_source(reaction: &[Vec<f64>], source: &str, names: &[String]) {
     let solution = REFERENCE_LINEAR_SOLVER.solve(&problem, plan).unwrap();
     close(&action(&reduced, solution.values()), &reduced_rhs, 2e-12);
     let lifted = assembled.constraints.lift(solution.values()).unwrap();
-    let accepted = assembled
-        .clone()
-        .solve(
-            LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan),
-            Target::HostCpu {
-                threads: NonZeroUsize::MIN,
-            },
-        )
-        .unwrap();
-    let mut missing = assembled.clone();
-    missing.fields.pop();
-    assert!(
-        missing
-            .solve(
-                LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan),
-                Target::HostCpu {
-                    threads: NonZeroUsize::MIN
-                },
-            )
-            .unwrap_err()
-            .message()
-            .contains("complete Field inventory")
-    );
-    assert!(
-        assembled
-            .clone()
-            .solve(
-                LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan),
-                Target::CudaGpu { device: 0 },
-            )
-            .is_err()
-    );
-    assert_eq!(accepted.fields.len(), form.fields().len());
-    for (((actual_id, actual_type, field), (expected_id, expected_type)), expected_values) in
-        accepted
-            .fields
-            .iter()
-            .zip(form.fields())
-            .zip(lifted.as_chunks::<{ AXIS.len() }>().0)
-    {
-        assert_eq!(actual_id, expected_id);
-        assert_eq!(actual_type, expected_type);
-        close(field.vertex_values(), expected_values, 2e-12);
-    }
     for (global, value) in lifted.iter().enumerate() {
         if !free.contains(&global) {
             assert_eq!(*value, 0.0);

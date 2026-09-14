@@ -202,11 +202,16 @@ fn scalar_q1_uses_the_same_value_and_gradient_contractions() {
     let local = bound
         .evaluate(&geometry, &quadrature, &BTreeMap::new())
         .unwrap();
-    let scalar = crate::form_compiler::linear::CompiledLinearBlockForm::derive(&program, domain, 2)
-        .unwrap()
-        .volume()
-        .evaluate(&geometry, &quadrature, &BTreeMap::new())
-        .unwrap();
+    let scalar = crate::form_compiler::linear::CompiledLinearBlockForm::derive(
+        &program,
+        domain,
+        2,
+        &std::collections::BTreeSet::new(),
+    )
+    .unwrap()
+    .volume()
+    .evaluate(&geometry, &quadrature, &BTreeMap::new())
+    .unwrap();
     for (a, b) in local.matrix().iter().zip(scalar.matrix()) {
         close(*a, *b);
     }

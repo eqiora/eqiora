@@ -499,84 +499,6 @@ pub struct PortableRealizationGraph {
 }
 
 impl PortableRealizationGraph {
-    /// Resolve one graph-native dimensional linear realization for exact Field bindings.
-    /// The equation-aware caller supplies the exact Semantic identities and
-    /// operator class. This constructor owns graph closure and solver
-    /// compatibility; provider capability admission remains a separate step.
-    /// # Errors
-    /// Returns `EQ0807` when the supplied choices cannot form one connected
-    /// portable linear-solve graph.
-    #[allow(clippy::too_many_arguments)]
-    pub fn linear_fields(
-        lineage: RealizationLineage,
-        domain: Id<kinds::Domain>,
-        bindings: impl IntoIterator<Item = crate::FieldSpaceBinding>,
-        discretization: Discretization,
-        operator_properties: LinearOperatorProperties,
-        scalar_type: ScalarType,
-        vector_layout: VectorLayoutKind,
-        solver: SolverPlan,
-        target: Target,
-        schedule: ExecutionSchedule,
-    ) -> Result<Self, Diagnostic> {
-        let mut bindings = bindings.into_iter().collect::<Vec<_>>();
-        bindings.sort_by_key(|binding| binding.field().ulid());
-        if bindings.is_empty()
-            || bindings
-                .windows(2)
-                .any(|pair| pair[0].field() == pair[1].field())
-        {
-            return Err(invalid_realization(
-                "linear graph requires nonempty unique Field bindings",
-            ));
-        }
-        for binding in &bindings {
-            discretization.validate_space(binding.space())?;
-        }
-        let blocks = (0..bindings.len())
-            .map(|index| SystemBlock::Field(FieldRepresentationId::new(index)))
-            .collect();
-        crate::execution::validate_target_schedule(target, schedule)?;
-        let graph = Self {
-            lineage,
-            domains: vec![DomainDiscretizationNode {
-                domain,
-                coordinates: CoordinateTreatment::Physical,
-                configuration: DomainConfiguration::FixedGeometry,
-                discretization,
-            }],
-            fields: bindings
-                .into_iter()
-                .map(|binding| FieldRepresentationNode {
-                    domain: DomainDiscretizationId::new(0),
-                    field: binding.field(),
-                    space: binding.space(),
-                })
-                .collect(),
-            geometry_actions: Vec::new(),
-            transformations: Vec::new(),
-            systems: vec![AlgebraicSystemNode {
-                blocks,
-                transformations: Vec::new(),
-                scaling: SystemScaling::Dimensional,
-                operator_properties,
-                scalar_type,
-                partition: vector_layout,
-            }],
-            linear_solves: vec![LinearSolveNode {
-                system: AlgebraicSystemId::new(0),
-                plan: solver,
-                placement: PlacementRequirementId::new(0),
-                schedule,
-            }],
-            nonlinear_solves: Vec::new(),
-            placements: vec![portable_placement(target)],
-            root: SolveRoot::Linear(LinearSolveId::new(0)),
-        };
-        graph.validate()?;
-        Ok(graph)
-    }
-
     /// Exact Model and Realization lineage.
     #[must_use]
     pub const fn lineage(&self) -> RealizationLineage {
@@ -764,3 +686,5 @@ impl PortableRealizationGraph {
 #[cfg(test)]
 #[path = "portable_graph/tests.rs"]
 mod tests;
+
+mod linear_regions;
