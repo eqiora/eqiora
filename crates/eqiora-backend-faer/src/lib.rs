@@ -6,6 +6,7 @@
 //! returns Eqiora-owned convergence evidence after independent true-residual
 //! verification.
 
+mod prepared_sparse_lu;
 mod sparse_lu;
 mod sparse_lu_factor;
 mod sparse_lu_identity;
@@ -133,6 +134,26 @@ impl LinearSolverBackend for FaerLinearSolver {
             },
         ])
         .expect("faer exact capability set is nonempty")
+    }
+
+    fn prepare_linear(
+        &self,
+        plan: SolverPlan,
+    ) -> Result<Option<Box<dyn eqiora_solver::PreparedLinearSolver + '_>>, Diagnostic> {
+        self.capabilities().require_problem(
+            plan,
+            ScalarType::F64,
+            LinearOperatorProperties::General,
+        )?;
+        if plan.algorithm() != LinearSolver::SparseLu
+            || plan.preconditioner() != PreconditionerPolicy::Identity
+            || plan.reduction() != ReductionPolicy::Fast
+        {
+            return Ok(None);
+        }
+        Ok(Some(Box::new(
+            prepared_sparse_lu::FaerPreparedSparseLu::new(plan),
+        )))
     }
 
     fn solve_with_execution(
