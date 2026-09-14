@@ -302,6 +302,8 @@ class ClockDomain:
 
 Reference execution through fully stabilized boundaries with explicit input tables.
 
+Input Port, Clock and output selectors accept source aliases or exact Model-owned ULIDs.
+
 ```python
 @final
 class ExecutionSession:

@@ -57,5 +57,8 @@ and separate Fourier-flux and slab-conductance Components. It executes fluxes âˆ
 and conductances 1.2/1.6 W/K at 310/340 K and reopens the Model artifact. The
 <ExactSourceLink kind="blob" path="crates/eqiora/tests/source_property_tables.rs">Rust source/package specimen</ExactSourceLink>
 checks independent secant slopes, validity, knot rejection and authenticated asset closure.
-These specimen packages are constructed by their tests; they are not distributed releases
-in `crates/eqiora-api/packages/`. A heated-body Law and transient thermal solve are outside this example.
+The <ExactSourceLink kind="blob" path="examples/property-composition/README.md">complete local property package</ExactSourceLink>
+retains source, table and attribution in the checkout. It drives both Components with live
+sampled temperature input, executes table endpoints and interior values, and replays after
+moving its vendored lock offline. These are local specimen packages, not bundled standard
+releases in `crates/eqiora-api/packages/`. A heated-body Law and transient thermal solve are outside this example.

@@ -1,0 +1,71 @@
+/// Callable conductivity with derivatives only inside smooth open table segments.
+public property contract Conductivity(input temperature: K): W / (m * K) {
+  derivatives first_open_intervals;
+}
+
+/// Synthetic instructional samples; exact data and attribution travel with the package.
+public property release Samples: Conductivity {
+  table {
+    data conductivity_samples;
+    axis temperature: K;
+    value conductivity: W / (m * K);
+    interpolation piecewise_affine;
+    preprocessing identity;
+    missing reject;
+    knot_derivative reject;
+    endpoint_derivative reject;
+  }
+  validity temperature in [300[K], 360[K]];
+  outside reject;
+  branch single;
+  citation synthetic_definition;
+  license repository_license;
+}
+
+/// Evaluate signed one-dimensional Fourier flux at each supplied sample.
+public component FourierFlux(
+  clock tick: periodic,
+  property conductivity: Conductivity,
+  input temperature: K at tick,
+  parameter gradient: K / m,
+  output flux: W / m^2 at tick
+) {
+  relation constitutive at tick {
+    flux = -conductivity(temperature = temperature) * gradient;
+  }
+}
+
+/// Evaluate a uniform slab's conductance at each supplied temperature sample.
+public component SlabConductance(
+  clock tick: periodic,
+  property conductivity: Conductivity,
+  input temperature: K at tick,
+  parameter area: m^2,
+  parameter thickness: m,
+  output conductance: W / K at tick
+) {
+  relation constitutive at tick {
+    conductance = conductivity(temperature = temperature) * area / thickness;
+  }
+}
+
+/// Compose two distinct consumers of the same exact material release.
+public model PropertyConsumers(
+  input temperature: K at tick,
+  output heat_flux: W / m^2 at tick,
+  output conductance: W / K at tick
+) {
+  clock tick = periodic(1[s]);
+  instance local_flux: FourierFlux(
+    tick = tick, conductivity = Samples, gradient = 2[K / m]
+  );
+  instance slab: SlabConductance(
+    tick = tick, conductivity = Samples, area = 0.01[m^2], thickness = 0.1[m]
+  );
+  connect temperature -> local_flux.temperature;
+  connect temperature -> slab.temperature;
+  relation outputs at tick {
+    heat_flux = local_flux.flux;
+    conductance = slab.conductance;
+  }
+}
