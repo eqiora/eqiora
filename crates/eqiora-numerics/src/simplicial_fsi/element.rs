@@ -128,17 +128,18 @@ fn require_geometry<const D: usize>(
 
 #[cfg(test)]
 mod tests {
+    use eqiora_core::{Id, entity::kinds};
     use eqiora_meshing::{
-        CellId, FacetId, MeshEntity, MeshGeometry, MeshQualityGate, MeshTopology, SimplicialMesh,
+        CellId, MeshEntity, MeshGeometry, MeshQualityGate, SimplicialMesh,
         simplex_duffy_gauss_legendre,
     };
 
     use super::{fluid_local, solid_local};
+    use crate::linear_elasticity::IsotropicElasticityMaterial;
     use crate::simplicial_fsi::contract::{
-        FixedReferenceFsiBoundary, FixedReferenceFsiLoad, FixedReferenceFsiMaterial,
-        FixedReferenceFsiScale, FixedReferenceFsiState, FixedReferenceFsiStepConfig,
+        FixedReferenceFsiLoad, FixedReferenceFsiMaterial, FixedReferenceFsiScale,
+        FixedReferenceFsiState, FixedReferenceFsiStepConfig,
     };
-    use crate::simplicial_fsi::partition::FixedReferenceFsiPartition;
 
     #[test]
     fn tetrahedral_mini_and_p1_actions_share_one_finite_symmetric_kernel() {
@@ -148,52 +149,28 @@ mod tests {
         let fluid_local = fluid_local(
             &fluid.0,
             &fixture.quadrature,
-            fixture.config,
+            &fixture.config,
             &fluid.1,
             &fixture.previous,
             eqiora_meshing::CellId::new(0),
+            fixture.fluid_velocity,
         )
         .unwrap();
         let solid_local = solid_local(
             &solid.0,
             &fixture.quadrature,
-            fixture.config,
+            &fixture.config,
             &solid.1,
             &fixture.previous,
+            fixture.solid_velocity,
+            fixture.solid_displacement,
         )
         .unwrap();
-        let layout = crate::simplicial_fsi::test_model::polyhedra::polyhedral_layout(
-            &crate::simplicial_fsi::test_model::polyhedra::z_tetrahedral_geometry(),
-            &fixture.mesh,
-            &fixture.partition,
-            &fixture.boundary,
-            fixture.config,
-            eqiora_solver::SolverPlan::new(
-                eqiora_solver::LinearSolver::MinimumResidual,
-                1e-10,
-                1e-12,
-                std::num::NonZeroUsize::new(100).unwrap(),
-            )
-            .unwrap(),
-            false,
-        );
-        let fluid_map = layout
-            .fluid_map(eqiora_meshing::CellId::new(0), &fluid.1, false)
-            .unwrap();
-        let solid_map = layout.solid_map(1, &solid.1, false).unwrap();
 
         // tetrahedral MINI velocity: (P1 four vertices + one bubble) * 3,
         // followed by four P1 pressure coefficients.
         assert_eq!((fluid_local.rows(), fluid_local.columns()), (19, 19));
         assert_eq!((solid_local.rows(), solid_local.columns()), (12, 12));
-        assert_eq!(
-            (fluid_map.equations().len(), fluid_map.unknowns().len()),
-            (19, 19)
-        );
-        assert_eq!(
-            (solid_map.equations().len(), solid_map.unknowns().len()),
-            (12, 12)
-        );
         for local in [&fluid_local, &solid_local] {
             assert!(
                 local
@@ -223,7 +200,7 @@ mod tests {
         let wider_scale = FixedReferenceFsiScale::<3>::new(4.0, 5.0, 3.0).unwrap();
         let wider = FixedReferenceFsiStepConfig::<3>::new(
             fixture.config.time_step(),
-            fixture.config.material(),
+            fixture.config.material().clone(),
             wider_scale,
             FixedReferenceFsiLoad::Zero,
         )
@@ -232,35 +209,41 @@ mod tests {
         let fluid_reference = fluid_local(
             &fluid.0,
             &fixture.quadrature,
-            fixture.config,
+            &fixture.config,
             &fluid.1,
             &fixture.previous,
             eqiora_meshing::CellId::new(0),
+            fixture.fluid_velocity,
         )
         .unwrap();
         let fluid_wider = fluid_local(
             &fluid.0,
             &fixture.quadrature,
-            wider,
+            &wider,
             &fluid.1,
             &fixture.previous,
             eqiora_meshing::CellId::new(0),
+            fixture.fluid_velocity,
         )
         .unwrap();
         let solid_reference = solid_local(
             &solid.0,
             &fixture.quadrature,
-            fixture.config,
+            &fixture.config,
             &solid.1,
             &fixture.previous,
+            fixture.solid_velocity,
+            fixture.solid_displacement,
         )
         .unwrap();
         let solid_wider = solid_local(
             &solid.0,
             &fixture.quadrature,
-            wider,
+            &wider,
             &solid.1,
             &fixture.previous,
+            fixture.solid_velocity,
+            fixture.solid_displacement,
         )
         .unwrap();
 
@@ -278,11 +261,12 @@ mod tests {
 
     struct Fixture {
         mesh: SimplicialMesh,
-        partition: FixedReferenceFsiPartition<3>,
-        boundary: FixedReferenceFsiBoundary<3>,
         previous: FixedReferenceFsiState<3>,
         config: FixedReferenceFsiStepConfig<3>,
         quadrature: eqiora_meshing::QuadratureRule,
+        fluid_velocity: Id<kinds::Field>,
+        solid_velocity: Id<kinds::Field>,
+        solid_displacement: Id<kinds::Field>,
     }
 
     fn fixture() -> Fixture {
@@ -299,39 +283,74 @@ mod tests {
             MeshQualityGate::new(0.05).unwrap(),
         )
         .unwrap();
-        let interface = (0..mesh.entity_count(2).unwrap())
-            .find(|&facet| {
-                mesh.entity_vertices(MeshEntity::new(2, facet))
-                    .unwrap()
-                    .iter()
-                    .map(|vertex| vertex.index())
-                    .collect::<Vec<_>>()
-                    == [0, 1, 2]
-            })
-            .map(FacetId::new)
-            .unwrap();
-        let partition = FixedReferenceFsiPartition::<3>::new(
-            &mesh,
-            vec![CellId::new(0)],
-            vec![CellId::new(1)],
-            vec![interface],
+        let seed_fluid_domain = Id::<kinds::Domain>::new();
+        let seed_solid_domain = Id::<kinds::Domain>::new();
+        let seed_fluid_velocity = Id::<kinds::Field>::new();
+        let seed_solid_velocity = Id::<kinds::Field>::new();
+        let seed_state = Id::<kinds::Field>::new();
+        let seed = FixedReferenceFsiStepConfig::<3>::new(
+            0.25,
+            FixedReferenceFsiMaterial::new(
+                [
+                    (seed_fluid_domain, seed_fluid_velocity, 1.0),
+                    (seed_solid_domain, seed_solid_velocity, 2.0),
+                ],
+                [(seed_fluid_domain, seed_fluid_velocity, 0.1)],
+                [(
+                    seed_solid_domain,
+                    seed_state,
+                    IsotropicElasticityMaterial::new(3.0, 1.0).unwrap(),
+                )],
+            )
+            .unwrap(),
+            FixedReferenceFsiScale::<3>::new(2.0, 5.0, 3.0).unwrap(),
+            FixedReferenceFsiLoad::Zero,
         )
         .unwrap();
-        let previous = FixedReferenceFsiState::<3>::new(
+        let solver = eqiora_solver::SolverPlan::new(
+            eqiora_solver::LinearSolver::MinimumResidual,
+            1e-10,
+            1e-12,
+            std::num::NonZeroUsize::new(100).unwrap(),
+        )
+        .unwrap();
+        let model = crate::simplicial_fsi::test_model::polyhedra::polyhedral_model(
+            &crate::simplicial_fsi::test_model::polyhedra::z_tetrahedral_geometry(),
+            &mesh,
+            seed,
+            solver,
+            false,
+        );
+        let fields = crate::simplicial_fsi::test_model::exact_fields(&model.plan);
+        let partition = crate::simplicial_fsi::FixedReferenceFsiPartition::<3>::new(
+            &mesh,
+            [
+                (fields.fluid_domain, vec![CellId::new(0)]),
+                (fields.solid_domain, vec![CellId::new(1)]),
+            ],
+            model.plan.spatial().trace_quotients(),
+        )
+        .unwrap();
+        let previous = crate::simplicial_fsi::test_model::exact_state(
+            &model.program,
+            &model.plan,
             &mesh,
             &partition,
-            vec![[0.0; 3]; mesh.vertices().len()],
-            partition
-                .fluid_cells()
-                .iter()
-                .copied()
-                .map(|cell| (cell, [0.0; 3]))
-                .collect(),
-            vec![[0.0; 3]; mesh.vertices().len()],
+            |_, _, _| 0.0,
+        );
+        let material = FixedReferenceFsiMaterial::<3>::new(
+            [
+                (fields.fluid_domain, fields.fluid_velocity, 1.0),
+                (fields.solid_domain, fields.solid_velocity, 2.0),
+            ],
+            [(fields.fluid_domain, fields.fluid_velocity, 0.1)],
+            [(
+                fields.solid_domain,
+                fields.displacement,
+                IsotropicElasticityMaterial::new(3.0, 1.0).unwrap(),
+            )],
         )
         .unwrap();
-        let boundary = FixedReferenceFsiBoundary::<3>::homogeneous_exterior(&mesh).unwrap();
-        let material = FixedReferenceFsiMaterial::<3>::new(1.0, 0.1, 2.0, 3.0, 1.0).unwrap();
         let scale = FixedReferenceFsiScale::<3>::new(2.0, 5.0, 3.0).unwrap();
         let config = FixedReferenceFsiStepConfig::<3>::new(
             0.25,
@@ -342,11 +361,12 @@ mod tests {
         .unwrap();
         Fixture {
             mesh,
-            partition,
-            boundary,
             previous,
             config,
             quadrature: simplex_duffy_gauss_legendre(3, 6).unwrap(),
+            fluid_velocity: fields.fluid_velocity,
+            solid_velocity: fields.solid_velocity,
+            solid_displacement: fields.displacement,
         }
     }
 

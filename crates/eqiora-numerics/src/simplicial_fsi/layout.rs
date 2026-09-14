@@ -450,7 +450,8 @@ impl<const D: usize> FsiLayout<D> {
 mod tests {
     use super::*;
     use eqiora_assembly::LocalUnknown;
-    use eqiora_meshing::{CellId, FacetId, MeshQualityGate, MeshTopology};
+    use eqiora_core::{Id, entity::kinds};
+    use eqiora_meshing::{CellId, MeshQualityGate};
 
     #[test]
     fn shared_constraints_preserve_nonzero_component_values_and_exact_maps() {
@@ -466,21 +467,7 @@ mod tests {
             MeshQualityGate::new(0.1).unwrap(),
         )
         .unwrap();
-        let interface = (0..mesh.entity_count(1).unwrap())
-            .find(|&index| {
-                mesh.entity_vertices(MeshEntity::new(1, index))
-                    .unwrap()
-                    .iter()
-                    .all(|vertex| [1, 2].contains(&vertex.index()))
-            })
-            .unwrap();
-        let partition = FixedReferenceFsiPartition::<2>::new(
-            &mesh,
-            vec![CellId::new(0)],
-            vec![CellId::new(1)],
-            vec![FacetId::new(interface)],
-        )
-        .unwrap();
+        use crate::linear_elasticity::IsotropicElasticityMaterial;
         use crate::simplicial_fsi::{
             FixedReferenceFsiLoad, FixedReferenceFsiMaterial, FixedReferenceFsiScale,
             FixedReferenceFsiStepConfig,
@@ -503,9 +490,26 @@ mod tests {
             1e-12,
         )
         .unwrap();
-        let config = FixedReferenceFsiStepConfig::new(
+        let seed_fluid_domain = Id::<kinds::Domain>::new();
+        let seed_solid_domain = Id::<kinds::Domain>::new();
+        let seed_fluid_velocity = Id::<kinds::Field>::new();
+        let seed_solid_velocity = Id::<kinds::Field>::new();
+        let seed_state = Id::<kinds::Field>::new();
+        let seed = FixedReferenceFsiStepConfig::new(
             0.1,
-            FixedReferenceFsiMaterial::new(2.0, 0.5, 3.0, 4.0, 2.0).unwrap(),
+            FixedReferenceFsiMaterial::new(
+                [
+                    (seed_fluid_domain, seed_fluid_velocity, 2.0),
+                    (seed_solid_domain, seed_solid_velocity, 3.0),
+                ],
+                [(seed_fluid_domain, seed_fluid_velocity, 0.5)],
+                [(
+                    seed_solid_domain,
+                    seed_state,
+                    IsotropicElasticityMaterial::new(4.0, 2.0).unwrap(),
+                )],
+            )
+            .unwrap(),
             FixedReferenceFsiScale::new(1.0, 1.0, 1.0).unwrap(),
             FixedReferenceFsiLoad::Zero,
         )
@@ -517,23 +521,48 @@ mod tests {
             std::num::NonZeroUsize::new(100).unwrap(),
         )
         .unwrap();
-        let mut layout = crate::simplicial_fsi::test_model::planar_layout(
-            &region,
+        let model =
+            crate::simplicial_fsi::test_model::planar_model(&region, &mesh, seed, solver, false);
+        let fields = crate::simplicial_fsi::test_model::exact_fields(&model.plan);
+        let partition = FixedReferenceFsiPartition::<2>::new(
             &mesh,
-            &partition,
-            &FixedReferenceFsiBoundary::homogeneous_exterior(&mesh).unwrap(),
-            config,
-            solver,
-            false,
-        );
+            [
+                (fields.fluid_domain, vec![CellId::new(0)]),
+                (fields.solid_domain, vec![CellId::new(1)]),
+            ],
+            model.plan.spatial().trace_quotients(),
+        )
+        .unwrap();
+        let config = FixedReferenceFsiStepConfig::new(
+            0.1,
+            FixedReferenceFsiMaterial::new(
+                [
+                    (fields.fluid_domain, fields.fluid_velocity, 2.0),
+                    (fields.solid_domain, fields.solid_velocity, 3.0),
+                ],
+                [(fields.fluid_domain, fields.fluid_velocity, 0.5)],
+                [(
+                    fields.solid_domain,
+                    fields.displacement,
+                    IsotropicElasticityMaterial::new(4.0, 2.0).unwrap(),
+                )],
+            )
+            .unwrap(),
+            FixedReferenceFsiScale::new(1.0, 1.0, 1.0).unwrap(),
+            FixedReferenceFsiLoad::Zero,
+        )
+        .unwrap();
+        let boundary = FixedReferenceFsiBoundary::homogeneous_exterior(&mesh).unwrap();
+        let mut layout =
+            FsiLayout::bind(&model.program, &model.plan, &mesh, &partition, &boundary).unwrap();
+        layout.require_material(&config).unwrap();
+        let fluid_fixed = key(fields.fluid_velocity.erase(), MeshEntity::new(0, 0), 0);
+        let solid_fixed = key(fields.solid_velocity.erase(), MeshEntity::new(0, 3), 1);
         // This focused constraint-map check supplies physical values on exact
         // authored Field/entity keys; it is not a Model boundary-policy Run.
         layout.mapping = layout
             .mapping
-            .with_prescribed(&BTreeMap::from([
-                (layout.vertex_keys[0][0], 1.25),
-                (layout.vertex_keys[3][1], -2.5),
-            ]))
+            .with_prescribed(&BTreeMap::from([(fluid_fixed, 1.25), (solid_fixed, -2.5)]))
             .unwrap();
         let fluid = [0, 1, 2].map(|index| MeshEntity::new(0, index));
         let solid = [1, 3, 2].map(|index| MeshEntity::new(0, index));
@@ -552,26 +581,29 @@ mod tests {
         let values = (0..layout.reduced_size())
             .map(|index| index as f64 + 10.0)
             .collect::<Vec<_>>();
-        let (velocity, bubbles, pressure) = layout.reconstruct_primal(&values).unwrap();
-        assert_eq!((velocity[0][0], velocity[3][1]), (1.25, -2.5));
+        let physical = layout.reconstruct_primal(&values).unwrap();
         assert_eq!(
-            layout.reduce(&velocity, &bubbles, &pressure).unwrap(),
-            values
+            (physical[&fluid_fixed], physical[&solid_fixed]),
+            (1.25, -2.5)
         );
-        assert_eq!(layout.cell_domain(0).unwrap(), layout.fluid_domain());
-        assert_eq!(layout.cell_domain(1).unwrap(), layout.solid_domain());
+        assert_eq!(layout.reduce(&physical).unwrap(), values);
+        assert_eq!(layout.cell_domain(0).unwrap(), fields.fluid_domain.erase());
+        assert_eq!(layout.cell_domain(1).unwrap(), fields.solid_domain.erase());
         assert!(layout.cell_domain(2).is_err());
-        let mut wrong_bubbles = bubbles.clone();
-        let value = wrong_bubbles.remove(&CellId::new(0)).unwrap();
-        wrong_bubbles.insert(CellId::new(1), value);
-        assert!(layout.reduce(&velocity, &wrong_bubbles, &pressure).is_err());
-        assert!(
-            layout
-                .reduce(&velocity, &BTreeMap::new(), &pressure)
-                .is_err()
+        let bubble = key(fields.fluid_velocity.erase(), MeshEntity::new(2, 0), 0);
+        let mut wrong_bubble = physical.clone();
+        let value = wrong_bubble.remove(&bubble).unwrap();
+        wrong_bubble.insert(
+            key(fields.fluid_velocity.erase(), MeshEntity::new(2, 1), 0),
+            value,
         );
-        let direction = layout.reconstruct_direction(&values).unwrap().0;
-        assert_eq!((direction[0][0], direction[3][1]), (0.0, 0.0));
+        assert!(layout.reduce(&wrong_bubble).is_err());
+        assert!(layout.reduce(&BTreeMap::new()).is_err());
+        let direction = layout.reconstruct_direction(&values).unwrap();
+        assert_eq!(
+            (direction[&fluid_fixed], direction[&solid_fixed]),
+            (0.0, 0.0)
+        );
         assert!(
             layout
                 .fluid_map(eqiora_meshing::CellId::new(1), &fluid, true)
