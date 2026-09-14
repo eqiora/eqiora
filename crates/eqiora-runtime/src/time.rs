@@ -52,10 +52,11 @@ impl FirstOrderProgram {
     /// Operator IR diagnostics are retained when scalar evaluation fails.
     pub fn lower(program: &CpuProgram, relation: Id<kinds::Relation>) -> Result<Self, Diagnostic> {
         require_continuous_activation(program, relation)?;
-        let operator = program
-            .operator(relation.erase())
-            .ok_or_else(|| invalid_time(relation, "Relation has no scalar Operator IR"))?
-            .clone();
+        let typed = program
+            .kernel()
+            .typed_relation_residual(relation)
+            .map_err(|errors| errors.into_iter().next().expect("typing failure"))?;
+        let operator = ScalarOperatorIr::lower_typed_scalar(&typed)?;
 
         let state_order = state_order(relation, &operator)?;
         let state_fields = state_order.fields;

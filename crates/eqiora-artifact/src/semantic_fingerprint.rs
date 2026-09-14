@@ -32,9 +32,9 @@ use values::{
     encode_literal, encode_optional_literal, encode_quantity, encode_value_type, type_reference,
 };
 
-const FINGERPRINT_DOMAIN_V21: &[u8] = b"eqiora.structural-semantic-fingerprint/v21\0";
+const FINGERPRINT_DOMAIN_V22: &[u8] = b"eqiora.structural-semantic-fingerprint/v22\0";
 const PROJECTION_MAGIC: &[u8; 8] = b"EQIORASF";
-const GENERATION_V21: u16 = 21;
+const GENERATION_V22: u16 = 22;
 
 /// Current generation of the structural semantic projection.
 ///
@@ -50,7 +50,7 @@ pub enum SemanticFingerprintGeneration {
     /// Observables with exact expression and reduction support, analytic/table
     /// property derivative profiles, and exclusive equality, inequality,
     /// complementarity and conservation relation meaning.
-    V21,
+    V22,
 }
 
 impl SemanticFingerprintGeneration {
@@ -58,19 +58,19 @@ impl SemanticFingerprintGeneration {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::V21 => "eqiora.structural-semantic-fingerprint/v21",
+            Self::V22 => "eqiora.structural-semantic-fingerprint/v22",
         }
     }
 
     const fn code(self) -> u16 {
         match self {
-            Self::V21 => GENERATION_V21,
+            Self::V22 => GENERATION_V22,
         }
     }
 
     const fn hash_domain(self) -> &'static [u8] {
         match self {
-            Self::V21 => FINGERPRINT_DOMAIN_V21,
+            Self::V22 => FINGERPRINT_DOMAIN_V22,
         }
     }
 }
@@ -213,7 +213,7 @@ impl ProjectionIdentity {
         limits: SemanticFingerprintLimits,
     ) -> Result<Self, Diagnostic> {
         validate_limits(limits)?;
-        let generation = SemanticFingerprintGeneration::V21;
+        let generation = SemanticFingerprintGeneration::V22;
         let graph = ProjectionGraph::from_program(program, limits)?;
         let canonical = Canonicalizer::new(&graph, limits).canonicalize()?;
         let mut hasher = Sha256::new();
@@ -970,7 +970,7 @@ fn validate_limits(limits: SemanticFingerprintLimits) -> Result<(), Diagnostic> 
 
 fn newer_vocabulary(subject: &str) -> Diagnostic {
     fingerprint_error(format!(
-        "{subject} is newer than structural semantic fingerprint generation v21"
+        "{subject} is newer than structural semantic fingerprint generation v22"
     ))
 }
 

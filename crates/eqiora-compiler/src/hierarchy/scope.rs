@@ -578,6 +578,7 @@ pub(super) fn rewrite_relation_body(
                 rewrite_expression_with_boundary_member(file, value, scope, active)
             };
             crate::lower::LoweringRelationBody::Conservation {
+                storage: terms.storage().map(rewrite).transpose()?,
                 flux: rewrite(terms.flux())?,
                 source: rewrite(terms.source())?,
             }

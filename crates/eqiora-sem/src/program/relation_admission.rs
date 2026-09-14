@@ -90,6 +90,18 @@ pub(super) fn validate_relations(
             }
             continue;
         }
+        if matches!(
+            relation.meaning(),
+            eqiora_schema::kernel::RelationMeaning::Conservation(_)
+        ) && (activations.len() != 1
+            || !matches!(nodes.get(&activations[0]), Some(KernelNode::Activation(activation))
+                    if matches!(activation.kind(), ActivationKind::Continuous)))
+        {
+            diagnostics.push(kernel_error(
+                id,
+                "fixed-domain conservation Law requires continuous activation",
+            ));
+        }
         if activations.len() == 1 {
             let relation_clocks = edge_targets(edges, activations[0], EdgeKind::ClockedBy);
             let event_reset = matches!(nodes.get(&activations[0]), Some(KernelNode::Activation(activation)) if matches!(activation.kind(), ActivationKind::Event { .. }));

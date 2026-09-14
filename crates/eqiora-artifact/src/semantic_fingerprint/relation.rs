@@ -13,7 +13,12 @@ pub(super) fn encode(
     encoder.u8(u8::from(relation.is_initial()))?;
     let extra_roots = match relation.meaning() {
         RelationMeaning::Conditions(_) => Vec::new(),
-        RelationMeaning::Conservation(terms) => vec![terms.flux(), terms.source()],
+        RelationMeaning::Conservation(terms) => terms
+            .storage()
+            .into_iter()
+            .flat_map(|(value, accumulation)| [value, accumulation])
+            .chain([terms.flux(), terms.source()])
+            .collect(),
     };
     let canonical_index = encode_expression(
         encoder,
@@ -36,8 +41,9 @@ pub(super) fn encode(
                 })?;
             }
         }
-        RelationMeaning::Conservation(_) => {
+        RelationMeaning::Conservation(terms) => {
             encoder.u8(1)?;
+            encoder.u8(u8::from(terms.storage().is_some()))?;
             for term in extra_roots {
                 encoder.u32(canonical_expr_id(term, &canonical_index)?)?;
             }

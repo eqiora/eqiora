@@ -2,14 +2,21 @@
 
 use super::Expr;
 
-/// Steady fixed-domain outward flux and volumetric production expressions.
+/// Fixed-domain storage, outward flux, and volumetric production expressions.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ConservationSyntax {
+    pub(crate) storage: Option<Expr>,
     pub(crate) flux: Expr,
     pub(crate) source: Expr,
 }
 
 impl ConservationSyntax {
+    /// Stored expression; omission explicitly requests a steady Law.
+    #[must_use]
+    pub const fn storage(&self) -> Option<&Expr> {
+        self.storage.as_ref()
+    }
+
     /// Physical outward flux before divergence.
     #[must_use]
     pub const fn flux(&self) -> &Expr {

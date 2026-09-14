@@ -24,10 +24,9 @@ pub mod typing;
 
 pub use boundary_physical::{
     BoundaryPairing, BoundaryPhysicalConnectionViolation, BoundaryPhysicalConnector,
-    BoundaryPhysicalPortContract, BoundaryPhysicalViolation, BoundaryQuantityRole,
-    CartesianBoundaryEmbedding, CartesianPeriodicBoundaryIdentification,
-    SpatialPeriodicBoundaryViolation, validate_boundary_physical_connection,
-    validate_spatial_periodic_boundary_connection,
+    BoundaryPhysicalPortContract, CartesianBoundaryEmbedding,
+    CartesianPeriodicBoundaryIdentification, SpatialPeriodicBoundaryViolation,
+    validate_boundary_physical_connection, validate_spatial_periodic_boundary_connection,
 };
 pub use definition::{
     ActivationDef, ActivationKind, AxisBounds, BoundarySide, CartesianAxisDefinition,

@@ -7,7 +7,7 @@ fn canonical_source_namespace_tracks_the_current_encoding() {
     let document = document("model minimal() { parameter gain: 1 = 2; }");
     let digest = LocalSourceIdentity::from_document(&document).unwrap();
     let namespace = digest.namespace().unwrap();
-    assert_eq!(namespace.segments()[0], "local-source-v18");
+    assert_eq!(namespace.segments()[0], "local-source-v19");
     assert_eq!(namespace.segments()[1], digest.to_string());
 }
 

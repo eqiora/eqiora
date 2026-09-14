@@ -88,7 +88,7 @@ fn source_meaning_crosses_the_closed_current_wire() {
     let model = ModelEnvelope::from_program(&program).expect("current Model");
     let model_bytes = model.canonical_json().unwrap();
     let model_text = String::from_utf8_lossy(&model_bytes);
-    assert!(model_text.contains("eqiora.model-envelope/v26"));
+    assert!(model_text.contains("eqiora.model-envelope/v27"));
     assert!(model_text.contains("symmetric-part"));
     assert!(model_text.contains("isotropic-lift"));
     let replayed_model = ModelEnvelope::from_json(&model_bytes, Default::default())
@@ -100,7 +100,7 @@ fn source_meaning_crosses_the_closed_current_wire() {
     let document = eqiora::api::ModelDocument::compile("elastic-relation.eqi", ELASTIC_RELATION)
         .expect("public facade must preserve the current wire");
     let document_bytes = document.canonical_json().unwrap();
-    assert!(String::from_utf8_lossy(&document_bytes).contains("eqiora.model-envelope/v26"));
+    assert!(String::from_utf8_lossy(&document_bytes).contains("eqiora.model-envelope/v27"));
     assert_eq!(
         eqiora::api::ModelDocument::replay(&document_bytes)
             .unwrap()

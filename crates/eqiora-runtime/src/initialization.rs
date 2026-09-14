@@ -84,8 +84,10 @@ pub(crate) fn require_zero_parameter_tangent(
         if definition.id() != relation && !definition.is_initial() {
             continue;
         }
-        let operator =
-            ScalarOperatorIr::lower(&kernel.numerical_residuals(definition.id().erase())?)?;
+        let typed = kernel
+            .typed_relation_residual(definition.id())
+            .map_err(|errors| errors.into_iter().next().expect("typing failure"))?;
+        let operator = ScalarOperatorIr::lower_typed_scalar(&typed)?;
         let mut inputs = Vec::new();
         let mut roles = Vec::new();
         let mut coordinates = Vec::new();

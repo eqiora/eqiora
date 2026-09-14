@@ -461,6 +461,7 @@ class Component:
         on: Support,
         flux: Expression,
         source: Expression,
+        storage: Expression | None = None,
         doc: str | None = None,
     ) -> Relation:
         ...
@@ -838,6 +839,14 @@ def derivative(value: Expression) -> Expression:
     ...
 
 
+def time() -> Expression:
+    """Author the enclosing continuous timeline coordinate in seconds.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::time``.
+    """
+    ...
+
+
 def pre(value: Expression) -> Expression:
     """Read a State's pre-tick value; compiler checks clock and context.
 
@@ -947,6 +956,7 @@ __all__ = [
     "ordinal",
     "partial",
     "derivative",
+    "time",
     "pre",
     "next",
     "quantity",

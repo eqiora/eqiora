@@ -49,7 +49,7 @@ fn assertions_reject_static_continuous_mixed_and_distinct_nominal_clocks() {
     }
     for body in [
         "state x:1; let value at a=x;",
-        "let value at a=time;",
+        "let value at a=time();",
         "state x:1 at b; let value at a=x;",
         "state x:1 at a; state y:1 at b; let value at a=x+y;",
         "state x:1 at a; state y:1; let value at a=x+y;",

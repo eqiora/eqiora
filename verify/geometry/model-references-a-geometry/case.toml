@@ -13,7 +13,7 @@ capabilities = [
 [problem]
 model = "two authored-geometry regions, one named boundary, one unrelated Cartesian Domain, and one global Relation"
 identity = "full geometry digest, region entity-set names, boundary entity-set name, and BoundaryOf topology"
-generation = "eqiora.structural-semantic-fingerprint/v21"
+generation = "eqiora.structural-semantic-fingerprint/v22"
 
 [claim_boundary]
 model_owner = "current"

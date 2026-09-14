@@ -1,0 +1,20 @@
+id = "time.expression-chain-rule"
+status = "implemented"
+scope = "continuous-real-scalar-polynomial-total-time-derivatives"
+reference_kind = "independent-product-rule-and-positive-branch-analytic-trajectory"
+capabilities = ["expression-time-chain-rule", "alias-and-operator-composition", "fixed-parameter-typed-zero", "explicit-time-coordinate", "nonlinear-storage-implicit-execution", "exact-artifact-replay"]
+
+[claim_boundary]
+continuous_real_scalar_polynomial = true
+nonzero_multi_state_rates = true
+ordinary_implicit_lifecycle = true
+distributed_field_execution = false
+second_order_reduction = false
+arbitrary_smooth_function_catalog = false
+algebraic_state_invention = false
+reset_derivatives = false
+material_or_ale_derivatives = false
+
+[evidence]
+package = "eqiora"
+test = "time_expression_derivatives"

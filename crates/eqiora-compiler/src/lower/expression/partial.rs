@@ -177,6 +177,33 @@ fn scalar(
             CalculusNode::Neg(scalar(file, value, names, literals, builder, cache)?)
         }
         LoweringExpressionNode::Binary {
+            operator: BinaryOp::Pow,
+            left,
+            right,
+        } => {
+            let exponent = lowering_integer_literal(right)
+                .filter(|n| {
+                    *n > 0
+                        && *n
+                            <= i32::from(eqiora_schema::kernel::pure_operator::MAX_FORMAL_EXPONENT)
+                })
+                .ok_or_else(|| {
+                    error(
+                        file,
+                        right,
+                        "polynomial exponent exceeds the positive bounded calculus range",
+                    )
+                })?;
+            let value = scalar(file, left, names, literals, builder, cache)?;
+            let mut product = value;
+            for _ in 1..exponent {
+                product = builder
+                    .push(CalculusNode::Mul(product, value))
+                    .map_err(|failure| error(file, expression, failure.to_string()))?;
+            }
+            return Ok(product);
+        }
+        LoweringExpressionNode::Binary {
             operator,
             left,
             right,

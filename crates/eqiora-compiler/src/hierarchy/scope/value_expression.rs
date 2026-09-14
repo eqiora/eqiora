@@ -262,8 +262,19 @@ pub(in crate::hierarchy) fn rewrite_expression_with_boundary_member(
         ),
         ExprKind::Number(value) => LoweringExpression::number(value.clone(), expression.range()),
         ExprKind::Quantity { .. } => LoweringExpression::from_source(expression),
-        ExprKind::Name(name) if name == "time" => {
-            LoweringExpression::name(name.clone(), expression.range())
+        ExprKind::Call { callee, arguments } if callee.as_str() == "time" => {
+            if arguments
+                .positional()
+                .is_none_or(|values| !values.is_empty())
+            {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    "time() accepts no arguments",
+                ));
+            }
+            LoweringExpression::name("time".to_owned(), expression.range())
         }
         ExprKind::Name(name) => {
             if let Some(value) = scope.property_value(file, name, expression.range())? {

@@ -21,11 +21,17 @@ pub(super) fn format_law(
             .expect("Law owns source support")
     )
     .expect("String write");
-    for (name, value) in [("flux", terms.flux()), ("source", terms.source())] {
-        write_indent(output, indent + 2);
-        write!(output, "{name} ").expect("String write");
-        format_expression(value, 0, output);
-        output.push_str(";\n");
+    for (name, value) in [
+        ("storage", terms.storage()),
+        ("flux", Some(terms.flux())),
+        ("source", Some(terms.source())),
+    ] {
+        if let Some(value) = value {
+            write_indent(output, indent + 2);
+            write!(output, "{name} ").expect("String write");
+            format_expression(value, 0, output);
+            output.push_str(";\n");
+        }
     }
     write_indent(output, indent);
     output.push_str("}\n");

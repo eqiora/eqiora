@@ -10,6 +10,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone)]
 pub(in crate::hierarchy::body_check) struct AliasContract {
     pub(super) inferred: ExpressionType<String>,
+    pub(super) expression: Expr,
     pub(super) field_target: Option<String>,
     activation: DependencyActivation,
     event_context: Option<String>,
@@ -166,6 +167,7 @@ pub(in crate::hierarchy::body_check) fn validate_aliases<'a>(
             _ => None,
         };
         let alias = AliasContract {
+            expression: declaration.value().clone(),
             inferred,
             activation,
             event_context,

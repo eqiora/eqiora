@@ -1,6 +1,6 @@
 //! Numerical admission of exact retained physical Law terms.
 //!
-//! The physical flux and source are selected by their owned identities;
+//! The physical source and accumulation are selected by their owned identities;
 //! only the requested affine diffusion realization is recognized here.
 
 use super::*;
@@ -38,6 +38,22 @@ pub(super) fn retained_balance(
         ));
     }
     validate_positive_affine_coefficient(&coefficient, bounds, relation)?;
+    let storage = terms
+        .storage()
+        .map(|(stored, _accumulation)| {
+            let is_field = |id| matches!(expression.node(id), Some(ExprNode::Symbol(SymbolRef::Field(id))) if id.erase() == field);
+            let coefficient = match expression.node(stored) {
+                Some(ExprNode::Symbol(SymbolRef::Field(id))) if id.erase() == field => None,
+                Some(ExprNode::Mul(left, right)) if is_field(*left) => Some(*right),
+                Some(ExprNode::Mul(left, right)) if is_field(*right) => Some(*left),
+                _ => return Err(lowering_error(relation, "first retained Law storage requires one constant coefficient times the exact Field")),
+            };
+            // Storage correspondence has already been independently checked by
+            // Kernel admission; numerical selection reads the physical storage.
+            super::balance::storage_coefficient(program, expression, coefficient,
+                stored, relation, dimensions)
+        })
+        .transpose()?;
     if contains_state_symbol(expression, terms.source()) {
         return Err(lowering_error(
             relation,
@@ -62,7 +78,7 @@ pub(super) fn retained_balance(
     };
     Ok((
         source_dimension,
-        None,
+        storage,
         ScalarFluxMeaning {
             coefficient,
             lineage: ScalarTermLineage {
@@ -139,6 +155,11 @@ mod tests {
         native_law_with_boundary(reversed_flux, "trace(u) = 0;")
     }
 
+    fn native_law_with_boundary(reversed_flux: bool, boundary: &str) -> KernelProgram {
+        let source = law_source(reversed_flux, boundary);
+        admit_source(&source)
+    }
+
     fn law_source(reversed_flux: bool, boundary: &str) -> String {
         r#"
 model Balance() {
@@ -166,9 +187,8 @@ model Balance() {
         )
     }
 
-    fn native_law_with_boundary(reversed_flux: bool, boundary: &str) -> KernelProgram {
-        let source = law_source(reversed_flux, boundary);
-        let compiled = eqiora_compiler::compile("native-law.eqi", &source)
+    fn admit_source(source: &str) -> KernelProgram {
+        let compiled = eqiora_compiler::compile("native-law.eqi", source)
             .unwrap()
             .remove(0);
         let (transaction, model, _) = compiled.into_parts();
@@ -192,6 +212,40 @@ model Balance() {
         // positive diffusion realization at its own numerical admission gate.
         assert!(recognize_scalar_conservation(&native_law(true)).is_err());
     }
+    #[test]
+    fn retained_linear_storage_uses_checked_physical_value_not_derivative_syntax() {
+        let source = law_source(false, "trace(u) = 0;")
+            .replace("variable u", "state u")
+            .replace(
+                "law balance",
+                "parameter c: s / m ^ 2 = 3; initial { u=0; } law balance",
+            )
+            .replace("{ flux", "{ storage c * u; flux");
+        let program = admit_source(&source);
+        let descriptor = recognize_scalar_conservation(&program).unwrap();
+        assert_eq!(
+            descriptor.regions[0]
+                .storage
+                .as_ref()
+                .unwrap()
+                .coefficient
+                .constant_value(),
+            Some(3.0)
+        );
+        for unsupported in [
+            source.replace("storage c * u;", "storage c * u * u;"),
+            source.replace(
+                "parameter c: s / m ^ 2 = 3;",
+                "parameter c: s / m ^ 2 = -3;",
+            ),
+        ] {
+            // Both remain valid physical Laws; this realization has a narrower
+            // positive, constant linear-storage contract.
+            let admitted = admit_source(&unsupported);
+            assert!(recognize_scalar_conservation(&admitted).is_err());
+        }
+    }
+
     #[test]
     fn physical_outward_boundary_values_convert_to_diffusion_conormal_once() {
         let program = native_law_with_boundary(false, "normal(-k * grad(u)) = outward;");

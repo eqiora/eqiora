@@ -1,0 +1,1 @@
+Both original Laws pass semantic admission. The thermal Law preserves storage and accumulation through exact Model artifact replay. Replacing q² storage by q while retaining d(q²)/dt must fail the storage correspondence gate, although exact balance construction and dimensions still agree. No tolerance or solver result is used.

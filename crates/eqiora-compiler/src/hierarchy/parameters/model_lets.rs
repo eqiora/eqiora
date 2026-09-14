@@ -308,7 +308,7 @@ fn is_static_expression(expression: &eqiora_lang::Expr, values: &SymbolicParamet
             eqiora_lang::ExprKind::Call { callee, arguments }
                 if !matches!(
                     callee.as_str(),
-                    "derivative" | "pre" | "next" | "coordinate"
+                    "derivative" | "pre" | "next" | "coordinate" | "time"
                 ) =>
             {
                 pending.extend(arguments.expressions())

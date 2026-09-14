@@ -14,7 +14,7 @@ fn signature_parameters_and_borrowed_state_keep_their_owners() {
 #[test]
 fn explicit_sample_and_hold_preserve_private_clock_owner() {
     accepted(
-        "model M(output y:1) { clock tick=periodic(1[s]); state memory:1 at tick; initial {memory=0;} relation update at tick {next(memory)=sample(time/1[s],tick);} relation emit {y=hold(memory);} }",
+        "model M(output y:1) { clock tick=periodic(1[s]); state memory:1 at tick; initial {memory=0;} relation update at tick {next(memory)=sample(time()/1[s],tick);} relation emit {y=hold(memory);} }",
     );
 }
 

@@ -20,7 +20,7 @@ capabilities = [
 scalar = "dx/dt + rate*x = 0"
 physical = "one nominal electrical Domain, three conserving Ports, and one N-ary Connection"
 spatial = "one-dimensional constant-source Poisson with two essential boundaries"
-codec = "eqiora.model-envelope/v26"
+codec = "eqiora.model-envelope/v27"
 
 [claim_boundary]
 source_python_exact_identity_equal = false

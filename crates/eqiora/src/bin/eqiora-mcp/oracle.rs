@@ -397,7 +397,7 @@ fn admission_counts_once_and_links_the_descriptor_to_the_same_document() {
         model["structuralFingerprint"]["digest"],
         fingerprint.digest()
     );
-    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V21);
+    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V22);
     assert_current_model_schema(model);
     let text: Value = serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
     assert_eq!(text, result["structuredContent"]);

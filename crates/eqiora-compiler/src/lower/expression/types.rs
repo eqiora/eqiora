@@ -332,7 +332,7 @@ fn expression_type_cached(
                 }
                 _ => {}
             }
-            if matches!(callee.as_str(), "derivative" | "pre" | "next")
+            if matches!(callee.as_str(), "pre" | "next")
                 && !matches!(argument.node.as_ref(), LoweringExpressionNode::Name(name) if matches!(bindings.get(name), Some(Binding::Field(..))))
             {
                 return Err(source_error(

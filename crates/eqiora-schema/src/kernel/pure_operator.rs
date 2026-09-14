@@ -4,7 +4,8 @@
 //! contains no source name, package path, callback, recursion, executable
 //! floating-point policy, or backend choice. Its identity is the digest of a
 //! closed exact calculus and its complete type rules. Component expansion and
-//! algebraic proof production belong to the lowered IR layer.
+//! algebraic component proof production belong to the lowered IR layer; shared
+//! exact polynomial classification also supports Kernel semantic checks.
 
 use std::fmt;
 use std::num::NonZeroU64;
@@ -18,8 +19,10 @@ mod derivative;
 mod dimensions;
 mod domains;
 mod encoding;
+mod polynomial;
 use dimensions::{derive_symbolic_dimension, instantiate_dimension, validate_result_dimension};
 use encoding::canonical_definition_bytes;
+pub use polynomial::{ExactPolynomial, ExactPolynomialError};
 
 const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v4\0";
 

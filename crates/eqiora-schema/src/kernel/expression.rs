@@ -2,6 +2,7 @@
 
 pub mod property;
 mod scalar_projection;
+mod time_derivative;
 
 use std::collections::{BTreeMap, BTreeSet};
 

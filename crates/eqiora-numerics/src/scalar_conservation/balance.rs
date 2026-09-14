@@ -148,6 +148,24 @@ pub(super) fn recognize_storage(
                 "storage must be one scalar coefficient times the exact Field derivative",
             )
         })?;
+    storage_coefficient(
+        program,
+        expression,
+        coefficient_expression,
+        value,
+        owner,
+        dimensions,
+    )
+}
+
+pub(super) fn storage_coefficient(
+    program: &KernelProgram,
+    expression: &ExprDag,
+    coefficient_expression: Option<ExprId>,
+    value: ExprId,
+    owner: RawId,
+    dimensions: usize,
+) -> Result<ScalarStorageMeaning, Diagnostic> {
     let coefficient = match coefficient_expression {
         Some(value) => spatial_expression::lower(program, expression, value, owner, dimensions)?,
         None => ScalarSpatialExpression::constant(dimensions, 1.0),

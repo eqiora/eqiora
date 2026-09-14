@@ -94,7 +94,7 @@
       {"label": "ordinary-closed", "route": "ModelDocument::compile"}
     ],
     "equalFields": ["modelId", "digest", "structuralSemanticFingerprint"],
-    "fingerprintGeneration": "eqiora.structural-semantic-fingerprint/v21",
+    "fingerprintGeneration": "eqiora.structural-semantic-fingerprint/v22",
     "semanticRevision": 1,
     "frozenFingerprintDigest": false,
     "frozenOccurrenceIdentity": false,

@@ -9,6 +9,7 @@ use super::expression::{PyAstExpression, syntax_error};
 pub(super) fn declaration(
     name: String,
     support: String,
+    storage: Option<&PyAstExpression>,
     flux: &PyAstExpression,
     source: &PyAstExpression,
     ordinal: u32,
@@ -16,6 +17,7 @@ pub(super) fn declaration(
     let value = Ast::law(
         name,
         support,
+        storage.map(|value| value.value.clone()),
         flux.value.clone(),
         source.value.clone(),
         TextRange::new(ordinal, ordinal.saturating_add(1)),

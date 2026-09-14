@@ -516,11 +516,11 @@ pub(crate) fn canonical_time_operator(
         ));
     }
 
-    let residuals = program
-        .numerical_residuals(relation.id().erase())
+    let typed = program
+        .typed_relation_residual(relation.id())
+        .map_err(|errors| invalid_artifact(errors[0].message()))?;
+    let operator = ScalarOperatorIr::lower_typed_scalar(&typed)
         .map_err(|error| invalid_artifact(error.message()))?;
-    let operator =
-        ScalarOperatorIr::lower(&residuals).map_err(|error| invalid_artifact(error.message()))?;
     let mut expected_fields = Vec::new();
     let mut seen = HashSet::new();
     for symbol in operator.symbols() {
