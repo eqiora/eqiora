@@ -65,6 +65,13 @@ FORMATTER = "crates/eqiora-lang/src/formatter.rs"
 PARSER = "crates/eqiora-lang/src/parser.rs"
 FROZEN_MAX_RAW_BLOB_BYTES = 1_048_576
 
+FORMATTER_DEBT_ENTRY = b"""[[file_lines]]\n\
+path = "crates/eqiora-lang/src/formatter.rs"\n\
+ceiling = 1050\n\
+reason = "existing formatter debt"\n\
+removal = "split formatter"\n\
+\n"""
+
 BASE_LEDGER = b"""# Architecture debt ledger\n\
 [limits]\n\
 production_file_lines = 1000\n\
@@ -400,9 +407,50 @@ class CoupledRatchetEvidenceTests(unittest.TestCase):
         self.assertEqual(api.compare_reads, 1)
         self.assertEqual(api.pull_files_reads, 0)
 
+    def retired_formatter_api(self, *, head_lines: int = 1000) -> FakeGitHub:
+        api = FakeGitHub(include_parser=False)
+        api.blobs[(HEAD_REPOSITORY, HEAD_SHA, ARCHITECTURE_DEBT)] = replace_once(
+            BASE_LEDGER, FORMATTER_DEBT_ENTRY, b""
+        )
+        api.blobs[(HEAD_REPOSITORY, HEAD_SHA, FORMATTER)] = physical_lines(head_lines)
+        return api
+
     def test_00_single_existing_file_line_ceiling_can_repay_exactly(self) -> None:
         api = FakeGitHub(include_parser=False)
         self.assert_certified(api)
+
+    def test_file_line_exception_can_retire_at_the_ordinary_role_limit(self) -> None:
+        self.assert_certified(self.retired_formatter_api())
+
+    def test_file_line_exception_cannot_retire_while_the_source_exceeds_the_limit(
+        self,
+    ) -> None:
+        self.assert_rejected(self.retired_formatter_api(head_lines=1001))
+
+    def test_file_line_retirement_cannot_substitute_another_path(self) -> None:
+        api = self.retired_formatter_api()
+        replacement = FORMATTER_DEBT_ENTRY.replace(
+            FORMATTER.encode(), b"crates/eqiora-lang/src/replacement.rs"
+        )
+        api.blobs[(HEAD_REPOSITORY, HEAD_SHA, ARCHITECTURE_DEBT)] = replace_once(
+            BASE_LEDGER, FORMATTER_DEBT_ENTRY, replacement
+        )
+        self.assert_rejected(api)
+
+    def test_file_line_retirement_does_not_allow_deleting_another_section(self) -> None:
+        api = self.retired_formatter_api()
+        public_surface = b"""[[public_surface]]\n\
+crate = "eqiora-lang"\n\
+ceiling = 128\n\
+reason = "existing public surface"\n\
+removal = "name a smaller facade"\n\
+\n"""
+        api.blobs[(HEAD_REPOSITORY, HEAD_SHA, ARCHITECTURE_DEBT)] = replace_once(
+            api.blobs[(HEAD_REPOSITORY, HEAD_SHA, ARCHITECTURE_DEBT)],
+            public_surface,
+            b"",
+        )
+        self.assert_rejected(api)
 
     def test_01_pr461_shaped_pair_is_certified_at_exact_physical_counts(self) -> None:
         api = FakeGitHub()
