@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 use eqiora::Diagnostic;
 use eqiora::assembly::{AssemblyBackend, AssemblyPlan, AssemblyResult, AssemblyWork, LinearSystem};
 use eqiora::backends::mpi::{MpiExecutionGroup, MpiSpatialAssemblyBackend, MpiThreadSupport};
-use eqiora::meshing::MeshEntity;
+use eqiora::meshing::{FacetId, MeshEntity, MeshTopology};
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::fsi::finalize_resolved_fixed_reference_fsi_step_2d_with_assembly;
 use eqiora_numerics::fsi::lower_fixed_reference_fsi_cartesian_2d;
@@ -103,10 +103,21 @@ fn fixed_reference_fsi_distributed_assembly_mpi_2d_child() {
         let process_facets = layout
             .partition_boundary_entities(1)
             .expect("triangle layout owns a facet stratum");
-        for facet in spatial.partition.interface_facets() {
-            let entity = MeshEntity::new(1, facet.index());
-            assert!(process_facets.contains(&entity));
-            assert!(layout.entity_residents(entity).unwrap().len() > 1);
+        for quotient in spatial.partition.quotients() {
+            let facet_count = spatial
+                .mesh
+                .entity_count(1)
+                .expect("triangle mesh owns a facet stratum");
+            for facet in (0..facet_count).map(FacetId::new).filter(|facet| {
+                spatial
+                    .partition
+                    .facet_sides(quotient.connection(), *facet)
+                    .is_some()
+            }) {
+                let entity = MeshEntity::new(1, facet.index());
+                assert!(process_facets.contains(&entity));
+                assert!(layout.entity_residents(entity).unwrap().len() > 1);
+            }
         }
     }
     {

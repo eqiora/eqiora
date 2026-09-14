@@ -274,13 +274,13 @@ fn resolve_distributed_cuda(
     group: &MpiExecutionGroup,
 ) -> eqiora::realization::ResolvedCoupledFieldwiseRealization {
     let host_plan = host.resolved.plan();
-    let velocity = canonical
-        .fluid()
+    let fluid = canonical.fluids().next().expect("one fluid Domain");
+    assert_eq!(canonical.fluids().count(), 1);
+    let velocity = fluid
         .velocity()
         .downcast::<eqiora::kinds::Field>()
         .expect("fluid velocity is a Field");
-    let pressure = canonical
-        .fluid()
+    let pressure = fluid
         .pressure()
         .downcast::<eqiora::kinds::Field>()
         .expect("fluid pressure is a Field");
@@ -591,26 +591,54 @@ fn assert_normalized_solution_conformance(
 ) {
     assert_eq!(candidate.model(), reference.model());
     assert_eq!(candidate.semantic_revision(), reference.semantic_revision());
+    assert_eq!(
+        candidate.realization_revision(),
+        reference.realization_revision()
+    );
     assert_eq!(candidate.mesh_artifact(), reference.mesh_artifact());
-    assert_eq!(candidate.fields(), reference.fields());
-    assert_eq!(
-        candidate.fluid_velocity_vertices(),
-        reference.fluid_velocity_vertices()
-    );
-    assert_eq!(
-        candidate.fluid_velocity_cells(),
-        reference.fluid_velocity_cells()
-    );
-    assert_eq!(
-        candidate.fluid_pressure_vertices(),
-        reference.fluid_pressure_vertices()
-    );
-    assert_eq!(
-        candidate.solid_velocity_vertices(),
-        reference.solid_velocity_vertices()
-    );
-    assert_eq!(candidate.solid_cells(), reference.solid_cells());
-    assert_eq!(candidate.interface_facets(), reference.interface_facets());
+
+    let reference_fields = reference.state().fields().collect::<Vec<_>>();
+    let candidate_fields = candidate.state().fields().collect::<Vec<_>>();
+    assert_eq!(candidate_fields, reference_fields);
+    for (field, _, _) in reference_fields {
+        let reference_coefficients = reference
+            .state()
+            .coefficients(field)
+            .expect("reference State contains its exact Field")
+            .collect::<Vec<_>>();
+        let candidate_coefficients = candidate
+            .state()
+            .coefficients(field)
+            .expect("candidate State contains the same exact Field")
+            .collect::<Vec<_>>();
+        assert_eq!(candidate_coefficients.len(), reference_coefficients.len());
+        let scale = state_or_field_scale(reference, field);
+        for (index, (reference_coefficient, candidate_coefficient)) in reference_coefficients
+            .iter()
+            .zip(&candidate_coefficients)
+            .enumerate()
+        {
+            assert_eq!(
+                (
+                    candidate_coefficient.0,
+                    candidate_coefficient.1,
+                    candidate_coefficient.2,
+                ),
+                (
+                    reference_coefficient.0,
+                    reference_coefficient.1,
+                    reference_coefficient.2,
+                ),
+                "exact Field coordinates differ"
+            );
+            assert_close(
+                "physical Field coefficient divided by its exact scale",
+                index,
+                reference_coefficient.3 / scale,
+                candidate_coefficient.3 / scale,
+            );
+        }
+    }
 
     assert_close_slices(
         "dimensionless algebraic coefficient",
@@ -618,52 +646,21 @@ fn assert_normalized_solution_conformance(
         candidate.numerical_evidence().algebraic_values(),
         1.0,
     );
-    let velocity_scale = field_scale(reference, reference.fields().fluid_velocity());
-    assert_eq!(
-        velocity_scale,
-        field_scale(reference, reference.fields().solid_velocity())
-    );
-    assert_close_vectors(
-        "velocity/U",
-        reference.vertex_velocity_coefficients(),
-        candidate.vertex_velocity_coefficients(),
-        velocity_scale,
-    );
-    assert_close_vectors(
-        "fluid bubble velocity/U",
-        &reference
-            .fluid_velocity_bubble_coefficients()
-            .values()
-            .copied()
-            .collect::<Vec<_>>(),
-        &candidate
-            .fluid_velocity_bubble_coefficients()
-            .values()
-            .copied()
-            .collect::<Vec<_>>(),
-        velocity_scale,
-    );
-    assert_close_slices(
-        "pressure/P",
-        reference.fluid_pressure_coefficients(),
-        candidate.fluid_pressure_coefficients(),
-        field_scale(reference, reference.fields().fluid_pressure()),
-    );
-    assert_close_vectors(
-        "displacement/L",
-        reference.solid_displacement_coefficients(),
-        candidate.solid_displacement_coefficients(),
-        reference
-            .realization_plan()
-            .time_step()
-            .eliminated_states()
-            .iter()
-            .find(|state| state.pair().state() == reference.fields().solid_displacement())
-            .unwrap()
-            .state_scale()
-            .quantity()
-            .value(),
-    );
+}
+
+fn state_or_field_scale(
+    solution: &ResolvedFixedReferenceFsiSolution2d,
+    field: eqiora::Id<eqiora::kinds::Field>,
+) -> f64 {
+    solution
+        .realization_plan()
+        .time_step()
+        .eliminated_states()
+        .iter()
+        .find_map(|state| {
+            (state.pair().state() == field).then(|| state.state_scale().quantity().value())
+        })
+        .unwrap_or_else(|| field_scale(solution, field))
 }
 
 fn plan_field_scale(
@@ -676,26 +673,23 @@ fn plan_field_scale(
         .find_map(|entry| {
             (entry.block() == AlgebraicBlock::Field(field)).then(|| entry.scale().quantity())
         })
-        .expect("every represented Field has one scale")
+        .expect("every represented Field has one exact Realization scale")
 }
 
 fn field_scale(
     solution: &ResolvedFixedReferenceFsiSolution2d,
     field: eqiora::Id<eqiora::kinds::Field>,
 ) -> f64 {
-    plan_field_scale(solution.realization_plan(), field).value()
-}
-
-fn assert_close_vectors(label: &str, reference: &[[f64; 2]], candidate: &[[f64; 2]], scale: f64) {
-    assert_eq!(candidate.len(), reference.len());
-    for (index, (reference, candidate)) in reference
+    solution
+        .realization_plan()
+        .scaling()
+        .block_scales()
         .iter()
-        .flatten()
-        .zip(candidate.iter().flatten())
-        .enumerate()
-    {
-        assert_close(label, index, reference / scale, candidate / scale);
-    }
+        .find_map(|entry| {
+            (entry.block() == AlgebraicBlock::Field(field))
+                .then(|| entry.scale().quantity().value())
+        })
+        .expect("every represented non-eliminated Field has one exact Realization scale")
 }
 
 fn assert_close_slices(label: &str, reference: &[f64], candidate: &[f64], scale: f64) {
