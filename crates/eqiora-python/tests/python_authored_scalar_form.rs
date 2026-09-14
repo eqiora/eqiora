@@ -80,6 +80,12 @@ def check_analytic_coefficients(model, accepted):
     assert all(abs(value) <= 1e-10 for value in values[:-1])
     assert abs(values[-1] - 3/32) <= 1e-10
 check_analytic_coefficients(model, result)
+# Program-controlled and manual solver choices preserve the same exact scalar structure.
+planned = eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.Q1(),
+    solve=eqiora.solve.Linear(objective=eqiora.solve.Robust,
+        relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=1000))
+check_analytic_coefficients(model, eqiora.run(eqiora.Plan.from_bytes(planned.to_bytes())))
+
 
 def check_nonzero_temperature(model, accepted):
     field = model.field(model.authored_formulations[0].trial_field_id)

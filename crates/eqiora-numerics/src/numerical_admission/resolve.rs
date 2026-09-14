@@ -83,7 +83,11 @@ pub fn resolve_common_plan(
                 }
                 _ => unreachable!("stationary scalar or elasticity spatial policy"),
             };
-            let linear = resolve_linear(solve, properties, None, None, None, stokes_backend)?;
+            let structure = match &recognized.recognized {
+                RecognizedNativeModel::Scalar(equations) => Some(equations.algebraic_structure()?),
+                _ => None,
+            };
+            let linear = resolve_linear(solve, properties, None, None, structure, stokes_backend)?;
             let admission = recognized.complete(spatial, linear, None, None)?;
             match spatial {
                 NativeSpatialPolicy::ScalarQ1 | NativeSpatialPolicy::ScalarTpfa => {

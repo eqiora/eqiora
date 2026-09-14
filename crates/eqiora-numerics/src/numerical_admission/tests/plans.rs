@@ -216,31 +216,46 @@ pub(super) fn scalar_q1_and_tpfa_consume_one_exact_anisotropic_common_mesh() {
     let model = model(&geometry);
     let exact_owner = resources(&geometry);
     let caller_resources = exact_owner.resources.clone();
-    let q1 = NativeNumericalAdmission::admit(
-        &model,
+    let admit = |owner, spatial, policy: NativeLinearPolicy, backend: &dyn LinearSolverBackend| {
+        resolve_common_plan(
+            &model,
+            owner,
+            spatial,
+            CommonSolvePolicy::Linear(
+                CommonLinearRequest::exact(policy.solver, policy.provider).unwrap(),
+            ),
+            None,
+            None,
+            backend,
+            None,
+        )
+        .unwrap()
+        .as_scalar()
+        .unwrap()
+        .admission
+        .clone()
+    };
+    let q1 = admit(
         exact_owner.clone(),
-        NativeSpatialPolicy::ScalarQ1,
+        CommonSpatialPolicy::Q1,
         general_linear(),
-    )
-    .unwrap();
-    let q1_repeat = NativeNumericalAdmission::admit(
-        &model,
+        &REFERENCE_LINEAR_SOLVER,
+    );
+    let q1_repeat = admit(
         resources(&geometry),
-        NativeSpatialPolicy::ScalarQ1,
+        CommonSpatialPolicy::Q1,
         general_linear(),
-    )
-    .unwrap();
-    let tpfa = NativeNumericalAdmission::admit(
-        &model,
+        &REFERENCE_LINEAR_SOLVER,
+    );
+    let tpfa = admit(
         exact_owner,
-        NativeSpatialPolicy::ScalarTpfa,
+        CommonSpatialPolicy::CellCenteredTpfa,
         linear(),
-    )
-    .unwrap();
-    let alternate_provider = NativeNumericalAdmission::admit(
-        &model,
+        &REFERENCE_LINEAR_SOLVER,
+    );
+    let alternate_provider = admit(
         resources(&geometry),
-        NativeSpatialPolicy::ScalarQ1,
+        CommonSpatialPolicy::Q1,
         NativeLinearPolicy::exact(
             SolverPlan::new(
                 LinearSolver::BiConjugateGradientStabilized,
@@ -252,8 +267,8 @@ pub(super) fn scalar_q1_and_tpfa_consume_one_exact_anisotropic_common_mesh() {
             &AlternateScalarBackend,
         )
         .unwrap(),
-    )
-    .unwrap();
+        &AlternateScalarBackend,
+    );
 
     assert_eq!(q1.model(), &model);
     assert_eq!(q1.model_digest(), model.digest().unwrap().to_string());
