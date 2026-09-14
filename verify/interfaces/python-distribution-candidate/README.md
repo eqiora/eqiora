@@ -6,12 +6,12 @@ distribution, extracts it, and builds four ordinary-GIL Linux x86-64 wheels
 only from that extracted source.
 
 Every wheel is installed outside the checkout and runs the base, NumPy
-ownership, synchronous/awaitable execution, cancellation, public-smoke, and
-strict-typing checks. CPython 3.13 additionally runs the PyTorch 2.14.0,
-JAX/JAXLIB 0.11.0, and Matplotlib 3.11.1 profiles. A separate CPython 3.12
-environment proves the declared NumPy 2.1.0 floor.
+ownership, synchronous/awaitable execution, cancellation, public-smoke, base
+Viewer rich-MIME, and strict-typing checks. CPython 3.13 additionally runs the
+PyTorch 2.14.0, JAX/JAXLIB 0.11.0, and Matplotlib 3.11.1 profiles. A separate
+CPython 3.12 environment proves the declared NumPy 2.1.0 floor.
 
-The v4 manifest binds the source commit, optional tags, tool versions, artifact
+The v5 manifest binds the source commit, optional tags, tool versions, artifact
 filenames and SHA-256 values, wheel tags, dependency profile, and passing
 checks. Candidate construction and profile execution share no notebook-host or
 browser authority. Colab is an example and documentation surface, not a

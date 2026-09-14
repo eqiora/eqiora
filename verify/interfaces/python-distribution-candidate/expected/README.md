@@ -1,7 +1,7 @@
 # Expected result
 
 The gate accepts exactly one source distribution and four Linux x86-64 wheels
-for ordinary-GIL CPython 3.11 through 3.14. The completed v4 manifest binds the
+for ordinary-GIL CPython 3.11 through 3.14. The completed v5 manifest binds the
 clean source revision, five artifact hashes, exact wheel family, NumPy floor,
 and the base, typing, PyTorch, JAX, and Matplotlib profile checks.
 

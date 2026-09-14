@@ -80,11 +80,12 @@ so the verification runner may execute the target once while retaining a
 report for each case. The focused adapter scripts remain developer diagnostics;
 they are not a second candidate identity and may rebuild during standalone use.
 
-Current candidates use `eqiora.python-distribution-candidate/v4`. The manifest
+Current candidates use `eqiora.python-distribution-candidate/v5`. The manifest
 binds the complete sdist/four-wheel family and every required installed-wheel
-profile without carrying a UI-host runtime, browser identity, or detached host
-receipt. It is the only accepted manifest format; superseded pre-1.0 readers,
-receipts, and transport paths are not retained.
+profile, including rich Viewer MIME emission from each base wheel, without
+claiming a UI-host runtime, browser identity, or detached host receipt. It is
+the only accepted manifest format; superseded pre-1.0 readers, receipts, and
+transport paths are not retained.
 
 Build into an empty directory outside the source tree:
 
@@ -106,14 +107,15 @@ release authority; ordinary feature work does not imply it.
 
 ## Dependencies and extras
 
-NumPy is the only mandatory Python runtime dependency. Exact `gmsh==4.15.2` is
+NumPy and exact `anywidget==0.11.0` are mandatory Python runtime dependencies.
+The anywidget host remains lazily imported, so importing `eqiora` does not load
+anywidget, ipywidgets, or traitlets. Exact `gmsh==4.15.2` is
 the optional `gmsh` extra and is launched only by the admitted automatic
 meshing path; separating it preserves the base package's `manylinux_2_17`
 floor. The Linux Gmsh wheel also requires `libGLU.so.1`. PyTorch, JAX,
-Matplotlib, and exact `anywidget==0.11.0` remain optional extras, and importing
-the base package must neither require nor import any of them. The wheel carries
-the viewer JavaScript and CSS; the candidate does not install a separate
-notebook host or browser runtime.
+and Matplotlib remain optional extras, and importing the base package must not
+import them. The wheel carries the viewer JavaScript and CSS; the candidate
+does not install a browser runtime.
 The first Matplotlib adapter uses exact release 3.11.1 with the headless Agg
 backend. Its registered adapter profile runs on ordinary-GIL CPython 3.13;
 the other wheel interpreters are not Matplotlib adapter compatibility

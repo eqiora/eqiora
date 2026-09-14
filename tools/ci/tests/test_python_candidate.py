@@ -455,14 +455,13 @@ Provides-Extra: jax
 Provides-Extra: gmsh
 Provides-Extra: matplotlib
 Provides-Extra: torch
-Provides-Extra: viewer
 Requires-Dist: numpy<3,>=2.1
 Requires-Dist: gmsh==4.15.2 ; extra == 'gmsh'
 Requires-Dist: torch>=2.14,<2.15; extra == "torch"
 Requires-Dist: jax==0.11.0; python_version >= "3.12" and extra == "jax"
 Requires-Dist: jaxlib==0.11.0; python_version >= "3.12" and extra == "jax"
 Requires-Dist: matplotlib>=3.10,<3.12; extra == "matplotlib"
-Requires-Dist: anywidget==0.11.0; extra == "viewer"
+Requires-Dist: anywidget==0.11.0
 
 typed candidate
 """
@@ -473,6 +472,8 @@ typed candidate
                 for name in (
                     "eqiora/__init__.py",
                     "eqiora/__init__.pyi",
+                    "eqiora/colab.py",
+                    "eqiora/colab.pyi",
                     "eqiora/diff.pyi",
                     "eqiora/fsi.pyi",
                     "eqiora/jax.pyi",
@@ -529,14 +530,13 @@ Provides-Extra: jax
 Provides-Extra: gmsh
 Provides-Extra: matplotlib
 Provides-Extra: torch
-Provides-Extra: viewer
 Requires-Dist: numpy<3,>=2.1
 Requires-Dist: gmsh==4.15.2; extra == "gmsh"
 Requires-Dist: torch>=2.14,<2.15
 Requires-Dist: jax==0.11.0; extra == "jax"
 Requires-Dist: jaxlib==0.11.0; extra == "jax"
 Requires-Dist: matplotlib>=3.10,<3.12; extra == "matplotlib"
-Requires-Dist: anywidget==0.11.0; extra == "viewer"
+Requires-Dist: anywidget==0.11.0
 
 invalid candidate
 """
@@ -547,6 +547,8 @@ invalid candidate
                 for name in (
                     "eqiora/__init__.py",
                     "eqiora/__init__.pyi",
+                    "eqiora/colab.py",
+                    "eqiora/colab.pyi",
                     "eqiora/diff.pyi",
                     "eqiora/fsi.pyi",
                     "eqiora/jax.pyi",
@@ -1304,6 +1306,7 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
                 "cp311:async-and-cancellation",
                 "cp311:strict-base-typing",
                 "cp311:public-smoke-base",
+                "cp311:public-smoke-base-viewer-rich-mime",
                 "cp311:matplotlib-free-base",
             ],
         )
@@ -1979,7 +1982,7 @@ class CandidateProfileFanoutContractTests(unittest.TestCase):
         self.assertEqual(manifests[0], manifests[1])
         document = json.loads(manifests[0])
         self.assertEqual(
-            document["format"], "eqiora.python-distribution-candidate/v4"
+            document["format"], "eqiora.python-distribution-candidate/v5"
         )
         self.assertNotIn("frontend", document["build"])
 

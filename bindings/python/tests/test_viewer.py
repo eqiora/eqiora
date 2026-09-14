@@ -290,7 +290,7 @@ def test_view_has_deterministic_text_fallback_and_explicit_lifecycle() -> None:
         view.add(mesh)
 
 
-def test_base_import_does_not_load_optional_viewer_dependencies() -> None:
+def test_base_import_does_not_load_notebook_frameworks() -> None:
     observed = subprocess.check_output(
         [
             sys.executable,
@@ -316,9 +316,9 @@ def test_installed_wheel_carries_viewer_assets_and_threejs_notice() -> None:
     assert "The MIT License" in notice
 
 
-def test_installed_viewer_extra_emits_immutable_anywidget_payload() -> None:
-    traitlets = pytest.importorskip("traitlets")
-    pytest.importorskip("anywidget")
+def test_installed_base_distribution_emits_immutable_anywidget_payload() -> None:
+    import anywidget  # noqa: F401
+    import traitlets
     geometry, mesh = rectangle_and_mesh()
     view = eqiora.View().add(geometry).add(mesh)
     bundle = view._repr_mimebundle_()

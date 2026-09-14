@@ -24,7 +24,7 @@ from typing import Any
 from python_candidate_common import CandidateError, python_distribution_version
 
 
-MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v4"
+MANIFEST_FORMAT = "eqiora.python-distribution-candidate/v5"
 FULL_SHA = re.compile(r"[0-9a-f]{40}")
 SHA256 = re.compile(r"[0-9a-f]{64}")
 REQUIRED_PROFILES = ("base", "jax", "matplotlib", "torch", "typing")
@@ -55,6 +55,7 @@ def _base_checks() -> frozenset[str]:
                 f"cp{python}:packaged-mixed-boundary-elasticity-demo",
                 f"cp{python}:async-and-cancellation",
                 f"cp{python}:public-smoke-base",
+                f"cp{python}:public-smoke-base-viewer-rich-mime",
                 f"cp{python}:matplotlib-free-base",
             }
         )

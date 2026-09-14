@@ -23,7 +23,6 @@ GMSH_EVIDENCE = tuple(
         "test_exact_cylinder_stokes_result.py",
     )
 )
-VIEWER_EVIDENCE = TESTS / "test_viewer.py"
 _PROJECT = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 _DISTRIBUTION = _PROJECT["tool"]["eqiora-distribution"]
 BUILD_TOOLS = (
@@ -131,35 +130,10 @@ def _uv_gmsh_gate_command(uv: str, python: str) -> list[str]:
     ]
 
 
-def _uv_viewer_gate_command(uv: str, python: str) -> list[str]:
-    return [
-        uv,
-        "run",
-        "--directory",
-        str(PACKAGE),
-        "--isolated",
-        "--no-editable",
-        "--reinstall-package",
-        "eqiora",
-        "--extra",
-        "viewer",
-        "--with",
-        BUILD_TOOLS[1],
-        "--python",
-        python,
-        "python",
-        "-m",
-        "pytest",
-        "-q",
-        str(VIEWER_EVIDENCE),
-    ]
-
-
 def main() -> int:
     try:
         if uv := shutil.which("uv"):
             run(uv_gate_command(uv, sys.executable))
-            run(_uv_viewer_gate_command(uv, sys.executable))
             run(_uv_gmsh_gate_command(uv, sys.executable))
             return 0
         with tempfile.TemporaryDirectory(prefix="eqiora-python-gate-") as directory:
@@ -188,16 +162,6 @@ def main() -> int:
                         for argument in ("--ignore", str(evidence))
                     ),
                 ],
-                cwd=PACKAGE,
-                virtual_environment=environment,
-            )
-            run(
-                [python, "-m", "pip", "install", "--no-build-isolation", ".[viewer]"],
-                cwd=PACKAGE,
-                virtual_environment=environment,
-            )
-            run(
-                [python, "-m", "pytest", "-q", str(VIEWER_EVIDENCE)],
                 cwd=PACKAGE,
                 virtual_environment=environment,
             )

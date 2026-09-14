@@ -61,7 +61,7 @@ def decay_plan(eqiora, model):
     return plan, field
 
 
-def differentiable_program(eqiora):
+def rectangle_scene(eqiora):
     graph = eqiora.geometry.GeometryGraph()
     rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
     geometry = graph.build(
@@ -78,6 +78,11 @@ def differentiable_program(eqiora):
         geometry, eqiora.meshing.CartesianMesher(cells=(4, 4))
     )
     mesh = eqiora.meshing.generate(mesh_plan)
+    return geometry, mesh
+
+
+def differentiable_program(eqiora):
+    geometry, mesh = rectangle_scene(eqiora)
     model = eqiora.compile(
         source=POISSON,
         entry="ReleaseSmokePoisson",
@@ -126,8 +131,25 @@ def base_smoke(expected_version: str) -> None:
     assert importlib.metadata.version("eqiora") == expected_version
     assert eqiora.__version__ == expected_version
     assert not (
-        {"torch", "jax", "jaxlib", "matplotlib", "gmsh"} & (set(sys.modules) - before)
+        {
+            "torch",
+            "jax",
+            "jaxlib",
+            "matplotlib",
+            "gmsh",
+            "anywidget",
+            "ipywidgets",
+            "traitlets",
+        }
+        & (set(sys.modules) - before)
     )
+
+    geometry, mesh = rectangle_scene(eqiora)
+    view = eqiora.View().add(geometry).add(mesh)
+    bundle = view._repr_mimebundle_()
+    data = bundle[0] if isinstance(bundle, tuple) else bundle
+    assert "application/vnd.jupyter.widget-view+json" in data
+    view.close()
 
     model = decay_model(eqiora)
     plan, field = decay_plan(eqiora, model)

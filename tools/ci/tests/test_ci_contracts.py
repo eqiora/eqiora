@@ -482,7 +482,7 @@ jobs:
         ).read_text(encoding="utf-8")
         require_definition_binding(current)
 
-    def test_distribution_claim_uses_host_agnostic_v4_metadata(self) -> None:
+    def test_distribution_claim_uses_base_viewer_v5_metadata(self) -> None:
         distribution_case = tomllib.loads(
             (
                 REPOSITORY_ROOT
@@ -492,7 +492,7 @@ jobs:
         boundary = distribution_case["claim_boundary"]
         self.assertEqual(
             boundary["candidate_manifest_format"],
-            "eqiora.python-distribution-candidate/v4",
+            "eqiora.python-distribution-candidate/v5",
         )
         self.assertEqual(
             boundary["candidate_stages"],
@@ -786,11 +786,8 @@ class PythonPackageGateTests(unittest.TestCase):
         self.assertNotIn("gmsh", command)
         self.assertEqual(command[command.index("--python") + 1], "/usr/bin/python3")
 
-    def test_package_gate_runs_base_then_optional_viewer_and_exact_gmsh_evidence(
-        self,
-    ) -> None:
+    def test_package_gate_runs_base_viewer_and_exact_gmsh_evidence(self) -> None:
         tests = REPOSITORY_ROOT / "bindings/python/tests"
-        viewer_evidence = str(tests / "test_viewer.py")
         gmsh_evidence = tuple(
             str(tests / name)
             for name in (
@@ -825,27 +822,24 @@ class PythonPackageGateTests(unittest.TestCase):
         ]
         with self.subTest(path="uv"):
             commands = [call.args[0] for call in uv_calls]
-            self.assertEqual(len(commands), 3)
-            base, viewer, gmsh = commands
+            self.assertEqual(len(commands), 2)
+            base, gmsh = commands
             self.assertNotIn("--extra", base)
             self.assertEqual(
                 base[base.index(expected_base_tail[0]) :], expected_base_tail
             )
-            self.assertEqual(viewer[viewer.index("--extra") + 1], "viewer")
-            self.assertEqual(viewer[viewer.index("-q") + 1 :], [viewer_evidence])
             self.assertEqual(gmsh[gmsh.index("--extra") + 1], "gmsh")
             self.assertEqual(gmsh[gmsh.index("-q") + 1 :], list(gmsh_evidence))
             self.assertEqual(
                 [
                     base[base.index("--python") + 1],
-                    viewer[viewer.index("--python") + 1],
                     gmsh[gmsh.index("--python") + 1],
                 ],
-                [sys.executable, sys.executable, sys.executable],
+                [sys.executable, sys.executable],
             )
 
         with self.subTest(path="pip"):
-            self.assertEqual(len(pip_calls), 8)
+            self.assertEqual(len(pip_calls), 6)
             environment = Path(temporary.__enter__.return_value)
             python = str(venv_python(environment))
             self.assertEqual(
@@ -853,23 +847,6 @@ class PythonPackageGateTests(unittest.TestCase):
                 (
                     mock.call(
                         [python, "-m", "pytest", "-q", *expected_base_tail],
-                        cwd=python_package_gate_module.PACKAGE,
-                        virtual_environment=environment,
-                    ),
-                    mock.call(
-                        [
-                            python,
-                            "-m",
-                            "pip",
-                            "install",
-                            "--no-build-isolation",
-                            ".[viewer]",
-                        ],
-                        cwd=python_package_gate_module.PACKAGE,
-                        virtual_environment=environment,
-                    ),
-                    mock.call(
-                        [python, "-m", "pytest", "-q", viewer_evidence],
                         cwd=python_package_gate_module.PACKAGE,
                         virtual_environment=environment,
                     ),
@@ -894,7 +871,7 @@ class PythonPackageGateTests(unittest.TestCase):
             )
             self.assertEqual(
                 [call.kwargs.get("virtual_environment") for call in pip_calls[1:]],
-                [environment] * 7,
+                [environment] * 5,
             )
 
     @mock.patch("python_package_gate.subprocess.run")
