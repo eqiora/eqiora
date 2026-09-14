@@ -621,8 +621,6 @@ impl NativeNumericalAdmission {
                 "elasticity execution backend differs from admitted provider or capabilities",
             ));
         }
-        let checked_backend = self.linear.checked_backend(backend, None)?;
-        let backend: &dyn LinearSolverBackend = &checked_backend;
         let NativeMeshResources::Cartesian { mesh, .. } = self.resources() else {
             return Err(invalid("elasticity execution requires Cartesian resources"));
         };
@@ -631,6 +629,9 @@ impl NativeNumericalAdmission {
                 "native numerical admission does not own recognized elasticity meaning",
             ));
         };
+        let structure = super::elasticity::algebraic_structure(lowered)?;
+        let checked_backend = self.linear.checked_backend(backend, Some(&structure))?;
+        let backend: &dyn LinearSolverBackend = &checked_backend;
         let finalized = finalize_isotropic_elasticity_cartesian_q1_on_mesh(
             lowered,
             mesh.mesh(),
