@@ -74,7 +74,7 @@ diffsol = { version = "=0.16.2", default-features = false, features = ["nalgebra
 # evidence. A 0.19 upgrade is a separate adapter-and-hardware-evidence slice,
 # not an incidental consequence of the workspace MSRV decision.
 cudarc = { version = "=0.18.2", default-features = false, features = ["std", "driver", "cuda-12000", "dynamic-loading"] }
-crossbeam-channel = "=0.5.16"
+crossbeam-channel = "=0.5.17"
 libloading = "=0.8.9"
 lsp-server = "=0.10.0"
 lsp-types = "=0.97.0"
