@@ -1,3 +1,4 @@
+use eqiora_core::ScalarType;
 use std::collections::BTreeSet;
 use std::f64::consts::PI;
 use std::num::NonZeroUsize;
@@ -16,7 +17,7 @@ use eqiora::solver::{
     CanonicalCsrSystemView, CompleteCsrStorage, ConvergenceReason, DiagonalAvailability,
     LinearOperator, LinearOperatorProperties, LinearProblem, LinearSolver, LinearSolverBackend,
     PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SERIAL_EXECUTION_PROVIDER,
-    ScalarType, SolverCapabilities, SolverCapability, SolverPlan, Transposed,
+    SolverCapabilities, SolverCapability, SolverPlan, Transposed,
 };
 use eqiora_backend_faer::{
     FAER_ADAPTER_VERSION, FAER_SOLVER_PROVIDER, FAER_VERSION, FaerLinearSolver,

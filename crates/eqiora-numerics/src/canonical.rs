@@ -5,7 +5,7 @@ use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::Id;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, GraphPath, RawId};
+use eqiora_core::{Diagnostic, GraphPath, RawId, ScalarType};
 use eqiora_graph::EdgeKind;
 use eqiora_meshing::{
     LineMesh, MeshTopology, QuadratureRule, SimplicialMesh, simplex_centroid_rule,
@@ -21,8 +21,7 @@ use eqiora_schema::kernel::{
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
     CanonicalCsrSystemView, LinearOperatorProperties, LinearProblem, LinearSolution,
-    LinearSolveRequest, LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, ScalarType,
-    SolverPlan,
+    LinearSolveRequest, LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, SolverPlan,
 };
 
 use crate::assembled_linearization::AssembledLinearizedRelation;

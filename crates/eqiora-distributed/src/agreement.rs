@@ -1,7 +1,7 @@
-use eqiora_core::Diagnostic;
+use eqiora_core::{Diagnostic, ScalarType};
 use eqiora_solver::{
     CanonicalCsrAgreementFingerprintV1, LinearSolver, PreconditionerPolicy, ReductionPolicy,
-    ScalarType, SolverPlan,
+    SolverPlan,
 };
 use sha2::{Digest, Sha256};
 

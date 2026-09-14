@@ -285,7 +285,7 @@ fn full_catalog_decisions_match_exact_manual_execution_and_rational_oracle() {
         }
         .solve(&problem)
         .unwrap();
-        let planned = decision.solve(&problem).unwrap();
+        let planned = decision.solve(&problem, None).unwrap();
         assert_eq!(planned.values(), manual.values());
         assert_eq!(planned.report(), manual.report());
         assert_eq!(planned, manual);
@@ -355,13 +355,14 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
         rhs: vec![6., 7.],
     };
     // Gauge-resolved saddle point: K=diag(2,3), B=[1,1], Schur=-5/6.
-    // A[1,2,3] = [5,9,3]. The multiplier diagonal is structurally absent.
+    // For a zero-integral gauge, B[1,-1]=0 and A[1,-1,3]=[5,0,0].
+    // The multiplier diagonal is structurally absent.
     let saddle = Matrix {
         rows: 3,
         offsets: vec![0, 2, 4, 6],
         columns: vec![0, 2, 1, 2, 0, 1],
         values: vec![2., 1., 3., 1., 1., 1.],
-        rhs: vec![5., 9., 3.],
+        rhs: vec![5., 0., 0.],
     };
     let faer = FaerLinearSolver;
     for (matrix, properties, diagonal, expected, iterative) in [
@@ -376,10 +377,16 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
             &saddle,
             LinearOperatorProperties::SymmetricIndefinite,
             false,
-            vec![1., 2., 3.],
+            vec![1., -1., 3.],
             LinearSolver::MinimumResidual,
         ),
     ] {
+        let field = eqiora::Id::<eqiora::entity::kinds::Field>::new();
+        let structure = eqiora_solver::AlgebraicStructure::new(
+            [field],
+            (!diagonal).then_some(eqiora_solver::AlgebraicConstraint::ZeroIntegral { field }),
+        )
+        .unwrap();
         let system = CanonicalCsrSystemView::new(matrix, properties).unwrap();
         let problem = system.linear_problem().unwrap();
         for objective in [
@@ -388,7 +395,9 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
             SolverPlanningObjective::LowMemory,
         ] {
             let decision = plan_host_serial_solver_v2(
-                HostSerialSolverProfile::canonical_csr(properties, Some(diagonal), None),
+                HostSerialSolverProfile::canonical_csr(properties, Some(diagonal), None)
+                    .with_structure(structure.clone())
+                    .unwrap(),
                 objective,
                 1e-12,
                 1e-14,
@@ -434,7 +443,14 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
             assert_eq!(decision.solver_plan(), expected_plan);
             assert_eq!(decision.solver_provider(), backend.provider());
             assert_eq!(decision.execution_provider(), SERIAL_EXECUTION_PROVIDER);
-            let ranked = decision.solve(&problem).unwrap();
+            assert!(decision.solve(&problem, None).is_err());
+            let foreign = eqiora_solver::AlgebraicStructure::new([eqiora::Id::new()], []).unwrap();
+            assert!(decision.solve(&problem, Some(&foreign)).is_err());
+            if !diagonal {
+                let omitted_gauge = eqiora_solver::AlgebraicStructure::new([field], []).unwrap();
+                assert!(decision.solve(&problem, Some(&omitted_gauge)).is_err());
+            }
+            let ranked = decision.solve(&problem, Some(&structure)).unwrap();
             let manual = LinearSolveRequest::new(backend, expected_plan)
                 .solve(&problem)
                 .unwrap();
@@ -448,18 +464,14 @@ fn spd_and_saddle_point_profiles_select_exact_current_backends() {
             let residual = if diagonal {
                 vec![4. * x[0] + x[1] - 6., x[0] + 3. * x[1] - 7.]
             } else {
-                vec![
-                    2. * x[0] + x[2] - 5.,
-                    3. * x[1] + x[2] - 9.,
-                    x[0] + x[1] - 3.,
-                ]
+                vec![2. * x[0] + x[2] - 5., 3. * x[1] + x[2], x[0] + x[1]]
             };
             assert!(residual.iter().all(|r| r.abs() <= 2_f64.powi(-38)));
             let mismatched =
                 CanonicalCsrSystemView::new(matrix, LinearOperatorProperties::General).unwrap();
             assert!(
                 decision
-                    .solve(&mismatched.linear_problem().unwrap())
+                    .solve(&mismatched.linear_problem().unwrap(), Some(&structure))
                     .unwrap_err()
                     .message()
                     .contains("profile.operator-properties-mismatch")
@@ -495,7 +507,7 @@ fn unclaimed_diagonal_ranks_only_independently_admissible_candidates() {
         assert_eq!(decision.selected_candidate_id(), FAER_SPARSE_LU_ID);
         assert_eq!(decision.solver_plan(), faer_sparse_lu_plan());
         assert_eq!(decision.solver_provider(), faer.provider());
-        let solution = decision.solve(&problem).unwrap();
+        let solution = decision.solve(&problem, None).unwrap();
         let manual = LinearSolveRequest::new(&faer, faer_sparse_lu_plan())
             .solve(&problem)
             .unwrap();

@@ -1,26 +1,27 @@
+use eqiora_solver::{AlgebraicBlock, AlgebraicConstraint};
 use std::collections::BTreeMap;
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id};
+use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id, ScalarType};
 use eqiora_meshing::{
     MeshEntity, MeshTopology, SimplicialMesh, simplex_centroid_rule, triangle_duffy_gauss_legendre,
 };
 use eqiora_realization::{
-    AlgebraicBlock, AlgebraicBlockScale, AlgebraicConstraint, Discretization, DiscretizationMethod,
-    ExecutionSchedule, FieldSpaceBinding, FieldwiseRealizationPlan,
-    FieldwiseRealizationRequirements, FieldwiseSpatialDiscretization, MeshArtifactReference,
-    MeshPolicy, PlacementRequirementNode, PortableRealizationGraph, PositivePhysicalScale,
-    QuadraturePolicy, RealizationRequirements, ResolvedFieldwiseRealization, SolveRoot, Space,
-    SymmetricCongruenceScaling, Target, VectorLayoutKind,
+    AlgebraicBlockScale, Discretization, DiscretizationMethod, ExecutionSchedule,
+    FieldSpaceBinding, FieldwiseRealizationPlan, FieldwiseRealizationRequirements,
+    FieldwiseSpatialDiscretization, MeshArtifactReference, MeshPolicy, PlacementRequirementNode,
+    PortableRealizationGraph, PositivePhysicalScale, QuadraturePolicy, RealizationRequirements,
+    ResolvedFieldwiseRealization, SolveRoot, Space, SymmetricCongruenceScaling, Target,
+    VectorLayoutKind,
 };
 use eqiora_schema::kernel::BoundarySide;
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
     LinearOperatorProperties, LinearSolver, LinearSolverBackend, PreconditionerPolicy,
-    ReductionPolicy, ScalarType, SolverPlan,
+    ReductionPolicy, SolverPlan,
 };
 
 use super::{
@@ -185,62 +186,9 @@ pub fn steady_stokes_mini_plan_2d(
     steady_stokes_mini_plan_for_model_2d(model.common(), mesh, scales, solver)
 }
 
-pub(super) fn steady_stokes_mini_plan_for_model_2d(
-    model: &SteadyIncompressibleStokesModel2d,
-    mesh: MeshArtifactReference,
-    scales: SteadyStokesScaleProfile2d,
-    solver: SolverPlan,
-) -> Result<FieldwiseRealizationPlan, Diagnostic> {
-    let with_zero_integral_constraint = requires_zero_integral_constraint(model)?;
-    require_mini_solver(solver)?;
-    let velocity = velocity_id(model);
-    let pressure = pressure_id(model);
-    let constraints = with_zero_integral_constraint
-        .then_some(AlgebraicConstraint::ZeroIntegral { field: pressure })
-        .into_iter()
-        .collect::<Vec<_>>();
-    let spatial = FieldwiseSpatialDiscretization::new(
-        domain_id(model),
-        scales.length,
-        [
-            FieldSpaceBinding::new(velocity, Space::simplex_p1_bubble()),
-            FieldSpaceBinding::new(pressure, Space::continuous_lagrange(NonZeroU16::MIN)),
-        ],
-        constraints,
-        Discretization::new(
-            DiscretizationMethod::ContinuousGalerkin,
-            MeshPolicy::ImportedSimplicial { artifact: mesh },
-            QuadraturePolicy::TriangleDuffyGaussLegendre {
-                points_per_axis: NonZeroUsize::new(DUFFY_POINTS_PER_AXIS)
-                    .expect("three is non-zero"),
-            },
-        ),
-    )
-    .map_err(realization_error)?;
-    let mut block_scales = vec![
-        AlgebraicBlockScale::new(AlgebraicBlock::Field(velocity), scales.velocity),
-        AlgebraicBlockScale::new(AlgebraicBlock::Field(pressure), scales.pressure),
-    ];
-    if with_zero_integral_constraint {
-        block_scales.push(AlgebraicBlockScale::new(
-            AlgebraicBlock::ConstraintMultiplier { field: pressure },
-            scales.gauge,
-        ));
-    }
-    let scaling = SymmetricCongruenceScaling::new(block_scales, scales.weak_functional)
-        .map_err(realization_error)?;
-    FieldwiseRealizationPlan::new(
-        spatial,
-        scaling,
-        LinearOperatorProperties::SymmetricIndefinite,
-        solver,
-        Target::HostCpu {
-            threads: NonZeroUsize::MIN,
-        },
-        ExecutionSchedule::Offline,
-    )
-    .map_err(realization_error)
-}
+mod plan;
+pub(super) use plan::steady_stokes_algebraic_structure;
+pub(super) use plan::steady_stokes_mini_plan_for_model_2d;
 
 /// Finalize one resolved coherent-SI Stokes Model through reference assembly.
 ///

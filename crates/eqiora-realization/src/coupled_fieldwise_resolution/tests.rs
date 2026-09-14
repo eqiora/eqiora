@@ -5,9 +5,9 @@ mod multiple;
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
-use eqiora_core::{DimExponents, DynQuantity, Id, OntologyId};
+use eqiora_core::{DimExponents, DynQuantity, Id, OntologyId, ScalarType};
 use eqiora_solver::{
-    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy, ScalarType,
+    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy,
     SolverCapabilities, SolverCapability, SolverPlan,
 };
 

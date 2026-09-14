@@ -1,3 +1,4 @@
+use eqiora_solver::{AlgebraicBlock, AlgebraicConstraint};
 #[path = "support/ale_model.rs"]
 mod ale_model;
 use ale_model::Ids;
@@ -8,24 +9,24 @@ use eqiora_artifact::{
     CanonicalModelArtifact, CanonicalRealizationArtifact, LayoutArtifacts, ModelEnvelope,
     RealizationDecoderLimits, RealizationEnvelopeV6, SimplicialMeshEnvelopeV1,
 };
-use eqiora_core::{DimExponents, DynQuantity};
+use eqiora_core::{DimExponents, DynQuantity, ScalarType};
 use eqiora_meshing::{MeshQualityGate, SimplicialMesh};
 use eqiora_realization::{
-    AleGeometryQualityGate, AlgebraicBlock, AlgebraicBlockScale, AlgebraicConstraint,
-    BackwardEulerRelationStep, BackwardEulerStateBinding, BackwardEulerStatePair,
-    BackwardEulerStep, ConformingTraceQuotient, CoupledFieldwiseRealizationPlan,
-    CoupledFieldwiseRealizationRequirements, CoupledFieldwiseSpatialDiscretization, Discretization,
-    DiscretizationMethod, DomainFieldDiscretization, DomainFieldInventory, ExecutionSchedule,
-    FieldSpaceBinding, FixedTopologyAleCoupledRealizationPlan,
-    FixedTopologyAleCoupledRealizationRequest, FixedTopologyAleCoupledRealizationRequirements,
-    GclCompatibleAlePullback, MeshArtifactReference, MeshKind, MeshPolicy, NonlinearSolvePlan,
-    P1HarmonicMeshMotionPolicy, QuadraturePolicy, RealizationCapabilities, RealizationRequirements,
-    RealizationRevision, ResolvedFixedTopologyAleCoupledRealization, Space,
-    SpatialDimensionSupport, SymmetricCongruenceScaling, Target, TargetCapabilities,
-    TraceFieldEndpoint, VectorLayoutKind, resolve_fixed_topology_ale_coupled,
+    AleGeometryQualityGate, AlgebraicBlockScale, BackwardEulerRelationStep,
+    BackwardEulerStateBinding, BackwardEulerStatePair, BackwardEulerStep, ConformingTraceQuotient,
+    CoupledFieldwiseRealizationPlan, CoupledFieldwiseRealizationRequirements,
+    CoupledFieldwiseSpatialDiscretization, Discretization, DiscretizationMethod,
+    DomainFieldDiscretization, DomainFieldInventory, ExecutionSchedule, FieldSpaceBinding,
+    FixedTopologyAleCoupledRealizationPlan, FixedTopologyAleCoupledRealizationRequest,
+    FixedTopologyAleCoupledRealizationRequirements, GclCompatibleAlePullback,
+    MeshArtifactReference, MeshKind, MeshPolicy, NonlinearSolvePlan, P1HarmonicMeshMotionPolicy,
+    QuadraturePolicy, RealizationCapabilities, RealizationRequirements, RealizationRevision,
+    ResolvedFixedTopologyAleCoupledRealization, Space, SpatialDimensionSupport,
+    SymmetricCongruenceScaling, Target, TargetCapabilities, TraceFieldEndpoint, VectorLayoutKind,
+    resolve_fixed_topology_ale_coupled,
 };
 use eqiora_solver::{
-    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy, ScalarType,
+    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy,
     SolverCapabilities, SolverCapability, SolverPlan,
 };
 use ulid::Ulid;

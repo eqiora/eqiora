@@ -7,6 +7,7 @@ fn runtime_identity_exists_without_linking_or_loading_cuda() {
 
 #[cfg(feature = "cuda-runtime")]
 mod cuda_runtime {
+    use eqiora_core::ScalarType;
     use std::num::NonZeroUsize;
 
     use eqiora_assembly::{AssemblyMap, CooAssembler, DofId, LocalContribution, LocalUnknown};
@@ -22,7 +23,7 @@ mod cuda_runtime {
     };
     use eqiora_solver::{
         CanonicalCsrSystemView, ExecutionReport, LinearOperatorProperties, LinearSolver,
-        PreconditionerPolicy, ReductionPolicy, ScalarType, SolverPlan,
+        PreconditionerPolicy, ReductionPolicy, SolverPlan,
     };
 
     fn matrix() -> eqiora_assembly::CsrMatrix {

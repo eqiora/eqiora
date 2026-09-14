@@ -999,7 +999,7 @@ mod tests {
     use eqiora_distributed::GlobalVectorSpace;
     use eqiora_solver::{
         BackendId, ExecutionId, ExecutionProvider, ExecutionReport, LinearOperatorOrientation,
-        ScalarType, SolverPlan, SolverProvider,
+        SolverPlan, SolverProvider,
     };
 
     #[test]
@@ -1451,7 +1451,7 @@ mod tests {
 
     fn arbitrary_partition() -> Partition {
         Partition::new(
-            GlobalVectorSpace::new(NonZeroUsize::new(5).unwrap(), ScalarType::F64),
+            GlobalVectorSpace::new(NonZeroUsize::new(5).unwrap(), eqiora_core::ScalarType::F64),
             NonZeroUsize::new(3).unwrap(),
             vec![
                 PartitionId::new(2),

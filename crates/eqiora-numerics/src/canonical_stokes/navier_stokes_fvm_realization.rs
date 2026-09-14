@@ -1,17 +1,17 @@
+use eqiora_solver::{AlgebraicBlock, AlgebraicConstraint};
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use eqiora_artifact::CartesianMeshEnvelopeV1;
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id};
+use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id, ScalarType};
 use eqiora_realization::{
-    AlgebraicBlock, AlgebraicBlockScale, AlgebraicConstraint, BackwardEulerRelationStep,
-    CartesianCentralNewtonianTraction, CoordinateTreatment, Discretization, DiscretizationMethod,
-    ExecutionSchedule, FieldSpaceBinding, FieldwiseRealizationPlan,
-    FieldwiseRealizationRequirements, FieldwiseSpatialDiscretization,
-    ImplicitCenteredMomentumConvection, MeshPolicy, MomentumWeightedLinearExactCoupling,
-    NonlinearSolvePlan, PortableRealizationGraph, PositiveMomentumDiagonal, PositivePhysicalScale,
-    QuadraturePolicy, RealizationRequirements,
+    AlgebraicBlockScale, BackwardEulerRelationStep, CartesianCentralNewtonianTraction,
+    CoordinateTreatment, Discretization, DiscretizationMethod, ExecutionSchedule,
+    FieldSpaceBinding, FieldwiseRealizationPlan, FieldwiseRealizationRequirements,
+    FieldwiseSpatialDiscretization, ImplicitCenteredMomentumConvection, MeshPolicy,
+    MomentumWeightedLinearExactCoupling, NonlinearSolvePlan, PortableRealizationGraph,
+    PositiveMomentumDiagonal, PositivePhysicalScale, QuadraturePolicy, RealizationRequirements,
     ResolvedTransientCellCenteredIncompressibleFlowRealization, Space, SymmetricCongruenceScaling,
     SystemBlock, Target, TransformationNode,
     TransientCellCenteredIncompressibleFlowRealizationPlan,
@@ -20,7 +20,7 @@ use eqiora_realization::{
 };
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
-    BackendId, LinearOperatorProperties, LinearSolverBackend, ScalarType, SolveReport, SolverPlan,
+    BackendId, LinearOperatorProperties, LinearSolverBackend, SolveReport, SolverPlan,
 };
 
 use super::{

@@ -1,5 +1,6 @@
 #![cfg(feature = "cuda")]
 
+use eqiora_core::ScalarType;
 use std::num::{NonZeroU64, NonZeroUsize};
 
 use eqiora::backends::cuda::{
@@ -8,15 +9,15 @@ use eqiora::backends::cuda::{
 };
 use eqiora::device::{DeviceDescriptor, DeviceId, QueueSlot};
 use eqiora::realization::{
-    AlgebraicBlock, CoupledFieldwiseRealizationPlan, CoupledFieldwiseRealizationRequest,
-    DiscretizationMethod, MeshKind, RealizationCapabilities, RealizationRevision,
-    ResolvedCoupledFieldwiseRealization, SemanticRevision, SpatialDimensionSupport,
-    TargetCapabilities, VectorLayoutKind, resolve_coupled_fieldwise,
+    CoupledFieldwiseRealizationPlan, CoupledFieldwiseRealizationRequest, DiscretizationMethod,
+    MeshKind, RealizationCapabilities, RealizationRevision, ResolvedCoupledFieldwiseRealization,
+    SemanticRevision, SpatialDimensionSupport, TargetCapabilities, VectorLayoutKind,
+    resolve_coupled_fieldwise,
 };
 use eqiora::solver::{
-    ExecutionReport, LinearOperatorOrientation, LinearOperatorProperties, LinearSolver,
-    LinearSolverBackend, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
-    ScalarType, SolverCapabilities, SolverCapability, SolverPlan,
+    AlgebraicBlock, ExecutionReport, LinearOperatorOrientation, LinearOperatorProperties,
+    LinearSolver, LinearSolverBackend, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
+    ReductionPolicy, SolverCapabilities, SolverCapability, SolverPlan,
 };
 use eqiora_backend_cuda::CudaAdmittedExecutionAdapter;
 use eqiora_execution::{

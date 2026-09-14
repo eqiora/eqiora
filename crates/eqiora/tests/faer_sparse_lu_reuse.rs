@@ -1,3 +1,4 @@
+use eqiora_core::ScalarType;
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora::compiler::compile;
@@ -13,7 +14,7 @@ use eqiora::sem::KernelProgram;
 use eqiora::solver::{
     CanonicalCsrSystemView, CompleteCsrStorage, LinearOperatorProperties, LinearSolver,
     LinearSolverBackend, PreconditionerPolicy, ReductionPolicy, SERIAL_EXECUTION_PROVIDER,
-    ScalarType, SolverPlan,
+    SolverPlan,
 };
 use eqiora_backend_faer::{FAER_SOLVER_PROVIDER, FaerLinearSolver};
 use eqiora_execution::{

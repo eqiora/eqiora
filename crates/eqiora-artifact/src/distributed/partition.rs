@@ -1,8 +1,7 @@
 use std::num::NonZeroUsize;
 
-use eqiora_core::Diagnostic;
+use eqiora_core::{Diagnostic, ScalarType};
 use eqiora_distributed::{GlobalVectorSpace, Partition, PartitionId};
-use eqiora_solver::ScalarType;
 use serde::{Deserialize, Serialize};
 
 use super::{

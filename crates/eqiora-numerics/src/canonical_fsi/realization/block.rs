@@ -3,9 +3,8 @@
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id, RawId};
 use eqiora_meshing::{MeshTopology, SimplicialMesh};
-use eqiora_realization::{
-    AlgebraicBlock, MeshArtifactReference, ResolvedCoupledFieldwiseRealization,
-};
+use eqiora_realization::{MeshArtifactReference, ResolvedCoupledFieldwiseRealization};
+use eqiora_solver::AlgebraicBlock;
 use eqiora_solver::LinearOperatorProperties;
 
 use super::super::FixedReferenceFsiCartesianModel2d;

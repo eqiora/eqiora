@@ -519,9 +519,20 @@ impl CommonFsiPlan {
             mesh.mesh(),
             &self.partition,
         )?;
+        let spatial = self.resolved.plan().spatial();
+        let structure = eqiora_solver::AlgebraicStructure::new(
+            spatial
+                .domains()
+                .iter()
+                .flat_map(|domain| domain.field_spaces().iter().map(|binding| binding.field())),
+            spatial
+                .domains()
+                .iter()
+                .flat_map(|domain| domain.constraints().iter().copied()),
+        )?;
         Ok(PreparedCommonFsiExecution {
             plan: self,
-            backend: self.linear.checked_backend(backend)?,
+            backend: self.linear.checked_backend(backend, Some(&structure))?,
             prepared,
         })
     }

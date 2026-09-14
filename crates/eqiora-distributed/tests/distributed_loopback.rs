@@ -1,3 +1,4 @@
+use eqiora_core::ScalarType;
 use std::num::NonZeroUsize;
 
 use eqiora_distributed::{
@@ -6,7 +7,7 @@ use eqiora_distributed::{
 };
 use eqiora_solver::{
     CanonicalCsrSystemView, CompleteCsrStorage, LinearOperatorProperties, LinearSolver,
-    PreconditionerPolicy, ReductionPolicy, ScalarType, SolverPlan,
+    PreconditionerPolicy, ReductionPolicy, SolverPlan,
 };
 
 #[test]

@@ -1,5 +1,6 @@
 //! Coherent-SI reference realization of the fixed-domain transient flow subset.
 
+use eqiora_solver::{AlgebraicBlock, AlgebraicConstraint};
 pub(super) mod boundary;
 
 use std::num::{NonZeroU16, NonZeroUsize};
@@ -8,23 +9,22 @@ use eqiora_artifact::SimplicialMeshEnvelopeV1;
 use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id};
+use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id, ScalarType};
 use eqiora_meshing::{
     QuadratureRule, SimplicialMesh, simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre,
 };
 use eqiora_realization::{
-    AlgebraicBlock, AlgebraicBlockScale, AlgebraicConstraint, BackwardEulerRelationStep,
-    CoordinateTreatment, Discretization, DiscretizationMethod, EnergySkewConvection,
-    ExecutionSchedule, FieldSpaceBinding, FieldwiseRealizationPlan,
-    FieldwiseRealizationRequirements, FieldwiseSpatialDiscretization, MeshArtifactReference,
-    MeshPolicy, NonlinearSolvePlan, PlacementRequirementNode, PortableRealizationGraph,
-    PositivePhysicalScale, QuadraturePolicy, RealizationRequirements,
+    AlgebraicBlockScale, BackwardEulerRelationStep, CoordinateTreatment, Discretization,
+    DiscretizationMethod, EnergySkewConvection, ExecutionSchedule, FieldSpaceBinding,
+    FieldwiseRealizationPlan, FieldwiseRealizationRequirements, FieldwiseSpatialDiscretization,
+    MeshArtifactReference, MeshPolicy, NonlinearSolvePlan, PlacementRequirementNode,
+    PortableRealizationGraph, PositivePhysicalScale, QuadraturePolicy, RealizationRequirements,
     ResolvedTransientFieldwiseRealization, SolveRoot, Space, SymmetricCongruenceScaling,
     SystemBlock, Target, TransformationNode, TransientFieldwiseRealizationPlan,
     TransientFieldwiseRealizationRequirements, VectorLayoutKind,
 };
 use eqiora_sem::KernelProgram;
-use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend, ScalarType, SolverPlan};
+use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend, SolverPlan};
 
 use super::navier_stokes::TransientIncompressibleNavierStokesModel2d;
 use super::realization::{NormalizedCartesianSimplicialMesh2d, normalize_cartesian_mesh};

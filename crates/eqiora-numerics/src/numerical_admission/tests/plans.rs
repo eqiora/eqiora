@@ -889,11 +889,12 @@ fn planned_common_execution_reauthenticates_before_backend_or_operator_work() {
         LinearOperatorProperties::General,
         None,
         None,
+        None,
         &PlanningFaerBackend,
     )
     .unwrap();
     assert_eq!(policy.solver.algorithm(), LinearSolver::SparseLu);
-    let checked = policy.checked_backend(&PlanningFaerBackend).unwrap();
+    let checked = policy.checked_backend(&PlanningFaerBackend, None).unwrap();
     let problem =
         LinearProblem::new(&Unexecuted, &[1.], LinearOperatorProperties::General).unwrap();
     assert!(

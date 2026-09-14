@@ -93,6 +93,7 @@ impl CommonAlgebraicPlan {
             LinearOperatorProperties::General,
             None,
             None,
+            None,
             backend,
         )?;
         if linear.solver.algorithm() != LinearSolver::SparseLu
@@ -191,7 +192,7 @@ impl CommonAlgebraicPlan {
                 "finite Run requires its exact Plan-bound State and admitted provider",
             ));
         }
-        let checked = self.linear.checked_backend(backend)?;
+        let checked = self.linear.checked_backend(backend, None)?;
         let solution = self.problem.solve(
             &state.values,
             LinearSolveRequest::new(&checked, self.linear.solver),

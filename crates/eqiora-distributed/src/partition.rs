@@ -1,7 +1,6 @@
 use std::num::NonZeroUsize;
 
-use eqiora_core::Diagnostic;
-use eqiora_solver::ScalarType;
+use eqiora_core::{Diagnostic, ScalarType};
 
 use crate::error::invalid_realization;
 

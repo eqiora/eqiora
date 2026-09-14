@@ -464,10 +464,11 @@ pub fn resolve_transient_fieldwise(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use eqiora_core::ScalarType;
     use eqiora_core::diagnostic::codes;
     use eqiora_solver::{
-        LinearSolver, PreconditionerPolicy, ReductionPolicy, ScalarType, SolverCapabilities,
-        SolverCapability, SolverPlan,
+        LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverCapabilities, SolverCapability,
+        SolverPlan,
     };
 
     use crate::{

@@ -1,7 +1,6 @@
-use eqiora_core::Diagnostic;
+use eqiora_core::{Diagnostic, ScalarType};
 use eqiora_distributed::DistributedLinearSystem;
 use eqiora_realization::VectorLayoutKind;
-use eqiora_solver::ScalarType;
 
 use super::{DistributedLayoutEnvelopeV1, LinearSystemEnvelopeV1, PartitionEnvelopeV1};
 use crate::{

@@ -2,8 +2,8 @@ use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
-use eqiora_core::{DimExponents, DynQuantity, Id, OntologyId};
-use eqiora_solver::{LinearOperatorProperties, LinearSolver, ScalarType, SolverPlan};
+use eqiora_core::{DimExponents, DynQuantity, Id, OntologyId, ScalarType};
+use eqiora_solver::{LinearOperatorProperties, LinearSolver, SolverPlan};
 
 use super::*;
 use crate::{

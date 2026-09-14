@@ -6,10 +6,10 @@ use std::ops::ControlFlow;
 use eqiora_assembly::AssemblyBackend;
 #[cfg(test)]
 use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
-use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_core::{Diagnostic, ScalarType};
 use eqiora_meshing::{QuadratureRule, SimplicialMesh};
-use eqiora_solver::{LinearOperatorProperties, LinearProblem, LinearSolverBackend, ScalarType};
+use eqiora_solver::{LinearOperatorProperties, LinearProblem, LinearSolverBackend};
 
 use super::P1HarmonicMeshMotionAction;
 use super::acceptance::{NewtonEvidence, accept_step_prepared};

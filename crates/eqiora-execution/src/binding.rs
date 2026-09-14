@@ -1,5 +1,5 @@
-use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_core::{Diagnostic, ScalarType};
 use eqiora_device::{DeviceCapability, DeviceDescriptor, QueueSlot, SparseActionPolicy};
 use eqiora_realization::{
     ExecutionSchedule, PlacementRequirementNode, PortableRealizationGraph, SolveRoot,
@@ -24,7 +24,7 @@ pub const CUDA_PARTITION_CSR_DEVICE_CAPABILITIES: [DeviceCapability; 3] = [
 ];
 use eqiora_solver::{
     BackendId, ExecutionId, ExecutionProvider, ExecutionReport, LinearOperatorProperties,
-    LinearSolver, PreconditionerPolicy, ReductionPolicy, SERIAL_EXECUTION_PROVIDER, ScalarType,
+    LinearSolver, PreconditionerPolicy, ReductionPolicy, SERIAL_EXECUTION_PROVIDER,
     SolverCapabilities, SolverPlan, SolverProvider,
 };
 

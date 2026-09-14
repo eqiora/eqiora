@@ -13,6 +13,7 @@ pub(super) fn resolve_linear(
     properties: LinearOperatorProperties,
     complete_diagonal: Option<bool>,
     required_reduction: Option<ReductionPolicy>,
+    structure: Option<eqiora_solver::AlgebraicStructure>,
     supplied_backend: &dyn LinearSolverBackend,
 ) -> Result<NativeLinearPolicy, Diagnostic> {
     let profile = eqiora_solver::HostSerialSolverProfile::canonical_csr(
@@ -20,13 +21,19 @@ pub(super) fn resolve_linear(
         complete_diagonal,
         required_reduction,
     );
+    let profile = match structure {
+        Some(structure) => profile.with_structure(structure)?,
+        None => profile,
+    };
     if let Some((plan, provider)) = request.exact_request() {
         let backend = exact_backend(provider, supplied_backend)?;
         profile.require_plan(plan)?;
         backend
             .capabilities()
             .require_problem(plan, ScalarType::F64, properties)?;
-        return NativeLinearPolicy::exact(plan, backend);
+        let mut selected = NativeLinearPolicy::exact(plan, backend)?;
+        selected.planning_profile = Some(profile);
+        return Ok(selected);
     }
     let objective = request
         .objective()
@@ -144,6 +151,7 @@ mod tests {
                 properties,
                 Some(false),
                 None,
+                None,
                 &ResolveOnlySparseBackend,
             )
             .unwrap();
@@ -169,6 +177,7 @@ mod tests {
                 LinearOperatorProperties::SymmetricPositiveDefinite,
                 Some(true),
                 None,
+                None,
                 &ResolveOnlySparseBackend
             )
             .unwrap_err()
@@ -186,6 +195,7 @@ mod tests {
                 LinearOperatorProperties::SymmetricIndefinite,
                 Some(true),
                 None,
+                None,
                 &ResolveOnlySparseBackend
             )
             .is_err()
@@ -201,6 +211,7 @@ mod tests {
                 jacobi,
                 LinearOperatorProperties::SymmetricPositiveDefinite,
                 Some(false),
+                None,
                 None,
                 &ResolveOnlySparseBackend
             )

@@ -1,3 +1,4 @@
+use eqiora_core::ScalarType;
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora::artifact::{
@@ -16,8 +17,8 @@ use eqiora::realization::{
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
     ExecutionReport, LinearOperatorProperties, LinearSolver, PreconditionerPolicy,
-    REFERENCE_LINEAR_SOLVER, ReductionPolicy, ScalarType, SolveReport, SolverCapabilities,
-    SolverCapability, SolverPlan,
+    REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolveReport, SolverCapabilities, SolverCapability,
+    SolverPlan,
 };
 use eqiora_backend_rayon::{CpuThreadPool, RAYON_EXECUTION};
 use eqiora_numerics::{

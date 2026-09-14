@@ -1600,7 +1600,7 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
         // algorithm alone cannot admit the requested symmetric operator class.
         let profile = HostSerialSolverProfile::canonical_csr(properties, Some(false), None);
         let rejected = plan_host_serial_solver_v2(
-            profile,
+            profile.clone(),
             SolverPlanningObjective::Robust,
             1e-12,
             1e-14,
@@ -1620,7 +1620,7 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
         // the exact class. Change only that field before admitting the direct candidate.
         faer.capability.operator_properties = properties;
         let direct = plan_host_serial_solver_v2(
-            profile,
+            profile.clone(),
             SolverPlanningObjective::Robust,
             1e-12,
             1e-14,
@@ -1636,7 +1636,7 @@ fn symmetric_profiles_require_their_exact_capability_before_any_backend_work() {
             ..capability(exact)
         };
         let accepted = plan_host_serial_solver_v2(
-            profile,
+            profile.clone(),
             SolverPlanningObjective::Robust,
             1e-12,
             1e-14,
@@ -1684,7 +1684,7 @@ fn required_reduction_filters_before_objective_ranking_and_exact_admission() {
         SolverPlanningObjective::LowMemory,
     ] {
         let selected = plan_host_serial_solver_v2(
-            profile,
+            profile.clone(),
             objective,
             1e-12,
             1e-14,

@@ -4,8 +4,8 @@ pub use loopback::LoopbackExecutor;
 
 use std::num::NonZeroUsize;
 
-use eqiora_core::Diagnostic;
-use eqiora_solver::{CanonicalCsrSystemView, DiagonalAvailability, ScalarType};
+use eqiora_core::{Diagnostic, ScalarType};
+use eqiora_solver::{CanonicalCsrSystemView, DiagonalAvailability};
 
 use crate::allocation::{checked_count_add, realization_vector};
 use crate::error::{invalid_realization, solve_failed};

@@ -46,11 +46,11 @@ impl KrylovWorkspace {
 
 #[cfg(test)]
 mod tests {
+    use eqiora_core::ScalarType;
     use eqiora_core::diagnostic::codes;
     use eqiora_distributed::{DistributedLinearSystem, GlobalVectorSpace, Partition, PartitionId};
     use eqiora_solver::{
         CanonicalCsrSystemView, CompleteCsrStorage, LinearOperatorProperties, ReductionPolicy,
-        ScalarType,
     };
 
     use super::*;

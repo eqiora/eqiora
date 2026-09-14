@@ -14,15 +14,16 @@ mod planning;
 mod provider;
 mod reference;
 mod report;
+mod structure;
 
 pub use backend::{
     BackendId, LinearSolveRequest, LinearSolverBackend, SolverCapabilities, SolverCapability,
 };
 pub use csr::{CanonicalCsrAgreementFingerprintV1, CanonicalCsrSystemView, CompleteCsrStorage};
-pub use eqiora_core::ScalarType;
+use eqiora_core::ScalarType;
 pub use execution::{
     FixedOrderInnerProduct, REPRODUCIBLE_INNER_PRODUCT_CHUNK_LENGTH, ReplicatedLinearExecution,
-    SERIAL_EXECUTION_PROVIDER, SERIAL_LINEAR_EXECUTION, SerialLinearExecution,
+    SERIAL_EXECUTION_PROVIDER, SERIAL_LINEAR_EXECUTION,
 };
 pub use operator::{
     DiagonalAvailability, LinearOperator, LinearOperatorOrientation, LinearOperatorProperties,
@@ -34,9 +35,10 @@ pub use planning::{
     plan_host_serial_solver_v2,
 };
 pub use provider::{ExecutionProvider, ProviderLibrary, SolverProvider};
-pub use reference::{REFERENCE_LINEAR_SOLVER, REFERENCE_SOLVER_PROVIDER, ReferenceLinearSolver};
+pub use reference::{REFERENCE_LINEAR_SOLVER, REFERENCE_SOLVER_PROVIDER};
 pub use report::{
     ConvergenceReason, ExecutionId, ExecutionReport, ExecutionTopology, LinearAcceptanceWorkspace,
     LinearSolution, SolveReport, accept_linear_solution, accept_linear_solution_with_execution,
     accept_linear_solution_with_verifier, accept_linear_solution_with_verifier_in,
 };
+pub use structure::{AlgebraicBlock, AlgebraicConstraint, AlgebraicStructure};

@@ -1,19 +1,19 @@
+use eqiora_solver::{AlgebraicBlock, AlgebraicConstraint};
 use std::num::{NonZeroU16, NonZeroU64, NonZeroUsize};
 
 use crate::dimension::WireDimension;
 
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DynQuantity, Id};
+use eqiora_core::{Diagnostic, DynQuantity, Id, ScalarType};
 use eqiora_realization::{
-    AlgebraicBlock, AlgebraicBlockScale, AlgebraicConstraint, Discretization, DiscretizationMethod,
-    ExecutionSchedule, FieldSpaceBinding, FieldwiseRealizationPlan,
-    FieldwiseRealizationRequirements, FieldwiseSpatialDiscretization, MeshArtifactReference,
-    MeshPolicy, PositivePhysicalScale, QuadraturePolicy, RealizationRequirements, Space,
-    SpaceFamily, SymmetricCongruenceScaling, Target, VectorLayoutKind,
+    AlgebraicBlockScale, Discretization, DiscretizationMethod, ExecutionSchedule,
+    FieldSpaceBinding, FieldwiseRealizationPlan, FieldwiseRealizationRequirements,
+    FieldwiseSpatialDiscretization, MeshArtifactReference, MeshPolicy, PositivePhysicalScale,
+    QuadraturePolicy, RealizationRequirements, Space, SpaceFamily, SymmetricCongruenceScaling,
+    Target, VectorLayoutKind,
 };
 use eqiora_solver::{
-    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy, ScalarType,
-    SolverPlan,
+    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan,
 };
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;

@@ -12,15 +12,15 @@ use std::sync::Mutex;
 use eqiora_assembly::{
     AssemblyAccumulator, AssemblyBackend, AssemblyPlan, AssemblyResult, AssemblyWork,
 };
-use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_core::{Diagnostic, ScalarType};
 use eqiora_execution::DeploymentBinding;
 use eqiora_realization::{Target, TargetCapabilities};
 use eqiora_solver::{
     ExecutionId, ExecutionProvider, ExecutionReport, ExecutionTopology, FixedOrderInnerProduct,
     LinearOperator, LinearProblem, LinearSolution, LinearSolverBackend, ProviderLibrary,
-    ReductionPolicy, ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, ScalarType,
-    SolverCapabilities, SolverPlan, SolverProvider,
+    ReductionPolicy, ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, SolverCapabilities,
+    SolverPlan, SolverProvider,
 };
 use rayon::prelude::*;
 use rayon::{ThreadPool, ThreadPoolBuilder};

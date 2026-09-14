@@ -69,11 +69,13 @@ pub fn resolve_common_plan(
                     LinearOperatorProperties::General,
                     None,
                     None,
+                    None,
                     stokes_backend,
                 )?,
                 NativeSpatialPolicy::ScalarTpfa => resolve_linear(
                     solve,
                     LinearOperatorProperties::SymmetricPositiveDefinite,
+                    None,
                     None,
                     None,
                     stokes_backend,
@@ -112,6 +114,7 @@ pub fn resolve_common_plan(
                 LinearOperatorProperties::SymmetricPositiveDefinite,
                 None,
                 None,
+                None,
                 stokes_backend,
             )?;
             let admission = recognized.complete(spatial, linear, None, None)?;
@@ -144,6 +147,7 @@ pub fn resolve_common_plan(
                 LinearOperatorProperties::SymmetricIndefinite,
                 None,
                 None,
+                Some(binding.algebraic_structure()?),
                 stokes_backend,
             )?;
             let admission =
@@ -184,6 +188,7 @@ pub fn resolve_common_plan(
                 LinearOperatorProperties::General,
                 None,
                 None,
+                None,
                 stokes_backend,
             )?;
             let native_spatial = spatial.with_scaling(scaling.scales());
@@ -218,6 +223,7 @@ pub fn resolve_common_plan(
                 None,
                 // The admitted common host FSI execution owns reproducible reductions.
                 Some(ReductionPolicy::Reproducible),
+                Some(canonical.algebraic_structure()?),
                 stokes_backend,
             )?;
             CommonFsiPlan::from_recognized(model, recognized, scaling, temporal, effective_linear)

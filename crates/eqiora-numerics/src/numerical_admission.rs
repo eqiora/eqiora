@@ -67,7 +67,7 @@ use eqiora_artifact::{
 use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora_compiler::AuthoredFormulationProjection;
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, DimExponents, DynQuantity};
+use eqiora_core::{Diagnostic, DimExponents, DynQuantity, ScalarType};
 use eqiora_execution::{
     AdmittedExecution, DeploymentBinding, ExecutionReceipt, HostExecutorDescriptor,
 };
@@ -94,8 +94,8 @@ use eqiora_sem::KernelProgram;
 use eqiora_solver::{
     ExecutionProvider, LinearOperatorProperties, LinearSolveRequest, LinearSolver,
     LinearSolverBackend, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
-    ResolvedHostSerialSolverPlan, SERIAL_EXECUTION_PROVIDER, ScalarType, SolverCapabilities,
-    SolverCapability, SolverPlan, SolverPlanningObjective, SolverProvider,
+    ResolvedHostSerialSolverPlan, SERIAL_EXECUTION_PROVIDER, SolverCapabilities, SolverCapability,
+    SolverPlan, SolverPlanningObjective, SolverProvider,
 };
 use eqiora_time::TimeBackendIdentity;
 

@@ -13,13 +13,13 @@ mod sparse_lu_reuse;
 
 use std::sync::{Arc, Mutex};
 
-use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_core::{Diagnostic, ScalarType};
 use eqiora_execution::{AcceptedLinearExecution, AdmittedExecution};
 use eqiora_solver::{
     BackendId, ConvergenceReason, DiagonalAvailability, ExecutionReport, LinearOperator,
     LinearOperatorProperties, LinearProblem, LinearSolution, LinearSolver, LinearSolverBackend,
-    PreconditionerPolicy, ProviderLibrary, ReductionPolicy, ReplicatedLinearExecution, ScalarType,
+    PreconditionerPolicy, ProviderLibrary, ReductionPolicy, ReplicatedLinearExecution,
     SolverCapabilities, SolverCapability, SolverPlan, SolverProvider, accept_linear_solution,
 };
 use faer::dyn_stack::{MemBuffer, MemStack, StackReq};
@@ -488,7 +488,7 @@ fn solve_failed(message: impl Into<String>) -> Diagnostic {
 mod tests {
     use std::num::NonZeroUsize;
 
-    use eqiora_solver::{LinearOperatorProperties, REFERENCE_LINEAR_SOLVER, ReferenceLinearSolver};
+    use eqiora_solver::{LinearOperatorProperties, REFERENCE_LINEAR_SOLVER};
 
     use super::*;
 
@@ -587,7 +587,7 @@ mod tests {
             LinearOperatorProperties::SymmetricPositiveDefinite,
         )
         .unwrap();
-        let reference = ReferenceLinearSolver
+        let reference = REFERENCE_LINEAR_SOLVER
             .solve(&problem, plan(LinearSolver::ConjugateGradient))
             .unwrap();
         let faer_plan = plan(LinearSolver::ConjugateGradient)

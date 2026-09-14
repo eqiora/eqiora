@@ -144,7 +144,7 @@ mod tests {
     use eqiora_solver::{
         BackendId, LinearOperatorProperties, LinearProblem, LinearSolution, LinearSolver,
         LinearSolverBackend, PreconditionerPolicy, ReductionPolicy, ReplicatedLinearExecution,
-        ScalarType, SolverCapabilities, SolverCapability, SolverPlan, SolverProvider,
+        SolverCapabilities, SolverCapability, SolverPlan, SolverProvider,
     };
 
     use super::*;
@@ -177,7 +177,7 @@ mod tests {
                 operator_properties: LinearOperatorProperties::General,
                 preconditioner: PreconditionerPolicy::Identity,
                 reduction: ReductionPolicy::Fast,
-                scalar_type: ScalarType::F64,
+                scalar_type: eqiora_core::ScalarType::F64,
             }])
             .unwrap()
         }

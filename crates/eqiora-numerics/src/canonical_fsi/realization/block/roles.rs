@@ -1,6 +1,7 @@
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
-use eqiora_realization::{AlgebraicBlock, CoupledFieldwiseRealizationPlan};
+use eqiora_realization::CoupledFieldwiseRealizationPlan;
+use eqiora_solver::AlgebraicBlock;
 
 use crate::canonical_fsi::FixedReferenceFsiCartesianModel2d;
 use crate::discrete_block::{

@@ -52,10 +52,11 @@ pub enum SolverPlanningObjective {
 }
 
 /// Structural operator facts admitted before host-serial numerical work.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostSerialSolverProfile {
     facts: PlanningProfileFacts,
     required_reduction: Option<ReductionPolicy>,
+    structure: Option<crate::AlgebraicStructure>,
 }
 
 impl HostSerialSolverProfile {
@@ -66,6 +67,7 @@ impl HostSerialSolverProfile {
         Self {
             facts: PlanningProfileFacts::GENERAL_CANONICAL_CSR,
             required_reduction: None,
+            structure: None,
         }
     }
 
@@ -77,10 +79,11 @@ impl HostSerialSolverProfile {
     ///
     /// Properties are assertions supplied by the mathematical admission owner.
     /// This profile does not establish positive definiteness, remove a nullspace,
-    /// authenticate a pressure gauge, or preserve a typed block decomposition.
+    /// or authenticate a pressure gauge. `with_structure` retains method-owned
+    /// Field and multiplier ownership for admission and execution authentication.
     /// A required reduction is an execution constraint, independent of ranking
     /// objective; `None` permits either policy.
-    /// Constraint/gauge elimination must already be complete. No matrix values
+    /// Constraint elimination or explicit gauge augmentation must already be complete. No matrix values
     /// are inspected while planning; execution rechecks these structural facts.
     #[must_use]
     pub const fn canonical_csr(
@@ -96,7 +99,45 @@ impl HostSerialSolverProfile {
                 complete_diagonal,
             },
             required_reduction,
+            structure: None,
         }
+    }
+
+    /// Bind method-owned Field/gauge structure before exact admission or ranking.
+    ///
+    /// # Errors
+    /// A multiplier gauge is incompatible with a positive-definite operator assertion.
+    pub fn with_structure(
+        mut self,
+        structure: crate::AlgebraicStructure,
+    ) -> Result<Self, Diagnostic> {
+        if !structure.constraints().is_empty()
+            && self.facts.properties == LinearOperatorProperties::SymmetricPositiveDefinite
+        {
+            return Err(Diagnostic::error(
+                codes::INVALID_REALIZATION,
+                "profile.gauge-multiplier-incompatible-with-spd",
+            ));
+        }
+        self.structure = Some(structure);
+        Ok(self)
+    }
+
+    /// Reauthenticate the method-owned structure before execution.
+    ///
+    /// # Errors
+    /// Rejects changed, omitted, or unexpected Field/gauge ownership.
+    pub fn require_structure(
+        &self,
+        structure: Option<&crate::AlgebraicStructure>,
+    ) -> Result<(), Diagnostic> {
+        if self.structure.as_ref() != structure {
+            return Err(Diagnostic::error(
+                codes::INVALID_REALIZATION,
+                "profile.algebraic-structure-mismatch",
+            ));
+        }
+        Ok(())
     }
 
     /// Admit an exact solver tuple against the same structural and execution
@@ -105,7 +146,7 @@ impl HostSerialSolverProfile {
     /// # Errors
     /// Returns `EQ0807` when Jacobi lacks a complete structural diagonal or the
     /// requested reduction differs from the execution requirement.
-    pub fn require_plan(self, plan: SolverPlan) -> Result<(), Diagnostic> {
+    pub fn require_plan(&self, plan: SolverPlan) -> Result<(), Diagnostic> {
         if let Some(reason) = self.plan_rejection(plan) {
             return Err(Diagnostic::error(
                 codes::INVALID_REALIZATION,
@@ -115,7 +156,7 @@ impl HostSerialSolverProfile {
         Ok(())
     }
 
-    fn plan_rejection(self, plan: SolverPlan) -> Option<&'static str> {
+    fn plan_rejection(&self, plan: SolverPlan) -> Option<&'static str> {
         if self
             .required_reduction
             .is_some_and(|required| plan.reduction() != required)
@@ -135,7 +176,7 @@ impl HostSerialSolverProfile {
     ///
     /// # Errors
     /// Returns `EQ0807` before numerical work when a claimed fact differs.
-    pub fn require_problem(self, problem: &LinearProblem<'_>) -> Result<(), Diagnostic> {
+    pub fn require_problem(&self, problem: &LinearProblem<'_>) -> Result<(), Diagnostic> {
         let actual = PlanningProfileFacts::from_problem(problem);
         let mut claimed = self.facts;
         if claimed.complete_diagonal.is_none() {
@@ -271,8 +312,8 @@ pub struct ResolvedHostSerialSolverPlan<'backend> {
 impl<'backend> ResolvedHostSerialSolverPlan<'backend> {
     /// Mathematical and structural assertions admitted before execution.
     #[must_use]
-    pub const fn profile(&self) -> HostSerialSolverProfile {
-        self.profile
+    pub fn profile(&self) -> HostSerialSolverProfile {
+        self.profile.clone()
     }
 
     /// Frozen objective used to rank admitted candidates.
@@ -328,7 +369,12 @@ impl<'backend> ResolvedHostSerialSolverPlan<'backend> {
     /// # Errors
     /// Returns a profile diagnostic before backend work, or the selected
     /// backend's capability/numerical diagnostic. No retry or fallback occurs.
-    pub fn solve(&self, problem: &LinearProblem<'_>) -> Result<LinearSolution, Diagnostic> {
+    pub fn solve(
+        &self,
+        problem: &LinearProblem<'_>,
+        structure: Option<&crate::AlgebraicStructure>,
+    ) -> Result<LinearSolution, Diagnostic> {
+        self.profile.require_structure(structure)?;
         self.profile.require_plan(self.solver_plan())?;
         self.profile.require_problem(problem)?;
         self.selected.request().solve(problem)
@@ -419,7 +465,7 @@ pub fn plan_host_serial_solver_v2<'backend>(
             ))
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
-    let resolved = resolve_candidates(profile, objective, &candidates)?;
+    let resolved = resolve_candidates(profile.clone(), objective, &candidates)?;
     Ok(ResolvedHostSerialSolverPlan {
         profile,
         objective,
@@ -465,6 +511,7 @@ fn resolve_host_serial_solver_v2<'problem, 'backend>(
         HostSerialSolverProfile {
             facts: PlanningProfileFacts::from_problem(problem),
             required_reduction: None,
+            structure: None,
         },
         objective,
         candidates,
@@ -492,7 +539,7 @@ fn resolve_candidates<'backend>(
         .into_iter()
         .map(|candidate| CandidateEvaluation {
             candidate,
-            rejection: rejection_reason(profile, candidate),
+            rejection: rejection_reason(&profile, candidate),
         })
         .collect::<Vec<_>>();
 
@@ -623,7 +670,7 @@ fn validate_common_controls(
 }
 
 fn rejection_reason(
-    profile: HostSerialSolverProfile,
+    profile: &HostSerialSolverProfile,
     candidate: HostSerialSolverCandidate<'_>,
 ) -> Option<&'static str> {
     let expected = expected_candidate(candidate.id());

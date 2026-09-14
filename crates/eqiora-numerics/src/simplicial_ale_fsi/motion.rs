@@ -7,13 +7,13 @@
 //! extension. The precomputed influence matrix is linear, so primal and JVP
 //! evaluation necessarily use the same action.
 
-use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_core::{Diagnostic, ScalarType};
 use eqiora_meshing::P1HarmonicCoordinateRelation;
 use eqiora_meshing::{SimplicialMesh, VertexId};
 use eqiora_solver::{
     DiagonalAvailability, LinearOperator, LinearOperatorProperties, LinearProblem,
-    LinearSolveRequest, LinearSolver, ScalarType, SolveReport,
+    LinearSolveRequest, LinearSolver, SolveReport,
 };
 
 use crate::simplicial_fsi::FixedReferenceFsiPartition;
