@@ -27,7 +27,7 @@ pub enum CommonTrajectory {
         history: AcceptedTimeHistory,
         identity: String,
     },
-    TransientFlow {
+    SpatialTransient {
         request: Box<CommonTransientRunRequest>,
         states: Vec<(usize, CommonState)>,
         identity: String,
@@ -151,18 +151,31 @@ impl CommonTrajectory {
         })
     }
 
-    /// Accept exact requested transient-flow output steps.
-    pub fn accept_transient_flow(
+    /// Accept exact requested scalar or flow output steps and grid times.
+    pub fn accept_spatial_transient(
         request: CommonTransientRunRequest,
         states: Vec<(usize, CommonState)>,
     ) -> Result<Self, Diagnostic> {
         validate_spatial(
-            request.plan().state_space_identity(),
+            request.plan().spatial_state_space_identity()?,
             request.output_steps(),
             &states,
         )?;
-        let identity = spatial_identity(b"transient-flow", request.identity(), &states)?;
-        Ok(Self::TransientFlow {
+        let step_s = request
+            .plan()
+            .backward_euler()
+            .ok_or_else(|| invalid("spatial trajectory requires BackwardEuler"))?
+            .step()
+            .value();
+        if states.iter().any(|(step, state)| {
+            state.time_s().to_bits() != (request.state().time_s() + *step as f64 * step_s).to_bits()
+        }) {
+            return Err(invalid(
+                "spatial Trajectory time differs from its exact accepted-step grid",
+            ));
+        }
+        let identity = spatial_identity(b"spatial-transient", request.identity(), &states)?;
+        Ok(Self::SpatialTransient {
             request: Box::new(request),
             states,
             identity,
@@ -192,7 +205,7 @@ impl CommonTrajectory {
     pub fn identity(&self) -> &str {
         match self {
             Self::Ode { identity, .. }
-            | Self::TransientFlow { identity, .. }
+            | Self::SpatialTransient { identity, .. }
             | Self::Fsi { identity, .. } => identity,
         }
     }
@@ -202,7 +215,7 @@ impl CommonTrajectory {
     pub fn request_identity(&self) -> &str {
         match self {
             Self::Ode { request, .. } => request.identity(),
-            Self::TransientFlow { request, .. } => request.identity(),
+            Self::SpatialTransient { request, .. } => request.identity(),
             Self::Fsi { request, .. } => request.identity(),
         }
     }
@@ -212,7 +225,7 @@ impl CommonTrajectory {
     pub fn plan_identity(&self) -> &str {
         match self {
             Self::Ode { request, .. } => request.plan().identity(),
-            Self::TransientFlow { request, .. } => request.plan().identity(),
+            Self::SpatialTransient { request, .. } => request.plan().identity(),
             Self::Fsi { request, .. } => request.plan().identity(),
         }
     }
@@ -222,7 +235,7 @@ impl CommonTrajectory {
     pub fn ode_states(&self) -> Option<&[CommonOdeState]> {
         match self {
             Self::Ode { states, .. } => Some(states),
-            Self::TransientFlow { .. } | Self::Fsi { .. } => None,
+            Self::SpatialTransient { .. } | Self::Fsi { .. } => None,
         }
     }
 
@@ -231,7 +244,7 @@ impl CommonTrajectory {
     pub fn ode_history(&self) -> Option<&AcceptedTimeHistory> {
         match self {
             Self::Ode { history, .. } => Some(history),
-            Self::TransientFlow { .. } | Self::Fsi { .. } => None,
+            Self::SpatialTransient { .. } | Self::Fsi { .. } => None,
         }
     }
 
@@ -240,7 +253,7 @@ impl CommonTrajectory {
     pub fn spatial_states(&self) -> Option<&[(usize, CommonState)]> {
         match self {
             Self::Ode { .. } => None,
-            Self::TransientFlow { states, .. } | Self::Fsi { states, .. } => Some(states),
+            Self::SpatialTransient { states, .. } | Self::Fsi { states, .. } => Some(states),
         }
     }
 }

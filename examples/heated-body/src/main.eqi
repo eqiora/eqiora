@@ -24,3 +24,28 @@ public component HeatedBody(
       = integrate(body, w * heating);
   }
 }
+
+/// Heat storage and conduction with complete constant initial and boundary data.
+/// The caller supplies positive volumetric capacity; the reference temperature is 300 K.
+public component TransientHeatedBody(
+  support body: volume(ambient_dimension = 2),
+  support x_lower: boundary(parent = body),
+  support x_upper: boundary(parent = body),
+  support y_lower: boundary(parent = body),
+  support y_upper: boundary(parent = body),
+  parameter conductivity: W / (m * K),
+  parameter heating: W / m^3,
+  parameter capacity: J / (m^3 * K)
+) {
+  state temperature: K on body;
+  initial { temperature = 300[K]; }
+  relation prescribed_x_lower on x_lower { trace(temperature) = 300[K]; }
+  relation prescribed_x_upper on x_upper { trace(temperature) = 300[K]; }
+  relation prescribed_y_lower on y_lower { trace(temperature) = 300[K]; }
+  relation prescribed_y_upper on y_upper { trace(temperature) = 300[K]; }
+  law heat_balance on body {
+    storage capacity * temperature;
+    flux -conductivity * grad(temperature);
+    source heating;
+  }
+}

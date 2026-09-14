@@ -4,9 +4,7 @@ use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_numerics::{
-    CommonState, CommonTransientFlowPlan, CommonTransientRunRequest, ResolvedCommonPlan,
-};
+use eqiora_numerics::{CommonState, CommonTransientRunRequest, ResolvedCommonPlan};
 use eqiora_solver::LinearSolverBackend;
 use eqiora_time::TimeBackendIdentity;
 use serde::{Deserialize, Serialize};
@@ -38,7 +36,7 @@ struct WireRunRequestV1 {
 impl RunRequest {
     /// Prepare one normalized accepted-step request for common transient flow.
     pub fn from_steps(
-        plan: CommonTransientFlowPlan,
+        plan: ResolvedCommonPlan,
         state: CommonState,
         steps: usize,
         output_steps: Vec<usize>,
@@ -48,7 +46,7 @@ impl RunRequest {
 
     /// Prepare one normalized exact-time request for common transient flow.
     pub fn from_times(
-        plan: CommonTransientFlowPlan,
+        plan: ResolvedCommonPlan,
         state: CommonState,
         until_s: f64,
         output_times_s: Vec<f64>,
@@ -136,7 +134,7 @@ impl From<CommonTransientRunRequest> for RunRequest {
 
 impl WireRunRequestV1 {
     fn from_request(request: &CommonTransientRunRequest) -> Result<Self, Diagnostic> {
-        let plan = ResolvedCommonPlan::TransientFlow(Box::new(request.plan().clone()));
+        let plan = request.plan();
         let accepted_steps = u64::try_from(request.accepted_steps().get())
             .map_err(|_| invalid("RunRequest horizon exceeds canonical u64 range"))?;
         let output_steps = request
@@ -175,10 +173,7 @@ impl WireRunRequestV1 {
     ) -> Result<CommonTransientRunRequest, Diagnostic> {
         let plan_bytes = decode(&self.plan_base64, "Plan")?;
         let resolved = ResolvedCommonPlan::from_bytes(&plan_bytes, linear_backend, time_backend)?;
-        let plan = resolved
-            .as_transient_flow()
-            .cloned()
-            .ok_or_else(|| invalid("RunRequest Plan is not common transient flow"))?;
+
         let state = CommonState::from_bytes(&decode(&self.state_base64, "State")?, &resolved)?;
         let accepted_steps = usize::try_from(self.accepted_steps)
             .map_err(|_| invalid("RunRequest horizon exceeds this platform's usize range"))?;
@@ -193,7 +188,7 @@ impl WireRunRequestV1 {
             })
             .collect::<Result<Vec<_>, _>>()?;
         let request =
-            CommonTransientRunRequest::from_steps(plan, state, accepted_steps, output_steps)?;
+            CommonTransientRunRequest::from_steps(resolved, state, accepted_steps, output_steps)?;
         if request.identity() != self.identity {
             return Err(invalid(
                 "common transient RunRequest identity does not match its canonical content",

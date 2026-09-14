@@ -137,7 +137,7 @@ impl RunIdentity {
                 eqiora_numerics::CommonTrajectory::Ode { request, .. } => {
                     Self::from_common_ode(request)
                 }
-                eqiora_numerics::CommonTrajectory::TransientFlow { request, .. } => {
+                eqiora_numerics::CommonTrajectory::SpatialTransient { request, .. } => {
                     Self::from_common_transient(request)
                 }
                 eqiora_numerics::CommonTrajectory::Fsi { request, .. } => {

@@ -29,7 +29,7 @@ python examples/voltage-divider/run.py
 | `quickstart` | [`decay.eqi`](decay.eqi) | Compile one scalar decay model and run it through the common root Plan lifecycle. |
 | `project-modules` | [`modules/resistor-project`](modules/resistor-project/) | Compile a directly imported public Model from a closed, portable multi-file source inventory whose module identities come from paths below `src/`; the optional `package-filesystem` run discovers that same closure through bounded no-follow directory traversal. |
 | `voltage-divider` | [`voltage-divider`](voltage-divider/README.md) | Solve the explicit-ground bundled-parts circuit through Plan/State/Run/Result and observe 4 mA, 8 V and power balance. |
-| `heated-body` | [`heated-body`](heated-body/README.md) | Run the steady 300 K boundary heat specimen from an exact local package with Q1, explicit solver policy and offline replay. |
+| `heated-body` | [`heated-body`](heated-body/README.md) | Run steady and constant-capacity transient heat with complete 300 K data, Q1, BackwardEuler, exact local packages and offline replay. |
 | `poisson` | [`crates/eqiora-api/packages/org.example.poisson`](../crates/eqiora-api/packages/org.example.poisson/) | Compile a 2D Poisson model and exercise its verification-only native reference solve. |
 | `coupled-scalar` | [`python/coupled_scalar.py`](python/coupled_scalar.py) | Solve two diffusion/reaction equations with two-way coupling through one Q1 Plan and inspect both Fields in the common Result. |
 | `exact-cylinder-geometry` | [`python/exact_cylinder_geometry.py`](python/exact_cylinder_geometry.py) | From an installed `eqiora` package, author the exact rectangle-with-one-circular-hole identity and inspect its fixed-role named selections. |

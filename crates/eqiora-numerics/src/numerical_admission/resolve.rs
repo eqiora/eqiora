@@ -55,7 +55,10 @@ pub fn resolve_common_plan(
                 solve,
                 scaling,
                 temporal,
-                false,
+                equations
+                    .regions
+                    .iter()
+                    .any(|region| region.form.is_transient()),
                 "scalar conservation form",
                 properties,
                 Some(structure),

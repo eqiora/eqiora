@@ -165,7 +165,18 @@ impl EquationRoles {
                 constraints.push((*id, trial));
                 continue;
             }
-            let (principal_fields, multipliers) = principal(dag, root)?;
+            let principal_root = match program.node(*id) {
+                Some(KernelNode::Relation(relation)) => match relation.meaning() {
+                    eqiora_schema::kernel::RelationMeaning::Conservation(terms) => {
+                        dag.nodes().iter().position(|node| matches!(node, ExprNode::Divergence(flux) if *flux == terms.flux()))
+                            .and_then(|index| dag.node_id(index as u32))
+                            .unwrap_or(root)
+                    }
+                    _ => root,
+                },
+                _ => root,
+            };
+            let (principal_fields, multipliers) = principal(dag, principal_root)?;
             let principal_fields = principal_fields
                 .into_iter()
                 .map(|field| state_rates.get(&field).copied().unwrap_or(field))

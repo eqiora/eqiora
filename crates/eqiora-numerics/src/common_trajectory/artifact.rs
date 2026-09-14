@@ -26,7 +26,7 @@ enum WireTrajectoryPayload {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         events: Vec<event_history::WireEvent>,
     },
-    TransientFlow {
+    SpatialTransient {
         plan_identity: String,
         request_identity: String,
         initial_state_base64: String,
@@ -133,9 +133,9 @@ impl WireCommonTrajectoryV3 {
                     .map(|state| state.to_bytes().map(|bytes| encode(&bytes)))
                     .collect::<Result<Vec<_>, _>>()?,
             },
-            CommonTrajectory::TransientFlow {
+            CommonTrajectory::SpatialTransient {
                 request, states, ..
-            } => WireTrajectoryPayload::TransientFlow {
+            } => WireTrajectoryPayload::SpatialTransient {
                 plan_identity: request.plan().identity().to_owned(),
                 request_identity: request.identity().to_owned(),
                 initial_state_base64: encode(&request.state().to_bytes()?),
@@ -219,7 +219,7 @@ impl WireCommonTrajectoryV3 {
                 CommonTrajectory::accept_ode_states(request, states, history)?
             }
             (
-                WireTrajectoryPayload::TransientFlow {
+                WireTrajectoryPayload::SpatialTransient {
                     plan_identity,
                     request_identity,
                     initial_state_base64,
@@ -227,25 +227,20 @@ impl WireCommonTrajectoryV3 {
                     output_steps,
                     states,
                 },
-                ResolvedCommonPlan::TransientFlow(plan),
+                plan @ (ResolvedCommonPlan::TransientFlow(_) | ResolvedCommonPlan::Scalar(_)),
             ) => {
                 require_plan_identity(plan.identity(), plan_identity)?;
-                let initial = CommonState::from_bytes(
-                    &decode(initial_state_base64, "initial State")?,
-                    &ResolvedCommonPlan::TransientFlow(plan.clone()),
-                )?;
+                let initial =
+                    CommonState::from_bytes(&decode(initial_state_base64, "initial State")?, plan)?;
                 let request = CommonTransientRunRequest::from_steps(
-                    plan.as_ref().clone(),
+                    plan.clone(),
                     initial,
                     to_usize(*accepted_steps, "accepted step count")?,
                     decode_steps(output_steps)?,
                 )?;
                 require_request_identity(request.identity(), request_identity)?;
-                let states = decode_spatial_states(
-                    states,
-                    &ResolvedCommonPlan::TransientFlow(plan.clone()),
-                )?;
-                CommonTrajectory::accept_transient_flow(request, states)?
+                let states = decode_spatial_states(states, plan)?;
+                CommonTrajectory::accept_spatial_transient(request, states)?
             }
             (
                 WireTrajectoryPayload::FixedReferenceFsi {

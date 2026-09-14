@@ -573,9 +573,12 @@ impl CommonResult {
                 CommonResultFamily::Ode,
                 None,
             ),
-            CommonTrajectory::TransientFlow { request, .. } => (
-                ResolvedCommonPlan::TransientFlow(Box::new(request.plan().clone())),
-                CommonResultFamily::TransientFlow,
+            CommonTrajectory::SpatialTransient { request, .. } => (
+                request.plan().clone(),
+                match request.plan() {
+                    ResolvedCommonPlan::Scalar(_) => CommonResultFamily::Scalar,
+                    _ => CommonResultFamily::TransientFlow,
+                },
                 None,
             ),
             CommonTrajectory::Fsi {

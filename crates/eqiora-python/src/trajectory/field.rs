@@ -779,3 +779,30 @@ fn common_block(
         support_indices: Arc::new(ReadOnlyVector::new(support_indices)),
     })
 }
+
+impl PyFieldSnapshot {
+    pub(super) fn from_common_scalar(
+        py: Python<'_>,
+        plan: &eqiora_numerics::CommonScalarPlan,
+        state: &CommonState,
+        mesh_digest: &str,
+    ) -> PyResult<Self> {
+        let (field, value_type) = plan.fields().next().expect("scalar storage Field");
+        let values = state
+            .scalar_values()
+            .ok_or_else(|| PyValueError::new_err("missing scalar State values"))?;
+        Self::from_common_exact_parts(
+            py,
+            plan.model_digest(),
+            mesh_digest,
+            &field.ulid().to_string(),
+            &plan
+                .storage_domain_id()
+                .map_err(|d| crate::error::validation_error(py, &[d]))?,
+            value_type.dimension(),
+            vec![],
+            "invariant",
+            vec![common_scalar_block("vertex", values)?],
+        )
+    }
+}

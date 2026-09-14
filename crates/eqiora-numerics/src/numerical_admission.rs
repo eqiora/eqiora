@@ -627,6 +627,7 @@ pub struct CommonTransientFlowPlan {
 
 #[derive(Debug, Clone, PartialEq)]
 enum CommonStateKind {
+    Scalar(Box<[f64]>),
     MiniP1(Box<TransientNavierStokesInitialState2d>),
     CellCentered(Box<CellCenteredNavierStokesInitialState2d>),
     Fsi {
@@ -651,7 +652,7 @@ pub struct CommonState {
 /// Canonical private execution request for one exact transient Plan and State.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonTransientRunRequest {
-    plan: CommonTransientFlowPlan,
+    plan: ResolvedCommonPlan,
     schedule: CommonRunSchedule,
 }
 

@@ -210,6 +210,7 @@ fn scalar_q1_uses_the_same_value_and_gradient_contractions() {
     )
     .unwrap()
     .volume()
+    .unwrap()
     .evaluate(&geometry, &quadrature, &BTreeMap::new())
     .unwrap();
     for (a, b) in local.matrix().iter().zip(scalar.matrix()) {

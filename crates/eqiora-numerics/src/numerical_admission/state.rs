@@ -190,7 +190,7 @@ impl CommonFsiRunRequest {
 impl CommonTransientRunRequest {
     /// Canonicalize a step-count horizon and explicit accepted-step outputs.
     pub fn from_steps(
-        plan: CommonTransientFlowPlan,
+        plan: ResolvedCommonPlan,
         state: CommonState,
         steps: usize,
         output_steps: Vec<usize>,
@@ -202,7 +202,7 @@ impl CommonTransientRunRequest {
 
     /// Canonicalize an exact Backward-Euler time horizon and output-time grid.
     pub fn from_times(
-        plan: CommonTransientFlowPlan,
+        plan: ResolvedCommonPlan,
         state: CommonState,
         until_s: f64,
         output_times_s: Vec<f64>,
@@ -220,7 +220,11 @@ impl CommonTransientRunRequest {
                 "output_times_s must be finite, nonempty, and strictly increasing",
             ));
         }
-        let step_s = plan.temporal().step().value();
+        let step_s = plan
+            .backward_euler()
+            .ok_or_else(|| invalid("transient Run requires BackwardEuler"))?
+            .step()
+            .value();
         let accepted_steps = exact_grid_index(state.time_s(), until_s, step_s, "until_s")?;
         let output_steps = output_times_s
             .into_iter()
@@ -236,12 +240,12 @@ impl CommonTransientRunRequest {
     }
 
     pub(super) fn new(
-        plan: CommonTransientFlowPlan,
+        plan: ResolvedCommonPlan,
         state: CommonState,
         accepted_steps: NonZeroUsize,
         output_steps: Vec<usize>,
     ) -> Result<Self, Diagnostic> {
-        if state.state_space_identity() != plan.state_space_identity() {
+        if state.state_space_identity() != plan.spatial_state_space_identity()? {
             return Err(invalid(
                 "transient Run State belongs to a different exact common state space",
             ));
@@ -259,7 +263,7 @@ impl CommonTransientRunRequest {
     }
 
     #[must_use]
-    pub const fn plan(&self) -> &CommonTransientFlowPlan {
+    pub const fn plan(&self) -> &ResolvedCommonPlan {
         &self.plan
     }
     #[must_use]
@@ -289,12 +293,41 @@ impl CommonTransientRunRequest {
         backend: &dyn LinearSolverBackend,
         stop_at_boundary: impl FnMut(usize, &CommonState) -> bool,
     ) -> Result<ControlFlow<(usize, CommonState), Vec<(usize, CommonState)>>, Diagnostic> {
+        if let ResolvedCommonPlan::Scalar(plan) = &self.plan {
+            let step_s = plan
+                .admission
+                .temporal
+                .expect("validated temporal")
+                .step()
+                .value();
+            let start_s = self.state().time_s();
+            let mut accepted = 0;
+            return advance_common_prepared_actions(
+                self.schedule.state.clone(),
+                self.schedule.accepted_steps.get(),
+                &self.schedule.output_steps,
+                plan.admission
+                    .temporal
+                    .expect("validated temporal")
+                    .step()
+                    .value(),
+                |_| Ok(()),
+                |(), state| {
+                    accepted += 1;
+                    plan.advance_scalar(state, backend, start_s + accepted as f64 * step_s)
+                },
+                stop_at_boundary,
+            );
+        }
+        let ResolvedCommonPlan::TransientFlow(plan) = &self.plan else {
+            return Err(invalid("unsupported transient Plan"));
+        };
         advance_common_prepared_actions(
             self.schedule.state.clone(),
             self.schedule.accepted_steps.get(),
             &self.schedule.output_steps,
-            self.plan.temporal().step().value(),
-            |state| self.plan.prepare_execution(state, backend),
+            plan.temporal().step().value(),
+            |state| plan.prepare_execution(state, backend),
             |prepared, state| prepared.advance(state),
             stop_at_boundary,
         )
@@ -373,6 +406,12 @@ impl CommonState {
         push_framed(&mut bytes, state_space_identity.as_bytes());
         bytes.extend_from_slice(&time_s.to_bits().to_be_bytes());
         match &kind {
+            CommonStateKind::Scalar(values) => {
+                push_framed(&mut bytes, b"scalar-q1/backward-euler");
+                for value in values {
+                    bytes.extend_from_slice(&value.to_bits().to_be_bytes());
+                }
+            }
             CommonStateKind::MiniP1(state) => {
                 push_framed(&mut bytes, b"mini-p1/backward-euler/no-extra-history/v1");
                 for value in state
@@ -480,6 +519,7 @@ impl CommonState {
     #[must_use]
     pub fn velocity_vertex_values(&self) -> Option<&[[f64; 2]]> {
         match &self.kind {
+            CommonStateKind::Scalar(_) => None,
             CommonStateKind::MiniP1(state) => Some(state.velocity().vertex_values()),
             CommonStateKind::CellCentered(_) => None,
             CommonStateKind::Fsi { state, .. } => Some(state.vertex_velocity()),
@@ -489,6 +529,7 @@ impl CommonState {
     #[must_use]
     pub fn velocity_cell_values(&self) -> Vec<[f64; 2]> {
         match &self.kind {
+            CommonStateKind::Scalar(_) => Vec::new(),
             CommonStateKind::MiniP1(state) => state.velocity().cell_bubble_values().to_vec(),
             CommonStateKind::CellCentered(state) => state.velocity().values().to_vec(),
             CommonStateKind::Fsi { state, .. } => state
@@ -502,6 +543,7 @@ impl CommonState {
     #[must_use]
     pub fn pressure_vertex_values(&self) -> Option<&[f64]> {
         match &self.kind {
+            CommonStateKind::Scalar(_) => None,
             CommonStateKind::MiniP1(state) => Some(state.pressure().vertex_values()),
             CommonStateKind::CellCentered(_) => None,
             CommonStateKind::Fsi { pressure, .. } => Some(pressure),
@@ -511,7 +553,7 @@ impl CommonState {
     #[must_use]
     pub fn pressure_cell_values(&self) -> Option<&[f64]> {
         match &self.kind {
-            CommonStateKind::MiniP1(_) => None,
+            CommonStateKind::Scalar(_) | CommonStateKind::MiniP1(_) => None,
             CommonStateKind::CellCentered(state) => Some(state.pressure().values()),
             CommonStateKind::Fsi { .. } => None,
         }
@@ -536,7 +578,7 @@ impl CommonState {
     #[cfg(test)]
     pub(super) fn method_history_values(&self) -> &[f64] {
         match &self.kind {
-            CommonStateKind::MiniP1(_) => &[],
+            CommonStateKind::Scalar(_) | CommonStateKind::MiniP1(_) => &[],
             CommonStateKind::CellCentered(state) => state.previous_face_volume_fluxes(),
             CommonStateKind::Fsi { .. } => &[],
         }

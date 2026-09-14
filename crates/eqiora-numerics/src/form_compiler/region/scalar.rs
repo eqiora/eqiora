@@ -11,6 +11,7 @@ pub(in crate::form_compiler) struct ScalarRow {
     pub residual_type: ValueType,
     pub diffusion: Data,
     pub reaction: BTreeMap<RawId, Data>,
+    pub storage: BTreeMap<RawId, Data>,
     pub forcing: Data,
 }
 
@@ -20,7 +21,7 @@ impl CompiledRegionForm {
         dimension: usize,
         roles: EquationRoles,
         rows: Vec<ScalarRow>,
-    ) -> Result<BoundRegionForm, Diagnostic> {
+    ) -> Result<Self, Diagnostic> {
         let rows = rows
             .into_iter()
             .map(|row| {
@@ -34,6 +35,13 @@ impl CompiledRegionForm {
                 terms.extend(row.reaction.into_iter().map(|(trial, coefficient)| Term {
                     trial,
                     derivative: false,
+                    pairing: Pairing::Value,
+                    coefficient,
+                    positive_diffusion: false,
+                }));
+                terms.extend(row.storage.into_iter().map(|(trial, coefficient)| Term {
+                    trial,
+                    derivative: true,
                     pairing: Pairing::Value,
                     coefficient,
                     positive_diffusion: false,
@@ -54,6 +62,15 @@ impl CompiledRegionForm {
             roles,
             rows,
         };
+        Ok(form)
+    }
+
+    pub(in crate::form_compiler) fn bind_scalar(
+        &self,
+        time: Option<&RegionTimeBinding>,
+    ) -> Result<BoundRegionForm, Diagnostic> {
+        let form = self;
+        let dimension = self.dimension;
         let fields = form
             .fields()
             .map(|(field, value_type)| RegionFieldBinding {
@@ -79,19 +96,19 @@ impl CompiledRegionForm {
             ReferenceCell::hypercube(dimension)?,
             &fields,
             &multipliers,
-            None,
+            time,
         )
     }
 }
 
-impl BoundRegionForm {
+impl CompiledRegionForm {
     pub(in crate::form_compiler) fn bind_parameter_point(
         &self,
         fields: &[Id<kinds::Parameter>],
         values: &[f64],
     ) -> Result<Self, Diagnostic> {
         let mut bound = self.clone();
-        for row in &mut bound.form.rows {
+        for row in &mut bound.rows {
             for flux in &mut row.flux {
                 flux.bind_parameter_point(fields, values)?;
             }

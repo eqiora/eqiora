@@ -397,7 +397,8 @@ impl WireResultContent {
                         | WireResultFamily::Ode
                         | WireResultFamily::TransientFlow
                         | WireResultFamily::FixedReferenceFsi
-                ) {
+                ) || plan.backward_euler().is_some()
+                {
                     return Err(invalid("dynamic Result family carried a static payload"));
                 }
                 let fields = fields
@@ -425,7 +426,6 @@ impl WireResultContent {
                 if matches!(
                     self.family,
                     WireResultFamily::Algebraic
-                        | WireResultFamily::Scalar
                         | WireResultFamily::Elasticity
                         | WireResultFamily::SteadyStokes
                 ) {

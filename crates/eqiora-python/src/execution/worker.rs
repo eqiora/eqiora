@@ -149,7 +149,12 @@ fn execute_job(
         NativeRunJob::Transient(request) => {
             let started = Instant::now();
             let maximum_steps = request.accepted_steps().get();
-            let backend = resolved_linear_backend(request.plan().solver_provider())?;
+            let backend = resolved_linear_backend(
+                request
+                    .plan()
+                    .linear_solver_provider()
+                    .expect("transient linear solver"),
+            )?;
             let outcome = request
                 .advance_accepted_actions(backend, |accepted_steps, state| {
                     if accepted_steps > 0 {
@@ -176,7 +181,7 @@ fn execute_job(
                 )),
                 ControlFlow::Continue(states) => {
                     let _postprocess = postprocess_phase().entered();
-                    let trajectory = CommonTrajectory::accept_transient_flow(*request, states)
+                    let trajectory = CommonTrajectory::accept_spatial_transient(*request, states)
                         .map_err(|diagnostic| vec![diagnostic])?;
                     let result = CommonResult::accept_trajectory(
                         started.elapsed().as_secs_f64(),

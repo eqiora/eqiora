@@ -578,20 +578,46 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         "coherent-SI State compatibility excludes numerical scaling",
     );
     assert!(
-        CommonTransientRunRequest::from_steps(custom.clone(), mini_zero.clone(), 2, vec![1, 2],)
-            .is_ok()
+        CommonTransientRunRequest::from_steps(
+            ResolvedCommonPlan::TransientFlow(Box::new(custom.clone())),
+            mini_zero.clone(),
+            2,
+            vec![1, 2],
+        )
+        .is_ok()
     );
-    assert!(CommonTransientRunRequest::from_steps(mini.clone(), fvm_zero, 1, vec![1],).is_err());
-    let by_steps =
-        CommonTransientRunRequest::from_steps(mini.clone(), mini_zero.clone(), 2, vec![1, 2])
-            .unwrap();
-    let by_times =
-        CommonTransientRunRequest::from_times(mini.clone(), mini_zero, 0.02, vec![0.01, 0.02])
-            .unwrap();
+    assert!(
+        CommonTransientRunRequest::from_steps(
+            ResolvedCommonPlan::TransientFlow(Box::new(mini.clone())),
+            fvm_zero,
+            1,
+            vec![1],
+        )
+        .is_err()
+    );
+    let by_steps = CommonTransientRunRequest::from_steps(
+        ResolvedCommonPlan::TransientFlow(Box::new(mini.clone())),
+        mini_zero.clone(),
+        2,
+        vec![1, 2],
+    )
+    .unwrap();
+    let by_times = CommonTransientRunRequest::from_times(
+        ResolvedCommonPlan::TransientFlow(Box::new(mini.clone())),
+        mini_zero,
+        0.02,
+        vec![0.01, 0.02],
+    )
+    .unwrap();
     assert_eq!(by_steps.identity(), by_times.identity());
     assert!(
-        CommonTransientRunRequest::from_steps(mini, by_times.state().clone(), 2, vec![2, 1],)
-            .is_err()
+        CommonTransientRunRequest::from_steps(
+            ResolvedCommonPlan::TransientFlow(Box::new(mini)),
+            by_times.state().clone(),
+            2,
+            vec![2, 1],
+        )
+        .is_err()
     );
 
     assert!(

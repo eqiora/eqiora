@@ -18,6 +18,9 @@ enum WirePressureReference {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "family", rename_all = "kebab-case", deny_unknown_fields)]
 enum WireStatePayload {
+    Scalar {
+        values: Vec<f64>,
+    },
     MiniP1 {
         velocity_vertex: Vec<[f64; 2]>,
         velocity_cell: Vec<[f64; 2]>,
@@ -91,6 +94,9 @@ impl CommonState {
 impl WireCommonSpatialStateV1 {
     fn from_state(state: &CommonState) -> Self {
         let payload = match &state.kind {
+            CommonStateKind::Scalar(values) => WireStatePayload::Scalar {
+                values: values.to_vec(),
+            },
             CommonStateKind::MiniP1(value) => WireStatePayload::MiniP1 {
                 velocity_vertex: value.velocity().vertex_values().to_vec(),
                 velocity_cell: value.velocity().cell_bubble_values().to_vec(),
@@ -136,6 +142,9 @@ impl WireCommonSpatialStateV1 {
 
     fn replay(&self, plan: &ResolvedCommonPlan) -> Result<CommonState, Diagnostic> {
         let state = match (plan, &self.payload) {
+            (ResolvedCommonPlan::Scalar(plan), WireStatePayload::Scalar { values }) => {
+                plan.scalar_state(self.time_s, values.clone())?
+            }
             (ResolvedCommonPlan::TransientFlow(plan), WireStatePayload::MiniP1 { .. }) => {
                 self.replay_mini(plan)?
             }
@@ -156,6 +165,9 @@ impl WireCommonSpatialStateV1 {
                 return Err(invalid(
                     "common spatial State requires a transient spatial Plan",
                 ));
+            }
+            (_, WireStatePayload::Scalar { .. }) => {
+                return Err(invalid("scalar State crossed another Plan"));
             }
             (ResolvedCommonPlan::TransientFlow(_), WireStatePayload::FixedReferenceFsi { .. })
             | (
