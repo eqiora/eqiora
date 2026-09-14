@@ -1,4 +1,8 @@
 use super::*;
+use eqiora::ValueFrame;
+use std::collections::BTreeSet;
+
+type ExactFsiEntityComponents = BTreeMap<usize, BTreeMap<usize, BTreeMap<(usize, usize), f64>>>;
 
 /// Immutable exact-Field-bound coherent-SI initial coefficients.
 #[pyclass(
@@ -356,85 +360,69 @@ impl PyFieldSnapshot {
         state: &CommonState,
         mesh_digest: &str,
     ) -> PyResult<Vec<Self>> {
-        const VELOCITY: DimExponents =
-            DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension");
-        const PRESSURE: DimExponents =
-            DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension");
-        const DISPLACEMENT: DimExponents =
-            DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
-        let velocity = state.velocity_vertex_values().ok_or_else(|| {
-            PyRuntimeError::new_err("FSI State omitted shared vertex velocity coefficients")
-        })?;
-        let pressure = state.pressure_vertex_values().ok_or_else(|| {
-            PyRuntimeError::new_err("FSI State omitted fluid pressure coefficients")
-        })?;
-        let displacement = state.fsi_solid_displacement_values().ok_or_else(|| {
-            PyRuntimeError::new_err("FSI State omitted solid displacement coefficients")
-        })?;
-        let fluid_vertices = plan.fluid_vertex_indices();
-        let fluid_cells = plan.fluid_cell_indices();
-        let solid_vertices = plan.solid_vertex_indices();
-        let fluid_velocity = select_vectors(velocity, &fluid_vertices)?;
-        let solid_velocity = select_vectors(velocity, &solid_vertices)?;
-        let solid_displacement = select_vectors(displacement, &solid_vertices)?;
-        let fluid_velocity_blocks = vec![
-            common_vector_block_at("vertex", &fluid_velocity, &fluid_vertices)?,
-            common_vector_block_at("cell", &state.velocity_cell_values(), &fluid_cells)?,
-        ];
-        Ok(vec![
-            Self::from_common_exact_parts(
-                py,
-                plan.model_digest(),
-                mesh_digest,
-                &plan.field_ids()[0],
-                &plan.domain_ids()[0],
-                VELOCITY,
-                vec![2],
-                "spatial-cartesian",
-                fluid_velocity_blocks,
-            )?,
-            Self::from_common_exact_parts(
-                py,
-                plan.model_digest(),
-                mesh_digest,
-                &plan.field_ids()[1],
-                &plan.domain_ids()[0],
-                PRESSURE,
-                Vec::new(),
-                "invariant",
-                vec![common_scalar_block_at("vertex", pressure, &fluid_vertices)?],
-            )?,
-            Self::from_common_exact_parts(
-                py,
-                plan.model_digest(),
-                mesh_digest,
-                &plan.field_ids()[2],
-                &plan.domain_ids()[1],
-                VELOCITY,
-                vec![2],
-                "spatial-cartesian",
-                vec![common_vector_block_at(
-                    "vertex",
-                    &solid_velocity,
-                    &solid_vertices,
-                )?],
-            )?,
-            Self::from_common_exact_parts(
-                py,
-                plan.model_digest(),
-                mesh_digest,
-                &plan.field_ids()[3],
-                &plan.domain_ids()[1],
-                DISPLACEMENT,
-                vec![2],
-                "spatial-cartesian",
-                vec![common_vector_block_at(
-                    "vertex",
-                    &solid_displacement,
-                    &solid_vertices,
-                )?],
-            )?,
-        ])
+        let physical = state
+            .fsi_fields()
+            .ok_or_else(|| PyRuntimeError::new_err("common FSI State omitted exact Fields"))?;
+        let fields = physical
+            .fields()
+            .map(|(field, domain, value_type)| (field, domain, value_type.clone()))
+            .collect::<Vec<_>>();
+        let state_field_ids = fields
+            .iter()
+            .map(|(field, _, _)| field.to_string())
+            .collect::<BTreeSet<_>>();
+        let state_domain_ids = fields
+            .iter()
+            .map(|(_, domain, _)| domain.to_string())
+            .collect::<BTreeSet<_>>();
+        if state_field_ids != plan.field_ids().iter().cloned().collect()
+            || state_domain_ids != plan.domain_ids().iter().cloned().collect()
+        {
+            return Err(PyRuntimeError::new_err(
+                "common FSI State Field/Domain inventory differs from its exact Plan",
+            ));
+        }
+
+        fields
+            .into_iter()
+            .map(|(field, domain, value_type)| {
+                let coefficients = physical.coefficients(field).ok_or_else(|| {
+                    PyRuntimeError::new_err("common FSI State omitted an exact Field")
+                })?;
+                let mut entities = ExactFsiEntityComponents::new();
+                for (entity, slot, component, value) in coefficients {
+                    entities
+                        .entry(entity.dimension())
+                        .or_default()
+                        .entry(entity.index())
+                        .or_default()
+                        .insert((slot, component), value);
+                }
+                let component_count = value_type.shape().component_count().ok_or_else(|| {
+                    PyRuntimeError::new_err("FSI Field component count is not representable")
+                })?;
+                let blocks = common_fsi_blocks(entities, component_count)?;
+                Self::from_common_exact_parts(
+                    py,
+                    plan.model_digest(),
+                    mesh_digest,
+                    &field.to_string(),
+                    &domain.to_string(),
+                    value_type.dimension(),
+                    value_type
+                        .shape()
+                        .extents()
+                        .iter()
+                        .map(|extent| extent.get())
+                        .collect(),
+                    match value_type.frame() {
+                        ValueFrame::Invariant => "invariant",
+                        ValueFrame::SpatialCartesian => "spatial-cartesian",
+                    },
+                    blocks,
+                )
+            })
+            .collect()
     }
 }
 
@@ -542,7 +530,9 @@ impl PyFieldSnapshot {
         if let Some(values) = state.velocity_vertex_values() {
             blocks.push(common_vector_block("vertex", values)?);
         }
-        blocks.push(common_vector_block("cell", &state.velocity_cell_values())?);
+        if let Some(values) = state.velocity_cell_values() {
+            blocks.push(common_vector_block("cell", &values)?);
+        }
         Self::from_common_parts(
             py,
             plan,
@@ -677,17 +667,64 @@ fn common_scalar_block(association: &'static str, values: &[f64]) -> PyResult<Pr
     )
 }
 
-fn select_vectors(values: &[[f64; 2]], indices: &[usize]) -> PyResult<Vec<[f64; 2]>> {
-    indices
-        .iter()
-        .map(|&index| {
-            values.get(index).copied().ok_or_else(|| {
-                PyRuntimeError::new_err(
-                    "FSI Field support index exceeds shared vertex coefficients",
-                )
-            })
+fn common_fsi_blocks(
+    entities: ExactFsiEntityComponents,
+    component_count: usize,
+) -> PyResult<Vec<ProjectedBlock>> {
+    entities
+        .into_iter()
+        .map(|(dimension, entities)| {
+            let association = match dimension {
+                0 => "vertex",
+                2 => "cell",
+                _ => {
+                    return Err(PyRuntimeError::new_err(
+                        "FSI Field has an unsupported exact entity association",
+                    ));
+                }
+            };
+            let indices = entities.keys().copied().collect::<Vec<_>>();
+            match component_count {
+                1 => {
+                    let values = entities
+                        .into_values()
+                        .map(|components| exact_fsi_component(&components, 1, 0))
+                        .collect::<PyResult<Vec<_>>>()?;
+                    common_scalar_block_at(association, &values, &indices)
+                }
+                2 => {
+                    let values = entities
+                        .into_values()
+                        .map(|components| {
+                            Ok([
+                                exact_fsi_component(&components, 2, 0)?,
+                                exact_fsi_component(&components, 2, 1)?,
+                            ])
+                        })
+                        .collect::<PyResult<Vec<_>>>()?;
+                    common_vector_block_at(association, &values, &indices)
+                }
+                _ => Err(PyRuntimeError::new_err(
+                    "FSI Field snapshot supports exact scalar and 2-vector values",
+                )),
+            }
         })
         .collect()
+}
+
+fn exact_fsi_component(
+    components: &BTreeMap<(usize, usize), f64>,
+    component_count: usize,
+    component: usize,
+) -> PyResult<f64> {
+    if components.len() == component_count
+        && let Some(value) = components.get(&(0, component))
+    {
+        return Ok(*value);
+    }
+    Err(PyRuntimeError::new_err(
+        "FSI Field entity lacks one exact single-slot component",
+    ))
 }
 
 fn common_vector_block_at(
