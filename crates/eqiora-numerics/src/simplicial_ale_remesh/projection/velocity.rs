@@ -3,6 +3,7 @@ use super::*;
 use crate::simplicial_ale_remesh::invalid;
 
 pub(super) fn velocity_scalar_dofs(
+    policy: P1HarmonicMeshMotionPolicy,
     mesh: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<2>,
     cell: CellId,
@@ -10,15 +11,20 @@ pub(super) fn velocity_scalar_dofs(
 ) -> Result<Vec<usize>, Diagnostic> {
     let mut dofs = cell_vertex_indices(mesh, cell)?.to_vec();
     if bubble {
-        let position = partition.fluid_cells().binary_search(&cell).map_err(|_| {
-            invalid("ALE FSI remesh fluid cell lacks a canonical MINI bubble position")
-        })?;
+        let position = partition
+            .domain_cells(policy.fluid_domain())
+            .expect("authenticated motion Domain")
+            .binary_search(&cell)
+            .map_err(|_| {
+                invalid("ALE FSI remesh fluid cell lacks a canonical MINI bubble position")
+            })?;
         dofs.push(mesh.vertices().len() + position);
     }
     Ok(dofs)
 }
 
 pub(super) fn evaluate_velocity_cell(
+    policy: P1HarmonicMeshMotionPolicy,
     mesh: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<2>,
     cell: CellId,
@@ -26,7 +32,13 @@ pub(super) fn evaluate_velocity_cell(
     vertex: &[[f64; COMPONENTS]],
     bubbles: Option<&std::collections::BTreeMap<CellId, [f64; COMPONENTS]>>,
 ) -> Result<[f64; COMPONENTS], Diagnostic> {
-    if bubbles.is_some() && partition.fluid_cells().binary_search(&cell).is_err() {
+    if bubbles.is_some()
+        && partition
+            .domain_cells(policy.fluid_domain())
+            .expect("authenticated motion Domain")
+            .binary_search(&cell)
+            .is_err()
+    {
         return Err(invalid("remesh bubble history selected a foreign cell"));
     }
     let vertices = cell_vertex_indices(mesh, cell)?;

@@ -29,9 +29,11 @@ pub(super) struct NewtonEvidence {
 
 #[allow(clippy::too_many_arguments)]
 fn accept_independent<const D: usize>(
+    reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
+    motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
-    plan: AleFsiStepPlan<D>,
+    plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
     converged: StepAssembly<D>,
     independent: StepAssembly<D>,
@@ -69,11 +71,23 @@ fn accept_independent<const D: usize>(
     }
 
     let current = independent.current_state();
-    let kinematic_residual_norm = solid_kinematic_residual_norm(partition, previous, current, plan);
+    let kinematic_residual_norm = solid_kinematic_residual_norm(
+        partition,
+        motion,
+        &independent.layout,
+        previous,
+        current,
+        plan,
+    )?;
     let kinematic_tolerance = 8_192.0
         * f64::EPSILON
         * plan.scale().length()
-        * (1.0 + partition.solid_vertices().len() as f64).sqrt();
+        * (1.0
+            + partition
+                .domain_vertices(motion.policy().solid_domain())
+                .expect("authenticated motion Domain")
+                .len() as f64)
+            .sqrt();
     if !kinematic_residual_norm.is_finite() || kinematic_residual_norm > kinematic_tolerance {
         return Err(invalid(format!(
             "ALE FSI solid kinematic residual {kinematic_residual_norm:e} exceeds {kinematic_tolerance:e}"
@@ -86,7 +100,14 @@ fn accept_independent<const D: usize>(
     let interface_velocity_jump_norm = 0.0;
     let action_scale = plan.scale().action();
     let power_scale = plan.scale().power();
-    let interface_actions = recover_interface_actions(partition, &independent, action_scale)?;
+    let interface_actions =
+        recover_interface_actions(reference, partition, motion, &independent, action_scale)?;
+    let fluid_velocity = independent
+        .layout
+        .velocity_field(motion.policy().fluid_domain().erase())?
+        .downcast()
+        .expect("exact velocity Field");
+    let current_velocity = current.physical_state().vector_vertices(fluid_velocity)?;
     let interface_action_imbalance_norm = interface_actions
         .iter()
         .flat_map(|action| action.imbalance())
@@ -96,9 +117,8 @@ fn accept_independent<const D: usize>(
     let interface_power_imbalance = interface_actions
         .iter()
         .try_fold(0.0, |sum, action| -> Result<f64, Diagnostic> {
-            let velocity = current
-                .vertex_velocity()
-                .get(action.vertex().index())
+            let velocity = current_velocity
+                .get(&action.vertex())
                 .copied()
                 .ok_or_else(|| invalid("ALE FSI interface action vertex is outside the state"))?;
             let next = sum + action.power_imbalance(velocity)?;
@@ -111,7 +131,7 @@ fn accept_independent<const D: usize>(
         .abs();
     let maximum_interface_velocity = interface_actions
         .iter()
-        .flat_map(|action| current.vertex_velocity()[action.vertex().index()])
+        .flat_map(|action| current_velocity[&action.vertex()])
         .map(f64::abs)
         .fold(0.0_f64, f64::max);
     let interface_action_tolerance = residual_target * action_scale
@@ -136,13 +156,15 @@ fn accept_independent<const D: usize>(
 
     let free_stream = compatible_constant_free_stream_probe(
         partition,
+        motion,
+        &independent.layout,
         independent.geometry_action(),
         plan,
         quadrature,
     )?;
 
     let evidence = AleFsiStepEvidence::<D>::new(
-        plan,
+        plan.clone(),
         independent.geometry_action(),
         current,
         AleFsiStepEvidenceInput::<D> {
@@ -173,7 +195,7 @@ pub(super) fn accept_step_prepared<const D: usize>(
     action: &PreparedAleFsiAction<D>,
     motion: &P1HarmonicMeshMotionAction<D>,
     previous: &AleFsiState<D>,
-    plan: AleFsiStepPlan<D>,
+    plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
     assembly_backend: &dyn AssemblyBackend,
     converged: StepAssembly<D>,
@@ -192,7 +214,9 @@ pub(super) fn accept_step_prepared<const D: usize>(
         assembly_backend,
     )?;
     accept_independent(
+        reference,
         partition,
+        motion,
         previous,
         plan,
         quadrature,
@@ -219,8 +243,10 @@ struct ConstantFreeStreamProbe {
 /// independently from the explicit `0.5 div(w) u v` term.
 fn compatible_constant_free_stream_probe<const D: usize>(
     partition: &FixedReferenceFsiPartition<D>,
+    motion: &P1HarmonicMeshMotionAction<D>,
+    layout: &crate::simplicial_fsi::layout::FsiLayout<D>,
     geometry: &FixedTopologyGeometryAction<D>,
-    plan: AleFsiStepPlan<D>,
+    plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
 ) -> Result<ConstantFreeStreamProbe, Diagnostic> {
     let velocity_scale = plan.scale().velocity();
@@ -239,7 +265,14 @@ fn compatible_constant_free_stream_probe<const D: usize>(
     let mut residual_squared = 0.0;
     let mut omitted_squared = 0.0;
 
-    for cell in partition.fluid_cells() {
+    let fluid_velocity = layout
+        .velocity_field(motion.policy().fluid_domain().erase())?
+        .downcast()
+        .expect("exact velocity Field");
+    for cell in partition
+        .domain_cells(motion.policy().fluid_domain())
+        .expect("authenticated motion Domain")
+    {
         let cell_geometry = geometry.cell(cell.index()).ok_or_else(|| {
             invalid("constant-free-stream probe cannot find one admitted fluid-cell geometry")
         })?;
@@ -251,8 +284,14 @@ fn compatible_constant_free_stream_probe<const D: usize>(
             AffineGeometryLinearization::stationary(cell_geometry.current_map().clone())?;
         let evaluated = AleMiniFluidCell::<D> {
             geometry: cell_geometry,
-            density: plan.material().fluid_density(),
-            viscosity: plan.material().fluid_dynamic_viscosity(),
+            density: plan
+                .material()
+                .density(fluid_velocity)
+                .expect("authenticated ALE fluid density"),
+            viscosity: plan
+                .material()
+                .viscosity(fluid_velocity)
+                .expect("authenticated ALE fluid viscosity"),
             time_step: plan.time_step(),
             previous_velocity: &coefficients,
             current_velocity: &coefficients,
@@ -297,7 +336,10 @@ fn compatible_constant_free_stream_probe<const D: usize>(
             for component in constant {
                 let omitted = momentum_row_scale
                     * 0.5
-                    * plan.material().fluid_density()
+                    * plan
+                        .material()
+                        .density(fluid_velocity)
+                        .expect("authenticated ALE fluid density")
                     * divergence
                     * component
                     * bubble_integral;
@@ -358,27 +400,60 @@ fn require_same_accepted_point<const D: usize>(
 }
 
 fn recover_interface_actions<const D: usize>(
+    reference: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<D>,
+    motion: &P1HarmonicMeshMotionAction<D>,
     assembly: &StepAssembly<D>,
     action_scale: f64,
 ) -> Result<Vec<AleFsiInterfaceAction<D>>, Diagnostic> {
-    partition
-        .interface_vertices()
+    let quotient = partition
+        .quotients()
+        .find(|quotient| quotient.connection() == motion.policy().interface())
+        .expect("authenticated motion Connection");
+    let [fluid_endpoint, solid_endpoint] = quotient.endpoints();
+    let (fluid_endpoint, solid_endpoint) =
+        if fluid_endpoint.domain() == motion.policy().fluid_domain() {
+            (fluid_endpoint, solid_endpoint)
+        } else {
+            (solid_endpoint, fluid_endpoint)
+        };
+    let vertices = partition
+        .traces()
         .iter()
-        .copied()
-        .filter(|vertex| !assembly.layout.fixed_velocity(vertex.index()))
+        .find(|trace| trace.quotient == quotient)
+        .expect("authenticated motion trace")
+        .facets
+        .iter()
+        .flat_map(|facet| {
+            reference
+                .entity_vertices(facet.facet)
+                .expect("authenticated trace facet")
+        })
+        .map(|vertex| eqiora_meshing::VertexId::new(vertex.index()))
+        .collect::<std::collections::BTreeSet<_>>();
+    vertices
+        .into_iter()
+        .filter(|vertex| {
+            !assembly
+                .layout
+                .fixed_velocity(fluid_endpoint.field().erase(), vertex.index())
+        })
         .map(|vertex| {
             let fluid = std::array::from_fn(|component| {
                 action_scale
-                    * assembly.full_fluid_residual()[assembly
-                        .layout
-                        .full_vertex_velocity(vertex.index(), component)]
+                    * assembly.full_fluid_residual()[assembly.layout.full_vertex_velocity(
+                        fluid_endpoint.field().erase(),
+                        vertex.index(),
+                        component,
+                    )]
             });
             let solid = std::array::from_fn(|component| {
                 action_scale
-                    * assembly.full_solid_residual()[assembly
-                        .layout
-                        .full_vertex_velocity(vertex.index(), component)]
+                    * assembly.full_solid_residual()[assembly.layout.full_vertex_velocity(
+                        solid_endpoint.field().erase(),
+                        vertex.index(),
+                        component,
+                    )]
             });
             AleFsiInterfaceAction::<D>::new(vertex, fluid, solid)
         })
@@ -387,23 +462,33 @@ fn recover_interface_actions<const D: usize>(
 
 fn solid_kinematic_residual_norm<const D: usize>(
     partition: &FixedReferenceFsiPartition<D>,
+    motion: &P1HarmonicMeshMotionAction<D>,
+    layout: &crate::simplicial_fsi::layout::FsiLayout<D>,
     previous: &AleFsiState<D>,
     current: &AleFsiState<D>,
-    plan: AleFsiStepPlan<D>,
-) -> f64 {
-    partition
-        .solid_vertices()
-        .iter()
-        .flat_map(|vertex| {
-            (0..D).map(move |component| {
-                current.solid_displacement()[vertex.index()][component]
-                    - previous.solid_displacement()[vertex.index()][component]
-                    - plan.time_step() * current.vertex_velocity()[vertex.index()][component]
-            })
-        })
-        .map(|value| value * value)
-        .sum::<f64>()
-        .sqrt()
+    plan: &AleFsiStepPlan<D>,
+) -> Result<f64, Diagnostic> {
+    let displacement = motion.policy().solid_displacement();
+    let velocity = layout
+        .velocity_field(motion.policy().solid_domain().erase())?
+        .downcast()
+        .expect("exact velocity Field");
+    let previous_displacement = previous.physical_state().vector_vertices(displacement)?;
+    let current_displacement = current.physical_state().vector_vertices(displacement)?;
+    let current_velocity = current.physical_state().vector_vertices(velocity)?;
+    let mut squared = 0.0;
+    for vertex in partition
+        .domain_vertices(motion.policy().solid_domain())
+        .expect("authenticated motion Domain")
+    {
+        for component in 0..D {
+            let value = current_displacement[vertex][component]
+                - previous_displacement[vertex][component]
+                - plan.time_step() * current_velocity[vertex][component];
+            squared += value * value;
+        }
+    }
+    Ok(squared.sqrt())
 }
 
 const fn local_velocity<const D: usize>(basis: usize, component: usize) -> usize {
@@ -440,6 +525,9 @@ mod tests {
 
     use super::*;
     use crate::simplicial_ale_fsi::assembly::{assemble_step_linearization, initial_point};
+    use crate::simplicial_ale_fsi::test_support::{
+        material, material_for, motion_for_plan, partition_for_plan,
+    };
     use crate::simplicial_ale_fsi::{
         AleFsiBoundary, AleFsiState, AleFsiStepPlan, P1HarmonicMeshMotionAction,
     };
@@ -472,7 +560,7 @@ mod tests {
             &fixture.boundary,
             &fixture.motion,
             &fixture.previous,
-            fixture.plan,
+            &fixture.plan,
             &quadrature,
             &fixture.layout,
         )
@@ -494,48 +582,77 @@ mod tests {
 
         let mut assembled = assemble(&fixture, &point, &quadrature);
         let current = assembled.current_state();
+        let displacement = fixture.motion.policy().solid_displacement();
+        let solid_velocity = fixture.layout.state_rate(displacement.erase()).unwrap();
         assert_eq!(
-            current.vertex_velocity()[INTERFACE_INTERIOR.index()][2],
+            current
+                .physical_state()
+                .vector_vertices(solid_velocity.downcast().unwrap())
+                .unwrap()[&INTERFACE_INTERIOR][2],
             fixture.plan.scale().velocity() * dimensionless_velocity[2]
         );
         let kinematic = solid_kinematic_residual_norm(
             &fixture.partition,
+            &fixture.motion,
+            &fixture.layout,
             &fixture.previous,
             current,
-            fixture.plan,
-        );
+            &fixture.plan,
+        )
+        .unwrap();
         assert_eq!(kinematic, 0.0);
 
-        let mut defective_displacement = current.solid_displacement().to_vec();
-        defective_displacement[INTERFACE_INTERIOR.index()][2] += 1.0e-4;
+        let mut defective_physical = current.physical_state().clone();
+        let driver = defective_physical
+            .fields
+            .get_mut(&displacement.erase())
+            .unwrap();
+        let coefficient = driver
+            .coefficients
+            .iter_mut()
+            .find(|(key, _)| {
+                key.entity == MeshEntity::new(0, INTERFACE_INTERIOR.index())
+                    && key.slot == 0
+                    && key.component == 2
+            })
+            .unwrap();
+        *coefficient.1 += 1.0e-4;
         let defective = AleFsiState::<3>::new(
             current.time(),
             &fixture.mesh,
             &fixture.partition,
             &fixture.motion,
-            current.vertex_velocity().to_vec(),
-            current.fluid_cell_bubble_velocity().clone(),
-            current.fluid_pressure().to_vec(),
-            defective_displacement,
+            defective_physical,
         )
         .unwrap();
         let defective_norm = solid_kinematic_residual_norm(
             &fixture.partition,
+            &fixture.motion,
+            &fixture.layout,
             &fixture.previous,
             &defective,
-            fixture.plan,
-        );
+            &fixture.plan,
+        )
+        .unwrap();
         let kinematic_tolerance = 8_192.0
             * f64::EPSILON
             * fixture.plan.scale().length()
-            * (1.0 + fixture.partition.solid_vertices().len() as f64).sqrt();
+            * (1.0
+                + fixture
+                    .partition
+                    .domain_vertices(fixture.motion.policy().solid_domain())
+                    .unwrap()
+                    .len() as f64)
+                .sqrt();
         assert!(defective_norm > kinematic_tolerance);
         assert!((defective_norm - 1.0e-4).abs() < 8.0 * f64::EPSILON);
 
         let probe = compatible_constant_free_stream_probe(
             &fixture.partition,
+            &fixture.motion,
+            &fixture.layout,
             assembled.geometry_action(),
-            fixture.plan,
+            &fixture.plan,
             &quadrature,
         )
         .unwrap();
@@ -546,8 +663,9 @@ mod tests {
             probe.omitted_gcl_witness_norm,
             expected_omitted_gcl_witness(
                 &fixture.partition,
+                &fixture.motion,
                 assembled.geometry_action(),
-                fixture.plan,
+                &fixture.plan,
                 &quadrature,
             )
         );
@@ -557,15 +675,19 @@ mod tests {
         assert!(
             compatible_constant_free_stream_probe(
                 &fixture.partition,
+                &fixture.motion,
+                &fixture.layout,
                 assembled.geometry_action(),
-                fixture.plan,
+                &fixture.plan,
                 &degree_nine,
             )
             .is_err()
         );
 
         let actions = recover_interface_actions(
+            &fixture.mesh,
             &fixture.partition,
+            &fixture.motion,
             &assembled,
             fixture.plan.scale().action(),
         )
@@ -576,9 +698,11 @@ mod tests {
             .copied()
             .unwrap();
         for component in 0..3 {
-            let full = assembled
-                .layout
-                .full_vertex_velocity(INTERFACE_INTERIOR.index(), component);
+            let full = assembled.layout.full_vertex_velocity(
+                solid_velocity,
+                INTERFACE_INTERIOR.index(),
+                component,
+            );
             assert_eq!(
                 action.fluid()[component],
                 fixture.plan.scale().action() * assembled.full_fluid_residual()[full]
@@ -590,13 +714,16 @@ mod tests {
         }
         assert!(action.fluid()[2] != 0.0 || action.solid()[2] != 0.0);
 
-        let third = assembled
-            .layout
-            .full_vertex_velocity(INTERFACE_INTERIOR.index(), 2);
+        let third =
+            assembled
+                .layout
+                .full_vertex_velocity(solid_velocity, INTERFACE_INTERIOR.index(), 2);
         assembled.full_fluid_residual[third] = f64::INFINITY;
         assert!(
             recover_interface_actions(
+                &fixture.mesh,
                 &fixture.partition,
+                &fixture.motion,
                 &assembled,
                 fixture.plan.scale().action(),
             )
@@ -616,7 +743,7 @@ mod tests {
             &fixture.motion,
             &fixture.previous,
             point,
-            fixture.plan,
+            &fixture.plan,
             quadrature,
             &REFERENCE_ASSEMBLY_BACKEND,
             &fixture.layout,
@@ -629,7 +756,8 @@ mod tests {
     ) -> (eqiora_meshing::CellId, Vec<MeshEntity>, usize) {
         fixture
             .partition
-            .fluid_cells()
+            .domain_cells(fixture.motion.policy().fluid_domain())
+            .unwrap()
             .iter()
             .find_map(|cell| {
                 let vertices = fixture
@@ -646,8 +774,9 @@ mod tests {
 
     fn expected_omitted_gcl_witness(
         partition: &FixedReferenceFsiPartition<3>,
+        motion: &P1HarmonicMeshMotionAction<3>,
         geometry: &FixedTopologyGeometryAction<3>,
-        plan: AleFsiStepPlan<3>,
+        plan: &AleFsiStepPlan<3>,
         quadrature: &QuadratureRule,
     ) -> f64 {
         let bubble_space = SimplexP1BubbleSpace::new(3).unwrap();
@@ -655,7 +784,10 @@ mod tests {
         let constant: [f64; 3] =
             std::array::from_fn(|axis| plan.scale().velocity() * (-0.5_f64).powi(axis as i32));
         let mut squared = 0.0;
-        for cell in partition.fluid_cells() {
+        for cell in partition
+            .domain_cells(motion.policy().fluid_domain())
+            .unwrap()
+        {
             let cell = geometry.cell(cell.index()).unwrap();
             let divergence = cell.current_velocity_divergence();
             if divergence == 0.0 {
@@ -673,7 +805,15 @@ mod tests {
             for component in constant {
                 let omitted = momentum_row_scale
                     * 0.5
-                    * plan.material().fluid_density()
+                    * plan
+                        .material()
+                        .kinetic_fields()
+                        .find_map(|field| {
+                            plan.material()
+                                .viscosity(field)
+                                .map(|_| plan.material().density(field).unwrap())
+                        })
+                        .unwrap()
                     * divergence
                     * component
                     * bubble_integral;
@@ -684,38 +824,37 @@ mod tests {
     }
 
     fn fixture_3d() -> Fixture3d {
-        let (mesh, fluid, solid, interface) = tetrahedral_problem();
-        let partition =
-            FixedReferenceFsiPartition::<3>::new(&mesh, fluid, solid, interface).unwrap();
-        let boundary = AleFsiBoundary::<3>::homogeneous_exterior(&mesh).unwrap();
-        let motion =
-            P1HarmonicMeshMotionAction::<3>::new(&mesh, &partition, harmonic_solver()).unwrap();
-        let previous = AleFsiState::<3>::new(
-            0.0,
+        let (mesh, fluid, solid, _) = tetrahedral_problem();
+        let seed = step_plan_3d();
+        let geometry = crate::simplicial_fsi::test_model::polyhedra::tetrahedral_geometry();
+        let model = crate::simplicial_fsi::test_model::polyhedra::polyhedral_model(
+            &geometry,
             &mesh,
-            &partition,
-            &motion,
-            vec![[0.0; 3]; mesh.vertices().len()],
-            partition
-                .fluid_cells()
-                .iter()
-                .copied()
-                .map(|cell| (cell, [0.0; 3]))
-                .collect(),
-            vec![0.0; partition.fluid_vertices().len()],
-            vec![[0.0; 3]; mesh.vertices().len()],
-        )
-        .unwrap();
-        let plan = step_plan_3d();
-        let layout = crate::simplicial_fsi::test_model::polyhedra::polyhedral_layout(
-            &crate::simplicial_fsi::test_model::polyhedra::tetrahedral_geometry(),
-            &mesh,
-            &partition,
-            &crate::simplicial_fsi::FixedReferenceFsiBoundary::homogeneous_exterior(&mesh).unwrap(),
-            plan.fixed_reference_config(),
-            plan.linear_solver(),
+            seed.fixed_reference_config().clone(),
+            seed.linear_solver(),
             true,
         );
+        let fields = crate::simplicial_fsi::test_model::exact_fields(&model.plan);
+        let partition = partition_for_plan(&mesh, fluid, solid, &model.plan);
+        let boundary = AleFsiBoundary::<3>::homogeneous_exterior(&mesh).unwrap();
+        let motion = motion_for_plan(&mesh, &partition, &model.plan, harmonic_solver());
+        let physical = crate::simplicial_fsi::test_model::exact_state(
+            &model.program,
+            &model.plan,
+            &mesh,
+            &partition,
+            |_field, _entity, _component| 0.0,
+        );
+        let previous = AleFsiState::<3>::new(0.0, &mesh, &partition, &motion, physical).unwrap();
+        let plan = step_plan_3d_with_material(material_for(fields));
+        let layout = crate::simplicial_fsi::layout::FsiLayout::bind(
+            &model.program,
+            &model.plan,
+            &mesh,
+            &partition,
+            &boundary,
+        )
+        .unwrap();
         Fixture3d {
             layout,
             mesh,
@@ -723,7 +862,7 @@ mod tests {
             boundary,
             motion,
             previous,
-            plan: step_plan_3d(),
+            plan,
         }
     }
 
@@ -778,6 +917,10 @@ mod tests {
     }
 
     fn step_plan_3d() -> AleFsiStepPlan<3> {
+        step_plan_3d_with_material(material())
+    }
+
+    fn step_plan_3d_with_material(material: FixedReferenceFsiMaterial<3>) -> AleFsiStepPlan<3> {
         let nonlinear =
             NonlinearSolvePlan::new(1.0e-9, 1.0e-12, NonZeroUsize::new(20).unwrap(), 12).unwrap();
         let linear = SolverPlan::new(
@@ -791,7 +934,7 @@ mod tests {
         .with_reduction(ReductionPolicy::Fast);
         AleFsiStepPlan::<3>::new(
             0.05,
-            FixedReferenceFsiMaterial::<3>::new(1.0, 0.1, 1.0, 2.0, 1.0).unwrap(),
+            material,
             FixedReferenceFsiScale::<3>::new(2.0, 5.0, 3.0).unwrap(),
             FixedReferenceFsiLoad::Zero,
             nonlinear,

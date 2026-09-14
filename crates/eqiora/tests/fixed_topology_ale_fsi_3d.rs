@@ -6,6 +6,7 @@
 mod package_authoring_evidence;
 
 use eqiora_core::ScalarType;
+use std::collections::BTreeMap;
 use std::num::{NonZeroU16, NonZeroU32, NonZeroUsize};
 
 use eqiora::api::ModelDocument;
@@ -43,7 +44,7 @@ use eqiora_numerics::{
     ale::AleFsiBoundary, ale::AleFsiCartesianModel, ale::AleFsiInitialPhysicalState,
     ale::AleFsiState, ale::AleFsiTrajectory, ale::finalize_resolved_fixed_topology_ale_fsi_3d,
     ale::fixed_topology_ale_fsi_requirements_3d, ale::lower_ale_fsi_cartesian_3d,
-    common::NonZeroStepCount, fsi::FixedReferenceFsiPartition,
+    common::NonZeroStepCount, fsi::FixedReferenceFsiPartition, fsi::FixedReferenceFsiState,
 };
 
 const D: usize = 3;
@@ -87,7 +88,7 @@ fn faer_closes_tetrahedral_trajectory_and_first_order_refinement() {
             &fixture.mesh,
             &fixture.partition,
             &fixture.boundary,
-            fixture.initial(),
+            fixture.initial(trajectory.states()[1].time() - trajectory.states()[0].time()),
             &FaerLinearSolver,
         )
         .unwrap();
@@ -125,12 +126,16 @@ fn faer_closes_tetrahedral_trajectory_and_first_order_refinement() {
     let coarse_medium = solid_displacement_mass_distance(
         &fixture.mesh,
         &fixture.partition,
+        solid_domain(&fixture.canonical),
+        solid_displacement(&fixture.canonical),
         coarse.final_state(),
         medium.final_state(),
     );
     let medium_fine = solid_displacement_mass_distance(
         &fixture.mesh,
         &fixture.partition,
+        solid_domain(&fixture.canonical),
+        solid_displacement(&fixture.canonical),
         medium.final_state(),
         fine.final_state(),
     );
@@ -160,8 +165,16 @@ impl Fixture {
         let mesh_artifact = eqiora::artifact::SimplicialMeshEnvelopeV1::from_mesh(&mesh).unwrap();
         let mesh_reference = mesh_artifact.artifact_reference().unwrap();
         let (fluid, solid, interface) = inventories(&mesh);
-        let partition =
-            FixedReferenceFsiPartition::<3>::new(&mesh, fluid, solid, interface).unwrap();
+        let _ = interface;
+        let partition = FixedReferenceFsiPartition::<3>::new(
+            &mesh,
+            [
+                (fluid_domain(&canonical), fluid),
+                (solid_domain(&canonical), solid),
+            ],
+            &[trace_quotient(&canonical)],
+        )
+        .unwrap();
         let boundary = AleFsiBoundary::<3>::homogeneous_exterior(&mesh).unwrap();
         Self {
             document,
@@ -174,23 +187,64 @@ impl Fixture {
         }
     }
 
-    fn initial(&self) -> AleFsiInitialPhysicalState<3> {
-        let mut displacement = vec![[0.0; D]; self.mesh.vertices().len()];
-        let interface_center = find_vertex(&self.mesh, [1.0, 0.5, 0.5]);
-        displacement[interface_center] = [0.0015, 0.0005, 0.00025];
-        AleFsiInitialPhysicalState::<3>::new(
-            0.0,
-            vec![[0.0; D]; self.mesh.vertices().len()],
+    fn initial(&self, time_step: f64) -> AleFsiInitialPhysicalState<3> {
+        let vector = |domain, value: [f64; D]| {
             self.partition
-                .fluid_cells()
+                .domain_vertices(domain)
+                .unwrap()
                 .iter()
-                .copied()
-                .map(|cell| (cell, [0.0; D]))
-                .collect(),
-            vec![0.0; self.partition.fluid_vertices().len()],
-            displacement,
+                .flat_map(move |vertex| {
+                    value
+                        .into_iter()
+                        .enumerate()
+                        .map(move |(component, value)| {
+                            (MeshEntity::new(0, vertex.index()), 0, component, value)
+                        })
+                })
+                .collect::<Vec<_>>()
+        };
+        let mut displacement = vector(solid_domain(&self.canonical), [0.0; D]);
+        let interface_center = find_vertex(&self.mesh, [1.0, 0.5, 0.5]);
+        for (entity, _, component, value) in &mut displacement {
+            if entity.index() == interface_center {
+                *value = [0.0015, 0.0005, 0.00025][*component];
+            }
+        }
+        let mut fluid_velocity_values = vector(fluid_domain(&self.canonical), [0.0; D]);
+        for cell in self
+            .partition
+            .domain_cells(fluid_domain(&self.canonical))
+            .unwrap()
+        {
+            for component in 0..D {
+                fluid_velocity_values.push((MeshEntity::new(3, cell.index()), 0, component, 0.0));
+            }
+        }
+        let physical = FixedReferenceFsiState::new(
+            self.document.program(),
+            realization_plan(&self.canonical, self.mesh_reference, time_step).coupled(),
+            &self.mesh,
+            &self.partition,
+            [
+                (fluid_velocity(&self.canonical), fluid_velocity_values),
+                (
+                    fluid_pressure(&self.canonical),
+                    self.partition
+                        .domain_vertices(fluid_domain(&self.canonical))
+                        .unwrap()
+                        .iter()
+                        .map(|vertex| (MeshEntity::new(0, vertex.index()), 0, 0, 0.0))
+                        .collect(),
+                ),
+                (
+                    solid_velocity(&self.canonical),
+                    vector(solid_domain(&self.canonical), [0.0; D]),
+                ),
+                (solid_displacement(&self.canonical), displacement),
+            ],
         )
-        .unwrap()
+        .unwrap();
+        AleFsiInitialPhysicalState::<3>::new(0.0, physical).unwrap()
     }
 
     fn resolve(&self, time_step: f64) -> ResolvedFixedTopologyAleCoupledRealization {
@@ -215,7 +269,7 @@ impl Fixture {
             &self.mesh,
             &self.partition,
             &self.boundary,
-            self.initial(),
+            self.initial(time_step),
             &FaerLinearSolver,
         )
         .unwrap()
@@ -573,12 +627,20 @@ fn moving_snapshots(
     let mut blocks = Vec::new();
 
     let mut fluid_vertex_velocity = vec![[0.0; D]; fixture.mesh.vertices().len()];
-    for vertex in fixture.partition.fluid_vertices() {
-        fluid_vertex_velocity[vertex.index()] = state.vertex_velocity()[vertex.index()];
+    let fluid_velocity_values = vector_field(state, fluid_velocity(&fixture.canonical));
+    for vertex in fixture
+        .partition
+        .domain_vertices(fluid_domain(&fixture.canonical))
+        .unwrap()
+    {
+        fluid_vertex_velocity[vertex.index()] =
+            fluid_velocity_values[&MeshEntity::new(0, vertex.index())];
     }
     let mut fluid_cell_velocity = vec![[0.0; D]; fixture.mesh.cells().len()];
-    for (cell, value) in state.fluid_cell_bubble_velocity() {
-        fluid_cell_velocity[cell.index()] = *value;
+    for (entity, value) in &fluid_velocity_values {
+        if entity.dimension() == D {
+            fluid_cell_velocity[entity.index()] = *value;
+        }
     }
     blocks.push((
         fluid_velocity(&fixture.canonical),
@@ -599,13 +661,8 @@ fn moving_snapshots(
     ));
 
     let mut pressure = vec![0.0; fixture.mesh.vertices().len()];
-    for (vertex, value) in fixture
-        .partition
-        .fluid_vertices()
-        .iter()
-        .zip(state.fluid_pressure())
-    {
-        pressure[vertex.index()] = *value;
+    for (entity, value) in scalar_field(state, fluid_pressure(&fixture.canonical)) {
+        pressure[entity.index()] = value;
     }
     blocks.push((
         fluid_pressure(&fixture.canonical),
@@ -619,9 +676,16 @@ fn moving_snapshots(
 
     let mut solid_velocity_values = vec![[0.0; D]; fixture.mesh.vertices().len()];
     let mut solid_displacement_values = vec![[0.0; D]; fixture.mesh.vertices().len()];
-    for vertex in fixture.partition.solid_vertices() {
-        solid_velocity_values[vertex.index()] = state.vertex_velocity()[vertex.index()];
-        solid_displacement_values[vertex.index()] = state.solid_displacement()[vertex.index()];
+    let velocity = vector_field(state, solid_velocity(&fixture.canonical));
+    let displacement = vector_field(state, solid_displacement(&fixture.canonical));
+    for vertex in fixture
+        .partition
+        .domain_vertices(solid_domain(&fixture.canonical))
+        .unwrap()
+    {
+        let entity = MeshEntity::new(0, vertex.index());
+        solid_velocity_values[vertex.index()] = velocity[&entity];
+        solid_displacement_values[vertex.index()] = displacement[&entity];
     }
     blocks.push((
         solid_velocity(&fixture.canonical),
@@ -710,7 +774,11 @@ fn realization_plan(
         .unwrap(),
         BackwardEulerStep::new(
             duration,
-            BackwardEulerStateBinding::new(state_pair(model), p1, length),
+            [BackwardEulerStateBinding::new(
+                state_pair(model),
+                p1,
+                length,
+            )],
         )
         .unwrap(),
         SymmetricCongruenceScaling::new(
@@ -849,8 +917,41 @@ fn trace_quotient(model: &AleFsiCartesianModel<3>) -> ConformingTraceQuotient {
     .unwrap()
 }
 
+fn vector_field(state: &AleFsiState<3>, field: Id<kinds::Field>) -> BTreeMap<MeshEntity, [f64; D]> {
+    let mut values = BTreeMap::<_, [Option<f64>; D]>::new();
+    for (entity, slot, component, value) in state
+        .physical_state()
+        .coefficients(field)
+        .expect("accepted exact Field")
+    {
+        assert_eq!(slot, 0);
+        values.entry(entity).or_insert([None; D])[component] = Some(value);
+    }
+    values
+        .into_iter()
+        .map(|(entity, values)| (entity, values.map(Option::unwrap)))
+        .collect()
+}
+
+fn scalar_field(state: &AleFsiState<3>, field: Id<kinds::Field>) -> BTreeMap<MeshEntity, f64> {
+    state
+        .physical_state()
+        .coefficients(field)
+        .expect("accepted exact Field")
+        .map(|(entity, slot, component, value)| {
+            assert_eq!((slot, component), (0, 0));
+            (entity, value)
+        })
+        .collect()
+}
+
 fn state_pair(model: &AleFsiCartesianModel<3>) -> BackwardEulerStatePair {
-    BackwardEulerStatePair::new(solid_displacement(model), solid_velocity(model)).unwrap()
+    BackwardEulerStatePair::new(
+        fixed_topology_ale_fsi_requirements_3d(model).solid_kinematic_relation(),
+        solid_displacement(model),
+        solid_velocity(model),
+    )
+    .unwrap()
 }
 
 fn two_domain_tetrahedral_mesh() -> SimplicialMesh {
@@ -941,11 +1042,15 @@ fn signed_tetrahedron_measure(vertices: &[Vec<f64>], cell: &[usize]) -> f64 {
 fn solid_displacement_mass_distance(
     mesh: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<3>,
+    domain: Id<kinds::Domain>,
+    field: Id<kinds::Field>,
     left: &AleFsiState<3>,
     right: &AleFsiState<3>,
 ) -> f64 {
     let mut squared = 0.0;
-    for cell in partition.solid_cells() {
+    let left_displacement = vector_field(left, field);
+    let right_displacement = vector_field(right, field);
+    for cell in partition.domain_cells(domain).unwrap() {
         let vertices = mesh
             .entity_vertices(MeshEntity::new(3, cell.index()))
             .unwrap();
@@ -957,10 +1062,12 @@ fn solid_displacement_mass_distance(
                 let row_vertex = vertices[row].index();
                 let column_vertex = vertices[column].index();
                 for component in 0..D {
-                    let row_difference = left.solid_displacement()[row_vertex][component]
-                        - right.solid_displacement()[row_vertex][component];
-                    let column_difference = left.solid_displacement()[column_vertex][component]
-                        - right.solid_displacement()[column_vertex][component];
+                    let row = MeshEntity::new(0, row_vertex);
+                    let column = MeshEntity::new(0, column_vertex);
+                    let row_difference =
+                        left_displacement[&row][component] - right_displacement[&row][component];
+                    let column_difference = left_displacement[&column][component]
+                        - right_displacement[&column][component];
                     squared += mass * row_difference * column_difference;
                 }
             }

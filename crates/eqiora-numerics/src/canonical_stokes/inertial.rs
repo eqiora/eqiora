@@ -164,17 +164,6 @@ impl InertialIncompressibleNewtonianCartesianModel2d {
     }
 }
 
-/// Domain-scoped fluid recognition for exact multiphysics compositions.
-pub(crate) fn lower_inertial_incompressible_newtonian_subdomain_2d(
-    program: &KernelProgram,
-    domain: RawId,
-    bounds: [[f64; 2]; 2],
-) -> Result<LoweredInertialIncompressibleNewtonianSubdomain2d, Diagnostic> {
-    lower_inertial_incompressible_newtonian_subdomain_2d_with_boundaries(
-        program, domain, bounds, None,
-    )
-}
-
 pub(crate) fn lower_inertial_incompressible_newtonian_subdomain_2d_with_boundaries(
     program: &KernelProgram,
     domain: RawId,

@@ -530,33 +530,19 @@ impl PyPlan {
                 },
             )
             .map(Py::into_any),
-            ResolvedCommonPlan::Fsi(plan) => {
-                let fields = plan.field_ids();
-                let model = plan.model_digest().to_owned();
-                Py::new(
-                    py,
-                    PyFixedReferenceFsiPlanView {
-                        fluid_velocity: PyModelFieldRef::from_exact(
-                            model.clone(),
-                            fields[0].clone(),
+            ResolvedCommonPlan::Fsi(plan) => Py::new(
+                py,
+                PyFixedReferenceFsiPlanView {
+                    scaling: Py::new(py, PyIncompressibleScales::from_fsi(plan.scaling()))?,
+                    scaling_receipt: Py::new(
+                        py,
+                        PyIncompressibleScalingReceipt2d::from_native(
+                            plan.scaling_receipt().clone(),
                         ),
-                        pressure: PyModelFieldRef::from_exact(model.clone(), fields[1].clone()),
-                        solid_velocity: PyModelFieldRef::from_exact(
-                            model.clone(),
-                            fields[2].clone(),
-                        ),
-                        displacement: PyModelFieldRef::from_exact(model, fields[3].clone()),
-                        scaling: Py::new(py, PyIncompressibleScales::from_fsi(plan.scaling()))?,
-                        scaling_receipt: Py::new(
-                            py,
-                            PyIncompressibleScalingReceipt2d::from_native(
-                                plan.scaling_receipt().clone(),
-                            ),
-                        )?,
-                    },
-                )
-                .map(Py::into_any)
-            }
+                    )?,
+                },
+            )
+            .map(Py::into_any),
         }
     }
     #[getter]

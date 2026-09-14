@@ -146,9 +146,7 @@ pub(crate) fn validate_simplicial_resources(
         NativeMeshResources::Cartesian { .. } => unreachable!("rejected above"),
     };
     if mesh.dimension() != 2 {
-        return Err(invalid(
-            "steady Stokes requires a two-dimensional common Mesh",
-        ));
+        return Err(invalid("simplicial common Mesh must be two-dimensional"));
     }
     Ok(())
 }
@@ -158,21 +156,57 @@ pub(crate) fn derive_gmsh_resources(
     policy: eqiora_artifact::GmshMeshPolicyV1,
     provider_output: Vec<u8>,
 ) -> Result<NativeMeshResources, Diagnostic> {
+    let quality = eqiora_meshing::MeshQualityGate::new(policy.minimum_mean_ratio())?;
+    let (mesh, correspondence) = if geometry.region().is_some() {
+        let imported = import_msh41(
+            &provider_output,
+            Msh41Policy::mesh(2, quality)?,
+            |_, _, _| {},
+        )?;
+        let mesh = SimplicialMeshEnvelopeV1::from_mesh(&imported)?;
+        let definition = eqiora_artifact::GeometryDefinitionV1::from_canonical(&geometry)?;
+        let correspondence = GeometryMeshCorrespondenceEnvelopeV1::from_region(&definition, &mesh)?;
+        (mesh, correspondence)
+    } else {
+        derive_circular_hole_mesh(&geometry, quality, &provider_output)?
+    };
+    let production = MeshProductionLineageEnvelopeV1::from_gmsh_4152_resources(
+        policy,
+        &geometry,
+        &mesh,
+        &correspondence,
+    )?;
+    Ok(NativeMeshResources::GmshSimplicial {
+        geometry,
+        policy,
+        provider_output: provider_output.into_boxed_slice(),
+        mesh,
+        correspondence,
+        production,
+    })
+}
+
+fn derive_circular_hole_mesh(
+    geometry: &CanonicalGeometryV1,
+    quality: eqiora_meshing::MeshQualityGate,
+    provider_output: &[u8],
+) -> Result<
+    (
+        SimplicialMeshEnvelopeV1,
+        GeometryMeshCorrespondenceEnvelopeV1,
+    ),
+    Diagnostic,
+> {
     CanonicalGeometryV1::decode_planar_circular_hole_v2_canonical(
         geometry.canonical_bytes(),
         eqiora_geometry::CanonicalGeometryLimits::default(),
     )
     .map_err(|_| invalid("Gmsh provider observation requires exact planar circular-hole v2"))?;
-    let quality = eqiora_meshing::MeshQualityGate::new(policy.minimum_mean_ratio())?;
     let import_policy = Msh41Policy::ascii_with_entity_assignments(2, quality)?;
     let mut assignments = BTreeMap::new();
-    let mesh = import_msh41(
-        &provider_output,
-        import_policy,
-        |dimension, tag, indices| {
-            assignments.insert((dimension, tag), indices.to_vec());
-        },
-    )?;
+    let mesh = import_msh41(provider_output, import_policy, |dimension, tag, indices| {
+        assignments.insert((dimension, tag), indices.to_vec());
+    })?;
     if assignments.keys().copied().collect::<Vec<_>>()
         != [(1, 1), (1, 5), (1, 6), (1, 7), (1, 8), (2, 1)]
     {
@@ -190,22 +224,9 @@ pub(crate) fn derive_gmsh_resources(
     let mesh = SimplicialMeshEnvelopeV1::from_mesh(&mesh)?;
     let correspondence =
         GeometryMeshCorrespondenceEnvelopeV1::from_planar_circular_hole_v2_mesh_assignments(
-            &geometry,
+            geometry,
             &mesh,
             source_edge_facets,
         )?;
-    let production = MeshProductionLineageEnvelopeV1::from_gmsh_4152_resources(
-        policy,
-        &geometry,
-        &mesh,
-        &correspondence,
-    )?;
-    Ok(NativeMeshResources::GmshSimplicial {
-        geometry,
-        policy,
-        provider_output: provider_output.into_boxed_slice(),
-        mesh,
-        correspondence,
-        production,
-    })
+    Ok((mesh, correspondence))
 }

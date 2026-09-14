@@ -5,7 +5,25 @@ fn coupled_collection_replays_three_domains_and_rejects_wire_drift() {
     let fixture = Fixture::new();
     let domain = Id::new();
     let field = Id::new();
-    let rate = fixture.requirements.eliminated_state().rate();
+    let state = Id::new();
+    let relation = Id::new();
+    let pair = BackwardEulerStatePair::new(relation, state, field).unwrap();
+    let mut pairs = fixture.requirements.eliminated_states().to_vec();
+    pairs.push(pair);
+    let mut bindings = fixture.plan.time_step().eliminated_states().to_vec();
+    bindings.push(BackwardEulerStateBinding::new(
+        pair,
+        Space::continuous_lagrange(NonZeroU16::MIN),
+        scale(length_dimension()),
+    ));
+    let step =
+        BackwardEulerStep::new(fixture.plan.time_step().duration(), bindings.clone()).unwrap();
+    bindings.reverse();
+    assert_eq!(
+        step,
+        BackwardEulerStep::new(fixture.plan.time_step().duration(), bindings).unwrap()
+    );
+    let rate = fixture.requirements.eliminated_states()[0].rate();
     let rate_domain = fixture
         .requirements
         .domains()
@@ -22,7 +40,7 @@ fn coupled_collection_replays_three_domains_and_rejects_wire_drift() {
     let mut quotients = fixture.requirements.trace_quotients().to_vec();
     quotients.push(quotient);
     let mut inventories = fixture.requirements.domains().to_vec();
-    inventories.push(DomainFieldInventory::new(domain, [field]).unwrap());
+    inventories.push(DomainFieldInventory::new(domain, [field, state]).unwrap());
     let mut domains = fixture.plan.spatial().domains().to_vec();
     domains.push(
         DomainFieldDiscretization::new(
@@ -44,7 +62,7 @@ fn coupled_collection_replays_three_domains_and_rejects_wire_drift() {
         let requirements = CoupledFieldwiseRealizationRequirements::new(
             inventories.clone(),
             quotients,
-            fixture.requirements.eliminated_state(),
+            pairs.iter().copied(),
             fixture.requirements.execution(),
         )
         .unwrap();
@@ -57,7 +75,7 @@ fn coupled_collection_replays_three_domains_and_rejects_wire_drift() {
         .unwrap();
         let plan = CoupledFieldwiseRealizationPlan::new(
             spatial,
-            fixture.plan.time_step(),
+            step.clone(),
             SymmetricCongruenceScaling::new(
                 scales.clone(),
                 fixture.plan.scaling().weak_functional_scale(),
@@ -97,6 +115,58 @@ fn coupled_collection_replays_three_domains_and_rejects_wire_drift() {
     assert_eq!(decoded.plan().unwrap().spatial().domains().len(), 3);
     assert_eq!(decoded.plan().unwrap().spatial().trace_quotients().len(), 2);
     let original: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(
+        decoded
+            .plan()
+            .unwrap()
+            .time_step()
+            .eliminated_states()
+            .len(),
+        2
+    );
+    for pointer in ["/requirements", "/plan/time_step"] {
+        for mutation in 0..6 {
+            let mut bad = original.clone();
+            let owner = bad.pointer_mut(pointer).unwrap();
+            let entries = owner["eliminated_states"].as_array_mut().unwrap();
+            match mutation {
+                0 => {
+                    entries.pop();
+                }
+                1 => {
+                    entries.push(entries[0].clone());
+                }
+                2 => {
+                    entries.reverse();
+                }
+                3 => {
+                    entries.clear();
+                }
+                4 => {
+                    let single = entries[0].clone();
+                    owner.as_object_mut().unwrap().remove("eliminated_states");
+                    owner["eliminated_state"] = single;
+                }
+                _ => {
+                    let pair = if pointer == "/requirements" {
+                        &mut entries[0]
+                    } else {
+                        &mut entries[0]["pair"]
+                    };
+                    pair["relation_ulid"] =
+                        serde_json::json!(Id::<kinds::Relation>::new().ulid().to_string());
+                }
+            }
+            assert!(
+                RealizationEnvelopeV8::from_json(
+                    &serde_json::to_vec(&bad).unwrap(),
+                    Default::default()
+                )
+                .is_err(),
+                "{pointer} elimination mutation {mutation}"
+            );
+        }
+    }
     for pointer in ["/requirements", "/plan/spatial"] {
         for mutation in 0..5 {
             let mut bad = original.clone();

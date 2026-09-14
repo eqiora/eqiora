@@ -13,10 +13,7 @@ fn replay_graph_requires_exact_field_spaces_and_complete_quotient_inventory() {
         reference_solver(),
     )
     .unwrap();
-    let graph = fixture
-        .resolve(plan.clone())
-        .portable_graph(solid_kinematic_relation(&fixture.model))
-        .unwrap();
+    let graph = fixture.resolve(plan.clone()).portable_graph().unwrap();
     assert!(validate::exact_graph_inventory(&plan, &graph));
     let changed = |domains, quotients: Vec<ConformingTraceQuotient>| {
         CoupledFieldwiseRealizationPlan::new(
@@ -27,7 +24,7 @@ fn replay_graph_requires_exact_field_spaces_and_complete_quotient_inventory() {
                 plan.spatial().discretization(),
             )
             .unwrap(),
-            plan.time_step(),
+            plan.time_step().clone(),
             plan.scaling().clone(),
             plan.operator_properties(),
             plan.solver(),
@@ -49,7 +46,14 @@ fn replay_graph_requires_exact_field_spaces_and_complete_quotient_inventory() {
         vec![ConformingTraceQuotient::new(Id::new(), endpoints[0], endpoints[1]).unwrap()],
     );
     assert!(!validate::exact_graph_inventory(&stale, &graph));
-    let pressure = fluid_pressure(&fixture.model);
+    let pressure = fixture
+        .model
+        .fluids()
+        .next()
+        .expect("fixture retains one exact fluid Domain")
+        .pressure()
+        .downcast()
+        .unwrap();
     let domains = plan
         .spatial()
         .domains()

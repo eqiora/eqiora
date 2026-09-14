@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::collections::BTreeSet;
 
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id};
@@ -306,6 +307,7 @@ impl CoupledFieldwiseSpatialDiscretization {
 /// Exact state/rate pair used by one Backward Euler elimination.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BackwardEulerStatePair {
+    relation: Id<kinds::Relation>,
     state: Id<kinds::Field>,
     rate: Id<kinds::Field>,
 }
@@ -315,13 +317,27 @@ impl BackwardEulerStatePair {
     ///
     /// # Errors
     /// Returns `EQ0807` when the same Field is selected for both roles.
-    pub fn new(state: Id<kinds::Field>, rate: Id<kinds::Field>) -> Result<Self, Diagnostic> {
+    pub fn new(
+        relation: Id<kinds::Relation>,
+        state: Id<kinds::Field>,
+        rate: Id<kinds::Field>,
+    ) -> Result<Self, Diagnostic> {
         if state == rate {
             return Err(invalid_realization(
                 "Backward Euler state and rate must be distinct Semantic Fields",
             ));
         }
-        Ok(Self { state, rate })
+        Ok(Self {
+            relation,
+            state,
+            rate,
+        })
+    }
+
+    /// Exact kinematic Relation owning this elimination.
+    #[must_use]
+    pub const fn relation(self) -> Id<kinds::Relation> {
+        self.relation
     }
 
     /// Eliminated state Field represented after the step.
@@ -379,22 +395,22 @@ impl BackwardEulerStateBinding {
     }
 }
 
-/// Positive Backward Euler step and its sole eliminated state representation.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// Positive Backward Euler step and its exact eliminated-state inventory.
+#[derive(Debug, Clone, PartialEq)]
 pub struct BackwardEulerStep {
     duration: DynQuantity,
-    eliminated_state: BackwardEulerStateBinding,
+    eliminated_states: Vec<BackwardEulerStateBinding>,
 }
 
 impl BackwardEulerStep {
-    /// Validate one fixed Backward Euler step duration.
+    /// Validate duration and canonicalize the exact kinematic inventory.
     ///
     /// # Errors
-    /// Returns `EQ0807` unless the duration is finite, strictly positive, and
-    /// has physical time dimension.
+    /// Returns `EQ0807` for invalid time, empty inventory, repeated Relation,
+    /// repeated state/rate, or an algebraic rate that is also eliminated.
     pub fn new(
         duration: DynQuantity,
-        eliminated_state: BackwardEulerStateBinding,
+        eliminated_states: impl IntoIterator<Item = BackwardEulerStateBinding>,
     ) -> Result<Self, Diagnostic> {
         if duration.dim() != time_dimension()
             || !duration.value().is_finite()
@@ -404,23 +420,49 @@ impl BackwardEulerStep {
                 "Backward Euler step duration must be finite, strictly positive, and have physical time dimension",
             ));
         }
+        let mut eliminated_states = eliminated_states.into_iter().collect::<Vec<_>>();
+        eliminated_states.sort_by_key(|state| state.pair().state().ulid());
+        canonical_state_pairs(eliminated_states.iter().map(|state| state.pair()))?;
         Ok(Self {
             duration,
-            eliminated_state,
+            eliminated_states,
         })
     }
 
     /// Exact step duration in coherent SI base units.
     #[must_use]
-    pub const fn duration(self) -> DynQuantity {
+    pub const fn duration(&self) -> DynQuantity {
         self.duration
     }
 
-    /// Exact discrete state eliminated from the algebraic operator.
+    /// Exact discrete states in canonical state Field identity order.
     #[must_use]
-    pub const fn eliminated_state(self) -> BackwardEulerStateBinding {
-        self.eliminated_state
+    pub fn eliminated_states(&self) -> &[BackwardEulerStateBinding] {
+        &self.eliminated_states
     }
+}
+
+pub(crate) fn canonical_state_pairs(
+    pairs: impl IntoIterator<Item = BackwardEulerStatePair>,
+) -> Result<Vec<BackwardEulerStatePair>, Diagnostic> {
+    let mut pairs = pairs.into_iter().collect::<Vec<_>>();
+    pairs.sort_by_key(|pair| pair.state().ulid());
+    let mut relations = BTreeSet::new();
+    let mut states = BTreeSet::new();
+    let mut rates = BTreeSet::new();
+    if pairs.is_empty()
+        || pairs.iter().any(|pair| {
+            !relations.insert(pair.relation().ulid())
+                || !states.insert(pair.state().ulid())
+                || !rates.insert(pair.rate().ulid())
+        })
+        || !states.is_disjoint(&rates)
+    {
+        return Err(invalid_realization(
+            "Backward Euler requires a nonempty exact inventory with unique Relations, states and rates and no eliminated rate",
+        ));
+    }
+    Ok(pairs)
 }
 
 /// Complete physics-neutral multi-Domain Field-wise realization selection.
@@ -473,8 +515,8 @@ impl CoupledFieldwiseRealizationPlan {
 
     /// Fixed Backward Euler step selection.
     #[must_use]
-    pub const fn time_step(&self) -> BackwardEulerStep {
-        self.time_step
+    pub const fn time_step(&self) -> &BackwardEulerStep {
+        &self.time_step
     }
 
     /// Explicit symmetric congruence scaling.
@@ -528,15 +570,19 @@ impl CoupledFieldwiseRealizationPlan {
                 })
             })
             .collect::<Vec<_>>();
-        let pair = self.time_step.eliminated_state.pair;
-        let domain = fields
-            .iter()
-            .find(|entry| entry.field == pair.rate)
-            .map(|entry| entry.domain)
-            .ok_or_else(|| {
-                invalid_realization("represented eliminated-state rate has no exact Domain binding")
-            })?;
-        fields.push(RepresentedPhysicalField::new(domain, pair.state));
+        for state in self.time_step.eliminated_states() {
+            let pair = state.pair();
+            let domain = fields
+                .iter()
+                .find(|entry| entry.field == pair.rate)
+                .map(|entry| entry.domain)
+                .ok_or_else(|| {
+                    invalid_realization(
+                        "represented eliminated-state rate has no exact Domain binding",
+                    )
+                })?;
+            fields.push(RepresentedPhysicalField::new(domain, pair.state));
+        }
         fields.sort_by_key(|entry| entry.field.ulid());
         Ok(fields)
     }
@@ -620,44 +666,45 @@ impl CoupledFieldwiseRealizationPlan {
                 ));
             }
         }
-        let eliminated = self.time_step.eliminated_state;
-        let pair = eliminated.pair;
-        if self
-            .spatial
-            .domains
-            .iter()
-            .flat_map(|domain| &domain.field_spaces)
-            .any(|binding| binding.field() == pair.state)
-        {
-            return Err(invalid_realization(
-                "a Backward Euler eliminated state must not also be an algebraic Field block",
-            ));
-        }
-        let Some(rate_binding) = self
-            .spatial
-            .domains
-            .iter()
-            .flat_map(|domain| &domain.field_spaces)
-            .find(|binding| binding.field() == pair.rate)
-        else {
-            return Err(invalid_realization(
-                "a Backward Euler rate must be an algebraic Field block",
-            ));
-        };
-        if rate_binding.space() != eliminated.state_space {
-            return Err(invalid_realization(
-                "Backward Euler coefficient elimination requires identical state and rate spaces",
-            ));
-        }
-        let rate_scale = field_scale(&self.scaling, pair.rate).ok_or_else(|| {
-            invalid_realization("Backward Euler rate Field has no congruence scale")
-        })?;
-        if derivative_dimension(eliminated.state_scale.quantity().dim())
-            != Some(rate_scale.quantity().dim())
-        {
-            return Err(invalid_realization(
-                "Backward Euler state-scale dimension divided by time must equal the rate-scale dimension",
-            ));
+        for eliminated in self.time_step.eliminated_states() {
+            let pair = eliminated.pair;
+            if self
+                .spatial
+                .domains
+                .iter()
+                .flat_map(|domain| &domain.field_spaces)
+                .any(|binding| binding.field() == pair.state)
+            {
+                return Err(invalid_realization(
+                    "a Backward Euler eliminated state must not also be an algebraic Field block",
+                ));
+            }
+            let Some(rate_binding) = self
+                .spatial
+                .domains
+                .iter()
+                .flat_map(|domain| &domain.field_spaces)
+                .find(|binding| binding.field() == pair.rate)
+            else {
+                return Err(invalid_realization(
+                    "a Backward Euler rate must be an algebraic Field block",
+                ));
+            };
+            if rate_binding.space() != eliminated.state_space {
+                return Err(invalid_realization(
+                    "Backward Euler coefficient elimination requires identical state and rate spaces",
+                ));
+            }
+            let rate_scale = field_scale(&self.scaling, pair.rate).ok_or_else(|| {
+                invalid_realization("Backward Euler rate Field has no congruence scale")
+            })?;
+            if derivative_dimension(eliminated.state_scale.quantity().dim())
+                != Some(rate_scale.quantity().dim())
+            {
+                return Err(invalid_realization(
+                    "Backward Euler state-scale dimension divided by time must equal the rate-scale dimension",
+                ));
+            }
         }
         Ok(())
     }

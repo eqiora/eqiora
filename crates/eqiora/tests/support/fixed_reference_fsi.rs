@@ -14,9 +14,9 @@ use eqiora::package::{
     prepare_package_release_v1,
 };
 use eqiora::realization::{
-    CoupledFieldwiseRealizationRequest, MeshArtifactReference, RealizationCapabilities,
-    RealizationRevision, ResolvedCoupledFieldwiseRealization, SemanticRevision,
-    resolve_coupled_fieldwise,
+    ConformingTraceQuotient, CoupledFieldwiseRealizationRequest, MeshArtifactReference,
+    RealizationCapabilities, RealizationRevision, ResolvedCoupledFieldwiseRealization,
+    SemanticRevision, TraceFieldEndpoint, resolve_coupled_fieldwise,
 };
 use eqiora::solver::{
     CanonicalCsrAgreementFingerprintV1, LinearSolver, PreconditionerPolicy,
@@ -56,6 +56,19 @@ pub(crate) struct SpatialContext {
     pub(crate) geometry: GeometryIdentityEnvelopeV1,
     pub(crate) correspondence: GeometryMeshCorrespondenceEnvelopeV1,
     pub(crate) partition: FixedReferenceFsiPartition<2>,
+    pub(crate) fields: FsiCaseFields,
+    pub(crate) interface_facets: Vec<FacetId>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct FsiCaseFields {
+    pub(crate) fluid_domain: eqiora::Id<eqiora::kinds::Domain>,
+    pub(crate) solid_domain: eqiora::Id<eqiora::kinds::Domain>,
+    pub(crate) fluid_velocity: eqiora::Id<eqiora::kinds::Field>,
+    pub(crate) fluid_pressure: eqiora::Id<eqiora::kinds::Field>,
+    pub(crate) solid_velocity: eqiora::Id<eqiora::kinds::Field>,
+    pub(crate) solid_displacement: eqiora::Id<eqiora::kinds::Field>,
+    pub(crate) connection: eqiora::Id<eqiora::kinds::Connection>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -70,19 +83,20 @@ impl SpatialContext {
         SpatialObservation {
             fluid_cells: self
                 .partition
-                .fluid_cells()
+                .domain_cells(self.fields.fluid_domain)
+                .expect("exact fluid Domain")
                 .iter()
                 .map(|cell| cell.index())
                 .collect(),
             solid_cells: self
                 .partition
-                .solid_cells()
+                .domain_cells(self.fields.solid_domain)
+                .expect("exact solid Domain")
                 .iter()
                 .map(|cell| cell.index())
                 .collect(),
             interface_facets: self
-                .partition
-                .interface_facets()
+                .interface_facets
                 .iter()
                 .map(|facet| facet.index())
                 .collect(),
@@ -102,6 +116,7 @@ pub(crate) struct ExecutionWitness {
     pub(crate) operator: CanonicalCsrAgreementFingerprintV1,
     pub(crate) replayed_operator: CanonicalCsrAgreementFingerprintV1,
     pub(crate) solution: ResolvedFixedReferenceFsiSolution2d,
+    pub(crate) fields: FsiCaseFields,
 }
 
 pub(crate) fn direct_document() -> ModelDocument {
@@ -123,13 +138,17 @@ pub(crate) fn spatial_context(
     let model = ModelEnvelope::from_program(program).expect("canonical current FSI Model");
     let mesh = physical_mesh();
     let mesh_artifact = SimplicialMeshEnvelopeV1::from_mesh(&mesh).expect("exact mesh artifact");
-    let fluid = canonical
-        .fluid()
+    let fluid_model = canonical.fluids().next().expect("one fluid Region");
+    assert_eq!(canonical.fluids().count(), 1);
+    let solid_model = canonical.solids().next().expect("one solid Region");
+    assert_eq!(canonical.solids().count(), 1);
+    let exact_interface = canonical.interfaces().next().expect("one FSI Connection");
+    assert_eq!(canonical.interfaces().count(), 1);
+    let fluid = fluid_model
         .domain()
         .downcast::<eqiora::kinds::Domain>()
         .expect("fluid Domain identity");
-    let solid = canonical
-        .solid()
+    let solid = solid_model
         .continuum()
         .domain()
         .downcast::<eqiora::kinds::Domain>()
@@ -139,8 +158,7 @@ pub(crate) fn spatial_context(
     let correspondence =
         GeometryMeshCorrespondenceEnvelopeV1::new(&geometry, &model, &mesh_artifact)
             .expect("exact body/facet correspondence");
-    let connection = canonical
-        .interface()
+    let connection = exact_interface
         .connection()
         .downcast::<eqiora::kinds::Connection>()
         .expect("conserving Connection identity");
@@ -185,19 +203,35 @@ pub(crate) fn spatial_context(
         .copied()
         .map(FacetId::new)
         .collect::<Vec<_>>();
-    assert!(
-        FixedReferenceFsiPartition::<2>::new(
-            &mesh,
-            fluid_cells.clone(),
-            solid_cells.clone(),
-            interface_facets[..1].to_vec(),
-        )
-        .is_err(),
-        "a partial semantic interface must not reach assembly"
-    );
-    let partition =
-        FixedReferenceFsiPartition::<2>::new(&mesh, fluid_cells, solid_cells, interface_facets)
-            .expect("exact correspondence defines one complete FSI partition");
+    let fluid_velocity = fluid_model
+        .velocity()
+        .downcast()
+        .expect("fluid velocity Field");
+    let fluid_pressure = fluid_model
+        .pressure()
+        .downcast()
+        .expect("fluid pressure Field");
+    let solid_velocity = solid_model
+        .velocity()
+        .downcast()
+        .expect("solid velocity Field");
+    let solid_displacement = solid_model
+        .continuum()
+        .displacement()
+        .downcast()
+        .expect("solid displacement Field");
+    let quotient = ConformingTraceQuotient::new(
+        connection,
+        TraceFieldEndpoint::new(fluid, fluid_velocity),
+        TraceFieldEndpoint::new(solid, solid_velocity),
+    )
+    .expect("exact FSI quotient");
+    let partition = FixedReferenceFsiPartition::<2>::new(
+        &mesh,
+        [(fluid, fluid_cells), (solid, solid_cells)],
+        &[quotient],
+    )
+    .expect("exact correspondence defines one complete FSI partition");
     SpatialContext {
         model,
         mesh,
@@ -205,6 +239,16 @@ pub(crate) fn spatial_context(
         geometry,
         correspondence,
         partition,
+        fields: FsiCaseFields {
+            fluid_domain: fluid,
+            solid_domain: solid,
+            fluid_velocity,
+            fluid_pressure,
+            solid_velocity,
+            solid_displacement,
+            connection,
+        },
+        interface_facets,
     }
 }
 
@@ -291,27 +335,91 @@ pub(crate) fn execution_context(
     }
 }
 
-pub(crate) fn prestrained_state(spatial: &SpatialContext) -> FixedReferenceFsiState<2> {
-    let mut displacement = vec![[0.0; 2]; spatial.mesh.vertices().len()];
+pub(crate) fn prestrained_state(
+    program: &eqiora::sem::KernelProgram,
+    spatial: &SpatialContext,
+    execution: &ExecutionContext,
+) -> FixedReferenceFsiState<2> {
     let interface_midpoint = spatial
         .mesh
         .vertices()
         .iter()
         .position(|point| point.as_slice() == [1.0, 0.5])
         .expect("fixture owns one free interface midpoint");
-    displacement[interface_midpoint] = [0.02, 0.0];
+    let vector_values = |vertices: &[eqiora::meshing::VertexId], value: [f64; 2]| {
+        vertices
+            .iter()
+            .flat_map(move |vertex| {
+                value
+                    .into_iter()
+                    .enumerate()
+                    .map(move |(component, value)| {
+                        (
+                            eqiora::meshing::MeshEntity::new(0, vertex.index()),
+                            0,
+                            component,
+                            value,
+                        )
+                    })
+            })
+            .collect::<Vec<_>>()
+    };
+    let fluid_vertices = spatial
+        .partition
+        .domain_vertices(spatial.fields.fluid_domain)
+        .unwrap();
+    let solid_vertices = spatial
+        .partition
+        .domain_vertices(spatial.fields.solid_domain)
+        .unwrap();
+    let mut displacement = vector_values(solid_vertices, [0.0, 0.0]);
+    let key = displacement
+        .iter_mut()
+        .find(|(entity, _, component, _)| entity.index() == interface_midpoint && *component == 0)
+        .unwrap();
+    key.3 = 0.02;
+    let mut fluid_velocity = vector_values(fluid_vertices, [0.0, 0.0]);
+    for cell in spatial
+        .partition
+        .domain_cells(spatial.fields.fluid_domain)
+        .unwrap()
+    {
+        for component in 0..2 {
+            fluid_velocity.push((
+                eqiora::meshing::MeshEntity::new(2, cell.index()),
+                0,
+                component,
+                0.0,
+            ));
+        }
+    }
     FixedReferenceFsiState::<2>::new(
+        program,
+        execution.resolved.plan(),
         &spatial.mesh,
         &spatial.partition,
-        vec![[0.0; 2]; spatial.mesh.vertices().len()],
-        spatial
-            .partition
-            .fluid_cells()
-            .iter()
-            .copied()
-            .map(|cell| (cell, [0.0; 2]))
-            .collect(),
-        displacement,
+        [
+            (spatial.fields.fluid_velocity, fluid_velocity),
+            (
+                spatial.fields.fluid_pressure,
+                fluid_vertices
+                    .iter()
+                    .map(|vertex| {
+                        (
+                            eqiora::meshing::MeshEntity::new(0, vertex.index()),
+                            0,
+                            0,
+                            0.0,
+                        )
+                    })
+                    .collect(),
+            ),
+            (
+                spatial.fields.solid_velocity,
+                vector_values(solid_vertices, [0.0, 0.0]),
+            ),
+            (spatial.fields.solid_displacement, displacement),
+        ],
     )
     .expect("finite prestrained previous state")
 }
@@ -320,14 +428,8 @@ pub(crate) fn state_from_solution(
     spatial: &SpatialContext,
     solution: &ResolvedFixedReferenceFsiSolution2d,
 ) -> FixedReferenceFsiState<2> {
-    FixedReferenceFsiState::<2>::new(
-        &spatial.mesh,
-        &spatial.partition,
-        solution.vertex_velocity_coefficients().to_vec(),
-        solution.fluid_velocity_bubble_coefficients().clone(),
-        solution.solid_displacement_coefficients().to_vec(),
-    )
-    .expect("accepted solution re-enters the exact next-step state contract")
+    let _ = spatial;
+    solution.state().clone()
 }
 
 pub(crate) fn solve_step(
@@ -367,31 +469,38 @@ pub(crate) fn solve_step(
     );
     assert_eq!(solution.realization_revision(), RealizationRevision::new(1));
     assert_eq!(
-        solution.fields().fluid_velocity(),
-        canonical.fluid().velocity().downcast().unwrap()
-    );
-    assert_eq!(
-        solution.fields().fluid_pressure(),
-        canonical.fluid().pressure().downcast().unwrap()
-    );
-    assert_eq!(
-        solution.fields().solid_velocity(),
-        canonical.solid().velocity().downcast().unwrap()
-    );
-    assert_eq!(
-        solution.fields().solid_displacement(),
-        canonical
-            .solid()
-            .continuum()
-            .displacement()
-            .downcast()
-            .unwrap()
+        solution
+            .state()
+            .fields()
+            .map(|(field, domain, _)| (field.erase(), domain.erase()))
+            .collect::<std::collections::BTreeSet<_>>(),
+        [
+            (
+                spatial.fields.fluid_velocity.erase(),
+                spatial.fields.fluid_domain.erase(),
+            ),
+            (
+                spatial.fields.fluid_pressure.erase(),
+                spatial.fields.fluid_domain.erase(),
+            ),
+            (
+                spatial.fields.solid_velocity.erase(),
+                spatial.fields.solid_domain.erase(),
+            ),
+            (
+                spatial.fields.solid_displacement.erase(),
+                spatial.fields.solid_domain.erase()
+            ),
+        ]
+        .into_iter()
+        .collect()
     );
     ExecutionWitness {
         physical_operator,
         operator,
         replayed_operator,
         solution,
+        fields: spatial.fields,
     }
 }
 
@@ -405,7 +514,7 @@ pub(crate) fn execute_initial_step(
         canonical,
         &spatial,
         &execution,
-        &prestrained_state(&spatial),
+        &prestrained_state(program, &spatial, &execution),
     )
 }
 

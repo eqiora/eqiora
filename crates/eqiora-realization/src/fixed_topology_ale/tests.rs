@@ -37,7 +37,7 @@ fn ale_rejects_multiple_trace_quotients_before_projection() {
     .unwrap();
     let multiple = CoupledFieldwiseRealizationPlan::new(
         spatial,
-        coupled.time_step(),
+        coupled.time_step().clone(),
         coupled.scaling().clone(),
         coupled.operator_properties(),
         coupled.solver(),
@@ -60,7 +60,7 @@ fn ale_rejects_multiple_trace_quotients_before_projection() {
     let multiple = CoupledFieldwiseRealizationRequirements::new(
         coupled.domains().to_vec(),
         [first, second],
-        coupled.eliminated_state(),
+        coupled.eliminated_states().iter().copied(),
         coupled.execution(),
     )
     .unwrap();
@@ -354,7 +354,8 @@ impl Fixture {
     }
 
     fn state_pair(&self) -> BackwardEulerStatePair {
-        BackwardEulerStatePair::new(self.displacement, self.solid_velocity).unwrap()
+        BackwardEulerStatePair::new(self.solid_relation, self.displacement, self.solid_velocity)
+            .unwrap()
     }
 
     fn fluid_step(&self) -> BackwardEulerRelationStep {
@@ -450,11 +451,11 @@ impl Fixture {
             spatial,
             BackwardEulerStep::new(
                 DynQuantity::new(0.1, time_dimension()),
-                BackwardEulerStateBinding::new(
+                [BackwardEulerStateBinding::new(
                     self.state_pair(),
                     Space::continuous_lagrange(NonZeroU16::MIN),
                     physical_scale(length_dimension()),
-                ),
+                )],
             )
             .unwrap(),
             self.scaling(),
@@ -569,7 +570,7 @@ impl Fixture {
                     .unwrap(),
                 ],
                 [self.trace()],
-                self.state_pair(),
+                [self.state_pair()],
                 execution_requirements_with_dimension(spatial_dimension),
             )
             .unwrap(),

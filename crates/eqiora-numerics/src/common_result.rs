@@ -135,34 +135,11 @@ impl CommonResultField {
     }
 }
 
-/// Owned interface-action evidence for one accepted FSI State.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct CommonFsiInterfaceActionEvidence {
-    vertex: usize,
-    fluid: [f64; 2],
-    solid: [f64; 2],
-}
-
-impl CommonFsiInterfaceActionEvidence {
-    #[must_use]
-    pub const fn vertex(&self) -> usize {
-        self.vertex
-    }
-    #[must_use]
-    pub const fn fluid(&self) -> [f64; 2] {
-        self.fluid
-    }
-    #[must_use]
-    pub const fn solid(&self) -> [f64; 2] {
-        self.solid
-    }
-}
-
 /// Complete accepted numerical evidence paired with one FSI output State.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CommonFsiStateEvidence {
     state_identity: String,
-    interface_actions: Vec<CommonFsiInterfaceActionEvidence>,
+    interface_actions: Vec<crate::simplicial_fsi::FixedReferenceFsiInterfaceAction<2>>,
     previous_kinetic: f64,
     next_kinetic: f64,
     previous_elastic: f64,
@@ -595,15 +572,7 @@ impl CommonResult {
                     let energy = numerical.energy_balance();
                     evidence.push(CommonFsiStateEvidence {
                         state_identity: state.identity().to_owned(),
-                        interface_actions: numerical
-                            .interface_actions()
-                            .iter()
-                            .map(|action| CommonFsiInterfaceActionEvidence {
-                                vertex: action.vertex().index(),
-                                fluid: action.fluid(),
-                                solid: action.solid(),
-                            })
-                            .collect(),
+                        interface_actions: numerical.interface_actions().to_vec(),
                         previous_kinetic: energy.previous_kinetic(),
                         next_kinetic: energy.next_kinetic(),
                         previous_elastic: energy.previous_elastic(),
@@ -916,12 +885,10 @@ impl CommonResult {
         &self,
         state: usize,
         action: usize,
-    ) -> Option<(usize, [f64; 2], [f64; 2])> {
-        self.fsi_state(state)?
-            .interface_actions
-            .get(action)
-            .map(|action| (action.vertex(), action.fluid(), action.solid()))
+    ) -> Option<&crate::simplicial_fsi::FixedReferenceFsiInterfaceAction<2>> {
+        self.fsi_state(state)?.interface_actions.get(action)
     }
+
     /// Energy and residual metrics in the documented fixed order.
     #[must_use]
     pub fn fsi_state_metrics(&self, index: usize) -> Option<[f64; 13]> {

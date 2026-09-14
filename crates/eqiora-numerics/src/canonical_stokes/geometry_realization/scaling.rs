@@ -624,9 +624,8 @@ pub(crate) fn resolve_fixed_reference_fsi_scaling_2d(
     mesh: ArtifactDigest,
     production: ArtifactDigest,
     streamwise_bounds_m: [f64; 2],
-    solid_shear_modulus_pa: f64,
-    solid_mass_density_kg_per_m3: f64,
-    fluid_mass_density_kg_per_m3: f64,
+    solid_materials: &[(f64, f64)],
+    fluid_densities: &[f64],
 ) -> Result<ResolvedIncompressibleScaling2d, Diagnostic> {
     if request.is_some() {
         let mut resolved = resolve_complete_manual_incompressible_scaling_2d(
@@ -638,6 +637,23 @@ pub(crate) fn resolve_fixed_reference_fsi_scaling_2d(
         )?;
         resolved.receipt.production = Some(production);
         return Ok(resolved);
+    }
+    let &(solid_shear_modulus_pa, solid_mass_density_kg_per_m3) = solid_materials
+        .first()
+        .ok_or_else(|| invalid("automatic FSI scale has no exact elastic material witness"))?;
+    let &fluid_mass_density_kg_per_m3 = fluid_densities.first().ok_or_else(|| {
+        invalid("automatic FSI scale has no exact incompressible density witness")
+    })?;
+    if solid_materials
+        .iter()
+        .any(|value| *value != (solid_shear_modulus_pa, solid_mass_density_kg_per_m3))
+        || fluid_densities
+            .iter()
+            .any(|value| *value != fluid_mass_density_kg_per_m3)
+    {
+        return Err(invalid(
+            "heterogeneous FSI material scales require an explicit complete scaling request",
+        ));
     }
     let length = positive(
         streamwise_bounds_m[1] - streamwise_bounds_m[0],

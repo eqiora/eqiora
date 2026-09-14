@@ -33,7 +33,19 @@ use eqiora_numerics::{
     ale::fixed_topology_ale_fsi_requirements_2d, ale::lower_ale_fsi_cartesian_2d,
     ale::project_simplicial_ale_fsi_remesh_2d, ale::remesh_resolved_fixed_topology_ale_fsi_2d,
     common::NonZeroStepCount, fsi::FixedReferenceFsiPartition, fsi::FixedReferenceFsiScale,
+    fsi::FixedReferenceFsiState,
 };
+
+#[derive(Debug, Clone, Copy)]
+pub(super) struct CaseFields {
+    pub(super) fluid_domain: Id<kinds::Domain>,
+    pub(super) solid_domain: Id<kinds::Domain>,
+    pub(super) fluid_velocity: Id<kinds::Field>,
+    pub(super) fluid_pressure: Id<kinds::Field>,
+    pub(super) solid_velocity: Id<kinds::Field>,
+    pub(super) solid_displacement: Id<kinds::Field>,
+    pub(super) connection: Id<kinds::Connection>,
+}
 
 pub(super) const COMPONENTS: usize = 2;
 pub(super) const TIME_STEP: f64 = 1.0 / 512.0;
@@ -54,6 +66,7 @@ const CASE_CONTRACT: &str = include_str!("../../../../verify/fsi/remeshing-trans
 pub(super) struct Case {
     pub(super) document: ModelDocument,
     pub(super) canonical: AleFsiCartesianModel<2>,
+    pub(super) fields: CaseFields,
     pub(super) source_mesh_artifact: SimplicialMeshEnvelopeV1,
     pub(super) source_reference: MeshArtifactReference,
     pub(super) source_mesh: SimplicialMesh,
@@ -72,6 +85,7 @@ impl Case {
             eqiora::api::ModelDocument::compile("remeshing-transfer-2d.eqi", DIRECT_SOURCE)
                 .unwrap();
         let canonical = lower_ale_fsi_cartesian_2d(document.program()).unwrap();
+        let fields = case_fields(&canonical);
         let source_mesh = two_domain_mesh(false);
         let target_mesh = two_domain_mesh(true);
         assert_ne!(source_mesh.vertices().len(), target_mesh.vertices().len());
@@ -82,15 +96,22 @@ impl Case {
         let source_reference = source_mesh_artifact.artifact_reference().unwrap();
         let target_reference = target_mesh_artifact.artifact_reference().unwrap();
         assert_ne!(source_reference, target_reference);
-        let source_partition = partition(&source_mesh);
-        let target_partition = partition(&target_mesh);
-        assert_eq!(source_partition.interface_facets().len(), 2);
-        assert_eq!(target_partition.interface_facets().len(), 4);
+        let source_partition = partition(&source_mesh, fields);
+        let target_partition = partition(&target_mesh, fields);
+        assert_eq!(
+            interface_facets(&source_mesh, &source_partition, fields.connection).len(),
+            2
+        );
+        assert_eq!(
+            interface_facets(&target_mesh, &target_partition, fields.connection).len(),
+            4
+        );
         let source_boundary = AleFsiBoundary::<2>::homogeneous_exterior(&source_mesh).unwrap();
         let target_boundary = AleFsiBoundary::<2>::homogeneous_exterior(&target_mesh).unwrap();
         Self {
             document,
             canonical,
+            fields,
             source_mesh_artifact,
             source_reference,
             source_mesh,
@@ -104,27 +125,71 @@ impl Case {
         }
     }
 
-    pub(super) fn initial_physical(&self) -> eqiora_numerics::ale::AleFsiInitialPhysicalState<2> {
-        let mut displacement = vec![[0.0; COMPONENTS]; self.source_mesh.vertices().len()];
-        for vertex in self.source_partition.solid_vertices() {
+    pub(super) fn initial_physical(
+        &self,
+        resolved: &ResolvedFixedTopologyAleCoupledRealization,
+    ) -> eqiora_numerics::ale::AleFsiInitialPhysicalState<2> {
+        let fluid_vertices = self
+            .source_partition
+            .domain_vertices(self.fields.fluid_domain)
+            .expect("exact fluid Domain");
+        let solid_vertices = self
+            .source_partition
+            .domain_vertices(self.fields.solid_domain)
+            .expect("exact solid Domain");
+        let vector_values = |vertices: &[eqiora::meshing::VertexId]| {
+            vertices
+                .iter()
+                .flat_map(|vertex| {
+                    (0..COMPONENTS).map(move |component| {
+                        (MeshEntity::new(0, vertex.index()), 0, component, 0.0)
+                    })
+                })
+                .collect::<Vec<_>>()
+        };
+        let mut displacement = vector_values(solid_vertices);
+        for vertex in solid_vertices {
             let y = self.source_mesh.vertices()[vertex.index()][1];
             if y.to_bits() == 0.5_f64.to_bits() {
-                displacement[vertex.index()] = [0.0, 1.0 / 1024.0];
+                displacement
+                    .iter_mut()
+                    .find(|(entity, _, component, _)| {
+                        entity.index() == vertex.index() && *component == 1
+                    })
+                    .expect("solid transverse displacement coefficient")
+                    .3 = 1.0 / 1024.0;
             }
         }
-        eqiora_numerics::ale::AleFsiInitialPhysicalState::<2>::new(
-            0.0,
-            vec![[0.0; COMPONENTS]; self.source_mesh.vertices().len()],
-            self.source_partition
-                .fluid_cells()
-                .iter()
-                .copied()
-                .map(|cell| (cell, [0.0; COMPONENTS]))
-                .collect(),
-            vec![0.0; self.source_partition.fluid_vertices().len()],
-            displacement,
+        let mut fluid_velocity = vector_values(fluid_vertices);
+        for cell in self
+            .source_partition
+            .domain_cells(self.fields.fluid_domain)
+            .expect("exact fluid Domain")
+        {
+            for component in 0..COMPONENTS {
+                fluid_velocity.push((MeshEntity::new(2, cell.index()), 0, component, 0.0));
+            }
+        }
+        let physical = FixedReferenceFsiState::<2>::new(
+            self.document.program(),
+            resolved.plan().coupled(),
+            &self.source_mesh,
+            &self.source_partition,
+            [
+                (self.fields.fluid_velocity, fluid_velocity),
+                (
+                    self.fields.fluid_pressure,
+                    fluid_vertices
+                        .iter()
+                        .map(|vertex| (MeshEntity::new(0, vertex.index()), 0, 0, 0.0))
+                        .collect(),
+                ),
+                (self.fields.solid_velocity, vector_values(solid_vertices)),
+                (self.fields.solid_displacement, displacement),
+            ],
         )
-        .unwrap()
+        .unwrap();
+        eqiora_numerics::ale::AleFsiInitialPhysicalState::<2>::new(0.0, physical).unwrap()
     }
 
     pub(super) fn resolve(
@@ -304,21 +369,27 @@ pub(super) fn assert_numerical_falsifiers(
 }
 
 pub(super) fn assert_strong_source_witness(case: &Case, state: &AleFsiState<2>) {
+    let physical = state_fields(
+        case,
+        state.physical_state(),
+        &case.source_mesh,
+        &case.source_partition,
+    );
     assert!(
-        state
-            .fluid_cell_bubble_velocity()
+        physical
+            .fluid_bubbles
             .values()
             .flatten()
             .any(|value| value.abs() > 1.0e-12),
         "the source must exercise the MINI bubble rather than a disguised P1/P0 path"
     );
-    let pressure_min = state
-        .fluid_pressure()
+    let pressure_min = physical
+        .fluid_pressure
         .iter()
         .copied()
         .fold(f64::INFINITY, f64::min);
-    let pressure_max = state
-        .fluid_pressure()
+    let pressure_max = physical
+        .fluid_pressure
         .iter()
         .copied()
         .fold(f64::NEG_INFINITY, f64::max);
@@ -328,25 +399,29 @@ pub(super) fn assert_strong_source_witness(case: &Case, state: &AleFsiState<2>) 
         "the absolute-pressure source witness must be nonzero and nonconstant"
     );
     assert!(
-        case.source_partition
-            .interface_vertices()
-            .iter()
-            .flat_map(|vertex| state.vertex_velocity()[vertex.index()])
-            .any(|value| value.abs() > 1.0e-12),
+        interface_vertices(
+            &case.source_mesh,
+            &case.source_partition,
+            case.fields.connection
+        )
+        .iter()
+        .flat_map(|vertex| physical.vertex_velocity[vertex.index()])
+        .any(|value| value.abs() > 1.0e-12),
         "the conserving interface must carry nonzero shared velocity"
     );
     assert!(
         case.source_partition
-            .solid_vertices()
+            .domain_vertices(case.fields.solid_domain)
+            .expect("exact solid Domain")
             .iter()
-            .flat_map(|vertex| state.solid_displacement()[vertex.index()])
+            .flat_map(|vertex| physical.solid_displacement[vertex.index()])
             .any(|value| value.abs() > 1.0e-12),
         "the material displacement transfer must not be a zero-field witness"
     );
     assert_interface_witness(
         &case.source_mesh,
-        state.vertex_velocity(),
-        state.solid_displacement(),
+        &physical.vertex_velocity,
+        &physical.solid_displacement,
         "source",
     );
 }
@@ -506,14 +581,11 @@ pub(super) fn assert_scale_invariant_projection(
 ) {
     let alternative_scale = FixedReferenceFsiScale::<2>::new(4.0, 2.0, 4.0).unwrap();
     let alternative = project_simplicial_ale_fsi_remesh_2d(
-        &case.source_mesh,
-        &case.source_partition,
-        source.motion(),
+        source,
         source_state,
         &case.target_mesh,
         &case.target_partition,
         accepted.target().motion(),
-        source.step_plan().material(),
         alternative_scale,
         &triangle_duffy_gauss_legendre(5).unwrap(),
         LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, transfer_plan.solver()),
@@ -536,37 +608,46 @@ pub(super) fn assert_scale_invariant_projection(
     // compare the resulting physical Fields in the Realization's common L/U/P
     // units. This is a deliberately non-semantic observation bound, not a
     // coefficient-error bound inferred from physical conservation residuals.
+    let alternative_fields = state_fields(
+        case,
+        alternative.physical_state(),
+        &case.target_mesh,
+        &case.target_partition,
+    );
+    let base_fields = state_fields(
+        case,
+        base.physical_state(),
+        &case.target_mesh,
+        &case.target_partition,
+    );
     assert_eq!(
-        alternative
-            .fluid_cell_bubble_velocity()
-            .keys()
-            .collect::<Vec<_>>(),
-        base.fluid_cell_bubble_velocity().keys().collect::<Vec<_>>()
+        alternative_fields.fluid_bubbles.keys().collect::<Vec<_>>(),
+        base_fields.fluid_bubbles.keys().collect::<Vec<_>>()
     );
     let report = ScaleInvarianceReport {
         vertex_velocity_drift: maximum_vector_field_defect(
-            alternative.vertex_velocity(),
-            base.vertex_velocity(),
+            &alternative_fields.vertex_velocity,
+            &base_fields.vertex_velocity,
         ) / transfer_plan.scales().velocity().value(),
         bubble_velocity_drift: maximum_vector_field_defect(
-            &alternative
-                .fluid_cell_bubble_velocity()
+            &alternative_fields
+                .fluid_bubbles
                 .values()
                 .copied()
                 .collect::<Vec<_>>(),
-            &base
-                .fluid_cell_bubble_velocity()
+            &base_fields
+                .fluid_bubbles
                 .values()
                 .copied()
                 .collect::<Vec<_>>(),
         ) / transfer_plan.scales().velocity().value(),
         pressure_drift: maximum_scalar_field_defect(
-            alternative.fluid_pressure(),
-            base.fluid_pressure(),
+            &alternative_fields.fluid_pressure,
+            &base_fields.fluid_pressure,
         ) / transfer_plan.scales().pressure().value(),
         displacement_drift: maximum_vector_field_defect(
-            alternative.solid_displacement(),
-            base.solid_displacement(),
+            &alternative_fields.solid_displacement,
+            &base_fields.solid_displacement,
         ) / transfer_plan.scales().length().value(),
         geometry_drift: maximum_coordinate_defect(
             alternative_evidence.target_geometry().coordinates(),
@@ -870,7 +951,11 @@ fn realization_plan_with_scales(
         .unwrap(),
         BackwardEulerStep::new(
             duration,
-            BackwardEulerStateBinding::new(state_pair(model), p1, length),
+            [BackwardEulerStateBinding::new(
+                state_pair(model),
+                p1,
+                length,
+            )],
         )
         .unwrap(),
         SymmetricCongruenceScaling::new(
@@ -945,27 +1030,27 @@ fn physical_scale(value: f64, dimension: DimExponents) -> PositivePhysicalScale 
 }
 
 pub(super) fn fluid_domain(model: &AleFsiCartesianModel<2>) -> Id<kinds::Domain> {
-    model.fluid().domain().downcast().unwrap()
+    case_fields(model).fluid_domain
 }
 
 pub(super) fn solid_domain(model: &AleFsiCartesianModel<2>) -> Id<kinds::Domain> {
-    model.solid().continuum().domain().downcast().unwrap()
+    case_fields(model).solid_domain
 }
 
 pub(super) fn fluid_velocity(model: &AleFsiCartesianModel<2>) -> Id<kinds::Field> {
-    model.fluid().velocity().downcast().unwrap()
+    case_fields(model).fluid_velocity
 }
 
 pub(super) fn fluid_pressure(model: &AleFsiCartesianModel<2>) -> Id<kinds::Field> {
-    model.fluid().pressure().downcast().unwrap()
+    case_fields(model).fluid_pressure
 }
 
 pub(super) fn solid_velocity(model: &AleFsiCartesianModel<2>) -> Id<kinds::Field> {
-    model.solid().velocity().downcast().unwrap()
+    case_fields(model).solid_velocity
 }
 
 pub(super) fn solid_displacement(model: &AleFsiCartesianModel<2>) -> Id<kinds::Field> {
-    model.solid().continuum().displacement().downcast().unwrap()
+    case_fields(model).solid_displacement
 }
 
 fn fluid_relation(model: &AleFsiCartesianModel<2>) -> Id<kinds::Relation> {
@@ -977,7 +1062,22 @@ fn solid_kinematic_relation(model: &AleFsiCartesianModel<2>) -> Id<kinds::Relati
 }
 
 fn connection(model: &AleFsiCartesianModel<2>) -> Id<kinds::Connection> {
-    model.interface().connection().downcast().unwrap()
+    case_fields(model).connection
+}
+
+fn case_fields(model: &AleFsiCartesianModel<2>) -> CaseFields {
+    let fluid = model.fluid();
+    let solid = model.solid();
+    let interface = model.interface();
+    CaseFields {
+        fluid_domain: fluid.domain().downcast().unwrap(),
+        solid_domain: solid.continuum().domain().downcast().unwrap(),
+        fluid_velocity: fluid.velocity().downcast().unwrap(),
+        fluid_pressure: fluid.pressure().downcast().unwrap(),
+        solid_velocity: solid.velocity().downcast().unwrap(),
+        solid_displacement: solid.continuum().displacement().downcast().unwrap(),
+        connection: interface.connection().downcast().unwrap(),
+    }
 }
 
 fn trace_quotient(model: &AleFsiCartesianModel<2>) -> ConformingTraceQuotient {
@@ -990,7 +1090,12 @@ fn trace_quotient(model: &AleFsiCartesianModel<2>) -> ConformingTraceQuotient {
 }
 
 fn state_pair(model: &AleFsiCartesianModel<2>) -> BackwardEulerStatePair {
-    BackwardEulerStatePair::new(solid_displacement(model), solid_velocity(model)).unwrap()
+    BackwardEulerStatePair::new(
+        solid_kinematic_relation(model),
+        solid_displacement(model),
+        solid_velocity(model),
+    )
+    .unwrap()
 }
 
 fn two_domain_mesh(flip_diagonal: bool) -> SimplicialMesh {
@@ -1061,7 +1166,7 @@ fn unstructured_target_mesh() -> SimplicialMesh {
     SimplicialMesh::new(2, vertices, cells, MeshQualityGate::new(0.3).unwrap()).unwrap()
 }
 
-fn partition(mesh: &SimplicialMesh) -> FixedReferenceFsiPartition<2> {
+fn partition(mesh: &SimplicialMesh, fields: CaseFields) -> FixedReferenceFsiPartition<2> {
     let mut fluid = Vec::new();
     let mut solid = Vec::new();
     for (index, cell) in mesh.cells().iter().enumerate() {
@@ -1076,16 +1181,107 @@ fn partition(mesh: &SimplicialMesh) -> FixedReferenceFsiPartition<2> {
             solid.push(CellId::new(index));
         }
     }
-    let interface = (0..mesh.entity_count(1).unwrap())
-        .filter(|&facet| {
-            mesh.entity_vertices(MeshEntity::new(1, facet))
-                .unwrap()
-                .iter()
-                .all(|vertex| mesh.vertices()[vertex.index()][0] == 1.0)
+    let quotient = ConformingTraceQuotient::new(
+        fields.connection,
+        TraceFieldEndpoint::new(fields.fluid_domain, fields.fluid_velocity),
+        TraceFieldEndpoint::new(fields.solid_domain, fields.solid_velocity),
+    )
+    .unwrap();
+    FixedReferenceFsiPartition::<2>::new(
+        mesh,
+        [(fields.fluid_domain, fluid), (fields.solid_domain, solid)],
+        &[quotient],
+    )
+    .unwrap()
+}
+
+pub(super) struct StateFields {
+    pub(super) vertex_velocity: Vec<[f64; COMPONENTS]>,
+    pub(super) fluid_bubbles: std::collections::BTreeMap<CellId, [f64; COMPONENTS]>,
+    pub(super) fluid_pressure: Vec<f64>,
+    pub(super) solid_displacement: Vec<[f64; COMPONENTS]>,
+}
+
+pub(super) fn state_fields(
+    case: &Case,
+    state: &FixedReferenceFsiState<2>,
+    mesh: &SimplicialMesh,
+    partition: &FixedReferenceFsiPartition<2>,
+) -> StateFields {
+    let mut vertex_velocity = vec![[0.0; COMPONENTS]; mesh.vertices().len()];
+    for field in [case.fields.fluid_velocity, case.fields.solid_velocity] {
+        for (entity, slot, component, value) in state.coefficients(field).unwrap() {
+            if entity.dimension() == 0 {
+                assert_eq!(slot, 0);
+                vertex_velocity[entity.index()][component] = value;
+            }
+        }
+    }
+    let mut fluid_bubbles = std::collections::BTreeMap::new();
+    for (entity, slot, component, value) in state.coefficients(case.fields.fluid_velocity).unwrap()
+    {
+        if entity.dimension() == 2 {
+            assert_eq!(slot, 0);
+            fluid_bubbles
+                .entry(CellId::new(entity.index()))
+                .or_insert([0.0; COMPONENTS])[component] = value;
+        }
+    }
+    let pressure_by_vertex = state
+        .coefficients(case.fields.fluid_pressure)
+        .unwrap()
+        .map(|(entity, slot, component, value)| {
+            assert_eq!((entity.dimension(), slot, component), (0, 0, 0));
+            (entity.index(), value)
         })
-        .map(FacetId::new)
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let fluid_pressure = partition
+        .domain_vertices(case.fields.fluid_domain)
+        .expect("exact fluid Domain")
+        .iter()
+        .map(|vertex| pressure_by_vertex[&vertex.index()])
         .collect();
-    FixedReferenceFsiPartition::<2>::new(mesh, fluid, solid, interface).unwrap()
+    let mut solid_displacement = vec![[0.0; COMPONENTS]; mesh.vertices().len()];
+    for (entity, slot, component, value) in
+        state.coefficients(case.fields.solid_displacement).unwrap()
+    {
+        assert_eq!((entity.dimension(), slot), (0, 0));
+        solid_displacement[entity.index()][component] = value;
+    }
+    StateFields {
+        vertex_velocity,
+        fluid_bubbles,
+        fluid_pressure,
+        solid_displacement,
+    }
+}
+
+pub(super) fn interface_facets(
+    mesh: &SimplicialMesh,
+    partition: &FixedReferenceFsiPartition<2>,
+    connection: Id<kinds::Connection>,
+) -> Vec<FacetId> {
+    (0..mesh.entity_count(1).unwrap())
+        .map(FacetId::new)
+        .filter(|&facet| partition.facet_sides(connection, facet).is_some())
+        .collect()
+}
+
+fn interface_vertices(
+    mesh: &SimplicialMesh,
+    partition: &FixedReferenceFsiPartition<2>,
+    connection: Id<kinds::Connection>,
+) -> Vec<eqiora::meshing::VertexId> {
+    interface_facets(mesh, partition, connection)
+        .into_iter()
+        .flat_map(|facet| {
+            mesh.entity_vertices(MeshEntity::new(1, facet.index()))
+                .unwrap()
+        })
+        .map(|entity| eqiora::meshing::VertexId::new(entity.index()))
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 fn find_vertex(mesh: &SimplicialMesh, target: [f64; COMPONENTS]) -> usize {

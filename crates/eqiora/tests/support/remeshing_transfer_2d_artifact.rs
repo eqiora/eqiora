@@ -25,7 +25,7 @@ use eqiora_numerics::{
 
 use super::case::{
     COMPONENTS, Case, fluid_domain, fluid_pressure, fluid_velocity, maximum_coordinate_defect,
-    scale_invariance_transfer_plan, solid_displacement, solid_domain, solid_velocity,
+    scale_invariance_transfer_plan, solid_displacement, solid_domain, solid_velocity, state_fields,
 };
 
 pub(super) fn assert_artifact_vertical_slice(
@@ -89,7 +89,7 @@ pub(super) fn assert_artifact_vertical_slice(
         .iter()
         .map(|state| {
             moving_snapshots(
-                &case.canonical,
+                case,
                 &case.source_mesh_artifact,
                 &case.source_partition,
                 &source_context,
@@ -173,7 +173,7 @@ pub(super) fn assert_artifact_vertical_slice(
         .iter()
         .map(|state| {
             moving_snapshots(
-                &case.canonical,
+                case,
                 &case.target_mesh_artifact,
                 &case.target_partition,
                 &target_context,
@@ -864,12 +864,14 @@ fn assert_ml_dataset_vertical_slice(
         for block in sample.blocks() {
             let expected_entities = match block.association() {
                 DiscreteFieldAssociation::Vertex => partitions[sample_ordinal]
-                    .fluid_vertices()
+                    .domain_vertices(fluid_domain(canonical))
+                    .unwrap()
                     .iter()
                     .map(|entity| entity.index())
                     .collect::<Vec<_>>(),
                 DiscreteFieldAssociation::Cell => partitions[sample_ordinal]
-                    .fluid_cells()
+                    .domain_cells(fluid_domain(canonical))
+                    .unwrap()
                     .iter()
                     .map(|entity| entity.index())
                     .collect::<Vec<_>>(),
@@ -890,12 +892,14 @@ fn assert_ml_dataset_vertical_slice(
                 .unwrap();
             let training_entities = match block.association() {
                 DiscreteFieldAssociation::Vertex => source_partition
-                    .fluid_vertices()
+                    .domain_vertices(fluid_domain(canonical))
+                    .unwrap()
                     .iter()
                     .map(|entity| entity.index())
                     .collect::<Vec<_>>(),
                 DiscreteFieldAssociation::Cell => source_partition
-                    .fluid_cells()
+                    .domain_cells(fluid_domain(canonical))
+                    .unwrap()
                     .iter()
                     .map(|entity| entity.index())
                     .collect::<Vec<_>>(),
@@ -1341,36 +1345,39 @@ impl MovingSnapshotSet {
 }
 
 fn moving_snapshots(
-    model: &AleFsiCartesianModel<2>,
+    case: &Case,
     mesh: &SimplicialMeshEnvelopeV1,
     partition: &FixedReferenceFsiPartition<2>,
     context: &ValidatedMovingSpatialContextV2<'_, ModelEnvelope>,
     state: &AleFsiState<2>,
 ) -> MovingSnapshotSet {
+    let model = &case.canonical;
+    let fields = state_fields(case, state.physical_state(), mesh.mesh(), partition);
     let vector = DiscreteFieldShape::Vector {
         components: NonZeroU32::new(COMPONENTS as u32).unwrap(),
     };
     let mut fluid_vertex_velocity = vec![[0.0; COMPONENTS]; mesh.mesh().vertices().len()];
-    for vertex in partition.fluid_vertices() {
-        fluid_vertex_velocity[vertex.index()] = state.vertex_velocity()[vertex.index()];
+    for vertex in partition.domain_vertices(case.fields.fluid_domain).unwrap() {
+        fluid_vertex_velocity[vertex.index()] = fields.vertex_velocity[vertex.index()];
     }
     let mut fluid_cell_velocity = vec![[0.0; COMPONENTS]; mesh.mesh().cells().len()];
-    for (cell, value) in state.fluid_cell_bubble_velocity() {
+    for (cell, value) in &fields.fluid_bubbles {
         fluid_cell_velocity[cell.index()] = *value;
     }
     let mut pressure = vec![0.0; mesh.mesh().vertices().len()];
     for (vertex, value) in partition
-        .fluid_vertices()
+        .domain_vertices(case.fields.fluid_domain)
+        .unwrap()
         .iter()
-        .zip(state.fluid_pressure())
+        .zip(&fields.fluid_pressure)
     {
         pressure[vertex.index()] = *value;
     }
     let mut solid_velocity_values = vec![[0.0; COMPONENTS]; mesh.mesh().vertices().len()];
     let mut solid_displacement_values = vec![[0.0; COMPONENTS]; mesh.mesh().vertices().len()];
-    for vertex in partition.solid_vertices() {
-        solid_velocity_values[vertex.index()] = state.vertex_velocity()[vertex.index()];
-        solid_displacement_values[vertex.index()] = state.solid_displacement()[vertex.index()];
+    for vertex in partition.domain_vertices(case.fields.solid_domain).unwrap() {
+        solid_velocity_values[vertex.index()] = fields.vertex_velocity[vertex.index()];
+        solid_displacement_values[vertex.index()] = fields.solid_displacement[vertex.index()];
     }
     let blocks = [
         (

@@ -22,7 +22,7 @@ use crate::{RealizationDecoderLimits, invalid_artifact};
 pub(crate) struct WireCoupledRequirements {
     domains: Vec<WireDomainFieldInventory>,
     trace_quotients: Vec<WireTraceQuotient>,
-    eliminated_state: WireStatePair,
+    eliminated_states: Vec<WireStatePair>,
     execution: WireExecutionRequirements,
 }
 
@@ -42,7 +42,12 @@ impl WireCoupledRequirements {
                 .copied()
                 .map(WireTraceQuotient::encode)
                 .collect(),
-            eliminated_state: WireStatePair::encode(value.eliminated_state()),
+            eliminated_states: value
+                .eliminated_states()
+                .iter()
+                .copied()
+                .map(WireStatePair::encode)
+                .collect(),
             execution: WireExecutionRequirements::encode(value.execution())?,
         })
     }
@@ -57,7 +62,10 @@ impl WireCoupledRequirements {
                 .into_iter()
                 .map(WireTraceQuotient::decode)
                 .collect::<Result<Vec<_>, _>>()?,
-            self.eliminated_state.decode()?,
+            self.eliminated_states
+                .into_iter()
+                .map(WireStatePair::decode)
+                .collect::<Result<Vec<_>, _>>()?,
             self.execution.decode()?,
         )
         .map_err(realization_error)
@@ -77,6 +85,7 @@ impl WireCoupledRequirements {
         if self.domains.len() > limits.max_realization_fields
             || fields > limits.max_realization_fields
             || self.trace_quotients.len() > limits.max_realization_constraints
+            || self.eliminated_states.len() > limits.max_realization_fields
         {
             return Err(invalid_artifact(
                 "coupled realization Domain or participating-Field count exceeds the decoder limit",
@@ -179,7 +188,9 @@ impl<Q: WireQuadratureCodec> WireCoupledPlanWith<Q> {
             },
         )?;
         if self.spatial.domains.len() > limits.max_realization_fields
-            || fields > limits.max_realization_fields
+            || fields
+                .checked_add(self.time_step.eliminated_states.len())
+                .is_none_or(|count| count > limits.max_realization_fields)
             || self.spatial.trace_quotients.len() > limits.max_realization_constraints
             || constraints > limits.max_realization_constraints
             || self.scaling_block_count() > limits.max_realization_blocks
@@ -340,23 +351,31 @@ impl WireTraceEndpoint {
 struct WireBackwardEulerStep {
     coherent_si_value: f64,
     dimension: WireDimension,
-    eliminated_state: WireStateBinding,
+    eliminated_states: Vec<WireStateBinding>,
 }
 
 impl WireBackwardEulerStep {
-    fn encode(value: BackwardEulerStep) -> Self {
+    fn encode(value: &BackwardEulerStep) -> Self {
         let duration = value.duration();
         Self {
             coherent_si_value: duration.value(),
             dimension: WireDimension::encode(duration.dim()),
-            eliminated_state: WireStateBinding::encode(value.eliminated_state()),
+            eliminated_states: value
+                .eliminated_states()
+                .iter()
+                .copied()
+                .map(WireStateBinding::encode)
+                .collect(),
         }
     }
 
     fn decode(self) -> Result<BackwardEulerStep, Diagnostic> {
         BackwardEulerStep::new(
             DynQuantity::new(self.coherent_si_value, self.dimension.decode()),
-            self.eliminated_state.decode()?,
+            self.eliminated_states
+                .into_iter()
+                .map(WireStateBinding::decode)
+                .collect::<Result<Vec<_>, _>>()?,
         )
         .map_err(realization_error)
     }
@@ -365,6 +384,7 @@ impl WireBackwardEulerStep {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct WireStatePair {
+    relation_ulid: String,
     state_field_ulid: String,
     rate_field_ulid: String,
 }
@@ -372,6 +392,7 @@ struct WireStatePair {
 impl WireStatePair {
     fn encode(value: BackwardEulerStatePair) -> Self {
         Self {
+            relation_ulid: value.relation().ulid().to_string(),
             state_field_ulid: value.state().ulid().to_string(),
             rate_field_ulid: value.rate().ulid().to_string(),
         }
@@ -379,6 +400,7 @@ impl WireStatePair {
 
     fn decode(self) -> Result<BackwardEulerStatePair, Diagnostic> {
         BackwardEulerStatePair::new(
+            parse_id::<kinds::Relation>(&self.relation_ulid, "kinematic Relation")?,
             parse_id::<kinds::Field>(&self.state_field_ulid, "state Field")?,
             parse_id::<kinds::Field>(&self.rate_field_ulid, "rate Field")?,
         )

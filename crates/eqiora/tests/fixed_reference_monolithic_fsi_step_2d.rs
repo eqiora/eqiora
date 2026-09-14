@@ -21,6 +21,31 @@ use support::fixed_reference_fsi::{
 
 mod support;
 
+macro_rules! only_fluid {
+    ($model:expr) => {
+        $model
+            .fluids()
+            .next()
+            .expect("fixture owns one fluid Region")
+    };
+}
+macro_rules! only_solid {
+    ($model:expr) => {
+        $model
+            .solids()
+            .next()
+            .expect("fixture owns one solid Region")
+    };
+}
+macro_rules! only_interface {
+    ($model:expr) => {
+        $model
+            .interfaces()
+            .next()
+            .expect("fixture owns one FSI Connection")
+    };
+}
+
 #[derive(Debug, PartialEq)]
 struct SemanticObservation {
     fluid_bounds: [[u64; 2]; 2],
@@ -50,17 +75,22 @@ fn direct_and_exact_packages_share_one_fixed_reference_fsi_meaning() {
     assert_eq!(direct_spatial, packaged_spatial);
 
     for model in [&direct_model, &packaged_model] {
-        let interface = model.interface();
+        let interface = only_interface!(model);
+        let fluid_side = interface.endpoint(only_fluid!(model).domain()).unwrap();
+        let solid_side = interface
+            .endpoint(only_solid!(model).continuum().domain())
+            .unwrap();
         assert_eq!(interface.axis(), 0);
-        assert_ne!(interface.fluid().boundary(), interface.solid().boundary());
-        assert_ne!(interface.fluid().port(), interface.solid().port());
+        assert_ne!(fluid_side.boundary(), solid_side.boundary());
+        assert_ne!(fluid_side.port(), solid_side.port());
         assert_eq!(
-            model.fluid().conservative_body_force(&[0.25, 0.5]).unwrap(),
+            only_fluid!(model)
+                .conservative_body_force(&[0.25, 0.5])
+                .unwrap(),
             [0.0; 2]
         );
         assert_eq!(
-            model
-                .solid()
+            only_solid!(model)
                 .continuum()
                 .load_potential_expression()
                 .evaluate(&[1.5, 0.5])
@@ -95,6 +125,7 @@ fn fixed_reference_monolithic_fsi_step_2d() {
     );
     for execution in [&direct, &packaged] {
         let solution = &execution.solution;
+        let fields = execution.fields;
         assert!(matches!(
             solution.realization_graph().root(),
             SolveRoot::Linear(_)
@@ -107,22 +138,21 @@ fn fixed_reference_monolithic_fsi_step_2d() {
             ]
         ));
         let evidence = solution.numerical_evidence();
-        let interface_midpoint = solution
-            .fluid_velocity_vertices()
-            .iter()
-            .copied()
+        let fluid_velocity = vector_coefficients(solution, fields.fluid_velocity);
+        let solid_velocity = vector_coefficients(solution, fields.solid_velocity);
+        let interface_midpoint = fluid_velocity
+            .keys()
+            .filter_map(|entity| (entity.dimension() == 0).then_some(*entity))
             .find(|vertex| {
-                solution.solid_velocity_vertices().contains(vertex)
-                    && solution
-                        .fluid_velocity_coefficient(*vertex)
-                        .is_some_and(|value| {
-                            value.into_iter().any(|component| component.abs() > 1.0e-10)
-                        })
+                solid_velocity.contains_key(vertex)
+                    && fluid_velocity[vertex]
+                        .into_iter()
+                        .any(|component| component.abs() > 1.0e-10)
             })
             .expect("the exact shared interface has nonzero motion");
         assert_eq!(
-            solution.fluid_velocity_coefficient(interface_midpoint),
-            solution.solid_velocity_coefficient(interface_midpoint)
+            fluid_velocity[&interface_midpoint],
+            solid_velocity[&interface_midpoint]
         );
         assert!(evidence.pressure_constant_action_norm() > 1.0e-10);
         assert!(evidence.residual_norm() < 1.0e-9);
@@ -132,9 +162,20 @@ fn fixed_reference_monolithic_fsi_step_2d() {
         assert!(!evidence.interface_actions().is_empty());
         assert!(evidence.interface_action_imbalance_norm() < 1.0e-9);
         assert!(evidence.energy_balance().defect().abs() < 1.0e-9);
-        assert_eq!(solution.interface_facets().len(), 2);
-        assert_eq!(solution.fluid_velocity_cells().len(), 4);
-        assert_eq!(solution.solid_cells().len(), 4);
+        assert_eq!(
+            fluid_velocity
+                .keys()
+                .filter(|entity| entity.dimension() == 2)
+                .count(),
+            4
+        );
+        assert_eq!(
+            vector_coefficients(solution, fields.solid_displacement)
+                .keys()
+                .filter(|entity| entity.dimension() == 0)
+                .count(),
+            6
+        );
     }
 }
 
@@ -154,7 +195,11 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
         &independent_model,
         &independent_spatial,
         &independent_execution,
-        &support::fixed_reference_fsi::prestrained_state(&independent_spatial),
+        &support::fixed_reference_fsi::prestrained_state(
+            direct.program(),
+            &independent_spatial,
+            &independent_execution,
+        ),
     );
     let independent_second = support::fixed_reference_fsi::solve_step(
         &independent_model,
@@ -166,6 +211,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
         ),
     );
 
+    // Geometry selection names deliberately encode no equation or Cartesian role.
     let graph = GeometryGraph::new();
     let fluid = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
     let solid = graph.rectangle([1.0, 2.0], [0.0, 1.0]).unwrap();
@@ -178,38 +224,38 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
         .build(
             &partition,
             &BTreeMap::from([
-                ("fluid".to_owned(), vec![fluid.region().into()]),
+                ("patch-z".to_owned(), vec![fluid.region().into()]),
                 (
-                    "fluid_x_lower".to_owned(),
+                    "edge-9".to_owned(),
                     vec![PlanarTopologyHandle::from(fluid_edges[0])],
                 ),
                 (
-                    "fluid_x_upper".to_owned(),
+                    "edge-2".to_owned(),
                     vec![PlanarTopologyHandle::from(fluid_edges[1])],
                 ),
                 (
-                    "fluid_y_lower".to_owned(),
+                    "edge-7".to_owned(),
                     vec![PlanarTopologyHandle::from(fluid_edges[2])],
                 ),
                 (
-                    "fluid_y_upper".to_owned(),
+                    "edge-4".to_owned(),
                     vec![PlanarTopologyHandle::from(fluid_edges[3])],
                 ),
-                ("solid".to_owned(), vec![solid.region().into()]),
+                ("patch-a".to_owned(), vec![solid.region().into()]),
                 (
-                    "solid_x_lower".to_owned(),
+                    "edge-8".to_owned(),
                     vec![PlanarTopologyHandle::from(solid_edges[0])],
                 ),
                 (
-                    "solid_x_upper".to_owned(),
+                    "edge-1".to_owned(),
                     vec![PlanarTopologyHandle::from(solid_edges[1])],
                 ),
                 (
-                    "solid_y_lower".to_owned(),
+                    "edge-6".to_owned(),
                     vec![PlanarTopologyHandle::from(solid_edges[2])],
                 ),
                 (
-                    "solid_y_upper".to_owned(),
+                    "edge-3".to_owned(),
                     vec![PlanarTopologyHandle::from(solid_edges[3])],
                 ),
             ]),
@@ -288,7 +334,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             "fluid",
             eqiora::compiler::StaticBindingValue::GeometrySupport {
                 geometry: &geometry,
-                selection: geometry.entity_set("fluid").unwrap(),
+                selection: geometry.entity_set("patch-z").unwrap(),
                 parent: None,
             },
         ),
@@ -296,7 +342,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             "solid",
             eqiora::compiler::StaticBindingValue::GeometrySupport {
                 geometry: &geometry,
-                selection: geometry.entity_set("solid").unwrap(),
+                selection: geometry.entity_set("patch-a").unwrap(),
                 parent: None,
             },
         ),
@@ -304,64 +350,64 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             "fluid_x_lower",
             eqiora::compiler::StaticBindingValue::GeometrySupport {
                 geometry: &geometry,
-                selection: geometry.entity_set("fluid_x_lower").unwrap(),
-                parent: Some(geometry.entity_set("fluid").unwrap()),
+                selection: geometry.entity_set("edge-9").unwrap(),
+                parent: Some(geometry.entity_set("patch-z").unwrap()),
             },
         ),
         (
             "fluid_x_upper",
             eqiora::compiler::StaticBindingValue::GeometrySupport {
                 geometry: &geometry,
-                selection: geometry.entity_set("fluid_x_upper").unwrap(),
-                parent: Some(geometry.entity_set("fluid").unwrap()),
+                selection: geometry.entity_set("edge-2").unwrap(),
+                parent: Some(geometry.entity_set("patch-z").unwrap()),
             },
         ),
         (
             "fluid_y_lower",
             eqiora::compiler::StaticBindingValue::GeometrySupport {
                 geometry: &geometry,
-                selection: geometry.entity_set("fluid_y_lower").unwrap(),
-                parent: Some(geometry.entity_set("fluid").unwrap()),
+                selection: geometry.entity_set("edge-7").unwrap(),
+                parent: Some(geometry.entity_set("patch-z").unwrap()),
             },
         ),
         (
             "fluid_y_upper",
             eqiora::compiler::StaticBindingValue::GeometrySupport {
                 geometry: &geometry,
-                selection: geometry.entity_set("fluid_y_upper").unwrap(),
-                parent: Some(geometry.entity_set("fluid").unwrap()),
+                selection: geometry.entity_set("edge-4").unwrap(),
+                parent: Some(geometry.entity_set("patch-z").unwrap()),
             },
         ),
         (
             "solid_x_lower",
             eqiora::compiler::StaticBindingValue::GeometrySupport {
                 geometry: &geometry,
-                selection: geometry.entity_set("solid_x_lower").unwrap(),
-                parent: Some(geometry.entity_set("solid").unwrap()),
+                selection: geometry.entity_set("edge-8").unwrap(),
+                parent: Some(geometry.entity_set("patch-a").unwrap()),
             },
         ),
         (
             "solid_x_upper",
             eqiora::compiler::StaticBindingValue::GeometrySupport {
                 geometry: &geometry,
-                selection: geometry.entity_set("solid_x_upper").unwrap(),
-                parent: Some(geometry.entity_set("solid").unwrap()),
+                selection: geometry.entity_set("edge-1").unwrap(),
+                parent: Some(geometry.entity_set("patch-a").unwrap()),
             },
         ),
         (
             "solid_y_lower",
             eqiora::compiler::StaticBindingValue::GeometrySupport {
                 geometry: &geometry,
-                selection: geometry.entity_set("solid_y_lower").unwrap(),
-                parent: Some(geometry.entity_set("solid").unwrap()),
+                selection: geometry.entity_set("edge-6").unwrap(),
+                parent: Some(geometry.entity_set("patch-a").unwrap()),
             },
         ),
         (
             "solid_y_upper",
             eqiora::compiler::StaticBindingValue::GeometrySupport {
                 geometry: &geometry,
-                selection: geometry.entity_set("solid_y_upper").unwrap(),
-                parent: Some(geometry.entity_set("solid").unwrap()),
+                selection: geometry.entity_set("edge-3").unwrap(),
+                parent: Some(geometry.entity_set("patch-a").unwrap()),
             },
         ),
     ];
@@ -464,9 +510,12 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             .downcast()
             .unwrap(),
     ];
-    let fluid_vertices = common_plans[0].1.fluid_vertex_indices();
-    let fluid_cells = common_plans[0].1.fluid_cell_indices();
-    let solid_vertices = common_plans[0].1.solid_vertex_indices();
+    let fluid_vertices = common_plans[0].1.field_vertex_indices(fields[0]).unwrap();
+    let fluid_cells = common_plans[0]
+        .1
+        .field_domain_cell_indices(fields[0])
+        .unwrap();
+    let solid_vertices = common_plans[0].1.field_vertex_indices(fields[2]).unwrap();
     let solid_displacement = solid_vertices
         .iter()
         .map(|&vertex| {
@@ -582,42 +631,54 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
                 );
             }
         };
-    for (scaling, common_plan, common_first, common_second) in &common_states {
+    let independent_fields = independent_first.fields;
+    for (scaling, _common_plan, common_first, common_second) in &common_states {
         for (common, independent) in [
             (common_first, &independent_first.solution),
             (common_second, &independent_second.solution),
         ] {
-            let common_velocity = mesh
-                .mesh()
-                .vertices()
-                .iter()
-                .zip(common.velocity_vertex_values().unwrap())
-                .map(|(point, value)| (coordinate_key(point), *value))
+            let common_velocity = [fields[0], fields[2]]
+                .into_iter()
+                .flat_map(|field| vector_state_coefficients(common.fsi_fields().unwrap(), field))
+                .filter(|(entity, _)| entity.dimension() == 0)
+                .map(|(entity, value)| {
+                    (
+                        coordinate_key(&mesh.mesh().vertices()[entity.index()]),
+                        value,
+                    )
+                })
                 .collect::<BTreeMap<_, _>>();
-            let independent_velocity = independent_spatial
-                .mesh
-                .vertices()
-                .iter()
-                .zip(independent.vertex_velocity_coefficients())
-                .map(|(point, value)| (coordinate_key(point), *value))
-                .collect::<BTreeMap<_, _>>();
+            let independent_velocity = [
+                independent_fields.fluid_velocity,
+                independent_fields.solid_velocity,
+            ]
+            .into_iter()
+            .flat_map(|field| vector_coefficients(independent, field))
+            .filter(|(entity, _)| entity.dimension() == 0)
+            .map(|(entity, value)| {
+                (
+                    coordinate_key(&independent_spatial.mesh.vertices()[entity.index()]),
+                    value,
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
             assert_vectors_close(
                 &format!("{scaling}: shared fluid/solid vertex velocity"),
                 &common_velocity,
                 &independent_velocity,
             );
 
-            let common_bubbles = common_plan
-                .fluid_cell_indices()
+            let common_bubbles = vector_state_coefficients(common.fsi_fields().unwrap(), fields[0])
                 .into_iter()
-                .zip(common.velocity_cell_values().iter())
-                .map(|(cell, value)| (cell_key(mesh.mesh(), cell), *value))
+                .filter(|(entity, _)| entity.dimension() == 2)
+                .map(|(cell, value)| (cell_key(mesh.mesh(), cell.index()), value))
                 .collect::<BTreeMap<_, _>>();
-            let independent_bubbles = independent
-                .fluid_velocity_bubble_coefficients()
-                .iter()
-                .map(|(cell, value)| (cell_key(&independent_spatial.mesh, cell.index()), *value))
-                .collect::<BTreeMap<_, _>>();
+            let independent_bubbles =
+                vector_coefficients(independent, independent_fields.fluid_velocity)
+                    .into_iter()
+                    .filter(|(entity, _)| entity.dimension() == 2)
+                    .map(|(cell, value)| (cell_key(&independent_spatial.mesh, cell.index()), value))
+                    .collect::<BTreeMap<_, _>>();
             assert_eq!(
                 common_bubbles.keys().collect::<Vec<_>>(),
                 independent_bubbles.keys().collect::<Vec<_>>(),
@@ -634,43 +695,56 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
                 );
             }
 
-            let common_pressure = common_plan
-                .fluid_vertex_indices()
-                .into_iter()
-                .zip(common.pressure_vertex_values().unwrap())
-                .map(|(vertex, value)| (coordinate_key(&mesh.mesh().vertices()[vertex]), *value))
-                .collect::<BTreeMap<_, _>>();
-            let independent_pressure = independent
-                .fluid_pressure_vertices()
-                .iter()
-                .zip(independent.fluid_pressure_coefficients())
-                .map(|(vertex, value)| {
-                    (
-                        coordinate_key(&independent_spatial.mesh.vertices()[vertex.index()]),
-                        *value,
-                    )
-                })
-                .collect::<BTreeMap<_, _>>();
+            let common_pressure =
+                scalar_state_coefficients(common.fsi_fields().unwrap(), fields[1])
+                    .into_iter()
+                    .filter(|(entity, _)| entity.dimension() == 0)
+                    .map(|(vertex, value)| {
+                        (
+                            coordinate_key(&mesh.mesh().vertices()[vertex.index()]),
+                            value,
+                        )
+                    })
+                    .collect::<BTreeMap<_, _>>();
+            let independent_pressure =
+                scalar_coefficients(independent, independent_fields.fluid_pressure)
+                    .into_iter()
+                    .filter(|(entity, _)| entity.dimension() == 0)
+                    .map(|(vertex, value)| {
+                        (
+                            coordinate_key(&independent_spatial.mesh.vertices()[vertex.index()]),
+                            value,
+                        )
+                    })
+                    .collect::<BTreeMap<_, _>>();
             assert_scalars_close(
                 "gauge-free fluid pressure",
                 &common_pressure,
                 &independent_pressure,
             );
 
-            let common_displacement = mesh
-                .mesh()
-                .vertices()
-                .iter()
-                .zip(common.fsi_solid_displacement_values().unwrap())
-                .map(|(point, value)| (coordinate_key(point), *value))
-                .collect::<BTreeMap<_, _>>();
-            let independent_displacement = independent_spatial
-                .mesh
-                .vertices()
-                .iter()
-                .zip(independent.solid_displacement_coefficients())
-                .map(|(point, value)| (coordinate_key(point), *value))
-                .collect::<BTreeMap<_, _>>();
+            let common_displacement =
+                vector_state_coefficients(common.fsi_fields().unwrap(), fields[3])
+                    .into_iter()
+                    .filter(|(entity, _)| entity.dimension() == 0)
+                    .map(|(entity, value)| {
+                        (
+                            coordinate_key(&mesh.mesh().vertices()[entity.index()]),
+                            value,
+                        )
+                    })
+                    .collect::<BTreeMap<_, _>>();
+            let independent_displacement =
+                vector_coefficients(independent, independent_fields.solid_displacement)
+                    .into_iter()
+                    .filter(|(entity, _)| entity.dimension() == 0)
+                    .map(|(entity, value)| {
+                        (
+                            coordinate_key(&independent_spatial.mesh.vertices()[entity.index()]),
+                            value,
+                        )
+                    })
+                    .collect::<BTreeMap<_, _>>();
             assert_vectors_close(
                 &format!("{scaling}: solid displacement"),
                 &common_displacement,
@@ -685,28 +759,37 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
 }
 
 fn observe(model: &FixedReferenceFsiCartesianModel2d) -> SemanticObservation {
+    let interface = only_interface!(model);
+    let fluid_side = interface.endpoint(only_fluid!(model).domain()).unwrap();
+    let solid_side = interface
+        .endpoint(only_solid!(model).continuum().domain())
+        .unwrap();
     SemanticObservation {
-        fluid_bounds: model.fluid().bounds().map(|axis| axis.map(f64::to_bits)),
-        solid_bounds: model
-            .solid()
+        fluid_bounds: only_fluid!(model)
+            .bounds()
+            .map(|axis| axis.map(f64::to_bits)),
+        solid_bounds: only_solid!(model)
             .continuum()
             .bounds()
             .map(|axis| axis.map(f64::to_bits)),
-        fluid_density: model.fluid().mass_density().to_bits(),
-        fluid_viscosity: model.fluid().dynamic_viscosity().to_bits(),
-        solid_density: model.solid().mass_density().to_bits(),
-        solid_mu: model.solid().continuum().shear_modulus().to_bits(),
-        solid_lambda: model.solid().continuum().first_lame_parameter().to_bits(),
-        interface_axis: model.interface().axis(),
-        fluid_side: model.interface().fluid().side(),
-        solid_side: model.interface().solid().side(),
+        fluid_density: only_fluid!(model).mass_density().to_bits(),
+        fluid_viscosity: only_fluid!(model).dynamic_viscosity().to_bits(),
+        solid_density: only_solid!(model).mass_density().to_bits(),
+        solid_mu: only_solid!(model).continuum().shear_modulus().to_bits(),
+        solid_lambda: only_solid!(model)
+            .continuum()
+            .first_lame_parameter()
+            .to_bits(),
+        interface_axis: interface.axis(),
+        fluid_side: fluid_side.side(),
+        solid_side: solid_side.side(),
     }
 }
 
 fn live_boundary_count(model: &FixedReferenceFsiCartesianModel2d) -> usize {
     [
-        model.fluid().boundary_inventory(),
-        model.solid().continuum().boundary_inventory(),
+        only_fluid!(model).boundary_inventory(),
+        only_solid!(model).continuum().boundary_inventory(),
     ]
     .into_iter()
     .flat_map(|inventory| {
@@ -726,4 +809,78 @@ fn live_boundary_count(model: &FixedReferenceFsiCartesianModel2d) -> usize {
         )
     })
     .count()
+}
+
+fn vector_coefficients(
+    solution: &eqiora_numerics::fsi::ResolvedFixedReferenceFsiSolution2d,
+    field: eqiora::Id<eqiora::kinds::Field>,
+) -> BTreeMap<eqiora::meshing::MeshEntity, [f64; 2]> {
+    let mut values = BTreeMap::<_, [Option<f64>; 2]>::new();
+    for (entity, slot, component, value) in solution
+        .state()
+        .coefficients(field)
+        .expect("accepted exact Field")
+    {
+        assert_eq!(slot, 0);
+        values.entry(entity).or_insert([None; 2])[component] = Some(value);
+    }
+    values
+        .into_iter()
+        .map(|(entity, components)| {
+            (
+                entity,
+                components.map(|value| value.expect("complete vector component")),
+            )
+        })
+        .collect()
+}
+
+fn vector_state_coefficients(
+    state: &eqiora_numerics::fsi::FixedReferenceFsiState<2>,
+    field: eqiora::Id<eqiora::kinds::Field>,
+) -> BTreeMap<eqiora::meshing::MeshEntity, [f64; 2]> {
+    let mut values = BTreeMap::<_, [Option<f64>; 2]>::new();
+    for (entity, slot, component, value) in state.coefficients(field).expect("accepted exact Field")
+    {
+        assert_eq!(slot, 0);
+        values.entry(entity).or_insert([None; 2])[component] = Some(value);
+    }
+    values
+        .into_iter()
+        .map(|(entity, components)| {
+            (
+                entity,
+                components.map(|value| value.expect("complete vector component")),
+            )
+        })
+        .collect()
+}
+
+fn scalar_coefficients(
+    solution: &eqiora_numerics::fsi::ResolvedFixedReferenceFsiSolution2d,
+    field: eqiora::Id<eqiora::kinds::Field>,
+) -> BTreeMap<eqiora::meshing::MeshEntity, f64> {
+    solution
+        .state()
+        .coefficients(field)
+        .expect("accepted exact Field")
+        .map(|(entity, slot, component, value)| {
+            assert_eq!((slot, component), (0, 0));
+            (entity, value)
+        })
+        .collect()
+}
+
+fn scalar_state_coefficients(
+    state: &eqiora_numerics::fsi::FixedReferenceFsiState<2>,
+    field: eqiora::Id<eqiora::kinds::Field>,
+) -> BTreeMap<eqiora::meshing::MeshEntity, f64> {
+    state
+        .coefficients(field)
+        .expect("accepted exact Field")
+        .map(|(entity, slot, component, value)| {
+            assert_eq!((slot, component), (0, 0));
+            (entity, value)
+        })
+        .collect()
 }

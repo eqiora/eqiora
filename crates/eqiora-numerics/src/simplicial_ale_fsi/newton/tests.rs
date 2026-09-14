@@ -16,6 +16,9 @@ use eqiora_solver::{
 };
 
 use super::*;
+use crate::simplicial_ale_fsi::test_support::{
+    material, material_for, motion_for_plan, partition_for_plan,
+};
 use crate::simplicial_fsi::{
     FixedReferenceFsiLoad, FixedReferenceFsiMaterial, FixedReferenceFsiScale,
 };
@@ -46,7 +49,7 @@ impl AssemblyBackend for FailFirstAssembly {
 #[test]
 fn real_payload_prepares_each_structural_phase_once_and_reuses_after_failure() {
     let fixture = fixture();
-    let plan = step_plan();
+    let plan = fixture.plan.clone();
     let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
     let assembly = FailFirstAssembly::default();
     let prepared = PreparedAleFsiRun::new(
@@ -55,7 +58,7 @@ fn real_payload_prepares_each_structural_phase_once_and_reuses_after_failure() {
         &fixture.boundary,
         &fixture.motion,
         &fixture.initial,
-        plan,
+        &plan,
         &quadrature,
         &assembly,
         &DenseGeneralSolver,
@@ -88,7 +91,7 @@ fn real_payload_prepares_each_structural_phase_once_and_reuses_after_failure() {
 #[test]
 fn two_steps_close_the_complete_accepted_evidence_chain() {
     let fixture = fixture();
-    let plan = step_plan();
+    let plan = fixture.plan.clone();
     let trajectory = advance_simplicial_ale_fsi_2d(
         &fixture.mesh,
         &fixture.partition,
@@ -96,7 +99,7 @@ fn two_steps_close_the_complete_accepted_evidence_chain() {
         &fixture.motion,
         fixture.initial,
         NonZeroStepCount::new(NonZeroUsize::new(2).unwrap()),
-        plan,
+        plan.clone(),
         &triangle_duffy_gauss_legendre(5).unwrap(),
         &DenseGeneralSolver,
         &fixture.layout,
@@ -140,7 +143,7 @@ fn two_steps_close_the_complete_accepted_evidence_chain() {
 #[test]
 fn one_tetrahedral_step_closes_every_three_dimensional_evidence_link() {
     let fixture = fixture_3d();
-    let plan = step_plan_3d();
+    let plan = fixture.plan.clone();
     let degree_nine = simplex_duffy_gauss_legendre(3, 6).unwrap();
     let rejected = advance_simplicial_ale_fsi_3d(
         &fixture.mesh,
@@ -149,7 +152,7 @@ fn one_tetrahedral_step_closes_every_three_dimensional_evidence_link() {
         &fixture.motion,
         fixture.initial.clone(),
         NonZeroStepCount::new(NonZeroUsize::MIN),
-        plan,
+        plan.clone(),
         &degree_nine,
         &DenseGeneralSolver,
         &fixture.layout,
@@ -159,8 +162,13 @@ fn one_tetrahedral_step_closes_every_three_dimensional_evidence_link() {
 
     let quadrature = simplex_duffy_gauss_legendre(3, 7).unwrap();
     assert_eq!(quadrature.polynomial_exactness(), Some(11));
-    let initial_third_displacement =
-        fixture.initial.solid_displacement()[INTERFACE_INTERIOR_3D.index()][2];
+    let displacement = fixture.motion.policy().solid_displacement();
+    let solid_velocity = fixture.layout.state_rate(displacement.erase()).unwrap();
+    let initial_third_displacement = fixture
+        .initial
+        .physical_state()
+        .vector_vertices(displacement)
+        .unwrap()[&INTERFACE_INTERIOR_3D][2];
     let trajectory = advance_simplicial_ale_fsi_3d(
         &fixture.mesh,
         &fixture.partition,
@@ -168,7 +176,7 @@ fn one_tetrahedral_step_closes_every_three_dimensional_evidence_link() {
         &fixture.motion,
         fixture.initial,
         NonZeroStepCount::new(NonZeroUsize::MIN),
-        plan,
+        plan.clone(),
         &quadrature,
         &DenseGeneralSolver,
         &fixture.layout,
@@ -209,11 +217,17 @@ fn one_tetrahedral_step_closes_every_three_dimensional_evidence_link() {
         ExecutionReport::host_serial()
     );
     assert_ne!(
-        final_state.solid_displacement()[INTERFACE_INTERIOR_3D.index()][2],
+        final_state
+            .physical_state()
+            .vector_vertices(displacement)
+            .unwrap()[&INTERFACE_INTERIOR_3D][2],
         initial_third_displacement
     );
     assert_ne!(
-        final_state.vertex_velocity()[INTERFACE_INTERIOR_3D.index()][2],
+        final_state
+            .physical_state()
+            .vector_vertices(solid_velocity.downcast().unwrap())
+            .unwrap()[&INTERFACE_INTERIOR_3D][2],
         0.0
     );
     assert!(evidence.interface_actions().iter().any(|action| {
@@ -232,7 +246,7 @@ fn unsupported_general_solver_fails_before_a_step_is_published() {
         &fixture.motion,
         fixture.initial,
         NonZeroStepCount::new(NonZeroUsize::MIN),
-        step_plan(),
+        fixture.plan.clone(),
         &triangle_duffy_gauss_legendre(5).unwrap(),
         &REFERENCE_LINEAR_SOLVER,
         &fixture.layout,
@@ -248,6 +262,7 @@ struct Fixture {
     boundary: AleFsiBoundary<2>,
     motion: P1HarmonicMeshMotionAction<2>,
     initial: AleFsiState<2>,
+    plan: AleFsiStepPlan<2>,
 }
 
 struct Fixture3d {
@@ -257,12 +272,22 @@ struct Fixture3d {
     boundary: AleFsiBoundary<3>,
     motion: P1HarmonicMeshMotionAction<3>,
     initial: AleFsiState<3>,
+    plan: AleFsiStepPlan<3>,
 }
 
 fn fixture() -> Fixture {
     let mesh = two_domain_mesh();
-    let (fluid, solid, interface) = inventories(&mesh);
-    let partition = FixedReferenceFsiPartition::<2>::new(&mesh, fluid, solid, interface).unwrap();
+    let (fluid, solid, _) = inventories(&mesh);
+    let seed = step_plan();
+    let model = crate::simplicial_fsi::test_model::planar_model(
+        &crate::simplicial_fsi::test_model::adjacent_rectangles(),
+        &mesh,
+        seed.fixed_reference_config().clone(),
+        seed.linear_solver(),
+        true,
+    );
+    let fields = crate::simplicial_fsi::test_model::exact_fields(&model.plan);
+    let partition = partition_for_plan(&mesh, fluid, solid, &model.plan);
     let boundary = AleFsiBoundary::<2>::homogeneous_exterior(&mesh).unwrap();
     let motion_plan = SolverPlan::new(
         LinearSolver::ConjugateGradient,
@@ -271,46 +296,42 @@ fn fixture() -> Fixture {
         NonZeroUsize::new(500).unwrap(),
     )
     .unwrap();
-    let motion = P1HarmonicMeshMotionAction::<2>::new(
+    let motion = motion_for_plan(
         &mesh,
         &partition,
+        &model.plan,
         eqiora_solver::LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, motion_plan),
-    )
-    .unwrap();
-    let mut solid_displacement = vec![[0.0; 2]; mesh.vertices().len()];
+    );
     let displaced = find_vertex(&mesh, [1.5, 0.5]);
     assert!(
         partition
-            .solid_vertices()
+            .domain_vertices(fields.solid_domain)
+            .unwrap()
             .contains(&VertexId::new(displaced))
     );
-    solid_displacement[displaced] = [0.0, 0.002];
-    let initial = AleFsiState::<2>::new(
-        0.0,
+    let physical = crate::simplicial_fsi::test_model::exact_state(
+        &model.program,
+        &model.plan,
         &mesh,
         &partition,
-        &motion,
-        vec![[0.0; 2]; mesh.vertices().len()],
-        partition
-            .fluid_cells()
-            .iter()
-            .copied()
-            .map(|cell| (cell, [0.0; 2]))
-            .collect(),
-        vec![0.0; partition.fluid_vertices().len()],
-        solid_displacement,
+        |field, entity, component| {
+            (field == fields.displacement
+                && entity.dimension() == 0
+                && entity.index() == displaced
+                && component == 1) as u8 as f64
+                * 0.002
+        },
+    );
+    let initial = AleFsiState::<2>::new(0.0, &mesh, &partition, &motion, physical).unwrap();
+    let plan = step_plan_with_material(material_for(fields));
+    let layout = crate::simplicial_fsi::layout::FsiLayout::bind(
+        &model.program,
+        &model.plan,
+        &mesh,
+        &partition,
+        &boundary,
     )
     .unwrap();
-    let plan = step_plan();
-    let layout = crate::simplicial_fsi::test_model::planar_layout(
-        &crate::simplicial_fsi::test_model::adjacent_rectangles(),
-        &mesh,
-        &partition,
-        &crate::simplicial_fsi::FixedReferenceFsiBoundary::homogeneous_exterior(&mesh).unwrap(),
-        plan.fixed_reference_config(),
-        plan.linear_solver(),
-        true,
-    );
     Fixture {
         layout,
         mesh,
@@ -318,12 +339,23 @@ fn fixture() -> Fixture {
         boundary,
         motion,
         initial,
+        plan,
     }
 }
 
 fn fixture_3d() -> Fixture3d {
-    let (mesh, fluid, solid, interface) = tetrahedral_problem();
-    let partition = FixedReferenceFsiPartition::<3>::new(&mesh, fluid, solid, interface).unwrap();
+    let (mesh, fluid, solid, _) = tetrahedral_problem();
+    let seed = step_plan_3d();
+    let geometry = crate::simplicial_fsi::test_model::polyhedra::tetrahedral_geometry();
+    let model = crate::simplicial_fsi::test_model::polyhedra::polyhedral_model(
+        &geometry,
+        &mesh,
+        seed.fixed_reference_config().clone(),
+        seed.linear_solver(),
+        true,
+    );
+    let fields = crate::simplicial_fsi::test_model::exact_fields(&model.plan);
+    let partition = partition_for_plan(&mesh, fluid, solid, &model.plan);
     let boundary = AleFsiBoundary::<3>::homogeneous_exterior(&mesh).unwrap();
     let motion_plan = SolverPlan::new(
         LinearSolver::ConjugateGradient,
@@ -332,40 +364,35 @@ fn fixture_3d() -> Fixture3d {
         NonZeroUsize::new(500).unwrap(),
     )
     .unwrap();
-    let motion = P1HarmonicMeshMotionAction::<3>::new(
+    let motion = motion_for_plan(
         &mesh,
         &partition,
+        &model.plan,
         eqiora_solver::LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, motion_plan),
-    )
-    .unwrap();
-    let mut solid_displacement = vec![[0.0; 3]; mesh.vertices().len()];
-    solid_displacement[INTERFACE_INTERIOR_3D.index()][2] = 2.0e-4;
-    let initial = AleFsiState::<3>::new(
-        0.0,
-        &mesh,
-        &partition,
-        &motion,
-        vec![[0.0; 3]; mesh.vertices().len()],
-        partition
-            .fluid_cells()
-            .iter()
-            .copied()
-            .map(|cell| (cell, [0.0; 3]))
-            .collect(),
-        vec![0.0; partition.fluid_vertices().len()],
-        solid_displacement,
-    )
-    .unwrap();
-    let plan = step_plan_3d();
-    let layout = crate::simplicial_fsi::test_model::polyhedra::polyhedral_layout(
-        &crate::simplicial_fsi::test_model::polyhedra::tetrahedral_geometry(),
-        &mesh,
-        &partition,
-        &crate::simplicial_fsi::FixedReferenceFsiBoundary::homogeneous_exterior(&mesh).unwrap(),
-        plan.fixed_reference_config(),
-        plan.linear_solver(),
-        true,
     );
+    let physical = crate::simplicial_fsi::test_model::exact_state(
+        &model.program,
+        &model.plan,
+        &mesh,
+        &partition,
+        |field, entity, component| {
+            (field == fields.displacement
+                && entity.dimension() == 0
+                && entity.index() == INTERFACE_INTERIOR_3D.index()
+                && component == 2) as u8 as f64
+                * 2.0e-4
+        },
+    );
+    let initial = AleFsiState::<3>::new(0.0, &mesh, &partition, &motion, physical).unwrap();
+    let plan = step_plan_3d_with_material(material_for(fields));
+    let layout = crate::simplicial_fsi::layout::FsiLayout::bind(
+        &model.program,
+        &model.plan,
+        &mesh,
+        &partition,
+        &boundary,
+    )
+    .unwrap();
     Fixture3d {
         layout,
         mesh,
@@ -373,13 +400,18 @@ fn fixture_3d() -> Fixture3d {
         boundary,
         motion,
         initial,
+        plan,
     }
 }
 
 fn step_plan() -> AleFsiStepPlan<2> {
+    step_plan_with_material(material())
+}
+
+fn step_plan_with_material(material: FixedReferenceFsiMaterial<2>) -> AleFsiStepPlan<2> {
     AleFsiStepPlan::<2>::new(
         0.02,
-        FixedReferenceFsiMaterial::<2>::new(1.0, 0.2, 1.0, 2.0, 1.0).unwrap(),
+        material,
         FixedReferenceFsiScale::<2>::new(2.0, 1.0, 1.0).unwrap(),
         FixedReferenceFsiLoad::Zero,
         NonlinearSolvePlan::new(1.0e-7, 1.0e-10, NonZeroUsize::new(20).unwrap(), 16).unwrap(),
@@ -400,9 +432,13 @@ fn step_plan() -> AleFsiStepPlan<2> {
 }
 
 fn step_plan_3d() -> AleFsiStepPlan<3> {
+    step_plan_3d_with_material(material())
+}
+
+fn step_plan_3d_with_material(material: FixedReferenceFsiMaterial<3>) -> AleFsiStepPlan<3> {
     AleFsiStepPlan::<3>::new(
         0.02,
-        FixedReferenceFsiMaterial::<3>::new(1.0, 0.2, 1.0, 2.0, 1.0).unwrap(),
+        material,
         FixedReferenceFsiScale::<3>::new(2.0, 1.0, 1.0).unwrap(),
         FixedReferenceFsiLoad::Zero,
         NonlinearSolvePlan::new(1.0e-7, 1.0e-10, NonZeroUsize::new(20).unwrap(), 16).unwrap(),

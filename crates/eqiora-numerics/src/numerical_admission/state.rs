@@ -457,22 +457,22 @@ impl CommonState {
                     bytes.extend_from_slice(&value.to_bits().to_be_bytes());
                 }
             }
-            CommonStateKind::Fsi {
-                state, pressure, ..
-            } => {
-                push_framed(
-                    &mut bytes,
-                    b"fixed-reference-fsi/mini-p1+p1/backward-euler/v1",
-                );
-                for value in state
-                    .vertex_velocity()
-                    .iter()
-                    .flatten()
-                    .chain(state.fluid_cell_bubble_velocity().values().flatten())
-                    .chain(pressure.iter())
-                    .chain(state.solid_displacement().iter().flatten())
-                {
-                    bytes.extend_from_slice(&value.to_bits().to_be_bytes());
+            CommonStateKind::Fsi { state, .. } => {
+                push_framed(&mut bytes, b"fixed-reference-fsi/exact-field-state/v1");
+                for (field, recovered) in &state.fields {
+                    push_framed(&mut bytes, field.ulid().to_string().as_bytes());
+                    push_framed(&mut bytes, recovered.domain.ulid().to_string().as_bytes());
+                    for (key, value) in &recovered.coefficients {
+                        for index in [
+                            key.entity.dimension(),
+                            key.entity.index(),
+                            key.slot,
+                            key.component,
+                        ] {
+                            bytes.extend_from_slice(&(index as u64).to_be_bytes());
+                        }
+                        bytes.extend_from_slice(&value.to_bits().to_be_bytes());
+                    }
                 }
             }
         }
@@ -528,21 +528,17 @@ impl CommonState {
             CommonStateKind::Scalar(_) => None,
             CommonStateKind::MiniP1(state) => Some(state.velocity().vertex_values()),
             CommonStateKind::CellCentered(_) => None,
-            CommonStateKind::Fsi { state, .. } => Some(state.vertex_velocity()),
+            CommonStateKind::Fsi { .. } => None,
         }
     }
 
     #[must_use]
-    pub fn velocity_cell_values(&self) -> Vec<[f64; 2]> {
+    pub fn velocity_cell_values(&self) -> Option<Vec<[f64; 2]>> {
         match &self.kind {
-            CommonStateKind::Scalar(_) => Vec::new(),
-            CommonStateKind::MiniP1(state) => state.velocity().cell_bubble_values().to_vec(),
-            CommonStateKind::CellCentered(state) => state.velocity().values().to_vec(),
-            CommonStateKind::Fsi { state, .. } => state
-                .fluid_cell_bubble_velocity()
-                .values()
-                .copied()
-                .collect(),
+            CommonStateKind::Scalar(_) => None,
+            CommonStateKind::MiniP1(state) => Some(state.velocity().cell_bubble_values().to_vec()),
+            CommonStateKind::CellCentered(state) => Some(state.velocity().values().to_vec()),
+            CommonStateKind::Fsi { .. } => None,
         }
     }
 
@@ -552,7 +548,7 @@ impl CommonState {
             CommonStateKind::Scalar(_) => None,
             CommonStateKind::MiniP1(state) => Some(state.pressure().vertex_values()),
             CommonStateKind::CellCentered(_) => None,
-            CommonStateKind::Fsi { pressure, .. } => Some(pressure),
+            CommonStateKind::Fsi { .. } => None,
         }
     }
 
@@ -566,9 +562,9 @@ impl CommonState {
     }
 
     #[must_use]
-    pub fn fsi_solid_displacement_values(&self) -> Option<&[[f64; 2]]> {
+    pub fn fsi_fields(&self) -> Option<&FixedReferenceFsiState<2>> {
         match &self.kind {
-            CommonStateKind::Fsi { state, .. } => Some(state.solid_displacement()),
+            CommonStateKind::Fsi { state, .. } => Some(state),
             _ => None,
         }
     }

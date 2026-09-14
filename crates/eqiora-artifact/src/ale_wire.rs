@@ -53,36 +53,33 @@ pub(crate) fn validate_requirements_plan(
         ));
     }
     let coupled = plan.coupled();
-    let eliminated = coupled.time_step().eliminated_state().pair();
-    let rate_domain = coupled
-        .spatial()
-        .domains()
+    let eliminated = coupled
+        .time_step()
+        .eliminated_states()
         .iter()
-        .find(|domain| {
-            domain
-                .field_spaces()
-                .iter()
-                .any(|binding| binding.field() == eliminated.rate())
-        })
-        .map(|domain| domain.domain())
-        .ok_or_else(|| invalid_artifact("ALE eliminated rate has no selected Domain"))?;
+        .map(|state| state.pair())
+        .collect::<Vec<_>>();
+    let represented = coupled
+        .represented_physical_fields()
+        .map_err(|error| invalid_artifact(error.to_string()))?;
     let selected_domains = coupled
         .spatial()
         .domains()
         .iter()
         .map(|domain| {
-            let fields = domain
-                .field_spaces()
-                .iter()
-                .map(|binding| binding.field())
-                .chain((domain.domain() == rate_domain).then_some(eliminated.state()));
-            eqiora_realization::DomainFieldInventory::new(domain.domain(), fields)
+            eqiora_realization::DomainFieldInventory::new(
+                domain.domain(),
+                represented
+                    .iter()
+                    .filter(|field| field.domain() == domain.domain())
+                    .map(|field| field.field()),
+            )
         })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| invalid_artifact(error.to_string()))?;
     if requirements.coupled().domains() != selected_domains
         || requirements.coupled().trace_quotients() != coupled.spatial().trace_quotients()
-        || requirements.coupled().eliminated_state() != eliminated
+        || requirements.coupled().eliminated_states() != eliminated
     {
         return Err(invalid_artifact(
             "ALE common plan does not bind the exact required Domain, Field, trace, and eliminated-state inventory",

@@ -10,7 +10,7 @@ use eqiora_realization::CoupledFieldwiseRealizationPlan;
 use crate::canonical_fsi::FixedReferenceFsiCartesianModel2d;
 use crate::form_compiler::region::{BoundRegionForm, RegionFieldBinding, RegionTimeBinding};
 
-use super::validate::{fluid_pressure, fluid_velocity, invalid_realization, solid_velocity};
+use super::validate::invalid_realization;
 
 mod cells;
 pub(super) use cells::prepare_cells;
@@ -21,7 +21,6 @@ pub(super) fn bind(
 ) -> Result<BTreeMap<RawId, BoundRegionForm>, Diagnostic> {
     let reference = ReferenceCell::simplex(2)?;
     let functional = plan.scaling().weak_functional_scale().quantity();
-    let state = plan.time_step().eliminated_state();
     model
         .region_forms
         .iter()
@@ -66,17 +65,9 @@ pub(super) fn bind(
                     // with -p, while momentum uses the positive velocity test.
                     // Preserve the recognizer's orientation of the entire
                     // momentum residual, including its forcing and history.
-                    let sign = if tested == fluid_pressure(model).erase() {
-                        -1.0
-                    } else if tested == fluid_velocity(model).erase() {
-                        model.fluid.momentum_orientation()
-                    } else if tested == solid_velocity(model).erase() {
-                        model.solid.momentum_orientation()
-                    } else {
-                        return Err(invalid_realization(
-                            "region row has no admitted test orientation",
-                        ));
-                    };
+                    let sign = *model.test_orientations.get(&tested).ok_or_else(|| {
+                        invalid_realization("region row has no exact admitted test orientation")
+                    })?;
                     Ok((
                         relation,
                         DynQuantity::new(sign * scale.value(), scale.dim()),
@@ -85,11 +76,16 @@ pub(super) fn bind(
                 .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
             let time = RegionTimeBinding {
                 step: plan.time_step().duration(),
-                states: fields
+                states: plan
+                    .time_step()
+                    .eliminated_states()
                     .iter()
-                    .any(|field| field.field == state.pair().rate().erase())
-                    .then_some(state)
-                    .into_iter()
+                    .copied()
+                    .filter(|state| {
+                        fields
+                            .iter()
+                            .any(|field| field.field == state.pair().rate().erase())
+                    })
                     .collect(),
             };
             form.bind(reference, &fields, &rows, Some(&time))
@@ -108,7 +104,6 @@ pub(super) fn layout(
     partition: &crate::simplicial_fsi::FixedReferenceFsiPartition<2>,
     boundary: &crate::simplicial_fsi::FixedReferenceFsiBoundary<2>,
 ) -> Result<crate::simplicial_fsi::layout::FsiLayout<2>, Diagnostic> {
-    use super::validate::{fluid_domain, solid_domain, trace_quotient};
     use crate::region_assembly::mapping::{RegionDofMap, bind_region_topology};
     let layouts = forms
         .iter()
@@ -116,13 +111,14 @@ pub(super) fn layout(
         .collect();
     let (domains, traces) = bind_region_topology(
         mesh,
-        [
-            (fluid_domain(model).erase(), partition.fluid_cells()),
-            (solid_domain(model).erase(), partition.solid_cells()),
-        ]
-        .into_iter()
-        .flat_map(|(domain, cells)| cells.iter().map(move |&cell| (cell, domain))),
-        &[trace_quotient(model)],
+        partition.domains().flat_map(|domain| {
+            partition
+                .domain_cells(domain)
+                .expect("exact Domain")
+                .iter()
+                .map(move |&cell| (cell, domain.erase()))
+        }),
+        plan.spatial().trace_quotients(),
     )?;
     let mapping = RegionDofMap::new(
         mesh,

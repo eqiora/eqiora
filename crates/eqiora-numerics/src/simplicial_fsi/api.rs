@@ -1,44 +1,61 @@
 //! Accepted physical fields and falsifying numerical evidence.
 
-use eqiora_meshing::CellId;
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use eqiora_assembly::AssemblyReport;
-use eqiora_meshing::VertexId;
 use eqiora_solver::{CanonicalCsrSystemView, SolveReport};
 
-/// Independently recovered fluid and solid actions on one free interface vertex.
+/// Independently recovered actions on one exact Connection/entity/slot.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FixedReferenceFsiInterfaceAction<const D: usize> {
-    pub(super) vertex: VertexId,
-    pub(super) fluid: [f64; D],
-    pub(super) solid: [f64; D],
+    pub(crate) connection: eqiora_core::Id<eqiora_core::entity::kinds::Connection>,
+    pub(crate) entity: eqiora_meshing::MeshEntity,
+    pub(crate) slot: usize,
+    pub(crate) endpoints: [(
+        eqiora_core::Id<eqiora_core::entity::kinds::Domain>,
+        eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+        [f64; D],
+    ); 2],
 }
-
 impl<const D: usize> FixedReferenceFsiInterfaceAction<D> {
-    /// Shared interface vertex.
-    #[must_use]
-    pub const fn vertex(self) -> VertexId {
-        self.vertex
+    /// Exact conserving Connection.
+    pub const fn connection(self) -> eqiora_core::Id<eqiora_core::entity::kinds::Connection> {
+        self.connection
     }
-
-    /// Fluid-side discrete action in the complete physical system.
-    #[must_use]
-    pub const fn fluid(self) -> [f64; D] {
-        self.fluid
+    /// Exact supporting mesh entity.
+    pub const fn entity(self) -> eqiora_meshing::MeshEntity {
+        self.entity
     }
-
-    /// Solid-side discrete action in the complete physical system.
-    #[must_use]
-    pub const fn solid(self) -> [f64; D] {
-        self.solid
+    /// Basis slot on the supporting entity.
+    pub const fn slot(self) -> usize {
+        self.slot
     }
-
-    /// Sum which must vanish at an unconstrained shared interface unknown.
-    #[must_use]
+    /// Action of one exact endpoint Field.
+    pub fn action(
+        self,
+        field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+    ) -> Option<[f64; D]> {
+        self.endpoints
+            .into_iter()
+            .find(|endpoint| endpoint.1 == field)
+            .map(|endpoint| endpoint.2)
+    }
+    /// Both endpoint identities and actions; positions have no physical role.
+    #[allow(clippy::type_complexity)]
+    pub const fn endpoints(
+        self,
+    ) -> [(
+        eqiora_core::Id<eqiora_core::entity::kinds::Domain>,
+        eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+        [f64; D],
+    ); 2] {
+        self.endpoints
+    }
+    /// Sum which must vanish on an unconstrained exact shared coordinate.
     pub fn imbalance(self) -> [f64; D] {
-        std::array::from_fn(|component| self.fluid[component] + self.solid[component])
+        std::array::from_fn(|component| {
+            self.endpoints[0].2[component] + self.endpoints[1].2[component]
+        })
     }
 }
 
@@ -108,11 +125,7 @@ impl FixedReferenceFsiEnergyBalance {
 /// Accepted fields and falsifying numerical evidence for one FSI step.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FixedReferenceFsiSolution<const D: usize> {
-    pub(super) vertex_velocity: Vec<[f64; D]>,
-    pub(super) fluid_cell_bubble_velocity: BTreeMap<CellId, [f64; D]>,
-    pub(super) fluid_pressure_vertices: Vec<VertexId>,
-    pub(super) fluid_pressure: Vec<f64>,
-    pub(super) solid_displacement: Vec<[f64; D]>,
+    pub(super) state: super::FixedReferenceFsiState<D>,
     pub(super) algebraic_values: Vec<f64>,
     pub(super) canonical_system: Arc<CanonicalCsrSystemView>,
     pub(super) pressure_constant_action_norm: f64,
@@ -128,34 +141,9 @@ pub struct FixedReferenceFsiSolution<const D: usize> {
 }
 
 impl<const D: usize> FixedReferenceFsiSolution<D> {
-    /// Accepted shared mesh-vertex velocity coefficients.
-    #[must_use]
-    pub fn vertex_velocity(&self) -> &[[f64; D]] {
-        &self.vertex_velocity
-    }
-
-    /// Accepted fluid MINI bubble coefficients keyed by exact fluid `CellId`.
-    #[must_use]
-    pub fn fluid_cell_bubble_velocity(&self) -> &BTreeMap<CellId, [f64; D]> {
-        &self.fluid_cell_bubble_velocity
-    }
-
-    /// Fluid pressure vertex identities in coefficient order.
-    #[must_use]
-    pub fn fluid_pressure_vertices(&self) -> &[VertexId] {
-        &self.fluid_pressure_vertices
-    }
-
-    /// Accepted fluid P1 pressure coefficients.
-    #[must_use]
-    pub fn fluid_pressure(&self) -> &[f64] {
-        &self.fluid_pressure
-    }
-
-    /// Accepted next solid displacement, exact zero outside the solid closure.
-    #[must_use]
-    pub fn solid_displacement(&self) -> &[[f64; D]] {
-        &self.solid_displacement
+    /// All accepted physical Fields in their exact Domain/entity inventory.
+    pub const fn state(&self) -> &super::FixedReferenceFsiState<D> {
+        &self.state
     }
 
     /// Dimensionless reduced values in deterministic velocity/bubble/pressure block order.

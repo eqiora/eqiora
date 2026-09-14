@@ -5246,7 +5246,7 @@ Inspect fluid–structure interaction results.
 
 ### `eqiora.fsi.FixedReferenceFsiPlanView`
 
-Resolved field roles and scales for fixed-reference FSI.
+Resolved scales for fixed-reference FSI.
 
 ```python
 @final
@@ -5254,17 +5254,43 @@ class FixedReferenceFsiPlanView:
     @property
     def kind(self) -> str: ...
     @property
-    def fluid_velocity(self) -> FieldRef: ...
-    @property
-    def pressure(self) -> FieldRef: ...
-    @property
-    def solid_velocity(self) -> FieldRef: ...
-    @property
-    def displacement(self) -> FieldRef: ...
-    @property
     def scaling(self) -> fluid.IncompressibleScales: ...
     @property
     def scaling_receipt(self) -> fluid.IncompressibleScalingReceipt2d: ...
+```
+
+<a id="api-eqiora-fsi-FsiConnectionEvidence"></a>
+
+### `eqiora.fsi.FsiConnectionEvidence`
+
+Exact Connection, endpoint identities, and trace facets.
+
+```python
+@final
+class FsiConnectionEvidence:
+    @property
+    def identity(self) -> str: ...
+    @property
+    def endpoint_domains(self) -> tuple[str, str]: ...
+    @property
+    def endpoint_fields(self) -> tuple[str, str]: ...
+    @property
+    def facets(self) -> npt.NDArray[np.uint32]: ...
+```
+
+<a id="api-eqiora-fsi-FsiDomainEvidence"></a>
+
+### `eqiora.fsi.FsiDomainEvidence`
+
+Exact Domain and its owned mesh cells.
+
+```python
+@final
+class FsiDomainEvidence:
+    @property
+    def identity(self) -> str: ...
+    @property
+    def cells(self) -> npt.NDArray[np.uint32]: ...
 ```
 
 <a id="api-eqiora-fsi-FsiEvidence"></a>
@@ -5279,14 +5305,42 @@ class FsiEvidence:
     @property
     def request_identity(self) -> str: ...
     @property
-    def fluid_cells(self) -> npt.NDArray[np.uint32]: ...
+    def domains(self) -> tuple[FsiDomainEvidence, ...]: ...
     @property
-    def solid_cells(self) -> npt.NDArray[np.uint32]: ...
-    @property
-    def interface_facets(self) -> npt.NDArray[np.uint32]: ...
+    def connections(self) -> tuple[FsiConnectionEvidence, ...]: ...
     @property
     def states(self) -> tuple[FsiStateEvidence, ...]: ...
     def state(self, state: State) -> FsiStateEvidence: ...
+```
+
+<a id="api-eqiora-fsi-FsiInterfaceActionEvidence"></a>
+
+### `eqiora.fsi.FsiInterfaceActionEvidence`
+
+Recovered action on one exact Connection entity and basis slot.
+
+Row `i` of `endpoint_actions` belongs to `endpoint_domains[i]` and
+`endpoint_fields[i]`.
+
+```python
+@final
+class FsiInterfaceActionEvidence:
+    @property
+    def connection(self) -> str: ...
+    @property
+    def entity_dimension(self) -> int: ...
+    @property
+    def entity_index(self) -> int: ...
+    @property
+    def slot(self) -> int: ...
+    @property
+    def endpoint_domains(self) -> tuple[str, str]: ...
+    @property
+    def endpoint_fields(self) -> tuple[str, str]: ...
+    @property
+    def endpoint_actions(self) -> npt.NDArray[np.float64]: ...
+    @property
+    def imbalance(self) -> npt.NDArray[np.float64]: ...
 ```
 
 <a id="api-eqiora-fsi-FsiStateEvidence"></a>
@@ -5301,13 +5355,7 @@ class FsiStateEvidence:
     @property
     def state_digest(self) -> str: ...
     @property
-    def interface_vertices(self) -> npt.NDArray[np.uint32]: ...
-    @property
-    def fluid_action(self) -> npt.NDArray[np.float64]: ...
-    @property
-    def solid_action(self) -> npt.NDArray[np.float64]: ...
-    @property
-    def action_imbalance(self) -> npt.NDArray[np.float64]: ...
+    def interface_actions(self) -> tuple[FsiInterfaceActionEvidence, ...]: ...
     @property
     def previous_kinetic_energy_j_per_m(self) -> float: ...
     @property

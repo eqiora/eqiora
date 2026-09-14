@@ -357,7 +357,7 @@ impl PyIncompressibleFlowPlanView {
     }
 }
 
-/// Resolved field roles and scales for fixed-reference FSI.
+/// Resolved scales for fixed-reference FSI.
 #[pyclass(
     name = "FixedReferenceFsiPlanView",
     module = "eqiora._eqiora",
@@ -366,10 +366,6 @@ impl PyIncompressibleFlowPlanView {
 )]
 #[derive(Debug)]
 pub(crate) struct PyFixedReferenceFsiPlanView {
-    pub(super) fluid_velocity: PyModelFieldRef,
-    pub(super) pressure: PyModelFieldRef,
-    pub(super) solid_velocity: PyModelFieldRef,
-    pub(super) displacement: PyModelFieldRef,
     pub(super) scaling: Py<PyIncompressibleScales>,
     pub(super) scaling_receipt: Py<PyIncompressibleScalingReceipt2d>,
 }
@@ -379,22 +375,6 @@ impl PyFixedReferenceFsiPlanView {
     #[getter]
     const fn kind(&self) -> &'static str {
         "fixed-reference-fsi"
-    }
-    #[getter]
-    fn fluid_velocity(&self) -> PyModelFieldRef {
-        self.fluid_velocity.clone()
-    }
-    #[getter]
-    fn pressure(&self) -> PyModelFieldRef {
-        self.pressure.clone()
-    }
-    #[getter]
-    fn solid_velocity(&self) -> PyModelFieldRef {
-        self.solid_velocity.clone()
-    }
-    #[getter]
-    fn displacement(&self) -> PyModelFieldRef {
-        self.displacement.clone()
     }
     #[getter]
     fn scaling(&self, py: Python<'_>) -> Py<PyIncompressibleScales> {

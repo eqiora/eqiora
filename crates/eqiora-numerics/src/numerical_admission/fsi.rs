@@ -1,4 +1,45 @@
 use super::*;
+use eqiora_core::{Id, entity::kinds};
+
+/// Exact Domain support retained by one common FSI Plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommonFsiDomainInventory {
+    domain: Id<kinds::Domain>,
+    cells: Vec<usize>,
+}
+
+impl CommonFsiDomainInventory {
+    /// Exact Semantic Domain.
+    #[must_use]
+    pub const fn domain(&self) -> Id<kinds::Domain> {
+        self.domain
+    }
+    /// Exact cell indices owned by the Domain.
+    #[must_use]
+    pub fn cells(&self) -> &[usize] {
+        &self.cells
+    }
+}
+
+/// Exact Connection topology retained by one common FSI Plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommonFsiConnectionInventory {
+    quotient: eqiora_realization::ConformingTraceQuotient,
+    facets: Vec<[usize; 2]>,
+}
+
+impl CommonFsiConnectionInventory {
+    /// Exact Connection and its two Domain/Field endpoints.
+    #[must_use]
+    pub const fn quotient(&self) -> eqiora_realization::ConformingTraceQuotient {
+        self.quotient
+    }
+    /// Exact oriented trace facet connectivity.
+    #[must_use]
+    pub fn facets(&self) -> &[[usize; 2]] {
+        &self.facets
+    }
+}
 
 pub(super) struct PreparedCommonFsiExecution<'a> {
     plan: &'a CommonFsiPlan,
@@ -15,24 +56,13 @@ impl PreparedCommonFsiExecution<'_> {
             return Err(invalid("FSI Plan received a non-FSI common State"));
         };
         let solution = self.prepared.finalize(previous)?.solve(&self.backend)?;
-        let next = FixedReferenceFsiState::<2>::new(
-            self.plan.mesh(),
-            &self.plan.partition,
-            solution.vertex_velocity_coefficients().to_vec(),
-            solution.fluid_velocity_bubble_coefficients().clone(),
-            solution.solid_displacement_coefficients().to_vec(),
-        )?;
         CommonState::new(
             self.plan.state_space_identity(),
             state.time_s + self.plan.temporal.step().value(),
             Arc::new(self.plan.model().clone()),
             Arc::new(self.plan.resources().clone()),
             CommonStateKind::Fsi {
-                state: Box::new(next),
-                pressure: solution
-                    .fluid_pressure_coefficients()
-                    .to_vec()
-                    .into_boxed_slice(),
+                state: Box::new(solution.state().clone()),
                 accepted: Some(Box::new(solution)),
             },
         )
@@ -56,13 +86,7 @@ impl CommonFsiPlan {
     }
 
     fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
-        let relation = self
-            .canonical()
-            .solid()
-            .kinematic_relation()
-            .downcast::<eqiora_core::entity::kinds::Relation>()
-            .ok_or_else(|| invalid("FSI solid kinematic Relation lost its semantic kind"))?;
-        require_portable_realization(&self.portable, self.resolved.portable_graph(relation)?)
+        require_portable_realization(&self.portable, self.resolved.portable_graph()?)
     }
 
     pub(super) fn from_recognized(
@@ -75,21 +99,39 @@ impl CommonFsiPlan {
         let RecognizedNativeModel::Fsi(canonical) = &recognized.recognized else {
             return Err(invalid("native FSI Plan requires recognized FSI meaning"));
         };
-        let NativeMeshResources::AdjacentPartitionSimplicial {
-            geometry,
-            mesh,
-            correspondence,
-            ..
-        } = &recognized.resources
-        else {
-            return Err(invalid(
-                "native FSI Plan requires authenticated adjacent-partition simplicial resources",
-            ));
+        let (geometry, mesh, correspondence) = match &recognized.resources {
+            NativeMeshResources::AdjacentPartitionSimplicial {
+                geometry,
+                mesh,
+                correspondence,
+                ..
+            }
+            | NativeMeshResources::GmshSimplicial {
+                geometry,
+                mesh,
+                correspondence,
+                ..
+            } => (geometry, mesh, correspondence),
+            _ => {
+                return Err(invalid(
+                    "FSI Plan requires authenticated conforming region simplicial resources",
+                ));
+            }
         };
         validate_simplicial_resources(&recognized.resources)?;
         let native_mesh = mesh.mesh().clone();
-        let entities = |name: &str| {
-            correspondence.adjacent_rectangle_partition_entity_set_entities(geometry, name)
+        let entities = |name: &str| -> Result<Vec<MeshEntity>, Diagnostic> {
+            match &recognized.resources {
+                NativeMeshResources::AdjacentPartitionSimplicial { .. } => {
+                    correspondence.adjacent_rectangle_partition_entity_set_entities(geometry, name)
+                }
+                NativeMeshResources::GmshSimplicial { .. } => correspondence
+                    .region_entity_set_entities(
+                        &eqiora_artifact::GeometryDefinitionV1::from_canonical(geometry)?,
+                        name,
+                    ),
+                _ => unreachable!("authenticated simplicial region resources"),
+            }
         };
         let region_set = |domain: eqiora_core::RawId| -> Result<&str, Diagnostic> {
             match recognized.program.node(domain) {
@@ -106,52 +148,47 @@ impl CommonFsiPlan {
                 )),
             }
         };
-        let fluid_set = region_set(canonical.fluid().domain())?;
-        let solid_set = region_set(canonical.solid().continuum().domain())?;
-        let interface_set = match recognized
-            .program
-            .node(canonical.interface().fluid().boundary())
-        {
-            Some(eqiora_schema::kernel::KernelNode::Domain(definition)) => {
-                match definition.kind() {
-                    eqiora_schema::kernel::DomainKind::GeometryBoundary { entity_set } => {
-                        entity_set.as_str()
-                    }
-                    _ => return Err(invalid("FSI fluid interface is not a GeometryBoundary")),
+        let domain_cells = canonical
+            .fluids()
+            .map(|fluid| fluid.domain())
+            .chain(canonical.solids().map(|solid| solid.continuum().domain()))
+            .map(|domain| {
+                let selected = entities(region_set(domain)?)?;
+                if selected.iter().any(|entity| entity.dimension() != 2) {
+                    return Err(invalid(
+                        "Region correspondence includes an entity outside cell support",
+                    ));
                 }
-            }
-            _ => {
-                return Err(invalid(
-                    "FSI fluid interface boundary is absent from the exact Model",
-                ));
-            }
-        };
-        let fluid_cells = entities(fluid_set)?
-            .into_iter()
-            .filter(|entity| entity.dimension() == 2)
-            .map(|entity| CellId::new(entity.index()))
-            .collect();
-        let solid_cells = entities(solid_set)?
-            .into_iter()
-            .filter(|entity| entity.dimension() == 2)
-            .map(|entity| CellId::new(entity.index()))
-            .collect();
-        let interface_facets = entities(interface_set)?
-            .into_iter()
-            .filter(|entity| entity.dimension() == 1)
-            .map(|entity| FacetId::new(entity.index()))
-            .collect();
-        let partition = FixedReferenceFsiPartition::<2>::new(
-            &native_mesh,
-            fluid_cells,
-            solid_cells,
-            interface_facets,
-        )?;
+                Ok((
+                    domain.downcast().expect("Domain"),
+                    selected
+                        .into_iter()
+                        .map(|entity| CellId::new(entity.index()))
+                        .collect::<Vec<_>>(),
+                ))
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
         let (geometry_artifact, mesh_artifact, correspondence_artifact, production_artifact) =
             resource_artifact_digests(&recognized.resources)?;
-        let (bounds, _) = geometry
-            .planar_adjacent_rectangle_partition()
-            .ok_or_else(|| invalid("FSI scaling requires exact adjacent bounds"))?;
+        let spans = canonical
+            .fluids()
+            .map(|fluid| fluid.bounds()[0])
+            .chain(
+                canonical
+                    .solids()
+                    .map(|solid| solid.continuum().bounds()[0]),
+            )
+            .collect::<Vec<_>>();
+        let bounds = [
+            spans
+                .iter()
+                .map(|span| span[0])
+                .fold(f64::INFINITY, f64::min),
+            spans
+                .iter()
+                .map(|span| span[1])
+                .fold(f64::NEG_INFINITY, f64::max),
+        ];
         let resolved_scaling = resolve_fixed_reference_fsi_scaling_2d(
             scaling_request,
             model.digest()?,
@@ -159,10 +196,15 @@ impl CommonFsiPlan {
             correspondence_artifact,
             mesh_artifact,
             production_artifact,
-            bounds[0],
-            canonical.solid().continuum().shear_modulus(),
-            canonical.solid().mass_density(),
-            canonical.fluid().mass_density(),
+            bounds,
+            &canonical
+                .solids()
+                .map(|solid| (solid.continuum().shear_modulus(), solid.mass_density()))
+                .collect::<Vec<_>>(),
+            &canonical
+                .fluids()
+                .map(|fluid| fluid.mass_density())
+                .collect::<Vec<_>>(),
         )?;
         let flow_scales = resolved_scaling.scales();
         let scaling_receipt = resolved_scaling.receipt().clone();
@@ -180,6 +222,11 @@ impl CommonFsiPlan {
             scaling,
             linear.solver,
         )?;
+        let partition = FixedReferenceFsiPartition::<2>::new(
+            &native_mesh,
+            domain_cells,
+            realization_plan.spatial().trace_quotients(),
+        )?;
         let resolved = resolve_coupled_fieldwise(
             &CoupledFieldwiseRealizationRequest::explicit(
                 recognized.program.model(),
@@ -190,12 +237,7 @@ impl CommonFsiPlan {
             fixed_reference_fsi_requirements_2d(canonical),
             &RealizationCapabilities::symmetric_mixed_simplicial_2d_reference(),
         )?;
-        let solid_kinematic_relation = canonical
-            .solid()
-            .kinematic_relation()
-            .downcast::<eqiora_core::entity::kinds::Relation>()
-            .ok_or_else(|| invalid("FSI solid kinematic Relation lost its semantic kind"))?;
-        let portable = resolved.portable_graph(solid_kinematic_relation)?;
+        let portable = resolved.portable_graph()?;
         let reference = model.artifact_reference()?;
         let solver_provider = linear.provider;
         let execution_provider = linear.execution;
@@ -203,21 +245,31 @@ impl CommonFsiPlan {
         let model_revision = reference.semantic_revision().get();
         let model_digest = recognized.model_digest.as_str();
         let digests = resource_digests(&recognized.resources)?;
-        let field_ids = [
-            canonical.fluid().velocity().ulid().to_string(),
-            canonical.fluid().pressure().ulid().to_string(),
-            canonical.solid().velocity().ulid().to_string(),
-            canonical
-                .solid()
-                .continuum()
-                .displacement()
-                .ulid()
-                .to_string(),
-        ];
-        let domain_ids = [
-            canonical.fluid().domain().ulid().to_string(),
-            canonical.solid().continuum().domain().ulid().to_string(),
-        ];
+        let field_ids = resolved
+            .plan()
+            .spatial()
+            .domains()
+            .iter()
+            .flat_map(|domain| domain.field_spaces().iter().map(|binding| binding.field()))
+            .chain(
+                resolved
+                    .plan()
+                    .time_step()
+                    .eliminated_states()
+                    .iter()
+                    .map(|binding| binding.pair().state()),
+            )
+            .map(|field| field.ulid().to_string())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        let domain_ids = resolved
+            .plan()
+            .spatial()
+            .domains()
+            .iter()
+            .map(|domain| domain.domain().ulid().to_string())
+            .collect();
         let mut identity_bytes = Vec::new();
         let realization_digest = hex_bytes(&portable.digest()?);
         let scaling_provenance_digest = scaling_receipt.provenance_digest().to_string();
@@ -290,7 +342,9 @@ impl CommonFsiPlan {
     }
 
     pub(super) fn mesh(&self) -> &SimplicialMesh {
-        let NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } = self.resources() else {
+        let (NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. }
+        | NativeMeshResources::GmshSimplicial { mesh, .. }) = self.resources()
+        else {
             unreachable!("CommonFsiPlan owns adjacent simplicial resources")
         };
         mesh.mesh()
@@ -314,18 +368,13 @@ impl CommonFsiPlan {
         hex_bytes(&Sha256::digest(bytes))
     }
 
-    /// Admit complete exact-Field assignments for all four FSI Fields.
+    /// Admit complete exact-Field assignments for every represented Field.
     pub fn initial_state(
         &self,
         time_s: f64,
         fields: Vec<CommonInitialField>,
     ) -> Result<CommonState, Diagnostic> {
         self.reauthenticate_portable_realization()?;
-        if fields.len() != 4 {
-            return Err(invalid(
-                "FSI State.initial requires exactly four complete InitialField assignments",
-            ));
-        }
         let expected_model = self.model().digest()?;
         let mut by_field = BTreeMap::new();
         for field in fields {
@@ -354,114 +403,80 @@ impl CommonFsiPlan {
                 "FSI State.initial assignments are not complete and exclusive for Plan.fields",
             ));
         }
-        let take_vector =
-            |field: &CommonInitialField, association: &str| -> Result<Vec<[f64; 2]>, Diagnostic> {
-                let values = match association {
-                    "vertex" => field.vertex(),
-                    "cell" => field.cell(),
-                    _ => unreachable!(),
-                };
-                match values {
-                    Some(CommonInitialValues::Vector2(values)) => Ok(values.to_vec()),
-                    Some(CommonInitialValues::Scalar(_)) => Err(invalid(format!(
-                        "FSI vector Field has scalar {association}_values"
-                    ))),
-                    None => Err(invalid(format!(
-                        "FSI vector Field omitted required {association}_values"
-                    ))),
+        let mut values = Vec::new();
+        for field in by_field.values() {
+            let (domain, space) = self.field_support(field.field())?;
+            let vertices = self
+                .partition
+                .domain_vertices(domain)
+                .ok_or_else(|| invalid("missing exact Field Domain"))?;
+            let cells = self
+                .partition
+                .domain_cells(domain)
+                .ok_or_else(|| invalid("missing exact Field Domain"))?;
+            let mut coefficients = Vec::new();
+            let mut append = |entities: Vec<MeshEntity>,
+                              input: Option<&CommonInitialValues>|
+             -> Result<(), Diagnostic> {
+                let input = input
+                    .ok_or_else(|| invalid("InitialField omitted required entity association"))?;
+                match input {
+                    CommonInitialValues::Scalar(data) => {
+                        if data.len() != entities.len() {
+                            return Err(invalid(
+                                "InitialField scalar cardinality differs from exact support",
+                            ));
+                        }
+                        for (entity, &value) in entities.into_iter().zip(data.iter()) {
+                            coefficients.push((entity, 0, 0, value));
+                        }
+                    }
+                    CommonInitialValues::Vector2(data) => {
+                        if data.len() != entities.len() {
+                            return Err(invalid(
+                                "InitialField vector cardinality differs from exact support",
+                            ));
+                        }
+                        for (entity, vector) in entities.into_iter().zip(data.iter()) {
+                            for (component, &value) in vector.iter().enumerate() {
+                                coefficients.push((entity, 0, component, value));
+                            }
+                        }
+                    }
                 }
+                Ok(())
             };
-        let fluid_velocity = &by_field[&self.field_ids[0]];
-        let fluid_pressure = &by_field[&self.field_ids[1]];
-        let solid_velocity = &by_field[&self.field_ids[2]];
-        let solid_displacement = &by_field[&self.field_ids[3]];
-        let fluid_velocity_vertices = take_vector(fluid_velocity, "vertex")?;
-        let fluid_velocity_bubbles = take_vector(fluid_velocity, "cell")?;
-        let fluid_pressure_vertices = match fluid_pressure.vertex() {
-            Some(CommonInitialValues::Scalar(values)) => values.to_vec(),
-            _ => return Err(invalid("FSI pressure requires scalar vertex_values")),
-        };
-        if fluid_pressure.cell().is_some()
-            || solid_velocity.cell().is_some()
-            || solid_displacement.cell().is_some()
-        {
-            return Err(invalid(
-                "FSI P1 pressure/solid velocity/displacement reject unexpected cell_values",
-            ));
-        }
-        let solid_velocity_vertices = take_vector(solid_velocity, "vertex")?;
-        let solid_displacement_vertices = take_vector(solid_displacement, "vertex")?;
-        if fluid_velocity_vertices.len() != self.partition.fluid_vertices().len()
-            || fluid_velocity_bubbles.len() != self.partition.fluid_cells().len()
-            || fluid_pressure_vertices.len() != self.partition.fluid_vertices().len()
-            || solid_velocity_vertices.len() != self.partition.solid_vertices().len()
-            || solid_displacement_vertices.len() != self.partition.solid_vertices().len()
-        {
-            return Err(invalid(
-                "FSI InitialField cardinality differs from exact Field support and association",
-            ));
-        }
-        if fluid_velocity_vertices
-            .iter()
-            .flatten()
-            .chain(fluid_velocity_bubbles.iter().flatten())
-            .chain(fluid_pressure_vertices.iter())
-            .chain(solid_velocity_vertices.iter().flatten())
-            .chain(solid_displacement_vertices.iter().flatten())
-            .any(|value| !value.is_finite())
-        {
-            return Err(invalid(
-                "FSI InitialField values must be finite coherent-SI numbers",
-            ));
-        }
-        let mut velocity = vec![[f64::NAN; 2]; self.mesh().vertices().len()];
-        for (vertex, value) in self
-            .partition
-            .fluid_vertices()
-            .iter()
-            .zip(fluid_velocity_vertices)
-        {
-            velocity[vertex.index()] = value;
-        }
-        for (vertex, value) in self
-            .partition
-            .solid_vertices()
-            .iter()
-            .zip(solid_velocity_vertices)
-        {
-            let slot = &mut velocity[vertex.index()];
-            if slot[0].is_finite() && *slot != value {
-                return Err(invalid(
-                    "fluid and solid initial velocity traces disagree on the shared interface quotient",
-                ));
+            append(
+                vertices
+                    .iter()
+                    .map(|v| MeshEntity::new(0, v.index()))
+                    .collect(),
+                field.vertex(),
+            )?;
+            match space.family() {
+                eqiora_realization::SpaceFamily::SimplexP1Bubble => append(
+                    cells
+                        .iter()
+                        .map(|c| MeshEntity::new(2, c.index()))
+                        .collect(),
+                    field.cell(),
+                )?,
+                eqiora_realization::SpaceFamily::ContinuousLagrange { order }
+                    if order.get() == 1 && field.cell().is_none() => {}
+                _ => {
+                    return Err(invalid(
+                        "InitialField association differs from exact admitted space",
+                    ));
+                }
             }
-            *slot = value;
-        }
-        if velocity.iter().flatten().any(|value| !value.is_finite()) {
-            return Err(invalid(
-                "FSI velocity supports do not cover the complete shared vertex quotient",
-            ));
-        }
-        let mut displacement = vec![[0.0; 2]; self.mesh().vertices().len()];
-        for (vertex, value) in self
-            .partition
-            .solid_vertices()
-            .iter()
-            .zip(solid_displacement_vertices)
-        {
-            displacement[vertex.index()] = value;
+            values.push((field.field(), coefficients));
         }
         let native = FixedReferenceFsiState::<2>::new(
+            &self.recognized.program,
+            self.resolved.plan(),
             self.mesh(),
             &self.partition,
-            velocity,
-            self.partition
-                .fluid_cells()
-                .iter()
-                .copied()
-                .zip(fluid_velocity_bubbles)
-                .collect(),
-            displacement,
+            values,
         )?;
         CommonState::new(
             self.state_space_identity(),
@@ -470,10 +485,33 @@ impl CommonFsiPlan {
             Arc::new(self.resources().clone()),
             CommonStateKind::Fsi {
                 state: Box::new(native),
-                pressure: fluid_pressure_vertices.into_boxed_slice(),
                 accepted: None,
             },
         )
+    }
+
+    fn field_support(
+        &self,
+        field: Id<kinds::Field>,
+    ) -> Result<(Id<kinds::Domain>, eqiora_realization::Space), Diagnostic> {
+        for domain in self.resolved.plan().spatial().domains() {
+            if let Some(binding) = domain
+                .field_spaces()
+                .iter()
+                .find(|binding| binding.field() == field)
+            {
+                return Ok((domain.domain(), binding.space()));
+            }
+        }
+        for binding in self.resolved.plan().time_step().eliminated_states() {
+            if binding.pair().state() == field {
+                let (domain, _) = self.field_support(binding.pair().rate())?;
+                return Ok((domain, binding.state_space()));
+            }
+        }
+        Err(invalid(
+            "Field is absent from exact algebraic and eliminated-state inventory",
+        ))
     }
 
     /// Advance one exact accepted monolithic Backward-Euler transition.
@@ -512,7 +550,9 @@ impl CommonFsiPlan {
         backend: &'a dyn LinearSolverBackend,
     ) -> Result<PreparedCommonFsiExecution<'a>, Diagnostic> {
         self.authenticate_execution(state, backend)?;
-        let NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. } = self.resources() else {
+        let (NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. }
+        | NativeMeshResources::GmshSimplicial { mesh, .. }) = self.resources()
+        else {
             unreachable!("FSI Plan owns adjacent resources")
         };
         let mesh_reference =
@@ -611,60 +651,151 @@ impl CommonFsiPlan {
         &self.scaling_receipt
     }
     #[must_use]
-    pub fn field_ids(&self) -> &[String; 4] {
+    pub fn field_ids(&self) -> &[String] {
         &self.field_ids
     }
     #[must_use]
-    pub fn domain_ids(&self) -> &[String; 2] {
+    pub fn domain_ids(&self) -> &[String] {
         &self.domain_ids
+    }
+    /// Exact Domain and cell inventories represented by this Plan.
+    pub fn domain_cell_inventories(&self) -> impl Iterator<Item = CommonFsiDomainInventory> + '_ {
+        self.resolved
+            .plan()
+            .spatial()
+            .domains()
+            .iter()
+            .map(|domain| {
+                let id = domain.domain();
+                let cells = self
+                    .partition
+                    .domain_cells(id)
+                    .expect("resolved FSI Domain has authenticated cell support")
+                    .iter()
+                    .map(|cell| cell.index())
+                    .collect();
+                CommonFsiDomainInventory { domain: id, cells }
+            })
+    }
+    /// Exact Connection endpoints and oriented facet connectivity represented by this Plan.
+    pub fn connection_inventories(&self) -> Result<Vec<CommonFsiConnectionInventory>, Diagnostic> {
+        self.resolved
+            .plan()
+            .spatial()
+            .trace_quotients()
+            .iter()
+            .copied()
+            .map(|quotient| {
+                Ok(CommonFsiConnectionInventory {
+                    quotient,
+                    facets: self.interface_facet_vertices(quotient.connection())?,
+                })
+            })
+            .collect()
+    }
+    pub(super) fn scoped_spatial_policies(&self) -> Vec<(Id<kinds::Domain>, CommonSpatialPolicy)> {
+        self.resolved
+            .plan()
+            .spatial()
+            .domains()
+            .iter()
+            .map(|domain| {
+                let policy = if domain
+                    .field_spaces()
+                    .iter()
+                    .any(|field| field.space() == Space::simplex_p1_bubble())
+                {
+                    CommonSpatialPolicy::MiniP1
+                } else {
+                    CommonSpatialPolicy::P1
+                };
+                (domain.domain(), policy)
+            })
+            .collect()
     }
     #[must_use]
     pub const fn portable_realization(&self) -> &PortableRealizationGraph {
         &self.portable
     }
-    #[must_use]
-    pub fn fluid_vertex_indices(&self) -> Vec<usize> {
-        self.partition
-            .fluid_vertices()
+    pub(crate) fn validate_interface_action(
+        &self,
+        action: &crate::simplicial_fsi::FixedReferenceFsiInterfaceAction<2>,
+    ) -> Result<(), Diagnostic> {
+        let endpoints = action.endpoints().map(|(domain, field, _)| (domain, field));
+        let matched = self.partition.traces().iter().any(|trace| {
+            trace.quotient.connection() == action.connection()
+                && trace
+                    .quotient
+                    .endpoints()
+                    .map(|endpoint| (endpoint.domain(), endpoint.field()))
+                    == endpoints
+                && action.slot() == 0
+                && action.entity().dimension() == 0
+                && trace.facets.iter().any(|facet| {
+                    self.mesh()
+                        .entity_vertices(facet.facet)
+                        .is_some_and(|vertices| vertices.contains(&action.entity()))
+                })
+        });
+        if !matched {
+            return Err(invalid(
+                "interface action differs from exact Connection endpoint and entity support",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Exact vertex support of one represented Field.
+    pub fn field_vertex_indices(&self, field: Id<kinds::Field>) -> Result<Vec<usize>, Diagnostic> {
+        let (domain, _) = self.field_support(field)?;
+        Ok(self
+            .partition
+            .domain_vertices(domain)
+            .ok_or_else(|| invalid("Field Domain has no exact support"))?
             .iter()
             .map(|id| id.index())
-            .collect()
+            .collect())
     }
-    #[must_use]
-    pub fn fluid_cell_indices(&self) -> Vec<usize> {
-        self.partition
-            .fluid_cells()
+    /// Exact cells in the support Domain of one represented Field.
+    pub fn field_domain_cell_indices(
+        &self,
+        field: Id<kinds::Field>,
+    ) -> Result<Vec<usize>, Diagnostic> {
+        let (domain, _) = self.field_support(field)?;
+        Ok(self
+            .partition
+            .domain_cells(domain)
+            .ok_or_else(|| invalid("Field Domain has no exact support"))?
             .iter()
             .map(|id| id.index())
-            .collect()
+            .collect())
     }
-    #[must_use]
-    pub fn solid_cell_indices(&self) -> Vec<usize> {
-        self.partition
-            .solid_cells()
+    /// Exact oriented trace facet connectivity of one admitted Connection.
+    pub fn interface_facet_vertices(
+        &self,
+        connection: Id<kinds::Connection>,
+    ) -> Result<Vec<[usize; 2]>, Diagnostic> {
+        let traces = self
+            .partition
+            .traces()
             .iter()
-            .map(|id| id.index())
-            .collect()
-    }
-    #[must_use]
-    pub fn solid_vertex_indices(&self) -> Vec<usize> {
-        self.partition
-            .solid_vertices()
+            .filter(|trace| trace.quotient.connection() == connection)
+            .collect::<Vec<_>>();
+        if traces.is_empty() {
+            return Err(invalid("Connection is absent from exact trace inventory"));
+        }
+        let facets = traces
             .iter()
-            .map(|id| id.index())
-            .collect()
-    }
-    #[must_use]
-    pub fn interface_facet_vertices(&self) -> Vec<[usize; 2]> {
-        self.partition
-            .interface_facets()
-            .iter()
+            .flat_map(|trace| trace.facets.iter().map(|facet| facet.facet))
+            .collect::<BTreeSet<_>>();
+        facets
+            .into_iter()
             .map(|facet| {
                 let vertices = self
                     .mesh()
                     .entity_vertices(MeshEntity::new(1, facet.index()))
-                    .expect("accepted FSI interface facet owns exact connectivity");
-                [vertices[0].index(), vertices[1].index()]
+                    .ok_or_else(|| invalid("trace facet has no exact connectivity"))?;
+                Ok([vertices[0].index(), vertices[1].index()])
             })
             .collect()
     }

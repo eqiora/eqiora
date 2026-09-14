@@ -1,11 +1,9 @@
 use eqiora_core::Diagnostic;
-use eqiora_meshing::CellId;
 use eqiora_meshing::{FixedTopologyGeometryState2d, SimplicialRevisionOverlap2d};
 use eqiora_solver::SolveReport;
-use std::collections::BTreeMap;
 
 use crate::canonical_fsi::AleFsiInitialPhysicalState;
-use crate::simplicial_fsi::{FixedReferenceFsiMaterial, FixedReferenceFsiScale};
+use crate::simplicial_fsi::FixedReferenceFsiScale;
 
 const COMPONENTS: usize = 2;
 
@@ -69,7 +67,7 @@ impl AleFsiRemeshProjectionEvidence2d {
         pressure_solve_report: SolveReport,
         pressure_right_hand_side_norm: f64,
         scale: FixedReferenceFsiScale<2>,
-        material: FixedReferenceFsiMaterial<2>,
+        reference_density: f64,
         independent_velocity_constraint_count: usize,
         displacement_l2_error: f64,
         fluid_current_density_weighted_velocity_l2_error: f64,
@@ -154,7 +152,11 @@ impl AleFsiRemeshProjectionEvidence2d {
             ));
         }
 
-        let reference_density = material.fluid_density().max(material.solid_density());
+        if !reference_density.is_finite() || reference_density <= 0.0 {
+            return Err(super::invalid(
+                "remesh reference density must be finite and positive",
+            ));
+        }
         let characteristic_mass = checked_product(
             reference_density,
             scale.length() * scale.length(),
@@ -510,60 +512,29 @@ impl AleFsiRemeshProjectionEvidence2d {
 #[derive(Debug, Clone, PartialEq)]
 pub struct AcceptedAleFsiRemeshProjection2d {
     time: f64,
-    vertex_velocity: Vec<[f64; COMPONENTS]>,
-    fluid_cell_bubble_velocity: BTreeMap<CellId, [f64; COMPONENTS]>,
-    fluid_pressure: Vec<f64>,
-    solid_displacement: Vec<[f64; COMPONENTS]>,
+    physical: crate::simplicial_fsi::FixedReferenceFsiState<2>,
     evidence: AleFsiRemeshProjectionEvidence2d,
 }
 
 impl AcceptedAleFsiRemeshProjection2d {
     pub(super) fn new(
         time: f64,
-        vertex_velocity: Vec<[f64; COMPONENTS]>,
-        fluid_cell_bubble_velocity: BTreeMap<CellId, [f64; COMPONENTS]>,
-        fluid_pressure: Vec<f64>,
-        solid_displacement: Vec<[f64; COMPONENTS]>,
+        physical: crate::simplicial_fsi::FixedReferenceFsiState<2>,
         evidence: AleFsiRemeshProjectionEvidence2d,
     ) -> Self {
         Self {
             time,
-            vertex_velocity,
-            fluid_cell_bubble_velocity,
-            fluid_pressure,
-            solid_displacement,
+            physical,
             evidence,
         }
     }
-
     /// Unchanged model time; remeshing has zero duration.
-    #[must_use]
     pub const fn time(&self) -> f64 {
         self.time
     }
-
-    /// Shared target P1 velocity coefficients in target vertex order.
-    #[must_use]
-    pub fn vertex_velocity(&self) -> &[[f64; COMPONENTS]] {
-        &self.vertex_velocity
-    }
-
-    /// Target fluid MINI bubble coefficients keyed by exact target `CellId`.
-    #[must_use]
-    pub fn fluid_cell_bubble_velocity(&self) -> &BTreeMap<CellId, [f64; COMPONENTS]> {
-        &self.fluid_cell_bubble_velocity
-    }
-
-    /// Absolute target P1 pressure in target fluid-vertex order.
-    #[must_use]
-    pub fn fluid_pressure(&self) -> &[f64] {
-        &self.fluid_pressure
-    }
-
-    /// Absolute target solid displacement, zero outside the solid closure.
-    #[must_use]
-    pub fn solid_displacement(&self) -> &[[f64; COMPONENTS]] {
-        &self.solid_displacement
+    /// Complete exact physical Field inventory on the accepted target mesh.
+    pub const fn physical_state(&self) -> &crate::simplicial_fsi::FixedReferenceFsiState<2> {
+        &self.physical
     }
 
     /// Accepted numerical evidence and the two exact overlap outcomes.
@@ -578,13 +549,7 @@ impl AcceptedAleFsiRemeshProjection2d {
     /// # Errors
     /// Preserves the finalizer input's finite-value validation.
     pub fn initial_physical_state(&self) -> Result<AleFsiInitialPhysicalState<2>, Diagnostic> {
-        AleFsiInitialPhysicalState::<2>::new(
-            self.time,
-            self.vertex_velocity.clone(),
-            self.fluid_cell_bubble_velocity.clone(),
-            self.fluid_pressure.clone(),
-            self.solid_displacement.clone(),
-        )
+        AleFsiInitialPhysicalState::<2>::new(self.time, self.physical.clone())
     }
 }
 

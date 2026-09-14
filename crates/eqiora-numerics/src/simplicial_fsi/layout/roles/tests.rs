@@ -63,7 +63,7 @@ fn spatial(
             plan.spatial().discretization(),
         )
         .unwrap(),
-        plan.time_step(),
+        plan.time_step().clone(),
         plan.scaling().clone(),
         plan.operator_properties(),
         plan.solver(),
@@ -90,23 +90,32 @@ fn roles_follow_exact_equations_and_permuted_plan_inventory() {
         .collect();
     let reversed = spatial(&plan, domains, plan.spatial().trace_quotients().to_vec());
     assert_eq!(expected, FsiRoles::derive(&equations, &reversed).unwrap());
+    let solid_rate = plan.time_step().eliminated_states()[0]
+        .pair()
+        .rate()
+        .erase();
     assert_eq!(
-        expected.solid_velocity,
-        plan.time_step().eliminated_state().pair().rate().erase()
+        expected
+            .velocities
+            .values()
+            .find(|&&field| field == solid_rate),
+        Some(&solid_rate)
     );
-    assert_ne!(expected.fluid_velocity, expected.pressure);
+    let (&pressure, &fluid_velocity) = expected.constraints.iter().next().unwrap();
+    assert_ne!(fluid_velocity, pressure);
 }
 
 #[test]
-fn roles_reject_stale_missing_equations_layout_and_plural_projection() {
+fn roles_reject_stale_missing_equations_and_layout_but_accept_plural_quotients() {
     let (equations, plan) = fixture();
     let roles = FsiRoles::derive(&equations, &plan).unwrap();
+    let (&pressure, &fluid_velocity) = roles.constraints.iter().next().unwrap();
     let mut stale = equations.clone();
-    stale.fields.get_mut(&roles.fluid_velocity).unwrap().0 =
+    stale.fields.get_mut(&fluid_velocity).unwrap().0 =
         Id::<eqiora_core::entity::kinds::Domain>::new().erase();
     assert!(FsiRoles::derive(&stale, &plan).is_err());
     let mut missing = equations.clone();
-    missing.fields.remove(&roles.pressure);
+    missing.fields.remove(&pressure);
     assert!(FsiRoles::derive(&missing, &plan).is_err());
     let mut extra_role = equations.clone();
     let mut extra = extra_role
@@ -143,7 +152,7 @@ fn roles_reject_stale_missing_equations_layout_and_plural_projection() {
                 d.field_spaces().iter().map(|f| {
                     FieldSpaceBinding::new(
                         f.field(),
-                        if f.field().erase() == roles.pressure {
+                        if f.field().erase() == pressure {
                             Space::continuous_lagrange(std::num::NonZeroU16::new(2).unwrap())
                         } else {
                             f.space()
@@ -170,5 +179,8 @@ fn roles_reject_stale_missing_equations_layout_and_plural_projection() {
         plan.spatial().domains().to_vec(),
         vec![quotient, extra],
     );
-    assert!(FsiRoles::derive(&equations, &plural).is_err());
+    let plural_roles = FsiRoles::derive(&equations, &plural).unwrap();
+    assert_eq!(plural_roles.quotients.len(), 2);
+    assert!(plural_roles.quotients.contains(&quotient));
+    assert!(plural_roles.quotients.contains(&extra));
 }

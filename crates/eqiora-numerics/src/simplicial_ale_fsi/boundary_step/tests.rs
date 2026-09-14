@@ -1,9 +1,13 @@
 use super::*;
 mod geometry;
 
+use crate::simplicial_ale_fsi::test_support::{
+    material, material_for, motion_for_plan, partition_for_plan,
+};
 use crate::simplicial_fsi::{FixedReferenceFsiMaterial, FixedReferenceFsiScale};
 use eqiora_assembly::LocalUnknown;
-use eqiora_meshing::{CellId, FacetId, MeshQualityGate};
+use eqiora_core::diagnostic::codes;
+use eqiora_meshing::{CellId, MeshQualityGate};
 use eqiora_realization::{NonlinearSolvePlan, Target};
 use eqiora_solver::{LinearSolveRequest, LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
 use sha2::{Digest, Sha256};
@@ -525,32 +529,31 @@ fn oracle_mesh(level: u8) -> Result<OracleMesh, Diagnostic> {
         .collect();
     Ok((mesh, roles, region))
 }
-fn partition(mesh: &SimplicialMesh) -> Result<FixedReferenceFsiPartition<2>, Diagnostic> {
+fn partition(
+    mesh: &SimplicialMesh,
+    plan: &eqiora_realization::CoupledFieldwiseRealizationPlan,
+) -> Result<FixedReferenceFsiPartition<2>, Diagnostic> {
     let solid = mesh.cells().len() - 1;
-    let mut interface = Vec::new();
-    for i in 0..mesh.entity_count(1).expect("edges") {
-        let e = MeshEntity::new(1, i);
-        let c = mesh.incidence(e, 2).expect("incidence");
-        if c.iter().any(|x| x.entity.index() == solid)
-            && c.iter().any(|x| x.entity.index() != solid)
-        {
-            interface.push(FacetId::new(i));
-        }
-    }
-    FixedReferenceFsiPartition::new(
+    Ok(partition_for_plan(
         mesh,
         (0..solid).map(CellId::new).collect(),
         vec![CellId::new(solid)],
-        interface,
-    )
+        plan,
+    ))
 }
 fn solver_plan(algorithm: LinearSolver) -> Result<SolverPlan, Diagnostic> {
     SolverPlan::new(algorithm, 1e-12, 1e-14, NonZeroUsize::new(32).expect("cap"))
 }
 fn step_plan(dt: f64) -> Result<AleFsiStepPlan<2>, Diagnostic> {
+    step_plan_with_material(dt, material())
+}
+fn step_plan_with_material(
+    dt: f64,
+    material: FixedReferenceFsiMaterial<2>,
+) -> Result<AleFsiStepPlan<2>, Diagnostic> {
     AleFsiStepPlan::new(
         dt,
-        FixedReferenceFsiMaterial::new(1.0, 1.0, 1.0, 1.0, 1.0)?,
+        material,
         FixedReferenceFsiScale::new(1.0, 2.0, 1.0)?,
         Default::default(),
         NonlinearSolvePlan::new(1e-10, 1e-12, NonZeroUsize::new(8).expect("cap"), 4)?,
@@ -564,21 +567,16 @@ fn zero_state(
     mesh: &SimplicialMesh,
     part: &FixedReferenceFsiPartition<2>,
     motion: &P1HarmonicMeshMotionAction<2>,
+    model: &crate::simplicial_fsi::test_model::AuthoredFsiModel,
 ) -> Result<AleFsiState<2>, Diagnostic> {
-    AleFsiState::new(
-        0.0,
+    let physical = crate::simplicial_fsi::test_model::exact_state(
+        &model.program,
+        &model.plan,
         mesh,
         part,
-        motion,
-        vec![[0.0; 2]; mesh.vertices().len()],
-        part.fluid_cells()
-            .iter()
-            .copied()
-            .map(|cell| (cell, [0.0; 2]))
-            .collect(),
-        vec![0.0; mesh.vertices().len()],
-        vec![[0.0; 2]; mesh.vertices().len()],
-    )
+        |_field, _entity, _component| 0.0,
+    );
+    AleFsiState::new(0.0, mesh, part, motion, physical)
 }
 fn fixed(unknown: LocalUnknown, expected: u64) -> bool {
     matches!(unknown,LocalUnknown::Fixed(v) if v.to_bits()==expected)
@@ -658,36 +656,51 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
         ("M2T2", 2, 2, 1, 1, 1.0 / 4000.0),
     ];
     let mesh_data = (0..3).map(oracle_mesh).collect::<Result<Vec<_>, _>>()?;
+    let seed = step_plan(1.0 / 4000.0)?;
+    let models = mesh_data
+        .iter()
+        .map(|(mesh, _, region)| {
+            crate::simplicial_fsi::test_model::planar_model(
+                region,
+                mesh,
+                seed.fixed_reference_config().clone(),
+                seed.linear_solver(),
+                true,
+            )
+        })
+        .collect::<Vec<_>>();
     let parts = mesh_data
         .iter()
-        .map(|(m, _, _)| partition(m))
+        .zip(&models)
+        .map(|((m, _, _), model)| partition(m, &model.plan))
         .collect::<Result<Vec<_>, _>>()?;
-    let solvers = (0..3).map(|_| REFERENCE_LINEAR_SOLVER).collect::<Vec<_>>();
     let motions = (0..3)
         .map(|i| {
-            P1HarmonicMeshMotionAction::new(
+            Ok(motion_for_plan(
                 &mesh_data[i].0,
                 &parts[i],
-                LinearSolveRequest::new(&solvers[i], solver_plan(LinearSolver::ConjugateGradient)?),
-            )
+                &models[i].plan,
+                LinearSolveRequest::new(
+                    &REFERENCE_LINEAR_SOLVER,
+                    solver_plan(LinearSolver::ConjugateGradient)?,
+                ),
+            ))
         })
         .collect::<Result<Vec<_>, _>>()?;
     // Topology, Fields, scales and quotient are constant across this schedule;
     // only the boundary endpoint values change at each prepared action.
-    let map_plan = step_plan(1.0 / 4000.0)?;
     let base_layouts = mesh_data
         .iter()
         .zip(&parts)
-        .map(|((mesh, _, region), part)| {
-            Ok(crate::simplicial_fsi::test_model::planar_layout(
-                region,
+        .zip(&models)
+        .map(|(((mesh, _, _), part), model)| {
+            crate::simplicial_fsi::layout::FsiLayout::bind(
+                &model.program,
+                &model.plan,
                 mesh,
                 part,
                 &FixedReferenceFsiBoundary::homogeneous_exterior(mesh)?,
-                map_plan.fixed_reference_config(),
-                map_plan.linear_solver(),
-                true,
-            ))
+            )
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
     let mut body = String::new();
@@ -711,19 +724,26 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
             (prepared.previous_endpoint(), prepared.current_endpoint()),
             (previous, current)
         );
-        let plan = step_plan(dt)?;
+        let fields = crate::simplicial_fsi::test_model::exact_fields(&models[level as usize].plan);
+        let plan = step_plan_with_material(dt, material_for(fields))?;
         let layout = prepared.layout(&base_layouts[level as usize])?;
-        let prior = zero_state(mesh, part, motion)?;
-        let initial = prepared.reduce_initial_point(&prior, plan, &layout)?;
-        let (primal, _, _) = layout.reconstruct_primal(&initial)?;
-        let (direction, _, _) = layout.reconstruct_direction(&vec![0.0; layout.reduced_size()])?;
+        let prior = zero_state(mesh, part, motion, &models[level as usize])?;
+        let initial = prepared.reduce_initial_point(&prior, &plan, &layout)?;
+        let primal = layout.reconstruct_primal(&initial)?;
+        let direction = layout.reconstruct_direction(&vec![0.0; layout.reduced_size()])?;
         let state = prepared
-            .reconstruct_current_state(mesh, part, motion, &prior, &initial, plan, &layout)?;
+            .reconstruct_current_state(mesh, part, motion, &prior, &initial, &plan, &layout)?;
         for row in NODAL.iter().filter(|r| r.mesh == level) {
             let g = product(RAMP[ramp], row.gamma);
             let q = half(g);
             for (component, expected) in [g, 0].into_iter().enumerate() {
                 let quotient = if component == 0 { q } else { 0 };
+                let key = crate::region_assembly::mapping::FieldDof {
+                    field: fields.fluid_velocity.erase(),
+                    entity: MeshEntity::new(0, row.vertex),
+                    slot: 0,
+                    component,
+                };
                 assert_eq!(
                     prepared.previous_physical()[row.vertex][component]
                         .expect("previous")
@@ -742,10 +762,14 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
                         .to_bits(),
                     quotient
                 );
-                assert_eq!(primal[row.vertex][component].to_bits(), quotient);
-                assert_eq!(direction[row.vertex][component].to_bits(), 0);
+                assert_eq!(primal[&key].to_bits(), quotient);
+                assert_eq!(direction[&key].to_bits(), 0);
                 assert_eq!(
-                    state.vertex_velocity()[row.vertex][component].to_bits(),
+                    state
+                        .physical_state()
+                        .vector_vertices(fields.fluid_velocity)?
+                        [&eqiora_meshing::VertexId::new(row.vertex,)][component]
+                        .to_bits(),
                     expected
                 );
                 assert_eq!((f64::from_bits(quotient) * 2.0).to_bits(), expected);
@@ -823,26 +847,37 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
         1.0 / 4000.0,
         2.0,
     )?;
-    let plan = step_plan(1.0 / 4000.0)?;
+    let fields = crate::simplicial_fsi::test_model::exact_fields(&models[0].plan);
+    let plan = step_plan_with_material(1.0 / 4000.0, material_for(fields))?;
     let layout = homogeneous.layout(&base_layouts[0])?;
-    let prior = zero_state(mesh, part, motion)?;
-    let initial = homogeneous.reduce_initial_point(&prior, plan, &layout)?;
-    let (primal, _, _) = layout.reconstruct_primal(&initial)?;
-    let (direction, _, _) = layout.reconstruct_direction(&vec![0.0; layout.reduced_size()])?;
+    let prior = zero_state(mesh, part, motion, &models[0])?;
+    let initial = homogeneous.reduce_initial_point(&prior, &plan, &layout)?;
+    let primal = layout.reconstruct_primal(&initial)?;
+    let direction = layout.reconstruct_direction(&vec![0.0; layout.reduced_size()])?;
     let state = homogeneous
-        .reconstruct_current_state(mesh, part, motion, &prior, &initial, plan, &layout)?;
+        .reconstruct_current_state(mesh, part, motion, &prior, &initial, &plan, &layout)?;
     for (v, row) in homogeneous.current_physical().iter().enumerate() {
-        for c in 0..2 {
-            if row[c].is_some() {
+        for (c, value) in row.iter().enumerate() {
+            if value.is_some() {
+                let key = crate::region_assembly::mapping::FieldDof {
+                    field: fields.fluid_velocity.erase(),
+                    entity: MeshEntity::new(0, v),
+                    slot: 0,
+                    component: c,
+                };
                 assert_eq!(
                     (
-                        row[c].expect("zero").to_bits(),
+                        value.expect("zero").to_bits(),
                         homogeneous.current_quotient()[v][c]
                             .expect("zero")
                             .to_bits(),
-                        primal[v][c].to_bits(),
-                        direction[v][c].to_bits(),
-                        state.vertex_velocity()[v][c].to_bits()
+                        primal[&key].to_bits(),
+                        direction[&key].to_bits(),
+                        state
+                            .physical_state()
+                            .vector_vertices(fields.fluid_velocity)?
+                            [&eqiora_meshing::VertexId::new(v)][c]
+                            .to_bits()
                     ),
                     (0, 0, 0, 0, 0)
                 );
@@ -850,47 +885,60 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
         }
     } /* Every ordinary positive above passes before these independent precommitted mutants. */
     let accepted = &prepared_members[0];
-    let current_as_previous_velocity = accepted
-        .current_physical()
-        .iter()
-        .map(|components| {
-            let mut velocity = [0.0; 2];
-            for component in 0..2 {
-                if let Some(value) = components[component] {
-                    velocity[component] = value;
-                }
-            }
-            velocity
-        })
-        .collect();
-    let current_as_previous = AleFsiState::new(
-        0.0,
+    let current_as_previous_physical = crate::simplicial_fsi::test_model::exact_state(
+        &models[0].program,
+        &models[0].plan,
         mesh,
         part,
-        motion,
-        current_as_previous_velocity,
-        part.fluid_cells()
-            .iter()
-            .copied()
-            .map(|cell| (cell, [0.0; 2]))
-            .collect(),
-        vec![0.0; mesh.vertices().len()],
-        vec![[0.0; 2]; mesh.vertices().len()],
-    )?;
+        |field, entity, component| {
+            if (field == fields.fluid_velocity || field == fields.solid_velocity)
+                && entity.dimension() == 0
+            {
+                accepted.current_physical()[entity.index()][component].unwrap_or(0.0)
+            } else {
+                0.0
+            }
+        },
+    );
+    let current_as_previous =
+        AleFsiState::new(0.0, mesh, part, motion, current_as_previous_physical)?;
+    let (changed_vertex, changed_component, changed_value) = accepted
+        .previous_physical()
+        .iter()
+        .zip(accepted.current_physical())
+        .enumerate()
+        .find_map(|(vertex, (previous, current))| {
+            (0..2).find_map(|component| {
+                let previous = previous[component]?;
+                let current = current[component]?;
+                (previous.to_bits() != current.to_bits()).then_some((vertex, component, current))
+            })
+        })
+        .expect("prepared chronology witness changes one physical trace word");
+    assert!(
+        [fields.fluid_velocity, fields.solid_velocity]
+            .into_iter()
+            .any(|field| current_as_previous
+                .physical_state()
+                .coefficients(field)
+                .is_some_and(|mut coefficients| coefficients.any(
+                    |(entity, slot, component, value)| entity == MeshEntity::new(0, changed_vertex)
+                        && slot == 0
+                        && component == changed_component
+                        && value.to_bits() == changed_value.to_bits()
+                )))
+    );
     let chronology_error = accepted
         .validate_inputs(
             mesh,
             part,
             motion,
             &current_as_previous,
-            plan,
+            &plan,
             &QuadratureRule::point(),
         )
         .expect_err("current trace must fail the previous-state chronology gate");
-    assert!(
-        format!("{chronology_error:?}")
-            .contains("previous state differs from its prepared physical trace")
-    );
+    assert_eq!(chronology_error.code(), codes::INVALID_DISCRETIZATION);
     let stale_previous = AleFsiBoundaryEndpointIdentity::new([2, 2, 3, 3], 3.0 / 4000.0)?;
     let stale_current = AleFsiBoundaryEndpointIdentity::new([2, 2, 4, 4], 4.0 / 4000.0)?;
     let stale_error = advance_simplicial_ale_fsi_prepared_step(
@@ -900,11 +948,16 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
         stale_previous,
         stale_current,
         &motions[2],
-        &zero_state(&mesh_data[2].0, &parts[2], &motions[2])?,
-        step_plan(1.0 / 1000.0)?,
+        &zero_state(&mesh_data[2].0, &parts[2], &motions[2], &models[2])?,
+        &step_plan_with_material(
+            1.0 / 1000.0,
+            material_for(crate::simplicial_fsi::test_model::exact_fields(
+                &models[2].plan,
+            )),
+        )?,
         &QuadratureRule::point(),
         &eqiora_assembly::ReferenceAssemblyBackend,
-        &solvers[2],
+        &REFERENCE_LINEAR_SOLVER,
         &base_layouts[2],
     )
     .expect_err("equal-ramp stale member must fail the expected-identity gate before solve");
@@ -1041,19 +1094,6 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
             2.0
         )
         .is_err()
-    );
-    let mut bad_direction = vec![[0.0; 2]; mesh.vertices().len()];
-    bad_direction[3][0] = 1.0;
-    assert!(
-        accepted
-            .require_zero_eliminated_direction(&bad_direction)
-            .is_err()
-    );
-    bad_direction[3][0] = -0.0;
-    assert!(
-        accepted
-            .require_zero_eliminated_direction(&bad_direction)
-            .is_err()
     );
     let mut missing = accepted.exterior_facets().to_vec();
     missing.pop();

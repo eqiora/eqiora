@@ -204,20 +204,14 @@ impl ResolvedCommonPlan {
             Self::Fsi(plan) => {
                 let model = ModelEnvelope::digest(plan.model())
                     .expect("resolved FSI Plan retains a canonical Model");
-                CommonMethodRequest::Scoped(vec![
-                    CommonScopedSpatialPolicy::new(
-                        model.clone(),
-                        parse_id::<kinds::Domain>(&plan.domain_ids()[0], "Domain")
-                            .expect("resolved FSI Plan retains canonical Domain ULIDs"),
-                        CommonSpatialPolicy::MiniP1,
-                    ),
-                    CommonScopedSpatialPolicy::new(
-                        model,
-                        parse_id::<kinds::Domain>(&plan.domain_ids()[1], "Domain")
-                            .expect("resolved FSI Plan retains canonical Domain ULIDs"),
-                        CommonSpatialPolicy::P1,
-                    ),
-                ])
+                CommonMethodRequest::Scoped(
+                    plan.scoped_spatial_policies()
+                        .into_iter()
+                        .map(|(domain, policy)| {
+                            CommonScopedSpatialPolicy::new(model.clone(), domain, policy)
+                        })
+                        .collect(),
+                )
             }
         };
         if let Some(description) = self.formulation()
@@ -747,16 +741,14 @@ fn spatial_request(plan: &ResolvedCommonPlan) -> Option<WireSpatialRequest> {
             _ => unreachable!("transient Plan retains a transient spatial policy"),
         })),
         ResolvedCommonPlan::Fsi(plan) => Some(WireSpatialRequest::Scoped {
-            bindings: vec![
-                WireScopedSpatialPolicy {
-                    domain_ulid: plan.domain_ids()[0].clone(),
-                    policy: WireSpatialPolicy::MiniP1,
-                },
-                WireScopedSpatialPolicy {
-                    domain_ulid: plan.domain_ids()[1].clone(),
-                    policy: WireSpatialPolicy::P1,
-                },
-            ],
+            bindings: plan
+                .scoped_spatial_policies()
+                .into_iter()
+                .map(|(domain, policy)| WireScopedSpatialPolicy {
+                    domain_ulid: domain.ulid().to_string(),
+                    policy: policy.into(),
+                })
+                .collect(),
         }),
     }
 }

@@ -418,7 +418,8 @@ impl Ids {
     }
 
     fn state_pair(self) -> BackwardEulerStatePair {
-        BackwardEulerStatePair::new(self.displacement, self.solid_velocity).unwrap()
+        BackwardEulerStatePair::new(self.solid_relation, self.displacement, self.solid_velocity)
+            .unwrap()
     }
 
     fn plan(
@@ -470,11 +471,11 @@ impl Ids {
             spatial,
             BackwardEulerStep::new(
                 duration,
-                BackwardEulerStateBinding::new(
+                [BackwardEulerStateBinding::new(
                     self.state_pair(),
                     Space::continuous_lagrange(NonZeroU16::MIN),
                     scale(length_dimension()),
-                ),
+                )],
             )
             .unwrap(),
             self.scaling(),
@@ -552,7 +553,7 @@ impl Ids {
                     .unwrap(),
                 ],
                 [self.trace()],
-                self.state_pair(),
+                [self.state_pair()],
                 RealizationRequirements::new(
                     NonZeroUsize::new(spatial_dimension).unwrap(),
                     ScalarType::F64,

@@ -121,13 +121,15 @@ pub(super) fn require_fixed_reference_fsi(
             "fixed-reference FSI mathematics requires exact Domain-scoped spatial policies",
         ));
     };
-    let expected = BTreeMap::from([
-        (canonical.fluid().domain(), CommonSpatialPolicy::MiniP1),
-        (
-            canonical.solid().continuum().domain(),
-            CommonSpatialPolicy::P1,
-        ),
-    ]);
+    let expected = canonical
+        .fluids()
+        .map(|fluid| (fluid.domain(), CommonSpatialPolicy::MiniP1))
+        .chain(
+            canonical
+                .solids()
+                .map(|solid| (solid.continuum().domain(), CommonSpatialPolicy::P1)),
+        )
+        .collect::<BTreeMap<_, _>>();
     let model_digest = model.digest()?;
     let mut actual = BTreeMap::new();
     for binding in bindings {

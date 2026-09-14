@@ -96,7 +96,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-artifact/src/remesh_transfer.rs"
-ceiling = 2582
+ceiling = 2501
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -180,7 +180,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-numerics/src/canonical_fsi/ale_realization.rs"
-ceiling = 1495
+ceiling = 1439
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -204,7 +204,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-numerics/src/simplicial_ale_remesh/projection.rs"
-ceiling = 1836
+ceiling = 1809
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 

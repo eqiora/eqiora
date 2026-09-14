@@ -8,6 +8,8 @@ mod contract;
 mod element;
 mod motion;
 mod newton;
+#[cfg(test)]
+mod test_support;
 mod verification;
 
 #[allow(unused_imports)]

@@ -12,7 +12,7 @@ use crate::{
 pub struct CoupledFieldwiseRealizationRequirements {
     domains: Vec<DomainFieldInventory>,
     trace_quotients: Vec<ConformingTraceQuotient>,
-    eliminated_state: BackwardEulerStatePair,
+    eliminated_states: Vec<BackwardEulerStatePair>,
     execution: RealizationRequirements,
 }
 
@@ -26,7 +26,7 @@ impl CoupledFieldwiseRealizationRequirements {
     pub fn new(
         domains: impl IntoIterator<Item = DomainFieldInventory>,
         trace_quotients: impl AsRef<[ConformingTraceQuotient]>,
-        eliminated_state: BackwardEulerStatePair,
+        eliminated_states: impl IntoIterator<Item = BackwardEulerStatePair>,
         execution: RealizationRequirements,
     ) -> Result<Self, Diagnostic> {
         let mut domains = domains.into_iter().collect::<Vec<_>>();
@@ -71,23 +71,26 @@ impl CoupledFieldwiseRealizationRequirements {
                 "coupled field-wise requirements must contain both exact trace endpoint Fields",
             ));
         }
-        let state_domain = domains
-            .iter()
-            .find(|domain| domain.fields().contains(&eliminated_state.state()))
-            .map(DomainFieldInventory::domain);
-        let rate_domain = domains
-            .iter()
-            .find(|domain| domain.fields().contains(&eliminated_state.rate()))
-            .map(DomainFieldInventory::domain);
-        if state_domain.is_none() || state_domain != rate_domain {
-            return Err(invalid_realization(
-                "Backward Euler state and rate requirements must occur exactly once on the same Domain",
-            ));
+        let eliminated_states = crate::coupled_fieldwise::canonical_state_pairs(eliminated_states)?;
+        for eliminated_state in &eliminated_states {
+            let state_domain = domains
+                .iter()
+                .find(|domain| domain.fields().contains(&eliminated_state.state()))
+                .map(DomainFieldInventory::domain);
+            let rate_domain = domains
+                .iter()
+                .find(|domain| domain.fields().contains(&eliminated_state.rate()))
+                .map(DomainFieldInventory::domain);
+            if state_domain.is_none() || state_domain != rate_domain {
+                return Err(invalid_realization(
+                    "Backward Euler state and rate requirements must occur exactly once on the same Domain",
+                ));
+            }
         }
         Ok(Self {
             domains,
             trace_quotients,
-            eliminated_state,
+            eliminated_states,
             execution,
         })
     }
@@ -104,10 +107,10 @@ impl CoupledFieldwiseRealizationRequirements {
         &self.trace_quotients
     }
 
-    /// Exact state/rate identity pair selected for Backward Euler elimination.
+    /// Exact Relation/state/rate inventory selected for Backward Euler elimination.
     #[must_use]
-    pub const fn eliminated_state(&self) -> BackwardEulerStatePair {
-        self.eliminated_state
+    pub fn eliminated_states(&self) -> &[BackwardEulerStatePair] {
+        &self.eliminated_states
     }
 
     /// Dimension, scalar, and vector-layout requirements.
@@ -221,32 +224,27 @@ pub fn resolve_coupled_fieldwise(
     capabilities: &RealizationCapabilities,
 ) -> Result<ResolvedCoupledFieldwiseRealization, Diagnostic> {
     request.plan.validate()?;
-    let eliminated = request.plan.time_step().eliminated_state().pair();
-    let rate_domain = request
+    let eliminated = request
         .plan
-        .spatial()
-        .domains()
+        .time_step()
+        .eliminated_states()
         .iter()
-        .find(|domain| {
-            domain
-                .field_spaces()
-                .iter()
-                .any(|binding| binding.field() == eliminated.rate())
-        })
-        .map(|domain| domain.domain())
-        .ok_or_else(|| invalid_realization("Backward Euler rate has no selected Domain"))?;
+        .map(|state| state.pair())
+        .collect::<Vec<_>>();
+    let represented = request.plan.represented_physical_fields()?;
     let selected_domains = request
         .plan
         .spatial()
         .domains()
         .iter()
         .map(|domain| {
-            let fields = domain
-                .field_spaces()
-                .iter()
-                .map(|binding| binding.field())
-                .chain((domain.domain() == rate_domain).then_some(eliminated.state()));
-            DomainFieldInventory::new(domain.domain(), fields)
+            DomainFieldInventory::new(
+                domain.domain(),
+                represented
+                    .iter()
+                    .filter(|field| field.domain() == domain.domain())
+                    .map(|field| field.field()),
+            )
         })
         .collect::<Result<Vec<_>, _>>()?;
     if selected_domains != requirements.domains {
@@ -259,7 +257,7 @@ pub fn resolve_coupled_fieldwise(
             "coupled field-wise plan trace quotient differs from the exact lowerer Connection and Field pair",
         ));
     }
-    if eliminated != requirements.eliminated_state {
+    if eliminated != requirements.eliminated_states {
         return Err(invalid_realization(
             "coupled field-wise plan Backward Euler state/rate pair differs from the exact lowerer requirement",
         ));

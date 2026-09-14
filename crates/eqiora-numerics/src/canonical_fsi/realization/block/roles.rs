@@ -21,15 +21,21 @@ pub(super) fn volume_blocks(
     plan: &CoupledFieldwiseRealizationPlan,
 ) -> Result<VolumeBlocks, Diagnostic> {
     let roles = &model.equation_roles;
-    let state = plan.time_step().eliminated_state();
-    let state_pair = state.pair();
-    kinematic_relation(model, state_pair.state(), state_pair.rate())?;
+    let states = plan.time_step().eliminated_states();
+    for state in states {
+        let pair = state.pair();
+        if kinematic_relation(model, pair.state(), pair.rate())? != pair.relation() {
+            return Err(invalid(
+                "Plan elimination Relation differs from its exact state/rate equation",
+            ));
+        }
+    }
     if roles
         .relations
         .values()
         .filter(|entry| matches!(entry.kind, Role::Kinematic { .. }))
         .count()
-        != 1
+        != states.len()
     {
         return Err(invalid(
             "Plan must account for every derived kinematic relation",
@@ -47,7 +53,9 @@ pub(super) fn volume_blocks(
             fields.push(FieldBlock::coefficient(domain, id, value_type.clone()));
             continue;
         }
-        let (space, scale, role) = if id == state_pair.state() {
+        let (space, scale, role) = if let Some(state) =
+            states.iter().find(|state| state.pair().state() == id)
+        {
             (
                 state.state_space(),
                 state.state_scale().quantity(),
@@ -111,27 +119,6 @@ pub(super) fn volume_blocks(
         fields,
         relations,
         residuals,
-    })
-}
-
-pub(super) fn coefficient_relation(
-    model: &FixedReferenceFsiCartesianModel2d,
-    domain: Id<kinds::Domain>,
-) -> Result<Id<kinds::Relation>, Diagnostic> {
-    unique(model, |entry| {
-        entry.domain == domain.erase() && matches!(entry.kind, Role::Coefficient { .. })
-    })
-}
-
-pub(super) fn residual_relation(
-    model: &FixedReferenceFsiCartesianModel2d,
-    tested: Id<kinds::Field>,
-) -> Result<Id<kinds::Relation>, Diagnostic> {
-    unique(model, |entry| {
-        entry.kind
-            == (Role::Residual {
-                tested: tested.erase(),
-            })
     })
 }
 

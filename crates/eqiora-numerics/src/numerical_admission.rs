@@ -74,7 +74,7 @@ use eqiora_execution::{
 use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_io_gmsh::{Msh41Policy, import_msh41};
-use eqiora_meshing::{CellId, FacetId, MeshEntity, MeshTopology, QuadratureRule, SimplicialMesh};
+use eqiora_meshing::{CellId, MeshEntity, MeshTopology, QuadratureRule, SimplicialMesh};
 use eqiora_realization::{
     CoupledFieldwiseRealizationRequest, Discretization, DiscretizationMethod, ExecutionSchedule,
     FieldwiseRealizationRequest, MeshArtifactReference, MeshKind, MeshPolicy, NonlinearSolvePlan,
@@ -473,8 +473,8 @@ pub struct CommonFsiPlan {
     temporal: CommonBackwardEuler,
     linear: NativeLinearPolicy,
     lineage: CommonSpatialPlanLineage,
-    field_ids: [String; 4],
-    domain_ids: [String; 2],
+    field_ids: Vec<String>,
+    domain_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -632,7 +632,6 @@ enum CommonStateKind {
     CellCentered(Box<CellCenteredNavierStokesInitialState2d>),
     Fsi {
         state: Box<FixedReferenceFsiState<2>>,
-        pressure: Box<[f64]>,
         accepted: Option<Box<ResolvedFixedReferenceFsiSolution2d>>,
     },
 }
@@ -895,6 +894,7 @@ mod derived;
 mod elasticity;
 mod formulation;
 mod fsi;
+pub use fsi::{CommonFsiConnectionInventory, CommonFsiDomainInventory};
 mod mesh_artifact;
 mod native;
 mod plan_artifact;

@@ -11,6 +11,101 @@ use crate::realization::PyLinearSolveSummary;
 use crate::result::PyRunResult;
 use crate::trajectory::{PyState, PyTrajectory};
 
+#[pyclass(name = "FsiDomainEvidence", module = "eqiora._eqiora", frozen)]
+pub(crate) struct PyFsiDomainEvidence {
+    identity: String,
+    cells: ReadOnlyVector<u32>,
+}
+
+#[pymethods]
+impl PyFsiDomainEvidence {
+    #[getter]
+    fn identity(&self) -> &str {
+        &self.identity
+    }
+    #[getter]
+    fn cells(&self, py: Python<'_>) -> PyResult<Py<PyArray1<u32>>> {
+        self.cells.numpy(py)
+    }
+}
+
+#[pyclass(name = "FsiConnectionEvidence", module = "eqiora._eqiora", frozen)]
+pub(crate) struct PyFsiConnectionEvidence {
+    identity: String,
+    endpoint_domains: [String; 2],
+    endpoint_fields: [String; 2],
+    facets: ReadOnlyMatrix<u32>,
+}
+
+#[pymethods]
+impl PyFsiConnectionEvidence {
+    #[getter]
+    fn identity(&self) -> &str {
+        &self.identity
+    }
+    #[getter]
+    fn endpoint_domains(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        Ok(PyTuple::new(py, &self.endpoint_domains)?.unbind())
+    }
+    #[getter]
+    fn endpoint_fields(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        Ok(PyTuple::new(py, &self.endpoint_fields)?.unbind())
+    }
+    #[getter]
+    fn facets(&self, py: Python<'_>) -> PyResult<Py<PyArray2<u32>>> {
+        self.facets.numpy(py)
+    }
+}
+
+/// One exact recovered action. Endpoint action row order matches the endpoint identities.
+#[pyclass(name = "FsiInterfaceActionEvidence", module = "eqiora._eqiora", frozen)]
+pub(crate) struct PyFsiInterfaceActionEvidence {
+    connection: String,
+    entity_dimension: usize,
+    entity_index: usize,
+    slot: usize,
+    endpoint_domains: [String; 2],
+    endpoint_fields: [String; 2],
+    endpoint_actions: ReadOnlyMatrix<f64>,
+    imbalance: ReadOnlyVector<f64>,
+}
+
+#[pymethods]
+impl PyFsiInterfaceActionEvidence {
+    #[getter]
+    fn connection(&self) -> &str {
+        &self.connection
+    }
+    #[getter]
+    const fn entity_dimension(&self) -> usize {
+        self.entity_dimension
+    }
+    #[getter]
+    const fn entity_index(&self) -> usize {
+        self.entity_index
+    }
+    #[getter]
+    const fn slot(&self) -> usize {
+        self.slot
+    }
+    #[getter]
+    fn endpoint_domains(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        Ok(PyTuple::new(py, &self.endpoint_domains)?.unbind())
+    }
+    #[getter]
+    fn endpoint_fields(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        Ok(PyTuple::new(py, &self.endpoint_fields)?.unbind())
+    }
+    #[getter]
+    fn endpoint_actions(&self, py: Python<'_>) -> PyResult<Py<PyArray2<f64>>> {
+        self.endpoint_actions.numpy(py)
+    }
+    #[getter]
+    fn imbalance(&self, py: Python<'_>) -> PyResult<Py<PyArray1<f64>>> {
+        self.imbalance.numpy(py)
+    }
+}
+
 #[pyclass(
     name = "FsiStateEvidence",
     module = "eqiora._eqiora",
@@ -19,10 +114,7 @@ use crate::trajectory::{PyState, PyTrajectory};
 )]
 pub(crate) struct PyFsiStateEvidence {
     state_digest: String,
-    interface_vertices: ReadOnlyVector<u32>,
-    fluid_action: ReadOnlyMatrix<f64>,
-    solid_action: ReadOnlyMatrix<f64>,
-    action_imbalance: ReadOnlyMatrix<f64>,
+    interface_actions: Vec<Py<PyFsiInterfaceActionEvidence>>,
     previous_kinetic_energy_j_per_m: f64,
     next_kinetic_energy_j_per_m: f64,
     previous_elastic_energy_j_per_m: f64,
@@ -48,20 +140,14 @@ impl PyFsiStateEvidence {
         &self.state_digest
     }
     #[getter]
-    fn interface_vertices(&self, py: Python<'_>) -> PyResult<Py<PyArray1<u32>>> {
-        self.interface_vertices.numpy(py)
-    }
-    #[getter]
-    fn fluid_action(&self, py: Python<'_>) -> PyResult<Py<PyArray2<f64>>> {
-        self.fluid_action.numpy(py)
-    }
-    #[getter]
-    fn solid_action(&self, py: Python<'_>) -> PyResult<Py<PyArray2<f64>>> {
-        self.solid_action.numpy(py)
-    }
-    #[getter]
-    fn action_imbalance(&self, py: Python<'_>) -> PyResult<Py<PyArray2<f64>>> {
-        self.action_imbalance.numpy(py)
+    fn interface_actions(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        Ok(PyTuple::new(
+            py,
+            self.interface_actions
+                .iter()
+                .map(|action| action.clone_ref(py)),
+        )?
+        .unbind())
     }
     #[getter]
     const fn previous_kinetic_energy_j_per_m(&self) -> f64 {
@@ -138,9 +224,8 @@ impl PyFsiStateEvidence {
 pub(crate) struct PyFsiEvidence {
     model_digest: String,
     request_identity: String,
-    fluid_cells: ReadOnlyVector<u32>,
-    solid_cells: ReadOnlyVector<u32>,
-    interface_facets: ReadOnlyMatrix<u32>,
+    domains: Vec<Py<PyFsiDomainEvidence>>,
+    connections: Vec<Py<PyFsiConnectionEvidence>>,
     state_owners: Vec<Py<PyState>>,
     states: Vec<Py<PyFsiStateEvidence>>,
 }
@@ -152,16 +237,12 @@ impl PyFsiEvidence {
         &self.request_identity
     }
     #[getter]
-    fn fluid_cells(&self, py: Python<'_>) -> PyResult<Py<PyArray1<u32>>> {
-        self.fluid_cells.numpy(py)
+    fn domains(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        Ok(PyTuple::new(py, self.domains.iter().map(|value| value.clone_ref(py)))?.unbind())
     }
     #[getter]
-    fn solid_cells(&self, py: Python<'_>) -> PyResult<Py<PyArray1<u32>>> {
-        self.solid_cells.numpy(py)
-    }
-    #[getter]
-    fn interface_facets(&self, py: Python<'_>) -> PyResult<Py<PyArray2<u32>>> {
-        self.interface_facets.numpy(py)
+    fn connections(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        Ok(PyTuple::new(py, self.connections.iter().map(|value| value.clone_ref(py)))?.unbind())
     }
     #[getter]
     fn states(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
@@ -214,23 +295,33 @@ impl PyFsiEvidence {
                 ));
             }
             let action_count = result.fsi_interface_action_count(index);
-            let mut interface_vertices = Vec::with_capacity(action_count);
-            let mut fluid_action = Vec::with_capacity(action_count * 2);
-            let mut solid_action = Vec::with_capacity(action_count * 2);
-            let mut imbalance = Vec::with_capacity(action_count * 2);
+            let mut interface_actions = Vec::with_capacity(action_count);
             for action in 0..action_count {
-                let (vertex, fluid, solid) =
-                    result.fsi_interface_action(index, action).ok_or_else(|| {
-                        PyValueError::new_err("FSI Result omitted an interface action")
-                    })?;
-                interface_vertices.push(u32::try_from(vertex).map_err(|_| {
-                    PyOverflowError::new_err("FSI interface vertex exceeds uint32")
-                })?);
-                fluid_action.extend(fluid);
-                solid_action.extend(solid);
-                imbalance.extend(std::array::from_fn::<_, 2, _>(|component| {
-                    fluid[component] + solid[component]
-                }));
+                let action = *result.fsi_interface_action(index, action).ok_or_else(|| {
+                    PyValueError::new_err("FSI Result omitted an interface action")
+                })?;
+                let endpoints = action.endpoints();
+                interface_actions.push(Py::new(
+                    py,
+                    PyFsiInterfaceActionEvidence {
+                        connection: action.connection().ulid().to_string(),
+                        entity_dimension: action.entity().dimension(),
+                        entity_index: action.entity().index(),
+                        slot: action.slot(),
+                        endpoint_domains: endpoints
+                            .each_ref()
+                            .map(|value| value.0.ulid().to_string()),
+                        endpoint_fields: endpoints
+                            .each_ref()
+                            .map(|value| value.1.ulid().to_string()),
+                        endpoint_actions: ReadOnlyMatrix::new(
+                            2,
+                            2,
+                            endpoints.into_iter().flat_map(|value| value.2).collect(),
+                        ),
+                        imbalance: ReadOnlyVector::new(action.imbalance().to_vec()),
+                    },
+                )?);
             }
             let metrics = result
                 .fsi_state_metrics(index)
@@ -244,10 +335,7 @@ impl PyFsiEvidence {
                 py,
                 PyFsiStateEvidence {
                     state_digest: state.digest_value().to_owned(),
-                    interface_vertices: ReadOnlyVector::new(interface_vertices),
-                    fluid_action: ReadOnlyMatrix::new(action_count, 2, fluid_action),
-                    solid_action: ReadOnlyMatrix::new(action_count, 2, solid_action),
-                    action_imbalance: ReadOnlyMatrix::new(action_count, 2, imbalance),
+                    interface_actions,
                     previous_kinetic_energy_j_per_m: metrics[0],
                     next_kinetic_energy_j_per_m: metrics[1],
                     previous_elastic_energy_j_per_m: metrics[2],
@@ -267,30 +355,57 @@ impl PyFsiEvidence {
                 },
             )?);
         }
-        let convert = |values: Vec<usize>| {
+        let convert = |values: Vec<usize>, noun: &str| {
             values
                 .into_iter()
                 .map(|value| {
-                    u32::try_from(value)
-                        .map_err(|_| PyOverflowError::new_err("FSI cell index exceeds uint32"))
+                    u32::try_from(value).map_err(|_| {
+                        PyOverflowError::new_err(format!("FSI {noun} index exceeds uint32"))
+                    })
                 })
                 .collect::<PyResult<Vec<_>>>()
         };
-        let facets = native_plan
-            .interface_facet_vertices()
+        let domains = native_plan
+            .domain_cell_inventories()
+            .map(|inventory| {
+                Py::new(
+                    py,
+                    PyFsiDomainEvidence {
+                        identity: inventory.domain().ulid().to_string(),
+                        cells: ReadOnlyVector::new(convert(inventory.cells().to_vec(), "cell")?),
+                    },
+                )
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let connections = native_plan
+            .connection_inventories()
+            .map_err(|error| PyValueError::new_err(error.to_string()))?
             .into_iter()
-            .flatten()
-            .map(|value| {
-                u32::try_from(value)
-                    .map_err(|_| PyOverflowError::new_err("FSI facet vertex exceeds uint32"))
+            .map(|inventory| {
+                let quotient = inventory.quotient();
+                let endpoints = quotient.endpoints();
+                let facets = inventory.facets();
+                let facet_count = facets.len();
+                Py::new(
+                    py,
+                    PyFsiConnectionEvidence {
+                        identity: quotient.connection().ulid().to_string(),
+                        endpoint_domains: endpoints.map(|value| value.domain().ulid().to_string()),
+                        endpoint_fields: endpoints.map(|value| value.field().ulid().to_string()),
+                        facets: ReadOnlyMatrix::new(
+                            facet_count,
+                            2,
+                            convert(facets.iter().flatten().copied().collect(), "facet vertex")?,
+                        ),
+                    },
+                )
             })
             .collect::<PyResult<Vec<_>>>()?;
         Ok(Self {
             model_digest: native_plan.model_digest().to_owned(),
             request_identity: request_identity.to_owned(),
-            fluid_cells: ReadOnlyVector::new(convert(native_plan.fluid_cell_indices())?),
-            solid_cells: ReadOnlyVector::new(convert(native_plan.solid_cell_indices())?),
-            interface_facets: ReadOnlyMatrix::new(facets.len() / 2, 2, facets),
+            domains,
+            connections,
             state_owners: owners,
             states,
         })
@@ -303,6 +418,9 @@ fn evidence(py: Python<'_>, result: &PyRunResult) -> PyResult<Py<PyFsiEvidence>>
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_class::<PyFsiDomainEvidence>()?;
+    module.add_class::<PyFsiConnectionEvidence>()?;
+    module.add_class::<PyFsiInterfaceActionEvidence>()?;
     module.add_class::<PyFsiStateEvidence>()?;
     module.add_class::<PyFsiEvidence>()?;
     module.add_function(wrap_pyfunction!(evidence, module)?)?;

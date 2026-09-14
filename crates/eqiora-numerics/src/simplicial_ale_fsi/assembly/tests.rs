@@ -12,6 +12,9 @@ use eqiora_solver::{
 };
 
 use super::*;
+use crate::simplicial_ale_fsi::test_support::{
+    material, material_for, motion_for_plan, partition_for_plan,
+};
 use crate::simplicial_ale_fsi::{
     AleFsiBoundary, AleFsiState, AleFsiStepPlan, P1HarmonicMeshMotionAction,
 };
@@ -19,8 +22,6 @@ use crate::simplicial_fsi::{
     FixedReferenceFsiLoad, FixedReferenceFsiMaterial, FixedReferenceFsiPartition,
     FixedReferenceFsiScale,
 };
-
-const COMPONENTS: usize = 2;
 
 struct Fixture {
     mesh: SimplicialMesh,
@@ -51,7 +52,7 @@ fn analytic_global_jvp_matches_centered_full_reassembly() {
         &fixture.boundary,
         &fixture.motion,
         &fixture.previous,
-        fixture.plan,
+        &fixture.plan,
         &quadrature,
         &fixture.layout,
     )
@@ -133,7 +134,7 @@ fn sealed_harmonic_driver_columns_are_singletons_in_real_ale_patterns() {
         &fixture.boundary,
         &fixture.motion,
         &fixture.previous,
-        fixture.plan,
+        &fixture.plan,
         &quadrature,
         &fixture.layout,
     )
@@ -155,7 +156,7 @@ fn sealed_harmonic_driver_columns_are_singletons_in_real_ale_patterns() {
         &fixture.boundary,
         &fixture.motion,
         &fixture.previous,
-        fixture.plan,
+        &fixture.plan,
         &quadrature,
         &fixture.layout,
     )
@@ -167,7 +168,7 @@ fn sealed_harmonic_driver_columns_are_singletons_in_real_ale_patterns() {
         &fixture.motion,
         &fixture.previous,
         &point,
-        fixture.plan,
+        &fixture.plan,
         &quadrature,
         &REFERENCE_ASSEMBLY_BACKEND,
         &fixture.layout,
@@ -192,7 +193,7 @@ fn zero_solid_update_produces_an_exact_static_geometry_action() {
         &fixture.boundary,
         &fixture.motion,
         &fixture.previous,
-        fixture.plan,
+        &fixture.plan,
         &quadrature,
         &fixture.layout,
     )
@@ -227,7 +228,7 @@ fn degree_six_rule_is_rejected_before_ale_assembly() {
             &fixture.boundary,
             &fixture.motion,
             &fixture.previous,
-            fixture.plan,
+            &fixture.plan,
             &triangle_duffy_gauss_legendre(4).unwrap(),
             &fixture.layout,
         )
@@ -244,7 +245,7 @@ fn residual_only_rejects_nonfinite_and_wrong_shape_candidates() {
         &fixture.boundary,
         &fixture.motion,
         &fixture.previous,
-        fixture.plan,
+        &fixture.plan,
         &quadrature,
         &fixture.layout,
     )
@@ -258,7 +259,7 @@ fn residual_only_rejects_nonfinite_and_wrong_shape_candidates() {
         &fixture.motion,
         &fixture.previous,
         &short,
-        fixture.plan,
+        &fixture.plan,
         &quadrature,
         &fixture.layout,
     )
@@ -278,7 +279,7 @@ fn residual_only_rejects_nonfinite_and_wrong_shape_candidates() {
         &fixture.motion,
         &fixture.previous,
         &nonfinite,
-        fixture.plan,
+        &fixture.plan,
         &quadrature,
         &fixture.layout,
     )
@@ -295,7 +296,7 @@ fn tetrahedral_assembly_has_typed_power_exactness_and_centered_jvp() {
         &fixture.boundary,
         &fixture.motion,
         &fixture.previous,
-        fixture.plan,
+        &fixture.plan,
         &degree_nine,
         &fixture.layout,
     )
@@ -308,7 +309,7 @@ fn tetrahedral_assembly_has_typed_power_exactness_and_centered_jvp() {
         &fixture.boundary,
         &fixture.motion,
         &fixture.previous,
-        fixture.plan,
+        &fixture.plan,
         &quadrature,
         &fixture.layout,
     )
@@ -323,7 +324,7 @@ fn tetrahedral_assembly_has_typed_power_exactness_and_centered_jvp() {
         &fixture.motion,
         &fixture.previous,
         &point,
-        fixture.plan,
+        &fixture.plan,
         &quadrature,
         &REFERENCE_ASSEMBLY_BACKEND,
         &fixture.layout,
@@ -336,7 +337,7 @@ fn tetrahedral_assembly_has_typed_power_exactness_and_centered_jvp() {
         &fixture.motion,
         &fixture.previous,
         &point,
-        fixture.plan,
+        &fixture.plan,
         &quadrature,
         &fixture.layout,
     )
@@ -385,7 +386,7 @@ fn tetrahedral_assembly_has_typed_power_exactness_and_centered_jvp() {
             &fixture.motion,
             &fixture.previous,
             &shifted,
-            fixture.plan,
+            &fixture.plan,
             &quadrature,
             &fixture.layout,
         )
@@ -415,7 +416,7 @@ fn tetrahedral_assembly_has_typed_power_exactness_and_centered_jvp() {
         fixture.mesh.cells().len()
     );
 
-    let row_scales = fluid_row_scales(fixture.plan);
+    let row_scales = fluid_row_scales(&fixture.plan);
     assert_eq!(fixture.plan.scale().power(), 60.0);
     assert_eq!(row_scales.len(), 19);
     assert!(row_scales[..15].iter().all(|value| *value == 5.0 / 60.0));
@@ -430,7 +431,7 @@ fn assemble(fixture: &Fixture, point: &[f64], quadrature: &QuadratureRule) -> St
         &fixture.motion,
         &fixture.previous,
         point,
-        fixture.plan,
+        &fixture.plan,
         quadrature,
         &REFERENCE_ASSEMBLY_BACKEND,
         &fixture.layout,
@@ -446,7 +447,7 @@ fn residual(fixture: &Fixture, point: &[f64], quadrature: &QuadratureRule) -> Ve
         &fixture.motion,
         &fixture.previous,
         point,
-        fixture.plan,
+        &fixture.plan,
         quadrature,
         &fixture.layout,
     )
@@ -458,10 +459,13 @@ fn assert_harmonic_driver_singletons<const D: usize>(
     layout: &FsiLayout<D>,
     pattern: &StructuralJacobianPattern,
 ) {
+    let velocity = layout
+        .state_rate(motion.policy().solid_displacement().erase())
+        .expect("driver State owns an exact rate Field");
     let mut represented_driver_columns = 0;
     for driver in motion.driver_vertices() {
         for component in 0..D {
-            if let Some(dof) = layout.reduced_vertex_velocity(driver.index(), component) {
+            if let Some(dof) = layout.reduced_vertex_velocity(velocity, driver.index(), component) {
                 represented_driver_columns += 1;
                 assert!(
                     pattern.is_singleton(dof.index()),
@@ -477,37 +481,39 @@ fn assert_harmonic_driver_singletons<const D: usize>(
 
 fn fixture() -> Fixture {
     let mesh = two_domain_mesh();
-    let (fluid, solid, interface) = inventories(&mesh);
-    let partition = FixedReferenceFsiPartition::<2>::new(&mesh, fluid, solid, interface).unwrap();
-    let boundary = AleFsiBoundary::<2>::homogeneous_exterior(&mesh).unwrap();
-    let motion =
-        P1HarmonicMeshMotionAction::<2>::new(&mesh, &partition, harmonic_solver()).unwrap();
-    let previous = AleFsiState::<2>::new(
-        0.0,
-        &mesh,
-        &partition,
-        &motion,
-        vec![[0.0; COMPONENTS]; mesh.vertices().len()],
-        partition
-            .fluid_cells()
-            .iter()
-            .copied()
-            .map(|cell| (cell, [0.0; COMPONENTS]))
-            .collect(),
-        vec![0.0; partition.fluid_vertices().len()],
-        vec![[0.0; COMPONENTS]; mesh.vertices().len()],
-    )
-    .unwrap();
-    let plan = step_plan();
-    let layout = crate::simplicial_fsi::test_model::planar_layout(
+    let (fluid, solid, _) = inventories(&mesh);
+    let seed = step_plan();
+    let model = crate::simplicial_fsi::test_model::planar_model(
         &crate::simplicial_fsi::test_model::adjacent_rectangles(),
         &mesh,
-        &partition,
-        &crate::simplicial_fsi::FixedReferenceFsiBoundary::homogeneous_exterior(&mesh).unwrap(),
-        plan.fixed_reference_config(),
-        plan.linear_solver(),
+        seed.fixed_reference_config().clone(),
+        seed.linear_solver(),
         true,
     );
+    let fields = crate::simplicial_fsi::test_model::exact_fields(&model.plan);
+    let partition = partition_for_plan(&mesh, fluid, solid, &model.plan);
+    let boundary = AleFsiBoundary::<2>::homogeneous_exterior(&mesh).unwrap();
+    let motion = motion_for_plan(&mesh, &partition, &model.plan, harmonic_solver());
+    let physical = crate::simplicial_fsi::test_model::exact_state(
+        &model.program,
+        &model.plan,
+        &mesh,
+        &partition,
+        |_field, _entity, _component| 0.0,
+    );
+    let previous = AleFsiState::<2>::new(0.0, &mesh, &partition, &motion, physical).unwrap();
+    let plan = step_plan_with_material(
+        material_for(fields),
+        FixedReferenceFsiScale::new(2.0, 1.0, 1.0).unwrap(),
+    );
+    let layout = crate::simplicial_fsi::layout::FsiLayout::bind(
+        &model.program,
+        &model.plan,
+        &mesh,
+        &partition,
+        &boundary,
+    )
+    .unwrap();
     Fixture {
         layout,
         mesh,
@@ -515,42 +521,42 @@ fn fixture() -> Fixture {
         boundary,
         motion,
         previous,
-        plan: step_plan(),
+        plan,
     }
 }
 
 fn fixture_3d() -> Fixture3d {
-    let (mesh, fluid, solid, interface) = tetrahedral_problem();
-    let partition = FixedReferenceFsiPartition::<3>::new(&mesh, fluid, solid, interface).unwrap();
-    let boundary = AleFsiBoundary::<3>::homogeneous_exterior(&mesh).unwrap();
-    let motion =
-        P1HarmonicMeshMotionAction::<3>::new(&mesh, &partition, harmonic_solver()).unwrap();
-    let previous = AleFsiState::<3>::new(
-        0.0,
+    let (mesh, fluid, solid, _) = tetrahedral_problem();
+    let seed = step_plan_3d();
+    let geometry = crate::simplicial_fsi::test_model::polyhedra::tetrahedral_geometry();
+    let model = crate::simplicial_fsi::test_model::polyhedra::polyhedral_model(
+        &geometry,
         &mesh,
-        &partition,
-        &motion,
-        vec![[0.0; 3]; mesh.vertices().len()],
-        partition
-            .fluid_cells()
-            .iter()
-            .copied()
-            .map(|cell| (cell, [0.0; 3]))
-            .collect(),
-        vec![0.0; partition.fluid_vertices().len()],
-        vec![[0.0; 3]; mesh.vertices().len()],
-    )
-    .unwrap();
-    let plan = step_plan_3d();
-    let layout = crate::simplicial_fsi::test_model::polyhedra::polyhedral_layout(
-        &crate::simplicial_fsi::test_model::polyhedra::tetrahedral_geometry(),
-        &mesh,
-        &partition,
-        &crate::simplicial_fsi::FixedReferenceFsiBoundary::homogeneous_exterior(&mesh).unwrap(),
-        plan.fixed_reference_config(),
-        plan.linear_solver(),
+        seed.fixed_reference_config().clone(),
+        seed.linear_solver(),
         true,
     );
+    let fields = crate::simplicial_fsi::test_model::exact_fields(&model.plan);
+    let partition = partition_for_plan(&mesh, fluid, solid, &model.plan);
+    let boundary = AleFsiBoundary::<3>::homogeneous_exterior(&mesh).unwrap();
+    let motion = motion_for_plan(&mesh, &partition, &model.plan, harmonic_solver());
+    let physical = crate::simplicial_fsi::test_model::exact_state(
+        &model.program,
+        &model.plan,
+        &mesh,
+        &partition,
+        |_field, _entity, _component| 0.0,
+    );
+    let previous = AleFsiState::<3>::new(0.0, &mesh, &partition, &motion, physical).unwrap();
+    let plan = step_plan_3d_with_material(material_for(fields));
+    let layout = crate::simplicial_fsi::layout::FsiLayout::bind(
+        &model.program,
+        &model.plan,
+        &mesh,
+        &partition,
+        &boundary,
+    )
+    .unwrap();
     Fixture3d {
         layout,
         mesh,
@@ -558,7 +564,7 @@ fn fixture_3d() -> Fixture3d {
         boundary,
         motion,
         previous,
-        plan: step_plan_3d(),
+        plan,
     }
 }
 
@@ -667,6 +673,16 @@ fn inventories(mesh: &SimplicialMesh) -> (Vec<CellId>, Vec<CellId>, Vec<FacetId>
 }
 
 fn step_plan() -> AleFsiStepPlan<2> {
+    step_plan_with_material(
+        material(),
+        FixedReferenceFsiScale::<2>::new(2.0, 1.0, 1.0).unwrap(),
+    )
+}
+
+fn step_plan_with_material(
+    material: FixedReferenceFsiMaterial<2>,
+    scale: FixedReferenceFsiScale<2>,
+) -> AleFsiStepPlan<2> {
     let nonlinear =
         NonlinearSolvePlan::new(1.0e-9, 1.0e-12, NonZeroUsize::new(20).unwrap(), 12).unwrap();
     let linear = SolverPlan::new(
@@ -680,8 +696,8 @@ fn step_plan() -> AleFsiStepPlan<2> {
     .with_reduction(ReductionPolicy::Fast);
     AleFsiStepPlan::<2>::new(
         0.05,
-        FixedReferenceFsiMaterial::<2>::new(1.0, 0.1, 1.0, 2.0, 1.0).unwrap(),
-        FixedReferenceFsiScale::<2>::new(2.0, 1.0, 1.0).unwrap(),
+        material,
+        scale,
         FixedReferenceFsiLoad::Zero,
         nonlinear,
         linear,
@@ -693,6 +709,10 @@ fn step_plan() -> AleFsiStepPlan<2> {
 }
 
 fn step_plan_3d() -> AleFsiStepPlan<3> {
+    step_plan_3d_with_material(material())
+}
+
+fn step_plan_3d_with_material(material: FixedReferenceFsiMaterial<3>) -> AleFsiStepPlan<3> {
     let nonlinear =
         NonlinearSolvePlan::new(1.0e-9, 1.0e-12, NonZeroUsize::new(20).unwrap(), 12).unwrap();
     let linear = SolverPlan::new(
@@ -706,7 +726,7 @@ fn step_plan_3d() -> AleFsiStepPlan<3> {
     .with_reduction(ReductionPolicy::Fast);
     AleFsiStepPlan::<3>::new(
         0.05,
-        FixedReferenceFsiMaterial::<3>::new(1.0, 0.1, 1.0, 2.0, 1.0).unwrap(),
+        material,
         FixedReferenceFsiScale::<3>::new(2.0, 5.0, 3.0).unwrap(),
         FixedReferenceFsiLoad::Zero,
         nonlinear,

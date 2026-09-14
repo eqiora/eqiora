@@ -8,13 +8,15 @@
 //! evaluation necessarily use the same action.
 
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, ScalarType};
+use eqiora_core::{Diagnostic, Id, ScalarType, entity::kinds};
 use eqiora_meshing::P1HarmonicCoordinateRelation;
 use eqiora_meshing::{SimplicialMesh, VertexId};
+use eqiora_realization::P1HarmonicMeshMotionPolicy;
 use eqiora_solver::{
     DiagonalAvailability, LinearOperator, LinearOperatorProperties, LinearProblem,
     LinearSolveRequest, LinearSolver, SolveReport,
 };
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::simplicial_fsi::FixedReferenceFsiPartition;
 
@@ -31,6 +33,7 @@ const MAX_DENSE_MOTION_COEFFICIENTS: usize = 8_000_000;
 #[derive(Debug, Clone, PartialEq)]
 pub struct P1HarmonicMeshMotionAction<const D: usize> {
     partition: FixedReferenceFsiPartition<D>,
+    policy: P1HarmonicMeshMotionPolicy,
     relation: P1HarmonicCoordinateRelation<D>,
     influence: Vec<f64>,
     influence_solve_reports: Vec<SolveReport>,
@@ -53,8 +56,23 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
     pub fn new(
         mesh: &SimplicialMesh,
         partition: &FixedReferenceFsiPartition<D>,
+        policy: P1HarmonicMeshMotionPolicy,
         solver: LinearSolveRequest<'_>,
     ) -> Result<Self, Diagnostic> {
+        if solver.plan() != policy.solver()
+            || partition.domains().collect::<Vec<_>>().len() != 2
+            || partition
+                .domains()
+                .any(|domain| domain != policy.fluid_domain() && domain != policy.solid_domain())
+            || partition
+                .quotients()
+                .any(|quotient| quotient.connection() != policy.interface())
+            || partition.quotients().next().is_none()
+        {
+            return Err(invalid(
+                "one harmonic motion policy requires its complete exact Domain/Connection inventory",
+            ));
+        }
         if solver.plan().algorithm() != LinearSolver::ConjugateGradient {
             return Err(invalid_realization(
                 "P1 harmonic ALE mesh motion requires the resolved conjugate-gradient policy",
@@ -67,9 +85,16 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
         )?;
         let replayed = FixedReferenceFsiPartition::<D>::new(
             mesh,
-            partition.fluid_cells().to_vec(),
-            partition.solid_cells().to_vec(),
-            partition.interface_facets().to_vec(),
+            partition.domains().map(|domain| {
+                (
+                    domain,
+                    partition
+                        .domain_cells(domain)
+                        .expect("exact Domain")
+                        .to_vec(),
+                )
+            }),
+            &partition.quotients().collect::<Vec<_>>(),
         )?;
         if &replayed != partition {
             return Err(invalid(
@@ -77,11 +102,27 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
             ));
         }
 
+        let facets = partition
+            .traces()
+            .iter()
+            .flat_map(|trace| {
+                trace
+                    .facets
+                    .iter()
+                    .map(|facet| eqiora_meshing::FacetId::new(facet.facet.index()))
+            })
+            .collect::<BTreeSet<_>>();
         let relation = P1HarmonicCoordinateRelation::<D>::new(
             mesh,
-            partition.fluid_cells().to_vec(),
-            partition.solid_cells().to_vec(),
-            partition.interface_facets().to_vec(),
+            partition
+                .domain_cells(policy.fluid_domain())
+                .expect("exact motion Domain")
+                .to_vec(),
+            partition
+                .domain_cells(policy.solid_domain())
+                .expect("exact driver Domain")
+                .to_vec(),
+            facets.into_iter().collect(),
         )?;
         if relation.fluid_interior_vertices().is_empty() {
             return Err(invalid(
@@ -138,6 +179,7 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
 
         Ok(Self {
             partition: partition.clone(),
+            policy,
             relation,
             influence,
             influence_solve_reports,
@@ -197,9 +239,16 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
     ) -> Result<(), Diagnostic> {
         let replayed = FixedReferenceFsiPartition::<D>::new(
             mesh,
-            partition.fluid_cells().to_vec(),
-            partition.solid_cells().to_vec(),
-            partition.interface_facets().to_vec(),
+            partition.domains().map(|domain| {
+                (
+                    domain,
+                    partition
+                        .domain_cells(domain)
+                        .expect("exact Domain")
+                        .to_vec(),
+                )
+            }),
+            &partition.quotients().collect::<Vec<_>>(),
         )?;
         if mesh != self.relation.reference_mesh()
             || partition != &self.partition
@@ -223,32 +272,48 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
     /// Returns `EQ0801` for an incompatible field shape, or `EQ0803` for
     /// non-finite data, non-zero data outside the solid closure, overflow, or
     /// failure of the harmonic residual certificate.
-    pub fn apply(&self, solid_displacement: &[[f64; D]]) -> Result<Vec<[f64; D]>, Diagnostic> {
-        self.apply_linear(solid_displacement)
+    pub fn apply(
+        &self,
+        field: Id<kinds::Field>,
+        values: &BTreeMap<VertexId, [f64; D]>,
+    ) -> Result<Vec<[f64; D]>, Diagnostic> {
+        self.apply_linear(field, values)
     }
 
-    /// Exact JVP of [`Self::apply`] with respect to solid displacement.
-    ///
-    /// The action is linear, so the tangent is evaluated by the same sealed
-    /// influence map. No finite difference or separately supplied velocity is
-    /// admitted.
-    ///
-    /// # Errors
-    /// Has the same shape, finiteness, and support requirements as [`Self::apply`].
+    /// Exact JVP of the same sealed action on the complete exact driver inventory.
     pub fn apply_jvp(
         &self,
-        solid_displacement_tangent: &[[f64; D]],
+        field: Id<kinds::Field>,
+        values: &BTreeMap<VertexId, [f64; D]>,
     ) -> Result<Vec<[f64; D]>, Diagnostic> {
-        self.apply_linear(solid_displacement_tangent)
+        self.apply_linear(field, values)
     }
 
-    fn apply_linear(&self, solid_input: &[[f64; D]]) -> Result<Vec<[f64; D]>, Diagnostic> {
-        if solid_input.len() != self.relation.reference_mesh().vertices().len() {
-            return Err(invalid(format!(
-                "P1 harmonic ALE solid displacement must be one finite {D}-vector per reference vertex"
-            )));
-        }
+    /// Exact admitted motion policy; no geometry position identifies its driver.
+    pub const fn policy(&self) -> P1HarmonicMeshMotionPolicy {
+        self.policy
+    }
 
+    fn apply_linear(
+        &self,
+        field: Id<kinds::Field>,
+        values: &BTreeMap<VertexId, [f64; D]>,
+    ) -> Result<Vec<[f64; D]>, Diagnostic> {
+        if field != self.policy.solid_displacement()
+            || !values
+                .keys()
+                .copied()
+                .eq(self.relation.solid_vertices().iter().copied())
+            || values.values().flatten().any(|value| !value.is_finite())
+        {
+            return Err(invalid(
+                "harmonic driver differs from exact Field/vertex inventory or is nonfinite",
+            ));
+        }
+        let mut solid_input = vec![[0.0; D]; self.relation.reference_mesh().vertices().len()];
+        for (&vertex, &value) in values {
+            solid_input[vertex.index()] = value;
+        }
         let mut displacement = vec![[0.0; D]; solid_input.len()];
         for vertex in self.relation.solid_vertices() {
             displacement[vertex.index()] = solid_input[vertex.index()];
@@ -288,7 +353,7 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
             .map(SolveReport::residual_target)
             .collect::<Vec<_>>();
         self.relation.validate_current_coordinates(
-            solid_input,
+            &solid_input,
             &current_coordinates,
             &residual_targets,
         )?;
@@ -431,7 +496,9 @@ fn solve_failed(message: impl Into<String>) -> Diagnostic {
 mod tests {
     use std::num::NonZeroUsize;
 
-    use eqiora_meshing::{CellId, FacetId, MeshEntity, MeshQualityGate, MeshTopology};
+    use eqiora_core::{Id, entity::kinds};
+    use eqiora_meshing::{CellId, MeshEntity, MeshQualityGate};
+    use eqiora_realization::{AleGeometryQualityGate, ConformingTraceQuotient, TraceFieldEndpoint};
     use eqiora_solver::{
         LinearSolverBackend, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
         SolverPlan,
@@ -440,8 +507,75 @@ mod tests {
     use super::*;
     use crate::simplicial_fsi::FixedReferenceFsiPartition;
 
+    // Independent barycentric residual assembly, invalid-input rejection, and
+    // fail-closed solver cases form one private validation responsibility.
+    // Core motion identities stay beside the implementation they exercise.
+    mod validation;
+
     const DIMENSION: usize = 2;
     const COMPONENTS: usize = DIMENSION;
+
+    fn exact_id<K: eqiora_core::entity::Entity>(value: &str) -> Id<K> {
+        Id::from_ulid(value.parse().expect("valid fixture ULID"))
+    }
+
+    fn fluid_domain() -> Id<kinds::Domain> {
+        exact_id("01J00000000000000000000001")
+    }
+
+    fn solid_domain() -> Id<kinds::Domain> {
+        exact_id("01J00000000000000000000002")
+    }
+
+    fn fluid_velocity() -> Id<kinds::Field> {
+        exact_id("01J00000000000000000000003")
+    }
+
+    fn solid_velocity() -> Id<kinds::Field> {
+        exact_id("01J00000000000000000000004")
+    }
+
+    fn solid_displacement() -> Id<kinds::Field> {
+        exact_id("01J00000000000000000000005")
+    }
+
+    fn interface() -> Id<kinds::Connection> {
+        exact_id("01J00000000000000000000006")
+    }
+
+    fn quotient() -> ConformingTraceQuotient {
+        ConformingTraceQuotient::new(
+            interface(),
+            TraceFieldEndpoint::new(fluid_domain(), fluid_velocity()),
+            TraceFieldEndpoint::new(solid_domain(), solid_velocity()),
+        )
+        .expect("valid fixture quotient")
+    }
+
+    fn motion_policy(plan: SolverPlan) -> P1HarmonicMeshMotionPolicy {
+        P1HarmonicMeshMotionPolicy::new(
+            fluid_domain(),
+            solid_domain(),
+            solid_displacement(),
+            interface(),
+            AleGeometryQualityGate::new(0.01).expect("valid fixture quality gate"),
+            plan,
+        )
+        .expect("valid fixture motion policy")
+    }
+
+    fn exact_partition<const D: usize>(
+        mesh: &SimplicialMesh,
+        fluid: Vec<CellId>,
+        solid: Vec<CellId>,
+    ) -> FixedReferenceFsiPartition<D> {
+        FixedReferenceFsiPartition::new(
+            mesh,
+            [(fluid_domain(), fluid), (solid_domain(), solid)],
+            &[quotient()],
+        )
+        .expect("valid exact test partition")
+    }
 
     fn reference_solver() -> LinearSolveRequest<'static> {
         let plan = SolverPlan::new(
@@ -454,6 +588,32 @@ mod tests {
         .with_preconditioner(PreconditionerPolicy::Jacobi)
         .with_reduction(ReductionPolicy::Reproducible);
         LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan)
+    }
+
+    fn seal_motion<const D: usize>(
+        mesh: &SimplicialMesh,
+        partition: &FixedReferenceFsiPartition<D>,
+    ) -> P1HarmonicMeshMotionAction<D> {
+        let solver = reference_solver();
+        P1HarmonicMeshMotionAction::new(mesh, partition, motion_policy(solver.plan()), solver)
+            .expect("motion seals")
+    }
+
+    fn interface_vertices<const D: usize>(
+        partition: &FixedReferenceFsiPartition<D>,
+    ) -> Vec<VertexId> {
+        partition
+            .domain_vertices(fluid_domain())
+            .expect("fluid Domain")
+            .iter()
+            .copied()
+            .filter(|vertex| {
+                partition
+                    .domain_vertices(solid_domain())
+                    .expect("solid Domain")
+                    .contains(vertex)
+            })
+            .collect()
     }
 
     fn refined_partition() -> (SimplicialMesh, FixedReferenceFsiPartition<2>) {
@@ -511,20 +671,7 @@ mod tests {
             MeshQualityGate::new(0.1).expect("valid test quality gate"),
         )
         .expect("valid conforming test mesh");
-        let interface_facets = (0..mesh.entity_count(1).expect("2D mesh owns facets"))
-            .filter_map(|facet| {
-                let vertices = mesh
-                    .entity_vertices(MeshEntity::new(1, facet))
-                    .expect("test facet owns vertices");
-                vertices
-                    .iter()
-                    .all(|vertex| mesh.vertices()[vertex.index()][0] == 1.0)
-                    .then_some(FacetId::new(facet))
-            })
-            .collect::<Vec<_>>();
-        let partition =
-            FixedReferenceFsiPartition::<2>::new(&mesh, fluid_cells, solid_cells, interface_facets)
-                .expect("valid exact test partition");
+        let partition = exact_partition(&mesh, fluid_cells, solid_cells);
         (mesh, partition)
     }
 
@@ -586,20 +733,7 @@ mod tests {
             MeshQualityGate::new(0.02).expect("valid test quality gate"),
         )
         .expect("valid conforming tetrahedral test mesh");
-        let interface_facets = (0..mesh.entity_count(2).expect("3D mesh owns facets"))
-            .filter_map(|facet| {
-                let vertices = mesh
-                    .entity_vertices(MeshEntity::new(2, facet))
-                    .expect("test facet owns vertices");
-                vertices
-                    .iter()
-                    .all(|vertex| mesh.vertices()[vertex.index()][0] == 1.0)
-                    .then_some(FacetId::new(facet))
-            })
-            .collect::<Vec<_>>();
-        let partition =
-            FixedReferenceFsiPartition::<3>::new(&mesh, fluid_cells, solid_cells, interface_facets)
-                .expect("valid exact tetrahedral test partition");
+        let partition = exact_partition(&mesh, fluid_cells, solid_cells);
         (mesh, partition)
     }
 
@@ -611,60 +745,24 @@ mod tests {
             + column(3, 0) * (column(1, 1) * column(2, 2) - column(2, 1) * column(1, 2))
     }
 
-    fn independent_tetrahedron_gradients(points: [[f64; 3]; 4]) -> ([[f64; 3]; 4], f64) {
-        let edge =
-            |vertex: usize| std::array::from_fn(|axis| points[vertex][axis] - points[0][axis]);
-        let first = edge(1);
-        let second = edge(2);
-        let third = edge(3);
-        let determinant = dot_3(first, cross_3(second, third));
-        assert!(determinant > 0.0);
-        let gradients = [
-            [0.0; 3],
-            scale_3(cross_3(second, third), 1.0 / determinant),
-            scale_3(cross_3(third, first), 1.0 / determinant),
-            scale_3(cross_3(first, second), 1.0 / determinant),
-        ];
-        let first_gradient = std::array::from_fn(|axis| {
-            -gradients[1][axis] - gradients[2][axis] - gradients[3][axis]
-        });
-        (
-            [first_gradient, gradients[1], gradients[2], gradients[3]],
-            determinant / 6.0,
-        )
-    }
-
-    fn cross_3(left: [f64; 3], right: [f64; 3]) -> [f64; 3] {
-        [
-            left[1] * right[2] - left[2] * right[1],
-            left[2] * right[0] - left[0] * right[2],
-            left[0] * right[1] - left[1] * right[0],
-        ]
-    }
-
-    fn dot_3(left: [f64; 3], right: [f64; 3]) -> f64 {
-        left.into_iter()
-            .zip(right)
-            .map(|(left, right)| left * right)
-            .sum()
-    }
-
-    fn scale_3(vector: [f64; 3], scale: f64) -> [f64; 3] {
-        vector.map(|value| scale * value)
-    }
-
     fn solid_field_3d(
         mesh: &SimplicialMesh,
         partition: &FixedReferenceFsiPartition<3>,
-    ) -> Vec<[f64; 3]> {
-        let mut field = vec![[0.0; 3]; mesh.vertices().len()];
-        for vertex in partition.solid_vertices() {
+    ) -> BTreeMap<VertexId, [f64; 3]> {
+        let mut field = BTreeMap::new();
+        for vertex in partition
+            .domain_vertices(solid_domain())
+            .expect("solid Domain")
+        {
             let point = &mesh.vertices()[vertex.index()];
-            field[vertex.index()] = [
-                0.01 + 0.02 * point[0] - 0.01 * point[1] + 0.03 * point[2],
-                -0.02 + 0.01 * point[0] + 0.04 * point[1] - 0.02 * point[2],
-                0.03 - 0.02 * point[0] + 0.01 * point[1] + 0.02 * point[2],
-            ];
+            field.insert(
+                *vertex,
+                [
+                    0.01 + 0.02 * point[0] - 0.01 * point[1] + 0.03 * point[2],
+                    -0.02 + 0.01 * point[0] + 0.04 * point[1] - 0.02 * point[2],
+                    0.03 - 0.02 * point[0] + 0.01 * point[1] + 0.02 * point[2],
+                ],
+            );
         }
         field
     }
@@ -674,14 +772,20 @@ mod tests {
         partition: &FixedReferenceFsiPartition<2>,
         first: [f64; 3],
         second: [f64; 3],
-    ) -> Vec<[f64; COMPONENTS]> {
-        let mut field = vec![[0.0; COMPONENTS]; mesh.vertices().len()];
-        for vertex in partition.solid_vertices() {
+    ) -> BTreeMap<VertexId, [f64; COMPONENTS]> {
+        let mut field = BTreeMap::new();
+        for vertex in partition
+            .domain_vertices(solid_domain())
+            .expect("solid Domain")
+        {
             let point = &mesh.vertices()[vertex.index()];
-            field[vertex.index()] = [
-                first[0] + first[1] * point[0] + first[2] * point[1],
-                second[0] + second[1] * point[0] + second[2] * point[1],
-            ];
+            field.insert(
+                *vertex,
+                [
+                    first[0] + first[1] * point[0] + first[2] * point[1],
+                    second[0] + second[1] * point[0] + second[2] * point[1],
+                ],
+            );
         }
         field
     }
@@ -690,8 +794,13 @@ mod tests {
     fn harmonic_motion_preserves_trace_exterior_and_independent_residual() {
         let (mesh, partition) = refined_partition();
         let solver = reference_solver();
-        let motion =
-            P1HarmonicMeshMotionAction::<2>::new(&mesh, &partition, solver).expect("motion seals");
+        let motion = P1HarmonicMeshMotionAction::<2>::new(
+            &mesh,
+            &partition,
+            motion_policy(solver.plan()),
+            solver,
+        )
+        .expect("motion seals");
         assert_eq!(motion.reference_mesh(), &mesh);
         assert_eq!(motion.partition(), &partition);
         assert_eq!(motion.fluid_interior_vertices().len(), 1);
@@ -705,18 +814,23 @@ mod tests {
             assert_eq!(report.algorithm(), LinearSolver::ConjugateGradient);
         }
         let solid = solid_field(&mesh, &partition, [0.01, 0.02, -0.03], [-0.02, 0.01, 0.04]);
-        let displacement = motion.apply(&solid).expect("harmonic action applies");
+        let displacement = motion
+            .apply(solid_displacement(), &solid)
+            .expect("harmonic action applies");
 
-        for vertex in partition.solid_vertices() {
-            assert_eq!(displacement[vertex.index()], solid[vertex.index()]);
+        for vertex in partition
+            .domain_vertices(solid_domain())
+            .expect("solid Domain")
+        {
+            assert_eq!(displacement[vertex.index()], solid[vertex]);
         }
         for vertex in motion.fixed_exterior_vertices() {
             assert_eq!(displacement[vertex.index()], [0.0; COMPONENTS]);
         }
-        for vertex in partition.interface_vertices() {
-            assert_eq!(displacement[vertex.index()], solid[vertex.index()]);
+        for vertex in interface_vertices(&partition) {
+            assert_eq!(displacement[vertex.index()], solid[&vertex]);
         }
-        assert!(partition.interface_vertices().iter().any(|vertex| {
+        assert!(interface_vertices(&partition).iter().any(|vertex| {
             mesh.is_boundary_entity(MeshEntity::new(0, vertex.index())) == Some(true)
                 && !motion.fixed_exterior_vertices().contains(vertex)
         }));
@@ -735,8 +849,7 @@ mod tests {
     #[test]
     fn influence_is_linear_and_jvp_is_the_same_exact_action() {
         let (mesh, partition) = refined_partition();
-        let motion = P1HarmonicMeshMotionAction::<2>::new(&mesh, &partition, reference_solver())
-            .expect("motion seals");
+        let motion = seal_motion(&mesh, &partition);
         let left = solid_field(&mesh, &partition, [0.02, -0.01, 0.03], [0.01, 0.04, -0.02]);
         let right = solid_field(&mesh, &partition, [-0.03, 0.05, 0.01], [0.02, -0.02, 0.06]);
         let alpha = 1.75;
@@ -744,17 +857,29 @@ mod tests {
         let combined = left
             .iter()
             .zip(&right)
-            .map(|(left, right)| {
-                [
-                    alpha * left[0] + beta * right[0],
-                    alpha * left[1] + beta * right[1],
-                ]
+            .map(|((vertex, left), (right_vertex, right))| {
+                assert_eq!(vertex, right_vertex);
+                (
+                    *vertex,
+                    [
+                        alpha * left[0] + beta * right[0],
+                        alpha * left[1] + beta * right[1],
+                    ],
+                )
             })
-            .collect::<Vec<_>>();
-        let applied_left = motion.apply(&left).expect("left action applies");
-        let applied_right = motion.apply(&right).expect("right action applies");
-        let applied_combined = motion.apply(&combined).expect("combined action applies");
-        let jvp = motion.apply_jvp(&combined).expect("exact JVP applies");
+            .collect::<BTreeMap<_, _>>();
+        let applied_left = motion
+            .apply(solid_displacement(), &left)
+            .expect("left action applies");
+        let applied_right = motion
+            .apply(solid_displacement(), &right)
+            .expect("right action applies");
+        let applied_combined = motion
+            .apply(solid_displacement(), &combined)
+            .expect("combined action applies");
+        let jvp = motion
+            .apply_jvp(solid_displacement(), &combined)
+            .expect("exact JVP applies");
         for vertex in 0..mesh.vertices().len() {
             for component in 0..COMPONENTS {
                 let expected = alpha * applied_left[vertex][component]
@@ -768,8 +893,7 @@ mod tests {
     #[test]
     fn tetrahedral_motion_has_one_shared_interface_driver_and_exact_jvp_action() {
         let (mesh, partition) = refined_partition_3d();
-        let motion = P1HarmonicMeshMotionAction::<3>::new(&mesh, &partition, reference_solver())
-            .expect("tetrahedral motion seals");
+        let motion = seal_motion(&mesh, &partition);
         assert_eq!(motion.reference_mesh(), &mesh);
         assert_eq!(motion.partition(), &partition);
         assert_eq!(motion.fluid_interior_vertices().len(), 1);
@@ -777,9 +901,9 @@ mod tests {
             motion.influence_solve_reports().len(),
             motion.driver_vertices().len()
         );
-        for witness in partition.interface_witnesses() {
+        for witness in &partition.traces()[0].facets {
             let facet_vertices = mesh
-                .entity_vertices(MeshEntity::new(2, witness.facet().index()))
+                .entity_vertices(witness.facet)
                 .expect("shared triangular facet owns a closure");
             assert_eq!(facet_vertices.len(), 3);
             assert!(
@@ -787,24 +911,35 @@ mod tests {
                     .iter()
                     .map(|vertex| VertexId::new(vertex.index()))
                     .all(|vertex| {
-                        partition.fluid_vertices().contains(&vertex)
-                            && partition.solid_vertices().contains(&vertex)
+                        partition
+                            .domain_vertices(fluid_domain())
+                            .expect("fluid Domain")
+                            .contains(&vertex)
+                            && partition
+                                .domain_vertices(solid_domain())
+                                .expect("solid Domain")
+                                .contains(&vertex)
                     })
             );
         }
 
         let solid = solid_field_3d(&mesh, &partition);
-        let displacement = motion.apply(&solid).expect("3D harmonic action applies");
+        let displacement = motion
+            .apply(solid_displacement(), &solid)
+            .expect("3D harmonic action applies");
         let repeated = motion
-            .apply(&solid)
+            .apply(solid_displacement(), &solid)
             .expect("the same Dirichlet data has one sealed extension");
         let jvp = motion
-            .apply_jvp(&solid)
+            .apply_jvp(solid_displacement(), &solid)
             .expect("3D exact linear JVP applies");
         assert_eq!(displacement, repeated);
         assert_eq!(jvp, displacement);
-        for vertex in partition.solid_vertices() {
-            assert_eq!(displacement[vertex.index()], solid[vertex.index()]);
+        for vertex in partition
+            .domain_vertices(solid_domain())
+            .expect("solid Domain")
+        {
+            assert_eq!(displacement[vertex.index()], solid[vertex]);
         }
         for vertex in motion.fixed_exterior_vertices() {
             assert_eq!(displacement[vertex.index()], [0.0; 3]);
@@ -825,7 +960,7 @@ mod tests {
                 .iter()
                 .enumerate()
                 .map(|(column, vertex)| {
-                    motion.relation.driver_stiffness()[column] * solid[vertex.index()][component]
+                    motion.relation.driver_stiffness()[column] * solid[vertex][component]
                 })
                 .sum::<f64>();
             let unique_extension = -prescribed_action / motion.relation.interior_stiffness()[0];
@@ -834,111 +969,16 @@ mod tests {
     }
 
     #[test]
-    fn skew_tetrahedral_extension_closes_an_independent_barycentric_residual() {
-        let (reference, reference_partition) = refined_partition_3d();
-        let coordinates = reference
-            .vertices()
-            .iter()
-            .map(|point| {
-                vec![
-                    point[0] + 0.2 * point[1] - 0.1 * point[2],
-                    0.3 * point[0] + 1.1 * point[1] + 0.15 * point[2],
-                    -0.2 * point[0] + 0.1 * point[1] + 0.9 * point[2],
-                ]
-            })
-            .collect();
-        let mesh = SimplicialMesh::new(
-            3,
-            coordinates,
-            reference.cells().to_vec(),
-            MeshQualityGate::new(0.005).expect("valid skew quality gate"),
-        )
-        .expect("positive affine image remains a conforming tetrahedral mesh");
-        let partition = FixedReferenceFsiPartition::<3>::new(
-            &mesh,
-            reference_partition.fluid_cells().to_vec(),
-            reference_partition.solid_cells().to_vec(),
-            reference_partition.interface_facets().to_vec(),
-        )
-        .expect("the affine image preserves the exact material partition");
-        let motion = P1HarmonicMeshMotionAction::<3>::new(&mesh, &partition, reference_solver())
-            .expect("skew tetrahedral motion seals");
-        let displacement = motion
-            .apply(&solid_field_3d(&mesh, &partition))
-            .expect("skew harmonic action applies");
-
-        for interior in motion.fluid_interior_vertices() {
-            for (component, _) in displacement[interior.index()].iter().enumerate() {
-                let mut residual = 0.0;
-                let mut absolute_action = 0.0;
-                for cell in partition.fluid_cells() {
-                    let vertices = mesh
-                        .entity_vertices(MeshEntity::new(3, cell.index()))
-                        .expect("accepted fluid tetrahedron owns vertices");
-                    let Some(test_basis) = vertices
-                        .iter()
-                        .position(|vertex| vertex.index() == interior.index())
-                    else {
-                        continue;
-                    };
-                    let points: [[f64; 3]; 4] = std::array::from_fn(|local| {
-                        mesh.vertices()[vertices[local].index()]
-                            .clone()
-                            .try_into()
-                            .expect("3D test coordinate")
-                    });
-                    let (gradients, volume) = independent_tetrahedron_gradients(points);
-                    let field_gradient: [f64; 3] = std::array::from_fn(|axis| {
-                        vertices
-                            .iter()
-                            .enumerate()
-                            .map(|(local, vertex)| {
-                                displacement[vertex.index()][component] * gradients[local][axis]
-                            })
-                            .sum::<f64>()
-                    });
-                    let action = volume
-                        * gradients[test_basis]
-                            .iter()
-                            .zip(field_gradient)
-                            .map(|(left, right)| left * right)
-                            .sum::<f64>();
-                    residual += action;
-                    absolute_action += action.abs();
-                }
-                let tolerance = 8192.0 * f64::EPSILON * (1.0 + absolute_action);
-                assert!(residual.abs() <= tolerance, "{residual:e} > {tolerance:e}");
-            }
-        }
-    }
-
-    #[test]
-    fn action_rejects_invalid_shape_support_and_finiteness() {
-        let (mesh, partition) = refined_partition();
-        let motion = P1HarmonicMeshMotionAction::<2>::new(&mesh, &partition, reference_solver())
-            .expect("motion seals");
-        assert!(motion.apply(&[]).is_err());
-
-        let fluid_only = partition
-            .fluid_vertices()
-            .iter()
-            .find(|vertex| !partition.solid_vertices().contains(vertex))
-            .expect("test mesh owns a fluid-only vertex")
-            .index();
-        let mut unsupported = vec![[0.0; COMPONENTS]; mesh.vertices().len()];
-        unsupported[fluid_only] = [1.0, 0.0];
-        assert!(motion.apply(&unsupported).is_err());
-
-        let mut non_finite = vec![[0.0; COMPONENTS]; mesh.vertices().len()];
-        non_finite[partition.solid_vertices()[0].index()][0] = f64::NAN;
-        assert!(motion.apply_jvp(&non_finite).is_err());
-    }
-
-    #[test]
     fn first_slice_rejects_a_partition_without_a_solved_fluid_interior() {
         let (mesh, partition) = coarse_partition();
         assert!(
-            P1HarmonicMeshMotionAction::<2>::new(&mesh, &partition, reference_solver()).is_err()
+            P1HarmonicMeshMotionAction::<2>::new(
+                &mesh,
+                &partition,
+                motion_policy(reference_solver().plan()),
+                reference_solver(),
+            )
+            .is_err()
         );
     }
 
@@ -946,57 +986,14 @@ mod tests {
     fn tetrahedral_motion_rejects_incomplete_or_unsolved_dirichlet_closure() {
         let (mesh, partition) = coarse_partition_3d();
         assert!(
-            P1HarmonicMeshMotionAction::<3>::new(&mesh, &partition, reference_solver()).is_err()
+            P1HarmonicMeshMotionAction::<3>::new(
+                &mesh,
+                &partition,
+                motion_policy(reference_solver().plan()),
+                reference_solver(),
+            )
+            .is_err()
         );
-    }
-
-    #[test]
-    fn sealed_action_rejects_another_reference_geometry() {
-        let (mesh, partition) = refined_partition();
-        let motion = P1HarmonicMeshMotionAction::<2>::new(&mesh, &partition, reference_solver())
-            .expect("motion seals");
-        motion
-            .validate_reference(&mesh, &partition)
-            .expect("exact root replays");
-
-        let mut vertices = mesh.vertices().to_vec();
-        vertices[0][0] -= 0.125;
-        let changed = SimplicialMesh::new(
-            DIMENSION,
-            vertices,
-            mesh.cells().to_vec(),
-            mesh.quality_gate(),
-        )
-        .expect("changed geometry remains admissible");
-        assert!(motion.validate_reference(&changed, &partition).is_err());
-    }
-
-    #[test]
-    fn singular_common_problem_fails_closed() {
-        let singular = DenseSpdOperator::new(&[1.0, -1.0, -1.0, 1.0], 2)
-            .expect("shape and symmetry are admissible before the solve");
-        let rhs = [1.0, 0.0];
-        let problem = LinearProblem::new(
-            &singular,
-            &rhs,
-            LinearOperatorProperties::SymmetricPositiveDefinite,
-        )
-        .expect("bounded problem has a valid shape");
-        assert!(reference_solver().solve(&problem).is_err());
-    }
-
-    #[test]
-    fn general_bicgstab_policy_is_rejected_before_motion_assembly() {
-        let (mesh, partition) = refined_partition();
-        let plan = SolverPlan::new(
-            LinearSolver::BiConjugateGradientStabilized,
-            1.0e-12,
-            1.0e-14,
-            NonZeroUsize::new(1_000).expect("positive iteration limit"),
-        )
-        .expect("valid general solver plan");
-        let general = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan);
-        assert!(P1HarmonicMeshMotionAction::<2>::new(&mesh, &partition, general).is_err());
     }
 
     fn independently_assemble_fluid_residual(
@@ -1005,7 +1002,10 @@ mod tests {
         displacement: &[[f64; COMPONENTS]],
     ) -> Vec<[f64; COMPONENTS]> {
         let mut residual = vec![[0.0; COMPONENTS]; mesh.vertices().len()];
-        for cell in partition.fluid_cells() {
+        for cell in partition
+            .domain_cells(fluid_domain())
+            .expect("fluid Domain")
+        {
             let vertices = &mesh.cells()[cell.index()];
             let point = |local: usize| &mesh.vertices()[vertices[local]];
             let twice_area = (point(1)[0] - point(0)[0]) * (point(2)[1] - point(0)[1])

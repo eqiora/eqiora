@@ -135,9 +135,6 @@ pub(super) struct AleFsiStepEvidenceInput<const D: usize> {
     pub(super) nonlinear_linear_solves: Vec<SolveReport>,
 }
 
-#[cfg(test)]
-pub(super) type AleFsiStepEvidenceInput2d = AleFsiStepEvidenceInput<2>;
-
 /// Independently accepted evidence for one monolithic ALE FSI step.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AleFsiStepEvidence<const D: usize> {
@@ -263,15 +260,26 @@ impl<const D: usize> AleFsiStepEvidence<D> {
         let signed_power_imbalance = input.interface_actions.iter().try_fold(
             0.0,
             |sum, action| -> Result<f64, Diagnostic> {
-                let velocity = accepted
-                    .vertex_velocity()
-                    .get(action.vertex().index())
-                    .copied()
-                    .ok_or_else(|| {
-                        invalid(
-                            "fixed-topology ALE FSI interface action is outside the accepted vertex inventory",
-                        )
-                    })?;
+                let mut velocities = plan
+                    .material()
+                    .kinetic_fields()
+                    .filter_map(|field| {
+                        accepted
+                            .physical_state()
+                            .vector_vertices(field)
+                            .ok()
+                            .and_then(|values| values.get(&action.vertex()).copied())
+                    });
+                let velocity = velocities.next().ok_or_else(|| {
+                    invalid(
+                        "fixed-topology ALE FSI interface action is outside the exact kinetic Field inventory",
+                    )
+                })?;
+                if velocities.any(|other| other != velocity) {
+                    return Err(invalid(
+                        "fixed-topology ALE FSI interface kinetic Fields disagree on their shared trace",
+                    ));
+                }
                 let next = sum + action.power_imbalance(velocity)?;
                 if next.is_finite() {
                     Ok(next)

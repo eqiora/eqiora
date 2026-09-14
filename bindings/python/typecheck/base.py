@@ -5,7 +5,10 @@ import numpy.typing as npt
 
 import eqiora
 from eqiora.fsi import (
+    FsiConnectionEvidence,
+    FsiDomainEvidence,
     FsiEvidence,
+    FsiInterfaceActionEvidence,
     FsiStateEvidence,
 )
 from eqiora.meshing import Mesh
@@ -108,8 +111,6 @@ def check_fsi_result(plan: eqiora.Plan, state: eqiora.State) -> None:
     assert_type(plan, eqiora.Plan)
     capability = plan.capability
     assert isinstance(capability, eqiora.fsi.FixedReferenceFsiPlanView)
-    assert_type(capability.fluid_velocity, eqiora.FieldRef)
-    assert_type(capability.pressure, eqiora.FieldRef)
     assert_type(
         plan.temporal, eqiora.time.BackwardEuler | eqiora.time.Tsitouras45 | None
     )
@@ -125,11 +126,11 @@ def check_fsi_result(plan: eqiora.Plan, state: eqiora.State) -> None:
     assert_type(result.trajectory.states, tuple[State, ...])
     assert_type(result.trajectory.state(1).fields, tuple[FieldSnapshot, ...])
     assert_type(
-        result.trajectory.state(1).field(plan.fields[0]),
+        result.trajectory.state(1).field(plan.model.field("definition.fluid_velocity")),
         FieldSnapshot,
     )
     assert_type(
-        result.trajectory.state(1).field(plan.fields[0]).support_indices("vertex"),
+        result.trajectory.state(1).field(plan.model.field("definition.fluid_velocity")).support_indices("vertex"),
         npt.NDArray[np.uint32],
     )
     evidence = eqiora.fsi.evidence(result)
@@ -138,14 +139,19 @@ def check_fsi_result(plan: eqiora.Plan, state: eqiora.State) -> None:
         evidence.state(result.trajectory.state(1)),
         FsiStateEvidence,
     )
-    assert_type(evidence.fluid_cells, npt.NDArray[np.uint32])
-    assert_type(evidence.solid_cells, npt.NDArray[np.uint32])
-    assert_type(evidence.interface_facets, npt.NDArray[np.uint32])
+    assert_type(evidence.domains, tuple[FsiDomainEvidence, ...])
+    assert_type(evidence.domains[0].cells, npt.NDArray[np.uint32])
+    assert_type(evidence.connections, tuple[FsiConnectionEvidence, ...])
+    assert_type(evidence.connections[0].facets, npt.NDArray[np.uint32])
     assert_type(
         evidence.states,
         tuple[FsiStateEvidence, ...],
     )
     assert_type(
-        evidence.state(result.trajectory.state(1)).fluid_action,
+        evidence.state(result.trajectory.state(1)).interface_actions,
+        tuple[FsiInterfaceActionEvidence, ...],
+    )
+    assert_type(
+        evidence.state(result.trajectory.state(1)).interface_actions[0].endpoint_actions,
         npt.NDArray[np.float64],
     )

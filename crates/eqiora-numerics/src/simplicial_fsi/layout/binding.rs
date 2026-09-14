@@ -23,6 +23,7 @@ impl<const D: usize> FsiLayout<D> {
             boundary,
             mapping,
             FsiRoles::derive(equations, plan)?,
+            plan.time_step().clone(),
         )
     }
 
@@ -54,18 +55,13 @@ impl<const D: usize> FsiLayout<D> {
         let layouts = field_layouts(program, plan.spatial().domains(), reference, &scales)?;
         let (domains, traces) = bind_region_topology(
             mesh,
-            [
-                (
-                    roles.bindings[&roles.fluid_velocity].0,
-                    partition.fluid_cells(),
-                ),
-                (
-                    roles.bindings[&roles.solid_velocity].0,
-                    partition.solid_cells(),
-                ),
-            ]
-            .into_iter()
-            .flat_map(|(domain, cells)| cells.iter().map(move |&cell| (cell, domain))),
+            partition.domains().flat_map(|domain| {
+                partition
+                    .domain_cells(domain)
+                    .expect("exact Domain")
+                    .iter()
+                    .map(move |&cell| (cell, domain.erase()))
+            }),
             plan.spatial().trace_quotients(),
         )?;
         let mapping = RegionDofMap::new(
@@ -76,6 +72,13 @@ impl<const D: usize> FsiLayout<D> {
             &traces,
             &BTreeMap::new(),
         )?;
-        Self::new(mesh, partition, boundary, &mapping, roles)
+        Self::new(
+            mesh,
+            partition,
+            boundary,
+            &mapping,
+            roles,
+            plan.time_step().clone(),
+        )
     }
 }
