@@ -1,9 +1,10 @@
 //! Thin Python adapter to reference execution sessions and in-memory checkpoints.
 
 use eqiora::api::ModelDocument;
+use eqiora::entity::{Entity, kinds};
 use eqiora::kernel::{KernelNode, SignalDirection};
 use eqiora::sem::{ExecutionSession, ReferenceConfig};
-use eqiora::{EntityKind, RawId};
+use eqiora::{Id, RawId};
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyTuple};
@@ -49,14 +50,23 @@ impl PyExecutionCheckpoint {
     }
 }
 
-fn resolve(document: &ModelDocument, name: &str, kind: EntityKind) -> PyResult<RawId> {
+fn resolve<E: Entity>(document: &ModelDocument, name: &str) -> PyResult<RawId> {
     document
         .aliases()
         .get(name)
         .copied()
-        .filter(|id| id.kind() == kind)
+        .filter(|id| id.kind() == E::KIND)
+        .or_else(|| {
+            name.parse::<ulid::Ulid>()
+                .ok()
+                .map(|id| Id::<E>::from_ulid(id).erase())
+        })
+        .filter(|id| document.program().node(*id).is_some())
         .ok_or_else(|| {
-            PyValueError::new_err(format!("{name:?} is not an exact {kind:?} in this Model"))
+            PyValueError::new_err(format!(
+                "{name:?} is not an exact {:?} in this Model",
+                E::KIND
+            ))
         })
 }
 
@@ -73,7 +83,7 @@ pub(crate) fn start(
     let mut total = 0usize;
     for (name, table) in inputs.iter() {
         let name: String = name.extract()?;
-        let input = resolve(document, &name, EntityKind::Port)?;
+        let input = resolve::<kinds::Port>(document, &name)?;
         let table = table.cast::<PyTuple>()?;
         if table.len() != 2 {
             return Err(PyTypeError::new_err(
@@ -81,7 +91,7 @@ pub(crate) fn start(
             ));
         }
         let clock_name: String = table.get_item(0)?.extract()?;
-        let clock = resolve(document, &clock_name, EntityKind::ClockDomain)?;
+        let clock = resolve::<kinds::ClockDomain>(document, &clock_name)?;
         let samples = table.get_item(1)?;
         if !(samples.is_instance_of::<PyTuple>() || samples.is_instance_of::<PyList>()) {
             return Err(PyTypeError::new_err(
@@ -218,7 +228,7 @@ impl PyExecutionSession {
     }
 
     fn output(&self, py: Python<'_>, name: &str, tick_index: u64) -> PyResult<Option<Py<PyTuple>>> {
-        let id = resolve(&self.document, name, EntityKind::Port)?;
+        let id = resolve::<kinds::Port>(&self.document, name)?;
         self.value
             .output(id, tick_index)
             .map(|(time, value)| {

@@ -817,6 +817,8 @@ class ExecutionCheckpoint:
 class ExecutionSession:
     """Reference execution through fully stabilized boundaries with explicit input tables.
 
+    Input Port, Clock and output selectors accept source aliases or exact Model-owned ULIDs.
+
     Authority: ``crates/eqiora-python/src/execution_session.rs::PyExecutionSession``.
     """
     def advance(self) -> bool:

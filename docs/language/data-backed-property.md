@@ -1,69 +1,24 @@
 # Specimen: consume a data-backed conductivity
 
-This [target-language](core.md) specimen binds one exact property release into two components.
-Callable real contracts and exact one-dimensional table releases now have source, package,
-Python and Model-replay owners. The complete converged consumer surface below remains a
-target: executable scalar and Parameter-bound Component tests use the same table and laws.
+This maintained [local package](../../examples/property-composition/src/main.eqi) binds one
+exact property release into two ordinary Components. `FourierFlux` evaluates signed flux
+and `SlabConductance` evaluates conductance at each supplied temperature sample. Both
+receive an explicit periodic clock; this example has no thermal evolution or hidden time solver.
+
+The complete runnable source, exact table, attribution and package manifest live in
+[`examples/property-composition`](../../examples/property-composition/README.md).
+Its public declarations carry their documentation in the source. The
+[installed Python test](../../bindings/python/tests/test_property_composition_specimen.py)
+compiles the package, executes both consumers, reopens Model bytes, moves the project with
+its vendored lock and repeats execution without the original store.
 
 ## Contract and complete consumer
 
-The following contract has one real scalar independent variable and one real scalar result.
-Its identity is retained when a release is bound; a scalar with conductivity units is not a
-substitute for the callable contract.
-
-```eqiora
-property contract Conductivity(input temperature: K): W / (m * K) {
-  derivatives first_open_intervals;
-}
-
-component FourierFlux(
-  property conductivity: Conductivity,
-  input temperature: K,
-  input gradient: K / m,
-  output flux: W / m^2
-) {
-  relation constitutive {
-    flux = -conductivity(temperature = temperature) * gradient;
-  }
-}
-
-component SlabConductance(
-  property conductivity: Conductivity,
-  parameter area: m^2,
-  parameter thickness: m,
-  input operating_temperature: K,
-  output conductance: W / K
-) {
-  relation constitutive {
-    conductance = conductivity(temperature = operating_temperature) * area / thickness;
-  }
-}
-
-model PropertyConsumers(
-  property conductivity: Conductivity,
-  input operating_temperature: K,
-  output heat_flux: W / m^2,
-  output conductance: W / K
-) {
-  instance local_flux: FourierFlux(conductivity = conductivity);
-  instance slab: SlabConductance(
-    conductivity = conductivity,
-    area = 0.01 [m^2],
-    thickness = 0.1 [m]
-  );
-
-  connect operating_temperature -> local_flux.temperature;
-  connect operating_temperature -> slab.operating_temperature;
-
-  relation inputs {
-    local_flux.gradient = 2 [K / m];
-  }
-  relation outputs {
-    heat_flux = local_flux.flux;
-    conductance = slab.conductance;
-  }
-}
-```
+`Conductivity` takes temperature in kelvin and returns conductivity in W/(m K).
+`FourierFlux` multiplies this value by the explicitly negative gradient, 2 K/m.
+`SlabConductance` multiplies it by the explicit area/thickness ratio, 0.01 m² / 0.1 m.
+The root connects its input temperature to both consumers and exposes their two outputs.
+Source contains no implicit material installation or numerical provider selection.
 
 `first_open_intervals` is a closed derivative profile: value evaluation on the closed validity
 interval and first derivatives on open smooth segments. Endpoint and nonsmooth-knot derivative
@@ -71,8 +26,8 @@ requests reject. This is not a promise of arbitrary higher derivatives or automa
 The release supplies the actual segment boundaries. The contract permits no history, hidden
 independent variable, uncertainty reduction, or external callback.
 
-These are lumped constitutive evaluations, with no spatial support, boundary closure, stored
-state, or initialization equation. `gradient` is a signed scalar gradient along a declared
+These are sampled lumped constitutive evaluations, with no spatial support, boundary closure,
+stored state, or initialization equation. `gradient` is a signed scalar gradient along a declared
 one-dimensional local direction, not an interchangeable three-dimensional vector. The slab
 conductance uses a uniform material evaluated at the supplied operating temperature; it is
 not an exact nonlinear through-thickness temperature solution.
