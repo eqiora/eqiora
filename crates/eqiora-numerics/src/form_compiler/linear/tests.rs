@@ -94,11 +94,13 @@ fn whole_row_reversal_preserves_diffusion_reaction_and_source() {
     let original = derive(&source)
         .unwrap()
         .volume()
+        .unwrap()
         .evaluate(&geometry(), &quadrature, &BTreeMap::new())
         .unwrap();
     let reversed = derive(&reversed)
         .unwrap()
         .volume()
+        .unwrap()
         .evaluate(&geometry(), &quadrature, &BTreeMap::new())
         .unwrap();
     assert_eq!(original, reversed);
@@ -107,6 +109,7 @@ fn whole_row_reversal_preserves_diffusion_reaction_and_source() {
         derive(&negative)
             .unwrap()
             .volume()
+            .unwrap()
             .evaluate(&geometry(), &quadrature, &BTreeMap::new())
             .is_err()
     );
@@ -141,6 +144,7 @@ fn parameter_point_rebinding_preserves_the_original_compiled_form() {
     let quadrature = QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap();
     let original = form
         .volume()
+        .unwrap()
         .evaluate(&geometry(), &quadrature, &BTreeMap::new())
         .unwrap();
     let rebound = form.bind_parameter_point(&fields, &[2.0]).unwrap();
@@ -152,17 +156,20 @@ fn parameter_point_rebinding_preserves_the_original_compiled_form() {
     let expected = derive(&changed_source)
         .unwrap()
         .volume()
+        .unwrap()
         .evaluate(&geometry(), &quadrature, &BTreeMap::new())
         .unwrap();
     assert_eq!(
         rebound
             .volume()
+            .unwrap()
             .evaluate(&geometry(), &quadrature, &BTreeMap::new())
             .unwrap(),
         expected
     );
     assert_eq!(
         form.volume()
+            .unwrap()
             .evaluate(&geometry(), &quadrature, &BTreeMap::new())
             .unwrap(),
         original
@@ -194,18 +201,22 @@ fn bound_volume_preserves_field_order_and_rebound_diffusion_positivity() {
         &std::collections::BTreeSet::new(),
     )
     .unwrap();
-    assert_eq!(form.fields().len(), form.volume().fields().len());
-    for (index, ((field, value_type), layout)) in
-        form.fields().iter().zip(form.volume().fields()).enumerate()
+    assert_eq!(form.fields().len(), form.volume().unwrap().fields().len());
+    for (index, ((field, value_type), layout)) in form
+        .fields()
+        .iter()
+        .zip(form.volume().unwrap().fields())
+        .enumerate()
     {
         assert_eq!(*field, layout.field);
         assert_eq!(*value_type, layout.value_type);
         assert_eq!(layout.range, 2 * index..2 * index + 2);
     }
-    assert!(form.volume().previous_fields().is_empty());
+    assert!(form.volume().unwrap().previous_fields().is_empty());
     let quadrature = QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap();
     let original = form
         .volume()
+        .unwrap()
         .evaluate(&geometry(), &quadrature, &BTreeMap::new())
         .unwrap();
     let parameters = [
@@ -214,7 +225,7 @@ fn bound_volume_preserves_field_order_and_rebound_diffusion_positivity() {
     ];
     for k in [0.0, 1.0] {
         let rebound = form.bind_parameter_point(&parameters, &[k, 1.0]).unwrap();
-        let volume = rebound.volume().clone();
+        let volume = rebound.volume().unwrap().clone();
         let error = volume
             .evaluate(&geometry(), &quadrature, &BTreeMap::new())
             .unwrap_err();
@@ -225,6 +236,7 @@ fn bound_volume_preserves_field_order_and_rebound_diffusion_positivity() {
     }
     assert_eq!(
         form.volume()
+            .unwrap()
             .evaluate(&geometry(), &quadrature, &BTreeMap::new())
             .unwrap(),
         original
@@ -245,6 +257,7 @@ fn check(reaction: &[Vec<f64>], reverse: bool) {
     );
     let local = form
         .volume()
+        .unwrap()
         .evaluate(
             &geometry(),
             &QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap(),
@@ -338,17 +351,20 @@ fn coefficient_chains_bind_the_exact_parameter_point_and_spatial_flux() {
     let quadrature = QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap();
     let local = form
         .volume()
+        .unwrap()
         .evaluate(&geometry(), &quadrature, &BTreeMap::new())
         .unwrap();
     close(local.matrix()[0], 1.0 + 2.0 / 3.0);
     let changed = derive(&authored.replace("slope: 1 / m = 1", "slope: 1 / m = 2")).unwrap();
     let changed_local = changed
         .volume()
+        .unwrap()
         .evaluate(&geometry(), &quadrature, &BTreeMap::new())
         .unwrap();
     close(changed_local.matrix()[0], 1.5 + 2.0 / 3.0);
     close(
         form.volume()
+            .unwrap()
             .evaluate(&geometry(), &quadrature, &BTreeMap::new())
             .unwrap()
             .matrix()[0],
@@ -382,6 +398,7 @@ fn rows_preserve_distinct_checked_physical_dimensions() {
     );
     let local = form
         .volume()
+        .unwrap()
         .evaluate(
             &geometry(),
             &QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap(),
@@ -404,6 +421,7 @@ fn conservation_preserves_physical_flux_orientation() {
         let local = derive(input)
             .unwrap()
             .volume()
+            .unwrap()
             .evaluate(&geometry(), &quadrature, &BTreeMap::new())
             .unwrap();
         // h=2, diffusion=2: integral k N_i' N_j' = +/-1;
@@ -419,6 +437,7 @@ fn conservation_preserves_physical_flux_orientation() {
     let error = derive(&backwards)
         .unwrap()
         .volume()
+        .unwrap()
         .evaluate(&geometry(), &quadrature, &BTreeMap::new())
         .unwrap_err();
     assert!(error.message().contains("positive finite diffusion"));

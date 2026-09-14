@@ -32,3 +32,28 @@ There is no time variable, initialization or thermal storage evolution in this
 Model. Transient spatial thermal execution, a full three-dimensional heated
 cube, bundled standard thermal Components, and curated-versus-lower-level
 thermal package composition remain outside this specimen.
+
+## Heat storage and initial conditions
+
+The same package also exposes `TransientHeatedBody`. Supply the same Geometry
+bindings and positive `capacity` in J/(m³ K). Its temperature State starts at
+300 K, and all four boundary traces remain 300 K. Resolve with Q1 and
+`eqiora.time.BackwardEuler(step_s=1/24)`, initialize with `eqiora.State.initial(plan)`,
+then run with `steps=3, output_steps=(1, 2, 3)`. The accepted temperatures are
+available from `result.trajectory.states`, through each State's exact temperature
+Field snapshot. Plan, State and Result bytes use the same common replay APIs;
+`State.from_result` selects a restart at an accepted time.
+
+For unit conductivity, capacity and heating on the four-cell unit square, the
+single interior Q1 coefficient has mass M=1/9, stiffness K=8/3 and load F=1/4.
+Writing θ=T−300, BackwardEuler gives
+`(M/dt + K) θ[n] = F + (M/dt) θ[n−1]`. With dt=1/24 s and θ[0]=0,
+`T[n] = 300 + (3/32)*(1 - 2**(-n))` K. The installed test checks every step's
+mass-plus-conduction balance, all eight prescribed boundary coefficients,
+changed capacity/heating/step, restart and moved vendor-only execution.
+
+This is a constant-capacity, single scalar Q1 Field on one Cartesian Region.
+It does not claim a continuum-exact temperature profile, recovered physical
+boundary flux, nonlinear or state-dependent capacity, interfaces, transient
+sensitivity, or an authored transient Law-to-Form correspondence certificate.
+The steady `HeatedBody` entry retains its separate authored-form evidence.

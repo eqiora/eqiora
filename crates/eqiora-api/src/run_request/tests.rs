@@ -1,3 +1,4 @@
+use eqiora_numerics::CommonTransientFlowPlan;
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 
@@ -24,8 +25,20 @@ const TIME_BACKEND: TimeBackendIdentity = TimeBackendIdentity::new("eqiora.test.
 fn exact_common_transient_request_round_trips_and_normalizes_schedule_spelling() {
     let plan = transient_plan();
     let state = plan.zero_state(0.0).unwrap();
-    let by_steps = RunRequest::from_steps(plan.clone(), state.clone(), 2, vec![1, 2]).unwrap();
-    let by_times = RunRequest::from_times(plan, state, 0.02, vec![0.01, 0.02]).unwrap();
+    let by_steps = RunRequest::from_steps(
+        ResolvedCommonPlan::TransientFlow(Box::new(plan.clone())),
+        state.clone(),
+        2,
+        vec![1, 2],
+    )
+    .unwrap();
+    let by_times = RunRequest::from_times(
+        ResolvedCommonPlan::TransientFlow(Box::new(plan)),
+        state,
+        0.02,
+        vec![0.01, 0.02],
+    )
+    .unwrap();
 
     assert_eq!(by_steps.identity(), by_times.identity());
     assert_eq!(by_steps.to_bytes().unwrap(), by_times.to_bytes().unwrap());
@@ -99,16 +112,54 @@ fn replay_rejects_cross_wired_roots_bad_base64_and_oversized_input() {
 fn preparation_rejects_nonfinite_time_and_invalid_step_schedules() {
     let plan = transient_plan();
     let state = plan.zero_state(0.0).unwrap();
-    assert!(RunRequest::from_times(plan.clone(), state.clone(), f64::NAN, vec![0.01]).is_err());
-    assert!(RunRequest::from_steps(plan.clone(), state.clone(), 0, vec![1]).is_err());
-    assert!(RunRequest::from_steps(plan.clone(), state.clone(), 2, vec![]).is_err());
-    assert!(RunRequest::from_steps(plan, state, 2, vec![2, 1]).is_err());
+    assert!(
+        RunRequest::from_times(
+            ResolvedCommonPlan::TransientFlow(Box::new(plan.clone())),
+            state.clone(),
+            f64::NAN,
+            vec![0.01]
+        )
+        .is_err()
+    );
+    assert!(
+        RunRequest::from_steps(
+            ResolvedCommonPlan::TransientFlow(Box::new(plan.clone())),
+            state.clone(),
+            0,
+            vec![1]
+        )
+        .is_err()
+    );
+    assert!(
+        RunRequest::from_steps(
+            ResolvedCommonPlan::TransientFlow(Box::new(plan.clone())),
+            state.clone(),
+            2,
+            vec![]
+        )
+        .is_err()
+    );
+    assert!(
+        RunRequest::from_steps(
+            ResolvedCommonPlan::TransientFlow(Box::new(plan)),
+            state,
+            2,
+            vec![2, 1]
+        )
+        .is_err()
+    );
 }
 
 fn request() -> RunRequest {
     let plan = transient_plan();
     let state = plan.zero_state(0.0).unwrap();
-    RunRequest::from_steps(plan, state, 2, vec![1, 2]).unwrap()
+    RunRequest::from_steps(
+        ResolvedCommonPlan::TransientFlow(Box::new(plan)),
+        state,
+        2,
+        vec![1, 2],
+    )
+    .unwrap()
 }
 
 fn transient_plan() -> CommonTransientFlowPlan {

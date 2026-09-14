@@ -1,4 +1,4 @@
-"""Run the maintained steady heated-body package with installed Eqiora."""
+"""Run maintained steady and transient heat with installed Eqiora."""
 from pathlib import Path
 import tempfile
 
@@ -18,7 +18,7 @@ def geometry_and_bindings():
     return geometry, bindings
 
 
-def resolve(model, geometry):
+def resolve(model, geometry, temporal=None):
     mesh = eqiora.meshing.generate(eqiora.meshing.resolve(
         geometry, eqiora.meshing.CartesianMesher(cells=(2, 2))))
     linear = eqiora.solve.Linear(
@@ -28,7 +28,7 @@ def resolve(model, geometry):
         provider=eqiora.solve.SolverProvider.reference(),
         relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=1000,
     )
-    return eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
+    return eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear, temporal=temporal)
 
 
 def main():
@@ -46,6 +46,16 @@ def main():
         field = model.field(trial_id)
         print("Steady temperature coefficients [K]:")
         print(result.output(field).values("vertex").numpy())
+        transient = eqiora.compile_package(
+            store, lock, entry="TransientHeatedBody", geometry=geometry,
+            bindings={**bindings, "capacity": 1.0},
+        )
+        plan = resolve(transient, geometry, eqiora.time.BackwardEuler(step_s=1/24))
+        result = eqiora.run(plan, state=eqiora.State.initial(plan), steps=3, output_steps=(1, 2, 3))
+        temperature = transient.field("definition.temperature")
+        print("Accepted transient temperature coefficients [K]:")
+        for state in result.trajectory.states:
+            print(state.time_s, state.field(temperature).values("vertex"))
 
 
 if __name__ == "__main__":

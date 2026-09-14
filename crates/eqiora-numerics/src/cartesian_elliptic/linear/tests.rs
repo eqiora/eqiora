@@ -366,3 +366,92 @@ fn heterogeneous_length_and_time_fields_preserve_dimensional_general_assembly() 
     );
     exercise_source(&reaction, &source, &names);
 }
+
+#[test]
+fn scalar_storage_uses_consistent_mass_and_nonzero_boundary_history() {
+    let source = r#"
+model Heat() {
+ domain body = box(0, 1);
+ domain left = boundary(body, axis = 0, side = lower);
+ domain right = boundary(body, axis = 0, side = upper);
+ state u: 1 on body;
+ parameter c: s / m^2 = 3;
+ parameter q: 1 / m^2 = 4;
+ initial { u = 2; }
+ law balance on body { storage c * u; flux -grad(u); source q; }
+ relation left_value on left { trace(u) = 2; }
+ relation right_value on right { trace(u) = 2; }
+}
+"#;
+    let (form, symbols) = compiled(source);
+    assert!(form.is_transient());
+    assert_eq!(
+        form.initial_values().unwrap()[&symbols.get("u").unwrap()],
+        2.0
+    );
+    assert!(form.volume().is_err());
+    let capacity = symbols.get("c").unwrap().downcast().unwrap();
+    let heating = symbols.get("q").unwrap().downcast().unwrap();
+    let parameters = [capacity, heating];
+    assert!(form.bind_parameter_point(&parameters, &[0.0, 4.0]).is_err());
+    assert!(
+        form.bind_parameter_point(&parameters, &[-3.0, 4.0])
+            .is_err()
+    );
+    let second = eqiora_core::DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap();
+    let form = form
+        .bind_backward_euler(eqiora_core::DynQuantity::new(0.25, second))
+        .unwrap();
+    let mesh = CartesianMesh::from_axes(vec![vec![0.0, 0.5, 1.0]]).unwrap();
+    let quadrature = QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap();
+    let doubled = form.bind_parameter_point(&parameters, &[6.0, 4.0]).unwrap();
+    let slower = CartesianLinearAssembly::assemble_backward_euler(
+        &doubled,
+        &mesh,
+        &quadrature,
+        &REFERENCE_ASSEMBLY_BACKEND,
+        &boundaries(&symbols),
+        &[2.0; 3],
+    )
+    .unwrap();
+    // Doubled capacity doubles M alone, reducing the first temperature increment to 1/6.
+    close(
+        &[slower.system.rhs()[0] / dense(&slower.system)[0]],
+        &[2.0 + 1.0 / 6.0],
+        1e-12,
+    );
+    assert!(slower.into_single_field_canonical().is_err());
+    let mut previous = vec![2.0; 3];
+    // On each interval, exact integrals give M=c*h/6*[[2,1],[1,2]],
+    // K=1/h*[[1,-1],[-1,1]], F=q*h/2*[1,1]. Thus the reduced
+    // operator is 8 and u_n=2+(1-2^-n)/2 with both boundary histories retained.
+    for expected in [2.25, 2.375, 2.4375] {
+        let assembled = CartesianLinearAssembly::assemble_backward_euler(
+            &form,
+            &mesh,
+            &quadrature,
+            &REFERENCE_ASSEMBLY_BACKEND,
+            &boundaries(&symbols),
+            &previous,
+        )
+        .unwrap();
+        close(
+            &dense(&assembled.full_system),
+            &[4.0, -1.0, 0.0, -1.0, 8.0, -1.0, 0.0, -1.0, 4.0],
+            1e-12,
+        );
+        let value = assembled.system.rhs()[0] / dense(&assembled.system)[0];
+        close(&[value], &[expected], 1e-12);
+        previous[1] = value;
+    }
+    assert!(
+        CartesianLinearAssembly::assemble(
+            &form,
+            &mesh,
+            &quadrature,
+            &REFERENCE_ASSEMBLY_BACKEND,
+            &boundaries(&symbols)
+        )
+        .is_err()
+    );
+}

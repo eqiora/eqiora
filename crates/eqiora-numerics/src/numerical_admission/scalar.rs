@@ -2,6 +2,7 @@ use super::*;
 
 mod interval;
 mod regions;
+mod transient;
 pub(crate) use regions::ExecutableScalarEquations;
 
 fn describe_primal(
@@ -183,6 +184,19 @@ impl CommonScalarPlan {
                 "common scalar Plan admitted non-scalar mathematics",
             ));
         };
+        if admission.temporal.is_some() {
+            let region = lowered.single()?;
+            if admission.spatial != NativeSpatialPolicy::ScalarQ1
+                || region.form.fields().len() != 1
+                || !region.form.is_transient()
+                || !lowered.interfaces.is_empty()
+            {
+                return Err(invalid(
+                    "scalar storage currently requires one Q1 Field on one complete Region",
+                ));
+            }
+            region.form.initial_values()?;
+        }
         let fields = lowered
             .fields()
             .iter()
@@ -328,6 +342,11 @@ impl CommonScalarPlan {
         &self,
         backend: &dyn LinearSolverBackend,
     ) -> Result<crate::CommonResult, Diagnostic> {
+        if self.admission.temporal.is_some() {
+            return Err(invalid(
+                "scalar storage execution requires an exact State and Run schedule",
+            ));
+        }
         crate::CommonResult::accept_scalar(self.clone(), 0.0, self.run(backend)?)
     }
 

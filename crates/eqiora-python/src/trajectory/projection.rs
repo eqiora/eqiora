@@ -28,6 +28,13 @@ impl PyTrajectory {
                     Some(native.realization_digest().to_owned()),
                     false,
                 )
+            } else if let Some(native) = plan.scalar_native() {
+                (
+                    native.model_digest().to_owned(),
+                    native.identity().to_owned(),
+                    Some(native.realization_digest().to_owned()),
+                    false,
+                )
             } else if let Some(native) = plan.fsi_native() {
                 (
                     native.model_digest().to_owned(),

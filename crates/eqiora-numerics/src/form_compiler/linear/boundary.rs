@@ -1,4 +1,4 @@
-use crate::form_compiler::region::BoundRegionForm;
+use crate::form_compiler::region::CompiledRegionForm;
 
 #[cfg(test)]
 mod tests;
@@ -19,7 +19,7 @@ pub(super) fn derive(
     parent: RawId,
     dimension: usize,
     fields: &[(RawId, ValueType)],
-    volume: &BoundRegionForm,
+    volume: &CompiledRegionForm,
     interface_boundaries: &BTreeSet<RawId>,
 ) -> Result<Inventory, Diagnostic> {
     let mut boundaries = fields

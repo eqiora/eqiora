@@ -9,6 +9,7 @@ use super::data::{Context, Data};
 pub(super) struct Terms {
     pub(super) constant: Data,
     pub(super) reaction: BTreeMap<RawId, Data>,
+    pub(super) storage: BTreeMap<RawId, Data>,
     pub(super) diffusion: BTreeMap<RawId, Data>,
 }
 
@@ -17,6 +18,7 @@ impl Terms {
         Self {
             constant,
             reaction: BTreeMap::new(),
+            storage: BTreeMap::new(),
             diffusion: BTreeMap::new(),
         }
     }
@@ -24,6 +26,7 @@ impl Terms {
         self.constant = self.constant.add(right.constant);
         for (target, terms) in [
             (&mut self.reaction, right.reaction),
+            (&mut self.storage, right.storage),
             (&mut self.diffusion, right.diffusion),
         ] {
             for (field, value) in terms {
@@ -46,6 +49,7 @@ impl Terms {
             .reaction
             .values_mut()
             .chain(self.diffusion.values_mut())
+            .chain(self.storage.values_mut())
         {
             *value = value.clone().multiply(data.clone());
         }
@@ -54,6 +58,40 @@ impl Terms {
 }
 
 impl Context<'_> {
+    pub(super) fn conservation(
+        &self,
+        law: eqiora_schema::kernel::ConservationTerms,
+    ) -> Result<Terms, Diagnostic> {
+        let (field, coefficient) = self.flux(law.flux(), 0)?;
+        let mut row = Terms::data(
+            self.data(law.source(), 0)?
+                .multiply(Data::constant(self.dimension, -1.0)),
+        );
+        row.diffusion.insert(
+            field,
+            coefficient.multiply(Data::constant(self.dimension, -1.0)),
+        );
+        if let Some((stored, _accumulation)) = law.storage() {
+            // Kernel admission independently proves accumulation is d(stored)/dt.
+            // This numerical slice reads exact physical storage instead of expanding
+            // the compiler's formal partial-operator application.
+            let storage = self.terms(stored, 0)?;
+            if !storage.diffusion.is_empty()
+                || !storage.storage.is_empty()
+                || storage.reaction.len() != 1
+                || !storage.reaction.contains_key(&field)
+                || storage.constant.spatial()
+                || storage.constant.evaluate(&vec![0.0; self.dimension])? != 0.0
+            {
+                return Err(super::invalid(
+                    "scalar Law storage requires one coefficient times its exact Field",
+                ));
+            }
+            row.storage = storage.reaction;
+        }
+        Ok(row)
+    }
+
     pub(super) fn diffusion_orientation(
         &self,
         id: ExprId,
@@ -98,6 +136,11 @@ impl Context<'_> {
             Some(ExprNode::Symbol(SymbolRef::Field(field))) => {
                 let mut terms = Terms::data(Data::constant(self.dimension, 0.0));
                 terms.reaction.insert(field.erase(), one());
+                Ok(terms)
+            }
+            Some(ExprNode::Symbol(SymbolRef::Derivative(field))) => {
+                let mut terms = Terms::data(Data::constant(self.dimension, 0.0));
+                terms.storage.insert(field.erase(), one());
                 Ok(terms)
             }
             Some(ExprNode::Add(a, b)) => Ok(terms(*a)?.add(terms(*b)?)),

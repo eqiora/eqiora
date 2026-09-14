@@ -494,6 +494,14 @@ impl PyRun {
         profile: bool,
     ) -> PyResult<Self> {
         let plan_ref = plan.borrow(py);
+        if plan_ref.scalar_native().is_some()
+            && plan_ref.native().backward_euler().is_some()
+            && request.is_none()
+        {
+            return Err(PyTypeError::new_err(
+                "transient scalar submit requires State and an explicit output schedule",
+            ));
+        }
         let (identity, job, thread_name, cancellation_supported) = match (
             plan_ref.native(),
             request,
@@ -528,7 +536,10 @@ impl PyRun {
                 "eqiora-common-steady-stokes-run",
                 true,
             ),
-            (ResolvedCommonPlan::TransientFlow(_), Some(CommonRunRequest::Transient(request))) => (
+            (
+                ResolvedCommonPlan::TransientFlow(_) | ResolvedCommonPlan::Scalar(_),
+                Some(CommonRunRequest::Transient(request)),
+            ) => (
                 RunIdentity::from_common_transient(&request),
                 NativeRunJob::Transient(request),
                 "eqiora-common-transient-run",
@@ -873,7 +884,7 @@ pub(crate) fn submit_plan(
                 CommonOdeRunRequest::new(native_plan.clone(), native_state.clone(), until, outputs)
                     .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
             )))
-        } else if let Some(native_plan) = plan_ref.transient_native() {
+        } else if plan_ref.native().backward_euler().is_some() && plan_ref.fsi_native().is_none() {
             let state = state.ok_or_else(|| {
                 PyTypeError::new_err("transient submit requires state=State(...)")
             })?;
@@ -881,17 +892,12 @@ pub(crate) fn submit_plan(
             let native_state = state.common_native().ok_or_else(|| {
                 PyValueError::new_err("State is not a common transient restart State")
             })?;
-            if native_state.state_space_identity() != native_plan.state_space_identity() {
-                return Err(PyValueError::new_err(
-                    "State belongs to a different exact common state space",
-                ));
-            }
             let request = match (until_s, output_times_s, steps, output_steps) {
                 (Some(until), Some(outputs), None, None) => CommonTransientRunRequest::from_times(
-                    native_plan.clone(), native_state.clone(), until, outputs,
+                    plan_ref.native().clone(), native_state.clone(), until, outputs,
                 ),
                 (None, None, Some(steps), Some(outputs)) => CommonTransientRunRequest::from_steps(
-                    native_plan.clone(), native_state.clone(), steps, outputs,
+                    plan_ref.native().clone(), native_state.clone(), steps, outputs,
                 ),
                 _ => return Err(PyTypeError::new_err(
                     "transient submit requires exactly one complete until_s/output_times_s or steps/output_steps family",

@@ -278,13 +278,10 @@ impl ResolvedCommonPlan {
     #[must_use]
     pub const fn backward_euler(&self) -> Option<CommonBackwardEuler> {
         match self {
+            Self::Scalar(plan) => plan.admission.temporal,
             Self::TransientFlow(plan) => Some(plan.temporal()),
             Self::Fsi(plan) => Some(plan.temporal()),
-            Self::Algebraic(_)
-            | Self::Ode(_)
-            | Self::Scalar(_)
-            | Self::Elasticity(_)
-            | Self::SteadyStokes(_) => None,
+            Self::Algebraic(_) | Self::Ode(_) | Self::Elasticity(_) | Self::SteadyStokes(_) => None,
         }
     }
 
@@ -822,6 +819,13 @@ fn temporal_request(plan: &ResolvedCommonPlan) -> Option<WireTemporal> {
                 })
                 .collect(),
         }),
+        ResolvedCommonPlan::Scalar(plan) => {
+            plan.admission
+                .temporal
+                .map(|temporal| WireTemporal::BackwardEuler {
+                    step_s: temporal.step().value(),
+                })
+        }
         ResolvedCommonPlan::TransientFlow(plan) => Some(WireTemporal::BackwardEuler {
             step_s: plan.temporal().step().value(),
         }),
@@ -829,7 +833,6 @@ fn temporal_request(plan: &ResolvedCommonPlan) -> Option<WireTemporal> {
             step_s: plan.temporal().step().value(),
         }),
         ResolvedCommonPlan::Algebraic(_)
-        | ResolvedCommonPlan::Scalar(_)
         | ResolvedCommonPlan::Elasticity(_)
         | ResolvedCommonPlan::SteadyStokes(_) => None,
     }

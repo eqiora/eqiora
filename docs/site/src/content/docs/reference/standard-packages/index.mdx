@@ -63,7 +63,7 @@ sampled temperature input, executes table endpoints and interior values, and rep
 moving its vendored lock offline. These are local specimen packages, not bundled standard
 releases in `crates/eqiora-api/packages/`. A heated-body Law and transient thermal solve are outside this example.
 
-## Steady heated-body specimen
+## Heated-body specimens
 
 The <ExactSourceLink kind="blob" path="examples/heated-body/src/main.eqi">maintained heated-body Component</ExactSourceLink>
 retains a steady heat Law and a zero-trace weak form with four explicit 300 K
@@ -71,4 +71,10 @@ boundaries. The <ExactSourceLink kind="blob" path="examples/heated-body/run.py">
 locks this local package and runs a four-cell Q1 discretization with explicit
 solver policy. Its independently derived central temperature is 300 + 3/32 K.
 This is a local instructional package, not a bundled standard thermal release;
-transient spatial storage execution remains unsupported.
+the same source also exposes `TransientHeatedBody` with constant capacity,
+complete 300 K initial and boundary data, Q1 and BackwardEuler. For unit capacity
+and step 1/24 s, the independent central coefficient after n steps is
+`300 + (3/32)*(1 - 2**(-n))` K. The common State and Result support accepted-time
+restart, exact replay and moved offline package execution. Nonlinear capacity,
+material interfaces and authored transient correspondence certificates remain
+outside this bounded profile.

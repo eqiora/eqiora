@@ -1,4 +1,4 @@
-# Specimen: a steady heated body
+# Specimen: steady and transient heated bodies
 
 The maintained [heated-body local package](../../examples/heated-body/README.md)
 now executes through ordinary installed Python. Its [single mathematical source](../../examples/heated-body/src/main.eqi)
@@ -16,9 +16,16 @@ The temperature is an absolute Kelvin field; no shifted variable conceals the
 nonzero boundary condition. This is a steady manufactured discrete problem,
 not thermal time evolution or an exact continuum temperature profile.
 
-Fixed-volume Law storage has separate language admission, but transient spatial
-thermal execution is not connected. Consequently this executable specimen has
-no initial condition or storage term. The former proposed three-dimensional
-transient cube and `Eqiora.Thermal.Conduction` import have been removed rather
-than presented as an executable standard package. Full transient boundary/initial
-conditions and curated thermal package composition remain tracked by #896.
+The same source also exposes `TransientHeatedBody`, with constant positive
+volumetric heat capacity and an explicit 300 K initial State. It retains the
+complete boundary and advances through Q1, BackwardEuler and the ordinary
+Plan/State/Run/Result APIs. On the same four-cell mesh, the interior mass is 1/9,
+stiffness is 8/3 and heating load is 1/4 in coherent SI units per unit depth.
+With unit capacity and step 1/24 s, the independent coefficient is
+`300 + (3/32)*(1 - 2**(-n))` K after n steps. Each step's heat balance,
+restart, replay and moved offline lock are tested independently.
+
+The transient entry uses the shared compiled region equations; an authored
+transient Law-to-Form correspondence certificate is outside this claim. Wider
+capacities, material interfaces, 3D thermal execution and a curated thermal
+standard package remain separate work.

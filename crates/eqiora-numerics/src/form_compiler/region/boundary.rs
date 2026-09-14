@@ -63,17 +63,6 @@ impl RegionBoundaryLaw {
     }
 }
 
-impl BoundRegionForm {
-    pub(in crate::form_compiler) fn boundary_law(
-        &self,
-        program: &KernelProgram,
-        boundary: RawId,
-        relation: RawId,
-    ) -> Result<RegionBoundaryLaw, Diagnostic> {
-        self.form.boundary_law(program, boundary, relation)
-    }
-}
-
 impl CompiledRegionForm {
     pub(in crate::form_compiler) fn boundary_law(
         &self,

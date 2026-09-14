@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use eqiora_core::{Diagnostic, RawId, ScalarDomain, ValueFrame, ValueType};
+use eqiora_core::{Diagnostic, DynQuantity, RawId, ScalarDomain, ValueFrame, ValueType};
 use eqiora_schema::kernel::{DomainKind, ExprNode, KernelNode, RelationMeaning, SymbolRef};
 use eqiora_sem::KernelProgram;
 
@@ -14,6 +14,7 @@ mod binding;
 mod boundary;
 pub(super) mod data;
 mod lowering;
+mod temporal;
 
 use data::{Context, Data};
 
@@ -26,7 +27,10 @@ pub(crate) struct CompiledLinearBlockForm {
     residual_types: Vec<ValueType>,
     dependencies: BTreeMap<RawId, BTreeSet<RawId>>,
     boundary_laws: BTreeMap<RawId, BTreeMap<RawId, super::region::RegionBoundaryLaw>>,
-    volume: BoundRegionForm,
+    volume: CompiledRegionForm,
+    step: Option<DynQuantity>,
+    initial: BTreeMap<RawId, Data>,
+    storage: BTreeMap<RawId, Data>,
 }
 
 impl CompiledLinearBlockForm {
@@ -58,7 +62,17 @@ impl CompiledLinearBlockForm {
         let roles = EquationRoles::derive(program, [domain])?;
         for relation in roles.relations.keys() {
             let typed = typed_relation(program, *relation)?;
-            require_closed_dag(typed.expression(), *relation)?;
+            match program.node(*relation) {
+                Some(KernelNode::Relation(definition))
+                    if matches!(definition.meaning(), RelationMeaning::Conservation(_)) =>
+                {
+                    let RelationMeaning::Conservation(law) = definition.meaning() else {
+                        unreachable!()
+                    };
+                    temporal::require_closed_law(typed.expression(), *law)?;
+                }
+                _ => require_closed_dag(typed.expression(), *relation)?,
+            }
             for node_type in typed.node_types() {
                 if let Some(support) = &node_type.support
                     && (*support.domain() != domain || support.dimensions() != dimension)
@@ -95,6 +109,7 @@ impl CompiledLinearBlockForm {
             .collect::<Vec<_>>();
         let coefficients = coefficients(program, dimension, &roles)?;
         let mut rows = Vec::new();
+        let mut storage = BTreeMap::new();
         let mut residual_types = Vec::new();
         for (field, relation) in &residuals {
             let typed = typed_relation(program, *relation)?;
@@ -112,7 +127,13 @@ impl CompiledLinearBlockForm {
                 dimension,
                 coefficients: &coefficients,
             };
-            let mut row = context.terms(root, 0)?;
+            let mut row = match program.node(*relation) {
+                Some(KernelNode::Relation(definition)) => match definition.meaning() {
+                    RelationMeaning::Conservation(terms) => context.conservation(*terms)?,
+                    _ => context.terms(root, 0)?,
+                },
+                _ => context.terms(root, 0)?,
+            };
             // Conservation fixes the physical outward flux orientation. Equations
             // may reverse their entire row, but a Law must retain its sign.
             let physical_balance = matches!(program.node(*relation),
@@ -132,6 +153,17 @@ impl CompiledLinearBlockForm {
                     "linear row requires its unique principal diffusion and exact unknown trial Fields",
                 ));
             }
+            if !row.storage.is_empty() {
+                if row.storage.len() != 1
+                    || !row.storage.contains_key(field)
+                    || residuals.len() != 1
+                {
+                    return Err(invalid(
+                        "first scalar Backward Euler requires storage of its single exact Field",
+                    ));
+                }
+                storage.insert(*field, row.storage[field].clone());
+            }
             rows.push(row);
             residual_types.push(value_type);
         }
@@ -148,9 +180,18 @@ impl CompiledLinearBlockForm {
                     .remove(field)
                     .expect("admitted principal diffusion"),
                 reaction: row.reaction,
+                storage: row.storage,
                 forcing: row.constant.multiply(Data::constant(dimension, -1.0)),
             })
             .collect();
+        let initial = temporal::initial_values(
+            program,
+            domain,
+            dimension,
+            &storage,
+            &coefficients,
+            !storage.is_empty(),
+        )?;
         let volume = CompiledRegionForm::scalar(domain, dimension, roles.clone(), volume_rows)?;
         let boundary = boundary::derive(
             program,
@@ -182,6 +223,9 @@ impl CompiledLinearBlockForm {
             dependencies,
             boundary_laws: boundary.fields,
             volume,
+            step: None,
+            initial,
+            storage,
         })
     }
 
@@ -201,8 +245,12 @@ impl CompiledLinearBlockForm {
         &self.boundary_laws
     }
 
-    pub(crate) fn volume(&self) -> &BoundRegionForm {
-        &self.volume
+    pub(crate) fn volume(&self) -> Result<BoundRegionForm, Diagnostic> {
+        let time = self.step.map(|step| super::region::RegionTimeBinding {
+            step,
+            states: Vec::new(),
+        });
+        self.volume.bind_scalar(time.as_ref())
     }
 }
 

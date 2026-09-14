@@ -660,7 +660,9 @@ fn materialize_common_spatial_trajectory(
 ) -> PyResult<PyRunResult> {
     if !matches!(
         plan.native(),
-        ResolvedCommonPlan::TransientFlow(_) | ResolvedCommonPlan::Fsi(_)
+        ResolvedCommonPlan::TransientFlow(_)
+            | ResolvedCommonPlan::Scalar(_)
+            | ResolvedCommonPlan::Fsi(_)
     ) {
         return Err(PyRuntimeError::new_err(
             "common transient output crossed a different Plan",

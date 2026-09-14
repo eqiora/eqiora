@@ -176,8 +176,8 @@ pub(super) fn require_trajectory_family(
         (family, trajectory),
         (WireResultFamily::Ode, CommonTrajectory::Ode { .. })
             | (
-                WireResultFamily::TransientFlow,
-                CommonTrajectory::TransientFlow { .. }
+                WireResultFamily::TransientFlow | WireResultFamily::Scalar,
+                CommonTrajectory::SpatialTransient { .. }
             )
             | (
                 WireResultFamily::FixedReferenceFsi,

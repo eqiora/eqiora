@@ -25,9 +25,14 @@ impl ExecutableScalarEquations {
         let layouts = self
             .regions
             .iter()
-            .map(|region| (region.form.domain(), region.form.volume().fields().to_vec()))
-            .collect();
-        let reference = self.regions[0].form.volume().reference_cell();
+            .map(|region| {
+                Ok((
+                    region.form.domain(),
+                    region.form.volume()?.fields().to_vec(),
+                ))
+            })
+            .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
+        let reference = self.regions[0].form.volume()?.reference_cell();
         let (domains, traces) = bind_region_topology(
             mesh,
             domains
@@ -109,7 +114,7 @@ impl ExecutableScalarEquations {
                                         .expect("incidence closure")
                                 })
                                 .collect::<Vec<_>>();
-                            let local = region.form.volume().evaluate_natural_facet(
+                            let local = region.form.volume()?.evaluate_natural_facet(
                                 *field,
                                 &geometry,
                                 (&facet_geometry, *parent, &positions),
@@ -165,8 +170,8 @@ impl ExecutableScalarEquations {
         let forms = self
             .regions
             .iter()
-            .map(|region| (region.form.volume().clone(), quadrature.clone()))
-            .collect();
+            .map(|region| Ok((region.form.volume()?, quadrature.clone())))
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
         let work = PreparedRegionAssembly::new(
             AssemblyPacketSetIdentityV1::Unbound,
             &plan,

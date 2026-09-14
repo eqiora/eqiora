@@ -26,6 +26,7 @@ mod field;
 use field::{PyDerivedFieldSnapshot, PyFieldSnapshot, PyInitialField};
 mod observation;
 mod projection;
+mod scalar;
 use observation::PyFieldSample;
 pub(crate) use observation::{PyBoundaryFlux, PyBoundaryForce};
 
@@ -96,6 +97,16 @@ impl PyState {
         source_request_identity: Option<&str>,
         source_trajectory_identity: Option<&str>,
     ) -> PyResult<Self> {
+        if plan.scalar_native().is_some() {
+            return Self::from_scalar(
+                py,
+                plan,
+                native,
+                step,
+                source_request_identity,
+                source_trajectory_identity,
+            );
+        }
         let native_plan = plan
             .transient_native()
             .expect("common State requires a transient Plan");
@@ -144,7 +155,8 @@ impl PyState {
         request_identity: &str,
     ) -> PyResult<Self> {
         let mut state = match plan.native() {
-            eqiora_numerics::ResolvedCommonPlan::TransientFlow(_) => Self::from_common(
+            eqiora_numerics::ResolvedCommonPlan::TransientFlow(_)
+            | eqiora_numerics::ResolvedCommonPlan::Scalar(_) => Self::from_common(
                 py,
                 plan,
                 native,
@@ -263,7 +275,8 @@ impl PyState {
                     .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
                 Self::from_common_ode(py, plan, native, None)
             }
-            eqiora_numerics::ResolvedCommonPlan::TransientFlow(_) => {
+            eqiora_numerics::ResolvedCommonPlan::TransientFlow(_)
+            | eqiora_numerics::ResolvedCommonPlan::Scalar(_) => {
                 let native = CommonState::from_bytes(data, plan.native())
                     .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
                 Self::from_common(py, plan, native, 0, None, None)?
@@ -273,8 +286,7 @@ impl PyState {
                     .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
                 Self::from_common_fsi(py, plan, native, 0, None)?
             }
-            eqiora_numerics::ResolvedCommonPlan::Scalar(_)
-            | eqiora_numerics::ResolvedCommonPlan::Elasticity(_)
+            eqiora_numerics::ResolvedCommonPlan::Elasticity(_)
             | eqiora_numerics::ResolvedCommonPlan::SteadyStokes(_) => {
                 return Err(PyValueError::new_err(
                     "State.from_bytes requires an ODE, transient-flow, or fixed-reference FSI Plan",
@@ -356,6 +368,17 @@ impl PyState {
                 source_trajectory_identity: None,
                 source_kind: Some("initial"),
             });
+        }
+        if let Some(scalar) = plan.scalar_native() {
+            if fields.is_some() || time_s.is_some() {
+                return Err(PyValueError::new_err(
+                    "scalar State.initial consumes its exact source initial condition",
+                ));
+            }
+            let native = scalar
+                .initial_state()
+                .map_err(|d| crate::error::validation_error(py, &[d]))?;
+            return Self::from_common(py, plan, native, 0, None, None);
         }
         if let Some(native_plan) = plan.ode_native() {
             if fields.is_some() || time_s.is_some() {
@@ -454,6 +477,15 @@ impl PyState {
                 py,
                 Self::from_common_ode(py, plan, state, Some(result.plan_key_value())),
             );
+        }
+        if let Some(scalar) = plan.scalar_native() {
+            return result
+                .common_state_at(py, scalar.identity(), time_s)
+                .ok_or_else(|| {
+                    PyValueError::new_err(
+                        "Result contains no scalar State for this exact Plan and time",
+                    )
+                });
         }
         let native = plan
             .transient_native()
