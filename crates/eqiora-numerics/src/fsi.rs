@@ -10,7 +10,6 @@ pub use crate::canonical_fsi::{
     fixed_reference_fsi_requirements_2d, fixed_reference_fsi_requirements_2d_for_layout,
     lower_fixed_reference_fsi_cartesian_2d,
 };
-pub use crate::linear_elasticity::IsotropicElasticityMaterial;
 pub use crate::simplicial_fsi::{
     FinalizedFixedReferenceFsiStep, FixedReferenceFsiBoundary, FixedReferenceFsiEnergyBalance,
     FixedReferenceFsiInterfaceAction, FixedReferenceFsiLoad, FixedReferenceFsiMaterial,

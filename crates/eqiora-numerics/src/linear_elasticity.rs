@@ -4,13 +4,13 @@ use crate::continuum_kinematics::symmetric_gradient_bilinear_entry;
 
 /// One dimension-admitted isotropic small-strain constitutive state.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct IsotropicElasticityMaterial<const D: usize> {
+pub(crate) struct IsotropicElasticityMaterial<const D: usize> {
     shear_modulus: f64,
     first_lame_parameter: f64,
 }
 
 impl<const D: usize> IsotropicElasticityMaterial<D> {
-    pub fn new(shear_modulus: f64, first_lame_parameter: f64) -> Option<Self> {
+    pub(crate) fn new(shear_modulus: f64, first_lame_parameter: f64) -> Option<Self> {
         if !(1..=3).contains(&D) {
             return None;
         }
@@ -26,11 +26,11 @@ impl<const D: usize> IsotropicElasticityMaterial<D> {
             })
     }
 
-    pub const fn shear_modulus(self) -> f64 {
+    pub(crate) const fn shear_modulus(self) -> f64 {
         self.shear_modulus
     }
 
-    pub const fn first_lame_parameter(self) -> f64 {
+    pub(crate) const fn first_lame_parameter(self) -> f64 {
         self.first_lame_parameter
     }
 

@@ -29,7 +29,7 @@ impl<const D: usize> FixedReferenceFsiMaterial<D> {
     /// The executing Plan authenticates the complete role and Domain inventory.
     /// # Errors
     /// Rejects repeated Fields, nonpositive or nonfinite coefficients and incompatible ownership.
-    pub fn new(
+    pub(crate) fn new(
         densities: impl IntoIterator<
             Item = (
                 eqiora_core::Id<eqiora_core::entity::kinds::Domain>,
