@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://pypi.org/project/eqiora/"><img src="https://img.shields.io/pypi/v/eqiora?style=flat-square&amp;logo=pypi&amp;logoColor=white" alt="PyPI version"></a>
-  <a href="https://docs.rs/eqiora/0.1.0/eqiora/"><img src="https://img.shields.io/crates/v/eqiora?style=flat-square&amp;logo=rust" alt="crates.io version"></a>
+  <a href="https://docs.rs/eqiora/0.1.1/eqiora/"><img src="https://img.shields.io/crates/v/eqiora?style=flat-square&amp;logo=rust" alt="crates.io version"></a>
   <a href="https://github.com/nkiyohara/eqiora/releases"><img src="https://img.shields.io/github/v/release/nkiyohara/eqiora?sort=semver&amp;style=flat-square&amp;logo=github" alt="Latest release"></a>
   <a href="https://pypi.org/project/eqiora/"><img src="https://img.shields.io/pypi/pyversions/eqiora?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Supported Python versions"></a>
   <a href="docs/rust-api.md"><img src="https://img.shields.io/crates/msrv/eqiora?style=flat-square&amp;logo=rust&amp;label=Rust" alt="Minimum Rust version"></a>
@@ -22,7 +22,7 @@
   <a href="https://github.com/nkiyohara/eqiora/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/nkiyohara/eqiora/ci.yml?event=pull_request&amp;style=flat-square&amp;label=PR%20CI&amp;logo=githubactions&amp;logoColor=white" alt="Pull request CI"></a>
   <a href="https://github.com/nkiyohara/eqiora/actions/workflows/pages.yml"><img src="https://img.shields.io/github/actions/workflow/status/nkiyohara/eqiora/pages.yml?branch=main&amp;event=push&amp;style=flat-square&amp;label=docs%20build&amp;logo=githubactions&amp;logoColor=white" alt="Documentation build"></a>
   <a href="https://eqiora.org"><img src="https://img.shields.io/badge/docs-eqiora.org-17417e?style=flat-square" alt="Documentation at eqiora.org"></a>
-  <a href="https://eqiora.org/capabilities/"><img src="https://img.shields.io/badge/release-0.1.0-17417e?style=flat-square" alt="Current release: 0.1.0"></a>
+  <a href="https://eqiora.org/capabilities/"><img src="https://img.shields.io/badge/release-0.1.1-17417e?style=flat-square" alt="Current release: 0.1.1"></a>
   <a href="LICENSE"><img src="https://img.shields.io/pypi/l/eqiora?style=flat-square" alt="Apache License 2.0"></a>
 </p>
 
@@ -91,7 +91,7 @@ create a project with meshing and plotting support:
 ```console
 uv init --python ">=3.11,<3.15" eqiora-demo
 cd eqiora-demo
-uv add "eqiora[gmsh,matplotlib]==0.1.0"
+uv add "eqiora[gmsh,matplotlib]==0.1.1"
 ```
 
 The published wheels support **ordinary-GIL CPython 3.11–3.14 on Linux x86-64
@@ -196,11 +196,11 @@ Explore the [architecture](docs/architecture.md) for how the pieces fit.
 Add the published facade to a Cargo project:
 
 ```console
-cargo add eqiora@=0.1.0
+cargo add eqiora@=0.1.1
 ```
 
 Start with the [Rust guide](docs/rust-api.md) for model compilation and optional
-backends, or browse the [API docs](https://docs.rs/eqiora/0.1.0/eqiora/).
+backends, or browse the [API docs](https://docs.rs/eqiora/0.1.1/eqiora/).
 
 ## 🛠️ More ways to work
 

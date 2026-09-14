@@ -6,6 +6,8 @@ are recorded here.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-14
+
 ### Added
 
 - Added `eqiora.colab.prepare()` to validate the installed notebook runtime,
@@ -17,6 +19,8 @@ are recorded here.
 - Made the shared Viewer part of the base Python installation with exact
   `anywidget==0.11.0`, while retaining lazy notebook-framework imports. Removed
   the `viewer` extra and added rich-MIME evidence for every installed base wheel.
+- Replaced the maintained Colab notebook's embedded environment reconciler and
+  Matplotlib presentation with `eqiora.colab.prepare()` and the shared Viewer.
 
 ### Fixed
 
@@ -544,7 +548,8 @@ Detailed claims and nonclaims are the responsibility of the
 [capability matrix](docs/capability-matrix.md) and registered
 [`verify/`](verify/) cases rather than this summary.
 
-[Unreleased]: https://github.com/nkiyohara/eqiora/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/nkiyohara/eqiora/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.1
 [0.1.0]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0
 [0.1.0a14]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a14
 [0.1.0a11]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a11

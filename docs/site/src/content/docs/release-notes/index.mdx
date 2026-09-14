@@ -9,6 +9,19 @@ Find new features and migration changes below. The
 <ExactSourceLink path="CHANGELOG.md" kind="blob">changelog</ExactSourceLink>
 contains the detailed release history. APIs may change during the pre-1.0 series.
 
+## 0.1.1 — shared notebook Viewer and compact Colab setup
+
+[Eqiora 0.1.1](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.1)
+includes the shared interactive Viewer in every normal Python installation.
+The removed `viewer` extra has no compatibility path; exact anywidget 0.11.0
+is a lazy base dependency.
+
+The maintained Colab wake notebook delegates environment preparation to
+`eqiora.colab.prepare()` and presents Geometry, Mesh, and accepted vorticity in
+one interactive `eqiora.View`. Matplotlib remains an explicit optional route
+for static plots and exports. The wheel family remains ordinary-GIL CPython
+3.11–3.14 on Linux x86-64.
+
 ## 0.1.0 — equation-driven execution and exact plural coupling
 
 [Eqiora 0.1.0](https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0)

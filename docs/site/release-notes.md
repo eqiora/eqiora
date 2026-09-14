@@ -1,7 +1,23 @@
 # Release notes
 
-Eqiora `0.1.0` is the current release. APIs and saved-file formats may change
+Eqiora `0.1.1` is the current release. APIs and saved-file formats may change
 before 1.0; review the changes below when upgrading.
+
+## 0.1.1 — shared notebook Viewer and compact Colab setup
+
+Eqiora 0.1.1 includes the shared interactive Viewer in every normal Python
+installation. The removed `viewer` extra has no alias or compatibility path;
+`anywidget==0.11.0` is an exact base dependency and remains lazily imported.
+
+The maintained Colab wake notebook now installs `eqiora[gmsh]==0.1.1`, calls
+`eqiora.colab.prepare()`, and presents Geometry, Mesh, and accepted vorticity
+through one interactive `eqiora.View`. The helper owns runtime identity checks,
+controlled restart, libGLU installation, the Colab custom widget manager, and
+diagnostics, removing the notebook's former package-reconciliation implementation.
+
+Matplotlib remains an explicit optional route for static plots and exports.
+The published wheel family remains ordinary-GIL CPython 3.11–3.14 on Linux
+x86-64; wider platforms remain separate release claims.
 
 ## 0.1.0 — equation-driven execution and exact plural coupling
 

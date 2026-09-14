@@ -1,23 +1,23 @@
 # Get started
 
-The public alpha supports ordinary-GIL CPython 3.11–3.14 on
+The public release supports ordinary-GIL CPython 3.11–3.14 on
 manylinux x86-64.
 
 ## Install
 
-Create a clean environment and install the exact prerelease:
+Create a clean environment and install the exact release:
 
 ```bash
 python -m venv .venv
 . .venv/bin/activate
-python -m pip install eqiora==0.1.0a1
+python -m pip install eqiora==0.1.1
 ```
 
 ## Build and run a model
 
 For this current-checkout example, follow the
 [source installation guide](src/content/docs/get-started/index.mdx); the pinned
-prerelease above retains its historical authoring contract.
+release above retains its published authoring contract.
 
 This complete example compiles an Eqiora model, resolves a typed adaptive time
 policy without inventing a Mesh, and runs the shared native lifecycle:
