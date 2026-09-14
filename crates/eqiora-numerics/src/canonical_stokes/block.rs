@@ -5,10 +5,11 @@ use eqiora_core::{Diagnostic, DimExponents, Id, RawId, ValueShape};
 use eqiora_core::{ScalarDomain, ValueFrame, ValueType};
 use eqiora_meshing::{MeshTopology, SimplicialMesh};
 use eqiora_realization::{
-    AlgebraicBlock, MeshArtifactReference, ResolvedFieldwiseRealization,
-    ResolvedTransientFieldwiseRealization, Space,
+    MeshArtifactReference, ResolvedFieldwiseRealization, ResolvedTransientFieldwiseRealization,
+    Space,
 };
 use eqiora_sem::KernelProgram;
+use eqiora_solver::AlgebraicBlock;
 use eqiora_solver::LinearOperatorProperties;
 
 use super::navier_stokes::TransientIncompressibleNavierStokesModel2d;

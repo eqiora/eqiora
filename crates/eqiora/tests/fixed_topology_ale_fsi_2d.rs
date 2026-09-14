@@ -1,5 +1,6 @@
 #![cfg(feature = "faer")]
 
+use eqiora_core::ScalarType;
 use std::num::{NonZeroU16, NonZeroU32, NonZeroUsize};
 
 use eqiora::api::ModelDocument;
@@ -17,7 +18,7 @@ use eqiora::meshing::{
     VertexId,
 };
 use eqiora::realization::{
-    AleGeometryQualityGate, AlgebraicBlock, AlgebraicBlockScale, BackwardEulerRelationStep,
+    AleGeometryQualityGate, AlgebraicBlockScale, BackwardEulerRelationStep,
     BackwardEulerStateBinding, BackwardEulerStatePair, BackwardEulerStep, ConformingTraceQuotient,
     CoupledFieldwiseRealizationPlan, CoupledFieldwiseSpatialDiscretization, Discretization,
     DiscretizationMethod, DomainFieldDiscretization, ExecutionSchedule, FieldSpaceBinding,
@@ -29,7 +30,7 @@ use eqiora::realization::{
     TraceFieldEndpoint, VectorLayoutKind, resolve_fixed_topology_ale_coupled,
 };
 use eqiora::solver::{
-    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy, ScalarType,
+    AlgebraicBlock, LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy,
     SolverCapabilities, SolverCapability, SolverPlan,
 };
 use eqiora::{DimExponents, DynQuantity, Id, kinds};

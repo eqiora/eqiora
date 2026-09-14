@@ -4,6 +4,7 @@
 //! first shared execution vocabulary; RFC 0054 curates the provider facade.
 //! Physics-specific reconstruction remains in its existing concrete types.
 
+use eqiora_solver::{AlgebraicBlock, AlgebraicConstraint};
 use std::collections::BTreeSet;
 use std::fmt;
 
@@ -18,8 +19,8 @@ use eqiora_core::{
     Diagnostic, DimExponents, DynQuantity, Id, OntologyId, ScalarDomain, ValueShape, ValueType,
 };
 use eqiora_realization::{
-    AlgebraicBlock, AlgebraicConstraint, ConformingTraceQuotient, DefaultPolicyVersion,
-    MeshArtifactReference, RealizationRevision, SemanticRevision, Space, SpaceFamily,
+    ConformingTraceQuotient, DefaultPolicyVersion, MeshArtifactReference, RealizationRevision,
+    SemanticRevision, Space, SpaceFamily,
 };
 use eqiora_schema::Model;
 use eqiora_solver::{

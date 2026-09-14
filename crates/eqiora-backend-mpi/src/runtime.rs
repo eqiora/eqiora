@@ -2,8 +2,8 @@ use std::fmt;
 use std::mem;
 use std::num::NonZeroUsize;
 
-use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_core::{Diagnostic, ScalarType};
 use eqiora_distributed::{
     DistributedAdmissionFingerprintV1, DistributedLinearProblem, DistributedLinearSystem,
     LocalCsrShard, LocalLinearSolution, Partition, PartitionId,
@@ -16,8 +16,8 @@ use eqiora_solver::{
     BackendId, CanonicalCsrSystemView, ConvergenceReason, DiagonalAvailability, ExecutionId,
     ExecutionProvider, ExecutionReport, LinearAcceptanceWorkspace, LinearOperatorOrientation,
     LinearOperatorProperties, LinearSolution, LinearSolver, PreconditionerPolicy, ProviderLibrary,
-    ReductionPolicy, SERIAL_LINEAR_EXECUTION, ScalarType, SolveReport, SolverCapabilities,
-    SolverCapability, SolverPlan, SolverProvider, accept_linear_solution_with_verifier_in,
+    ReductionPolicy, SERIAL_LINEAR_EXECUTION, SolveReport, SolverCapabilities, SolverCapability,
+    SolverPlan, SolverProvider, accept_linear_solution_with_verifier_in,
 };
 use mpi::Threading;
 use mpi::collective::SystemOperation;

@@ -1,3 +1,4 @@
+use eqiora_core::ScalarType;
 use std::num::NonZeroUsize;
 
 use eqiora_artifact::{
@@ -16,7 +17,7 @@ use eqiora_realization::{
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
     CanonicalCsrSystemView, CompleteCsrStorage, LinearOperatorProperties, LinearSolver,
-    PreconditionerPolicy, ReductionPolicy, ScalarType, SolverCapabilities, SolverCapability,
+    PreconditionerPolicy, ReductionPolicy, SolverCapabilities, SolverCapability,
 };
 use serde_json::Value;
 

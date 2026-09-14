@@ -43,10 +43,9 @@ pub(super) fn inverse_diagonal(
 
 #[cfg(test)]
 mod tests {
+    use eqiora_core::ScalarType;
     use eqiora_core::diagnostic::codes;
-    use eqiora_solver::{
-        CompleteCsrStorage, LinearOperatorProperties, ReductionPolicy, ScalarType,
-    };
+    use eqiora_solver::{CompleteCsrStorage, LinearOperatorProperties, ReductionPolicy};
 
     use super::super::CudaLinearSolver;
     use super::*;

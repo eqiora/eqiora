@@ -5,7 +5,7 @@ use crate::simplicial_fsi::{FixedReferenceFsiMaterial, FixedReferenceFsiScale};
 use eqiora_assembly::LocalUnknown;
 use eqiora_meshing::{CellId, FacetId, MeshQualityGate};
 use eqiora_realization::{NonlinearSolvePlan, Target};
-use eqiora_solver::{LinearSolveRequest, LinearSolver, ReferenceLinearSolver, SolverPlan};
+use eqiora_solver::{LinearSolveRequest, LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, num::NonZeroUsize};
 #[derive(Clone, Copy)]
@@ -658,7 +658,7 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
         .iter()
         .map(|(m, _, _)| partition(m))
         .collect::<Result<Vec<_>, _>>()?;
-    let solvers = (0..3).map(|_| ReferenceLinearSolver).collect::<Vec<_>>();
+    let solvers = (0..3).map(|_| REFERENCE_LINEAR_SOLVER).collect::<Vec<_>>();
     let motions = (0..3)
         .map(|i| {
             P1HarmonicMeshMotionAction::new(

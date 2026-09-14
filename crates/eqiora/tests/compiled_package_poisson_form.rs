@@ -1,3 +1,4 @@
+use eqiora_core::ScalarType;
 use std::f64::consts::PI;
 use std::fmt;
 use std::num::{NonZeroU16, NonZeroUsize};
@@ -22,9 +23,7 @@ use eqiora::realization::{
     RealizationRevision, ResolvedRealization, SemanticRevision, Space, Target, VectorLayoutKind,
     resolve,
 };
-use eqiora::solver::{
-    LinearSolveRequest, LinearSolver, REFERENCE_LINEAR_SOLVER, ScalarType, SolverPlan,
-};
+use eqiora::solver::{LinearSolveRequest, LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
 use eqiora_meshing::CartesianMesh;
 use eqiora_numerics::scalar::{
     ResolvedScalarEllipticCartesianSolution, lower_scalar_elliptic_cartesian,

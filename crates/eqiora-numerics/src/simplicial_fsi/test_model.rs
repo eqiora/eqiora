@@ -10,7 +10,7 @@ use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore};
 use eqiora_realization::*;
 use eqiora_schema::kernel::{ConnectionSemantics, KernelNode};
 use eqiora_sem::KernelProgram;
-use eqiora_solver::{LinearOperatorProperties, SolverPlan};
+use eqiora_solver::{AlgebraicBlock, LinearOperatorProperties, SolverPlan};
 
 use super::FixedReferenceFsiStepConfig;
 

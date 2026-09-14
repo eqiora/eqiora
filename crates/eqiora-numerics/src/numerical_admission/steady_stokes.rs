@@ -105,7 +105,15 @@ impl CommonSteadyStokesPlan {
                 "steady-Stokes execution backend differs from the admitted provider or capabilities",
             ));
         }
-        let checked_backend = self.admission.linear.checked_backend(backend)?;
+        let spatial = self.resolved.plan().spatial();
+        let structure = eqiora_solver::AlgebraicStructure::new(
+            spatial.field_spaces().iter().map(|binding| binding.field()),
+            spatial.constraints().iter().copied(),
+        )?;
+        let checked_backend = self
+            .admission
+            .linear
+            .checked_backend(backend, Some(&structure))?;
         let solution = solve_resolved_steady_stokes_geometry_mini_2d(
             self.admission.program(),
             &self.resolved,

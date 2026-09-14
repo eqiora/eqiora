@@ -1,3 +1,4 @@
+use eqiora_solver::{AlgebraicBlock, AlgebraicConstraint};
 use std::num::{NonZeroU16, NonZeroUsize};
 
 #[path = "realization_v8_wire/multiple.rs"]
@@ -9,13 +10,12 @@ use eqiora_artifact::{
 };
 use eqiora_compiler::compile;
 use eqiora_core::entity::kinds;
-use eqiora_core::{DimExponents, DynQuantity, Id};
+use eqiora_core::{DimExponents, DynQuantity, Id, ScalarType};
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_meshing::{MeshQualityGate, SimplicialMesh};
 use eqiora_realization::{
-    AlgebraicBlock, AlgebraicBlockScale, AlgebraicConstraint, BackwardEulerStateBinding,
-    BackwardEulerStatePair, BackwardEulerStep, ConformingTraceQuotient,
-    CoupledFieldwiseRealizationPlan, CoupledFieldwiseRealizationRequest,
+    AlgebraicBlockScale, BackwardEulerStateBinding, BackwardEulerStatePair, BackwardEulerStep,
+    ConformingTraceQuotient, CoupledFieldwiseRealizationPlan, CoupledFieldwiseRealizationRequest,
     CoupledFieldwiseRealizationRequirements, CoupledFieldwiseSpatialDiscretization, Discretization,
     DiscretizationMethod, DomainFieldDiscretization, DomainFieldInventory, ExecutionSchedule,
     FieldSpaceBinding, MeshArtifactReference, MeshPolicy, PositivePhysicalScale, QuadraturePolicy,
@@ -25,7 +25,7 @@ use eqiora_realization::{
 };
 use eqiora_sem::KernelProgram;
 use eqiora_solver::LinearOperatorProperties;
-use eqiora_solver::{LinearSolver, ReductionPolicy, ScalarType, SolverPlan};
+use eqiora_solver::{LinearSolver, ReductionPolicy, SolverPlan};
 
 const MODEL: &str =
     include_str!("../../../verify/fluid/packaged-steady-stokes-2d/models/direct.eqi");

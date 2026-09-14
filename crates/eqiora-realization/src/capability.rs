@@ -1,9 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::num::{NonZeroU64, NonZeroUsize};
 
-use eqiora_core::Diagnostic;
+use eqiora_core::{Diagnostic, ScalarType};
 use eqiora_solver::{
-    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy, ScalarType,
+    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy,
     SolverCapabilities, SolverCapability, SolverPlan,
 };
 

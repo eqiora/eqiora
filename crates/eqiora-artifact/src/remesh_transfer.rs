@@ -6,11 +6,11 @@ use std::num::NonZeroUsize;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id};
 use eqiora_realization::{
-    AleFsiRemeshScaleProfile2d, AleFsiRemeshTransferPlan2d, AlgebraicBlock, QuadraturePolicy,
+    AleFsiRemeshScaleProfile2d, AleFsiRemeshTransferPlan2d, QuadraturePolicy,
 };
 use eqiora_solver::{
-    ConvergenceReason, ExecutionReport, ExecutionTopology, LinearOperatorOrientation, SolveReport,
-    SolverPlan,
+    AlgebraicBlock, ConvergenceReason, ExecutionReport, ExecutionTopology,
+    LinearOperatorOrientation, SolveReport, SolverPlan,
 };
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;

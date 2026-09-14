@@ -136,9 +136,9 @@ end-to-end interval. Rejected.
 
 ## Compatibility and migration
 
-Moving `ScalarType` to L0 is source-compatible through the existing
-`eqiora_solver::ScalarType` re-export. No Semantic Model or artifact wire
-changes. Adding a device execution topology to accepted run evidence will be
+The current pre-1.0 surface imports `ScalarType` from its L0 owner,
+`eqiora_core`; the displaced solver re-export is removed. No Semantic Model
+or artifact wire changes. Adding a device execution topology to accepted run evidence will be
 versioned with its run-provenance schema rather than smuggled into opaque
 strings.
 

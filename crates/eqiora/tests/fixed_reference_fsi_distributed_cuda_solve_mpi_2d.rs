@@ -1,5 +1,6 @@
 #![cfg(feature = "mpi-cuda")]
 
+use eqiora_core::ScalarType;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::env;
@@ -25,14 +26,13 @@ use eqiora::backends::mpi_cuda::{
 use eqiora::device::{QueueSlot, SparseActionPolicy, TransferDirection};
 use eqiora::meshing::MeshEntity;
 use eqiora::realization::{
-    AlgebraicBlock, CoupledFieldwiseRealizationRequest, DiscretizationMethod, MeshKind,
-    RealizationCapabilities, SpatialDimensionSupport, TargetCapabilities, VectorLayoutKind,
-    resolve_coupled_fieldwise,
+    CoupledFieldwiseRealizationRequest, DiscretizationMethod, MeshKind, RealizationCapabilities,
+    SpatialDimensionSupport, TargetCapabilities, VectorLayoutKind, resolve_coupled_fieldwise,
 };
 use eqiora::solver::{
-    ExecutionReport, LinearOperatorOrientation, LinearOperatorProperties, LinearSolver,
-    PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, ScalarType, SolverCapabilities,
-    SolverCapability,
+    AlgebraicBlock, ExecutionReport, LinearOperatorOrientation, LinearOperatorProperties,
+    LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
+    SolverCapabilities, SolverCapability,
 };
 use eqiora_execution::{
     AdmittedExecution, CudaPartitionPlacement, DeploymentBinding, DistributedDeviceTransport,

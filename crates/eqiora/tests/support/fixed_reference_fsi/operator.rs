@@ -41,9 +41,7 @@ impl PhysicalOperator {
                 .scaling()
                 .block_scales()
                 .iter()
-                .find(|binding| {
-                    binding.block() == eqiora::realization::AlgebraicBlock::Field(field)
-                })
+                .find(|binding| binding.block() == eqiora::solver::AlgebraicBlock::Field(field))
                 .expect("exact Plan Field scale")
                 .scale()
                 .quantity()

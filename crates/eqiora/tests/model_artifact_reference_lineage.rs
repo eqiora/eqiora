@@ -1,3 +1,4 @@
+use eqiora_core::ScalarType;
 use std::num::NonZeroUsize;
 
 use eqiora::api::ModelDocument;
@@ -9,7 +10,7 @@ use eqiora::realization::{
     DefaultPolicyVersion, RealizationCapabilities, RealizationRequest, RealizationRequirements,
     SemanticRevision, VectorLayoutKind, resolve,
 };
-use eqiora::solver::{ReductionPolicy, ScalarType};
+use eqiora::solver::ReductionPolicy;
 use eqiora::{
     DimExponents,
     language::{DraftExpression, DraftField, DraftParameter, DraftRelation, Module},

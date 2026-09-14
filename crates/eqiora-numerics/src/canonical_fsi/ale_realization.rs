@@ -13,13 +13,13 @@ use std::num::{NonZeroU16, NonZeroUsize};
 use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DimExponents, Id, OntologyId};
+use eqiora_core::{Diagnostic, DimExponents, Id, OntologyId, ScalarType};
 use eqiora_meshing::{
     CellId, MeshEntity, MeshTopology, QuadratureRule, SimplicialMesh, simplex_duffy_gauss_legendre,
     triangle_duffy_gauss_legendre,
 };
 use eqiora_realization::{
-    AleFsiRemeshTransferPlan2d, AlgebraicBlock, BackwardEulerStatePair, ConformingTraceQuotient,
+    AleFsiRemeshTransferPlan2d, BackwardEulerStatePair, ConformingTraceQuotient,
     CoupledFieldwiseRealizationRequirements, DiscretizationMethod, DomainFieldInventory,
     ExecutionSchedule, FixedTopologyAleCoupledRealizationPlan,
     FixedTopologyAleCoupledRealizationRequirements, MeshArtifactReference, MeshPolicy,
@@ -30,7 +30,7 @@ use eqiora_realization::{
 use eqiora_schema::Model;
 use eqiora_schema::kernel::BoundarySide;
 use eqiora_solver::{
-    LinearOperatorProperties, LinearSolveRequest, LinearSolverBackend, ScalarType,
+    AlgebraicBlock, LinearOperatorProperties, LinearSolveRequest, LinearSolverBackend,
 };
 
 use super::{AleFsiCartesianModel, FsiInterfaceSide};

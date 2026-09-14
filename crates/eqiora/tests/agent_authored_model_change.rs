@@ -1,3 +1,4 @@
+use eqiora_core::ScalarType;
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora::api::ModelDocument;
@@ -8,7 +9,7 @@ use eqiora::realization::{
     RealizationCapabilities, RealizationPlan, RealizationRequest, RealizationRequirements,
     RealizationRevision, SemanticRevision, Space, Target, VectorLayoutKind, resolve,
 };
-use eqiora::solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, ScalarType, SolverPlan};
+use eqiora::solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
 use eqiora_numerics::{
     scalar::ResolvedScalarEllipticSolution1d, scalar::solve_resolved_scalar_elliptic_1d,
 };

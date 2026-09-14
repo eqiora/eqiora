@@ -1,5 +1,6 @@
 #![cfg(feature = "mpi")]
 
+use eqiora_core::ScalarType;
 use std::cell::RefCell;
 use std::env;
 use std::io::Read;
@@ -21,14 +22,13 @@ use eqiora::backends::mpi::{
 use eqiora::distributed::{DistributedLinearSystem, Partition, PartitionId};
 use eqiora::meshing::MeshEntity;
 use eqiora::realization::{
-    AlgebraicBlock, CoupledFieldwiseRealizationRequest, DiscretizationMethod, MeshKind,
-    RealizationCapabilities, SpatialDimensionSupport, TargetCapabilities, VectorLayoutKind,
-    resolve_coupled_fieldwise,
+    CoupledFieldwiseRealizationRequest, DiscretizationMethod, MeshKind, RealizationCapabilities,
+    SpatialDimensionSupport, TargetCapabilities, VectorLayoutKind, resolve_coupled_fieldwise,
 };
 use eqiora::solver::{
-    ExecutionReport, LinearOperatorOrientation, LinearOperatorProperties, LinearSolver,
-    PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, ScalarType, SolverCapabilities,
-    SolverCapability,
+    AlgebraicBlock, ExecutionReport, LinearOperatorOrientation, LinearOperatorProperties,
+    LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
+    SolverCapabilities, SolverCapability,
 };
 use eqiora_execution::{
     AdmittedExecution, DeploymentBinding, DistributedExecutorDescriptor, ExecutionReceipt,

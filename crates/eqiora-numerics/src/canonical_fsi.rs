@@ -749,3 +749,23 @@ fn model_lowering_error(program: &KernelProgram, message: impl Into<String>) -> 
 
 #[cfg(test)]
 mod tests;
+
+impl FixedReferenceFsiCartesianModel2d {
+    pub(crate) fn algebraic_structure(
+        &self,
+    ) -> Result<eqiora_solver::AlgebraicStructure, Diagnostic> {
+        eqiora_solver::AlgebraicStructure::new(
+            [
+                self.fluid().velocity(),
+                self.fluid().pressure(),
+                self.solid().velocity(),
+            ]
+            .map(|field| {
+                field
+                    .downcast::<eqiora_core::entity::kinds::Field>()
+                    .expect("admitted Field")
+            }),
+            [],
+        )
+    }
+}

@@ -1,7 +1,7 @@
 use std::num::{NonZeroU16, NonZeroU64, NonZeroUsize};
 use std::str::FromStr;
 
-use eqiora_core::{Diagnostic, OntologyId};
+use eqiora_core::{Diagnostic, OntologyId, ScalarType};
 use eqiora_realization::{
     DefaultPolicyVersion, Discretization, DiscretizationMethod, ExecutionSchedule,
     MeshArtifactReference, MeshPolicy, QuadraturePolicy, RealizationPlan, RealizationRequirements,
@@ -9,7 +9,7 @@ use eqiora_realization::{
     SpaceFamily, Target, VectorLayoutKind,
 };
 use eqiora_schema::Model;
-use eqiora_solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy, ScalarType, SolverPlan};
+use eqiora_solver::{LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan};
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 

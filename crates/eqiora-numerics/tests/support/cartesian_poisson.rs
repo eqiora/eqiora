@@ -1,3 +1,4 @@
+use eqiora_core::ScalarType;
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_compiler::compile;
@@ -13,7 +14,7 @@ use eqiora_realization::{
     RealizationRevision, SemanticRevision, Space, Target, VectorLayoutKind, resolve,
 };
 use eqiora_sem::KernelProgram;
-use eqiora_solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, ScalarType, SolverPlan};
+use eqiora_solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
 
 pub struct ManufacturedCase<'a> {
     pub file: &'a str,

@@ -4,6 +4,7 @@ use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id};
 
 use crate::{Discretization, Space, invalid_realization};
+use eqiora_solver::{AlgebraicBlock, AlgebraicConstraint};
 
 mod plan;
 
@@ -61,53 +62,6 @@ impl FieldSpaceBinding {
     #[must_use]
     pub const fn space(self) -> Space {
         self.space
-    }
-}
-
-/// Realization-owned algebraic constraint used to select a unique solution.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum AlgebraicConstraint {
-    /// Add one multiplier enforcing an exactly zero spatial integral.
-    ZeroIntegral {
-        /// Scalar Field whose constant nullspace is fixed.
-        field: Id<kinds::Field>,
-    },
-}
-
-impl AlgebraicConstraint {
-    /// Field constrained by this algebraic choice.
-    #[must_use]
-    pub const fn field(self) -> Id<kinds::Field> {
-        match self {
-            Self::ZeroIntegral { field } => field,
-        }
-    }
-}
-
-/// One independently scaled block of the realized algebraic unknown vector.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum AlgebraicBlock {
-    /// Coefficients of one Semantic Field.
-    Field(Id<kinds::Field>),
-    /// Multiplier introduced by that Field's zero-integral constraint.
-    ConstraintMultiplier {
-        /// Field identifying the unique constraint.
-        field: Id<kinds::Field>,
-    },
-}
-
-impl AlgebraicBlock {
-    const fn field(self) -> Id<kinds::Field> {
-        match self {
-            Self::Field(field) | Self::ConstraintMultiplier { field } => field,
-        }
-    }
-
-    const fn tag(self) -> u8 {
-        match self {
-            Self::Field(_) => 0,
-            Self::ConstraintMultiplier { .. } => 1,
-        }
     }
 }
 
@@ -292,9 +246,11 @@ impl FieldwiseSpatialDiscretization {
 }
 
 fn block_order(left: AlgebraicBlock, right: AlgebraicBlock) -> Ordering {
-    left.tag()
-        .cmp(&right.tag())
-        .then_with(|| left.field().ulid().cmp(&right.field().ulid()))
+    let key = |block| match block {
+        AlgebraicBlock::Field(field) => (0, field.ulid()),
+        AlgebraicBlock::ConstraintMultiplier { field } => (1, field.ulid()),
+    };
+    key(left).cmp(&key(right))
 }
 
 const fn length_dimension() -> DimExponents {

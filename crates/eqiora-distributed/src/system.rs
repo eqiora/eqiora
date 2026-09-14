@@ -1,8 +1,7 @@
-use eqiora_core::Diagnostic;
+use eqiora_core::{Diagnostic, ScalarType};
 use eqiora_solver::{
     CanonicalCsrAgreementFingerprintV1, CanonicalCsrSystemView, DiagonalAvailability,
-    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ScalarType, SolveReport,
-    SolverPlan,
+    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, SolveReport, SolverPlan,
 };
 
 use crate::agreement::{

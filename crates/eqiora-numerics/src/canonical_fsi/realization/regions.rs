@@ -1,10 +1,11 @@
 //! Bind Model-derived region equations to the exact resolved numerical choices.
 
+use eqiora_solver::AlgebraicBlock;
 use std::collections::BTreeMap;
 
 use eqiora_core::{Diagnostic, DynQuantity, RawId};
 use eqiora_meshing::ReferenceCell;
-use eqiora_realization::{AlgebraicBlock, CoupledFieldwiseRealizationPlan};
+use eqiora_realization::CoupledFieldwiseRealizationPlan;
 
 use crate::canonical_fsi::FixedReferenceFsiCartesianModel2d;
 use crate::form_compiler::region::{BoundRegionForm, RegionFieldBinding, RegionTimeBinding};

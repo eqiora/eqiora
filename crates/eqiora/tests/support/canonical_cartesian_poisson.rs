@@ -1,3 +1,4 @@
+use eqiora_core::ScalarType;
 use std::f64::consts::PI;
 use std::num::{NonZeroU16, NonZeroUsize};
 
@@ -14,7 +15,7 @@ use eqiora::realization::{
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
     LinearOperatorProperties, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
-    ReductionPolicy, ScalarType, SolverCapabilities, SolverCapability, SolverPlan,
+    ReductionPolicy, SolverCapabilities, SolverCapability, SolverPlan,
 };
 use eqiora_numerics::{
     scalar::ResolvedScalarEllipticCartesianSolution,

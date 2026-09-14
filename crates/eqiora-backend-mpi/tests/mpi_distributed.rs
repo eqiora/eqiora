@@ -12,14 +12,14 @@ use eqiora_backend_mpi::{
     CollectivePhaseV1, MPI_DISTRIBUTED_KRYLOV_BACKEND, MPI_EXECUTION, MpiExecutionGroup,
     MpiRankLocalCsrAction, MpiThreadSupport, RankLocalDeviceV1,
 };
-use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_core::{Diagnostic, ScalarType};
 use eqiora_distributed::{
     DistributedLinearSystem, GlobalVectorSpace, LocalCsrShard, Partition, PartitionId,
 };
 use eqiora_solver::{
     CanonicalCsrSystemView, CompleteCsrStorage, ExecutionReport, LinearOperatorProperties,
-    LinearSolver, PreconditionerPolicy, ReductionPolicy, ScalarType, SolverCapability, SolverPlan,
+    LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverCapability, SolverPlan,
 };
 use mpi::Threading;
 use mpi::traits::CommunicatorCollectives;

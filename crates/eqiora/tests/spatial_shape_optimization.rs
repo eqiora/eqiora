@@ -1,3 +1,4 @@
+use eqiora_core::ScalarType;
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora::differentiation::{AcceptedLinearization, adjoint_gradient, forward_sensitivity};
@@ -11,8 +12,7 @@ use eqiora::realization::{
 };
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
-    LinearOperatorProperties, LinearSolveRequest, LinearSolver, REFERENCE_LINEAR_SOLVER,
-    ScalarType, SolverPlan,
+    LinearOperatorProperties, LinearSolveRequest, LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan,
 };
 use eqiora::{Id, compiler::compile, entity::kinds};
 use eqiora_numerics::{

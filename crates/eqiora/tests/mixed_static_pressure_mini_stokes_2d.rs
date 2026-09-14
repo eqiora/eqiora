@@ -10,13 +10,13 @@ use eqiora::package::{
     prepare_package_release_v1,
 };
 use eqiora::realization::{
-    AlgebraicBlock, FieldwiseRealizationPlan, FieldwiseRealizationRequest, MeshArtifactReference,
+    FieldwiseRealizationPlan, FieldwiseRealizationRequest, MeshArtifactReference,
     RealizationCapabilities, RealizationRevision, SemanticRevision, resolve_fieldwise,
 };
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
-    CanonicalCsrSystemView, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
-    SolverPlan,
+    AlgebraicBlock, CanonicalCsrSystemView, LinearSolverBackend, REFERENCE_LINEAR_SOLVER,
+    ReductionPolicy, SolverPlan,
 };
 use eqiora::{DimExponents, DynQuantity};
 use eqiora_numerics::{

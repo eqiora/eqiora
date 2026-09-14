@@ -42,11 +42,11 @@ pub use discretization::{
     Discretization, DiscretizationMethod, MeshArtifactReference, MeshKind, MeshPolicy,
     QuadraturePolicy, Space, SpaceFamily,
 };
+use eqiora_solver::{AlgebraicBlock, AlgebraicConstraint};
 pub use execution::{ExecutionSchedule, Target};
 pub use fieldwise::{
-    AlgebraicBlock, AlgebraicBlockScale, AlgebraicConstraint, FieldSpaceBinding,
-    FieldwiseRealizationPlan, FieldwiseSpatialDiscretization, PositivePhysicalScale,
-    SymmetricCongruenceScaling,
+    AlgebraicBlockScale, FieldSpaceBinding, FieldwiseRealizationPlan,
+    FieldwiseSpatialDiscretization, PositivePhysicalScale, SymmetricCongruenceScaling,
 };
 pub use fieldwise_resolution::{
     FieldwiseRealizationRequest, FieldwiseRealizationRequirements, ResolvedFieldwiseRealization,

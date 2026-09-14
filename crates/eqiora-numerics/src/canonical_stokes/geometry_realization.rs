@@ -115,6 +115,12 @@ impl SteadyStokesGeometryBinding2d {
         steady_stokes_fieldwise_requirements_for_model_2d(&self.model)
     }
 
+    pub(crate) fn algebraic_structure(
+        &self,
+    ) -> Result<eqiora_solver::AlgebraicStructure, Diagnostic> {
+        super::realization::steady_stokes_algebraic_structure(&self.model)
+    }
+
     /// Build the bounded MINI/P1 plan for this source-bound Model.
     ///
     /// # Errors

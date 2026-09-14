@@ -1,17 +1,18 @@
+use eqiora_solver::AlgebraicBlock;
 use std::num::NonZeroUsize;
 
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, DimExponents, GraphPath};
+use eqiora_core::{Diagnostic, DimExponents, GraphPath, ScalarType};
 use eqiora_meshing::MeshTopology;
 use eqiora_realization::{
-    AlgebraicBlock, CellCenteredConvectionScheme, CoordinateTreatment, DiscretizationMethod,
-    DomainConfiguration, ExecutionSchedule, MeshPolicy, PlacementRequirementNode, QuadraturePolicy,
-    ResolutionSource, ResolvedTransientCellCenteredTransportRealization, SolveRoot, SpaceFamily,
-    SystemBlock, Target, TransformationNode, VectorLayoutKind,
+    CellCenteredConvectionScheme, CoordinateTreatment, DiscretizationMethod, DomainConfiguration,
+    ExecutionSchedule, MeshPolicy, PlacementRequirementNode, QuadraturePolicy, ResolutionSource,
+    ResolvedTransientCellCenteredTransportRealization, SolveRoot, SpaceFamily, SystemBlock, Target,
+    TransformationNode, VectorLayoutKind,
 };
 use eqiora_schema::kernel::KernelNode;
 use eqiora_sem::KernelProgram;
-use eqiora_solver::{LinearOperatorProperties, ScalarType, SolverPlan};
+use eqiora_solver::{LinearOperatorProperties, SolverPlan};
 
 use super::api::ScalarTransportCellState2d;
 use crate::canonical_transport::ScalarTransportCartesianModel2d;

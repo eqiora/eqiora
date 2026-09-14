@@ -1,7 +1,7 @@
 //! The ordinary 2D fixture enters through exact Model and Realization admission.
 
 use eqiora_compiler::compile;
-use eqiora_core::{DimExponents, DynQuantity};
+use eqiora_core::{DimExponents, DynQuantity, ScalarType};
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_realization::{
     CoupledFieldwiseRealizationRequest, DiscretizationMethod, MeshArtifactReference, MeshKind,
@@ -9,7 +9,7 @@ use eqiora_realization::{
     TargetCapabilities, VectorLayoutKind, resolve_coupled_fieldwise,
 };
 use eqiora_sem::KernelProgram;
-use eqiora_solver::{ScalarType, SolverCapabilities, SolverCapability};
+use eqiora_solver::{SolverCapabilities, SolverCapability};
 
 use crate::canonical_fsi::lower_fixed_reference_fsi_cartesian_2d;
 use crate::fsi::{

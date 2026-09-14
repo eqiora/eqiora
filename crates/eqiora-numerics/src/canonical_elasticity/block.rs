@@ -5,9 +5,9 @@ use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id, RawId, ValueShape};
 use eqiora_core::{ScalarDomain, ValueFrame, ValueType};
 use eqiora_meshing::MeshTopology;
 use eqiora_realization::{
-    AlgebraicBlock, ConformingTraceQuotient, ResolutionSource, ResolvedRealization,
-    TraceFieldEndpoint,
+    ConformingTraceQuotient, ResolutionSource, ResolvedRealization, TraceFieldEndpoint,
 };
+use eqiora_solver::AlgebraicBlock;
 use eqiora_solver::LinearOperatorProperties;
 
 use super::ConformingIsotropicElasticityCartesianPair2d;

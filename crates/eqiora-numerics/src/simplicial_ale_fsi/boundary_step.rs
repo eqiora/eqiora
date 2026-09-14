@@ -3,9 +3,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_assembly::AssemblyBackend;
-use eqiora_core::Diagnostic;
+use eqiora_core::{Diagnostic, ScalarType};
 use eqiora_meshing::{MeshEntity, MeshTopology, QuadratureRule, SimplicialMesh, VertexId};
-use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend, ScalarType};
+use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend};
 
 use super::api::AleFsiStepEvidence;
 use super::contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};

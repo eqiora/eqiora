@@ -1,3 +1,4 @@
+use eqiora_core::ScalarType;
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora::Diagnostic;
@@ -16,8 +17,8 @@ use eqiora::solver::{
     BackendId, ConvergenceReason, ExecutionId, ExecutionProvider, ExecutionReport,
     ExecutionTopology, FixedOrderInnerProduct, LinearOperator, LinearOperatorProperties,
     LinearSolution, LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
-    ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, ScalarType, SolverCapabilities,
-    SolverCapability, SolverPlan, SolverProvider, accept_linear_solution_with_verifier,
+    ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, SolverCapabilities, SolverCapability,
+    SolverPlan, SolverProvider, accept_linear_solution_with_verifier,
 };
 use eqiora_numerics::{
     scalar::ResolvedScalarEllipticCartesianSolution,

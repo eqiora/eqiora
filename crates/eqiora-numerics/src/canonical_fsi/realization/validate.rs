@@ -1,5 +1,6 @@
 //! Exact replay gates between canonical FSI meaning and numerical realization.
 
+use eqiora_solver::AlgebraicBlock;
 use std::collections::BTreeSet;
 
 use eqiora_core::diagnostic::codes;
@@ -7,7 +8,7 @@ use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id};
 use eqiora_meshing::{CellId, MeshEntity, MeshTopology, SimplicialMesh};
 use eqiora_realization::{
-    AlgebraicBlock, BackwardEulerStatePair, ConformingTraceQuotient, MeshArtifactReference,
+    BackwardEulerStatePair, ConformingTraceQuotient, MeshArtifactReference,
     PortableRealizationGraph, ResolvedCoupledFieldwiseRealization, SolveRoot, Target,
     TraceFieldEndpoint, TransformationNode, VectorLayoutKind,
 };

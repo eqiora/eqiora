@@ -1,3 +1,4 @@
+use eqiora_core::ScalarType;
 use std::num::NonZeroUsize;
 
 use eqiora_artifact::{
@@ -8,7 +9,6 @@ use eqiora_core::diagnostic::codes;
 use eqiora_distributed::{GlobalVectorSpace, Partition, PartitionId};
 use eqiora_solver::{
     CanonicalCsrSystemView, CompleteCsrStorage, LinearOperator, LinearOperatorProperties,
-    ScalarType,
 };
 use serde_json::{Value, json};
 

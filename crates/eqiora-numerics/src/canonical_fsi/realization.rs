@@ -1,12 +1,13 @@
 //! Equation-aware admission of the fixed-reference FSI numerical realization.
 
+use eqiora_solver::AlgebraicBlock;
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_assembly::{AssemblyBackend, AssemblyPacketSetIdentityV1, REFERENCE_ASSEMBLY_BACKEND};
-use eqiora_core::{Diagnostic, DimExponents, DynQuantity};
+use eqiora_core::{Diagnostic, DimExponents, DynQuantity, ScalarType};
 use eqiora_meshing::{QuadratureRule, SimplicialMesh, triangle_duffy_gauss_legendre};
 use eqiora_realization::{
-    AlgebraicBlock, AlgebraicBlockScale, BackwardEulerStateBinding, BackwardEulerStep,
+    AlgebraicBlockScale, BackwardEulerStateBinding, BackwardEulerStep,
     CoupledFieldwiseRealizationPlan, CoupledFieldwiseRealizationRequirements,
     CoupledFieldwiseSpatialDiscretization, Discretization, DiscretizationMethod,
     DomainFieldDiscretization, DomainFieldInventory, ExecutionSchedule, FieldSpaceBinding,
@@ -14,7 +15,7 @@ use eqiora_realization::{
     QuadraturePolicy, RealizationRequirements, ResolvedCoupledFieldwiseRealization, Space,
     SymmetricCongruenceScaling, Target, VectorLayoutKind,
 };
-use eqiora_solver::{LinearOperatorProperties, ReductionPolicy, ScalarType, SolverPlan};
+use eqiora_solver::{LinearOperatorProperties, ReductionPolicy, SolverPlan};
 
 use super::FixedReferenceFsiCartesianModel2d;
 use crate::discrete_block::DiscreteBlockSystem;

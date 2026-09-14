@@ -6,8 +6,8 @@
 //! payload, runtime handle, device ordinal, or allocation vocabulary.
 
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DynQuantity, Id};
-use eqiora_solver::{LinearOperatorProperties, ScalarType, SolverPlan};
+use eqiora_core::{Diagnostic, DynQuantity, Id, ScalarType};
+use eqiora_solver::{LinearOperatorProperties, SolverPlan};
 use std::num::NonZeroUsize;
 
 use crate::{

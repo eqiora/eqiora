@@ -1,3 +1,4 @@
+use eqiora_core::ScalarType;
 use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -10,8 +11,8 @@ use eqiora_realization::{NonlinearSolvePlan, Target};
 use eqiora_solver::{
     BackendId, ConvergenceReason, ExecutionReport, LinearOperator, LinearProblem, LinearSolution,
     LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
-    ReplicatedLinearExecution, ScalarType, SolverCapabilities, SolverCapability, SolverPlan,
-    SolverProvider, accept_linear_solution_with_execution,
+    ReplicatedLinearExecution, SolverCapabilities, SolverCapability, SolverPlan, SolverProvider,
+    accept_linear_solution_with_execution,
 };
 
 use super::*;

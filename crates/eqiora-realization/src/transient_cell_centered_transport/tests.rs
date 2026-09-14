@@ -1,10 +1,10 @@
 use std::num::NonZeroUsize;
 
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{DimExponents, DynQuantity};
+use eqiora_core::{DimExponents, DynQuantity, ScalarType};
 use eqiora_solver::{
-    LinearSolver, PreconditionerPolicy, ReductionPolicy, ScalarType, SolverCapabilities,
-    SolverCapability, SolverPlan,
+    LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverCapabilities, SolverCapability,
+    SolverPlan,
 };
 
 use super::*;

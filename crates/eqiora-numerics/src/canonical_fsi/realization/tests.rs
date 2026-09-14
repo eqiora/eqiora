@@ -1,7 +1,7 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_compiler::compile;
-use eqiora_core::{Diagnostic, DynQuantity, diagnostic::codes};
+use eqiora_core::{Diagnostic, DynQuantity, ScalarType, diagnostic::codes};
 use eqiora_distributed::PartitionId;
 use eqiora_execution::{
     AcceptedLinearExecution, AdmittedExecution, DeploymentBinding, ExecutionReceipt,
@@ -19,7 +19,7 @@ use eqiora_realization::{
 use eqiora_sem::KernelProgram;
 use eqiora_solver::{
     LinearOperatorProperties, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
-    ReductionPolicy, ScalarType, SolverCapabilities, SolverCapability, SolverPlan,
+    ReductionPolicy, SolverCapabilities, SolverCapability, SolverPlan,
 };
 use eqiora_spatial_distribution::{
     CellOwnershipClaim, DistributedAssemblyEvidence, DistributedMeshLayout,

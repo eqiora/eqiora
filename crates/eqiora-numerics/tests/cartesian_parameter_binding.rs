@@ -1,3 +1,4 @@
+use eqiora_core::ScalarType;
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora_compiler::compile;
@@ -15,9 +16,7 @@ use eqiora_realization::{
     resolve,
 };
 use eqiora_sem::KernelProgram;
-use eqiora_solver::{
-    LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, ScalarType, SolverPlan,
-};
+use eqiora_solver::{LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, SolverPlan};
 
 const SOURCE: &str =
     include_str!("../../../verify/differentiation/spatial-poisson-fem-fvm/models/poisson.eqi");

@@ -1,8 +1,9 @@
 //! Bind the existing FSI projection from already authenticated Model/Plan support.
 
 use eqiora_meshing::{MeshTopology, ReferenceCell};
-use eqiora_realization::{AlgebraicBlock, CoupledFieldwiseRealizationPlan};
+use eqiora_realization::CoupledFieldwiseRealizationPlan;
 use eqiora_sem::KernelProgram;
+use eqiora_solver::AlgebraicBlock;
 
 use super::*;
 use crate::region_assembly::mapping::{TraceBinding, TraceFacet, field_layouts};

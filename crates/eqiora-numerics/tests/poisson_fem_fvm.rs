@@ -1,3 +1,4 @@
+use eqiora_core::ScalarType;
 use std::f64::consts::PI;
 use std::num::NonZeroUsize;
 
@@ -15,7 +16,6 @@ use eqiora_realization::{
 };
 use eqiora_sem::KernelProgram;
 use eqiora_solver::REFERENCE_LINEAR_SOLVER;
-use eqiora_solver::ScalarType;
 
 const EXPECTED: &str =
     include_str!("../../../verify/numerics/poisson-fem-fvm/expected/convergence.csv");

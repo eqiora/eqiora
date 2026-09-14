@@ -1,3 +1,4 @@
+use eqiora_core::ScalarType;
 use std::collections::{BTreeMap, BTreeSet};
 use std::f64::consts::PI;
 use std::num::{NonZeroU16, NonZeroUsize};
@@ -21,9 +22,7 @@ use eqiora::realization::{
     RealizationRevision, SemanticRevision, Space, Target, VectorLayoutKind, resolve,
 };
 use eqiora::sem::KernelProgram;
-use eqiora::solver::{
-    LinearSolver, REFERENCE_LINEAR_SOLVER, ReductionPolicy, ScalarType, SolverPlan,
-};
+use eqiora::solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverPlan};
 use eqiora_numerics::{
     solid::lower_isotropic_elasticity_cartesian_2d,
     solid::solve_resolved_isotropic_elasticity_cartesian_2d,

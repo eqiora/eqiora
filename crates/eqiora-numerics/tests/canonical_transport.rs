@@ -1,3 +1,4 @@
+use eqiora_solver::AlgebraicBlock;
 use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -6,7 +7,7 @@ use eqiora_assembly::{
     REFERENCE_ASSEMBLY_BACKEND,
 };
 use eqiora_compiler::compile;
-use eqiora_core::{Diagnostic, DimExponents, DynQuantity};
+use eqiora_core::{Diagnostic, DimExponents, DynQuantity, ScalarType};
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_meshing::{MeshEntity, MeshTopology};
 use eqiora_numerics::{
@@ -18,7 +19,7 @@ use eqiora_numerics::{
     scalar::solve_resolved_scalar_transport_fvm_step_2d,
 };
 use eqiora_realization::{
-    AlgebraicBlock, AlgebraicBlockScale, BackwardEulerRelationStep, CellCenteredConvection,
+    AlgebraicBlockScale, BackwardEulerRelationStep, CellCenteredConvection,
     CellCenteredConvectionScheme, Discretization, DiscretizationMethod, ExecutionSchedule,
     FieldSpaceBinding, FieldwiseRealizationPlan, FieldwiseRealizationRequirements,
     FieldwiseSpatialDiscretization, MeshPolicy, OrthogonalTwoPointDiffusion, PositivePhysicalScale,
@@ -35,7 +36,7 @@ use eqiora_solver::{
     DiagonalAvailability, ExecutionId, ExecutionProvider, ExecutionReport, FixedOrderInnerProduct,
     LinearOperator, LinearOperatorOrientation, LinearOperatorProperties, LinearProblem,
     LinearSolver, LinearSolverBackend, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
-    ReductionPolicy, ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, ScalarType, SolverPlan,
+    ReductionPolicy, ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, SolverPlan,
 };
 
 const SOURCE: &str =

@@ -7,7 +7,7 @@ use eqiora_assembly::{AssemblyBackend, REFERENCE_ASSEMBLY_BACKEND};
 use eqiora_core::ValueFrame;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DimExponents, GraphPath, RawId, ValueShape};
+use eqiora_core::{Diagnostic, DimExponents, GraphPath, RawId, ScalarType, ValueShape};
 use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::EdgeKind;
 use eqiora_ir::{OperatorApplicationProof, StandardPureOperator};
@@ -22,7 +22,7 @@ use eqiora_schema::kernel::{
     RepresentationKind, SymbolRef,
 };
 use eqiora_sem::KernelProgram;
-use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend, ScalarType};
+use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend};
 
 use crate::canonical_boundary::PhysicalBoundaryDisposition;
 use crate::cartesian_elasticity::CartesianLinearElasticity2dSolution;

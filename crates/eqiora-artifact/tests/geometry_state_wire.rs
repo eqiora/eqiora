@@ -7,7 +7,7 @@ use eqiora_artifact::{
 };
 use eqiora_compiler::compile;
 use eqiora_core::entity::kinds;
-use eqiora_core::{DimExponents, Id};
+use eqiora_core::{DimExponents, Id, ScalarType};
 use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore};
 use eqiora_meshing::{MeshQualityGate, SimplicialMesh};
 use eqiora_realization::{
@@ -16,7 +16,6 @@ use eqiora_realization::{
 };
 use eqiora_schema::kernel::{DomainKind, KernelNode};
 use eqiora_sem::KernelProgram;
-use eqiora_solver::ScalarType;
 
 const MODEL: &str = r#"
 model Main() {

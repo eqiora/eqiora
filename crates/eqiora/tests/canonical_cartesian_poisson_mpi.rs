@@ -4,6 +4,7 @@
 #[path = "support/canonical_cartesian_poisson.rs"]
 mod canonical;
 
+use eqiora_core::ScalarType;
 use std::env;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
@@ -32,7 +33,7 @@ use eqiora::realization::{
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
     ExecutionReport, LinearOperatorOrientation, LinearOperatorProperties, LinearSolver,
-    PreconditionerPolicy, ReductionPolicy, ScalarType, SolverCapabilities, SolverCapability,
+    PreconditionerPolicy, ReductionPolicy, SolverCapabilities, SolverCapability,
 };
 use eqiora_execution::{
     AdmittedExecution, DeploymentBinding, DistributedExecutorDescriptor, ExecutionReceipt,

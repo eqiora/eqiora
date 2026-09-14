@@ -1,11 +1,11 @@
-use eqiora_core::Diagnostic;
+use eqiora_core::{Diagnostic, ScalarType};
 use eqiora_meshing::{
     CellId, GeometryMap, MeshEntity, MeshGeometry, QuadratureRule, RevisionCellFragment2d,
     SimplicialMesh,
 };
 use eqiora_solver::{
     DiagonalAvailability, LinearOperator, LinearOperatorProperties, LinearProblem,
-    LinearSolveRequest, LinearSolver, PreconditionerPolicy, ScalarType, SolveReport,
+    LinearSolveRequest, LinearSolver, PreconditionerPolicy, SolveReport,
 };
 
 use crate::discrete_space::{DiscreteSpace, SimplexP1BubbleSpace, SimplexP1Space};

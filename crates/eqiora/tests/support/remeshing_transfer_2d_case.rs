@@ -1,3 +1,4 @@
+use eqiora_core::ScalarType;
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora::api::ModelDocument;
@@ -8,7 +9,7 @@ use eqiora::meshing::{
     triangle_duffy_gauss_legendre,
 };
 use eqiora::realization::{
-    AleFsiRemeshScaleProfile2d, AleFsiRemeshTransferPlan2d, AleGeometryQualityGate, AlgebraicBlock,
+    AleFsiRemeshScaleProfile2d, AleFsiRemeshTransferPlan2d, AleGeometryQualityGate,
     AlgebraicBlockScale, BackwardEulerRelationStep, BackwardEulerStateBinding,
     BackwardEulerStatePair, BackwardEulerStep, ConformingTraceQuotient,
     CoupledFieldwiseRealizationPlan, CoupledFieldwiseSpatialDiscretization, Discretization,
@@ -21,9 +22,9 @@ use eqiora::realization::{
     TraceFieldEndpoint, VectorLayoutKind, resolve_fixed_topology_ale_coupled,
 };
 use eqiora::solver::{
-    LinearOperatorProperties, LinearSolveRequest, LinearSolver, PreconditionerPolicy,
-    REFERENCE_LINEAR_SOLVER, ReductionPolicy, ScalarType, SolverCapabilities, SolverCapability,
-    SolverPlan,
+    AlgebraicBlock, LinearOperatorProperties, LinearSolveRequest, LinearSolver,
+    PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverCapabilities,
+    SolverCapability, SolverPlan,
 };
 use eqiora::{DimExponents, DynQuantity, Id, kinds};
 use eqiora_numerics::{

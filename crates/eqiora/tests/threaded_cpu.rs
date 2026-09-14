@@ -1,23 +1,24 @@
+use eqiora_core::ScalarType;
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora::compiler::compile;
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
 use eqiora::realization::{
-    AlgebraicBlock, AlgebraicBlockScale, DefaultPolicyVersion, Discretization,
-    DiscretizationMethod, ExecutionSchedule, FieldSpaceBinding, FieldwiseRealizationPlan,
-    FieldwiseRealizationRequest, FieldwiseRealizationRequirements, FieldwiseSpatialDiscretization,
-    MeshArtifactReference, MeshKind, MeshPolicy, PlacementRequirementNode, PositivePhysicalScale,
-    QuadraturePolicy, RealizationCapabilities, RealizationCapability, RealizationCapabilityContext,
-    RealizationPlan, RealizationRequest, RealizationRequirements, RealizationRevision,
-    ScheduleCapability, SemanticRevision, SolveRoot, Space, SpatialCapability,
-    SpatialDimensionSupport, SymmetricCongruenceScaling, Target, TargetCapability,
-    VectorLayoutKind, default_plan_v0, resolve, resolve_fieldwise,
+    AlgebraicBlockScale, DefaultPolicyVersion, Discretization, DiscretizationMethod,
+    ExecutionSchedule, FieldSpaceBinding, FieldwiseRealizationPlan, FieldwiseRealizationRequest,
+    FieldwiseRealizationRequirements, FieldwiseSpatialDiscretization, MeshArtifactReference,
+    MeshKind, MeshPolicy, PlacementRequirementNode, PositivePhysicalScale, QuadraturePolicy,
+    RealizationCapabilities, RealizationCapability, RealizationCapabilityContext, RealizationPlan,
+    RealizationRequest, RealizationRequirements, RealizationRevision, ScheduleCapability,
+    SemanticRevision, SolveRoot, Space, SpatialCapability, SpatialDimensionSupport,
+    SymmetricCongruenceScaling, Target, TargetCapability, VectorLayoutKind, default_plan_v0,
+    resolve, resolve_fieldwise,
 };
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
-    ExecutionReport, LinearOperatorProperties, LinearSolver, PreconditionerPolicy,
-    REFERENCE_LINEAR_SOLVER, ReductionPolicy, ScalarType, SolveReport, SolverCapabilities,
-    SolverCapability, SolverPlan,
+    AlgebraicBlock, ExecutionReport, LinearOperatorProperties, LinearSolver, PreconditionerPolicy,
+    REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolveReport, SolverCapabilities, SolverCapability,
+    SolverPlan,
 };
 use eqiora_backend_rayon::{CpuThreadPool, RAYON_EXECUTION};
 use eqiora_numerics::{

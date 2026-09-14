@@ -1,3 +1,4 @@
+use eqiora_core::ScalarType;
 use std::num::{NonZeroU16, NonZeroUsize};
 use std::sync::Mutex;
 
@@ -21,9 +22,7 @@ use eqiora::realization::{
     resolve,
 };
 use eqiora::sem::KernelProgram;
-use eqiora::solver::{
-    LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, ScalarType, SolverPlan,
-};
+use eqiora::solver::{LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, SolverPlan};
 use eqiora_numerics::{
     common::DiscreteSpace, common::HypercubeQ1Space, common::PhysicalBoundaryDisposition,
     solid::CartesianQ1VectorField2d,

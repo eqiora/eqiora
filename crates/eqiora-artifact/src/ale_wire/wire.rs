@@ -1,15 +1,15 @@
+use eqiora_solver::AlgebraicBlock;
 use std::num::NonZeroUsize;
 
 use crate::dimension::WireDimension;
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DynQuantity, Id};
+use eqiora_core::{Diagnostic, DynQuantity, Id, ScalarType};
 use eqiora_realization::{
-    AleGeometryQualityGate, AlgebraicBlock, BackwardEulerRelationStep,
-    FixedTopologyAleCoupledRealizationPlan, FixedTopologyAleCoupledRealizationRequirements,
-    GclCompatibleAlePullback, NonlinearSolvePlan, P1HarmonicMeshMotionPolicy, VectorLayoutKind,
+    AleGeometryQualityGate, BackwardEulerRelationStep, FixedTopologyAleCoupledRealizationPlan,
+    FixedTopologyAleCoupledRealizationRequirements, GclCompatibleAlePullback, NonlinearSolvePlan,
+    P1HarmonicMeshMotionPolicy, VectorLayoutKind,
 };
 use eqiora_solver::LinearOperatorProperties;
-use eqiora_solver::ScalarType;
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 

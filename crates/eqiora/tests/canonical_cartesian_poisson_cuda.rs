@@ -14,8 +14,8 @@ use eqiora::backends::cuda::{
 use eqiora::device::QueueSlot;
 use eqiora::realization::{DiscretizationMethod, TargetCapabilities, resolve};
 use eqiora::solver::ReductionPolicy;
-use eqiora::solver::ScalarType;
 use eqiora_backend_cuda::CudaAdmittedExecutionAdapter;
+use eqiora_core::ScalarType;
 use eqiora_execution::{AdmittedExecution, CudaExecutorDescriptor, DeploymentBinding};
 use eqiora_numerics::scalar::finalize_resolved_scalar_elliptic_cartesian;
 

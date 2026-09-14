@@ -2,11 +2,11 @@ use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 
 use eqiora_assembly::{AssemblyPlan, AssemblyTargetId, CsrMatrix, DofId, LinearSystem};
-use eqiora_core::Diagnostic;
+use eqiora_core::{Diagnostic, ScalarType};
 use eqiora_distributed::{
     DistributedLinearSystem, GlobalVectorSpace, OwnedLinearSystemShard, Partition, PartitionId,
 };
-use eqiora_solver::{CanonicalCsrSystemView, ExecutionReport, ExecutionTopology, ScalarType};
+use eqiora_solver::{CanonicalCsrSystemView, ExecutionReport, ExecutionTopology};
 use sha2::{Digest, Sha256};
 
 use crate::{DistributedMeshLayout, DistributedMeshLayoutIdentityV1, MeshRevisionIdentityV1};

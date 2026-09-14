@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::num::{NonZeroU64, NonZeroUsize};
 
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, Id, OntologyId};
+use eqiora_core::{Diagnostic, Id, OntologyId, ScalarType};
 use eqiora_device::{
     BufferId, Completion, DeviceBufferDescriptor, DeviceCapability, DeviceDescriptor, DeviceId,
     Fence, HostBufferDescriptor, MemoryRegion, QueueId, QueueSlot, QueueTimeline, RuntimeId,
@@ -20,8 +20,8 @@ use eqiora_solver::{
     ExecutionProvider, ExecutionReport, FixedOrderInnerProduct, LinearOperator,
     LinearOperatorProperties, LinearSolver, LinearSolverBackend, PreconditionerPolicy,
     ProviderLibrary, REFERENCE_LINEAR_SOLVER, ReductionPolicy, ReplicatedLinearExecution,
-    SERIAL_LINEAR_EXECUTION, ScalarType, SolverCapabilities, SolverCapability, SolverPlan,
-    SolverProvider, accept_linear_solution_with_verifier,
+    SERIAL_LINEAR_EXECUTION, SolverCapabilities, SolverCapability, SolverPlan, SolverProvider,
+    accept_linear_solution_with_verifier,
 };
 
 use super::binding::{DistributedExecutorDescriptor, ProcessGroupSlot};

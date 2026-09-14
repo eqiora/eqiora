@@ -1,5 +1,6 @@
 mod support;
 
+use eqiora_core::ScalarType;
 use std::num::{NonZeroU16, NonZeroUsize};
 
 use eqiora::api::{DifferentiableProgram, LinearizationState};
@@ -14,7 +15,7 @@ use eqiora::realization::{
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
     LinearOperatorOrientation, LinearOperatorProperties, LinearSolveRequest, LinearSolver,
-    REFERENCE_LINEAR_SOLVER, ScalarType, SolverPlan,
+    REFERENCE_LINEAR_SOLVER, SolverPlan,
 };
 use eqiora::{Id, compiler::compile, entity::kinds};
 use eqiora_numerics::{
