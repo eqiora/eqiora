@@ -488,7 +488,12 @@ fn fixture() -> Fixture {
         &partition,
         &motion,
         vec![[0.0; COMPONENTS]; mesh.vertices().len()],
-        vec![[0.0; COMPONENTS]; partition.fluid_cells().len()],
+        partition
+            .fluid_cells()
+            .iter()
+            .copied()
+            .map(|cell| (cell, [0.0; COMPONENTS]))
+            .collect(),
         vec![0.0; partition.fluid_vertices().len()],
         vec![[0.0; COMPONENTS]; mesh.vertices().len()],
     )
@@ -526,7 +531,12 @@ fn fixture_3d() -> Fixture3d {
         &partition,
         &motion,
         vec![[0.0; 3]; mesh.vertices().len()],
-        vec![[0.0; 3]; partition.fluid_cells().len()],
+        partition
+            .fluid_cells()
+            .iter()
+            .copied()
+            .map(|cell| (cell, [0.0; 3]))
+            .collect(),
         vec![0.0; partition.fluid_vertices().len()],
         vec![[0.0; 3]; mesh.vertices().len()],
     )

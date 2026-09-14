@@ -22,7 +22,7 @@ pub(super) struct EnergyEvaluation<'a, const D: usize = 2> {
     pub(super) partition: &'a FixedReferenceFsiPartition<D>,
     pub(super) previous: &'a FixedReferenceFsiState<D>,
     pub(super) next_vertex_velocity: &'a [[f64; D]],
-    pub(super) next_bubbles: &'a [[f64; D]],
+    pub(super) next_bubbles: &'a std::collections::BTreeMap<eqiora_meshing::CellId, [f64; D]>,
     pub(super) next_displacement: &'a [[f64; D]],
     pub(super) config: FixedReferenceFsiStepConfig<D>,
     pub(super) quadrature: &'a QuadratureRule,
@@ -54,7 +54,7 @@ pub(super) fn energy_balance<const D: usize>(
     let mini = SimplexP1BubbleSpace::new(D)?;
     let p1 = SimplexP1Space::new(D)?;
 
-    for (position, cell) in partition.fluid_cells().iter().copied().enumerate() {
+    for cell in partition.fluid_cells().iter().copied() {
         let entity = MeshEntity::new(D, cell.index());
         let geometry = mesh
             .geometry_map(entity)
@@ -91,11 +91,11 @@ pub(super) fn energy_balance<const D: usize>(
             }
             for component in 0..D {
                 old[component] += basis.values()[p1_count]
-                    * previous.fluid_cell_bubble_velocity()[position][component];
-                new[component] += basis.values()[p1_count] * next_bubbles[position][component];
+                    * previous.fluid_cell_bubble_velocity()[&cell][component];
+                new[component] += basis.values()[p1_count] * next_bubbles[&cell][component];
                 for axis in 0..D {
                     new_gradient[component][axis] +=
-                        gradients[p1_count][axis] * next_bubbles[position][component];
+                        gradients[p1_count][axis] * next_bubbles[&cell][component];
                 }
             }
             let weight = point.weight * geometry.measure_scale();

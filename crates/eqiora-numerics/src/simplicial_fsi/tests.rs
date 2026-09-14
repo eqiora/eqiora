@@ -46,6 +46,45 @@ fn exact_partition_rejects_missing_and_extra_interface_facets() {
 }
 
 #[test]
+fn bubble_history_uses_complete_exact_cell_keys_independent_of_insertion_order() {
+    let fixture = fixture_problem();
+    let cells = fixture.partition.fluid_cells();
+    assert!(cells.len() > 1);
+    let make = |bubbles| {
+        FixedReferenceFsiState::<2>::new(
+            &fixture.mesh,
+            &fixture.partition,
+            fixture.previous.vertex_velocity().to_vec(),
+            bubbles,
+            fixture.previous.solid_displacement().to_vec(),
+        )
+    };
+    let entries = cells
+        .iter()
+        .copied()
+        .map(|cell| (cell, [cell.index() as f64, -0.25]))
+        .collect::<Vec<_>>();
+    let accepted = make(entries.iter().copied().collect()).unwrap();
+    assert_eq!(
+        accepted,
+        make(entries.iter().rev().copied().collect()).unwrap()
+    );
+    for (cell, expected) in &entries {
+        assert_eq!(accepted.fluid_cell_bubble_velocity()[cell], *expected);
+    }
+    let mut missing = accepted.fluid_cell_bubble_velocity().clone();
+    missing.remove(&cells[0]);
+    assert!(make(missing).is_err());
+    let mut foreign = accepted.fluid_cell_bubble_velocity().clone();
+    let value = foreign.remove(&cells[0]).unwrap();
+    foreign.insert(fixture.partition.solid_cells()[0], value);
+    assert!(make(foreign).is_err());
+    let mut nonfinite = accepted.fluid_cell_bubble_velocity().clone();
+    nonfinite.get_mut(&cells[0]).unwrap()[1] = f64::NAN;
+    assert!(make(nonfinite).is_err());
+}
+
+#[test]
 fn tetrahedral_contract_replays_one_exact_interface_and_dimensioned_state() {
     let mesh = two_tetrahedron_mesh();
     let interface = shared_tetrahedron_interface(&mesh);
@@ -65,7 +104,12 @@ fn tetrahedral_contract_replays_one_exact_interface_and_dimensioned_state() {
         &mesh,
         &partition,
         vec![[0.0; 3]; mesh.vertices().len()],
-        vec![[0.0; 3]; partition.fluid_cells().len()],
+        partition
+            .fluid_cells()
+            .iter()
+            .copied()
+            .map(|cell| (cell, [0.0; 3]))
+            .collect(),
         vec![[0.0; 3]; mesh.vertices().len()],
     )
     .unwrap();
@@ -424,7 +468,12 @@ fn fixture_problem() -> Fixture {
         &mesh,
         &partition,
         vec![[0.0; 2]; mesh.vertices().len()],
-        vec![[0.0; 2]; partition.fluid_cells().len()],
+        partition
+            .fluid_cells()
+            .iter()
+            .copied()
+            .map(|cell| (cell, [0.0; 2]))
+            .collect(),
         displacement,
     )
     .unwrap();
@@ -464,7 +513,12 @@ fn fixture_problem_3d() -> Fixture3d {
         &mesh,
         &partition,
         vec![[0.0; 3]; mesh.vertices().len()],
-        vec![[0.0; 3]; partition.fluid_cells().len()],
+        partition
+            .fluid_cells()
+            .iter()
+            .copied()
+            .map(|cell| (cell, [0.0; 3]))
+            .collect(),
         displacement,
     )
     .unwrap();

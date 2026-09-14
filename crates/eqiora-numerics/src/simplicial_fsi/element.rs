@@ -17,7 +17,7 @@ pub(crate) fn fluid_local<const D: usize>(
     config: FixedReferenceFsiStepConfig<D>,
     vertices: &[MeshEntity],
     previous: &FixedReferenceFsiState<D>,
-    fluid_position: usize,
+    cell: eqiora_meshing::CellId,
 ) -> Result<LocalContribution, Diagnostic> {
     require_geometry::<D>(geometry, quadrature)?;
     let p1_count = p1_count::<D>();
@@ -26,7 +26,7 @@ pub(crate) fn fluid_local<const D: usize>(
         .take(p1_count)
         .map(|vertex| previous.vertex_velocity()[vertex.index()])
         .collect::<Vec<_>>();
-    previous_velocity.push(previous.fluid_cell_bubble_velocity()[fluid_position]);
+    previous_velocity.push(previous.fluid_cell_bubble_velocity()[&cell]);
     let material = config.material();
     let (local_size, matrix, rhs) = MiniScaledAffineCell::<D> {
         geometry,
@@ -117,7 +117,7 @@ mod tests {
             fixture.config,
             &fluid.1,
             &fixture.previous,
-            0,
+            eqiora_meshing::CellId::new(0),
         )
         .unwrap();
         let solid_local = solid_local(
@@ -143,7 +143,9 @@ mod tests {
             .unwrap(),
             false,
         );
-        let fluid_map = layout.fluid_map(0, &fluid.1, false).unwrap();
+        let fluid_map = layout
+            .fluid_map(eqiora_meshing::CellId::new(0), &fluid.1, false)
+            .unwrap();
         let solid_map = layout.solid_map(1, &solid.1, false).unwrap();
 
         // tetrahedral MINI velocity: (P1 four vertices + one bubble) * 3,
@@ -199,7 +201,7 @@ mod tests {
             fixture.config,
             &fluid.1,
             &fixture.previous,
-            0,
+            eqiora_meshing::CellId::new(0),
         )
         .unwrap();
         let fluid_wider = fluid_local(
@@ -208,7 +210,7 @@ mod tests {
             wider,
             &fluid.1,
             &fixture.previous,
-            0,
+            eqiora_meshing::CellId::new(0),
         )
         .unwrap();
         let solid_reference = solid_local(
@@ -285,7 +287,12 @@ mod tests {
             &mesh,
             &partition,
             vec![[0.0; 3]; mesh.vertices().len()],
-            vec![[0.0; 3]; partition.fluid_cells().len()],
+            partition
+                .fluid_cells()
+                .iter()
+                .copied()
+                .map(|cell| (cell, [0.0; 3]))
+                .collect(),
             vec![[0.0; 3]; mesh.vertices().len()],
         )
         .unwrap();

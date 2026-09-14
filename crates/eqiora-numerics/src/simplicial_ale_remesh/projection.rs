@@ -1,3 +1,6 @@
+mod velocity;
+use velocity::{evaluate_velocity_cell, velocity_scalar_dofs};
+
 use std::collections::BTreeSet;
 
 use eqiora_core::Diagnostic;
@@ -89,7 +92,7 @@ struct VectorP1Projection {
 
 struct VelocityProjection {
     vertex: Vec<[f64; COMPONENTS]>,
-    bubble: Vec<[f64; COMPONENTS]>,
+    bubble: std::collections::BTreeMap<CellId, [f64; COMPONENTS]>,
     report: SolveReport,
     right_hand_side_norm: f64,
     residual_norm: f64,
@@ -1219,7 +1222,12 @@ fn project_velocity(
         }
     }
     let vertex = coefficients[..vertex_count].to_vec();
-    let bubble = coefficients[vertex_count..].to_vec();
+    let bubble = target_partition
+        .fluid_cells()
+        .iter()
+        .copied()
+        .zip(coefficients[vertex_count..].iter().copied())
+        .collect();
     let full = flatten_vector_coefficients(&coefficients);
     let weak_divergence_norm = euclidean_norm(
         &divergence_rows
@@ -1311,7 +1319,7 @@ fn assemble_velocity_mixed_region(
     source_mesh: &SimplicialMesh,
     source_partition: &FixedReferenceFsiPartition<2>,
     source_vertex: &[[f64; COMPONENTS]],
-    source_bubble: Option<&[[f64; COMPONENTS]]>,
+    source_bubble: Option<&std::collections::BTreeMap<CellId, [f64; COMPONENTS]>>,
     target_mesh: &SimplicialMesh,
     target_partition: &FixedReferenceFsiPartition<2>,
     bubbles: bool,
@@ -1344,50 +1352,6 @@ fn assemble_velocity_mixed_region(
         })?;
     }
     Ok(())
-}
-
-fn velocity_scalar_dofs(
-    mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition<2>,
-    cell: CellId,
-    bubble: bool,
-) -> Result<Vec<usize>, Diagnostic> {
-    let mut dofs = cell_vertex_indices(mesh, cell)?.to_vec();
-    if bubble {
-        let position = partition.fluid_position(cell.index()).ok_or_else(|| {
-            super::invalid("ALE FSI remesh fluid cell lacks a canonical MINI bubble position")
-        })?;
-        dofs.push(mesh.vertices().len() + position);
-    }
-    Ok(dofs)
-}
-
-fn evaluate_velocity_cell(
-    mesh: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition<2>,
-    cell: CellId,
-    point: [f64; DIMENSION],
-    vertex: &[[f64; COMPONENTS]],
-    bubbles: Option<&[[f64; COMPONENTS]]>,
-) -> Result<[f64; COMPONENTS], Diagnostic> {
-    let vertices = cell_vertex_indices(mesh, cell)?;
-    let basis = cell_basis(mesh, cell, point, bubbles.is_some())?;
-    let mut value = std::array::from_fn(|component| {
-        vertices
-            .iter()
-            .enumerate()
-            .map(|(local, &vertex_index)| basis.values[local] * vertex[vertex_index][component])
-            .sum::<f64>()
-    });
-    if let Some(bubbles) = bubbles {
-        let position = partition.fluid_position(cell.index()).ok_or_else(|| {
-            super::invalid("ALE FSI remesh fluid evaluation lacks a MINI bubble position")
-        })?;
-        for component in 0..COMPONENTS {
-            value[component] += basis.values[3] * bubbles[position][component];
-        }
-    }
-    Ok(value)
 }
 
 fn weak_divergence_rows(
@@ -1526,7 +1490,7 @@ fn total_velocity_momentum(
     current: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<2>,
     vertex: &[[f64; COMPONENTS]],
-    bubbles: &[[f64; COMPONENTS]],
+    bubbles: &std::collections::BTreeMap<CellId, [f64; COMPONENTS]>,
     material: FixedReferenceFsiMaterial<2>,
     quadrature: &QuadratureRule,
 ) -> Result<[f64; COMPONENTS], Diagnostic> {
@@ -1560,7 +1524,7 @@ fn integrate_velocity_momentum_region(
     partition: &FixedReferenceFsiPartition<2>,
     cells: &[CellId],
     vertex: &[[f64; COMPONENTS]],
-    bubbles: Option<&[[f64; COMPONENTS]]>,
+    bubbles: Option<&std::collections::BTreeMap<CellId, [f64; COMPONENTS]>>,
     density: f64,
     quadrature: &QuadratureRule,
     momentum: &mut [f64; COMPONENTS],
@@ -1585,12 +1549,12 @@ fn velocity_l2_error(
     source_current: &SimplicialMesh,
     source_partition: &FixedReferenceFsiPartition<2>,
     source_vertex: &[[f64; COMPONENTS]],
-    source_bubble: &[[f64; COMPONENTS]],
+    source_bubble: &std::collections::BTreeMap<CellId, [f64; COMPONENTS]>,
     target_reference: &SimplicialMesh,
     target_current: &SimplicialMesh,
     target_partition: &FixedReferenceFsiPartition<2>,
     target_vertex: &[[f64; COMPONENTS]],
-    target_bubble: &[[f64; COMPONENTS]],
+    target_bubble: &std::collections::BTreeMap<CellId, [f64; COMPONENTS]>,
     material: FixedReferenceFsiMaterial<2>,
     quadrature: &QuadratureRule,
 ) -> Result<(f64, f64), Diagnostic> {
@@ -1642,11 +1606,11 @@ fn accumulate_velocity_l2_error(
     source_mesh: &SimplicialMesh,
     source_partition: &FixedReferenceFsiPartition<2>,
     source_vertex: &[[f64; COMPONENTS]],
-    source_bubble: Option<&[[f64; COMPONENTS]]>,
+    source_bubble: Option<&std::collections::BTreeMap<CellId, [f64; COMPONENTS]>>,
     target_mesh: &SimplicialMesh,
     target_partition: &FixedReferenceFsiPartition<2>,
     target_vertex: &[[f64; COMPONENTS]],
-    target_bubble: Option<&[[f64; COMPONENTS]]>,
+    target_bubble: Option<&std::collections::BTreeMap<CellId, [f64; COMPONENTS]>>,
     density: f64,
     quadrature: &QuadratureRule,
     squared: &mut f64,

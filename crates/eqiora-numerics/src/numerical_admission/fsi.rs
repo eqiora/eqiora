@@ -19,7 +19,7 @@ impl PreparedCommonFsiExecution<'_> {
             self.plan.mesh(),
             &self.plan.partition,
             solution.vertex_velocity_coefficients().to_vec(),
-            solution.fluid_velocity_bubble_coefficients().to_vec(),
+            solution.fluid_velocity_bubble_coefficients().clone(),
             solution.solid_displacement_coefficients().to_vec(),
         )?;
         CommonState::new(
@@ -455,7 +455,12 @@ impl CommonFsiPlan {
             self.mesh(),
             &self.partition,
             velocity,
-            fluid_velocity_bubbles,
+            self.partition
+                .fluid_cells()
+                .iter()
+                .copied()
+                .zip(fluid_velocity_bubbles)
+                .collect(),
             displacement,
         )?;
         CommonState::new(

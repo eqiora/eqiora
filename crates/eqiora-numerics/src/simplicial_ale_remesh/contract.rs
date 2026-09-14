@@ -1,6 +1,8 @@
 use eqiora_core::Diagnostic;
+use eqiora_meshing::CellId;
 use eqiora_meshing::{FixedTopologyGeometryState2d, SimplicialRevisionOverlap2d};
 use eqiora_solver::SolveReport;
+use std::collections::BTreeMap;
 
 use crate::canonical_fsi::AleFsiInitialPhysicalState;
 use crate::simplicial_fsi::{FixedReferenceFsiMaterial, FixedReferenceFsiScale};
@@ -509,7 +511,7 @@ impl AleFsiRemeshProjectionEvidence2d {
 pub struct AcceptedAleFsiRemeshProjection2d {
     time: f64,
     vertex_velocity: Vec<[f64; COMPONENTS]>,
-    fluid_cell_bubble_velocity: Vec<[f64; COMPONENTS]>,
+    fluid_cell_bubble_velocity: BTreeMap<CellId, [f64; COMPONENTS]>,
     fluid_pressure: Vec<f64>,
     solid_displacement: Vec<[f64; COMPONENTS]>,
     evidence: AleFsiRemeshProjectionEvidence2d,
@@ -519,7 +521,7 @@ impl AcceptedAleFsiRemeshProjection2d {
     pub(super) fn new(
         time: f64,
         vertex_velocity: Vec<[f64; COMPONENTS]>,
-        fluid_cell_bubble_velocity: Vec<[f64; COMPONENTS]>,
+        fluid_cell_bubble_velocity: BTreeMap<CellId, [f64; COMPONENTS]>,
         fluid_pressure: Vec<f64>,
         solid_displacement: Vec<[f64; COMPONENTS]>,
         evidence: AleFsiRemeshProjectionEvidence2d,
@@ -546,9 +548,9 @@ impl AcceptedAleFsiRemeshProjection2d {
         &self.vertex_velocity
     }
 
-    /// Target fluid MINI bubble coefficients in target fluid-cell order.
+    /// Target fluid MINI bubble coefficients keyed by exact target `CellId`.
     #[must_use]
-    pub fn fluid_cell_bubble_velocity(&self) -> &[[f64; COMPONENTS]] {
+    pub fn fluid_cell_bubble_velocity(&self) -> &BTreeMap<CellId, [f64; COMPONENTS]> {
         &self.fluid_cell_bubble_velocity
     }
 

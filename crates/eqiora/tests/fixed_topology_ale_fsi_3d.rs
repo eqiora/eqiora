@@ -181,7 +181,12 @@ impl Fixture {
         AleFsiInitialPhysicalState::<3>::new(
             0.0,
             vec![[0.0; D]; self.mesh.vertices().len()],
-            vec![[0.0; D]; self.partition.fluid_cells().len()],
+            self.partition
+                .fluid_cells()
+                .iter()
+                .copied()
+                .map(|cell| (cell, [0.0; D]))
+                .collect(),
             vec![0.0; self.partition.fluid_vertices().len()],
             displacement,
         )
@@ -572,12 +577,7 @@ fn moving_snapshots(
         fluid_vertex_velocity[vertex.index()] = state.vertex_velocity()[vertex.index()];
     }
     let mut fluid_cell_velocity = vec![[0.0; D]; fixture.mesh.cells().len()];
-    for (cell, value) in fixture
-        .partition
-        .fluid_cells()
-        .iter()
-        .zip(state.fluid_cell_bubble_velocity())
-    {
+    for (cell, value) in state.fluid_cell_bubble_velocity() {
         fluid_cell_velocity[cell.index()] = *value;
     }
     blocks.push((

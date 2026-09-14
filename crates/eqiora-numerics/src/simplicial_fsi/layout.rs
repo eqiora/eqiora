@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use eqiora_assembly::{AssemblyMap, DofId};
 use eqiora_core::{Diagnostic, RawId};
-use eqiora_meshing::{MeshEntity, SimplicialMesh, VertexId};
+use eqiora_meshing::{CellId, MeshEntity, SimplicialMesh, VertexId};
 
 use super::contract::FixedReferenceFsiBoundary;
 use super::invalid;
@@ -24,12 +24,12 @@ pub(crate) struct FsiLayout<const D: usize = 2> {
     mapping: RegionDofMap,
     roles: FsiRoles,
     vertex_keys: Vec<[FieldDof; D]>,
-    bubble_keys: Vec<[FieldDof; D]>,
+    bubble_keys: BTreeMap<CellId, [FieldDof; D]>,
     pressure_keys: Vec<FieldDof>,
     pressure_vertices: Vec<VertexId>,
 }
 
-type ReconstructedFsiFields<const D: usize> = (Vec<[f64; D]>, Vec<[f64; D]>, Vec<f64>);
+type ReconstructedFsiFields<const D: usize> = (Vec<[f64; D]>, BTreeMap<CellId, [f64; D]>, Vec<f64>);
 
 fn key(field: RawId, entity: MeshEntity, component: usize) -> FieldDof {
     FieldDof {
@@ -41,6 +41,19 @@ fn key(field: RawId, entity: MeshEntity, component: usize) -> FieldDof {
 }
 
 impl<const D: usize> FsiLayout<D> {
+    pub(crate) fn cell_domain(&self, cell: usize) -> Result<RawId, Diagnostic> {
+        self.mapping
+            .cell_domains()
+            .get(cell)
+            .copied()
+            .ok_or_else(|| invalid("cell is outside the exact Domain inventory"))
+    }
+    pub(crate) fn fluid_domain(&self) -> RawId {
+        self.roles.bindings[&self.roles.fluid_velocity].0
+    }
+    pub(crate) fn solid_domain(&self) -> RawId {
+        self.roles.bindings[&self.roles.solid_velocity].0
+    }
     pub(crate) fn reactions(
         &self,
         work: &dyn eqiora_assembly::AssemblyWork,
@@ -169,12 +182,15 @@ impl<const D: usize> FsiLayout<D> {
             .fluid_cells()
             .iter()
             .map(|cell| {
-                std::array::from_fn(|component| {
-                    key(fluid_velocity, MeshEntity::new(D, cell.index()), component)
-                })
+                (
+                    *cell,
+                    std::array::from_fn(|component| {
+                        key(fluid_velocity, MeshEntity::new(D, cell.index()), component)
+                    }),
+                )
             })
-            .collect::<Vec<_>>();
-        expected.extend(bubble_keys.iter().flatten().copied());
+            .collect::<BTreeMap<_, _>>();
+        expected.extend(bubble_keys.values().flatten().copied());
         let pressure_vertices = partition.fluid_vertices().to_vec();
         let pressure_keys = pressure_vertices
             .iter()
@@ -278,15 +294,10 @@ impl<const D: usize> FsiLayout<D> {
 
     pub(crate) fn fluid_map(
         &self,
-        fluid_position: usize,
+        cell: CellId,
         vertices: &[MeshEntity],
         reduced: bool,
     ) -> Result<AssemblyMap, Diagnostic> {
-        let cell = self
-            .partition
-            .fluid_cells()
-            .get(fluid_position)
-            .ok_or_else(|| invalid("fluid position has no exact Region cell"))?;
         if self
             .reference
             .entity_vertices(MeshEntity::new(D, cell.index()))
@@ -299,7 +310,7 @@ impl<const D: usize> FsiLayout<D> {
         }
         let bubbles = self
             .bubble_keys
-            .get(fluid_position)
+            .get(&cell)
             .ok_or_else(|| invalid("fluid cell has no exact bubble ownership"))?;
         let mut keys = vertices
             .iter()
@@ -323,7 +334,7 @@ impl<const D: usize> FsiLayout<D> {
         reduced: bool,
     ) -> Result<AssemblyMap, Diagnostic> {
         if cell >= self.partition.cell_count()
-            || self.partition.material(cell) != super::partition::CellMaterial::Solid
+            || self.cell_domain(cell)? != self.solid_domain()
             || self
                 .reference
                 .entity_vertices(MeshEntity::new(D, cell))
@@ -389,9 +400,8 @@ impl<const D: usize> FsiLayout<D> {
     pub(crate) fn reconstruct_primal(
         &self,
         values: &[f64],
-        fluid_cell_count: usize,
     ) -> Result<ReconstructedFsiFields<D>, Diagnostic> {
-        self.split_fields(&self.mapping.lift(values, false)?, fluid_cell_count)
+        self.split_fields(&self.mapping.lift(values, false)?)
     }
     pub(crate) fn reconstruct_physical(
         &self,
@@ -409,7 +419,7 @@ impl<const D: usize> FsiLayout<D> {
                 .collect(),
             self.bubble_keys
                 .iter()
-                .map(|keys| keys.map(value))
+                .map(|(&cell, keys)| (cell, keys.map(value)))
                 .collect(),
             self.pressure_keys.iter().copied().map(value).collect(),
         ))
@@ -417,20 +427,10 @@ impl<const D: usize> FsiLayout<D> {
     pub(crate) fn reconstruct_direction(
         &self,
         values: &[f64],
-        fluid_cell_count: usize,
     ) -> Result<ReconstructedFsiFields<D>, Diagnostic> {
-        self.split_fields(&self.mapping.lift(values, true)?, fluid_cell_count)
+        self.split_fields(&self.mapping.lift(values, true)?)
     }
-    fn split_fields(
-        &self,
-        values: &[f64],
-        fluid_cell_count: usize,
-    ) -> Result<ReconstructedFsiFields<D>, Diagnostic> {
-        if fluid_cell_count != self.bubble_keys.len() {
-            return Err(invalid(
-                "FSI history differs from exact fluid cell inventory",
-            ));
-        }
+    fn split_fields(&self, values: &[f64]) -> Result<ReconstructedFsiFields<D>, Diagnostic> {
         let value = |key| {
             values[self
                 .mapping
@@ -444,7 +444,7 @@ impl<const D: usize> FsiLayout<D> {
                 .collect(),
             self.bubble_keys
                 .iter()
-                .map(|keys| keys.map(value))
+                .map(|(&cell, keys)| (cell, keys.map(value)))
                 .collect(),
             self.pressure_keys.iter().copied().map(value).collect(),
         ))
@@ -452,11 +452,11 @@ impl<const D: usize> FsiLayout<D> {
     pub(crate) fn reduce(
         &self,
         velocity: &[[f64; D]],
-        bubbles: &[[f64; D]],
+        bubbles: &BTreeMap<CellId, [f64; D]>,
         pressure: &[f64],
     ) -> Result<Vec<f64>, Diagnostic> {
         if velocity.len() != self.vertex_keys.len()
-            || bubbles.len() != self.bubble_keys.len()
+            || !bubbles.keys().eq(self.bubble_keys.keys())
             || pressure.len() != self.pressure_keys.len()
         {
             return Err(invalid(
@@ -469,16 +469,15 @@ impl<const D: usize> FsiLayout<D> {
     pub(crate) fn fill_full(
         &self,
         velocity: &[[f64; D]],
-        bubbles: &[[f64; D]],
+        bubbles: &BTreeMap<CellId, [f64; D]>,
         pressure: &[f64],
     ) -> Vec<f64> {
         let mut full = vec![0.0; self.mapping.full_count()];
-        for (keys, values) in self
-            .vertex_keys
-            .iter()
-            .zip(velocity)
-            .chain(self.bubble_keys.iter().zip(bubbles))
-        {
+        for (keys, values) in self.vertex_keys.iter().zip(velocity).chain(
+            self.bubble_keys
+                .iter()
+                .map(|(cell, keys)| (keys, &bubbles[cell])),
+        ) {
             for (&key, &value) in keys.iter().zip(values) {
                 full[self.mapping.global_dof(key).expect("validated Field DOF")] = value;
             }
@@ -584,7 +583,9 @@ mod tests {
             .unwrap();
         let fluid = [0, 1, 2].map(|index| MeshEntity::new(0, index));
         let solid = [1, 3, 2].map(|index| MeshEntity::new(0, index));
-        let fluid_map = layout.fluid_map(0, &fluid, true).unwrap();
+        let fluid_map = layout
+            .fluid_map(eqiora_meshing::CellId::new(0), &fluid, true)
+            .unwrap();
         assert_eq!(fluid_map.equations().len(), 11);
         assert_eq!(fluid_map.equations()[0], None);
         assert_eq!(fluid_map.unknowns()[0], LocalUnknown::Fixed(1.25));
@@ -597,16 +598,36 @@ mod tests {
         let values = (0..layout.reduced_size())
             .map(|index| index as f64 + 10.0)
             .collect::<Vec<_>>();
-        let (velocity, bubbles, pressure) = layout.reconstruct_primal(&values, 1).unwrap();
+        let (velocity, bubbles, pressure) = layout.reconstruct_primal(&values).unwrap();
         assert_eq!((velocity[0][0], velocity[3][1]), (1.25, -2.5));
         assert_eq!(
             layout.reduce(&velocity, &bubbles, &pressure).unwrap(),
             values
         );
-        let direction = layout.reconstruct_direction(&values, 1).unwrap().0;
+        assert_eq!(layout.cell_domain(0).unwrap(), layout.fluid_domain());
+        assert_eq!(layout.cell_domain(1).unwrap(), layout.solid_domain());
+        assert!(layout.cell_domain(2).is_err());
+        let mut wrong_bubbles = bubbles.clone();
+        let value = wrong_bubbles.remove(&CellId::new(0)).unwrap();
+        wrong_bubbles.insert(CellId::new(1), value);
+        assert!(layout.reduce(&velocity, &wrong_bubbles, &pressure).is_err());
+        assert!(
+            layout
+                .reduce(&velocity, &BTreeMap::new(), &pressure)
+                .is_err()
+        );
+        let direction = layout.reconstruct_direction(&values).unwrap().0;
         assert_eq!((direction[0][0], direction[3][1]), (0.0, 0.0));
-        assert!(layout.fluid_map(1, &fluid, true).is_err());
-        assert!(layout.fluid_map(0, &solid, true).is_err());
+        assert!(
+            layout
+                .fluid_map(eqiora_meshing::CellId::new(1), &fluid, true)
+                .is_err()
+        );
+        assert!(
+            layout
+                .fluid_map(eqiora_meshing::CellId::new(0), &solid, true)
+                .is_err()
+        );
         assert!(layout.solid_map(0, &fluid, true).is_err());
         assert!(layout.solid_map(2, &solid, true).is_err());
         layout.require_reference(&mesh, &partition).unwrap();

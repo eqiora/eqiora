@@ -610,13 +610,12 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             let common_bubbles = common_plan
                 .fluid_cell_indices()
                 .into_iter()
-                .zip(common.velocity_cell_values())
+                .zip(common.velocity_cell_values().iter())
                 .map(|(cell, value)| (cell_key(mesh.mesh(), cell), *value))
                 .collect::<BTreeMap<_, _>>();
             let independent_bubbles = independent
-                .fluid_velocity_cells()
+                .fluid_velocity_bubble_coefficients()
                 .iter()
-                .zip(independent.fluid_velocity_bubble_coefficients())
                 .map(|(cell, value)| (cell_key(&independent_spatial.mesh, cell.index()), *value))
                 .collect::<BTreeMap<_, _>>();
             assert_eq!(

@@ -110,7 +110,12 @@ fn direct_tetrahedral_model_reaches_the_same_finalized_newton_boundary() {
     let invalid = AleFsiInitialPhysicalState::<3>::new(
         0.0,
         fixed_velocity,
-        vec![[0.0; 3]; partition.fluid_cells().len()],
+        partition
+            .fluid_cells()
+            .iter()
+            .copied()
+            .map(|cell| (cell, [0.0; 3]))
+            .collect(),
         vec![0.0; partition.fluid_vertices().len()],
         vec![[0.0; 3]; mesh.vertices().len()],
     )
@@ -282,7 +287,13 @@ fn finalization_rejects_quality_and_initial_boundary_drift() {
     let initial = AleFsiInitialPhysicalState::<2>::new(
         0.0,
         velocity,
-        vec![[0.0; 2]; fixture.partition.fluid_cells().len()],
+        fixture
+            .partition
+            .fluid_cells()
+            .iter()
+            .copied()
+            .map(|cell| (cell, [0.0; 2]))
+            .collect(),
         vec![0.0; fixture.partition.fluid_vertices().len()],
         vec![[0.0; 2]; fixture.mesh.vertices().len()],
     )
@@ -566,7 +577,12 @@ fn initial_for(
     AleFsiInitialPhysicalState::<2>::new(
         0.0,
         vec![[0.0; 2]; mesh.vertices().len()],
-        vec![[0.0; 2]; partition.fluid_cells().len()],
+        partition
+            .fluid_cells()
+            .iter()
+            .copied()
+            .map(|cell| (cell, [0.0; 2]))
+            .collect(),
         vec![0.0; partition.fluid_vertices().len()],
         vec![[0.0; 2]; mesh.vertices().len()],
     )
@@ -580,7 +596,12 @@ fn initial_for_3d(
     AleFsiInitialPhysicalState::<3>::new(
         0.0,
         vec![[0.0; 3]; mesh.vertices().len()],
-        vec![[0.0; 3]; partition.fluid_cells().len()],
+        partition
+            .fluid_cells()
+            .iter()
+            .copied()
+            .map(|cell| (cell, [0.0; 3]))
+            .collect(),
         vec![0.0; partition.fluid_vertices().len()],
         vec![[0.0; 3]; mesh.vertices().len()],
     )

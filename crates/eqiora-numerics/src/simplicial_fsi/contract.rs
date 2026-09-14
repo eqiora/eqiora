@@ -1,5 +1,7 @@
 //! State, material, scale, load, and boundary contracts.
 
+use eqiora_meshing::CellId;
+use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
@@ -428,7 +430,7 @@ impl<const D: usize> FixedReferenceFsiBoundary<D> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FixedReferenceFsiState<const D: usize> {
     vertex_velocity: Vec<[f64; D]>,
-    fluid_cell_bubble_velocity: Vec<[f64; D]>,
+    fluid_cell_bubble_velocity: BTreeMap<CellId, [f64; D]>,
     solid_displacement: Vec<[f64; D]>,
 }
 
@@ -437,7 +439,7 @@ impl<const D: usize> FixedReferenceFsiState<D> {
     ///
     /// Solid displacement is represented in mesh-vertex order to make the
     /// shared trace explicit; entries outside the solid closure must be exact
-    /// zero.  Fluid bubble entries follow `partition.fluid_cells()` order.
+    /// zero.  Fluid bubble entries are keyed by the exact owned `CellId` inventory.
     ///
     /// # Errors
     /// Returns `EQ0801` for an incompatible shape, non-finite coefficient, or
@@ -446,17 +448,20 @@ impl<const D: usize> FixedReferenceFsiState<D> {
         mesh: &SimplicialMesh,
         partition: &FixedReferenceFsiPartition<D>,
         vertex_velocity: Vec<[f64; D]>,
-        fluid_cell_bubble_velocity: Vec<[f64; D]>,
+        fluid_cell_bubble_velocity: BTreeMap<CellId, [f64; D]>,
         solid_displacement: Vec<[f64; D]>,
     ) -> Result<Self, Diagnostic> {
         require_mesh_dimension::<D>(mesh)?;
         let vertex_count = mesh.vertices().len();
         if vertex_velocity.len() != vertex_count
             || solid_displacement.len() != vertex_count
-            || fluid_cell_bubble_velocity.len() != partition.fluid_cells().len()
+            || !fluid_cell_bubble_velocity
+                .keys()
+                .copied()
+                .eq(partition.fluid_cells().iter().copied())
             || vertex_velocity
                 .iter()
-                .chain(&fluid_cell_bubble_velocity)
+                .chain(fluid_cell_bubble_velocity.values())
                 .chain(&solid_displacement)
                 .flatten()
                 .any(|value| !value.is_finite())
@@ -492,9 +497,9 @@ impl<const D: usize> FixedReferenceFsiState<D> {
         &self.vertex_velocity
     }
 
-    /// Previous fluid MINI bubble coefficients in fluid-cell order.
+    /// Previous fluid MINI bubble coefficients keyed by exact fluid `CellId`.
     #[must_use]
-    pub fn fluid_cell_bubble_velocity(&self) -> &[[f64; D]] {
+    pub fn fluid_cell_bubble_velocity(&self) -> &BTreeMap<CellId, [f64; D]> {
         &self.fluid_cell_bubble_velocity
     }
 

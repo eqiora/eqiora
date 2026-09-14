@@ -478,10 +478,10 @@ mod tests {
         )
         .unwrap();
         let initial = assemble(&fixture, &point, &quadrature);
-        let (fluid_position, vertices, basis) = interface_fluid_cell(&fixture);
+        let (fluid_cell, vertices, basis) = interface_fluid_cell(&fixture);
         let map = initial
             .layout
-            .fluid_map(fluid_position, &vertices, true)
+            .fluid_map(fluid_cell, &vertices, true)
             .unwrap();
         let dimensionless_velocity = [0.02, -0.01, 0.015];
         for (component, value) in dimensionless_velocity.iter().copied().enumerate() {
@@ -514,7 +514,7 @@ mod tests {
             &fixture.partition,
             &fixture.motion,
             current.vertex_velocity().to_vec(),
-            current.fluid_cell_bubble_velocity().to_vec(),
+            current.fluid_cell_bubble_velocity().clone(),
             current.fluid_pressure().to_vec(),
             defective_displacement,
         )
@@ -624,13 +624,14 @@ mod tests {
         .unwrap()
     }
 
-    fn interface_fluid_cell(fixture: &Fixture3d) -> (usize, Vec<MeshEntity>, usize) {
+    fn interface_fluid_cell(
+        fixture: &Fixture3d,
+    ) -> (eqiora_meshing::CellId, Vec<MeshEntity>, usize) {
         fixture
             .partition
             .fluid_cells()
             .iter()
-            .enumerate()
-            .find_map(|(position, cell)| {
+            .find_map(|cell| {
                 let vertices = fixture
                     .mesh
                     .entity_vertices(MeshEntity::new(3, cell.index()))?
@@ -638,7 +639,7 @@ mod tests {
                 let basis = vertices
                     .iter()
                     .position(|vertex| vertex.index() == INTERFACE_INTERIOR.index())?;
-                Some((position, vertices, basis))
+                Some((*cell, vertices, basis))
             })
             .expect("the bounded tetrahedral fixture has one fluid interface cell")
     }
@@ -695,7 +696,12 @@ mod tests {
             &partition,
             &motion,
             vec![[0.0; 3]; mesh.vertices().len()],
-            vec![[0.0; 3]; partition.fluid_cells().len()],
+            partition
+                .fluid_cells()
+                .iter()
+                .copied()
+                .map(|cell| (cell, [0.0; 3]))
+                .collect(),
             vec![0.0; partition.fluid_vertices().len()],
             vec![[0.0; 3]; mesh.vertices().len()],
         )

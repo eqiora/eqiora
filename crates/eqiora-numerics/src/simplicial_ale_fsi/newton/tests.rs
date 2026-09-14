@@ -291,7 +291,12 @@ fn fixture() -> Fixture {
         &partition,
         &motion,
         vec![[0.0; 2]; mesh.vertices().len()],
-        vec![[0.0; 2]; partition.fluid_cells().len()],
+        partition
+            .fluid_cells()
+            .iter()
+            .copied()
+            .map(|cell| (cell, [0.0; 2]))
+            .collect(),
         vec![0.0; partition.fluid_vertices().len()],
         solid_displacement,
     )
@@ -341,7 +346,12 @@ fn fixture_3d() -> Fixture3d {
         &partition,
         &motion,
         vec![[0.0; 3]; mesh.vertices().len()],
-        vec![[0.0; 3]; partition.fluid_cells().len()],
+        partition
+            .fluid_cells()
+            .iter()
+            .copied()
+            .map(|cell| (cell, [0.0; 3]))
+            .collect(),
         vec![0.0; partition.fluid_vertices().len()],
         solid_displacement,
     )

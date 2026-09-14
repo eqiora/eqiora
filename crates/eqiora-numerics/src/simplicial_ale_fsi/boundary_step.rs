@@ -442,8 +442,8 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
         let bubbles = previous
             .fluid_cell_bubble_velocity()
             .iter()
-            .map(|value| value.map(|component| component / velocity_scale))
-            .collect::<Vec<_>>();
+            .map(|(&cell, value)| (cell, value.map(|component| component / velocity_scale)))
+            .collect::<std::collections::BTreeMap<_, _>>();
         let pressure = previous
             .fluid_pressure()
             .iter()
@@ -473,8 +473,8 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
         let bubbles = current
             .fluid_cell_bubble_velocity()
             .iter()
-            .map(|value| value.map(|component| component / velocity_scale))
-            .collect::<Vec<_>>();
+            .map(|(&cell, value)| (cell, value.map(|component| component / velocity_scale)))
+            .collect::<std::collections::BTreeMap<_, _>>();
         let pressure = current
             .fluid_pressure()
             .iter()
@@ -494,8 +494,7 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
         plan: AleFsiStepPlan<D>,
         layout: &FsiLayout<D>,
     ) -> Result<AleFsiState<D>, Diagnostic> {
-        let (vertex_hat, bubbles_hat, pressure_hat) =
-            layout.reconstruct_primal(candidate, partition.fluid_cells().len())?;
+        let (vertex_hat, bubbles_hat, pressure_hat) = layout.reconstruct_primal(candidate)?;
         let velocity_scale = plan.scale().velocity();
         let pressure_scale = plan.scale().pressure();
         let vertex_velocity = vertex_hat
@@ -515,8 +514,8 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
         }
         let bubbles = bubbles_hat
             .iter()
-            .map(|value| value.map(|component| component * velocity_scale))
-            .collect::<Vec<_>>();
+            .map(|(&cell, value)| (cell, value.map(|component| component * velocity_scale)))
+            .collect::<std::collections::BTreeMap<_, _>>();
         let pressure = pressure_hat
             .iter()
             .map(|value| value * pressure_scale)
@@ -559,8 +558,7 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
                 .map_err(|_| invalid("ALE FSI reduced basis direction allocation failed"))?;
             basis.resize(dimension, 0.0);
             basis[column] = 1.0;
-            let (vertex_hat, bubble_hat, pressure_hat) =
-                layout.reconstruct_direction(&basis, partition.fluid_cells().len())?;
+            let (vertex_hat, bubble_hat, pressure_hat) = layout.reconstruct_direction(&basis)?;
             self.require_zero_eliminated_direction(&vertex_hat)?;
             let vertex_velocity = vertex_hat
                 .iter()
@@ -568,8 +566,13 @@ impl<const D: usize> PreparedAleFsiBoundaryStep<D> {
                 .collect::<Vec<_>>();
             let fluid_bubbles = bubble_hat
                 .iter()
-                .map(|value| value.map(|component| component * plan.scale().velocity()))
-                .collect::<Vec<_>>();
+                .map(|(&cell, value)| {
+                    (
+                        cell,
+                        value.map(|component| component * plan.scale().velocity()),
+                    )
+                })
+                .collect::<std::collections::BTreeMap<_, _>>();
             let pressure = pressure_hat
                 .iter()
                 .map(|value| value * plan.scale().pressure())
@@ -725,7 +728,7 @@ pub(crate) fn advance_simplicial_ale_fsi_prepared_step<const D: usize>(
 
 pub(super) struct AlgebraicDirection<const D: usize> {
     pub(super) vertex_velocity: Vec<[f64; D]>,
-    pub(super) fluid_bubbles: Vec<[f64; D]>,
+    pub(super) fluid_bubbles: std::collections::BTreeMap<eqiora_meshing::CellId, [f64; D]>,
     pub(super) pressure: Vec<f64>,
     pub(super) coordinate: Vec<[f64; D]>,
 }

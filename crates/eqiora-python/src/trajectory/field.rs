@@ -379,7 +379,7 @@ impl PyFieldSnapshot {
         let solid_displacement = select_vectors(displacement, &solid_vertices)?;
         let fluid_velocity_blocks = vec![
             common_vector_block_at("vertex", &fluid_velocity, &fluid_vertices)?,
-            common_vector_block_at("cell", state.velocity_cell_values(), &fluid_cells)?,
+            common_vector_block_at("cell", &state.velocity_cell_values(), &fluid_cells)?,
         ];
         Ok(vec![
             Self::from_common_exact_parts(
@@ -542,7 +542,7 @@ impl PyFieldSnapshot {
         if let Some(values) = state.velocity_vertex_values() {
             blocks.push(common_vector_block("vertex", values)?);
         }
-        blocks.push(common_vector_block("cell", state.velocity_cell_values())?);
+        blocks.push(common_vector_block("cell", &state.velocity_cell_values())?);
         Self::from_common_parts(
             py,
             plan,

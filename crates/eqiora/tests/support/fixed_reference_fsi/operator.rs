@@ -248,14 +248,9 @@ fn physical_value(solution: &ResolvedFixedReferenceFsiSolution2d, coordinate: Co
     assert_eq!(slot, 0);
     let vertex = eqiora::meshing::VertexId::new(entity.index());
     match role {
-        FieldRole::FluidVelocity if entity.dimension() == 2 => {
-            let position = solution
-                .fluid_velocity_cells()
-                .iter()
-                .position(|cell| cell.index() == entity.index())
-                .unwrap();
-            solution.fluid_velocity_bubble_coefficients()[position][component]
-        }
+        FieldRole::FluidVelocity if entity.dimension() == 2 => solution
+            .fluid_velocity_bubble_coefficients()[&eqiora::meshing::CellId::new(entity.index())]
+            [component],
         FieldRole::FluidVelocity => solution.fluid_velocity_coefficient(vertex).unwrap()[component],
         FieldRole::SolidVelocity => solution.solid_velocity_coefficient(vertex).unwrap()[component],
         FieldRole::FluidPressure => solution.fluid_pressure_coefficient(vertex).unwrap(),
