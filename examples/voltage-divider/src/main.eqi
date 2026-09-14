@@ -1,7 +1,7 @@
-// I = 12 V / (1 kOhm + 2 kOhm) = 4 mA; midpoint = I * 2 kOhm = 8 V.
 import Eqiora.Electrical.Basic.basic as electrical;
 
 /// Ideal 12 V divider with an explicit zero-voltage reference.
+/// Ohm and Kirchhoff give 4 mA through both resistors and an 8 V midpoint.
 model VoltageDivider() {
   instance source: electrical.IdealVoltageSource(voltage = 12[V]);
   instance upper: electrical.Resistor(resistance = 1[kOhm]);
@@ -12,4 +12,9 @@ model VoltageDivider() {
   connect upper.negative, lower.positive;
   connect lower.negative, source.negative, ground.terminal;
 
+  observable current: A = upper.positive.current;
+  observable midpoint: V = lower.positive.voltage;
+  observable upper_power: W = (upper.positive.voltage - upper.negative.voltage) * upper.positive.current;
+  observable lower_power: W = (lower.positive.voltage - lower.negative.voltage) * lower.positive.current;
+  observable source_power: W = (source.positive.voltage - source.negative.voltage) * source.positive.current;
 }

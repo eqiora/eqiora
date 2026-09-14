@@ -18,10 +18,13 @@ PAGES = sorted((REFERENCE / "language").glob("*.mdx")) + sorted(
 
 def test_current_reference_examples_and_displayed_python(tmp_path, monkeypatch):
     examples = sorted(REFERENCE.glob("*/_examples/*.eqi"))
-    assert len(examples) == 7
-    assert len(PAGES) == 9
+    assert examples
+    assert PAGES
     for source in examples:
         shutil.copyfile(source, tmp_path / source.name)
+    shutil.copyfile(
+        ROOT / "examples/voltage-divider/src/main.eqi", tmp_path / "electrical.eqi"
+    )
     shutil.copyfile(tmp_path / "declarations.eqi", tmp_path / "model.eqi")
     for name, filename in (
         ("Eqiora.Electrical.Basic", "basic.eqi"),

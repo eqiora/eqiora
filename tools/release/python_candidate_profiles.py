@@ -39,6 +39,7 @@ MIXED_BOUNDARY_REPOSITORY_SOURCE = Path(
 PYTHON_TEST_FIXTURES = (
     Path("examples/property-composition"),
     Path("examples/heated-body"),
+    Path("examples/voltage-divider"),
     Path("verify/interfaces/control-plane-compile-check"),
     Path("verify/interfaces/current-authoring-profile"),
     Path("crates/eqiora-api/packages/org.example.poisson"),
@@ -63,7 +64,6 @@ PYTHON_TEST_RESOURCES = (
     Path("docs/site/src/content/docs/reference/standard-packages/electrical.mdx"),
     Path("docs/site/src/content/docs/reference/standard-packages/continuum.mdx"),
     Path("docs/site/src/content/docs/reference/standard-packages/controls.mdx"),
-    Path("docs/site/src/content/docs/reference/standard-packages/_examples/electrical.eqi"),
     Path("docs/site/src/content/docs/reference/standard-packages/_examples/elastic-body.eqi"),
     Path("docs/site/src/content/docs/reference/standard-packages/_examples/inertial-stokes.eqi"),
     Path("examples/decay.eqi"),

@@ -21,12 +21,14 @@ python examples/python/mixed_boundary_elasticity.py
 python examples/python/fixed_reference_fsi.py
 python examples/python/coupled_scalar.py
 python examples/heated-body/run.py
+python examples/voltage-divider/run.py
 ```
 
 | Example | Source | What it shows |
 | --- | --- | --- |
 | `quickstart` | [`decay.eqi`](decay.eqi) | Compile one scalar decay model and run it through the common root Plan lifecycle. |
 | `project-modules` | [`modules/resistor-project`](modules/resistor-project/) | Compile a directly imported public Model from a closed, portable multi-file source inventory whose module identities come from paths below `src/`; the optional `package-filesystem` run discovers that same closure through bounded no-follow directory traversal. |
+| `voltage-divider` | [`voltage-divider`](voltage-divider/README.md) | Solve the explicit-ground bundled-parts circuit through Plan/State/Run/Result and observe 4 mA, 8 V and power balance. |
 | `heated-body` | [`heated-body`](heated-body/README.md) | Run the steady 300 K boundary heat specimen from an exact local package with Q1, explicit solver policy and offline replay. |
 | `poisson` | [`crates/eqiora-api/packages/org.example.poisson`](../crates/eqiora-api/packages/org.example.poisson/) | Compile a 2D Poisson model and exercise its verification-only native reference solve. |
 | `coupled-scalar` | [`python/coupled_scalar.py`](python/coupled_scalar.py) | Solve two diffusion/reaction equations with two-way coupling through one Q1 Plan and inspect both Fields in the common Result. |

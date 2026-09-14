@@ -1,0 +1,11 @@
+[package]
+name = "org.example.Divider"
+version = "0.1.0"
+source = "src"
+entry = "main"
+
+[dependencies."Eqiora.Electrical.Basic"]
+version = "0.1.0"
+
+[[dependencies."Eqiora.Electrical.Basic".sources]]
+bundled = true
