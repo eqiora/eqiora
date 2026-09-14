@@ -57,12 +57,12 @@ impl SourceAstFactory {
     ///
     /// # Errors
     /// Returns an error for an invalid member, identifier, expression, or byte range.
-    pub fn component_with_primal_form(
+    pub fn component_with_weak_form(
         visibility: VisibilitySyntax,
         name: impl Into<String>,
         signature: Vec<crate::SignatureItem>,
         items: Vec<ComponentItem>,
-        relation: impl Into<String>,
+        form: (String, String, String, String, Vec<String>),
         equality: (Expr, Expr, TextRange),
         range: TextRange,
     ) -> Result<ComponentDecl, AstConstructionError> {
@@ -73,7 +73,20 @@ impl SourceAstFactory {
         let (left, right, formulation_range) = equality;
         validate_expression(&left)?;
         validate_expression(&right)?;
+        let (form_name, relation, test, trial, zero_on) = form;
+        let form_name = checked_identifier(form_name, "Formulation")?;
         let relation = checked_identifier(relation, "Formulation Relation")?;
+        let test = checked_identifier(test, "test function")?;
+        let trial = checked_identifier(trial, "trial Field")?;
+        if zero_on.is_empty() {
+            return Err(AstConstructionError::new(
+                "test requires explicit zero_on boundaries",
+            ));
+        }
+        let zero_on = zero_on
+            .into_iter()
+            .map(|name| checked_identifier(name, "test boundary"))
+            .collect::<Result<Vec<_>, _>>()?;
         let formulation_range = checked_range(formulation_range)?;
         let range = checked_range(range)?;
         Ok(ComponentDecl {
@@ -84,6 +97,10 @@ impl SourceAstFactory {
             items,
             formulations: vec![FormulationDecl {
                 comments: Default::default(),
+                name: form_name,
+                test,
+                trial,
+                zero_on,
                 relation,
                 left,
                 right,
@@ -157,18 +174,25 @@ mod tests {
     fn constructs_primal_form_without_model_item_coercion() {
         let parsed = parse(
             "form.eqi",
-            "component C() { relation balance { 1 = 0; } form primal for balance { integrate(region, test(value)) = integrate(region, test(value)); } }",
+            "component C() { relation balance { 1 = 0; } form weak for balance { test w: 1 for value zero_on surface; integrate(region, w) = integrate(region, w); } }",
         )
         .into_document()
         .unwrap();
         let source = &parsed.components()[0];
-        let (_, left, right, range) = source.formulations().next().unwrap();
-        let component = SourceAstFactory::component_with_primal_form(
+        let (name, relation, left, right, range) = source.formulations().next().unwrap();
+        let (test, trial, boundaries) = source.formulation_test(name).unwrap();
+        let component = SourceAstFactory::component_with_weak_form(
             VisibilitySyntax::Private,
             "C",
             source.signature().to_vec(),
             source.items().to_vec(),
-            "balance",
+            (
+                name.into(),
+                relation.into(),
+                test.into(),
+                trial.into(),
+                boundaries.to_vec(),
+            ),
             (left.clone(), right.clone(), range),
             source.range(),
         )
@@ -178,6 +202,6 @@ mod tests {
                 .unwrap();
 
         assert_eq!(document.components()[0].formulations().len(), 1);
-        assert!(format(&document).contains("form primal for balance"));
+        assert!(format(&document).contains("form weak for balance"));
     }
 }

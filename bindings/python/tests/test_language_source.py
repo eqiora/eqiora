@@ -367,15 +367,17 @@ def scalar_primal_source():
         ),
         on=region,
     )
-    law.primal_form(
-        balance,
+    left_boundary = law.boundary("left", parent=region)
+    w = law.test("w", for_=potential, zero_on=left_boundary)
+    law.weak_form(
+        "weak", balance,
         left=q.integrate(
             region,
-            q.dot(q.grad(q.test(potential)), diffusion * q.grad(potential)),
+            q.dot(q.grad(w), diffusion * q.grad(potential)),
         ),
         right=q.integrate(
             region,
-            q.test(potential)
+            w
             * source_scale
             * q.math.sin(q.math.pi * wave_number * q.coordinate(0)),
         ),
@@ -389,13 +391,13 @@ def test_python_source_emits_and_fresh_compile_inspects_scalar_primal_form(
 ) -> None:
     source = scalar_primal_source()
     text = source.to_eqi()
-    assert "form primal for balance" in text
+    assert "form weak for balance" in text
     assert "/// Authored scalar primal form." in text
     assert text.count("math.pi") == 2
     assert text.count("math.sin") == 2
     assert not hasattr(q, "sin")
 
-    model = eqiora.compile(source=source, geometry=(_binding_geometry := rectangle_geometry()), entry='ScalarDiffusion', bindings={**support_bindings(_binding_geometry, ['region'], []), **{'diffusion': 1.0, 'wave_number': 2.0, 'source_scale': 2.0}})
+    model = eqiora.compile(source=source, geometry=(_binding_geometry := rectangle_geometry()), entry='ScalarDiffusion', bindings={**support_bindings(_binding_geometry, ['region'], [('left', 'region')]), **{'diffusion': 1.0, 'wave_number': 2.0, 'source_scale': 2.0}})
     assert len(model.authored_formulations) == 1
     form = model.authored_formulations[0]
     assert form.kind == "primal"
@@ -405,7 +407,7 @@ def test_python_source_emits_and_fresh_compile_inspects_scalar_primal_form(
 
     path = tmp_path / "scalar-primal.eqi"
     source.write_eqi(path)
-    emitted = eqiora.compile(path=path, geometry=(_binding_geometry := rectangle_geometry()), entry='ScalarDiffusion', bindings={**support_bindings(_binding_geometry, ['region'], []), **{'diffusion': 1.0, 'wave_number': 2.0, 'source_scale': 2.0}})
+    emitted = eqiora.compile(path=path, geometry=(_binding_geometry := rectangle_geometry()), entry='ScalarDiffusion', bindings={**support_bindings(_binding_geometry, ['region'], [('left', 'region')]), **{'diffusion': 1.0, 'wave_number': 2.0, 'source_scale': 2.0}})
     assert emitted.digest == model.digest
 
     replayed = eqiora.Model.from_bytes(model.to_bytes())
@@ -760,7 +762,7 @@ def test_static_alias_authoring_rejects_same_source_sibling_capture(kind):
         lambda: right.relation("captured", q.equation(foreign, 0), on=right_region),
         lambda: q.integrate(right_region, foreign),
         lambda: foreign + right_parameter,
-        lambda: right.primal_form(right_relation, left=q.integrate(left_region, foreign),
+        lambda: right.weak_form("weak", right_relation, left=q.integrate(left_region, foreign),
                                   right=q.integrate(right_region, right_parameter)),
         lambda: right.instance('child', component=left, bindings={'region': right_region, 'supplied': foreign, 'coefficient': release}),
     ):
@@ -1379,3 +1381,14 @@ def test_external_clock_alias_assertion_compares_nominal_identity():
         eqiora.compile(source=source, entry="Clocks", bindings={
             "first": shared, "second": eqiora.ClockDomain(period_s=Fraction(1, 10)),
         })
+
+
+def test_named_test_cannot_be_silently_dropped_without_its_form():
+    module = eqiora.Module("main")
+    component = module.component("C")
+    body = component.volume("body", dimensions=2)
+    surface = component.complete_exterior("surface", parent=body)
+    value = component.field("value", value_type=eqiora.ValueType.real(), role=eqiora.FieldRole.Variable, on=body)
+    component.test("w", for_=value, zero_on=surface)
+    with pytest.raises(q.ModuleError, match="owning weak form"):
+        module.to_eqi()

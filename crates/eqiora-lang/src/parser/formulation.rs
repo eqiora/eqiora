@@ -58,18 +58,49 @@ impl Parser<'_> {
 
     pub(super) fn parse_formulation(&mut self) -> Option<FormulationDecl> {
         let start = self.expect_keyword("form")?.range().start();
-        if self.at_keyword("primal") {
-            self.bump();
-        } else {
-            self.error_here("expected `primal` after `form`");
-            return None;
-        };
+        let name = self
+            .expect_identifier("Formulation name")?
+            .text()
+            .to_owned();
         self.expect_keyword("for")?;
         let relation = self
             .expect_identifier("Formulation Relation")?
             .text()
             .to_owned();
         self.expect(TokenKind::LeftBrace, "`{` before authored Formulation")?;
+        self.expect_keyword("test")?;
+        let test = self
+            .expect_identifier("test-function name")?
+            .text()
+            .to_owned();
+        self.expect(TokenKind::Colon, "`:` before test dimension")?;
+        let dimension = self.parse_expression(0)?;
+        if !matches!(dimension.kind(), crate::ast::ExprKind::Number(value) if value.to_i64().ok() == Some(1))
+        {
+            self.error_here(
+                "scalar weak forms require an explicit dimensionless test (`test w: 1`)",
+            );
+            return None;
+        }
+        self.expect_keyword("for")?;
+        let trial = self
+            .expect_identifier("trial Field name")?
+            .text()
+            .to_owned();
+        self.expect_keyword("zero_on")?;
+        let mut zero_on = Vec::new();
+        loop {
+            zero_on.push(
+                self.expect_identifier("essential test boundary")?
+                    .text()
+                    .to_owned(),
+            );
+            if !self.at(TokenKind::Comma) {
+                break;
+            }
+            self.bump();
+        }
+        self.expect(TokenKind::Semicolon, "`;` after test restriction")?;
         let left = self.parse_expression(0)?;
         self.expect(TokenKind::Equal, "`=` in authored Formulation")?;
         let right = self.parse_expression(0)?;
@@ -86,6 +117,10 @@ impl Parser<'_> {
             .end();
         Some(FormulationDecl {
             comments: Default::default(),
+            name,
+            test,
+            trial,
+            zero_on,
             relation,
             left,
             right,
@@ -109,16 +144,16 @@ component Diffusion(
   parameter diffusion: 1 = 1;
   parameter source: 1 / m ^ 2 = 1;
   relation balance on region { -div(diffusion * grad(potential)) = source; }
-  form primal for balance {
-    integrate(region, dot(grad(test(potential)), diffusion * grad(potential)))
-      = integrate(region, test(potential) * source);
+  form weak for balance { test w: 1 for potential zero_on surface;
+    integrate(region, dot(grad(w), diffusion * grad(potential)))
+      = integrate(region, w * source);
   }
 }
 "#;
         let document = parse("form.eqi", source).into_document().unwrap();
         let component = &document.components()[0];
         let forms = component.formulations().collect::<Vec<_>>();
-        let [(relation, left, right, _)] = forms.as_slice() else {
+        let [(_, relation, left, right, _)] = forms.as_slice() else {
             panic!("one form expected")
         };
         assert_eq!(*relation, "balance");
@@ -134,12 +169,24 @@ component Diffusion(
 
         let misplaced = parse(
             "misplaced.eqi",
-            "component C() { relation r { 1 = 0; } form primal for r { integrate(d, test(x)) = integrate(d, test(x)); } parameter p: 1 = 1; }",
+            "component C() { relation r { 1 = 0; } form weak for r { test w: 1 for x zero_on surface; integrate(d, test(x)) = integrate(d, test(x)); } parameter p: 1 = 1; }",
         );
         assert!(misplaced.diagnostics().iter().any(|diagnostic| {
             diagnostic
                 .message()
                 .contains("declarations must precede authored forms")
         }));
+    }
+    #[test]
+    fn test_restriction_is_explicit_and_old_implicit_syntax_rejects() {
+        for body in [
+            "integrate(body, test(u)) = integrate(body, test(u));",
+            "test w: K for u zero_on surface; integrate(body, w)=integrate(body,w);",
+            "test w: 1.00000000000000000001 for u zero_on surface; integrate(body, w)=integrate(body,w);",
+            "test w: 1 for u; integrate(body, w)=integrate(body,w);",
+        ] {
+            let source = format!("component C() {{ form weak for balance {{ {body} }} }}");
+            assert!(parse("invalid.eqi", &source).into_document().is_err());
+        }
     }
 }

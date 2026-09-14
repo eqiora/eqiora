@@ -96,6 +96,9 @@ pub(super) struct EffectiveFormulation {
     pub(super) test: RawId,
     pub(super) boundary_treatment: BoundaryTreatment,
     pub(super) rules: [FormulationRule; 4],
+    pub(super) zero_on: Vec<RawId>,
+    pub(super) direction: DirectionalProof,
+    pub(super) assumptions: Vec<&'static str>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,6 +112,7 @@ pub(super) struct CertificateEntry {
 
 #[derive(Debug, Clone, Copy)]
 pub(super) struct BoundarySource {
+    pub(super) domain: RawId,
     pub(super) relation: RawId,
     pub(super) trace_node: ExprId,
 }
@@ -120,6 +124,7 @@ pub(super) struct PrimalGalerkinSource<'a> {
     pub(super) volume_relation: RawId,
     pub(super) root: ExprId,
     pub(super) divergence: ExprId,
+    pub(super) divergence_sign: WeakSign,
     pub(super) source: ExprId,
     pub(super) boundaries: &'a [BoundarySource],
 }
@@ -161,7 +166,7 @@ impl PrimalGalerkinCorrespondence {
                 test: MatrixSlot::Test,
                 trial: MatrixSlot::Trial,
             },
-            sign: WeakSign::Positive,
+            sign: source.divergence_sign,
         });
         entries.extend(source.boundaries.iter().map(|boundary| CertificateEntry {
             rule_id: rules[2].id(),
@@ -170,7 +175,10 @@ impl PrimalGalerkinCorrespondence {
             slot: WeakTermSlot::Boundary {
                 test: MatrixSlot::Test,
             },
-            sign: WeakSign::Negative,
+            sign: match source.divergence_sign {
+                WeakSign::Positive => WeakSign::Negative,
+                WeakSign::Negative => WeakSign::Positive,
+            },
         }));
         entries.push(CertificateEntry {
             rule_id: rules[3].id(),
@@ -193,6 +201,14 @@ impl PrimalGalerkinCorrespondence {
                 trial: source.unknown,
                 test: source.unknown,
                 boundary_treatment: BoundaryTreatment::CompleteHomogeneousEssential,
+                zero_on: source
+                    .boundaries
+                    .iter()
+                    .map(|boundary| boundary.domain)
+                    .collect(),
+                direction: DirectionalProof::StrongImpliesWeak,
+                assumptions: eqiora_compiler::AuthoredFormulationProjection::required_assumptions()
+                    .to_vec(),
                 rules,
             },
             entries,

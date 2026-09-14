@@ -466,8 +466,10 @@ class Component:
     ) -> Relation:
         ...
 
-    def primal_form(
+    def test(self, name: str, *, for_: Expression, zero_on: Support | BoundarySelectionSet) -> Expression: ...
+    def weak_form(
         self,
+        name: str,
         relation: Relation,
         *,
         left: Expression,
@@ -748,14 +750,6 @@ def grad(value: Expression) -> Expression:
 
     ...
 
-def test(field: Expression) -> Expression:
-    """Return the test function associated with one Module Field.
-
-    Authority: ``bindings/python/python/eqiora/lang/__init__.py::test``.
-    """
-
-    ...
-
 def dot(
     left: Expression | float | int | complex,
     right: Expression | float | int | complex,
@@ -965,7 +959,6 @@ __all__ = [
     "to_real",
     "to_integer",
     "symmetric_part",
-    "test",
     "tensor_value",
     "trace",
 ]

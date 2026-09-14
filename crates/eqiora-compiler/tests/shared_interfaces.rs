@@ -334,7 +334,7 @@ fn cartesian_parameter_bounds_keep_the_exact_root_parameter_dependency() {
 
 #[test]
 fn ordinary_model_selection_cannot_discard_authored_component_forms() {
-    let source = "component C() {relation balance {1=0;} form primal for balance {integrate(region,test(value))=integrate(region,test(value));}} model M() {variable x:1;relation balance{x=0;}}";
+    let source = "component C() {relation balance {1=0;} form weak for balance { test w: 1 for value zero_on surface;integrate(region,w)=integrate(region,w);}} model M() {variable x:1;relation balance{x=0;}}";
     for errors in [
         compile("form.eqi", source).unwrap_err(),
         eqiora_compiler::CompiledModel::compile_selected("form.eqi", source, "M", &[]).unwrap_err(),

@@ -202,7 +202,7 @@ fn checked_type_presentation_keeps_rational_dimensions_and_axis_roles() {
 
 #[test]
 fn continuum_forms_keep_gradient_inner_test_and_support_nodes() {
-    let source = "public component Diffusion(support body:volume(ambient_dimension=2),parameter k @{k}:1,parameter f @{f}:1/m^2){variable u @{u}:1 on body;relation law on body{-div(k*grad(u))=f;}form primal for law{integrate(body,dot(grad(test(u)),k*grad(u)))=integrate(body,test(u)*f);}}";
+    let source = "public component Diffusion(support body:volume(ambient_dimension=2),support surface:boundary(parent=body),parameter k @{k}:1,parameter f @{f}:1/m^2){variable u @{u}:1 on body;relation law on body{-div(k*grad(u))=f;}form weak for law { test w: 1 for u zero_on surface;integrate(body,dot(grad(w),k*grad(u)))=integrate(body,w*f);}}";
     let geometry = eqiora_geometry::CanonicalGeometryV1::from_circular_hole_named_roles(
         [[0.0, 2.0], [0.0, 1.0]],
         [0.5, 0.5],
@@ -235,6 +235,14 @@ fn continuum_forms_keep_gradient_inner_test_and_support_nodes() {
                 geometry: &geometry,
                 selection: geometry.entity_set("body").unwrap(),
                 parent: None,
+            },
+        ),
+        (
+            "surface",
+            eqiora_compiler::StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set("left").unwrap(),
+                parent: Some(geometry.entity_set("body").unwrap()),
             },
         ),
         ("k", eqiora_compiler::StaticBindingValue::Value(&k)),

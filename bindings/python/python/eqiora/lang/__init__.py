@@ -883,12 +883,6 @@ def grad(value: object) -> Expression:
     return _unary("grad", value)
 
 
-def test(field: object) -> Expression:
-    if not isinstance(field, _Field):
-        raise ModuleError("test() requires a Field from this Module")
-    return _unary("test", field)
-
-
 def _binary_function(name: str, left: object, right: object) -> Expression:
     left_expression = _expression(left)
     right_expression = _expression(right)
@@ -1036,6 +1030,7 @@ class Component:
         "_ports",
         "_connections",
         "_formulations",
+        "_test_restriction",
         "_instances",
         "_name",
         "_names",
@@ -1094,9 +1089,12 @@ class Component:
         self._relations: list[
             tuple[str, Support | None, tuple[tuple[str, Expression, Expression], ...], Clock | Event | None, tuple[str, ...]]
         ] = []
-        self._laws: list[tuple[str, Support, Expression | None, Expression, Expression, tuple[str, ...]]] = []
+        self._laws: list[
+            tuple[str, Support, Expression | None, Expression, Expression, tuple[str, ...]]
+        ] = []
+        self._test_restriction = None
         self._formulations: list[
-            tuple[Relation, Expression, Expression, tuple[str, ...]]
+            tuple[str, Relation, Expression, Expression, tuple[str, ...]]
         ] = []
         self._instances: list[tuple[str, Component, tuple[tuple[str, str], ...], tuple[str, ...]]] = []
         self._ports = []
@@ -1607,15 +1605,36 @@ class Component:
         from ._law import declare
         return declare(self, name, on, flux, source, storage, doc)
 
-    def primal_form(
+    def test(self, name: str, *, for_: Expression, zero_on: Support | BoundarySelectionSet) -> Expression:
+        """Declare the dimensionless test and its exact homogeneous boundary restriction."""
+        self._source._ensure_open()
+        if self._test_restriction is not None:
+            raise ModuleError("one scalar weak form admits one test declaration")
+        if not isinstance(for_, _Field) or for_._owner is not self._component_token:
+            raise ModuleError("test trial must be a Field from this Component")
+        if isinstance(zero_on, BoundarySelectionSet):
+            if zero_on._component is not self._component_token:
+                raise ModuleError("test boundary selection must belong to this Component")
+            boundaries = tuple(member._name for member in zero_on._members)
+        else:
+            self._support(zero_on)
+            if isinstance(zero_on, BoundaryMember):
+                raise ModuleError("test restriction must be closed outside a boundary binder")
+            boundaries = (zero_on._name,)
+        admitted = self._add_name(name)
+        self._test_restriction = (admitted, for_._name, boundaries)
+        return Expression(_CREATE, _Ast.name(admitted), self._component_token)
+
+    def weak_form(
         self,
+        name: str,
         relation: Relation,
         *,
         left: Expression,
         right: Expression,
         doc: str | None = None,
     ) -> None:
-        """Attach one natural scalar-primal equality to a Relation."""
+        """Attach one named scalar weak equality with its declared test restriction."""
 
         self._source._ensure_open()
         if (
@@ -1649,8 +1668,10 @@ class Component:
                 f"Component exceeds the {_MAX_DECLARATIONS}-declaration limit"
             )
         self._declaration_count += 1
+        if self._test_restriction is None:
+            raise ModuleError("weak form requires an explicit test declaration")
         self._formulations.append(
-            (relation, left_expression, right_expression, _doc(doc))
+            (_name(name), relation, left_expression, right_expression, _doc(doc))
         )
 
     @_property
@@ -1761,6 +1782,8 @@ class Component:
         self._notations[name] = notation
 
     def _declaration(self, allocate) -> _AstDefinition:
+        if self._test_restriction is not None and not self._formulations:
+            raise ModuleError("test declaration requires its owning weak form")
         declarations = []
         def add(name, doc, factory):
             ordinal = allocate(doc, self._notations.get(name))
@@ -1827,8 +1850,9 @@ class Component:
                 name, component._qualified_name, bindings, n))
         form = None
         if self._formulations:
-            relation, left, right, doc = self._formulations[0]
-            form = (relation._name, left._ast, right._ast, allocate(doc))
+            name, relation, left, right, doc = self._formulations[0]
+            test_name, trial, boundaries = self._test_restriction
+            form = ((name, relation._name, test_name, trial, boundaries), left._ast, right._ast, allocate(doc))
         ordinal = allocate(self._doc, self._source._notations.get(self._name))
         return _AstDefinition(self._name, self._kind == "model", declarations, form, ordinal)
 
@@ -2537,7 +2561,6 @@ __all__ = [
     "to_real",
     "to_integer",
     "symmetric_part",
-    "test",
     "tensor_value",
     "trace",
 ]

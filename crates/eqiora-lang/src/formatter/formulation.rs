@@ -41,8 +41,17 @@ pub(super) fn format_formulation(
     output.begin(&declaration.comments);
     write_indent(output, indent);
     output.push_str("form ");
-    output.push_str("primal");
+    output.push_str(&declaration.name);
     writeln!(output, " for {} {{", declaration.relation).expect("String write");
+    write_indent(output, indent + 2);
+    writeln!(
+        output,
+        "test {}: 1 for {} zero_on {};",
+        declaration.test,
+        declaration.trial,
+        declaration.zero_on.join(", ")
+    )
+    .expect("String write");
     write_indent(output, indent + 2);
     format_expression(&declaration.left, 0, output);
     output.push_str(" = ");
@@ -59,15 +68,18 @@ mod tests {
 
     #[test]
     fn primal_form_has_one_canonical_roundtrip() {
-        let source = "component D(support region:volume(ambient_dimension=2)) {variable u: 1 on region;relation balance on region{-div(grad(u))=f;}form primal for balance{integrate(region,dot(grad(test(u)),grad(u)))=integrate(region,test(u)*f);}}";
+        let source = "component D(support region:volume(ambient_dimension=2)) {variable u: 1 on region;relation balance on region{-div(grad(u))=f;}form weak for balance { test w: 1 for u zero_on surface;integrate(region,dot(grad(w),grad(u)))=integrate(region,w*f);}}";
         let first = parse("form.eqi", source).into_document().unwrap();
         let formatted = format(&first);
         let second = parse("form.eqi", &formatted).into_document().unwrap();
 
         assert_eq!(format(&second), formatted);
-        assert!(formatted.contains("form primal for balance {\n"));
-        assert!(formatted.contains(
-            "integrate(region, dot(grad(test(u)), grad(u))) = integrate(region, test(u) * f);"
-        ));
+        assert!(
+            formatted.contains("form weak for balance {\n    test w: 1 for u zero_on surface;\n")
+        );
+        assert!(
+            formatted
+                .contains("integrate(region, dot(grad(w), grad(u))) = integrate(region, w * f);")
+        );
     }
 }

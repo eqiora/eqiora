@@ -3,7 +3,7 @@
 use super::*;
 
 const MAGIC: &[u8; 8] = b"EQIORAFM";
-const CANONICAL_FORMULATION_VERSION: u16 = 1;
+const CANONICAL_FORMULATION_VERSION: u16 = 2;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct AuthoredFormSourceIdentity([u8; 32]);
@@ -17,12 +17,25 @@ impl AuthoredFormSourceIdentity {
         let formulations = encode_sorted_records(
             &declarations,
             &mut budget,
-            |(relation, left, right, _), budget| {
+            |(name, relation, left, right, _), budget| {
+                let (test, trial, zero_on) = component
+                    .formulation_test(name)
+                    .expect("retained form test");
                 let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
                 encoder.field(1, |encoder| encoder.u16(1))?;
                 encoder.field(2, |encoder| encode_name(encoder, relation, budget))?;
                 encoder.field(3, |encoder| encode_expression(encoder, left, budget, 1))?;
                 encoder.field(4, |encoder| encode_expression(encoder, right, budget, 1))?;
+                encoder.field(5, |encoder| encode_name(encoder, name, budget))?;
+                encoder.field(6, |encoder| encode_name(encoder, test, budget))?;
+                encoder.field(7, |encoder| encode_name(encoder, trial, budget))?;
+                encoder.field(8, |encoder| {
+                    encoder.u32(as_u32(zero_on.len(), "test boundaries")?)?;
+                    for boundary in zero_on {
+                        encode_name(encoder, boundary, budget)?;
+                    }
+                    Ok(())
+                })?;
                 encoder.finish()
             },
         )?;
@@ -65,11 +78,11 @@ mod tests {
     #[test]
     fn identity_is_separate_from_model_allocation_identity() {
         let without = "component D() { relation balance { 1 = 0; } }";
-        let first = "component D() { relation balance { 1 = 0; } form primal for balance { integrate(region, dot(grad(test(u)), grad(u))) = integrate(region, test(u) * f); } }";
-        let changed = "component D() { relation balance { 1 = 0; } form primal for balance { integrate(region, dot(grad(test(u)), k * grad(u))) = integrate(region, test(u) * f); } }";
+        let first = "component D() { relation balance { 1 = 0; } form weak for balance { test w: 1 for u zero_on surface; integrate(region, dot(grad(w), grad(u))) = integrate(region, w * f); } }";
+        let changed = "component D() { relation balance { 1 = 0; } form weak for balance { test w: 1 for u zero_on surface; integrate(region, dot(grad(w), k * grad(u))) = integrate(region, w * f); } }";
         let model_identity =
-            |source| LocalSourceIdentity::from_document(&document(source)).unwrap();
-        let form_identity = |source| {
+            |source: &str| LocalSourceIdentity::from_document(&document(source)).unwrap();
+        let form_identity = |source: &str| {
             AuthoredFormSourceIdentity::from_component(&document(source).components()[0]).unwrap()
         };
 
@@ -81,6 +94,18 @@ mod tests {
         );
         assert_ne!(form_identity(without), form_identity(first));
         assert_ne!(form_identity(first), form_identity(changed));
+        for changed in [
+            first.replace("zero_on surface", "zero_on other"),
+            first.replace("form weak", "form renamed"),
+            first
+                .replace("test w:", "test v:")
+                .replace("grad(w)", "grad(v)")
+                .replace("w * f", "v * f"),
+        ] {
+            assert_eq!(model_identity(first), model_identity(&changed));
+            assert_ne!(form_identity(first), form_identity(&changed));
+        }
+
         assert_eq!(
             form_identity(first),
             form_identity(&format(&document(first)))
