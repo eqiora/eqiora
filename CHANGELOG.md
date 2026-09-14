@@ -6,6 +6,8 @@ are recorded here.
 
 ## [Unreleased]
 
+## [0.1.0a12] - 2026-09-14
+
 ### Added
 
 - Added event-aware ODE terminal and accepted-step integral functionals with explicit forward Parameter JVPs through localized event times and resets. Exact event sides, derivative coordinates, tolerances, and Result lineage survive canonical replay and ordinary Python execution.
@@ -16,11 +18,29 @@ are recorded here.
   Results retain independently rechecked active/inactive condition measurements.
 - Added fixed-volume scalar Law storage with polynomial time chain rules, exact
   source, Model, and fingerprint identity, independently checked accumulation,
-  continuous-State admission, artifact replay, and bounded thermal realization.
+  continuous-State admission, artifact replay, and constant-capacity numerical
+  term admission. Transient spatial thermal execution remains unsupported.
+- Added named test functions with exact zero-trace restrictions to the single
+  authored `weak_form` surface in source and Python.
+- Added an installed Python property-composition specimen that executes through
+  an exact local package lock, then reproduces Model and Result identities offline.
+- Added shared Cartesian Region assembly and exact Field/DOF recovery for complete,
+  nonoverlapping chains of scalar conservation regions, including interface flux.
 
 ### Changed
 
-- Advanced Model/Transaction artifacts to v26, Source identity to v18, structural fingerprints to v21, common Plan and Result artifacts to v5, and common Trajectory artifacts to v3. Earlier pre-1.0 encodings reject instead of entering compatibility paths.
+- Advanced Model/Transaction artifacts to v27, Source identity to v19, structural
+  fingerprints to v22, common Plan and Result artifacts to v5, and common
+  Trajectory artifacts to v3. Earlier pre-1.0 encodings reject instead of entering
+  compatibility paths.
+- Replaced the authored `primal_form` and global `test(field)` APIs with named
+  component-owned `test(..., zero_on=...)` and `weak_form(...)`. Rust language
+  consumers now use `RelationCondition`; the displaced `Equation` and `LexResult`
+  exports are removed.
+- Moved typed algebraic Field and gauge structure into solver admission before
+  provider selection and removed redundant direct realization constructors.
+  Exact block ranges, trace quotients, arbitrary constraints, and typed plural
+  scalar quotient admission remain future work.
 
 ## [0.1.0a11] - 2026-09-13
 
