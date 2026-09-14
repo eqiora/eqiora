@@ -856,8 +856,8 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
     let state = homogeneous
         .reconstruct_current_state(mesh, part, motion, &prior, &initial, &plan, &layout)?;
     for (v, row) in homogeneous.current_physical().iter().enumerate() {
-        for c in 0..2 {
-            if row[c].is_some() {
+        for (c, value) in row.iter().enumerate() {
+            if value.is_some() {
                 let key = crate::region_assembly::mapping::FieldDof {
                     field: fields.fluid_velocity.erase(),
                     entity: MeshEntity::new(0, v),
@@ -866,7 +866,7 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
                 };
                 assert_eq!(
                     (
-                        row[c].expect("zero").to_bits(),
+                        value.expect("zero").to_bits(),
                         homogeneous.current_quotient()[v][c]
                             .expect("zero")
                             .to_bits(),
