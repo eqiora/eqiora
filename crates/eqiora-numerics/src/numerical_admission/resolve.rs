@@ -85,6 +85,9 @@ pub fn resolve_common_plan(
             };
             let structure = match &recognized.recognized {
                 RecognizedNativeModel::Scalar(equations) => Some(equations.algebraic_structure()?),
+                RecognizedNativeModel::Elasticity(continuum) => {
+                    Some(super::elasticity::algebraic_structure(continuum)?)
+                }
                 _ => None,
             };
             let linear = resolve_linear(solve, properties, None, None, structure, stokes_backend)?;

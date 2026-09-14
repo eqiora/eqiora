@@ -1,5 +1,16 @@
 use super::*;
 
+pub(super) fn algebraic_structure(
+    continuum: &IsotropicElasticityContinuum<2>,
+) -> Result<eqiora_solver::AlgebraicStructure, Diagnostic> {
+    // The defined load potential supplies a coefficient, not another unknown block.
+    let displacement = continuum
+        .displacement()
+        .downcast::<eqiora_core::entity::kinds::Field>()
+        .ok_or_else(|| invalid("elasticity displacement lost its semantic Field kind"))?;
+    eqiora_solver::AlgebraicStructure::new([displacement], [])
+}
+
 fn resolve_common_elasticity_portable(
     admission: &NativeNumericalAdmission,
     lowered: &IsotropicElasticityContinuum<2>,

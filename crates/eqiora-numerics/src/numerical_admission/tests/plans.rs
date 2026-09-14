@@ -477,6 +477,58 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
     assert_eq!(result.displacement().mesh().axis_cell_count(0), Some(2));
     assert_eq!(result.displacement().mesh().axis_cell_count(1), Some(3));
     assert_eq!(result.displacement().values().len(), 24);
+    // For lambda=0 and q=2*mu*x, -2*mu*u_xx=2*mu with
+    // u(0)=0 and u_x(1)=0 gives u=(x-x*x/2, 0). Q1 nodal
+    // interpolation is exact for this separable constant-load problem.
+    let (values, remainder) = result.displacement().values().as_chunks::<2>();
+    assert!(remainder.is_empty());
+    for (vertex, values) in values.iter().enumerate() {
+        let x = result
+            .displacement()
+            .mesh()
+            .vertex_coordinates(eqiora_meshing::MeshEntity::new(0, vertex))
+            .unwrap()[0];
+        assert!((values[0] - (x - x * x / 2.0)).abs() < 1e-9);
+        assert!(values[1].abs() < 1e-9);
+    }
+    use eqiora_solver::{AlgebraicStructure, HostSerialSolverProfile};
+    let RecognizedNativeModel::Elasticity(continuum) = plan.admission.recognized_model() else {
+        panic!("elasticity fixture");
+    };
+    let displacement = continuum.displacement().downcast().unwrap();
+    let load_potential = continuum.load_potential().downcast().unwrap();
+    let expected = AlgebraicStructure::new([displacement], []).unwrap();
+    plan.admission
+        .linear
+        .planning_profile
+        .as_ref()
+        .unwrap()
+        .require_structure(Some(&expected))
+        .unwrap();
+    let foreign = eqiora_core::Id::from_ulid("01ARZ3NDEKTSV4RRFFQ69G5FAV".parse().unwrap());
+    for stale in [
+        None,
+        Some(AlgebraicStructure::new([load_potential], []).unwrap()),
+        Some(AlgebraicStructure::new([displacement, load_potential], []).unwrap()),
+        Some(AlgebraicStructure::new([foreign], []).unwrap()),
+    ] {
+        let mut changed = plan.clone();
+        let profile = HostSerialSolverProfile::canonical_csr(
+            LinearOperatorProperties::SymmetricPositiveDefinite,
+            None,
+            None,
+        );
+        changed.admission.linear.planning_profile = Some(match stale {
+            Some(structure) => profile.with_structure(structure).unwrap(),
+            None => profile,
+        });
+        let error = changed.run_result(&REFERENCE_LINEAR_SOLVER).unwrap_err();
+        assert!(error.message().contains("structure"), "{error:?}");
+    }
+    let mut omitted = plan.clone();
+    omitted.admission.linear.planning_profile = None;
+    assert!(omitted.run_result(&REFERENCE_LINEAR_SOLVER).is_err());
+
     assert!(
         resolve_common_plan(
             &model,

@@ -89,6 +89,36 @@ def test_common_plan_result_and_observation_close_exact_lineage() -> None:
     )
 
 
+@pytest.mark.parametrize("planned", [False, True])
+def test_solver_inventory_survives_plan_and_result_replay(planned: bool) -> None:
+    model, manual, _ = accepted()
+    plan = eqiora.resolve(
+        model,
+        mesh=manual.mesh,
+        spatial=eqiora.fem.Q1(),
+        solve=eqiora.solve.Linear(
+            objective=eqiora.solve.Robust,
+            relative_tolerance=1.0e-10,
+            absolute_tolerance=1.0e-12,
+            maximum_iterations=10_000,
+        ),
+    ) if planned else manual
+    replay = eqiora.Plan.from_bytes(plan.to_bytes())
+    assert replay.identity == plan.identity
+    result = eqiora.run(replay)
+    restored = eqiora.Result.from_bytes(replay, result.to_bytes())
+    # Independent equilibrium solution: -2*mu*u_xx=2*mu,
+    # u(0)=0, u_x(1)=0; the transverse displacement vanishes (lambda=0).
+    x = replay.mesh.coordinates[:, 0]
+    expected = np.column_stack((x - x*x/2.0, np.zeros_like(x)))
+    for accepted_result in (result, restored):
+        values = accepted_result.output(replay.capability.displacement).values("vertex").numpy(copy=False)
+        np.testing.assert_allclose(values.reshape(-1, 2), expected, rtol=0.0, atol=1.0e-9)
+        evidence = eqiora.solid.linear_elasticity_evidence(accepted_result)
+        np.testing.assert_allclose(evidence.integrated_body_force, [6.0, 0.0], rtol=0.0, atol=1.0e-10)
+        np.testing.assert_allclose(evidence.constrained_reaction, [-6.0, 0.0], rtol=0.0, atol=1.0e-9)
+
+
 def test_root_plan_rejects_foreign_model_field_and_observation() -> None:
     model, plan, result = accepted()
     foreign_geometry, foreign_mesh = geometry_and_mesh()
