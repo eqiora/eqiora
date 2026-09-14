@@ -1,7 +1,16 @@
 mod fields;
+mod geometry;
+mod normalization;
+mod results;
 mod velocity;
 use crate::canonical_fsi::FinalizedResolvedFixedTopologyAleFsi;
 use fields::{ProjectionFields, source_coefficients, target_state};
+use geometry::derive_target_geometry;
+use normalization::{
+    RemeshNormalization2d, divide_scalars, divide_vectors, divided_row_unchecked, divided_rows,
+    dot, finite_sqrt, integer_sqrt,
+};
+use results::{PressureProjection, VectorP1Projection, VelocityProjection};
 use velocity::{evaluate_velocity_cell, velocity_scalar_dofs};
 
 use crate::simplicial_fsi::FixedReferenceFsiState;
@@ -11,11 +20,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::Diagnostic;
 use eqiora_meshing::{
-    CellId, FacetId, FixedTopologyGeometryState2d, MeshEntity, MeshTopology,
-    OverlapCoordinateChart2d, QuadratureRule, RetainedFacetSide2d, SimplicialMesh,
-    SimplicialRevisionOverlap2d, VertexId,
+    CellId, FacetId, MeshEntity, MeshTopology, OverlapCoordinateChart2d, QuadratureRule,
+    RetainedFacetSide2d, SimplicialMesh, SimplicialRevisionOverlap2d, VertexId,
 };
-use eqiora_solver::{LinearOperatorProperties, LinearSolveRequest, SolveReport};
+use eqiora_solver::{LinearOperatorProperties, LinearSolveRequest};
 
 use crate::simplicial_ale_fsi::{AleFsiState, P1HarmonicMeshMotionAction};
 use crate::simplicial_fsi::{
@@ -32,99 +40,6 @@ use super::integration::{
 
 const DIMENSION: usize = 2;
 const COMPONENTS: usize = 2;
-
-#[derive(Debug, Clone, Copy)]
-struct RemeshNormalization2d {
-    physical: FixedReferenceFsiScale<2>,
-    area: f64,
-    velocity_mass: f64,
-    fluid_density: f64,
-    solid_density: f64,
-}
-
-impl RemeshNormalization2d {
-    fn new(
-        physical: FixedReferenceFsiScale<2>,
-        fluid_density: f64,
-        solid_density: f64,
-    ) -> Result<Self, Diagnostic> {
-        let area = finite_positive_product(
-            physical.length(),
-            physical.length(),
-            "characteristic area L^2",
-        )?;
-        let reference_density = fluid_density.max(solid_density);
-        let velocity_mass = finite_positive_product(
-            reference_density,
-            area,
-            "characteristic velocity mass rho* L^2",
-        )?;
-        Ok(Self {
-            physical,
-            area,
-            velocity_mass,
-            fluid_density,
-            solid_density,
-        })
-    }
-
-    fn displacement_rhs(self) -> Result<f64, Diagnostic> {
-        finite_positive_product(
-            self.area,
-            self.physical.length(),
-            "displacement projection scale L^3",
-        )
-    }
-
-    fn velocity_rhs(self) -> Result<f64, Diagnostic> {
-        finite_positive_product(
-            self.velocity_mass,
-            self.physical.velocity(),
-            "velocity projection scale rho* U L^2",
-        )
-    }
-
-    fn pressure_rhs(self) -> Result<f64, Diagnostic> {
-        finite_positive_product(
-            self.area,
-            self.physical.pressure(),
-            "pressure projection scale P L^2",
-        )
-    }
-}
-
-struct VectorP1Projection {
-    coefficients: Vec<[f64; COMPONENTS]>,
-    reports: Vec<SolveReport>,
-    right_hand_side_norms: Vec<f64>,
-    residual_norm: f64,
-}
-
-struct VelocityProjection {
-    vertex: Vec<[f64; COMPONENTS]>,
-    bubble: std::collections::BTreeMap<CellId, [f64; COMPONENTS]>,
-    report: SolveReport,
-    right_hand_side_norm: f64,
-    residual_norm: f64,
-    independent_constraint_count: usize,
-    maximum_shared_trace_defect: f64,
-    maximum_exterior_trace_defect: f64,
-    weak_divergence_norm: f64,
-    source_momentum: [f64; COMPONENTS],
-    target_momentum: [f64; COMPONENTS],
-    fluid_l2_error: f64,
-    solid_l2_error: f64,
-}
-
-struct PressureProjection {
-    coefficients: Vec<f64>,
-    report: SolveReport,
-    right_hand_side_norm: f64,
-    residual_norm: f64,
-    source_moment: f64,
-    target_moment: f64,
-    l2_error: f64,
-}
 
 /// Project one accepted ALE FSI state onto a topology-distinct target mesh.
 ///
@@ -414,41 +329,6 @@ fn material_boundary_sides(
         ));
     }
     Ok(sides)
-}
-
-fn derive_target_geometry(
-    policy: P1HarmonicMeshMotionPolicy,
-    reference: &SimplicialMesh,
-    partition: &FixedReferenceFsiPartition<2>,
-    motion: &P1HarmonicMeshMotionAction<2>,
-    solid_displacement: &[[f64; COMPONENTS]],
-) -> Result<FixedTopologyGeometryState2d, Diagnostic> {
-    motion.validate_reference(reference, partition)?;
-    let field = policy.solid_displacement();
-    let values = partition
-        .domain_vertices(policy.solid_domain())
-        .ok_or_else(|| super::invalid("remesh driver Domain is absent"))?
-        .iter()
-        .map(|&vertex| (vertex, solid_displacement[vertex.index()]))
-        .collect();
-    let displacement = motion.apply(field, &values)?;
-    let coordinates = reference
-        .vertices()
-        .iter()
-        .zip(displacement)
-        .map(|(reference, displacement)| {
-            let coordinate = vec![
-                reference[0] + displacement[0],
-                reference[1] + displacement[1],
-            ];
-            coordinate
-                .iter()
-                .all(|value| value.is_finite())
-                .then_some(coordinate)
-                .ok_or_else(|| super::invalid("ALE FSI remesh target coordinates overflowed"))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    FixedTopologyGeometryState2d::new(reference, coordinates)
 }
 
 fn assemble_p1_mass(
@@ -1003,69 +883,6 @@ fn facet_vertex_indices(mesh: &SimplicialMesh, facet: FacetId) -> Result<[usize;
         .collect::<Vec<_>>()
         .try_into()
         .map_err(|_| super::invalid("ALE FSI remesh facet is not an edge"))
-}
-
-fn finite_sqrt(value: f64, name: &'static str) -> Result<f64, Diagnostic> {
-    let result = value.max(0.0).sqrt();
-    if value.is_finite() && result.is_finite() {
-        Ok(result)
-    } else {
-        Err(super::invalid(format!(
-            "ALE FSI remesh {name} is non-finite"
-        )))
-    }
-}
-
-fn finite_positive_product(left: f64, right: f64, name: &'static str) -> Result<f64, Diagnostic> {
-    let value = left * right;
-    if value.is_finite() && value > 0.0 {
-        Ok(value)
-    } else {
-        Err(super::invalid(format!(
-            "ALE FSI remesh {name} must be finite and strictly positive",
-        )))
-    }
-}
-
-fn divide_scalars(values: &mut [f64], scale: f64) -> Result<(), Diagnostic> {
-    for value in values {
-        *value /= scale;
-        if !value.is_finite() {
-            return Err(super::invalid(
-                "ALE FSI remesh dimensionless scalar normalization overflowed",
-            ));
-        }
-    }
-    Ok(())
-}
-
-fn divide_vectors(values: &mut [[f64; COMPONENTS]], scale: f64) -> Result<(), Diagnostic> {
-    for value in values {
-        divide_scalars(value, scale)?;
-    }
-    Ok(())
-}
-
-fn divided_rows(
-    rows: &[Vec<f64>],
-    scale: f64,
-    name: &'static str,
-) -> Result<Vec<Vec<f64>>, Diagnostic> {
-    rows.iter()
-        .map(|row| {
-            let mut row = row.clone();
-            divide_scalars(&mut row, scale).map_err(|_| {
-                super::invalid(format!(
-                    "ALE FSI remesh dimensionless {name} normalization overflowed",
-                ))
-            })?;
-            Ok(row)
-        })
-        .collect()
-}
-
-fn divided_row_unchecked(row: &[f64], scale: f64) -> Vec<f64> {
-    row.iter().map(|value| value / scale).collect()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1989,18 +1806,4 @@ fn pressure_l2_error(
         })?;
     }
     finite_sqrt(squared, "absolute pressure L2 error")
-}
-
-fn integer_sqrt(value: usize) -> Result<usize, Diagnostic> {
-    let root = (value as f64).sqrt() as usize;
-    (root.checked_mul(root) == Some(value) && root > 0)
-        .then_some(root)
-        .ok_or_else(|| super::invalid("ALE FSI remesh dense matrix shape is not square"))
-}
-
-fn dot(left: &[f64], right: &[f64]) -> f64 {
-    left.iter()
-        .zip(right)
-        .map(|(left, right)| left * right)
-        .sum()
 }
