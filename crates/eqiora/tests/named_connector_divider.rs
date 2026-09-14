@@ -16,7 +16,7 @@ use eqiora_numerics::scalar::{lower_scalar_physical_affine, solve_scalar_physica
 
 const COMPONENTS: &str =
     include_str!("../../../crates/eqiora-api/packages/Eqiora.Electrical.Basic/src/basic.eqi");
-const DIVIDER: &str = include_str!("../../../examples/voltage_divider.eqi");
+const DIVIDER: &str = include_str!("../../../examples/voltage-divider/src/main.eqi");
 
 fn fixture(model: &str) -> (KernelProgram, ModelSymbols, Id<kinds::Connection>) {
     fixture_with_components(COMPONENTS, model)
@@ -26,6 +26,9 @@ fn fixture_with_components(
     components: &str,
     model: &str,
 ) -> (KernelProgram, ModelSymbols, Id<kinds::Connection>) {
+    let model = model
+        .replace("import Eqiora.Electrical.Basic.basic as electrical;", "")
+        .replace("electrical.", "");
     let source = format!("{components}\n{model}");
     let compiled = compile("divider.eqi", &source)
         .unwrap_or_else(|errors| panic!("{errors:?}"))
@@ -146,7 +149,7 @@ fn standard_named_divider_has_independent_current_voltage_power_and_equation_own
 #[test]
 fn removing_the_entire_ground_is_rejected_despite_a_square_satisfied_system() {
     let floating = DIVIDER
-        .replace("  instance ground: Ground();\n", "")
+        .replace("  instance ground: electrical.Ground();\n", "")
         .replace(", ground.terminal", "");
     let (program, symbols, connection) = fixture(&floating);
     let composed = program

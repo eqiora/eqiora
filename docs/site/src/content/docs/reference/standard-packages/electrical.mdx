@@ -6,7 +6,7 @@ editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/doc
 
 import { Code } from '@astrojs/starlight/components';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
-import circuit from './_examples/electrical.eqi?raw';
+import circuit from '../../../../../../../examples/voltage-divider/src/main.eqi?raw';
 
 [Standard sources](/reference/standard-packages/) · [Install this source revision](/get-started/#install-with-uv)
 
@@ -30,8 +30,8 @@ These are ideal, time-independent declarations. Ground fixes potential, not curr
 The supply fixes 12 V across two series resistors, 1 kΩ and 2 kΩ.
 Ohm's law and current conservation give `12 / (1000 + 2000) = 0.004 A`;
 the midpoint is `0.004 * 2000 = 8 V` relative to ground.
-The session observes the named Ports through their across (voltage) and through
-(current into the component) roles. Observation adds no equation.
+The common Result evaluates typed current, voltage and power Observables.
+Observation adds no equation.
 
 After [installing Eqiora](/get-started/#install-with-uv), save the source above
 as `electrical.eqi` and run:
@@ -52,9 +52,18 @@ resolution = eqiora.add_bundled_dependency(
     project, store, "Eqiora.Electrical.Basic", version="0.1.0"
 )
 model = eqiora.compile_package(store, resolution, entry="VoltageDivider")
-session = model.execution_session(end_time_s=1, max_step_s=1, inputs={})
-print(session.through("upper.positive"))   # approximately 0.004 A
-print(session.across("lower.positive"))  # approximately 8 V
+plan = eqiora.resolve(model, solve=eqiora.solve.Linear(
+    algorithm=eqiora.solve.LinearSolver.SparseLu,
+    preconditioner=eqiora.solve.Preconditioner.Identity,
+    reduction=eqiora.solve.Reduction.Fast,
+    provider=eqiora.solve.SolverProvider.faer(),
+    relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=100,
+))
+result = eqiora.run(plan, state=eqiora.State.initial(plan))
+print(result.observe(model.observable("current")).value)   # 0.004 A
+print(result.observe(model.observable("midpoint")).value)  # 8 V
+replayed = eqiora.Plan.from_bytes(plan.to_bytes())
+assert replayed.identity == plan.identity
 
 # Keep the exact closure for offline reopening.
 vendor = project / "vendor"
@@ -66,18 +75,17 @@ model = eqiora.compile_package(vendor, resolution, entry="VoltageDivider")
 
 The distribution supplies the exact library source. The ordinary package lock
 contains the caller and `Eqiora.Electrical.Basic@0.1.0`; this operation requires
-no network fetch or provider installation. The reference execution session solves
-the algebraic circuit at initialization. Its horizon is an execution setting,
-not a resistance, voltage, or Model parameter.
+no network fetch or provider installation. The explicit solver policy belongs to
+the Plan, independently of resistance, voltage and Model meaning. This steady algebraic solve needs no time horizon.
 
 The final lines vendor the closure for offline use. After moving the project,
 open it from that vendored store and compile through the same API.
 
-The installed-package product test checks the analytic values, Model byte replay,
-and vendored reopening after deleting the original store. Removing the entire
-ground rejects execution. This is one bounded real-scalar, time-independent
+The installed-package product test checks the analytic values and power balance,
+Plan/Result replay, and vendored reopening after deleting the original store. Removing the entire
+ground rejects resolution. This is one bounded real-scalar, time-independent
 reference circuit; it makes no general nonlinear circuit solver claim.
 
-<ExactSourceLink kind="blob" path="docs/site/src/content/docs/reference/standard-packages/_examples/electrical.eqi">Example source</ExactSourceLink>
+<ExactSourceLink kind="blob" path="examples/voltage-divider/src/main.eqi">Example source</ExactSourceLink>
 · <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Electrical.Basic/README.md">Canonical declaration and package description</ExactSourceLink>
 · Next: [Continuum laws and boundaries](/reference/standard-packages/continuum/)
