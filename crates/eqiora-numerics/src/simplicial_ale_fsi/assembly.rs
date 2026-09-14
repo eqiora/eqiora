@@ -5,18 +5,25 @@
 //! unknowns: backward Euler derives the former from shared solid velocity and
 //! the sealed harmonic action derives the latter.  Every Jacobian column
 //! follows that same composition analytically.
+//!
+//! This module prepares structure, evaluates cells, and captures the linear
+//! system. The private result module owns the completed assembly value and
+//! its read-only inspection methods, keeping result access separate from the
+//! assembly procedure.
 
 mod fields;
+mod result;
 use fields::{
     fluid_local_size, fluid_row_scales, local_pressure_coefficients, local_velocity_coefficients,
     solid_local_size,
 };
+pub(super) use result::StepAssembly;
 
 use std::sync::Arc;
 
 use eqiora_assembly::{
-    AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget,
-    DofId, IndexedAssemblyWork, LocalContribution, LocalUnknown, TargetAssemblyMap,
+    AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyTarget, DofId,
+    IndexedAssemblyWork, LocalContribution, LocalUnknown, TargetAssemblyMap,
 };
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_meshing::FixedTopologyGeometryAction;
@@ -33,18 +40,6 @@ use crate::assembled_linearization::AssembledLinearizedRelation;
 use crate::jacobian_audit::{StructuralJacobianPattern, StructuralJacobianPatternBuilder};
 use crate::simplicial_fsi::{FixedReferenceFsiPartition, FixedReferenceFsiState};
 use crate::simplicial_fsi::{element::solid_local, layout::FsiLayout};
-
-/// One assembled Newton point and the independently evaluated physical split.
-pub(super) struct StepAssembly<const D: usize> {
-    pub(super) relation: AssembledLinearizedRelation,
-    pub(super) current: AleFsiState<D>,
-    pub(super) geometry_action: FixedTopologyGeometryAction<D>,
-    pub(super) residual: Vec<f64>,
-    pub(super) full_fluid_residual: Vec<f64>,
-    pub(super) full_solid_residual: Vec<f64>,
-    pub(super) layout: Arc<FsiLayout<D>>,
-    pub(super) assembly_report: AssemblyReport,
-}
 
 struct PreparedAleFsiCell {
     vertices: Vec<MeshEntity>,
@@ -80,40 +75,6 @@ pub(super) struct AleFsiStructuralPhaseCounts {
 pub(super) struct PreparedAleFsiAction<const D: usize> {
     boundary: PreparedAleFsiBoundaryStep<D>,
     previous_reference: FixedReferenceFsiState<D>,
-}
-
-impl<const D: usize> StepAssembly<D> {
-    pub(super) fn residual_norm(&self) -> Result<f64, Diagnostic> {
-        finite_norm(&self.residual, "ALE FSI reduced residual")
-    }
-
-    pub(super) fn residual(&self) -> &[f64] {
-        &self.residual
-    }
-
-    pub(super) fn algebraic_values(&self) -> &[f64] {
-        self.relation.accepted_unknowns()
-    }
-
-    pub(super) const fn current_state(&self) -> &AleFsiState<D> {
-        &self.current
-    }
-
-    pub(super) const fn geometry_action(&self) -> &FixedTopologyGeometryAction<D> {
-        &self.geometry_action
-    }
-
-    pub(super) fn full_fluid_residual(&self) -> &[f64] {
-        &self.full_fluid_residual
-    }
-
-    pub(super) fn full_solid_residual(&self) -> &[f64] {
-        &self.full_solid_residual
-    }
-
-    pub(super) const fn assembly_report(&self) -> &AssemblyReport {
-        &self.assembly_report
-    }
 }
 
 #[allow(clippy::too_many_arguments)]
