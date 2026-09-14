@@ -70,13 +70,19 @@ pub fn resolve_common_plan(
                     LinearOperatorProperties::General,
                 ),
                 NativeSpatialPolicy::ScalarTpfa => {
-                    if authored_formulation.is_some() {
+                    if authored_formulation.is_some_and(|form| form.interval().is_none()) {
                         return Err(invalid(
-                            "authored scalar-primal Formulation requires the scalar Q1 realization",
+                            "TPFA requires an integral-conservative authored form",
                         ));
                     }
-                    reject_unsupported_formulation_request(formulation, "scalar-elliptic TPFA")?;
-                    (None, LinearOperatorProperties::SymmetricPositiveDefinite)
+                    (
+                        Some(resolve_formulation_request(
+                            formulation,
+                            FormulationKind::IntegralConservative,
+                            "scalar-elliptic TPFA",
+                        )?),
+                        LinearOperatorProperties::SymmetricPositiveDefinite,
+                    )
                 }
                 NativeSpatialPolicy::ElasticityQ1 => {
                     (None, LinearOperatorProperties::SymmetricPositiveDefinite)

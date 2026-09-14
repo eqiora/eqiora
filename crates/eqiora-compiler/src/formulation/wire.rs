@@ -440,7 +440,7 @@ fn ulid(id: RawId) -> String {
     id.ulid().to_string()
 }
 
-fn rejection(message: &str) -> Diagnostic {
+pub(super) fn rejection(message: &str) -> Diagnostic {
     Diagnostic::error(
         codes::INVALID_DISCRETIZATION,
         format!("authored scalar Formulation rejected: {message}"),

@@ -339,13 +339,13 @@ ceiling = 6
 
 [[public_surface]]
 crate = "eqiora-compiler"
-ceiling = 54
+ceiling = 55
 # Analytic and exact table property integration:
 # PropertyContractDescriptor carries admitted complete result/input ValueTypes, ordered names,
 # derivative profile and branch across the Python explicit-import boundary. AST spelling cannot
 # substitute for resolved dimensions or nominal identity. Withdraw it only when an existing admitted
 # declaration descriptor preserves these exact fields.
-reason = "#879 adds ModelNotation and ResolvedNotation for the one read-only full-model declaration-label projection, plus QuantityIdentity and QuantityRole for exact occurrence/role/family lookup including declarations eliminated from the physical graph. Native and Python consumers reuse existing elaboration identities and provenance through this owner; kernel SymbolRef cannot identify eliminated exposures or constant-substituted declarations."
+reason = "#879 adds ModelNotation and ResolvedNotation for the one read-only full-model declaration-label projection, plus QuantityIdentity and QuantityRole for exact occurrence/role/family lookup including declarations eliminated from the physical graph. Native and Python consumers reuse existing elaboration identities and provenance through this owner; kernel SymbolRef cannot identify eliminated exposures or constant-substituted declarations. The interval-conservation checker exposes one function to the existing numerics consumer so automatic and exact derivation share authored checking without invented source provenance or a duplicate checker."
 removal = "fold label key and role types only when an existing exact occurrence owner preserves role, family and full-model scope for retained and eliminated declarations; withdraw the catalog if declaration-label inspection is removed, and lower the measured count rather than retaining a second resolver"
 
 [[public_surface]]

@@ -1,7 +1,6 @@
 use eqiora_compiler::{AuthoredFormExpressionV1, AuthoredFormulationProjection};
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
-use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef, UnaryMathFunction};
 use eqiora_sem::KernelProgram;
 
 use super::{DerivedScalarGalerkinForm, typed_relation};
@@ -22,7 +21,13 @@ pub(crate) fn admit(
     let test = AuthoredFormExpressionV1::Test {
         field_ulid: expected_trial,
     };
-    let flux = from_dag(dag, derived.volume_nodes.bilinear_flux)?;
+    let flux = AuthoredFormExpressionV1::from_expression(dag, derived.volume_nodes.bilinear_flux)?
+        .ok_or_else(|| {
+            rejection_with(
+                projection,
+                "source expression exceeds the scalar-primal inventory",
+            )
+        })?;
     let flux =
         if derived.volume_nodes.divergence_sign == super::super::vocabulary::WeakSign::Negative {
             let (value, negative) = product_sign(flux);
@@ -49,7 +54,15 @@ pub(crate) fn admit(
         domain_ulid: expected_domain,
         integrand: Box::new(AuthoredFormExpressionV1::Mul {
             left: Box::new(test),
-            right: Box::new(from_dag(dag, derived.volume_nodes.source)?),
+            right: Box::new(
+                AuthoredFormExpressionV1::from_expression(dag, derived.volume_nodes.source)?
+                    .ok_or_else(|| {
+                        rejection_with(
+                            projection,
+                            "source expression exceeds the scalar-primal inventory",
+                        )
+                    })?,
+            ),
         }),
     };
     if !equivalent(projection.left(), &left) {
@@ -88,65 +101,6 @@ fn product_sign(value: AuthoredFormExpressionV1) -> (AuthoredFormExpressionV1, b
         }
         value => (value, false),
     }
-}
-
-fn from_dag(dag: &ExprDag, id: ExprId) -> Result<AuthoredFormExpressionV1, Diagnostic> {
-    let convert = |id| from_dag(dag, id).map(Box::new);
-    Ok(match node(dag, id)? {
-        ExprNode::Constant(value) => AuthoredFormExpressionV1::Number {
-            value: value
-                .real_scalar_value()
-                .ok_or_else(|| rejection("authored scalar form requires real scalar constants"))?
-                .value(),
-        },
-        ExprNode::Symbol(SymbolRef::Field(id)) => AuthoredFormExpressionV1::Field {
-            ulid: id.ulid().to_string(),
-        },
-        ExprNode::Symbol(SymbolRef::Parameter(id)) => AuthoredFormExpressionV1::Parameter {
-            ulid: id.ulid().to_string(),
-        },
-        ExprNode::SpatialCoordinate(axis) => AuthoredFormExpressionV1::Coordinate { axis: *axis },
-        ExprNode::Neg(value) => AuthoredFormExpressionV1::Neg {
-            value: convert(*value)?,
-        },
-        ExprNode::Add(left, right) => AuthoredFormExpressionV1::Add {
-            left: convert(*left)?,
-            right: convert(*right)?,
-        },
-        ExprNode::Sub(left, right) => AuthoredFormExpressionV1::Sub {
-            left: convert(*left)?,
-            right: convert(*right)?,
-        },
-        ExprNode::Mul(left, right) => AuthoredFormExpressionV1::Mul {
-            left: convert(*left)?,
-            right: convert(*right)?,
-        },
-        ExprNode::Div(left, right) => AuthoredFormExpressionV1::Div {
-            left: convert(*left)?,
-            right: convert(*right)?,
-        },
-        ExprNode::PowI(base, exponent) => AuthoredFormExpressionV1::Pow {
-            base: convert(*base)?,
-            exponent: *exponent,
-        },
-        ExprNode::Gradient(value) => AuthoredFormExpressionV1::Gradient {
-            value: convert(*value)?,
-        },
-        ExprNode::UnaryMath(UnaryMathFunction::Sin, value) => AuthoredFormExpressionV1::Sin {
-            value: convert(*value)?,
-        },
-        _ => {
-            return Err(rejection(
-                "admitted strong expression exceeds the authored scalar-primal inventory",
-            ));
-        }
-    })
-}
-
-fn node(dag: &ExprDag, id: ExprId) -> Result<&ExprNode, Diagnostic> {
-    dag.nodes()
-        .get(id.index() as usize)
-        .ok_or_else(|| rejection("admitted expression certificate references a missing node"))
 }
 
 fn equivalent(left: &AuthoredFormExpressionV1, right: &AuthoredFormExpressionV1) -> bool {

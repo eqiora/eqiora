@@ -1,5 +1,6 @@
 use super::*;
 
+mod interval;
 mod regions;
 pub(crate) use regions::ExecutableScalarEquations;
 
@@ -124,7 +125,21 @@ impl CommonScalarPlan {
                 "common scalar Plan lost its recognized mathematical materialization",
             ));
         };
-        if let Some(authored) = &self.authored_formulation {
+        if self.admission.spatial == NativeSpatialPolicy::ScalarTpfa {
+            let requested = self
+                .formulation
+                .as_ref()
+                .map_or(FormulationSelectionMode::Automatic, |form| form.requested());
+            let description = interval::admit(
+                &self.admission,
+                lowered,
+                requested,
+                self.authored_formulation.as_ref(),
+            )?;
+            if description != self.formulation {
+                return Err(invalid("TPFA interval formulation changed during replay"));
+            }
+        } else if let Some(authored) = &self.authored_formulation {
             let derived = lowered
                 .primal_form(self.admission.program())?
                 .ok_or_else(|| {
@@ -179,52 +194,67 @@ impl CommonScalarPlan {
             })
             .collect::<Vec<_>>()
             .into_boxed_slice();
-        let derived_form = if formulation_selection.is_some() {
+        let is_interval = admission.spatial == NativeSpatialPolicy::ScalarTpfa;
+        let derived_form = if formulation_selection.is_some() && !is_interval {
             lowered.primal_form(admission.program())?
         } else {
             None
         };
         let mut accepted_authored_formulation = None;
-        let formulation = match formulation_selection {
-            None => None,
-            Some(selection) => match derived_form.as_ref() {
-                Some(derived) => {
-                    if let Some(projection) = authored_formulation {
-                        crate::form_compiler::admit_authored_scalar_primal_form(
-                            projection,
-                            admission.program(),
-                            derived,
-                        )?;
-                        accepted_authored_formulation = Some(projection.clone());
+        let formulation = if is_interval {
+            let description = interval::admit(
+                &admission,
+                lowered,
+                formulation_selection.unwrap_or(FormulationSelectionMode::Automatic),
+                authored_formulation,
+            )?;
+            if description.is_some() {
+                accepted_authored_formulation = authored_formulation.cloned();
+            }
+            description
+        } else {
+            match formulation_selection {
+                None => None,
+                Some(selection) => match derived_form.as_ref() {
+                    Some(derived) => {
+                        if let Some(projection) = authored_formulation {
+                            crate::form_compiler::admit_authored_scalar_primal_form(
+                                projection,
+                                admission.program(),
+                                derived,
+                            )?;
+                            accepted_authored_formulation = Some(projection.clone());
+                        }
+                        let (kind, boundary_treatment, rule_ids) =
+                            derived.formulation_description();
+                        let mut description = describe_primal(
+                            kind,
+                            boundary_treatment,
+                            rule_ids,
+                            if authored_formulation.is_some() {
+                                FormulationSelectionMode::Authored
+                            } else {
+                                selection
+                            },
+                        );
+                        description.requested_source_identity = accepted_authored_formulation
+                            .as_ref()
+                            .map(|form| form.source_identity().to_owned());
+                        Some(description)
                     }
-                    let (kind, boundary_treatment, rule_ids) = derived.formulation_description();
-                    let mut description = describe_primal(
-                        kind,
-                        boundary_treatment,
-                        rule_ids,
-                        if authored_formulation.is_some() {
-                            FormulationSelectionMode::Authored
-                        } else {
-                            selection
-                        },
-                    );
-                    description.requested_source_identity = accepted_authored_formulation
-                        .as_ref()
-                        .map(|form| form.source_identity().to_owned());
-                    Some(description)
-                }
-                None if authored_formulation.is_some() => {
-                    return Err(invalid(
-                        "authored scalar Q1 primal Formulation requires the admitted complete essential boundary class",
-                    ));
-                }
-                None if selection == FormulationSelectionMode::Automatic => None,
-                None => {
-                    return Err(invalid(
-                        "exact scalar Q1 primal Formulation requires the admitted complete essential boundary class",
-                    ));
-                }
-            },
+                    None if authored_formulation.is_some() => {
+                        return Err(invalid(
+                            "authored scalar Q1 primal Formulation requires the admitted complete essential boundary class",
+                        ));
+                    }
+                    None if selection == FormulationSelectionMode::Automatic => None,
+                    None => {
+                        return Err(invalid(
+                            "exact scalar Q1 primal Formulation requires the admitted complete essential boundary class",
+                        ));
+                    }
+                },
+            }
         };
         let portable = resolve_common_scalar_portable(&admission, lowered, mesh, &cells)?;
         let realization_digest = hex_bytes(&portable.digest()?);
@@ -237,6 +267,18 @@ impl CommonScalarPlan {
                 .map(|description| description.requested().identity())
                 .unwrap_or(b"no-proof-carrying-formulation"),
         );
+        if let Some(description) = &formulation
+            && description.kind == FormulationKind::IntegralConservative
+        {
+            // Bind derived mathematical rule meaning even without authored provenance.
+            push_framed(
+                &mut identity_bytes,
+                description.boundary_treatment.as_bytes(),
+            );
+            for rule in &description.rule_ids {
+                push_framed(&mut identity_bytes, rule.as_bytes());
+            }
+        }
         if let Some(authored) = &accepted_authored_formulation {
             push_framed(&mut identity_bytes, authored.source_identity().as_bytes());
             push_framed(&mut identity_bytes, authored.canonical_bytes());

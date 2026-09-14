@@ -431,10 +431,13 @@ impl WireResolvedCommonPlanV5 {
         if self.authored_formulation_base64.is_some()
             && (self.family != WirePlanFamily::Scalar
                 || self.requested_formulation.is_some()
-                || self.effective_formulation != Some(WireFormulation::PrimalGalerkin))
+                || !matches!(
+                    self.effective_formulation,
+                    Some(WireFormulation::PrimalGalerkin | WireFormulation::IntegralConservative)
+                ))
         {
             return Err(invalid(
-                "authored Formulation payload requires one scalar authored primal Plan",
+                "authored Formulation payload requires one scalar authored primal or interval Plan",
             ));
         }
         Ok(())

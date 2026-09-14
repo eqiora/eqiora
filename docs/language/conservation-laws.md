@@ -65,5 +65,9 @@ it does not establish these regularity assumptions or the reverse implication.
 Native AST construction, source formatting, Python inspection and mathematical
 rendering retain the interval. The scalar projection uses one tagged v3 wire for
 weak-test and interval binders; the old v2 projection decoder is removed. Forms
-remain outside Model identity. Numerical Plan admission for authored interval
-forms, storage, multidimensional, mixed and complex forms remain unavailable.
+remain outside Model identity. The ordinary single-region scalar TPFA path admits
+this form on a fixed 1D Geometry with the existing positive diffusion and supported boundary conditions.
+Automatic and exact integral-conservative requests derive mathematical content
+and pass the same checker; only authored requests retain authored source identity.
+Plan and Result replay preserve this distinction and rerun admission. Storage,
+multidimensional, mixed and complex forms remain unavailable.

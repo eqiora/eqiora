@@ -213,7 +213,7 @@ pub(super) fn compile(
             right,
         ),
     )?;
-    check::check(&projection, index, geometry)?;
+    check::check((&projection).into(), index, geometry)?;
     Ok(CompiledAuthoredFormulation {
         relation: relation.downcast().expect("Law"),
         domain: parent.downcast().expect("Domain"),
@@ -233,29 +233,121 @@ impl AuthoredFormulationProjection {
         transaction: &Transaction,
         geometry: &eqiora_geometry::CanonicalGeometryV1,
     ) -> Result<(), Diagnostic> {
-        let mut nodes = BTreeSet::new();
-        let mut edges = BTreeSet::new();
-        for op in transaction.ops() {
-            let unique = match op {
-                Op::DefineKernelNode { node } => nodes.insert(node.id()),
-                Op::Connect { from, to, edge }
-                    if matches!(edge, EdgeKind::AppliesOn | EdgeKind::BoundaryOf)
-                        || (*edge == EdgeKind::DefinedOn
-                            && to.downcast::<kinds::Domain>().is_some()) =>
-                {
-                    edges.insert((*from, *edge))
-                }
-                Op::AddNode { .. } | Op::DefineOntologyView { .. } | Op::Connect { .. } => true,
-                _ => false,
-            };
-            if !unique {
-                return Err(error(
-                    "",
-                    TextRange::new(0, 0),
-                    "interval checker requires unique live definitions and support edges",
-                ));
-            }
-        }
-        check::check(self, &KernelIndex::new(transaction), geometry)
+        let index = snapshot_index(transaction)?;
+        check::check(self.into(), &index, geometry)
     }
+}
+
+fn snapshot_index(transaction: &Transaction) -> Result<KernelIndex<'_>, Diagnostic> {
+    let index = KernelIndex::new(transaction);
+    let mut values = BTreeSet::new();
+    let mut nodes = BTreeSet::new();
+    let mut edges = BTreeSet::new();
+    for op in transaction.ops() {
+        let unique = match op {
+            Op::DefineKernelNode { node } => nodes.insert(node.id()),
+            Op::SetValue { target, value } => {
+                nodes.contains(target)
+                    && values.insert(*target)
+                    && matches!(index.nodes.get(target).copied(),Some(KernelNode::Parameter(parameter)) if parameter.value_type()==value.value_type())
+            }
+            Op::Connect { from, to, edge }
+                if matches!(edge, EdgeKind::AppliesOn | EdgeKind::BoundaryOf)
+                    || (*edge == EdgeKind::DefinedOn
+                        && to.downcast::<kinds::Domain>().is_some()) =>
+            {
+                edges.insert((*from, *edge))
+            }
+            Op::AddNode { .. } | Op::DefineOntologyView { .. } | Op::Connect { .. } => true,
+            _ => false,
+        };
+        if !unique {
+            return Err(error(
+                "",
+                TextRange::new(0, 0),
+                "interval checker requires unique complete definitions, typed Parameter bindings and support edges",
+            ));
+        }
+    }
+    Ok(index)
+}
+
+/// Derive and independently check the canonical interval content of one retained Law.
+/// No authored source identity or provenance is invented for derived mathematics.
+/// Returns `None` when the expression exceeds the closed projection inventory.
+/// # Errors
+/// Rejects an unsupported Law, support, type or interval transformation.
+pub fn check_derived_interval_conservation(
+    transaction: &Transaction,
+    geometry: &eqiora_geometry::CanonicalGeometryV1,
+    relation: Id<kinds::Relation>,
+) -> Result<Option<()>, Diagnostic> {
+    use AuthoredFormExpressionV1 as F;
+    let index = snapshot_index(transaction)?;
+    let reject = || {
+        error(
+            "",
+            TextRange::new(0, 0),
+            "derived interval requires one retained steady scalar Law",
+        )
+    };
+    let Some(KernelNode::Relation(law)) = index.nodes.get(&relation.erase()).copied() else {
+        return Err(reject());
+    };
+    let RelationMeaning::Conservation(terms) = law.meaning() else {
+        return Err(reject());
+    };
+    let domain = index
+        .applies_on
+        .get(&relation.erase())
+        .ok_or_else(reject)?
+        .ulid()
+        .to_string();
+    let fields = law
+        .expression()
+        .nodes()
+        .iter()
+        .filter_map(|node| match node {
+            ExprNode::Symbol(SymbolRef::Field(id)) => Some(id.erase()),
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
+    let [trial] = fields.into_iter().collect::<Vec<_>>()[..] else {
+        return Err(reject());
+    };
+    let Some(flux) = F::from_expression(law.expression(), terms.flux())? else {
+        return Ok(None);
+    };
+    let Some(source) = F::from_expression(law.expression(), terms.source())? else {
+        return Ok(None);
+    };
+    let endpoint = |name: &str, normal| F::EndpointFlux {
+        interval: "interval".into(),
+        endpoint: name.into(),
+        normal,
+        flux: Box::new(flux.clone()),
+    };
+    let left = F::Add {
+        left: Box::new(endpoint("a", -1)),
+        right: Box::new(endpoint("b", 1)),
+    };
+    let right = F::IntervalIntegral {
+        interval: "interval".into(),
+        integrand: Box::new(source),
+    };
+    check::check(
+        check::Statement {
+            relation: &relation.ulid().to_string(),
+            domain: &domain,
+            trial: &trial.ulid().to_string(),
+            binder: Some(("interval", "a", "b")),
+            implication: "strong-implies-interval-conservation",
+            assumptions: &ASSUMPTIONS.iter().map(|s| (*s).into()).collect::<Vec<_>>(),
+            left: &left,
+            right: &right,
+        },
+        &index,
+        geometry,
+    )
+    .map(Some)
 }

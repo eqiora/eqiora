@@ -14,12 +14,14 @@ use crate::dimensions::length_dimension;
 use crate::lower::ModelSymbols;
 use crate::source_identity::formulation::AuthoredFormSourceIdentity;
 
+mod expression;
 mod index;
 mod interval;
 use index::KernelIndex;
 mod restriction;
 mod wire;
 
+pub use interval::check_derived_interval_conservation;
 pub use wire::{AuthoredFormExpressionV1, AuthoredFormulationProjection};
 
 /// One typed expression in an authored Formulation.
