@@ -29,29 +29,46 @@ pub fn resolve_common_plan(
     }
     let (spatial, formulation) = method.into().split();
     match recognized.capability {
-        NativeCapability::ScalarElliptic => {
+        NativeCapability::ScalarElliptic | NativeCapability::IsotropicElasticity => {
+            // Preserve exact-request rejection before policy checks for the current
+            // elasticity realization. Both stationary forms then share admission.
+            let (consumer, scaling_subject) = match recognized.capability {
+                NativeCapability::ScalarElliptic => ("scalar-elliptic", "scalar-elliptic Model"),
+                NativeCapability::IsotropicElasticity => {
+                    reject_unsupported_formulation_request(formulation, "linear-elasticity")?;
+                    ("linear-elasticity", "linear-elasticity")
+                }
+                _ => unreachable!("stationary scalar or elasticity form"),
+            };
             let CommonSolvePolicy::Linear(solve) = solve else {
-                return Err(invalid(
-                    "scalar-elliptic mathematics requires Linear solve policy",
-                ));
+                return Err(invalid(format!(
+                    "{consumer} mathematics requires Linear solve policy"
+                )));
             };
             if temporal.is_some() {
-                return Err(invalid(
-                    "steady scalar-elliptic mathematics does not admit a temporal policy",
-                ));
+                return Err(invalid(format!(
+                    "steady {consumer} mathematics does not admit a temporal policy"
+                )));
             }
             if scaling.is_some() {
-                return Err(invalid(
-                    "scalar-elliptic Model mathematics does not admit incompressible-flow scaling",
-                ));
+                return Err(invalid(format!(
+                    "{scaling_subject} mathematics does not admit incompressible-flow scaling"
+                )));
             }
-            let spatial = resolve_scalar(spatial)?;
-            let formulation_selection = match spatial {
-                NativeSpatialPolicy::ScalarQ1 => Some(resolve_formulation_request(
-                    formulation,
-                    FormulationKind::PrimalGalerkin,
-                    "scalar-elliptic Q1",
-                )?),
+            let spatial = match recognized.capability {
+                NativeCapability::ScalarElliptic => resolve_scalar(spatial)?,
+                NativeCapability::IsotropicElasticity => resolve_elasticity(spatial)?,
+                _ => unreachable!("stationary scalar or elasticity form"),
+            };
+            let (formulation_selection, properties) = match spatial {
+                NativeSpatialPolicy::ScalarQ1 => (
+                    Some(resolve_formulation_request(
+                        formulation,
+                        FormulationKind::PrimalGalerkin,
+                        "scalar-elliptic Q1",
+                    )?),
+                    LinearOperatorProperties::General,
+                ),
                 NativeSpatialPolicy::ScalarTpfa => {
                     if authored_formulation.is_some() {
                         return Err(invalid(
@@ -59,67 +76,31 @@ pub fn resolve_common_plan(
                         ));
                     }
                     reject_unsupported_formulation_request(formulation, "scalar-elliptic TPFA")?;
-                    None
+                    (None, LinearOperatorProperties::SymmetricPositiveDefinite)
                 }
-                _ => unreachable!("scalar resolution returns only scalar policies"),
+                NativeSpatialPolicy::ElasticityQ1 => {
+                    (None, LinearOperatorProperties::SymmetricPositiveDefinite)
+                }
+                _ => unreachable!("stationary scalar or elasticity spatial policy"),
             };
-            let linear = match spatial {
-                NativeSpatialPolicy::ScalarQ1 => resolve_linear(
-                    solve,
-                    LinearOperatorProperties::General,
-                    None,
-                    None,
-                    None,
-                    stokes_backend,
-                )?,
-                NativeSpatialPolicy::ScalarTpfa => resolve_linear(
-                    solve,
-                    LinearOperatorProperties::SymmetricPositiveDefinite,
-                    None,
-                    None,
-                    None,
-                    stokes_backend,
-                )?,
-                _ => unreachable!("scalar spatial selection"),
-            };
+            let linear = resolve_linear(solve, properties, None, None, None, stokes_backend)?;
             let admission = recognized.complete(spatial, linear, None, None)?;
-            CommonScalarPlan::from_admission(
-                model,
-                admission,
-                formulation_selection,
-                authored_formulation,
-            )
-            .map(|plan| ResolvedCommonPlan::Scalar(Box::new(plan)))
-        }
-        NativeCapability::IsotropicElasticity => {
-            reject_unsupported_formulation_request(formulation, "linear-elasticity")?;
-            let CommonSolvePolicy::Linear(solve) = solve else {
-                return Err(invalid(
-                    "linear-elasticity mathematics requires Linear solve policy",
-                ));
-            };
-            if temporal.is_some() {
-                return Err(invalid(
-                    "steady linear-elasticity mathematics does not admit a temporal policy",
-                ));
+            match spatial {
+                NativeSpatialPolicy::ScalarQ1 | NativeSpatialPolicy::ScalarTpfa => {
+                    CommonScalarPlan::from_admission(
+                        model,
+                        admission,
+                        formulation_selection,
+                        authored_formulation,
+                    )
+                    .map(|plan| ResolvedCommonPlan::Scalar(Box::new(plan)))
+                }
+                NativeSpatialPolicy::ElasticityQ1 => {
+                    CommonElasticityPlan::from_admission(model, admission)
+                        .map(|plan| ResolvedCommonPlan::Elasticity(Box::new(plan)))
+                }
+                _ => unreachable!("stationary scalar or elasticity spatial policy"),
             }
-            if scaling.is_some() {
-                return Err(invalid(
-                    "linear-elasticity mathematics does not admit incompressible-flow scaling",
-                ));
-            }
-            let spatial = resolve_elasticity(spatial)?;
-            let linear = resolve_linear(
-                solve,
-                LinearOperatorProperties::SymmetricPositiveDefinite,
-                None,
-                None,
-                None,
-                stokes_backend,
-            )?;
-            let admission = recognized.complete(spatial, linear, None, None)?;
-            CommonElasticityPlan::from_admission(model, admission)
-                .map(|plan| ResolvedCommonPlan::Elasticity(Box::new(plan)))
         }
         NativeCapability::SteadyIncompressibleStokes => {
             let formulation_selection = resolve_formulation_request(
