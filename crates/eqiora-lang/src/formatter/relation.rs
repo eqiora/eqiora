@@ -2,7 +2,7 @@
 
 use core::fmt::Write;
 
-use crate::ast::{ActivationSyntax, Equation, RelationDecl, RelationFamilyDecl};
+use crate::ast::{ActivationSyntax, RelationCondition, RelationDecl, RelationFamilyDecl};
 
 use super::{format_boundary_family_binder, format_expression, write_indent};
 
@@ -56,7 +56,7 @@ fn format_body(
         write!(output, " at {clock}").expect("String write");
     }
     output.push_str(" {\n");
-    for equation in declaration.equations().expect("ordinary Relation body") {
+    for equation in declaration.conditions().expect("ordinary Relation body") {
         format_equation(equation, indent, output);
     }
     write_indent(output, indent);
@@ -64,13 +64,31 @@ fn format_body(
 }
 
 fn format_equation(
-    equation: &Equation,
+    equation: &RelationCondition,
     indent: usize,
     output: &mut crate::formatter::comments::Output,
 ) {
     write_indent(output, indent + 2);
-    format_expression(equation.left(), 0, output);
-    output.push_str(" = ");
-    format_expression(equation.right(), 0, output);
+    match equation.kind() {
+        eqiora_schema::kernel::RelationConditionKind::Equality => {
+            format_expression(equation.left(), 0, output);
+            output.push_str(" = ");
+            format_expression(equation.right(), 0, output);
+        }
+        eqiora_schema::kernel::RelationConditionKind::Inequality => {
+            output.push_str("inequality(");
+            format_expression(equation.left(), 0, output);
+            output.push_str(" >= ");
+            format_expression(equation.right(), 0, output);
+            output.push(')');
+        }
+        eqiora_schema::kernel::RelationConditionKind::Complementarity => {
+            output.push_str("complementarity(");
+            format_expression(equation.left(), 0, output);
+            output.push_str(", ");
+            format_expression(equation.right(), 0, output);
+            output.push(')');
+        }
+    }
     output.push_str(";\n");
 }

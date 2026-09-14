@@ -277,9 +277,9 @@ def connection_declaration(ports, over, periodic, ordinal):
 
 
 def relation_declaration(name, support, pairs, clock, ordinal):
-    equations = [(left._ast, right._ast) for left, right in pairs]
+    conditions = [(kind, left._ast, right._ast) for kind, left, right in pairs]
     if isinstance(support, BoundaryMember):
         return _AstDeclaration.boundary_relation(
-            name, support._name, support._set._name, equations, ordinal)
+            name, support._name, support._set._name, conditions, ordinal)
     return _AstDeclaration.relation(name, None if support is None else support._name,
-                                   None if clock is None else clock._name, equations, ordinal)
+                                   None if clock is None else clock._name, conditions, ordinal)

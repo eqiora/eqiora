@@ -14,15 +14,16 @@ mod enumeration;
 mod event;
 mod record;
 pub use enumeration::{CaseArm, EnumDecl};
-pub use record::{RecordDecl, RecordMemberDecl};
 mod conservation;
+pub use record::{RecordDecl, RecordMemberDecl};
 pub(crate) mod formulation;
 mod name_path;
 pub use conservation::ConservationSyntax;
 mod relation;
 pub use event::EventDecl;
 pub use relation::{
-    ActivationSyntax, Equation, InitialDecl, RelationBody, RelationDecl, RelationFamilyDecl,
+    ActivationSyntax, InitialDecl, RelationBody, RelationCondition, RelationDecl,
+    RelationFamilyDecl,
 };
 mod value_type;
 

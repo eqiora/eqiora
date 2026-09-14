@@ -21,6 +21,7 @@ pub(super) fn resolve(
     solve: Option<&Bound<'_, PyAny>>,
     formulation: Option<&Bound<'_, PyAny>>,
     scaling: Option<&Bound<'_, PyAny>>,
+    enforcement: Option<&super::enforcement::PyActiveSet>,
 ) -> PyResult<PyPlan> {
     if formulation.is_some_and(|v| !v.is_none()) || scaling.is_some_and(|v| !v.is_none()) {
         return Err(PyTypeError::new_err(
@@ -31,9 +32,22 @@ pub(super) fn resolve(
         .ok_or_else(|| PyTypeError::new_err("finite affine resolve requires solve=Linear(...)"))?
         .extract::<Py<PyLinear>>()?;
     let request = CommonSolvePolicy::Linear(linear.borrow(py).native);
+    if let Some(policy) = enforcement {
+        let reference = model
+            .borrow(py)
+            .artifact()
+            .artifact_reference()
+            .map_err(|error| validation_error(py, &[error]))?;
+        if policy.model_digest != reference.artifact().to_string() {
+            return Err(PyTypeError::new_err(
+                "finite enforcement belongs to another exact Model",
+            ));
+        }
+    }
     let native = eqiora_numerics::CommonAlgebraicPlan::resolve(
         model.borrow(py).artifact(),
         request,
+        enforcement.map(|policy| policy.native.clone()),
         &FaerLinearSolver,
     )
     .map_err(|d| validation_error(py, &[d]))?;

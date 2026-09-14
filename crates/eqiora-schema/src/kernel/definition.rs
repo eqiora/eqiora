@@ -11,7 +11,7 @@ use eqiora_core::{ValueFrame, ValueLiteral, ValueType};
 
 mod relation;
 mod spatial;
-pub use relation::{RelationDef, RelationMeaning};
+pub use relation::{RelationConditionKind, RelationDef, RelationMeaning};
 
 pub use spatial::{
     AxisBounds, BoundarySide, CartesianAxisDefinition, CartesianCoordinateSource, DomainDef,

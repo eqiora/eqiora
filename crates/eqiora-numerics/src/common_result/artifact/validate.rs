@@ -192,7 +192,7 @@ pub(super) fn require_trajectory_family(
     Ok(())
 }
 
-pub(super) fn require_plan_solver(
+pub(in crate::common_result) fn require_plan_solver(
     plan: &ResolvedCommonPlan,
     solve: &CommonSolveEvidence,
 ) -> Result<(), Diagnostic> {

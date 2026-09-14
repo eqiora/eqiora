@@ -25,11 +25,11 @@ pub use ast::{
     CaseArm, ClockDecl, ClockRequirementDecl, ComponentDecl, ComponentItem, ComponentParameterDecl,
     ComponentPortDecl, ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl,
     ConnectorQuantitySyntax, ConnectorSyntax, ConservationSyntax, DocComment, Document, DomainDecl,
-    DomainSyntax, EnumDecl, Equation, EventDecl, ExactIntegerSyntax, Expr, ExprKind,
-    FamilyBinderSyntax, FieldDecl, FieldRoleSyntax, FrameSyntax, InitialDecl, InstanceDecl, Item,
-    ModelDecl, NamePath, NamedBindingDecl, NamedDefinitionDecl, ObservableDecl, ParameterDecl,
-    PortDecl, PortSyntax, PureOperatorDecl, PureOperatorFormal, PureValueClassSyntax, RecordDecl,
-    RecordMemberDecl, ReductionOp, RelationBody, RelationDecl, RelationFamilyDecl,
+    DomainSyntax, EnumDecl, EventDecl, ExactIntegerSyntax, Expr, ExprKind, FamilyBinderSyntax,
+    FieldDecl, FieldRoleSyntax, FrameSyntax, InitialDecl, InstanceDecl, Item, ModelDecl, NamePath,
+    NamedBindingDecl, NamedDefinitionDecl, ObservableDecl, ParameterDecl, PortDecl, PortSyntax,
+    PureOperatorDecl, PureOperatorFormal, PureValueClassSyntax, RecordDecl, RecordMemberDecl,
+    ReductionOp, RelationBody, RelationCondition, RelationDecl, RelationFamilyDecl,
     SignalDirectionSyntax, SignatureItem, SupportSlotDecl, SupportSlotSyntax, TextRange, UnaryOp,
     ValueShapeSyntax, ValueTypeSyntax, ValueTypeSyntaxKind, VisibilitySyntax,
 };
@@ -40,9 +40,10 @@ pub use draft::{
     DraftObservable, DraftParameter, DraftPhysicalDomain, DraftRelation, Module,
 };
 pub use draft_spatial::DraftSpatialDomain;
+pub use eqiora_schema::kernel::RelationConditionKind;
 pub use factory::{AstConstructionError, SourceAstFactory};
 pub use formatter::format;
-pub use lexer::{LexResult, Token, TokenKind, lex};
+pub use lexer::{Token, TokenKind, lex};
 pub use notation::{
     Notation, NotationAccent, NotationAtom, NotationError, NotationMark, NotationNode,
     NotationStyle,

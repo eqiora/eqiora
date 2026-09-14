@@ -14,7 +14,7 @@ use crate::{CommonScalarPlan, CommonTrajectory, ResolvedCommonPlan};
 mod artifact;
 mod evidence;
 mod observe;
-pub use observe::{CommonObservableStateTangent, CommonObservation};
+pub use observe::CommonObservableStateTangent;
 
 use evidence::{CommonAssemblyEvidence, CommonSolveEvidence};
 
@@ -279,6 +279,7 @@ enum CommonResultPayload {
         solve: Box<CommonSolveEvidence>,
         state_identity: String,
         reference_residual_norm: f64,
+        assessment: Option<crate::finite_constraints::ConstraintAssessment>,
     },
     Static(Box<CommonStaticResultPayload>),
     Trajectory {
@@ -301,18 +302,26 @@ impl CommonResult {
     pub(crate) fn from_algebraic(
         plan: &crate::CommonAlgebraicPlan,
         state: &crate::CommonAlgebraicState,
-        solution: &crate::physical_network::ScalarPhysicalAffineSolution,
+        values: Vec<f64>,
+        report: eqiora_solver::SolveReport,
+        active_set_mask: Option<u32>,
     ) -> Result<Self, Diagnostic> {
+        let (reference_residual_norm, assessment) =
+            plan.validate_values(&values, report.residual_target(), active_set_mask)?;
+        let resolved = ResolvedCommonPlan::Algebraic(Box::new(plan.clone()));
+        let solve = CommonSolveEvidence::from_report(&report);
+        artifact::require_plan_solver(&resolved, &solve)?;
         Self {
-            plan: ResolvedCommonPlan::Algebraic(Box::new(plan.clone())),
+            plan: resolved,
             family: CommonResultFamily::Algebraic,
             elapsed_seconds: 0.0,
             identity: String::new(),
             payload: CommonResultPayload::Algebraic {
-                values: solution.values().to_vec(),
-                solve: Box::new(CommonSolveEvidence::from_report(solution.report())),
+                values,
+                solve: Box::new(solve),
                 state_identity: state.identity().to_owned(),
-                reference_residual_norm: solution.reference_residual_norm(),
+                reference_residual_norm,
+                assessment,
             },
         }
         .refresh_identity()
@@ -321,6 +330,36 @@ impl CommonResult {
     pub fn finite_values(&self) -> Option<&[f64]> {
         match &self.payload {
             CommonResultPayload::Algebraic { values, .. } => Some(values),
+            _ => None,
+        }
+    }
+
+    /// Original typed condition values and activity, independently checked against this Result's Plan.
+    #[must_use]
+    pub(crate) fn constraint_assessment(
+        &self,
+    ) -> Option<&crate::finite_constraints::ConstraintAssessment> {
+        match &self.payload {
+            CommonResultPayload::Algebraic { assessment, .. } => assessment.as_ref(),
+            _ => None,
+        }
+    }
+
+    /// Original typed conditions independently checked against this Result's exact Plan.
+    #[must_use]
+    pub fn constraint_measurements(&self) -> &[crate::finite_constraints::ConstraintMeasurement] {
+        self.constraint_assessment()
+            .map_or(&[], |value| value.measurements())
+    }
+
+    /// Original finite equality residual, independently reevaluated before acceptance.
+    #[must_use]
+    pub fn finite_reference_residual_norm(&self) -> Option<f64> {
+        match &self.payload {
+            CommonResultPayload::Algebraic {
+                reference_residual_norm,
+                ..
+            } => Some(*reference_residual_norm),
             _ => None,
         }
     }

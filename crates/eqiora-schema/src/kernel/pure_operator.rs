@@ -30,7 +30,7 @@ pub const MAX_NODES: usize = 4096;
 /// Maximum dependency depth in a definition.
 pub const MAX_DEPTH: usize = 256;
 /// Maximum tensor rank admitted by the portable value-class contract.
-pub const MAX_TENSOR_RANK: u16 = 64;
+pub(crate) const MAX_TENSOR_RANK: u16 = 64;
 /// Maximum exponent of one formal dimension in a definition body.
 pub const MAX_FORMAL_EXPONENT: u16 = 255;
 
@@ -309,7 +309,7 @@ impl PureValueClass {
     /// Spatial Cartesian tensor of exact positive rank on the common volume.
     ///
     /// # Errors
-    /// Rejects rank zero and ranks above [`MAX_TENSOR_RANK`].
+    /// Rejects rank zero and ranks above the internal `MAX_TENSOR_RANK` limit.
     pub fn spatial_tensor(rank: u16) -> Result<Self, PureOperatorError> {
         let rank = std::num::NonZeroU16::new(rank).ok_or(PureOperatorError::InvalidResultRule)?;
         if rank.get() > MAX_TENSOR_RANK {

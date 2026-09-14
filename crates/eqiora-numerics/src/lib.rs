@@ -41,17 +41,14 @@ mod linearized_output;
 mod numerical_admission;
 mod region_assembly;
 pub use canonical_stokes::{
-    IncompressibleScalingReceipt2d, IncompressibleScalingRequest2d, ScalingAuthorities2d,
-    ScalingAuthority2d, ScalingComponent2d, ScalingComponentRecord2d, ScalingDependencies2d,
-    ScalingMode2d, ScalingRule2d,
+    IncompressibleScalingReceipt2d, IncompressibleScalingRequest2d, ScalingAuthority2d,
+    ScalingComponent2d, ScalingComponentRecord2d, ScalingMode2d, ScalingRule2d,
 };
 pub use common_ode::{
     CommonOdePlan, CommonOdeRunRequest, CommonOdeState, CommonTsitouras45, CommonTsitourasTolerance,
 };
-pub use common_result::{CommonObservableStateTangent, CommonObservation, CommonResult};
-pub use common_trajectory::{
-    CommonTrajectory, CommonTrajectoryObservation, TimeFunctionalQuadrature,
-};
+pub use common_result::{CommonObservableStateTangent, CommonResult};
+pub use common_trajectory::{CommonTrajectory, TimeFunctionalQuadrature};
 pub use numerical_admission::{
     AuthenticatedCommonMesh, CommonAlgebraicPlan, CommonAlgebraicState, CommonBackwardEuler,
     CommonElasticityPlan, CommonFormulationDescription, CommonFsiPlan, CommonFsiRunRequest,
@@ -61,6 +58,7 @@ pub use numerical_admission::{
     CommonTransientRunRequest, FormulationKind, FormulationSelectionMode, ResolvedCommonPlan,
     resolve_common_ode_plan, resolve_common_plan,
 };
+pub mod finite_constraints;
 mod linear_elasticity;
 mod operator;
 mod physical_network;

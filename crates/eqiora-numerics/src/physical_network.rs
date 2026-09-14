@@ -280,7 +280,7 @@ fn validate_time(composed: &ComposedResidualSystem, time: Option<f64>) -> Result
     }
 }
 
-fn append_affine_group(
+pub(crate) fn append_affine_group(
     storage: &mut AffineCsrStorage,
     dag: &eqiora_schema::kernel::ExprDag,
     selected_symbols: &[SymbolRef],
@@ -300,7 +300,7 @@ fn bound_affine_error(failure: BoundAffineFailure) -> Diagnostic {
 }
 
 #[derive(Debug)]
-struct AffineCsrStorage {
+pub(crate) struct AffineCsrStorage {
     rows: usize,
     columns: usize,
     row_offsets: Vec<usize>,
@@ -310,7 +310,7 @@ struct AffineCsrStorage {
 }
 
 impl AffineCsrStorage {
-    fn new(rows: usize, columns: usize) -> Result<Self, Diagnostic> {
+    pub(crate) fn new(rows: usize, columns: usize) -> Result<Self, Diagnostic> {
         let offset_count = rows
             .checked_add(1)
             .ok_or_else(|| affine_error("scalar physical CSR row-offset count overflowed"))?;
@@ -366,7 +366,7 @@ impl AffineCsrStorage {
         Ok(())
     }
 
-    fn finish(&self) -> Result<(), Diagnostic> {
+    pub(crate) fn finish(&self) -> Result<(), Diagnostic> {
         if self.right_hand_side.len() != self.rows || self.row_offsets.len() != self.rows + 1 {
             return Err(affine_error(format!(
                 "scalar physical CSR lowering produced {} rows for an admitted {}-row system",

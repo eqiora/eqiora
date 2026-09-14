@@ -1,12 +1,17 @@
 //! Whole-model validation and immutable interpreter input.
 
 mod conservation;
+mod diagnostics;
+use diagnostics::{
+    clock_error, expression_path, kernel_error, kernel_path, model_path, relation_dimension_error,
+};
 pub(crate) mod geometry_admission;
 mod nominal_values;
 mod numerical_residuals;
 mod observables;
 mod record_admission;
 mod relation_admission;
+mod relation_operands;
 pub(crate) mod signal_activation;
 pub(crate) mod signal_connections;
 mod snapshot_admission;
@@ -736,17 +741,31 @@ fn validate_expression(
         },
     ) {
         Ok(typed) => {
-            if let Some(KernelNode::Relation(relation)) = environment.nodes.get(&owner)
-                && let eqiora_schema::kernel::RelationMeaning::Conservation(terms) =
-                    relation.meaning()
-            {
-                conservation::validate_conservation_types(
-                    owner,
-                    *terms,
-                    &typed,
-                    relation_support.as_ref(),
-                    diagnostics,
-                );
+            if let Some(KernelNode::Relation(relation)) = environment.nodes.get(&owner) {
+                match relation.meaning() {
+                    eqiora_schema::kernel::RelationMeaning::Conditions(_) => {
+                        if let Err(error) =
+                            relation.validate_conditions(&typed, relation_support.as_ref())
+                        {
+                            diagnostics.push(typed_residual_diagnostic(
+                                owner,
+                                TypedResidualError::Type {
+                                    node_index: 0,
+                                    error,
+                                },
+                            ));
+                        }
+                    }
+                    eqiora_schema::kernel::RelationMeaning::Conservation(terms) => {
+                        conservation::validate_conservation_types(
+                            owner,
+                            *terms,
+                            &typed,
+                            relation_support.as_ref(),
+                            diagnostics,
+                        );
+                    }
+                }
             }
         }
         Err(errors) => diagnostics.extend(
@@ -957,34 +976,4 @@ fn edge_targets(edges: &[Edge], from: RawId, kind: EdgeKind) -> BTreeSet<RawId> 
         .filter(|edge| edge.from() == from && edge.kind() == kind)
         .map(Edge::to)
         .collect()
-}
-
-fn model_path(model: OntologyId<Model>) -> GraphPath {
-    GraphPath::new(["ontology-view", "eqiora.model/v1", &model.to_string()])
-}
-
-fn kernel_path(id: RawId) -> GraphPath {
-    GraphPath::new(["semantic", &format!("{:?}", id.kind()), &id.to_string()])
-}
-
-fn expression_path(owner: RawId, expression_id: u32) -> GraphPath {
-    GraphPath::new([
-        "semantic".to_owned(),
-        format!("{:?}", owner.kind()),
-        owner.to_string(),
-        "expression".to_owned(),
-        expression_id.to_string(),
-    ])
-}
-
-fn kernel_error(id: RawId, message: impl Into<String>) -> Diagnostic {
-    Diagnostic::error(codes::INVALID_KERNEL_DEFINITION, message).with_graph_path(kernel_path(id))
-}
-
-fn clock_error(id: RawId, message: impl Into<String>) -> Diagnostic {
-    Diagnostic::error(codes::INVALID_CLOCK, message).with_graph_path(kernel_path(id))
-}
-
-fn relation_dimension_error(id: RawId, message: impl Into<String>) -> Diagnostic {
-    Diagnostic::error(codes::INVALID_RELATION_DIMENSION, message).with_graph_path(kernel_path(id))
 }

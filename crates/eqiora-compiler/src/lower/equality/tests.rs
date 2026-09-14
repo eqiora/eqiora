@@ -91,6 +91,7 @@ fn explicit_complex_rhs_zero_keeps_its_type_in_the_equation_sides() {
                 initial: false,
                 range,
                 body: vec![crate::lower::LoweringEquation {
+                    kind: eqiora_schema::kernel::RelationConditionKind::Equality,
                     left: LoweringExpression::name("x".into(), range),
                     right,
                     contextual_left_zero: false,

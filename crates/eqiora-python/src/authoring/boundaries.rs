@@ -2,8 +2,9 @@
 
 use eqiora::language::{
     ActivationSyntax, BoundaryPairingSyntax, ComponentItem, ConnectorDecl, ConnectorSyntax,
-    ExprKind, FrameSyntax, PortSyntax, SignatureItem, SourceAstFactory as Ast, SupportSlotSyntax,
-    TextRange, ValueShapeSyntax, ValueTypeSyntax, ValueTypeSyntaxKind, VisibilitySyntax,
+    ExprKind, FrameSyntax, PortSyntax, RelationConditionKind, SignatureItem,
+    SourceAstFactory as Ast, SupportSlotSyntax, TextRange, ValueShapeSyntax, ValueTypeSyntax,
+    ValueTypeSyntaxKind, VisibilitySyntax,
 };
 use pyo3::prelude::*;
 
@@ -204,25 +205,36 @@ pub(super) fn relation(
     name: String,
     member: String,
     set: String,
-    equations: Vec<(PyRef<'_, PyAstExpression>, PyRef<'_, PyAstExpression>)>,
+    conditions: Vec<(
+        String,
+        PyRef<'_, PyAstExpression>,
+        PyRef<'_, PyAstExpression>,
+    )>,
     ordinal: u32,
 ) -> PyResult<PyAstDeclaration> {
-    if equations.len() > 256 {
-        return Err(syntax_error("relation exceeds 256 equations"));
+    if conditions.len() > 256 {
+        return Err(syntax_error("relation exceeds the 256-condition limit"));
     }
     let range = range(ordinal);
     let binder = Ast::boundary_family_binder(member.clone(), set, range).map_err(syntax_error)?;
-    let equations = equations
+    let conditions = conditions
         .into_iter()
-        .map(|(left, right)| {
-            Ast::equation(left.value.clone(), right.value.clone(), range).map_err(syntax_error)
+        .map(|(kind, left, right)| {
+            let kind = match kind.as_str() {
+                "equality" => RelationConditionKind::Equality,
+                "inequality" => RelationConditionKind::Inequality,
+                "complementarity" => RelationConditionKind::Complementarity,
+                _ => return Err(syntax_error("unknown mathematical condition kind")),
+            };
+            Ast::condition(kind, left.value.clone(), right.value.clone(), range)
+                .map_err(syntax_error)
         })
         .collect::<PyResult<_>>()?;
     let relation = Ast::relation(
         name,
         ActivationSyntax::Continuous,
         Some(member),
-        equations,
+        conditions,
         range,
     )
     .map_err(syntax_error)?;

@@ -51,7 +51,7 @@ fn factory_negative_literal_power_bases_are_grouped() {
             op: BinaryOp::Pow,
             left,
             ..
-        } = relation.equations().unwrap()[0].left().kind()
+        } = relation.conditions().unwrap()[0].left().kind()
         else {
             panic!("power")
         };

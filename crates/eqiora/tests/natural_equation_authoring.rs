@@ -207,7 +207,7 @@ fn authored_equations_and_typed_residuals_have_distinct_ordered_owners() {
     ] {
         let document = parse("oracle.eqi", source).into_document().unwrap();
         let actual = relation(&document)
-            .equations()
+            .conditions()
             .unwrap()
             .iter()
             .map(|equation| (source_tree(equation.left()), source_tree(equation.right())))
@@ -318,7 +318,7 @@ fn fixed_zero_precedence_and_range_table_has_no_parser_sentinel() {
     for (input, left, right, root, golden) in cases {
         let source = statements(input);
         let document = parse("range.eqi", &source).into_document().unwrap();
-        let equation = &relation(&document).equations().unwrap()[0];
+        let equation = &relation(&document).conditions().unwrap()[0];
         assert_eq!(source_tree(equation.left()), left);
         assert_eq!(source_tree(equation.right()), right);
         let statement_start = source.find(input).unwrap();

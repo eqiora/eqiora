@@ -177,10 +177,10 @@ fn independent_python_control_and_direct_compilations_share_canonical_identity()
             panic!("control-v2 rejected the accepted frozen source")
         };
         let control_reference = control_document.artifact_reference().unwrap();
-        assert_eq!(model.schema(), "eqiora.model-envelope/v25");
+        assert_eq!(model.schema(), "eqiora.model-envelope/v26");
         assert_eq!(
             model.transaction_schema(),
-            "eqiora.model-transaction-envelope/v25"
+            "eqiora.model-transaction-envelope/v26"
         );
         assert_eq!(model.model_id(), control_reference.model().to_string());
         assert_eq!(model.digest(), control_reference.artifact().as_str());

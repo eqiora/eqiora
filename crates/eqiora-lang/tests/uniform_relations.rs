@@ -30,7 +30,7 @@ fn unary_minus_and_right_associative_power_keep_the_authored_arithmetic() {
             panic!("relation")
         };
         assert_eq!(
-            arithmetic_tree(relation.equations().unwrap()[0].left()),
+            arithmetic_tree(relation.conditions().unwrap()[0].left()),
             expected
         );
         let formatted = format(&document);
@@ -39,7 +39,7 @@ fn unary_minus_and_right_associative_power_keep_the_authored_arithmetic() {
             panic!("relation")
         };
         assert_eq!(
-            arithmetic_tree(relation.equations().unwrap()[0].left()),
+            arithmetic_tree(relation.conditions().unwrap()[0].left()),
             expected,
             "{formatted}"
         );
@@ -55,7 +55,7 @@ fn every_equality_keeps_both_sides_and_utf8_ranges_without_zero_escape() {
         let Item::Relation(relation) = &document.models()[0].items()[0] else {
             panic!("relation")
         };
-        let equation = &relation.equations().unwrap()[0];
+        let equation = &relation.conditions().unwrap()[0];
         let slice =
             |range: eqiora_lang::TextRange| &source[range.start() as usize..range.end() as usize];
         assert_eq!(slice(equation.range()), format!("x = {right}"));
@@ -142,7 +142,7 @@ fn numeric_syntax_preserves_zero_and_nonzero_before_domain_admission() {
         let Item::Relation(relation) = &document.models()[0].items()[0] else {
             panic!("relation")
         };
-        let mut expression = relation.equations().unwrap()[0].right();
+        let mut expression = relation.conditions().unwrap()[0].right();
         while let ExprKind::Unary { value, .. } = expression.kind() {
             expression = value;
         }

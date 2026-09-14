@@ -222,7 +222,7 @@ def test_native_declarations_share_the_canonical_compile_and_run_path() -> None:
     )
 
     model = eqiora.compile(source=eqiora.Module("decay", state, rate, flow, eqiora.Initial((state, 1.0))))
-    assert json.loads(model.to_bytes())["schema"] == "eqiora.model-envelope/v25"
+    assert json.loads(model.to_bytes())["schema"] == "eqiora.model-envelope/v26"
     field = model.field(model.field_ids[0])
     plan = eqiora.resolve(
         model,
@@ -269,7 +269,7 @@ def test_source_and_native_models_share_only_structural_identity() -> None:
     assert source != native
     assert source.structural_fingerprint == native.structural_fingerprint
     assert source.structural_fingerprint.generation == (
-        "eqiora.structural-semantic-fingerprint/v20"
+        "eqiora.structural-semantic-fingerprint/v21"
     )
     assert len(source.structural_fingerprint.digest) == 64
     assert source.structurally_equivalent(native)

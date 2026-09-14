@@ -33,8 +33,8 @@ pub use definition::{
     ActivationDef, ActivationKind, AxisBounds, BoundarySide, CartesianAxisDefinition,
     CartesianCoordinateSource, ClockDomainDef, ClockKind, ConnectionDef, ConnectionSemantics,
     DomainDef, DomainKind, EventDirection, FieldDef, FieldRole, GeometryDigest, KernelNode,
-    ParameterDef, PortDef, PortPayload, RelationDef, RelationMeaning, RepresentationDef,
-    RepresentationKind, SignalDirection,
+    ParameterDef, PortDef, PortPayload, RelationConditionKind, RelationDef, RelationMeaning,
+    RepresentationDef, RepresentationKind, SignalDirection,
 };
 pub use expression::property::{PropertyDerivatives, PropertyMeaning, PropertyRelease};
 pub use expression::{

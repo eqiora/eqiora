@@ -1,20 +1,39 @@
 //! Exact mathematical meaning of Relation operands on the Model wire.
 use crate::invalid_artifact;
 use eqiora_core::{Diagnostic, Id, entity::kinds};
-use eqiora_schema::kernel::{ConservationTerms, ExprDag, ExprId, RelationDef, RelationMeaning};
+use eqiora_schema::kernel::{
+    ConservationTerms, ExprDag, ExprId, RelationConditionKind, RelationDef, RelationMeaning,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum WireRelationMeaning {
-    Equations,
+    Conditions { conditions: Vec<WireCondition> },
     Conservation { flux: u32, source: u32 },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum WireCondition {
+    Equality,
+    Inequality,
+    Complementarity,
 }
 
 impl WireRelationMeaning {
     pub(crate) fn encode(meaning: &RelationMeaning) -> Self {
         match meaning {
-            RelationMeaning::Equations => Self::Equations,
+            RelationMeaning::Conditions(conditions) => Self::Conditions {
+                conditions: conditions
+                    .iter()
+                    .map(|kind| match kind {
+                        RelationConditionKind::Equality => WireCondition::Equality,
+                        RelationConditionKind::Inequality => WireCondition::Inequality,
+                        RelationConditionKind::Complementarity => WireCondition::Complementarity,
+                    })
+                    .collect(),
+            },
             RelationMeaning::Conservation(terms) => Self::Conservation {
                 flux: terms.flux().index(),
                 source: terms.source().index(),
@@ -29,8 +48,30 @@ impl WireRelationMeaning {
         initial: bool,
     ) -> Result<RelationDef, Diagnostic> {
         let result = match self {
-            Self::Equations if initial => RelationDef::initial(id, expression),
-            Self::Equations => RelationDef::new(id, expression),
+            Self::Conditions { conditions } => {
+                let conditions: Vec<_> = conditions
+                    .iter()
+                    .map(|kind| match kind {
+                        WireCondition::Equality => RelationConditionKind::Equality,
+                        WireCondition::Inequality => RelationConditionKind::Inequality,
+                        WireCondition::Complementarity => RelationConditionKind::Complementarity,
+                    })
+                    .collect();
+                if initial {
+                    if conditions.len() != expression.roots().len() / 2
+                        || conditions
+                            .iter()
+                            .any(|kind| *kind != RelationConditionKind::Equality)
+                    {
+                        return Err(invalid_artifact(
+                            "initial Relation requires only paired equality conditions",
+                        ));
+                    }
+                    RelationDef::initial(id, expression)
+                } else {
+                    RelationDef::with_conditions(id, expression, conditions)
+                }
+            }
             Self::Conservation { flux, source } => {
                 if initial {
                     return Err(invalid_artifact(
@@ -72,12 +113,31 @@ mod tests {
             ))
             .unwrap();
         let expression = builder.finish([gap, force]).unwrap();
-        let relation = RelationDef::new(Id::new(), expression.clone()).unwrap();
-        let wire = WireRelationMeaning::encode(relation.meaning());
-        assert_eq!(
-            wire.decode(relation.id(), expression.clone(), false)
-                .unwrap(),
-            relation
+        for condition in [
+            RelationConditionKind::Equality,
+            RelationConditionKind::Inequality,
+            RelationConditionKind::Complementarity,
+        ] {
+            let relation =
+                RelationDef::with_conditions(Id::new(), expression.clone(), vec![condition])
+                    .unwrap();
+            let wire = WireRelationMeaning::encode(relation.meaning());
+            assert_eq!(
+                wire.decode(relation.id(), expression.clone(), false)
+                    .unwrap(),
+                relation
+            );
+            if condition != RelationConditionKind::Equality {
+                assert!(
+                    wire.decode(relation.id(), expression.clone(), true)
+                        .is_err()
+                );
+            }
+        }
+        assert!(
+            WireRelationMeaning::Conditions { conditions: vec![] }
+                .decode(Id::new(), expression, false)
+                .is_err()
         );
     }
 

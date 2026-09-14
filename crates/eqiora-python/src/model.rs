@@ -25,6 +25,7 @@ pub(crate) use notation::PyQuantityLabel;
 pub(crate) use notation::parse_profile;
 mod rendering;
 pub(crate) use rendering::{PyMathReference, PyMathRendering};
+pub(crate) mod constraint;
 mod observable_ref;
 mod parameter_ref;
 mod property;
@@ -720,6 +721,16 @@ impl PyModel {
         })
     }
 
+    /// Select an exact inequality or complementarity by Relation and condition ordinal.
+    fn constraint(
+        &self,
+        py: Python<'_>,
+        selection: &str,
+        ordinal: u32,
+    ) -> PyResult<constraint::PyConstraintRef> {
+        constraint::select(self, py, selection, ordinal)
+    }
+
     /// Select an exact derived output from this Model's aliases or canonical IDs.
     fn observable(&self, py: Python<'_>, selection: &str) -> PyResult<PyObservableRef> {
         observable_ref::select(self, py, selection)
@@ -870,6 +881,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyModelFieldRef>()?;
     module.add_class::<PyModelDomainRef>()?;
     module.add_class::<PyObservableRef>()?;
+    module.add_class::<constraint::PyConstraintRef>()?;
     module.add_class::<PyModel>()?;
     Ok(())
 }

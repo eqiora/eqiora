@@ -29,6 +29,7 @@ const PLAN_FILE_SPEC: ArtifactFileSpec = ArtifactFileSpec {
 
 mod algebraic;
 mod capability_view;
+mod enforcement;
 use capability_view::{
     PyElasticityPlanView, PyFixedReferenceFsiPlanView, PyFormulationKind,
     PyFormulationSelectionMode, PyFormulationView, PyIncompressibleFlowPlanView, PyOdePlanView,
@@ -302,6 +303,12 @@ fn solve_handles_from_native(
 
 #[pymethods]
 impl PyPlan {
+    /// Explicit finite mathematical enforcement, separate from the Model.
+    #[getter]
+    fn enforcement(&self) -> Option<enforcement::PyActiveSet> {
+        enforcement::from_plan(self)
+    }
+
     /// Canonical self-contained bytes of this complete resolved Plan.
     fn to_bytes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         self.native
@@ -537,7 +544,20 @@ impl PyPlan {
     fn fields(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         let model_digest = self.native.model_digest().to_owned();
         let fields = match &self.native {
-            ResolvedCommonPlan::Algebraic(_) => Vec::new(),
+            ResolvedCommonPlan::Algebraic(plan) => plan
+                .symbols()
+                .iter()
+                .filter_map(|symbol| {
+                    if let eqiora::kernel::SymbolRef::Field(field) = symbol {
+                        Some(PyModelFieldRef::from_exact(
+                            model_digest.clone(),
+                            field.ulid().to_string(),
+                        ))
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
             ResolvedCommonPlan::Ode(plan) => plan
                 .field_ids()
                 .map(|field| PyModelFieldRef::from_exact(model_digest.clone(), field.to_string()))
@@ -642,7 +662,7 @@ impl PyPlan {
 }
 
 #[pyfunction(name = "_resolve_plan")]
-#[pyo3(signature = (model, /, *, mesh=None, spatial=None, formulation=None, solve=None, scaling=None, temporal=None))]
+#[pyo3(signature = (model, /, *, mesh=None, spatial=None, formulation=None, solve=None, scaling=None, temporal=None, enforcement=None))]
 #[expect(
     clippy::too_many_arguments,
     reason = "PyO3 counts its injected Python token beside the seven-field public resolve boundary"
@@ -656,7 +676,13 @@ fn resolve_plan(
     solve: Option<&Bound<'_, PyAny>>,
     scaling: Option<&Bound<'_, PyAny>>,
     temporal: Option<&Bound<'_, PyAny>>,
+    enforcement: Option<PyRef<'_, enforcement::PyActiveSet>>,
 ) -> PyResult<PyPlan> {
+    if enforcement.is_some() && (mesh.is_some() || spatial.is_some() || temporal.is_some()) {
+        return Err(PyTypeError::new_err(
+            "finite enforcement cannot accompany spatial or temporal resolution",
+        ));
+    }
     let ode_temporal = temporal.and_then(|value| value.extract::<Py<PyTsitouras45>>().ok());
     if let Some(temporal_handle) = ode_temporal {
         if mesh.is_some()
@@ -704,7 +730,14 @@ fn resolve_plan(
     }
 
     if mesh.is_none() && spatial.is_none() && temporal.is_none() {
-        return algebraic::resolve(py, model, solve, formulation, scaling);
+        return algebraic::resolve(
+            py,
+            model,
+            solve,
+            formulation,
+            scaling,
+            enforcement.as_deref(),
+        );
     }
 
     let mesh = mesh.ok_or_else(|| PyTypeError::new_err("spatial resolve requires mesh=Mesh"))?;
@@ -938,6 +971,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyCellCentered>()?;
     module.add_class::<PySolverPlanningObjective>()?;
     module.add_class::<PyLinear>()?;
+    module.add_class::<enforcement::PyConstraintTolerance>()?;
+    module.add_class::<enforcement::PyActiveSet>()?;
     module.add_class::<PyNewton>()?;
     module.add_class::<PyResolvedLinear>()?;
     module.add_class::<PyResolvedNewton>()?;

@@ -952,6 +952,7 @@ class Model:
     def parameter(self, selection: str) -> ParameterRef: ...
     def field(self, selection: str) -> FieldRef: ...
     def observable(self, selection: str) -> ObservableRef: ...
+    def constraint(self, selection: str, ordinal: int) -> ConstraintRef: ...
     def domain(self, selection: str) -> DomainRef: ...
     def notation_labels(
         self, profile: Literal["latex", "mathml", "unicode", "plain", "speech"] = "latex", *,
@@ -1081,6 +1082,8 @@ class Plan:
 
     Authority: ``crates/eqiora-python/src/common_plan.rs::PyPlan``.
     """
+    @property
+    def enforcement(self) -> solve.ActiveSet | None: ...
     @staticmethod
     def from_bytes(data: bytes) -> Plan: ...
     @staticmethod
@@ -1579,6 +1582,46 @@ class Series:
     def __iter__(self) -> Iterator[tuple[float, float]]: ...
 
 @final
+class ConstraintRef:
+    """One exact Model-owned mathematical inequality or complementarity condition.
+
+    Authority: ``crates/eqiora-python/src/model/constraint.rs::PyConstraintRef``.
+    """
+    @property
+    def model_digest(self) -> str: ...
+    @property
+    def relation_id(self) -> str: ...
+    @property
+    def ordinal(self) -> int: ...
+    @property
+    def kind(self) -> Literal["inequality", "complementarity"]: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
+class ConstraintMeasurement:
+    """Independently evaluated original operands, their units, and accepted activity.
+
+    Authority: ``crates/eqiora-python/src/result/constraints.rs::PyConstraintMeasurement``.
+    """
+    @property
+    def reference(self) -> ConstraintRef: ...
+    @property
+    def activity(self) -> Literal["active", "inactive", "biactive", "inequality"]: ...
+    @property
+    def left_value(self) -> float: ...
+    @property
+    def right_value(self) -> float: ...
+    @property
+    def left_dimension(self) -> Dimension: ...
+    @property
+    def right_dimension(self) -> Dimension: ...
+    @property
+    def left_tolerance(self) -> float: ...
+    @property
+    def right_tolerance(self) -> float | None: ...
+
+@final
 class ObservableRef:
     """Exact derived output selected from one immutable Model.
 
@@ -1704,6 +1747,8 @@ class Result:
     Authority: ``crates/eqiora-python/src/result.rs::PyRunResult``.
     """
 
+    @property
+    def constraints(self) -> tuple[ConstraintMeasurement, ...]: ...
     @property
     def model_id(self) -> str: ...
     @property
@@ -2052,6 +2097,7 @@ def resolve(
     solve: solve.Linear | solve.Newton | None = None,
     scaling: fluid.IncompressibleScaling | None = None,
     temporal: time.BackwardEuler | time.Tsitouras45 | None = None,
+    enforcement: solve.ActiveSet | None = None,
 ) -> Plan:
     """Resolve an exact Model and typed numerical policies into a common Plan.
 
@@ -2186,6 +2232,8 @@ __all__ = [
     "Parameter",
     "Observable",
     "ObservableRef",
+    "ConstraintRef",
+    "ConstraintMeasurement",
     "Observation",
     "TrajectoryObservation",
     "ObservableStateTangent",

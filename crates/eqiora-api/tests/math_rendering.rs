@@ -360,3 +360,26 @@ fn nominal_type_bounds_and_scalar_literal_dimensions_are_presented() {
         "(x) = (2)"
     );
 }
+
+#[test]
+fn equation_rendering_never_relabels_constraints_as_equalities() {
+    for condition in ["inequality(x >= 0);", "complementarity(x >= 0, y >= 0);"] {
+        let document = ModelDocument::compile(
+            "constraints.eqi",
+            &format!("model M(){{variable x:1;variable y:1;relation law{{{condition}}}}}"),
+        )
+        .unwrap();
+        let relation = document
+            .program()
+            .nodes()
+            .find_map(|node| match node {
+                KernelNode::Relation(value) => Some(value.id().into()),
+                _ => None,
+            })
+            .unwrap();
+        for profile in PROFILES {
+            let error = document.render_equations(relation, profile).unwrap_err();
+            assert!(error.to_string().contains("inequality or complementarity"));
+        }
+    }
+}

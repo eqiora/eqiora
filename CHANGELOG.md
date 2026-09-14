@@ -6,6 +6,19 @@ are recorded here.
 
 ## [Unreleased]
 
+### Added
+
+- Added native source, Rust, and Python equality, inequality, and complementarity
+  conditions with an explicit bounded active-set realization for finite affine
+  real-scalar Models. Plans retain operand-specific coherent-SI tolerances, and
+  Results retain independently rechecked active/inactive condition measurements.
+
+### Changed
+
+- Advanced Model/Transaction artifacts to v26, Source identity to v18,
+  structural fingerprints to v21, and common Plan/Result artifacts to v4.
+  Earlier pre-1.0 encodings reject instead of entering compatibility paths.
+
 ## [0.1.0a11] - 2026-09-13
 
 ### Added

@@ -16,6 +16,12 @@ impl KernelProgram {
                 "numerical projection requires a Relation",
             ));
         };
+        if definition.has_constraints() {
+            return Err(kernel_error(
+                relation,
+                "inequalities and complementarity require an explicit constrained realization",
+            ));
+        }
         let scope = edge_targets(&self.edges, relation, EdgeKind::AppliesOn)
             .first()
             .copied();

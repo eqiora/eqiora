@@ -13,6 +13,60 @@ Author Eqiora Modules, Components, expressions, and equations in Python.
 
 <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.pyi" kind="blob">View source</ExactSourceLink>
 
+<a id="api-eqiora-lang-Inequality"></a>
+
+## `Inequality`
+
+A non-strict mathematical condition with lhs greater than or equal to rhs.
+
+```python
+@final
+class Inequality:
+    def __init__(self, token: Never, lhs: Expression, rhs: Expression) -> None: ...
+    @property
+    def lhs(self) -> Expression: ...
+    @property
+    def rhs(self) -> Expression: ...
+    def __bool__(self) -> bool: ...
+```
+
+<a id="api-eqiora-lang-Complementarity"></a>
+
+## `Complementarity`
+
+Two explicit nonnegativity predicates whose physical operands are complementary.
+
+```python
+@final
+class Complementarity:
+    def __init__(self, token: Never, lhs: Expression, rhs: Expression) -> None: ...
+    @property
+    def lhs(self) -> Expression: ...
+    @property
+    def rhs(self) -> Expression: ...
+    def __bool__(self) -> bool: ...
+```
+
+<a id="api-eqiora-lang-inequality"></a>
+
+## `inequality`
+
+Require lhs >= rhs with an explicit, separate numerical enforcement policy.
+
+```python
+def inequality(lhs: object, rhs: object) -> Inequality: ...
+```
+
+<a id="api-eqiora-lang-complementarity"></a>
+
+## `complementarity`
+
+Require two explicit nonnegative predicates with at least one operand zero.
+
+```python
+def complementarity(left: Expression, right: Expression) -> Complementarity: ...
+```
+
 <a id="api-eqiora-lang-equal"></a>
 
 ## `equal`
@@ -151,7 +205,7 @@ class Component:
     @overload
     def field(self, name: str, *, on: Support | None=None, value_type: ValueType, role: FieldRole, at: Clock | None=None, doc: str | None=None) -> Expression: ...
     def observable(self, name: str, expression: Expression | int | float | complex, *, value_type: ValueType, doc: str | None=None) -> None: ...
-    def relation(self, name: str, equality: Equation, *additional_equalities: Equation, on: Support | None=None, at: Clock | Event | None=None, doc: str | None=None) -> Relation: ...
+    def relation(self, name: str, condition: Equation | Inequality | Complementarity, *additional_conditions: Equation | Inequality | Complementarity, on: Support | None=None, at: Clock | Event | None=None, doc: str | None=None) -> Relation: ...
     def law(self, name: str, *, on: Support, flux: Expression, source: Expression, doc: str | None=None) -> Relation: ...
     def primal_form(self, relation: Relation, *, left: Expression, right: Expression, doc: str | None=None) -> None: ...
     def port(self, name: str, *, connector: Connector, on: Support | None=None, doc: str | None=None) -> Port | FieldPort: ...

@@ -54,9 +54,9 @@ fn model_and_component_events_keep_guards_direction_resets_aliases_and_comments(
             relation.activation(),
             &ActivationSyntax::Named("impact".into())
         );
-        assert_eq!(relation.equations().unwrap().len(), 2);
+        assert_eq!(relation.conditions().unwrap().len(), 2);
         assert!(
-            matches!(relation.equations().unwrap()[0].left().kind(), ExprKind::Call { callee, .. } if callee.as_str() == "next")
+            matches!(relation.conditions().unwrap()[0].left().kind(), ExprKind::Call { callee, .. } if callee.as_str() == "next")
         );
         let formatted = format(&document);
         assert!(formatted.contains("// impact guard"));

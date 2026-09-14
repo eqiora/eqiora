@@ -4,6 +4,7 @@ mod aliases;
 mod observable;
 pub(super) use observable::validate_observable;
 mod channels;
+mod conditions;
 mod enumeration;
 mod integer;
 mod law;
@@ -109,37 +110,6 @@ struct ExpressionChecker<'a, 'e, 'd> {
 }
 
 impl ExpressionChecker<'_, '_, '_> {
-    fn check_equation(
-        &mut self,
-        equation: &eqiora_lang::Equation,
-    ) -> Result<ExpressionType<String>, Diagnostic> {
-        for value in [equation.left(), equation.right()] {
-            crate::hierarchy::reductions::preflight(
-                self.scope.file,
-                value,
-                &mut |name| self.scope.index_sets.get(name).copied().flatten(),
-                &self.scope.static_values,
-                self.scope.elaborator.limits.max_parameter_terms,
-            )?;
-        }
-        let (left, right) = self.check_pair(equation.left(), equation.right())?;
-        crate::lower::equality::check(
-            left,
-            right,
-            crate::lower::equality::is_contextual_zero(equation.left()),
-            crate::lower::equality::is_contextual_zero(equation.right()),
-        )
-        .map(|checked| checked.equation_type)
-        .map_err(|error| {
-            source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                self.scope.file,
-                equation.range(),
-                error.to_string(),
-            )
-        })
-    }
-
     fn check(&mut self, expression: &Expr) -> Result<ExpressionType<String>, Diagnostic> {
         if let Some(value) = expression.resolved_enum() {
             return Ok(ExpressionType::new(value.value_type().clone(), None));

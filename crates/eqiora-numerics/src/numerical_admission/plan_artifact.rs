@@ -17,8 +17,13 @@ use crate::common_ode::{CommonTsitouras45, CommonTsitourasTolerance};
 use crate::{ScalingComponent2d, ScalingMode2d};
 
 use super::*;
+mod enforcement;
+mod linear;
+use enforcement::WireEnforcement;
+use linear::WireLinearControls;
+pub(super) use linear::linear_intent_bytes;
 
-const SCHEMA: &str = "eqiora.resolved-common-plan/v3";
+const SCHEMA: &str = "eqiora.resolved-common-plan/v4";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 
@@ -68,59 +73,6 @@ enum WireFormulation {
     PrimalGalerkin,
     MixedGalerkin,
     IntegralConservative,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireSolverObjective {
-    Robust,
-    Fast,
-    LowMemory,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireLinearControls {
-    relative_tolerance: f64,
-    absolute_tolerance: f64,
-    maximum_iterations: usize,
-    intent: WireLinearIntent,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
-enum WireLinearIntent {
-    ProgramControlled {
-        objective: WireSolverObjective,
-    },
-    Exact {
-        algorithm: String,
-        preconditioner: String,
-        reduction: String,
-        provider: WireLinearProvider,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireLinearProvider {
-    id: String,
-    implementation_version: String,
-    libraries: Vec<(String, String)>,
-}
-
-impl From<SolverProvider> for WireLinearProvider {
-    fn from(provider: SolverProvider) -> Self {
-        Self {
-            id: provider.id().as_str().into(),
-            implementation_version: provider.implementation_version().into(),
-            libraries: provider
-                .libraries()
-                .iter()
-                .map(|library| (library.name().into(), library.version().into()))
-                .collect(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -177,7 +129,7 @@ enum WireTemporal {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireResolvedCommonPlanV3 {
+struct WireResolvedCommonPlanV4 {
     schema: String,
     encoding: String,
     family: WirePlanFamily,
@@ -199,6 +151,8 @@ struct WireResolvedCommonPlanV3 {
     solve: Option<WireSolve>,
     #[serde(skip_serializing_if = "Option::is_none")]
     temporal: Option<WireTemporal>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    enforcement: Option<WireEnforcement>,
     backend: String,
     backend_version: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -342,7 +296,7 @@ impl ResolvedCommonPlan {
 
     /// Encode this complete resolved Plan and its exact replay roots.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&WireResolvedCommonPlanV3::from_plan(self)?).map_err(|error| {
+        serde_json::to_vec(&WireResolvedCommonPlanV4::from_plan(self)?).map_err(|error| {
             invalid(format!(
                 "cannot encode resolved common Plan artifact: {error}"
             ))
@@ -364,7 +318,7 @@ impl ResolvedCommonPlan {
                 bytes.len()
             )));
         }
-        let wire: WireResolvedCommonPlanV3 = serde_json::from_slice(bytes)
+        let wire: WireResolvedCommonPlanV4 = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid resolved common Plan JSON: {error}")))?;
         wire.validate_header()?;
         let resolved = wire.resolve(linear_backend, time_backend)?;
@@ -377,7 +331,7 @@ impl ResolvedCommonPlan {
     }
 }
 
-impl WireResolvedCommonPlanV3 {
+impl WireResolvedCommonPlanV4 {
     fn from_plan(plan: &ResolvedCommonPlan) -> Result<Self, Diagnostic> {
         let model = plan_model_artifact(plan).canonical_json()?;
         let mesh = plan_authenticated_mesh(plan)
@@ -407,6 +361,10 @@ impl WireResolvedCommonPlanV3 {
             scaling: scaling_request(plan),
             solve: solve_request(plan),
             temporal: temporal_request(plan),
+            enforcement: plan
+                .as_algebraic()
+                .and_then(|plan| plan.enforcement())
+                .map(WireEnforcement::from_native),
             backend: plan.solver_backend().to_owned(),
             backend_version: plan.solver_backend_version().to_owned(),
             realization_base64: graph,
@@ -417,6 +375,11 @@ impl WireResolvedCommonPlanV3 {
         if self.schema != SCHEMA || self.encoding != ENCODING {
             return Err(invalid(
                 "resolved common Plan has an unknown schema or encoding",
+            ));
+        }
+        if self.family != WirePlanFamily::Algebraic && self.enforcement.is_some() {
+            return Err(invalid(
+                "finite enforcement cannot accompany a spatial or temporal Plan",
             ));
         }
         let ode = self.family == WirePlanFamily::Ode;
@@ -488,6 +451,10 @@ impl WireResolvedCommonPlanV3 {
             return CommonAlgebraicPlan::resolve(
                 &model,
                 CommonSolvePolicy::Linear(request),
+                self.enforcement
+                    .as_ref()
+                    .map(WireEnforcement::to_native)
+                    .transpose()?,
                 linear_backend,
             )
             .map(|plan| ResolvedCommonPlan::Algebraic(Box::new(plan)));
@@ -632,68 +599,6 @@ impl WireSolve {
     }
 }
 
-impl WireLinearControls {
-    fn to_native(
-        &self,
-        backend: &dyn LinearSolverBackend,
-    ) -> Result<CommonLinearRequest, Diagnostic> {
-        let maximum = nonzero(self.maximum_iterations, "linear maximum_iterations")?;
-        match &self.intent {
-            WireLinearIntent::ProgramControlled { objective } => {
-                CommonLinearRequest::program_controlled(
-                    self.relative_tolerance,
-                    self.absolute_tolerance,
-                    maximum,
-                    (*objective).into(),
-                )
-            }
-            WireLinearIntent::Exact {
-                algorithm,
-                preconditioner,
-                reduction,
-                provider,
-            } => {
-                let algorithm = match algorithm.as_str() {
-                    "conjugate-gradient" => LinearSolver::ConjugateGradient,
-                    "minimum-residual" => LinearSolver::MinimumResidual,
-                    "bicgstab" => LinearSolver::BiConjugateGradientStabilized,
-                    "sparse-lu" => LinearSolver::SparseLu,
-                    _ => return Err(invalid("unknown exact linear algorithm")),
-                };
-                let preconditioner = match preconditioner.as_str() {
-                    "identity" => PreconditionerPolicy::Identity,
-                    "jacobi" => PreconditionerPolicy::Jacobi,
-                    _ => return Err(invalid("unknown exact linear preconditioner")),
-                };
-                let reduction = match reduction.as_str() {
-                    "reproducible" => ReductionPolicy::Reproducible,
-                    "fast" => ReductionPolicy::Fast,
-                    _ => return Err(invalid("unknown exact linear reduction")),
-                };
-                let reference = REFERENCE_LINEAR_SOLVER.provider();
-                let provider = if *provider == WireLinearProvider::from(reference) {
-                    reference
-                } else if *provider == WireLinearProvider::from(backend.provider()) {
-                    backend.provider()
-                } else {
-                    return Err(invalid(
-                        "persisted exact solver provider release or library inventory is unavailable",
-                    ));
-                };
-                let plan = SolverPlan::new(
-                    algorithm,
-                    self.relative_tolerance,
-                    self.absolute_tolerance,
-                    maximum,
-                )?
-                .with_preconditioner(preconditioner)
-                .with_reduction(reduction);
-                CommonLinearRequest::exact(plan, provider)
-            }
-        }
-    }
-}
-
 impl WireScalingRequest {
     fn to_native(&self) -> Result<Option<IncompressibleScalingRequest2d>, Diagnostic> {
         if self.length_m.is_none() && self.velocity_m_per_s.is_none() && self.pressure_pa.is_none()
@@ -749,26 +654,6 @@ impl From<WireFormulation> for FormulationKind {
             WireFormulation::PrimalGalerkin => Self::PrimalGalerkin,
             WireFormulation::MixedGalerkin => Self::MixedGalerkin,
             WireFormulation::IntegralConservative => Self::IntegralConservative,
-        }
-    }
-}
-
-impl From<SolverPlanningObjective> for WireSolverObjective {
-    fn from(value: SolverPlanningObjective) -> Self {
-        match value {
-            SolverPlanningObjective::Robust => Self::Robust,
-            SolverPlanningObjective::Fast => Self::Fast,
-            SolverPlanningObjective::LowMemory => Self::LowMemory,
-        }
-    }
-}
-
-impl From<WireSolverObjective> for SolverPlanningObjective {
-    fn from(value: WireSolverObjective) -> Self {
-        match value {
-            WireSolverObjective::Robust => Self::Robust,
-            WireSolverObjective::Fast => Self::Fast,
-            WireSolverObjective::LowMemory => Self::LowMemory,
         }
     }
 }
@@ -857,50 +742,6 @@ fn spatial_request(plan: &ResolvedCommonPlan) -> Option<WireSpatialRequest> {
                 },
             ],
         }),
-    }
-}
-
-pub(super) fn linear_intent_bytes(request: CommonLinearRequest) -> Result<Vec<u8>, Diagnostic> {
-    serde_json::to_vec(&WireLinearControls::from(request))
-        .map_err(|error| invalid(format!("cannot encode exact linear intent: {error}")))
-}
-
-impl From<CommonLinearRequest> for WireLinearControls {
-    fn from(request: CommonLinearRequest) -> Self {
-        let intent = match request.exact_request() {
-            Some((solver, provider)) => WireLinearIntent::Exact {
-                algorithm: match solver.algorithm() {
-                    LinearSolver::ConjugateGradient => "conjugate-gradient",
-                    LinearSolver::MinimumResidual => "minimum-residual",
-                    LinearSolver::BiConjugateGradientStabilized => "bicgstab",
-                    LinearSolver::SparseLu => "sparse-lu",
-                }
-                .into(),
-                preconditioner: match solver.preconditioner() {
-                    PreconditionerPolicy::Identity => "identity",
-                    PreconditionerPolicy::Jacobi => "jacobi",
-                }
-                .into(),
-                reduction: match solver.reduction() {
-                    ReductionPolicy::Reproducible => "reproducible",
-                    ReductionPolicy::Fast => "fast",
-                }
-                .into(),
-                provider: provider.into(),
-            },
-            None => WireLinearIntent::ProgramControlled {
-                objective: request
-                    .objective()
-                    .expect("non-exact intent owns an objective")
-                    .into(),
-            },
-        };
-        Self {
-            relative_tolerance: request.relative_tolerance(),
-            absolute_tolerance: request.absolute_tolerance(),
-            maximum_iterations: request.maximum_iterations().get(),
-            intent,
-        }
     }
 }
 
@@ -994,4 +835,11 @@ fn decode(value: &str, label: &str) -> Result<Vec<u8>, Diagnostic> {
         return Err(invalid(format!("{label} is not canonical padded base64")));
     }
     Ok(bytes)
+}
+
+pub(super) fn finite_enforcement_bytes(
+    enforcement: Option<&crate::finite_constraints::FiniteConstraintEnforcement>,
+) -> Result<Vec<u8>, Diagnostic> {
+    serde_json::to_vec(&enforcement.map(WireEnforcement::from_native))
+        .map_err(|error| invalid(format!("cannot encode finite enforcement intent: {error}")))
 }

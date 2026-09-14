@@ -43,7 +43,7 @@ impl DraftRelation {
         &self.name
     }
 
-    /// Equation sides in declared order.
+    /// RelationCondition sides in declared order.
     #[must_use]
     pub fn equations(&self) -> &[(DraftExpression, DraftExpression)] {
         &self.equations

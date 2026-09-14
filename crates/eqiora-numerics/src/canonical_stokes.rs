@@ -26,9 +26,8 @@ pub use api::{SteadyIncompressibleStokesCartesianModel2d, SteadyStokesNormalPres
 pub(crate) use boundary::LoweredStokesBoundary;
 pub(crate) use geometry_realization::scaling::ResolvedIncompressibleScaling2d;
 pub use geometry_realization::scaling::{
-    IncompressibleScalingReceipt2d, IncompressibleScalingRequest2d, ScalingAuthorities2d,
-    ScalingAuthority2d, ScalingComponent2d, ScalingComponentRecord2d, ScalingDependencies2d,
-    ScalingMode2d, ScalingRule2d,
+    IncompressibleScalingReceipt2d, IncompressibleScalingRequest2d, ScalingAuthority2d,
+    ScalingComponent2d, ScalingComponentRecord2d, ScalingMode2d, ScalingRule2d,
 };
 pub(crate) use geometry_realization::scaling::{
     resolve_complete_manual_incompressible_scaling_2d, resolve_fixed_reference_fsi_scaling_2d,

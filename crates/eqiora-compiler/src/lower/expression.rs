@@ -2,13 +2,12 @@ mod property;
 mod pure_operator;
 mod record;
 pub(super) use record::lower_record;
-mod law;
-pub(super) use law::lower_law;
 mod source;
 pub(super) use source::from_source;
 mod contextual;
 mod enumeration;
 mod event;
+mod law;
 mod observable;
 mod partial;
 pub(super) use observable::lower_observable;
@@ -17,6 +16,7 @@ pub(crate) use partial::result_type as partial_result_type;
 mod piecewise;
 use super::*;
 pub(super) use event::lower_event_guard;
+pub(super) use law::lower_law;
 
 use eqiora_schema::kernel::typing::{self, ExpressionType, SpatialSupport};
 
@@ -85,6 +85,47 @@ pub(super) fn lower_relation(
     };
     let mut normalized = Vec::with_capacity(equations.len());
     for equation in equations {
+        if initial && equation.kind != eqiora_schema::kernel::RelationConditionKind::Equality {
+            return Err(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                equation.range,
+                "initial blocks admit only equality conditions",
+            ));
+        }
+        if equation.kind == eqiora_schema::kernel::RelationConditionKind::Complementarity {
+            let mut operands = Vec::new();
+            let mut types = Vec::new();
+            for predicate in [&equation.left, &equation.right] {
+                let operand = constraints::lowered_operand(predicate).map_err(|message| {
+                    source_error(codes::LANGUAGE_TYPE_ERROR, file, predicate.range(), message)
+                })?;
+                expression_type(file, predicate, bindings, support.as_ref())?;
+                types.push(expression_type(file, &operand, bindings, support.as_ref())?);
+                operands.push(operand);
+            }
+            let value = eqiora_schema::kernel::RelationConditionKind::Complementarity
+                .check_operands(&types[0], &types[1])
+                .map_err(|error| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        equation.range,
+                        error.to_string(),
+                    )
+                })?;
+            typing::residual(&value, support.as_ref()).map_err(|error| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    equation.range,
+                    error.to_string(),
+                )
+            })?;
+            normalized.extend(operands);
+            continue;
+        }
+
         let (left_expression, right_expression) = contextual::equation(
             file,
             &equation.left,
@@ -108,6 +149,17 @@ pub(super) fn lower_relation(
                 error.to_string(),
             )
         })?;
+        equation
+            .kind
+            .check_operands(&checked.left, &checked.right)
+            .map_err(|error| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    equation.range,
+                    error.to_string(),
+                )
+            })?;
         typing::residual(
             &checked.equation_type,
             if initial {

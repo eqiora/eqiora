@@ -117,9 +117,8 @@ impl Output {
         {
             return self.text;
         }
-        let lexed = lex("<formatted>", &self.text);
+        let (lexed, _) = lex("<formatted>", &self.text);
         let tokens: Vec<_> = lexed
-            .tokens()
             .iter()
             .filter(|token| !token.kind().is_trivia() && token.kind() != TokenKind::Eof)
             .collect();

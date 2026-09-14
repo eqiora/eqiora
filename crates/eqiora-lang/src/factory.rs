@@ -12,6 +12,7 @@ mod expression;
 pub(crate) mod expression_visit;
 mod signature;
 pub(crate) use expression::validate_expression;
+mod constraint;
 mod enumeration;
 mod event;
 mod law;
@@ -29,10 +30,10 @@ use crate::ast::{
     ActivationSyntax, BoundaryConnectionDecl, BoundaryPortReferenceSyntax,
     BoundaryPortSelectorSyntax, ClockDecl, ComponentParameterDecl, ComponentPortDecl,
     ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorDecl,
-    ConnectorQuantitySyntax, ConnectorSyntax, DomainDecl, DomainSyntax, Equation,
-    ExactIntegerSyntax, Expr, ExprKind, FamilyBinderSyntax, FieldDecl, InstanceDecl, NamePath,
-    NamedBindingDecl, NamedDefinitionDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl,
-    PureOperatorFormal, PureValueClassSyntax, RelationDecl, RelationFamilyDecl, SupportSlotDecl,
+    ConnectorQuantitySyntax, ConnectorSyntax, DomainDecl, DomainSyntax, ExactIntegerSyntax, Expr,
+    ExprKind, FamilyBinderSyntax, FieldDecl, InstanceDecl, NamePath, NamedBindingDecl,
+    NamedDefinitionDecl, ParameterDecl, PortDecl, PortSyntax, PureOperatorDecl, PureOperatorFormal,
+    PureValueClassSyntax, RelationCondition, RelationDecl, RelationFamilyDecl, SupportSlotDecl,
     SupportSlotSyntax, TextRange, ValueShapeSyntax, VisibilitySyntax,
 };
 use domain_validation::validate_domain_syntax;

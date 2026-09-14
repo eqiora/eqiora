@@ -21,6 +21,7 @@ fn native_extrema_lower_exact_integer_operands_in_authored_order() {
     };
     for minimum in [true, false] {
         let equation = LoweringEquation {
+            kind: eqiora_schema::kernel::RelationConditionKind::Equality,
             left: LoweringExpression::extremum(
                 minimum,
                 literal(9_007_199_254_740_993),

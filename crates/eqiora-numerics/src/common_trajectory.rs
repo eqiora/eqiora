@@ -14,7 +14,7 @@ use crate::{
 mod artifact;
 mod functional;
 mod history_boundary;
-pub use functional::{CommonTrajectoryObservation, TimeFunctionalQuadrature};
+pub use functional::TimeFunctionalQuadrature;
 
 /// Accepted output States bound to the complete immutable Run request.
 #[derive(Debug, Clone, PartialEq)]

@@ -127,7 +127,7 @@ fn nonzero_framed_coefficients_share_source_native_identity_and_exact_replay() {
         assert!(
             std::str::from_utf8(&bytes)
                 .unwrap()
-                .contains("eqiora.model-envelope/v25")
+                .contains("eqiora.model-envelope/v26")
         );
         let replay = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(replay.canonical_json().unwrap(), bytes);

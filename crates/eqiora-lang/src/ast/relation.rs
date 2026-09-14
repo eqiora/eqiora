@@ -1,19 +1,20 @@
 //! Ordered source equalities and their activation/support owner.
 
 use super::{Expr, FamilyBinderSyntax, TextRange};
+use eqiora_schema::kernel::RelationConditionKind;
 
 /// Simultaneous mathematical conditions used only for fresh initialization.
 #[derive(Debug, Clone, PartialEq)]
 pub struct InitialDecl {
     pub(crate) comments: crate::ast::comments::SourceComments,
-    pub(crate) equations: Vec<Equation>,
+    pub(crate) equations: Vec<RelationCondition>,
     pub(crate) range: TextRange,
 }
 
 impl InitialDecl {
     /// Conditions in authored order; their semantics are simultaneous.
     #[must_use]
-    pub fn equations(&self) -> &[Equation] {
+    pub fn equations(&self) -> &[RelationCondition] {
         &self.equations
     }
 
@@ -62,9 +63,9 @@ impl RelationDecl {
 
     /// Ordered conditions, absent when this declaration is a physical Law.
     #[must_use]
-    pub fn equations(&self) -> Option<&[Equation]> {
+    pub fn conditions(&self) -> Option<&[RelationCondition]> {
         match &self.body {
-            RelationBody::Equations(conditions) => Some(conditions),
+            RelationBody::Conditions(conditions) => Some(conditions),
             RelationBody::Conservation(_) => None,
         }
     }
@@ -72,7 +73,7 @@ impl RelationDecl {
     /// Every authored expression, including all retained physical Law terms.
     pub fn expressions(&self) -> impl Iterator<Item = &Expr> {
         let conditions = self
-            .equations()
+            .conditions()
             .into_iter()
             .flatten()
             .flat_map(|condition| [condition.left(), condition.right()]);
@@ -93,21 +94,29 @@ impl RelationDecl {
 /// Exclusive mathematical syntax of a Relation declaration.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RelationBody {
-    /// Ordered equality conditions.
-    Equations(Vec<Equation>),
-    /// Physical flux and source terms on one domain.
+    /// Ordered equalities, inequalities and complementarity conditions.
+    Conditions(Vec<RelationCondition>),
+    /// Physical storage, flux and source terms on one domain.
     Conservation(Box<super::ConservationSyntax>),
 }
 
-/// One ordered authored equality. Residual construction belongs to checked lowering.
+/// One ordered authored condition, retaining source ranges and explicit predicates.
+/// Residual construction and nonnegativity normalization belong to checked lowering.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Equation {
+pub struct RelationCondition {
+    pub(crate) kind: RelationConditionKind,
     pub(crate) left: Expr,
     pub(crate) right: Expr,
     pub(crate) range: TextRange,
 }
 
-impl Equation {
+impl RelationCondition {
+    /// Mathematical kind, distinct from Boolean expression syntax.
+    #[must_use]
+    pub const fn kind(&self) -> RelationConditionKind {
+        self.kind
+    }
+
     /// Authored left-hand expression.
     #[must_use]
     pub const fn left(&self) -> &Expr {

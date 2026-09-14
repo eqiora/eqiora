@@ -16,7 +16,7 @@ capabilities = [
 [problem]
 scalar = "dx/dt + rate*x = 0"
 physical = "one nominal electrical Domain, three conserving Ports, and one N-ary Connection"
-generation = "eqiora.structural-semantic-fingerprint/v20"
+generation = "eqiora.structural-semantic-fingerprint/v21"
 
 [claim_boundary]
 exact_model_artifact_identity = false
