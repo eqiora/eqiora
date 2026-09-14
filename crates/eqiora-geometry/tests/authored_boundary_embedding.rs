@@ -209,3 +209,75 @@ fn proper_side_segments_reject_while_other_complete_sides_remain_exact() {
     assert_eq!(right.coordinate(), 2.0);
     assert_eq!(right.tangential_intervals(), &[(0.0, 2.0)]);
 }
+
+#[test]
+fn primitive_partition_retains_every_exact_parent_side_through_the_same_embedding() {
+    use eqiora_geometry::GeometryGraph;
+    use std::collections::BTreeMap;
+
+    let graph = GeometryGraph::new();
+    let first = graph.rectangle([2.0, 5.0], [-3.0, 7.0]).unwrap();
+    let second = graph.rectangle([5.0, 7.0], [-3.0, 7.0]).unwrap();
+    let partition = graph
+        .partition(
+            &first,
+            &second,
+            [first.boundaries()[1], second.boundaries()[0]],
+        )
+        .unwrap();
+    let mut names = BTreeMap::new();
+    for (name, rectangle) in [("omega", &first), ("alpha", &second)] {
+        names.insert(name.to_owned(), vec![rectangle.region().into()]);
+        for (side, edge) in rectangle.boundaries().iter().enumerate() {
+            names.insert(format!("{name}-arbitrary-{side}"), vec![(*edge).into()]);
+        }
+    }
+    let geometry = graph.build(&partition, &names).unwrap();
+    let replay = CanonicalGeometryV1::decode_planar_adjacent_rectangle_partition_v1_canonical(
+        geometry.canonical_bytes(),
+        Default::default(),
+    )
+    .unwrap();
+    for (name, xmin, xmax) in [("omega", 2.0, 5.0), ("alpha", 5.0, 7.0)] {
+        let parent = geometry.entity_set(name).unwrap();
+        for (index, axis, side, coordinate, interval, normal) in [
+            (0, 0, Lower, xmin, (-3.0, 7.0), [-1.0, 0.0]),
+            (1, 0, Upper, xmax, (-3.0, 7.0), [1.0, 0.0]),
+            (2, 1, Lower, -3.0, (xmin, xmax), [0.0, -1.0]),
+            (3, 1, Upper, 7.0, (xmin, xmax), [0.0, 1.0]),
+        ] {
+            let key = format!("{name}-arbitrary-{index}");
+            let edge = geometry.entity_set(&key).unwrap();
+            let embedding = geometry.cartesian_boundary_embedding(edge, parent).unwrap();
+            assert_eq!(embedding.normal_axis(), axis);
+            assert_eq!(embedding.side(), side);
+            assert_eq!(embedding.coordinate(), coordinate);
+            assert_eq!(embedding.tangential_intervals(), &[interval]);
+            assert_eq!(geometry.constant_parent_outward_normal(&key), Some(normal));
+            assert!(
+                geometry
+                    .cartesian_boundary_embedding(replay.entity_set(&key).unwrap(), parent)
+                    .is_none()
+            );
+            assert!(
+                geometry
+                    .cartesian_boundary_embedding(edge, replay.entity_set(name).unwrap())
+                    .is_none()
+            );
+            let other = if name == "omega" { "alpha" } else { "omega" };
+            assert!(
+                geometry
+                    .cartesian_boundary_embedding(edge, geometry.entity_set(other).unwrap())
+                    .is_none()
+            );
+        }
+    }
+    assert_eq!(
+        geometry.constant_parent_outward_normal("omega-arbitrary-1"),
+        Some([1.0, 0.0])
+    );
+    assert_eq!(
+        geometry.constant_parent_outward_normal("alpha-arbitrary-0"),
+        Some([-1.0, 0.0])
+    );
+}

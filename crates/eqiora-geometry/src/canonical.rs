@@ -241,7 +241,14 @@ impl CanonicalGeometryV1 {
         if !self.selection_is_boundary_of(boundary, parent) {
             return None;
         }
-        if let CanonicalGeometryKind::StraightEdgedPlanarV1 { region, .. } = &self.kind {
+        let planar = match &self.kind {
+            CanonicalGeometryKind::StraightEdgedPlanarV1 { region, .. } => Some(region),
+            CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(geometry) => {
+                Some(geometry.region())
+            }
+            _ => None,
+        };
+        if let Some(region) = planar {
             let ([edge], [face]) = (boundary.members(), parent.members()) else {
                 return None;
             };
@@ -309,16 +316,12 @@ impl CanonicalGeometryV1 {
                 _ => None,
             },
             CanonicalGeometryKind::StraightEdgedPlanarV1 { region, .. } => {
-                let (_, embedding) = planar_boundary::rectangle_side(region, *boundary)?;
-                let mut normal = [0.0; 2];
-                normal[embedding.normal_axis()] = match embedding.side() {
-                    eqiora_schema::kernel::BoundarySide::Lower => -1.0,
-                    eqiora_schema::kernel::BoundarySide::Upper => 1.0,
-                };
-                Some(normal)
+                planar_boundary::rectangle_normal(region, *boundary)
             }
-            CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(_)
-            | CanonicalGeometryKind::ConvexPolyhedraV1(_)
+            CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(geometry) => {
+                planar_boundary::rectangle_normal(geometry.region(), *boundary)
+            }
+            CanonicalGeometryKind::ConvexPolyhedraV1(_)
             | CanonicalGeometryKind::CartesianBoxV1(_) => None,
         }
     }

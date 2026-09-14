@@ -5,6 +5,16 @@ use eqiora_schema::kernel::{AxisBounds, BoundarySide, CartesianBoundaryEmbedding
 
 use crate::PlanarRegion;
 
+pub(super) fn rectangle_normal(region: &PlanarRegion, edge: usize) -> Option<[f64; 2]> {
+    let (_, embedding) = rectangle_side(region, edge)?;
+    let mut normal = [0.0; 2];
+    normal[embedding.normal_axis()] = match embedding.side() {
+        BoundarySide::Lower => -1.0,
+        BoundarySide::Upper => 1.0,
+    };
+    Some(normal)
+}
+
 pub(super) fn rectangle_side(
     region: &PlanarRegion,
     edge: usize,
