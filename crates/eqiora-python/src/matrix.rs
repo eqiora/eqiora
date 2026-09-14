@@ -74,6 +74,28 @@ impl<T: Element> ReadOnlyVector<T> {
         *storage = VectorStorage::Numpy(owned.clone_ref(py));
         Ok(owned)
     }
+
+    pub(crate) fn snapshot(&self, py: Python<'_>) -> PyResult<Vec<T>>
+    where
+        T: Copy,
+    {
+        let numpy = {
+            let storage = self
+                .storage
+                .lock()
+                .map_err(|_| PyRuntimeError::new_err("vector storage lock is poisoned"))?;
+            match &*storage {
+                VectorStorage::Native(values) => return Ok(values.clone()),
+                VectorStorage::Materializing => {
+                    return Err(PyRuntimeError::new_err(
+                        "vector NumPy materialization is already in progress",
+                    ));
+                }
+                VectorStorage::Numpy(array) => array.clone_ref(py),
+            }
+        };
+        Ok(numpy.bind(py).readonly().as_slice()?.to_vec())
+    }
 }
 
 /// One native matrix whose first NumPy projection becomes its immutable owner.

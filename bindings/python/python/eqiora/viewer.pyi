@@ -5,7 +5,7 @@ Authority: ``bindings/python/python/eqiora/viewer.py``.
 
 from typing import Self
 
-from . import FieldOutput
+from . import DerivedFieldSnapshot, FieldOutput
 from .geometry import Geometry
 from .meshing import Mesh
 
@@ -16,7 +16,11 @@ class View:
     """
 
     def __init__(self) -> None: ...
-    def add(self, value: Geometry | Mesh | FieldOutput, /) -> Self: ...
+    def add(
+        self,
+        value: Geometry | Mesh | FieldOutput | DerivedFieldSnapshot,
+        /,
+    ) -> Self: ...
     def show(self) -> Self: ...
     def close(self) -> None: ...
     def __enter__(self) -> Self: ...

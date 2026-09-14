@@ -23,7 +23,8 @@ use crate::model_io::{
     ArtifactFileSpec, read_artifact_bytes, unicode_artifact_path, write_artifact_bytes,
 };
 mod field;
-use field::{PyDerivedFieldSnapshot, PyFieldSnapshot, PyInitialField};
+pub(crate) use field::PyDerivedFieldSnapshot;
+use field::{PyFieldSnapshot, PyInitialField};
 mod observation;
 mod projection;
 mod scalar;

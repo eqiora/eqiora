@@ -229,6 +229,8 @@ def test_scalar_field_preserves_owner_association_unit_and_accepted_values(
     assert field["mesh_digest"] == mesh.digest
     assert field["model_digest"] == output.field.model_digest
     assert field["field_id"] == output.field.id
+    assert field["observation_digest"] is None
+    assert field["operator"] is None
     assert field["association"] == association
     assert field["component_shape"] == []
     assert field["unit"] == "coherent-si"

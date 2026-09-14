@@ -62,6 +62,8 @@ export interface ScalarFieldLayer {
 	readonly mesh_digest: string;
 	readonly model_digest: string;
 	readonly field_id: string;
+	readonly observation_digest: string | null;
+	readonly operator: "curl" | null;
 	readonly association: "vertex" | "cell";
 	readonly component_shape: readonly [];
 	readonly unit: "coherent-si";
@@ -74,7 +76,7 @@ export interface ScalarFieldLayer {
 		readonly [number, number],
 		readonly [number, number],
 	];
-	readonly frame: "scalar";
+	readonly frame: "scalar" | "spatial-axial";
 	readonly space: string;
 	readonly values: BufferReference;
 	readonly scale: {
@@ -368,11 +370,7 @@ function validateLayerReferences(scene: DecodedScene): void {
 			const target = targets.get(layer.target_layer);
 			if (target?.kind !== "mesh" || target.owner_digest !== layer.mesh_digest)
 				throw new Error("ScalarFieldLayer has a foreign Mesh owner");
-			if (
-				layer.component_shape.length !== 0 ||
-				layer.unit !== "coherent-si" ||
-				layer.frame !== "scalar"
-			)
+			if (layer.component_shape.length !== 0 || layer.unit !== "coherent-si")
 				throw new Error("v0 ScalarFieldLayer is not scalar");
 			const expected =
 				layer.association === "vertex"
@@ -382,6 +380,22 @@ function validateLayerReferences(scene: DecodedScene): void {
 						: 0;
 			if (expected === 0)
 				throw new Error("ScalarFieldLayer has unsupported association");
+			if (layer.observation_digest === null || layer.operator === null) {
+				if (
+					layer.observation_digest !== null ||
+					layer.operator !== null ||
+					layer.frame !== "scalar"
+				)
+					throw new Error("static ScalarFieldLayer has derived identity");
+			} else if (
+				!/^[0-9a-f]{64}$/.test(layer.observation_digest) ||
+				layer.operator !== "curl" ||
+				layer.frame !== "spatial-axial" ||
+				layer.association !== "cell" ||
+				layer.space !== "cell-average"
+			) {
+				throw new Error("derived ScalarFieldLayer is unsupported or inconsistent");
+			}
 			expectShape(metadata, layer.values, [expected], "Scalar field values");
 			if (!(buffers[layer.values.buffer] instanceof Float64Array))
 				throw new Error("Scalar field values are not float64");
