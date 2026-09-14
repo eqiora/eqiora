@@ -1,0 +1,4 @@
+[package]
+name = "org.example.HeatedBody"
+version = "1.0.0"
+entry = "main"
