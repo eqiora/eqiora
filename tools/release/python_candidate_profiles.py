@@ -38,6 +38,7 @@ MIXED_BOUNDARY_REPOSITORY_SOURCE = Path(
 )
 PYTHON_TEST_FIXTURES = (
     Path("examples/property-composition"),
+    Path("examples/heated-body"),
     Path("verify/interfaces/control-plane-compile-check"),
     Path("verify/interfaces/current-authoring-profile"),
     Path("crates/eqiora-api/packages/org.example.poisson"),

@@ -62,3 +62,13 @@ retains source, table and attribution in the checkout. It drives both Components
 sampled temperature input, executes table endpoints and interior values, and replays after
 moving its vendored lock offline. These are local specimen packages, not bundled standard
 releases in `crates/eqiora-api/packages/`. A heated-body Law and transient thermal solve are outside this example.
+
+## Steady heated-body specimen
+
+The <ExactSourceLink kind="blob" path="examples/heated-body/src/main.eqi">maintained heated-body Component</ExactSourceLink>
+retains a steady heat Law and a zero-trace weak form with four explicit 300 K
+boundaries. The <ExactSourceLink kind="blob" path="examples/heated-body/run.py">installed Python example</ExactSourceLink>
+locks this local package and runs a four-cell Q1 discretization with explicit
+solver policy. Its independently derived central temperature is 300 + 3/32 K.
+This is a local instructional package, not a bundled standard thermal release;
+transient spatial storage execution remains unsupported.
