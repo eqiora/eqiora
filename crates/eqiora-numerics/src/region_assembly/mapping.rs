@@ -15,6 +15,7 @@ use crate::form_compiler::region::{RegionFieldLayout, basis, components};
 use super::invalid;
 
 mod binding;
+mod recovery;
 pub(crate) use binding::bind_region_topology;
 
 /// Bind topology without requiring an affine or linear equation compiler.
@@ -108,7 +109,7 @@ pub(crate) struct RegionDofMap {
     cells: Vec<Vec<usize>>,
     constraints: ConstrainedDofLayout,
     full_count: usize,
-    scales: BTreeMap<RawId, f64>,
+    fields: BTreeMap<RawId, (RawId, RegionFieldLayout)>,
 }
 
 impl RegionDofMap {
@@ -359,9 +360,9 @@ impl RegionDofMap {
             cells,
             constraints: ConstrainedDofLayout::new(fixed)?,
             full_count: indices.len(),
-            scales: fields
-                .iter()
-                .map(|(field, (_, layout))| (*field, layout.scale))
+            fields: fields
+                .into_iter()
+                .map(|(field, (domain, layout))| (field, (domain, layout.clone())))
                 .collect(),
         })
     }
@@ -371,9 +372,9 @@ impl RegionDofMap {
     }
 
     pub(crate) fn field_scale(&self, field: RawId) -> Result<f64, Diagnostic> {
-        self.scales
+        self.fields
             .get(&field)
-            .copied()
+            .map(|(_, layout)| layout.scale)
             .ok_or_else(|| invalid("scale query requires an exact mapped Field"))
     }
 
@@ -463,7 +464,7 @@ impl RegionDofMap {
 
     /// Exact Field block membership, including shared quotient coordinates.
     pub(crate) fn field_free_dofs(&self, field: RawId) -> Result<Vec<DofId>, Diagnostic> {
-        if !self.scales.contains_key(&field) {
+        if !self.fields.contains_key(&field) {
             return Err(invalid("requested algebraic block has no exact Field"));
         }
         let indices = self
@@ -474,22 +475,6 @@ impl RegionDofMap {
             .map(|dof| dof.index())
             .collect::<BTreeSet<_>>();
         Ok(indices.into_iter().map(DofId::new).collect())
-    }
-
-    pub(crate) fn recover(&self, reduced: &[f64]) -> Result<BTreeMap<FieldDof, f64>, Diagnostic> {
-        let full = self.constraints.lift(reduced)?;
-        self.globals
-            .iter()
-            .map(|(key, index)| {
-                let physical = full[*index] * self.scales[&key.field];
-                if !physical.is_finite() {
-                    return Err(invalid(
-                        "Field recovery produced a nonfinite physical value",
-                    ));
-                }
-                Ok((*key, physical))
-            })
-            .collect()
     }
 }
 

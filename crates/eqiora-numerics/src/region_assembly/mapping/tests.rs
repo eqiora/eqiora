@@ -300,11 +300,35 @@ fn model_derived_chain_assembles_solves_and_recovers_every_exact_field() {
         )
         .unwrap();
         let solution = REFERENCE_LINEAR_SOLVER.solve(&problem, solver).unwrap();
-        let recovered = mapping.recover(solution.values()).unwrap();
-        assert_eq!(recovered.len(), 3 * count);
+        let inventory = regions
+            .iter()
+            .map(|region| region.field())
+            .collect::<Vec<_>>();
+        let recovered = mapping.recover(solution.values(), &inventory).unwrap();
+        assert_eq!(recovered.len(), count);
+        let mut permuted = inventory.clone();
+        permuted.reverse();
+        assert_eq!(
+            recovered,
+            mapping.recover(solution.values(), &permuted).unwrap()
+        );
+        assert!(mapping.recover(solution.values(), &inventory[1..]).is_err());
+        let mut duplicate = inventory.clone();
+        duplicate.push(inventory[0]);
+        assert!(mapping.recover(solution.values(), &duplicate).is_err());
+        let mut foreign = inventory.clone();
+        foreign[0] = eqiora_core::Id::<eqiora_core::entity::kinds::Field>::new().erase();
+        assert!(mapping.recover(solution.values(), &foreign).is_err());
         // Independent exact steady solution: k=2, no source, u(0)=0,u(L)=1 => u=x/L.
-        for (dof, value) in recovered {
-            assert!((value - dof.entity.index() as f64 / (2 * count) as f64).abs() < 1e-11);
+        for region in &regions {
+            let field = &recovered[&region.field()];
+            assert_eq!(field.domain, region.domain());
+            assert_eq!(field.value_type, layouts[&region.domain()][0].value_type);
+            assert_eq!(field.coefficients.len(), 3);
+            for (dof, value) in &field.coefficients {
+                assert_eq!(dof.field, region.field());
+                assert!((value - dof.entity.index() as f64 / (2 * count) as f64).abs() < 1e-11);
+            }
         }
         let mut reversed = traces.clone();
         reversed.reverse();
@@ -331,7 +355,7 @@ fn model_derived_chain_assembles_solves_and_recovers_every_exact_field() {
         );
         assert!(
             mapping
-                .recover(&vec![0.0; mapping.free_count() + 1])
+                .recover(&vec![0.0; mapping.free_count() + 1], &inventory)
                 .is_err()
         );
     }
@@ -463,15 +487,18 @@ model VectorRegion() {
     )
     .unwrap();
     let solution = REFERENCE_LINEAR_SOLVER.solve(&problem, solver).unwrap();
-    for (dof, value) in mapping.recover(solution.values()).unwrap() {
+    let recovered = mapping.recover(solution.values(), &[field]).unwrap();
+    assert_eq!(recovered[&field].domain, domain);
+    assert_eq!(recovered[&field].value_type, layouts[&domain][0].value_type);
+    for (dof, value) in &recovered[&field].coefficients {
         let x = mesh.vertex_coordinates(dof.entity).unwrap()[0];
         assert!((value - x * (dof.component + 1) as f64).abs() < 1e-11);
-        assert!(mapping.global_dof(dof).is_some());
-        assert_eq!(mapping.free_dof(dof).is_some(), x != 0.0 && x != 1.0);
+        assert!(mapping.global_dof(*dof).is_some());
+        assert_eq!(mapping.free_dof(*dof).is_some(), x != 0.0 && x != 1.0);
     }
     assert!(
         mapping
-            .recover(&vec![f64::NAN; mapping.free_count()])
+            .recover(&vec![f64::NAN; mapping.free_count()], &[field])
             .is_err()
     );
     let mut wrong_space = layouts.clone();

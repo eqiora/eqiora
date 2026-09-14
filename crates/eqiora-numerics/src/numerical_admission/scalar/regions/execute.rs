@@ -175,19 +175,31 @@ impl ExecutableScalarEquations {
         let solution = request.solve(&core.linear_problem()?)?;
         core.validate_solution(&solution)?;
         let (values, solve_report) = solution.into_parts();
-        let recovered = mapping.recover(&values)?;
-        let fields = self
-            .fields()
+        let expected =
+            self.regions
+                .iter()
+                .flat_map(|region| {
+                    region.form.fields().iter().map(move |(field, value_type)| {
+                        (*field, (region.form.domain(), value_type))
+                    })
+                })
+                .collect::<BTreeMap<_, _>>();
+        let inventory = expected.keys().copied().collect::<Vec<_>>();
+        let fields = mapping
+            .recover(&values, &inventory)?
             .into_iter()
-            .map(|(field, value_type)| {
-                let values = recovered
-                    .iter()
-                    .filter_map(|(key, value)| (key.field == field).then_some(*value))
-                    .collect::<Vec<_>>();
-                if values.is_empty() {
-                    return Err(invalid("Run recovery omitted an exact Field"));
+            .map(|(field, recovered)| {
+                let (domain, value_type) = expected[&field];
+                if recovered.domain != domain || &recovered.value_type != value_type {
+                    return Err(invalid(
+                        "Run recovery differs from exact Field type or Domain",
+                    ));
                 }
-                Ok((field.downcast().expect("Field"), value_type, values))
+                Ok((
+                    field.downcast().expect("Field"),
+                    recovered.value_type,
+                    recovered.coefficients.into_values().collect(),
+                ))
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         Ok(CommonScalarRunOutput {

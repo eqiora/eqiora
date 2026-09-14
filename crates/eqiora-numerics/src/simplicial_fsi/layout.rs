@@ -340,8 +340,8 @@ impl<const D: usize> FsiLayout<D> {
         &self,
         reduced: &[f64],
     ) -> Result<ReconstructedFsiFields<D>, Diagnostic> {
-        let recovered = self.mapping.recover(reduced)?;
-        let value = |key| recovered[&key];
+        let recovered = self.mapping.recover(reduced, &self.fields)?;
+        let value = |key: FieldDof| recovered[&key.field].coefficients[&key];
         Ok((
             self.vertex_keys
                 .iter()
