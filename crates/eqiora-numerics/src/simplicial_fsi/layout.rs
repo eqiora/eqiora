@@ -13,6 +13,8 @@ use super::partition::FixedReferenceFsiPartition;
 use crate::region_assembly::mapping::{FieldDof, RegionDofMap};
 
 mod binding;
+mod roles;
+use roles::FsiRoles;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FsiLayout<const D: usize = 2> {
@@ -20,7 +22,7 @@ pub(crate) struct FsiLayout<const D: usize = 2> {
     partition: Arc<FixedReferenceFsiPartition<D>>,
     boundary: Arc<FixedReferenceFsiBoundary<D>>,
     mapping: RegionDofMap,
-    fields: [RawId; 3],
+    roles: FsiRoles,
     vertex_keys: Vec<[FieldDof; D]>,
     bubble_keys: Vec<[FieldDof; D]>,
     pressure_keys: Vec<FieldDof>,
@@ -78,10 +80,13 @@ impl<const D: usize> FsiLayout<D> {
         &self,
         scale: super::FixedReferenceFsiScale<D>,
     ) -> Result<(), Diagnostic> {
-        for (field, expected) in
-            self.fields
-                .into_iter()
-                .zip([scale.velocity(), scale.pressure(), scale.velocity()])
+        for (field, expected) in [
+            self.roles.fluid_velocity,
+            self.roles.pressure,
+            self.roles.solid_velocity,
+        ]
+        .into_iter()
+        .zip([scale.velocity(), scale.pressure(), scale.velocity()])
         {
             if self.mapping.field_scale(field)? != expected {
                 return Err(invalid(
@@ -92,16 +97,30 @@ impl<const D: usize> FsiLayout<D> {
         Ok(())
     }
 
-    /// The canonical Model adapter supplies exact velocity/pressure/velocity roles;
-    /// topology and algebraic numbering belong exclusively to the common map.
-    pub(crate) fn new(
+    /// Project authenticated equation/Plan roles through the common exact map.
+    fn new(
         mesh: &SimplicialMesh,
         partition: &FixedReferenceFsiPartition<D>,
         boundary: &FixedReferenceFsiBoundary<D>,
         mapping: &RegionDofMap,
-        fields: [RawId; 3],
+        roles: FsiRoles,
     ) -> Result<Self, Diagnostic> {
-        let [fluid_velocity, pressure, solid_velocity] = fields;
+        let FsiRoles {
+            fluid_velocity,
+            pressure,
+            solid_velocity,
+            ..
+        } = roles.clone();
+        for (&field, &(domain, space)) in &roles.bindings {
+            if mapping
+                .field_layout(field)
+                .is_none_or(|(owner, layout)| owner != domain || layout.space != space)
+            {
+                return Err(invalid(
+                    "FSI map differs from exact typed role Domain/space binding",
+                ));
+            }
+        }
         let mut expected = BTreeSet::new();
         for (field, vertices) in [
             (fluid_velocity, partition.fluid_vertices()),
@@ -174,7 +193,7 @@ impl<const D: usize> FsiLayout<D> {
             partition: Arc::new(partition.clone()),
             boundary: Arc::new(boundary.clone()),
             mapping: mapping.clone(),
-            fields,
+            roles,
             vertex_keys,
             bubble_keys,
             pressure_keys,
@@ -250,13 +269,15 @@ impl<const D: usize> FsiLayout<D> {
             .ok_or_else(|| invalid("fluid cell has no exact bubble ownership"))?;
         let mut keys = vertices
             .iter()
-            .flat_map(|vertex| (0..D).map(move |component| key(self.fields[0], *vertex, component)))
+            .flat_map(|vertex| {
+                (0..D).map(move |component| key(self.roles.fluid_velocity, *vertex, component))
+            })
             .collect::<Vec<_>>();
         keys.extend_from_slice(bubbles);
         keys.extend(
             vertices
                 .iter()
-                .map(|vertex| key(self.fields[1], *vertex, 0)),
+                .map(|vertex| key(self.roles.pressure, *vertex, 0)),
         );
         self.mapping.map_dofs(&keys, reduced)
     }
@@ -281,7 +302,9 @@ impl<const D: usize> FsiLayout<D> {
         }
         let keys = vertices
             .iter()
-            .flat_map(|vertex| (0..D).map(move |component| key(self.fields[2], *vertex, component)))
+            .flat_map(|vertex| {
+                (0..D).map(move |component| key(self.roles.solid_velocity, *vertex, component))
+            })
             .collect::<Vec<_>>();
         self.mapping.map_dofs(&keys, reduced)
     }
@@ -308,7 +331,7 @@ impl<const D: usize> FsiLayout<D> {
     }
     pub(crate) fn reduced_pressure_dofs(&self) -> Vec<usize> {
         self.mapping
-            .field_free_dofs(self.fields[1])
+            .field_free_dofs(self.roles.pressure)
             .expect("validated pressure Field")
             .into_iter()
             .map(DofId::index)
@@ -340,7 +363,10 @@ impl<const D: usize> FsiLayout<D> {
         &self,
         reduced: &[f64],
     ) -> Result<ReconstructedFsiFields<D>, Diagnostic> {
-        let recovered = self.mapping.recover(reduced, &self.fields)?;
+        let recovered = self.mapping.recover(
+            reduced,
+            &self.roles.bindings.keys().copied().collect::<Vec<_>>(),
+        )?;
         let value = |key: FieldDof| recovered[&key.field].coefficients[&key];
         Ok((
             self.vertex_keys

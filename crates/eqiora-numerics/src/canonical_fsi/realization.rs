@@ -541,7 +541,7 @@ fn prepare_resolved_fixed_reference_fsi_run_2d_with_assembly<'a>(
     let block_system =
         block::fixed_reference_fsi_block_system(model, resolved, mesh_artifact, mesh, partition)?;
     let regions = regions::bind(model, resolved.plan())?;
-    let layout = regions::layout(model, &regions, mesh, partition, &boundary)?;
+    let layout = regions::layout(model, &regions, resolved.plan(), mesh, partition, &boundary)?;
     Ok(PreparedResolvedFixedReferenceFsiRun2d {
         model,
         resolved,

@@ -914,3 +914,6 @@ fn inventories(mesh: &SimplicialMesh) -> (Vec<CellId>, Vec<CellId>, Vec<FacetId>
         .collect();
     (fluid, solid, interface)
 }
+
+#[path = "tests/inventory.rs"]
+mod inventory;

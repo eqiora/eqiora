@@ -180,7 +180,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-numerics/src/canonical_fsi/ale_realization.rs"
-ceiling = 1500
+ceiling = 1495
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
