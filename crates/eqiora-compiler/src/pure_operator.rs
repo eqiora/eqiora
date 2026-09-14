@@ -35,6 +35,7 @@ pub(crate) fn is_builtin_operator(path: &eqiora_lang::NamePath) -> bool {
                     | "symmetric_part"
                     | "isotropic_lift"
                     | "normal"
+                    | "time"
                     | "derivative"
                     | "partial"
                     | "pre"

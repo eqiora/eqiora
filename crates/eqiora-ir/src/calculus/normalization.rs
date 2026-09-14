@@ -1,14 +1,13 @@
-use std::collections::BTreeMap;
-
+use eqiora_schema::kernel::pure_operator::{ExactPolynomial as Polynomial, ExactPolynomialError};
 use eqiora_schema::kernel::typing::ExpressionType;
 
+#[cfg(test)]
 use super::ExactRational;
 use super::expansion::{ScalarCalculus, ScalarCalculusAtom, ScalarCalculusNode};
 use super::{CalculusError, calculus_index, hash, push_rational, push_u16, push_u32};
 
 const COMPONENT_DOMAIN: &[u8] = b"eqiora.scalar-calculus/v2\0";
 const NORMAL_FORM_DOMAIN: &[u8] = b"eqiora.exact-polynomial-normal-form/v1\0";
-const MAX_NORMAL_TERMS: usize = 16_384;
 
 impl<I: Clone + Eq> ScalarCalculus<I> {
     /// Produce a replayable exact-polynomial classification proof.
@@ -28,115 +27,42 @@ impl<I: Clone + Eq> ScalarCalculus<I> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-struct Monomial {
-    coefficient: ExactRational,
-    atoms: Vec<ScalarCalculusAtom>,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct ExactPolynomial {
-    terms: Vec<Monomial>,
-}
+struct ExactPolynomial(Polynomial<ScalarCalculusAtom>);
 
 impl ExactPolynomial {
     fn from_calculus<I>(calculus: &ScalarCalculus<I>) -> Result<Self, CalculusError> {
-        let mut values: Vec<BTreeMap<Vec<ScalarCalculusAtom>, ExactRational>> =
+        let mut values: Vec<Polynomial<ScalarCalculusAtom>> =
             Vec::with_capacity(calculus.nodes().len());
         for node in calculus.nodes() {
-            let polynomial = match node {
-                ScalarCalculusNode::Rational { value, .. } => {
-                    BTreeMap::from([(Vec::new(), *value)])
-                }
-                ScalarCalculusNode::FormalComponent(atom) => {
-                    BTreeMap::from([(vec![atom.clone()], ExactRational::integer(1))])
-                }
-                ScalarCalculusNode::Neg(value) => values
-                    .get(calculus_index(*value, values.len())?)
-                    .ok_or(CalculusError::InvalidNode)?
-                    .iter()
-                    .map(|(atoms, coefficient)| Ok((atoms.clone(), coefficient.checked_neg()?)))
-                    .collect::<Result<_, CalculusError>>()?,
-                ScalarCalculusNode::Add(left, right) => {
-                    let mut result = values
-                        .get(calculus_index(*left, values.len())?)
-                        .ok_or(CalculusError::InvalidNode)?
-                        .clone();
-                    for (atoms, coefficient) in values
-                        .get(calculus_index(*right, values.len())?)
-                        .ok_or(CalculusError::InvalidNode)?
-                    {
-                        let sum = result
-                            .get(atoms)
-                            .copied()
-                            .unwrap_or(ExactRational::integer(0))
-                            .checked_add(*coefficient)?;
-                        if sum.is_zero() {
-                            result.remove(atoms);
-                        } else {
-                            result.insert(atoms.clone(), sum);
-                        }
-                    }
-                    result
-                }
-                ScalarCalculusNode::Mul(left, right) => {
-                    let left = values
-                        .get(calculus_index(*left, values.len())?)
-                        .ok_or(CalculusError::InvalidNode)?;
-                    let right = values
-                        .get(calculus_index(*right, values.len())?)
-                        .ok_or(CalculusError::InvalidNode)?;
-                    if left.len().saturating_mul(right.len()) > MAX_NORMAL_TERMS {
-                        return Err(CalculusError::NormalizationLimit);
-                    }
-                    let mut result = BTreeMap::new();
-                    for (left_atoms, left_coefficient) in left {
-                        for (right_atoms, right_coefficient) in right {
-                            let mut atoms = left_atoms.clone();
-                            atoms.extend(right_atoms.iter().cloned());
-                            atoms.sort();
-                            let coefficient = left_coefficient.checked_mul(*right_coefficient)?;
-                            let sum = result
-                                .get(&atoms)
-                                .copied()
-                                .unwrap_or(ExactRational::integer(0))
-                                .checked_add(coefficient)?;
-                            if sum.is_zero() {
-                                result.remove(&atoms);
-                            } else {
-                                result.insert(atoms, sum);
-                            }
-                        }
-                    }
-                    result
-                }
+            let get = |id| {
+                values
+                    .get(calculus_index(id, values.len())?)
+                    .ok_or(CalculusError::InvalidNode)
             };
-            if polynomial.len() > MAX_NORMAL_TERMS {
-                return Err(CalculusError::NormalizationLimit);
-            }
+            let polynomial = match node {
+                ScalarCalculusNode::Rational { value, .. } => Polynomial::constant(*value),
+                ScalarCalculusNode::FormalComponent(atom) => Polynomial::atom(atom.clone()),
+                ScalarCalculusNode::Neg(value) => get(*value)?.checked_neg()?,
+                ScalarCalculusNode::Add(left, right) => get(*left)?.checked_add(get(*right)?)?,
+                ScalarCalculusNode::Mul(left, right) => get(*left)?.checked_mul(get(*right)?)?,
+            };
             values.push(polynomial);
         }
-        let root = values
+        values
             .get(calculus_index(calculus.root(), values.len())?)
-            .ok_or(CalculusError::InvalidNode)?;
-        Ok(Self {
-            terms: root
-                .iter()
-                .map(|(atoms, coefficient)| Monomial {
-                    coefficient: *coefficient,
-                    atoms: atoms.clone(),
-                })
-                .collect(),
-        })
+            .cloned()
+            .map(Self)
+            .ok_or(CalculusError::InvalidNode)
     }
 
     fn canonical_bytes(&self) -> Vec<u8> {
         let mut bytes = NORMAL_FORM_DOMAIN.to_vec();
-        push_u32(&mut bytes, self.terms.len());
-        for term in &self.terms {
-            push_rational(&mut bytes, term.coefficient);
-            push_u32(&mut bytes, term.atoms.len());
-            for atom in &term.atoms {
+        push_u32(&mut bytes, self.0.terms().len());
+        for (atoms, coefficient) in self.0.terms() {
+            push_rational(&mut bytes, coefficient);
+            push_u32(&mut bytes, atoms.len());
+            for atom in atoms {
                 push_u16(&mut bytes, atom.formal());
                 push_u32(&mut bytes, atom.component().len());
                 for component in atom.component() {
@@ -145,6 +71,15 @@ impl ExactPolynomial {
             }
         }
         bytes
+    }
+}
+
+impl From<ExactPolynomialError> for CalculusError {
+    fn from(error: ExactPolynomialError) -> Self {
+        match error {
+            ExactPolynomialError::Arithmetic(error) => Self::Definition(error),
+            ExactPolynomialError::Limit => Self::NormalizationLimit,
+        }
     }
 }
 
@@ -307,6 +242,53 @@ mod tests {
             }),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn standalone_zero_and_canceled_polynomials_have_one_exact_normal_form() {
+        let definition = |cancel| {
+            let mut builder = CalculusBuilder::new(
+                [PureValueClass::invariant_scalar()],
+                PureValueClass::invariant_scalar(),
+            )
+            .unwrap();
+            let formal = builder
+                .push(CalculusNode::FormalComponent {
+                    formal: 0,
+                    axes: Box::new([]),
+                })
+                .unwrap();
+            let negated = builder.push(CalculusNode::Neg(formal)).unwrap();
+            let canceled = builder.push(CalculusNode::Add(formal, negated)).unwrap();
+            let zero = builder
+                .push(CalculusNode::Rational {
+                    value: ExactRational::integer(0),
+                    dimension: DimExponents::DIMENSIONLESS,
+                })
+                .unwrap();
+            builder
+                .finish(if cancel { canceled } else { zero })
+                .unwrap()
+        };
+        let arguments = [ExpressionType::<&str>::scalar(
+            DimExponents::DIMENSIONLESS,
+            None,
+        )];
+        let zero = definition(false)
+            .instantiate(&arguments)
+            .unwrap()
+            .component(&[])
+            .unwrap();
+        let canceled = definition(true)
+            .instantiate(&arguments)
+            .unwrap()
+            .component(&[])
+            .unwrap();
+        let zero_proof = zero.normalize().unwrap();
+        let canceled_proof = canceled.normalize().unwrap();
+        zero_proof.verify(&zero).unwrap();
+        canceled_proof.verify(&canceled).unwrap();
+        assert!(zero_proof.same_normal_form(&canceled_proof));
     }
 
     fn equivalent_definition(distributed_two: bool) -> PureOperatorDefinition {

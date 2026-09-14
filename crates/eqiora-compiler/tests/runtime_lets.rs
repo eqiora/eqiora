@@ -20,8 +20,11 @@ fn runtime_scalar_aliases_and_identity_evolution_work_in_both_containers() {
     accepted(
         "component C(state x: 1) { let y = z * x; let z = x + 1; let identity = x; relation r { derivative(identity) = y / 1[s]; } } model M() { state x: 1; instance c: C(x = x); }",
     );
-    rejected(
+    accepted(
         "model M() { state x: 1; let composite = 2*x; relation r { derivative(composite) = 0; } }",
+    );
+    rejected(
+        "model M() { variable x: 1; let composite = 2*x; relation r { derivative(composite) = 0; } }",
     );
 }
 

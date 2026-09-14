@@ -10,6 +10,7 @@ mod integer;
 mod law;
 mod partial;
 mod reductions;
+mod time_derivative;
 mod transitions;
 pub(in crate::hierarchy) use aliases::DependencyActivation;
 pub(super) use aliases::{AliasContract, validate_aliases};
@@ -212,9 +213,12 @@ impl ExpressionChecker<'_, '_, '_> {
                 })?;
                 Ok(ExpressionType::scalar(quantity.dim(), None))
             }
-            ExprKind::Name(name) if name == "time" => {
-                Ok(ExpressionType::scalar(time_dimension(), None))
-            }
+            ExprKind::Name(name) if name == "time" => Err(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                self.scope.file,
+                expression.range(),
+                "the continuous coordinate is spelled time()",
+            )),
             ExprKind::Name(name) => self.scalar_local_symbol(expression, name),
             ExprKind::Path(path) => match crate::math::constant(path) {
                 Some(_) => Ok(ExpressionType::scalar(DimExponents::DIMENSIONLESS, None)),
@@ -450,6 +454,22 @@ impl ExpressionChecker<'_, '_, '_> {
                 "builtin calls require positional arguments",
             )
         })?;
+        if callee_name == "time" {
+            if !arguments.is_empty()
+                || (!self.intrinsic && !matches!(self.activation, ActivationSyntax::Continuous))
+            {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.scope.file,
+                    expression.range(),
+                    "time() requires no arguments and the enclosing continuous timeline",
+                ));
+            }
+            if self.intrinsic {
+                self.contextual.push(expression.clone());
+            }
+            return Ok(ExpressionType::scalar(time_dimension(), None));
+        }
         if matches!(callee_name, "counts" | "coordinates" | "index") {
             return expression
                 .resolved_nominal()
@@ -597,6 +617,12 @@ impl ExpressionChecker<'_, '_, '_> {
             return result.map_err(|error| type_error(self.scope.file, expression, error));
         }
 
+        if callee_name == "derivative"
+            && !matches!(argument.kind(), ExprKind::Name(name)
+                if matches!(self.scope.symbols.get(name), Some(SymbolContract::Field(..))))
+        {
+            return self.check_time_derivative(expression, argument);
+        }
         self.check_evolution(callee_name, expression, argument)
     }
 

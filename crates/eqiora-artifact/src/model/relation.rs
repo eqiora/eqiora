@@ -9,8 +9,14 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum WireRelationMeaning {
-    Conditions { conditions: Vec<WireCondition> },
-    Conservation { flux: u32, source: u32 },
+    Conditions {
+        conditions: Vec<WireCondition>,
+    },
+    Conservation {
+        storage: Option<WireStorage>,
+        flux: u32,
+        source: u32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -19,6 +25,13 @@ pub(crate) enum WireCondition {
     Equality,
     Inequality,
     Complementarity,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct WireStorage {
+    value: u32,
+    accumulation: u32,
 }
 
 impl WireRelationMeaning {
@@ -35,6 +48,10 @@ impl WireRelationMeaning {
                     .collect(),
             },
             RelationMeaning::Conservation(terms) => Self::Conservation {
+                storage: terms.storage().map(|(value, accumulation)| WireStorage {
+                    value: value.index(),
+                    accumulation: accumulation.index(),
+                }),
                 flux: terms.flux().index(),
                 source: terms.source().index(),
             },
@@ -72,7 +89,11 @@ impl WireRelationMeaning {
                     RelationDef::with_conditions(id, expression, conditions)
                 }
             }
-            Self::Conservation { flux, source } => {
+            Self::Conservation {
+                storage,
+                flux,
+                source,
+            } => {
                 if initial {
                     return Err(invalid_artifact(
                         "conservation Law cannot be an initialization-only Relation",
@@ -83,7 +104,12 @@ impl WireRelationMeaning {
                         invalid_artifact("Law term index is outside its owning Relation DAG")
                     })
                 };
-                let terms = ConservationTerms::new(lookup(*flux)?, lookup(*source)?);
+                let storage = storage
+                    .map(|stored| {
+                        Ok::<_, Diagnostic>((lookup(stored.value)?, lookup(stored.accumulation)?))
+                    })
+                    .transpose()?;
+                let terms = ConservationTerms::new(storage, lookup(*flux)?, lookup(*source)?);
                 RelationDef::conservation(id, expression, terms)
             }
         };
@@ -155,7 +181,7 @@ mod tests {
         let relation = RelationDef::conservation(
             Id::new(),
             expression.clone(),
-            ConservationTerms::new(flux, source),
+            ConservationTerms::new(None, flux, source),
         )
         .unwrap();
         let wire = WireRelationMeaning::encode(relation.meaning());
@@ -165,6 +191,7 @@ mod tests {
             relation
         );
         let bad = WireRelationMeaning::Conservation {
+            storage: None,
             flux: u32::MAX,
             source: source.index(),
         };

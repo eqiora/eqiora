@@ -166,7 +166,7 @@ fn source_identity(source: &str) -> LocalSourceIdentity {
     let identity = LocalSourceIdentity::from_document(&document).expect("bounded source identity");
     assert_eq!(
         identity.namespace().unwrap().segments()[0],
-        "local-source-v18"
+        "local-source-v19"
     );
     identity
 }

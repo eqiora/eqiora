@@ -762,6 +762,7 @@ fn validate_expression(
                             *terms,
                             &typed,
                             relation_support.as_ref(),
+                            environment,
                             diagnostics,
                         );
                     }

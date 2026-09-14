@@ -1,0 +1,1 @@
+For fixed c, the product rule gives d(c T)/dt = c dT/dt. For dimensionless q, d(q²)/dt = 2 q dq/dt. Replacing q² by q changes that derivative identity without changing dimensions. These algebraic rules are independent of executable lowering.

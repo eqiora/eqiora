@@ -12,6 +12,9 @@ are recorded here.
   conditions with an explicit bounded active-set realization for finite affine
   real-scalar Models. Plans retain operand-specific coherent-SI tolerances, and
   Results retain independently rechecked active/inactive condition measurements.
+- Added fixed-volume scalar Law storage with polynomial time chain rules, exact
+  source, Model, and fingerprint identity, independently checked accumulation,
+  continuous-State admission, artifact replay, and bounded thermal realization.
 
 ### Changed
 

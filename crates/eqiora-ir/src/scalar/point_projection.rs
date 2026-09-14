@@ -1,6 +1,6 @@
 //! Checked structural projection at a typed point; Symbol dependencies stay live.
 use super::*;
-use eqiora_core::{ScalarDomain, ValueLiteral};
+use eqiora_core::{ScalarDomain, ValueLiteral, ValueType};
 use eqiora_schema::kernel::typing::{ExpressionType, RootContract, TypedResidual};
 use eqiora_schema::kernel::{ExprDagBuilder, ExprId, UnaryMathFunction};
 
@@ -23,16 +23,66 @@ impl ScalarOperatorIr {
             })
     }
 
+    /// Project an admitted real scalar residual for numerical derivative products.
+    /// Retained definition identity stays in the canonical typed residual; this
+    /// derived graph uses the existing ordered scalar expansion and input slots.
+    ///
+    /// # Errors
+    /// Rejects non-real or shaped values, invalid typed applications, and the
+    /// existing scalar projection resource bounds.
+    pub fn lower_typed_scalar<I>(typed: &TypedResidual<I>) -> Result<Self, Diagnostic> {
+        let operator = Self::lower(typed.expression())?;
+        if operator.definitions.is_empty() {
+            return Ok(operator);
+        }
+        let types = typed
+            .expression()
+            .nodes()
+            .iter()
+            .zip(typed.node_types())
+            .filter_map(|(node, ty)| match node {
+                eqiora_schema::kernel::ExprNode::Symbol(symbol) => {
+                    Some((*symbol, ty.value_type.clone()))
+                }
+                _ => None,
+            })
+            .collect::<HashMap<_, _>>();
+        let inputs = operator
+            .symbols
+            .iter()
+            .map(|symbol| {
+                types
+                    .get(symbol)
+                    .cloned()
+                    .ok_or_else(|| ir_builder_error("typed numerical symbol is unavailable"))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        operator
+            .project_types(&inputs, &operator.roots)
+            .map(|(projected, _)| projected)
+    }
+
     pub(super) fn project_point(
         &self,
         inputs: &[ValueLiteral],
         roots: &[ValueId],
     ) -> Result<(Self, Vec<ExprId>), Diagnostic> {
+        let types = inputs
+            .iter()
+            .map(|value| value.value_type().clone())
+            .collect::<Vec<_>>();
+        self.project_types(&types, roots)
+    }
+
+    fn project_types(
+        &self,
+        inputs: &[ValueType],
+        roots: &[ValueId],
+    ) -> Result<(Self, Vec<ExprId>), Diagnostic> {
         self.projection_cost()?;
         if inputs.len() != self.symbols.len()
             || inputs.iter().any(|value| {
-                value.value_type().scalar_domain() != ScalarDomain::Real
-                    || !value.value_type().shape().is_scalar()
+                value.scalar_domain() != ScalarDomain::Real || !value.shape().is_scalar()
             })
         {
             return Err(ir_builder_error(
@@ -50,12 +100,7 @@ impl ScalarOperatorIr {
             .iter()
             .copied()
             .zip(inputs)
-            .map(|(symbol, value)| {
-                (
-                    symbol,
-                    ExpressionType::<()>::new(value.value_type().clone(), None),
-                )
-            })
+            .map(|(symbol, value)| (symbol, ExpressionType::<()>::new(value.clone(), None)))
             .collect::<HashMap<_, _>>();
         let typed = TypedResidual::infer(dag, None, RootContract::InitialResiduals, |symbol| {
             types.get(&symbol).cloned().ok_or(())

@@ -10,18 +10,6 @@ pub enum BoundaryPairing {
     EuclideanBoundaryDuality,
 }
 
-/// One of the two exact quantities owned by a boundary connector.
-///
-/// Quantity identity is `(exact connector identity, role)`. Equal dimensions
-/// and shapes never coerce quantities from distinct nominal connectors.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum BoundaryQuantityRole {
-    /// Kinematic or other trace quantity whose value is continuous.
-    Trace,
-    /// Outward flux quantity whose values sum to zero.
-    Flux,
-}
-
 /// Closed, mesh-independent contract of one field-valued physical connector.
 ///
 /// The exact nominal identity is supplied by the owning Domain node.

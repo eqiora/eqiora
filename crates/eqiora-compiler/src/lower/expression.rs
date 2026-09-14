@@ -12,6 +12,7 @@ mod observable;
 mod partial;
 pub(super) use observable::lower_observable;
 mod physical_accessors;
+mod time_derivative;
 pub(crate) use partial::result_type as partial_result_type;
 mod piecewise;
 use super::*;
@@ -617,6 +618,12 @@ impl ExpressionLowerer<'_> {
         callee: &str,
         argument: &LoweringExpression,
     ) -> Result<TypedExpression, Diagnostic> {
+        if callee == "derivative"
+            && !matches!(argument.node.as_ref(), LoweringExpressionNode::Name(name)
+                if matches!(self.bindings.get(name), Some(Binding::Field(..))))
+        {
+            return self.lower_time_derivative(expression, argument);
+        }
         if callee == "period" {
             let LoweringExpressionNode::Name(name) = argument.node.as_ref() else {
                 return Err(source_error(

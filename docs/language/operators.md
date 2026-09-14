@@ -69,3 +69,18 @@ and tensor polynomial definitions retain their existing contract; the guarded pr
 concrete dimensions and real scalar formals/results. Guarded definitions share the same retained
 calculus, composition and execution projection. Polynomial normalization rejects the guarded
 profile instead of treating a branch or domain requirement as an algebraic identity.
+
+## Continuous expression derivatives
+
+`time()` denotes the enclosing continuous timeline coordinate in seconds. Initial and restart
+time are supplied through the ordinary time lifecycle. A pure operator receives time as a named
+input; it cannot read an ambient clock. Bare `time` is not a source expression.
+
+`derivative(expression)` applies the total time chain rule to admitted real scalar polynomial
+expressions, let aliases and operator composition over continuous States and fixed Parameters.
+For example, `derivative(q*q)` expands through the shared formal partial owner to the two product
+contributions, and `derivative(time()*q)` includes both explicit time and State evolution.
+The default distributed-field derivative holds the declared spatial coordinates fixed.
+Clocked values, `pre`/`next`, algebraic variables and unsupported derivative products reject.
+The [expression chain-rule case](../../verify/time/expression-chain-rule/README.md) executes a
+nonlinear stored quantity through the common implicit lifecycle and exact artifact replay.

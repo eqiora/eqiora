@@ -91,17 +91,6 @@ fn wrong_physical_source_units_and_foreign_support_fail_source_admission() {
 }
 
 #[test]
-fn storage_is_rejected_until_independent_accumulation_admission_is_available() {
-    let source = steady("K", "kg * m / s ^ 3 / K", "kg / m / s ^ 3")
-        .replace("flux -coefficient", "storage value; flux -coefficient");
-    assert!(
-        eqiora_lang::parse("storage.eqi", &source)
-            .into_document()
-            .is_err()
-    );
-}
-
-#[test]
 fn law_requires_each_physical_term_once() {
     let source = steady("K", "kg * m / s ^ 3 / K", "kg / m / s ^ 3");
     for mutant in [

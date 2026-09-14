@@ -74,7 +74,7 @@ fn static_and_support_free_aliases_cannot_acquire_support() {
         "inferred exact support",
     );
     rejected(
-        "model M() { domain body=box(0,1); let value on body=time; relation r { time=0; } }",
+        "model M() { domain body=box(0,1); let value on body=time(); relation r { time()=0; } }",
         "inferred exact support",
     );
 }

@@ -950,6 +950,11 @@ def derivative(value: Expression) -> Expression:
     return _unary("derivative", value)
 
 
+def time() -> Expression:
+    """Author the enclosing continuous timeline coordinate in seconds."""
+    return Expression(_CREATE, _Ast.call("time", []))
+
+
 def pre(value: Expression) -> Expression:
     """Read a State's pre-tick value; the compiler checks clock and context."""
     return _unary("pre", value)
@@ -1089,7 +1094,7 @@ class Component:
         self._relations: list[
             tuple[str, Support | None, tuple[tuple[str, Expression, Expression], ...], Clock | Event | None, tuple[str, ...]]
         ] = []
-        self._laws: list[tuple[str, Support, Expression, Expression, tuple[str, ...]]] = []
+        self._laws: list[tuple[str, Support, Expression | None, Expression, Expression, tuple[str, ...]]] = []
         self._formulations: list[
             tuple[Relation, Expression, Expression, tuple[str, ...]]
         ] = []
@@ -1572,7 +1577,7 @@ class Component:
                 left._nodes + right._nodes
                 for item in self._relations for _, left, right in item[2]
             )
-            + sum(sum(term._nodes for term in item[2:4]) for item in self._laws)
+            + sum(sum(term._nodes for term in item[2:5] if term is not None) for item in self._laws)
             + sum(left._nodes + right._nodes for _, left, right in pairs)
         )
         if total_nodes > _MAX_EXPRESSION_NODES:
@@ -1592,14 +1597,15 @@ class Component:
         on: Support,
         flux: Expression,
         source: Expression,
+        storage: Expression | None = None,
         doc: str | None = None,
     ) -> Relation:
-        """Declare div(outward flux) = source on a fixed volume.
+        """Declare d(storage)/dt + div(outward flux) = source on a fixed volume.
 
-        Source is always explicit; this profile admits steady balance.
+        Omitted storage denotes a steady Law. Source is always explicit.
         """
         from ._law import declare
-        return declare(self, name, on, flux, source, doc)
+        return declare(self, name, on, flux, source, storage, doc)
 
     def primal_form(
         self,
@@ -1630,7 +1636,7 @@ class Component:
                 left._nodes + right._nodes
                 for item in self._relations for _, left, right in item[2]
             )
-            + sum(sum(term._nodes for term in item[2:4]) for item in self._laws)
+            + sum(sum(term._nodes for term in item[2:5] if term is not None) for item in self._laws)
             + left_expression._nodes
             + right_expression._nodes
         )
@@ -1812,9 +1818,10 @@ class Component:
         for name, support, pairs, clock, doc in self._relations:
             add(name, doc, lambda n: _boundaries.relation_declaration(
                 name, support, pairs, clock, n))
-        for name, support, flux, source, doc in self._laws:
+        for name, support, storage, flux, source, doc in self._laws:
             add(name, doc, lambda n: _AstDeclaration.law(
-                name, support._name, flux._ast, source._ast, n))
+                name, support._name, None if storage is None else storage._ast,
+                flux._ast, source._ast, n))
         for name, component, bindings, doc in self._instances:
             add(name, doc, lambda n: _AstDeclaration.instance(
                 name, component._qualified_name, bindings, n))
@@ -2521,6 +2528,7 @@ __all__ = [
     "ordinal",
     "partial",
     "derivative",
+    "time",
     "pre",
     "next",
     "quantity",

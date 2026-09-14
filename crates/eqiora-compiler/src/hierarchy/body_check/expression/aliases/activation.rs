@@ -107,7 +107,7 @@ impl DependencyActivation {
         let mut pending = vec![expression];
         while let Some(expression) = pending.pop() {
             let contribution = match expression.kind() {
-                ExprKind::Name(name) if name == "time" => Self::Continuous,
+                ExprKind::Call { callee, .. } if callee.as_str() == "time" => Self::Continuous,
                 ExprKind::Name(_) | ExprKind::Path(_) | ExprKind::Member { .. } => {
                     symbol(expression).unwrap_or(Self::Static)
                 }

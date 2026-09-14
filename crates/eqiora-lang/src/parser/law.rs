@@ -11,21 +11,22 @@ impl Parser<'_> {
         self.expect_keyword("on")?;
         let domain = self.expect_identifier("Law support")?.text().to_owned();
         self.expect(TokenKind::LeftBrace, "`{` before Law terms")?;
+        let mut storage = None;
         let mut flux = None;
         let mut source = None;
         while !self.at(TokenKind::RightBrace) && !self.at(TokenKind::Eof) {
-            let term = self.expect_identifier("flux or source")?.text().to_owned();
+            let term = self
+                .expect_identifier("storage, flux, or source")?
+                .text()
+                .to_owned();
             let expression = self.parse_expression(0)?;
             self.expect(TokenKind::Semicolon, "`;` after Law term")?;
             let slot = match term.as_str() {
-                "storage" => {
-                    self.error_here("transient Law storage is not supported");
-                    return None;
-                }
+                "storage" => &mut storage,
                 "flux" => &mut flux,
                 "source" => &mut source,
                 _ => {
-                    self.error_here("steady Law terms are flux and source");
+                    self.error_here("Law terms are storage, flux, and source");
                     return None;
                 }
             };
@@ -39,7 +40,7 @@ impl Parser<'_> {
             .range()
             .end();
         let (Some(flux), Some(source)) = (flux, source) else {
-            self.error_here("steady Law requires explicit flux and source");
+            self.error_here("Law requires explicit flux and source; only storage may be omitted for steady balance");
             return None;
         };
         Some(RelationDecl {
@@ -47,7 +48,11 @@ impl Parser<'_> {
             name,
             activation: ActivationSyntax::Continuous,
             domain: Some(domain),
-            body: RelationBody::Conservation(Box::new(ConservationSyntax { flux, source })),
+            body: RelationBody::Conservation(Box::new(ConservationSyntax {
+                storage,
+                flux,
+                source,
+            })),
             range: TextRange::new(start, end),
         })
     }
