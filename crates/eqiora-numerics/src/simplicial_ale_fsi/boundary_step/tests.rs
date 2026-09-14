@@ -6,6 +6,7 @@ use crate::simplicial_ale_fsi::test_support::{
 };
 use crate::simplicial_fsi::{FixedReferenceFsiMaterial, FixedReferenceFsiScale};
 use eqiora_assembly::LocalUnknown;
+use eqiora_core::diagnostic::codes;
 use eqiora_meshing::{CellId, MeshQualityGate};
 use eqiora_realization::{NonlinearSolvePlan, Target};
 use eqiora_solver::{LinearSolveRequest, LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
@@ -901,6 +902,32 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
     );
     let current_as_previous =
         AleFsiState::new(0.0, mesh, part, motion, current_as_previous_physical)?;
+    let (changed_vertex, changed_component, changed_value) = accepted
+        .previous_physical()
+        .iter()
+        .zip(accepted.current_physical())
+        .enumerate()
+        .find_map(|(vertex, (previous, current))| {
+            (0..2).find_map(|component| {
+                let previous = previous[component]?;
+                let current = current[component]?;
+                (previous.to_bits() != current.to_bits()).then_some((vertex, component, current))
+            })
+        })
+        .expect("prepared chronology witness changes one physical trace word");
+    assert!(
+        [fields.fluid_velocity, fields.solid_velocity]
+            .into_iter()
+            .any(|field| current_as_previous
+                .physical_state()
+                .coefficients(field)
+                .is_some_and(|mut coefficients| coefficients.any(
+                    |(entity, slot, component, value)| entity == MeshEntity::new(0, changed_vertex)
+                        && slot == 0
+                        && component == changed_component
+                        && value.to_bits() == changed_value.to_bits()
+                )))
+    );
     let chronology_error = accepted
         .validate_inputs(
             mesh,
@@ -911,10 +938,7 @@ fn fsi3_p1_inlet_trace_oracle_v1() -> Result<(), Diagnostic> {
             &QuadratureRule::point(),
         )
         .expect_err("current trace must fail the previous-state chronology gate");
-    assert!(
-        format!("{chronology_error:?}")
-            .contains("previous state differs from its prepared physical trace")
-    );
+    assert_eq!(chronology_error.code(), codes::INVALID_DISCRETIZATION);
     let stale_previous = AleFsiBoundaryEndpointIdentity::new([2, 2, 3, 3], 3.0 / 4000.0)?;
     let stale_current = AleFsiBoundaryEndpointIdentity::new([2, 2, 4, 4], 4.0 / 4000.0)?;
     let stale_error = advance_simplicial_ale_fsi_prepared_step(
