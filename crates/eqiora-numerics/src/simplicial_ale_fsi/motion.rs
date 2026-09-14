@@ -496,7 +496,9 @@ fn solve_failed(message: impl Into<String>) -> Diagnostic {
 mod tests {
     use std::num::NonZeroUsize;
 
-    use eqiora_meshing::{CellId, FacetId, MeshEntity, MeshQualityGate, MeshTopology};
+    use eqiora_core::{Id, entity::kinds};
+    use eqiora_meshing::{CellId, MeshEntity, MeshQualityGate};
+    use eqiora_realization::{AleGeometryQualityGate, ConformingTraceQuotient, TraceFieldEndpoint};
     use eqiora_solver::{
         LinearSolverBackend, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
         SolverPlan,
@@ -507,6 +509,68 @@ mod tests {
 
     const DIMENSION: usize = 2;
     const COMPONENTS: usize = DIMENSION;
+
+    fn exact_id<K: eqiora_core::entity::Entity>(value: &str) -> Id<K> {
+        Id::from_ulid(value.parse().expect("valid fixture ULID"))
+    }
+
+    fn fluid_domain() -> Id<kinds::Domain> {
+        exact_id("01J00000000000000000000001")
+    }
+
+    fn solid_domain() -> Id<kinds::Domain> {
+        exact_id("01J00000000000000000000002")
+    }
+
+    fn fluid_velocity() -> Id<kinds::Field> {
+        exact_id("01J00000000000000000000003")
+    }
+
+    fn solid_velocity() -> Id<kinds::Field> {
+        exact_id("01J00000000000000000000004")
+    }
+
+    fn solid_displacement() -> Id<kinds::Field> {
+        exact_id("01J00000000000000000000005")
+    }
+
+    fn interface() -> Id<kinds::Connection> {
+        exact_id("01J00000000000000000000006")
+    }
+
+    fn quotient() -> ConformingTraceQuotient {
+        ConformingTraceQuotient::new(
+            interface(),
+            TraceFieldEndpoint::new(fluid_domain(), fluid_velocity()),
+            TraceFieldEndpoint::new(solid_domain(), solid_velocity()),
+        )
+        .expect("valid fixture quotient")
+    }
+
+    fn motion_policy(plan: SolverPlan) -> P1HarmonicMeshMotionPolicy {
+        P1HarmonicMeshMotionPolicy::new(
+            fluid_domain(),
+            solid_domain(),
+            solid_displacement(),
+            interface(),
+            AleGeometryQualityGate::new(0.01).expect("valid fixture quality gate"),
+            plan,
+        )
+        .expect("valid fixture motion policy")
+    }
+
+    fn exact_partition<const D: usize>(
+        mesh: &SimplicialMesh,
+        fluid: Vec<CellId>,
+        solid: Vec<CellId>,
+    ) -> FixedReferenceFsiPartition<D> {
+        FixedReferenceFsiPartition::new(
+            mesh,
+            [(fluid_domain(), fluid), (solid_domain(), solid)],
+            &[quotient()],
+        )
+        .expect("valid exact test partition")
+    }
 
     fn reference_solver() -> LinearSolveRequest<'static> {
         let plan = SolverPlan::new(
@@ -519,6 +583,32 @@ mod tests {
         .with_preconditioner(PreconditionerPolicy::Jacobi)
         .with_reduction(ReductionPolicy::Reproducible);
         LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan)
+    }
+
+    fn seal_motion<const D: usize>(
+        mesh: &SimplicialMesh,
+        partition: &FixedReferenceFsiPartition<D>,
+    ) -> P1HarmonicMeshMotionAction<D> {
+        let solver = reference_solver();
+        P1HarmonicMeshMotionAction::new(mesh, partition, motion_policy(solver.plan()), solver)
+            .expect("motion seals")
+    }
+
+    fn interface_vertices<const D: usize>(
+        partition: &FixedReferenceFsiPartition<D>,
+    ) -> Vec<VertexId> {
+        partition
+            .domain_vertices(fluid_domain())
+            .expect("fluid Domain")
+            .iter()
+            .copied()
+            .filter(|vertex| {
+                partition
+                    .domain_vertices(solid_domain())
+                    .expect("solid Domain")
+                    .contains(vertex)
+            })
+            .collect()
     }
 
     fn refined_partition() -> (SimplicialMesh, FixedReferenceFsiPartition<2>) {
@@ -576,20 +666,7 @@ mod tests {
             MeshQualityGate::new(0.1).expect("valid test quality gate"),
         )
         .expect("valid conforming test mesh");
-        let interface_facets = (0..mesh.entity_count(1).expect("2D mesh owns facets"))
-            .filter_map(|facet| {
-                let vertices = mesh
-                    .entity_vertices(MeshEntity::new(1, facet))
-                    .expect("test facet owns vertices");
-                vertices
-                    .iter()
-                    .all(|vertex| mesh.vertices()[vertex.index()][0] == 1.0)
-                    .then_some(FacetId::new(facet))
-            })
-            .collect::<Vec<_>>();
-        let partition =
-            FixedReferenceFsiPartition::<2>::new(&mesh, fluid_cells, solid_cells, interface_facets)
-                .expect("valid exact test partition");
+        let partition = exact_partition(&mesh, fluid_cells, solid_cells);
         (mesh, partition)
     }
 
@@ -651,20 +728,7 @@ mod tests {
             MeshQualityGate::new(0.02).expect("valid test quality gate"),
         )
         .expect("valid conforming tetrahedral test mesh");
-        let interface_facets = (0..mesh.entity_count(2).expect("3D mesh owns facets"))
-            .filter_map(|facet| {
-                let vertices = mesh
-                    .entity_vertices(MeshEntity::new(2, facet))
-                    .expect("test facet owns vertices");
-                vertices
-                    .iter()
-                    .all(|vertex| mesh.vertices()[vertex.index()][0] == 1.0)
-                    .then_some(FacetId::new(facet))
-            })
-            .collect::<Vec<_>>();
-        let partition =
-            FixedReferenceFsiPartition::<3>::new(&mesh, fluid_cells, solid_cells, interface_facets)
-                .expect("valid exact tetrahedral test partition");
+        let partition = exact_partition(&mesh, fluid_cells, solid_cells);
         (mesh, partition)
     }
 
@@ -721,15 +785,21 @@ mod tests {
     fn solid_field_3d(
         mesh: &SimplicialMesh,
         partition: &FixedReferenceFsiPartition<3>,
-    ) -> Vec<[f64; 3]> {
-        let mut field = vec![[0.0; 3]; mesh.vertices().len()];
-        for vertex in partition.solid_vertices() {
+    ) -> BTreeMap<VertexId, [f64; 3]> {
+        let mut field = BTreeMap::new();
+        for vertex in partition
+            .domain_vertices(solid_domain())
+            .expect("solid Domain")
+        {
             let point = &mesh.vertices()[vertex.index()];
-            field[vertex.index()] = [
-                0.01 + 0.02 * point[0] - 0.01 * point[1] + 0.03 * point[2],
-                -0.02 + 0.01 * point[0] + 0.04 * point[1] - 0.02 * point[2],
-                0.03 - 0.02 * point[0] + 0.01 * point[1] + 0.02 * point[2],
-            ];
+            field.insert(
+                *vertex,
+                [
+                    0.01 + 0.02 * point[0] - 0.01 * point[1] + 0.03 * point[2],
+                    -0.02 + 0.01 * point[0] + 0.04 * point[1] - 0.02 * point[2],
+                    0.03 - 0.02 * point[0] + 0.01 * point[1] + 0.02 * point[2],
+                ],
+            );
         }
         field
     }
@@ -739,14 +809,20 @@ mod tests {
         partition: &FixedReferenceFsiPartition<2>,
         first: [f64; 3],
         second: [f64; 3],
-    ) -> Vec<[f64; COMPONENTS]> {
-        let mut field = vec![[0.0; COMPONENTS]; mesh.vertices().len()];
-        for vertex in partition.solid_vertices() {
+    ) -> BTreeMap<VertexId, [f64; COMPONENTS]> {
+        let mut field = BTreeMap::new();
+        for vertex in partition
+            .domain_vertices(solid_domain())
+            .expect("solid Domain")
+        {
             let point = &mesh.vertices()[vertex.index()];
-            field[vertex.index()] = [
-                first[0] + first[1] * point[0] + first[2] * point[1],
-                second[0] + second[1] * point[0] + second[2] * point[1],
-            ];
+            field.insert(
+                *vertex,
+                [
+                    first[0] + first[1] * point[0] + first[2] * point[1],
+                    second[0] + second[1] * point[0] + second[2] * point[1],
+                ],
+            );
         }
         field
     }
@@ -755,8 +831,13 @@ mod tests {
     fn harmonic_motion_preserves_trace_exterior_and_independent_residual() {
         let (mesh, partition) = refined_partition();
         let solver = reference_solver();
-        let motion =
-            P1HarmonicMeshMotionAction::<2>::new(&mesh, &partition, solver).expect("motion seals");
+        let motion = P1HarmonicMeshMotionAction::<2>::new(
+            &mesh,
+            &partition,
+            motion_policy(solver.plan()),
+            solver,
+        )
+        .expect("motion seals");
         assert_eq!(motion.reference_mesh(), &mesh);
         assert_eq!(motion.partition(), &partition);
         assert_eq!(motion.fluid_interior_vertices().len(), 1);
@@ -770,18 +851,23 @@ mod tests {
             assert_eq!(report.algorithm(), LinearSolver::ConjugateGradient);
         }
         let solid = solid_field(&mesh, &partition, [0.01, 0.02, -0.03], [-0.02, 0.01, 0.04]);
-        let displacement = motion.apply(&solid).expect("harmonic action applies");
+        let displacement = motion
+            .apply(solid_displacement(), &solid)
+            .expect("harmonic action applies");
 
-        for vertex in partition.solid_vertices() {
-            assert_eq!(displacement[vertex.index()], solid[vertex.index()]);
+        for vertex in partition
+            .domain_vertices(solid_domain())
+            .expect("solid Domain")
+        {
+            assert_eq!(displacement[vertex.index()], solid[vertex]);
         }
         for vertex in motion.fixed_exterior_vertices() {
             assert_eq!(displacement[vertex.index()], [0.0; COMPONENTS]);
         }
-        for vertex in partition.interface_vertices() {
-            assert_eq!(displacement[vertex.index()], solid[vertex.index()]);
+        for vertex in interface_vertices(&partition) {
+            assert_eq!(displacement[vertex.index()], solid[&vertex]);
         }
-        assert!(partition.interface_vertices().iter().any(|vertex| {
+        assert!(interface_vertices(&partition).iter().any(|vertex| {
             mesh.is_boundary_entity(MeshEntity::new(0, vertex.index())) == Some(true)
                 && !motion.fixed_exterior_vertices().contains(vertex)
         }));
@@ -800,8 +886,7 @@ mod tests {
     #[test]
     fn influence_is_linear_and_jvp_is_the_same_exact_action() {
         let (mesh, partition) = refined_partition();
-        let motion = P1HarmonicMeshMotionAction::<2>::new(&mesh, &partition, reference_solver())
-            .expect("motion seals");
+        let motion = seal_motion(&mesh, &partition);
         let left = solid_field(&mesh, &partition, [0.02, -0.01, 0.03], [0.01, 0.04, -0.02]);
         let right = solid_field(&mesh, &partition, [-0.03, 0.05, 0.01], [0.02, -0.02, 0.06]);
         let alpha = 1.75;
@@ -809,17 +894,29 @@ mod tests {
         let combined = left
             .iter()
             .zip(&right)
-            .map(|(left, right)| {
-                [
-                    alpha * left[0] + beta * right[0],
-                    alpha * left[1] + beta * right[1],
-                ]
+            .map(|((vertex, left), (right_vertex, right))| {
+                assert_eq!(vertex, right_vertex);
+                (
+                    *vertex,
+                    [
+                        alpha * left[0] + beta * right[0],
+                        alpha * left[1] + beta * right[1],
+                    ],
+                )
             })
-            .collect::<Vec<_>>();
-        let applied_left = motion.apply(&left).expect("left action applies");
-        let applied_right = motion.apply(&right).expect("right action applies");
-        let applied_combined = motion.apply(&combined).expect("combined action applies");
-        let jvp = motion.apply_jvp(&combined).expect("exact JVP applies");
+            .collect::<BTreeMap<_, _>>();
+        let applied_left = motion
+            .apply(solid_displacement(), &left)
+            .expect("left action applies");
+        let applied_right = motion
+            .apply(solid_displacement(), &right)
+            .expect("right action applies");
+        let applied_combined = motion
+            .apply(solid_displacement(), &combined)
+            .expect("combined action applies");
+        let jvp = motion
+            .apply_jvp(solid_displacement(), &combined)
+            .expect("exact JVP applies");
         for vertex in 0..mesh.vertices().len() {
             for component in 0..COMPONENTS {
                 let expected = alpha * applied_left[vertex][component]
@@ -833,8 +930,7 @@ mod tests {
     #[test]
     fn tetrahedral_motion_has_one_shared_interface_driver_and_exact_jvp_action() {
         let (mesh, partition) = refined_partition_3d();
-        let motion = P1HarmonicMeshMotionAction::<3>::new(&mesh, &partition, reference_solver())
-            .expect("tetrahedral motion seals");
+        let motion = seal_motion(&mesh, &partition);
         assert_eq!(motion.reference_mesh(), &mesh);
         assert_eq!(motion.partition(), &partition);
         assert_eq!(motion.fluid_interior_vertices().len(), 1);
@@ -842,9 +938,9 @@ mod tests {
             motion.influence_solve_reports().len(),
             motion.driver_vertices().len()
         );
-        for witness in partition.interface_witnesses() {
+        for witness in &partition.traces()[0].facets {
             let facet_vertices = mesh
-                .entity_vertices(MeshEntity::new(2, witness.facet().index()))
+                .entity_vertices(witness.facet)
                 .expect("shared triangular facet owns a closure");
             assert_eq!(facet_vertices.len(), 3);
             assert!(
@@ -852,24 +948,35 @@ mod tests {
                     .iter()
                     .map(|vertex| VertexId::new(vertex.index()))
                     .all(|vertex| {
-                        partition.fluid_vertices().contains(&vertex)
-                            && partition.solid_vertices().contains(&vertex)
+                        partition
+                            .domain_vertices(fluid_domain())
+                            .expect("fluid Domain")
+                            .contains(&vertex)
+                            && partition
+                                .domain_vertices(solid_domain())
+                                .expect("solid Domain")
+                                .contains(&vertex)
                     })
             );
         }
 
         let solid = solid_field_3d(&mesh, &partition);
-        let displacement = motion.apply(&solid).expect("3D harmonic action applies");
+        let displacement = motion
+            .apply(solid_displacement(), &solid)
+            .expect("3D harmonic action applies");
         let repeated = motion
-            .apply(&solid)
+            .apply(solid_displacement(), &solid)
             .expect("the same Dirichlet data has one sealed extension");
         let jvp = motion
-            .apply_jvp(&solid)
+            .apply_jvp(solid_displacement(), &solid)
             .expect("3D exact linear JVP applies");
         assert_eq!(displacement, repeated);
         assert_eq!(jvp, displacement);
-        for vertex in partition.solid_vertices() {
-            assert_eq!(displacement[vertex.index()], solid[vertex.index()]);
+        for vertex in partition
+            .domain_vertices(solid_domain())
+            .expect("solid Domain")
+        {
+            assert_eq!(displacement[vertex.index()], solid[vertex]);
         }
         for vertex in motion.fixed_exterior_vertices() {
             assert_eq!(displacement[vertex.index()], [0.0; 3]);
@@ -890,7 +997,7 @@ mod tests {
                 .iter()
                 .enumerate()
                 .map(|(column, vertex)| {
-                    motion.relation.driver_stiffness()[column] * solid[vertex.index()][component]
+                    motion.relation.driver_stiffness()[column] * solid[vertex][component]
                 })
                 .sum::<f64>();
             let unique_extension = -prescribed_action / motion.relation.interior_stiffness()[0];
@@ -919,24 +1026,30 @@ mod tests {
             MeshQualityGate::new(0.005).expect("valid skew quality gate"),
         )
         .expect("positive affine image remains a conforming tetrahedral mesh");
-        let partition = FixedReferenceFsiPartition::<3>::new(
+        let partition = exact_partition(
             &mesh,
-            reference_partition.fluid_cells().to_vec(),
-            reference_partition.solid_cells().to_vec(),
-            reference_partition.interface_facets().to_vec(),
-        )
-        .expect("the affine image preserves the exact material partition");
-        let motion = P1HarmonicMeshMotionAction::<3>::new(&mesh, &partition, reference_solver())
-            .expect("skew tetrahedral motion seals");
+            reference_partition
+                .domain_cells(fluid_domain())
+                .expect("fluid Domain")
+                .to_vec(),
+            reference_partition
+                .domain_cells(solid_domain())
+                .expect("solid Domain")
+                .to_vec(),
+        );
+        let motion = seal_motion(&mesh, &partition);
         let displacement = motion
-            .apply(&solid_field_3d(&mesh, &partition))
+            .apply(solid_displacement(), &solid_field_3d(&mesh, &partition))
             .expect("skew harmonic action applies");
 
         for interior in motion.fluid_interior_vertices() {
             for (component, _) in displacement[interior.index()].iter().enumerate() {
                 let mut residual = 0.0;
                 let mut absolute_action = 0.0;
-                for cell in partition.fluid_cells() {
+                for cell in partition
+                    .domain_cells(fluid_domain())
+                    .expect("fluid Domain")
+                {
                     let vertices = mesh
                         .entity_vertices(MeshEntity::new(3, cell.index()))
                         .expect("accepted fluid tetrahedron owns vertices");
@@ -980,30 +1093,51 @@ mod tests {
     #[test]
     fn action_rejects_invalid_shape_support_and_finiteness() {
         let (mesh, partition) = refined_partition();
-        let motion = P1HarmonicMeshMotionAction::<2>::new(&mesh, &partition, reference_solver())
-            .expect("motion seals");
-        assert!(motion.apply(&[]).is_err());
+        let motion = seal_motion(&mesh, &partition);
+        assert!(
+            motion
+                .apply(solid_displacement(), &BTreeMap::new())
+                .is_err()
+        );
 
         let fluid_only = partition
-            .fluid_vertices()
+            .domain_vertices(fluid_domain())
+            .expect("fluid Domain")
             .iter()
-            .find(|vertex| !partition.solid_vertices().contains(vertex))
+            .find(|vertex| {
+                !partition
+                    .domain_vertices(solid_domain())
+                    .expect("solid Domain")
+                    .contains(vertex)
+            })
             .expect("test mesh owns a fluid-only vertex")
             .index();
-        let mut unsupported = vec![[0.0; COMPONENTS]; mesh.vertices().len()];
-        unsupported[fluid_only] = [1.0, 0.0];
-        assert!(motion.apply(&unsupported).is_err());
+        let mut unsupported = solid_field(&mesh, &partition, [0.0; 3], [0.0; 3]);
+        unsupported.insert(VertexId::new(fluid_only), [1.0, 0.0]);
+        assert!(motion.apply(solid_displacement(), &unsupported).is_err());
 
-        let mut non_finite = vec![[0.0; COMPONENTS]; mesh.vertices().len()];
-        non_finite[partition.solid_vertices()[0].index()][0] = f64::NAN;
-        assert!(motion.apply_jvp(&non_finite).is_err());
+        let mut non_finite = solid_field(&mesh, &partition, [0.0; 3], [0.0; 3]);
+        non_finite
+            .get_mut(
+                &partition
+                    .domain_vertices(solid_domain())
+                    .expect("solid Domain")[0],
+            )
+            .expect("solid coefficient")[0] = f64::NAN;
+        assert!(motion.apply_jvp(solid_displacement(), &non_finite).is_err());
     }
 
     #[test]
     fn first_slice_rejects_a_partition_without_a_solved_fluid_interior() {
         let (mesh, partition) = coarse_partition();
         assert!(
-            P1HarmonicMeshMotionAction::<2>::new(&mesh, &partition, reference_solver()).is_err()
+            P1HarmonicMeshMotionAction::<2>::new(
+                &mesh,
+                &partition,
+                motion_policy(reference_solver().plan()),
+                reference_solver(),
+            )
+            .is_err()
         );
     }
 
@@ -1011,15 +1145,20 @@ mod tests {
     fn tetrahedral_motion_rejects_incomplete_or_unsolved_dirichlet_closure() {
         let (mesh, partition) = coarse_partition_3d();
         assert!(
-            P1HarmonicMeshMotionAction::<3>::new(&mesh, &partition, reference_solver()).is_err()
+            P1HarmonicMeshMotionAction::<3>::new(
+                &mesh,
+                &partition,
+                motion_policy(reference_solver().plan()),
+                reference_solver(),
+            )
+            .is_err()
         );
     }
 
     #[test]
     fn sealed_action_rejects_another_reference_geometry() {
         let (mesh, partition) = refined_partition();
-        let motion = P1HarmonicMeshMotionAction::<2>::new(&mesh, &partition, reference_solver())
-            .expect("motion seals");
+        let motion = seal_motion(&mesh, &partition);
         motion
             .validate_reference(&mesh, &partition)
             .expect("exact root replays");
@@ -1061,7 +1200,15 @@ mod tests {
         )
         .expect("valid general solver plan");
         let general = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan);
-        assert!(P1HarmonicMeshMotionAction::<2>::new(&mesh, &partition, general).is_err());
+        assert!(
+            P1HarmonicMeshMotionAction::<2>::new(
+                &mesh,
+                &partition,
+                motion_policy(general.plan()),
+                general
+            )
+            .is_err()
+        );
     }
 
     fn independently_assemble_fluid_residual(
@@ -1070,7 +1217,10 @@ mod tests {
         displacement: &[[f64; COMPONENTS]],
     ) -> Vec<[f64; COMPONENTS]> {
         let mut residual = vec![[0.0; COMPONENTS]; mesh.vertices().len()];
-        for cell in partition.fluid_cells() {
+        for cell in partition
+            .domain_cells(fluid_domain())
+            .expect("fluid Domain")
+        {
             let vertices = &mesh.cells()[cell.index()];
             let point = |local: usize| &mesh.vertices()[vertices[local]];
             let twice_area = (point(1)[0] - point(0)[0]) * (point(2)[1] - point(0)[1])
