@@ -393,8 +393,13 @@ impl StokesDissipationTopology2d {
     ) -> Result<FixedTopologyGeometryState2d, Diagnostic> {
         let (augmented, _, _, original_vertices) =
             self.harmonic_auxiliary(action.policy().solver())?;
-        let mut solid_displacement = (0..=self.sector_count)
-            .map(|vertex| (eqiora_meshing::VertexId::new(vertex), [0.0; 2]))
+        let mut solid_displacement = action
+            .partition()
+            .domain_vertices(action.policy().solid_domain())
+            .expect("admitted motion policy retains its exact solid Domain")
+            .iter()
+            .copied()
+            .map(|vertex| (vertex, [0.0; 2]))
             .collect::<BTreeMap<_, _>>();
         for angle_index in 0..self.sector_count {
             let angle = std::f64::consts::TAU * angle_index as f64 / self.sector_count as f64;
