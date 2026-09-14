@@ -533,22 +533,69 @@ model decay() {
             eqiora.fsi.evidence(wrong_type)
 
 
-def test_independent_runs_do_not_share_observation_storage() -> None:
+@pytest.mark.parametrize(
+    "objective",
+    [None, eqiora.solve.Robust, eqiora.solve.Fast, eqiora.solve.LowMemory],
+)
+def test_manual_and_planned_runs_agree_without_sharing_observation_storage(
+    objective: eqiora.solve.SolverPlanningObjective | None,
+) -> None:
     model, plan, _, first = solved()
     mesh = plan.mesh
     assert mesh is not None
+    selected = (
+        plan
+        if objective is None
+        else eqiora.resolve(
+            model,
+            mesh=mesh,
+            spatial=plan.spatial,
+            temporal=plan.temporal,
+            solve=eqiora.solve.Linear(
+                objective=objective,
+                relative_tolerance=plan.solve.relative_tolerance,
+                absolute_tolerance=plan.solve.absolute_tolerance,
+                maximum_iterations=plan.solve.maximum_iterations,
+            ),
+        )
+    )
+    selected_bytes = selected.to_bytes()
+    replayed = eqiora.Plan.from_bytes(selected_bytes)
+    assert replayed.to_bytes() == selected_bytes
+    assert replayed.solve.objective == objective
+    assert replayed.solve.planning_policy_id == selected.solve.planning_policy_id
+    assert replayed.solve.selected_candidate_id == selected.solve.selected_candidate_id
+    assert replayed.solve.selected_evidence_case == selected.solve.selected_evidence_case
+    assert replayed.solve.planning_reasons == selected.solve.planning_reasons
+    if objective is not None:
+        assert replayed.solve.planning_policy_id is not None
+        assert replayed.solve.selected_candidate_id is not None
+        # Reuse the native FSI reduction falsifier: fast LU is excluded before
+        # ranking, so every objective retains the admitted reference MINRES.
+        assert (
+            "eqiora.faer.sparse-lu-indefinite-identity-fast-f64",
+            "profile.required-reduction-mismatch",
+        ) in replayed.solve.planning_reasons
+    for attribute in ("algorithm", "preconditioner", "reduction", "operator", "provider"):
+        assert getattr(replayed.solve, attribute) == getattr(plan.solve, attribute)
+    assert replayed.execution.provider == plan.execution.provider
+    assert replayed.execution.placement == plan.execution.placement
     second = eqiora.run(
-        plan,
-        state=initial(model, mesh, plan),
+        replayed,
+        state=initial(model, mesh, replayed),
         steps=2,
         output_steps=(1, 2),
     )
     first_evidence = eqiora.fsi.evidence(first)
     second_evidence = eqiora.fsi.evidence(second)
+    for evidence in (first_evidence, second_evidence):
+        for accepted in evidence.states:
+            assert accepted.solve.true_residual_norm <= accepted.solve.residual_target
     for field, association in (
         (plan.capability.fluid_velocity, "vertex"),
         (plan.capability.fluid_velocity, "cell"),
         (plan.capability.pressure, "vertex"),
+        (plan.fields[2], "vertex"),
         (plan.fields[3], "vertex"),
     ):
         for left_state, right_state in zip(
