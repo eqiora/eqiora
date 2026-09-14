@@ -65,13 +65,13 @@ pub(crate) fn admit(
             ),
         }),
     };
-    if !equivalent(projection.left(), &left) {
+    if !equivalent(&projection.equations()[0].1, &left) {
         return Err(rejection_with(
             projection,
             "left bilinear term, coefficient, sign, or contraction differs from the admitted primal form",
         ));
     }
-    if !equivalent(projection.right(), &right) {
+    if !equivalent(&projection.equations()[0].2, &right) {
         return Err(rejection_with(
             projection,
             "right source term, sign, or test pairing differs from the admitted primal form",

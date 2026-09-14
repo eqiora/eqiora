@@ -43,6 +43,7 @@ mod region_assembly;
 pub use canonical_stokes::{
     IncompressibleScalingReceipt2d, IncompressibleScalingRequest2d, ScalingAuthority2d,
     ScalingComponent2d, ScalingComponentRecord2d, ScalingMode2d, ScalingRule2d,
+    check_authored_mixed_formulation,
 };
 pub use common_ode::{
     CommonOdePlan, CommonOdeRunRequest, CommonOdeState, CommonTsitouras45, CommonTsitourasTolerance,

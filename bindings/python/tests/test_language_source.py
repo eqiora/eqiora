@@ -370,17 +370,18 @@ def scalar_primal_source():
     left_boundary = law.boundary("left", parent=region)
     w = law.test("w", for_=potential, zero_on=left_boundary)
     law.weak_form(
-        "weak", balance,
-        left=q.integrate(
+        "weak", [balance],
+        equations=[(q.integrate(
             region,
             q.dot(q.grad(w), diffusion * q.grad(potential)),
         ),
-        right=q.integrate(
+        q.integrate(
             region,
             w
             * source_scale
             * q.math.sin(q.math.pi * wave_number * q.coordinate(0)),
         ),
+        )],
         doc="Authored scalar primal form.",
     )
     return source
@@ -403,7 +404,7 @@ def test_python_source_emits_and_fresh_compile_inspects_scalar_primal_form(
     assert form.kind == "primal"
     assert len(form.source_identity) == 64
     assert form.filename == "<module>"
-    assert form.trial_field_id in model.field_ids
+    assert form.trial_field_ids[0] in model.field_ids
 
     path = tmp_path / "scalar-primal.eqi"
     source.write_eqi(path)
@@ -762,8 +763,8 @@ def test_static_alias_authoring_rejects_same_source_sibling_capture(kind):
         lambda: right.relation("captured", q.equation(foreign, 0), on=right_region),
         lambda: q.integrate(right_region, foreign),
         lambda: foreign + right_parameter,
-        lambda: right.weak_form("weak", right_relation, left=q.integrate(left_region, foreign),
-                                  right=q.integrate(right_region, right_parameter)),
+        lambda: right.weak_form("weak", [right_relation], equations=[(q.integrate(left_region, foreign),
+                                  q.integrate(right_region, right_parameter))]),
         lambda: right.instance('child', component=left, bindings={'region': right_region, 'supplied': foreign, 'coefficient': release}),
     ):
         with pytest.raises(q.ModuleError, match="Component"):
@@ -1392,3 +1393,46 @@ def test_named_test_cannot_be_silently_dropped_without_its_form():
     component.test("w", for_=value, zero_on=surface)
     with pytest.raises(q.ModuleError, match="owning weak form"):
         module.to_eqi()
+
+
+def test_plural_weak_form_authoring_preserves_bindings_and_equation_order():
+    module = eqiora.Module("main")
+    component = module.component("Mixed")
+    body = component.volume("body", dimensions=2)
+    exterior = component.complete_exterior("exterior", parent=body)
+    velocity = component.field("velocity", value_type=eqiora.ValueType.real(),
+                               role=eqiora.FieldRole.Variable, on=body)
+    pressure = component.field("pressure", value_type=eqiora.ValueType.real(),
+                               role=eqiora.FieldRole.Variable, on=body)
+    momentum = component.relation("momentum", q.equation(velocity, 0), on=body)
+    continuity = component.relation("continuity", q.equation(pressure, 0), on=body)
+    v = component.test("v", for_=velocity, zero_on=exterior)
+    p = component.test("p", for_=pressure)
+    with pytest.raises(q.ModuleError, match="only one test"):
+        component.test("other", for_=velocity)
+    with pytest.raises(q.ModuleError, match="distinct"):
+        component.weak_form("invalid", [momentum, momentum], equations=[(v, p)])
+    with pytest.raises(q.ModuleError, match="1 and 8 equations"):
+        component.weak_form("invalid", [momentum], equations=[(v, p)] * 9)
+    component.weak_form("mixed", [momentum, continuity],
+                        equations=[(v * velocity, v * 0), (p * pressure, p * 0)])
+    with pytest.raises(q.ModuleError, match="one named weak form"):
+        component.weak_form("second", [momentum], equations=[(v, p)])
+    text = module.to_eqi()
+    assert "test v: 1 for velocity zero_on exterior;" in text
+    assert "test p: 1 for pressure;" in text
+    assert "form mixed for momentum, continuity" in text
+    assert text.index("v * velocity") < text.index("p * pressure")
+
+
+def test_weak_form_test_names_remain_component_unique():
+    module = eqiora.Module("main")
+    component = module.component("C")
+    body = component.volume("body", dimensions=2)
+    first = component.field("first", value_type=eqiora.ValueType.real(),
+                            role=eqiora.FieldRole.Variable, on=body)
+    second = component.field("second", value_type=eqiora.ValueType.real(),
+                             role=eqiora.FieldRole.Variable, on=body)
+    component.test("w", for_=first)
+    with pytest.raises(q.ModuleError):
+        component.test("w", for_=second)

@@ -3,7 +3,7 @@
 use super::*;
 
 const MAGIC: &[u8; 8] = b"EQIORAFM";
-const CANONICAL_FORMULATION_VERSION: u16 = 3;
+const CANONICAL_FORMULATION_VERSION: u16 = 4;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct AuthoredFormSourceIdentity([u8; 32]);
@@ -17,31 +17,44 @@ impl AuthoredFormSourceIdentity {
         let formulations = encode_sorted_records(
             &declarations,
             &mut budget,
-            |(name, relation, left, right, _), budget| {
+            |(name, relations, equations, _), budget| {
                 let binding = component
                     .formulation_binding(name)
                     .expect("retained form binder");
                 let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
                 encoder.field(1, |encoder| encoder.u16(1))?;
-                encoder.field(2, |encoder| encode_name(encoder, relation, budget))?;
-                encoder.field(3, |encoder| encode_expression(encoder, left, budget, 1))?;
-                encoder.field(4, |encoder| encode_expression(encoder, right, budget, 1))?;
+                budget.account_members(relations.len(), "Formulation Relations")?;
+                encoder.field(2, |encoder| {
+                    encoder.u32(as_u32(relations.len(), "Formulation Relations")?)?;
+                    for relation in *relations {
+                        encode_name(encoder, relation, budget)?;
+                    }
+                    Ok(())
+                })?;
+                budget.account_members(equations.len(), "Formulation equalities")?;
+                encoder.field(3, |encoder| {
+                    encoder.u32(as_u32(equations.len(), "Formulation equalities")?)?;
+                    for (left, right) in *equations {
+                        encode_expression(encoder, left, budget, 1)?;
+                        encode_expression(encoder, right, budget, 1)?;
+                    }
+                    Ok(())
+                })?;
                 encoder.field(5, |encoder| encode_name(encoder, name, budget))?;
                 match binding {
-                    eqiora_lang::FormulationBinding::WeakTest {
-                        name,
-                        trial,
-                        zero_on,
-                    } => {
+                    eqiora_lang::FormulationBinding::WeakTests { tests } => {
+                        budget.account_members(tests.len(), "Formulation tests")?;
                         encoder.field(6, |e| {
                             e.u16(1)?;
-                            encode_name(e, name, budget)
-                        })?;
-                        encoder.field(7, |e| encode_name(e, trial, budget))?;
-                        encoder.field(8, |e| {
-                            e.u32(as_u32(zero_on.len(), "test boundaries")?)?;
-                            for name in zero_on {
+                            e.u32(as_u32(tests.len(), "Formulation tests")?)?;
+                            for (name, trial, zero_on) in tests {
                                 encode_name(e, name, budget)?;
+                                encode_name(e, trial, budget)?;
+                                budget.account_members(zero_on.len(), "test boundaries")?;
+                                e.u32(as_u32(zero_on.len(), "test boundaries")?)?;
+                                for name in zero_on {
+                                    encode_name(e, name, budget)?;
+                                }
                             }
                             Ok(())
                         })?;
@@ -138,5 +151,28 @@ mod tests {
             form_identity(first),
             form_identity(&format(&document(first)))
         );
+    }
+    #[test]
+    fn plural_identity_binds_each_relation_test_and_equality() {
+        let source = "component C() { form weak for momentum,incompressibility { test v:1 for velocity zero_on surface; test q:1 for pressure; integrate(body,v)=integrate(body,force); integrate(body,q)=integrate(body,0); } }";
+        let identity = |source: &str| {
+            AuthoredFormSourceIdentity::from_component(&document(source).components()[0]).unwrap()
+        };
+        assert_eq!(identity(source), identity(&format(&document(source))));
+        for changed in [
+            source.replace("momentum,incompressibility", "momentum,other"),
+            source.replace("momentum,incompressibility", "incompressibility,momentum"),
+            source.replace("for pressure;", "for other;"),
+            source.replace("test q:1", "test r:1"),
+            source.replace("for pressure;", "for pressure zero_on surface;"),
+            source.replace("integrate(body,0)", "integrate(body,1)"),
+            source.replace(" integrate(body,q)=integrate(body,0);", ""),
+        ] {
+            assert_ne!(identity(source), identity(&changed));
+            assert_eq!(
+                LocalSourceIdentity::from_document(&document(source)).unwrap(),
+                LocalSourceIdentity::from_document(&document(&changed)).unwrap()
+            );
+        }
     }
 }

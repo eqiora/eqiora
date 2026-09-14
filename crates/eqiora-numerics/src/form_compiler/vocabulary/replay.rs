@@ -11,20 +11,26 @@ impl PrimalGalerkinCorrespondence {
         &self,
         authored: &eqiora_compiler::AuthoredFormulationProjection,
     ) -> Result<(), &'static str> {
+        if authored.equations().len() != 1
+            || authored.trial_ulids().len() != 1
+            || authored.test_restrictions().len() != 1
+        {
+            return Err("scalar primal correspondence requires one equation and test/trial");
+        }
         if self
             .law
             .relations
             .first()
             .map(|id| id.ulid().to_string())
             .as_deref()
-            != Some(authored.relation_ulid())
+            != Some(authored.equations()[0].0.as_str())
         {
             return Err("Relation differs from the admitted strong Law");
         }
         if self.law.domain.ulid().to_string() != authored.domain_ulid() {
             return Err("integration support differs from the admitted Domain");
         }
-        if self.formulation.trial.ulid().to_string() != authored.trial_ulid() {
+        if self.formulation.trial.ulid().to_string() != authored.trial_ulids()[0].as_str() {
             return Err("trial/test Field differs from the admitted unknown");
         }
         let mut boundaries = self
@@ -34,7 +40,12 @@ impl PrimalGalerkinCorrespondence {
             .map(|id| id.ulid().to_string())
             .collect::<Vec<_>>();
         boundaries.sort();
-        if authored.test_restriction().map(|(_, bounds)| bounds) != Some(boundaries.as_slice()) {
+        if authored
+            .test_restrictions()
+            .first()
+            .map(|(_, _, bounds)| bounds.as_slice())
+            != Some(boundaries.as_slice())
+        {
             return Err("test zero_on restriction differs from the complete essential boundary");
         }
         if authored.implication() != "strong-implies-weak"

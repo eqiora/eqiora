@@ -62,10 +62,10 @@ linear = eqiora.solve.Linear(
 )
 plan = eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
 assert model.authored_formulations[0].name == 'weak'
-assert model.authored_formulations[0].test_name == 'w'
+assert model.authored_formulations[0].test_restrictions[0][0] == 'w'
 assert model.authored_formulations[0].implication == 'strong-implies-weak'
 assert model.authored_formulations[0].assumptions == ['fixed-domain', 'classical-divergence-and-boundary-trace', 'admissible-h1-test-with-zero-essential-trace']
-assert len(model.authored_formulations[0].zero_on_domain_ids) == 4
+assert len(model.authored_formulations[0].test_restrictions[0][2]) == 4
 assert plan.formulation.requested == eqiora.FormulationSelectionMode.Authored
 assert plan.formulation.requested_source_identity == model.authored_formulations[0].source_identity
 result = eqiora.run(plan)
@@ -74,7 +74,7 @@ assert result.plan_key == plan.identity
 # 4*(2/3)=8/3 and its load integral is 1/4, hence u_center=3/32.
 # The requested residual bound divided by 8/3 is below 1e-10 in these SI coordinates.
 def check_analytic_coefficients(model, accepted):
-    field = model.field(model.authored_formulations[0].trial_field_id)
+    field = model.field(model.authored_formulations[0].trial_field_ids[0])
     values = sorted(accepted.output(field).values("vertex").numpy().reshape(-1))
     assert len(values) == 9
     assert all(abs(value) <= 1e-10 for value in values[:-1])
@@ -88,7 +88,7 @@ check_analytic_coefficients(model, eqiora.run(eqiora.Plan.from_bytes(planned.to_
 
 
 def check_nonzero_temperature(model, accepted):
-    field = model.field(model.authored_formulations[0].trial_field_id)
+    field = model.field(model.authored_formulations[0].trial_field_ids[0])
     values = sorted(accepted.output(field).values("vertex").numpy().reshape(-1))
     assert len(values) == 9
     assert all(abs(value - 300.0) <= 1e-10 for value in values[:-1])
@@ -140,13 +140,13 @@ heat = component.law("heat", on=body, flux=-k*q.grad(u), source=f)
 face = surface.member("face")
 component.relation("essential", q.equation(q.trace(u), q.quantity(300, eqiora.units.K)), on=face)
 w = component.test("w", for_=u, zero_on=surface)
-component.weak_form("weak_heat", heat, left=q.integrate(body, q.dot(q.grad(w), k*q.grad(u))), right=q.integrate(body, w*f))
+component.weak_form("weak_heat", [heat], equations=[(q.integrate(body, q.dot(q.grad(w), k*q.grad(u))), q.integrate(body, w*f))])
 source_bindings = {"body": geometry.selection("square"), "surface": (tuple(geometry.selection(name) for name in ("x_lower", "x_upper", "y_lower", "y_upper")), geometry.selection("square")), "k": 1.0, "f": 1.0}
 python_model = eqiora.compile(source=module, geometry=geometry, entry="Diffusion", bindings=source_bindings)
 assert "test w: 1 for u zero_on surface;" in module.to_eqi()
 emitted_model = eqiora.compile(source=module.to_eqi(), geometry=geometry, entry="Diffusion", bindings=source_bindings)
 assert python_model.digest == emitted_model.digest
-assert python_model.authored_formulations[0].zero_on_domain_ids == emitted_model.authored_formulations[0].zero_on_domain_ids
+assert python_model.authored_formulations[0].test_restrictions[0][2] == emitted_model.authored_formulations[0].test_restrictions[0][2]
 python_plan = eqiora.resolve(python_model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
 assert python_plan.formulation.boundary_treatment == "complete-essential"
 assert "fem.derive.v2.boundary-discharge.zero-test-trace" in python_plan.formulation.rule_ids

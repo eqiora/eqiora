@@ -315,13 +315,13 @@ public component SteadyFlowPastCylinder(
                 .unwrap()
         };
         assert_eq!(
-            form.trial(),
+            form.trials()[0],
             local_alias("potential")
                 .downcast::<eqiora_core::entity::kinds::Field>()
                 .unwrap()
         );
         assert_eq!(
-            form.relation(),
+            form.relations()[0],
             local_alias("balance")
                 .downcast::<eqiora_core::entity::kinds::Relation>()
                 .unwrap()
@@ -430,7 +430,7 @@ public component SteadyFlowPastCylinder(
             ),
             (
                 SCALAR_PRIMAL_SOURCE.replace("for potential zero_on", "for diffusion zero_on"),
-                "test argument is not a Field",
+                "test trial is not a Field",
             ),
             (
                 SCALAR_PRIMAL_SOURCE.replace(
@@ -448,7 +448,7 @@ public component SteadyFlowPastCylinder(
                     "w * source_scale * math.sin",
                     "div(w) * source_scale * math.sin",
                 ),
-                "unsupported scalar-primal operator `div`",
+                "mixed operator requires exact spatial vector/tensor axes",
             ),
         ];
         for (source, expected) in invalid {

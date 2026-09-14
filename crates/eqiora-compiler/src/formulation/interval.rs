@@ -105,9 +105,8 @@ pub(super) fn compile(
         relation_domain: parent
             .downcast()
             .ok_or_else(|| error(file, range, "interval parent is not a Domain"))?,
-        trial: None,
-        test_name: "",
-        trial_name: "",
+        tests: BTreeMap::new(),
+        used_tests: BTreeSet::new(),
     };
     let mut compile_term =
         |expression: &Expr| -> Result<(AuthoredFormExpressionV1, DimExponents), Diagnostic> {
@@ -215,9 +214,9 @@ pub(super) fn compile(
     )?;
     check::check((&projection).into(), index, geometry)?;
     Ok(CompiledAuthoredFormulation {
-        relation: relation.downcast().expect("Law"),
+        relations: vec![relation.downcast().expect("Law")],
         domain: parent.downcast().expect("Domain"),
-        trial: trial.downcast().expect("Field"),
+        trials: vec![trial.downcast().expect("Field")],
         projection,
         file: file.to_owned(),
         range,

@@ -298,6 +298,15 @@ impl ModelDocument {
         let mut document =
             Self::from_store(store, program, aliases, geometry_authority, Some(notation))?;
         document.authored_formulations = authored_formulations;
+        for form in &document.authored_formulations {
+            if form.projection().test_restrictions().len() > 1 {
+                eqiora_numerics::check_authored_mixed_formulation(
+                    document.program(),
+                    form.projection(),
+                )
+                .map_err(single_diagnostic)?;
+            }
+        }
         Ok(document)
     }
 
@@ -378,15 +387,15 @@ impl ModelDocument {
         self.authored_formulations.iter()
     }
 
-    /// Closed typed scalar-primal projection consumed by common resolution.
+    /// Closed typed authored projection consumed by common resolution.
     ///
     /// The compiler owns the versioned representation and its canonical codec;
     /// callers may inspect the closed typed expression vocabulary but cannot
-    /// construct an unchecked projection.
+    /// treat canonical decoding alone as correspondence proof.
     ///
     /// # Errors
     /// Returns a diagnostic if compilation retained more than one authored form.
-    pub fn authored_scalar_primal_projection(
+    pub fn authored_formulation_projection(
         &self,
     ) -> Result<Option<&AuthoredFormulationProjection>, Diagnostic> {
         match self.authored_formulations.as_slice() {
@@ -394,7 +403,7 @@ impl ModelDocument {
             [form] => Ok(Some(form.projection())),
             _ => Err(Diagnostic::error(
                 codes::LANGUAGE_TYPE_ERROR,
-                "common scalar resolve accepts exactly one authored primal Formulation",
+                "common resolve accepts exactly one authored Formulation",
             )),
         }
     }

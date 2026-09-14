@@ -42,31 +42,36 @@ pub(super) fn format_formulation(
     write_indent(output, indent);
     output.push_str("form ");
     output.push_str(&declaration.name);
-    writeln!(output, " for {} {{", declaration.relation).expect("String write");
-    write_indent(output, indent + 2);
+    writeln!(output, " for {} {{", declaration.relations.join(", ")).expect("String write");
     match &declaration.binding {
-        FormulationBinding::WeakTest {
-            name,
-            trial,
-            zero_on,
-        } => writeln!(
-            output,
-            "test {name}: 1 for {trial} zero_on {};",
-            zero_on.join(", ")
-        ),
+        FormulationBinding::WeakTests { tests } => {
+            for (name, trial, zero_on) in tests {
+                write_indent(output, indent + 2);
+                write!(output, "test {name}: 1 for {trial}").expect("String write");
+                if !zero_on.is_empty() {
+                    write!(output, " zero_on {}", zero_on.join(", ")).expect("String write");
+                }
+                output.push_str(";\n");
+            }
+        }
         FormulationBinding::Interval {
             name,
             lower,
             upper,
             domain,
-        } => writeln!(output, "interval {name}({lower}, {upper}) on {domain};"),
+        } => {
+            write_indent(output, indent + 2);
+            writeln!(output, "interval {name}({lower}, {upper}) on {domain};")
+                .expect("String write");
+        }
     }
-    .expect("String write");
-    write_indent(output, indent + 2);
-    format_expression(&declaration.left, 0, output);
-    output.push_str(" = ");
-    format_expression(&declaration.right, 0, output);
-    output.push_str(";\n");
+    for (left, right) in &declaration.equations {
+        write_indent(output, indent + 2);
+        format_expression(left, 0, output);
+        output.push_str(" = ");
+        format_expression(right, 0, output);
+        output.push_str(";\n");
+    }
     write_indent(output, indent);
     output.push_str("}\n");
     output.end();
@@ -91,5 +96,27 @@ mod tests {
             formatted
                 .contains("integrate(region, dot(grad(w), grad(u))) = integrate(region, w * f);")
         );
+    }
+    #[test]
+    fn mixed_form_preserves_ordered_relations_tests_and_equalities() {
+        let source = "component C() { form weak for momentum,incompressibility { test v:1 for velocity zero_on surface; test q:1 for pressure; integrate(body,dot(grad(v),grad(velocity)))=integrate(body,dot(v,force)); integrate(body,q*div(velocity))=integrate(body,0); } }";
+        let first = parse("mixed.eqi", source).into_document().unwrap();
+        let formatted = format(&first);
+        let second = parse("mixed.eqi", &formatted).into_document().unwrap();
+        assert_eq!(format(&second), formatted);
+        let component = &second.components()[0];
+        let (name, relations, equations, _) = component.formulations().next().unwrap();
+        assert_eq!(relations, ["momentum", "incompressibility"]);
+        assert_eq!(equations.len(), 2);
+        assert_eq!(
+            component.formulation_binding(name),
+            Some(&crate::FormulationBinding::WeakTests {
+                tests: vec![
+                    ("v".into(), "velocity".into(), vec!["surface".into()]),
+                    ("q".into(), "pressure".into(), vec![])
+                ],
+            })
+        );
+        assert!(formatted.contains("test q: 1 for pressure;"));
     }
 }

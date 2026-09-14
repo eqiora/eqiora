@@ -23,14 +23,14 @@ pub(super) struct Statement<'a> {
 impl<'a> From<&'a AuthoredFormulationProjection> for Statement<'a> {
     fn from(form: &'a AuthoredFormulationProjection) -> Self {
         Self {
-            relation: form.relation_ulid(),
+            relation: form.equations()[0].0.as_str(),
             domain: form.domain_ulid(),
-            trial: form.trial_ulid(),
+            trial: form.trial_ulids()[0].as_str(),
             binder: form.interval(),
             implication: form.implication(),
             assumptions: form.assumptions(),
-            left: form.left(),
-            right: form.right(),
+            left: &form.equations()[0].1,
+            right: &form.equations()[0].2,
         }
     }
 }

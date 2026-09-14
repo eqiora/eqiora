@@ -1,6 +1,8 @@
 //! Term-complete directional certificate for the bounded steady Stokes path.
 
 use std::collections::BTreeSet;
+mod authored;
+pub use authored::check_authored_mixed_formulation;
 
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_schema::kernel::{ExprId, ExprNode};
@@ -256,7 +258,7 @@ pub(super) fn derive(
             ));
         }
     }
-    check(program, source, &entries)?;
+    check(program, source, &entries, None)?;
     Ok(entries)
 }
 
@@ -266,6 +268,7 @@ pub(super) fn check(
     program: &KernelProgram,
     source: &SteadyStokesCertificateSource<'_>,
     entries: &[MixedCertificateEntry],
+    authored: Option<&eqiora_compiler::AuthoredFormulationProjection>,
 ) -> Result<(), Diagnostic> {
     let expected_relations = [
         source.source_definition,
@@ -492,22 +495,32 @@ pub(super) fn check(
             "mixed certificate leaves a source term or boundary law missing or unconsumed",
         ));
     }
+    if let Some(authored) = authored {
+        self::authored::check_terms(program, source, entries, authored)?;
+    }
     Ok(())
 }
 
-#[cfg(test)]
 pub(super) fn check_model(
     program: &KernelProgram,
     model: &super::api::SteadyIncompressibleStokesModel2d,
     entries: &[MixedCertificateEntry],
+    authored: Option<&eqiora_compiler::AuthoredFormulationProjection>,
 ) -> Result<(), Diagnostic> {
-    let source_node = entries
-        .iter()
-        .find(|entry| entry.role == MixedTermRole::SourceDefinition)
-        .map(|entry| entry.source_node)
-        .ok_or_else(|| {
-            lowering_error(model.domain(), "test certificate has no source definition")
-        })?;
+    let definition = typed_relation(program, model.force_potential_definition())?;
+    let root = unique_root(definition.expression(), model.force_potential_definition())?;
+    let source_node = super::expression::additive_load_definition_root(
+        definition.expression(),
+        root,
+        model.force_potential(),
+        model.force_potential_definition(),
+    )?
+    .ok_or_else(|| {
+        lowering_error(
+            model.domain(),
+            "live source definition no longer owns its forcing expression",
+        )
+    })?;
     check(
         program,
         &SteadyStokesCertificateSource {
@@ -525,6 +538,7 @@ pub(super) fn check_model(
                 .collect(),
         },
         entries,
+        authored,
     )
 }
 

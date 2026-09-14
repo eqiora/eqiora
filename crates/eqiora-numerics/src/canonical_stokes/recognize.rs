@@ -126,7 +126,7 @@ pub(super) fn lower_steady_incompressible_stokes_geometry_2d(
 
 pub(crate) fn recognize_steady_incompressible_stokes_geometry_mathematics(
     program: &KernelProgram,
-) -> Result<(), Diagnostic> {
+) -> Result<SteadyIncompressibleStokesModel2d, Diagnostic> {
     let regions = program
         .nodes()
         .filter_map(|node| match node {
@@ -177,8 +177,8 @@ pub(crate) fn recognize_steady_incompressible_stokes_geometry_mathematics(
         BoundarySource2d::Named(boundaries),
         Some(geometry.bytes()),
         &BTreeSet::new(),
-    )?;
-    Ok(())
+    )
+    .map(|lowered| lowered.model)
 }
 
 fn lower_steady_incompressible_stokes_2d_on(

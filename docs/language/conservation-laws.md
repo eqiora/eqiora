@@ -63,11 +63,21 @@ a fixed one-dimensional domain and classical divergence and boundary traces;
 it does not establish these regularity assumptions or the reverse implication.
 
 Native AST construction, source formatting, Python inspection and mathematical
-rendering retain the interval. The scalar projection uses one tagged v3 wire for
-weak-test and interval binders; the old v2 projection decoder is removed. Forms
+rendering retain the interval. The projection uses one tagged v4 wire for plural Relation-owned equations,
+weak-test inventories and interval binders; displaced projection decoders are removed. Forms
 remain outside Model identity. The ordinary single-region scalar TPFA path admits
 this form on a fixed 1D Geometry with the existing positive diffusion and supported boundary conditions.
 Automatic and exact integral-conservative requests derive mathematical content
 and pass the same checker; only authored requests retain authored source identity.
 Plan and Result replay preserve this distinction and rerun admission. Storage,
 multidimensional, mixed and complex forms remain unavailable.
+
+A bounded real steady 2D Stokes system may retain two weak equations in one form.
+`form weak for momentum, continuity` pairs each equation with its declared Relation;
+velocity and pressure have distinct named tests. The velocity test carries the exact
+complete homogeneous essential boundary, while the pressure test has no boundary
+restriction. `frobenius` contracts equal real rank-two shapes and remains distinct
+from vector `dot`. Compilation through the public Model API checks every produced
+term against the live Stokes certificate before exposing Python inspection or
+rendering. This profile supports inspection only; authored mixed numerical
+execution and stability claims remain unavailable.

@@ -57,8 +57,8 @@ pub(super) fn admit(
         .map_err(|errors| invalid(format!("interval Model snapshot rejected: {errors:?}")))?;
     let geometry = admission.resources().geometry();
     if let Some(authored) = authored {
-        if authored.relation_ulid() != law.ulid().to_string()
-            || authored.trial_ulid() != region.form.fields()[0].0.ulid().to_string()
+        if authored.equations()[0].0.as_str() != law.ulid().to_string()
+            || authored.trial_ulids()[0].as_str() != region.form.fields()[0].0.ulid().to_string()
         {
             return Err(invalid(
                 "authored interval references a foreign executable Law or Field",

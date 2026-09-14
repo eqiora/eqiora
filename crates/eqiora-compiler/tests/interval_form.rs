@@ -88,7 +88,7 @@ fn ordinary_source_and_formatter_retain_quantified_interval_and_live_replay() {
             eqiora_compiler::check_derived_interval_conservation(
                 model.transaction(),
                 &geometry,
-                model.authored_formulations().next().unwrap().relation(),
+                model.authored_formulations().next().unwrap().relations()[0],
             )
             .unwrap(),
             Some(())
@@ -99,7 +99,7 @@ fn ordinary_source_and_formatter_retain_quantified_interval_and_live_replay() {
             projection.implication(),
             "strong-implies-interval-conservation"
         );
-        assert!(projection.test_restriction().is_none());
+        assert!(projection.test_restrictions().is_empty());
         let decoded = AuthoredFormulationProjection::decode(projection.canonical_bytes()).unwrap();
         decoded
             .check_interval(model.transaction(), &geometry)
@@ -228,7 +228,7 @@ fn proper_asymmetric_interval_has_independently_derived_nonzero_boundary_balance
             _ => panic!("unexpected oracle input {expr:?}"),
         }
     }
-    let F::Add { left, right } = projection.left() else {
+    let F::Add { left, right } = &projection.equations()[0].1 else {
         panic!("boundary sum")
     };
     let mut values = Vec::new();
@@ -250,7 +250,7 @@ fn proper_asymmetric_interval_has_independently_derived_nonzero_boundary_balance
         values.push(f64::from(*normal) * evaluate(flux, x, &coefficient, &source_id));
     }
     assert_eq!(values, [36.0, -12.0]);
-    let F::IntervalIntegral { integrand, .. } = projection.right() else {
+    let F::IntervalIntegral { integrand, .. } = &projection.equations()[0].2 else {
         panic!("interval measure")
     };
     let integral = (3.0 - 1.0) * evaluate(integrand, 0.0, &coefficient, &source_id);
@@ -317,7 +317,7 @@ fn native_binder_construction_uses_the_same_source_identity() {
         .into_document()
         .unwrap();
     let original = &parsed.components()[0];
-    let (name, relation, left, right, range) = original.formulations().next().unwrap();
+    let (name, relations, equations, range) = original.formulations().next().unwrap();
     let rebuilt = Ast::component_with_form(
         VisibilitySyntax::Public,
         "M",
@@ -325,10 +325,10 @@ fn native_binder_construction_uses_the_same_source_identity() {
         original.items().to_vec(),
         (
             name.into(),
-            relation.into(),
+            relations.to_vec(),
             original.formulation_binding(name).unwrap().clone(),
         ),
-        (left.clone(), right.clone(), range),
+        (equations.to_vec(), range),
         original.range(),
     )
     .unwrap();
@@ -374,7 +374,7 @@ fn live_field_dimension_and_destructive_delta_are_not_typed_snapshots() {
     let geometry = geometry();
     let model = compile(&source(FORM), &geometry).unwrap();
     let projection = model.authored_formulations().next().unwrap().projection();
-    let trial = model.authored_formulations().next().unwrap().trial();
+    let trial = model.authored_formulations().next().unwrap().trials()[0];
     let mut changed = Transaction::new("wrong live Field dimension");
     for op in model.transaction().ops() {
         let mut op = op.clone();
@@ -434,8 +434,12 @@ fn canonical_parameter_values_are_typed_unique_snapshot_bindings() {
         .check_interval(&snapshot, &geometry)
         .unwrap();
     assert_eq!(
-        eqiora_compiler::check_derived_interval_conservation(&snapshot, &geometry, form.relation())
-            .unwrap(),
+        eqiora_compiler::check_derived_interval_conservation(
+            &snapshot,
+            &geometry,
+            form.relations()[0]
+        )
+        .unwrap(),
         Some(())
     );
     snapshot.push(Op::SetValue {
@@ -452,7 +456,7 @@ fn canonical_parameter_values_are_typed_unique_snapshot_bindings() {
         wrong.push(op.clone());
     }
     wrong.push(Op::SetValue {
-        target: form.trial().erase(),
+        target: form.trials()[0].erase(),
         value: parameter.value().clone(),
     });
     assert!(form.projection().check_interval(&wrong, &geometry).is_err());
