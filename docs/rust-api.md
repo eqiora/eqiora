@@ -23,7 +23,7 @@ eqiora = "=0.1.0"
 
 Building from source requires a Rust toolchain and linker. The minimum supported
 Rust version is 1.89. This release's default-feature installation was tested on
-Linux x86-64 with Rust 1.97.1.
+Linux x86-64 with Rust 1.89.0.
 
 ## Build command-line tools from this checkout
 
