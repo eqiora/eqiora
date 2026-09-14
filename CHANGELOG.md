@@ -6,7 +6,7 @@ are recorded here.
 
 ## [Unreleased]
 
-## [0.1.0a12] - 2026-09-14
+## [0.1.0a13] - 2026-09-14
 
 ### Added
 

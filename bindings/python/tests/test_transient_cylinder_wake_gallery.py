@@ -114,7 +114,7 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
         self.assertIn('find_spec("google.colab") is not None', self.notebook_source)
         self.assertIn('find_library("GLU") is None', self.notebook_source)
         self.assertIn('"libglu1-mesa"', self.notebook_source)
-        self.assertIn('"eqiora[gmsh,matplotlib]==0.1.0a12"', self.notebook_source)
+        self.assertIn('"eqiora[gmsh,matplotlib]==0.1.0a13"', self.notebook_source)
         self.assertIn("subprocess.run(", self.notebook_source)
         self.assertNotIn("drive.mount", self.notebook_source)
 
