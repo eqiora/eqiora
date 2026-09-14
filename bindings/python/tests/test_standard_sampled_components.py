@@ -1,6 +1,7 @@
 """Installed bundled controls execute the same physical example and exact lock."""
 from fractions import Fraction
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,43 @@ ROOT = Path(__file__).resolve().parents[3]
 SOURCE = (ROOT / "examples/standard-sampled-components/src/main.eqi").read_text(encoding="utf-8")
 CONTROLS = (ROOT / "crates/eqiora-api/packages/Eqiora.Controls.Sampled/src/sampled.eqi").read_text(encoding="utf-8")
 
+
+
+# Independent physical recurrence: no standard declarations, normalization
+# adapters or component expansion. Memory carries volts/metres directly.
+EXPLICIT = """
+model Main(
+  input voltage: V at tick, input slew: V/s at tick,
+  input position: m at tick, input velocity: m/s at tick,
+  output delayed_voltage: V at tick, output voltage_before: V at tick,
+  output voltage_after: V at tick, output delayed_position: m at tick,
+  output position_before: m at tick, output position_after: m at tick
+) {
+  clock tick = periodic(0.25[s]);
+  state previous_voltage: V at tick;
+  state integrated_voltage: V at tick;
+  state previous_position: m at tick;
+  state integrated_position: m at tick;
+  initial {
+    pre(previous_voltage) = 10[V];
+    pre(integrated_voltage) = 6[V];
+    pre(previous_position) = 2.5[m];
+    pre(integrated_position) = 1.5[m];
+  }
+  relation recurrence at tick {
+    delayed_voltage = pre(previous_voltage);
+    next(previous_voltage) = voltage;
+    voltage_before = pre(integrated_voltage);
+    next(integrated_voltage) = pre(integrated_voltage) + period(tick)*slew;
+    voltage_after = next(integrated_voltage);
+    delayed_position = pre(previous_position);
+    next(previous_position) = position;
+    position_before = pre(integrated_position);
+    next(integrated_position) = pre(integrated_position) + period(tick)*velocity;
+    position_after = next(integrated_position);
+  }
+}
+"""
 
 def replace_exact(source: str, needle: str, replacement: str, count: int) -> str:
     assert source.count(needle) == count, needle
@@ -51,7 +89,7 @@ def project(tmp_path: Path, source: str) -> tuple[Path, Path, bytes]:
     [(4, [3.0, 3.5, 3.25], [3.5, 3.25, 4.0], [3.0, 2.75, 3.75], [2.75, 3.75, 4.25]),
      (2, [3.0, 4.0, 3.5], [4.0, 3.5, 5.0], [3.0, 2.5, 4.5], [2.5, 4.5, 5.5])],
 )
-@pytest.mark.parametrize("transport", ["source", "locked"])
+@pytest.mark.parametrize("transport", ["source", "locked", "vendored", "explicit"])
 def test_installed_controls_execute_typed_samples_and_locked_restart(
     tmp_path: Path, denominator: int, before: list[float], after: list[float],
     position_before: list[float], position_after: list[float], transport: str,
@@ -60,17 +98,35 @@ def test_installed_controls_execute_typed_samples_and_locked_restart(
     source = SOURCE if denominator == 4 else replace_exact(
         SOURCE, "clock tick = periodic(0.25[s]);", "clock tick = periodic(0.5[s]);", 1
     )
-    if transport == "locked":
+    if transport in {"locked", "vendored"}:
         application, store, resolution = project(tmp_path, source)
         assert eqiora.open_project(application, store) == resolution
         model = eqiora.compile_package(store, resolution, entry="Main")
-        replay = eqiora.compile_package(store, eqiora.open_project(application, store), entry="Main")
+        if transport == "vendored":
+            vendor = application / "vendor"
+            vendor.mkdir()
+            assert eqiora.vendor_project(application, store, vendor) == resolution
+            shutil.rmtree(store)
+            moved = tmp_path / "moved-application"
+            application.rename(moved)
+            application, store = moved, moved / "vendor"
+        reopened = eqiora.open_project(application, store)
+        assert reopened == resolution
+        replay = eqiora.compile_package(store, reopened, entry="Main")
+        assert model.package_compilation_digest is not None
+    elif transport == "explicit":
+        explicit = EXPLICIT.replace("0.25[s]", f"{1 / denominator}[s]")
+        model = eqiora.compile(source=explicit, entry="Main")
+        replay = eqiora.compile(source=explicit, entry="Main")
+        assert model.package_compilation_digest is None
     else:
         model = eqiora.compile(source=direct_source(source), entry="Main")
         replay = eqiora.compile(source=direct_source(source), entry="Main")
+        assert model.package_compilation_digest is None
     assert model.digest == replay.digest
     assert model.package_compilation_digest == replay.package_compilation_digest
-    session = model.execution_session(
+    # Start from the reopened package, including the first tick after relocation.
+    session = replay.execution_session(
         end_time_s=2 / denominator, max_step_s=1 / denominator,
         inputs={
             "voltage": ("tick", [4.0, -2.0, 6.0]),
@@ -84,7 +140,7 @@ def test_installed_controls_execute_typed_samples_and_locked_restart(
     assert session.output("voltage_before", 0) is None
     assert session.output("voltage_after", 0) is None
     assert session.advance_ticks(1) == 1
-    resumed = replay.resume_execution(session.checkpoint())
+    resumed = model.resume_execution(session.checkpoint())
     assert session.advance_ticks(2) == resumed.advance_ticks(2) == 2
     for suffix, scale, delayed, old, updated in [
         ("voltage", 2.0, [5.0, 2.0, -1.0], before, after),
