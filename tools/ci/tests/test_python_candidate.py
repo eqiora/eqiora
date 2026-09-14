@@ -468,7 +468,7 @@ Requires-Dist: gmsh==4.15.2 ; extra == 'gmsh'
 Requires-Dist: torch>=2.13,<2.14; extra == "torch"
 Requires-Dist: jax==0.11.0; python_version >= "3.12" and extra == "jax"
 Requires-Dist: jaxlib==0.11.0; python_version >= "3.12" and extra == "jax"
-Requires-Dist: matplotlib==3.11.1; extra == "matplotlib"
+Requires-Dist: matplotlib>=3.10,<3.12; extra == "matplotlib"
 Requires-Dist: anywidget==0.11.0; extra == "viewer"
 
 typed candidate
@@ -542,7 +542,7 @@ Requires-Dist: gmsh==4.15.2; extra == "gmsh"
 Requires-Dist: torch>=2.13,<2.14
 Requires-Dist: jax==0.11.0; extra == "jax"
 Requires-Dist: jaxlib==0.11.0; extra == "jax"
-Requires-Dist: matplotlib==3.11.1; extra == "matplotlib"
+Requires-Dist: matplotlib>=3.10,<3.12; extra == "matplotlib"
 Requires-Dist: anywidget==0.11.0; extra == "viewer"
 
 invalid candidate

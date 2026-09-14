@@ -33,7 +33,7 @@ jax = [
     "jax==0.11.0; python_version >= '3.12'",
     "jaxlib==0.11.0; python_version >= '3.12'",
 ]
-matplotlib = ["matplotlib==3.11.1"]
+matplotlib = ["matplotlib>=3.10,<3.12"]
 viewer = ["anywidget==0.11.0"]
 torch = ["torch>=2.13,<2.14"]
 

@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import ast
 import json
+import types
 import unittest
 from collections import Counter
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -86,6 +88,27 @@ def call_inventory(source: str, filename: str) -> Counter[str]:
     return Counter(name for name in names if name is not None)
 
 
+def bootstrap_namespace(source: str) -> dict[str, object]:
+    """Load only the notebook's stdlib bootstrap definitions."""
+
+    tree = ast.parse(source, filename=COLAB.as_posix())
+    definitions = []
+    for node in tree.body:
+        if (
+            isinstance(node, ast.Assign)
+            and isinstance(node.value, ast.Call)
+            and qualified_name(node.value.func) == "_prepare_environment"
+        ):
+            break
+        definitions.append(node)
+    namespace: dict[str, object] = {}
+    exec(
+        compile(ast.Module(body=definitions, type_ignores=[]), COLAB.as_posix(), "exec"),
+        namespace,
+    )
+    return namespace
+
+
 class TransientCylinderWakeGalleryProduct(unittest.TestCase):
     def setUp(self) -> None:
         if not PLAIN.is_file() or not COLAB.is_file():
@@ -110,13 +133,98 @@ class TransientCylinderWakeGalleryProduct(unittest.TestCase):
             self.assertEqual(cell["outputs"], [])
             compile("".join(cell["source"]), COLAB.as_posix(), "exec")
 
-        self.assertIn('find_spec("eqiora") is None', self.notebook_source)
         self.assertIn('find_spec("google.colab") is not None', self.notebook_source)
         self.assertIn('find_library("GLU") is None', self.notebook_source)
         self.assertIn('"libglu1-mesa"', self.notebook_source)
-        self.assertIn('"eqiora[gmsh,matplotlib]==0.1.0a14"', self.notebook_source)
+        self.assertIn('f"eqiora=={EQIORA_VERSION}"', self.notebook_source)
+        self.assertIn('f"gmsh=={GMSH_VERSION}"', self.notebook_source)
+        self.assertIn('f"matplotlib{MATPLOTLIB_RANGE}"', self.notebook_source)
+        self.assertIn('EQIORA_VERSION = "0.1.0a14"', self.notebook_source)
+        self.assertIn('GMSH_VERSION = "4.15.2"', self.notebook_source)
+        self.assertIn('MATPLOTLIB_RANGE = ">=3.10,<3.12"', self.notebook_source)
+        self.assertNotIn('find_spec("eqiora")', self.notebook_source)
         self.assertIn("subprocess.run(", self.notebook_source)
         self.assertNotIn("drive.mount", self.notebook_source)
+
+    def test_colab_bootstrap_preserves_a_coherent_preloaded_matplotlib(self) -> None:
+        namespace = bootstrap_namespace(self.notebook_source)
+        installed = {
+            "eqiora": {"version": "0.1.0a14", "file": "/runtime/eqiora/__init__.py"},
+            "matplotlib": {
+                "version": "3.10.8",
+                "file": "/runtime/matplotlib/__init__.py",
+            },
+            "matplotlib._api": {
+                "version": "3.10.8",
+                "file": "/runtime/matplotlib/_api/__init__.py",
+            },
+            "mpl_toolkits.axes_grid1.axes_divider": {
+                "version": "3.10.8",
+                "file": "/runtime/mpl_toolkits/axes_grid1/axes_divider.py",
+            },
+        }
+        loaded = {
+            "matplotlib": installed["matplotlib"],
+            "matplotlib._api": {
+                "version": None,
+                "file": installed["matplotlib._api"]["file"],
+            },
+        }
+        namespace["_module_state"] = mock.Mock(return_value=loaded)
+        namespace["_distribution_state"] = mock.Mock(return_value=installed)
+        namespace["find_spec"] = mock.Mock(return_value=None)
+        namespace["version"] = mock.Mock(side_effect=("0.1.0a14", "4.15.2"))
+        namespace["subprocess"] = types.SimpleNamespace(run=mock.Mock())
+
+        observed = namespace["_prepare_environment"]()  # type: ignore[operator]
+
+        self.assertEqual(observed, installed)
+        command = namespace["subprocess"].run.call_args.args[0]  # type: ignore[union-attr]
+        self.assertIn("eqiora==0.1.0a14", command)
+        self.assertIn("gmsh==4.15.2", command)
+        self.assertIn("matplotlib>=3.10,<3.12", command)
+        self.assertEqual(command[command.index("--upgrade-strategy") + 1], "only-if-needed")
+
+    def test_colab_bootstrap_restarts_after_loaded_distribution_changes(self) -> None:
+        namespace = bootstrap_namespace(self.notebook_source)
+        namespace["_module_state"] = mock.Mock(
+            return_value={
+                "matplotlib": {
+                    "version": "3.9.4",
+                    "file": "/preloaded/matplotlib/__init__.py",
+                }
+            }
+        )
+        namespace["_distribution_state"] = mock.Mock(
+            return_value={
+                "eqiora": {
+                    "version": "0.1.0a14",
+                    "file": "/installed/eqiora/__init__.py",
+                },
+                "matplotlib": {
+                    "version": "3.11.1",
+                    "file": "/installed/matplotlib/__init__.py",
+                },
+                "matplotlib._api": {
+                    "version": "3.11.1",
+                    "file": "/installed/matplotlib/_api/__init__.py",
+                },
+                "mpl_toolkits.axes_grid1.axes_divider": {
+                    "version": "3.11.1",
+                    "file": "/installed/mpl_toolkits/axes_grid1/axes_divider.py",
+                },
+            }
+        )
+        namespace["find_spec"] = mock.Mock(return_value=object())
+        namespace["find_library"] = mock.Mock(return_value="libGLU.so.1")
+        namespace["version"] = mock.Mock(side_effect=("0.1.0a14", "4.15.2"))
+        namespace["subprocess"] = types.SimpleNamespace(run=mock.Mock())
+        namespace["os"] = types.SimpleNamespace(getpid=mock.Mock(return_value=42), kill=mock.Mock())
+
+        with self.assertRaisesRegex(RuntimeError, "restart did not terminate"):
+            namespace["_prepare_environment"]()  # type: ignore[operator]
+
+        namespace["os"].kill.assert_called_once_with(42, namespace["signal"].SIGKILL)  # type: ignore[union-attr]
 
     def test_plain_and_colab_use_only_the_current_public_route(self) -> None:
         for source in (

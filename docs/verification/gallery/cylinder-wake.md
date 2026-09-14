@@ -22,8 +22,8 @@ Field, point, unit, support, and operator lineage and label the result as
 unverified. Caller-owned presentation includes a poster, ten-frame WebM/MP4,
 first/final reduced-motion still, and a complete visible text alternative from
 the same product Result. The `0.1.0a4` site identity also enables a GitHub-backed
-Open in Colab entry whose clean ephemeral runtime installs the pinned release
-without maintainer-owned Drive state. Boundary force reports both the action on the fluid domain and the
+Open in Colab entry whose ephemeral runtime reconciles the pinned Eqiora release
+without replacing a supported preloaded Matplotlib or using maintainer-owned Drive state. Boundary force reports both the action on the fluid domain and the
 equal-and-opposite action on the cylinder, explicitly in N/m.
 
 This is not a developed wake: its short multi-step startup is largely symmetric
