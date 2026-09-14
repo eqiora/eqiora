@@ -1228,10 +1228,10 @@ state = eqiora.State.initial(
     plan,
     time_s=0.0,
     fields=(
-        eqiora.InitialField(model.field("fluid_velocity"), vertex_values=..., cell_values=...),
-        eqiora.InitialField(model.field("fluid_pressure"), vertex_values=...),
-        eqiora.InitialField(model.field("solid_velocity"), vertex_values=...),
-        eqiora.InitialField(model.field("solid_displacement"), vertex_values=...),
+        eqiora.InitialField(model.field("definition.fluid_velocity"), vertex_values=..., cell_values=...),
+        eqiora.InitialField(model.field("definition.fluid_pressure"), vertex_values=...),
+        eqiora.InitialField(model.field("definition.solid_velocity"), vertex_values=...),
+        eqiora.InitialField(model.field("definition.solid_displacement"), vertex_values=...),
     ),
 )
 result = eqiora.run(plan, state=state, steps=2, output_steps=(1, 2))

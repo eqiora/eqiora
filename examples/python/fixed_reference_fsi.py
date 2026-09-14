@@ -78,7 +78,7 @@ def solve() -> eqiora.Result:
     cells = np.asarray(mesh.cells)
     fluid_vertices = np.flatnonzero(coordinates[:, 0] <= 1.0)
     solid_vertices = np.flatnonzero(coordinates[:, 0] >= 1.0)
-    fluid_cells = np.flatnonzero(coordinates[cells, 0].mean(axis=1) < 1.0)
+    flow_cell_indices = np.flatnonzero(coordinates[cells, 0].mean(axis=1) < 1.0)
     solid_displacement = np.zeros((solid_vertices.size, 2))
     interface_midpoint = np.flatnonzero(
         (coordinates[solid_vertices, 0] == 1.0)
@@ -86,9 +86,10 @@ def solve() -> eqiora.Result:
     )
     assert interface_midpoint.size == 1
     solid_displacement[interface_midpoint[0], 0] = 0.02
-    fluid_velocity, fluid_pressure, solid_velocity, solid_displacement_field = (
-        plan.fields
-    )
+    fluid_velocity = model.field("definition.fluid_velocity")
+    fluid_pressure = model.field("definition.fluid_pressure")
+    solid_velocity = model.field("definition.solid_velocity")
+    solid_displacement_field = model.field("definition.solid_displacement")
     state = eqiora.State.initial(
         plan,
         time_s=0.0,
@@ -96,7 +97,7 @@ def solve() -> eqiora.Result:
             eqiora.InitialField(
                 fluid_velocity,
                 vertex_values=np.zeros((fluid_vertices.size, 2)),
-                cell_values=np.zeros((fluid_cells.size, 2)),
+                cell_values=np.zeros((flow_cell_indices.size, 2)),
             ),
             eqiora.InitialField(
                 fluid_pressure,

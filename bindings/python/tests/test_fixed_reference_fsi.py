@@ -110,7 +110,7 @@ def initial(
     cells = np.asarray(mesh.cells)
     fluid_vertices = np.flatnonzero(coordinates[:, 0] <= 1.0)
     solid_vertices = np.flatnonzero(coordinates[:, 0] >= 1.0)
-    fluid_cells = np.flatnonzero(coordinates[cells, 0].mean(axis=1) < 1.0)
+    flow_cell_indices = np.flatnonzero(coordinates[cells, 0].mean(axis=1) < 1.0)
     displacement = np.zeros((solid_vertices.size, 2))
     interface_midpoint = np.flatnonzero(
         (coordinates[solid_vertices, 0] == 1.0)
@@ -118,7 +118,10 @@ def initial(
     )
     assert interface_midpoint.size == 1
     displacement[interface_midpoint[0], 0] = 0.02
-    fluid_velocity, fluid_pressure, solid_velocity, solid_displacement = plan.fields
+    fluid_velocity = model.field("definition.fluid_velocity")
+    fluid_pressure = model.field("definition.fluid_pressure")
+    solid_velocity = model.field("definition.solid_velocity")
+    solid_displacement = model.field("definition.solid_displacement")
     return eqiora.State.initial(
         plan,
         time_s=0.0,
@@ -126,7 +129,7 @@ def initial(
             eqiora.InitialField(
                 fluid_velocity,
                 vertex_values=np.zeros((fluid_vertices.size, 2)),
-                cell_values=np.zeros((fluid_cells.size, 2)),
+                cell_values=np.zeros((flow_cell_indices.size, 2)),
             ),
             eqiora.InitialField(
                 fluid_pressure,
@@ -177,7 +180,10 @@ def test_only_common_model_first_fsi_surface_is_public() -> None:
     assert not hasattr(eqiora.fsi, "resolve")
     assert eqiora.fsi.__all__ == [
         "FixedReferenceFsiPlanView",
+        "FsiConnectionEvidence",
+        "FsiDomainEvidence",
         "FsiEvidence",
+        "FsiInterfaceActionEvidence",
         "FsiStateEvidence",
         "evidence",
     ]
@@ -205,20 +211,29 @@ def test_plan_binds_exact_model_mesh_scopes_provider_and_scaling_receipt() -> No
     assert isinstance(plan.capability, eqiora.fsi.FixedReferenceFsiPlanView)
     assert plan.capability.scaling is not None
     assert plan.capability.scaling_receipt.production_digest == mesh.production_lineage_digest
+    assert not any(
+        hasattr(plan.capability, name)
+        for name in ("fluid_velocity", "pressure", "solid_velocity", "displacement")
+    )
     assert not hasattr(plan.capability, "pressure_gauge")
     assert plan.solve.algorithm == "minimum-residual"
     assert plan.solve.backend == "eqiora.reference"
     assert plan.execution.provider == "eqiora.host.serial"
     assert plan.execution.placement == "host-serial"
     assert len(set(plan.fields)) == 4
-    assert plan.fields[:2] == (plan.capability.fluid_velocity, plan.capability.pressure)
+    assert set(plan.fields) == {
+        model.field("definition.fluid_velocity"),
+        model.field("definition.fluid_pressure"),
+        model.field("definition.solid_velocity"),
+        model.field("definition.solid_displacement"),
+    }
     assert portable.identity == plan.identity
     assert portable.to_bytes() == plan_bytes
     assert portable.model.to_bytes() == model.to_bytes()
     assert portable.mesh.to_bytes() == mesh.to_bytes()
-    assert tuple(binding.domain.id for binding in portable.spatial) == tuple(
+    assert {binding.domain.id for binding in portable.spatial} == {
         binding.domain.id for binding in plan.spatial
-    )
+    }
     assert portable.temporal.step_s == plan.temporal.step_s
     assert portable.requested_solve.maximum_iterations == plan.requested_solve.maximum_iterations
     assert portable.capability.scaling.length_m == plan.capability.scaling.length_m
@@ -240,19 +255,19 @@ def test_initial_state_is_exact_field_bound_complete_and_gauge_free() -> None:
     assert replayed.to_bytes() == state_bytes
     assert replayed.source_kind == "artifact"
     np.testing.assert_array_equal(
-        state.field(plan.capability.pressure).values("vertex"), 0.25
+        state.field(model.field("definition.fluid_pressure")).values("vertex"), 0.25
     )
     expected_displacement = np.zeros((6, 2))
     expected_displacement[1, 0] = 0.02
     np.testing.assert_array_equal(
-        state.field(plan.fields[3]).values("vertex"), expected_displacement
+        state.field(model.field("definition.solid_displacement")).values("vertex"), expected_displacement
     )
     with pytest.raises(ValueError, match="time_s"):
         eqiora.State.initial(plan, fields=())
     with pytest.raises(eqiora.ValidationError):
         eqiora.State.initial(plan, time_s=0.0, fields=())
     with pytest.raises(TypeError):
-        eqiora.InitialField(plan.capability.pressure, values=[0.0])
+        eqiora.InitialField(model.field("definition.fluid_pressure"), values=[0.0])
 
 
 def test_common_worker_run_outputs_restart_and_observation_evidence() -> None:
@@ -301,9 +316,8 @@ def test_common_worker_run_outputs_restart_and_observation_evidence() -> None:
         evidence.states[-1].solve.true_residual_norm
         <= evidence.states[-1].solve.residual_target
     )
-    assert not evidence.fluid_cells.flags.writeable
-    assert not evidence.solid_cells.flags.writeable
-    assert not evidence.interface_facets.flags.writeable
+    assert all(not domain.cells.flags.writeable for domain in evidence.domains)
+    assert all(not connection.facets.flags.writeable for connection in evidence.connections)
 
     fresh_plan = eqiora.resolve(
         model,
@@ -348,7 +362,7 @@ def test_scoped_domain_handles_reject_foreign_models() -> None:
 
 
 def test_observation_evidence_is_complete_immutable_and_state_bound() -> None:
-    _, plan, run, result = solved()
+    model, plan, run, result = solved()
     trajectory = result.trajectory
     evidence = eqiora.fsi.evidence(result)
     assert run.result() is result
@@ -356,15 +370,23 @@ def test_observation_evidence_is_complete_immutable_and_state_bound() -> None:
     assert eqiora.fsi.evidence(result) is evidence
     assert trajectory.coordinates is trajectory.coordinates
     assert trajectory.cells is trajectory.cells
-    assert evidence.fluid_cells is evidence.fluid_cells
-    assert evidence.solid_cells is evidence.solid_cells
-    assert evidence.interface_facets is evidence.interface_facets
+    assert evidence.domains is not evidence.domains
+    assert evidence.connections is not evidence.connections
     assert trajectory.coordinates.shape == (9, 2)
     assert trajectory.cells.shape == (8, 3)
     np.testing.assert_array_equal(trajectory.cells, EXPECTED_CELLS)
-    np.testing.assert_array_equal(evidence.fluid_cells, [0, 1, 2, 3])
-    np.testing.assert_array_equal(evidence.solid_cells, [4, 5, 6, 7])
-    np.testing.assert_array_equal(evidence.interface_facets, [[3, 4], [4, 5]])
+    domains = {domain.identity: domain for domain in evidence.domains}
+    assert set(domains) == {model.domain("fluid").id, model.domain("solid").id}
+    np.testing.assert_array_equal(domains[model.domain("fluid").id].cells, [0, 1, 2, 3])
+    np.testing.assert_array_equal(domains[model.domain("solid").id].cells, [4, 5, 6, 7])
+    assert len(evidence.connections) == 1
+    connection = evidence.connections[0]
+    assert set(connection.endpoint_domains) == set(domains)
+    assert set(connection.endpoint_fields) == {
+        model.field("definition.fluid_velocity").id,
+        model.field("definition.solid_velocity").id,
+    }
+    np.testing.assert_array_equal(connection.facets, [[3, 4], [4, 5]])
     assert tuple(state.step for state in trajectory.states) == (1, 2)
     assert tuple(state.time_s for state in trajectory.states) == (0.05, 0.10)
     assert trajectory.state(1) is trajectory.states[0]
@@ -380,53 +402,54 @@ def test_observation_evidence_is_complete_immutable_and_state_bound() -> None:
         state_evidence = evidence.state(state)
         assert evidence.state(state) is state_evidence
         assert state_evidence.state_digest == state.digest
-        velocity = state.field(plan.fields[0])
-        assert state.field(plan.fields[0]) is velocity
-        pressure = state.field(plan.fields[1])
-        displacement = state.field(plan.fields[3])
+        velocity = state.field(model.field("definition.fluid_velocity"))
+        assert state.field(model.field("definition.fluid_velocity")) is velocity
+        pressure = state.field(model.field("definition.fluid_pressure"))
+        displacement = state.field(model.field("definition.solid_displacement"))
         velocity_vertices = velocity.values("vertex")
         velocity_bubbles = velocity.values("cell")
         pressure_support = pressure.support_indices("vertex")
         pressure_values = pressure.values("vertex")
         displacement_values = displacement.values("vertex")
         displacements.append(displacement_values)
+        assert len(state_evidence.interface_actions) == 1
+        action = state_evidence.interface_actions[0]
         arrays = (
             velocity_vertices,
             velocity_bubbles,
             pressure_support,
             pressure_values,
             displacement_values,
-            state_evidence.interface_vertices,
-            state_evidence.fluid_action,
-            state_evidence.solid_action,
-            state_evidence.action_imbalance,
+            action.endpoint_actions,
+            action.imbalance,
         )
         assert velocity.values("vertex") is velocity_vertices
         assert velocity.values("cell") is velocity_bubbles
         assert pressure.support_indices("vertex") is pressure_support
         assert pressure.values("vertex") is pressure_values
         assert displacement.values("vertex") is displacement_values
-        assert state_evidence.interface_vertices is state_evidence.interface_vertices
-        assert state_evidence.fluid_action is state_evidence.fluid_action
-        assert state_evidence.solid_action is state_evidence.solid_action
-        assert state_evidence.action_imbalance is state_evidence.action_imbalance
+        assert action.endpoint_actions is action.endpoint_actions
+        assert action.imbalance is action.imbalance
         assert velocity_vertices.shape == (6, 2)
         assert velocity_bubbles.shape == (4, 2)
         assert pressure_support.shape == (6,)
         assert pressure_values.shape == (6,)
         assert displacement_values.shape == (6, 2)
-        assert state_evidence.interface_vertices.shape == (1,)
-        assert state_evidence.fluid_action.shape == (1, 2)
-        assert state_evidence.solid_action.shape == (1, 2)
-        assert state_evidence.action_imbalance.shape == (1, 2)
+        assert action.entity_dimension == 0
+        assert action.entity_index == 4
+        assert action.slot == 0
+        assert action.connection == connection.identity
+        assert action.endpoint_domains == connection.endpoint_domains
+        assert action.endpoint_fields == connection.endpoint_fields
+        assert action.endpoint_actions.shape == (2, 2)
+        assert action.imbalance.shape == (2,)
         np.testing.assert_array_equal(pressure_support, [0, 1, 2, 3, 4, 5])
-        np.testing.assert_array_equal(state_evidence.interface_vertices, [4])
         np.testing.assert_array_equal(
             displacement.support_indices("vertex"), [3, 4, 5, 6, 7, 8]
         )
         np.testing.assert_array_equal(
-            state_evidence.fluid_action + state_evidence.solid_action,
-            state_evidence.action_imbalance,
+            action.endpoint_actions.sum(axis=0),
+            action.imbalance,
         )
         assert all(array.flags.c_contiguous for array in arrays)
         assert all(not array.flags.writeable for array in arrays)
@@ -592,11 +615,11 @@ def test_manual_and_planned_runs_agree_without_sharing_observation_storage(
         for accepted in evidence.states:
             assert accepted.solve.true_residual_norm <= accepted.solve.residual_target
     for field, association in (
-        (plan.capability.fluid_velocity, "vertex"),
-        (plan.capability.fluid_velocity, "cell"),
-        (plan.capability.pressure, "vertex"),
-        (plan.fields[2], "vertex"),
-        (plan.fields[3], "vertex"),
+        (model.field("definition.fluid_velocity"), "vertex"),
+        (model.field("definition.fluid_velocity"), "cell"),
+        (model.field("definition.fluid_pressure"), "vertex"),
+        (model.field("definition.solid_velocity"), "vertex"),
+        (model.field("definition.solid_displacement"), "vertex"),
     ):
         for left_state, right_state in zip(
             first.trajectory.states, second.trajectory.states, strict=True
@@ -606,10 +629,10 @@ def test_manual_and_planned_runs_agree_without_sharing_observation_storage(
             np.testing.assert_array_equal(left, right)
             assert not np.shares_memory(left, right)
     for left, right in (
-        (first_evidence.fluid_cells, second_evidence.fluid_cells),
+        (first_evidence.domains[0].cells, second_evidence.domains[0].cells),
         (
-            first_evidence.states[-1].fluid_action,
-            second_evidence.states[-1].fluid_action,
+            first_evidence.states[-1].interface_actions[0].endpoint_actions,
+            second_evidence.states[-1].interface_actions[0].endpoint_actions,
         ),
     ):
         np.testing.assert_array_equal(left, right)
@@ -625,10 +648,10 @@ def test_observation_arrays_survive_result_deletion() -> None:
     arrays = (
         trajectory.coordinates,
         trajectory.cells,
-        state.field(plan.capability.fluid_velocity).values("vertex"),
-        state.field(plan.capability.pressure).values("vertex"),
-        state.field(plan.fields[3]).values("vertex"),
-        state_evidence.fluid_action,
+        state.field(model.field("definition.fluid_velocity")).values("vertex"),
+        state.field(model.field("definition.fluid_pressure")).values("vertex"),
+        state.field(model.field("definition.solid_displacement")).values("vertex"),
+        state_evidence.interface_actions[0].endpoint_actions,
     )
     del state_evidence, evidence, state, trajectory, result, plan, model
     gc.collect()
@@ -681,7 +704,10 @@ plan = eqiora.resolve(
         maximum_iterations=20000,
     ),
 )
-fv, fp, sv, sd = plan.fields
+fv = model.field("definition.fluid_velocity")
+fp = model.field("definition.fluid_pressure")
+sv = model.field("definition.solid_velocity")
+sd = model.field("definition.solid_displacement")
 state = eqiora.State.initial(plan, time_s=0.0, fields=(
     eqiora.InitialField(fv, vertex_values=[[0.0, 0.0]] * 6,
                         cell_values=[[0.0, 0.0]] * 4),
@@ -698,7 +724,7 @@ state = eqiora.State.initial(plan, time_s=0.0, fields=(
 result = eqiora.run(plan, state=state, steps=2, output_steps=(1, 2))
 evidence = eqiora.fsi.evidence(result)
 assert "numpy" not in sys.modules
-_ = evidence.fluid_cells
+_ = evidence.domains[0].cells
 assert "numpy" in sys.modules
 """,
         encoding="utf-8",

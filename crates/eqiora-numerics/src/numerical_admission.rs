@@ -894,6 +894,7 @@ mod derived;
 mod elasticity;
 mod formulation;
 mod fsi;
+pub use fsi::{CommonFsiConnectionInventory, CommonFsiDomainInventory};
 mod mesh_artifact;
 mod native;
 mod plan_artifact;

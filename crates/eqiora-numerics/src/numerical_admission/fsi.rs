@@ -1,6 +1,46 @@
 use super::*;
 use eqiora_core::{Id, entity::kinds};
 
+/// Exact Domain support retained by one common FSI Plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommonFsiDomainInventory {
+    domain: Id<kinds::Domain>,
+    cells: Vec<usize>,
+}
+
+impl CommonFsiDomainInventory {
+    /// Exact Semantic Domain.
+    #[must_use]
+    pub const fn domain(&self) -> Id<kinds::Domain> {
+        self.domain
+    }
+    /// Exact cell indices owned by the Domain.
+    #[must_use]
+    pub fn cells(&self) -> &[usize] {
+        &self.cells
+    }
+}
+
+/// Exact Connection topology retained by one common FSI Plan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommonFsiConnectionInventory {
+    quotient: eqiora_realization::ConformingTraceQuotient,
+    facets: Vec<[usize; 2]>,
+}
+
+impl CommonFsiConnectionInventory {
+    /// Exact Connection and its two Domain/Field endpoints.
+    #[must_use]
+    pub const fn quotient(&self) -> eqiora_realization::ConformingTraceQuotient {
+        self.quotient
+    }
+    /// Exact oriented trace facet connectivity.
+    #[must_use]
+    pub fn facets(&self) -> &[[usize; 2]] {
+        &self.facets
+    }
+}
+
 pub(super) struct PreparedCommonFsiExecution<'a> {
     plan: &'a CommonFsiPlan,
     backend: super::native::ProfileCheckedBackend<'a>,
@@ -617,6 +657,41 @@ impl CommonFsiPlan {
     #[must_use]
     pub fn domain_ids(&self) -> &[String] {
         &self.domain_ids
+    }
+    /// Exact Domain and cell inventories represented by this Plan.
+    pub fn domain_cell_inventories(&self) -> impl Iterator<Item = CommonFsiDomainInventory> + '_ {
+        self.resolved
+            .plan()
+            .spatial()
+            .domains()
+            .iter()
+            .map(|domain| {
+                let id = domain.domain();
+                let cells = self
+                    .partition
+                    .domain_cells(id)
+                    .expect("resolved FSI Domain has authenticated cell support")
+                    .iter()
+                    .map(|cell| cell.index())
+                    .collect();
+                CommonFsiDomainInventory { domain: id, cells }
+            })
+    }
+    /// Exact Connection endpoints and oriented facet connectivity represented by this Plan.
+    pub fn connection_inventories(&self) -> Result<Vec<CommonFsiConnectionInventory>, Diagnostic> {
+        self.resolved
+            .plan()
+            .spatial()
+            .trace_quotients()
+            .iter()
+            .copied()
+            .map(|quotient| {
+                Ok(CommonFsiConnectionInventory {
+                    quotient,
+                    facets: self.interface_facet_vertices(quotient.connection())?,
+                })
+            })
+            .collect()
     }
     pub(super) fn scoped_spatial_policies(&self) -> Vec<(Id<kinds::Domain>, CommonSpatialPolicy)> {
         self.resolved
