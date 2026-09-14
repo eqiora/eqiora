@@ -35,9 +35,7 @@ impl PrimalGalerkinCorrespondence {
             .collect::<Vec<_>>();
         boundaries.sort();
         if authored.zero_on() != boundaries {
-            return Err(
-                "test zero_on restriction differs from the complete homogeneous-essential boundary",
-            );
+            return Err("test zero_on restriction differs from the complete essential boundary");
         }
         if authored.implication() != "strong-implies-weak"
             || !authored.assumptions().iter().map(String::as_str).eq(self
@@ -82,14 +80,13 @@ impl PrimalGalerkinCorrespondence {
             || self.formulation.kind != FormulationKind::PrimalGalerkin
             || self.formulation.trial != source.unknown
             || self.formulation.test != source.unknown
-            || self.formulation.boundary_treatment
-                != BoundaryTreatment::CompleteHomogeneousEssential
+            || self.formulation.boundary_treatment != BoundaryTreatment::CompleteEssential
             || !matches!(
                 self.formulation.rules,
                 [
                     FormulationRule::TestPairing,
                     FormulationRule::DivergenceByParts,
-                    FormulationRule::HomogeneousEssentialDischarge,
+                    FormulationRule::ZeroTestTraceDischarge,
                     FormulationRule::SourcePairing,
                 ]
             )
@@ -124,7 +121,7 @@ impl PrimalGalerkinCorrespondence {
         for boundary in source.boundaries {
             check_entry(
                 entries.next(),
-                HOMOGENEOUS_ESSENTIAL_DISCHARGE,
+                ZERO_TEST_TRACE_DISCHARGE,
                 boundary.relation,
                 boundary.trace_node,
                 WeakTermSlot::Boundary {

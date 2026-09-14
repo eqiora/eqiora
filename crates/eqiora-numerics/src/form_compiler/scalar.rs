@@ -22,12 +22,14 @@ use crate::form_compiler::vocabulary::{
 };
 
 mod authored;
+mod recognition;
 #[cfg(test)]
 use crate::form_compiler::{
-    DIVERGENCE_BY_PARTS, HOMOGENEOUS_ESSENTIAL_DISCHARGE, MatrixSlot, SOURCE_PAIRING, TEST_PAIRING,
-    WeakSign, WeakTermSlot,
+    DIVERGENCE_BY_PARTS, MatrixSlot, SOURCE_PAIRING, TEST_PAIRING, WeakSign, WeakTermSlot,
+    ZERO_TEST_TRACE_DISCHARGE,
 };
 pub(crate) use authored::admit as admit_authored_scalar_primal_form;
+use recognition::{recognize_essential_trace, recognize_volume, validate_source_expression};
 
 const MAX_DAG_NODES: usize = 4_096;
 const MAX_DERIVATIVE_ORDER: usize = 1;
@@ -434,7 +436,7 @@ fn boundary_inventory(
         }
         let relation = relations[0];
         let typed = typed_relation(program, relation)?;
-        let Some(nodes) = recognize_homogeneous_trace(typed.expression(), relation, field)? else {
+        let Some(nodes) = recognize_essential_trace(typed.expression(), relation, field)? else {
             return Ok(None);
         };
         validate_expression(&typed, relation, field)?;
@@ -458,9 +460,7 @@ fn boundary_inventory(
     if by_side.len() != expected.len() || expected.iter().any(|side| !by_side.contains_key(side)) {
         return Err(role_error(
             parent,
-            format!(
-                "compiled Q1 requires one homogeneous essential Relation on every {dimension}D box side"
-            ),
+            format!("compiled Q1 requires one essential Relation on every {dimension}D box side"),
         ));
     }
     Ok(Some(expected.iter().map(|side| by_side[side]).collect()))
@@ -553,7 +553,7 @@ pub(super) fn require_closed_dag(expression: &ExprDag, owner: RawId) -> Result<(
     Ok(())
 }
 
-fn push_operands(node: &ExprNode, pending: &mut Vec<ExprId>) {
+pub(super) fn push_operands(node: &ExprNode, pending: &mut Vec<ExprId>) {
     match node {
         ExprNode::Neg(value)
         | ExprNode::PowI(value, _)
@@ -573,159 +573,6 @@ fn push_operands(node: &ExprNode, pending: &mut Vec<ExprId>) {
         }
         _ => {}
     }
-}
-
-fn recognize_volume(
-    expression: &ExprDag,
-    owner: RawId,
-    field: RawId,
-) -> Result<VolumeNodes, Diagnostic> {
-    let root = expression.roots()[0];
-    let Some(ExprNode::Sub(operator, source)) = expression.node(root) else {
-        return Err(certificate_error(
-            owner,
-            "volume residual must be exactly `-div(k grad(u)) - source`",
-        ));
-    };
-    let (divergence, flux, divergence_sign) = match expression.node(*operator) {
-        Some(ExprNode::Neg(divergence)) => match expression.node(*divergence) {
-            Some(ExprNode::Divergence(flux)) => {
-                (*divergence, *flux, super::vocabulary::WeakSign::Positive)
-            }
-            _ => {
-                return Err(certificate_error(
-                    owner,
-                    "negative operator must consume one divergence node",
-                ));
-            }
-        },
-        Some(ExprNode::Divergence(outward_flux)) => (
-            *operator,
-            *outward_flux,
-            super::vocabulary::WeakSign::Negative,
-        ),
-        _ => {
-            return Err(certificate_error(
-                owner,
-                "volume residual requires negative diffusion divergence",
-            ));
-        }
-    };
-    let gradients = gradient_nodes(expression, flux, field);
-    if gradients.len() != 1 {
-        return Err(certificate_error(
-            owner,
-            "constitutive flux must contain exactly one gradient of the unknown",
-        ));
-    }
-    Ok(VolumeNodes {
-        root,
-        divergence,
-        bilinear_flux: flux,
-        divergence_sign,
-        gradient: gradients[0],
-        source: *source,
-    })
-}
-
-fn gradient_nodes(expression: &ExprDag, value: ExprId, field: RawId) -> Vec<ExprId> {
-    match expression.node(value) {
-        Some(ExprNode::Gradient(argument))
-            if matches!(
-                expression.node(*argument),
-                Some(ExprNode::Symbol(SymbolRef::Field(id))) if id.erase() == field
-            ) =>
-        {
-            vec![value]
-        }
-        Some(ExprNode::Mul(left, right)) => {
-            let mut nodes = gradient_nodes(expression, *left, field);
-            nodes.extend(gradient_nodes(expression, *right, field));
-            nodes
-        }
-        _ => Vec::new(),
-    }
-}
-
-fn validate_source_expression(
-    expression: &ExprDag,
-    source: ExprId,
-    owner: RawId,
-) -> Result<(), Diagnostic> {
-    let mut pending = vec![source];
-    let mut reached = vec![false; expression.nodes().len()];
-    while let Some(value) = pending.pop() {
-        let index = usize::try_from(value.index()).expect("ExprDag indices fit usize");
-        if reached[index] {
-            continue;
-        }
-        reached[index] = true;
-        let node = expression.node(value).expect("ExprDag owns every operand");
-        if !matches!(
-            node,
-            ExprNode::Constant(_)
-                | ExprNode::Symbol(SymbolRef::Parameter(_))
-                | ExprNode::Neg(_)
-                | ExprNode::Add(_, _)
-                | ExprNode::Sub(_, _)
-                | ExprNode::Mul(_, _)
-                | ExprNode::PowI(_, _)
-                | ExprNode::SpatialCoordinate(_)
-                | ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Sin, _)
-        ) {
-            return Err(certificate_error(
-                owner,
-                "source term is not an unknown-independent scalar spatial expression",
-            ));
-        }
-        push_operands(node, &mut pending);
-    }
-    Ok(())
-}
-
-fn recognize_homogeneous_trace(
-    expression: &ExprDag,
-    owner: RawId,
-    field: RawId,
-) -> Result<Option<BoundaryNodes>, Diagnostic> {
-    if expression.roots().len() != 1 {
-        return Err(certificate_error(
-            owner,
-            "boundary Relation requires one residual root",
-        ));
-    }
-    let root = expression.roots()[0];
-    let (trace, value) = match expression.node(root) {
-        Some(ExprNode::Trace(argument)) => (*argument, None),
-        Some(ExprNode::Sub(trace, value)) => {
-            let Some(ExprNode::Trace(argument)) = expression.node(*trace) else {
-                return Ok(None);
-            };
-            (*argument, Some(*value))
-        }
-        _ => return Ok(None),
-    };
-    if !matches!(
-        expression.node(trace),
-        Some(ExprNode::Symbol(SymbolRef::Field(id))) if id.erase() == field
-    ) || value.is_some_and(|value| !is_literal_zero(expression, value))
-    {
-        return Ok(None);
-    }
-    let trace_node = match expression.node(root) {
-        Some(ExprNode::Trace(_)) => root,
-        Some(ExprNode::Sub(trace, _)) => *trace,
-        _ => unreachable!("boundary shape was matched above"),
-    };
-    Ok(Some(BoundaryNodes { trace: trace_node }))
-}
-
-fn is_literal_zero(expression: &ExprDag, value: ExprId) -> bool {
-    matches!(
-        expression.node(value),
-        Some(ExprNode::Constant(quantity)) if quantity.real_scalar_value()
-            .is_some_and(|quantity| quantity.value().to_bits() == 0.0_f64.to_bits())
-    )
 }
 
 fn validate_static_bounds(

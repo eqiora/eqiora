@@ -156,7 +156,7 @@ fn conservative_replay_binds_every_physical_role_and_closed_rule() {
     reject(|c| c.formulation.domain = relation());
     reject(|c| c.formulation.momentum_unknown = relation());
     reject(|c| c.formulation.pressure_role = relation());
-    reject(|c| c.formulation.boundary_treatment = BoundaryTreatment::CompleteHomogeneousEssential);
+    reject(|c| c.formulation.boundary_treatment = BoundaryTreatment::CompleteEssential);
     for index in 0..valid.formulation.rules.len() {
         let mut candidate = valid.clone();
         candidate.formulation.rules[index] = valid.formulation.rules[(index + 1) % 7];

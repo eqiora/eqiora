@@ -53,7 +53,7 @@ fn assert_shared_primal_galerkin(correspondence: &PrimalGalerkinCorrespondence) 
     );
     assert_eq!(
         correspondence.formulation.boundary_treatment,
-        BoundaryTreatment::CompleteHomogeneousEssential
+        BoundaryTreatment::CompleteEssential
     );
     assert_eq!(correspondence.formulation.trial, correspondence.law.unknown);
     assert_eq!(correspondence.formulation.test, correspondence.law.unknown);
@@ -62,7 +62,7 @@ fn assert_shared_primal_galerkin(correspondence: &PrimalGalerkinCorrespondence) 
         [
             FormulationRule::TestPairing,
             FormulationRule::DivergenceByParts,
-            FormulationRule::HomogeneousEssentialDischarge,
+            FormulationRule::ZeroTestTraceDischarge,
             FormulationRule::SourcePairing,
         ]
     );

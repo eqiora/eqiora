@@ -354,10 +354,7 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
         FormulationSelectionMode::Automatic
     );
     assert_eq!(exact_form.requested(), FormulationSelectionMode::Exact);
-    assert_eq!(
-        automatic_form.boundary_treatment(),
-        "complete-homogeneous-essential"
-    );
+    assert_eq!(automatic_form.boundary_treatment(), "complete-essential");
     assert_eq!(automatic_form.rule_ids().len(), 4);
     assert_eq!(
         automatic_form.selection_reason_codes(),

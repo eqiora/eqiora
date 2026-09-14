@@ -17,6 +17,6 @@ pub(crate) use scalar::{
 };
 #[cfg(test)]
 use vocabulary::{
-    DIVERGENCE_BY_PARTS, HOMOGENEOUS_ESSENTIAL_DISCHARGE, MatrixSlot, SOURCE_PAIRING, TEST_PAIRING,
-    WeakSign, WeakTermSlot,
+    DIVERGENCE_BY_PARTS, MatrixSlot, SOURCE_PAIRING, TEST_PAIRING, WeakSign, WeakTermSlot,
+    ZERO_TEST_TRACE_DISCHARGE,
 };

@@ -13,8 +13,8 @@ pub(crate) use mixed::{
 
 pub(super) const TEST_PAIRING: &str = "fem.derive.v1.test-pairing";
 pub(super) const DIVERGENCE_BY_PARTS: &str = "fem.derive.v1.divergence-by-parts";
-pub(super) const HOMOGENEOUS_ESSENTIAL_DISCHARGE: &str =
-    "fem.derive.v1.boundary-discharge.essential-homogeneous";
+pub(super) const ZERO_TEST_TRACE_DISCHARGE: &str =
+    "fem.derive.v2.boundary-discharge.zero-test-trace";
 pub(super) const SOURCE_PAIRING: &str = "fem.derive.v1.source-pairing";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,14 +50,14 @@ pub enum FormulationKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BoundaryTreatment {
-    CompleteHomogeneousEssential,
+    CompleteEssential,
     ExplicitTraceFluxLaws,
 }
 
 impl BoundaryTreatment {
     pub(crate) const fn id(self) -> &'static str {
         match self {
-            Self::CompleteHomogeneousEssential => "complete-homogeneous-essential",
+            Self::CompleteEssential => "complete-essential",
             Self::ExplicitTraceFluxLaws => "explicit-trace-flux-laws",
         }
     }
@@ -67,7 +67,7 @@ impl BoundaryTreatment {
 pub(super) enum FormulationRule {
     TestPairing,
     DivergenceByParts,
-    HomogeneousEssentialDischarge,
+    ZeroTestTraceDischarge,
     SourcePairing,
 }
 
@@ -76,7 +76,7 @@ impl FormulationRule {
         match self {
             Self::TestPairing => TEST_PAIRING,
             Self::DivergenceByParts => DIVERGENCE_BY_PARTS,
-            Self::HomogeneousEssentialDischarge => HOMOGENEOUS_ESSENTIAL_DISCHARGE,
+            Self::ZeroTestTraceDischarge => ZERO_TEST_TRACE_DISCHARGE,
             Self::SourcePairing => SOURCE_PAIRING,
         }
     }
@@ -141,7 +141,7 @@ impl PrimalGalerkinCorrespondence {
         let rules = [
             FormulationRule::TestPairing,
             FormulationRule::DivergenceByParts,
-            FormulationRule::HomogeneousEssentialDischarge,
+            FormulationRule::ZeroTestTraceDischarge,
             FormulationRule::SourcePairing,
         ];
         let mut relations = Vec::with_capacity(source.boundaries.len() + 1);
@@ -200,7 +200,7 @@ impl PrimalGalerkinCorrespondence {
                 kind: FormulationKind::PrimalGalerkin,
                 trial: source.unknown,
                 test: source.unknown,
-                boundary_treatment: BoundaryTreatment::CompleteHomogeneousEssential,
+                boundary_treatment: BoundaryTreatment::CompleteEssential,
                 zero_on: source
                     .boundaries
                     .iter()
