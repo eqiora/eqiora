@@ -1,0 +1,152 @@
+---
+title: 2. Conserving networks
+description: Derive junction conservation, separate component laws from wires, and see why a circuit needs a potential reference.
+sidebar:
+  order: 2
+---
+
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+
+## Why a wire contributes equations
+
+A resistor law relates its own voltage drop to its own current. It says nothing
+about which other component touches it. To build a circuit we need both local
+component laws and relations at connections.
+
+We will use ideal wires: negligible resistance, no charge storage at a junction,
+and one potential everywhere along a connected wire. These approximations fit
+our steady lumped circuit. They are physical choices, not numerical settings.
+
+By the end of this chapter you can write connection equations, explain ground,
+and diagnose a circuit whose voltage reference is missing.
+
+## Conservation at a connection
+
+Suppose a junction connects $n$ terminals. Define each terminal current $i_j$
+as entering its component, hence leaving the junction. Charge balance is
+
+$$
+\frac{\mathrm{d}q_{\mathrm{junction}}}{\mathrm{d}t}
+=-\sum_{j=1}^{n}i_j.
+$$
+
+Neglecting stored junction charge gives $\sum_j i_j=0$. Meanwhile the ideal
+wire imposes $\phi_1=\phi_2=\cdots=\phi_n$. These are two different kinds of
+relation: current conservation and potential compatibility. Kirchhoff's junction
+and loop rules are introduced in
+[OpenStax §10.3](https://openstax.org/books/university-physics-volume-2/pages/10-3-kirchhoffs-rules).
+
+At the divider midpoint, the negative terminal of the upper resistor connects
+to the positive terminal of the lower resistor:
+
+$$
+\phi_{1,-}=\phi_{2,+},\qquad i_{1,-}+i_{2,+}=0.
+$$
+
+Each resistor also conserves charge internally, $i_{j,+}+i_{j,-}=0$.
+Combining these relations gives $i_{1,+}=i_{2,+}$. The familiar "same current
+in series" follows from conservation; we do not need to prescribe it again.
+
+## The entire divider as a network
+
+```text
+                 top node a
+           ┌────────●────────┐
+           │                 │  I ↓
+        +  │             [ R₁ = 1 kΩ ]
+    Vs = 12 V                │
+        −  │                 ● b: output
+           │                 │  I ↓
+           │             [ R₂ = 2 kΩ ]
+           │                 │
+           └────────●────────┘
+                 node g: φg = 0 V
+```
+
+*Conceptual circuit schematic. The source sets the potential difference from g
+to a. The resistors form the other branch from a to g, with output node b between
+them. The arrows define positive resistor current.*
+
+Source and resistor laws give
+
+$$
+\phi_a-\phi_g=V_s,\qquad
+\phi_a-\phi_b=R_1I,\qquad
+\phi_b-\phi_g=R_2I.
+$$
+
+Adding the two resistor drops telescopes to $\phi_a-\phi_g$. This is why the
+loop relation is $V_s-(R_1+R_2)I=0$ in this circuit. We have derived it from
+shared node potentials and component laws.
+
+## Ground fixes an origin
+
+If $(\phi_a,\phi_b,\phi_g)=(12,8,0)$ V satisfies the three difference
+equations, then $(17,13,5)$ V also does. Adding the same constant to all node
+potentials leaves every difference unchanged. A voltmeter between two nodes
+cannot distinguish the two descriptions.
+
+Ground selects $\phi_g=0$ and removes this undetermined offset. It does not
+say that the return wire carries no current, and it does not model a physical
+earth electrode. When interpreting a measured voltage, always identify the
+other terminal: "8 V" here means 8 V relative to node g.
+
+## Read the connection syntax
+
+The next chapter will run the complete source. Its midpoint wire is simply
+
+```eqiora
+connect upper.negative, lower.positive;
+```
+
+The connector declares voltage as `across` and current as `through`. These
+declarations tell the connection to equate voltages and sum signed currents.
+They do not establish a cause-and-effect order between components. The closing
+resistor and source equations determine the simultaneous solution.
+
+<ExactSourceLink path="examples/voltage-divider/src/main.eqi" kind="blob">Open the circuit connections</ExactSourceLink>.
+For a general introduction to equation independence, see
+[algebraic relations and networks](/learn/mathematical-modeling/algebraic-relations-networks/).
+
+## Try a missing reference
+
+After running the next chapter, remove the `ground` instance and remove
+`ground.terminal` from the return connection. The differences still look
+plausible, but the node potentials have the arbitrary offset above. The
+resolution diagnostic identifies an **unreferenced uniform shift**.
+
+Restore the physical reference. Picking a different linear solver cannot
+create the missing equation.
+
+## Exercises
+
+1. Write the signed current equation where `source.positive` meets
+   `upper.positive`. If the upper current is 4 mA, what is the source current?
+2. Starting with the three difference equations, prove that a common potential
+   shift leaves all three unchanged.
+3. A third resistor carries current from the midpoint to ground. Does the
+   upper resistor still carry the same current as the original lower one?
+4. Is matching the number of unknowns and equations enough to guarantee a
+   solution? Give an example using a prescribed voltage difference.
+
+<details>
+<summary>Answer sketches</summary>
+
+1. $i_{s,+}+i_{1,+}=0$, hence $i_{s,+}=-4$ mA.
+2. Substitute $\phi'_j=\phi_j+c$. Each difference contains $+c-c=0$.
+3. No. The upper current splits: $I_1=I_2+I_{\mathrm{load}}$. Equal current
+   was a consequence of the original connection topology.
+4. No. Two repeated statements of the same difference add no independent
+   constraint. Demanding that the same difference equal both 12 V and 13 V is
+   inconsistent regardless of equation count.
+
+</details>
+
+## Reference
+
+Samuel J. Ling, William Moebs, and Jeff Sanny, *University Physics Volume 2*,
+OpenStax (2016), [§10.3, Kirchhoff's Rules](https://openstax.org/books/university-physics-volume-2/pages/10-3-kirchhoffs-rules).
+
+[Previous: Voltage, current, and power](/learn/circuits-dynamics/voltage-current-power/) ·
+[Book map](/learn/circuits-dynamics/) ·
+[Next: Build and run a divider](/learn/circuits-dynamics/resistor-divider/)
