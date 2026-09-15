@@ -1,0 +1,54 @@
+---
+title: Fluid mechanics and CFD
+description: Derive pressure, viscous flow and incompressible momentum before computing and interpreting cylinder flow.
+sidebar:
+  order: 1
+---
+
+A pressure difference drives water through a channel. A moving wall drags it
+along. An obstacle redirects the flow and can leave an alternating wake. These
+are different consequences of the same mass and momentum balances.
+
+This introductory book starts with predictions you can derive on paper. You
+then read their mathematical ingredients in maintained `.eqi` sources, run the
+existing cylinder investigation, and learn which conclusions the output supports.
+
+## Route through the book
+
+| Chapter | Question | Result you can check |
+| --- | --- | --- |
+| [1. Continuum and statics](/learn/fluid-mechanics/continuum-and-statics/) | How can motionless water exert force? | Pressure depth law and gate load |
+| [2. Mass, momentum and stress](/learn/fluid-mechanics/mass-and-momentum/) | What does a fluid region exchange with its surroundings? | Integral balances, Newtonian stress and energy loss |
+| [3. Exact parallel flows](/learn/fluid-mechanics/exact-parallel-flows/) | What fixes a velocity profile? | Couette and Poiseuille profiles, flux, shear and decay time |
+| [4. Stokes flow and boundaries](/learn/fluid-mechanics/stokes-and-boundaries/) | Which assumptions and boundaries define the cylinder model? | Read the complete maintained steady `.eqi` model |
+| [5. Computing incompressible flow](/learn/fluid-mechanics/computing-incompressible-flow/) | How do equations become a computed field? | Run the steady example and design a refinement comparison |
+| [6. Cylinder wakes](/learn/fluid-mechanics/cylinder-wakes/) | What changes when fluid carries its own momentum? | Interpret the maintained transient workflow, vorticity and force histories |
+
+First derive pressure, velocity profiles and time scales on paper. Then run the
+steady and transient cylinder examples. The final chapter connects the visible
+wake to forces, physical time and quantitative comparison.
+
+## What to bring
+
+Start here if fluid motion is your interest. You need differentiation, elementary
+integration and vectors; we explain the stress tensor when it first appears. Use
+[quantities and units](/learn/mathematical-modeling/quantities-dimensions-units/)
+and [conservation laws](/learn/mathematical-modeling/conservation-laws/) as needed.
+
+For computation, use the Linux x86-64 / CPython 3.13 source-install route in
+[Get started](/get-started/), at the exact source revision linked by this site.
+Chapter 5 adds the mesh and plotting dependencies to that installation.
+
+## Connections
+
+[Heat transfer](/learn/heat-transfer/) uses the same storage–flux–source
+accounting, with energy instead of momentum. Viscosity diffuses momentum;
+thermal conductivity diffuses heat. Their coefficients and units differ.
+[Structural mechanics](/learn/structural-mechanics/) shares traction and force
+balance, but an elastic solid relates stress to displacement strain whereas a
+Newtonian fluid relates viscous stress to velocity strain rate.
+[Numerical simulation](/learn/numerical-simulation/) develops the error and time
+integration ideas used in Chapters 5 and 6.
+
+[Begin: Continuum and statics](/learn/fluid-mechanics/continuum-and-statics/)
+· [References and further study](/learn/fluid-mechanics/references/)

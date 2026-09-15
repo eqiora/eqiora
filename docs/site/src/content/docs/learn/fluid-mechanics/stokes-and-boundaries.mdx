@@ -1,0 +1,141 @@
+---
+title: 4. Stokes flow and boundaries
+description: Scale momentum, choose a creeping-flow model and read its complete Eqiora equations and boundary laws.
+sidebar:
+  order: 5
+---
+
+import { Code } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import source from '../../../../../../../examples/steady-flow-past-cylinder.eqi?raw';
+import geometryDiagram from '../../../../assets/gallery/exact-cylinder-geometry.svg';
+
+## The question
+
+Place a cylinder inside the channel. The flow must turn around it, so the
+parallel-flow calculation no longer applies. Which terms should we retain,
+and what does the outlet mean physically?
+
+## Compare inertia with viscosity
+
+Choose a speed $U$ and length $L$. Advective inertia scales as $\rho U^2/L$,
+while viscous force per volume scales as $\mu U/L^2$. Their ratio is
+
+$$
+\mathrm{Re}=\frac{\rho UL}{\mu}=\frac{UL}{\nu}.
+$$
+
+At small Reynolds number, for a steady flow, neglecting inertia leaves
+
+$$
+-\nabla\cdot\boldsymbol\sigma=\boldsymbol f,
+\qquad \nabla\cdot\boldsymbol u=0,
+\qquad \boldsymbol\sigma=2\mu\operatorname{sym}(\nabla\boldsymbol u)-p\boldsymbol I.
+$$
+
+These are the steady Stokes equations. Small Reynolds number alone does not
+justify neglecting rapid temporal changes: on an imposed time scale $T$, the
+unsteady-to-viscous ratio is $L^2/(\nu T)$. A rapidly oscillating low-speed flow
+may need unsteady Stokes equations.
+
+For a homogeneous Stokes boundary problem driven only by an imposed inlet
+velocity, doubling that velocity doubles velocity and pressure; changing
+viscosity scales pressure while leaving the velocity solution unchanged.
+The traction data must scale consistently. This linearity provides a useful
+prediction even when the full spatial field has no simple formula.
+
+## Define the geometry and boundaries
+
+<figure>
+<img src={geometryDiagram.src} alt="Channel of length 2.2 m and height 0.41 m, with a circular cylinder of radius 0.05 m centred at 0.2 m, 0.2 m; inlet left, outlet right, stationary walls above and below." />
+<figcaption>The geometry supplies named regions to which the mathematical boundary laws attach.</figcaption>
+</figure>
+
+The maintained steady example chooses the inlet profile
+
+$$
+\boldsymbol u_{\rm in}(y)=\left(\frac{4U_{\max}y(H-y)}{H^2},0\right),
+\qquad U_{\max}=0.3\,\mathrm{m/s},\quad H=0.41\,\mathrm m.
+$$
+
+From Chapter 3, the mean inlet speed is $0.2\,\mathrm{m/s}$ and the volume flux
+per unit span is $0.082\,\mathrm{m^2/s}$. Steady incompressibility requires the
+same integrated outlet flux. These values are available before any solve.
+
+At the cylinder and walls, no slip sets $\boldsymbol u=0$. At the outlet,
+$\boldsymbol\sigma\boldsymbol n=0$ prescribes a traction. It does **not**
+separately impose both $p=0$ and zero velocity gradient. The pressure and viscous
+contributions combine to satisfy the one vector condition.
+
+The Stokes model contains no density parameter. It deliberately omits inertia;
+entering a large inlet speed does not add that missing term. Use a density and
+physical scales to assess applicability before treating a Stokes result as a
+prediction for an actual fluid.
+
+## Write the mathematics in Eqiora
+
+The complete maintained source expresses precisely those fields and laws:
+
+<Code code={source} lang="eqiora" title="steady-flow-past-cylinder.eqi" />
+
+Read it from the inside out:
+
+1. `velocity` and `pressure` are unknown fields on the fluid region. Their
+   dimensions are part of their declarations.
+2. `symmetric_part(grad(velocity))` is $\boldsymbol D$;
+   `isotropic_lift(pressure)` is $p\boldsymbol I$.
+3. `force_potential` has pressure units. Its gradient supplies a volume force.
+   Here it is constant, so that force is zero. It is not the pressure unknown.
+4. `trace` restricts a field to a boundary and `normal` contracts with the
+   parent region's outward normal.
+5. At the left inlet $\boldsymbol n=(-1,0)$, so
+   `trace(velocity) + normal(isotropic_lift(inlet_profile)) = 0`
+   prescribes a positive streamwise velocity. The plus sign is intentional.
+
+<ExactSourceLink path="examples/steady-flow-past-cylinder.eqi" kind="blob">Open the complete source</ExactSourceLink>.
+The source names supports but does not define a circle or a mesh. The Python
+workflow supplies the geometry and binds each support to its named selection.
+
+## Recognize the reusable law
+
+Now that you have assembled the equations, open
+<ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi" kind="blob">the incompressible standard source</ExactSourceLink>.
+Its `SteadyStokesWithPotential2d` component packages the same momentum and
+incompressibility relations. A containing model binds its support, fields and
+viscosity to those arguments; geometry and boundary conditions still belong to
+the containing problem.
+
+The general
+<ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Fluid/src/fluid.eqi" kind="blob">fluid source</ExactSourceLink>
+also separates the balance from velocity/traction interfaces and wall laws.
+This is what reuse buys: you can read a named law as an abbreviation for equations
+you already understand. Use the
+[standard-package reference](/reference/standard-packages/continuum/) for the
+current composition and source-loading instructions. The cylinder example keeps
+the direct equations visible, so it remains a convenient place to study each term.
+
+## Pressure gauge: a boundary-dependent question
+
+With prescribed velocity everywhere, adding a constant to pressure changes no
+interior pressure gradient. A pressure reference is then needed. A prescribed
+traction changes by $-C\boldsymbol n$ under $p\mapsto p+C$; it can fix that
+freedom. Do not introduce an extra arbitrary pressure condition without first
+checking what the existing boundary laws already determine.
+
+## Exercises
+
+1. Integrate the inlet parabola and recover $0.082\,\mathrm{m^2/s}$.
+2. At a right-hand boundary, what velocity direction would the same normal-inlet
+   relation prescribe? Explain using its outward normal.
+3. Which part of the source changes when a wall moves? Which part changes when
+   viscosity depends on shear rate?
+4. Why can the steady source not produce a time-evolving vortex street, however
+   fine its mesh becomes?
+
+**Check your reasoning.** A right-hand normal inlet points left into the region.
+Moving a wall changes a boundary law; non-Newtonian viscosity changes the
+constitutive law. Mesh refinement cannot introduce terms absent from the model.
+
+[Previous: Exact parallel flows](/learn/fluid-mechanics/exact-parallel-flows/) ·
+[Book map](/learn/fluid-mechanics/) ·
+[Next: Computing incompressible flow](/learn/fluid-mechanics/computing-incompressible-flow/)

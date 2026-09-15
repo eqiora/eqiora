@@ -1,0 +1,127 @@
+---
+title: 1. Continuum and statics
+description: Define density, pressure and viscosity, then derive hydrostatic pressure and the load on a submerged gate.
+sidebar:
+  order: 2
+---
+
+## The question
+
+A tank is motionless, yet the pressure on its wall grows with depth. Before
+simulating moving water, predict that pressure and the force on a vertical gate.
+This establishes the sign and units of the stresses we will later compute.
+
+## A small region containing many molecules
+
+A continuum model assigns density $\rho$, velocity $\boldsymbol u$ and pressure
+$p$ to points. A point represents an average over a region containing many
+molecules, small compared with the length on which the flow varies. The model
+loses this interpretation if molecular scales become comparable to the geometry.
+
+For the initial route, assume a single Newtonian fluid with constant density and
+viscosity, no free-surface motion and no temperature dependence. These assumptions
+are suitable for studying the equations; they must be reconsidered for a boiling
+liquid, a rarefied gas or a strongly compressible flow.
+
+| Quantity | Meaning | SI unit |
+| --- | --- | --- |
+| $\rho$ | Mass per volume | $\mathrm{kg/m^3}$ |
+| $p$ | Isotropic compressive stress | $\mathrm{Pa=kg/(m\,s^2)}$ |
+| $\mu$ | Dynamic viscosity | $\mathrm{Pa\,s}$ |
+| $\nu=\mu/\rho$ | Momentum diffusivity | $\mathrm{m^2/s}$ |
+
+Pressure and viscosity are different physical quantities. Pressure can exist at
+rest. A Newtonian viscous stress requires a velocity gradient, as we derive in
+[Chapter 2](/learn/fluid-mechanics/mass-and-momentum/).
+
+## Balance a horizontal slice
+
+Choose $z$ upward and gravitational acceleration $\boldsymbol g=-g\boldsymbol e_z$.
+Take a stationary slice of area $A$ and height $\mathrm dz$. Pressure below pushes
+upward, pressure above pushes downward, and weight acts downward:
+
+$$
+p(z)A-p(z+\mathrm dz)A-\rho gA\,\mathrm dz=0.
+$$
+
+Dividing by $A\,\mathrm dz$ and taking the limit gives
+
+$$
+\frac{\mathrm dp}{\mathrm dz}=-\rho g.
+$$
+
+If the free surface is at $z=H$ and has pressure $p_{\rm atm}$, then
+
+$$
+p(z)=p_{\rm atm}+\rho g(H-z).
+$$
+
+<figure>
+<pre aria-label="Hydrostatic column with depth increasing downward">{`surface z = H: p = p_atm
+       │
+       │ depth h = H − z       gravity ↓
+       │
+point  z:     p = p_atm + ρgh
+       │
+bottom z = 0: p = p_atm + ρgH`}</pre>
+<figcaption>Depth increases downward while the chosen coordinate increases upward.</figcaption>
+</figure>
+
+For an illustrative constant density $1000\,\mathrm{kg/m^3}$ and
+$g=9.81\,\mathrm{m/s^2}$, the gauge pressure one metre below the surface is
+$9810\,\mathrm{Pa}$. This value follows from the balance and chosen inputs;
+it is not a numerical-solver result.
+
+## Integrate the load
+
+Consider a vertical rectangular gate of width $b$, extending from the surface
+to depth $H$, with atmospheric pressure on its other side. At depth $h$, the
+net force on a strip of height $\mathrm dh$ is
+$\mathrm dF=\rho ghb\,\mathrm dh$. Therefore
+
+$$
+F=\int_0^H\rho ghb\,\mathrm dh=\frac{\rho gbH^2}{2}.
+$$
+
+The depth of the resultant follows by equating moments about the surface:
+
+$$
+h_{\rm cp}=\frac{\int_0^H h\,\mathrm dF}{F}=\frac{2H}{3}.
+$$
+
+For $b=H=1\,\mathrm m$, the load is $4905\,\mathrm N$, acting two thirds of
+a metre below the surface. The resultant lies below the midpoint because the
+lower strips carry larger loads.
+
+## Pressure reference and physical pressure
+
+Gauge pressure subtracts a reference. When both sides of the gate see the same
+atmosphere, that contribution cancels in the net force. It would not cancel if
+the back side were evacuated. A constant shift in a mathematical pressure
+unknown is harmless only when the problem's boundary data permit the same shift.
+Absolute pressure also matters for physical questions such as cavitation, outside
+this incompressible teaching model.
+
+The cylinder workflow later uses a prescribed outlet traction. Do not add an
+arbitrary pressure shift while holding that traction fixed: you would change the
+boundary-value problem.
+
+## Try it and diagnose a failure
+
+1. Double the liquid depth. Predict the bottom gauge pressure and gate force.
+2. Integrate the pressure over a gate extending from depths $h_0$ to $h_1$.
+3. Replace the upward coordinate with downward depth. Derive the pressure
+   derivative again before writing a sign.
+4. Someone multiplies bottom pressure by the whole gate area. Why is the result
+   wrong, and by what factor for a gate starting at the surface?
+
+**Check your reasoning.** In exercise 1, pressure doubles and force quadruples.
+In exercise 4, the result is twice the correct force because the mean gauge
+pressure is half the bottom value. These are checks of the model, independent
+of mesh or software.
+
+For the continuum framework and equilibrium reasoning, consult the instructor's
+[fluid mechanics notes](https://davidtong.org/teaching/fluid-mechanics/).
+
+[Book map](/learn/fluid-mechanics/) ·
+[Next: Mass, momentum and stress](/learn/fluid-mechanics/mass-and-momentum/)

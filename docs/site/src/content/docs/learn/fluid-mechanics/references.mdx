@@ -1,0 +1,45 @@
+---
+title: References and further study
+description: Original teaching sources, the MINI-element paper and the cylinder comparison specification used by this introductory fluid-mechanics route.
+sidebar:
+  order: 8
+---
+
+## Physical derivations
+
+- [David Tong, Fluid Mechanics](https://davidtong.org/teaching/fluid-mechanics/).
+  Author-maintained undergraduate lecture notes. Use the continuum, stress and
+  Navier–Stokes discussions alongside Chapters 1–4; the course also develops
+  vorticity and topics beyond this introductory route.
+- [MIT OpenCourseWare, Couette & Poiseuille Flows](https://ocw.mit.edu/courses/2-25-advanced-fluid-mechanics-fall-2013/resources/mit2_25f13_couet_and_pois/),
+  *2.25 Advanced Fluid Mechanics*, Fall 2013. Original course material for the
+  wall-driven and pressure-driven experiments in Chapter 3.
+
+## Numerical method and comparison problem
+
+- D. N. Arnold, F. Brezzi and M. Fortin,
+  [A stable finite element for the Stokes equations](https://doi.org/10.1007/BF02576171),
+  *Calcolo* **21**, 337–344 (1984). Original paper introducing the enriched
+  velocity/linear-pressure element discussed in Chapter 5.
+- [FeatFlow, DFG benchmark 2D-2: Reynolds-100 periodic cylinder flow](https://wwwold.mathematik.tu-dortmund.de/~featflow/en/benchmarks/cfdbenchmarking/flow/dfg_benchmark2_re100.html).
+  The maintained specification defines geometry, inlet normalization, outlet,
+  force observations, temporal measurement procedure and reference calculations.
+  Read the setup before comparing a force or Strouhal value.
+
+## Continue by the question you want to answer
+
+- **How does heat spread or move with a fluid?** Start
+  [heat transfer](/learn/heat-transfer/). Compare momentum diffusivity with thermal
+  diffusivity before adding a transport analogy.
+- **How does a solid resist the fluid load?** Start
+  [structural mechanics](/learn/structural-mechanics/). The traction is shared;
+  the constitutive law and primary unknown are different.
+- **How should I judge a computed number?** Continue with
+  [numerical simulation](/learn/numerical-simulation/) for errors, convergence
+  and time integration.
+- **Which assumptions belong in a model?** Use
+  [mathematical modeling](/learn/mathematical-modeling/) as a companion reference,
+  especially its balance, constitutive-law and boundary chapters.
+
+[Previous: Cylinder wakes](/learn/fluid-mechanics/cylinder-wakes/) ·
+[Book map](/learn/fluid-mechanics/)
