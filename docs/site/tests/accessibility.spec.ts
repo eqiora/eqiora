@@ -264,7 +264,7 @@ test('00D exact real Rustdoc Diagnostic ordinary chunk is complete and green', a
   test.setTimeout(300_000);
   const plan = createOrdinaryRoutePlan();
   expect(assertOrdinaryRoutePlan(plan)).toEqual([...SITE_ROUTES]);
-  expect(ROUTES).toHaveLength(61);
+  expect(new Set(ROUTES).size).toBe(SITE_ROUTES.length + 1);
   const context = await browser.newContext({
     baseURL: BASE_URL,
     locale: 'en-GB',
