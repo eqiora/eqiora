@@ -10,7 +10,7 @@ import pytest
 import eqiora.colab as colab
 
 
-def identities(*, eqiora_version: str = "0.1.1") -> dict[str, object]:
+def identities(*, eqiora_version: str = "0.1.2") -> dict[str, object]:
     return {
         "eqiora": colab._Identity(eqiora_version, "/site/eqiora/__init__.py"),
         "numpy": colab._Identity("2.3.3", "/site/numpy/__init__.py"),
@@ -62,7 +62,7 @@ def test_prepare_enables_colab_viewer_and_provides_missing_glu(capsys) -> None:
     enable.assert_called_once_with()
     diagnostic = capsys.readouterr().out
     assert "'colab': True" in diagnostic
-    assert "'version': '0.1.1'" in diagnostic
+    assert "'version': '0.1.2'" in diagnostic
     assert "'anywidget': {'installed': {'version': '0.11.0'" in diagnostic
     assert "'gmsh': {'installed': {'version': '4.15.2'" in diagnostic
 
@@ -114,7 +114,7 @@ def test_prepare_restarts_colab_when_loaded_eqiora_is_not_installed_eqiora(
 def test_prepare_requires_manual_restart_outside_colab_on_identity_conflict() -> None:
     installed = identities()
     loaded = {
-        "eqiora": colab._Identity("0.1.1", "/old/eqiora/__init__.py"),
+        "eqiora": colab._Identity("0.1.2", "/old/eqiora/__init__.py"),
         "anywidget": installed["anywidget"],
     }
     with (
@@ -167,7 +167,7 @@ def test_installed_identity_uses_each_modules_owning_distribution() -> None:
     packages = {
         name: SimpleNamespace(
             version={
-                "eqiora": "0.1.1",
+                "eqiora": "0.1.2",
                 "numpy": "2.3.3",
                 "gmsh": "4.15.2",
                 "anywidget": "0.11.0",

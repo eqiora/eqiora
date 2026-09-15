@@ -1,7 +1,30 @@
 # Release notes
 
-Eqiora `0.1.1` is the current release. APIs and saved-file formats may change
+Eqiora `0.1.2` is the current release. APIs and saved-file formats may change
 before 1.0; review the changes below when upgrading.
+
+## 0.1.2 — Reynolds-100 Kármán wake and bounded profiling
+
+Eqiora 0.1.2 replaces the short symmetric cylinder startup with a completed
+Reynolds-100 Kármán vortex-street workflow. The Python script and Colab notebook
+advance through a 7 s spin-up and a 2 s sampled window, then expose vorticity,
+drag and lift coefficients, pressure difference, and a sampled Strouhal number.
+The README and Gallery use motion from the same successful 900-step run. The
+example remains explicitly outside benchmark validation because its MINI/P1 and
+Backward Euler discretization has no mesh or time-step refinement study.
+
+`View.add()` now accepts scalar cell-associated `DerivedFieldSnapshot` values,
+including `State.curl(...)`. Long profiled runs retain complete phase counts and
+timings while coalescing repeated aggregate-only event records, preventing local
+assembly spans from growing memory with every cell evaluation.
+
+Transient MINI plans now reject nested linear tolerances that could accept a
+zero Newton correction above the nonlinear target. Existing pre-1.0 callers
+must set the linear absolute tolerance no larger than the nonlinear absolute
+tolerance; the maintained workflow uses `1e-12`.
+
+The published wheel family remains ordinary-GIL CPython 3.11–3.14 on Linux
+x86-64. macOS and Windows wheels remain outside this release.
 
 ## 0.1.1 — shared notebook Viewer and compact Colab setup
 

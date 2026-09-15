@@ -6,6 +6,8 @@ are recorded here.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-15
+
 ### Added
 
 - Replaced the short cylinder-startup showcase with a Reynolds-100 Kármán
@@ -22,6 +24,9 @@ are recorded here.
 
 ### Fixed
 
+- Restricted the ordinary periodic verification gate to the declared
+  `host-cpu` evidence environment, while still validating and reporting
+  physical MPI-CUDA cases as not selected unless that environment is requested.
 - Rejected nested Newton linear tolerances that could accept a zero correction
   above the nonlinear target, and made line-search exhaustion report its best
   attempted residual and scale.
@@ -31,6 +36,9 @@ are recorded here.
 - Allowed `eqiora.View.add()` to accept scalar cell-associated
   `DerivedFieldSnapshot` values such as `State.curl(...)`, completing the
   maintained Colab wake presentation.
+- Kept the Kármán example, notebook, site sources, and media in isolated
+  source-distribution consumer tests, and corrected the View stub's derived
+  field type import.
 
 ## [0.1.1] - 2026-09-14
 
@@ -574,7 +582,8 @@ Detailed claims and nonclaims are the responsibility of the
 [capability matrix](docs/capability-matrix.md) and registered
 [`verify/`](verify/) cases rather than this summary.
 
-[Unreleased]: https://github.com/nkiyohara/eqiora/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/nkiyohara/eqiora/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.2
 [0.1.1]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.1
 [0.1.0]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0
 [0.1.0a14]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0a14

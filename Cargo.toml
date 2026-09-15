@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*", "tools/xtask"]
 
 [workspace.package]
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/nkiyohara/eqiora"
@@ -94,41 +94,41 @@ tracing = { version = "=0.1.44", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "=0.3.23", default-features = false, features = ["registry"] }
 
 # Internal crates (see docs/architecture.md#dependency-layers and `cargo xtask check-layers`)
-eqiora = { version = "0.1.1", path = "crates/eqiora" }
-eqiora-api = { version = "0.1.1", path = "crates/eqiora-api" }
-eqiora-assembly = { version = "0.1.1", path = "crates/eqiora-assembly" }
-eqiora-core = { version = "0.1.1", path = "crates/eqiora-core" }
-eqiora-compiler = { version = "0.1.1", path = "crates/eqiora-compiler" }
-eqiora-schema = { version = "0.1.1", path = "crates/eqiora-schema" }
-eqiora-graph = { version = "0.1.1", path = "crates/eqiora-graph" }
-eqiora-geometry = { version = "0.1.1", path = "crates/eqiora-geometry" }
-eqiora-ir = { version = "0.1.1", path = "crates/eqiora-ir" }
-eqiora-io-gmsh = { version = "0.1.1", path = "crates/eqiora-io-gmsh" }
-eqiora-io-hdf5 = { version = "0.1.1", path = "crates/eqiora-io-hdf5" }
-eqiora-io-vtu = { version = "0.1.1", path = "crates/eqiora-io-vtu" }
-eqiora-io-xdmf = { version = "0.1.1", path = "crates/eqiora-io-xdmf" }
-eqiora-cad-truck = { version = "0.1.1", path = "crates/eqiora-cad-truck" }
-eqiora-lang = { version = "0.1.1", path = "crates/eqiora-lang" }
-eqiora-meshing = { version = "0.1.1", path = "crates/eqiora-meshing" }
-eqiora-numerics = { version = "0.1.1", path = "crates/eqiora-numerics" }
-eqiora-package = { version = "0.1.1", path = "crates/eqiora-package" }
-eqiora-runtime = { version = "0.1.1", path = "crates/eqiora-runtime" }
-eqiora-sem = { version = "0.1.1", path = "crates/eqiora-sem" }
-eqiora-artifact = { version = "0.1.1", path = "crates/eqiora-artifact" }
-eqiora-backend-faer = { version = "0.1.1", path = "crates/eqiora-backend-faer" }
-eqiora-backend-mpi = { version = "0.1.1", path = "crates/eqiora-backend-mpi" }
-eqiora-backend-mpi-cuda = { version = "0.1.1", path = "crates/eqiora-backend-mpi-cuda" }
-eqiora-backend-diffsol = { version = "0.1.1", path = "crates/eqiora-backend-diffsol" }
-eqiora-backend-cuda = { version = "0.1.1", path = "crates/eqiora-backend-cuda" }
-eqiora-differentiation = { version = "0.1.1", path = "crates/eqiora-differentiation" }
-eqiora-device = { version = "0.1.1", path = "crates/eqiora-device" }
-eqiora-distributed = { version = "0.1.1", path = "crates/eqiora-distributed" }
-eqiora-execution = { version = "0.1.1", path = "crates/eqiora-execution" }
-eqiora-backend-rayon = { version = "0.1.1", path = "crates/eqiora-backend-rayon" }
-eqiora-realization = { version = "0.1.1", path = "crates/eqiora-realization" }
-eqiora-solver = { version = "0.1.1", path = "crates/eqiora-solver" }
-eqiora-spatial-distribution = { version = "0.1.1", path = "crates/eqiora-spatial-distribution" }
-eqiora-time = { version = "0.1.1", path = "crates/eqiora-time" }
+eqiora = { version = "0.1.2", path = "crates/eqiora" }
+eqiora-api = { version = "0.1.2", path = "crates/eqiora-api" }
+eqiora-assembly = { version = "0.1.2", path = "crates/eqiora-assembly" }
+eqiora-core = { version = "0.1.2", path = "crates/eqiora-core" }
+eqiora-compiler = { version = "0.1.2", path = "crates/eqiora-compiler" }
+eqiora-schema = { version = "0.1.2", path = "crates/eqiora-schema" }
+eqiora-graph = { version = "0.1.2", path = "crates/eqiora-graph" }
+eqiora-geometry = { version = "0.1.2", path = "crates/eqiora-geometry" }
+eqiora-ir = { version = "0.1.2", path = "crates/eqiora-ir" }
+eqiora-io-gmsh = { version = "0.1.2", path = "crates/eqiora-io-gmsh" }
+eqiora-io-hdf5 = { version = "0.1.2", path = "crates/eqiora-io-hdf5" }
+eqiora-io-vtu = { version = "0.1.2", path = "crates/eqiora-io-vtu" }
+eqiora-io-xdmf = { version = "0.1.2", path = "crates/eqiora-io-xdmf" }
+eqiora-cad-truck = { version = "0.1.2", path = "crates/eqiora-cad-truck" }
+eqiora-lang = { version = "0.1.2", path = "crates/eqiora-lang" }
+eqiora-meshing = { version = "0.1.2", path = "crates/eqiora-meshing" }
+eqiora-numerics = { version = "0.1.2", path = "crates/eqiora-numerics" }
+eqiora-package = { version = "0.1.2", path = "crates/eqiora-package" }
+eqiora-runtime = { version = "0.1.2", path = "crates/eqiora-runtime" }
+eqiora-sem = { version = "0.1.2", path = "crates/eqiora-sem" }
+eqiora-artifact = { version = "0.1.2", path = "crates/eqiora-artifact" }
+eqiora-backend-faer = { version = "0.1.2", path = "crates/eqiora-backend-faer" }
+eqiora-backend-mpi = { version = "0.1.2", path = "crates/eqiora-backend-mpi" }
+eqiora-backend-mpi-cuda = { version = "0.1.2", path = "crates/eqiora-backend-mpi-cuda" }
+eqiora-backend-diffsol = { version = "0.1.2", path = "crates/eqiora-backend-diffsol" }
+eqiora-backend-cuda = { version = "0.1.2", path = "crates/eqiora-backend-cuda" }
+eqiora-differentiation = { version = "0.1.2", path = "crates/eqiora-differentiation" }
+eqiora-device = { version = "0.1.2", path = "crates/eqiora-device" }
+eqiora-distributed = { version = "0.1.2", path = "crates/eqiora-distributed" }
+eqiora-execution = { version = "0.1.2", path = "crates/eqiora-execution" }
+eqiora-backend-rayon = { version = "0.1.2", path = "crates/eqiora-backend-rayon" }
+eqiora-realization = { version = "0.1.2", path = "crates/eqiora-realization" }
+eqiora-solver = { version = "0.1.2", path = "crates/eqiora-solver" }
+eqiora-spatial-distribution = { version = "0.1.2", path = "crates/eqiora-spatial-distribution" }
+eqiora-time = { version = "0.1.2", path = "crates/eqiora-time" }
 
 [workspace.lints.rust]
 # Unsafe code is confined to dedicated modules with `// SAFETY:` comments.

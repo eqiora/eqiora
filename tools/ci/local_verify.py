@@ -438,7 +438,9 @@ def build_plan(
                 "-p",
                 "eqiora-verify",
                 "--",
-                "verify",
+                "run",
+                "--environment",
+                "host-cpu",
                 lane=ROOT_CARGO_LANE,
             ),
             command(
@@ -480,7 +482,7 @@ def build_plan(
         commands.extend(_surface_commands(surfaces, chrome_available=chrome_available))
         limitations = (
             "Python coverage is the current interpreter, not the complete 3.11-3.14 matrix.",
-            "Physical multi-node MPI and GPU evidence requires an explicit matching environment run.",
+            "Physical MPI-CUDA, multi-node MPI, and GPU evidence requires an explicit matching environment run.",
             "Studio browser interaction coverage requires its documented Chrome dependency.",
         )
     else:
