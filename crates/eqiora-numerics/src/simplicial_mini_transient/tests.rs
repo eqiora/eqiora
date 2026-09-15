@@ -14,15 +14,6 @@ fn transport_exactness_is_dimension_and_identity_specific() {
         MiniTransport::<3>::Disabled.required_quadrature_exactness(),
         8
     );
-    assert_eq!(
-        MiniTransport::<2>::SkewStationary.required_quadrature_exactness(),
-        8
-    );
-    assert_eq!(
-        MiniTransport::<3>::SkewStationary.required_quadrature_exactness(),
-        11
-    );
-
     let mesh = tetrahedron();
     let state = FixedTopologyGeometryState::<3>::reference(&mesh).unwrap();
     let action = FixedTopologyGeometryAction::<3>::new(&mesh, &state, &state, 0.25).unwrap();
@@ -30,114 +21,6 @@ fn transport_exactness_is_dimension_and_identity_specific() {
         MiniTransport::SkewRelativeGcl(action.cell(0).unwrap()).required_quadrature_exactness(),
         11
     );
-}
-
-#[test]
-fn stationary_dense_jacobian_is_the_direct_state_jvp() {
-    let geometry = stationary_triangle();
-    let previous = [[0.17, -0.08], [0.11, 0.06], [-0.04, 0.13], [0.025, -0.035]];
-    let current = [[0.21, -0.02], [0.09, 0.075], [-0.055, 0.16], [0.04, -0.015]];
-    let pressure = [0.14, -0.065, 0.035];
-    let velocity_direction = [[0.03, -0.01], [-0.02, 0.04], [0.015, 0.025], [-0.01, 0.02]];
-    let pressure_direction = [-0.03, 0.02, 0.01];
-    let quadrature = simplex_duffy_gauss_legendre(2, 5).unwrap();
-    let cell = MiniTransientCell::<2> {
-        geometry: &geometry,
-        transport: MiniTransport::SkewStationary,
-        density: 1.35,
-        viscosity: 0.07,
-        time_step: 0.18,
-        previous_velocity: &previous,
-        current_velocity: &current,
-        current_pressure: &pressure,
-    };
-    let prepared = MiniFixedGeometryQuadrature::prepare(&geometry, &quadrature).unwrap();
-    let (jacobian, residual) = cell
-        .linearize_prepared_fixed_geometry_state(&|_| Ok([0.0; 2]), &prepared)
-        .unwrap()
-        .into_parts();
-    let (direct_residual, direct_jvp) = cell
-        .evaluate(
-            MiniTransientDirection {
-                current_velocity: &velocity_direction,
-                current_pressure: &pressure_direction,
-                current_geometry: MiniGeometryDirection::Zero,
-            },
-            &quadrature,
-        )
-        .unwrap()
-        .into_parts();
-    assert_eq!(
-        residual
-            .iter()
-            .map(|value| value.to_bits())
-            .collect::<Vec<_>>(),
-        direct_residual
-            .iter()
-            .map(|value| value.to_bits())
-            .collect::<Vec<_>>()
-    );
-    let direction = velocity_direction
-        .iter()
-        .flatten()
-        .copied()
-        .chain(pressure_direction)
-        .collect::<Vec<_>>();
-    let projected = jacobian
-        .chunks_exact(direction.len())
-        .map(|row| {
-            row.iter()
-                .zip(&direction)
-                .map(|(entry, direction)| entry * direction)
-                .sum::<f64>()
-        })
-        .collect::<Vec<_>>();
-    for (row, (projected, direct)) in projected.iter().zip(&direct_jvp).enumerate() {
-        let tolerance = 4096.0 * f64::EPSILON * projected.abs().max(direct.abs()).max(1.0);
-        assert!(
-            (projected - direct).abs() <= tolerance,
-            "stationary state row {row}: {projected:e} versus {direct:e}",
-        );
-    }
-}
-
-#[test]
-fn stationary_projection_fails_closed_on_exactness_and_body_force() {
-    let geometry = stationary_triangle();
-    let velocity = [[0.1, -0.05]; 4];
-    let pressure = [0.0; 3];
-    let cell = MiniTransientCell::<2> {
-        geometry: &geometry,
-        transport: MiniTransport::SkewStationary,
-        density: 1.0,
-        viscosity: 0.1,
-        time_step: 0.25,
-        previous_velocity: &velocity,
-        current_velocity: &velocity,
-        current_pressure: &pressure,
-    };
-    let low_rule = simplex_duffy_gauss_legendre(2, 4).unwrap();
-    let error = MiniFixedGeometryQuadrature::<2>::prepare(&geometry, &low_rule).unwrap_err();
-    assert!(error.message().contains("at least 8"));
-
-    let quadrature = simplex_duffy_gauss_legendre(2, 5).unwrap();
-    let prepared = MiniFixedGeometryQuadrature::prepare(&geometry, &quadrature).unwrap();
-    let callback_error = cell
-        .linearize_prepared_fixed_geometry_state(
-            &|_| {
-                Err(Diagnostic::error(
-                    codes::INVALID_DISCRETIZATION,
-                    "source sentinel",
-                ))
-            },
-            &prepared,
-        )
-        .unwrap_err();
-    assert_eq!(callback_error.message(), "source sentinel");
-    let non_finite = cell
-        .linearize_prepared_fixed_geometry_state(&|_| Ok([f64::INFINITY, 0.0]), &prepared)
-        .unwrap_err();
-    assert!(non_finite.message().contains("body force is non-finite"));
 }
 
 #[test]
@@ -458,15 +341,6 @@ fn tetrahedron() -> SimplicialMesh {
         vec![vec![0, 1, 2, 3]],
         MeshQualityGate::new(0.01).unwrap(),
     )
-    .unwrap()
-}
-
-fn stationary_triangle() -> AffineGeometryMap {
-    AffineGeometryMap::from_simplex_vertices(vec![
-        vec![0.2, -0.3],
-        vec![1.4, 0.1],
-        vec![-0.15, 1.25],
-    ])
     .unwrap()
 }
 

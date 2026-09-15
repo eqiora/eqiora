@@ -752,9 +752,6 @@ pub(crate) struct CommonSteadyStokesObservation {
     pressure_minimum: f64,
     pressure_maximum: f64,
     exact_bounds: [[f64; 2]; 2],
-    cylinder_force_on_fluid: [f64; 2],
-    inlet_flux: f64,
-    outlet_flux: f64,
     net_flux: f64,
     constrained_reaction: [f64; 2],
     integrated_body_force: [f64; 2],
@@ -800,18 +797,6 @@ impl CommonSteadyStokesObservation {
     #[must_use]
     pub(crate) const fn exact_bounds(&self) -> [[f64; 2]; 2] {
         self.exact_bounds
-    }
-    #[must_use]
-    pub(crate) const fn cylinder_force_on_fluid(&self) -> [f64; 2] {
-        self.cylinder_force_on_fluid
-    }
-    #[must_use]
-    pub(crate) const fn inlet_flux(&self) -> f64 {
-        self.inlet_flux
-    }
-    #[must_use]
-    pub(crate) const fn outlet_flux(&self) -> f64 {
-        self.outlet_flux
     }
     #[must_use]
     pub(crate) const fn net_flux(&self) -> f64 {

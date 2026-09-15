@@ -45,7 +45,6 @@ use crate::simplicial_stokes::{
 
 const DIMENSION: usize = 2;
 const DUFFY_POINTS_PER_AXIS: usize = 5;
-const REQUIRED_BOUNDARY_SETS: [&str; 4] = ["cylinder", "inlet", "outlet", "walls"];
 
 pub(super) struct TransientGeometryBoundary2d {
     pub(super) boundary: SimplicialMiniStokesBoundary2d,
@@ -75,22 +74,36 @@ impl TransientNavierStokesGeometryBinding2d {
         {
             return Err(invalid("Model belongs to another exact source revision"));
         }
+        let model = lower_transient_incompressible_navier_stokes_geometry_2d(program, source)?;
+        let Some(KernelNode::Domain(domain)) = program.node(model.domain) else {
+            unreachable!()
+        };
+        let DomainKind::GeometryRegion {
+            entity_set: region_set,
+            ..
+        } = domain.kind()
+        else {
+            unreachable!()
+        };
         let mut entity_sets = BTreeMap::new();
-        for name in REQUIRED_BOUNDARY_SETS.into_iter().chain(["fluid"]) {
+        for name in model
+            .named_boundary_ids
+            .keys()
+            .chain(std::iter::once(region_set))
+        {
             entity_sets.insert(
-                name.to_owned(),
+                name.clone(),
                 correspondence.planar_circular_hole_v2_entity_set_entities(source, name)?,
             );
         }
         let expected_cells = (0..mesh.mesh().entity_count(DIMENSION).expect("2D mesh cells"))
             .map(|index| MeshEntity::new(DIMENSION, index))
             .collect::<Vec<_>>();
-        if entity_sets["fluid"] != expected_cells {
+        if entity_sets[region_set] != expected_cells {
             return Err(invalid(
-                "the exact `fluid` entity set does not realize every mesh cell exactly once",
+                "the authored GeometryRegion must realize every mesh cell exactly once",
             ));
         }
-        let model = lower_transient_incompressible_navier_stokes_geometry_2d(program, source)?;
         if model.geometry_source_digest() != Some(source.digest_bytes()) {
             return Err(invalid(
                 "Model GeometryRegion digest differs from the accepted exact source revision",
@@ -287,15 +300,22 @@ pub(super) fn geometry_boundary(
             Ok(SimplicialMiniStokesBoundaryFacet2d::new(facet, condition))
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
-    let boundary = SimplicialMiniStokesBoundary2d::new(normalized, facets)
-        .and_then(|boundary| {
-            boundary.with_named_reaction_surface(
-                normalized,
-                "cylinder",
-                binding.entities("cylinder")?.iter().copied(),
-            )
-        })
+    let mut boundary = SimplicialMiniStokesBoundary2d::new(normalized, facets)
         .map_err(|error| invalid(error.message()))?;
+    for (name, boundary_id) in &model.named_boundary_ids {
+        if model.boundary_dispositions.get(boundary_id)
+            != Some(&PhysicalBoundaryDisposition::TraceZero)
+            || !super::geometry_realization::is_closed_boundary_selection(
+                normalized,
+                binding.entities(name)?,
+            )
+        {
+            continue;
+        }
+        boundary = boundary
+            .with_named_reaction_surface(normalized, name, binding.entities(name)?.iter().copied())
+            .map_err(|error| invalid(error.message()))?;
+    }
     Ok(TransientGeometryBoundary2d {
         boundary,
         fixed_velocity,
@@ -346,17 +366,8 @@ impl PreparedResolvedTransientGeometryMiniRun2d<'_> {
         let checked_assembly = self
             .block_system
             .checked_backend(&REFERENCE_ASSEMBLY_BACKEND);
-        let lower = [common.bounds[0][0], common.bounds[1][0]];
-        let length = self.scales.length_value();
-        let pressure = self.scales.pressure_value();
-        let body_force = |coordinate_hat: [f64; DIMENSION]| {
-            let coordinate = [
-                lower[0] + length * coordinate_hat[0],
-                lower[1] + length * coordinate_hat[1],
-            ];
-            let force = common.conservative_body_force(&coordinate)?;
-            Ok([length * force[0] / pressure, length * force[1] / pressure])
-        };
+        // Loads are compiled from the authored relation, not re-evaluated by a flow kernel.
+        let body_force = |_coordinate: [f64; DIMENSION]| Ok([0.0; DIMENSION]);
         let numerical =
             advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_and_linear(
                 &self.normalized,
@@ -364,7 +375,7 @@ impl PreparedResolvedTransientGeometryMiniRun2d<'_> {
                 &body_force,
                 numerical_initial,
                 run.step_count(),
-                self.numerical_plan,
+                self.numerical_plan.clone(),
                 &self.cell_quadrature,
                 &self.facet_quadrature,
                 &checked_assembly,
@@ -418,7 +429,7 @@ pub(crate) fn prepare_resolved_transient_navier_stokes_geometry_mini_run_2d<'a>(
     let with_gauge = super::navier_stokes_realization::boundary::pressure_uses_gauge(common)?;
     let realization_graph = resolved.portable_graph()?;
     let (scales, numerical_plan) =
-        require_exact_transient_plan(common, resolved, &realization_graph, mesh_artifact)?;
+        require_exact_transient_plan(program, common, resolved, &realization_graph, mesh_artifact)?;
     let normalized = normalize_geometry_mesh(&common.bounds, mesh.mesh(), scales.length_value())?;
     let geometry_boundary = geometry_boundary(binding, &normalized, scales)?;
     let fixed_velocity = normalized

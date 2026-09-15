@@ -9,7 +9,7 @@ pub(crate) fn lower_transient_incompressible_navier_stokes_geometry_2d(
     geometry: &CanonicalGeometryV1,
 ) -> Result<TransientIncompressibleNavierStokesModel2d, Diagnostic> {
     let (domain, boundaries) =
-        crate::canonical_stokes::recognize::unique_circular_hole_domain(program, geometry)?;
+        crate::canonical_stokes::recognize::unique_bound_geometry_domain_2d(program, geometry)?;
     let bounds = geometry.circular_hole_bounds().ok_or_else(|| {
         lowering_error(
             domain,
@@ -66,16 +66,10 @@ pub(crate) fn recognize_transient_incompressible_navier_stokes_geometry_mathemat
             _ => None,
         })
         .collect::<BTreeMap<_, _>>();
-    let required = BTreeSet::from([
-        "cylinder".to_owned(),
-        "inlet".to_owned(),
-        "outlet".to_owned(),
-        "walls".to_owned(),
-    ]);
-    if boundaries.keys().cloned().collect::<BTreeSet<_>>() != required {
+    if boundaries.is_empty() {
         return Err(lowering_error(
             domain,
-            "geometry-backed transient-flow boundary inventory differs from the exact product contract",
+            "Geometry-backed equations require boundary supports",
         ));
     }
     lower_named(

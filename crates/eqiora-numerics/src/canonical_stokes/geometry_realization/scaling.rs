@@ -7,6 +7,7 @@ use eqiora_sem::KernelProgram;
 use sha2::{Digest, Sha256};
 
 use super::{SteadyStokesGeometryBinding2d, invalid};
+use crate::canonical_boundary::{PhysicalBoundaryDisposition, PhysicalBoundaryQuantity};
 use crate::canonical_stokes::api::StokesBoundaryKey2d;
 use crate::canonical_stokes::realization::IncompressibleFlowScaleProfile2d;
 
@@ -391,22 +392,34 @@ impl SteadyStokesGeometryBinding2d {
             None => {
                 let bounds = self.exact_bounds()?;
                 let height = positive(bounds[1][1] - bounds[1][0], "exact channel height")?;
-                let outward_normal = self
-                    .source
-                    .constant_parent_outward_normal("inlet")
-                    .ok_or_else(|| {
-                        invalid("automatic U requires one exact fixed-side `inlet` normal")
-                    })?;
+                let mut candidates = self.model.boundary_entries.iter().filter_map(
+                    |(key, entry)| {
+                        if !matches!(entry.disposition, PhysicalBoundaryDisposition::Prescribed(law)
+                        if law.quantity() == PhysicalBoundaryQuantity::Trace)
+                        {
+                            return None;
+                        }
+                        let StokesBoundaryKey2d::NamedEntitySet(name) = key else {
+                            return None;
+                        };
+                        let normal = self.source.constant_parent_outward_normal(name)?;
+                        (normal == [-1.0, 0.0]).then_some((key, normal))
+                    },
+                );
+                let (inlet, outward_normal) = candidates.next().ok_or_else(|| {
+                    invalid("automatic U requires one prescribed trace on the exact lower-x side")
+                })?;
+                if candidates.next().is_some() {
+                    return Err(invalid(
+                        "automatic U has ambiguous lower-x prescribed traces",
+                    ));
+                }
                 let coordinate_m = [bounds[0][0], bounds[1][0] + 0.5 * height];
                 let inlet_velocity = self
                     .model
-                    .prescribed_velocity(
-                        &StokesBoundaryKey2d::NamedEntitySet("inlet".to_owned()),
-                        Some(outward_normal),
-                        &coordinate_m,
-                    )?
+                    .prescribed_velocity(inlet, Some(outward_normal), &coordinate_m)?
                     .ok_or_else(|| {
-                        invalid("automatic U requires the Model-owned `inlet` velocity law")
+                        invalid("automatic U requires the Model-owned prescribed velocity law")
                     })?;
                 let value = positive(inlet_velocity[0], "Model inlet maximum")?;
                 if inlet_velocity[1] != 0.0 {

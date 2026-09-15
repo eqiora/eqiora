@@ -1,6 +1,9 @@
 use super::*;
 
 impl CommonSteadyStokesPlan {
+    pub(crate) fn boundary_observation_names(&self) -> (Vec<String>, Vec<String>) {
+        self.binding.boundary_observation_names()
+    }
     fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
         require_portable_realization(&self.portable, self.resolved.portable_graph()?)
     }
@@ -142,13 +145,6 @@ impl CommonSteadyStokesPlan {
                 "steady-Stokes observation crossed a different Plan or effective scaling",
             ));
         }
-        for role in ["cylinder", "inlet", "outlet", "walls"] {
-            if self.binding.entities(role)?.is_empty() {
-                return Err(invalid(format!(
-                    "steady-Stokes observation role `{role}` has no authenticated support"
-                )));
-            }
-        }
         let bounds = self
             .admission
             .resources()
@@ -167,18 +163,11 @@ impl CommonSteadyStokesPlan {
             .copied()
             .max_by(f64::total_cmp)
             .ok_or_else(|| invalid("steady-Stokes observation has no pressure values"))?;
-        let cylinder_force_on_fluid =
-            solution
-                .named_boundary_reaction("cylinder")
-                .ok_or_else(|| {
-                    invalid("steady-Stokes solution omitted authenticated cylinder reaction")
-                })?;
-        let inlet_flux = solution
-            .named_boundary_flux("inlet")
-            .ok_or_else(|| invalid("steady-Stokes solution omitted authenticated inlet flux"))?;
-        let outlet_flux = solution
-            .named_boundary_flux("outlet")
-            .ok_or_else(|| invalid("steady-Stokes solution omitted authenticated outlet flux"))?;
+        let net_flux = self
+            .binding
+            .boundary_names()
+            .filter_map(|name| solution.named_boundary_flux(name))
+            .sum::<f64>();
         let constrained_reaction = solution.boundary_reaction();
         let integrated_body_force = solution.integrated_body_force();
         let integrated_boundary_traction = solution.integrated_boundary_traction();
@@ -187,20 +176,12 @@ impl CommonSteadyStokesPlan {
                 + integrated_body_force[component]
                 + integrated_boundary_traction[component]
         });
-        let net_flux = inlet_flux + outlet_flux;
         let continuity_residual_norm = solution.dimensionless_solution().continuity_residual_norm();
         if bounds
             .iter()
             .flatten()
             .copied()
-            .chain([
-                pressure_minimum,
-                pressure_maximum,
-                inlet_flux,
-                outlet_flux,
-                net_flux,
-            ])
-            .chain(cylinder_force_on_fluid)
+            .chain([pressure_minimum, pressure_maximum, net_flux])
             .chain(constrained_reaction)
             .chain(integrated_body_force)
             .chain(integrated_boundary_traction)
@@ -216,9 +197,6 @@ impl CommonSteadyStokesPlan {
             pressure_minimum,
             pressure_maximum,
             exact_bounds: bounds,
-            cylinder_force_on_fluid,
-            inlet_flux,
-            outlet_flux,
             net_flux,
             constrained_reaction,
             integrated_body_force,

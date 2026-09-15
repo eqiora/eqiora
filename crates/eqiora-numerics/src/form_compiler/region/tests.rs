@@ -13,6 +13,7 @@ use super::*;
 
 mod boundary;
 mod flux;
+mod nonlinear;
 mod scalar;
 mod tetrahedron;
 mod validation;

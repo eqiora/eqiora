@@ -103,7 +103,7 @@ where
         body_force,
         previous,
         &point,
-        plan,
+        plan.clone(),
         cell_quadrature,
         facet_quadrature,
         &REFERENCE_ASSEMBLY_BACKEND,
@@ -129,7 +129,7 @@ where
                 body_force,
                 previous,
                 candidate,
-                plan,
+                plan.clone(),
                 cell_quadrature,
                 facet_quadrature,
                 FixedDomainViscousForm::SymmetricNewtonian,
@@ -166,6 +166,133 @@ mod tests {
         SimplicialMiniStokesPressureReference2d, SimplicialMiniVelocityField2d,
     };
     use crate::step_count::NonZeroStepCount;
+
+    #[test]
+    fn equation_derived_open_boundary_preserves_uniform_throughflow() {
+        use crate::simplicial_stokes::{
+            SimplicialMiniStokesBoundaryCondition2d, SimplicialMiniStokesBoundaryFacet2d,
+        };
+        use eqiora_meshing::{
+            MeshEntity, MeshTopology, simplex_duffy_gauss_legendre, triangle_duffy_gauss_legendre,
+        };
+        let vertices = (0..3)
+            .flat_map(|y| (0..3).map(move |x| vec![x as f64 / 2.0, y as f64 / 2.0]))
+            .collect();
+        let mut cells = Vec::new();
+        for y in 0..2 {
+            for x in 0..2 {
+                let a = 3 * y + x;
+                cells.push(vec![a, a + 1, a + 4]);
+                cells.push(vec![a, a + 4, a + 3]);
+            }
+        }
+        let mesh =
+            SimplicialMesh::new(2, vertices, cells, MeshQualityGate::new(0.01).unwrap()).unwrap();
+        let facets: Vec<_> = (0..mesh.entity_count(1).unwrap())
+            .map(|i| MeshEntity::new(1, i))
+            .filter(|facet| mesh.is_boundary_entity(*facet) == Some(true))
+            .map(|facet| {
+                let outlet = mesh
+                    .entity_vertices(facet)
+                    .unwrap()
+                    .iter()
+                    .all(|v| mesh.vertices()[v.index()][0] == 1.0);
+                SimplicialMiniStokesBoundaryFacet2d::new(
+                    facet,
+                    if outlet {
+                        SimplicialMiniStokesBoundaryCondition2d::ConstantTraction { value: [0.; 2] }
+                    } else {
+                        SimplicialMiniStokesBoundaryCondition2d::EssentialVelocity
+                    },
+                )
+            })
+            .collect();
+        let boundary = SimplicialMiniStokesBoundary2d::new(&mesh, facets).unwrap();
+        let velocity =
+            SimplicialMiniVelocityField2d::new(mesh.clone(), vec![[2., 3.]; 9], vec![[0.; 2]; 8])
+                .unwrap();
+        let pressure = SimplicialP1Field::new(mesh.clone(), vec![0.; 9]).unwrap();
+        let previous = SimplicialMiniNavierStokesState2d::new(
+            0.,
+            velocity.clone(),
+            pressure.clone(),
+            SimplicialMiniStokesPressureReference2d::BoundaryTraction,
+        )
+        .unwrap();
+        let accepted = SimplicialMiniNavierStokesState2d::new(
+            0.1,
+            velocity,
+            pressure,
+            SimplicialMiniStokesPressureReference2d::BoundaryTraction,
+        )
+        .unwrap();
+        let plan = MiniNavierStokesStepPlan2d::new(
+            4.,
+            0.1,
+            0.1,
+            1e-9,
+            1e-11,
+            NonZeroUsize::new(8).unwrap(),
+            4,
+            SolverPlan::new(
+                LinearSolver::SparseLu,
+                1e-10,
+                1e-12,
+                NonZeroUsize::new(100).unwrap(),
+            )
+            .unwrap()
+            .with_reduction(ReductionPolicy::Fast),
+            Target::HostCpu {
+                threads: NonZeroUsize::MIN,
+            },
+        )
+        .unwrap();
+        let cell_rule = triangle_duffy_gauss_legendre(5).unwrap();
+        let facet_rule = simplex_duffy_gauss_legendre(1, 3).unwrap();
+        let essential = |_| Ok([2., 3.]);
+        let load = |_| Ok([0.; 2]);
+        let point = initial_point(
+            &mesh,
+            &boundary,
+            &essential,
+            &previous,
+            &cell_rule,
+            &facet_rule,
+        )
+        .unwrap();
+        let residual = assemble_step_residual(
+            &mesh,
+            &boundary,
+            &essential,
+            &load,
+            &previous,
+            &point,
+            plan.clone(),
+            &cell_rule,
+            &facet_rule,
+            FixedDomainViscousForm::SymmetricNewtonian,
+        )
+        .unwrap();
+        for value in residual {
+            assert!(
+                value.abs() < 1e-10,
+                "uniform throughflow residual {value:e}"
+            );
+        }
+        let verification = plan
+            .verify_accepted_jacobian(
+                &mesh,
+                &boundary,
+                &essential,
+                &load,
+                &previous,
+                &accepted,
+                &cell_rule,
+                &facet_rule,
+            )
+            .unwrap();
+        assert!(verification.4 < 1e-5);
+    }
 
     struct NoSolveBackend;
 
@@ -273,7 +400,7 @@ mod tests {
             &|_| Ok([0.0; 2]),
             state(0.0),
             NonZeroStepCount::new(NonZeroUsize::new(10).unwrap()),
-            plan,
+            plan.clone(),
             &cell_quadrature,
             &facet_quadrature,
             &NoSolveBackend,
@@ -310,7 +437,7 @@ mod tests {
             &|_| Ok([0.0; 2]),
             &trajectory.states()[0],
             &trajectory.states()[1],
-            plan,
+            plan.clone(),
             &cell_quadrature,
             &facet_quadrature,
         )

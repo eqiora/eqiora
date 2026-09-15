@@ -328,6 +328,14 @@ impl SteadyStokesMiniSolution2d {
             .map(|(_, value)| *value)
     }
 
+    pub(crate) fn named_boundary_reactions(&self) -> &[(String, [f64; 2])] {
+        &self.named_boundary_reactions
+    }
+
+    pub(crate) fn named_boundary_fluxes(&self) -> &[(String, f64)] {
+        &self.named_boundary_fluxes
+    }
+
     /// Physical parent-outward volumetric flux for one retained named surface,
     /// in m²/s per unit out-of-plane thickness.
     ///

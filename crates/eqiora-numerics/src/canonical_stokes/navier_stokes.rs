@@ -129,14 +129,6 @@ impl TransientIncompressibleNavierStokesModel2d {
             })
             .transpose()
     }
-
-    pub(super) fn conservative_body_force(
-        &self,
-        coordinates: &[f64],
-    ) -> Result<[f64; 2], Diagnostic> {
-        self.force_potential_expression
-            .evaluate_gradient(coordinates)
-    }
 }
 
 impl<const D: usize> TransientIncompressibleNavierStokesCartesianModel<D> {

@@ -1,4 +1,4 @@
-//! Typed equation-derived affine region forms, before global Field DOF mapping.
+//! Typed equation-derived region forms, before global Field DOF mapping.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -21,6 +21,8 @@ pub(super) use integration::integrate_scalar;
 pub(super) use scalar::ScalarRow;
 mod flux;
 mod lowering;
+mod nonlinear;
+pub(crate) use nonlinear::RegionLinearization;
 #[cfg(test)]
 mod tests;
 
@@ -43,6 +45,7 @@ struct Row {
     tested: RawId,
     value_type: ValueType,
     terms: Vec<Term>,
+    dyadics: Vec<nonlinear::DyadicTerm>,
     flux: Vec<flux::FluxTerm>,
     forcing: Vec<Data>,
 }
@@ -109,10 +112,30 @@ impl CompiledRegionForm {
                 tested,
                 value_type: value_type.clone(),
                 terms: Vec::new(),
+                dyadics: Vec::new(),
                 flux: Vec::new(),
                 forcing: vec![Data::constant(dimension, 0.0); components(&value_type, dimension)?],
             };
             lowering::lower(&context, root, Data::constant(dimension, 1.0), &mut row, 0)?;
+            for term in &mut row.dyadics {
+                let field = roles
+                    .fields
+                    .get(&term.field)
+                    .ok_or_else(|| invalid("dyadic trial is not a local Field"))?;
+                if components(&field.1, dimension)? != dimension
+                    || value_type.shape() != field.1.shape()
+                    || value_type.frame() != field.1.frame()
+                {
+                    return Err(invalid(
+                        "dyadic flux requires a spatial vector row and trial",
+                    ));
+                }
+                term.split = !term.coefficient.spatial()
+                    && roles
+                        .constraints
+                        .values()
+                        .any(|(trial, _)| *trial == term.field);
+            }
             for term in &row.terms {
                 let trial = roles
                     .fields

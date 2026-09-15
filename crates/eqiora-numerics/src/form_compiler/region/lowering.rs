@@ -28,6 +28,7 @@ pub(super) fn boundary_flux(
 ) -> Result<Vec<FluxTerm>, Diagnostic> {
     let mut boundary = row.clone();
     boundary.terms.clear();
+    boundary.dyadics.clear();
     boundary.flux.clear();
     expression(
         context,
@@ -37,6 +38,11 @@ pub(super) fn boundary_flux(
         Position::Flux,
         0,
     )?;
+    if !boundary.dyadics.is_empty() {
+        return Err(invalid(
+            "explicit nonlinear boundary flux laws are not yet admitted",
+        ));
+    }
     Ok(boundary.flux)
 }
 
@@ -147,6 +153,36 @@ fn expression(
                 Position::Isotropic,
                 depth + 1,
             )
+        }
+        ExprNode::PureOperatorApplication(application) if matches!(position, Position::Flux) => {
+            let definition = eqiora_ir::PureOperatorDefinition::dyadic_product()
+                .map_err(|_| invalid("invalid dyadic operator definition"))?;
+            let arguments = application.arguments();
+            let field = arguments
+                .first()
+                .and_then(|id| match context.dag.node(*id) {
+                    Some(ExprNode::Symbol(SymbolRef::Field(field))) => Some(field.erase()),
+                    _ => None,
+                });
+            if application.definition() != definition.digest()
+                || arguments.len() != 2
+                || field.is_none()
+                || arguments.get(1).and_then(|id| match context.dag.node(*id) {
+                    Some(ExprNode::Symbol(SymbolRef::Field(field))) => Some(field.erase()),
+                    _ => None,
+                }) != field
+                || context.coefficients.contains_key(&field.unwrap())
+            {
+                return Err(invalid(
+                    "dyadic flux requires the exact operator and identical trial Fields",
+                ));
+            }
+            row.dyadics.push(super::nonlinear::DyadicTerm {
+                field: field.unwrap(),
+                coefficient,
+                split: false,
+            });
+            Ok(())
         }
         ExprNode::Gradient(value) if matches!(position, Position::Flux) => {
             trial(context, *value, coefficient, row, Pairing::Gradient)

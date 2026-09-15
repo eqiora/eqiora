@@ -34,10 +34,24 @@ use crate::simplicial_stokes::{
     SimplicialMiniStokesBoundaryFacet2d,
 };
 
+/// Closed zero-trace components have a complete nodal reaction without open endpoints.
+/// Source selection identity chooses the component; no obstacle name is privileged.
+pub(super) fn is_closed_boundary_selection(mesh: &SimplicialMesh, facets: &[MeshEntity]) -> bool {
+    let mut degree = BTreeMap::new();
+    for facet in facets {
+        let Some(vertices) = mesh.entity_vertices(*facet) else {
+            return false;
+        };
+        for vertex in vertices {
+            *degree.entry(vertex.index()).or_insert(0usize) += 1;
+        }
+    }
+    !degree.is_empty() && degree.values().all(|count| *count == 2)
+}
+
 pub(crate) mod scaling;
 
 const DIMENSION: usize = 2;
-const REQUIRED_BOUNDARY_SETS: [&str; 4] = ["cylinder", "inlet", "outlet", "walls"];
 
 struct GeometryBoundary2d {
     boundary: SimplicialMiniStokesBoundary2d,
@@ -61,6 +75,34 @@ pub struct SteadyStokesGeometryBinding2d {
 }
 
 impl SteadyStokesGeometryBinding2d {
+    pub(crate) fn boundary_names(&self) -> impl Iterator<Item = &str> {
+        self.model
+            .boundary_entries
+            .keys()
+            .filter_map(|key| match key {
+                StokesBoundaryKey2d::NamedEntitySet(name) => Some(name.as_str()),
+                _ => None,
+            })
+    }
+
+    pub(crate) fn boundary_observation_names(&self) -> (Vec<String>, Vec<String>) {
+        let mut reactions = Vec::new();
+        let mut fluxes = Vec::new();
+        for (key, entry) in &self.model.boundary_entries {
+            let StokesBoundaryKey2d::NamedEntitySet(name) = key else {
+                continue;
+            };
+            if entry.disposition == PhysicalBoundaryDisposition::TraceZero {
+                if is_closed_boundary_selection(self.mesh.mesh(), &self.entity_sets[name]) {
+                    reactions.push(name.clone());
+                }
+            } else {
+                fluxes.push(name.clone());
+            }
+        }
+        (reactions, fluxes)
+    }
+
     pub(crate) const fn formulation_correspondence(
         &self,
     ) -> &crate::form_compiler::vocabulary::MixedGalerkinCorrespondence {
@@ -78,22 +120,40 @@ impl SteadyStokesGeometryBinding2d {
         {
             return Err(invalid("Model belongs to another exact source revision"));
         }
+        let model = lower_steady_incompressible_stokes_geometry_2d(program, source)?;
+        let Some(KernelNode::Domain(domain)) = program.node(model.domain()) else {
+            unreachable!()
+        };
+        let DomainKind::GeometryRegion {
+            entity_set: region_set,
+            ..
+        } = domain.kind()
+        else {
+            unreachable!()
+        };
         let mut entity_sets = BTreeMap::new();
-        for name in REQUIRED_BOUNDARY_SETS.into_iter().chain(["fluid"]) {
+        for name in model
+            .boundary_entries
+            .keys()
+            .filter_map(|key| match key {
+                StokesBoundaryKey2d::NamedEntitySet(name) => Some(name),
+                _ => None,
+            })
+            .chain(std::iter::once(region_set))
+        {
             entity_sets.insert(
-                name.to_owned(),
+                name.clone(),
                 correspondence.planar_circular_hole_v2_entity_set_entities(source, name)?,
             );
         }
         let expected_cells = (0..mesh.mesh().entity_count(DIMENSION).expect("2D mesh cells"))
             .map(|index| MeshEntity::new(DIMENSION, index))
             .collect::<Vec<_>>();
-        if entity_sets["fluid"] != expected_cells {
+        if entity_sets[region_set] != expected_cells {
             return Err(invalid(
-                "the exact `fluid` entity set does not realize every mesh cell exactly once",
+                "the authored GeometryRegion must realize every mesh cell exactly once",
             ));
         }
-        let model = lower_steady_incompressible_stokes_geometry_2d(program, source)?;
         if model.geometry_source_digest() != Some(source.digest_bytes()) {
             return Err(invalid(
                 "Model GeometryRegion digest differs from the accepted exact source revision",
@@ -222,8 +282,14 @@ pub fn solve_resolved_steady_stokes_geometry_mini_2d(
     )?;
     let solved = backend.solve(&finalized.linear_problem()?, finalized.solver_plan())?;
     let solution = finalized.finish(solved)?;
-    let named_boundary_fluxes = ["inlet", "outlet"]
-        .into_iter()
+    let named_boundary_fluxes = model
+        .boundary_entries
+        .iter()
+        .filter(|(_, entry)| entry.disposition != PhysicalBoundaryDisposition::TraceZero)
+        .filter_map(|(key, _)| match key {
+            StokesBoundaryKey2d::NamedEntitySet(name) => Some(name.as_str()),
+            _ => None,
+        })
         .map(|name| {
             boundary_flux(
                 binding.mesh.mesh(),
@@ -680,14 +746,22 @@ fn geometry_boundary(
             ))
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
-    let boundary = SimplicialMiniStokesBoundary2d::new(normalized, facets)
-        .map_err(|error| invalid(error.message()))?
-        .with_named_reaction_surface(
-            normalized,
-            "cylinder",
-            binding.entities("cylinder")?.iter().copied(),
-        )
+    let mut boundary = SimplicialMiniStokesBoundary2d::new(normalized, facets)
         .map_err(|error| invalid(error.message()))?;
+    for (key, entry) in &model.boundary_entries {
+        if entry.disposition != PhysicalBoundaryDisposition::TraceZero {
+            continue;
+        }
+        let StokesBoundaryKey2d::NamedEntitySet(name) = key else {
+            continue;
+        };
+        if !is_closed_boundary_selection(normalized, binding.entities(name)?) {
+            continue;
+        }
+        boundary = boundary
+            .with_named_reaction_surface(normalized, name, binding.entities(name)?.iter().copied())
+            .map_err(|error| invalid(error.message()))?;
+    }
     Ok(GeometryBoundary2d {
         boundary,
         fixed_velocity,

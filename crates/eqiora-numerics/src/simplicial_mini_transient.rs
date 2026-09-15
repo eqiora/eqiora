@@ -20,15 +20,12 @@ use crate::discrete_space::{DiscreteSpace, SimplexP1BubbleSpace, SimplexP1Space}
 /// Transport identity carried by the transient fluid relation.
 ///
 /// `Disabled` is the linear transient relation and contains no convective or
-/// ALE datum to inspect or accidentally apply. `SkewStationary` is the
-/// fixed-domain nonlinear Navier--Stokes specialization and therefore carries
-/// no fictitious mesh-motion history. `SkewRelativeGcl` carries the single
+/// ALE datum to inspect or accidentally apply. `SkewRelativeGcl` carries the single
 /// sealed geometry action from which relative transport and metric correction
 /// are derived.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum MiniTransport<'a, const D: usize> {
     Disabled,
-    SkewStationary,
     SkewRelativeGcl(&'a FixedTopologyCellGeometryAction<D>),
 }
 
@@ -36,7 +33,7 @@ impl<const D: usize> MiniTransport<'_, D> {
     pub(crate) const fn required_quadrature_exactness(self) -> usize {
         match self {
             Self::Disabled => 2 * (D + 1),
-            Self::SkewStationary | Self::SkewRelativeGcl(_) => 3 * D + 2,
+            Self::SkewRelativeGcl(_) => 3 * D + 2,
         }
     }
 
@@ -48,10 +45,6 @@ impl<const D: usize> MiniTransport<'_, D> {
     ) -> Result<PrimalConvectionPoint<'a, D>, Diagnostic> {
         match self {
             Self::Disabled => Ok(PrimalConvectionPoint::Disabled),
-            Self::SkewStationary => Ok(PrimalConvectionPoint::Stationary {
-                velocity,
-                velocity_gradient,
-            }),
             Self::SkewRelativeGcl(action) => {
                 let mesh_velocity = action.mesh_velocity(reference)?;
                 Ok(PrimalConvectionPoint::Ale {
@@ -104,99 +97,6 @@ pub(crate) struct MiniTransientEvaluation {
 impl MiniTransientEvaluation {
     pub(crate) fn into_parts(self) -> (Vec<f64>, Vec<f64>) {
         (self.residual, self.jvp)
-    }
-}
-
-/// Dense state linearization with geometry and spatial source held fixed.
-///
-/// The projection differentiates only current MINI velocity and pressure. Its
-/// body-force callback is sampled once per physical quadrature point for the
-/// primal residual and is deliberately not interpreted as a geometry-tangent
-/// callback. A moving-geometry source requires a future explicit source JVP
-/// contract rather than an implicit derivative through this projection.
-#[derive(Debug)]
-pub(crate) struct MiniFixedGeometryStateLinearization {
-    jacobian: Vec<f64>,
-    residual: Vec<f64>,
-}
-
-/// Geometry- and quadrature-owned data for repeated state projections on one
-/// immutable affine cell.
-#[derive(Debug, Clone)]
-pub(crate) struct MiniFixedGeometryQuadrature<const D: usize> {
-    geometry: AffineGeometryMap,
-    points: Vec<MiniFixedGeometryQuadraturePoint<D>>,
-    velocity_basis: Vec<f64>,
-    pressure_basis: Vec<f64>,
-    gradients: Vec<f64>,
-}
-
-#[derive(Debug, Clone)]
-struct MiniFixedGeometryQuadraturePoint<const D: usize> {
-    physical_coordinates: [f64; D],
-    measure: f64,
-}
-
-impl<const D: usize> MiniFixedGeometryQuadrature<D> {
-    pub(crate) fn prepare(
-        geometry: &AffineGeometryMap,
-        quadrature: &QuadratureRule,
-    ) -> Result<Self, Diagnostic> {
-        if !matches!(D, 2 | 3)
-            || geometry.reference_cell().dimension() != D
-            || geometry.physical_dimension() != D
-            || quadrature.reference_cell() != geometry.reference_cell()
-        {
-            return Err(invalid(format!(
-                "fixed-geometry MINI quadrature requires one affine {D}D simplex and matching quadrature",
-            )));
-        }
-        let required_exactness = MiniTransport::<D>::SkewStationary.required_quadrature_exactness();
-        if quadrature.polynomial_exactness().unwrap_or(0) < required_exactness {
-            return Err(invalid(format!(
-                "{D}D MINI transient fluid transport requires quadrature exactness at least {required_exactness}, received {}",
-                quadrature.polynomial_exactness().unwrap_or(0),
-            )));
-        }
-        let inverse = geometry.inverse_jacobian()?;
-        let velocity_space = SimplexP1BubbleSpace::new(D)?;
-        let pressure_space = SimplexP1Space::new(D)?;
-        let mut points = Vec::with_capacity(quadrature.points().len());
-        let mut velocity_basis = Vec::with_capacity(quadrature.points().len() * (D + 2));
-        let mut pressure_basis = Vec::with_capacity(quadrature.points().len() * (D + 1));
-        let mut gradients = Vec::with_capacity(quadrature.points().len() * (D + 2) * D);
-        for point in quadrature.points() {
-            let velocity = velocity_space.tabulate(&point.coordinates)?;
-            let pressure = pressure_space.tabulate(&point.coordinates)?;
-            velocity_basis.extend_from_slice(velocity.values());
-            pressure_basis.extend_from_slice(pressure.values());
-            for basis in 0..D + 2 {
-                gradients.extend(physical_gradient(
-                    velocity.gradient(basis).expect("accepted MINI basis index"),
-                    &inverse,
-                    D,
-                ));
-            }
-            let mut physical_coordinates = [0.0; D];
-            geometry.map_point(&point.coordinates, &mut physical_coordinates)?;
-            points.push(MiniFixedGeometryQuadraturePoint {
-                physical_coordinates,
-                measure: point.weight * geometry.measure_scale(),
-            });
-        }
-        Ok(Self {
-            geometry: geometry.clone(),
-            points,
-            velocity_basis,
-            pressure_basis,
-            gradients,
-        })
-    }
-}
-
-impl MiniFixedGeometryStateLinearization {
-    pub(crate) fn into_parts(self) -> (Vec<f64>, Vec<f64>) {
-        (self.jacobian, self.residual)
     }
 }
 
@@ -399,18 +299,6 @@ impl<const D: usize> MiniScaledAffineCell<'_, D> {
 }
 
 impl<const D: usize> MiniTransientCell<'_, D> {
-    pub(crate) fn residual_prepared_fixed_geometry_state<F>(
-        &self,
-        body_force: &F,
-        prepared: &MiniFixedGeometryQuadrature<D>,
-    ) -> Result<Vec<f64>, Diagnostic>
-    where
-        F: Fn([f64; D]) -> Result<[f64; D], Diagnostic> + Sync,
-    {
-        self.project_prepared_fixed_geometry_state(body_force, prepared, None)
-    }
-
-    /// Evaluate only the primal transient relation for stationary or ALE transport.
     pub(crate) fn residual(&self, quadrature: &QuadratureRule) -> Result<Vec<f64>, Diagnostic> {
         self.validate_primal(quadrature)?;
 
@@ -484,178 +372,6 @@ impl<const D: usize> MiniTransientCell<'_, D> {
 
     /// Project fixed-domain skew transport to its dense state Jacobian using
     /// the exact affine map and quadrature data prepared by the owning run.
-    pub(crate) fn linearize_prepared_fixed_geometry_state<F>(
-        &self,
-        body_force: &F,
-        prepared: &MiniFixedGeometryQuadrature<D>,
-    ) -> Result<MiniFixedGeometryStateLinearization, Diagnostic>
-    where
-        F: Fn([f64; D]) -> Result<[f64; D], Diagnostic> + Sync,
-    {
-        let local_dof_count = (D + 2) * D + D + 1;
-        let mut jacobian = vec![0.0; local_dof_count * local_dof_count];
-        let residual =
-            self.project_prepared_fixed_geometry_state(body_force, prepared, Some(&mut jacobian))?;
-        Ok(MiniFixedGeometryStateLinearization { jacobian, residual })
-    }
-
-    fn project_prepared_fixed_geometry_state<F>(
-        &self,
-        body_force: &F,
-        prepared: &MiniFixedGeometryQuadrature<D>,
-        mut jacobian: Option<&mut [f64]>,
-    ) -> Result<Vec<f64>, Diagnostic>
-    where
-        F: Fn([f64; D]) -> Result<[f64; D], Diagnostic> + Sync,
-    {
-        if !matches!(self.transport, MiniTransport::SkewStationary) {
-            return Err(invalid(
-                "fixed-geometry MINI state projection requires stationary skew transport",
-            ));
-        }
-        self.validate_primal_state()?;
-        if prepared.geometry != *self.geometry {
-            return Err(invalid(
-                "fixed-geometry MINI state projection requires the exact prepared affine map",
-            ));
-        }
-
-        let p1_basis_count = D + 1;
-        let velocity_basis_count = D + 2;
-        let pressure_offset = velocity_basis_count * D;
-        let local_dof_count = pressure_offset + p1_basis_count;
-        if jacobian
-            .as_ref()
-            .is_some_and(|entries| entries.len() != local_dof_count * local_dof_count)
-        {
-            return Err(invalid(
-                "fixed-geometry MINI state Jacobian sink has the wrong shape",
-            ));
-        }
-        let mut residual = vec![0.0; local_dof_count];
-
-        for (point_index, point) in prepared.points.iter().enumerate() {
-            let velocity_start = point_index * velocity_basis_count;
-            let pressure_start = point_index * p1_basis_count;
-            let gradient_start = point_index * velocity_basis_count * D;
-            let velocity_basis =
-                &prepared.velocity_basis[velocity_start..velocity_start + velocity_basis_count];
-            let pressure_basis =
-                &prepared.pressure_basis[pressure_start..pressure_start + p1_basis_count];
-            let gradients =
-                &prepared.gradients[gradient_start..gradient_start + velocity_basis_count * D];
-            let (velocity, velocity_gradient) =
-                evaluate_velocity_flat(self.current_velocity, velocity_basis, gradients);
-            let (previous_velocity, _) =
-                evaluate_velocity_flat(self.previous_velocity, velocity_basis, gradients);
-            let pressure = self
-                .current_pressure
-                .iter()
-                .zip(pressure_basis)
-                .map(|(coefficient, basis)| coefficient * basis)
-                .sum::<f64>();
-            let force = body_force(point.physical_coordinates)?;
-            if force.iter().any(|value| !value.is_finite()) {
-                return Err(invalid("MINI Navier--Stokes body force is non-finite"));
-            }
-            let scale = point.measure;
-
-            let divergence = (0..D)
-                .map(|axis| velocity_gradient[axis][axis])
-                .sum::<f64>();
-            for pressure_test in 0..p1_basis_count {
-                residual[pressure_offset + pressure_test] -=
-                    scale * pressure_basis[pressure_test] * divergence;
-            }
-
-            for row_basis in 0..velocity_basis_count {
-                let row_gradient = &gradients[row_basis * D..(row_basis + 1) * D];
-                let velocity_dot_row_gradient = dot(&velocity, row_gradient);
-                for row_component in 0..D {
-                    let row = local_velocity::<D>(row_basis, row_component);
-                    let test = velocity_basis[row_basis];
-                    let time_residual = self.density / self.time_step
-                        * test
-                        * (velocity[row_component] - previous_velocity[row_component]);
-                    let viscous_residual = self.viscosity
-                        * projected_symmetric_gradient_test(
-                            &velocity_gradient,
-                            row_gradient,
-                            row_component,
-                        );
-                    let pressure_residual = -pressure * row_gradient[row_component];
-                    let convective_residual = 0.5
-                        * self.density
-                        * (dot(&velocity, &velocity_gradient[row_component]) * test
-                            - velocity_dot_row_gradient * velocity[row_component]);
-                    residual[row] += scale
-                        * (time_residual
-                            + viscous_residual
-                            + pressure_residual
-                            + convective_residual
-                            - force[row_component] * test);
-
-                    if let Some(jacobian) = jacobian.as_deref_mut() {
-                        for column_basis in 0..velocity_basis_count {
-                            for column_component in 0..D {
-                                let column = local_velocity::<D>(column_basis, column_component);
-                                let trial = velocity_basis[column_basis];
-                                let mass = if row_component == column_component {
-                                    self.density / self.time_step * test * trial
-                                } else {
-                                    0.0
-                                };
-                                let viscous = self.viscosity
-                                    * symmetric_gradient_bilinear_entry(
-                                        row_gradient,
-                                        row_component,
-                                        &gradients[column_basis * D..(column_basis + 1) * D],
-                                        column_component,
-                                    );
-                                let convective = ProjectedConvectiveLinearization {
-                                    density: self.density,
-                                    velocity: &velocity,
-                                    velocity_gradient: &velocity_gradient,
-                                    basis: velocity_basis,
-                                    gradients,
-                                }
-                                .entry(
-                                    row_basis,
-                                    row_component,
-                                    column_basis,
-                                    column_component,
-                                );
-                                jacobian[row * local_dof_count + column] +=
-                                    scale * (mass + viscous + convective);
-                            }
-                        }
-                        for (pressure_basis_index, pressure_basis_value) in
-                            pressure_basis.iter().copied().enumerate()
-                        {
-                            let column = pressure_offset + pressure_basis_index;
-                            let coupling =
-                                -scale * pressure_basis_value * row_gradient[row_component];
-                            jacobian[row * local_dof_count + column] += coupling;
-                            jacobian[column * local_dof_count + row] += coupling;
-                        }
-                    }
-                }
-            }
-        }
-
-        if residual.iter().any(|value| !value.is_finite())
-            || jacobian
-                .as_deref()
-                .is_some_and(|entries| entries.iter().any(|value| !value.is_finite()))
-        {
-            return Err(invalid(
-                "fixed-geometry MINI state projection produced a non-finite value",
-            ));
-        }
-        Ok(residual)
-    }
-
-    /// Evaluate the local weak residual and exact directional action.
     pub(crate) fn evaluate(
         &self,
         direction: MiniTransientDirection<'_, D>,
@@ -981,10 +697,6 @@ impl GeometryTangent {
 
 enum PrimalConvectionPoint<'a, const D: usize> {
     Disabled,
-    Stationary {
-        velocity: &'a [f64; D],
-        velocity_gradient: &'a [[f64; D]; D],
-    },
     Ale {
         relative_velocity: [f64; D],
         velocity: &'a [f64; D],
@@ -997,17 +709,6 @@ impl<const D: usize> PrimalConvectionPoint<'_, D> {
     fn action(&self, density: f64, test: f64, test_gradient: &[f64], component: usize) -> f64 {
         match self {
             Self::Disabled => 0.0,
-            Self::Stationary {
-                velocity,
-                velocity_gradient,
-            } => stationary_convection_action(
-                density,
-                velocity,
-                velocity_gradient,
-                test,
-                test_gradient,
-                component,
-            ),
             Self::Ale {
                 relative_velocity,
                 velocity,
@@ -1025,20 +726,6 @@ impl<const D: usize> PrimalConvectionPoint<'_, D> {
             ),
         }
     }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn stationary_convection_action<const D: usize>(
-    density: f64,
-    velocity: &[f64; D],
-    velocity_gradient: &[[f64; D]; D],
-    test: f64,
-    test_gradient: &[f64],
-    component: usize,
-) -> f64 {
-    0.5 * density
-        * (dot(velocity, &velocity_gradient[component]) * test
-            - dot(velocity, test_gradient) * velocity[component])
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1060,7 +747,6 @@ fn ale_convection_action<const D: usize>(
 
 enum TransportTangent<'a, const D: usize> {
     Disabled,
-    SkewStationary,
     SkewRelativeGcl {
         action: &'a FixedTopologyCellGeometryAction<D>,
         mesh_divergence_tangent: f64,
@@ -1076,7 +762,6 @@ impl<'a, const D: usize> TransportTangent<'a, D> {
     ) -> Result<Self, Diagnostic> {
         match transport {
             MiniTransport::Disabled => Ok(Self::Disabled),
-            MiniTransport::SkewStationary => Ok(Self::SkewStationary),
             MiniTransport::SkewRelativeGcl(action) => {
                 let reference_tangent = geometry_tangent
                     .jacobian
@@ -1106,12 +791,6 @@ impl<'a, const D: usize> TransportTangent<'a, D> {
     ) -> Result<ConvectionPoint<'a, D>, Diagnostic> {
         match self {
             Self::Disabled => Ok(ConvectionPoint::Disabled),
-            Self::SkewStationary => Ok(ConvectionPoint::Stationary {
-                velocity: state.velocity,
-                velocity_tangent: state.velocity_tangent,
-                velocity_gradient: state.velocity_gradient,
-                velocity_gradient_tangent: state.velocity_gradient_tangent,
-            }),
             Self::SkewRelativeGcl {
                 action,
                 mesh_divergence_tangent,
@@ -1148,12 +827,6 @@ struct PointState<'a, const D: usize> {
 
 enum ConvectionPoint<'a, const D: usize> {
     Disabled,
-    Stationary {
-        velocity: &'a [f64; D],
-        velocity_tangent: &'a [f64; D],
-        velocity_gradient: &'a [[f64; D]; D],
-        velocity_gradient_tangent: &'a [[f64; D]; D],
-    },
     Ale {
         relative_velocity: [f64; D],
         relative_velocity_tangent: [f64; D],
@@ -1177,33 +850,6 @@ impl<const D: usize> ConvectionPoint<'_, D> {
     ) -> (f64, f64) {
         match self {
             Self::Disabled => (0.0, 0.0),
-            Self::Stationary {
-                velocity,
-                velocity_tangent,
-                velocity_gradient,
-                velocity_gradient_tangent,
-            } => {
-                let velocity_dot_test_gradient = dot(*velocity, test_gradient);
-                let velocity_dot_test_gradient_tangent =
-                    dot(*velocity_tangent, test_gradient) + dot(*velocity, test_gradient_tangent);
-                let velocity_dot_velocity_gradient_tangent =
-                    dot(*velocity_tangent, &velocity_gradient[component])
-                        + dot(*velocity, &velocity_gradient_tangent[component]);
-                (
-                    stationary_convection_action(
-                        density,
-                        velocity,
-                        velocity_gradient,
-                        test,
-                        test_gradient,
-                        component,
-                    ),
-                    0.5 * density
-                        * (velocity_dot_velocity_gradient_tangent * test
-                            - velocity_dot_test_gradient_tangent * velocity[component]
-                            - velocity_dot_test_gradient * velocity_tangent[component]),
-                )
-            }
             Self::Ale {
                 relative_velocity,
                 relative_velocity_tangent,
@@ -1257,25 +903,6 @@ fn evaluate_velocity<const D: usize>(
             for axis in 0..D {
                 gradient[component][axis] +=
                     coefficients[local][component] * gradients[local][axis];
-            }
-        }
-    }
-    (value, gradient)
-}
-
-fn evaluate_velocity_flat<const D: usize>(
-    coefficients: &[[f64; D]],
-    basis: &[f64],
-    gradients: &[f64],
-) -> ([f64; D], [[f64; D]; D]) {
-    let mut value = [0.0; D];
-    let mut gradient = [[0.0; D]; D];
-    for local in 0..coefficients.len() {
-        for component in 0..D {
-            value[component] += coefficients[local][component] * basis[local];
-            for axis in 0..D {
-                gradient[component][axis] +=
-                    coefficients[local][component] * gradients[local * D + axis];
             }
         }
     }
@@ -1363,49 +990,6 @@ fn symmetric_gradient_test_tangent<const D: usize>(
                     * test_gradient_tangent[axis]
         })
         .sum()
-}
-
-/// State-projection form with the established per-axis operation order.
-fn projected_symmetric_gradient_test<const D: usize>(
-    gradient: &[[f64; D]; D],
-    test_gradient: &[f64],
-    test_component: usize,
-) -> f64 {
-    (0..D)
-        .map(|axis| {
-            gradient[test_component][axis] * test_gradient[axis]
-                + gradient[axis][test_component] * test_gradient[axis]
-        })
-        .sum()
-}
-
-struct ProjectedConvectiveLinearization<'a, const D: usize> {
-    density: f64,
-    velocity: &'a [f64; D],
-    velocity_gradient: &'a [[f64; D]; D],
-    basis: &'a [f64],
-    gradients: &'a [f64],
-}
-
-impl<const D: usize> ProjectedConvectiveLinearization<'_, D> {
-    fn entry(
-        &self,
-        row_basis: usize,
-        row_component: usize,
-        column_basis: usize,
-        column_component: usize,
-    ) -> f64 {
-        let row_value = self.basis[row_basis];
-        let column_value = self.basis[column_basis];
-        let row_gradient = &self.gradients[row_basis * D..(row_basis + 1) * D];
-        let column_gradient = &self.gradients[column_basis * D..(column_basis + 1) * D];
-        let diagonal = usize::from(row_component == column_component) as f64;
-        0.5 * self.density
-            * (column_value * self.velocity_gradient[row_component][column_component] * row_value
-                + diagonal * dot(self.velocity, column_gradient) * row_value
-                - column_value * row_gradient[column_component] * self.velocity[row_component]
-                - diagonal * dot(self.velocity, row_gradient) * column_value)
-    }
 }
 
 fn accumulate(

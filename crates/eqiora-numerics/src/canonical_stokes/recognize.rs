@@ -106,7 +106,7 @@ pub(super) fn lower_steady_incompressible_stokes_geometry_2d(
     program: &KernelProgram,
     geometry: &CanonicalGeometryV1,
 ) -> Result<SteadyIncompressibleStokesModel2d, Diagnostic> {
-    let (domain, boundaries) = unique_circular_hole_domain(program, geometry)?;
+    let (domain, boundaries) = unique_bound_geometry_domain_2d(program, geometry)?;
     let bounds = geometry.circular_hole_bounds().ok_or_else(|| {
         lowering_error(
             domain,
@@ -571,17 +571,90 @@ fn lower_boundary_projection(
     }
 }
 
-pub(super) fn unique_circular_hole_domain(
+pub(super) fn unique_bound_geometry_domain_2d(
     program: &KernelProgram,
     geometry: &CanonicalGeometryV1,
 ) -> Result<(RawId, BTreeMap<String, RawId>), Diagnostic> {
-    let required = BTreeSet::from([
-        "cylinder".to_owned(),
-        "inlet".to_owned(),
-        "outlet".to_owned(),
-        "walls".to_owned(),
-    ]);
-    unique_named_geometry_domain(program, geometry.digest_bytes(), "fluid", &required)
+    let regions = program
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Domain(domain)
+                if matches!(domain.kind(), DomainKind::GeometryRegion { .. }) =>
+            {
+                Some(domain)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [region] = regions.as_slice() else {
+        return Err(model_lowering_error(
+            program,
+            "Geometry binding requires exactly one GeometryRegion",
+        ));
+    };
+    let DomainKind::GeometryRegion {
+        geometry: digest,
+        entity_set,
+    } = region.kind()
+    else {
+        unreachable!()
+    };
+    let selected_region = geometry
+        .entity_set(entity_set)
+        .filter(|set| set.dimension() == 2)
+        .ok_or_else(|| {
+            lowering_error(
+                region.id().erase(),
+                "GeometryRegion does not select a two-dimensional source region",
+            )
+        })?;
+    if digest.bytes() != geometry.digest_bytes() {
+        return Err(lowering_error(
+            region.id().erase(),
+            "GeometryRegion belongs to another exact source revision",
+        ));
+    }
+    let domain = region.id().erase();
+    let mut boundaries = BTreeMap::new();
+    for node in program.nodes() {
+        let KernelNode::Domain(boundary) = node else {
+            continue;
+        };
+        if !has_edge(program, boundary.id().erase(), domain, EdgeKind::BoundaryOf) {
+            continue;
+        }
+        let DomainKind::GeometryBoundary { entity_set } = boundary.kind() else {
+            return Err(lowering_error(
+                boundary.id().erase(),
+                "GeometryRegion requires GeometryBoundary supports",
+            ));
+        };
+        let selected = geometry
+            .entity_set(entity_set)
+            .filter(|set| geometry.selection_is_boundary_of(set, selected_region))
+            .ok_or_else(|| {
+                lowering_error(
+                    boundary.id().erase(),
+                    "GeometryBoundary is not a boundary selection of its source region",
+                )
+            })?;
+        if boundaries
+            .insert(selected.name().to_owned(), boundary.id().erase())
+            .is_some()
+        {
+            return Err(lowering_error(
+                boundary.id().erase(),
+                "duplicate GeometryBoundary entity-set selection",
+            ));
+        }
+    }
+    if boundaries.is_empty() {
+        return Err(lowering_error(
+            domain,
+            "GeometryRegion requires boundary supports",
+        ));
+    }
+    Ok((domain, boundaries))
 }
 
 fn unique_named_geometry_domain(

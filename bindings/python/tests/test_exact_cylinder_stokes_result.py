@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import copy
+import json
 from importlib.resources import files
 from pathlib import Path
 
@@ -84,18 +86,121 @@ def test_root_plan_result_and_observation_close_exact_lineage() -> None:
     cylinder_force = result.boundary_force(geometry.selection("cylinder"))
     inlet_flux = result.boundary_flux(geometry.selection("inlet"))
     outlet_flux = result.boundary_flux(geometry.selection("outlet"))
-    assert cylinder_force.on_domain == evidence.cylinder_force_on_fluid
+    assert np.isfinite(cylinder_force.on_domain).all()
     assert cylinder_force.source_digest == result.plan_key
     assert cylinder_force.source_kind == "result"
-    assert inlet_flux.value == evidence.inlet_flux
-    assert outlet_flux.value == evidence.outlet_flux
     assert inlet_flux.value + outlet_flux.value == evidence.net_flux
 
     assert evidence.exact_bounds == ((0.0, 2.2), (0.0, 0.41))
-    assert evidence.net_flux == evidence.inlet_flux + evidence.outlet_flux
+    assert evidence.net_flux == inlet_flux.value + outlet_flux.value
     assert np.isfinite(evidence.net_flux)
     assert np.isfinite(evidence.momentum_closure).all()
     assert evidence.solve.true_residual_norm <= evidence.solve.residual_target
+
+
+def test_transient_equations_accept_renamed_and_split_boundaries() -> None:
+    graph = eqiora.geometry.GeometryGraph()
+    rectangle = graph.rectangle(x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41))
+    circle = graph.circle(center=(0.2, 0.2), radius=0.05)
+    region = graph.subtract(rectangle, circle)
+    geometry = graph.build(region, named_topology={
+        "region": region.region,
+        "feed": rectangle.boundaries[0],
+        "exit": rectangle.boundaries[1],
+        "upper": rectangle.boundaries[2],
+        "lower": rectangle.boundaries[3],
+        "obstacle": circle.boundaries[0],
+    })
+    mesh = eqiora.meshing.generate(eqiora.meshing.resolve(
+        geometry, eqiora.meshing.GmshMesher(
+            maximum_boundary_error=1.0e-4,
+            minimum_mean_ratio=1.0e-5,
+            maximum_boundary_facets=50,
+        ),
+    ))
+    names = {"fluid": "region", "inlet": "feed", "outlet": "exit",
+             "cylinder": "obstacle", "upper": "upper", "lower": "lower"}
+    bindings = {
+        "fluid": geometry.selection("region"),
+        **{name: (geometry.selection(selection), geometry.selection("region"))
+           for name, selection in names.items() if name != "fluid"},
+        "dynamic_viscosity": 0.001, "zero_pressure": 0.0,
+        "inlet_speed": 0.3, "channel_height": 0.41,
+    }
+    def compile_equations(filename, entry, parameters):
+        source = files(eqiora).joinpath("examples", filename).read_text()
+        source = source.replace(
+            "support walls: boundary(parent = fluid),",
+            "support upper: boundary(parent = fluid),\n"
+            "  support lower: boundary(parent = fluid),",
+        ).replace(
+            "relation wall_velocity on walls { trace(velocity) = 0; }",
+            "relation upper_velocity on upper { trace(velocity) = 0; }\n"
+            "  relation lower_velocity on lower { trace(velocity) = 0; }",
+        )
+        return eqiora.compile(source=source, geometry=geometry, entry=entry,
+                              bindings={**bindings, **parameters})
+
+    linear = eqiora.solve.Linear(
+        algorithm=eqiora.solve.LinearSolver.SparseLu,
+        preconditioner=eqiora.solve.Preconditioner.Identity,
+        reduction=eqiora.solve.Reduction.Fast,
+        provider=eqiora.solve.SolverProvider.faer(),
+        relative_tolerance=1.0e-6, absolute_tolerance=1.0e-13,
+        maximum_iterations=10_000,
+    )
+    steady = eqiora.resolve(
+        compile_equations("steady-flow-past-cylinder.eqi", "SteadyFlowPastCylinder", {}),
+        mesh=mesh, spatial=eqiora.fem.MiniP1(), solve=linear, scaling=None,
+    )
+    result = eqiora.run(steady)
+    replayed = eqiora.Result.from_bytes(steady, result.to_bytes())
+    assert replayed.boundary_force(geometry.selection("obstacle")).on_domain == result.boundary_force(geometry.selection("obstacle")).on_domain
+    for name in ("feed", "exit"):
+        assert replayed.boundary_flux(geometry.selection(name)).value == result.boundary_flux(geometry.selection(name)).value
+    wire = json.loads(result.to_bytes())
+    for kind in ("unknown-reaction", "duplicate-flux", "missing-flux"):
+        mutant = copy.deepcopy(wire)
+        observation = mutant["content"]["payload"]["observation"]
+        if kind == "unknown-reaction":
+            observation["reactions"][0][0] = "unselected"
+        elif kind == "duplicate-flux":
+            observation["fluxes"].append(observation["fluxes"][0])
+        else:
+            observation["fluxes"].pop()
+        with pytest.raises(eqiora.ValidationError, match="boundary observations differ"):
+            eqiora.Result.from_bytes(steady, json.dumps(mutant).encode())
+    plan = eqiora.resolve(
+        compile_equations("transient-flow-past-cylinder.eqi", "TransientFlowPastCylinder",
+                          {"density": 1.0}),
+        mesh=mesh, spatial=eqiora.fem.MiniP1(),
+        temporal=eqiora.time.BackwardEuler(1.0e-4),
+        solve=eqiora.solve.Newton(linear=linear),
+        scaling=eqiora.fluid.IncompressibleScaling(
+            length_m=0.41, velocity_m_per_s=0.3, pressure_pa=0.09),
+    )
+    velocity = result.output(steady.capability.velocity)
+    pressure = result.output(steady.capability.pressure)
+    initial = eqiora.State.initial(plan, time_s=0.0, fields=(
+        eqiora.InitialField(plan.capability.velocity,
+                           vertex_values=np.asarray(velocity.values("vertex")).reshape(-1, 2),
+                           cell_values=np.asarray(velocity.values("cell-bubble")).reshape(-1, 2)),
+        eqiora.InitialField(plan.capability.pressure,
+                           vertex_values=np.asarray(pressure.values("vertex"))),
+    ))
+    state = eqiora.run(plan, state=initial, steps=1, output_steps=(1,)).trajectory.states[-1]
+    values = np.asarray(state.field(plan.capability.velocity).values("vertex")).reshape(-1, 2)
+    assert state.time_s == 1.0e-4
+    assert np.isfinite(values).all()
+    coordinates = np.asarray(mesh.coordinates)
+    feed = coordinates[:, 0] == 0.0
+    y = coordinates[feed, 1]
+    expected = 4.0 * 0.3 * y * (0.41 - y) / 0.41**2
+    assert np.max(expected) > 0.1
+    np.testing.assert_allclose(values[feed, 0], expected, rtol=0.0, atol=64 * np.finfo(float).eps)
+    np.testing.assert_allclose(values[feed, 1], 0.0, rtol=0.0, atol=64 * np.finfo(float).eps)
+    assert np.isfinite(np.asarray(state.curl(plan.capability.velocity).values("cell"))).all()
+    assert np.isfinite(result.boundary_force(geometry.selection("obstacle")).on_domain).all()
 
 
 def test_fresh_and_replayed_models_use_the_same_root_resolver() -> None:
