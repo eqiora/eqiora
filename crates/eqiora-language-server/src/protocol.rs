@@ -12,26 +12,22 @@ use std::{
 };
 
 use crossbeam_channel::{Receiver, Sender};
-use eqiora::api::{
-    EditorService, EditorSnapshot, EditorSymbol, EditorSymbolKind, EditorWorkspaceSnapshot,
-};
+use eqiora::api::{EditorService, EditorSnapshot, EditorSymbol, EditorWorkspaceSnapshot};
 use eqiora::compiler::{CompilationNamespaceId, ResolvedHierarchyInput, ResolvedSourceUnit};
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, RequestId, Response};
 use lsp_types::{
     CancelParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
     DidOpenTextDocumentParams, DocumentFormattingParams, DocumentSymbol, DocumentSymbolParams,
     DocumentSymbolResponse, FoldingRange, FoldingRangeParams, FoldingRangeProviderCapability,
-    Hover, HoverContents, HoverParams, HoverProviderCapability, InitializeParams, MarkupContent,
-    MarkupKind, NumberOrString, OneOf, PositionEncodingKind, PublishDiagnosticsParams,
-    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
-    TextEdit, Uri, WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
+    HoverProviderCapability, InitializeParams, NumberOrString, OneOf, PositionEncodingKind,
+    PublishDiagnosticsParams, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextDocumentSyncOptions, TextEdit, Uri, WorkspaceFoldersServerCapabilities,
+    WorkspaceServerCapabilities,
 };
 use serde::de::DeserializeOwned;
 
 use crate::{
-    lsp_projection::{
-        editor_position, lsp_diagnostic, source_range, symbol_kind, symbol_label, symbol_range,
-    },
+    lsp_projection::{lsp_diagnostic, source_range, symbol_kind, symbol_label, symbol_range},
     workspace_uri::{file_uri_path, project_file_uri},
 };
 
@@ -815,7 +811,7 @@ fn handle_request(
         ),
         "textDocument/hover" => response_from(
             id,
-            decode(request.params).and_then(|params| hover(params, state)),
+            decode(request.params).and_then(|params| navigation::hover(params, state)),
         ),
         "textDocument/definition" => response_from(
             id,
@@ -937,53 +933,6 @@ fn collect_folding_ranges(
         collect_folding_ranges(snapshot, symbol.children(), output)?;
     }
     Ok(())
-}
-
-fn hover(params: HoverParams, state: &ServerState) -> Result<Option<Hover>, String> {
-    let uri = &params.text_document_position_params.text_document.uri;
-    document(state, uri)?;
-    let Some((workspace, file)) = state.resolved(uri) else {
-        return Ok(None);
-    };
-    let position = editor_position(params.text_document_position_params.position);
-    let Some((definition, source)) = workspace.hover_at_position(file, position) else {
-        return Ok(None);
-    };
-    let documentation = definition.doc_comment().map(|doc| doc.markdown());
-    Ok(Some(Hover {
-        contents: HoverContents::Markup(MarkupContent {
-            kind: MarkupKind::Markdown,
-            value: markdown_hover(
-                definition.kind(),
-                definition.path(),
-                source,
-                documentation.as_deref(),
-            ),
-        }),
-        range: None,
-    }))
-}
-
-fn markdown_hover(
-    kind: EditorSymbolKind,
-    path: &str,
-    source: &str,
-    documentation: Option<&str>,
-) -> String {
-    let longest_run = source
-        .split(|character| character != '`')
-        .map(str::len)
-        .max()
-        .unwrap_or_default();
-    let fence = "`".repeat(longest_run.saturating_add(1).max(3));
-    let detail = format!(
-        "**{}** `{path}`\n\n{fence}eqiora\n{source}\n{fence}",
-        symbol_label(kind)
-    );
-    match documentation {
-        Some(prose) => format!("{prose}\n\n{detail}"),
-        None => detail,
-    }
 }
 
 fn publish_diagnostics(
