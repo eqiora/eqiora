@@ -1,0 +1,138 @@
+---
+title: 1. Errors and residuals
+description: Separate physical assumptions, discretization error, and algebraic residual before deciding what to refine.
+sidebar:
+  order: 1
+---
+
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+
+## A solver can finish before your question is answered
+
+Imagine predicting the temperature at the middle of a rod. The linear solver
+reports a tiny residual. That tells you something about a system of algebraic
+equations; it does not yet say whether the mesh resolves the temperature or
+whether the conductivity describes the material.
+
+We will distinguish these questions using one matrix and one executable
+Poisson experiment. You need matrix multiplication and the idea of a vector
+length. The [heat-transfer book](/learn/heat-transfer/) supplies the physical
+interpretation if you want one.
+
+## Follow the approximations
+
+Let $u$ solve the continuous mathematical problem, $u_h$ solve its discretized
+equations exactly, and $\widetilde u_h$ denote the field reconstructed from
+the computed coefficients. Then
+
+$$
+u-\widetilde u_h=(u-u_h)+(u_h-\widetilde u_h).
+$$
+
+The first term is spatial approximation error. The second includes incomplete
+algebraic solution and rounding. Neither term measures the difference between
+the mathematical model and the physical world.
+
+| Source of discrepancy | A controlled investigation |
+| --- | --- |
+| Physical assumptions | Compare a neglected effect with the retained balance |
+| Uncertain input | Vary that input within a justified range |
+| Spatial approximation | Refine the mesh with the model and solver policy fixed |
+| Temporal approximation | Change time accuracy while keeping the spatial problem fixed |
+| Algebraic iteration | Tighten the stopping tolerance on the same mesh |
+| Floating-point arithmetic | Examine scaling and sensitivity; refine with care |
+
+These are different experiments. Refining a mesh cannot fix the wrong heat
+source, and tightening a solver cannot add missing spatial degrees of freedom.
+
+## What a residual measures
+
+For $A u_h=b$, define the residual of a computed coefficient vector $v$ by
+
+$$
+r=b-Av,\qquad e=u_h-v.
+$$
+
+Subtraction gives $Ae=r$, hence $e=A^{-1}r$ when $A$ is invertible. Taking
+compatible norms yields
+
+$$
+\frac{\lVert e\rVert}{\lVert u_h\rVert}
+\leq \kappa(A)\frac{\lVert r\rVert}{\lVert b\rVert},
+\qquad \kappa(A)=\lVert A\rVert\lVert A^{-1}\rVert,
+$$
+
+for nonzero $b$. The condition number describes how strongly residuals can be
+amplified into coefficient errors. Scaling and stopping criteria therefore
+matter together; see Barrett and coauthors'
+[discussion of stopping criteria](https://netlib.org/linalg/old_html_templates/section2.8.2.html).
+
+### A small residual with a large error
+
+Take
+
+$$
+A=\begin{pmatrix}1&0\\0&10^{-8}\end{pmatrix},
+\quad b=\begin{pmatrix}1\\10^{-8}\end{pmatrix},
+\quad u_h=\begin{pmatrix}1\\1\end{pmatrix},
+\quad v=\begin{pmatrix}1\\0\end{pmatrix}.
+$$
+
+Then $r=(0,10^{-8})^T$, although one component of the solution is completely
+wrong. In the infinity norm, the relative residual is $10^{-8}$ and the
+relative error is $1$. Here $\kappa_\infty(A)=10^8$, so the bound is attained.
+This is an arithmetic example, not a claim about the conditioning of every
+Eqiora problem.
+
+If the two unknowns represent quantities with different units, a raw vector
+norm may itself be meaningless. Choose physical reference scales first: for
+example, measure temperature error relative to a chosen temperature difference.
+
+## Compute a spatial comparison
+
+From the `eqiora-source` checkout created in [Get started](/get-started/), run:
+
+```bash
+cargo run -p eqiora-numerics --example poisson_convergence
+```
+
+The <ExactSourceLink path="crates/eqiora-numerics/examples/poisson_convergence.rs" kind="blob">maintained comparison program</ExactSourceLink>
+solves $-u''=\pi^2\sin(\pi x)$ with zero endpoint values on the unit interval.
+Before inspecting its table, differentiate $u=\sin(\pi x)$ twice and check the
+boundary values. That gives a solution independently of the numerical output.
+
+Read the `fem_l2` and `fvm_l2` columns as field errors, and the two balance
+columns as conservation discrepancies. Their magnitudes need not be similar:
+a method can balance its source and boundary flux almost exactly while its
+field remains visibly approximate. The following lessons derive both methods
+and explain precisely which field each error measures.
+
+The program already performs assembly and the linear solve. You do not need
+to build a separate solver to examine the mathematics. Open its source to see
+where the model is loaded and where the mesh counts enter the comparison.
+
+## A misleading improvement
+
+Suppose one run uses 16 cells and a relative solver tolerance of $10^{-3}$;
+another uses 32 cells and $10^{-10}$. A smaller field error in the second run
+does not isolate spatial convergence: two controls changed. First compare
+tolerances on the 16-cell problem, then compare meshes using an adequately
+tight common tolerance.
+
+Conversely, a flat error curve under mesh refinement may mean algebraic error
+has become dominant. It can also mean a wrong comparison function or norm.
+Identify which hypothesis a follow-up run would distinguish.
+
+## Exercises
+
+1. Replace $10^{-8}$ by $10^{-4}$ in the matrix example. Recompute the residual,
+   condition number, and error without a solver.
+2. Let $A=I$. Explain why residual and coefficient error now agree, and why
+   this still says nothing about spatial discretization error.
+3. In the Poisson output, find a row with a small balance discrepancy and a
+   larger field error. Explain how both can be correct.
+4. Design three runs that distinguish a solver-tolerance plateau from spatial
+   error. State what stays fixed in each comparison.
+
+[Book map](/learn/numerical-simulation/) ·
+[Next: Time integration](/learn/numerical-simulation/time-integration/)

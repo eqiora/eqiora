@@ -1,0 +1,152 @@
+---
+title: 4. Finite-volume balance
+description: Derive oriented two-point fluxes, boundary distances, and conservation on the same Poisson model.
+sidebar:
+  order: 4
+---
+
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+
+## Can every cell account for what crosses its boundary?
+
+A finite volume is a small accounting region. Its source must be balanced by
+what leaves its faces. If two neighboring cells disagree about their shared
+face flux, adding their balances creates or destroys a quantity inside the
+domain.
+
+We use the same dimensionless Poisson problem as the
+[finite-element lesson](/learn/numerical-simulation/weak-forms-and-finite-elements/):
+$-u''=\pi^2\sin(\pi\xi)$ on $[0,1]$, with zero endpoint values. You can start
+here knowing only that its exact solution is $u=\sin(\pi\xi)$.
+
+## Integrate the balance over a cell
+
+Define the rightward diffusive flux $q=-u'$. Then $q'=f$. For cell $K_i$,
+bounded by $\xi_{i-1/2}$ and $\xi_{i+1/2}$,
+
+$$
+q_{i+1/2}-q_{i-1/2}=\int_{K_i} f\,d\xi.
+$$
+
+The minus sign at the left face represents its leftward outward normal.
+The unknown $U_i$ now lives at the cell center rather than at a mesh vertex.
+
+```text
+             cell K_i                  cell K_(i+1)
+       |----------●----------|----------●----------|
+                  U_i        →         U_(i+1)
+                         shared face
+                  <--------- h -------->
+                     center-to-center distance
+```
+
+Conceptual sketch of two equal cells. The arrow fixes one positive flux
+direction at the shared face. The same flux leaves the left cell and enters
+the right cell; the two outward contributions have opposite signs.
+
+For an orthogonal uniform mesh, approximate the shared flux by
+
+$$
+q_{i+1/2}=-\frac{U_{i+1}-U_i}{h}.
+$$
+
+Substituting both faces gives
+
+$$
+\frac{-U_{i-1}+2U_i-U_{i+1}}h=\int_{K_i}f\,d\xi.
+$$
+
+Its resemblance to the finite-element interior equation does not make the
+methods identical. The unknown locations, load construction, boundary
+treatment, and reconstruction differ.
+
+## The boundary is half a cell away
+
+At the left boundary, the first center is distance $h/2$ from the prescribed
+value $u_D=0$. The rightward boundary flux is
+
+$$
+q_{1/2}=-\frac{U_1-u_D}{h/2}.
+$$
+
+The cell's outward flux there is $-q_{1/2}$. Using a full-cell distance would
+halve this boundary conductance. A plot could remain smooth while solving a
+different boundary approximation.
+
+With one cell covering the entire interval, the center value is $U$. Each
+outward endpoint flux is $2U$, so
+
+$$
+4U=\int_0^1\pi^2\sin(\pi\xi)\,d\xi=2\pi,
+\qquad U=\pi/2.
+$$
+
+The exact center value is 1. This deliberately coarse, hand-derived solution
+shows that conservation alone does not guarantee a small field error.
+
+## Sum the cells before looking at the plot
+
+Summing every cell equation cancels each interior face contribution once with
+a positive sign and once with a negative sign:
+
+$$
+q(1)-q(0)=\int_0^1 f\,d\xi=2\pi.
+$$
+
+The exact solution gives $q(0)=-\pi$ and $q(1)=\pi$, consistent with that
+prediction. In several dimensions, replace endpoint fluxes by integrals over
+faces and use each face's outward normal. The two-point approximation relies
+on the geometry connecting cell centers appropriately to faces; an arbitrary
+skew mesh needs more than the formula above. Eymard, Gallouët, and Herbin study
+this method and its error on admissible meshes in
+[their TPFA analysis](https://arxiv.org/abs/2405.16985).
+
+## Compare the same equation through both methods
+
+Reuse the `.eqi` model in the finite-element lesson. From the source checkout:
+
+```bash
+cargo run -p eqiora-numerics --example poisson_convergence
+```
+
+Inspect `fvm_l2`, `fvm_order`, and `fvm_relative_balance`. The program supplies
+one mathematical model to both methods; it does not rewrite the source for
+FVM. Its <ExactSourceLink path="crates/eqiora-numerics/examples/poisson_convergence.rs" kind="blob">run source</ExactSourceLink>
+shows that common input explicitly.
+
+The FVM error column uses a continuous, piecewise linear reconstruction
+through cell centers and boundary values. It is not the error of the raw
+piecewise constant cell field. The distinction becomes important in the
+[next lesson](/learn/numerical-simulation/refinement-and-reproducibility/).
+
+In a Python application, [`eqiora.fvm.CellCenteredTpfa()`](/reference/python/fvm/)
+selects the scalar two-point-flux policy. The method is a numerical choice;
+the source and boundary relations remain properties of the model. After
+deriving the flux, this policy is the reusable implementation you select.
+
+## A deliberate conservation failure
+
+Consider two cells with an interior rightward flux of 3. Their shared-face
+outward contributions must be $+3$ and $-3$. If you write $+3$ in both balances,
+the domain sum acquires a false source of 6. This is a paper experiment: it
+isolates the orientation error without changing Eqiora's implementation.
+
+The same accounting matters in
+[fluid mechanics](/learn/fluid-mechanics/) and heat transport. A detailed
+velocity or temperature picture cannot substitute for the integrated balance.
+
+## Exercises
+
+1. Derive the first-cell equation for a uniform mesh, including its boundary
+   flux. Explain why its diagonal differs from an interior diagonal.
+2. In the one-cell example, intentionally use distance 1 at each boundary.
+   Compute the resulting $U$ and explain what became inconsistent.
+3. Use three symbolic cell balances to demonstrate interior cancellation.
+4. Why is an accurate total boundary flux compatible with an inaccurate
+   center value on the one-cell mesh?
+5. Describe which geometrical assumption makes the two-point face gradient
+   reasonable, and why a strongly skew line between centers can violate it.
+
+[Previous: Weak forms and finite elements](/learn/numerical-simulation/weak-forms-and-finite-elements/) ·
+[Book map](/learn/numerical-simulation/) ·
+[Next: Refinement and reproducibility](/learn/numerical-simulation/refinement-and-reproducibility/)

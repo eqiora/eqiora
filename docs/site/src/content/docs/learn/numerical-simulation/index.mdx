@@ -1,0 +1,50 @@
+---
+title: Numerical simulation
+description: Turn equations into calculations whose accuracy you can explain, using decay and Poisson problems.
+sidebar:
+  order: 0
+---
+
+A calculated temperature has more digits than a thermometer. Which digits
+should you believe? This book follows that question from one decaying state
+to a spatial field, then compares two ways of approximating the same equation.
+
+You can arrive directly from your favorite subject. A cooling body, an RC
+circuit, and a relaxing mechanical system all introduce time scales; heat
+conduction and elasticity both lead to spatial systems. The examples here are
+small enough that we can predict their behavior before computing it.
+
+## Choose a starting question
+
+| Question | Lesson | Mathematics used |
+| --- | --- | --- |
+| My solver stopped. Is the answer accurate? | [Errors and residuals](./errors-and-residuals/) | Vectors, matrix multiplication, norms |
+| Why can a decaying system produce oscillations? | [Time integration](./time-integration/) | Derivatives, exponentials, geometric sequences |
+| How does a differential equation become a matrix? | [Weak forms and finite elements](./weak-forms-and-finite-elements/) | Integration by parts, piecewise linear functions |
+| How does a mesh conserve a quantity? | [Finite-volume balance](./finite-volume-balance/) | Flux, integration, outward normals |
+| What does a refinement study actually show? | [Refinement and reproducibility](./refinement-and-reproducibility/) | Integrals, logarithms, error ratios |
+
+Read in this order for a connected introduction. For physical context, start
+with [heat transfer](/learn/heat-transfer/) and return here when you want to
+understand the numerical choices. The short
+[modeling foundations](/learn/mathematical-modeling/) explain quantities,
+relations, and boundary conditions when you need them.
+
+## Two experiments, one habit
+
+The time experiment uses the same `decay.eqi` as [Get started](/get-started/).
+The spatial experiment uses a sine-shaped Poisson solution, first on an
+interval and then conceptually on a square. Each lesson follows the same habit:
+state a prediction, express the mathematics, compute, and try to disprove the
+interpretation with a controlled change.
+
+Follow Get started for the Python installation. Keep its `eqiora-source`
+checkout: the Poisson comparison runs its maintained Cargo example from that
+directory. The source revision attached to these pages supplies the models and
+programs together.
+
+The goal is a useful explanation of an answer: which equation it approximates,
+where it is sampled, what changes under refinement, and which physical
+assumptions still need examination.
+
+[Start: Errors and residuals](./errors-and-residuals/)
