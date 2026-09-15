@@ -115,7 +115,7 @@ test('Kármán vortex street publishes accessible caller-owned motion', async ({
   await expect(card).toHaveAttribute('href', '/gallery/karman-vortex-street/');
   await card.click();
   await expect(page).toHaveURL(/\/gallery\/karman-vortex-street\/$/);
-  await expect(page.getByText('Numerical method', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Numerical method', exact: true })).toBeVisible();
 
   const video = page.locator('video.eq-gallery-motion__video');
   await expect(video).toHaveAttribute('controls', '');
