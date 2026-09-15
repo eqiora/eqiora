@@ -118,7 +118,7 @@ reaction and energy predictions before choosing a mesh.
 
 ## Write the equations directly
 
-The following listing is the maintained model source. It follows our derivation:
+The following listing is the model source. It follows our derivation:
 declare the displacement and load potential, define $q$, impose balance, then
 state four boundary relations.
 
@@ -132,7 +132,7 @@ and associates its named edges with these roles. This is the same distinction
 between a [spatial field and its domain](/learn/mathematical-modeling/fields-spatial-domains/)
 used in the heat-transfer lessons.
 
-## Run the maintained example
+## Run the example
 
 Use the source environment from [Get started](/get-started/#install-with-uv),
 where `eqiora-source` and `.venv` sit in the same working folder. The commands
@@ -193,7 +193,7 @@ standard `Eqiora.Solid.LinearElasticity` package supplies those same pieces:
 | Zero displacement on one edge | `FixedDisplacement2d` |
 | Zero traction on one edge | `ZeroTraction2d` |
 
-<ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi" kind="blob">Open the maintained component definitions</ExactSourceLink>.
+<ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi" kind="blob">Open the component definitions</ExactSourceLink>.
 The balance contains the same symmetric displacement gradient and isotropic
 trace term. The interface uses that same stress on each exterior boundary.
 The fixed and free components supply boundary laws and connect to the interface.

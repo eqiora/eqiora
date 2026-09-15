@@ -1,4 +1,4 @@
-"""Run and optionally plot the accepted mixed-boundary elasticity case."""
+"""Run and optionally plot the mixed-boundary elasticity case."""
 
 import argparse
 from importlib.resources import files
@@ -58,7 +58,7 @@ def main() -> None:
     parser.add_argument(
         "--displacement-png",
         type=Path,
-        help="save the accepted displacement still (requires eqiora[matplotlib])",
+        help="save the displacement image (requires eqiora[matplotlib])",
     )
     parser.add_argument(
         "--scale",
@@ -72,8 +72,8 @@ def main() -> None:
     evidence = eqiora.solid.linear_elasticity_evidence(result)
     print(result.plan_key)
     print(evidence.solve)
-    print("constrained reaction", evidence.constrained_reaction, "N")
-    print("integrated body force", evidence.integrated_body_force, "N")
+    print("constrained reaction", evidence.constrained_reaction, "N/m")
+    print("integrated body force", evidence.integrated_body_force, "N/m")
     if arguments.displacement_png is not None:
         import eqiora.matplotlib as eqplot
 

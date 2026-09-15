@@ -83,7 +83,7 @@ to the continuous square problem, so it need not preserve this center value.
 
 ## Express those equations in `.eqi`
 
-Here is the maintained mathematical source. Read `HeatedBody` first; the
+Here is the mathematical source. Read `HeatedBody` first; the
 `TransientHeatedBody` component below it will be used in the next chapter.
 
 <Code code={modelSource} lang="eqiora" title="examples/heated-body/src/main.eqi" />
@@ -112,7 +112,7 @@ Use the environment and `eqiora-source` checkout from
 .venv/bin/python
 ```
 
-Then compile the maintained `.eqi` file. We reuse the runner's geometry and
+Then compile the `.eqi` file. We reuse the runner's geometry and
 numerical setup so this short session contains no second mathematical model:
 
 ```python
@@ -173,7 +173,7 @@ transient entries:
 ```
 
 <details>
-<summary>Read the complete maintained runner</summary>
+<summary>Read the complete runner</summary>
 
 <Code code={runnerSource} lang="python" title="examples/heated-body/run.py" />
 
@@ -225,7 +225,7 @@ test function $\phi$; its load of 1/4 W/m is not the full source integral of
 - Klaus-Jürgen Bathe, *Finite Element Analysis of Solids and Fluids I*, MIT
   2.092 (2009), [Lecture 20, pp. 3–4, transient heat-transfer matrices](https://ocw.mit.edu/courses/2-092-finite-element-analysis-of-solids-and-fluids-i-fall-2009/de3fe8a64f95eb82acd0cd3a279972a4_MIT2_092F09_lec20.pdf).
   The integrals for this four-cell example are derived above.
-- <ExactSourceLink path="examples/heated-body/src/main.eqi" kind="blob">Maintained mathematical source</ExactSourceLink> and
+- <ExactSourceLink path="examples/heated-body/src/main.eqi" kind="blob">Mathematical source</ExactSourceLink> and
   <ExactSourceLink path="examples/heated-body/run.py" kind="blob">complete runner</ExactSourceLink>.
 
 [Previous: Boundaries and interfaces](/learn/heat-transfer/boundaries-and-interfaces/) ·

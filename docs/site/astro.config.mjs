@@ -136,6 +136,12 @@ export default defineConfig({
         { label: 'Learn', items: [
           { label: 'Browse topics', link: '/learn/' },
           { label: 'Mathematical modeling', items: [{ autogenerate: { directory: 'learn/mathematical-modeling' } }] },
+          { label: 'Heat transfer', collapsed: true, items: [{ autogenerate: { directory: 'learn/heat-transfer' } }] },
+          { label: 'Numerical simulation', collapsed: true, items: [{ autogenerate: { directory: 'learn/numerical-simulation' } }] },
+          { label: 'Circuits and dynamics', collapsed: true, items: [{ autogenerate: { directory: 'learn/circuits-dynamics' } }] },
+          { label: 'Structural mechanics', collapsed: true, items: [{ autogenerate: { directory: 'learn/structural-mechanics' } }] },
+          { label: 'Fluid mechanics', collapsed: true, items: [{ autogenerate: { directory: 'learn/fluid-mechanics' } }] },
+          { label: 'Inverse problems', collapsed: true, items: [{ autogenerate: { directory: 'learn/inverse-problems' } }] },
         ] },
         { label: 'Guides', items: [
           { label: 'Choose a task', link: '/guides/' },

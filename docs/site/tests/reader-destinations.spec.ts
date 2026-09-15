@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { expect, test, type Browser } from '@playwright/test';
-import { BASE_URL, launchOfficialBrowser, assertNoPageOverflow, assertNoSeriousAxeViolations, assertTableInventory, installTableObserver, TABLE_ROUTES } from './support';
+import { BASE_URL, launchOfficialBrowser, assertNoPageOverflow, assertNoSeriousAxeViolations, assertTableInventory, installTableObserver, TABLE_ROUTES, SITE_ROUTES } from './support';
 
 let browser: Browser;
 test.beforeAll(async () => { browser = await launchOfficialBrowser(); });
@@ -150,6 +150,25 @@ test('search classifies migrated destinations and displaced routes are absent', 
   await expect(page.locator('[data-eq-content-type]').filter({ hasText: 'Content type: Guide' }).first()).toBeVisible();
   for (const route of ['/textbooks/', '/python/', '/api/', '/examples/', '/concepts/', '/architecture/', '/gallery/transient-cylinder-startup/']) {
     expect((await context.request.get(route)).status(), route).toBe(404);
+  }
+  await context.close();
+});
+
+
+test('Learn opens every subject directly without JavaScript', async () => {
+  const context = await browser.newContext({ baseURL: BASE_URL, javaScriptEnabled: false });
+  const page = await context.newPage();
+  const subjects = SITE_ROUTES.filter((route) => /^\/learn\/[^/]+\/$/.test(route));
+  expect(subjects).toHaveLength(7);
+  for (const route of subjects) {
+    await page.goto('/learn/');
+    const link = page.getByRole('main').locator(`a[href="${route}"]`).first();
+    await expect(link).toBeVisible();
+    await link.focus();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(new URL(route, BASE_URL).href);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+    expect(await page.getByRole('main').locator('a[href^="/learn/"]').count()).toBeGreaterThan(0);
   }
   await context.close();
 });

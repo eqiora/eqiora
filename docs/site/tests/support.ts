@@ -77,6 +77,48 @@ export const SITE_ROUTES = [
   '/learn/mathematical-modeling/models-not-simulations/',
   '/learn/mathematical-modeling/ordinary-differential-equations/',
   '/learn/mathematical-modeling/quantities-dimensions-units/',
+  '/reference/standard-packages/controls/',
+  '/reference/python/units/',
+  '/reference/python/colab/',
+  '/learn/circuits-dynamics/component-laws/',
+  '/learn/circuits-dynamics/conserving-networks/',
+  '/learn/circuits-dynamics/decay-and-storage/',
+  '/learn/circuits-dynamics/',
+  '/learn/circuits-dynamics/resistor-divider/',
+  '/learn/circuits-dynamics/voltage-current-power/',
+  '/learn/fluid-mechanics/computing-incompressible-flow/',
+  '/learn/fluid-mechanics/continuum-and-statics/',
+  '/learn/fluid-mechanics/cylinder-wakes/',
+  '/learn/fluid-mechanics/exact-parallel-flows/',
+  '/learn/fluid-mechanics/',
+  '/learn/fluid-mechanics/mass-and-momentum/',
+  '/learn/fluid-mechanics/references/',
+  '/learn/fluid-mechanics/stokes-and-boundaries/',
+  '/learn/heat-transfer/assessing-a-thermal-calculation/',
+  '/learn/heat-transfer/boundaries-and-interfaces/',
+  '/learn/heat-transfer/conservation-and-fourier-law/',
+  '/learn/heat-transfer/heated-body-in-eqiora/',
+  '/learn/heat-transfer/',
+  '/learn/heat-transfer/steady-conduction/',
+  '/learn/heat-transfer/transient-storage/',
+  '/learn/inverse-problems/differentiating-a-solved-model/',
+  '/learn/inverse-problems/heat-source-recovery/',
+  '/learn/inverse-problems/',
+  '/learn/inverse-problems/measurements-to-parameters/',
+  '/learn/inverse-problems/noise-scaling-and-design/',
+  '/learn/inverse-problems/sensitivity-and-identifiability/',
+  '/learn/numerical-simulation/errors-and-residuals/',
+  '/learn/numerical-simulation/finite-volume-balance/',
+  '/learn/numerical-simulation/',
+  '/learn/numerical-simulation/refinement-and-reproducibility/',
+  '/learn/numerical-simulation/time-integration/',
+  '/learn/numerical-simulation/weak-forms-and-finite-elements/',
+  '/learn/structural-mechanics/',
+  '/learn/structural-mechanics/interpreting-results/',
+  '/learn/structural-mechanics/loads-energy/',
+  '/learn/structural-mechanics/mixed-boundary-square/',
+  '/learn/structural-mechanics/strain-stress/',
+  '/learn/structural-mechanics/virtual-work/',
   '/404.html',
 ] as const;
 
@@ -145,8 +187,8 @@ export function createOrdinaryRoutePlan(): OrdinaryRoutePlan {
 
 export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly string[] {
   if (REFERENCE_START < 1) throw new Error('route authority missing /reference/');
-  if (SITE_ROUTES.length !== 60 || new Set(SITE_ROUTES).size !== 60) {
-    throw new Error('route authority is not 60 unique entries');
+  if (SITE_ROUTES.length !== 102 || new Set(SITE_ROUTES).size !== 102) {
+    throw new Error('route authority is not 102 unique entries');
   }
   const entries = (['A', 'B', 'C'] as const).flatMap((chunk) =>
     plan[chunk].map((route) => ({ chunk, route })),
@@ -164,7 +206,7 @@ export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly strin
   if (missing) throw new Error(`ORDER-MISSING: ${missing}`);
 
   const expected = createOrdinaryRoutePlan();
-  const cardinalities = { A: 1, B: 15, C: 44 } as const;
+  const cardinalities = { A: 1, B: 15, C: 86 } as const;
   for (const chunk of ['A', 'B', 'C'] as const) {
     if (plan[chunk].length !== cardinalities[chunk]) {
       throw new Error(`ORDER-CARDINALITY ${chunk}: ${plan[chunk].length}`);
@@ -176,12 +218,12 @@ export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly strin
       throw new Error(`ORDER-REORDER ${chunk}`);
     }
   }
-  if (entries.length !== 60 || seen.size !== 60) {
-    throw new Error('ORDER-UNION is not exactly 60 entries');
+  if (entries.length !== 102 || seen.size !== 102) {
+    throw new Error('ORDER-UNION is not exactly 102 entries');
   }
 
   const byRoute = new Map(entries.map((entry) => [entry.route, entry]));
-  if (byRoute.size !== 60) throw new Error('ORDER-CANONICAL duplicate identity');
+  if (byRoute.size !== 102) throw new Error('ORDER-CANONICAL duplicate identity');
   const canonical = SITE_ROUTES.map((route) => {
     const entry = byRoute.get(route);
     if (!entry) throw new Error(`ORDER-CANONICAL missing: ${route}`);

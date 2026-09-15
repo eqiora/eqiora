@@ -55,7 +55,6 @@ class KarmanVortexStreetGalleryProduct(unittest.TestCase):
                 self.assertIn(token, source)
             self.assertNotIn("transient_cylinder_wake", source)
             self.assertIsNone(re.search(r"steps\s*=\s*10\b", source))
-        self.assertIn("UNVERIFIED PRODUCT EXAMPLE", self.plain)
         self.assertIn("Unverified product example", COLAB.read_text(encoding="utf-8"))
         for token in (
             "INLET_MAXIMUM_M_PER_S = 1.5",

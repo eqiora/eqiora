@@ -1,6 +1,6 @@
 ---
 title: 3. Weak forms and finite elements
-description: Derive a one-dimensional element matrix, assemble it, and connect the construction to the maintained Poisson example.
+description: Derive a one-dimensional element matrix, assemble it, and connect the construction to the Poisson example.
 sidebar:
   order: 3
 ---
@@ -124,9 +124,9 @@ the [refinement lesson](/learn/numerical-simulation/refinement-and-reproducibili
 derives the order calculation.
 
 The <ExactSourceLink path="crates/eqiora-numerics/examples/poisson_convergence.rs" kind="blob">complete run program</ExactSourceLink>
-already delegates assembly and solution to the numerical library. The strong
-equation you wrote is sufficient for this supported Poisson route; there is
-no lesson-specific weak-form implementation to maintain.
+reads this equation and compares finite elements with finite volumes. The
+choice of approximation belongs to the computation, while the source states
+the mathematical problem.
 
 For Python applications, the corresponding choice is
 [`eqiora.fem.Q1()`](/reference/python/fem/). In one dimension it gives the

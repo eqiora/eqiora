@@ -121,7 +121,7 @@ The complete script uses the public compile → resolve → run path:
 
 <Code code={programSource} lang="python" title="run.py" />
 
-<ExactSourceLink path="examples/python/textbook_decay.py" kind="blob">View the maintained run script</ExactSourceLink>.
+<ExactSourceLink path="examples/python/textbook_decay.py" kind="blob">View the run script</ExactSourceLink>.
 
 The program prints the time and computed value. Compare each value with
 $\exp(-t)$ independently. For this example, compare the three samples using
@@ -141,7 +141,7 @@ value, rate, and solver settings.
 
 ## What can we reuse?
 
-The maintained `decay.eqi` is already the complete mathematical description for
+The `decay.eqi` is already the complete mathematical description for
 this small problem. There is no need to hide a one-line evolution law behind a
 new component. Reuse its source and run script, then open their definitions when
 you need to change the law. In the [circuits path](/learn/circuits-dynamics/),

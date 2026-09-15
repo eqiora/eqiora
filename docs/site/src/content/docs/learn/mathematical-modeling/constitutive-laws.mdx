@@ -80,7 +80,7 @@ Velocity gradient has dimension $1/T$. Dynamic viscosity $\mu$ has dimension
 $M/(LT)$, so their product has pressure dimension $M/(LT^2)$. The isotropic
 pressure term has the same dimension and tensor shape.
 
-The maintained fluid balance places this stress inside a divergence. Find
+The fluid balance places this stress inside a divergence. Find
 `dynamic_viscosity` in the source linked below: its declared unit is
 `kg / (m * s)`. Its physical value describes a material at the conditions of
 interest; choosing it is a modeling decision.
@@ -98,7 +98,7 @@ $$
 Both strain measures are dimensionless. The Lamé parameters $\mu_s$ and
 $\lambda$ therefore have stress dimension. The solid component applies divergence to
 this stress and balances it against the body force. Open `IsotropicBalance2d`
-in the maintained source below to see the expression in its full context.
+in the source below to see the expression in its full context.
 
 The plane-strain and plane-stress components derive different Lamé parameters
 from Young's modulus and Poisson's ratio. They share an equilibrium structure

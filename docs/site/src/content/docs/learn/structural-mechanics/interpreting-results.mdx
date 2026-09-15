@@ -100,7 +100,7 @@ assembled force equations, as derived in
 [virtual work](/learn/structural-mechanics/virtual-work/).
 
 These are different observations. Calling both “reaction” without saying how
-they were calculated creates a false contradiction. The maintained Python
+they were calculated creates a false contradiction. The Python
 program prints the algebraic reaction. The boundary-stress values here come
 from differentiating the analytic Q1 interpolant.
 
@@ -132,7 +132,7 @@ or the physical load while refining would invalidate that comparison.
 
 ## Make a useful mesh study
 
-In a working copy of the maintained Python example, change only
+In a working copy of the Python example, change only
 `CartesianMesher(cells=(16, 16))` to `(8, 8)`, `(32, 32)` and `(64, 64)`.
 Keep the rectangle, all bindings, the boundary meanings and solver settings
 fixed. Before running, predict what each observation will tell you:

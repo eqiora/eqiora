@@ -1,52 +1,73 @@
 ---
 title: Learn
-description: Understand mathematical models through worked derivations, physical examples, and exercises.
+description: Explore heat, fluids, structures, circuits, and inverse problems through mathematics you can run.
 ---
 
 import { Card, CardGrid } from '@astrojs/starlight/components';
+import LearningTopics from '@components/site/LearningTopics.astro';
 
-Learn how a physical assumption becomes an equation, what that equation predicts,
-and how to recognize when a model is missing something. Each lesson includes
-worked reasoning and exercises; you can read it without installing Eqiora.
-
-## Start a learning path
-
-[Mathematical modeling](/learn/mathematical-modeling/) connects eight lessons,
-from assumptions and units to evolving state, conservation and boundaries.
-Start with [Models are not simulations](/learn/mathematical-modeling/models-not-simulations/),
-or go straight to the [decay experiment](/learn/mathematical-modeling/ordinary-differential-equations/)
-after [Get started](/get-started/).
+A body warms up. A structure bends. A wake sheds vortices. A circuit divides a
+voltage. Start with the phenomenon that makes you curious, build its equations,
+and use Eqiora to explore what happens next.
 
 ## Browse by topic
 
+Choose your physics. Each path explains the ideas it needs and links to the
+mathematics along the way; you can start here without reading another book first.
+
+<LearningTopics />
+
+## Start a learning path
+
+For a connected introduction, follow **mathematical modeling → heat transfer →
+numerical simulation**. First learn to express a physical question, then build
+and run a thermal model, then discover how the numerical approximation affects
+the answer.
+
 <CardGrid>
-  <Card title="Meaning and consistency">
-    [Models and assumptions](/learn/mathematical-modeling/models-not-simulations/),
-    [dimensions and units](/learn/mathematical-modeling/quantities-dimensions-units/),
-    and [algebraic networks](/learn/mathematical-modeling/algebraic-relations-networks/).
-    Decide what is unknown and whether the relations make sense together.
+  <Card title="Mathematical modeling">
+    Unknowns, units, conservation, material laws, and boundaries: learn how to
+    turn a physical question into equations you can explain.
+
+    [Start with models and assumptions](/learn/mathematical-modeling/).
   </Card>
-  <Card title="Change in time">
-    [Ordinary differential equations](/learn/mathematical-modeling/ordinary-differential-equations/):
-    derive exponential decay, run the installed example, and compare its result
-    with a prediction made by hand.
-  </Card>
-  <Card title="Fields and conservation">
-    [Spatial domains](/learn/mathematical-modeling/fields-spatial-domains/) and
-    [conservation laws](/learn/mathematical-modeling/conservation-laws/): connect
-    storage, flux, source, gradients and divergence.
-  </Card>
-  <Card title="Materials and boundaries">
-    [Constitutive laws](/learn/mathematical-modeling/constitutive-laws/) and
-    [boundary and interface conditions](/learn/mathematical-modeling/boundary-interface-conditions/):
-    close a balance and describe how a system meets its surroundings.
+  <Card title="Numerical simulation">
+    Time steps, meshes, finite elements, finite volumes, and error: learn what
+    a computer does with your equations and how to make a useful comparison.
+
+    [Explore numerical methods](/learn/numerical-simulation/).
   </Card>
 </CardGrid>
 
+## From an equation to a reusable part
+
+Each investigation starts with a question and a prediction you can make by
+hand. Derive the equations, express the model in `.eqi`, and read the result.
+Then open the reusable components: their equations explain how the same model
+can be written more concisely. Change a material, a boundary, or a parameter,
+and predict the consequence before running again.
+
+Keep physical assumptions and numerical choices separate. A change in thermal
+conductivity changes the model; a finer mesh changes how you approximate it.
+The exercises help you explore both.
+
+## Follow an idea into another subject
+
+- **Conservation:** follow energy through [heat transfer](/learn/heat-transfer/),
+  power through [circuits](/learn/circuits-dynamics/), and momentum through
+  [fluid mechanics](/learn/fluid-mechanics/).
+- **Stress and work:** connect [loads in a solid](/learn/structural-mechanics/)
+  with [forces in a fluid](/learn/fluid-mechanics/).
+- **Prediction and measurement:** solve a [thermal problem](/learn/heat-transfer/),
+  then ask what its temperature reveals in [inverse problems](/learn/inverse-problems/).
+- **Approximation:** use [numerical simulation](/learn/numerical-simulation/)
+  to understand time steps, spatial resolution, and the difference between a
+  small residual and an accurate solution.
+
 ## Connect the ideas to a result
 
-Follow the [steady cylinder-flow investigation](/gallery/exact-cylinder-steady-stokes/)
-or [mixed-boundary elasticity](/gallery/mixed-boundary-elasticity/) to see
-assumptions, numerical choices and a plotted result together.
-[Guides](/guides/) explain the practical steps; [Reference](/reference/) defines
-the constructs and signatures.
+See the [cylinder-flow investigation](/gallery/exact-cylinder-steady-stokes/)
+or [mixed-boundary elasticity](/gallery/mixed-boundary-elasticity/) for worked
+models and plots. When you reach your first computation, [Get started](/get-started/)
+sets up the shared environment. [Guides](/guides/) explain practical tasks;
+[Reference](/reference/) lets you look up a definition without leaving the subject.

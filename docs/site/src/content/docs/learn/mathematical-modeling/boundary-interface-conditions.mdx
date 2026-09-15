@@ -77,13 +77,13 @@ physically appropriate depends on the modeled boundary.
 
 The standard fluid package includes no-slip and traction-free components:
 
-<Code code={interfaceSource.slice(0, interfaceSource.indexOf('public component ZeroVelocity2d')).trim()} lang="eqiora" title="Maintained velocity–traction connector" />
+<Code code={interfaceSource.slice(0, interfaceSource.indexOf('public component ZeroVelocity2d')).trim()} lang="eqiora" title="velocity–traction connector" />
 
 This connector's vector extent follows its boundary's two- or three-dimensional
 parent support. Its member names identify the trace and flux roles; `shape` and
 `frame` here describe the connector contract, not a postfix Field type.
 
-<Code code={fluidSource.slice(fluidSource.indexOf('public component NoSlip2d'), fluidSource.indexOf('public component NormalPressureOutlet2d')).trim()} lang="eqiora" title="Maintained wall and free-traction components" />
+<Code code={fluidSource.slice(fluidSource.indexOf('public component NoSlip2d'), fluidSource.indexOf('public component NormalPressureOutlet2d')).trim()} lang="eqiora" title="wall and free-traction components" />
 
 `NormalPressureOutlet2d` supplies a nonzero normal traction from an exterior
 pressure. `NormalVelocityInlet2d` reads a scalar speed Field and prescribes the
@@ -111,7 +111,7 @@ computes the trace and which computes the flux.
 
 The package interface components connect the interior field to a boundary port:
 
-<Code code={fluidSource.slice(fluidSource.indexOf('public component VelocityTractionInterface2d'), fluidSource.indexOf('public component SteadyStokes2d')).trim()} lang="eqiora" title="Maintained interior-to-boundary interface" />
+<Code code={fluidSource.slice(fluidSource.indexOf('public component VelocityTractionInterface2d'), fluidSource.indexOf('public component SteadyStokes2d')).trim()} lang="eqiora" title="interior-to-boundary interface" />
 
 ## Join two materials without creating energy
 

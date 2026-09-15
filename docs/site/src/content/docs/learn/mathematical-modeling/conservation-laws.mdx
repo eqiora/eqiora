@@ -130,10 +130,10 @@ must not be reused as the complete transport law for moving material.
 For constant-density incompressible flow, the corresponding mass statement is
 $\nabla\cdot\boldsymbol u=0$. It says there is no net volumetric outflow from a
 small fixed volume; it does not determine velocity by itself. Momentum balance
-adds the force accounting. In the maintained fluid component, find
+adds the force accounting. In the fluid component, find
 `incompressibility` and `momentum`:
 
-<Code code={fluidSource.slice(fluidSource.indexOf('public component SteadyNewtonianBalance2d'), fluidSource.indexOf('public component VelocityTractionInterface2d')).trim()} lang="eqiora" title="Maintained steady balance component" />
+<Code code={fluidSource.slice(fluidSource.indexOf('public component SteadyNewtonianBalance2d'), fluidSource.indexOf('public component VelocityTractionInterface2d')).trim()} lang="eqiora" title="steady balance component" />
 
 The divergence in momentum acts on stress. Its viscous term supplies a material
 relation, while pressure enforces the incompressibility constraint. A force
