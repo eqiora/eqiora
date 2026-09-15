@@ -95,13 +95,15 @@ fn whole_row_reversal_preserves_diffusion_reaction_and_source() {
         .unwrap()
         .volume()
         .unwrap()
-        .evaluate(&geometry(), &quadrature, &BTreeMap::new())
+        .prepare_cell(&geometry(), &quadrature)
+        .and_then(|cell| cell.evaluate(&BTreeMap::new()))
         .unwrap();
     let reversed = derive(&reversed)
         .unwrap()
         .volume()
         .unwrap()
-        .evaluate(&geometry(), &quadrature, &BTreeMap::new())
+        .prepare_cell(&geometry(), &quadrature)
+        .and_then(|cell| cell.evaluate(&BTreeMap::new()))
         .unwrap();
     assert_eq!(original, reversed);
     let negative = source.replace("2 * grad(f0)", "(-2) * grad(f0)");
@@ -110,7 +112,8 @@ fn whole_row_reversal_preserves_diffusion_reaction_and_source() {
             .unwrap()
             .volume()
             .unwrap()
-            .evaluate(&geometry(), &quadrature, &BTreeMap::new())
+            .prepare_cell(&geometry(), &quadrature)
+            .and_then(|cell| cell.evaluate(&BTreeMap::new()))
             .is_err()
     );
 }
@@ -145,7 +148,8 @@ fn parameter_point_rebinding_preserves_the_original_compiled_form() {
     let original = form
         .volume()
         .unwrap()
-        .evaluate(&geometry(), &quadrature, &BTreeMap::new())
+        .prepare_cell(&geometry(), &quadrature)
+        .and_then(|cell| cell.evaluate(&BTreeMap::new()))
         .unwrap();
     let rebound = form.bind_parameter_point(&fields, &[2.0]).unwrap();
     let changed_source = source.replace(
@@ -157,20 +161,23 @@ fn parameter_point_rebinding_preserves_the_original_compiled_form() {
         .unwrap()
         .volume()
         .unwrap()
-        .evaluate(&geometry(), &quadrature, &BTreeMap::new())
+        .prepare_cell(&geometry(), &quadrature)
+        .and_then(|cell| cell.evaluate(&BTreeMap::new()))
         .unwrap();
     assert_eq!(
         rebound
             .volume()
             .unwrap()
-            .evaluate(&geometry(), &quadrature, &BTreeMap::new())
+            .prepare_cell(&geometry(), &quadrature)
+            .and_then(|cell| cell.evaluate(&BTreeMap::new()))
             .unwrap(),
         expected
     );
     assert_eq!(
         form.volume()
             .unwrap()
-            .evaluate(&geometry(), &quadrature, &BTreeMap::new())
+            .prepare_cell(&geometry(), &quadrature)
+            .and_then(|cell| cell.evaluate(&BTreeMap::new()))
             .unwrap(),
         original
     );
@@ -217,7 +224,8 @@ fn bound_volume_preserves_field_order_and_rebound_diffusion_positivity() {
     let original = form
         .volume()
         .unwrap()
-        .evaluate(&geometry(), &quadrature, &BTreeMap::new())
+        .prepare_cell(&geometry(), &quadrature)
+        .and_then(|cell| cell.evaluate(&BTreeMap::new()))
         .unwrap();
     let parameters = [
         symbols.get("k").unwrap().downcast().unwrap(),
@@ -227,7 +235,8 @@ fn bound_volume_preserves_field_order_and_rebound_diffusion_positivity() {
         let rebound = form.bind_parameter_point(&parameters, &[k, 1.0]).unwrap();
         let volume = rebound.volume().unwrap().clone();
         let error = volume
-            .evaluate(&geometry(), &quadrature, &BTreeMap::new())
+            .prepare_cell(&geometry(), &quadrature)
+            .and_then(|cell| cell.evaluate(&BTreeMap::new()))
             .unwrap_err();
         assert!(
             error.message().contains("positive finite diffusion"),
@@ -237,7 +246,8 @@ fn bound_volume_preserves_field_order_and_rebound_diffusion_positivity() {
     assert_eq!(
         form.volume()
             .unwrap()
-            .evaluate(&geometry(), &quadrature, &BTreeMap::new())
+            .prepare_cell(&geometry(), &quadrature)
+            .and_then(|cell| cell.evaluate(&BTreeMap::new()))
             .unwrap(),
         original
     );
@@ -258,11 +268,11 @@ fn check(reaction: &[Vec<f64>], reverse: bool) {
     let local = form
         .volume()
         .unwrap()
-        .evaluate(
+        .prepare_cell(
             &geometry(),
             &QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap(),
-            &BTreeMap::new(),
         )
+        .and_then(|cell| cell.evaluate(&BTreeMap::new()))
         .unwrap();
     let count = reaction.len();
     // Unique independently prescribed forcing identifies rows across renamed IDs.
@@ -352,20 +362,23 @@ fn coefficient_chains_bind_the_exact_parameter_point_and_spatial_flux() {
     let local = form
         .volume()
         .unwrap()
-        .evaluate(&geometry(), &quadrature, &BTreeMap::new())
+        .prepare_cell(&geometry(), &quadrature)
+        .and_then(|cell| cell.evaluate(&BTreeMap::new()))
         .unwrap();
     close(local.matrix()[0], 1.0 + 2.0 / 3.0);
     let changed = derive(&authored.replace("slope: 1 / m = 1", "slope: 1 / m = 2")).unwrap();
     let changed_local = changed
         .volume()
         .unwrap()
-        .evaluate(&geometry(), &quadrature, &BTreeMap::new())
+        .prepare_cell(&geometry(), &quadrature)
+        .and_then(|cell| cell.evaluate(&BTreeMap::new()))
         .unwrap();
     close(changed_local.matrix()[0], 1.5 + 2.0 / 3.0);
     close(
         form.volume()
             .unwrap()
-            .evaluate(&geometry(), &quadrature, &BTreeMap::new())
+            .prepare_cell(&geometry(), &quadrature)
+            .and_then(|cell| cell.evaluate(&BTreeMap::new()))
             .unwrap()
             .matrix()[0],
         local.matrix()[0],
@@ -399,11 +412,11 @@ fn rows_preserve_distinct_checked_physical_dimensions() {
     let local = form
         .volume()
         .unwrap()
-        .evaluate(
+        .prepare_cell(
             &geometry(),
             &QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap(),
-            &BTreeMap::new(),
         )
+        .and_then(|cell| cell.evaluate(&BTreeMap::new()))
         .unwrap();
     assert_eq!(local.matrix().len(), 16);
 }
@@ -422,7 +435,8 @@ fn conservation_preserves_physical_flux_orientation() {
             .unwrap()
             .volume()
             .unwrap()
-            .evaluate(&geometry(), &quadrature, &BTreeMap::new())
+            .prepare_cell(&geometry(), &quadrature)
+            .and_then(|cell| cell.evaluate(&BTreeMap::new()))
             .unwrap();
         // h=2, diffusion=2: integral k N_i' N_j' = +/-1;
         // constant source=1: integral N_i = 1.
@@ -438,7 +452,8 @@ fn conservation_preserves_physical_flux_orientation() {
         .unwrap()
         .volume()
         .unwrap()
-        .evaluate(&geometry(), &quadrature, &BTreeMap::new())
+        .prepare_cell(&geometry(), &quadrature)
+        .and_then(|cell| cell.evaluate(&BTreeMap::new()))
         .unwrap_err();
     assert!(error.message().contains("positive finite diffusion"));
 }

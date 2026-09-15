@@ -57,7 +57,8 @@ fn vector_transport_without_pressure_uses_conservative_dyadic_form() {
     let previous = BTreeMap::from([(field, point.clone())]);
     let rule = simplex_duffy_gauss_legendre(2, 5).unwrap();
     let action = form
-        .linearize(&geometry(), &rule, &previous, &point)
+        .prepare_cell(&geometry(), &rule)
+        .and_then(|cell| cell.linearize(&previous, &point))
         .unwrap();
     // Integral of each P1 gradient is area*gradient. No numerical output is an oracle.
     for (a, gradient) in GRADIENT.iter().enumerate() {
@@ -74,7 +75,11 @@ fn vector_transport_without_pressure_uses_conservative_dyadic_form() {
             }
         }
     }
-    assert!(form.evaluate(&geometry(), &rule, &previous).is_err());
+    assert!(
+        form.prepare_cell(&geometry(), &rule)
+            .and_then(|cell| cell.evaluate(&previous))
+            .is_err()
+    );
 }
 
 #[test]
@@ -142,12 +147,11 @@ fn tensor_product_parent_embedding_preserves_the_complete_outward_flux() {
     let cell = mesh.geometry_map(entity).unwrap();
     let point = vec![2., 3., 2., 3., 2., 3., 2., 3.];
     let mut residual = form
-        .linearize(
+        .prepare_cell(
             &cell,
             &eqiora_meshing::QuadratureRule::tensor_product_gauss_legendre(2, 3).unwrap(),
-            &BTreeMap::from([(field, point.clone())]),
-            &point,
         )
+        .and_then(|cell| cell.linearize(&BTreeMap::from([(field, point.clone())]), &point))
         .unwrap()
         .residual;
     let cell_vertices = mesh.entity_vertices(entity).unwrap();
@@ -166,12 +170,13 @@ fn tensor_product_parent_embedding_preserves_the_complete_outward_flux() {
             })
             .collect::<Vec<_>>();
         let action = form
-            .linearize_natural_facet(
+            .natural_facet_action(
                 field,
                 &cell,
                 (&mesh.geometry_map(facet).unwrap(), incidence, &vertices),
                 &eqiora_meshing::QuadratureRule::tensor_product_gauss_legendre(1, 2).unwrap(),
                 &point,
+                true,
                 |_, _| Ok(vec![0.; 2]),
             )
             .unwrap();
@@ -200,12 +205,8 @@ fn constant_transport_volume_and_all_outward_facets_cancel() {
     let point = vec![2., 3., 2., 3., 2., 3.];
     let previous = BTreeMap::from([(field, point.clone())]);
     let mut residual = form
-        .linearize(
-            &cell,
-            &simplex_duffy_gauss_legendre(2, 5).unwrap(),
-            &previous,
-            &point,
-        )
+        .prepare_cell(&cell, &simplex_duffy_gauss_legendre(2, 5).unwrap())
+        .and_then(|cell| cell.linearize(&previous, &point))
         .unwrap()
         .residual;
     let rule = simplex_duffy_gauss_legendre(1, 3).unwrap();
@@ -219,12 +220,13 @@ fn constant_transport_volume_and_all_outward_facets_cancel() {
             .map(|v| v.index())
             .collect::<Vec<_>>();
         let action = form
-            .linearize_natural_facet(
+            .natural_facet_action(
                 field,
                 &cell,
                 (&mesh.geometry_map(entity).unwrap(), incidence, &vertices),
                 &rule,
                 &point,
+                true,
                 |_, _| Ok(vec![0.; 2]),
             )
             .unwrap();
@@ -293,20 +295,44 @@ fn check_centered_derivative(source: &str) {
     for boundary in [false, true] {
         let evaluate = |point: &[f64]| {
             if boundary {
-                form.linearize_natural_facet(
+                form.natural_facet_action(
                     field,
                     &cell,
                     (&facet_geometry, incidence, &vertices),
                     &facet_rule,
                     point,
+                    true,
                     |_, _| Ok(vec![0.3, -0.4]),
                 )
                 .unwrap()
             } else {
-                form.linearize(&cell, &rule, &previous, point).unwrap()
+                form.prepare_cell(&cell, &rule)
+                    .and_then(|cell| cell.linearize(&previous, point))
+                    .unwrap()
             }
         };
         let action = evaluate(&point);
+        let residual = if boundary {
+            let action = form
+                .natural_facet_action(
+                    field,
+                    &cell,
+                    (&facet_geometry, incidence, &vertices),
+                    &facet_rule,
+                    &point,
+                    false,
+                    |_, _| Ok(vec![0.3, -0.4]),
+                )
+                .unwrap();
+            assert!(action.jacobian.is_empty());
+            action.residual
+        } else {
+            form.prepare_cell(&cell, &rule)
+                .unwrap()
+                .residual(&previous, &point)
+                .unwrap()
+        };
+        assert_eq!(residual, action.residual);
         let step = 1e-5;
         for column in 0..point.len() {
             let mut plus = point.clone();
@@ -337,13 +363,14 @@ fn operator_definition_not_name_controls_nonlinear_admission() {
     let rule = simplex_duffy_gauss_legendre(2, 5).unwrap();
     let point = vec![0.4, -0.1, 1.2, 0.3, 0.7, -0.2];
     let evaluate = |form: &BoundRegionForm| {
-        form.linearize(
-            &geometry(),
-            &rule,
-            &BTreeMap::from([(form.fields()[0].field, vec![0.; 6])]),
-            &point,
-        )
-        .unwrap()
+        form.prepare_cell(&geometry(), &rule)
+            .and_then(|cell| {
+                cell.linearize(
+                    &BTreeMap::from([(form.fields()[0].field, vec![0.; 6])]),
+                    &point,
+                )
+            })
+            .unwrap()
     };
     let a = evaluate(&original);
     let b = evaluate(&renamed);
@@ -410,12 +437,13 @@ fn divergence_constraint_retains_half_flux_on_a_physical_stress_boundary() {
         point[vector.range.start + i] = *value;
     }
     let action = form
-        .linearize_natural_facet(
+        .natural_facet_action(
             vector.field,
             &mesh.geometry_map(MeshEntity::new(2, 0)).unwrap(),
             (&mesh.geometry_map(facet).unwrap(), incidence, &vertices),
             &simplex_duffy_gauss_legendre(1, 3).unwrap(),
             &point,
+            true,
             |_, _| Ok(vec![0.; 2]),
         )
         .unwrap();

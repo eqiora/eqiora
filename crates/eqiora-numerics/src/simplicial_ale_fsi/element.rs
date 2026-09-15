@@ -502,7 +502,11 @@ model Mathematics() {{ domain body = box({bounds});
         }
         let previous =
             BTreeMap::from([(vector.field, previous.iter().flatten().copied().collect())]);
-        let action = form.linearize(geometry, rule, &previous, &point).unwrap();
+        let action = form
+            .prepare_cell(geometry, rule)
+            .unwrap()
+            .linearize(&previous, &point)
+            .unwrap();
         order.iter().map(|index| action.residual[*index]).collect()
     }
 

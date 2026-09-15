@@ -72,21 +72,6 @@ impl BoundRegionForm {
         Ok(())
     }
 
-    /// Previous coefficients are physical coherent-SI values, not scaled algebraic unknowns.
-    pub(crate) fn evaluate(
-        &self,
-        geometry: &AffineGeometryMap,
-        quadrature: &QuadratureRule,
-        previous: &BTreeMap<RawId, Vec<f64>>,
-    ) -> Result<LocalContribution, Diagnostic> {
-        if self.form.rows.iter().any(|row| !row.dyadics.is_empty()) {
-            return Err(invalid(
-                "nonlinear region evaluation requires an explicit candidate point",
-            ));
-        }
-        self.evaluate_affine(geometry, quadrature, previous)
-    }
-
     pub(super) fn evaluate_affine(
         &self,
         geometry: &AffineGeometryMap,

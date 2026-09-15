@@ -200,7 +200,8 @@ fn scalar_q1_uses_the_same_value_and_gradient_contractions() {
         AffineGeometryMap::new(reference, 2, vec![1.0, 1.5], vec![1.0, 0.0, 0.0, 1.5]).unwrap();
     let quadrature = QuadratureRule::tensor_product_gauss_legendre(2, 2).unwrap();
     let local = bound
-        .evaluate(&geometry, &quadrature, &BTreeMap::new())
+        .prepare_cell(&geometry, &quadrature)
+        .and_then(|cell| cell.evaluate(&BTreeMap::new()))
         .unwrap();
     let scalar = crate::form_compiler::linear::CompiledLinearBlockForm::derive(
         &program,
@@ -211,7 +212,8 @@ fn scalar_q1_uses_the_same_value_and_gradient_contractions() {
     .unwrap()
     .volume()
     .unwrap()
-    .evaluate(&geometry, &quadrature, &BTreeMap::new())
+    .prepare_cell(&geometry, &quadrature)
+    .and_then(|cell| cell.evaluate(&BTreeMap::new()))
     .unwrap();
     for (a, b) in local.matrix().iter().zip(scalar.matrix()) {
         close(*a, *b);
@@ -265,11 +267,8 @@ fn vector_potential_gradient_integrates_each_physical_component() {
         .bind(ReferenceCell::simplex(2).unwrap(), &fields, &rows, None)
         .unwrap();
     let local = bound
-        .evaluate(
-            &geometry(),
-            &simplex_duffy_gauss_legendre(2, 3).unwrap(),
-            &BTreeMap::new(),
-        )
+        .prepare_cell(&geometry(), &simplex_duffy_gauss_legendre(2, 3).unwrap())
+        .and_then(|cell| cell.evaluate(&BTreeMap::new()))
         .unwrap();
     // On the unit right triangle, x=N1 and y=N2. The load is (6x, 10y).
     // Integral Ni*Nj is 1/12 on the diagonal and 1/24 off the diagonal.

@@ -25,7 +25,7 @@ pub(super) fn packet_evaluations() -> [usize; 3] {
 }
 
 use super::api::{MiniNavierStokesStepPlan2d, SimplicialMiniNavierStokesState2d};
-use super::element::{FixedDomainViscousForm, MiniNavierStokesCell};
+use super::element::MiniNavierStokesCell;
 use super::{COMPONENTS, DIMENSION, invalid};
 use crate::assembled_linearization::AssembledLinearizedRelation;
 use crate::jacobian_audit::{StructuralJacobianPattern, StructuralJacobianPatternBuilder};
@@ -124,6 +124,11 @@ struct EvaluatedStepPacket {
 }
 
 pub(crate) struct PreparedStepStructure {
+    mesh: SimplicialMesh,
+    bound: Option<(
+        Arc<super::form::StepForm>,
+        Vec<crate::form_compiler::region::PreparedRegionCell>,
+    )>,
     boundary: PreparedBoundary2d,
     layout: Arc<MixedLayout>,
     named_reaction_vertices: Arc<Vec<(String, Vec<usize>)>>,
@@ -141,6 +146,61 @@ pub(crate) struct PreparedStepStructure {
     cell_count: usize,
     constraint_end: usize,
     packet_count: usize,
+}
+
+impl PreparedStepStructure {
+    pub(crate) fn require_quadrature(
+        &self,
+        cell: &QuadratureRule,
+        facet: &QuadratureRule,
+    ) -> Result<(), Diagnostic> {
+        if cell != &self.cell_quadrature || facet != &self.facet_quadrature {
+            return Err(invalid(
+                "prepared step quadrature differs from its exact numerical binding",
+            ));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn bind<F>(
+        mut self,
+        plan: &MiniNavierStokesStepPlan2d,
+        load: &F,
+    ) -> Result<Self, Diagnostic>
+    where
+        F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
+    {
+        if self.bound.is_some() {
+            return Err(invalid("step structure already has an exact form binding"));
+        }
+        let cells = self
+            .cell_geometries
+            .iter()
+            .map(|geometry| {
+                plan.form
+                    .prepare_cell(geometry, &self.cell_quadrature, load)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        self.bound = Some((Arc::clone(&plan.form), cells));
+        Ok(self)
+    }
+
+    fn cells(
+        &self,
+        plan: &MiniNavierStokesStepPlan2d,
+    ) -> Result<&[crate::form_compiler::region::PreparedRegionCell], Diagnostic> {
+        let Some((form, cells)) = &self.bound else {
+            return Err(invalid(
+                "step assembly requires its exact prepared form binding",
+            ));
+        };
+        if !Arc::ptr_eq(form, &plan.form) && form != &plan.form {
+            return Err(invalid(
+                "prepared step form differs from the requested numerical policy",
+            ));
+        }
+        Ok(cells)
+    }
 }
 
 struct PreparedStepPoint<'a> {
@@ -331,6 +391,8 @@ where
         .collect::<Vec<_>>();
     let reduced_assembly_plan = reduced_assembly_plan.prepare(packet_structure)?;
     Ok(PreparedStepStructure {
+        mesh: mesh.clone(),
+        bound: None,
         boundary,
         layout,
         named_reaction_vertices,
@@ -356,6 +418,7 @@ fn natural_facet_action(
     facet: usize,
     plan: &MiniNavierStokesStepPlan2d,
     point: &[f64],
+    derivative: bool,
 ) -> Result<crate::form_compiler::region::RegionLinearization, Diagnostic> {
     let structure = step.structure;
     let incidence = structure.facet_incidence[facet];
@@ -369,6 +432,7 @@ fn natural_facet_action(
         &structure.facet_quadrature,
         point,
         structure.boundary.traction_facets[facet].value,
+        derivative,
     )
 }
 
@@ -378,6 +442,11 @@ fn prepare_step_point<'a>(
     previous: &SimplicialMiniNavierStokesState2d,
     candidate: &[f64],
 ) -> Result<PreparedStepPoint<'a>, Diagnostic> {
+    if mesh != &structure.mesh {
+        return Err(invalid(
+            "prepared step structure belongs to another exact mesh",
+        ));
+    }
     require_same_mesh(mesh, previous)?;
     let with_gauge = structure.boundary.pressure_reference == PressureReferenceKind2d::ZeroIntegral;
     require_pressure_policy(previous, with_gauge)?;
@@ -453,7 +522,6 @@ pub(super) fn assemble_step_residual<F, B>(
     plan: MiniNavierStokesStepPlan2d,
     cell_quadrature: &QuadratureRule,
     facet_quadrature: &QuadratureRule,
-    viscous_form: FixedDomainViscousForm,
 ) -> Result<Vec<f64>, Diagnostic>
 where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
@@ -465,38 +533,25 @@ where
         essential_velocity,
         cell_quadrature,
         facet_quadrature,
-    )?;
-    assemble_step_residual_prepared(
-        mesh,
-        &prepared,
-        body_force,
-        previous,
-        candidate,
-        plan,
-        viscous_form,
-    )
+    )?
+    .bind(&plan, body_force)?;
+    assemble_step_residual_prepared(mesh, &prepared, previous, candidate, plan)
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn assemble_step_residual_prepared<F>(
+pub(crate) fn assemble_step_residual_prepared(
     mesh: &SimplicialMesh,
     prepared: &PreparedStepStructure,
-    body_force: &F,
     previous: &SimplicialMiniNavierStokesState2d,
     candidate: &[f64],
     plan: MiniNavierStokesStepPlan2d,
-    viscous_form: FixedDomainViscousForm,
-) -> Result<Vec<f64>, Diagnostic>
-where
-    F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-{
+) -> Result<Vec<f64>, Diagnostic> {
+    let forms = prepared.cells(&plan)?;
     let step = prepare_step_point(mesh, prepared, previous, candidate)?;
     let mut residual = vec![0.0; step.structure.layout.reduced_size];
-    for packet in 0..step.structure.packet_count {
-        let map = step.reduced_map(packet)?;
+    for (packet, map) in step.structure.reduced_maps.iter().enumerate() {
         let local_residual = if packet < step.structure.cell_count {
             let cell = MeshEntity::new(DIMENSION, packet);
-            let geometry = &step.structure.cell_geometries[packet];
             let vertices = mesh
                 .entity_vertices(cell)
                 .expect("accepted simplex cell owns vertices");
@@ -507,13 +562,8 @@ where
                 previous_velocity: previous.velocity(),
                 candidate_velocity: &step.velocity,
                 candidate_pressure: step.pressure.vertex_values(),
-                body_force,
             };
-            match viscous_form {
-                FixedDomainViscousForm::SymmetricNewtonian => {
-                    cell.residual_prepared(geometry, &step.structure.cell_quadrature)?
-                }
-            }
+            cell.residual_prepared(&forms[packet])?
         } else if packet < step.structure.constraint_end {
             let local_point = mapped_local_point(map, candidate)?;
             evaluate_local_residual(
@@ -527,6 +577,7 @@ where
                 packet - step.structure.constraint_end,
                 &plan,
                 &local_point,
+                false,
             )?
             .residual
         };
@@ -552,7 +603,6 @@ pub(super) fn assemble_step_linearization<F, B>(
     cell_quadrature: &QuadratureRule,
     facet_quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend,
-    viscous_form: FixedDomainViscousForm,
 ) -> Result<StepAssembly, Diagnostic>
 where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
@@ -564,33 +614,21 @@ where
         essential_velocity,
         cell_quadrature,
         facet_quadrature,
-    )?;
-    assemble_step_linearization_prepared(
-        mesh,
-        &prepared,
-        body_force,
-        previous,
-        candidate,
-        plan,
-        assembly,
-        viscous_form,
-    )
+    )?
+    .bind(&plan, body_force)?;
+    assemble_step_linearization_prepared(mesh, &prepared, previous, candidate, plan, assembly)
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn assemble_step_linearization_prepared<F>(
+pub(crate) fn assemble_step_linearization_prepared(
     mesh: &SimplicialMesh,
     prepared: &PreparedStepStructure,
-    body_force: &F,
     previous: &SimplicialMiniNavierStokesState2d,
     candidate: &[f64],
     plan: MiniNavierStokesStepPlan2d,
     assembly: &dyn AssemblyBackend,
-    viscous_form: FixedDomainViscousForm,
-) -> Result<StepAssembly, Diagnostic>
-where
-    F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-{
+) -> Result<StepAssembly, Diagnostic> {
+    let forms = prepared.cells(&plan)?;
     let step = prepare_step_point(mesh, prepared, previous, candidate)?;
     let reduced_target = step
         .structure
@@ -612,7 +650,6 @@ where
         });
         if packet < step.structure.cell_count {
             let cell = MeshEntity::new(DIMENSION, packet);
-            let geometry = &step.structure.cell_geometries[packet];
             let vertices = mesh
                 .entity_vertices(cell)
                 .expect("accepted simplex cell owns vertices");
@@ -623,13 +660,8 @@ where
                 previous_velocity: previous.velocity(),
                 candidate_velocity: &step.velocity,
                 candidate_pressure: step.pressure.vertex_values(),
-                body_force,
             };
-            let linearization = match viscous_form {
-                FixedDomainViscousForm::SymmetricNewtonian => {
-                    cell.linearize_prepared(geometry, &step.structure.cell_quadrature)?
-                }
-            };
+            let linearization = cell.linearize_prepared(&forms[packet])?;
             let residual = linearization.residual().to_vec();
             let local = linearization.into_linear_contribution()?;
             let reduced = Arc::clone(&step.structure.reduced_maps[packet]);
@@ -655,8 +687,13 @@ where
         } else {
             let reduced = Arc::clone(&step.structure.reduced_maps[packet]);
             let point = mapped_local_point(&reduced, candidate)?;
-            let action =
-                natural_facet_action(&step, packet - step.structure.constraint_end, &plan, &point)?;
+            let action = natural_facet_action(
+                &step,
+                packet - step.structure.constraint_end,
+                &plan,
+                &point,
+                true,
+            )?;
             let residual = action.residual.clone();
             let local = action.into_contribution(&point)?;
             Ok(EvaluatedStepPacket {

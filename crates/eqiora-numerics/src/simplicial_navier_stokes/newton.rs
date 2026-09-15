@@ -9,10 +9,9 @@ use super::api::{
     SimplicialMiniNavierStokesTrajectory2d,
 };
 use super::assembly::{
-    PreparedStepStructure, assemble_step_linearization_prepared, initial_point_prepared,
-    prepare_step_structure,
+    PreparedStepStructure, assemble_step_linearization_prepared, assemble_step_residual_prepared,
+    initial_point_prepared, prepare_step_structure,
 };
-use super::element::FixedDomainViscousForm;
 use super::{COMPONENTS, DIMENSION, invalid, solve_failed};
 use crate::simplicial_stokes::SimplicialMiniStokesBoundary2d;
 use crate::step_count::NonZeroStepCount;
@@ -82,39 +81,6 @@ where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
     B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
 {
-    advance_with_viscous_form(
-        mesh,
-        boundary,
-        essential_velocity,
-        body_force,
-        initial,
-        step_count,
-        plan,
-        cell_quadrature,
-        facet_quadrature,
-        assembly,
-        solver,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-fn advance_with_viscous_form<F, B>(
-    mesh: &SimplicialMesh,
-    boundary: &SimplicialMiniStokesBoundary2d,
-    essential_velocity: &B,
-    body_force: &F,
-    initial: SimplicialMiniNavierStokesState2d,
-    step_count: NonZeroStepCount,
-    plan: MiniNavierStokesStepPlan2d,
-    cell_quadrature: &QuadratureRule,
-    facet_quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
-    solver: &dyn LinearSolverBackend,
-) -> Result<SimplicialMiniNavierStokesTrajectory2d, Diagnostic>
-where
-    F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-    B: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-{
     super::element::require_convective_evidence_quadrature(cell_quadrature, facet_quadrature)?;
     let prepared = prepare_step_structure(
         mesh,
@@ -122,12 +88,12 @@ where
         essential_velocity,
         cell_quadrature,
         facet_quadrature,
-    )?;
+    )?
+    .bind(&plan, body_force)?;
     let mut prepared_linear = solver.prepare_linear(plan.linear_solver())?;
     advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_and_linear(
         mesh,
         &prepared,
-        body_force,
         initial,
         step_count,
         plan,
@@ -140,10 +106,9 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_and_linear<F>(
+pub(crate) fn advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_and_linear(
     mesh: &SimplicialMesh,
     prepared: &PreparedStepStructure,
-    body_force: &F,
     initial: SimplicialMiniNavierStokesState2d,
     step_count: NonZeroStepCount,
     plan: MiniNavierStokesStepPlan2d,
@@ -152,11 +117,9 @@ pub(crate) fn advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_a
     assembly: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
     mut prepared_linear: Option<&mut (dyn eqiora_solver::PreparedLinearSolver + '_)>,
-) -> Result<SimplicialMiniNavierStokesTrajectory2d, Diagnostic>
-where
-    F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-{
+) -> Result<SimplicialMiniNavierStokesTrajectory2d, Diagnostic> {
     super::element::require_convective_evidence_quadrature(cell_quadrature, facet_quadrature)?;
+    prepared.require_quadrature(cell_quadrature, facet_quadrature)?;
     let mut trajectory = SimplicialMiniNavierStokesTrajectory2d::new(initial);
     for _ in 0..step_count.get() {
         let previous = trajectory
@@ -166,7 +129,6 @@ where
         let (next, evidence) = solve_one_step(
             mesh,
             prepared,
-            body_force,
             previous,
             plan.clone(),
             cell_quadrature,
@@ -174,7 +136,6 @@ where
             assembly,
             solver,
             &mut prepared_linear,
-            FixedDomainViscousForm::SymmetricNewtonian,
         )?;
         trajectory.push(next, evidence)?;
     }
@@ -182,10 +143,9 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-fn solve_one_step<F>(
+fn solve_one_step(
     mesh: &SimplicialMesh,
     prepared: &PreparedStepStructure,
-    body_force: &F,
     previous: &SimplicialMiniNavierStokesState2d,
     plan: MiniNavierStokesStepPlan2d,
     cell_quadrature: &QuadratureRule,
@@ -193,17 +153,13 @@ fn solve_one_step<F>(
     assembly_backend: &dyn AssemblyBackend,
     solver: &dyn LinearSolverBackend,
     prepared_linear: &mut Option<&mut (dyn eqiora_solver::PreparedLinearSolver + '_)>,
-    viscous_form: FixedDomainViscousForm,
 ) -> Result<
     (
         SimplicialMiniNavierStokesState2d,
         super::api::SimplicialMiniNavierStokesStepEvidence2d,
     ),
     Diagnostic,
->
-where
-    F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-{
+> {
     let mut point = initial_point_prepared(mesh, prepared, previous)?;
     require_consistent_initial_state(mesh, cell_quadrature, previous, plan.clone())?;
     let mut current = {
@@ -212,12 +168,10 @@ where
         assemble_step_linearization_prepared(
             mesh,
             prepared,
-            body_force,
             previous,
             &point,
             plan.clone(),
             assembly_backend,
-            viscous_form,
         )?
     };
     let initial_residual_norm = current.residual_norm()?;
@@ -289,28 +243,23 @@ where
             let assembled = {
                 let _assembly =
                     eqiora_execution::telemetry_span!(assembly("line_search_trial")).entered();
-                assemble_step_linearization_prepared(
-                    mesh,
-                    prepared,
-                    body_force,
-                    previous,
-                    &candidate,
-                    plan.clone(),
-                    assembly_backend,
-                    viscous_form,
-                )?
+                assemble_step_residual_prepared(mesh, prepared, previous, &candidate, plan.clone())?
             };
-            let norm = assembled.residual_norm()?;
+            let norm = assembled
+                .iter()
+                .map(|value| value * value)
+                .sum::<f64>()
+                .sqrt();
             if norm < best_trial.0 {
                 best_trial = (norm, scale);
             }
             if norm <= residual_target || norm < previous_norm {
-                accepted = Some((candidate, assembled, norm));
+                accepted = Some((candidate, norm));
                 break;
             }
             scale *= 0.5;
         }
-        let Some((candidate, assembled, norm)) = accepted else {
+        let Some((candidate, norm)) = accepted else {
             return Err(solve_failed(format!(
                 "MINI Navier--Stokes Newton line search failed at iteration {iteration}: \
                      previous residual {previous_norm:e}, best trial residual {:e} at scale {:e}, \
@@ -319,7 +268,6 @@ where
             )));
         };
         point = candidate;
-        current = assembled;
         eqiora_execution::telemetry_event!(
             "newton",
             iteration,
@@ -327,6 +275,18 @@ where
             residual_target,
             norm <= residual_target,
         );
+        current = {
+            let _assembly =
+                eqiora_execution::telemetry_span!(assembly("accepted_linearization")).entered();
+            assemble_step_linearization_prepared(
+                mesh,
+                prepared,
+                previous,
+                &point,
+                plan.clone(),
+                assembly_backend,
+            )?
+        };
         if norm <= residual_target {
             return accept_step(
                 mesh,

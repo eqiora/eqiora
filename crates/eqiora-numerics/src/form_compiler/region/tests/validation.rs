@@ -161,7 +161,8 @@ fn previous_data_is_exactly_consumed_physical_fields_and_checked_before_evaluati
     ] {
         assert!(
             bound
-                .evaluate(&geometry(), &quadrature, &wrong)
+                .prepare_cell(&geometry(), &quadrature)
+                .and_then(|cell| cell.evaluate(&wrong))
                 .unwrap_err()
                 .message()
                 .contains("exact consumed Field coverage")
@@ -176,12 +177,16 @@ fn previous_data_is_exactly_consumed_physical_fields_and_checked_before_evaluati
     extra.insert(pressure.field, vec![0.0; 3]);
     assert!(
         bound
-            .evaluate(&geometry(), &quadrature, &extra)
+            .prepare_cell(&geometry(), &quadrature)
+            .and_then(|cell| cell.evaluate(&extra))
             .unwrap_err()
             .message()
             .contains("exact consumed Field coverage")
     );
-    bound.evaluate(&geometry(), &quadrature, &valid).unwrap();
+    bound
+        .prepare_cell(&geometry(), &quadrature)
+        .and_then(|cell| cell.evaluate(&valid))
+        .unwrap();
     let (fields, rows, _) = inputs(&form, false);
     assert!(
         form.bind(ReferenceCell::simplex(2).unwrap(), &fields, &rows, None)
@@ -254,11 +259,8 @@ fn coefficient_chains_and_mixed_rows_ignore_names_and_declaration_order() {
             .chain(pressure.range.clone())
             .collect::<Vec<_>>();
         let local = bound
-            .evaluate(
-                &geometry(),
-                &simplex_duffy_gauss_legendre(2, 4).unwrap(),
-                &BTreeMap::from([(velocity.field, vec![1.0; 6])]),
-            )
+            .prepare_cell(&geometry(), &simplex_duffy_gauss_legendre(2, 4).unwrap())
+            .and_then(|cell| cell.evaluate(&BTreeMap::from([(velocity.field, vec![1.0; 6])])))
             .unwrap();
         let matrix = local.matrix();
         order

@@ -9,7 +9,7 @@ use eqiora_assembly::{
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_meshing::{AffineGeometryMap, GeometryMap, QuadratureRule};
 
-use crate::form_compiler::region::BoundRegionForm;
+use crate::form_compiler::region::{BoundRegionForm, PreparedRegionCell};
 
 pub(crate) mod mapping;
 mod reactions;
@@ -29,8 +29,7 @@ pub(crate) struct RegionAssemblyCell {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PreparedRegionAssembly {
     packet_set: AssemblyPacketSetIdentityV1,
-    forms: BTreeMap<RawId, (BoundRegionForm, QuadratureRule)>,
-    cell_domains: Vec<RawId>,
+    prepared: Vec<PreparedRegionCell>,
     cells: Vec<RegionAssemblyCell>,
     boundary_packets: Vec<AssemblyPacket>,
 }
@@ -70,6 +69,7 @@ impl PreparedRegionAssembly {
                 "assembly forms must exactly cover selected cell Domains",
             ));
         }
+        let mut prepared = Vec::with_capacity(cells.len());
         cells.sort_by_key(|cell| cell.index);
         for (index, cell) in cells.iter().enumerate() {
             if cell.index != index {
@@ -86,6 +86,7 @@ impl PreparedRegionAssembly {
             form.validate_cell(&cell.geometry, quadrature, &cell.previous)?;
             let local_count = form.fields().last().expect("bound nonempty form").range.end;
             validate_maps(plan, local_count, &cell.mappings)?;
+            prepared.push(form.prepare_cell(&cell.geometry, quadrature)?);
         }
         cells
             .len()
@@ -101,8 +102,7 @@ impl PreparedRegionAssembly {
         }
         Ok(Self {
             packet_set,
-            forms: by_domain,
-            cell_domains: cell_domains.to_vec(),
+            prepared,
             cells,
             boundary_packets,
         })
@@ -130,9 +130,8 @@ impl AssemblyWork for PreparedRegionAssembly {
             .cells
             .get(packet_index)
             .ok_or_else(|| invalid("region assembly packet is outside the prepared mesh"))?;
-        let (form, quadrature) = &self.forms[&self.cell_domains[packet_index]];
         AssemblyPacket::new(
-            form.evaluate(&cell.geometry, quadrature, &cell.previous)?,
+            self.prepared[packet_index].evaluate(&cell.previous)?,
             cell.mappings.clone(),
         )
     }
