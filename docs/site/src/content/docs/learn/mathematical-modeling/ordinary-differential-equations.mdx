@@ -29,6 +29,22 @@ After this chapter, you should be able to:
   its exact `FieldRef`; and
 - diagnose a physically wrong sign that remains dimensionally consistent.
 
+## From a rate of cooling to a trajectory
+
+Return to the bead in chapter 1. Its heat capacity $C$ stores energy, and its
+conductance $G$ transfers energy to a room at fixed $T_\infty$. The balance
+$C\dot T+G(T-T_\infty)=0$ predicts a **rate**, but our thermometer asks for a
+**temperature at a later time**. Integrating the rate equation bridges those
+questions. Before calculating, predict three features: the bead stays between
+its initial temperature and room temperature, the difference decreases
+monotonically, and the cooling slows with time.
+
+Normalize with $x=(T-T_\infty)/(T_0-T_\infty)$ and let $k=G/C$. The resulting
+source contains just one state, one rate, and one initial value. It also describes
+other first-order relaxation systems after the physical quantities have been
+mapped correctly. A shared equation does not make their parameters
+interchangeable.
+
 ## Derive the decay equation
 
 Let dimensionless state $x(t)$ decay with constant rate $k>0$:
@@ -54,8 +70,35 @@ x(t)=\exp(-kt).
 $$
 
 The executable lesson uses $k=1\,\mathrm{s}^{-1}$ and observes $t=0.25$,
-$0.5$, and $1\,\mathrm{s}$. Those choices bound this lesson; they do not define
-general ODE support.
+$0.5$, and $1\,\mathrm{s}$. They let us compare the trajectory at a quarter, half, and one
+characteristic time.
+
+## What the solution tells us before a run
+
+The characteristic time is $\tau=1/k$. At $t=\tau$, the remaining fraction is
+$e^{-1}\approx0.367879$, independent of the unit used to express time. The
+half-life is found from $e^{-kt_{1/2}}=1/2$, hence $t_{1/2}=\log(2)/k$.
+Repeated equal time intervals multiply $x$ by the same factor; they do not
+subtract equal amounts.
+
+For $k=1\,\mathrm{s}^{-1}$, our independently calculated targets are:
+
+| Time (s) | $\exp(-kt)$ | Interpretation |
+| ---: | ---: | --- |
+| 0.25 | 0.7788007831 | about 78% remains |
+| 0.50 | 0.6065306597 | about 61% remains |
+| 1.00 | 0.3678794412 | one characteristic time |
+
+These numbers come from evaluating the analytic solution, not reading a solver
+trace. The curve satisfies both $x(0)=1$ and $\dot x=-kx$; checking the initial
+value matters because $2e^{-kt}$ satisfies the same differential equation.
+
+Recover physical temperature using
+$T(t)=T_\infty+(T_0-T_\infty)e^{-kt}$. With the illustrative bead's
+$\tau=100\,\mathrm s$, $T_0=340\,\mathrm K$, and $T_\infty=300\,\mathrm K$,
+the predicted temperature after 100 seconds is about $314.715\,\mathrm K$.
+Changing to this rate requires changing `rate` to 0.01; the default script's
+one-second window then covers only one hundredth of a characteristic time.
 
 ## Model source
 
@@ -82,8 +125,10 @@ The complete script uses the public compile → resolve → run path:
 
 The program prints the time and computed value. Compare each value with
 $\exp(-t)$ independently. For this example, compare the three samples using
-an absolute tolerance of $2\times10^{-8}$. Reconsider that tolerance if you change the model, interval,
-backend, or method.
+an absolute tolerance of $2\times10^{-8}$. This numerical comparison is much
+tighter than the rounded percentages in the table. Use the exponential itself
+when calculating the difference, and reconsider the comparison if you change
+the model, interval, or integration settings.
 
 ## Read the result
 
@@ -93,6 +138,35 @@ between them.
 
 If the values differ from the closed form, inspect the equation sign, initial
 value, rate, and solver settings.
+
+## What can we reuse?
+
+The maintained `decay.eqi` is already the complete mathematical description for
+this small problem. There is no need to hide a one-line evolution law behind a
+new component. Reuse its source and run script, then open their definitions when
+you need to change the law. In the [circuits path](/learn/circuits-dynamics/),
+resistors and sources are larger reusable physical parts, and imports remove
+repetition after their equations have been derived.
+
+## Change an assumption before changing a solver
+
+Suppose the room temperature becomes $T_\infty(t)$. The energy balance remains
+$C\dot T+G(T-T_\infty(t))=0$, but the old normalization no longer produces
+unforced decay. For $\theta=T-T_\infty(t)$,
+
+$$
+\dot\theta+k\theta=-\dot T_\infty(t).
+$$
+
+This follows by differentiating the temperature difference. It explains why a
+varying ambient temperature needs a forcing term: cooling a difference and
+cooling an absolute temperature are different statements when the reference
+moves. Work this extension on paper before editing source.
+
+By contrast, recording a fourth output time leaves the differential equation
+unchanged. Tightening an integrator tolerance changes how accurately the
+trajectory is approximated. The [numerical-simulation path](/learn/numerical-simulation/)
+examines that distinction through time-step error and convergence.
 
 ## Deliberate failure: the wrong sign still compiles
 
@@ -120,6 +194,29 @@ physical assumption and residual sign, not to loosen the comparison tolerance.
    changes a Run request rather than mathematical meaning.
 5. List two reasons the three passing samples do not establish a convergence
    rate or suitability for stiff systems.
+
+### Exercise guidance
+
+Exercise 1 gives $x=x_0e^{-kt}$. For exercise 2, replace $t$ with $2t$ in the
+comparison; the source's rate and the comparison must describe the same model.
+For exercise 5, several samples on one smooth trajectory do not reveal how
+error changes as resolution changes. A stiff system introduces competing time
+scales that this scalar example does not contain.
+
+**Inverse question.** Given two positive observations $x(t_1)$ and $x(t_2)$,
+derive $k=\log(x(t_1)/x(t_2))/(t_2-t_1)$. Ask what happens if measurement noise
+makes the second value larger than the first. The
+[inverse-problems path](/learn/inverse-problems/) takes up the distinction
+between estimating a parameter and validating the assumed law.
+
+## References
+
+- Arthur Mattuck, Haynes Miller, Jeremy Orloff, and John Lewis, *Differential
+  Equations*, MIT OpenCourseWare 18.03SC (2011),
+  [Basic DE's and separable equations](https://ocw.mit.edu/courses/18-03sc-differential-equations-fall-2011/pages/unit-i-first-order-differential-equations/basic-de-and-separable-equations/),
+  especially “The Most Important DE” and “Separation of Variables.” The
+  exponential and its initial-value interpretation are the mathematical basis
+  of this chapter's independent comparison.
 
 [Previous: Algebraic relations and networks](/learn/mathematical-modeling/algebraic-relations-networks/) ·
 [Back to the series map](/learn/mathematical-modeling/) ·

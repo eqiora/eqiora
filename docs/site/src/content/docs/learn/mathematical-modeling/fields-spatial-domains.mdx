@@ -5,6 +5,8 @@ sidebar:
 description: Place scalar and vector quantities on explicit supports, then read gradient, divergence, trace, and normal operators by their physical roles.
 ---
 
+import { Code } from '@astrojs/starlight/components';
+import flowSource from '../../../../../../../examples/steady-flow-past-cylinder.eqi?raw';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
 ## A field needs somewhere to live
@@ -29,24 +31,54 @@ After this chapter, you should be able to:
   boundary; and
 - diagnose an operator applied to the wrong kind of field.
 
+## When one temperature stops being enough
+
+A thick wall can be warm on one side and cold on the other. One state $T(t)$
+cannot represent both. Introduce a field $T(x,t)$, with position $x$ across a
+slab of thickness $L$. In a steady, uniform, source-free slab with fixed end
+temperatures, our prediction is a straight profile:
+
+$$
+T(x)=T_h+(T_c-T_h)\frac{x}{L}.
+$$
+
+At $x=0$ it returns $T_h$; at $x=L$ it returns $T_c$; at the midpoint it is their
+average. Later chapters derive why steady conservation and constant
+conductivity imply this shape. For now the field teaches us how a mathematical
+object attaches values to places.
+
+| Object | What changes with position? | Example |
+| --- | --- | --- |
+| Scalar field | one number | temperature $T$ |
+| Vector field | magnitude and direction | heat flux $\boldsymbol j$ |
+| Second-order tensor field | a linear action on a direction | stress $\boldsymbol\sigma$ |
+
+A vector's components depend on a chosen coordinate frame. The physical heat
+flow does not change when we rotate the axes. A boundary's outward normal also
+depends on geometry: on the left face of this slab it points toward negative
+$x$, and on the right face toward positive $x$.
+
+## Work out a gradient before reading syntax
+
+Take $T_h=340\,\mathrm K$, $T_c=300\,\mathrm K$, and $L=0.2\,\mathrm m$.
+The derivative is $\mathrm dT/\mathrm dx=-200\,\mathrm{K/m}$. The gradient
+points toward increasing temperature, here toward the hot left side. Fourier's
+law will give a heat flux pointing the other way. Merely knowing that the
+field lies between 300 and 340 K does not reveal this direction.
+
+A field is defined on a domain before we choose sampling points. A mesh is one
+way to approximate that domain and its fields; refining it adds numerical
+resolution without changing the wall's physical thickness or boundary names.
+The following flow source makes those same distinctions for vector velocity and
+scalar pressure. Read its declarations first, then return to its balances after
+the conservation and constitutive chapters.
+
 ## Name the region and its boundaries
 
 The steady cylinder example declares one two-dimensional fluid volume and four
 named parts of its boundary:
 
-```eqiora
-component FlowRegion(
-  support fluid: volume(ambient_dimension = 2),
-  support inlet: boundary(parent = fluid),
-  support outlet: boundary(parent = fluid),
-  support walls: boundary(parent = fluid),
-  support cylinder: boundary(parent = fluid),
-) {
-  variable velocity: vector<m / s, 2> on fluid;
-  variable pressure: kg / (m * s ^ 2) on fluid;
-  // Interior and boundary equations complete the component.
-}
-```
+<Code code={flowSource} lang="eqiora" title="steady-flow-past-cylinder.eqi" />
 
 `velocity` and `pressure` share the support `fluid`, but their value shapes
 differ. The four boundary supports do not create four new fluids; they name
@@ -68,20 +100,9 @@ its divergence has dimension $1/T$. If pressure has dimension force per area,
 its gradient has dimension force per volume. Shape and dimension are separate
 checks, and both must make sense.
 
-The model uses these roles directly:
-
-```eqiora
-relation incompressibility on fluid {
-  div(velocity) = 0;
-}
-
-relation wall_velocity on walls {
-  trace(velocity) = 0;
-}
-```
-
-The first relation is an interior statement. The second compares the boundary
-trace of the interior velocity with a prescribed zero velocity.
+Locate `incompressibility` and `wall_velocity` in the source. The first is an
+interior statement; the second compares the boundary trace of interior velocity
+with a prescribed zero velocity. A boundary name alone imposes neither relation.
 
 <ExactSourceLink path="examples/steady-flow-past-cylinder.eqi" kind="blob">Read the complete steady-flow model</ExactSourceLink>.
 
@@ -95,17 +116,25 @@ $$
 \qquad u=0\text{ on all four sides}.
 $$
 
+Here $x$ and $y$ are nondimensional coordinates; this is a mathematical test
+problem rather than a dimensional heat source. Differentiate twice in each
+coordinate: each second derivative contributes
+$-\pi^2\sin(\pi x)\sin(\pi y)$. Their negative sum gives the right-hand side.
+On every side one sine factor vanishes. Thus both the interior equation and the
+boundary values are checked independently.
+
 The source is chosen so the solution is known:
 $u(x,y)=\sin(\pi x)\sin(\pi y)$. This is a scalar Poisson problem, not
 the cylinder-flow model above. Knowing the answer in advance lets a numerical
 comparison measure error instead of relying on a plausible-looking picture.
 
-The <ExactSourceLink path="crates/eqiora-api/packages/org.example.poisson" kind="tree">Poisson verification package</ExactSourceLink>
-contains its Eqiora declarations, and the
-<ExactSourceLink path="verify/numerics/compiled-cartesian-poisson-q1-2d/README.md" kind="blob">registered Poisson case</ExactSourceLink>
-describes the numerical comparison. For a complete public spatial workflow,
-follow the [cylinder Gallery case](/gallery/exact-cylinder-steady-stokes/),
-whose equations and execution both refer to the same flow problem.
+The <ExactSourceLink path="crates/eqiora-api/packages/org.example.poisson" kind="tree">maintained Poisson example</ExactSourceLink>
+contains the corresponding declarations. The
+[numerical-simulation path](/learn/numerical-simulation/) explains why a
+known solution is useful for studying approximation error. To continue with the
+velocity and pressure fields above, follow
+[fluid mechanics](/learn/fluid-mechanics/) and the
+[cylinder investigation](/gallery/exact-cylinder-steady-stokes/).
 
 ## Deliberate failure: divergence of a scalar
 
@@ -124,6 +153,26 @@ cannot make the expression meaningful.
    have?
 4. Add a named `symmetry` boundary to the support declarations. What physical
    relation would still need to be supplied before the name has meaning?
+
+### Exercise guidance
+
+For exercise 3, $[\nabla T]=\Theta/L$. For exercise 4, a support name identifies
+a location; it does not yet impose no flow, a prescribed value, or a stress.
+State the physical symmetry and then derive which normal or tangential
+quantities it constrains.
+
+**Field check.** For the slab, evaluate $T$ at $x=L/4$ and $3L/4$. If a numerical
+profile has the right endpoint values but the wrong midpoint slope, which
+interior assumption should you inspect? Boundary agreement alone does not
+establish the field equation.
+
+## References
+
+- Gilbert Strang and Edwin “Jed” Herman, *Calculus*, volume 3 (OpenStax, 2016),
+  [section 6.1, Vector fields](https://openstax.org/books/calculus-volume-3/pages/6-1-vector-fields)
+  and [section 6.5, Divergence and curl](https://openstax.org/books/calculus-volume-3/pages/6-5-divergence-and-curl),
+  for the field and differential-operator meanings used here. The slab values
+  and manufactured Poisson calculation are derived explicitly in this chapter.
 
 [Previous: Ordinary differential equations](/learn/mathematical-modeling/ordinary-differential-equations/) ·
 [Back to the series map](/learn/mathematical-modeling/) ·

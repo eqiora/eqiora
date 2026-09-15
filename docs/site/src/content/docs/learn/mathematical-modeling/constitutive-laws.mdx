@@ -24,6 +24,49 @@ After this chapter, you should be able to:
 - identify when a constitutive assumption is unsuitable even though its source
   is well typed.
 
+## Why does heat flow down a temperature gradient?
+
+For the stationary slab, conservation gave
+$c_v\partial_tT+\nabla\cdot\boldsymbol j=s_v$. Two unknown fields, $T$ and
+$\boldsymbol j$, remain. A simple material relation is Fourier's law,
+
+$$
+\boldsymbol j=-\kappa\nabla T,\qquad \kappa>0.
+$$
+
+For isotropic material, conductivity $\kappa$ is a scalar. The minus sign
+makes heat flow toward lower temperature. This is a phenomenological material
+law, not a consequence of the divergence theorem. Its elementary slab form is
+introduced in [OpenStax, section 1.6](https://openstax.org/books/university-physics-volume-2/pages/1-6-mechanisms-of-heat-transfer).
+
+Return to the slab gradient $-200\,\mathrm{K/m}$. With illustrative
+$\kappa=0.1\,\mathrm{W/(m\,K)}$, the predicted flux is
+$+20\,\mathrm{W/m^2}$. Increasing conductivity by a factor of two doubles the
+flux for the **same prescribed endpoint temperatures**. It does not change
+the linear temperature profile in this source-free homogeneous example.
+That last qualification matters: with prescribed flux instead, changing
+conductivity changes the gradient.
+
+Integrating the constant-gradient law gives
+$\dot Q=\kappa A(T_h-T_c)/L$. Therefore the thermal resistance assumed in the
+network chapter is $R=L/(\kappa A)$. The component-level relation has now been
+derived from the continuum law and geometry. For $L=0.2\,\mathrm m$ and
+$A=0.1\,\mathrm{m^2}$, it is $20\,\mathrm{K/W}$ and the 40 K temperature
+difference transfers $2\,\mathrm W$.
+
+## Which parts of a linear law are assumptions?
+
+Constant conductivity assumes its variation over the temperature range is
+unimportant. Isotropy assumes every direction conducts alike. Locality assumes
+the flux at one point responds to the gradient at that point. A laminate can
+require a tensor conductivity; a wide temperature interval can require
+$\kappa(T)$. Conservation still holds when we replace the constitutive law.
+
+The same separation appears in mechanics: conservation balances forces,
+kinematics describes deformation or motion, and a material law turns those
+kinematic measures into stress. The following two examples make that pattern
+visible without asserting that all materials behave linearly.
+
 ## Newtonian viscous stress
 
 For the steady fluid component, the Cauchy stress is represented by
@@ -37,14 +80,10 @@ Velocity gradient has dimension $1/T$. Dynamic viscosity $\mu$ has dimension
 $M/(LT)$, so their product has pressure dimension $M/(LT^2)$. The isotropic
 pressure term has the same dimension and tensor shape.
 
-The package places that expression inside momentum balance:
-
-```eqiora
-2 * dynamic_viscosity * symmetric_part(grad(velocity))
-  - isotropic_lift(pressure)
-```
-
-This is a Newtonian, isotropic relation. Selecting it is a modeling decision.
+The maintained fluid balance places this stress inside a divergence. Find
+`dynamic_viscosity` in the source linked below: its declared unit is
+`kg / (m * s)`. Its physical value describes a material at the conditions of
+interest; choosing it is a modeling decision.
 
 ## Isotropic linear elasticity
 
@@ -57,22 +96,46 @@ $$
 $$
 
 Both strain measures are dimensionless. The Lamé parameters $\mu_s$ and
-$\lambda$ therefore have stress dimension. Eqiora expresses the balance as:
-
-```eqiora
-relation balance on body {
-  -div(
-    2 * shear_modulus * symmetric_part(grad(displacement))
-    + first_lame_parameter * isotropic_lift(div(displacement))
-  ) - grad(load_potential) = 0;
-}
-```
+$\lambda$ therefore have stress dimension. The solid component applies divergence to
+this stress and balances it against the body force. Open `IsotropicBalance2d`
+in the maintained source below to see the expression in its full context.
 
 The plane-strain and plane-stress components derive different Lamé parameters
 from Young's modulus and Poisson's ratio. They share an equilibrium structure
 while making different kinematic assumptions.
 
 <ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Solid/src/solid.eqi" kind="blob">Read the standard solid components</ExactSourceLink>.
+
+## Test a material law in a simple motion
+
+Consider plane shear $\boldsymbol u=(\dot\gamma y,0)$ with constant shear rate
+$\dot\gamma$. The gradient has one nonzero off-diagonal entry. Symmetrization
+places $\dot\gamma/2$ in both off-diagonal entries, so Newtonian shear stress is
+$\sigma_{xy}=\mu\dot\gamma$. The factor 2 in the constitutive formula is
+necessary: it cancels the half introduced by the symmetric part. A constant
+translation has zero gradient and produces no viscous shear stress.
+
+For a solid, $\boldsymbol d=(\varepsilon x,0)$ gives constant small strain
+$\varepsilon$ in the $x$ direction. A rigid infinitesimal rotation
+$\boldsymbol d=(-\omega y,\omega x)$ has an antisymmetric gradient and zero
+symmetric part, so the linear law assigns no strain energy to that motion.
+These hand checks tell us more about the formula than a plausible displacement
+plot alone.
+
+## Recognize the equations inside imported components
+
+The direct flow model in the fields chapter wrote its stress and balances
+explicitly. The standard package gives those same equations names:
+<ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Fluid/src/fluid.eqi" kind="blob">`SteadyNewtonianBalance2d` and `SteadyStokes2d`</ExactSourceLink>.
+Inspect how `SteadyStokes2d` composes the balance with its boundary interface.
+The solid package similarly separates `IsotropicBalance2d` from material
+parameters and boundary components.
+
+Using these components saves rewriting equations you now understand. It does
+not select the material on your behalf. The [fluid path](/learn/fluid-mechanics/)
+and [structural path](/learn/structural-mechanics/) develop the complete
+assemblies and physical assumptions; [heat transfer](/learn/heat-transfer/)
+continues with Fourier conduction.
 
 ## Parameters do not validate the material model
 
@@ -100,6 +163,30 @@ not repair it.
    standard package. Which balance and interface structures stay unchanged?
 5. Name a material behavior for which isotropic linear elasticity would be a
    poor assumption, even if every unit checks.
+
+### Exercise guidance
+
+For exercise 1, $[\mu]=M/(LT)$ and $[\nabla\boldsymbol u]=1/T$, giving
+$M/(LT^2)$ as required. For exercise 4, distinguish suppressed out-of-plane
+strain from suppressed out-of-plane stress before comparing parameter
+expressions. They are different physical reductions, not two numerical solvers
+for an identical problem.
+
+**Boundary-dependent prediction.** Double $\kappa$ in the slab while holding
+heat flux, rather than endpoint temperatures, fixed. Derive the new temperature
+drop. Then explain why the earlier fixed-temperature experiment had a different
+observable response.
+
+## References
+
+- Samuel J. Ling, Jeff Sanny, and William Moebs, *University Physics*, volume 2
+  (OpenStax, 2016), [section 1.6, Mechanisms of heat transfer](https://openstax.org/books/university-physics-volume-2/pages/1-6-mechanisms-of-heat-transfer),
+  for conduction and thermal conductivity.
+- Carol Livermore, Henrik Schmidt, James H. Williams, and Simona Socrate,
+  *Mechanics & Materials I*, MIT OpenCourseWare 2.001 (2006),
+  [lecture notes](https://ocw.mit.edu/courses/2-001-mechanics-materials-i-fall-2006/pages/lecture-notes/),
+  lectures on strain, stress, and elasticity. Use these to develop the small
+  strain constitutive interpretation beyond the shear checks here.
 
 [Previous: Conservation laws](/learn/mathematical-modeling/conservation-laws/) ·
 [Back to the series map](/learn/mathematical-modeling/) ·

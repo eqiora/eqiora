@@ -1,33 +1,68 @@
 ---
 title: Mathematical modeling
-description: A connected path from physical assumptions to equations, evolving state, conservation, and boundary conditions.
+description: Derive useful models from cooling, networks, fields, and material laws, then recognize the same mathematics inside reusable components.
 sidebar:
   order: 0
 ---
 
-Turn a physical question into a mathematical model before choosing a numerical
-method. This path assumes algebra, introductory calculus and basic programming.
-Read in order, or choose the lesson closest to your question.
+How long does a warm object take to cool? What temperature lies between two
+layers of insulation? Why does changing a boundary condition change the answer?
+These questions lead from physical assumptions to equations you can explain,
+solve by hand in simple cases, and express in Eqiora.
+
+This path assumes algebra and introductory calculus. You can read its
+mathematics without running code. If you already have a physical subject in
+mind, start with [heat transfer](/learn/heat-transfer/),
+[fluid mechanics](/learn/fluid-mechanics/),
+[structures](/learn/structural-mechanics/), or
+[circuits and dynamics](/learn/circuits-dynamics/), and use these chapters when
+you need a modeling idea. They are a companion, not an entrance requirement.
+
+## A connected investigation
+
+Begin with a bead whose whole temperature changes together. Derive its energy
+balance, normalize it into scalar decay, and compare a run with the exponential
+solution. Then ask what happens inside a thick wall, where one temperature is
+no longer enough. Fields, conservation, material laws, and boundary conditions
+turn that question into a spatial model.
+
+Along the way, write the small equations directly before opening the maintained
+components that package the same relationships. An import becomes meaningful
+when you can identify the assumptions and equations it saves you from repeating.
+Each chapter ends with a deliberate mistake, exercises, and guidance to help
+you reason beyond a successful run.
 
 ## Build a model
 
-1. [Models are not simulations](/learn/mathematical-modeling/models-not-simulations/) — separate the phenomenon, assumptions, mathematical meaning, realization and observation.
-2. [Quantities, dimensions, and units](/learn/mathematical-modeling/quantities-dimensions-units/) — reject dimensionally inconsistent relations and recognize what unit checking cannot prove.
-3. [Algebraic relations and networks](/learn/mathematical-modeling/algebraic-relations-networks/) — count unknowns, constraints and conservation relations in an acausal network.
-4. [Ordinary differential equations](/learn/mathematical-modeling/ordinary-differential-equations/) — derive scalar decay, run the installed example and compare with the closed-form solution.
+1. [Models are not simulations](/learn/mathematical-modeling/models-not-simulations/) — derive a cooling balance and distinguish changing the physical assumptions from changing how a computer solves it.
+2. [Quantities, dimensions, and units](/learn/mathematical-modeling/quantities-dimensions-units/) — check power and time scales, distinguish temperature from a temperature difference, and normalize a model without losing its meaning.
+3. [Algebraic relations and networks](/learn/mathematical-modeling/algebraic-relations-networks/) — derive a two-layer thermal network, count independent relations, and recognize conservation and material laws in imported electrical parts.
+4. [Ordinary differential equations](/learn/mathematical-modeling/ordinary-differential-equations/) — derive and run exponential decay, interpret its characteristic time, and ask what changes when the environment moves.
 
 ## Extend it through space
 
-5. [Fields and spatial domains](/learn/mathematical-modeling/fields-spatial-domains/) — place scalar and vector quantities on supports and interpret their spatial operators.
-6. [Conservation laws](/learn/mathematical-modeling/conservation-laws/) — connect local and integral statements of storage, flux and source.
-7. [Constitutive laws](/learn/mathematical-modeling/constitutive-laws/) — close a balance with material relations from transport and mechanics.
-8. [Boundary and interface conditions](/learn/mathematical-modeling/boundary-interface-conditions/) — distinguish prescribed values, natural conditions, continuity and action–reaction.
+5. [Fields and spatial domains](/learn/mathematical-modeling/fields-spatial-domains/) — replace one temperature with a field, calculate a gradient, and read the supports and boundary names of a flow model.
+6. [Conservation laws](/learn/mathematical-modeling/conservation-laws/) — account for storage, outward flux, and generation; derive a local heat balance and recover the lumped model by integration.
+7. [Constitutive laws](/learn/mathematical-modeling/constitutive-laws/) — derive slab resistance from Fourier conduction, test stress laws in simple motions, and inspect reusable material components.
+8. [Boundary and interface conditions](/learn/mathematical-modeling/boundary-interface-conditions/) — connect the environment to the equations, join two materials, and recognize missing references or contradictory data.
 
 ## Put it to use
 
-The ODE lesson includes an executable experiment using the named installed
-release. The other lessons develop equations through derivations, compilation
-examples, deliberate failures, and exercises.
+For the executable decay experiment, follow [Get started](/get-started/) once;
+its source build and downloaded files match the examples shown here. Python
+chooses the numerical method and observations, while `.eqi` holds the equations.
 
-Continue with [a practical run-and-results guide](/guides/run-and-inspect/),
-the [Gallery investigations](/gallery/), or the [Language reference](/reference/language/).
+Choose the next question that interests you:
+
+| Your question | Continue with |
+| --- | --- |
+| How does heat spread through a body? | [Heat transfer](/learn/heat-transfer/) |
+| How much of a discrepancy comes from numerical approximation? | [Numerical simulation](/learn/numerical-simulation/) |
+| How do pressure and viscosity determine a flow? | [Fluid mechanics](/learn/fluid-mechanics/) |
+| How do loads produce strain and displacement? | [Structural mechanics](/learn/structural-mechanics/) |
+| How do connected components determine currents and evolving states? | [Circuits and dynamics](/learn/circuits-dynamics/) |
+| What can observations tell us about an unknown parameter? | [Inverse problems](/learn/inverse-problems/) |
+
+For procedural help, use [run and inspect](/guides/run-and-inspect/); for exact
+syntax, use the [Language reference](/reference/language/). The
+[Gallery](/gallery/) develops larger physical investigations.
