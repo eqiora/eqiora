@@ -9,7 +9,6 @@ use super::api::{MiniNavierStokesStepPlan2d, SimplicialMiniNavierStokesState2d};
 use super::assembly::{
     assemble_step_linearization, assemble_step_residual, build_step_jacobian_pattern, initial_point,
 };
-use super::element::FixedDomainViscousForm;
 use super::{COMPONENTS, DIMENSION, invalid};
 use crate::jacobian_audit::{CenteredJacobianVerification, audit_centered_jacobian};
 use crate::simplicial_stokes::SimplicialMiniStokesBoundary2d;
@@ -107,7 +106,6 @@ where
         cell_quadrature,
         facet_quadrature,
         &REFERENCE_ASSEMBLY_BACKEND,
-        FixedDomainViscousForm::SymmetricNewtonian,
     )?;
     let pattern = build_step_jacobian_pattern(
         mesh,
@@ -132,7 +130,6 @@ where
                 plan.clone(),
                 cell_quadrature,
                 facet_quadrature,
-                FixedDomainViscousForm::SymmetricNewtonian,
             )
         },
         |column, analytic| {
@@ -260,6 +257,36 @@ mod tests {
             &facet_rule,
         )
         .unwrap();
+        let prepared = super::super::assembly::prepare_step_structure(
+            &mesh,
+            &boundary,
+            &essential,
+            &cell_rule,
+            &facet_rule,
+        )
+        .unwrap()
+        .bind(&plan, &load)
+        .unwrap();
+        prepared
+            .require_quadrature(&cell_rule, &facet_rule)
+            .unwrap();
+        assert!(
+            prepared
+                .require_quadrature(&triangle_duffy_gauss_legendre(6).unwrap(), &facet_rule)
+                .is_err()
+        );
+        for (density, viscosity, step) in [(8., 0.1, 0.1), (4., 0.2, 0.1), (4., 0.1, 0.2)] {
+            let mut changed = plan.clone();
+            changed.form = std::sync::Arc::new(
+                super::super::form::StepForm::reference(density, viscosity, step).unwrap(),
+            );
+            assert!(
+                super::super::assembly::assemble_step_residual_prepared(
+                    &mesh, &prepared, &previous, &point, changed,
+                )
+                .is_err()
+            );
+        }
         let residual = assemble_step_residual(
             &mesh,
             &boundary,
@@ -270,7 +297,6 @@ mod tests {
             plan.clone(),
             &cell_rule,
             &facet_rule,
-            FixedDomainViscousForm::SymmetricNewtonian,
         )
         .unwrap();
         for value in residual {

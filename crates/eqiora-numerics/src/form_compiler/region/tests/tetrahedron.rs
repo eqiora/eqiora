@@ -32,11 +32,8 @@ fn tetrahedron_mini_vector_and_mixed_blocks_match_barycentric_polynomial_integra
         .unwrap();
     let previous = BTreeMap::from([(velocity.field, vec![0.0; 15])]);
     let local = bound
-        .evaluate(
-            &geometry,
-            &simplex_duffy_gauss_legendre(3, 7).unwrap(),
-            &previous,
-        )
+        .prepare_cell(&geometry, &simplex_duffy_gauss_legendre(3, 7).unwrap())
+        .and_then(|cell| cell.evaluate(&previous))
         .unwrap();
     let gradient = [
         [-1.0, -1.0, -1.0],

@@ -366,13 +366,10 @@ impl PreparedResolvedTransientGeometryMiniRun2d<'_> {
         let checked_assembly = self
             .block_system
             .checked_backend(&REFERENCE_ASSEMBLY_BACKEND);
-        // Loads are compiled from the authored relation, not re-evaluated by a flow kernel.
-        let body_force = |_coordinate: [f64; DIMENSION]| Ok([0.0; DIMENSION]);
         let numerical =
             advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_and_linear(
                 &self.normalized,
                 &self.step_structure,
-                &body_force,
                 numerical_initial,
                 run.step_count(),
                 self.numerical_plan.clone(),
@@ -468,7 +465,8 @@ pub(crate) fn prepare_resolved_transient_navier_stokes_geometry_mini_run_2d<'a>(
         &essential_velocity,
         &cell_quadrature,
         &facet_quadrature,
-    )?;
+    )?
+    .bind(&numerical_plan, &|_| Ok([0.0; 2]))?;
     Ok(PreparedResolvedTransientGeometryMiniRun2d {
         binding,
         mesh_artifact,

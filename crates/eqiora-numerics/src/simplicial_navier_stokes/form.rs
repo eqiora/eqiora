@@ -11,7 +11,7 @@ use eqiora_sem::KernelProgram;
 
 use super::invalid;
 use crate::form_compiler::region::{
-    BoundRegionForm, CompiledRegionForm, RegionFieldBinding, RegionTimeBinding,
+    BoundRegionForm, CompiledRegionForm, PreparedRegionCell, RegionFieldBinding, RegionTimeBinding,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -139,14 +139,31 @@ model Step() {{
         })
     }
 
-    pub fn linearize(
+    pub fn prepare_cell(
         &self,
         normalized: &AffineGeometryMap,
         quadrature: &eqiora_meshing::QuadratureRule,
+        load: &impl Fn([f64; 2]) -> Result<[f64; 2], Diagnostic>,
+    ) -> Result<PreparedRegionCell, Diagnostic> {
+        let mut prepared = self
+            .form
+            .prepare_cell(&self.geometry(normalized)?, quadrature)?;
+        let paired = self
+            .form
+            .pair_load(self.vector, normalized, quadrature, |point| {
+                load([point[0], point[1]]).map(Vec::from)
+            })?;
+        prepared.add_load(paired.rhs())?;
+        Ok(prepared)
+    }
+
+    pub fn linearize_prepared(
+        &self,
+        prepared: &PreparedRegionCell,
         previous: &[[f64; 2]; 4],
         current: &[[f64; 2]; 4],
         scalar: &[f64; 3],
-        load: &impl Fn([f64; 2]) -> Result<[f64; 2], Diagnostic>,
+        derivative: bool,
     ) -> Result<crate::form_compiler::region::RegionLinearization, Diagnostic> {
         let vector = self
             .form
@@ -177,24 +194,24 @@ model Step() {{
                 .map(|value| vector.scale * value)
                 .collect(),
         )]);
-        let geometry = self.geometry(normalized)?;
-        let action = self
-            .form
-            .linearize(&geometry, quadrature, &previous, &point)?;
-        let paired_load = self
-            .form
-            .pair_load(self.vector, normalized, quadrature, |point| {
-                load([point[0], point[1]]).map(Vec::from)
-            })?;
-        let residual = order
-            .iter()
-            .map(|index| action.residual[*index] - paired_load.rhs()[*index])
-            .collect();
+        let action = if derivative {
+            prepared.linearize(&previous, &point)?
+        } else {
+            crate::form_compiler::region::RegionLinearization {
+                jacobian: Vec::new(),
+                residual: prepared.residual(&previous, &point)?,
+            }
+        };
+        let residual = order.iter().map(|index| action.residual[*index]).collect();
         let matrix = &action.jacobian;
-        let jacobian = order
-            .iter()
-            .flat_map(|row| order.iter().map(move |column| matrix[row * 11 + column]))
-            .collect();
+        let jacobian = if derivative {
+            order
+                .iter()
+                .flat_map(|row| order.iter().map(move |column| matrix[row * 11 + column]))
+                .collect()
+        } else {
+            Vec::new()
+        };
         Ok(crate::form_compiler::region::RegionLinearization { residual, jacobian })
     }
 
@@ -209,6 +226,7 @@ model Step() {{
         rule: &eqiora_meshing::QuadratureRule,
         method_point: &[f64],
         traction: [f64; 2],
+        derivative: bool,
     ) -> Result<crate::form_compiler::region::RegionLinearization, Diagnostic> {
         let (normalized_facet, incidence, parent_vertices) = facet;
         let vector = self
@@ -234,20 +252,25 @@ model Step() {{
         }
         let cell = self.geometry(normalized_cell)?;
         let facet = self.geometry(normalized_facet)?;
-        let action = self.form.linearize_natural_facet(
+        let action = self.form.natural_facet_action(
             self.vector,
             &cell,
             (&facet, incidence, parent_vertices),
             rule,
             &point,
+            derivative,
             |_, _| Ok(traction.iter().map(|value| scalar.scale * value).collect()),
         )?;
         let residual = order.iter().map(|index| action.residual[*index]).collect();
         let matrix = &action.jacobian;
-        let jacobian = order
-            .iter()
-            .flat_map(|row| order.iter().map(move |column| matrix[row * 11 + column]))
-            .collect();
+        let jacobian = if derivative {
+            order
+                .iter()
+                .flat_map(|row| order.iter().map(move |column| matrix[row * 11 + column]))
+                .collect()
+        } else {
+            Vec::new()
+        };
         Ok(crate::form_compiler::region::RegionLinearization { residual, jacobian })
     }
 

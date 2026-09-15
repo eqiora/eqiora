@@ -1,8 +1,6 @@
 use eqiora_assembly::LocalContribution;
 use eqiora_core::Diagnostic;
-use eqiora_meshing::{
-    AffineGeometryMap, MeshGeometry, MeshTopology, QuadratureRule, ReferenceCellFamily,
-};
+use eqiora_meshing::{MeshGeometry, MeshTopology, QuadratureRule, ReferenceCellFamily};
 
 use super::{
     REQUIRED_CONVECTIVE_FACET_QUADRATURE_EXACTNESS, REQUIRED_CONVECTIVE_QUADRATURE_EXACTNESS,
@@ -15,19 +13,13 @@ use crate::simplicial_stokes::{
     VELOCITY_BASIS_COUNT,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum FixedDomainViscousForm {
-    SymmetricNewtonian,
-}
-
-pub(super) struct MiniNavierStokesCell<'a, F> {
+pub(super) struct MiniNavierStokesCell<'a> {
     pub(crate) cell: usize,
     pub(crate) vertices: &'a [eqiora_meshing::MeshEntity],
     pub(crate) form: &'a super::form::StepForm,
     pub(crate) previous_velocity: &'a SimplicialMiniVelocityField2d,
     pub(crate) candidate_velocity: &'a SimplicialMiniVelocityField2d,
     pub(crate) candidate_pressure: &'a [f64],
-    pub(crate) body_force: &'a F,
 }
 
 /// One local nonlinear relation evaluated at an exact candidate point.
@@ -71,43 +63,26 @@ impl MiniNavierStokesLocalLinearization {
     }
 }
 
-impl<F> MiniNavierStokesCell<'_, F>
-where
-    F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
-{
+impl MiniNavierStokesCell<'_> {
     pub(crate) fn residual_prepared(
         &self,
-        geometry: &AffineGeometryMap,
-        quadrature: &QuadratureRule,
+        prepared: &crate::form_compiler::region::PreparedRegionCell,
     ) -> Result<Vec<f64>, Diagnostic> {
         let (candidate, previous, pressure) = self.local_state();
         Ok(self
             .form
-            .linearize(
-                geometry,
-                quadrature,
-                &previous,
-                &candidate,
-                &pressure,
-                self.body_force,
-            )?
+            .linearize_prepared(prepared, &previous, &candidate, &pressure, false)?
             .residual)
     }
 
     pub(crate) fn linearize_prepared(
         &self,
-        geometry: &AffineGeometryMap,
-        quadrature: &QuadratureRule,
+        prepared: &crate::form_compiler::region::PreparedRegionCell,
     ) -> Result<MiniNavierStokesLocalLinearization, Diagnostic> {
         let (candidate, previous, pressure) = self.local_state();
-        let action = self.form.linearize(
-            geometry,
-            quadrature,
-            &previous,
-            &candidate,
-            &pressure,
-            self.body_force,
-        )?;
+        let action = self
+            .form
+            .linearize_prepared(prepared, &previous, &candidate, &pressure, true)?;
         Ok(MiniNavierStokesLocalLinearization {
             jacobian: action.jacobian,
             residual: action.residual,
@@ -463,10 +438,12 @@ mod tests {
             previous_velocity: &previous,
             candidate_velocity: &candidate,
             candidate_pressure: &pressure,
-            body_force: &body_force,
         };
-        let residual_only = operator.residual_prepared(&geometry, &quadrature).unwrap();
-        let linearization = operator.linearize_prepared(&geometry, &quadrature).unwrap();
+        let prepared = form
+            .prepare_cell(&geometry, &quadrature, &body_force)
+            .unwrap();
+        let residual_only = operator.residual_prepared(&prepared).unwrap();
+        let linearization = operator.linearize_prepared(&prepared).unwrap();
 
         assert_eq!(residual_only, linearization.residual);
         let point = linearization.point;
@@ -484,6 +461,6 @@ mod tests {
                 - contribution.rhs()[row];
             assert!((reconstructed - expected).abs() < 1e-12);
         }
-        assert_eq!(calls.load(Ordering::Relaxed), 2 * quadrature.points().len());
+        assert_eq!(calls.load(Ordering::Relaxed), quadrature.points().len());
     }
 }

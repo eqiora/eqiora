@@ -14,6 +14,7 @@ use super::*;
 mod boundary;
 mod flux;
 mod nonlinear;
+mod prepared;
 mod scalar;
 mod tetrahedron;
 mod validation;
@@ -222,11 +223,8 @@ fn mixed_p1_mass_strain_and_signed_pressure_blocks_are_equation_derived() {
         .unwrap();
     let previous = BTreeMap::from([(velocity.field, vec![2.0, -1.0, 2.0, -1.0, 2.0, -1.0])]);
     let local = bound
-        .evaluate(
-            &geometry(),
-            &simplex_duffy_gauss_legendre(2, 4).unwrap(),
-            &previous,
-        )
+        .prepare_cell(&geometry(), &simplex_duffy_gauss_legendre(2, 4).unwrap())
+        .and_then(|cell| cell.evaluate(&previous))
         .unwrap();
     let n = 9;
     for (i, gradient) in GRADIENT.iter().enumerate() {
@@ -272,11 +270,8 @@ fn eliminated_state_gives_dt_stiffness_and_physical_history_rhs() {
         (state, old_state.clone()),
     ]);
     let local = bound
-        .evaluate(
-            &geometry(),
-            &simplex_duffy_gauss_legendre(2, 4).unwrap(),
-            &previous,
-        )
+        .prepare_cell(&geometry(), &simplex_duffy_gauss_legendre(2, 4).unwrap())
+        .and_then(|cell| cell.evaluate(&previous))
         .unwrap();
     for i in 0..3 {
         for a in 0..2 {
@@ -314,11 +309,8 @@ fn mini_bubble_mass_and_mixed_blocks_use_exact_barycentric_integrals() {
         .unwrap();
     let previous = BTreeMap::from([(velocity.field, vec![0.0; 8])]);
     let local = bound
-        .evaluate(
-            &geometry(),
-            &simplex_duffy_gauss_legendre(2, 5).unwrap(),
-            &previous,
-        )
+        .prepare_cell(&geometry(), &simplex_duffy_gauss_legendre(2, 5).unwrap())
+        .and_then(|cell| cell.evaluate(&previous))
         .unwrap();
     // b=27 lambda0 lambda1 lambda2. Integral(prod lambda_i^a_i)=prod(a_i!)/(2+sum a_i)!.
     for i in 0..4 {
@@ -382,11 +374,8 @@ fn derivative_of_eliminated_state_uses_rate_without_unused_previous_coefficients
     let bound = bound(&form, false);
     assert!(bound.previous_fields().is_empty());
     let local = bound
-        .evaluate(
-            &geometry(),
-            &simplex_duffy_gauss_legendre(2, 4).unwrap(),
-            &BTreeMap::new(),
-        )
+        .prepare_cell(&geometry(), &simplex_duffy_gauss_legendre(2, 4).unwrap())
+        .and_then(|cell| cell.evaluate(&BTreeMap::new()))
         .unwrap();
     for i in 0..3 {
         for a in 0..2 {

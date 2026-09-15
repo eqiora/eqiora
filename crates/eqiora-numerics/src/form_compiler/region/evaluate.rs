@@ -16,6 +16,27 @@ impl BoundRegionForm {
         quadrature: &QuadratureRule,
         previous: &BTreeMap<RawId, Vec<f64>>,
     ) -> Result<(), Diagnostic> {
+        self.validate_geometry(geometry, quadrature)?;
+        if previous.len() != self.previous.len()
+            || self.previous.iter().any(|(field, layout)| {
+                previous.get(field).is_none_or(|values| {
+                    values.len() != layout.range.len()
+                        || values.iter().any(|value| !value.is_finite())
+                })
+            })
+        {
+            return Err(invalid(
+                "previous coefficients require exact consumed Field coverage, shape and finite values",
+            ));
+        }
+        Ok(())
+    }
+
+    fn validate_geometry(
+        &self,
+        geometry: &AffineGeometryMap,
+        quadrature: &QuadratureRule,
+    ) -> Result<(), Diagnostic> {
         if geometry.reference_cell() != self.reference
             || quadrature.reference_cell() != self.reference
             || geometry.physical_dimension() != self.form.dimension
@@ -57,43 +78,15 @@ impl BoundRegionForm {
                 "quadrature does not cover region basis-product degree",
             ));
         }
-        if previous.len() != self.previous.len()
-            || self.previous.iter().any(|(field, layout)| {
-                previous.get(field).is_none_or(|values| {
-                    values.len() != layout.range.len()
-                        || values.iter().any(|value| !value.is_finite())
-                })
-            })
-        {
-            return Err(invalid(
-                "previous coefficients require exact consumed Field coverage, shape and finite values",
-            ));
-        }
         Ok(())
     }
 
-    /// Previous coefficients are physical coherent-SI values, not scaled algebraic unknowns.
-    pub(crate) fn evaluate(
+    pub(super) fn prepare_affine(
         &self,
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
-        previous: &BTreeMap<RawId, Vec<f64>>,
     ) -> Result<LocalContribution, Diagnostic> {
-        if self.form.rows.iter().any(|row| !row.dyadics.is_empty()) {
-            return Err(invalid(
-                "nonlinear region evaluation requires an explicit candidate point",
-            ));
-        }
-        self.evaluate_affine(geometry, quadrature, previous)
-    }
-
-    pub(super) fn evaluate_affine(
-        &self,
-        geometry: &AffineGeometryMap,
-        quadrature: &QuadratureRule,
-        previous: &BTreeMap<RawId, Vec<f64>>,
-    ) -> Result<LocalContribution, Diagnostic> {
-        self.validate_cell(geometry, quadrature, previous)?;
+        self.validate_geometry(geometry, quadrature)?;
         let fields = self
             .fields
             .iter()
@@ -112,22 +105,17 @@ impl BoundRegionForm {
                 let eliminated = self.eliminations.get(&term.trial);
                 let trial_field = eliminated.copied().unwrap_or(term.trial);
                 let column = indices[&trial_field];
-                let (new_factor, old_factor) = match (eliminated, term.derivative) {
-                    (Some(_), true) => (1.0, 0.0),
-                    (Some(_), false) => (self.step.expect("bound state step"), -1.0),
-                    (None, true) => {
-                        let inverse_step = self.step.expect("bound derivative step").recip();
-                        (inverse_step, inverse_step)
-                    }
-                    (None, false) => (1.0, 0.0),
+                let factor = match (eliminated, term.derivative) {
+                    (Some(_), true) => 1.,
+                    (Some(_), false) => self.step.expect("bound state step"),
+                    (None, true) => self.step.expect("bound derivative step").recip(),
+                    (None, false) => 1.,
                 };
                 integrals.push(super::integration::IntegralTerm {
                     row: row_index,
                     column,
                     pairing: term.pairing,
-                    trial_scale: new_factor * self.fields[column].scale,
-                    history: (old_factor != 0.0)
-                        .then(|| (old_factor, previous[&term.trial].as_slice())),
+                    trial_scale: factor * self.fields[column].scale,
                 });
                 data.push((row_index, term));
             }
