@@ -1,74 +1,63 @@
 ---
 title: Reference
-description: Eqiora language and standard sources, alongside exact-commit API references.
+description: Look up Eqiora syntax, physical components and APIs, with examples you can adapt.
 editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/index.mdx
 ---
 
-import { Aside, CardGrid } from '@astrojs/starlight/components';
+import { CardGrid } from '@astrojs/starlight/components';
 import ReferenceCard from '@components/site/ReferenceCard.astro';
 
 Look up a declaration, find a physical building block, or inspect an API signature.
-The language, standard-source and generated API pages describe the same exact
-source revision. Install it through Get started before running their examples.
+Each reference combines the available syntax or signatures with examples you can
+adapt to your own model. Use the environment from [Get started](/get-started/)
+to run them, and visit [Learn](/learn/) for the physical reasoning behind them.
 
-<Aside type="note" title="Choose a reference">
-  Start with [Get started](/get-started/) for installation and a first run.
-  [Learn](/learn/) explains the physics; Reference explains the syntax and
-  supplied declarations. [Capabilities](/capabilities/) records execution limits.
-</Aside>
-
-## Language and physical building blocks
+## Write a model
 
 <CardGrid>
   <ReferenceCard
     href="/reference/language/"
     title="Eqiora Language"
-    description="Declarations, SI quantities, residual equations, initialization and component bindings using the source-installed package."
+    description="Declare quantities and fields, write equations, choose units and connect components."
     badge="Language syntax"
   />
   <ReferenceCard
     href="/reference/standard-packages/"
     title="Standard sources"
-    description="Find electrical components, continuum laws and boundary conditions by physical purpose, with their canonical source."
+    description="Find electrical components, continuum laws and boundary conditions, with examples of their use."
     badge="Physical building blocks"
   />
 </CardGrid>
 
-## Generated APIs and protocols
-
-Python and Rust are library references. CLI, control-v2 and MCP are separate
-interfaces, not additional SDKs. Check each page's source identity before using a
-new API with an older installation.
+## Compile, run and inspect
 
 <CardGrid>
   <ReferenceCard
     href="/reference/python/"
     title="Python API"
-    description="Complete public Python surface and signature reference for one exact source commit."
+    description="Compile a model, choose a numerical method, run it and inspect fields or sensitivities."
     badge="Python"
   />
   <ReferenceCard
     href="/reference/rust/"
     title="Rust API"
-    description="All-features library-only rustdoc and classified Eqiora facade index."
+    description="Build with the Eqiora facade, follow examples and browse module and item documentation."
     badge="Rust"
   />
   <ReferenceCard
     href="/reference/cli/"
     title="Command-line interface"
-    description="Exact-head help and version for the bounded local Eqiora compile/check command."
+    description="Check an Eqiora source file from the terminal and read compiler diagnostics."
     badge="CLI"
   />
-  <ReferenceCard
-    href="/reference/control-v2/"
-    title="Control protocol v2"
-    description="Exact JSON Schema for the bounded compile/check control request and response."
-    badge="JSON Schema"
-  />
-  <ReferenceCard
-    href="/reference/mcp/"
-    title="MCP stdio interface"
-    description="Live discovery and tool-list projection for Eqiora's bounded local MCP adapter."
-    badge="MCP"
-  />
 </CardGrid>
+
+## Find an example
+
+- **A quantity or equation:** [declarations](/reference/language/declarations/),
+  [units](/reference/language/units/) and [equations](/reference/language/equations/).
+- **Reusable physics:** [electrical components](/reference/standard-packages/electrical/)
+  and [continuum mechanics](/reference/standard-packages/continuum/).
+- **A complete workflow:** [run and inspect](/guides/run-and-inspect/),
+  [differentiate a solved model](/guides/differentiation/), or choose a
+  [worked physical problem](/gallery/).

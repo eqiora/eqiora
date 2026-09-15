@@ -37,15 +37,10 @@ SOURCE_PATHS = (
     "examples/python/exact_cylinder_stokes.py",
     "examples/python/exact_cylinder_geometry.py",
     "examples/python/exact_cylinder_mesh.py",
-    "verify/fluid/packaged-steady-stokes-2d/models/direct.eqi",
-    "verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/src/incompressible.eqi",
+    "examples/steady-flow-past-cylinder.eqi",
     "crates/eqiora-api/packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi",
 )
-EVIDENCE_PATHS = (
-    "verify/fluid/packaged-steady-stokes-2d/README.md",
-    "verify/geometry/exact-circular-hole-geometry/README.md",
-    "verify/interfaces/python-exact-circular-hole-geometry/README.md",
-)
+
 STAGES = (
     ("problem-setup", "1", "Problem setup"),
     ("model-definition", "2", "Eqiora model definition"),
@@ -81,8 +76,6 @@ ST_STARLIGHT_ROUTES = (
     "/reference/standard-packages/continuum/",
     "/reference/standard-packages/electrical/",
     "/reference/cli/",
-    "/reference/control-v2/",
-    "/reference/mcp/",
     "/reference/python/",
     "/reference/python/diff/",
     "/reference/python/eqiora/",
@@ -279,23 +272,20 @@ def _case_body() -> str:
     for relative in SOURCE_PATHS:
         label = Path(relative).name
         links.append(_exact_link(relative, label))
-    for relative in EVIDENCE_PATHS:
-        label = Path(relative).parent.name + " dossier"
-        links.append(_exact_link(relative, label))
 
     sentinel = _exact_link(
         "examples/python/exact_cylinder_stokes.py",
         "Eqiora source form: Python resolve/run path",
-        "#L45-L57",
+        "#L51-L67",
     )
 
-    source_form = """<p><strong>Eqiora source form</strong></p><pre>relation momentum on body {
+    source_form = """<p><strong>Eqiora source form</strong></p><pre>relation momentum on fluid {
   -div(
     2 * dynamic_viscosity * symmetric_part(grad(velocity))
     - isotropic_lift(pressure)
   ) - grad(force_potential) = 0;
 }
-relation incompressibility on body {
+relation incompressibility on fluid {
   div(velocity) = 0;
 }</pre>"""
     stage_bodies = (
@@ -388,7 +378,7 @@ def _ordinary(root: Path):
     )
     _set_main(
         artifact / "reference/index.html",
-        "<h1>Reference</h1><p>Python Rust CLI control-v2 MCP</p>"
+        "<h1>Reference</h1><p>Python Rust CLI</p>"
         f"<p>{REFERENCE_GUIDANCE}</p>",
     )
 
@@ -750,7 +740,7 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
         accepted_link = _exact_link(
             "examples/python/exact_cylinder_stokes.py",
             "Eqiora source form: Python resolve/run path",
-            "#L45-L57",
+            "#L51-L67",
         )
         accepted_href = accepted_link.split('href="', 1)[1].split('"', 1)[0]
         accepted_label = "Eqiora source form: Python resolve/run path"
@@ -780,8 +770,8 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
                 "navigation link became an action control",
             )
         for label, replacement in (
-            ("missing lines", accepted_href.removesuffix("#L45-L57")),
-            ("wrong lines", accepted_href.replace("#L45-L57", "#L44-L57")),
+            ("missing lines", accepted_href.removesuffix("#L51-L67")),
+            ("wrong lines", accepted_href.replace("#L51-L67", "#L44-L57")),
             (
                 "wrong exact head",
                 accepted_href.replace(SOURCE_SHA, "b" * 40),
@@ -792,7 +782,7 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
                 lambda artifact, replacement=replacement: _replace(
                     artifact / case, accepted_href, replacement
                 ),
-                "accepted source-form sentinel must be the exact-head L45-L57 anchor",
+                "accepted source-form sentinel must be the exact-head L51-L67 anchor",
             )
 
         reject(

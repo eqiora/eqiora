@@ -8,7 +8,6 @@ __all__ = (
     "PRESSURE_ALT",
     "PRESSURE_CAPTION",
     "CASE_SOURCE_PATHS",
-    "CASE_EVIDENCE_PATHS",
     "check_starlight_content",
 )
 
@@ -35,21 +34,16 @@ STAGES = (
     ("reading-pressure", "6", "Reading the pressure plot"),
 )
 ADMITTED_SOURCE_PATH = "examples/python/exact_cylinder_stokes.py"
-ADMITTED_SOURCE_FRAGMENT = "#L45-L57"
+ADMITTED_SOURCE_FRAGMENT = "#L51-L67"
 ADMITTED_SOURCE_LABEL = "Eqiora source form: Python resolve/run path"
 CASE_SOURCE_PATHS = (
     ADMITTED_SOURCE_PATH,
     "examples/python/exact_cylinder_geometry.py",
     "examples/python/exact_cylinder_mesh.py",
-    "verify/fluid/packaged-steady-stokes-2d/models/direct.eqi",
-    "verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/src/incompressible.eqi",
+    "examples/steady-flow-past-cylinder.eqi",
     "crates/eqiora-api/packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi",
 )
-CASE_EVIDENCE_PATHS = (
-    "verify/fluid/packaged-steady-stokes-2d/README.md",
-    "verify/geometry/exact-circular-hole-geometry/README.md",
-    "verify/interfaces/python-exact-circular-hole-geometry/README.md",
-)
+
 EXECUTION_CONTROL = re.compile(
     r"\b(?:run|submit|reset|start|begin|try|solv\w*|execut\w*|simulat\w*|comput\w*|calculat\w*|launch\w*|evaluat\w*|process\w*|generat\w*|analy[sz]\w*|predict\w*)\b",
     re.IGNORECASE,
@@ -315,10 +309,10 @@ def _check_case(
         report("Cylinder route exposes raw target math delimiters")
     source_tokens = (
         (
-            "relation momentum on body",
+            "relation momentum on fluid",
             "2 * dynamic_viscosity * symmetric_part(grad(velocity))",
             "- isotropic_lift(pressure)",
-            "relation incompressibility on body",
+            "relation incompressibility on fluid",
             "div(velocity) = 0;",
         )
         if enhanced
@@ -377,7 +371,7 @@ def _check_case(
                 report("Cylinder route navigation link became an action control")
             elif href != admitted_href:
                 report(
-                    "Cylinder route accepted source-form sentinel must be the exact-head L45-L57 anchor"
+                    "Cylinder route accepted source-form sentinel must be the exact-head L51-L67 anchor"
                 )
             continue
         href = attrs.get("href", "")
@@ -395,10 +389,10 @@ def _check_case(
     if len(sentinels) != 1:
         report("Cylinder route must expose one uniquely labelled source-form sentinel")
     hrefs = {href for href, _ in page.anchors}
-    for relative in (*CASE_SOURCE_PATHS, *CASE_EVIDENCE_PATHS):
+    for relative in CASE_SOURCE_PATHS:
         expected = source_base + relative
         if expected not in hrefs:
-            report(f"Cylinder route omits exact-head source/evidence link {relative}")
+            report(f"Cylinder route omits exact-head source link {relative}")
     if PRESSURE_CAPTION not in page.visible_text:
         report("Cylinder route omits the exact admitted caption")
     return errors
@@ -447,7 +441,7 @@ def check_starlight_content(
             if enhanced
             else "API presence is not verification or maturity."
         )
-        required = ("Python", "Rust", "CLI", "control-v2", "MCP", guidance)
+        required = ("Python", "Rust", "CLI", guidance)
         for phrase in required:
             if phrase not in reference[1].visible_text:
                 errors.append(f"reference landing omits {phrase!r}")

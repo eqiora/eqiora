@@ -55,7 +55,7 @@ async function assertCylinderContent(page: Page): Promise<void> {
     }),
   ).toHaveAttribute(
     'href',
-    `https://github.com/nkiyohara/eqiora/blob/${sourceSha}/examples/python/exact_cylinder_stokes.py#L45-L57`,
+    `https://github.com/nkiyohara/eqiora/blob/${sourceSha}/examples/python/exact_cylinder_stokes.py#L51-L67`,
   );
   await assertNoFakeExecutionControls(page);
 }
@@ -354,7 +354,7 @@ test('table structure is complete across current site routes', async () => {
     await assertProductTableRouteInvariant(page, expected);
     invariantRoutes += 1;
   }
-  expect(invariantRoutes).toBe(39);
+  expect(invariantRoutes).toBe(41);
   await navigateSitePage(page, '/reference/python/eqiora/');
   await expect(page.locator('main table')).toHaveCount(0);
 

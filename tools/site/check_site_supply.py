@@ -41,7 +41,6 @@ _ARTIFACT_EXPORTS = (
     "PRESSURE_ALT",
     "PRESSURE_CAPTION",
     "CASE_SOURCE_PATHS",
-    "CASE_EVIDENCE_PATHS",
     "sha256",
     "check_exact_source",
     "check_artifact",

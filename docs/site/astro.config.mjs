@@ -68,8 +68,6 @@ if (process.env.EQIORA_SITE_BUILD_PROFILE === 'complete') {
     'src/content/docs/reference/python/index.mdx',
     'src/content/docs/reference/rust/index.mdx',
     'src/content/docs/reference/cli/index.mdx',
-    'src/content/docs/reference/control-v2/index.mdx',
-    'src/content/docs/reference/mcp/index.mdx',
     'src/content/docs/learn/index.mdx',
     'src/content/docs/learn/mathematical-modeling/index.mdx',
     'src/content/docs/learn/mathematical-modeling/algebraic-relations-networks.mdx',
@@ -180,8 +178,6 @@ export default defineConfig({
         { label: 'Python API', link: '/reference/python/' },
         { label: 'Rust API', link: '/reference/rust/' },
         { label: 'CLI', link: '/reference/cli/' },
-        { label: 'Control v2', link: '/reference/control-v2/' },
-        { label: 'MCP', link: '/reference/mcp/' },
         ] },
         { label: 'Contributing', items: [
           { label: 'Contribute a change', link: '/contributing/' },

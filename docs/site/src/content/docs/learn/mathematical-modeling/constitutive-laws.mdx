@@ -122,17 +122,20 @@ symmetric part, so the linear law assigns no strain energy to that motion.
 These hand checks tell us more about the formula than a plausible displacement
 plot alone.
 
-## Recognize the equations inside imported components
+## Recognize the equations inside reusable components
 
 The direct flow model in the fields chapter wrote its stress and balances
-explicitly. The standard package gives those same equations names:
+explicitly. The repository’s fluid source gives those same equations names:
 <ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Fluid/src/fluid.eqi" kind="blob">`SteadyNewtonianBalance2d` and `SteadyStokes2d`</ExactSourceLink>.
 Inspect how `SteadyStokes2d` composes the balance with its boundary interface.
 The solid package similarly separates `IsotropicBalance2d` from material
 parameters and boundary components.
 
-Using these components saves rewriting equations you now understand. It does
-not select the material on your behalf. The [fluid path](/learn/fluid-mechanics/)
+These source components show how named laws collect equations you now
+understand. For a runnable packaged model, use the bundled
+`Eqiora.Fluid.Incompressible` or `Eqiora.Solid.LinearElasticity` examples in the
+[continuum reference](/reference/standard-packages/continuum/). Choosing a
+component still leaves the material assumptions to you. The [fluid path](/learn/fluid-mechanics/)
 and [structural path](/learn/structural-mechanics/) develop the complete
 assemblies and physical assumptions; [heat transfer](/learn/heat-transfer/)
 continues with Fourier conduction.

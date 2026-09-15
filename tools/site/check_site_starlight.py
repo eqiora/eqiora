@@ -50,7 +50,6 @@ _require(
         "PRESSURE_ALT",
         "PRESSURE_CAPTION",
         "CASE_SOURCE_PATHS",
-        "CASE_EVIDENCE_PATHS",
         "check_starlight_content",
     ),
 )
@@ -62,7 +61,6 @@ __all__ = (
     "PRESSURE_ALT",
     "PRESSURE_CAPTION",
     "CASE_SOURCE_PATHS",
-    "CASE_EVIDENCE_PATHS",
     "check_starlight",
 )
 
@@ -71,7 +69,6 @@ WAKE_ALT = _content.WAKE_ALT
 PRESSURE_ALT = _content.PRESSURE_ALT
 PRESSURE_CAPTION = _content.PRESSURE_CAPTION
 CASE_SOURCE_PATHS = _content.CASE_SOURCE_PATHS
-CASE_EVIDENCE_PATHS = _content.CASE_EVIDENCE_PATHS
 
 SITE_ORIGIN = "https://eqiora.org"
 STARLIGHT_ROUTES = {
@@ -101,8 +98,6 @@ STARLIGHT_ROUTES = {
     "/reference/standard-packages/continuum/": "reference/standard-packages/continuum/index.html",
     "/reference/standard-packages/electrical/": "reference/standard-packages/electrical/index.html",
     "/reference/cli/": "reference/cli/index.html",
-    "/reference/control-v2/": "reference/control-v2/index.html",
-    "/reference/mcp/": "reference/mcp/index.html",
     "/reference/python/": "reference/python/index.html",
     "/reference/python/diff/": "reference/python/diff/index.html",
     "/reference/python/eqiora/": "reference/python/eqiora/index.html",

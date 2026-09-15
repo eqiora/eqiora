@@ -16,7 +16,6 @@ python examples/python/exact_cylinder_stokes.py \
   --pressure-png exact-cylinder-pressure.png
 python examples/python/karman_vortex_street.py \
   --vorticity-png karman-vortex-street.png
-# Open examples/python/karman_vortex_street_colab.ipynb in Google Colab.
 python examples/python/mixed_boundary_elasticity.py
 python examples/python/fixed_reference_fsi.py
 python examples/python/coupled_scalar.py
@@ -36,8 +35,7 @@ python examples/voltage-divider/run.py
 | `exact-cylinder-mesh` | [`python/exact_cylinder_mesh.py`](python/exact_cylinder_mesh.py) | From an installed `eqiora` package, realize the exact cylinder source with typed Gmsh policy and inspect Rust-derived selection counts. |
 | `steady-cylinder-source` | [`python/steady_cylinder_source.py`](python/steady_cylinder_source.py) | From an installed `eqiora` package, author the complete equations-only steady-cylinder Component as bounded `eqiora.lang.Source` values and emit readable deterministic `.eqi` through the same compiler ingress used by hand-written source. |
 | `exact-cylinder-stokes` | [`python/exact_cylinder_stokes.py`](python/exact_cylinder_stokes.py) | From an installed `eqiora` package, define the sole concrete Geometry in Python, compile it with the shipped equations-only `.eqi` Component, resolve the common MINI/P1 and linear-solve policies, inspect immutable pressure, solver, force, and flux evidence, and optionally save the pressure through `eqiora[gmsh,matplotlib]`. |
-| `karman-vortex-street` | [`python/karman_vortex_street.py`](python/karman_vortex_street.py) | Run the DFG 2D-2 geometry and physical parameters at Reynolds number 100, discard chunked spin-up history, retain a developed wake window, and inspect vorticity, drag, lift, pressure difference, and sampled Strouhal number. MINI/P1 with backward Euler makes this an unverified product example rather than a benchmark result. |
-| `karman-vortex-street-colab` | [`python/karman_vortex_street_colab.ipynb`](python/karman_vortex_street_colab.ipynb) | In a clean Colab runtime, install the pinned `0.1.2` package, run the same bounded wake workflow, and inspect its final accepted cell-average vorticity through the shared interactive Viewer. |
+| `karman-vortex-street` | [`python/karman_vortex_street.py`](python/karman_vortex_street.py) | Run the DFG 2D-2 geometry and physical parameters at Reynolds number 100, discard chunked spin-up history, retain a developed wake window, and inspect vorticity, drag, lift, pressure difference, and sampled Strouhal number. The example uses MINI/P1 elements and backward Euler time stepping. |
 | `mixed-boundary-elasticity` | [`python/mixed_boundary_elasticity.py`](python/mixed_boundary_elasticity.py) | Define the sole concrete rectangle in Python, compile the shipped equations-only Component, resolve Q1 and linear-solve policies, run the common Result path, and optionally save a caller-owned deformed-field Figure. |
 | `fixed-reference-fsi` | [`python/fixed_reference_fsi.py`](python/fixed_reference_fsi.py) | Author the adjacent Geometry in Python, compile the equations-only FSI Component, scope MINI/P1 and P1 to exact Model Domains, initialize four exact Fields, and run the common root Plan/State/Run lifecycle. |
 | `steady-flow-past-cylinder` | [`steady-flow-past-cylinder.eqi`](steady-flow-past-cylinder.eqi), [exact geometry](steady-flow-past-cylinder.geometry.json) | Python supplies the concrete Geometry to the equations-only `.eqi`, then uses the common root Plan lifecycle. |

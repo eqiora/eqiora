@@ -27,7 +27,7 @@ After this chapter, you should be able to:
 - distinguish a quantity, its dimension, and a chosen unit;
 - derive the dimension required for a coefficient in a relation;
 - inspect an Eqiora declaration using `1`, `s`, multiplication, and division;
-- use `eqiora check` as a compile-time check; and
+- use `eqiora.compile` as a compile-time check; and
 - explain why a dimensionally consistent relation may still be a poor model.
 
 ## Check the cooling balance in three ways
@@ -98,7 +98,7 @@ value; it does not erase the declared dimension.
 With the [source build from Get started](/get-started/), check the saved source:
 
 ```console
-$ eqiora check decay.eqi
+$ uv run --no-project --python .venv/bin/python python -c "import eqiora; eqiora.compile(path='decay.eqi')"
 ```
 
 A zero exit status means the current compiler accepted the source. The command
@@ -128,8 +128,8 @@ model invalid_decay() {
 ```
 
 Now `derivative(x)` has inverse-time dimension, but `rate * x` is
-dimensionless. They cannot be added in one residual, so `eqiora check` exits
-nonzero and reports compilation diagnostics. The intended repair is not a
+dimensionless. They cannot be added in one residual, so `eqiora.compile` raises
+`ValidationError` with compilation diagnostics. The intended repair is not a
 conversion factor chosen at random: derive the coefficient dimension from the
 relation, then declare `rate: 1 / s`.
 
@@ -157,7 +157,7 @@ choice from this physical similarity.
 2. Predict whether changing `state x: 1; initial { x = 1; }` to
    `state x: m; initial { x = 1[m]; }` while keeping
    `rate: 1 / s` preserves consistency. Explain before checking the source.
-3. Create the deliberate failure above, run `eqiora check`, and identify the
+3. Create the deliberate failure above, call `eqiora.compile`, and identify the
    two terms whose dimensions disagree. Restore the inverse-time declaration
    and check again.
 4. Give an example of two dimensionally consistent equations that express

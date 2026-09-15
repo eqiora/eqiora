@@ -38,8 +38,6 @@ SITEMAP_ROUTES = (
     "/reference/standard-packages/continuum/",
     "/reference/standard-packages/electrical/",
     "/reference/cli/",
-    "/reference/control-v2/",
-    "/reference/mcp/",
     "/reference/python/",
     "/reference/python/diff/",
     "/reference/python/eqiora/",

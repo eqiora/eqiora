@@ -14,11 +14,13 @@ import ReleaseIdentity from './ReleaseIdentity.astro';
       </div>
       <p class="eq-release">Release <ReleaseIdentity /> · Actively developed. <a href="/capabilities/">See what works today.</a></p>
     </div>
+    <a class="eq-preview-link" href="/gallery/karman-vortex-street/" aria-label="Explore the Kármán vortex street">
     <figure class="eq-preview">
-      <div class="eq-preview__label"><span>Unverified product example</span><span>01 / Fluid mechanics</span></div>
+      <div class="eq-preview__label"><span>Flow simulation</span><span>01 / Fluid mechanics</span></div>
       <img src={wakeImage.src} alt="Cell-average vorticity in a Kármán vortex street behind a circular cylinder." width={wakeImage.width} height={wakeImage.height} fetchpriority="high" />
-      <figcaption><span>Kármán vortex street</span><span>2D · transient Navier–Stokes</span></figcaption>
+      <figcaption><span>Kármán vortex street <span aria-hidden="true">↗</span></span><span>2D · transient Navier–Stokes</span></figcaption>
     </figure>
+    </a>
   </section>
 
   <section class="eq-workflow" aria-labelledby="workflow-title">
@@ -51,7 +53,7 @@ import ReleaseIdentity from './ReleaseIdentity.astro';
       <a href="/learn/"><h3>Learn <span aria-hidden="true">↗</span></h3><p>Work through derivations, physical examples, and exercises.</p></a>
       <a href="/guides/"><h3>Guides <span aria-hidden="true">↗</span></h3><p>Author a model, choose numerics, inspect results, or diagnose a failure.</p></a>
       <a href="/gallery/"><h3>Gallery <span aria-hidden="true">↗</span></h3><p>Follow a complete investigation from physical setup to result.</p></a>
-      <a href="/reference/"><h3>Browse the reference <span aria-hidden="true">↗</span></h3><p>Find Python and Rust APIs, command-line tools, and protocols.</p></a>
+      <a href="/reference/"><h3>Browse the reference <span aria-hidden="true">↗</span></h3><p>Find language examples, physical components, Python and Rust APIs, and CLI usage.</p></a>
       <a href="/capabilities/"><h3>Check capabilities <span aria-hidden="true">↗</span></h3><p>See implemented features, tested examples, and current limitations.</p></a>
     </div>
   </section>
@@ -70,6 +72,9 @@ import ReleaseIdentity from './ReleaseIdentity.astro';
   .eq-button--primary { background: var(--eq-color-action-bg); border-color: var(--eq-color-action-bg); color: var(--eq-color-action-text); }
   .eq-button:hover { text-decoration: underline; text-underline-offset: 0.2em; }
   .eq-release { font-size: 0.875rem; color: var(--eq-color-text-muted); }
+  .eq-preview-link { display: block; min-width: 0; color: inherit; text-decoration: none; border-radius: 0.875rem; }
+  .eq-preview-link:hover .eq-preview { border-color: var(--eq-color-brand); }
+  .eq-preview-link:hover figcaption > span:first-child { text-decoration: underline; text-underline-offset: 0.2em; }
   .eq-preview { margin: 0; min-width: 0; padding: 1rem; border: 1px solid var(--eq-color-border); border-radius: 0.875rem; background: var(--eq-color-surface); }
   .eq-preview__label, .eq-preview figcaption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem; font-size: 0.75rem; color: var(--eq-color-text-muted); }
   .eq-preview img { display: block; width: 100%; height: auto; margin-block: 1rem; border-radius: 0.25rem; }

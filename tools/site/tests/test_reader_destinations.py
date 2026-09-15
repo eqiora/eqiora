@@ -42,7 +42,7 @@ class ReaderDestinationTests(unittest.TestCase):
         for source in CONTENT.rglob("*.mdx"):
             for match in pattern.finditer(source.read_text()):
                 path = urlsplit(match.group(1) or match.group(2)).path
-                if path.startswith("/reference/rust/api/") or path == "/reference/control-v2/compile-v2.schema.json":
+                if path.startswith("/reference/rust/api/"):
                     continue  # Existing owned assembly supplies Rustdoc and the schema.
                 self.assertIn(path, STARLIGHT_ROUTES, f"{source}: {path}")
 

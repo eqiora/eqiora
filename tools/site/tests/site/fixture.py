@@ -37,11 +37,7 @@ EDITOR_CHECK_INPUTS = (
 )
 PRESSURE_ALT = "Steady Stokes pressure around a cylinder, with the current mesh and pressure scale in pascals."
 WAKE_ALT = "Cell-average vorticity in a Kármán vortex street behind a circular cylinder."
-CASE_EVIDENCE_PATHS = (
-    "verify/fluid/packaged-steady-stokes-2d/README.md",
-    "verify/geometry/exact-circular-hole-geometry/README.md",
-    "verify/interfaces/python-exact-circular-hole-geometry/README.md",
-)
+
 SITE_ROUTES = (
     "/",
     "/contributing/architecture/",
@@ -69,8 +65,6 @@ SITE_ROUTES = (
     "/reference/standard-packages/continuum/",
     "/reference/standard-packages/electrical/",
     "/reference/cli/",
-    "/reference/control-v2/",
-    "/reference/mcp/",
     "/reference/python/",
     "/reference/python/diff/",
     "/reference/python/eqiora/",
@@ -615,7 +609,7 @@ python3 tools/site/check_site.py source-topology --root "$EQIORA_SITE_SOURCE_ROO
 python3 tools/site/check_site.py browser-supply --site-root docs/site --browser-cache "$PLAYWRIGHT_BROWSERS_PATH" --expected-executable-sha256 "$EQIORA_SITE_BROWSER_SHA256" --expected-executable-bytes "$EQIORA_SITE_BROWSER_BYTES"
 python3 -m unittest tools.site.tests.test_site_tools -v
 python3 tools/site/build_products.py
-python3 tools/docs/generate_interface_reference.py --repository . --eqiora-binary bin/eqiora --mcp-binary bin/eqiora-mcp --check
+python3 tools/docs/generate_interface_reference.py --repository . --eqiora-binary bin/eqiora --check
 python3 tools/site/build_rust_reference.py --rustdoc-root rustdoc/doc --output rustdoc-stage
 python3 tools/site/check_site.py check
 python3 tools/site/check_site.py serve
@@ -678,7 +672,7 @@ def _page(route: str, body: str) -> str:
 
 def _exact_links() -> str:
     links = []
-    for relative in (*checker.CASE_SOURCE_PATHS, *CASE_EVIDENCE_PATHS):
+    for relative in checker.CASE_SOURCE_PATHS:
         url = f"https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/{relative}"
         label = Path(relative).parent.name + " " + Path(relative).name
         links.append(f'<a href="{url}">{label}</a>')
@@ -697,7 +691,7 @@ def _case_body() -> str:
 -div(sigma(u,p)) - grad(phi) = 0
 div(u) = 0</pre></section>
 <section><h2>Mesh and boundaries</h2></section>
-<section><h2>Submit and result</h2><p>One immutable common Plan and direct Result carrier.</p><a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/examples/python/exact_cylinder_stokes.py#L45-L57">Eqiora source form: Python resolve/run path</a></section>
+<section><h2>Submit and result</h2><p>One immutable common Plan and direct Result carrier.</p><a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/examples/python/exact_cylinder_stokes.py#L51-L67">Eqiora source form: Python resolve/run path</a></section>
 <section><h2>Pressure visualization</h2><figure><img src="/assets/pressure.png" alt="{PRESSURE_ALT}"><figcaption>{checker.PRESSURE_CAPTION}</figcaption></figure></section>
 <section><h2>Reading the pressure plot</h2>{_exact_links()}<a href="/capabilities/#exact-cylinder-steady-stokes">Explore related capabilities</a></section>"""
 
@@ -713,7 +707,7 @@ def _home_body() -> str:
 <article><h2>Get started</h2><p>Learn the Model–Realization boundary and start from bounded examples.</p></article>
 <article><h2>Textbooks</h2><p>Follow the planned path from mathematics and physics to Eqiora models, numerical realization, and interpretation.</p></article>
 <article><h2>Capabilities</h2><p>See what is available, executable, checked, or verified.</p></article>
-<article><h2>Reference</h2><p>Browse exact-commit Python, Rust, CLI, control-v2, and MCP surfaces.</p></article>
+<article><h2>Reference</h2><p>Browse exact-commit Python, Rust, and CLI surfaces.</p></article>
 <p>Docs explains how to use Eqiora. Textbooks teach the mathematics, physics, and numerics. Gallery presents complete simulations. Reference records exact APIs and protocols. Capabilities states what runs and the boundary of each claim.</p>
 <p>Release {{python_version}}</p><p>Eqiora is pre-1.0 research software under active development. The capability matrix and verification guide bound what is currently supported; this site does not widen those claims.</p>
 <h2>One source of truth</h2><p>This website is a curated projection, not a parallel specification. Detailed contracts remain in the repository's architecture, RFCs, capability matrix, and validated verify manifests.</p>"""
@@ -754,7 +748,7 @@ def _artifact(root: Path, blobs: dict[str, bytes], python_version: str) -> Path:
         "/guides/differentiation/": "<h1>Differentiation</h1><p>View guide source</p><h2>Evaluate a point and its derivatives</h2>",
         "/guides/execution-and-arrays/": "<h1>Execution and arrays</h1><p>View guide source</p><h2>Structured failures</h2>",
         "/guides/modeling/": "<h1>Modeling</h1><p>View guide source</p><h2>Native declarations</h2>",
-        "/reference/": '<h1>Reference</h1><p>Python Rust CLI control-v2 MCP</p><p>API presence is not verification or maturity.</p><form action="/reference/"><input aria-label="Search"></form>',
+        "/reference/": '<h1>Reference</h1><p>Python Rust CLI</p><p>API presence is not verification or maturity.</p><form action="/reference/"><input aria-label="Search"></form>',
         "/reference/language/": "<h1>Language</h1>",
         "/reference/language/composition/": "<h1>Component composition</h1>",
         "/reference/language/declarations/": "<h1>Declarations</h1>",
@@ -764,8 +758,6 @@ def _artifact(root: Path, blobs: dict[str, bytes], python_version: str) -> Path:
         "/reference/standard-packages/continuum/": "<h1>Continuum laws and boundaries</h1>",
         "/reference/standard-packages/electrical/": "<h1>Electrical components</h1>",
         "/reference/cli/": "<h1>CLI</h1><p>eqiora check</p>",
-        "/reference/control-v2/": "<h1>control-v2</h1><p>eqiora.control/v2</p>",
-        "/reference/mcp/": "<h1>MCP</h1><p>eqiora.model.compile_check</p>",
         "/reference/python/": "<h1>Python reference</h1><p>Python API families.</p>",
         "/reference/python/diff/": "<h1>Diff reference</h1><p>Differentiation API.</p>",
         "/reference/python/eqiora/": "<h1>eqiora Python module</h1><p>Diagnostic</p>",

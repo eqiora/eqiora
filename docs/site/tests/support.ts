@@ -44,8 +44,6 @@ export const SITE_ROUTES = [
   '/reference/standard-packages/continuum/',
   '/reference/standard-packages/electrical/',
   '/reference/cli/',
-  '/reference/control-v2/',
-  '/reference/mcp/',
   '/reference/python/',
   '/reference/python/diff/',
   '/reference/python/eqiora/',
@@ -153,14 +151,16 @@ export const TABLE_ROUTES = [
   { route: '/capabilities/', tables: 1, direct: 1, component: 0 },
   { route: '/evidence/', tables: 0, direct: 0, component: 0 },
   { route: '/gallery/exact-cylinder-steady-stokes/', tables: 0, direct: 0, component: 0 },
-  { route: '/reference/control-v2/', tables: 1, direct: 1, component: 0 },
   { route: '/reference/language/', tables: 1, direct: 1, component: 0 },
   { route: '/reference/language/declarations/', tables: 1, direct: 1, component: 0 },
+  { route: '/reference/language/equations/', tables: 1, direct: 1, component: 0 },
   { route: '/reference/language/units/', tables: 1, direct: 1, component: 0 },
   { route: '/reference/python/', tables: 1, direct: 1, component: 0 },
   { route: '/reference/rust/', tables: 2, direct: 2, component: 0 },
   { route: '/reference/standard-packages/', tables: 2, direct: 2, component: 0 },
   { route: '/reference/standard-packages/electrical/', tables: 1, direct: 1, component: 0 },
+  { route: '/reference/standard-packages/continuum/', tables: 1, direct: 1, component: 0 },
+  { route: '/reference/standard-packages/controls/', tables: 1, direct: 1, component: 0 },
   { route: '/learn/mathematical-modeling/', tables: 1, direct: 1, component: 0 },
   { route: '/learn/mathematical-modeling/boundary-interface-conditions/', tables: 1, direct: 1, component: 0 },
   { route: '/learn/mathematical-modeling/ordinary-differential-equations/', tables: 1, direct: 1, component: 0 },
@@ -212,8 +212,8 @@ export function createOrdinaryRoutePlan(): OrdinaryRoutePlan {
 
 export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly string[] {
   if (REFERENCE_START < 1) throw new Error('route authority missing /reference/');
-  if (SITE_ROUTES.length !== 102 || new Set(SITE_ROUTES).size !== 102) {
-    throw new Error('route authority is not 102 unique entries');
+  if (SITE_ROUTES.length !== 100 || new Set(SITE_ROUTES).size !== 100) {
+    throw new Error('route authority is not 100 unique entries');
   }
   const entries = (['A', 'B', 'C'] as const).flatMap((chunk) =>
     plan[chunk].map((route) => ({ chunk, route })),
@@ -231,7 +231,7 @@ export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly strin
   if (missing) throw new Error(`ORDER-MISSING: ${missing}`);
 
   const expected = createOrdinaryRoutePlan();
-  const cardinalities = { A: 1, B: 15, C: 86 } as const;
+  const cardinalities = { A: 1, B: 15, C: 84 } as const;
   for (const chunk of ['A', 'B', 'C'] as const) {
     if (plan[chunk].length !== cardinalities[chunk]) {
       throw new Error(`ORDER-CARDINALITY ${chunk}: ${plan[chunk].length}`);
@@ -243,12 +243,12 @@ export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly strin
       throw new Error(`ORDER-REORDER ${chunk}`);
     }
   }
-  if (entries.length !== 102 || seen.size !== 102) {
-    throw new Error('ORDER-UNION is not exactly 102 entries');
+  if (entries.length !== 100 || seen.size !== 100) {
+    throw new Error('ORDER-UNION is not exactly 100 entries');
   }
 
   const byRoute = new Map(entries.map((entry) => [entry.route, entry]));
-  if (byRoute.size !== 102) throw new Error('ORDER-CANONICAL duplicate identity');
+  if (byRoute.size !== 100) throw new Error('ORDER-CANONICAL duplicate identity');
   const canonical = SITE_ROUTES.map((route) => {
     const entry = byRoute.get(route);
     if (!entry) throw new Error(`ORDER-CANONICAL missing: ${route}`);
@@ -1059,7 +1059,8 @@ async function observeTables(
         while (walker.nextNode()) {
           const node = walker.currentNode as Text;
           const alternative = node.parentElement?.closest('.katex-mathml');
-          if (normalize(node.data).length > 0 && !(alternative && mathAlternatives.has(alternative))) nodes.push(node);
+          // KaTeX uses zero-width spaces as layout struts; they paint no glyph.
+          if (normalize(node.data.replace(/\u200b/gu, '')).length > 0 && !(alternative && mathAlternatives.has(alternative))) nodes.push(node);
         }
         return nodes;
       });

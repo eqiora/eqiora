@@ -9,7 +9,6 @@ from pathlib import Path
 from unittest import mock
 
 from fixture import (
-    CASE_EVIDENCE_PATHS,
     PRESSURE_ALT,
     REPOSITORY,
     SOURCE_SHA,
@@ -266,7 +265,7 @@ class CompleteContractTests(unittest.TestCase):
     def test_route_canonical_media_and_claim_mutants_fail(self) -> None:
         mutations = {
             "missing route": lambda root, artifact: (
-                artifact / "reference/mcp/index.html"
+                artifact / "reference/cli/index.html"
             ).unlink(),
             "duplicate canonical": lambda root, artifact: self._replace(
                 artifact / "index.html",

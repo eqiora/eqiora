@@ -116,27 +116,22 @@ test('Kármán vortex street publishes accessible caller-owned motion', async ({
   expect(external).toEqual([]);
 });
 
-test('Kármán vortex-street Colab launch binds the exact release source', async ({ page }) => {
+test('Kármán vortex-street links to its current Python source', async ({ page }) => {
   await page.goto('/gallery/karman-vortex-street/');
-  const launch = page.getByRole('link', { name: 'Open in Colab', exact: true });
   const sourceSha = process.env.EQIORA_SITE_SOURCE_SHA;
-  await expect(launch).toHaveAttribute(
-    'href',
-    `https://colab.research.google.com/github/nkiyohara/eqiora/blob/${sourceSha}/examples/python/karman_vortex_street_colab.ipynb`,
-  );
+  await expect(page.locator(`a[href="https://github.com/nkiyohara/eqiora/blob/${sourceSha}/examples/python/karman_vortex_street.py"]`).first()).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Get started', exact: true }).first()).toBeVisible();
 });
 
-test('Pagefind returns one representative from every frozen reference family', async ({ page }) => {
+test('Pagefind returns one representative from every public reference family', async ({ page }) => {
   const external = await rejectExternalRequests(page);
   await page.goto('/');
   const expectations = [
     ['eqiora Diagnostic', '/reference/python/eqiora/'],
-    ['eqiora::Diagnostic stable', '/reference/rust/'],
-    ['eqiora::api::CadBoxIntentV1 transitional', '/reference/rust/'],
+    ['eqiora::Diagnostic', '/reference/rust/'],
+    ['eqiora::api::CadBoxIntentV1', '/reference/rust/'],
     ['eqiora::api module', '/reference/rust/'],
     ['eqiora check', '/reference/cli/'],
-    ['eqiora.control/v2', '/reference/control-v2/'],
-    ['eqiora.model.compile_check', '/reference/mcp/'],
   ] as const;
   for (const [query, expectedRoute] of expectations) {
     const urls = await page.evaluate(async (searchQuery) => {
