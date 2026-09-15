@@ -10,6 +10,7 @@ const pages = [
   '/reference/language/composition/',
   '/reference/standard-packages/',
   '/reference/standard-packages/electrical/',
+  '/reference/standard-packages/controls/',
   '/reference/standard-packages/continuum/',
 ];
 
@@ -31,7 +32,14 @@ test('Current Reference links, source and edit destinations are present', async 
     const response = await page.goto(route);
     expect(response?.ok(), route).toBe(true);
     await expect(page.locator('main')).not.toContainText('0.1.0a7');
-    await expect(page.locator('main a[href*="/nkiyohara/eqiora/"]').first()).toHaveAttribute('href', /\/(?:blob|tree)\/[0-9a-f]{40}\//);
+    const sourceLinks = page.locator(
+      'main a[href^="https://github.com/nkiyohara/eqiora/blob/"], '
+      + 'main a[href^="https://github.com/nkiyohara/eqiora/tree/"]',
+    );
+    await expect(sourceLinks.first(), `${route} links to its source`).toBeVisible();
+    for (const source of await sourceLinks.all()) {
+      await expect(source).toHaveAttribute('href', /\/(?:blob|tree)\/[0-9a-f]{40}\//);
+    }
     await assertNoSeriousAxeViolations(page);
     await expect(page.getByRole('link', { name: /Edit page/i })).toHaveAttribute(
       'href', /github\.com\/nkiyohara\/eqiora\/edit\/main\/docs\/site\/src\/content\/docs\/reference\//,

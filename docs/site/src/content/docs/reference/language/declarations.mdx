@@ -5,6 +5,7 @@ editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/doc
 ---
 
 import { Code } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 import source from './_examples/declarations.eqi?raw';
 
 [Language overview](/reference/language/)
@@ -14,6 +15,8 @@ Semicolons end declarations; `//` introduces a comment and `///` attaches docume
 Names are case-sensitive.
 
 <Code code={source} lang="eqiora" title="declarations.eqi" />
+
+<ExactSourceLink kind="blob" path="docs/site/src/content/docs/reference/language/_examples/declarations.eqi">Open the complete example source</ExactSourceLink>
 
 The example describes Ohm's law. Its default inputs give a current of 3 A.
 

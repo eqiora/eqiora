@@ -8,8 +8,8 @@ test('Eqiora source blocks use the canonical grammar in light and dark themes', 
 
   const source = page.locator('pre[data-language="eqiora"]').first();
   await expect(source).toBeVisible();
-  await expect(source).toHaveAttribute('aria-label', 'eqiora');
-  await expect(page.locator('.eq-code-region-label', { hasText: 'eqiora' }).first()).toBeVisible();
+  await expect(source).toHaveAttribute('aria-label', 'steady-flow-past-cylinder.eqi');
+  await expect(page.locator('.expressive-code .header .title', { hasText: 'steady-flow-past-cylinder.eqi' }).first()).toBeVisible();
 
   const tokenStyles = await source.locator('code span[style]').evaluateAll((tokens) =>
     new Set(tokens.map((token) => token.getAttribute('style')).filter(Boolean)).size,
@@ -25,7 +25,7 @@ test('named boundary connector clauses retain canonical syntax highlighting', as
   await page.goto('/learn/mathematical-modeling/boundary-interface-conditions/');
   const source = page.locator('pre[data-language="eqiora"]').filter({ hasText: 'connector VelocityTractionBoundary' });
   await expect(source).toContainText('trace velocity: m / s;');
-  await expect(source).toContainText('flux traction: Pa;');
+  await expect(source).toContainText('flux traction: kg / (m * s ^ 2);');
   await expect(source).toContainText('orientation parent_outward;');
   const tokens = source.locator('code span[style]');
   expect(await tokens.count()).toBeGreaterThan(3);

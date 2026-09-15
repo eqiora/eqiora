@@ -5,6 +5,7 @@ editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/doc
 ---
 
 import { Code } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 import source from './_examples/units.eqi?raw';
 
 [Language overview](/reference/language/)
@@ -14,6 +15,8 @@ square brackets. A `dimension` alias names a physical dimension; it does not
 rescale a value.
 
 <Code code={source} lang="eqiora" title="units.eqi" />
+
+<ExactSourceLink kind="blob" path="docs/site/src/content/docs/reference/language/_examples/units.eqi">Open the complete example source</ExactSourceLink>
 
 These inputs are 210,000,000,000 Pa, 0.01 s, and 2000 ohms in coherent SI units.
 `parameter duration: s = 0.01;` describes the same duration as `10[ms]`.
