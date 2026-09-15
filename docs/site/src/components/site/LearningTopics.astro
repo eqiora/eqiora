@@ -1,0 +1,75 @@
+---
+const topics = [
+  { slug: 'heat-transfer', title: 'Heat transfer', question: 'Where does the heat go?', description: 'Build an energy balance, derive conduction, and follow a body as it warms up.', ideas: 'Fourier law · steady conduction · thermal storage', drawing: 'heat' },
+  { slug: 'fluid-mechanics', title: 'Fluid mechanics', question: 'How does a flow become a wake?', description: 'Connect pressure and viscous stress to channel flow, cylinder forces, and alternating vortices.', ideas: 'Conservation · Stokes flow · vortex streets', drawing: 'flow' },
+  { slug: 'structural-mechanics', title: 'Structural mechanics', question: 'How does a body carry a load?', description: 'Follow forces into displacement, strain, stress, and the work done by a load.', ideas: 'Equilibrium · elasticity · finite elements', drawing: 'structure' },
+  { slug: 'circuits-dynamics', title: 'Circuits and dynamics', question: 'What determines voltage and motion?', description: 'Derive network balances, build a voltage divider, and discover why stored energy creates dynamics.', ideas: 'Circuit laws · power · exponential decay', drawing: 'circuit' },
+  { slug: 'inverse-problems', title: 'Inverse problems', question: 'What can a measurement tell us?', description: 'Work backward from observations to a heat source, and learn which parameters the data can distinguish.', ideas: 'Parameter recovery · sensitivity · uncertainty', drawing: 'inverse' },
+];
+---
+
+<ul class="topics" role="list">
+  {topics.map((topic) => (
+    <li>
+      <a href={`/learn/${topic.slug}/`}>
+        <svg viewBox="0 0 320 112" aria-hidden="true" focusable="false">
+          {topic.drawing === 'heat' && <>
+            <rect x="80" y="22" width="160" height="68" rx="4" class="body" />
+            <path d="M110 30v52m25-52v52m25-52v52m25-52v52m25-52v52" class="grid" />
+            <path d="M25 56h40m-12-9 12 9-12 9m202-9h40m-12-9 12 9-12 9" />
+            <circle cx="160" cy="56" r="14" class="accent" />
+            <path d="M154 56h12m-6-6v12" class="accent" />
+          </>}
+          {topic.drawing === 'flow' && <>
+            <circle cx="76" cy="56" r="17" class="body" />
+            <path d="M22 28h53c34 0 35 24 66 24s37-24 68-24 39 24 83 24M22 84h53c34 0 35-24 66-24s37 24 68 24 39-24 83-24" />
+            <path d="M118 69c14 19 31 17 30 4-1-15-19-14-17-3m51-29c14-19 31-17 30-4-1 15-19 14-17 3m50 29c14 19 31 17 30 4-1-15-19-14-17-3" class="accent" />
+          </>}
+          {topic.drawing === 'structure' && <>
+            <path d="M52 18v77m-15-66 15-11m-15 31 15-11m-15 31 15-11m-15 31 15-11" />
+            <path d="M52 35h215v36H52m36-36v36m36-36v36m36-36v36m36-36v36m36-36v36" class="grid" />
+            <path d="M52 35c90 0 144 6 215 34v27C183 58 123 60 52 60" class="accent" />
+            <path d="M280 21v36m-8-11 8 11 8-11" />
+          </>}
+          {topic.drawing === 'circuit' && <>
+            <path d="M63 28h60m74 0h60v58H63V67m0-24V28m-14 15h28m-22 12h16m-8 0v12" />
+            <path d="M123 28l6-12 12 24 12-24 12 24 12-24 12 24 8-12" class="accent" />
+            <circle cx="257" cy="57" r="5" class="body" />
+            <path d="M160 86v9m-14 0h28m-21 6h14" />
+          </>}
+          {topic.drawing === 'inverse' && <>
+            <path d="M42 18v76h237" class="grid" />
+            <path d="M54 83c67-59 133-60 214-57" />
+            <circle cx="77" cy="65" r="4" class="accent" /><circle cx="114" cy="46" r="4" class="accent" /><circle cx="159" cy="35" r="4" class="accent" /><circle cx="208" cy="25" r="4" class="accent" /><circle cx="250" cy="28" r="4" class="accent" />
+          </>}
+        </svg>
+        <span class="body-copy">
+          <span class="topic-title">{topic.title}<span aria-hidden="true"> ↗</span></span>
+          <span class="question">{topic.question}</span>
+          <span class="description">{topic.description}</span>
+          <span class="ideas">{topic.ideas}</span>
+        </span>
+      </a>
+    </li>
+  ))}
+</ul>
+
+<style>
+  .topics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; list-style: none; padding: 0; margin-block: 1.5rem; }
+  .topics li { margin: 0; min-width: 0; }
+  .topics a { display: flex; flex-direction: column; height: 100%; border: 1px solid var(--eq-color-border); border-radius: var(--eq-radius-card); overflow: hidden; text-decoration: none; color: var(--eq-color-text); background: var(--eq-color-surface); }
+  .topics a:hover { border-color: var(--eq-color-brand); }
+  .topics a:focus-visible { outline: 3px solid var(--eq-color-focus); outline-offset: 3px; }
+  svg { display: block; width: 100%; height: auto; background: var(--eq-color-surface-muted); fill: none; stroke: var(--eq-color-brand); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  svg .body { fill: var(--eq-color-surface); }
+  svg .grid { stroke: var(--eq-color-text-subtle); stroke-width: 1; }
+  svg .accent { stroke: var(--eq-color-accent); }
+  .body-copy { display: flex; flex-direction: column; gap: .65rem; padding: 1.25rem; flex: 1; }
+  .topic-title { font-size: 1.2rem; font-weight: 650; color: var(--eq-color-brand); }
+  a:hover .topic-title { text-decoration: underline; }
+  .question { font-weight: 600; }
+  .description { line-height: 1.6; }
+  .ideas { margin-top: auto; padding-top: .4rem; font-size: .8rem; color: var(--eq-color-text-muted); }
+  @media (max-width: 38rem) { .topics { grid-template-columns: minmax(0, 1fr); } }
+  @media print { svg { display: none; } .topics a { break-inside: avoid; } }
+</style>

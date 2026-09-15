@@ -1,0 +1,33 @@
+import Eqiora.Fluid.Incompressible.incompressible as fluid;
+
+model ReferenceStokes() {
+  domain body = box(0, 4, 0, 1);
+  domain left = boundary(body, axis = 0, side = lower);
+  domain right = boundary(body, axis = 0, side = upper);
+  domain bottom = boundary(body, axis = 1, side = lower);
+  domain top = boundary(body, axis = 1, side = upper);
+  variable velocity: vector<m / s, 2> on body;
+  variable pressure: Pa on body;
+  variable force_potential: Pa on body;
+  variable inlet_speed: m / s on body;
+  relation inputs on body {
+    force_potential = 0[Pa];
+    inlet_speed = 1[m / s];
+  }
+
+  parameter viscosity: Pa * s = 1;
+  instance flow: fluid.SteadyStokesWithPotential2d(
+    body = body,
+    velocity = velocity, pressure = pressure,
+    force_potential = force_potential, dynamic_viscosity = viscosity
+  );
+  relation inlet on left {
+    trace(velocity) + normal(isotropic_lift(inlet_speed)) = 0;
+  }
+  relation outlet on right {
+    normal(2 * viscosity * symmetric_part(grad(velocity))
+      - isotropic_lift(pressure)) = 0;
+  }
+  relation lower_wall on bottom { trace(velocity) = 0; }
+  relation upper_wall on top { trace(velocity) = 0; }
+}

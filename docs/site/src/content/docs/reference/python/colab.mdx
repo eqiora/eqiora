@@ -13,6 +13,22 @@ Prepare a coherent Google Colab runtime for Eqiora's notebook viewer.
 
 <ExactSourceLink path="bindings/python/python/eqiora/colab.pyi" kind="blob">View source</ExactSourceLink>
 
+## Example: prepare the notebook viewer
+
+After installing Eqiora in a Google Colab runtime:
+
+```python
+from eqiora.colab import prepare
+
+prepare()
+```
+
+Run this before [showing a View](/reference/python/viewer/). It checks the
+runtime and sets up the notebook transport. In a local Jupyter notebook,
+use `View` directly.
+
+## API
+
 <a id="api-eqiora-colab-prepare"></a>
 
 ## `prepare`

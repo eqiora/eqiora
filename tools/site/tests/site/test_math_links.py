@@ -62,7 +62,7 @@ class MathAndLinkMutantTests(unittest.TestCase):
             )
             errors = artifact_errors(root, artifact, identities)
             self.assertTrue(
-                any("exact-head source/evidence link" in error for error in errors)
+                any("exact-head source link" in error for error in errors)
             )
             self.assertTrue(
                 any("branch-relative source identity" in error for error in errors)

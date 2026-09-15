@@ -20,7 +20,6 @@ export const DIAGNOSTIC_ROUTE = '/reference/rust/api/eqiora/struct.Diagnostic.ht
 export const SITE_ROUTES = [
   '/',
   '/contributing/architecture/',
-  '/capabilities/',
   '/guides/how-eqiora-fits-together/',
   '/contributing/',
   '/evidence/',
@@ -44,8 +43,6 @@ export const SITE_ROUTES = [
   '/reference/standard-packages/continuum/',
   '/reference/standard-packages/electrical/',
   '/reference/cli/',
-  '/reference/control-v2/',
-  '/reference/mcp/',
   '/reference/python/',
   '/reference/python/diff/',
   '/reference/python/eqiora/',
@@ -77,6 +74,48 @@ export const SITE_ROUTES = [
   '/learn/mathematical-modeling/models-not-simulations/',
   '/learn/mathematical-modeling/ordinary-differential-equations/',
   '/learn/mathematical-modeling/quantities-dimensions-units/',
+  '/reference/standard-packages/controls/',
+  '/reference/python/units/',
+  '/reference/python/colab/',
+  '/learn/circuits-dynamics/component-laws/',
+  '/learn/circuits-dynamics/conserving-networks/',
+  '/learn/circuits-dynamics/decay-and-storage/',
+  '/learn/circuits-dynamics/',
+  '/learn/circuits-dynamics/resistor-divider/',
+  '/learn/circuits-dynamics/voltage-current-power/',
+  '/learn/fluid-mechanics/computing-incompressible-flow/',
+  '/learn/fluid-mechanics/continuum-and-statics/',
+  '/learn/fluid-mechanics/cylinder-wakes/',
+  '/learn/fluid-mechanics/exact-parallel-flows/',
+  '/learn/fluid-mechanics/',
+  '/learn/fluid-mechanics/mass-and-momentum/',
+  '/learn/fluid-mechanics/references/',
+  '/learn/fluid-mechanics/stokes-and-boundaries/',
+  '/learn/heat-transfer/assessing-a-thermal-calculation/',
+  '/learn/heat-transfer/boundaries-and-interfaces/',
+  '/learn/heat-transfer/conservation-and-fourier-law/',
+  '/learn/heat-transfer/heated-body-in-eqiora/',
+  '/learn/heat-transfer/',
+  '/learn/heat-transfer/steady-conduction/',
+  '/learn/heat-transfer/transient-storage/',
+  '/learn/inverse-problems/differentiating-a-solved-model/',
+  '/learn/inverse-problems/heat-source-recovery/',
+  '/learn/inverse-problems/',
+  '/learn/inverse-problems/measurements-to-parameters/',
+  '/learn/inverse-problems/noise-scaling-and-design/',
+  '/learn/inverse-problems/sensitivity-and-identifiability/',
+  '/learn/numerical-simulation/errors-and-residuals/',
+  '/learn/numerical-simulation/finite-volume-balance/',
+  '/learn/numerical-simulation/',
+  '/learn/numerical-simulation/refinement-and-reproducibility/',
+  '/learn/numerical-simulation/time-integration/',
+  '/learn/numerical-simulation/weak-forms-and-finite-elements/',
+  '/learn/structural-mechanics/',
+  '/learn/structural-mechanics/interpreting-results/',
+  '/learn/structural-mechanics/loads-energy/',
+  '/learn/structural-mechanics/mixed-boundary-square/',
+  '/learn/structural-mechanics/strain-stress/',
+  '/learn/structural-mechanics/virtual-work/',
   '/404.html',
 ] as const;
 
@@ -107,18 +146,44 @@ type TableRouteShape = Readonly<{
 export const TABLE_ROUTES = [
   { route: '/learn/mathematical-modeling/models-not-simulations/', tables: 1, direct: 1, component: 0 },
   { route: '/learn/mathematical-modeling/algebraic-relations-networks/', tables: 1, direct: 1, component: 0 },
-  { route: '/learn/mathematical-modeling/fields-spatial-domains/', tables: 1, direct: 1, component: 0 },
-  { route: '/capabilities/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/mathematical-modeling/fields-spatial-domains/', tables: 2, direct: 2, component: 0 },
   { route: '/evidence/', tables: 0, direct: 0, component: 0 },
   { route: '/gallery/exact-cylinder-steady-stokes/', tables: 0, direct: 0, component: 0 },
-  { route: '/reference/control-v2/', tables: 1, direct: 1, component: 0 },
   { route: '/reference/language/', tables: 1, direct: 1, component: 0 },
   { route: '/reference/language/declarations/', tables: 1, direct: 1, component: 0 },
+  { route: '/reference/language/equations/', tables: 1, direct: 1, component: 0 },
   { route: '/reference/language/units/', tables: 1, direct: 1, component: 0 },
   { route: '/reference/python/', tables: 1, direct: 1, component: 0 },
   { route: '/reference/rust/', tables: 2, direct: 2, component: 0 },
   { route: '/reference/standard-packages/', tables: 2, direct: 2, component: 0 },
   { route: '/reference/standard-packages/electrical/', tables: 1, direct: 1, component: 0 },
+  { route: '/reference/standard-packages/continuum/', tables: 1, direct: 1, component: 0 },
+  { route: '/reference/standard-packages/controls/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/mathematical-modeling/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/mathematical-modeling/boundary-interface-conditions/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/mathematical-modeling/ordinary-differential-equations/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/mathematical-modeling/quantities-dimensions-units/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/circuits-dynamics/decay-and-storage/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/circuits-dynamics/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/circuits-dynamics/resistor-divider/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/fluid-mechanics/computing-incompressible-flow/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/fluid-mechanics/continuum-and-statics/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/fluid-mechanics/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/heat-transfer/assessing-a-thermal-calculation/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/heat-transfer/conservation-and-fourier-law/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/heat-transfer/heated-body-in-eqiora/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/heat-transfer/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/heat-transfer/transient-storage/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/inverse-problems/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/inverse-problems/measurements-to-parameters/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/inverse-problems/sensitivity-and-identifiability/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/numerical-simulation/errors-and-residuals/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/numerical-simulation/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/numerical-simulation/time-integration/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/structural-mechanics/interpreting-results/', tables: 2, direct: 2, component: 0 },
+  { route: '/learn/structural-mechanics/loads-energy/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/structural-mechanics/mixed-boundary-square/', tables: 1, direct: 1, component: 0 },
+  { route: '/learn/structural-mechanics/strain-stress/', tables: 2, direct: 2, component: 0 },
 ] as const satisfies readonly TableRouteShape[];
 
 export type TableRoute = (typeof TABLE_ROUTES)[number];
@@ -145,8 +210,8 @@ export function createOrdinaryRoutePlan(): OrdinaryRoutePlan {
 
 export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly string[] {
   if (REFERENCE_START < 1) throw new Error('route authority missing /reference/');
-  if (SITE_ROUTES.length !== 60 || new Set(SITE_ROUTES).size !== 60) {
-    throw new Error('route authority is not 60 unique entries');
+  if (SITE_ROUTES.length !== 99 || new Set(SITE_ROUTES).size !== 99) {
+    throw new Error('route authority is not 99 unique entries');
   }
   const entries = (['A', 'B', 'C'] as const).flatMap((chunk) =>
     plan[chunk].map((route) => ({ chunk, route })),
@@ -164,7 +229,7 @@ export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly strin
   if (missing) throw new Error(`ORDER-MISSING: ${missing}`);
 
   const expected = createOrdinaryRoutePlan();
-  const cardinalities = { A: 1, B: 15, C: 44 } as const;
+  const cardinalities = { A: 1, B: 14, C: 84 } as const;
   for (const chunk of ['A', 'B', 'C'] as const) {
     if (plan[chunk].length !== cardinalities[chunk]) {
       throw new Error(`ORDER-CARDINALITY ${chunk}: ${plan[chunk].length}`);
@@ -176,12 +241,12 @@ export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly strin
       throw new Error(`ORDER-REORDER ${chunk}`);
     }
   }
-  if (entries.length !== 60 || seen.size !== 60) {
-    throw new Error('ORDER-UNION is not exactly 60 entries');
+  if (entries.length !== 99 || seen.size !== 99) {
+    throw new Error('ORDER-UNION is not exactly 99 entries');
   }
 
   const byRoute = new Map(entries.map((entry) => [entry.route, entry]));
-  if (byRoute.size !== 60) throw new Error('ORDER-CANONICAL duplicate identity');
+  if (byRoute.size !== 99) throw new Error('ORDER-CANONICAL duplicate identity');
   const canonical = SITE_ROUTES.map((route) => {
     const entry = byRoute.get(route);
     if (!entry) throw new Error(`ORDER-CANONICAL missing: ${route}`);
@@ -992,7 +1057,8 @@ async function observeTables(
         while (walker.nextNode()) {
           const node = walker.currentNode as Text;
           const alternative = node.parentElement?.closest('.katex-mathml');
-          if (normalize(node.data).length > 0 && !(alternative && mathAlternatives.has(alternative))) nodes.push(node);
+          // KaTeX uses zero-width spaces as layout struts; they paint no glyph.
+          if (normalize(node.data.replace(/\u200b/gu, '')).length > 0 && !(alternative && mathAlternatives.has(alternative))) nodes.push(node);
         }
         return nodes;
       });

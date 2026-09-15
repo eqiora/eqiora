@@ -1,6 +1,6 @@
 ---
 title: Quantities and units
-description: Dimension expressions and coherent SI numeric inputs in the current Eqiora source.
+description: Use physical dimensions and unit-bearing values in equations and component bindings.
 editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/language/units.mdx
 ---
 
@@ -8,37 +8,66 @@ import { Code } from '@astrojs/starlight/components';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 import source from './_examples/units.eqi?raw';
 
-[Language overview](/reference/language/) · [Install this source revision](/get-started/#install-with-uv)
+[Language overview](/reference/language/)
 
-Write a physical dimension after `:`. Products, quotients and exact rational powers of SI
-base symbols describe dimensions; numerical declaration values use the corresponding
-coherent SI units. The symbols are `kg`, `m`, `s`, `A`, `K`, `mol` and `cd`; `1` is
-dimensionless. A `dimension` alias abbreviates a dimension, not a value conversion.
+Write a physical dimension after `:` and an explicit unit after a number in
+square brackets. A `dimension` alias names a physical dimension; it does not
+rescale a value.
 
 <Code code={source} lang="eqiora" title="units.eqi" />
 
-Here `210e9` is 210,000,000,000 Pa, or 210 GPa. The alias `Pressure` does not rescale
-the number. To enter 10 ms, write `parameter duration: s = 10 [ms];`, or use the coherent
-value `0.01`. Explicit compatible units convert to the declared dimension.
-Bare numeric declaration initializers inherit its coherent unit; arbitrary
-expressions and instance bindings do not inherit units.
+<ExactSourceLink kind="blob" path="docs/site/src/content/docs/reference/language/_examples/units.eqi">Open the complete example source</ExactSourceLink>
 
-| Physical quantity | Dimension spelling |
-|---|---|
-| Pressure or stress, Pa | `kg / (m * s ^ 2)` |
-| Voltage, V | `kg * m ^ 2 / (s ^ 3 * A)` |
-| Resistance, ohm | `kg * m ^ 2 / (s ^ 3 * A ^ 2)` |
-| Dynamic viscosity, Pa·s | `kg / (m * s)` |
+These inputs are 210,000,000,000 Pa, 0.01 s, and 2000 ohms in coherent SI units.
+`parameter duration: s = 0.01;` describes the same duration as `10[ms]`.
 
-The [standard declarations](/reference/standard-packages/) use these dimensions.
-Case matters: `A` is electric current and `s`
-is time. Addition and subtraction require matching dimensions. The
-[declaration example](/reference/language/declarations/) keeps voltage and
-resistance distinct even though both are scalar numbers.
+## Dimensions and familiar units
 
-Periodic clocks use their separate exact rational-time spelling; see
-[Equations and state](/reference/language/equations/#periodic-state).
+Products, quotients, and exact rational powers of the SI base symbols describe
+dimensions. The base symbols are `kg`, `m`, `s`, `A`, `K`, `mol`, and `cd`;
+`1` is dimensionless. Common derived units give shorter equivalent spellings.
 
-<ExactSourceLink kind="blob" path="docs/site/src/content/docs/reference/language/_examples/units.eqi">Example source</ExactSourceLink>
-· <ExactSourceLink kind="blob" path="crates/eqiora-compiler/src/dimensions.rs">dimension checker</ExactSourceLink>
-· Next: [Equations and state](/reference/language/equations/)
+| Quantity | Derived unit | Base dimensions |
+|---|---|---|
+| Force | `N` | `kg * m / s^2` |
+| Pressure or stress | `Pa` | `kg / (m * s^2)` |
+| Energy | `J` | `kg * m^2 / s^2` |
+| Power | `W` | `kg * m^2 / s^3` |
+| Voltage | `V` | `kg * m^2 / (s^3 * A)` |
+| Resistance | `Ohm` | `kg * m^2 / (s^3 * A^2)` |
+| Dynamic viscosity | `Pa * s` | `kg / (m * s)` |
+
+Symbols are case-sensitive: `A` is electric current, `K` is temperature, and `s`
+is time. For temperature values in these examples use kelvin.
+
+## Where units must be explicit
+
+Bare numeric declaration initializers inherit the declaration's coherent SI unit.
+Instance bindings and general expressions do not inherit units:
+
+```eqi
+instance resistor: electrical.Resistor(resistance = 2[kOhm]);
+```
+
+This fragment uses the `electrical` import from the
+[electrical package example](/reference/standard-packages/electrical/).
+`2` alone would be dimensionless in this binding.
+
+Addition, subtraction, and the two sides of an equation must have matching
+dimensions. Multiplication combines dimensions; differentiation with respect to
+time divides by seconds. Thus `derivative(temperature)` has dimension `K / s`
+when `temperature` is a continuous state in kelvin.
+
+A bare exact zero may take the other side's dimension in an equation, so
+`current = 0` is valid. Explicit `0[A]` is often clearer.
+
+## Shape is separate from dimension
+
+`vector<m / s, 2>` describes two velocity components. It is distinct from both a
+scalar speed `m / s` and a three-component vector `vector<m / s, 3>`.
+Spatial operators also carry support information: a boundary trace is attached to
+a boundary of the original field's body.
+
+Continue with [quantities, dimensions, and units](/learn/mathematical-modeling/quantities-dimensions-units/)
+for worked dimensional reasoning, or [equations and state](/reference/language/equations/)
+for exact periodic-clock time literals.

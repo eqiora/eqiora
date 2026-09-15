@@ -1,0 +1,143 @@
+---
+title: 1. Voltage, current, and power
+description: Choose terminal signs, derive absorbed power, and follow energy from a source into two resistors.
+sidebar:
+  order: 1
+---
+
+## A small circuit that warms its surroundings
+
+A 12 V source drives two series resistors. The first resistance is 1 kΩ and the
+second is 2 kΩ. A current of 4 mA will emerge from the calculation in chapter 3.
+Before finding that current, ask a different question: if these values are
+right, how much power goes into each component?
+
+By the end of this chapter you can define terminal directions, distinguish
+current from energy transfer, and audit the signs of a complete power balance.
+
+## Choose directions before calculating
+
+For a two-terminal component, call the terminals positive and negative. These
+are names that define a measurement direction; they do not promise that one
+potential will always exceed the other. Define
+
+$$
+v=\phi_+-\phi_-,\qquad i=\text{current entering the positive terminal}.
+$$
+
+The potential $\phi$ is measured in volts, while $i$ is measured in amperes,
+or coulombs of charge per second. A negative current means charge transport
+opposite to the chosen arrow. It does not invalidate the model.
+
+```text
+                     current i →
+       positive terminal ● ── [ component ] ── ● negative terminal
+           potential φ+                         potential φ−
+
+       component voltage v = φ+ − φ−
+```
+
+*Conceptual terminal diagram. The current arrow enters the terminal used first
+in the voltage difference. This convention makes positive power mean energy
+entering the component.*
+
+## Derive the power sign
+
+If charge $\mathrm{d}q$ enters at $\phi_+$ and leaves at $\phi_-$, the energy
+transferred into the component is $(\phi_+-\phi_-)\mathrm{d}q$. Dividing by
+elapsed time gives
+
+$$
+p=v\frac{\mathrm{d}q}{\mathrm{d}t}=vi.
+$$
+
+Thus $p>0$ means absorption and $p<0$ means delivery. The dimensions provide a
+quick check: $\mathrm{V\,A}=(\mathrm{J/C})(\mathrm{C/s})=\mathrm{W}$.
+This energy-per-charge argument and its resistor specialization are developed
+in [OpenStax §9.5](https://openstax.org/books/university-physics-volume-2/pages/9-5-electrical-energy-and-power).
+
+For a constant positive resistance, Ohm's law gives $v=Ri$, hence
+
+$$
+p=Ri^2=\frac{v^2}{R}\geq0.
+$$
+
+The resistor absorbs power for either direction of current. Its constitutive
+law converts electrical energy into heat; it does not consume charge.
+
+## Predict the divider's energy budget
+
+Choose downward current through both resistors. At $I=0.004\,\mathrm{A}$,
+the upper resistor drops 4 V and the lower drops 8 V. Their absorbed powers are
+
+$$
+p_1=(0.004)^2(1000)=0.016\,\mathrm{W},\qquad
+p_2=(0.004)^2(2000)=0.032\,\mathrm{W}.
+$$
+
+Current exits the source's positive terminal, so its into-positive-terminal
+current is $-0.004\,\mathrm{A}$. Its absorbed power is
+
+$$
+p_s=(12)(-0.004)=-0.048\,\mathrm{W}.
+$$
+
+The sum $p_s+p_1+p_2=0$ accounts for every component. After ten seconds at
+these constant values, the resistors have received 0.16 J and 0.32 J. The source
+has supplied 0.48 J. These are predictions from the stated values, ready to
+compare with the [divider run](/learn/circuits-dynamics/resistor-divider/).
+
+Do not add a positive "power supplied" to positive absorbed powers and expect
+zero. Either use signed absorbed power for every component, or equate the
+positive amount supplied to the positive amount absorbed.
+
+## What a warm resistor tells us
+
+The electrical calculation determines heat generation, but does not determine
+temperature. To predict temperature, we need thermal storage and a path for
+heat to leave. The simplest energy balance would read
+
+$$
+C_{\mathrm{th}}\frac{\mathrm{d}T}{\mathrm{d}t}
+=p-\dot Q_{\mathrm{out}},
+$$
+
+where $C_{\mathrm{th}}$ is thermal capacity in J/K and $\dot Q_{\mathrm{out}}$
+is outward heat flow in W. This is the bridge to
+[heat transfer](/learn/heat-transfer/). Treating $R$ as constant is a physical
+approximation; if heating materially changes it, the electrical law must
+reflect that dependence.
+
+## Exercises
+
+1. Reverse both the voltage and current measurement directions. Show that the
+   computed power is unchanged. What happens if you reverse only one?
+2. Double the supply voltage while retaining both resistances. Predict the
+   factor by which resistor power changes.
+3. A calculation reports absorbed powers $0.016$, $0.032$, and $+0.048$ W for
+   the two resistors and the source. Identify the likely sign mistake.
+4. Can you determine the resistor's temperature from 0.016 W alone? Name two
+   missing physical inputs.
+
+<details>
+<summary>Answer sketches</summary>
+
+1. $(-v)(-i)=vi$. Reversing only one makes the reported sign opposite to the
+   absorbed-power convention.
+2. The current doubles, so each resistor's power quadruples. The source delivers
+   0.192 W in total.
+3. The source current was probably counted as outgoing while the resistor
+   currents were counted as incoming. With one absorbed-power convention its
+   power is $-0.048$ W.
+4. You need, for example, thermal capacity for a transient and a heat-transfer
+   law plus ambient temperature for cooling. Power alone supplies neither.
+
+</details>
+
+## Reference
+
+Samuel J. Ling, William Moebs, and Jeff Sanny, *University Physics Volume 2*,
+OpenStax (2016), [§9.5, Electrical Energy and Power](https://openstax.org/books/university-physics-volume-2/pages/9-5-electrical-energy-and-power).
+
+[Book map](/learn/circuits-dynamics/) ·
+[Next: Conserving networks](/learn/circuits-dynamics/conserving-networks/)

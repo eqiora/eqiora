@@ -3,7 +3,6 @@ title: Kármán vortex street
 description: Run transient incompressible flow past a cylinder and inspect the evolving vorticity field.
 ---
 
-import { Aside, LinkButton } from '@astrojs/starlight/components';
 import NotebookStage from '../../../components/gallery/NotebookStage.astro';
 import ResultFigure from '../../../components/gallery/ResultFigure.astro';
 import ExactSourceLink from '../../../components/site/ExactSourceLink.astro';
@@ -12,29 +11,25 @@ import reducedMotion from '../../../assets/gallery/karman-vortex-street-reduced-
 import wakeWebm from '../../../assets/gallery/karman-vortex-street.webm';
 import wakeMp4 from '../../../assets/gallery/karman-vortex-street.mp4';
 
-export const colabUrl = `https://colab.research.google.com/github/nkiyohara/eqiora/blob/${process.env.EQIORA_SITE_SOURCE_SHA}/examples/python/karman_vortex_street_colab.ipynb`;
-
 [Gallery](/gallery/)
 
 Follow a two-dimensional incompressible Navier–Stokes simulation as vortices
 form behind a circular cylinder and travel downstream. The image and video show
 Eqiora output from the linked workflow.
 
-<Aside type="note" title="Numerical method">
-
-This example uses the geometry and physical parameters from the
-[FeatFlow DFG 2D-2 benchmark specification](https://wwwold.mathematik.tu-dortmund.de/~featflow/en/benchmarks/cfdbenchmarking/flow/dfg_benchmark2_re100.html),
-but its MINI/P1 spatial discretization and Backward Euler time integration
-differ from the reference method. It is not benchmark-validated and makes no
-mesh- or time-step-refinement claim.
-
-</Aside>
-
 ## Before you begin
 
-Follow [Get started](/get-started/) and install the `gmsh` extra, or open the
-Colab notebook below. The complete Python source includes geometry, model
-compilation, initialization, transient integration, and result inspection.
+Follow [Get started](/get-started/) and keep its `eqiora-source` checkout and
+`.venv`. From the folder containing both, install the mesh and plotting extras
+and save the final vorticity field:
+
+```bash
+uv pip install --python .venv/bin/python --reinstall-package eqiora './eqiora-source[gmsh,matplotlib]'
+uv run --no-project --python .venv/bin/python python eqiora-source/examples/python/karman_vortex_street.py --vorticity-png wake.png
+```
+
+The Python source includes geometry, model compilation, initialization,
+time integration and observations. The stages below explain that same workflow.
 
 <NotebookStage id="wake-problem" step={1} title="Define the channel and cylinder" emoji="🧭">
 
@@ -86,16 +81,22 @@ request = eqiora.meshing.GmshMesher(
 mesh = eqiora.meshing.generate(eqiora.meshing.resolve(geometry, request))
 ```
 
-Mesh and time-step refinement are required before treating derived quantities
-as quantitative benchmark results.
+Compare meshes using a fixed physical observation window, then vary the time
+step separately. Pressure, force and frequency can respond differently to
+these changes; a smoother image alone does not measure their accuracy.
 
 </NotebookStage>
 
 <NotebookStage id="wake-run" step={4} title="Advance the wake" emoji="▶">
 
+### Numerical method
+
 The resolved plan combines MINI/P1 elements, Backward Euler time stepping,
-Newton iteration, a sparse linear solver, and incompressible-flow scaling. The
-workflow retains selected states so the wake can be inspected over time.
+Newton iteration, a sparse linear solver, and incompressible-flow scaling.
+Starting from a steady Stokes field, it advances 700 steps of 0.01 s, then
+samples another 200 steps through 9 s. Saving every second step gives a
+0.02 s interval between displayed states. Video playback speed changes how
+quickly you watch them, not their physical times.
 
 ```python
 plan = eqiora.resolve(
@@ -109,17 +110,21 @@ plan = eqiora.resolve(
 result = eqiora.run(plan, state=state, steps=steps, output_steps=output_steps)
 ```
 
-<LinkButton href={colabUrl} variant="primary">Open in Colab</LinkButton>
-
-The link opens the notebook at the exact source revision used to build this
-page.
+The geometry and Reynolds number follow the
+[FeatFlow DFG 2D-2 specification](https://wwwold.mathematik.tu-dortmund.de/~featflow/en/benchmarks/cfdbenchmarking/flow/dfg_benchmark2_re100.html).
+For numerical comparisons, also inspect the boundary laws and measurement
+window: this model uses full symmetric Newtonian outlet traction and begins
+from a Stokes field. The reference uses a different outlet expression and
+initialization procedure, as well as different spatial and temporal methods.
+The [cylinder-wake lesson](/learn/fluid-mechanics/cylinder-wakes/#compare-like-physical-problems)
+explains how these choices affect a comparison.
 
 </NotebookStage>
 
 <NotebookStage id="wake-observables" step={5} title="Inspect vorticity and loads" emoji="📐">
 
 Cell-average curl exposes the rotating structures convected behind the
-cylinder. The same accepted states provide signed cylinder force and pressure
+cylinder. The same states provide signed cylinder force and pressure
 samples at the front and rear of the obstacle.
 
 ```python
@@ -133,7 +138,7 @@ rear_pressure = accepted.sample(plan.capability.pressure, at=(0.25, 0.2))
 <ResultFigure
   src={poster.src}
   alt="Cell-average vorticity in a Kármán vortex street behind a circular cylinder."
-  caption="An accepted transient state, colored by cell-average vorticity."
+  caption="A transient state, colored by cell-average vorticity."
   units="s⁻¹"
   sourcePath="tools/site/produce_karman_vortex_street_media.py"
   sourceLabel="View the media producer"
@@ -158,10 +163,10 @@ rear_pressure = accepted.sample(plan.capability.pressure, at=(0.25, 0.2))
   <img
     class="eq-gallery-motion__still"
     src={reducedMotion.src}
-    alt="One accepted state showing alternating cell-average vorticity downstream of the cylinder."
+    alt="One state showing alternating cell-average vorticity downstream of the cylinder."
   />
   <figcaption>
-    Cell-average vorticity from selected accepted states. Motion is disabled
+    Cell-average vorticity from selected states. Motion is disabled
     when the browser requests reduced motion; one representative state is shown
     instead.
   </figcaption>
@@ -175,14 +180,13 @@ rear_pressure = accepted.sample(plan.capability.pressure, at=(0.25, 0.2))
 
 </div>
 
-[Explore related capabilities](/capabilities/#karman-vortex-street)
 
 </NotebookStage>
 
 ## Understand and reproduce the workflow
 
-Connect evolving state to the [ODE lesson](/learn/mathematical-modeling/ordinary-differential-equations/)
-and spatial flux to [conservation laws](/learn/mathematical-modeling/conservation-laws/).
-The [Python execution guide](/guides/execution-and-arrays/) explains run control,
-diagnostics, and arrays. Use the linked Python and Colab sources to reproduce
-this product example.
+Derive the momentum terms and interpret force histories in
+[Cylinder wakes](/learn/fluid-mechanics/cylinder-wakes/). The
+[Python execution guide](/guides/execution-and-arrays/) explains run control,
+diagnostics and arrays. Use the linked Python source with the installation above
+to reproduce the workflow.

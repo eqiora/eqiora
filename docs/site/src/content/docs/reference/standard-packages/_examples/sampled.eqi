@@ -1,0 +1,18 @@
+import Eqiora.Controls.Sampled.sampled as sampled;
+
+model SampledSignals(
+  input signal: 1 at tick,
+  input rate: 1 / s at tick,
+  output delayed: 1 at tick,
+  output accumulated: 1 at tick
+) {
+  clock tick = periodic(1[s] / 4, phase = 0[s] / 1);
+  instance delay: sampled.UnitDelay(tick = tick, initial_value = 5);
+  instance integral: sampled.DiscreteIntegrator(tick = tick, initial_value = 3);
+  connect signal -> delay.u;
+  connect rate -> integral.rate;
+  relation outputs at tick {
+    delayed = delay.y;
+    accumulated = integral.after;
+  }
+}

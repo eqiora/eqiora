@@ -5,6 +5,9 @@ sidebar:
 description: Count unknowns and independent relations, then use conservation and closure to diagnose algebraic models before solving.
 ---
 
+import { Code } from '@astrojs/starlight/components';
+import splitSource from '../../../../../../../examples/algebraic-split.eqi?raw';
+import circuitSource from '../../../../../../../crates/eqiora-api/packages/Eqiora.Electrical.Circuits/src/circuits.eqi?raw';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
 ## Why relations come before algorithms
@@ -28,6 +31,46 @@ After this chapter, you should be able to:
 - compile an algebraic `.eqi` model without selecting a solver; and
 - identify underdetermined, overconstrained, and inconsistent structures.
 
+## What fixes the temperature between two layers?
+
+Imagine two thermal resistances in series between reservoirs at $T_h$ and
+$T_c$. The unknown interface temperature is $T_m$. Each resistance is a
+lumped relation $\dot Q=\Delta T/R$, where $R$ has units kelvins per watt.
+Assume no energy accumulates at the interface and no heat escapes sideways.
+
+```text
+T_h ── [ R₁ ] ── T_m ── [ R₂ ] ── T_c
+       Q̇₁ →              Q̇₂ →
+```
+
+*Conceptual network. Both arrows point from the hot reservoir toward the cold
+reservoir; steady interface balance requires equal signed powers.*
+
+There are three unknowns: $T_m$, $\dot Q_1$, and $\dot Q_2$. Two constitutive
+relations and one balance close the problem:
+
+$$
+\dot Q_1=\frac{T_h-T_m}{R_1},\qquad
+\dot Q_2=\frac{T_m-T_c}{R_2},\qquad
+\dot Q_1-\dot Q_2=0.
+$$
+
+Eliminating the powers gives
+
+$$
+T_m=\frac{R_2T_h+R_1T_c}{R_1+R_2},\qquad
+\dot Q=\frac{T_h-T_c}{R_1+R_2}.
+$$
+
+For $T_h=340\,\mathrm K$, $T_c=300\,\mathrm K$,
+$R_1=1\,\mathrm{K/W}$, and $R_2=3\,\mathrm{K/W}$, predict
+$\dot Q=10\,\mathrm W$ and $T_m=330\,\mathrm K$. The larger resistance takes
+the larger temperature drop. The [heat-transfer path](/learn/heat-transfer/)
+derives a slab's resistance from a spatial field rather than assuming it.
+
+The abstract splitter below keeps the same distinction between balance and
+closure while making the source small enough to inspect at once.
+
 ## A two-branch split
 
 Let a prescribed amount $s$ split into two unknown branch amounts $a$ and $b$.
@@ -46,25 +89,12 @@ the relations—not the elimination order used to obtain that expression.
 
 Save this as `split.eqi`:
 
-```eqiora
-model split {
-  parameter supplied: 1 = 1;
-  variable branch_a: 1;
-  variable branch_b: 1;
+<Code code={splitSource} lang="eqiora" title="split.eqi" />
 
-  relation conservation {
-    branch_a + branch_b - supplied = 0;
-  }
-  relation equal_split {
-    branch_a - branch_b = 0;
-  }
-}
-```
-
-From a source checkout, run the installed compiler against the checked-in copy:
+Use the environment from [Get started](/get-started/) to check your file:
 
 ```console
-$ eqiora check examples/algebraic-split.eqi
+$ uv run --no-project --python .venv/bin/python python -c "import eqiora; eqiora.compile(path='split.eqi')"
 ```
 
 <ExactSourceLink path="examples/algebraic-split.eqi" kind="blob">View the complete checked-in model source</ExactSourceLink>.
@@ -82,7 +112,7 @@ For this bounded example:
 | Scalar unknowns | 2 | `branch_a` and `branch_b` must be determined. |
 | Scalar relations | 2 | conservation and equal split close this particular structure. |
 
-Matching counts are necessary, not sufficient. Two copies of the conservation
+Matching counts are a useful first check, not a guarantee. Two copies of the conservation
 relation would still leave the split undetermined. A third relation demanding
 `branch_a = supplied` would contradict equal split when `supplied` is nonzero.
 Independence and consistency depend on relation content, not names or counts.
@@ -92,14 +122,41 @@ Independence and consistency depend on relation content, not names or counts.
 In a physical network, a component typically owns its constitutive relation,
 while a connection owns compatibility or conservation across ports. This makes
 the model acausal: the assembled relations determine which quantities must be
-solved together. It does not mean every possible network is currently
-executable, and it does not turn connection order into execution order.
+solved together. Connection order does not turn into execution order: the assembled equations
+must be solved consistently.
+
+## Once the equations are understood, import the parts
+
+The electrical counterpart makes reusable components concrete. For two
+resistors in parallel across ideal voltage $V$, equal voltage across both
+branches is compatibility, $I_j=V/R_j$ is the component law, and
+$I_s=I_1+I_2$ is junction conservation. These roles follow the circuit reasoning
+in [OpenStax, section 10.3](https://openstax.org/books/university-physics-volume-2/pages/10-3-kirchhoffs-rules).
+
+For an illustrative $V=6\,\mathrm V$, $R_1=2\,\Omega$, and $R_2=4\,\Omega$,
+the hand prediction is $I_1=3\,\mathrm A$, $I_2=1.5\,\mathrm A$, and total
+current $4.5\,\mathrm A$. The supplied power is $27\,\mathrm W$, equal to
+$18+9\,\mathrm W$ dissipated in the two resistors. This second check asks about
+energy as well as charge.
+
+Here is the actual composition. It imports the resistor, source, and
+ground definitions, then states which ports connect:
+
+<Code code={circuitSource} lang="eqiora" title="Eqiora.Electrical.Circuits: ParallelDc" />
+
+Open the <ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Electrical.Basic/src/basic.eqi" kind="blob">basic component definitions</ExactSourceLink>
+and locate the resistor's law. Then find the connection statements above: the
+library owns the material relation, while the assembled network owns its
+connections. Imports save retyping because their equations already express the
+assumptions we derived. The [circuits path](/learn/circuits-dynamics/) develops
+this into a runnable circuit investigation.
 
 ## Read the result
 
-This chapter observes compiler acceptance and performs a hand derivation. It
-does not produce a `Result`. The values $a=b=s/2$ follow from the two written
-relations; they are not reported as Eqiora numerical output.
+Interpret the two residuals against the hand solution $a=b=s/2$. Each must
+vanish separately: their sum could hide a positive error in one relation and a
+negative error in the other. The compiler check prepares the source; substitution
+is what establishes the solution here.
 
 ## Deliberate failure: remove the closing relation
 
@@ -123,6 +180,27 @@ that a model is closed or physically meaningful.
 4. Give one circuit or flow-network example in which a connection owns
    conservation and a component owns a constitutive law. Identify every
    unknown and prescribed parameter.
+
+### Exercise guidance
+
+Exercise 1 has the family $(a,b)=(\alpha,1-\alpha)$; nonnegative branch amounts
+would additionally require $0\le\alpha\le1$. Exercise 2 gives $a=2s/3$ and
+$b=s/3$. In exercise 3, consistency requires $s=0$.
+
+For a further modeling experiment, give the thermal interface a finite heat
+capacity $C_m$. Conservation becomes $C_m\dot T_m=\dot Q_1-\dot Q_2$. The
+algebraic relations for the resistances stay unchanged, but you now need an
+initial temperature. Explain why steady state recovers the result above.
+
+## References
+
+- Samuel J. Ling, Jeff Sanny, and William Moebs, *University Physics*, volume 2
+  (OpenStax, 2016), [section 10.3, Kirchhoff's rules](https://openstax.org/books/university-physics-volume-2/pages/10-3-kirchhoffs-rules),
+  for current balance, loop compatibility, and independent circuit equations.
+- The same book, [section 1.6, Mechanisms of heat transfer](https://openstax.org/books/university-physics-volume-2/pages/1-6-mechanisms-of-heat-transfer),
+  for the physical conduction relation developed into a thermal resistance in
+  the heat-transfer path. Numerical values and network exercises here are
+  original illustrative choices.
 
 [Previous: Quantities, dimensions, and units](/learn/mathematical-modeling/quantities-dimensions-units/) ·
 [Back to the series map](/learn/mathematical-modeling/) ·

@@ -1071,7 +1071,6 @@ invalid candidate
         )
         for relative in (
             Path("examples/python/karman_vortex_street.py"),
-            Path("examples/python/karman_vortex_street_colab.ipynb"),
             Path("docs/site/src/content/docs/gallery/karman-vortex-street.mdx"),
             Path("docs/site/src/content/docs/gallery/index.mdx"),
             Path("docs/site/src/components/site/Home.astro"),

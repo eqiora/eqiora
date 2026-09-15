@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Project the exact-head CLI, control-v2, and MCP interfaces into MDX."""
+"""Project the current command-line interface into MDX."""
 
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import re
 import stat
@@ -12,10 +11,8 @@ import subprocess
 import sys
 import tomllib
 from pathlib import Path
-from typing import Any
 
 
-MCP_PROTOCOL = "2026-07-28"
 SOURCE_SHA_PATTERN = re.compile(r"[0-9a-f]{40}", flags=re.ASCII)
 GIT_IDENTITY_ENVIRONMENT = {
     "GIT_DIR",
@@ -29,8 +26,6 @@ GIT_IDENTITY_ENVIRONMENT = {
 }
 OUTPUTS = {
     "cli": Path("docs/site/src/content/docs/reference/cli/index.mdx"),
-    "control": Path("docs/site/src/content/docs/reference/control-v2/index.mdx"),
-    "mcp": Path("docs/site/src/content/docs/reference/mcp/index.mdx"),
 }
 
 
@@ -216,139 +211,6 @@ def _capture_cli(repository: Path, binary: Path, version: str) -> dict[str, str]
     }
 
 
-def _mcp_request(identifier: str, method: str) -> dict[str, Any]:
-    return {
-        "jsonrpc": "2.0",
-        "id": identifier,
-        "method": method,
-        "params": {
-            "_meta": {
-                "io.modelcontextprotocol/protocolVersion": MCP_PROTOCOL,
-                "io.modelcontextprotocol/clientCapabilities": {},
-            }
-        },
-    }
-
-
-def _compact_json(value: Any) -> bytes:
-    return json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-
-
-def _capture_mcp(repository: Path, binary: Path, version: str) -> dict[str, Any]:
-    requests = [
-        _mcp_request("docs-discover", "server/discover"),
-        _mcp_request("docs-tools", "tools/list"),
-    ]
-    request_bytes = b"".join(_compact_json(request) + b"\n" for request in requests)
-    try:
-        completed = subprocess.run(
-            [str(binary)],
-            cwd=repository.parent,
-            env=_command_environment(),
-            input=request_bytes,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=False,
-            timeout=30,
-        )
-    except (OSError, subprocess.TimeoutExpired) as error:
-        raise ProjectionError(
-            f"could not capture live MCP discovery/list: {error}"
-        ) from error
-    if completed.returncode != 0:
-        raise ProjectionError(f"eqiora-mcp exited with {completed.returncode}")
-    if completed.stderr:
-        raise ProjectionError("eqiora-mcp wrote to stderr during discovery/list")
-    if b"\r" in completed.stdout or not completed.stdout.endswith(b"\n"):
-        raise ProjectionError("eqiora-mcp responses must be LF-terminated")
-    response_lines = completed.stdout.splitlines()
-    if len(response_lines) != 2 or any(
-        len(line) > 2 * 1024 * 1024 for line in response_lines
-    ):
-        raise ProjectionError(
-            "eqiora-mcp must return exactly two bounded response lines"
-        )
-
-    responses: list[dict[str, Any]] = []
-    for request, line in zip(requests, response_lines, strict=True):
-        try:
-            response = json.loads(line)
-        except (UnicodeDecodeError, json.JSONDecodeError) as error:
-            raise ProjectionError("eqiora-mcp returned a non-JSON response") from error
-        if not isinstance(response, dict):
-            raise ProjectionError("eqiora-mcp response is not a JSON object")
-        if response.get("jsonrpc") != "2.0" or response.get("id") != request["id"]:
-            raise ProjectionError(
-                "eqiora-mcp response identity disagrees with the request"
-            )
-        if "error" in response or not isinstance(response.get("result"), dict):
-            raise ProjectionError("eqiora-mcp discovery/list did not return a result")
-        responses.append(response)
-
-    discover = responses[0]["result"]
-    listed = responses[1]["result"]
-    server_info = discover.get("_meta", {}).get("io.modelcontextprotocol/serverInfo")
-    if server_info != {"name": "eqiora-mcp", "version": version}:
-        raise ProjectionError(
-            "live MCP serverInfo disagrees with the exact build identity"
-        )
-    if MCP_PROTOCOL not in discover.get("supportedVersions", []):
-        raise ProjectionError(f"live MCP discovery does not support {MCP_PROTOCOL}")
-    tools = listed.get("tools")
-    if not isinstance(tools, list) or len(tools) != 1:
-        raise ProjectionError("live MCP tools/list must return exactly one tool")
-    if tools[0].get("name") != "eqiora.model.compile_check":
-        raise ProjectionError("live MCP tools/list returned an unexpected tool")
-    return {
-        "requests": requests,
-        "responses": responses,
-        "tool_name": tools[0]["name"],
-    }
-
-
-def _validate_mcp_prose_authority(repository: Path) -> None:
-    manifest_path = repository / "verify/interfaces/mcp-stdio-compile-check/case.toml"
-    readme_path = repository / "verify/interfaces/mcp-stdio-compile-check/README.md"
-    manifest = tomllib.loads(_text(manifest_path, "MCP evidence manifest"))
-    readme = _text(readme_path, "MCP evidence README")
-    boundary = manifest.get("claim_boundary")
-    if not isinstance(boundary, dict):
-        raise ProjectionError("MCP evidence manifest has no claim_boundary")
-    required = {
-        "local_stdio": True,
-        "mcp_response_cancellation": "best-effort",
-        "remote_transport": False,
-    }
-    if any(boundary.get(name) != value for name, value in required.items()):
-        raise ProjectionError(
-            "MCP evidence manifest no longer admits the projected framing prose"
-        )
-    capabilities = manifest.get("capabilities")
-    if not isinstance(capabilities, list) or "mcp-2026-07-28-stdio" not in capabilities:
-        raise ProjectionError(
-            "MCP evidence manifest no longer admits MCP 2026-07-28 stdio"
-        )
-    for phrase in (
-        "one thin local subprocess projection",
-        "newline-delimited stdio",
-        "one-active-call resource policy",
-        "best-effort response cancellation",
-    ):
-        if phrase not in readme:
-            raise ProjectionError(
-                f"MCP evidence README no longer contains authority phrase: {phrase}"
-            )
-
-
-def _json_block(value: Any) -> str:
-    rendered = json.dumps(value, ensure_ascii=False, indent=2)
-    if "```" in rendered:
-        raise ProjectionError(
-            "captured JSON cannot be represented in the fixed MDX fence"
-        )
-    return rendered
-
-
 def _code_block(value: str) -> str:
     rendered = value.removesuffix("\n")
     if "```" in rendered:
@@ -361,17 +223,53 @@ def _code_block(value: str) -> str:
 def _cli_page(cli: dict[str, str]) -> str:
     return f"""---
 title: Command-line interface
-description: Exact-head help and version for the bounded local Eqiora compile/check command.
+description: Install the command-line tool, check a model, and read compiler diagnostics.
 ---
-
-import {{ Aside }} from '@astrojs/starlight/components';
-import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
 {{/* Generated by tools/docs/generate_interface_reference.py; do not edit. */}}
 
-<Aside type="note" title="Exact-head projection">
-  These blocks come from the built `eqiora` binary for this documentation commit. They are not copied from a test fixture.
-</Aside>
+Use `eqiora check` to compile a local `.eqi` file and find syntax, name,
+and unit errors before running a simulation.
+
+## Install the command
+
+The command is a Rust executable. From the Eqiora source checkout used for your
+[Python installation](/get-started/), install it with Cargo:
+
+```bash
+cargo install --locked --path crates/eqiora --features cli --bin eqiora
+```
+
+Keep Cargo's binary directory on `PATH` (normally `~/.cargo/bin`). Installing
+the Python package alone does not install this command.
+
+## Check a model
+
+Save this as `decay.eqi`:
+
+```eqiora
+model decay(parameter rate: 1 / s = 1) {{
+    state x: 1;
+    initial {{ x = 1; }}
+    relation flow {{
+        derivative(x) + rate * x = 0;
+    }}
+}}
+```
+
+```bash
+eqiora check decay.eqi
+```
+
+A successful check exits with status 0. It compiles the model; it does not
+integrate the equation or write a time series. Continue with the
+[Python run example](/reference/python/#compile-and-run) to compute `x(t)`.
+
+Change the parameter unit from `1 / s` to `s` and run the check again. The
+compiler reports the incompatible dimensions and exits with a nonzero status.
+Fix the unit before choosing a numerical method.
+
+For more syntax, see the [language reference](/reference/language/).
 
 ## Version
 
@@ -393,162 +291,13 @@ $ eqiora --help
 $ eqiora check --help
 {_code_block(cli["check_help"])}
 ```
-
-## Usage notes
-
-`eqiora check` validates and compiles one local regular Model source file
-supplied as a path.
-
-- <ExactSourceLink kind="blob" path="verify/interfaces/cli-compile-check/case.toml">CLI verification case</ExactSourceLink>
-- <ExactSourceLink kind="blob" path="verify/interfaces/cli-compile-check/README.md">CLI verification details</ExactSourceLink>
 """
 
 
-def _control_page(schema_text: str, schema: dict[str, Any]) -> str:
-    title = schema.get("title")
-    identifier = schema.get("$id")
-    protocol = (
-        schema.get("$defs", {})
-        .get("request", {})
-        .get("properties", {})
-        .get("protocol", {})
-        .get("const")
-    )
-    command = (
-        schema.get("$defs", {})
-        .get("request", {})
-        .get("properties", {})
-        .get("command", {})
-        .get("const")
-    )
-    if not all(
-        isinstance(value, str) and value
-        for value in (title, identifier, protocol, command)
-    ):
-        raise ProjectionError("control-v2 schema lacks its required public identities")
-    if "```" in schema_text:
-        raise ProjectionError(
-            "control-v2 schema cannot be represented in the fixed MDX fence"
-        )
-    return f"""---
-title: Control protocol v2
-description: Exact JSON Schema for the bounded compile/check control request and response.
----
-
-import {{ Aside }} from '@astrojs/starlight/components';
-import ExactSourceLink from '@components/site/ExactSourceLink.astro';
-
-{{/* Generated by tools/docs/generate_interface_reference.py; do not edit. */}}
-
-<Aside type="note" title="Exact contract">
-  This page embeds the tracked schema bytes. Final site assembly publishes the same file as a download.
-</Aside>
-
-## Identity
-
-| Field | Value |
-| --- | --- |
-| Title | `{title}` |
-| Schema ID | `{identifier}` |
-| Protocol | `{protocol}` |
-| Command | `{command}` |
-
-[Download `compile-v2.schema.json`](/reference/control-v2/compile-v2.schema.json)
-
-<ExactSourceLink kind="blob" path="crates/eqiora-api/schemas/compile-v2.schema.json">View the exact schema source</ExactSourceLink>
-
-## JSON Schema
-
-```json
-{schema_text.removesuffix(chr(10))}
-```
-
-## Usage notes
-
-Control-v2 carries compile/check requests and structured responses in a closed,
-transport-neutral JSON schema.
-
-- <ExactSourceLink kind="blob" path="verify/interfaces/control-plane-compile-check/case.toml">Control-v2 verification case</ExactSourceLink>
-- <ExactSourceLink kind="blob" path="verify/interfaces/control-plane-compile-check/README.md">Control-v2 verification details</ExactSourceLink>
-"""
-
-
-def _mcp_page(mcp: dict[str, Any]) -> str:
-    discover_request, list_request = mcp["requests"]
-    discover_response, list_response = mcp["responses"]
-    return f"""---
-title: MCP stdio interface
-description: Live discovery and tool-list projection for Eqiora's bounded local MCP adapter.
----
-
-import {{ Aside }} from '@astrojs/starlight/components';
-import ExactSourceLink from '@components/site/ExactSourceLink.astro';
-
-{{/* Generated by tools/docs/generate_interface_reference.py; do not edit. */}}
-
-<Aside type="note" title="Live local observation">
-  The requests below were sent to one exact-head `eqiora-mcp` subprocess. The responses are live output, not expected fixtures.
-</Aside>
-
-This bounded adapter uses MCP {MCP_PROTOCOL} over newline-delimited stdio and lists exactly one tool, `{mcp["tool_name"]}`. The admitted framing boundary is one local subprocess, bounded framing and metadata, one active call, and best-effort response cancellation.
-
-## Discover the server
-
-Request:
-
-```json
-{_json_block(discover_request)}
-```
-
-Live response:
-
-```json
-{_json_block(discover_response)}
-```
-
-## List tools
-
-Request:
-
-```json
-{_json_block(list_request)}
-```
-
-Live response:
-
-```json
-{_json_block(list_response)}
-```
-
-## Usage notes
-
-Eqiora's compile/check adapter communicates over local stdio and exposes the
-tools returned by the live tool list above.
-
-- <ExactSourceLink kind="blob" path="verify/interfaces/mcp-stdio-compile-check/case.toml">MCP verification case</ExactSourceLink>
-- <ExactSourceLink kind="blob" path="verify/interfaces/mcp-stdio-compile-check/README.md">MCP verification details</ExactSourceLink>
-"""
-
-
-def _render(repository: Path, eqiora_binary: Path, mcp_binary: Path) -> dict[str, str]:
+def _render(repository: Path, eqiora_binary: Path) -> dict[str, str]:
     version = _workspace_version(repository)
     cli = _capture_cli(repository, eqiora_binary, version)
-    schema_text = _text(
-        repository / "crates/eqiora-api/schemas/compile-v2.schema.json", "control-v2 schema"
-    )
-    try:
-        schema = json.loads(schema_text)
-    except json.JSONDecodeError as error:
-        raise ProjectionError(f"control-v2 schema is not JSON: {error}") from error
-    if not isinstance(schema, dict):
-        raise ProjectionError("control-v2 schema is not a JSON object")
-    _validate_mcp_prose_authority(repository)
-    mcp = _capture_mcp(repository, mcp_binary, version)
-    return {
-        "cli": _cli_page(cli),
-        "control": _control_page(schema_text, schema),
-        "mcp": _mcp_page(mcp),
-    }
+    return {"cli": _cli_page(cli)}
 
 
 def _write_or_check(repository: Path, rendered: dict[str, str], *, check: bool) -> None:
@@ -584,7 +333,6 @@ def _parser() -> argparse.ArgumentParser:
         help="repository root containing Cargo.toml and the output paths",
     )
     parser.add_argument("--eqiora-binary", type=Path, required=True)
-    parser.add_argument("--mcp-binary", type=Path, required=True)
     parser.add_argument("--source-sha", required=True)
     parser.add_argument(
         "--check",
@@ -601,10 +349,7 @@ def main() -> int:
     eqiora_binary = _regular_file(
         arguments.eqiora_binary, "eqiora binary", executable=True
     )
-    mcp_binary = _regular_file(
-        arguments.mcp_binary, "eqiora-mcp binary", executable=True
-    )
-    rendered = _render(repository, eqiora_binary, mcp_binary)
+    rendered = _render(repository, eqiora_binary)
     _write_or_check(repository, rendered, check=arguments.check)
     return 0
 

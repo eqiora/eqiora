@@ -1,5 +1,71 @@
 # Differentiation and framework adapters
 
+Use the environment and `eqiora-source` checkout from [Get started](/get-started/).
+The [inverse problems textbook](/learn/inverse-problems/) explains how a change
+in a parameter changes an observation. Here we work directly with the solved
+field and its derivatives.
+
+## Prepare a Poisson problem
+
+This example uses the unit square, a sinusoidal source, and a constant boundary
+value. Run the following blocks in order, from the folder containing `.venv`
+and `eqiora-source`:
+
+```python
+from pathlib import Path
+
+import eqiora
+import numpy as np
+
+graph = eqiora.geometry.GeometryGraph()
+rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+boundaries = ("x_lower", "x_upper", "y_lower", "y_upper")
+geometry = graph.build(
+    rectangle,
+    named_topology={
+        "square": rectangle.region,
+        **dict(zip(boundaries, rectangle.boundaries, strict=True)),
+    },
+)
+mesh = eqiora.meshing.generate(eqiora.meshing.resolve(
+    geometry, eqiora.meshing.CartesianMesher(cells=(8, 8)),
+))
+model = eqiora.compile(
+    path=Path("eqiora-source/examples/inverse-poisson.eqi"),
+    entry="InversePoisson",
+    geometry=geometry,
+    bindings={
+        "square": geometry.selection("square"),
+        **{
+            name: (geometry.selection(name), geometry.selection("square"))
+            for name in boundaries
+        },
+        "diffusion": 1.0,
+        "wave_number": np.pi,
+        "source_scale": 2.0 * np.pi**2,
+        "boundary_offset": 0.0,
+    },
+)
+plan = eqiora.resolve(
+    model,
+    mesh=mesh,
+    spatial=eqiora.fem.Q1(),
+    solve=eqiora.solve.Linear(
+        algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
+        preconditioner=eqiora.solve.Preconditioner.Identity,
+        reduction=eqiora.solve.Reduction.Reproducible,
+        provider=eqiora.solve.SolverProvider.reference(),
+        relative_tolerance=1.0e-10,
+        absolute_tolerance=1.0e-12,
+        maximum_iterations=10_000,
+    ),
+)
+```
+
+Open `eqiora-source/examples/inverse-poisson.eqi` to inspect the equations and
+boundary conditions. `source_scale` multiplies the spatial source pattern;
+`diffusion` controls the diffusion coefficient.
+
 ## Evaluate a point and its derivatives
 
 Use `eqiora.diff` to select the parameters and output field to differentiate:
@@ -9,7 +75,7 @@ import numpy as np
 
 program = eqiora.diff.compile(
     plan,
-    inputs=(model.parameter("source"),),
+    inputs=(model.parameter("source_scale"),),
     output=plan.capability.fields[0],
 )
 
@@ -20,6 +86,13 @@ vjp = evaluation.vjp(
     np.ones(program.output_shape, dtype=np.float64)
 )
 ```
+
+`primal.output.numpy()` contains the solved field values.
+`jvp.tangent.numpy()` contains their directional change for a unit increase in
+`source_scale`. `vjp.input_cotangent.numpy()` contains the derivative of the sum
+of field values, because the output cotangent above is all ones. JVP means
+Jacobian–vector product; VJP is the reverse product, useful for a scalar loss
+with many input parameters.
 
 Each evaluation stores its input point and linearization. Evaluating a new
 point leaves the Model and Plan unchanged. Parameters that you did not select
@@ -36,14 +109,8 @@ Each program selects one output field and computes first derivatives.
 
 ## Native ordered batches
 
-The batch API is included in `0.1.2`. Install the release in a clean
-environment:
-
-```console
-uv venv --python 3.13 .venv
-uv pip install --python .venv/bin/python eqiora==0.1.2
-uv run --no-project --python .venv/bin/python your_batch.py
-```
+Continue in the same environment and reuse the program above. No additional
+package is needed for native batches.
 
 Plan a batch without solving, then execute it once in native code:
 
@@ -66,10 +133,19 @@ without executing a solver. `batch.points` exposes the frozen complete inputs;
 `batch.occurrence_coordinates(i)` maps a flat occurrence back to its grid.
 
 Share selected coordinates explicitly across the whole grid. For a program
-whose ordered inputs are `(source, diffusion, boundary_offset)`:
+whose ordered inputs are `(source_scale, diffusion, boundary_offset)`:
 
 ```python
-batch = program.map(
+shared_program = eqiora.diff.compile(
+    plan,
+    inputs=(
+        model.parameter("source_scale"),
+        model.parameter("diffusion"),
+        model.parameter("boundary_offset"),
+    ),
+    output=plan.capability.fields[0],
+)
+batch = shared_program.map(
     np.array([[3.0, 0.0], [1.0, 0.2], [3.0, 0.0]], dtype=np.float64),
     shared_inputs=(model.parameter("diffusion"),),
     shared=np.array([2.0], dtype=np.float64),
@@ -113,11 +189,11 @@ Importing and using batches requires neither JAX nor PyTorch.
 
 ## PyTorch
 
-Install the optional adapter and bind outside the compiled function:
+From the same working folder, install the optional adapter and bind outside
+the compiled function:
 
 ```console
-uv venv --python 3.13 .venv
-uv pip install --python .venv/bin/python ".[torch]"
+uv pip install --python .venv/bin/python "./eqiora-source[torch]"
 ```
 
 ```python
@@ -139,14 +215,12 @@ compiled_objective = torch.compile(
 )
 ```
 
-The current adapter declares PyTorch `>=2.14,<2.15` and verifies 2.14.0. It
-registers a functional project-namespaced custom operator, a metadata-only fake
-implementation, and a first-order autograd rule whose backward invokes
-Eqiora's accepted VJP through a second custom operator.
+The adapter requires PyTorch `>=2.14,<2.15`. Backpropagation uses the VJP of
+the solved equations.
 
 Inputs are exact rank-one contiguous CPU:0 `float64` tensors. The adapter
 mutates no input and returns a fresh versioned DLPack snapshot rather than an
-alias of native evidence. Static programs are retained process-locally because
+alias of the stored result. Static programs are retained process-locally because
 autograd and compiled graphs may outlive a temporary wrapper; mutable
 evaluations and derivatives are not cached.
 
@@ -156,11 +230,10 @@ AOT packaging are not yet supported.
 
 ## JAX
 
-The optional JAX adapter uses native typed FFI:
+Install the optional JAX adapter into the same environment:
 
 ```console
-uv venv --python 3.13 .venv
-uv pip install --python .venv/bin/python ".[jax]"
+uv pip install --python .venv/bin/python "./eqiora-source[jax]"
 ```
 
 ```python

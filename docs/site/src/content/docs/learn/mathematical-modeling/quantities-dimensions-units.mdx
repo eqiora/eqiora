@@ -6,10 +6,13 @@ description: Use dimensions to reject relations that cannot be physically meanin
 ---
 
 
+import { Code } from '@astrojs/starlight/components';
+import modelSource from '../../../../../../../examples/decay.eqi?raw';
+
 ## Three ideas that are easy to conflate
 
 A **quantity** is what the model talks about, such as duration or velocity. A
-**dimension** describes its physical kind, such as time or length per time. A
+**dimension** records powers of base dimensions, such as time or length per time. A
 **unit** supplies a scale for expressing a value, such as seconds or metres per
 second.
 
@@ -24,8 +27,41 @@ After this chapter, you should be able to:
 - distinguish a quantity, its dimension, and a chosen unit;
 - derive the dimension required for a coefficient in a relation;
 - inspect an Eqiora declaration using `1`, `s`, multiplication, and division;
-- use `eqiora check` as a compile-time check; and
+- use `eqiora.compile` as a compile-time check; and
 - explain why a dimensionally consistent relation may still be a poor model.
+
+## Check the cooling balance in three ways
+
+The bead balance from chapter 1 is $C\dot T+G(T-T_\infty)=0$. Every term must
+represent power. With $\Theta$ denoting temperature dimension,
+
+| Quantity | Unit | Dimension |
+| --- | --- | --- |
+| Heat capacity $C$ | $\mathrm{J/K}$ | $ML^2T^{-2}\Theta^{-1}$ |
+| Temperature rate $\dot T$ | $\mathrm{K/s}$ | $\Theta T^{-1}$ |
+| Conductance $G$ | $\mathrm{W/K}$ | $ML^2T^{-3}\Theta^{-1}$ |
+| Decay rate $G/C$ | $\mathrm{s}^{-1}$ | $T^{-1}$ |
+
+First check addition: $C\dot T$ and $G(T-T_\infty)$ both have power dimension.
+Then check the derived scale: $C/G$ has time dimension. Finally check a numerical
+conversion: $G/C=0.01\,\mathrm{s}^{-1}$ is $0.6\,\mathrm{min}^{-1}$, because
+$0.01\times60=0.6$. At $t=100\,\mathrm s=5/3\,\mathrm{min}$, either representation
+gives $kt=1$. Converting only time and forgetting the rate changes the model.
+
+## Temperature differences and physical meaning
+
+A temperature of $20\,{}^\circ\mathrm C$ is $293.15\,\mathrm K$. A temperature
+**difference** of $20\,{}^\circ\mathrm C$ is a difference of $20\,\mathrm K$.
+The offset cancels in subtraction, so the cooling law uses a difference without
+adding 273.15. This distinction follows the SI treatment of Celsius temperature
+and intervals in the [BIPM brochure](https://www.bipm.org/en/publications/si-brochure).
+
+Equal dimensions do not guarantee equal meaning. Energy and torque both have
+dimension $ML^2T^{-2}$; a temperature and a temperature difference both use
+$\Theta$. The model still has to say what each quantity represents. Similarly,
+a scalar pressure and a stress tensor can share units while having different
+value shapes. Units catch one class of mistake; names, shapes, and physical
+reasoning carry the rest.
 
 ## Derive the required dimension first
 
@@ -53,26 +89,16 @@ and its dimension are separate facts.
 
 ## Encode the dimension in `.eqi`
 
-```eqiora
-model decay {
-  state x: 1;
-  initial { x = 1; }
-  parameter rate: 1 / s = 1;
-
-  relation flow {
-    derivative(x) + rate * x = 0;
-  }
-}
-```
+<Code code={modelSource} lang="eqiora" title="decay.eqi" />
 
 Here `1` in the type position means dimensionless, while `1 / s` means inverse
 seconds. The same spelling `= 1` on the right supplies the default numeric
 value; it does not erase the declared dimension.
 
-With the [current installed release](/get-started/), check the saved source:
+With the [source build from Get started](/get-started/), check the saved source:
 
 ```console
-$ eqiora check decay.eqi
+$ uv run --no-project --python .venv/bin/python python -c "import eqiora; eqiora.compile(path='decay.eqi')"
 ```
 
 A zero exit status means the current compiler accepted the source. The command
@@ -81,16 +107,16 @@ physical interpretation.
 
 ## Read the result
 
-This chapter observes compiler acceptance and rejection only. It produces no
-time series or physical measurement. A later numerical observation would still
-need an explicit Realization, Run, and comparison appropriate to its claim.
+Read a dimensional diagnostic as a clue about the equation: identify the two
+terms being added and work out their dimensions on paper. After the compiler
+accepts the repaired source, the ODE chapter turns it into a trajectory.
 
 ## Deliberate failure: a dimensionless rate
 
 Change only the parameter declaration:
 
 ```eqiora
-model invalid_decay {
+model invalid_decay() {
   state x: 1;
   initial { x = 1; }
   parameter rate: 1 = 1;
@@ -102,8 +128,8 @@ model invalid_decay {
 ```
 
 Now `derivative(x)` has inverse-time dimension, but `rate * x` is
-dimensionless. They cannot be added in one residual, so `eqiora check` exits
-nonzero and reports compilation diagnostics. The intended repair is not a
+dimensionless. They cannot be added in one residual, so `eqiora.compile` raises
+`ValidationError` with compilation diagnostics. The intended repair is not a
 conversion factor chosen at random: derive the coefficient dimension from the
 relation, then declare `rate: 1 / s`.
 
@@ -116,9 +142,13 @@ whether an initial value matches an experiment. Those are modeling and
 validation questions.
 
 Nondimensionalization is also more than deleting units. It introduces chosen
-characteristic scales and new dimensionless variables while preserving the
-relationship to the original quantities. Chapter 9 will develop that process;
-this chapter only establishes the dimensional bookkeeping it needs.
+scales while keeping a route back to dimensional quantities. For cooling, put
+$\tau=C/G$, $\hat t=t/\tau$, and $x=(T-T_\infty)/(T_0-T_\infty)$. Since
+$\mathrm{d}x/\mathrm{d}t=(1/\tau)\mathrm{d}x/\mathrm{d}\hat t$, the equation
+becomes $\mathrm{d}x/\mathrm{d}\hat t+x=0$. Two beads with different $C$ and
+$G$ have the same normalized curve if the same assumptions apply. Their actual
+times remain different. A numerical scaling that helps a solver is a separate
+choice from this physical similarity.
 
 ## Exercises
 
@@ -127,11 +157,30 @@ this chapter only establishes the dimensional bookkeeping it needs.
 2. Predict whether changing `state x: 1; initial { x = 1; }` to
    `state x: m; initial { x = 1[m]; }` while keeping
    `rate: 1 / s` preserves consistency. Explain before checking the source.
-3. Create the deliberate failure above, run `eqiora check`, and identify the
+3. Create the deliberate failure above, call `eqiora.compile`, and identify the
    two terms whose dimensions disagree. Restore the inverse-time declaration
    and check again.
 4. Give an example of two dimensionally consistent equations that express
    different physical assumptions. What observation could distinguish them?
+
+### Exercise guidance
+
+For exercise 1, changing $[x]$ to $L$ gives $[\dot x]=L/T$, while $[k]$ stays
+$1/T$. For exercise 4, compare $\dot x+kx=0$ with $\dot x-kx=0$: dimensions
+agree, but one decays and the other grows. Extend the unit-conversion example by
+expressing the cooling time in milliseconds. The product $kt$, rather than the
+numeric value of either factor alone, must remain unchanged.
+
+## References
+
+- Bureau International des Poids et Mesures, *The International System of Units
+  (SI)*, 9th edition (2019, updated 2026),
+  [SI Brochure](https://www.bipm.org/en/publications/si-brochure), sections on
+  dimensions, the kelvin, and expressing quantity values. This is the authority
+  for the unit and temperature-interval conventions used here.
+
+[Next: Algebraic relations and networks](/learn/mathematical-modeling/algebraic-relations-networks/)
+
 
 [Previous: Models are not simulations](/learn/mathematical-modeling/models-not-simulations/) ·
 [Back to the series map](/learn/mathematical-modeling/) ·

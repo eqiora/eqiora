@@ -1,0 +1,23 @@
+public component InversePoisson(
+  support square: volume(ambient_dimension = 2),
+  support x_lower: boundary(parent = square),
+  support x_upper: boundary(parent = square),
+  support y_lower: boundary(parent = square),
+  support y_upper: boundary(parent = square),
+  parameter diffusion: 1,
+  parameter wave_number: 1 / m,
+  parameter source_scale: 1 / m ^ 2,
+  parameter boundary_offset: 1
+) {
+
+  variable potential: 1 on square;
+  relation balance on square {
+    -div(diffusion * grad(potential))
+      - source_scale * math.sin(wave_number * coordinate(0))
+        * math.sin(wave_number * coordinate(1)) = 0;
+  }
+  relation x_lower_value on x_lower { trace(potential) - boundary_offset = 0; }
+  relation x_upper_value on x_upper { trace(potential) - boundary_offset = 0; }
+  relation y_lower_value on y_lower { trace(potential) - boundary_offset = 0; }
+  relation y_upper_value on y_upper { trace(potential) - boundary_offset = 0; }
+}

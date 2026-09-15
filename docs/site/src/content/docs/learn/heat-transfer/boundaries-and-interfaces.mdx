@@ -1,0 +1,164 @@
+---
+title: 3. Boundaries and interfaces
+description: Interpret prescribed temperature, outward flux, exchange, and contact conditions before putting them into a weak formulation.
+sidebar:
+  order: 3
+---
+
+## A differential equation needs its surroundings
+
+The same conductor can remain cold in a bath, warm indefinitely in insulation,
+or approach an intermediate temperature in moving air. The material equation
+alone cannot distinguish these experiments. Boundary conditions state how the
+body exchanges energy with its surroundings.
+
+This chapter teaches you to select those conditions, track normal directions,
+and explain how prescribed values and fluxes enter a weak formulation.
+
+## Three common boundary descriptions
+
+A **prescribed temperature**, $T=T_b$, idealizes a reservoir that can supply or
+remove whatever power is needed to maintain its temperature. It fixes a value
+and leaves the heat flux to be determined. This is also called a Dirichlet or
+essential condition.
+
+A **prescribed outward flux**, $\boldsymbol q\cdot\boldsymbol n=g$, fixes the
+power per area leaving the body. Insulation is the special case $g=0$. An
+inward heater has $g<0$ with this convention. Such a condition is called a
+Neumann condition.
+
+An **exchange condition** relates the two:
+
+$$
+\boldsymbol q\cdot\boldsymbol n=h(T-T_\infty).
+$$
+
+Here $h$ has units W/(m² K), and $T_\infty$ is the surrounding fluid temperature.
+It is a Robin condition. If the surface is warmer than the surroundings, heat
+leaves; if cooler, heat enters. The coefficient describes an assumed exchange
+regime. It does not resolve the fluid velocity and temperature fields. This
+surface-exchange idealization is discussed in
+[Glicksman's convection notes](https://ocw.mit.edu/courses/4-42j-fundamentals-of-energy-in-buildings-fall-2010/932ba308aee67d0164ea8b59cec1c4be_MIT4_42JF10_heat.pdf).
+
+For a slab exchanging through one face, compare its internal resistance
+$L/(kA)$ with the boundary resistance $1/(hA)$. Their ratio is $hL/k$. A large
+ratio allows a substantial internal temperature difference; a small ratio
+suggests internal conduction can keep the body nearly uniform. A chosen length
+must accompany any reported Biot number.
+
+## A natural boundary term has a sign
+
+Write the steady equation as $-\nabla\cdot(k\nabla T)=s$. Multiply by a test
+function $w$ and integrate by parts:
+
+$$
+\int_\Omega k\nabla w\cdot\nabla T\,\mathrm dV
++\int_{\partial\Omega}wq_n\,\mathrm dA
+=\int_\Omega ws\,\mathrm dV,
+\qquad q_n=-k\nabla T\cdot\boldsymbol n.
+$$
+
+On a prescribed-temperature boundary, admissible changes in $T$ vanish, so
+choose $w=0$ there. On the remaining boundary, a prescribed outward flux $g$
+contributes $-\int wg$ on the right side. That minus sign is physical: outward
+power reduces the energy available to heat the interior.
+
+For an exchange boundary, substitute $q_n=h(T-T_\infty)$:
+
+$$
+\int_\Omega k\nabla w\cdot\nabla T\,\mathrm dV
++\int_{\Gamma_h}whT\,\mathrm dA
+=\int_\Omega ws\,\mathrm dV
++\int_{\Gamma_h}whT_\infty\,\mathrm dA.
+$$
+
+This derivation explains why flux conditions are often called *natural*: they
+appear directly in the boundary integral. Omitting that term on a free boundary
+imposes zero flux. It does not leave the exterior unspecified. In the heated
+square we use next, temperature is prescribed everywhere, so $w$ vanishes on
+the entire exterior and only the volume integrals remain.
+
+## An interface has two outward normals
+
+Consider two slabs in perfect thermal contact with no interfacial storage or
+source. Temperature is continuous and flux is conserved:
+
+$$
+T_1=T_2,\qquad
+\boldsymbol q_1\cdot\boldsymbol n_1+
+\boldsymbol q_2\cdot\boldsymbol n_2=0.
+$$
+
+```text
+          slab 1                 slab 2
+     ─────────────────│─────────────────────→ x
+            qx →      │      qx →
+               n1 →   │   ← n2
+                      interface
+```
+
+*Original orientation diagram. The same rightward physical heat flux is outward
+from slab 1 and inward to slab 2. Equal flux vectors give opposite outward
+normal components.*
+
+Integrate the energy account across a vanishingly thin pillbox around the
+interface. With no surface source or storage, whatever enters one side must
+leave the other. Temperature continuity is a separate perfect-contact
+assumption. A contact resistance would permit a temperature jump while
+preserving energy transfer.
+
+For a common area $A$, no volumetric source, end temperatures $T_L,T_R$, and
+resistances $R_1=L_1/(k_1A)$ and $R_2=L_2/(k_2A)$,
+
+$$
+P=\frac{T_L-T_R}{R_1+R_2},\qquad T_I=T_L-PR_1.
+$$
+
+This hand calculation connects the slab model to the
+[algebraic network chapter](/learn/mathematical-modeling/algebraic-relations-networks/).
+Take $R_1=1$ K/W, $R_2=3$ K/W, $T_L=340$ K, and $T_R=300$ K. Then $P=10$ W
+and $T_I=330$ K. The larger resistance receives the larger temperature drop.
+We use this analytic example to reason about interfaces; the computational
+square in the next chapter is a single homogeneous body.
+
+## Two useful failure experiments
+
+First, prescribe zero outward flux everywhere while retaining positive uniform
+generation in a steady problem. Integrating gives $0=sV$, a contradiction.
+A solver difficulty here originates in the model.
+
+Second, make a fully insulated, source-free steady problem. Any uniform
+absolute temperature solves it. The missing temperature reference creates a
+family of solutions; changing linear solver tolerance cannot select the
+physical reference for you.
+
+## Exercises
+
+1. For a heat flux directed rightward, list the outward signs at the two slab
+   faces. Explain why adding coordinate components is the wrong balance.
+2. At a perfectly conducting contact, should you equate the two outward fluxes
+   or their negatives?
+3. Add a contact resistance $R_c$ in K/W to the two-slab calculation. Derive
+   the power and temperature jump.
+4. Derive the weak equation with a prescribed inward flux of magnitude $p>0$.
+
+<details>
+<summary>Solution hints</summary>
+
+1. Left negative, right positive. A normal component uses the local normal.
+2. Their negatives; the outward fluxes sum to zero.
+3. $P=(T_L-T_R)/(R_1+R_c+R_2)$ and the left-to-right temperature drop at
+   contact is $PR_c$.
+4. Set $g=-p$, producing a positive $\int wp$ load on that boundary.
+
+</details>
+
+## References
+
+- Leon R. Glicksman, *Heat Transfer*, MIT 4.42J (2010),
+  [§2 and the introduction to convection](https://ocw.mit.edu/courses/4-42j-fundamentals-of-energy-in-buildings-fall-2010/932ba308aee67d0164ea8b59cec1c4be_MIT4_42JF10_heat.pdf).
+- Chris Schuh, *Materials Processing*, MIT 3.044 (2013),
+  [Lecture 2, boundary conditions](https://ocw.mit.edu/courses/3-044-materials-processing-spring-2013/resources/mit3_044s13_lec02/).
+
+[Previous: Steady conduction](/learn/heat-transfer/steady-conduction/) ·
+[Next: A heated body in Eqiora](/learn/heat-transfer/heated-body-in-eqiora/)

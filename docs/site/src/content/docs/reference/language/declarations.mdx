@@ -1,6 +1,6 @@
 ---
 title: Declarations
-description: The model, parameter and Field declarations accepted by the current Eqiora source.
+description: Declare model inputs, unknowns, spatial supports, and measurements.
 editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/language/declarations.mdx
 ---
 
@@ -8,36 +8,81 @@ import { Code } from '@astrojs/starlight/components';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 import source from './_examples/declarations.eqi?raw';
 
-[Language overview](/reference/language/) · [Install this source revision](/get-started/#install-with-uv)
+[Language overview](/reference/language/)
 
-`model Name { ... }` contains declarations and simultaneous relations. Semicolons
-end declarations; `//` introduces a comment and `///` attaches documentation. Names are case-sensitive.
+`model Name(...) { ... }` groups declarations and simultaneous equations.
+Semicolons end declarations; `//` introduces a comment and `///` attaches documentation.
+Names are case-sensitive.
 
 <Code code={source} lang="eqiora" title="declarations.eqi" />
 
-| Declaration | Meaning in this example |
+<ExactSourceLink kind="blob" path="docs/site/src/content/docs/reference/language/_examples/declarations.eqi">Open the complete example source</ExactSourceLink>
+
+The example describes Ohm's law. Its default inputs give a current of 3 A.
+
+| Declaration | Meaning |
 |---|---|
-| `parameter voltage: dimension = 12;` | A fixed mathematical input of 12 coherent SI units; voltage here is measured in volts. |
-| `variable current: A;` | An unknown current, not a Python variable or a command to compute it immediately. |
-| `relation ohm { ... }` | An equation constraining those values; declaration order is not execution order. |
+| `parameter voltage: V = 12;` | A fixed input, here 12 volts |
+| `variable current: A;` | An unknown determined by the equations |
+| `state x: 1;` | A quantity that carries state across time |
+| `input u: 1;`, `output y: 1;` | Causal signal endpoints of a model or component |
+| `observable measured_current: A = current;` | A named measurement of the solution |
 
-An algebraic `variable` needs no declaration initial value. An evolving scalar
-uses `state x: 1; initial { x = 1; }` to declare its role and initial equation; see
-[Equations and state](/reference/language/equations/). `1` denotes a dimensionless
-type. Do not interpret an omitted initial value as a promise of zero initialization.
+Parameters can appear in the model signature, as above, or inside its body.
+Signature parameters can be bound explicitly when instantiating a
+[component](/reference/language/composition/).
+Bare declaration numbers use coherent SI units; `1` as a type means dimensionless.
 
-## Spatial declarations
+## State and initial data
 
-A spatial unknown also names its exact support. In the
-[complete elastic-body example](/reference/standard-packages/continuum/#elastic-balance-and-boundaries),
-`variable displacement: vector<m, 2> on body;` means a vector
-displacement on `body`, in metres. The enclosing `domain body = box(...)` supplies
-the two-dimensional support. The compiler supplies the admitted continuum
-Representation; source declarations do not select a mesh or finite-element space.
+```eqi
+model Decay() {
+  parameter rate: 1 / s = 2;
+  state x: 1;
+  initial { x = 1; }
+  relation evolution { derivative(x) = -rate * x; }
+  observable remaining: 1 = x;
+}
+```
 
-Scalar and vector declarations are not interchangeable. Component support and Field
-requirements bind existing occurrences; see [Composition](/reference/language/composition/).
+The initial equation sets $x(0)=1$ and the evolution equation gives
+$x(t)=\exp(-2t)$ when $t$ is in seconds. An omitted initial value does not imply
+zero. See [equations and state](/reference/language/equations/) for clocked state.
 
-<ExactSourceLink kind="blob" path="docs/site/src/content/docs/reference/language/_examples/declarations.eqi">Example source</ExactSourceLink>
-· <ExactSourceLink kind="blob" path="crates/eqiora-lang/src/parser.rs">declaration parser</ExactSourceLink>
-· Next: [Quantities and units](/reference/language/units/)
+## Spatial fields and boundaries
+
+```eqi
+model Square() {
+  domain body = box(0, 1, 0, 1);
+  domain left = boundary(body, axis = 0, side = lower);
+  variable temperature: K on body;
+  relation uniform on body { temperature = 300[K]; }
+}
+```
+
+`box(0, 1, 0, 1)` describes a square in the spatial coordinates.
+`left` is its lower boundary on axis 0. `on body` makes temperature a spatial
+field with that exact support. The equation fixes it to 300 K throughout the body.
+
+A vector uses both a dimension and a component count:
+`variable displacement: vector<m, 2> on body;`.
+A spatial field declaration describes its physical values; mesh and numerical
+approximation choices belong to the execution setup.
+
+The [continuum reference](/reference/standard-packages/continuum/) shows full
+models with all four boundaries. The [fields lesson](/learn/mathematical-modeling/fields-spatial-domains/)
+explains the difference between a physical field and its numerical coefficients.
+
+## Measurements
+
+An `observable` adds a named expression without adding an equation. For example,
+inside the current model:
+
+```eqi
+observable power: W = voltage * current;
+```
+
+After solving, read it with
+`result.observe(model.observable("power")).value`; the default inputs give 36 W.
+The [voltage divider](/reference/standard-packages/electrical/) includes a full
+compile-and-run example with current, voltage, and power observations.

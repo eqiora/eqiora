@@ -1,0 +1,170 @@
+---
+title: 5. Noise, scaling, and design
+description: Quantify noise amplification, choose informative measurements, and distinguish regularization from new physical information.
+sidebar:
+  order: 5
+---
+
+## Fitting data with unequal precision
+
+Return to the scalar source experiment. Conductivity and boundary temperature
+are known; sensor $i$ reads
+
+$$
+d_i=b+sg_i+\epsilon_i.
+$$
+
+Suppose the measurement errors have zero mean, are independent, and have known
+standard deviations $\sigma_i$. A one-unit discrepancy is more surprising for
+a precise instrument than for a noisy one. Standardize each residual and minimize
+
+$$
+\Phi(s)=\frac12\sum_i\left(\frac{b+sg_i-d_i}{\sigma_i}\right)^2.
+$$
+
+Setting its derivative to zero gives
+
+$$
+\widehat s=
+\frac{\sum_i g_i(d_i-b)/\sigma_i^2}
+     {\sum_i g_i^2/\sigma_i^2}.
+$$
+
+For independent Gaussian errors this objective is also the negative log
+likelihood up to a constant. Least-squares estimation and its statistical
+interpretation are treated in Boyd and Vandenberghe, *Convex Optimization*,
+chapter 7, available from the
+[authors](https://web.stanford.edu/~boyd/cvxbook/).
+
+## Derive the noise amplification
+
+Substitute $d_i=b+sg_i+\epsilon_i$ into the formula:
+
+$$
+\widehat s-s=
+\frac{\sum_i g_i\epsilon_i/\sigma_i^2}
+     {\sum_i g_i^2/\sigma_i^2}.
+$$
+
+Using independence to eliminate cross covariances gives
+
+$$
+\operatorname{Var}(\widehat s)=
+\frac{1}{\sum_i g_i^2/\sigma_i^2}.
+$$
+
+This result follows from the stated error model; it does not require running a
+Monte Carlo simulation. With known $a$ and $b$, larger $|g_i|/\sigma_i$ means a
+more informative measurement. For equal sensor precision in the square problem,
+the centre has the largest source response. At the boundary $g_i=0$, so a
+boundary-temperature measurement adds no information about $s$.
+
+At the centre with $a=1$, $g=L^2/(2\pi^2)$ with $L=1\,\mathrm m$. A temperature standard deviation of
+$0.01$ therefore gives a source-estimate standard deviation
+$(2\pi^2/L^2)(0.01)\approx0.1974\,\mathrm m^{-2}$. Averaging four independent readings
+halves this standard deviation. Four readings with a common calibration error
+do not provide the same improvement.
+
+## Add a deterministic noise experiment
+
+In the [Poisson script](/learn/inverse-problems/heat-source-recovery/), replace the
+synthetic `data` vector by `data + 0.01` before applying the recovery formula.
+This models one common positive measurement offset. Predict the parameter bias:
+
+$$
+\widehat s-s=0.01\frac{\sum_i g_i}{\sum_i g_i^2}.
+$$
+
+It is positive, because the source response is nonnegative. More readings of the
+same biased instrument do not force it to zero. Repeat with an alternating
+positive/negative perturbation and compare. A small residual alone does not
+identify which error process generated the observations.
+
+## Scale parameters before comparing derivatives
+
+The script orders parameters as $p=(s,a,b)$. They have different units and
+natural magnitudes. Comparing raw derivative entries can therefore be misleading.
+Choose meaningful scales $p_{*,j}>0$ and write
+$p_j=p_{0,j}+p_{*,j}z_j$. Then
+
+$$
+\frac{\partial y}{\partial z_j}=
+\frac{\partial y}{\partial p_j}p_{*,j}.
+$$
+
+For example, choose $p_*=(2\pi^2,1,1)$ in the units of the script. A unit change
+in the source coordinate now means one baseline source strength. Multiply by the
+same scales when converting a gradient to the $z$ coordinates. If observations
+also have unequal units or precision, scale their residuals before comparing
+parameter effects.
+
+## Regularization adds a preference
+
+Suppose prior knowledge favours source $s_0$. Add a quadratic penalty:
+
+$$
+\Phi_\alpha(s)=\frac12\sum_i w_i(b+sg_i-d_i)^2
++\frac\alpha2(s-s_0)^2,\qquad w_i=\sigma_i^{-2}.
+$$
+
+Here $\alpha$ has the units needed to make the penalty dimensionless, or the
+calculation is performed in scaled coordinates. Differentiation gives
+
+$$
+\widehat s_\alpha=
+\frac{\sum_i w_i g_i(d_i-b)+\alpha s_0}
+     {\sum_i w_i g_i^2+\alpha}.
+$$
+
+As $\alpha$ grows, the estimate moves toward $s_0$. This can stabilize a noisy
+estimate, but it also introduces bias when $s_0$ is wrong. Regularization does
+not turn the indistinguishable $(s,a)$ pairs from chapter 3 into different
+physical predictions. Its preference must be justified separately.
+For the broader construction, see chapter 15 of
+[*Introduction to Applied Linear Algebra*](https://web.stanford.edu/~boyd/vmls/).
+
+## Capstone: choose the next measurement
+
+A square has an unknown source amplitude, unknown conductivity, and an unknown
+uniform boundary temperature. You can measure two temperatures and one boundary
+heat flux. Design the experiment before fitting:
+
+1. Choose locations and write the three analytic observation equations.
+2. Explain how each observation separates a parameter or parameter combination.
+3. Assign units and uncertainty scales to the readings.
+4. Use the Poisson forward model to predict temperatures for your chosen parameters.
+5. Reserve an extra interior temperature as a held-out prediction. Explain what
+   disagreement would lead you to reconsider about the physical model.
+
+For a nonzero source, one useful arrangement is a boundary temperature for $b$, a nonzero outward flux
+at an edge midpoint for $s$, and the centre temperature for $s/a$. The derivation
+of the flux is in [chapter 3](/learn/inverse-problems/sensitivity-and-identifiability/).
+Before interpreting real measurements, return to the
+[heat-transfer assumptions](/learn/heat-transfer/) and the
+[spatial-error discussion](/learn/numerical-simulation/): measurement noise,
+model mismatch, and discretization error can all change a fitted parameter.
+
+## Exercises
+
+1. For one sensor, derive the standard deviation of $\widehat s$ directly from
+   $\widehat s=(d-b)/g$.
+2. If a sensor's standard deviation doubles, how does its contribution to
+   $\sum_i g_i^2/\sigma_i^2$ change?
+3. Derive $d\Phi/dz$ when $p=p_0+D z$ for a diagonal scale matrix $D$.
+4. Show the limits of $\widehat s_\alpha$ as $\alpha\to0$ and
+   $\alpha\to\infty$ when the observations contain source information.
+5. Explain why changing sensor locations may help identify $b$ and $s/a$ but
+   cannot separate $s$ and $a$ from this temperature field alone.
+
+## Reading
+
+Stephen Boyd and Lieven Vandenberghe, *Convex Optimization*, Cambridge University
+Press, 2004, chapter 7, “Statistical estimation.”
+[Authors' book and resources](https://web.stanford.edu/~boyd/cvxbook/).
+The same authors, *Introduction to Applied Linear Algebra*, Cambridge University
+Press, 2018, chapter 15, especially estimation, inversion, and regularized fitting.
+[Book](https://web.stanford.edu/~boyd/vmls/).
+
+[Previous: Differentiating a solved model](/learn/inverse-problems/differentiating-a-solved-model/) ·
+[Book map](/learn/inverse-problems/) ·
+[Explore heat transfer](/learn/heat-transfer/)

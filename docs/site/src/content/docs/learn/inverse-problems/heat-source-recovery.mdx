@@ -1,0 +1,161 @@
+---
+title: 2. Recovering a heat source
+description: Derive a Poisson response, estimate its source amplitude, and run the same model through Eqiora.
+sidebar:
+  order: 2
+---
+
+import { Code } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import modelSource from '../../../../../../../examples/inverse-poisson.eqi?raw';
+import programSource from '../../../../../../../examples/python/learn_inverse_poisson.py?raw';
+import modelDownload from '../../../../../../../examples/inverse-poisson.eqi?url&no-inline';
+import programDownload from '../../../../../../../examples/python/learn_inverse_poisson.py?url&no-inline';
+
+## Can a warm field reveal its source?
+
+Consider a square conductor with a spatially varying internal heat source and
+all four edges held at one temperature. At steady state, the generated heat must
+leave through the boundary. Fourier conduction gives a heat flux
+$\boldsymbol q=-k\nabla T$ and steady balance gives
+$\nabla\cdot\boldsymbol q=q_v$. Thus $-\nabla\cdot(k\nabla T)=q_v$.
+The [heat-transfer book](/learn/heat-transfer/) develops these physical ingredients.
+
+Choose a reference temperature $T_{\mathrm{ref}}$, a positive temperature-difference
+scale $T_*$, and a reference conductivity $k_*$. Write
+$T=T_{\mathrm{ref}}+T_*u$ and $k=k_*a$. For a source
+$q_v=k_*T_*s\sin(wx)\sin(wy)$, our dimensionless temperature $u$ and
+positive dimensionless conductivity $a$ satisfy
+
+$$
+-a\Delta u=s\sin(wx)\sin(wy),\qquad u=b\text{ on the boundary}.
+$$
+
+The square has side $L=1\,\mathrm m$, $w=\pi/L$, source scale $s$ has units
+$\mathrm m^{-2}$, and the boundary value $b$ is dimensionless. Constant $a$
+and a sinusoidal source make a hand solution possible; these are explicit
+assumptions of this example.
+
+<figure>
+<svg viewBox="0 0 560 245" role="img" aria-label="Square conductor with boundary value b on every edge, an interior sensor, and a spatially distributed source. Coordinates run from zero to L.">
+  <rect x="85" y="25" width="190" height="190" fill="none" stroke="currentColor" stroke-width="3" />
+  <path d="M115 120h130M180 55v130" stroke="currentColor" stroke-dasharray="5 5" fill="none" />
+  <circle cx="180" cy="120" r="6" fill="currentColor" />
+  <text x="155" y="18" fill="currentColor" font-size="14">u = b</text>
+  <text x="155" y="238" fill="currentColor" font-size="14">u = b</text>
+  <text x="33" y="120" fill="currentColor" font-size="14">u = b</text>
+  <text x="285" y="120" fill="currentColor" font-size="14">u = b</text>
+  <text x="90" y="208" fill="currentColor" font-size="13">(0, 0)</text>
+  <text x="220" y="44" fill="currentColor" font-size="13">(L, L)</text>
+  <text x="335" y="80" fill="currentColor" font-size="14">Interior observation</text>
+  <path d="M330 87L190 115" stroke="currentColor" fill="none" />
+  <text x="335" y="155" fill="currentColor" font-size="14">Source is strongest</text>
+  <text x="335" y="177" fill="currentColor" font-size="14">near the centre.</text>
+</svg>
+<figcaption>Conceptual geometry. The source vanishes on the edges; the boundary fixes the temperature there regardless of the source strength.</figcaption>
+</figure>
+
+## Solve before fitting
+
+Try $u=b+A\sin(wx)\sin(wy)$. Each second derivative contributes $-w^2$,
+so substitution gives $2aw^2A=s$. Therefore
+
+$$
+u(x,y)=b+\frac{s}{2aw^2}\sin(wx)\sin(wy).
+$$
+
+With $a=1$, $b=0$, and $s=2\pi^2\,\mathrm m^{-2}$, the centre value is 1.
+Doubling $s$ doubles every temperature excess above $b$. Doubling $a$ halves it.
+These predictions follow directly from the equation.
+
+Suppose $a$ and $b$ are known and point measurements are $d_i$. Define
+$g_i=\sin(wx_i)\sin(wy_i)/(2aw^2)$. The model predicts $b+sg_i$.
+Minimizing the sum of squared differences gives
+
+$$
+\Phi(s)=\frac12\sum_i(b+sg_i-d_i)^2,\quad
+\Phi'(s)=\sum_i g_i(b+sg_i-d_i),
+$$
+
+and hence
+
+$$
+\widehat s=\frac{\sum_i g_i(d_i-b)}{\sum_i g_i^2}.
+$$
+
+The denominator must be positive. Sampling only boundary points makes every
+$g_i$ zero: those data cannot recover the source. This scalar calculation is a
+worked least-squares problem; the general formulation is in Boyd and
+Vandenberghe, chapter 12 of
+[*Introduction to Applied Linear Algebra*](https://web.stanford.edu/~boyd/vmls/).
+
+## Write the same balance in Eqiora
+
+The component takes its geometry, material, source, and boundary
+values as inputs:
+
+<Code code={modelSource} lang="eqiora" title="inverse-poisson.eqi" />
+
+Read `-div(diffusion * grad(potential))` as the conduction balance, the two sine
+factors as the source shape, and each `trace` relation as an edge temperature.
+The caller supplies the square and its four edges. This separation lets one
+component serve several meshes and parameter choices.
+
+## Run the recovery experiment
+
+Use the environment from [Get started](/get-started/). Save
+<a href={modelDownload} download="inverse-poisson.eqi">inverse-poisson.eqi</a> and
+<a href={programDownload} download="learn_inverse_poisson.py">learn_inverse_poisson.py</a>
+beside `.venv`, then run:
+
+```bash
+uv run --no-project --python .venv/bin/python python learn_inverse_poisson.py inverse-poisson.eqi
+```
+
+The script chooses Q1 finite elements, computes a baseline response, and generates
+synthetic data with source $1.4(2\pi^2)$. It applies the scalar formula above to
+the computed response vector. Expect a recovered source close to
+$27.6348923\,\mathrm m^{-2}$. No iterative optimization is needed for this
+one-parameter linear problem.
+
+<Code code={programSource} lang="python" title="learn_inverse_poisson.py" />
+
+<ExactSourceLink path="examples/python/learn_inverse_poisson.py" kind="blob">Read the script</ExactSourceLink> ·
+<ExactSourceLink path="examples/inverse-poisson.eqi" kind="blob">Read the component</ExactSourceLink>.
+
+The same-mesh synthetic experiment isolates parameter recovery: both the data
+and the fitted response use the same discrete model. A second printed comparison
+uses the independently integrated continuum area mean, $4/\pi^2$. Repeat with
+`--cells 24` to see how the computed mean changes with resolution. Recovering a
+synthetic parameter precisely and approximating the continuous field accurately
+are two different questions.
+
+## Reuse what you have derived
+
+The Python calls to [`eqiora.diff`](/reference/python/diff/) reuse the compiled
+component to evaluate new parameter points and derivatives. There is no need
+to write a second Poisson solver or recopy the balance for each candidate source.
+The next chapters explain the additional derivative lines already in the script.
+
+## Exercises
+
+1. A centre observation is 0.6 with $a=2$ and $b=0.1$. Recover $s$.
+2. Derive the area mean $\bar u=b+2sL^2/(a\pi^4)$ for this one-metre square.
+3. Replace $b=0$ by a nonzero known boundary value in the analytic fit. Why must
+   you subtract it before fitting the source?
+4. Repeat the script with 6, 12, and 24 cells per direction. Record recovery error
+   and continuum-mean error separately. Explain why their sizes differ.
+
+**Check your reasoning:** exercise 1 gives $s=2\pi^2\,\mathrm m^{-2}$.
+
+## Reading
+
+Stephen Boyd and Lieven Vandenberghe, *Introduction to Applied Linear Algebra*,
+Cambridge University Press, 2018, chapter 12.
+[Authors' book](https://web.stanford.edu/~boyd/vmls/).
+For the physical balance, continue with [heat transfer](/learn/heat-transfer/);
+for the spatial approximation, see [numerical simulation](/learn/numerical-simulation/).
+
+[Previous: Measurements to parameters](/learn/inverse-problems/measurements-to-parameters/) ·
+[Book map](/learn/inverse-problems/) ·
+[Next: Sensitivity and identifiability](/learn/inverse-problems/sensitivity-and-identifiability/)

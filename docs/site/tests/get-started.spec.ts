@@ -53,7 +53,7 @@ for (const width of [1280, 320]) {
     await page.emulateMedia({ media: 'print' });
     await expect(main.locator('.katex-display').first()).toBeVisible();
     await page.emulateMedia({ media: 'screen' });
-    await main.getByRole('link', { name: 'derive this ODE and try the exercises' }).click();
+    await main.getByRole('link', { name: 'derive this ODE', exact: true }).click();
     await expect(page.getByRole('heading', { level: 1, name: '4. Ordinary differential equations' })).toBeVisible();
     await expect(page.getByRole('region', { name: 'decay.eqi', exact: true })).toContainText(model.trim(), { useInnerText: true });
     await expect(page.getByRole('region', { name: 'run.py', exact: true })).toContainText(program.trim(), { useInnerText: true });

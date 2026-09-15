@@ -1,7 +1,7 @@
 # Kármán vortex-street product and verification boundary
 
 Status: the unverified Reynolds-100 product example executes an alternating
-cylinder wake and is available as matching plain-Python and Colab sources plus an
+cylinder wake and is available as a plain-Python source plus an
 accessible static-site walkthrough. It does not advance the scientific
 `fluid.flow-past-cylinder` claim.
 

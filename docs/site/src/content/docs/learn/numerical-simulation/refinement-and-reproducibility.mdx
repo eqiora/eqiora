@@ -1,0 +1,179 @@
+---
+title: 5. Refinement and reproducibility
+description: Choose a norm, derive observed order, and design comparisons that isolate one numerical approximation.
+sidebar:
+  order: 5
+---
+
+import { Code } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import planeSource from '../../../../../../../verify/numerics/cartesian-poisson-fem-fvm/models/poisson.eqi?raw';
+
+## What does “the mesh is fine enough” mean?
+
+It means fine enough for a particular question. The center temperature, total
+heat flow, and largest gradient may converge at different rates. We will
+interpret the Poisson comparison table by first defining the quantity being
+compared, then calculating its change across mesh sizes.
+
+You can enter directly from a physics book. The example is
+$-u''=\pi^2\sin(\pi\xi)$ on a unit interval with zero endpoint values and exact
+solution $u=\sin(\pi\xi)$. The preceding lessons explain its
+[FEM](/learn/numerical-simulation/weak-forms-and-finite-elements/) and
+[FVM](/learn/numerical-simulation/finite-volume-balance/) approximations.
+
+## Define the field before defining its error
+
+Let $u_h$ be a specified reconstruction of the numerical unknowns. Its
+continuous $L^2$ error is
+
+$$
+E_h=\left(\int_0^1|u-u_h|^2\,d\xi\right)^{1/2}.
+$$
+
+This measures error across the whole interval. A discrete root-mean-square
+error at nodes or centers is a different quantity. The difference is visible
+even without a solve: interpolate $u=\xi(1-\xi)$ at the endpoints of one
+element. Every nodal error is zero, but the straight interpolant misses the
+curve between them.
+
+For FEM, the Poisson comparison uses the piecewise linear primal field. For
+FVM, it explicitly builds a linear field through centers and boundary values.
+That reconstruction matters. Approximating a smooth varying function by its
+piecewise constant center values generally has first-order $L^2$ error;
+a more accurate reconstructed field can converge faster. Always attach an
+order statement to the field and norm that produced it.
+
+An energy error for this scaled problem is
+
+$$
+\lVert u-u_h\rVert_E=
+\left(\int_0^1|u'-u_h'|^2\,d\xi\right)^{1/2}.
+$$
+
+It emphasizes gradients, which are related to flux. Piecewise linear
+approximation of a smooth function typically gives first-order gradient
+accuracy and second-order field accuracy under the usual regularity and mesh
+assumptions. These are different predictions, not conflicting measurements.
+
+## Derive observed order
+
+Assume the error has reached a regime where $E_h\approx Ch^p$ with the same
+constant $C$ across the compared meshes. Halving $h$ gives
+
+$$
+\frac{E_h}{E_{h/2}}\approx2^p,
+\qquad
+p_{\mathrm{obs}}=\frac{\log(E_h/E_{h/2})}{\log2}.
+$$
+
+A factor of four reduction suggests second order. A factor of two suggests
+first order. Neither conclusion follows from just seeing an error decrease.
+
+For example, the hypothetical errors $0.008$, $0.002$, and $0.0005$ have
+successive observed orders exactly 2. These numbers illustrate the arithmetic;
+they are not a table of computed Eqiora results.
+
+## Run and read the table
+
+From the source checkout created in [Get started](/get-started/):
+
+```bash
+cargo run -p eqiora-numerics --example poisson_convergence
+```
+
+The <ExactSourceLink path="crates/eqiora-numerics/examples/poisson_convergence.rs" kind="blob">maintained program</ExactSourceLink>
+prints a CSV table. For each method, read the errors at 8, 16, 32, and 64
+cells; calculate the three orders yourself and compare them with the printed
+order columns. A spreadsheet or calculator is enough.
+
+Keep the model, unit interval, uniform mesh family, reference CPU solver, and
+error reconstruction fixed in this comparison. The example uses four-point
+Gauss–Legendre quadrature for its one-dimensional error integration. The norm
+is continuous in definition and numerically integrated in the experiment.
+
+Inspect the balance columns separately. They answer whether integrated source
+and outward boundary contributions agree; they do not replace the field-error
+columns. Plotting $\log E_h$ against $\log h$ gives a visual slope, but compute
+the ratios too: a short plot can conceal a plateau.
+
+## Why a curve can stop following its expected slope
+
+- **Coarse meshes:** the leading $Ch^p$ term may not yet dominate.
+- **Algebraic error:** an insufficiently converged linear solve can hide the
+  effect of further refinement.
+- **Nonsmooth solutions:** a corner, discontinuous coefficient, or singular
+  source can invalidate the smoothness used in the expected-order argument.
+- **Geometry error:** resolving a field on the wrong boundary shape is a
+  different approximation from resolving it on the intended geometry.
+- **Rounding:** eventually smaller truncation errors compete with finite
+  precision and conditioning.
+
+Choose the next experiment according to the suspected cause. To investigate
+an iteration plateau, hold the mesh fixed and tighten the solver. To
+investigate a boundary singularity, inspect where the error is concentrated
+and reconsider the regularity assumption. Do not change the expected order
+merely to describe the last two numbers.
+
+## Extend the prediction to a square
+
+On a unit square, choose
+
+$$
+u(x,y)=\sin(\pi x)\sin(\pi y),\qquad
+-\Delta u=2\pi^2\sin(\pi x)\sin(\pi y).
+$$
+
+Coordinates here are scaled by the side length. Each second derivative
+contributes one factor of $\pi^2$. The boundary values vanish on all four
+sides, and the peak remains 1 at the center. The integrated source is
+$2\pi^2(2/\pi)^2=8$; this predicts the total outward diffusive flux.
+
+<Code code={planeSource} lang="eqiora" title="The same manufactured construction in two dimensions" />
+
+This source shows how the same mathematical idea extends. The executable
+command above remains the one-dimensional experiment. In a two-dimensional
+application, make the geometry, mesh, and numerical realization match the
+square, as described in the [meshing API](/reference/python/meshing/).
+An $n\times n$ grid has $n^2$ cells: halving both spacings multiplies that count
+by four. Do not infer a runtime factor solely from the cell count; iteration
+counts, memory access, and solver choice also matter.
+
+Refining only the horizontal direction can leave vertical error dominant.
+Record both spacings in an anisotropic study. A single “mesh size” needs a
+definition, such as the largest directional spacing, before an order formula
+has a clear meaning.
+
+## End with a reproducible statement
+
+Write the conclusion around the question you actually investigated. For
+example: “For this smooth interval problem, these uniform meshes, and this
+continuous reconstruction, halving the spacing reduces the field error by
+approximately four.” Preserve the source revision, settings, and raw table
+alongside that sentence.
+
+For a time-dependent calculation, also record the time interval, initial
+state, time-accuracy settings, and observation times. For a performance
+comparison, identify the machine, backend, precision, and whether setup or
+compilation time is included. These details make the comparison intelligible
+when you or someone else returns to it.
+
+## Exercises
+
+1. Derive the observed-order formula when the refinement ratio is 3.
+2. Explain why an exactly reproduced value at one node cannot establish
+   second-order field convergence.
+3. Suppose errors are $0.004$, $0.001$, and $0.0009$. Calculate both orders and
+   propose two distinct causes and an experiment to distinguish them.
+4. Derive the square problem's outward flux on each edge and confirm that the
+   four integrals sum to 8.
+5. Design a study of center temperature that varies spatial resolution while
+   controlling time and solver error. State the requested observable and norm.
+6. Return to a problem in [heat transfer](/learn/heat-transfer/),
+   [structural mechanics](/learn/structural-mechanics/), or
+   [fluid mechanics](/learn/fluid-mechanics/). Identify one physical assumption
+   that numerical refinement alone cannot examine.
+
+[Previous: Finite-volume balance](/learn/numerical-simulation/finite-volume-balance/) ·
+[Book map](/learn/numerical-simulation/) ·
+[Continue with heat transfer](/learn/heat-transfer/)

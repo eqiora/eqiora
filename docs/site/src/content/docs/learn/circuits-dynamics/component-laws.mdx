@@ -1,0 +1,145 @@
+---
+title: 4. Open the components
+description: Inspect real component equations, derive the effect of loading a divider, and separate a changed parameter from a changed law.
+sidebar:
+  order: 4
+---
+
+import { Code } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import basicSource from '../../../../../../../crates/eqiora-api/packages/Eqiora.Electrical.Basic/src/basic.eqi?raw';
+
+## Why did the 8 V output fall?
+
+The previous chapter assumed the voltmeter drew negligible current. Now connect
+a 2 kΩ load between the midpoint and ground. The upper resistor must carry the
+load current as well as the lower-resistor current. Predicting an unchanged 8 V
+would silently reuse the old connection equations.
+
+We will derive the new voltage, inspect the library definitions, and decide
+which part of the model actually needs to change.
+
+## Derive the loaded divider
+
+Let $v$ be the midpoint voltage. Ohm's law gives three currents:
+
+$$
+I_1=\frac{V_s-v}{R_1},\qquad
+I_2=\frac{v}{R_2},\qquad I_L=\frac{v}{R_L}.
+$$
+
+Junction conservation requires $I_1=I_2+I_L$. Substitution gives
+
+$$
+V_s=v\left(1+\frac{R_1}{R_2}+\frac{R_1}{R_L}\right),\qquad
+v=\frac{V_s}{1+R_1/R_2+R_1/R_L}.
+$$
+
+Equivalently, the two lower branches form
+$R_p=(1/R_2+1/R_L)^{-1}$, followed by $v=V_sR_p/(R_1+R_p)$.
+The equivalence follows from shared voltage and summed currents, as in
+[OpenStax §10.2](https://openstax.org/books/university-physics-volume-2/pages/10-2-resistors-in-series-and-parallel).
+
+For $R_1=1$ kΩ and $R_2=R_L=2$ kΩ, $R_p=1$ kΩ. Thus $v=6$ V,
+$I_1=6$ mA, and $I_2=I_L=3$ mA. The powers are 0.036 W in the upper resistor,
+0.018 W in each lower branch, and −0.072 W in the source.
+
+## What the import actually says
+
+Here is the full source imported as `electrical` in the packaged divider:
+
+<Code code={basicSource} lang="eqiora" title="Eqiora.Electrical.Basic/src/basic.eqi" />
+
+<ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Electrical.Basic/src/basic.eqi" kind="blob">Read the definition in its package</ExactSourceLink>.
+
+The resistor owns two statements: its voltage-current law and internal charge
+conservation. Neither mentions the load or the surrounding junctions. Therefore
+we can reuse precisely this resistor definition for the new load.
+
+The source owns a prescribed voltage difference and internal current balance.
+It does not prescribe how much current must flow. The network determines that.
+Ground owns only the zero-potential reference.
+
+## Add the physical branch
+
+In the complete direct `divider.eqi` from chapter 3, add an instance:
+
+```eqiora
+instance load: Resistor(resistance = 2[kOhm]);
+```
+
+Replace the midpoint and return connections with:
+
+```eqiora
+connect upper.negative, lower.positive, load.positive;
+connect lower.negative, load.negative, source.negative, ground.terminal;
+```
+
+Keep the top connection unchanged. Add an observation for the new branch:
+
+```eqiora
+observable load_power: W = (load.positive.voltage - load.negative.voltage) * load.positive.current;
+```
+
+Add `("load_power", "W")` to the direct runner's observation list. Run again
+and compare all powers, including the load, with the derived values. The old
+sum of just three powers should now be −0.018 W: it omits the load's absorption.
+
+In the packaged source, the corresponding instance uses
+`electrical.Resistor`. This name change only locates the component definition;
+the new junction equations have exactly the same role.
+
+## A parameter edit or a different law?
+
+Changing a constant resistance from 1 kΩ to 2 kΩ preserves the form $v=Ri$.
+Connecting another resistor changes topology. Both can use the same component.
+By contrast, asking resistance to vary with temperature changes the law and
+introduces another physical quantity.
+
+As a modeling exercise, consider
+
+$$
+R(T)=R_0[1+\alpha(T-T_0)].
+$$
+
+Here $\alpha$ has units K⁻¹, so the bracket is dimensionless. This is an
+assumed local linear approximation, not a universal law for all resistors.
+It requires a temperature and an appropriate range in which $R(T)$ remains
+positive. Predicting $T$ in turn requires the thermal energy balance introduced
+in [chapter 1](/learn/circuits-dynamics/voltage-current-power/).
+
+This is the useful question to ask when opening a component: **which assumption
+does its equation make, and does my experiment still satisfy it?** See
+[constitutive laws](/learn/mathematical-modeling/constitutive-laws/) for a wider
+discussion, or follow the heat into [heat transfer](/learn/heat-transfer/).
+
+## Exercises
+
+1. Find the load resistance that lowers the original 8 V output to 4 V.
+2. Show that the unloaded prediction returns as $R_L$ grows without bound.
+3. A loaded calculation gives the correct midpoint but the three-power sum
+   fails. Explain why this alone need not indicate a solver error.
+4. At a fixed current, a resistor's resistance rises by 10%. What happens to
+   its power? What if voltage, rather than current, is held fixed?
+
+<details>
+<summary>Answer sketches</summary>
+
+1. $4=12/(1+1/2+1000/R_L)$, so $R_L=2000/3$ Ω, about 667 Ω.
+2. $R_1/R_L$ tends to zero, leaving $V_sR_2/(R_1+R_2)$.
+3. The load is a fourth component that absorbs power. Audit all branches before
+   changing numerical tolerances.
+4. At fixed current, $p=I^2R$ rises by 10%. At fixed voltage, $p=V^2/R$ becomes
+   $1/1.1$ of its original value. The surrounding circuit determines what is
+   actually held fixed.
+
+</details>
+
+## Reference
+
+Samuel J. Ling, William Moebs, and Jeff Sanny, *University Physics Volume 2*,
+OpenStax (2016), [§10.2, Resistors in Series and Parallel](https://openstax.org/books/university-physics-volume-2/pages/10-2-resistors-in-series-and-parallel).
+
+[Previous: Build and run a divider](/learn/circuits-dynamics/resistor-divider/) ·
+[Book map](/learn/circuits-dynamics/) ·
+[Next: Storage and decay](/learn/circuits-dynamics/decay-and-storage/)

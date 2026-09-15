@@ -1,0 +1,141 @@
+---
+title: 2. Time integration
+description: Derive stability and time error for scalar decay, then inspect an adaptive Eqiora run.
+sidebar:
+  order: 2
+---
+
+import { Code } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import modelSource from '../../../../../../../examples/decay.eqi?raw';
+import programSource from '../../../../../../../examples/python/textbook_decay.py?raw';
+
+## Can a decaying quantity oscillate numerically?
+
+A positive quantity obeying $x'=-kx$, with $k>0$, never changes sign. Yet a
+numerical approximation can alternate between positive and negative values.
+This lesson explains why before running the same decay model with an adaptive
+method.
+
+The equation describes a normalized temperature difference in a simple cooling
+model and appears in first-order circuit dynamics. Its physical derivation is
+in the [ODE lesson](/learn/mathematical-modeling/ordinary-differential-equations/).
+Here we need only $x(0)=1$ and the exact solution $x(t)=e^{-kt}$.
+
+## Replace a derivative by a step
+
+Approximate the derivative at $t_n$ by a forward difference:
+
+$$
+\frac{x_{n+1}-x_n}{\Delta t}=-kx_n,
+\qquad x_{n+1}=(1-k\Delta t)x_n.
+$$
+
+This is forward Euler. Its amplification factor is $g=1-z$, where
+$z=k\Delta t$. The exact factor is $e^{-z}$. Taylor expansion gives
+$e^{-z}=1-z+z^2/2+O(z^3)$: the difference per step starts at second order,
+but accumulated error over a fixed interval is generally first order.
+
+For positive $z$, decay in magnitude requires $|1-z|<1$, or $0<z<2$.
+Preserving nonnegative values further requires $z\leq1$. Stability and
+positivity are different requirements.
+
+| $z$ | Forward Euler factor | Predicted behavior |
+| --- | --- | --- |
+| $0.5$ | $0.5$ | Positive decay, faster than exact decay |
+| $1.5$ | $-0.5$ | Alternating signs with decaying magnitude |
+| $2$ | $-1$ | Persistent sign alternation |
+| $2.5$ | $-1.5$ | Growing oscillation |
+
+These entries follow from the recurrence, not from an Eqiora run. Starting
+from 1 with $z=2.5$, the first three steps are $-1.5$, $2.25$, and $-3.375$.
+The differential equation remains a decay equation throughout this failure.
+
+## Move the slope to the new time
+
+Backward Euler instead uses $-kx_{n+1}$:
+
+$$
+\frac{x_{n+1}-x_n}{\Delta t}=-kx_{n+1},
+\qquad x_{n+1}=\frac{x_n}{1+z}.
+$$
+
+Its factor lies between zero and one for every positive $z$. A very large step
+is therefore stable for this problem, but need not be accurate. At $z=1$,
+one step gives $1/2$, compared with $e^{-1}\approx0.367879$.
+
+For $k=1\,\mathrm{s}^{-1}$ and $T=1\,\mathrm{s}$, taking $N$ equal steps gives
+the following formulas, which you can evaluate without implementing a solver:
+
+$$
+x_N^{\mathrm{FE}}=(1-1/N)^N,
+\qquad x_N^{\mathrm{BE}}=(1+1/N)^{-N}.
+$$
+
+Both tend to $e^{-1}$. Their errors approach zero from opposite sides. Expand
+the logarithms to see the leading error proportional to $1/N$.
+
+## Express the model once
+
+<Code code={modelSource} lang="eqiora" title="decay.eqi" />
+
+There is no time-step size in this source. The rate and initial value describe
+the mathematical problem; the method describes how to approximate it.
+
+## Run the adaptive method
+
+Use the files and environment from [Get started](/get-started/):
+
+```bash
+uv run --no-project --python .venv/bin/python python run.py
+```
+
+<Code code={programSource} lang="python" title="run.py" />
+
+This program uses `Tsitouras45`, an explicit embedded Runge–Kutta method.
+The pair supplies two accuracy estimates from related stage evaluations; their
+difference guides time-step adaptation. See Tsitouras's
+[original paper](https://doi.org/10.1016/j.camwa.2011.06.002) for the method's
+construction.
+
+`initial_step_s` starts the adaptive process; it does not fix every subsequent
+step. `output_times_s` requests observations and is also distinct from the
+internal step sequence. Asking for more output samples does not by itself
+establish improved integration accuracy.
+
+Compare the three values with $e^{-t}$. Then hold the model, interval, and
+observation times fixed and change the requested relative tolerance from
+$10^{-9}$ to $10^{-6}$, together with the absolute tolerance from $10^{-11}$
+to $10^{-8}$. Record the actual errors; a local error-control parameter is
+not an exact bound on every reported global error.
+
+The reference program packages the compile, resolve, and run calls in `solve`.
+After understanding those calls, reuse that function for repeated comparisons.
+The <ExactSourceLink path="examples/python/textbook_decay.py" kind="blob">maintained source</ExactSourceLink>
+is the complete convenience layer; the equation remains in `.eqi`.
+
+## Recognize stiffness without confusing it with instability
+
+If a system contains both $e^{-t}$ and $e^{-1000t}$, the fast component may
+force a small stable explicit step long after it becomes physically small.
+That mismatch between time scales is a reason to investigate stiff methods.
+A scalar run at one rate does not establish the behavior of a coupled stiff
+system. Likewise, the Euler formulas above are analytical teaching examples;
+the supplied executable uses Tsitouras45 and has its own stability behavior.
+
+## Exercises
+
+1. Compute both Euler endpoint formulas for $N=4,8,16$. Divide successive
+   absolute errors and compare with the predicted factor of two.
+2. For $k=20\,\mathrm{s}^{-1}$, derive the forward Euler stability and
+   nonnegativity bounds on $\Delta t$.
+3. Add an output time at $0.75\,\mathrm{s}$. Explain why this is a different
+   experiment from tightening the integration tolerances.
+4. Repeat the adaptive run with rate 2. State the new exact comparison before
+   running; identify the time scale that changed.
+5. Why can a stable backward Euler answer still be unsuitable for estimating
+   a short transient's peak?
+
+[Previous: Errors and residuals](/learn/numerical-simulation/errors-and-residuals/) ·
+[Book map](/learn/numerical-simulation/) ·
+[Next: Weak forms and finite elements](/learn/numerical-simulation/weak-forms-and-finite-elements/)

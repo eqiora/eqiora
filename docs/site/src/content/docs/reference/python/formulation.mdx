@@ -13,6 +13,28 @@ Choose a mathematical formulation and inspect the resolved choice.
 
 <ExactSourceLink path="bindings/python/python/eqiora/formulation.pyi" kind="blob">View source</ExactSourceLink>
 
+## Example: choose a conservative form
+
+With `model` and `mesh` from a scalar elliptic setup in
+[modeling](/guides/modeling/):
+
+```python
+import eqiora
+
+plan = eqiora.resolve(
+    model, mesh=mesh,
+    spatial=eqiora.fvm.CellCenteredTpfa(),
+    formulation=eqiora.formulation.IntegralConservative,
+)
+```
+
+This pairs a conservative mathematical form with a finite-volume policy.
+Use `PrimalGalerkin` with scalar Q1 finite elements and `MixedGalerkin` with
+mixed velocity/pressure elements. The formulation and spatial method must fit
+the model together.
+
+## API
+
 <a id="api-eqiora-formulation-FormulationKind"></a>
 
 ## `FormulationKind`

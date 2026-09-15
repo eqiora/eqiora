@@ -59,7 +59,6 @@ _require(
         "PRESSURE_ALT",
         "PRESSURE_CAPTION",
         "CASE_SOURCE_PATHS",
-        "CASE_EVIDENCE_PATHS",
         "check_starlight",
     ),
 )
@@ -84,7 +83,6 @@ __all__ = (
     "PRESSURE_ALT",
     "PRESSURE_CAPTION",
     "CASE_SOURCE_PATHS",
-    "CASE_EVIDENCE_PATHS",
     "sha256",
     "check_exact_source",
     "check_artifact",
@@ -121,7 +119,6 @@ OLD_SOCIAL_LINE = "Open-source computational engineering · Alpha 0.1.0a1"
 PRESSURE_ALT = _starlight.PRESSURE_ALT
 PRESSURE_CAPTION = _starlight.PRESSURE_CAPTION
 CASE_SOURCE_PATHS = _starlight.CASE_SOURCE_PATHS
-CASE_EVIDENCE_PATHS = _starlight.CASE_EVIDENCE_PATHS
 SITEMAP_ROUTES = _starlight.SITEMAP_ROUTES
 WAKE_ALT = _starlight.WAKE_ALT
 ROUTES = {

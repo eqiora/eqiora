@@ -16,198 +16,264 @@ the native dependencies needed by your application; see the
 
 <ExactSourceLink kind="blob" path="crates/eqiora/src/lib.rs">View source</ExactSourceLink>
 
+## Compile and inspect a model
+
+Add `eqiora` to a Cargo project as described in the setup guide above,
+then put this in `src/main.rs` and run `cargo run`:
+
+```rust
+use eqiora::api::ModelDocument;
+use eqiora::kernel::KernelNode;
+use eqiora::language::NotationProfile;
+
+fn main() {
+    let model = ModelDocument::compile("decay.eqi", r#"
+        model decay(parameter rate: 1 / s = 1) {
+            state x: 1;
+            initial { x = 1; }
+            relation flow { derivative(x) + rate * x = 0; }
+        }
+    "#).expect("model must compile");
+
+    for node in model.program().nodes() {
+        if let KernelNode::Relation(relation) = node {
+            let equations = model.render_equations(
+                relation.id().into(), NotationProfile::Plain,
+            ).expect("equations must render");
+            for equation in equations {
+                println!("{}", equation.text());
+            }
+        }
+    }
+}
+```
+
+The program checks dimensions and names, then prints the compiled
+equations as readable mathematics. Compilation creates an immutable Model;
+it does not advance time. The [Python workflow](/reference/python/)
+shows the corresponding compile, resolve, and run operations.
+
+## Work with physical quantities
+
+```rust
+use eqiora::aliases::Velocity;
+
+let inlet = Velocity::new(3.0);
+let correction = Velocity::new(0.5);
+println!("{} m/s", (inlet + correction).value());
+```
+
+The result is `3.5 m/s`. Quantities carry their dimension in the Rust
+type; adding a velocity to a length is a type error. Values use SI units.
+
+## Save and reload a Model
+
+Continue with the compiled `model` from the first example:
+
+```rust
+let bytes = model.canonical_json().expect("model must serialize");
+std::fs::write("decay.model.json", &bytes).expect("file must be writable");
+let restored = ModelDocument::replay(&bytes).expect("model must reload");
+assert!(model.structurally_equivalent(&restored).unwrap());
+```
+
+Replay restores the model's mathematical content. Keep the original `.eqi`
+source for editing and source-level presentation.
+
 ## Modules
 
-| Module | Classification |
-| --- | --- |
-| [`eqiora::api`](/reference/rust/api/eqiora/api/index.html) | **stable** |
-| [`eqiora::artifact`](/reference/rust/api/eqiora/artifact/index.html) | transitional |
-| [`eqiora::assembly`](/reference/rust/api/eqiora/assembly/index.html) | transitional |
-| [`eqiora::backends`](/reference/rust/api/eqiora/backends/index.html) | transitional |
-| [`eqiora::compiler`](/reference/rust/api/eqiora/compiler/index.html) | transitional |
-| [`eqiora::control`](/reference/rust/api/eqiora/control/index.html) | **stable** |
-| [`eqiora::device`](/reference/rust/api/eqiora/device/index.html) | transitional |
-| [`eqiora::differentiation`](/reference/rust/api/eqiora/differentiation/index.html) | transitional |
-| [`eqiora::distributed`](/reference/rust/api/eqiora/distributed/index.html) | transitional |
-| [`eqiora::geometry`](/reference/rust/api/eqiora/geometry/index.html) | transitional |
-| [`eqiora::graph`](/reference/rust/api/eqiora/graph/index.html) | transitional |
-| [`eqiora::io`](/reference/rust/api/eqiora/io/index.html) | transitional |
-| [`eqiora::ir`](/reference/rust/api/eqiora/ir/index.html) | transitional |
-| [`eqiora::kernel`](/reference/rust/api/eqiora/kernel/index.html) | transitional |
-| [`eqiora::language`](/reference/rust/api/eqiora/language/index.html) | transitional |
-| [`eqiora::meshing`](/reference/rust/api/eqiora/meshing/index.html) | transitional |
-| [`eqiora::numerics`](/reference/rust/api/eqiora/numerics/index.html) | **stable** |
-| [`eqiora::ontology`](/reference/rust/api/eqiora/ontology/index.html) | transitional |
-| [`eqiora::package`](/reference/rust/api/eqiora/package/index.html) | transitional |
-| [`eqiora::realization`](/reference/rust/api/eqiora/realization/index.html) | transitional |
-| [`eqiora::runtime`](/reference/rust/api/eqiora/runtime/index.html) | transitional |
-| [`eqiora::sem`](/reference/rust/api/eqiora/sem/index.html) | transitional |
-| [`eqiora::solver`](/reference/rust/api/eqiora/solver/index.html) | transitional |
-| [`eqiora::time`](/reference/rust/api/eqiora/time/index.html) | transitional |
+Choose a module below, then use rustdoc's search to find a type or method.
 
-## Types and functions
+| Module |
+| --- |
+| [`eqiora::api`](/reference/rust/api/eqiora/api/index.html) |
+| [`eqiora::artifact`](/reference/rust/api/eqiora/artifact/index.html) |
+| [`eqiora::assembly`](/reference/rust/api/eqiora/assembly/index.html) |
+| [`eqiora::backends`](/reference/rust/api/eqiora/backends/index.html) |
+| [`eqiora::compiler`](/reference/rust/api/eqiora/compiler/index.html) |
+| [`eqiora::control`](/reference/rust/api/eqiora/control/index.html) |
+| [`eqiora::device`](/reference/rust/api/eqiora/device/index.html) |
+| [`eqiora::differentiation`](/reference/rust/api/eqiora/differentiation/index.html) |
+| [`eqiora::distributed`](/reference/rust/api/eqiora/distributed/index.html) |
+| [`eqiora::geometry`](/reference/rust/api/eqiora/geometry/index.html) |
+| [`eqiora::graph`](/reference/rust/api/eqiora/graph/index.html) |
+| [`eqiora::io`](/reference/rust/api/eqiora/io/index.html) |
+| [`eqiora::ir`](/reference/rust/api/eqiora/ir/index.html) |
+| [`eqiora::kernel`](/reference/rust/api/eqiora/kernel/index.html) |
+| [`eqiora::language`](/reference/rust/api/eqiora/language/index.html) |
+| [`eqiora::meshing`](/reference/rust/api/eqiora/meshing/index.html) |
+| [`eqiora::numerics`](/reference/rust/api/eqiora/numerics/index.html) |
+| [`eqiora::ontology`](/reference/rust/api/eqiora/ontology/index.html) |
+| [`eqiora::package`](/reference/rust/api/eqiora/package/index.html) |
+| [`eqiora::realization`](/reference/rust/api/eqiora/realization/index.html) |
+| [`eqiora::runtime`](/reference/rust/api/eqiora/runtime/index.html) |
+| [`eqiora::sem`](/reference/rust/api/eqiora/sem/index.html) |
+| [`eqiora::solver`](/reference/rust/api/eqiora/solver/index.html) |
+| [`eqiora::time`](/reference/rust/api/eqiora/time/index.html) |
 
-| Item | Classification |
-| --- | --- |
-| [`eqiora::Code`](/reference/rust/api/eqiora/struct.Code.html) | **stable** |
-| [`eqiora::Diagnostic`](/reference/rust/api/eqiora/struct.Diagnostic.html) | **stable** |
-| [`eqiora::DimExponents`](/reference/rust/api/eqiora/struct.DimExponents.html) | **stable** |
-| [`eqiora::Dimension`](/reference/rust/api/eqiora/trait.Dimension.html) | **stable** |
-| [`eqiora::DynQuantity`](/reference/rust/api/eqiora/struct.DynQuantity.html) | **stable** |
-| [`eqiora::Entity`](/reference/rust/api/eqiora/trait.Entity.html) | **stable** |
-| [`eqiora::EntityKind`](/reference/rust/api/eqiora/enum.EntityKind.html) | **stable** |
-| [`eqiora::GraphClass`](/reference/rust/api/eqiora/enum.GraphClass.html) | **stable** |
-| [`eqiora::GraphKind`](/reference/rust/api/eqiora/trait.GraphKind.html) | **stable** |
-| [`eqiora::GraphPath`](/reference/rust/api/eqiora/struct.GraphPath.html) | **stable** |
-| [`eqiora::Id`](/reference/rust/api/eqiora/struct.Id.html) | **stable** |
-| [`eqiora::InvalidValueLiteral`](/reference/rust/api/eqiora/enum.InvalidValueLiteral.html) | **stable** |
-| [`eqiora::InvalidValueShape`](/reference/rust/api/eqiora/struct.InvalidValueShape.html) | **stable** |
-| [`eqiora::InvalidValueType`](/reference/rust/api/eqiora/enum.InvalidValueType.html) | **stable** |
-| [`eqiora::Patch`](/reference/rust/api/eqiora/struct.Patch.html) | **stable** |
-| [`eqiora::Quantity`](/reference/rust/api/eqiora/struct.Quantity.html) | **stable** |
-| [`eqiora::RawId`](/reference/rust/api/eqiora/struct.RawId.html) | **stable** |
-| [`eqiora::Scalar`](/reference/rust/api/eqiora/trait.Scalar.html) | **stable** |
-| [`eqiora::ScalarDomain`](/reference/rust/api/eqiora/enum.ScalarDomain.html) | **stable** |
-| [`eqiora::Severity`](/reference/rust/api/eqiora/enum.Severity.html) | **stable** |
-| [`eqiora::Span`](/reference/rust/api/eqiora/struct.Span.html) | **stable** |
-| [`eqiora::VERSION`](/reference/rust/api/eqiora/constant.VERSION.html) | **stable** |
-| [`eqiora::ValueFrame`](/reference/rust/api/eqiora/enum.ValueFrame.html) | **stable** |
-| [`eqiora::ValueLiteral`](/reference/rust/api/eqiora/struct.ValueLiteral.html) | **stable** |
-| [`eqiora::ValueShape`](/reference/rust/api/eqiora/struct.ValueShape.html) | **stable** |
-| [`eqiora::ValueType`](/reference/rust/api/eqiora/struct.ValueType.html) | **stable** |
-| [`eqiora::aliases`](/reference/rust/api/eqiora/aliases/index.html) | **stable** |
-| [`eqiora::api::CadBoxIntentV1`](/reference/rust/api/eqiora/api/struct.CadBoxIntentV1.html) | transitional |
-| [`eqiora::api::CadBoxPlanV1`](/reference/rust/api/eqiora/api/struct.CadBoxPlanV1.html) | transitional |
-| [`eqiora::api::CadRegenerationPlanV1`](/reference/rust/api/eqiora/api/struct.CadRegenerationPlanV1.html) | transitional |
-| [`eqiora::api::CadRenderProjectionV1`](/reference/rust/api/eqiora/api/struct.CadRenderProjectionV1.html) | transitional |
-| [`eqiora::api::CadRenderTriangleV1`](/reference/rust/api/eqiora/api/struct.CadRenderTriangleV1.html) | transitional |
-| [`eqiora::api::CadSelectionRequestV1`](/reference/rust/api/eqiora/api/struct.CadSelectionRequestV1.html) | transitional |
-| [`eqiora::api::CadSemanticEntityKindV1`](/reference/rust/api/eqiora/api/enum.CadSemanticEntityKindV1.html) | transitional |
-| [`eqiora::api::CadSemanticEntityV1`](/reference/rust/api/eqiora/api/struct.CadSemanticEntityV1.html) | transitional |
-| [`eqiora::api::CadSemanticSelectionV1`](/reference/rust/api/eqiora/api/struct.CadSemanticSelectionV1.html) | transitional |
-| [`eqiora::api::CartesianDomainEditPlan`](/reference/rust/api/eqiora/api/struct.CartesianDomainEditPlan.html) | transitional |
-| [`eqiora::api::CartesianDomainEditResult`](/reference/rust/api/eqiora/api/struct.CartesianDomainEditResult.html) | transitional |
-| [`eqiora::api::CompleteEvaluationMap`](/reference/rust/api/eqiora/api/struct.CompleteEvaluationMap.html) | transitional |
-| [`eqiora::api::DerivativeContract`](/reference/rust/api/eqiora/api/enum.DerivativeContract.html) | transitional |
-| [`eqiora::api::DerivativeImplementation`](/reference/rust/api/eqiora/api/enum.DerivativeImplementation.html) | transitional |
-| [`eqiora::api::DifferentiableDevice`](/reference/rust/api/eqiora/api/enum.DifferentiableDevice.html) | transitional |
-| [`eqiora::api::DifferentiableEvaluation`](/reference/rust/api/eqiora/api/struct.DifferentiableEvaluation.html) | transitional |
-| [`eqiora::api::DifferentiableJvp`](/reference/rust/api/eqiora/api/struct.DifferentiableJvp.html) | transitional |
-| [`eqiora::api::DifferentiableParameterPoint`](/reference/rust/api/eqiora/api/struct.DifferentiableParameterPoint.html) | transitional |
-| [`eqiora::api::DifferentiablePrimal`](/reference/rust/api/eqiora/api/struct.DifferentiablePrimal.html) | transitional |
-| [`eqiora::api::DifferentiableProgram`](/reference/rust/api/eqiora/api/struct.DifferentiableProgram.html) | transitional |
-| [`eqiora::api::DifferentiableProgramIdentity`](/reference/rust/api/eqiora/api/struct.DifferentiableProgramIdentity.html) | transitional |
-| [`eqiora::api::DifferentiableScalarType`](/reference/rust/api/eqiora/api/enum.DifferentiableScalarType.html) | transitional |
-| [`eqiora::api::DifferentiableVjp`](/reference/rust/api/eqiora/api/struct.DifferentiableVjp.html) | transitional |
-| [`eqiora::api::DifferentiationEvidence`](/reference/rust/api/eqiora/api/struct.DifferentiationEvidence.html) | transitional |
-| [`eqiora::api::DifferentiationMode`](/reference/rust/api/eqiora/api/enum.DifferentiationMode.html) | transitional |
-| [`eqiora::api::EditorDefinition`](/reference/rust/api/eqiora/api/struct.EditorDefinition.html) | transitional |
-| [`eqiora::api::EditorPosition`](/reference/rust/api/eqiora/api/struct.EditorPosition.html) | transitional |
-| [`eqiora::api::EditorReference`](/reference/rust/api/eqiora/api/struct.EditorReference.html) | transitional |
-| [`eqiora::api::EditorService`](/reference/rust/api/eqiora/api/struct.EditorService.html) | transitional |
-| [`eqiora::api::EditorSnapshot`](/reference/rust/api/eqiora/api/struct.EditorSnapshot.html) | transitional |
-| [`eqiora::api::EditorSymbol`](/reference/rust/api/eqiora/api/struct.EditorSymbol.html) | transitional |
-| [`eqiora::api::EditorSymbolKind`](/reference/rust/api/eqiora/api/enum.EditorSymbolKind.html) | transitional |
-| [`eqiora::api::EditorWorkspaceService`](/reference/rust/api/eqiora/api/struct.EditorWorkspaceService.html) | transitional |
-| [`eqiora::api::EditorWorkspaceSnapshot`](/reference/rust/api/eqiora/api/struct.EditorWorkspaceSnapshot.html) | transitional |
-| [`eqiora::api::EvaluationMapExecutionPolicy`](/reference/rust/api/eqiora/api/struct.EvaluationMapExecutionPolicy.html) | transitional |
-| [`eqiora::api::EvaluationMapJvp`](/reference/rust/api/eqiora/api/struct.EvaluationMapJvp.html) | transitional |
-| [`eqiora::api::EvaluationMapOccurrence`](/reference/rust/api/eqiora/api/enum.EvaluationMapOccurrence.html) | transitional |
-| [`eqiora::api::EvaluationMapPlan`](/reference/rust/api/eqiora/api/struct.EvaluationMapPlan.html) | transitional |
-| [`eqiora::api::EvaluationMapProducts`](/reference/rust/api/eqiora/api/struct.EvaluationMapProducts.html) | transitional |
-| [`eqiora::api::EvaluationMapRetention`](/reference/rust/api/eqiora/api/enum.EvaluationMapRetention.html) | transitional |
-| [`eqiora::api::EvaluationMapTerminalReport`](/reference/rust/api/eqiora/api/struct.EvaluationMapTerminalReport.html) | transitional |
-| [`eqiora::api::EvaluationMapVjp`](/reference/rust/api/eqiora/api/struct.EvaluationMapVjp.html) | transitional |
-| [`eqiora::api::LinearizationState`](/reference/rust/api/eqiora/api/enum.LinearizationState.html) | transitional |
-| [`eqiora::api::MathReference`](/reference/rust/api/eqiora/api/struct.MathReference.html) | transitional |
-| [`eqiora::api::MathRendering`](/reference/rust/api/eqiora/api/struct.MathRendering.html) | transitional |
-| [`eqiora::api::MlDatasetArtifactsV1`](/reference/rust/api/eqiora/api/struct.MlDatasetArtifactsV1.html) | transitional |
-| [`eqiora::api::MlDatasetBlockArrayV1`](/reference/rust/api/eqiora/api/struct.MlDatasetBlockArrayV1.html) | transitional |
-| [`eqiora::api::MlDatasetDerivationPlanV1`](/reference/rust/api/eqiora/api/struct.MlDatasetDerivationPlanV1.html) | transitional |
-| [`eqiora::api::MlDatasetFieldSelectionV1`](/reference/rust/api/eqiora/api/struct.MlDatasetFieldSelectionV1.html) | transitional |
-| [`eqiora::api::MlDatasetMaterializationLimitsV1`](/reference/rust/api/eqiora/api/struct.MlDatasetMaterializationLimitsV1.html) | transitional |
-| [`eqiora::api::MlDatasetMaterializationV1`](/reference/rust/api/eqiora/api/struct.MlDatasetMaterializationV1.html) | transitional |
-| [`eqiora::api::MlDatasetSampleArraysV1`](/reference/rust/api/eqiora/api/struct.MlDatasetSampleArraysV1.html) | transitional |
-| [`eqiora::api::MlDatasetSampleSelectionV1`](/reference/rust/api/eqiora/api/struct.MlDatasetSampleSelectionV1.html) | transitional |
-| [`eqiora::api::ModelDocument`](/reference/rust/api/eqiora/api/struct.ModelDocument.html) | **stable** |
-| [`eqiora::api::ModelFieldRef`](/reference/rust/api/eqiora/api/struct.ModelFieldRef.html) | transitional |
-| [`eqiora::api::ModelParameterRef`](/reference/rust/api/eqiora/api/struct.ModelParameterRef.html) | transitional |
-| [`eqiora::api::ParameterGeometryRegenerationPlan`](/reference/rust/api/eqiora/api/struct.ParameterGeometryRegenerationPlan.html) | transitional |
-| [`eqiora::api::ParameterGeometryRegenerationResult`](/reference/rust/api/eqiora/api/struct.ParameterGeometryRegenerationResult.html) | transitional |
-| [`eqiora::api::ParameterSampler`](/reference/rust/api/eqiora/api/struct.ParameterSampler.html) | transitional |
-| [`eqiora::api::RemeshingTrajectoryReplayInputV1`](/reference/rust/api/eqiora/api/struct.RemeshingTrajectoryReplayInputV1.html) | transitional |
-| [`eqiora::api::RunRequest`](/reference/rust/api/eqiora/api/struct.RunRequest.html) | transitional |
-| [`eqiora::api::SampledParameterPoint`](/reference/rust/api/eqiora/api/struct.SampledParameterPoint.html) | transitional |
-| [`eqiora::api::SamplingCoupling`](/reference/rust/api/eqiora/api/enum.SamplingCoupling.html) | transitional |
-| [`eqiora::api::SamplingGenerator`](/reference/rust/api/eqiora/api/enum.SamplingGenerator.html) | transitional |
-| [`eqiora::api::SamplingIdentity`](/reference/rust/api/eqiora/api/struct.SamplingIdentity.html) | transitional |
-| [`eqiora::api::SemanticFingerprintGeneration`](/reference/rust/api/eqiora/api/enum.SemanticFingerprintGeneration.html) | **stable** |
-| [`eqiora::api::StructuralSemanticFingerprint`](/reference/rust/api/eqiora/api/struct.StructuralSemanticFingerprint.html) | **stable** |
-| [`eqiora::api::ValueEditPlan`](/reference/rust/api/eqiora/api/struct.ValueEditPlan.html) | transitional |
-| [`eqiora::api::ValueEditResult`](/reference/rust/api/eqiora/api/struct.ValueEditResult.html) | transitional |
-| [`eqiora::api::VerifiedMlDatasetV1`](/reference/rust/api/eqiora/api/struct.VerifiedMlDatasetV1.html) | transitional |
-| [`eqiora::api::VerifiedVtuImportV1`](/reference/rust/api/eqiora/api/struct.VerifiedVtuImportV1.html) | transitional |
-| [`eqiora::api::VerifiedXdmfHdf5TrajectoryExportV1`](/reference/rust/api/eqiora/api/struct.VerifiedXdmfHdf5TrajectoryExportV1.html) | transitional |
-| [`eqiora::api::VerifiedXdmfImportV1`](/reference/rust/api/eqiora/api/struct.VerifiedXdmfImportV1.html) | transitional |
-| [`eqiora::api::VtuImportArtifactsV1`](/reference/rust/api/eqiora/api/struct.VtuImportArtifactsV1.html) | transitional |
-| [`eqiora::api::XdmfHdf5TrajectoryExportArtifactsV1`](/reference/rust/api/eqiora/api/struct.XdmfHdf5TrajectoryExportArtifactsV1.html) | transitional |
-| [`eqiora::api::XdmfHdf5TrajectoryExportLimits`](/reference/rust/api/eqiora/api/struct.XdmfHdf5TrajectoryExportLimits.html) | transitional |
-| [`eqiora::api::XdmfImportArtifactsV1`](/reference/rust/api/eqiora/api/struct.XdmfImportArtifactsV1.html) | transitional |
-| [`eqiora::api::derive_ml_dataset_v1`](/reference/rust/api/eqiora/api/fn.derive_ml_dataset_v1.html) | transitional |
-| [`eqiora::api::export_xdmf_hdf5_trajectory_v1`](/reference/rust/api/eqiora/api/fn.export_xdmf_hdf5_trajectory_v1.html) | transitional |
-| [`eqiora::api::import_vtu_v1`](/reference/rust/api/eqiora/api/fn.import_vtu_v1.html) | transitional |
-| [`eqiora::api::import_xdmf_hdf5_v1`](/reference/rust/api/eqiora/api/fn.import_xdmf_hdf5_v1.html) | transitional |
-| [`eqiora::api::import_xdmf_v1`](/reference/rust/api/eqiora/api/fn.import_xdmf_v1.html) | transitional |
-| [`eqiora::api::package`](/reference/rust/api/eqiora/api/package/index.html) | transitional |
-| [`eqiora::api::verify_ml_dataset_v1`](/reference/rust/api/eqiora/api/fn.verify_ml_dataset_v1.html) | transitional |
-| [`eqiora::api::verify_vtu_import_v1`](/reference/rust/api/eqiora/api/fn.verify_vtu_import_v1.html) | transitional |
-| [`eqiora::api::verify_xdmf_hdf5_import_v1`](/reference/rust/api/eqiora/api/fn.verify_xdmf_hdf5_import_v1.html) | transitional |
-| [`eqiora::api::verify_xdmf_hdf5_trajectory_storage_v1`](/reference/rust/api/eqiora/api/fn.verify_xdmf_hdf5_trajectory_storage_v1.html) | transitional |
-| [`eqiora::api::verify_xdmf_import_v1`](/reference/rust/api/eqiora/api/fn.verify_xdmf_import_v1.html) | transitional |
-| [`eqiora::control::COMPILE_COMMAND_V1`](/reference/rust/api/eqiora/control/constant.COMPILE_COMMAND_V1.html) | **stable** |
-| [`eqiora::control::COMPILE_V2_SCHEMA_JSON`](/reference/rust/api/eqiora/control/constant.COMPILE_V2_SCHEMA_JSON.html) | **stable** |
-| [`eqiora::control::CONTROL_PROTOCOL_V2`](/reference/rust/api/eqiora/control/constant.CONTROL_PROTOCOL_V2.html) | **stable** |
-| [`eqiora::control::CompileControlExecutionV2`](/reference/rust/api/eqiora/control/struct.CompileControlExecutionV2.html) | **stable** |
-| [`eqiora::control::CompileModelDescriptorV2`](/reference/rust/api/eqiora/control/struct.CompileModelDescriptorV2.html) | **stable** |
-| [`eqiora::control::CompileOutcomeV2`](/reference/rust/api/eqiora/control/enum.CompileOutcomeV2.html) | **stable** |
-| [`eqiora::control::CompileRequestV2`](/reference/rust/api/eqiora/control/struct.CompileRequestV2.html) | **stable** |
-| [`eqiora::control::CompileResponseV2`](/reference/rust/api/eqiora/control/struct.CompileResponseV2.html) | **stable** |
-| [`eqiora::control::ControlDiagnosticSourceV2`](/reference/rust/api/eqiora/control/enum.ControlDiagnosticSourceV2.html) | **stable** |
-| [`eqiora::control::ControlDiagnosticV2`](/reference/rust/api/eqiora/control/struct.ControlDiagnosticV2.html) | **stable** |
-| [`eqiora::control::ControlPatchV2`](/reference/rust/api/eqiora/control/struct.ControlPatchV2.html) | **stable** |
-| [`eqiora::control::ControlSeverityV2`](/reference/rust/api/eqiora/control/enum.ControlSeverityV2.html) | **stable** |
-| [`eqiora::control::ControlSourceSpanV2`](/reference/rust/api/eqiora/control/struct.ControlSourceSpanV2.html) | **stable** |
-| [`eqiora::control::MAX_COMPILE_FILENAME_BYTES_V2`](/reference/rust/api/eqiora/control/constant.MAX_COMPILE_FILENAME_BYTES_V2.html) | **stable** |
-| [`eqiora::control::MAX_COMPILE_REQUEST_BYTES_V2`](/reference/rust/api/eqiora/control/constant.MAX_COMPILE_REQUEST_BYTES_V2.html) | **stable** |
-| [`eqiora::control::MAX_COMPILE_RESPONSE_BYTES_V2`](/reference/rust/api/eqiora/control/constant.MAX_COMPILE_RESPONSE_BYTES_V2.html) | **stable** |
-| [`eqiora::control::MAX_COMPILE_SOURCE_BYTES_V2`](/reference/rust/api/eqiora/control/constant.MAX_COMPILE_SOURCE_BYTES_V2.html) | **stable** |
-| [`eqiora::control::MAX_CONTROL_REQUEST_ID_BYTES_V2`](/reference/rust/api/eqiora/control/constant.MAX_CONTROL_REQUEST_ID_BYTES_V2.html) | **stable** |
-| [`eqiora::control::execute_compile_v2`](/reference/rust/api/eqiora/control/fn.execute_compile_v2.html) | **stable** |
-| [`eqiora::diagnostic`](/reference/rust/api/eqiora/diagnostic/index.html) | **stable** |
-| [`eqiora::dim`](/reference/rust/api/eqiora/dim/index.html) | **stable** |
-| [`eqiora::entity`](/reference/rust/api/eqiora/entity/index.html) | **stable** |
-| [`eqiora::kinds`](/reference/rust/api/eqiora/kinds/index.html) | **stable** |
-| [`eqiora::numerics::AleFsiCartesianModel`](/reference/rust/api/eqiora/numerics/struct.AleFsiCartesianModel.html) | transitional |
-| [`eqiora::numerics::CartesianLinearElasticity2dSolution`](/reference/rust/api/eqiora/numerics/struct.CartesianLinearElasticity2dSolution.html) | transitional |
-| [`eqiora::numerics::FinalizedIsotropicElasticityCartesian2dProblem`](/reference/rust/api/eqiora/numerics/struct.FinalizedIsotropicElasticityCartesian2dProblem.html) | transitional |
-| [`eqiora::numerics::FinalizedResolvedFixedTopologyAleFsi`](/reference/rust/api/eqiora/numerics/struct.FinalizedResolvedFixedTopologyAleFsi.html) | transitional |
-| [`eqiora::numerics::FinalizedScalarEllipticCartesianProblem`](/reference/rust/api/eqiora/numerics/struct.FinalizedScalarEllipticCartesianProblem.html) | transitional |
-| [`eqiora::numerics::FinalizedSteadyStokesMini2dProblem`](/reference/rust/api/eqiora/numerics/struct.FinalizedSteadyStokesMini2dProblem.html) | transitional |
-| [`eqiora::numerics::IncompressibleFlowScaleProfile2d`](/reference/rust/api/eqiora/numerics/struct.IncompressibleFlowScaleProfile2d.html) | transitional |
-| [`eqiora::numerics::IsotropicElasticityContinuum`](/reference/rust/api/eqiora/numerics/struct.IsotropicElasticityContinuum.html) | transitional |
-| [`eqiora::numerics::ResolvedScalarEllipticCartesianSolution`](/reference/rust/api/eqiora/numerics/enum.ResolvedScalarEllipticCartesianSolution.html) | transitional |
-| [`eqiora::numerics::ScalarEllipticCartesianModel`](/reference/rust/api/eqiora/numerics/struct.ScalarEllipticCartesianModel.html) | transitional |
-| [`eqiora::numerics::SteadyIncompressibleStokesCartesianModel2d`](/reference/rust/api/eqiora/numerics/struct.SteadyIncompressibleStokesCartesianModel2d.html) | transitional |
-| [`eqiora::numerics::SteadyStokesMiniSolution2d`](/reference/rust/api/eqiora/numerics/struct.SteadyStokesMiniSolution2d.html) | transitional |
-| [`eqiora::numerics::finalize_resolved_fixed_topology_ale_fsi_2d`](/reference/rust/api/eqiora/numerics/fn.finalize_resolved_fixed_topology_ale_fsi_2d.html) | transitional |
-| [`eqiora::numerics::finalize_resolved_isotropic_elasticity_cartesian_2d`](/reference/rust/api/eqiora/numerics/fn.finalize_resolved_isotropic_elasticity_cartesian_2d.html) | transitional |
-| [`eqiora::numerics::finalize_resolved_scalar_elliptic_cartesian`](/reference/rust/api/eqiora/numerics/fn.finalize_resolved_scalar_elliptic_cartesian.html) | transitional |
-| [`eqiora::numerics::finalize_resolved_steady_stokes_mini_2d`](/reference/rust/api/eqiora/numerics/fn.finalize_resolved_steady_stokes_mini_2d.html) | transitional |
-| [`eqiora::numerics::lower_ale_fsi_cartesian_2d`](/reference/rust/api/eqiora/numerics/fn.lower_ale_fsi_cartesian_2d.html) | transitional |
-| [`eqiora::numerics::lower_isotropic_elasticity_cartesian_2d`](/reference/rust/api/eqiora/numerics/fn.lower_isotropic_elasticity_cartesian_2d.html) | transitional |
-| [`eqiora::numerics::lower_scalar_elliptic_cartesian`](/reference/rust/api/eqiora/numerics/fn.lower_scalar_elliptic_cartesian.html) | transitional |
-| [`eqiora::numerics::lower_steady_incompressible_stokes_cartesian_2d`](/reference/rust/api/eqiora/numerics/fn.lower_steady_incompressible_stokes_cartesian_2d.html) | transitional |
-| [`eqiora::numerics::solve_resolved_isotropic_elasticity_cartesian_2d`](/reference/rust/api/eqiora/numerics/fn.solve_resolved_isotropic_elasticity_cartesian_2d.html) | transitional |
-| [`eqiora::numerics::solve_resolved_scalar_elliptic_cartesian`](/reference/rust/api/eqiora/numerics/fn.solve_resolved_scalar_elliptic_cartesian.html) | transitional |
-| [`eqiora::numerics::solve_resolved_steady_stokes_mini_2d`](/reference/rust/api/eqiora/numerics/fn.solve_resolved_steady_stokes_mini_2d.html) | transitional |
-| [`eqiora::quantity`](/reference/rust/api/eqiora/quantity/index.html) | **stable** |
+## Complete item index
+
+| Item |
+| --- |
+| [`eqiora::Code`](/reference/rust/api/eqiora/struct.Code.html) |
+| [`eqiora::Diagnostic`](/reference/rust/api/eqiora/struct.Diagnostic.html) |
+| [`eqiora::DimExponents`](/reference/rust/api/eqiora/struct.DimExponents.html) |
+| [`eqiora::Dimension`](/reference/rust/api/eqiora/trait.Dimension.html) |
+| [`eqiora::DynQuantity`](/reference/rust/api/eqiora/struct.DynQuantity.html) |
+| [`eqiora::Entity`](/reference/rust/api/eqiora/trait.Entity.html) |
+| [`eqiora::EntityKind`](/reference/rust/api/eqiora/enum.EntityKind.html) |
+| [`eqiora::GraphClass`](/reference/rust/api/eqiora/enum.GraphClass.html) |
+| [`eqiora::GraphKind`](/reference/rust/api/eqiora/trait.GraphKind.html) |
+| [`eqiora::GraphPath`](/reference/rust/api/eqiora/struct.GraphPath.html) |
+| [`eqiora::Id`](/reference/rust/api/eqiora/struct.Id.html) |
+| [`eqiora::InvalidValueLiteral`](/reference/rust/api/eqiora/enum.InvalidValueLiteral.html) |
+| [`eqiora::InvalidValueShape`](/reference/rust/api/eqiora/struct.InvalidValueShape.html) |
+| [`eqiora::InvalidValueType`](/reference/rust/api/eqiora/enum.InvalidValueType.html) |
+| [`eqiora::Patch`](/reference/rust/api/eqiora/struct.Patch.html) |
+| [`eqiora::Quantity`](/reference/rust/api/eqiora/struct.Quantity.html) |
+| [`eqiora::RawId`](/reference/rust/api/eqiora/struct.RawId.html) |
+| [`eqiora::Scalar`](/reference/rust/api/eqiora/trait.Scalar.html) |
+| [`eqiora::ScalarDomain`](/reference/rust/api/eqiora/enum.ScalarDomain.html) |
+| [`eqiora::Severity`](/reference/rust/api/eqiora/enum.Severity.html) |
+| [`eqiora::Span`](/reference/rust/api/eqiora/struct.Span.html) |
+| [`eqiora::VERSION`](/reference/rust/api/eqiora/constant.VERSION.html) |
+| [`eqiora::ValueFrame`](/reference/rust/api/eqiora/enum.ValueFrame.html) |
+| [`eqiora::ValueLiteral`](/reference/rust/api/eqiora/struct.ValueLiteral.html) |
+| [`eqiora::ValueShape`](/reference/rust/api/eqiora/struct.ValueShape.html) |
+| [`eqiora::ValueType`](/reference/rust/api/eqiora/struct.ValueType.html) |
+| [`eqiora::aliases`](/reference/rust/api/eqiora/aliases/index.html) |
+| [`eqiora::api::CadBoxIntentV1`](/reference/rust/api/eqiora/api/struct.CadBoxIntentV1.html) |
+| [`eqiora::api::CadBoxPlanV1`](/reference/rust/api/eqiora/api/struct.CadBoxPlanV1.html) |
+| [`eqiora::api::CadRegenerationPlanV1`](/reference/rust/api/eqiora/api/struct.CadRegenerationPlanV1.html) |
+| [`eqiora::api::CadRenderProjectionV1`](/reference/rust/api/eqiora/api/struct.CadRenderProjectionV1.html) |
+| [`eqiora::api::CadRenderTriangleV1`](/reference/rust/api/eqiora/api/struct.CadRenderTriangleV1.html) |
+| [`eqiora::api::CadSelectionRequestV1`](/reference/rust/api/eqiora/api/struct.CadSelectionRequestV1.html) |
+| [`eqiora::api::CadSemanticEntityKindV1`](/reference/rust/api/eqiora/api/enum.CadSemanticEntityKindV1.html) |
+| [`eqiora::api::CadSemanticEntityV1`](/reference/rust/api/eqiora/api/struct.CadSemanticEntityV1.html) |
+| [`eqiora::api::CadSemanticSelectionV1`](/reference/rust/api/eqiora/api/struct.CadSemanticSelectionV1.html) |
+| [`eqiora::api::CartesianDomainEditPlan`](/reference/rust/api/eqiora/api/struct.CartesianDomainEditPlan.html) |
+| [`eqiora::api::CartesianDomainEditResult`](/reference/rust/api/eqiora/api/struct.CartesianDomainEditResult.html) |
+| [`eqiora::api::CompleteEvaluationMap`](/reference/rust/api/eqiora/api/struct.CompleteEvaluationMap.html) |
+| [`eqiora::api::DerivativeContract`](/reference/rust/api/eqiora/api/enum.DerivativeContract.html) |
+| [`eqiora::api::DerivativeImplementation`](/reference/rust/api/eqiora/api/enum.DerivativeImplementation.html) |
+| [`eqiora::api::DifferentiableDevice`](/reference/rust/api/eqiora/api/enum.DifferentiableDevice.html) |
+| [`eqiora::api::DifferentiableEvaluation`](/reference/rust/api/eqiora/api/struct.DifferentiableEvaluation.html) |
+| [`eqiora::api::DifferentiableJvp`](/reference/rust/api/eqiora/api/struct.DifferentiableJvp.html) |
+| [`eqiora::api::DifferentiableParameterPoint`](/reference/rust/api/eqiora/api/struct.DifferentiableParameterPoint.html) |
+| [`eqiora::api::DifferentiablePrimal`](/reference/rust/api/eqiora/api/struct.DifferentiablePrimal.html) |
+| [`eqiora::api::DifferentiableProgram`](/reference/rust/api/eqiora/api/struct.DifferentiableProgram.html) |
+| [`eqiora::api::DifferentiableProgramIdentity`](/reference/rust/api/eqiora/api/struct.DifferentiableProgramIdentity.html) |
+| [`eqiora::api::DifferentiableScalarType`](/reference/rust/api/eqiora/api/enum.DifferentiableScalarType.html) |
+| [`eqiora::api::DifferentiableVjp`](/reference/rust/api/eqiora/api/struct.DifferentiableVjp.html) |
+| [`eqiora::api::DifferentiationEvidence`](/reference/rust/api/eqiora/api/struct.DifferentiationEvidence.html) |
+| [`eqiora::api::DifferentiationMode`](/reference/rust/api/eqiora/api/enum.DifferentiationMode.html) |
+| [`eqiora::api::EditorDefinition`](/reference/rust/api/eqiora/api/struct.EditorDefinition.html) |
+| [`eqiora::api::EditorPosition`](/reference/rust/api/eqiora/api/struct.EditorPosition.html) |
+| [`eqiora::api::EditorReference`](/reference/rust/api/eqiora/api/struct.EditorReference.html) |
+| [`eqiora::api::EditorService`](/reference/rust/api/eqiora/api/struct.EditorService.html) |
+| [`eqiora::api::EditorSnapshot`](/reference/rust/api/eqiora/api/struct.EditorSnapshot.html) |
+| [`eqiora::api::EditorSymbol`](/reference/rust/api/eqiora/api/struct.EditorSymbol.html) |
+| [`eqiora::api::EditorSymbolKind`](/reference/rust/api/eqiora/api/enum.EditorSymbolKind.html) |
+| [`eqiora::api::EditorWorkspaceService`](/reference/rust/api/eqiora/api/struct.EditorWorkspaceService.html) |
+| [`eqiora::api::EditorWorkspaceSnapshot`](/reference/rust/api/eqiora/api/struct.EditorWorkspaceSnapshot.html) |
+| [`eqiora::api::EvaluationMapExecutionPolicy`](/reference/rust/api/eqiora/api/struct.EvaluationMapExecutionPolicy.html) |
+| [`eqiora::api::EvaluationMapJvp`](/reference/rust/api/eqiora/api/struct.EvaluationMapJvp.html) |
+| [`eqiora::api::EvaluationMapOccurrence`](/reference/rust/api/eqiora/api/enum.EvaluationMapOccurrence.html) |
+| [`eqiora::api::EvaluationMapPlan`](/reference/rust/api/eqiora/api/struct.EvaluationMapPlan.html) |
+| [`eqiora::api::EvaluationMapProducts`](/reference/rust/api/eqiora/api/struct.EvaluationMapProducts.html) |
+| [`eqiora::api::EvaluationMapRetention`](/reference/rust/api/eqiora/api/enum.EvaluationMapRetention.html) |
+| [`eqiora::api::EvaluationMapTerminalReport`](/reference/rust/api/eqiora/api/struct.EvaluationMapTerminalReport.html) |
+| [`eqiora::api::EvaluationMapVjp`](/reference/rust/api/eqiora/api/struct.EvaluationMapVjp.html) |
+| [`eqiora::api::LinearizationState`](/reference/rust/api/eqiora/api/enum.LinearizationState.html) |
+| [`eqiora::api::MathReference`](/reference/rust/api/eqiora/api/struct.MathReference.html) |
+| [`eqiora::api::MathRendering`](/reference/rust/api/eqiora/api/struct.MathRendering.html) |
+| [`eqiora::api::MlDatasetArtifactsV1`](/reference/rust/api/eqiora/api/struct.MlDatasetArtifactsV1.html) |
+| [`eqiora::api::MlDatasetBlockArrayV1`](/reference/rust/api/eqiora/api/struct.MlDatasetBlockArrayV1.html) |
+| [`eqiora::api::MlDatasetDerivationPlanV1`](/reference/rust/api/eqiora/api/struct.MlDatasetDerivationPlanV1.html) |
+| [`eqiora::api::MlDatasetFieldSelectionV1`](/reference/rust/api/eqiora/api/struct.MlDatasetFieldSelectionV1.html) |
+| [`eqiora::api::MlDatasetMaterializationLimitsV1`](/reference/rust/api/eqiora/api/struct.MlDatasetMaterializationLimitsV1.html) |
+| [`eqiora::api::MlDatasetMaterializationV1`](/reference/rust/api/eqiora/api/struct.MlDatasetMaterializationV1.html) |
+| [`eqiora::api::MlDatasetSampleArraysV1`](/reference/rust/api/eqiora/api/struct.MlDatasetSampleArraysV1.html) |
+| [`eqiora::api::MlDatasetSampleSelectionV1`](/reference/rust/api/eqiora/api/struct.MlDatasetSampleSelectionV1.html) |
+| [`eqiora::api::ModelDocument`](/reference/rust/api/eqiora/api/struct.ModelDocument.html) |
+| [`eqiora::api::ModelFieldRef`](/reference/rust/api/eqiora/api/struct.ModelFieldRef.html) |
+| [`eqiora::api::ModelParameterRef`](/reference/rust/api/eqiora/api/struct.ModelParameterRef.html) |
+| [`eqiora::api::ParameterGeometryRegenerationPlan`](/reference/rust/api/eqiora/api/struct.ParameterGeometryRegenerationPlan.html) |
+| [`eqiora::api::ParameterGeometryRegenerationResult`](/reference/rust/api/eqiora/api/struct.ParameterGeometryRegenerationResult.html) |
+| [`eqiora::api::ParameterSampler`](/reference/rust/api/eqiora/api/struct.ParameterSampler.html) |
+| [`eqiora::api::RemeshingTrajectoryReplayInputV1`](/reference/rust/api/eqiora/api/struct.RemeshingTrajectoryReplayInputV1.html) |
+| [`eqiora::api::RunRequest`](/reference/rust/api/eqiora/api/struct.RunRequest.html) |
+| [`eqiora::api::SampledParameterPoint`](/reference/rust/api/eqiora/api/struct.SampledParameterPoint.html) |
+| [`eqiora::api::SamplingCoupling`](/reference/rust/api/eqiora/api/enum.SamplingCoupling.html) |
+| [`eqiora::api::SamplingGenerator`](/reference/rust/api/eqiora/api/enum.SamplingGenerator.html) |
+| [`eqiora::api::SamplingIdentity`](/reference/rust/api/eqiora/api/struct.SamplingIdentity.html) |
+| [`eqiora::api::SemanticFingerprintGeneration`](/reference/rust/api/eqiora/api/enum.SemanticFingerprintGeneration.html) |
+| [`eqiora::api::StructuralSemanticFingerprint`](/reference/rust/api/eqiora/api/struct.StructuralSemanticFingerprint.html) |
+| [`eqiora::api::ValueEditPlan`](/reference/rust/api/eqiora/api/struct.ValueEditPlan.html) |
+| [`eqiora::api::ValueEditResult`](/reference/rust/api/eqiora/api/struct.ValueEditResult.html) |
+| [`eqiora::api::VerifiedMlDatasetV1`](/reference/rust/api/eqiora/api/struct.VerifiedMlDatasetV1.html) |
+| [`eqiora::api::VerifiedVtuImportV1`](/reference/rust/api/eqiora/api/struct.VerifiedVtuImportV1.html) |
+| [`eqiora::api::VerifiedXdmfHdf5TrajectoryExportV1`](/reference/rust/api/eqiora/api/struct.VerifiedXdmfHdf5TrajectoryExportV1.html) |
+| [`eqiora::api::VerifiedXdmfImportV1`](/reference/rust/api/eqiora/api/struct.VerifiedXdmfImportV1.html) |
+| [`eqiora::api::VtuImportArtifactsV1`](/reference/rust/api/eqiora/api/struct.VtuImportArtifactsV1.html) |
+| [`eqiora::api::XdmfHdf5TrajectoryExportArtifactsV1`](/reference/rust/api/eqiora/api/struct.XdmfHdf5TrajectoryExportArtifactsV1.html) |
+| [`eqiora::api::XdmfHdf5TrajectoryExportLimits`](/reference/rust/api/eqiora/api/struct.XdmfHdf5TrajectoryExportLimits.html) |
+| [`eqiora::api::XdmfImportArtifactsV1`](/reference/rust/api/eqiora/api/struct.XdmfImportArtifactsV1.html) |
+| [`eqiora::api::derive_ml_dataset_v1`](/reference/rust/api/eqiora/api/fn.derive_ml_dataset_v1.html) |
+| [`eqiora::api::export_xdmf_hdf5_trajectory_v1`](/reference/rust/api/eqiora/api/fn.export_xdmf_hdf5_trajectory_v1.html) |
+| [`eqiora::api::import_vtu_v1`](/reference/rust/api/eqiora/api/fn.import_vtu_v1.html) |
+| [`eqiora::api::import_xdmf_hdf5_v1`](/reference/rust/api/eqiora/api/fn.import_xdmf_hdf5_v1.html) |
+| [`eqiora::api::import_xdmf_v1`](/reference/rust/api/eqiora/api/fn.import_xdmf_v1.html) |
+| [`eqiora::api::package`](/reference/rust/api/eqiora/api/package/index.html) |
+| [`eqiora::api::verify_ml_dataset_v1`](/reference/rust/api/eqiora/api/fn.verify_ml_dataset_v1.html) |
+| [`eqiora::api::verify_vtu_import_v1`](/reference/rust/api/eqiora/api/fn.verify_vtu_import_v1.html) |
+| [`eqiora::api::verify_xdmf_hdf5_import_v1`](/reference/rust/api/eqiora/api/fn.verify_xdmf_hdf5_import_v1.html) |
+| [`eqiora::api::verify_xdmf_hdf5_trajectory_storage_v1`](/reference/rust/api/eqiora/api/fn.verify_xdmf_hdf5_trajectory_storage_v1.html) |
+| [`eqiora::api::verify_xdmf_import_v1`](/reference/rust/api/eqiora/api/fn.verify_xdmf_import_v1.html) |
+| [`eqiora::control::COMPILE_COMMAND_V1`](/reference/rust/api/eqiora/control/constant.COMPILE_COMMAND_V1.html) |
+| [`eqiora::control::COMPILE_V2_SCHEMA_JSON`](/reference/rust/api/eqiora/control/constant.COMPILE_V2_SCHEMA_JSON.html) |
+| [`eqiora::control::CONTROL_PROTOCOL_V2`](/reference/rust/api/eqiora/control/constant.CONTROL_PROTOCOL_V2.html) |
+| [`eqiora::control::CompileControlExecutionV2`](/reference/rust/api/eqiora/control/struct.CompileControlExecutionV2.html) |
+| [`eqiora::control::CompileModelDescriptorV2`](/reference/rust/api/eqiora/control/struct.CompileModelDescriptorV2.html) |
+| [`eqiora::control::CompileOutcomeV2`](/reference/rust/api/eqiora/control/enum.CompileOutcomeV2.html) |
+| [`eqiora::control::CompileRequestV2`](/reference/rust/api/eqiora/control/struct.CompileRequestV2.html) |
+| [`eqiora::control::CompileResponseV2`](/reference/rust/api/eqiora/control/struct.CompileResponseV2.html) |
+| [`eqiora::control::ControlDiagnosticSourceV2`](/reference/rust/api/eqiora/control/enum.ControlDiagnosticSourceV2.html) |
+| [`eqiora::control::ControlDiagnosticV2`](/reference/rust/api/eqiora/control/struct.ControlDiagnosticV2.html) |
+| [`eqiora::control::ControlPatchV2`](/reference/rust/api/eqiora/control/struct.ControlPatchV2.html) |
+| [`eqiora::control::ControlSeverityV2`](/reference/rust/api/eqiora/control/enum.ControlSeverityV2.html) |
+| [`eqiora::control::ControlSourceSpanV2`](/reference/rust/api/eqiora/control/struct.ControlSourceSpanV2.html) |
+| [`eqiora::control::MAX_COMPILE_FILENAME_BYTES_V2`](/reference/rust/api/eqiora/control/constant.MAX_COMPILE_FILENAME_BYTES_V2.html) |
+| [`eqiora::control::MAX_COMPILE_REQUEST_BYTES_V2`](/reference/rust/api/eqiora/control/constant.MAX_COMPILE_REQUEST_BYTES_V2.html) |
+| [`eqiora::control::MAX_COMPILE_RESPONSE_BYTES_V2`](/reference/rust/api/eqiora/control/constant.MAX_COMPILE_RESPONSE_BYTES_V2.html) |
+| [`eqiora::control::MAX_COMPILE_SOURCE_BYTES_V2`](/reference/rust/api/eqiora/control/constant.MAX_COMPILE_SOURCE_BYTES_V2.html) |
+| [`eqiora::control::MAX_CONTROL_REQUEST_ID_BYTES_V2`](/reference/rust/api/eqiora/control/constant.MAX_CONTROL_REQUEST_ID_BYTES_V2.html) |
+| [`eqiora::control::execute_compile_v2`](/reference/rust/api/eqiora/control/fn.execute_compile_v2.html) |
+| [`eqiora::diagnostic`](/reference/rust/api/eqiora/diagnostic/index.html) |
+| [`eqiora::dim`](/reference/rust/api/eqiora/dim/index.html) |
+| [`eqiora::entity`](/reference/rust/api/eqiora/entity/index.html) |
+| [`eqiora::kinds`](/reference/rust/api/eqiora/kinds/index.html) |
+| [`eqiora::numerics::AleFsiCartesianModel`](/reference/rust/api/eqiora/numerics/struct.AleFsiCartesianModel.html) |
+| [`eqiora::numerics::CartesianLinearElasticity2dSolution`](/reference/rust/api/eqiora/numerics/struct.CartesianLinearElasticity2dSolution.html) |
+| [`eqiora::numerics::FinalizedIsotropicElasticityCartesian2dProblem`](/reference/rust/api/eqiora/numerics/struct.FinalizedIsotropicElasticityCartesian2dProblem.html) |
+| [`eqiora::numerics::FinalizedResolvedFixedTopologyAleFsi`](/reference/rust/api/eqiora/numerics/struct.FinalizedResolvedFixedTopologyAleFsi.html) |
+| [`eqiora::numerics::FinalizedScalarEllipticCartesianProblem`](/reference/rust/api/eqiora/numerics/struct.FinalizedScalarEllipticCartesianProblem.html) |
+| [`eqiora::numerics::FinalizedSteadyStokesMini2dProblem`](/reference/rust/api/eqiora/numerics/struct.FinalizedSteadyStokesMini2dProblem.html) |
+| [`eqiora::numerics::IncompressibleFlowScaleProfile2d`](/reference/rust/api/eqiora/numerics/struct.IncompressibleFlowScaleProfile2d.html) |
+| [`eqiora::numerics::IsotropicElasticityContinuum`](/reference/rust/api/eqiora/numerics/struct.IsotropicElasticityContinuum.html) |
+| [`eqiora::numerics::ResolvedScalarEllipticCartesianSolution`](/reference/rust/api/eqiora/numerics/enum.ResolvedScalarEllipticCartesianSolution.html) |
+| [`eqiora::numerics::ScalarEllipticCartesianModel`](/reference/rust/api/eqiora/numerics/struct.ScalarEllipticCartesianModel.html) |
+| [`eqiora::numerics::SteadyIncompressibleStokesCartesianModel2d`](/reference/rust/api/eqiora/numerics/struct.SteadyIncompressibleStokesCartesianModel2d.html) |
+| [`eqiora::numerics::SteadyStokesMiniSolution2d`](/reference/rust/api/eqiora/numerics/struct.SteadyStokesMiniSolution2d.html) |
+| [`eqiora::numerics::finalize_resolved_fixed_topology_ale_fsi_2d`](/reference/rust/api/eqiora/numerics/fn.finalize_resolved_fixed_topology_ale_fsi_2d.html) |
+| [`eqiora::numerics::finalize_resolved_isotropic_elasticity_cartesian_2d`](/reference/rust/api/eqiora/numerics/fn.finalize_resolved_isotropic_elasticity_cartesian_2d.html) |
+| [`eqiora::numerics::finalize_resolved_scalar_elliptic_cartesian`](/reference/rust/api/eqiora/numerics/fn.finalize_resolved_scalar_elliptic_cartesian.html) |
+| [`eqiora::numerics::finalize_resolved_steady_stokes_mini_2d`](/reference/rust/api/eqiora/numerics/fn.finalize_resolved_steady_stokes_mini_2d.html) |
+| [`eqiora::numerics::lower_ale_fsi_cartesian_2d`](/reference/rust/api/eqiora/numerics/fn.lower_ale_fsi_cartesian_2d.html) |
+| [`eqiora::numerics::lower_isotropic_elasticity_cartesian_2d`](/reference/rust/api/eqiora/numerics/fn.lower_isotropic_elasticity_cartesian_2d.html) |
+| [`eqiora::numerics::lower_scalar_elliptic_cartesian`](/reference/rust/api/eqiora/numerics/fn.lower_scalar_elliptic_cartesian.html) |
+| [`eqiora::numerics::lower_steady_incompressible_stokes_cartesian_2d`](/reference/rust/api/eqiora/numerics/fn.lower_steady_incompressible_stokes_cartesian_2d.html) |
+| [`eqiora::numerics::solve_resolved_isotropic_elasticity_cartesian_2d`](/reference/rust/api/eqiora/numerics/fn.solve_resolved_isotropic_elasticity_cartesian_2d.html) |
+| [`eqiora::numerics::solve_resolved_scalar_elliptic_cartesian`](/reference/rust/api/eqiora/numerics/fn.solve_resolved_scalar_elliptic_cartesian.html) |
+| [`eqiora::numerics::solve_resolved_steady_stokes_mini_2d`](/reference/rust/api/eqiora/numerics/fn.solve_resolved_steady_stokes_mini_2d.html) |
+| [`eqiora::quantity`](/reference/rust/api/eqiora/quantity/index.html) |

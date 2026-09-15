@@ -1,0 +1,158 @@
+---
+title: 4. Differentiating a solved model
+description: Derive tangent and adjoint equations and connect them to Eqiora JVPs, VJPs, and directional checks.
+sidebar:
+  order: 4
+---
+
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+
+## A residual derivative is only the beginning
+
+A source change first changes the balance equation, then the solution must move
+to restore balance. Differentiating only the equation's explicit parameter terms
+misses that second step.
+
+Start with one scalar balance,
+
+$$
+R(u,p)=au-p=0,\qquad a>0.
+$$
+
+At fixed $u$, the partial derivative is $R_p=-1$. But the solved state is
+$u=p/a$, whose derivative is $du/dp=1/a$. The two derivatives answer different
+questions and can have different units.
+
+For a discrete model with state vector $u$ and parameters $p$, write
+$R(u(p),p)=0$. Differentiating the whole relation gives
+
+$$
+R_u\frac{du}{dp}+R_p=0.
+$$
+
+For one parameter direction $v$, solve the **tangent equation**
+
+$$
+R_u\,\delta u=-R_pv.
+$$
+
+An invertible state Jacobian $R_u$ makes this local response well defined.
+The tangent equation is linear even when the original model is nonlinear.
+This chain-rule construction underlies the tangent and adjoint methods discussed
+in the dolfin-adjoint project's
+[mathematical introduction](https://www.dolfin-adjoint.org/en/latest/documentation/maths/3-gradients.html).
+
+## The output can depend directly on a parameter
+
+Let the published output be $y=O(u,p)$. Its change is
+
+$$
+\delta y=O_u\delta u+O_pv.
+$$
+
+For Poisson finite elements, the state solve can use only free interior
+unknowns, while the complete output also contains prescribed boundary values.
+Changing boundary parameter $b$ changes those boundary entries directly. The
+$O_pv$ term retains this dependence.
+
+For our constant boundary offset, the complete analytic field rises by one unit
+everywhere when $b$ rises by one unit. The boundary sensitivity is therefore
+one on the boundary as well as in the interior. A derivative array that silently
+drops the boundary contribution would answer a different question.
+
+## Forward actions and reverse actions
+
+Let $J=dy/dp$. A **Jacobian-vector product**, or JVP, computes $Jv$: choose a
+parameter change and ask how the output changes.
+
+A **vector-Jacobian product**, or VJP, computes $J^Tc$: choose output weights
+$c$ and ask how the scalar $c^Ty$ changes with each parameter. The notation
+uses real column vectors, so the transpose makes the shapes explicit.
+
+For fixed $c$, let $\Phi=c^TO(u,p)$. Instead of forming the full state derivative,
+solve an adjoint equation and contract with the parameter derivative:
+
+$$
+R_u^T\lambda=O_u^Tc,\qquad
+\nabla_p\Phi=O_p^Tc-R_p^T\lambda.
+$$
+
+A forward solve follows one input direction across many outputs. An adjoint
+solve follows one scalar objective across many inputs. In both cases the
+physical model and observation rule determine the derivative being requested.
+
+## Read the existing script
+
+The <ExactSourceLink path="examples/python/learn_inverse_poisson.py" kind="blob">Poisson run script</ExactSourceLink>
+uses the public [`eqiora.diff` API](/reference/python/diff/):
+
+```python
+tangent = program.jvp(direction).tangent.numpy()
+gradient = program.vjp(weights).input_cotangent.numpy()
+```
+
+Its output is the complete Q1 field. The `weights` integrate that field over the
+unit square, with half weights on edges and quarter weights at corners. The
+result is an area mean because this square has area one. A simple unweighted
+mean of vertex values would be a different objective.
+
+Our continuum solution independently predicts
+
+$$
+\bar u=b+\frac{2sL^2}{a\pi^4},\qquad
+\nabla_{(s,a,b)}\bar u=
+\left(\frac{2L^2}{a\pi^4},-\frac{2sL^2}{a^2\pi^4},1\right).
+$$
+
+Here $L=1\,\mathrm m$. The script prints this gradient at $s=2\pi^2$, $a=1$, $b=0$ beside the
+computed gradient. Mesh refinement connects the discrete prediction to the
+continuum calculation. The numerical integration and differentiation both
+refer to the chosen discrete objective.
+
+## Check the direction independently
+
+Re-solve at nearby points and form a centred difference:
+
+$$
+D_h=\frac{y(p+hv)-y(p-hv)}{2h}.
+$$
+
+Compare this with the JVP. For a sufficiently smooth response, the leading
+truncation error is proportional to $h^2$. At very small $h$, cancellation and
+solve errors can dominate. The script prints differences for several step sizes,
+so you can see the useful range rather than assume the smallest step is best.
+The [dolfin-adjoint gradient-check discussion](https://www.dolfin-adjoint.org/en/latest/documentation/verification.html)
+explains the related Taylor-remainder test.
+
+Also compare the two scalar products $c^T(Jv)$ and $v^T(J^Tc)$. Agreement checks
+that the forward and reverse actions pair consistently. A separately evaluated
+finite difference and the continuum calculation ask additional questions: two
+mutually consistent derivative routines could still share a mistake.
+
+## Exercises
+
+1. Apply the tangent equation to $R(u,p)=u^2-p$ on the positive branch. What
+   happens to its sensitivity as $p$ approaches zero?
+2. Derive the area-mean gradient with respect to $a$ by hand and explain its sign.
+3. Run the script with 12 and 24 cells per direction. Compare changes in the
+   continuum-gradient error with changes in the JVP/VJP pairing difference.
+4. If the objective is $\tfrac12\|y-d\|^2$, what output weight vector should
+   the VJP receive at the current point?
+5. Add a penalty $\tfrac12\alpha\|p-p_0\|^2$. Which gradient term comes directly
+   from the penalty rather than the solved state?
+
+**Check your reasoning:** exercise 4 uses $c=y-d$; exercise 5 adds
+$\alpha(p-p_0)$.
+
+## Reading
+
+The dolfin-adjoint project, *Differentiating functionals*, mathematical
+documentation, sections “The tangent linear approach” and “The adjoint approach.”
+[Derivation](https://www.dolfin-adjoint.org/en/latest/documentation/maths/3-gradients.html).
+The same project's *Verification*, section on Taylor remainder convergence.
+[Gradient checks](https://www.dolfin-adjoint.org/en/latest/documentation/verification.html).
+These references explain the mathematics; the executable calls above use Eqiora.
+
+[Previous: Sensitivity and identifiability](/learn/inverse-problems/sensitivity-and-identifiability/) ·
+[Book map](/learn/inverse-problems/) ·
+[Next: Noise, scaling, and design](/learn/inverse-problems/noise-scaling-and-design/)

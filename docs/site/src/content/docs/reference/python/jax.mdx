@@ -13,6 +13,29 @@ Use Eqiora differentiable programs with JAX.
 
 <ExactSourceLink path="bindings/python/python/eqiora/jax.pyi" kind="blob">View source</ExactSourceLink>
 
+## Example: differentiate a scalar objective
+
+Install the `jax` extra, then create `program` with the
+[differentiation example](/reference/python/diff/):
+
+```python
+import jax
+import jax.numpy as jnp
+from eqiora.jax import bind
+
+jax.config.update("jax_enable_x64", True)
+operator = bind(program)
+parameters = jnp.array([1.5], dtype=jnp.float64)
+gradient = jax.grad(lambda p: jnp.square(operator(p)).sum())(parameters)
+print(gradient)
+```
+
+This differentiates the sum of squared output values. Keep the parameter
+array on the CPU with `float64` enabled. See
+[framework adapters](/guides/differentiation/) for JIT and batching examples.
+
+## API
+
 <a id="api-eqiora-jax-JaxProgram"></a>
 
 ## `JaxProgram`

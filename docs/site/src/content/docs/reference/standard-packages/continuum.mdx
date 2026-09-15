@@ -1,116 +1,136 @@
 ---
 title: Continuum laws and boundaries
-description: Elastic balance, mechanical boundary and inertial-flow declarations with typed occurrence examples.
+description: Build solid and fluid models with typed fields, material parameters, and physical boundary components.
 editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/standard-packages/continuum.mdx
 ---
 
-import { Aside, Code } from '@astrojs/starlight/components';
+import { Code } from '@astrojs/starlight/components';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 import elastic from './_examples/elastic-body.eqi?raw';
-import flow from './_examples/inertial-stokes.eqi?raw';
+import flow from './_examples/stokes.eqi?raw';
+import inertia from '../../../../../../../crates/eqiora-api/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi?raw';
 
-[Standard sources](/reference/standard-packages/) · [Install this source revision](/get-started/#install-with-uv)
+[Standard packages](/reference/standard-packages/)
 
-These components bind existing support and Field occurrences. The examples check
-their composition; mesh and solver selection belong to the execution workflow.
+The bundled `Eqiora.Solid.LinearElasticity` and `Eqiora.Fluid.Incompressible`
+packages provide reusable volume laws and mechanical interfaces. Bind your own
+fields, then supply a condition on each exterior face. The examples below compile
+through ordinary package imports.
 
 ## Elastic balance and boundaries
 
-Canonical owner: <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi">Solid.LinearElasticity / linear_elasticity.eqi</ExactSourceLink>.
-The self-contained quasistatic declarations precede the dynamic additions in that file.
+<Code code={elastic} lang="eqiora" title="elastic-body.eqi" />
 
-### `IsotropicBalanceWithPotential2d`
+The square is clamped on the left and traction-free elsewhere. Its volume load is
+zero, so its equilibrium displacement is zero. The Lamé parameters are
+`mu = 3 Pa` and `lambda = 2 Pa`. All boundary conditions act on the same displacement field
+as the volume equations.
 
-Requires a two-dimensional `body`, vector `displacement` in m, scalar
-`load_potential` in Pa, and Lamé parameters `mu` and `lambda` in Pa. Supplies
-small-strain isotropic elastic balance driven by the load-potential gradient.
+### Elastic components
 
-### `IsotropicMechanicalInterface2d`
+| Component in `Eqiora.Solid.LinearElasticity.linear_elasticity` | Use |
+|---|---|
+| `IsotropicBalanceWithPotential2d` | Small-strain isotropic equilibrium with Lamé parameters `mu` and `lambda` |
+| `IsotropicMechanicalInterface2d` | Displacement trace and outward elastic traction on the complete exterior |
+| `FixedDisplacement2d` | Zero displacement on one face |
+| `ZeroTraction2d` | Zero traction on one face |
 
-Requires the same body, displacement and Lamé parameters, plus the complete
-`exterior`. Supplies the displacement trace and parent-outward elastic traction
-on each boundary.
+The balance uses stress $2\mu\varepsilon+\lambda\,\mathrm{tr}(\varepsilon)I$.
+`load_potential` is a pressure-valued scalar whose gradient supplies the body force;
+it is distinct from a boundary pressure or an arbitrary vector-force input.
+The interface's `QuasistaticMechanicalBoundary` pairs displacement with traction.
+A connected terminal and the body interface have equal displacement and opposite
+signed traction.
 
-### `FixedDisplacement2d`
+For plane strain, derive the Lamé parameters from Young's modulus $E$ and
+Poisson's ratio $\nu$ as $\mu=E/[2(1+\nu)]$ and
+$\lambda=E\nu/[(1+\nu)(1-2\nu)]$. For plane stress, use the effective
+in-plane value $\lambda=E\nu/(1-\nu^2)$ instead.
 
-Requires `body` and one `face`. Fixes the complete displacement trace at its
-`mechanical` port to zero.
+Read [strain and stress](/learn/structural-mechanics/strain-stress/) for the
+constitutive derivation and [the mixed-boundary square](/learn/structural-mechanics/mixed-boundary-square/)
+for a loaded calculation.
 
-### `ZeroTraction2d`
+## Steady Stokes flow
 
-Requires `body` and one `face`. Fixes the complete outward traction at its
-`mechanical` port to zero.
+<Code code={flow} lang="eqiora" title="stokes.eqi" />
 
-The `QuasistaticMechanicalBoundary` connector pairs displacement (m) with traction
-(Pa). It is nominally distinct from the velocity/traction connector in
-Mechanics.Interfaces; equal vector extent does not make them interchangeable.
-`load_potential` is a pressure-valued scalar whose gradient supplies the volume
-load. It is not an arbitrary vector body-force input or a boundary pressure.
+The inlet specifies inward normal speed, the top and bottom walls impose zero
+velocity, and the outlet imposes zero total traction. The model contains no
+advective or inertial term: use it when viscous stresses dominate.
 
-<Code code={elastic} lang="eqiora" title="elastic-body.eqi — compilation, not a solve" />
+`SteadyStokesWithPotential2d` supplies momentum balance and incompressibility.
+The caller supplies the four boundary relations here. On the left, the outward
+normal points left, so the plus sign in the inlet equation gives rightward flow.
+At the outlet, `normal(stress) = 0` fixes total traction rather than setting every
+pressure value to zero.
 
-This unloaded body binds one displacement Field to the balance and interface,
-clamps the left face and connects every remaining face to a free-traction
-component. It exercises both boundary conditions without leaving a child physical
-port unconnected. The complete exterior is explicit.
+For port-based boundary composition, the same module supplies
+`NewtonianMechanicalInterface2d`, binding `body`, the complete `exterior`,
+`velocity`, `pressure`, and `dynamic_viscosity`. Its ports use the
+`VelocityTractionBoundary` connector from `Eqiora.Mechanics.Interfaces`.
+That package supplies `ZeroVelocity2d` and `ZeroTraction2d` terminal components.
+Add it as a direct dependency when importing its declarations into your own source.
 
-<details>
-<summary>Compile the example from the source checkout</summary>
+[Stokes flow and boundaries](/learn/fluid-mechanics/stokes-and-boundaries/)
+derives these conditions. [Computing incompressible flow](/learn/fluid-mechanics/computing-incompressible-flow/)
+continues to mesh and solver choices.
 
-Save the code above as `elastic-body.eqi` beside the `eqiora-source` directory.
-Select the unchanged, self-contained quasistatic prefix; the later dynamic
-declarations have an additional package dependency and are not needed here.
+## Compile either package example
+
+Save the desired model as `model.eqi`, then create its local project:
 
 ```python
 from pathlib import Path
 import eqiora
 
-path = Path("eqiora-source/crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi")
-declarations = path.read_text()
-end = declarations.index("public component IsotropicElastodynamicsWithPotential2d")
-source = declarations[:end] + "\n" + Path("elastic-body.eqi").read_text()
-model = eqiora.compile(source=source, filename="elastic-body.eqi")
+project = Path("continuum")
+(project / "src").mkdir(parents=True, exist_ok=True)
+(project / "src/main.eqi").write_text(Path("model.eqi").read_text())
+(project / "eqiora.toml").write_text(
+    '[package]\nname = "org.example.Continuum"\nversion = "0.1.0"\nentry = "main"\n'
+)
+store = Path("package-store")
+store.mkdir(exist_ok=True)
+resolution = eqiora.add_bundled_dependency(
+    project, store, "Eqiora.Solid.LinearElasticity", version="0.6.0"
+)
+model = eqiora.compile_package(store, resolution, entry="ReferenceElasticBody")
 ```
 
-The selected prefix ends before the dynamic component. For an executed structural
-example, see [Mixed-boundary elasticity](/gallery/mixed-boundary-elasticity/) and
-its stated source and environment.
-
-</details>
+For the Stokes example, use `"Eqiora.Fluid.Incompressible"` and entry `"ReferenceStokes"`;
+its package version is also `"0.6.0"`. The dependency operation installs the
+required package sources and records the lock. A mesh and a numerical method are
+the next choices when [running the model](/guides/modeling/).
 
 ## Inertial flow law
 
-Canonical owner: <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi">Fluid.InertialStokes / inertial_stokes.eqi</ExactSourceLink>.
+The repository source package `Eqiora.Fluid.InertialStokes` defines the separate
+`InertialStokesWithPotential2d` volume component:
 
-`InertialStokesWithPotential2d` requires a two-dimensional `body`, vector
-`velocity` in m/s, scalar `pressure` and `force_potential` in Pa, `density` in
-kg/m³ and `dynamic_viscosity` in Pa·s. It supplies inertial momentum balance and
-incompressibility. There is no advective velocity term: this is not a general
-Navier–Stokes component. The force-potential gradient is separate from the pressure
-unknown.
+<Code code={inertia} lang="eqiora" title="inertial_stokes.eqi — library declaration" />
 
-<Code code={flow} lang="eqiora" title="inertial-stokes.eqi — typed law bindings only" />
+It binds a velocity state, pressure and force-potential fields, density, and dynamic
+viscosity. The time derivative adds inertia; there is still no velocity-advection
+term. Supply initial velocity, boundary conditions, pressure reference where needed,
+and a time method when building a complete problem around this law.
 
-Append that example after the unchanged `inertial_stokes.eqi` source:
+For a time-dependent advective flow example, see
+[cylinder wakes](/learn/fluid-mechanics/cylinder-wakes/).
+`Eqiora.Fluid.Incompressible` and `Eqiora.Solid.LinearElasticity` also contain
+three-dimensional dynamic volume and interface declarations.
 
-```python
-from pathlib import Path
-import eqiora
+## Additional source compositions
 
-path = Path("eqiora-source/crates/eqiora-api/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi")
-source = path.read_text() + "\n" + Path("inertial-stokes.eqi").read_text()
-model = eqiora.compile(source=source, filename="inertial-stokes.eqi")
-```
+The repository's `Eqiora.Solid` source shows named plane-strain and plane-stress
+components using Young's modulus and Poisson's ratio, along with typed material
+properties and field-driven boundaries. `Eqiora.Fluid` shows a combined steady
+Stokes component and velocity, pressure, and traction terminals. Read these
+compositions to see how to combine the underlying equations.
 
-<Aside type="caution" title="A law is not a complete simulation">
-  This example only exercises the component signature through compilation. It
-  does not supply a force-potential definition, pressure reference, initial data,
-  boundary conditions, mesh or temporal method. Do not call it a solved flow problem.
-</Aside>
+These source packages and `Eqiora.Fluid.InertialStokes` are not names accepted by
+`add_bundled_dependency`; the complete runnable package examples above use the
+bundled `Solid.LinearElasticity` and `Fluid.Incompressible` modules.
 
-For other delivered mechanical sources and dependency-bearing interfaces, browse
-the [source inventory](/reference/standard-packages/#browse-the-distributed-sources).
-For user-authored equations, use [Equations and state](/reference/language/equations/).
-
-<ExactSourceLink kind="blob" path="docs/site/src/content/docs/reference/standard-packages/_examples/elastic-body.eqi">Elastic-body example source</ExactSourceLink>
-· <ExactSourceLink kind="blob" path="docs/site/src/content/docs/reference/standard-packages/_examples/inertial-stokes.eqi">Inertial-law example source</ExactSourceLink>
+<ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Solid/src/solid.eqi">Open the solid equations</ExactSourceLink>
+· <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Fluid/src/fluid.eqi">Open the fluid equations</ExactSourceLink>

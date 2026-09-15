@@ -1,0 +1,196 @@
+---
+title: 3. Virtual work and finite elements
+description: Derive a weak elastic balance, understand trial and test displacements, and assemble the Q1 approximation.
+sidebar:
+  order: 3
+---
+
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+
+## How can a finite number of displacements represent a solid?
+
+An elastic body has a displacement at every point. A finite-element calculation
+stores only a finite set of coefficients, then interpolates between them. The
+useful question is which form of equilibrium that interpolation should satisfy.
+We will derive it before talking about a matrix.
+
+Recall the local balance and stress law:
+
+$$
+-\nabla\cdot\boldsymbol\sigma(\boldsymbol u)=\boldsymbol b,
+\qquad
+\boldsymbol\sigma=2\mu\boldsymbol\varepsilon(\boldsymbol u)
++\lambda(\nabla\cdot\boldsymbol u)\boldsymbol I.
+$$
+
+Displacement is prescribed on $\Gamma_D$; traction is prescribed on the
+remaining boundary $\Gamma_N$. In our square, the left edge is $\Gamma_D$ and
+the other three edges are $\Gamma_N$.
+
+## Multiply, integrate, move one derivative
+
+Choose an arbitrary small *virtual displacement* $\boldsymbol v$ that vanishes
+on $\Gamma_D$. It is a test of equilibrium, not a time step or an additional
+physical unknown. Multiply the balance by $\boldsymbol v$ and integrate:
+
+$$
+\int_\Omega\boldsymbol\sigma:\nabla\boldsymbol v\,\mathrm{d}\Omega
+-\int_{\partial\Omega}(\boldsymbol\sigma\boldsymbol n)\cdot\boldsymbol v\,\mathrm{d}\Gamma
+=\int_\Omega\boldsymbol b\cdot\boldsymbol v\,\mathrm{d}\Omega.
+$$
+
+Because stress is symmetric, its contraction with the skew-symmetric part of
+$\nabla\boldsymbol v$ vanishes. Because $\boldsymbol v=0$ on $\Gamma_D$, only
+the prescribed traction $\overline{\boldsymbol t}$ contributes on the boundary:
+
+$$
+\underbrace{\int_\Omega
+\left[2\mu\boldsymbol\varepsilon(\boldsymbol u):\boldsymbol\varepsilon(\boldsymbol v)
++\lambda(\nabla\cdot\boldsymbol u)(\nabla\cdot\boldsymbol v)\right]
+\mathrm{d}\Omega}_{a(\boldsymbol u,\boldsymbol v)}
+=
+\underbrace{\int_\Omega\boldsymbol b\cdot\boldsymbol v\,\mathrm{d}\Omega
++\int_{\Gamma_N}\overline{\boldsymbol t}\cdot\boldsymbol v\,\mathrm{d}\Gamma}_{\ell(\boldsymbol v)}.
+$$
+
+The left side is internal virtual work; the right side is external virtual
+work. This is the displacement weak form used in Bathe's
+[linear-analysis lecture 3](https://ocw.mit.edu/courses/res-2-002-finite-element-procedures-for-solids-and-structures-spring-2010/resources/lecture-3/).
+In two dimensions both sides have units of J/m for a test displacement in
+metres. In three dimensions they have units of J.
+
+The word *weak* refers to how derivatives and equilibrium are interpreted. The
+equation requires first derivatives of displacement, whereas the strong
+equation differentiates stress once more. Adjacent finite elements can share
+continuous displacement while their displacement gradients jump.
+
+The boundary split now has a concrete purpose. Fixed displacement restricts
+the allowable trial and test functions. Zero traction contributes zero boundary
+work; it does not fix a boundary displacement to zero. Revisit
+[boundary conditions](/learn/mathematical-modeling/boundary-interface-conditions/)
+if those two physical constraints feel interchangeable.
+
+## Choose bilinear displacement on each rectangle
+
+On a reference square $-1\le\xi,\eta\le1$, define four shape functions
+
+$$
+N_i(\xi,\eta)=\frac14(1+\xi_i\xi)(1+\eta_i\eta),
+\quad (\xi_i,\eta_i)\in\{(-1,-1),(1,-1),(1,1),(-1,1)\}.
+$$
+
+Each is one at its own corner and zero at the other corners; together they sum
+to one. A Q1 displacement is
+
+$$
+\boldsymbol u_h=\sum_{i=1}^4N_i\boldsymbol d_i,
+$$
+
+where each corner has two displacement coefficients. Neighboring elements use
+the same coefficients on their shared edge, making the assembled displacement
+continuous. A rectangular affine coordinate map supplies physical derivatives:
+for widths $h_x,h_y$, $\partial_x=(2/h_x)\partial_\xi$ and
+$\partial_y=(2/h_y)\partial_\eta$.
+
+Q1 contains constant and linear functions, and the bilinear term $xy$. It
+cannot represent $x^2$ exactly inside an element. That limitation will explain
+the error in our square even when the nodal values agree with its exact answer.
+
+## The stiffness matrix follows from work
+
+Use the engineering-strain vector
+$\boldsymbol e=(\varepsilon_{xx},\varepsilon_{yy},\gamma_{xy})^{\mathsf T}$.
+For a node $i$, its contribution to the strain matrix is
+
+$$
+B_i=\begin{pmatrix}
+\partial_xN_i&0\\
+0&\partial_yN_i\\
+\partial_yN_i&\partial_xN_i
+\end{pmatrix},\qquad
+D=\begin{pmatrix}
+2\mu+\lambda&\lambda&0\\
+\lambda&2\mu+\lambda&0\\
+0&0&\mu
+\end{pmatrix}.
+$$
+
+Then $\boldsymbol e=B\boldsymbol d$, with $B$ made from the four $B_i$ blocks.
+The element stiffness is $K_e=\int_{\Omega_e}B^{\mathsf T}DB\,\mathrm{d}A$;
+the body-load vector is the integral of the shape functions multiplied by
+$\boldsymbol b$. Assembly adds contributions that act on the same global
+displacement coefficient. Choosing each basis function in turn as the test
+function yields $K\boldsymbol d=\boldsymbol f$.
+
+For affine rectangles and constant coefficients, two Gauss points per
+coordinate integrate these polynomial stiffness entries exactly. This is a
+statement about this integrand and map. Curved maps, variable material
+coefficients or a different element require their own quadrature analysis;
+see Bathe's [lecture 8](https://ocw.mit.edu/courses/res-2-002-finite-element-procedures-for-solids-and-structures-spring-2010/resources/lecture-8/).
+
+The square's maintained numerical path selects `eqiora.fem.Q1()`.
+<ExactSourceLink path="examples/python/mixed_boundary_elasticity.py" kind="blob">Read its mesh and linear-solver settings</ExactSourceLink>.
+The `.eqi` model retains the stress law and boundaries; the numerical realization
+owns interpolation, assembly and the solve.
+
+## Supports remove zero-energy motion
+
+Before supports are imposed, rigid translations and infinitesimal rotation
+produce zero strain and zero elastic energy. They are null directions of the
+stiffness matrix. Fixing the square's entire left edge removes these motions.
+For this material, the reduced free-displacement matrix is symmetric positive
+definite, which explains the use of conjugate gradients in the example.
+
+Write the full equations in free and constrained blocks. The free system is
+
+$$
+K_{ff}\boldsymbol d_f=\boldsymbol f_f-K_{fc}\boldsymbol d_c.
+$$
+
+After solving, the forces required at the constraints are
+$\boldsymbol r_c=K_{cf}\boldsymbol d_f+K_{cc}\boldsymbol d_c-\boldsymbol f_c$.
+These *algebraic reactions* use the full force balance, including loads attached
+to constrained coefficients. They are different from sampling a stress gradient
+beside the boundary.
+
+## Connect work, energy and heat transfer
+
+For zero prescribed displacement, insert $\boldsymbol v=\boldsymbol u$ into
+the weak equation: $2U=\ell(\boldsymbol u)$, where
+$U=a(\boldsymbol u,\boldsymbol u)/2$. This is the continuum analogue of
+$U=F\delta/2$ from the bar. It provides a second way to interpret a solution.
+
+The [heat-transfer path](/learn/heat-transfer/) uses a similar mathematical
+step: a temperature test function moves one derivative from heat flux and
+exposes boundary heat input. Mechanics differs in its vector unknown and
+symmetric-gradient work pairing. The [numerical-simulation path](/learn/numerical-simulation/)
+develops approximation and error estimates independently of the physical field.
+
+## Exercises
+
+1. Verify that the four $N_i$ sum to one and reproduce $\xi$ and $\eta$.
+2. Show explicitly that $\boldsymbol u=(a,b)+\theta(-y,x)$ has zero internal
+   virtual work. Which part of the left-edge support excludes each motion?
+3. Show that using $2\mu$ in the final entry of $D$ would double shear stress
+   when the strain vector uses engineering shear.
+4. Derive the axial two-node bar matrix
+   $(EA/L)\begin{pmatrix}1&-1\\-1&1\end{pmatrix}$ using linear interpolation.
+5. Why can a traction-free edge still have a nonzero displacement? Explain in
+   both physical and weak-form language.
+6. Reducing integration to one point may leave deformation patterns with zero
+   sampled strain energy. Explain why a faster assembly is not enough reason
+   to make that change.
+
+## Reading
+
+- Klaus-Jürgen Bathe, *Finite Element Procedures for Solids and Structures*,
+  MIT OpenCourseWare, Spring 2010, linear analysis:
+  [lecture 3, The Displacement-Based Finite Element Method](https://ocw.mit.edu/courses/res-2-002-finite-element-procedures-for-solids-and-structures-spring-2010/resources/lecture-3/)
+  and [lecture 8, Numerical Integrations, Modeling Considerations](https://ocw.mit.edu/courses/res-2-002-finite-element-procedures-for-solids-and-structures-spring-2010/resources/lecture-8/).
+- Bathe, *Finite Element Procedures*, 2nd edition, 2014, ISBN 9780979004957,
+  the companion text listed on the
+  [course's linear-analysis page](https://ocw.mit.edu/courses/res-2-002-finite-element-procedures-for-solids-and-structures-spring-2010/video_galleries/linear/).
+
+[Previous: Strain and stress](/learn/structural-mechanics/strain-stress/) ·
+[Path](/learn/structural-mechanics/) ·
+[Next: A square with mixed boundaries](/learn/structural-mechanics/mixed-boundary-square/)

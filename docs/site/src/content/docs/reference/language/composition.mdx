@@ -1,52 +1,116 @@
 ---
 title: Composition
-description: Components, explicit bindings and conserving connections in the current Eqiora source.
+description: Reuse components with explicit bindings, conserving ports, imports, and material properties.
 editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/language/composition.mdx
 ---
 
 import { Code } from '@astrojs/starlight/components';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 import source from './_examples/composition.eqi?raw';
+import circuit from '../../../../../../../examples/voltage-divider/src/main.eqi?raw';
+import properties from '../../../../../../../examples/property-composition/src/main.eqi?raw';
 
-[Language overview](/reference/language/) · [Install this source revision](/get-started/#install-with-uv)
+[Language overview](/reference/language/)
 
-A `component` is a reusable declaration. An `instance` creates one occurrence with
-explicit named bindings. Requirements live in the component signature.
+## Components and instances
+
+A `component` is a reusable set of declarations and equations. An `instance`
+creates an occurrence with explicit named bindings:
 
 <Code code={source} lang="eqiora" title="composition.eqi" />
 
-`input` is required; `offset` has a default. The two occurrences own separate
-private `output` variables and relations. Equal input values would not merge those
-occurrences. Missing required parameters and unknown bindings are errors.
+`input` is required; `offset` defaults to 1. The first output is 3 and the second
+is 8. Each instance has its own `output` unknown and equation. Equal parameter
+values do not merge instances. Missing required parameters and unknown binding
+names are errors.
 
-## Ports and physical connections
+## Imports and conserving connections
 
-[Electrical components](/reference/standard-packages/electrical/) expose named
-`positive` and `negative` conserving ports. `connect a, b` connects their
-typed connector occurrences: across values agree and signed through values sum
-to zero. It does not paste one component's equations into another or impose an
-execution order. Read each exact port's declared members as `source.positive.voltage`
-and `source.positive.current`. Member names do not make distinct nominal connectors
-compatible. `connect output -> input` instead wires causal signals.
+<Code code={circuit} lang="eqiora" title="Voltage divider using a bundled package" />
 
-## Binding existing spatial Fields
+`import Eqiora.Electrical.Basic.basic as electrical` makes the module's public
+declarations available through the local name `electrical`. The project records
+the package dependency separately; see [adding a package](/reference/standard-packages/#source-and-installation-boundary).
 
-A continuum component can require `support body: volume(ambient_dimension = 2)`
-and an occurrence-bound `variable` or `state` in its signature. In an instance, write
-`body = body` and `displacement = displacement` explicitly.
-The [elastic-body example](/reference/standard-packages/continuum/#elastic-balance-and-boundaries)
-binds the same displacement to a balance law and its boundary interface. These
-bindings refer to one existing Field, not two copied displacement states.
+`connect a, b` joins compatible conserving ports. Across values such as voltage
+agree, and signed through values such as current into each component sum to zero.
+Thus the divider shares one current around its series loop while the two resistors
+have different voltage drops.
 
-Exact support and connector identity matter; equal numerical sizes are insufficient.
-Complete boundary families must include the actual exterior members.
+Read members using the complete path, for example `upper.positive.current`.
+Port compatibility follows the connector declaration, not merely matching member
+names or vector sizes. The [electrical walkthrough](/reference/standard-packages/electrical/)
+compiles and runs this complete circuit.
 
-## Source files and packages
+## Causal signals
 
-A package-qualified declaration additionally requires its exact dependency closure.
-See [source files and installation](/reference/standard-packages/#source-and-installation-boundary)
-for the source-installed workflow.
+Use `connect output -> input` for a directed signal connection. For example, the
+[property-composition project](#material-properties) sends a sampled temperature
+to two consumers:
 
-<ExactSourceLink kind="blob" path="docs/site/src/content/docs/reference/language/_examples/composition.eqi">Example source</ExactSourceLink>
-· <ExactSourceLink kind="tree" path="crates/eqiora-compiler/src/hierarchy">hierarchy compiler</ExactSourceLink>
-· Next: [Standard sources](/reference/standard-packages/)
+```eqi
+connect temperature -> local_flux.temperature;
+connect temperature -> slab.temperature;
+```
+
+The signal types and clock identities must agree. This wiring carries a value;
+it does not apply the flow-conservation rule of a physical connector.
+
+## Binding spatial fields and complete boundaries
+
+A component signature can require a support and an existing field:
+
+```eqi
+component UniformTemperature(
+  support body: volume(ambient_dimension = 2),
+  variable temperature: K on body,
+  parameter value: K
+) {
+  relation uniform on body { temperature = value; }
+}
+
+model Square() {
+  domain body = box(0, 1, 0, 1);
+  variable temperature: K on body;
+  instance prescribed: UniformTemperature(
+    body = body, temperature = temperature, value = 300[K]
+  );
+}
+```
+
+The component constrains the caller's temperature field; it does not create a
+second copy. The same technique lets a volume balance and boundary interface
+share one displacement or velocity field.
+
+For a component requiring `complete_exterior(parent = body)`, bind
+`exterior = boundaries(left, right, bottom, top)` using every exterior member.
+A family member is addressed as `surface.mechanical[boundary = left]`.
+See [complete solid and fluid models](/reference/standard-packages/continuum/).
+
+## Material properties
+
+A property contract specifies the inputs, output dimension, and derivative
+requirements of a constitutive value. A property release supplies that value
+using an analytic expression or a table, together with its validity and attribution.
+
+<Code code={properties.slice(0, properties.indexOf('/// Evaluate signed'))} lang="eqiora" title="A temperature-dependent conductivity" />
+
+The property above accepts temperature in kelvin and returns conductivity in
+W/(m·K). Its table uses piecewise affine interpolation over 300–360 K and rejects
+values outside that interval. Derivatives are defined inside open segments;
+knots and endpoints are excluded from derivative evaluation.
+
+A component requests the contract as `property conductivity: Conductivity`, then
+calls it with `conductivity(temperature = temperature)`. The caller binds the
+release with `conductivity = Samples`:
+
+<Code code={properties.slice(properties.indexOf('/// Evaluate signed'), properties.indexOf('/// Evaluate a uniform'))} lang="eqiora" title="A component consuming the property" />
+
+The <ExactSourceLink kind="tree" path="examples/property-composition">complete project</ExactSourceLink>
+contains the table data, attribution, package manifest, and two consumers of the
+same property. Use the full project to compile this example because those assets
+belong to the property definition.
+
+For the physical reasoning, read
+[constitutive laws](/learn/mathematical-modeling/constitutive-laws/).
+For ready-made components, browse [standard packages](/reference/standard-packages/).

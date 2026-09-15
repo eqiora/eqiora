@@ -53,7 +53,7 @@ def main():
         plan = resolve(transient, geometry, eqiora.time.BackwardEuler(step_s=1/24))
         result = eqiora.run(plan, state=eqiora.State.initial(plan), steps=3, output_steps=(1, 2, 3))
         temperature = transient.field("definition.temperature")
-        print("Accepted transient temperature coefficients [K]:")
+        print("Transient temperature coefficients [K]:")
         for state in result.trajectory.states:
             print(state.time_s, state.field(temperature).values("vertex"))
 

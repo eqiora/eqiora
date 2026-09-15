@@ -6,6 +6,70 @@ description: Separate physical assumptions and mathematical relations from numer
 ---
 
 
+import { Code } from '@astrojs/starlight/components';
+import modelSource from '../../../../../../../examples/decay.eqi?raw';
+
+## How long until a warm object cools?
+
+Place a warm metal bead in a room and measure its temperature. Will it lose the
+same number of degrees every minute? Or will cooling slow as it approaches room
+temperature? Our first model predicts the second behavior: after each equal time
+interval, the **temperature difference** shrinks by the same fraction.
+
+This question will connect the whole path. We first describe the bead with one
+number, then ask what changes when a slab needs a temperature at every point.
+The [heat-transfer path](/learn/heat-transfer/) develops that spatial model;
+[numerical simulation](/learn/numerical-simulation/) asks how accurately we
+solve it. You can start in either subject and return here for a particular idea.
+
+## Decide what the system contains
+
+Draw an imaginary boundary around the bead. Energy leaves it and enters the
+room. The room is treated as a reservoir with fixed temperature $T_\infty$.
+Assume the bead has one uniform temperature $T(t)$, constant heat capacity
+$C$ in joules per kelvin, and a constant thermal conductance $G$ to the room in
+watts per kelvin. We neglect internal heating and changes of phase.
+
+```text
+             system boundary
+          ┌──────────────────┐
+          │ bead: C, T(t)    │ ── Pout = G(T − T∞) ──> room at T∞
+          └──────────────────┘
+```
+
+*Conceptual energy-flow diagram. The arrow defines positive outward power;
+if the bead is colder than the room, the signed power is negative.*
+
+Energy balance gives $C\,\mathrm{d}T/\mathrm{d}t=-P_\mathrm{out}$.
+Substitution yields
+
+$$
+C\frac{\mathrm{d}T}{\mathrm{d}t}+G(T-T_\infty)=0.
+$$
+
+The balance and the transfer law have different jobs: energy conservation
+accounts for the change, while $G(T-T_\infty)$ describes the exchange we chose.
+The ODE chapter will derive its solution. For now, check the signs: a hotter
+bead has positive outward power and a negative temperature derivative.
+
+For $T_0\ne T_\infty$, define $x=(T-T_\infty)/(T_0-T_\infty)$ and $k=G/C$.
+The relation becomes $\dot x+kx=0$, with $x(0)=1$. Thus the small source example
+below is also a normalized cooling model. Its dimensionless state is a ratio of
+temperature differences, not temperature itself.
+
+## Make a prediction before compiling
+
+Take illustrative values $C=10\,\mathrm{J/K}$ and $G=0.1\,\mathrm{W/K}$.
+At a temperature difference of $40\,\mathrm K$, the outward power is
+$4\,\mathrm W$ and the initial cooling rate is $-0.4\,\mathrm{K/s}$. At half
+that difference, the cooling rate is half as large. These are algebraic
+consequences of our assumptions; no computer output is needed to obtain them.
+
+The time scale $C/G=100\,\mathrm s$ compares storage with exchange. A bead
+with twice the heat capacity and the same conductance responds twice as slowly.
+The executable source uses $k=1\,\mathrm{s}^{-1}$ for a shorter experiment;
+it has the same normalized mathematical structure.
+
 ## Why this distinction matters
 
 A simulation is one way to investigate a model. It is not the model itself.
@@ -55,23 +119,13 @@ or file format.
 
 Save this as `decay.eqi`:
 
-```eqiora
-model decay {
-  state x: 1;
-  initial { x = 1; }
-  parameter rate: 1 / s = 1;
-
-  relation flow {
-    derivative(x) + rate * x = 0;
-  }
-}
-```
+<Code code={modelSource} lang="eqiora" title="decay.eqi" />
 
 The declaration says that `x` is dimensionless and initially one, `rate` has
 inverse-seconds dimension, and `flow` is a continuous relation. It does not say
 which integrator to use or when to record output.
 
-With the [current installed release](/get-started/), compile the source from
+With the [source build from Get started](/get-started/), compile the source from
 Python without resolving or running it:
 
 ```python
@@ -104,10 +158,10 @@ you are ready to run it; the equations above stay the same.
 
 ## Read the result
 
-An observation answers a question about a completed Result; it does not add a
-new relation to the Model. Because this chapter stops at compilation, there is
-no Result to observe. The only reported outcome is whether the compiler accepts
-or rejects the source.
+The printed field identifiers tell you which unknowns the compiler found.
+Later, an observation will select values of those fields from a completed run.
+The cooling rate and initial temperature determine the trajectory; choosing
+which times to inspect determines the view you take of it.
 
 ## Deliberate failure: a method inside the model
 
@@ -115,7 +169,7 @@ This mutation tries to name a numerical stepping policy as though it were a
 model quantity:
 
 ```eqiora
-model decay {
+model decay() {
   state x: 1;
   initial { x = 1; }
   parameter rate: 1 / s = 1;
@@ -130,6 +184,24 @@ silence the error would still encode a numerical choice in the wrong layer.
 The repair is to restore the method-neutral residual and choose stepping only
 when constructing a Realization.
 
+## When should the model change?
+
+A single temperature is useful when internal temperature differences relax much
+faster than exchange with the room. If the surface cools long before the core,
+reducing a solver tolerance cannot recover the missing spatial field. Likewise,
+a room that warms appreciably must become part of the system rather than remain
+a fixed reservoir. These are changes in the physical model.
+
+A measured departure from exponential cooling invites several explanations:
+temperature-dependent properties, a changing environment, measurement delay,
+or numerical error. Separate them by asking what can be checked independently.
+For example, compare the computed trajectory to the analytic solution before
+using a disagreement with a thermometer to question the transfer law.
+
+For the mathematical modeling of first-order physical systems, see the MIT
+notes listed below. Our bead and parameter choices are an original illustrative
+example, not measured material data.
+
 ## Exercises
 
 1. Classify each item as Model, Realization, Run, Observation, or Presentation:
@@ -141,6 +213,23 @@ when constructing a Realization.
    an output interval does not. Confirm that comments do not prevent compilation.
 4. Name one modeling assumption that the source does not encode. Explain what
    information would be needed before treating decay as a physical prediction.
+
+### Exercise guidance
+
+For exercise 2, state the differential equation and initial value first; put the
+step size and final time in a second sentence. For exercise 4, ask whether a
+single temperature represents the actual object. As an extension, replace the
+fixed room with a second finite heat capacity. Which second state and balance
+would you need, and what total energy should remain constant in an insulated
+pair?
+
+## References
+
+- Arthur Mattuck, Haynes Miller, Jeremy Orloff, and John Lewis, *Differential
+  Equations*, MIT OpenCourseWare 18.03SC (2011),
+  [Basic DE's and separable equations](https://ocw.mit.edu/courses/18-03sc-differential-equations-fall-2011/pages/unit-i-first-order-differential-equations/basic-de-and-separable-equations/),
+  especially “Modeling by First Order Linear ODE's,” for the relation between
+  physical assumptions, balance equations, and first-order dynamics.
 
 [Back to the series map](/learn/mathematical-modeling/) ·
 [Next: Quantities, dimensions, and units](/learn/mathematical-modeling/quantities-dimensions-units/) ·

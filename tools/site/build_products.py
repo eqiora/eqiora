@@ -17,7 +17,6 @@ from typing import Sequence
 RECEIPT_SCHEMA = "eqiora.site.build-products/v1"
 REQUIRED_CONSUMERS = {
     "eqiora-cli": "interface-reference",
-    "eqiora-mcp": "interface-reference",
     "rust-reference": "site-assembly",
     "xtask": "facade-admission",
 }
@@ -59,7 +58,10 @@ def plan(
                 "--locked",
                 "--profile",
                 "dev",
-                "--bins",
+                "--bin",
+                "eqiora",
+                "--bin",
+                "xtask",
                 "--features",
                 "eqiora/cli",
                 "--target-dir",
@@ -72,11 +74,6 @@ def plan(
             products=(
                 Product(
                     "eqiora-cli", "interface-reference", str(target / "debug/eqiora")
-                ),
-                Product(
-                    "eqiora-mcp",
-                    "interface-reference",
-                    str(target / "debug/eqiora-mcp"),
                 ),
                 Product("xtask", "facade-admission", str(target / "debug/xtask")),
             ),

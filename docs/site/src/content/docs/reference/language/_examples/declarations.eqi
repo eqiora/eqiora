@@ -1,6 +1,5 @@
-model Current(parameter voltage: kg * m ^ 2 / (s ^ 3 * A) = 12, parameter resistance: kg * m ^ 2 / (s ^ 3 * A ^ 2) = 4) {
+model Current(parameter voltage: V = 12, parameter resistance: Ohm = 4) {
   variable current: A;
-  relation ohm {
-    voltage - resistance * current = 0;
-  }
+  relation ohm { voltage = resistance * current; }
+  observable measured_current: A = current;
 }

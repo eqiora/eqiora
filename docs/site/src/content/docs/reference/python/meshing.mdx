@@ -13,6 +13,25 @@ Plan and generate meshes from geometry.
 
 <ExactSourceLink path="bindings/python/python/eqiora/meshing.pyi" kind="blob">View source</ExactSourceLink>
 
+## Example: mesh the rectangle
+
+Continue with `geometry` from the [geometry example](/reference/python/geometry/):
+
+```python
+from eqiora import meshing
+
+mesh_plan = meshing.resolve(geometry, meshing.CartesianMesher(cells=(8, 4)))
+mesh = meshing.generate(mesh_plan)
+print(mesh.dimension, mesh.cell_count, mesh.vertex_count)
+print(mesh.coordinates.shape)
+```
+
+The rectangle becomes 32 cells with 45 vertices in two dimensions.
+`coordinates` contains the vertex positions. Use this same mesh when resolving
+a spatial model bound to this geometry; see [modeling](/guides/modeling/).
+
+## API
+
 <a id="api-eqiora-meshing-AffineTriangleMesher"></a>
 
 ## `AffineTriangleMesher`

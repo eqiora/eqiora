@@ -54,7 +54,6 @@ _ARTIFACT_EXPORTS = (
     "PRESSURE_ALT",
     "PRESSURE_CAPTION",
     "CASE_SOURCE_PATHS",
-    "CASE_EVIDENCE_PATHS",
     "sha256",
     "check_exact_source",
     "check_artifact",
@@ -119,7 +118,6 @@ PRODUCTION_IDENTITIES = _site_artifact.PRODUCTION_IDENTITIES
 ROUTES = _site_artifact.ROUTES
 SITEMAP_ROUTES = _site_artifact.SITEMAP_ROUTES
 CASE_SOURCE_PATHS = _site_artifact.CASE_SOURCE_PATHS
-CASE_EVIDENCE_PATHS = _site_artifact.CASE_EVIDENCE_PATHS
 sha256 = _site_artifact.sha256
 FULL_CHROMIUM_VERSION_STDOUT_HEX = _site_supply.FULL_CHROMIUM_VERSION_STDOUT_HEX
 FULL_CHROMIUM_VERSION_STDOUT = _site_supply.FULL_CHROMIUM_VERSION_STDOUT
@@ -622,7 +620,6 @@ def check_source(
             "generate_interface_reference.py",
             "--repository",
             "--eqiora-binary",
-            "--mcp-binary",
             "--check",
             "build_rust_reference.py",
             "--rustdoc-root",

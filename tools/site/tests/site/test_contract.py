@@ -9,7 +9,6 @@ from pathlib import Path
 from unittest import mock
 
 from fixture import (
-    CASE_EVIDENCE_PATHS,
     PRESSURE_ALT,
     REPOSITORY,
     SOURCE_SHA,
@@ -104,9 +103,9 @@ class CompleteContractTests(unittest.TestCase):
             (
                 "broken learning route",
                 Path("gallery/exact-cylinder-steady-stokes/index.html"),
-                "/capabilities/#exact-cylinder-steady-stokes",
-                "/capabilities/#missing",
-                "omits the static learning-to-evidence route",
+                "/learn/fluid-mechanics/",
+                "/learn/missing/",
+                "omits the static learning route",
             ),
         )
         for label, relative, accepted, mutant, expected in mutations:
@@ -266,7 +265,7 @@ class CompleteContractTests(unittest.TestCase):
     def test_route_canonical_media_and_claim_mutants_fail(self) -> None:
         mutations = {
             "missing route": lambda root, artifact: (
-                artifact / "reference/mcp/index.html"
+                artifact / "reference/cli/index.html"
             ).unlink(),
             "duplicate canonical": lambda root, artifact: self._replace(
                 artifact / "index.html",

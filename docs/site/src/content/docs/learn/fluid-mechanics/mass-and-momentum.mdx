@@ -1,0 +1,131 @@
+---
+title: 2. Mass, momentum and stress
+description: Derive incompressibility and Newtonian momentum balance from a fixed control volume, including the role of viscous dissipation.
+sidebar:
+  order: 3
+---
+
+## The question
+
+Why does fluid accelerate through a constriction, and what balances the load on
+an obstacle? Track what crosses a fixed region rather than starting with the
+name of a differential equation.
+
+## Mass accounting
+
+For a fixed volume $\Omega$ with outward unit normal $\boldsymbol n$, mass changes
+because fluid crosses its boundary:
+
+$$
+\frac{\mathrm d}{\mathrm dt}\int_\Omega\rho\,\mathrm dV
++\int_{\partial\Omega}\rho\boldsymbol u\cdot\boldsymbol n\,\mathrm dA=0.
+$$
+
+Use the divergence theorem and allow arbitrary control volumes to obtain
+$\partial_t\rho+\nabla\cdot(\rho\boldsymbol u)=0$. When density is constant in
+space and time, this reduces to $\nabla\cdot\boldsymbol u=0$.
+It constrains volume changes, not the speed of every particle.
+
+In a channel with impermeable walls, the inlet and outlet volume fluxes agree.
+If the velocity is uniform over two sections, $A_1U_1=A_2U_2$. A smaller section
+then has a larger speed. The uniform-profile assumption is needed for that last
+shortcut; in general integrate the actual profile.
+
+## Momentum accounting
+
+Momentum per unit volume is $\rho\boldsymbol u$. Its advective flux is the tensor
+$\rho\boldsymbol u\otimes\boldsymbol u$, and the surface force per area is the
+traction $\boldsymbol\sigma\boldsymbol n$. With a volume force density
+$\boldsymbol f$,
+
+$$
+\frac{\mathrm d}{\mathrm dt}\int_\Omega\rho\boldsymbol u\,\mathrm dV
++\int_{\partial\Omega}\rho\boldsymbol u(\boldsymbol u\cdot\boldsymbol n)\,\mathrm dA
+=\int_{\partial\Omega}\boldsymbol\sigma\boldsymbol n\,\mathrm dA
++\int_\Omega\boldsymbol f\,\mathrm dV.
+$$
+
+Each term is a force. In two dimensions the corresponding area and line
+integrals represent force per unit out-of-plane length, in $\mathrm{N/m}$.
+
+For constant density and divergence-free velocity, the local form is
+
+$$
+\rho\left(\partial_t\boldsymbol u+
+(\boldsymbol u\cdot\nabla)\boldsymbol u\right)
+=\nabla\cdot\boldsymbol\sigma+\boldsymbol f.
+$$
+
+The material derivative $\partial_t\boldsymbol u+(\boldsymbol u\cdot\nabla)\boldsymbol u$
+is the acceleration following fluid. A steady field can accelerate a moving
+particle: the second term survives when a particle enters a faster region.
+
+## Close the stress law
+
+Balance alone does not determine stress. For an incompressible Newtonian fluid,
+
+$$
+\boldsymbol\sigma=-p\boldsymbol I+2\mu\boldsymbol D,
+\qquad
+\boldsymbol D=\tfrac12(\nabla\boldsymbol u+\nabla\boldsymbol u^{\mathsf T}).
+$$
+
+$\boldsymbol D$ measures deformation rate. Rigid rotation has an antisymmetric
+velocity gradient and gives $\boldsymbol D=0$: rotation alone produces no
+Newtonian viscous stress. Compression by positive pressure produces traction
+$-p\boldsymbol n$, directed into the region.
+
+For constant $\mu$,
+$\nabla\cdot(2\mu\boldsymbol D)=\mu\nabla^2\boldsymbol u+
+\mu\nabla(\nabla\cdot\boldsymbol u)$. Incompressibility removes the last term,
+yielding the familiar velocity Laplacian. Keep the full stress when evaluating
+boundary traction; equality of interior differential operators does not make
+all proposed boundary conditions equivalent.
+
+[Structural mechanics](/learn/structural-mechanics/) uses the same force balance
+and traction. Its elastic constitutive law instead depends on displacement
+strain. Substituting displacement for velocity here would change both physics
+and dimensions.
+
+## Why a pressure drop costs power
+
+Dot momentum with velocity. The stress identity
+$\boldsymbol u\cdot\nabla\cdot\boldsymbol\sigma=
+\nabla\cdot(\boldsymbol\sigma\boldsymbol u)-
+\boldsymbol\sigma:\nabla\boldsymbol u$ separates boundary work from internal
+work. For incompressible Newtonian motion,
+
+$$
+\boldsymbol\sigma:\nabla\boldsymbol u=2\mu\boldsymbol D:\boldsymbol D\geq0.
+$$
+
+Viscosity removes kinetic energy and converts it to internal energy. Pressure
+does boundary work, while its local contraction is zero because
+$\nabla\cdot\boldsymbol u=0$. In steady pressure-driven channel flow, pressure
+power supplies viscous dissipation. Applying a lossless Bernoulli formula to
+that whole channel would omit precisely the mechanism driving the flow.
+
+[Heat transfer](/learn/heat-transfer/) explains how internal energy subsequently
+moves. The present isothermal flow model does not solve a temperature equation.
+
+## Exercises
+
+1. Check that $\rho\partial_t\boldsymbol u$, $\nabla p$ and
+   $\mu\nabla^2\boldsymbol u$ all have units $\mathrm{N/m^3}$.
+2. Evaluate $\boldsymbol D$ for rigid rotation
+   $\boldsymbol u=(-\omega y,\omega x)$. Then evaluate it for
+   $\boldsymbol u=(ay,0)$.
+3. Integrate incompressibility over a channel with one inlet, one outlet and
+   impermeable walls. Keep the outward-normal signs explicit.
+4. Explain why a steady velocity field can have nonzero advective acceleration.
+
+**Check your reasoning.** Rigid rotation gives zero strain rate. Simple shear
+has $D_{xy}=D_{yx}=a/2$, shear stress $\mu a$, and dissipation density $\mu a^2$.
+Mass conservation gives $-Q_{\rm in}+Q_{\rm out}=0$.
+
+For a complementary derivation of stress and viscosity, see
+[David Tong's fluid mechanics course](https://davidtong.org/teaching/fluid-mechanics/).
+
+[Previous: Continuum and statics](/learn/fluid-mechanics/continuum-and-statics/) ·
+[Book map](/learn/fluid-mechanics/) ·
+[Next: Exact parallel flows](/learn/fluid-mechanics/exact-parallel-flows/)

@@ -1,4 +1,4 @@
-"""Compute and optionally plot an unverified Reynolds-100 Kármán vortex street."""
+"""Compute and optionally plot a Reynolds-100 Kármán vortex street."""
 
 from __future__ import annotations
 
@@ -243,7 +243,7 @@ def main() -> None:
     parser.add_argument(
         "--vorticity-png",
         type=Path,
-        help="save the final accepted vorticity field (requires eqiora[matplotlib])",
+        help="save the final vorticity field (requires eqiora[matplotlib])",
     )
     arguments = parser.parse_args()
     wake = solve(
@@ -253,7 +253,6 @@ def main() -> None:
     )
     state = wake.final_state
     omega = wake.final_vorticity.values("cell")
-    print("UNVERIFIED PRODUCT EXAMPLE — no benchmark acceptance is claimed")
     print("Reynolds number", DENSITY_KG_PER_M3 * INLET_MEAN_M_PER_S * CYLINDER_DIAMETER_M / DYNAMIC_VISCOSITY_PA_S)
     print("method MINI/P1, backward Euler", TIME_STEP_S, "s")
     print("plan", wake.plan.identity)

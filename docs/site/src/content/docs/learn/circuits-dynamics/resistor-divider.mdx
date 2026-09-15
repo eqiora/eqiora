@@ -1,0 +1,169 @@
+---
+title: 3. Build and run a divider
+description: Predict the current, output voltage, and signed powers, run the equations directly, then replace component definitions with a standard import.
+sidebar:
+  order: 3
+---
+
+import { Code } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import basicSource from '../../../../../../../crates/eqiora-api/packages/Eqiora.Electrical.Basic/src/basic.eqi?raw';
+import modelSource from '../../../../../../../examples/voltage-divider/src/main.eqi?raw';
+import programSource from '../../../../../../../examples/voltage-divider/run.py?raw';
+
+export const directSource = basicSource + '\n' + modelSource.replace('import Eqiora.Electrical.Basic.basic as electrical;', '').replaceAll('electrical.', '');
+
+export const directProgram = 'import eqiora\n\n' + programSource.slice(programSource.indexOf('def resolve(model):'), programSource.indexOf('\n\ndef main():')) + '\n\nmodel = eqiora.compile(path="divider.eqi", entry="VoltageDivider")\nplan = resolve(model)\nresult = eqiora.run(plan, state=eqiora.State.initial(plan))\nfor name, unit in (("current", "A"), ("midpoint", "V"), ("upper_power", "W"), ("lower_power", "W"), ("source_power", "W")):\n    print(f"{name}: {result.observe(model.observable(name)).value} {unit}")\n';
+
+## Make 8 V from 12 V
+
+Imagine measuring the midpoint between a 1 kΩ upper resistor and a 2 kΩ lower
+resistor connected across an ideal 12 V source. The measuring instrument draws
+negligible current. Will its reading be closer to 0 V or 12 V?
+
+The larger lower resistance needs the larger voltage drop to carry the same
+current. We therefore expect the midpoint to sit above half the supply. We will
+derive the precise answer, run the model, and then shorten its source without
+changing its laws.
+
+## Derive the prediction
+
+Let $I$ flow from the positive supply through both resistors toward ground.
+Charge conservation gives equal series current, while Ohm's law gives each
+drop. Summing the drops yields
+
+$$
+V_s=R_1I+R_2I,
+\qquad I=\frac{V_s}{R_1+R_2},
+\qquad V_{\mathrm{out}}=\frac{R_2}{R_1+R_2}V_s.
+$$
+
+This is the series-resistance argument in
+[OpenStax §10.2](https://openstax.org/books/university-physics-volume-2/pages/10-2-resistors-in-series-and-parallel),
+applied to the midpoint measurement. For the specified values, the independent
+predictions are:
+
+| Quantity | Calculation | Prediction |
+| --- | --- | ---: |
+| Series current | $12/(1000+2000)$ | 0.004 A |
+| Midpoint potential | $2000(0.004)$ | 8 V |
+| Upper absorbed power | $1000(0.004)^2$ | 0.016 W |
+| Lower absorbed power | $2000(0.004)^2$ | 0.032 W |
+| Source absorbed power | $-12(0.004)$ | −0.048 W |
+
+The power sum is zero. Write down these values before running anything. They
+will let you distinguish a mistaken sign or resistance from roundoff.
+
+## Express the equations directly
+
+Use the environment from [Get started](/get-started/). In the folder containing
+`.venv`, save this complete listing as `divider.eqi`:
+
+<Code code={directSource} lang="eqiora" title="divider.eqi — complete component definitions and circuit" />
+
+Read the listing from its laws to its connections:
+
+- `Pin` carries a potential and a signed current.
+- `IdealVoltageSource` prescribes a difference and conserves terminal current.
+- `Resistor` writes $v-Ri=0$ and conserves terminal current.
+- `Ground` sets the reference potential.
+- `VoltageDivider` creates instances and connects their terminals.
+
+The model uses `1[kOhm]`, while the component's resistance declaration uses
+base dimensions. Since $\Omega=\mathrm{kg\,m^2/(s^3\,A^2)}$, these describe
+the same physical quantity. The compact unit is a convenience for the reader.
+
+The `observable` declarations ask for expressions to read after solving. They
+do not add a second voltage or current to the circuit.
+
+## Run the complete source
+
+Save the following as `run-divider.py` beside `divider.eqi`:
+
+<Code code={directProgram} lang="python" title="run-divider.py" />
+
+```bash
+uv run --no-project --python .venv/bin/python python run-divider.py
+```
+
+The Python program compiles the equations, chooses a linear solver, creates
+the initial state for that plan, executes it, and observes the result. This
+steady algebraic problem needs no time integrator. The sparse LU choice belongs
+to the calculation, while the resistances belong to the model.
+
+Expect five lines close to the values in the table. For this circuit and the
+listed solver settings, compare midpoint voltage within $10^{-10}$ V and the
+current and individual powers within $10^{-12}$ A or W, respectively. The
+sum of three power errors can accumulate, so compare the summed power with
+zero within $3\times10^{-12}$ W. These are absolute comparison bounds for
+these particular scales, not the number of physically meaningful digits in a
+real resistor measurement.
+
+## The same laws are already in the standard package
+
+You have now written and run every component law. The definitions at the top
+are also the definitions supplied by `Eqiora.Electrical.Basic`. The shorter
+application imports them:
+
+<Code code={modelSource} lang="eqiora" title="examples/voltage-divider/src/main.eqi" />
+
+The `electrical.` prefix names the imported definitions. The three connections,
+four component instances, and five observations retain their meaning. The
+standard library has saved you from maintaining those common definitions.
+
+To run this packaged version, use the checkout kept during Get started:
+
+```bash
+uv run --no-project --python .venv/bin/python python eqiora-source/examples/voltage-divider/run.py
+```
+
+The script brings the bundled dependency into a local store and compiles the
+project's `VoltageDivider`. Its numerical solver and observations are the same
+as above. Open the
+<ExactSourceLink path="examples/voltage-divider/run.py" kind="blob">complete packaged runner</ExactSourceLink>
+and the
+<ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Electrical.Basic/src/basic.eqi" kind="blob">actual imported component definitions</ExactSourceLink>.
+
+## Predict an edit, then run it
+
+In your direct `divider.eqi`, change the source parameter from `12[V]` to
+`24[V]`. Predict 8 mA, 16 V, 0.064 W, 0.128 W, and −0.192 W, then rerun the
+same direct script. Current and voltage double; powers quadruple.
+
+Next restore 12 V and change both resistances by the same factor of ten.
+The output voltage should remain 8 V, but current and power should each become
+one tenth of their previous values. The divider ratio alone does not determine
+how strongly the circuit can drive a load. We investigate that next.
+
+## Exercises
+
+1. Swap the two resistances. Predict every observed value.
+2. Remove ground as described in
+   [chapter 2](/learn/circuits-dynamics/conserving-networks/#try-a-missing-reference).
+   Why can the voltage differences remain meaningful while resolution fails?
+3. Explain why replacing a 1 kΩ value with `1[Ohm]` is a physical change, while
+   replacing it with `1000[Ohm]` is only another way to write the same value.
+4. With $R_1$ fixed and $R_2$ positive, determine the limiting midpoint voltage
+   as $R_2$ becomes very small or very large.
+
+<details>
+<summary>Answer sketches</summary>
+
+1. The total resistance remains 3 kΩ: 4 mA, 4 V, upper power 0.032 W, lower
+   power 0.016 W, source power −0.048 W.
+2. The common potential offset is unconstrained. Ground supplies the missing
+   reference equation; it does not repair a resistor law.
+3. The `k` prefix multiplies by 1000. Units carry scaling as well as dimensions.
+4. $V_{\mathrm{out}}$ tends to zero as $R_2$ tends to zero, and to $V_s$ as
+   $R_2$ grows without bound. These are limits through positive finite values.
+
+</details>
+
+## Reference
+
+Samuel J. Ling, William Moebs, and Jeff Sanny, *University Physics Volume 2*,
+OpenStax (2016), [§10.2, Resistors in Series and Parallel](https://openstax.org/books/university-physics-volume-2/pages/10-2-resistors-in-series-and-parallel).
+
+[Previous: Conserving networks](/learn/circuits-dynamics/conserving-networks/) ·
+[Book map](/learn/circuits-dynamics/) ·
+[Next: Open the components](/learn/circuits-dynamics/component-laws/)

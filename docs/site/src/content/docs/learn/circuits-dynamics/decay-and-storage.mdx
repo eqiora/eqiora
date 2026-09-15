@@ -1,0 +1,195 @@
+---
+title: 5. Storage and decay
+description: Derive an RC discharge, run its normalized scalar decay equation, and use stored energy and a time constant to interpret the trajectory.
+sidebar:
+  order: 5
+---
+
+import { Code } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import modelSource from '../../../../../../../examples/decay.eqi?raw';
+import programSource from '../../../../../../../examples/python/textbook_decay.py?raw';
+
+## When the circuit remembers
+
+The divider reaches its algebraic answer without remembering a previous voltage.
+A charged capacitor is different: its stored charge is part of the initial
+condition. Connect it across a resistor and its voltage falls gradually while
+the resistor converts stored electrical energy into heat.
+
+We will derive this discharge on paper and run its normalized scalar equation.
+The calculation uses one state, which makes the time scale and energy balance
+particularly easy to interpret.
+
+## Charge storage creates a derivative
+
+Let the capacitor voltage $v$ be positive at its upper terminal, and define both
+capacitor and resistor currents as entering their upper terminals. For a
+constant capacitance $C$, stored charge is $q=Cv$, so
+
+$$
+i_C=\frac{\mathrm{d}q}{\mathrm{d}t}
+=C\frac{\mathrm{d}v}{\mathrm{d}t}.
+$$
+
+The resistor carries $i_R=v/R$. With no external source attached, upper-junction
+conservation is $i_C+i_R=0$. Therefore
+
+$$
+C\frac{\mathrm{d}v}{\mathrm{d}t}+\frac{v}{R}=0,
+\qquad v(0)=v_0.
+$$
+
+This ideal RC discharge is treated in
+[OpenStax §10.5](https://openstax.org/books/university-physics-volume-2/pages/10-5-rc-circuits).
+The sign matters: positive resistor current means the capacitor's into-terminal
+current is negative while discharging.
+
+```text
+                  shared upper node
+              ┌────────●────────┐
+              │                 │
+          C, v(t)            R, iR ↓
+              │                 │
+              └────────●────────┘
+                  reference node
+```
+
+*Conceptual discharge circuit. The capacitor and resistor share their upper and
+lower nodes. The resistor current is supplied by decreasing stored charge.*
+
+## Derive the time history before solving
+
+Set $\tau=RC$, with units of seconds. Dividing the ODE by $C$ and separating
+variables gives
+
+$$
+\frac{\mathrm{d}v}{v}=-\frac{\mathrm{d}t}{\tau},
+\qquad v(t)=v_0e^{-t/\tau}.
+$$
+
+For nonzero $v_0$, define $x=v/v_0$. Then
+
+$$
+\frac{\mathrm{d}x}{\mathrm{d}t}+kx=0,
+\qquad x(0)=1,\qquad k=\frac{1}{RC}.
+$$
+
+Choose $R=1$ kΩ and $C=1$ mF, so $\tau=1$ s and $k=1$ s⁻¹.
+The voltage falls to $e^{-1}$ of its initial value after one second. The
+following table comes from the exponential formula, not a numerical run:
+
+| Time / s | $x=v/v_0$ | Remaining energy fraction $x^2$ |
+| ---: | ---: | ---: |
+| 0 | 1 | 1 |
+| 0.25 | 0.778801 | 0.606531 |
+| 0.5 | 0.606531 | 0.367879 |
+| 1 | 0.367879 | 0.135335 |
+
+## Run the normalized law
+
+This `.eqi` file states the normalized equation directly. The symbols `R` and
+`C` have disappeared because they enter through the single rate $k$.
+
+<Code code={modelSource} lang="eqiora" title="examples/decay.eqi" />
+
+Using the environment and checkout from [Get started](/get-started/), run:
+
+```bash
+uv run --no-project --python .venv/bin/python python eqiora-source/examples/python/textbook_decay.py eqiora-source/examples/decay.eqi
+```
+
+The complete runner is:
+
+<Code code={programSource} lang="python" title="examples/python/textbook_decay.py" />
+
+<ExactSourceLink path="examples/python/textbook_decay.py" kind="blob">Open the runner</ExactSourceLink>.
+
+It selects an adaptive Tsitouras 4/5 time method, then requests observations at
+0.25, 0.5, and 1 s. Compare each numerical value with $e^{-t}$ using an absolute
+difference of at most $2\times10^{-8}$ for these settings. The output times
+are observation requests; the method can take additional internal steps.
+
+The initial equation fixes the physical state. A numerical tolerance tells
+the integrator how accurately to approximate that state’s evolution. Neither
+the initial step size nor an observation time is an extra component law.
+For that distinction in more depth, visit
+[numerical simulation](/learn/numerical-simulation/).
+
+## Recover volts and joules
+
+For $v_0=12$ V, convert the dimensionless result back with $v=12x$ V. At one
+second, this predicts about 4.41455 V.
+
+The stored energy is $E=Cv^2/2$. Differentiating and using the ODE gives
+
+$$
+\frac{\mathrm{d}E}{\mathrm{d}t}
+=Cv\frac{\mathrm{d}v}{\mathrm{d}t}
+=-\frac{v^2}{R}=-p_R.
+$$
+
+The resistor's positive absorbed power exactly matches the decrease of stored
+energy. Here $E_0=(0.001)(12)^2/2=0.072$ J. At one second,
+$E=0.072e^{-2}$ J, about 0.009744 J. About 0.062256 J has become heat.
+Checking voltage alone would miss a factor-of-two error in an energy formula.
+
+## Recognize the same structure elsewhere
+
+A lumped object cooling toward an environment temperature satisfies
+$C_{\mathrm{th}}\dot T=-H(T-T_\infty)$ when its thermal capacity and heat-loss
+coefficient $H$ are constant. Its normalized excess temperature decays with
+rate $H/C_{\mathrm{th}}$. Compare this with $1/(RC)$: storage divided by a
+transport coefficient sets a time scale in both problems.
+
+The [heat-transfer path](/learn/heat-transfer/) explains when uniform
+temperature is a reasonable approximation. The scalar trajectory here is the
+reduced equation we derived; interpreting it as a capacitor voltage requires
+the constant-$R$, constant-$C$, isolated-discharge assumptions stated above.
+
+## Change a sign, a scale, or the observation schedule
+
+Copy the model into your working folder and pass that copy's path to the same
+runner. Doubling `rate` halves the time constant. At one second, predict
+$x=e^{-2}$ before running.
+
+Changing `+ rate * x` to `- rate * x` instead predicts growth $e^{kt}$. The
+units remain consistent, but the isolated discharge would create energy. The
+energy argument reveals why this is the wrong physical sign.
+
+Adding more output times changes how densely you observe the solution. It does
+not alter the initial condition or introduce a sampled controller. Compare
+against the same exponential at every added time.
+
+## Exercises
+
+1. Derive the half-voltage time and half-energy time. Which is shorter?
+2. Two RC combinations have the same product $RC$ and the same initial voltage.
+   Must their stored energies also agree?
+3. Show that $v(t)=V_s+(v_0-V_s)e^{-t/(RC)}$ solves the charging equation
+   $C\dot v+(v-V_s)/R=0$ for a constant source.
+4. Explain why a state-space view using $v$ and one using $x=v/v_0$ describe the
+   same discharge, and what conversion is needed to compare observations.
+
+<details>
+<summary>Answer sketches</summary>
+
+1. Voltage halves at $\tau\ln2$; energy halves at $\tau\ln2/2$, because
+   energy is proportional to squared voltage.
+2. No. The normalized trajectories agree, but $E_0=Cv_0^2/2$ depends on $C$
+   separately. For example, doubling $C$ and halving $R$ doubles initial energy.
+3. Differentiation gives $C\dot v=-(v_0-V_s)e^{-t/(RC)}/R$, canceling
+   $(v-V_s)/R$. At zero time the expression equals $v_0$.
+4. They are related by a constant nonzero scale. Multiply $x$ by $v_0$ to compare
+   voltages, and by the appropriate energy formula to compare stored energy.
+
+</details>
+
+## Reference
+
+Samuel J. Ling, William Moebs, and Jeff Sanny, *University Physics Volume 2*,
+OpenStax (2016), [§10.5, RC Circuits](https://openstax.org/books/university-physics-volume-2/pages/10-5-rc-circuits).
+
+[Previous: Open the components](/learn/circuits-dynamics/component-laws/) ·
+[Book map](/learn/circuits-dynamics/) ·
+[Continue with heat transfer](/learn/heat-transfer/)

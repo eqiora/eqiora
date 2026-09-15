@@ -1,0 +1,151 @@
+---
+title: 2. Steady conduction
+description: Derive linear and internally heated slab solutions and use thermal resistance and dimensional scaling to predict changes.
+sidebar:
+  order: 2
+---
+
+## Begin with a slab
+
+Take a slab occupying $0\le x\le L$, with cross-sectional area $A$ and constant
+conductivity $k$. Assume temperature depends only on $x$: side faces are
+insulated, end temperatures are uniform, and lateral variations are negligible.
+The steady equation from the previous chapter becomes
+
+$$
+-kT''(x)=s.
+$$
+
+We will integrate this equation twice and use two boundary conditions. Before
+doing so, predict the curvature: a positive source makes $T''$ negative. An
+internally heated slab should bulge upward above the line joining its end
+temperatures.
+
+## No internal generation: a straight line
+
+With $s=0$, $T''=0$, so $T=a+bx$. Impose $T(0)=T_L$ and $T(L)=T_R$:
+
+$$
+T(x)=T_L+\frac{T_R-T_L}{L}x,
+\qquad q_x=k\frac{T_L-T_R}{L}.
+$$
+
+The heat rate is $P=Aq_x$. Rearranging gives a useful circuit-like relation:
+
+$$
+T_L-T_R=PR,\qquad R=\frac{L}{kA}.
+$$
+
+Thermal resistance has units K/W. The area-normalized resistance $L/k$ has
+units m² K/W; specify which quantity you use. The physical slab and circuit
+analogy are developed in [Glicksman, §2](https://ocw.mit.edu/courses/4-42j-fundamentals-of-energy-in-buildings-fall-2010/932ba308aee67d0164ea8b59cec1c4be_MIT4_42JF10_heat.pdf).
+
+For an original arithmetic example, choose $L=0.2$ m, $A=0.5$ m²,
+$k=2$ W/(m K), $T_L=320$ K, and $T_R=300$ K. Then $R=0.2$ K/W and
+$P=100$ W. Doubling thickness halves this rate; doubling area doubles it.
+These are consequences of the assumed one-dimensional geometry.
+
+## Uniform generation: a parabola
+
+Now take $s$ constant and both ends at $T_b$. Integrating gives
+
+$$
+T=-\frac{s}{2k}x^2+ax+b.
+$$
+
+The left condition gives $b=T_b$, and the right gives $a=sL/(2k)$:
+
+$$
+T(x)=T_b+\frac{s}{2k}x(L-x).
+$$
+
+Differentiate to find the maximum at $x=L/2$:
+
+$$
+T_{\max}-T_b=\frac{sL^2}{8k},\qquad
+q_x(x)=s\left(x-\frac L2\right).
+$$
+
+```text
+       x = 0                  x = L/2                 x = L
+       T = Tb                 maximum                T = Tb
+         │                       •                      │
+         │                   .       .                  │
+         │               .               .              │
+         •                                               •
+    outward ←                qx = 0                  → outward
+      sL/2                                              sL/2
+```
+
+*Conceptual profile, not numerical output. With equal end temperatures and
+uniform generation, heat leaves through both ends. The arrows label outward
+flux in W/m², while the curve indicates temperature in K.*
+
+At the left boundary $q_x=-sL/2$, but its outward normal is $-1$:
+$q_n=sL/2>0$. The right outward flux is also $sL/2$. Thus total outward
+power is $A(sL/2+sL/2)=sAL$, exactly the generated power.
+
+For $s=1000$ W/m³, $L=0.2$ m, and $k=2$ W/(m K), the maximum rise is
+2.5 K. Each end carries 100 W/m² outward. With $A=0.5$ m², each end removes
+50 W and the whole slab generates 100 W. These numbers come from the equations,
+before any computer calculation.
+
+## Which parameter controls what?
+
+The profile shows three useful sensitivities:
+
+- Double $s$: double the temperature rise and the outward power.
+- Double $k$: halve the temperature rise; outward power is unchanged because
+  steady conservation still requires removal of the same generated power.
+- Double $L$ at fixed $s,k,A$: quadruple the temperature rise and double the
+  total generated power.
+
+A larger conductivity reduces the gradient needed to carry the same power.
+This distinction between temperature response and energy throughput will be
+valuable when interpreting the two-dimensional example.
+
+Define $\xi=x/L$ and $\Theta=k(T-T_b)/(sL^2)$. Then
+$\Theta=\xi(1-\xi)/2$. All these slabs share one dimensionless curve. Such a
+collapse is a useful model prediction: a change in a constant parameter should
+rescale the curve, not change its shape.
+
+## A square is a different boundary-value problem
+
+Our Eqiora investigation cools all four sides of a square. A slab profile is
+constant in the transverse direction, so its warm interior would also touch
+the transverse boundary. It cannot satisfy a cool temperature on all four sides.
+Do not use the slab's center value as an exact answer for that square.
+
+The square has additional routes for heat loss. We will retain the slab's
+qualitative predictions—positive interior rise, linear scaling with $s$, inverse
+scaling with $k$—and derive the square's small finite element system separately.
+
+## Exercises
+
+1. Derive the profile when uniform generation is present but $T_L\ne T_R$.
+2. Find its stationary point. Under what condition does it lie inside the slab?
+3. An engineer doubles $k$ and reports double the generated steady outward
+   power with fixed $s,L,A$. What has gone wrong in the interpretation?
+4. Show that the mean temperature rise with equal ends is $sL^2/(12k)$.
+
+<details>
+<summary>Solution hints</summary>
+
+1. Add the source-free linear solution to $sx(L-x)/(2k)$.
+2. $x_*=L/2+k(T_R-T_L)/(sL)$ for $s>0$; check $0<x_*<L$.
+3. Conductivity changes the required gradient. Integrating the source still
+   gives $sAL$, so the report must involve changed inputs, a flux convention,
+   or an erroneous result.
+4. Integrate the parabola over $0\le x\le L$ and divide by $L$.
+
+</details>
+
+## References
+
+- Leon R. Glicksman, *Heat Transfer*, MIT 4.42J (2010),
+  [§2, Conduction Heat Transfer](https://ocw.mit.edu/courses/4-42j-fundamentals-of-energy-in-buildings-fall-2010/932ba308aee67d0164ea8b59cec1c4be_MIT4_42JF10_heat.pdf).
+- Samuel J. Ling, Jeff Sanny, and William Moebs, *University Physics, Volume 2*
+  (OpenStax, 2016), [§1.6, conduction and thermal resistance](https://openstax.org/books/university-physics-volume-2/pages/1-6-mechanisms-of-heat-transfer).
+
+[Previous: Conservation and Fourier's law](/learn/heat-transfer/conservation-and-fourier-law/) ·
+[Next: Boundaries and interfaces](/learn/heat-transfer/boundaries-and-interfaces/)

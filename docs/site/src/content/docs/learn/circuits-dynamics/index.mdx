@@ -1,0 +1,62 @@
+---
+title: Circuits and dynamics
+description: Derive a voltage divider, account for its power, open its component equations, and connect energy storage to exponential decay.
+sidebar:
+  order: 0
+---
+
+How can two resistors turn a 12 V supply into an 8 V signal? Why does connecting
+a load change that signal? Where does the electrical energy go? And what changes
+when a component can store energy?
+
+Start here even if circuits are your first Eqiora topic. We build the equations
+from charge and energy balance, make a prediction on paper, and express the same
+relations in `.eqi`. After running the complete model, we replace its component
+definitions with a standard import. You can then recognize exactly which physics
+the shorter program contains.
+
+## Follow the circuit
+
+| Chapter | Question you will answer |
+| --- | --- |
+| [1. Voltage, current, and power](/learn/circuits-dynamics/voltage-current-power/) | How can a source have negative absorbed power? |
+| [2. Conserving networks](/learn/circuits-dynamics/conserving-networks/) | What do a wire, a junction, and ground each assert? |
+| [3. Build and run a divider](/learn/circuits-dynamics/resistor-divider/) | Can the equations predict 4 mA, 8 V, and the complete power balance? |
+| [4. Open the components](/learn/circuits-dynamics/component-laws/) | When can we reuse a resistor, and when must its law change? |
+| [5. Storage and decay](/learn/circuits-dynamics/decay-and-storage/) | How does storing charge introduce a state and a time scale? |
+
+The first two chapters need algebra and unit conversions. Chapter 5 introduces
+the derivative as a rate of change and works through the required exponential
+solution. Each chapter includes exercises and answer sketches; no other book is
+a prerequisite.
+
+## The first calculation
+
+For a 12 V ideal source and series resistors of 1 kΩ and 2 kΩ, the same current
+passes through both:
+
+$$
+I=\frac{12\,\mathrm{V}}{3\,\mathrm{k\Omega}}=4\,\mathrm{mA},
+\qquad V_{\mathrm{out}}=I(2\,\mathrm{k\Omega})=8\,\mathrm{V}.
+$$
+
+This small example gives us a complete scientific loop: a physical assumption,
+a derivation, a calculation, and a way to discover that an assumption no longer
+fits. A loaded divider, for example, needs a different junction equation even
+though each resistor still obeys the same law.
+
+For computation, use the environment from [Get started](/get-started/). Keep its
+`eqiora-source` checkout and `.venv`; the run instructions below use those names.
+You can also read all derivations and work the exercises without installing
+anything.
+
+## Follow the energy into another subject
+
+A resistor's electrical loss is heat generation. Continue into
+[heat transfer](/learn/heat-transfer/) to ask where that heat flows and how
+temperature changes. For the distinction between a physical law and a solver,
+visit [mathematical modeling](/learn/mathematical-modeling/); for errors in a
+computed time history, visit [numerical simulation](/learn/numerical-simulation/).
+
+[Begin: Voltage, current, and power](/learn/circuits-dynamics/voltage-current-power/) ·
+[Explore another subject](/learn/)

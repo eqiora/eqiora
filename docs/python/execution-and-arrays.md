@@ -2,11 +2,16 @@
 
 ## One run lifecycle
 
-Blocking and awaitable execution use the same native worker, state machine,
-and once-materialized result:
+Continue with `decay.eqi` and the environment from [Get started](/get-started/).
+Run these blocks from the folder containing that file. Submit the model when
+you want a handle to inspect or cancel; use `eqiora.run` when you simply want to
+wait for its result:
 
 ```python
-field = model.field(model.field_ids[0])
+import eqiora
+
+model = eqiora.compile(path="decay.eqi")
+field = model.field("x")
 plan = eqiora.resolve(
     model,
     temporal=eqiora.time.Tsitouras45(
@@ -46,7 +51,13 @@ telemetry without changing the Model, Plan, numerical result, or persisted
 Result artifact:
 
 ```python
-result = eqiora.run(plan, profile=True)
+result = eqiora.run(
+    plan,
+    state=eqiora.State.initial(plan),
+    until_s=1.0,
+    output_times_s=(1.0,),
+    profile=True,
+)
 print(result.profile.summary())
 for event in result.profile.events:
     print(event.path, event.fields)
@@ -91,9 +102,8 @@ async def simulate(plan):
 
 Cancelling the surrounding asyncio task and dropping a Run do not implicitly
 cancel native work. Call `run.cancel()` explicitly. Cancellation is
-cooperative at accepted execution boundaries, publishes typed cancellation
-evidence, and never exposes a partial result. A request after the last
-cancellable boundary may still complete.
+cooperative at execution boundaries and never exposes a partial result. A
+request after the last cancellable boundary may still complete.
 
 Long native waits release the ordinary CPython GIL only after inputs are
 owned. Solver iterations do not call Python. Free-threaded Python and
@@ -132,7 +142,7 @@ An `Array` owns a dense, native-endian, rank-one CPU `float64` allocation.
 Inspecting descriptors does not import NumPy.
 
 ```python
-array = result["x"].values
+array = result.series(field).values
 view = array.numpy(copy=False)  # `None` has the same meaning
 writable = array.numpy(copy=True)
 
@@ -166,16 +176,32 @@ byte order, alignment, and contiguity, then copies the input before native execu
 ## Fixed arrays in execution sessions
 
 `Model.execution_session` accepts invariant real or exact
-integer channel arrays through its existing typed input tables. For a Model with
-`drive: array<1, 2> at tick`, pass one complete tuple per tick:
+integer channel arrays through its typed input tables. Pass one complete tuple
+per tick. This model accumulates two input channels:
 
 ```python
-session = model.execution_session(
+sampled = eqiora.compile(source="""
+public model Accumulator(
+  clock tick: periodic,
+  input drive: array<1, 2> at tick,
+  output total: array<1, 2> at tick
+) {
+  state memory: array<1, 2> at tick;
+  initial { pre(memory) = [0, 0]; }
+  relation update at tick {
+    next(memory) = [pre(memory)[0] + drive[0], pre(memory)[1] + drive[1]];
+    total = next(memory);
+  }
+}
+""", entry="Accumulator", bindings={"tick": eqiora.ClockDomain(period_s=1)})
+session = sampled.execution_session(
     end_time_s=2, max_step_s=0.1,
     inputs={"drive": ("tick", [(3, 4), (5, 6), (7, 8)])},
 )
 session.advance_ticks(1)
-resumed = model.resume_execution(session.checkpoint())
+resumed = sampled.resume_execution(session.checkpoint())
+resumed.advance_ticks(2)
+print(resumed.output("total", 2))  # (Fraction(2, 1), (15.0, 18.0))
 ```
 
 Array State values and accepted output values are complete nested tuples; exact

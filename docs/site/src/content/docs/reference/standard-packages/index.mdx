@@ -1,80 +1,113 @@
 ---
-title: Standard sources
-description: Find physical declarations distributed with the current Eqiora source by purpose.
+title: Standard packages
+description: Find reusable equations and boundary components for circuits, solids, fluids, and sampled controls.
 editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/standard-packages/index.mdx
 ---
 
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
-Browse the `.eqi` declarations in the installed source checkout by physical purpose:
+Standard packages contain ordinary `.eqi` source. Import a component, bind its
+physical inputs, and open its definition whenever you want to see or change the
+underlying equations.
 
-| Purpose | Lookup |
-|---|---|
-| Impose a DC voltage, resistance or electrical reference potential | [Electrical components](/reference/standard-packages/electrical/) |
-| Delay a sample or integrate a scalar rate on a supplied clock | [Sampled controls](/reference/standard-packages/controls/) |
-| Express a small-strain elastic balance, clamp a boundary or leave it traction-free | [Continuum laws and boundaries](/reference/standard-packages/continuum/#elastic-balance-and-boundaries) |
-| Bind density, viscosity, velocity and pressure to an inertial Stokes law | [Inertial flow law](/reference/standard-packages/continuum/#inertial-flow-law) |
-
-Each worked example shows bindings, units and the canonical declaration, and is
-checked through the public compiler. For executed problems, see the [gallery](/gallery/).
+| Build | Start with | Learn the physics |
+|---|---|---|
+| Resistor networks and voltage sources | [Electrical components](/reference/standard-packages/electrical/) | [Circuits and dynamics](/learn/circuits-dynamics/) |
+| Small-strain solid deformation | [Solid components](/reference/standard-packages/continuum/#elastic-balance-and-boundaries) | [Structural mechanics](/learn/structural-mechanics/) |
+| Viscous incompressible flow | [Fluid components](/reference/standard-packages/continuum/#steady-stokes-flow) | [Fluid mechanics](/learn/fluid-mechanics/) |
+| Delays and discrete integration | [Sampled controls](/reference/standard-packages/controls/) | [Decay and storage](/learn/circuits-dynamics/decay-and-storage/) |
+| Heat conduction and material properties | [Local thermal examples](#thermal-components-and-material-properties) | [Heat transfer](/learn/heat-transfer/) |
 
 ## Source and installation boundary
 
-[Get started](/get-started/#install-with-uv) creates `eqiora-source` at the exact
-revision of these pages and installs it with uv. Its `crates/eqiora-api/packages/` directory holds
-the declarations linked below. Run the snippets from the working folder containing
-that checkout and your `.venv`.
+After [installing Eqiora](/get-started/), create a package directory with
+`eqiora.toml` and `src/main.eqi`. For example:
 
-The examples below compile self-contained declarations from that source tree.
-Package-qualified imports additionally require their exact dependency closure;
-see [project packages](/guides/modeling/#resolve-and-lock-a-local-package-project).
+```toml title="eqiora.toml"
+[package]
+name = "org.example.Divider"
+version = "0.1.0"
+entry = "main"
+```
+
+The source imports the desired module:
+
+```eqi
+import Eqiora.Electrical.Basic.basic as electrical;
+```
+
+Register the bundled dependency, then compile your model by its declaration name:
+
+```python
+from pathlib import Path
+import eqiora
+
+project = Path("divider")
+store = Path("package-store")
+store.mkdir(exist_ok=True)
+resolution = eqiora.add_bundled_dependency(
+    project, store, "Eqiora.Electrical.Basic", version="0.1.0"
+)
+model = eqiora.compile_package(store, resolution, entry="VoltageDivider")
+```
+
+The [electrical example](/reference/standard-packages/electrical/) supplies the
+complete `VoltageDivider` model and a solver setup. The bundled dependency operation
+writes the project dependency and lock and installs the source into the local store.
+Use package imports directly; copying library equations into your model is unnecessary.
+
+To carry a project and its dependencies together:
+
+```python
+vendor = project / "vendor"
+vendor.mkdir(exist_ok=True)
+eqiora.vendor_project(project, store, vendor)
+resolution = eqiora.open_project(project, vendor)
+model = eqiora.compile_package(vendor, resolution, entry="VoltageDivider")
+```
+
+See [project packages](/guides/modeling/#resolve-and-lock-a-local-package-project)
+for authoring your own reusable modules and updating a changed project.
+
+The bundled names are `Eqiora.Electrical.Basic`, `Eqiora.Controls.Sampled`,
+`Eqiora.Mechanics.Interfaces`, `Eqiora.Solid.LinearElasticity`, and
+`Eqiora.Fluid.Incompressible`.
 
 ## Browse the distributed sources
 
-The links point to this page's exact source commit. Sources beyond the worked examples
-are listed for discovery, without implying a Python solve workflow for each.
+The repository also contains additional source packages. This table is a source
+browser; use the bundled names above with `add_bundled_dependency`.
 
-| Source module | Physical purpose |
+| Module | Purpose |
 |---|---|
-| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Controls.Sampled/src/sampled.eqi">Controls.Sampled</ExactSourceLink> | Supplied-clock UnitDelay and DiscreteIntegrator with explicit initial memory |
-| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Electrical.Basic/src/basic.eqi">Electrical.Basic</ExactSourceLink> | Electrical Pin, ideal voltage source, resistor and ground |
-| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Electrical.Circuits/src/circuits.eqi">Electrical.Circuits</ExactSourceLink> | A parallel DC circuit composed from Basic |
-| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Electromechanical.DcDrive/src/drive.eqi">Electromechanical.DcDrive</ExactSourceLink> | Controlled source, permanent-magnet motor, inertial load and speed sensor |
-| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi">Fluid.Incompressible</ExactSourceLink> | Steady Stokes balance and Newtonian mechanical boundary interface |
-| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi">Fluid.InertialStokes</ExactSourceLink> | Inertial Stokes balance with a force potential |
-| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Mechanics.Interfaces/src/interfaces.eqi">Mechanics.Interfaces</ExactSourceLink> | Velocity/traction connector, zero velocity and zero traction |
-| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Mechanics.BoundaryLoads/src/boundary_loads.eqi">Mechanics.BoundaryLoads</ExactSourceLink> | Pressure-derived normal traction |
-| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi">Solid.LinearElasticity</ExactSourceLink> | Elastic balances, mechanical interfaces and fixed/free boundaries |
+| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Electrical.Basic/src/basic.eqi">Electrical.Basic</ExactSourceLink> | Pin, ideal voltage source, resistor, ground |
+| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Electrical.Circuits/src/circuits.eqi">Electrical.Circuits</ExactSourceLink> | Parallel DC circuit composed from Basic |
+| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Electromechanical.DcDrive/src/drive.eqi">Electromechanical.DcDrive</ExactSourceLink> | Controlled source, permanent-magnet motor, inertial load, speed sensor |
+| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Controls.Sampled/src/sampled.eqi">Controls.Sampled</ExactSourceLink> | Unit delay and discrete integrator on a supplied clock |
+| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Solid/src/solid.eqi">Solid</ExactSourceLink> | Plane-strain and plane-stress elasticity, material properties, solid boundary conditions |
+| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Fluid/src/fluid.eqi">Fluid</ExactSourceLink> | Steady Stokes flow and velocity, traction, and pressure boundary conditions |
+| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi">Solid.LinearElasticity</ExactSourceLink> | Quasistatic and dynamic elastic balances and interfaces |
+| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi">Fluid.Incompressible</ExactSourceLink> | Steady 2D and conservative transient 3D Newtonian volume laws and interfaces |
+| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi">Fluid.InertialStokes</ExactSourceLink> | Inertial Stokes volume law without velocity advection |
+| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Mechanics.Interfaces/src/interfaces.eqi">Mechanics.Interfaces</ExactSourceLink> | Velocity/traction connectors and zero boundary terminals |
+| <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Mechanics.BoundaryLoads/src/boundary_loads.eqi">Mechanics.BoundaryLoads</ExactSourceLink> | Normal-pressure traction terminal |
 
-The source and its package manifest own the declarations and dependencies. To
-author your own relations, use the [language reference](/reference/language/equations/).
+The module sources show exact signatures and equations. The continuum walkthrough
+uses the bundled `Solid.LinearElasticity` and `Fluid.Incompressible` laws and
+interfaces; the `Solid` and `Fluid` sources illustrate further compositions.
 
-## Exact property specimens
+## Thermal components and material properties
 
-The <ExactSourceLink kind="blob" path="bindings/python/tests/test_table_property_authoring.py">maintained Python table specimen</ExactSourceLink>
-creates a locked local `org.example.PythonTable` package with exact conductivity samples
-and separate Fourier-flux and slab-conductance Components. It executes fluxes −24/−32 W/m²
-and conductances 1.2/1.6 W/K at 310/340 K and reopens the Model artifact. The
-<ExactSourceLink kind="blob" path="crates/eqiora/tests/source_property_tables.rs">Rust source/package specimen</ExactSourceLink>
-checks independent secant slopes, validity, knot rejection and authenticated asset closure.
-The <ExactSourceLink kind="blob" path="examples/property-composition/README.md">complete local property package</ExactSourceLink>
-retains source, table and attribution in the checkout. It drives both Components with live
-sampled temperature input, executes table endpoints and interior values, and replays after
-moving its vendored lock offline. These are local specimen packages, not bundled standard
-releases in `crates/eqiora-api/packages/`. A heated-body Law and transient thermal solve are outside this example.
+These examples are local projects you can reuse and adapt:
 
-## Heated-body specimens
+- <ExactSourceLink kind="tree" path="examples/heated-body">Heated body</ExactSourceLink>
+  contains steady conduction and constant-capacity transient components, complete
+  boundary and initial data, and a Python runner. Follow the
+  [thermal walkthrough](/learn/heat-transfer/heated-body-in-eqiora/).
+- <ExactSourceLink kind="tree" path="examples/property-composition">Property composition</ExactSourceLink>
+  contains a temperature-dependent conductivity table, its attribution, and
+  Fourier-flux and slab-conductance components that share the property.
+  Read the [property syntax](/reference/language/composition/#material-properties).
 
-The <ExactSourceLink kind="blob" path="examples/heated-body/src/main.eqi">maintained heated-body Component</ExactSourceLink>
-retains a steady heat Law and a zero-trace weak form with four explicit 300 K
-boundaries. The <ExactSourceLink kind="blob" path="examples/heated-body/run.py">installed Python example</ExactSourceLink>
-locks this local package and runs a four-cell Q1 discretization with explicit
-solver policy. Its independently derived central temperature is 300 + 3/32 K.
-This is a local instructional package, not a bundled standard thermal release;
-the same source also exposes `TransientHeatedBody` with constant capacity,
-complete 300 K initial and boundary data, Q1 and BackwardEuler. For unit capacity
-and step 1/24 s, the independent central coefficient after n steps is
-`300 + (3/32)*(1 - 2**(-n))` K. The common State and Result support accepted-time
-restart, exact replay and moved offline package execution. Nonlinear capacity,
-material interfaces and authored transient correspondence certificates remain
-outside this bounded profile.
+They are local instructional packages, so resolve their `eqiora.toml` projects
+rather than requesting a bundled thermal package.

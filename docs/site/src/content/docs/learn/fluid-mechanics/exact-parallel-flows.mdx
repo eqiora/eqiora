@@ -1,0 +1,147 @@
+---
+title: 3. Exact parallel flows
+description: Derive Couette and Poiseuille velocity profiles, flow rates and shear, then predict viscous relaxation analytically.
+sidebar:
+  order: 4
+---
+
+## The question
+
+Does doubling a channel's height double its flow? The answer depends on what
+is held fixed. An exact solution makes that dependence visible before a mesh
+or solver is involved.
+
+Consider long parallel plates at $y=0$ and $y=H$. Assume a steady, fully developed,
+incompressible Newtonian flow $\boldsymbol u=(u(y),0)$, constant viscosity, and
+no body force. The lower wall is fixed and the upper wall moves at speed $U_w$.
+Let $G=-\mathrm dp/\mathrm dx$ be a constant positive driving pressure gradient.
+
+The advective acceleration vanishes because $u\partial_xu=0$ and the transverse
+velocity is zero. Momentum reduces to
+
+$$
+\mu\frac{\mathrm d^2u}{\mathrm dy^2}=-G,\qquad u(0)=0,\quad u(H)=U_w.
+$$
+
+This is an exact reduction under the stated assumptions, not a low-Reynolds
+approximation. Entrance regions and disturbances violate the assumed profile.
+
+## Integrate twice
+
+The first integration gives $\mu u'=-Gy+C_1$ and the second gives
+$\mu u=-Gy^2/2+C_1y+C_2$. The lower wall sets $C_2=0$, and the upper wall
+sets $C_1=\mu U_w/H+GH/2$. Thus
+
+$$
+u(y)=U_w\frac{y}{H}+\frac{G}{2\mu}y(H-y).
+$$
+
+The wall-driven part is linear; the pressure-driven part is parabolic. Their
+sum is possible because the reduced equation is linear.
+
+<figure>
+<pre tabIndex={0} aria-label="Sketch of wall-driven and pressure-driven profiles">{`                    upper wall y = H
+Couette: u = Uw      ────────────────→
+         u = Uw/2    ────────→
+         u = 0      •
+                    lower wall y = 0
+
+Poiseuille: u = 0   •                 y = H
+            u_max  ────────────────→ y = H/2
+            u = 0  •                 y = 0`}</pre>
+<figcaption>Arrow length represents streamwise velocity. Both profiles obey no slip at their respective wall velocities.</figcaption>
+</figure>
+
+## Flux and shear are different observations
+
+The volume flux per unit span and mean speed are
+
+$$
+q=\int_0^H u(y)\,\mathrm dy
+=\frac{U_wH}{2}+\frac{GH^3}{12\mu},\qquad \bar U=\frac qH.
+$$
+
+The units of $q$ are $\mathrm{m^2/s}$. Multiply by an out-of-plane width to get
+$\mathrm{m^3/s}$. The shear stress component is
+
+$$
+\sigma_{xy}=\mu u'(y)=\frac{\mu U_w}{H}+G(H/2-y).
+$$
+
+For pure Couette flow ($G=0$), shear is constant. For pure Poiseuille flow
+($U_w=0$), it changes sign at the centre. Wall tractions also include the wall's
+normal orientation: opposite signs of $\sigma_{xy}$ at the two walls do not
+mean that one wall propels the fluid.
+
+For stationary walls,
+
+$$
+u_{\max}=\frac{GH^2}{8\mu},\qquad
+\bar U=\frac{GH^2}{12\mu}=\frac23u_{\max}.
+$$
+
+This explains the conversion from maximum to mean inlet speed in the cylinder
+examples. It does not imply that flow around the cylinder remains parallel.
+
+## A numerical prediction made on paper
+
+Choose $H=0.01\,\mathrm m$, $\mu=0.001\,\mathrm{Pa\,s}$,
+$G=1\,\mathrm{Pa/m}$ and stationary walls. Then
+$u_{\max}=0.0125\,\mathrm{m/s}$,
+$\bar U=0.008333\ldots\,\mathrm{m/s}$ and
+$q=8.3333\ldots\times10^{-5}\,\mathrm{m^2/s}$.
+The lower-wall shear component is $0.005\,\mathrm{Pa}$.
+These values test different aspects of a future computation: maximum speed,
+integrated flux and a derivative at a boundary.
+
+At fixed $G$, doubling $H$ multiplies $q$ by eight. At fixed $q$, the required
+$G$ instead falls by eight. State the controlled quantity before making a
+scaling prediction.
+
+## A smooth transient you can solve
+
+Let $u_s(y)$ denote the steady profile and write $u=u_s+w$. Keep the same
+wall velocities and pressure gradient. A parallel perturbation satisfies
+
+$$
+\partial_t w=\nu\partial_{yy}w,\qquad w(0,t)=w(H,t)=0.
+$$
+
+For $w(y,0)=A\sin(\pi y/H)$, direct substitution gives
+
+$$
+w(y,t)=A\sin(\pi y/H)\exp\left(-\frac{\nu\pi^2t}{H^2}\right),
+\qquad \tau=\frac{H^2}{\pi^2\nu}.
+$$
+
+Its amplitude is reduced by $e^{-1}$ after $\tau$. Higher sine modes decay
+faster in proportion to the square of their mode number. This is the same
+mathematical diffusion mechanism as constant-property heat conduction, with
+momentum diffusivity $\nu$ replacing thermal diffusivity.
+
+These analytic exercises build expectations independent of the cylinder output
+used later. Carry their flux, shear and time-scale reasoning into that more
+complicated geometry.
+
+## Exercises and failure checks
+
+1. Derive $q$ by integrating the profile, without using the displayed result.
+2. For stationary walls, verify that pressure power per unit channel length and
+   span, $Gq$, equals $\int_0^H\mu(u')^2\,\mathrm dy$.
+3. Reverse the pressure gradient while retaining a moving upper wall. Determine
+   whether part of the fluid can move opposite to that wall.
+4. With $H=0.01\,\mathrm m$ and $\nu=10^{-6}\,\mathrm{m^2/s}$, find $\tau$.
+5. A proposed no-slip channel solution has a constant nonzero velocity. Which
+   condition fails even though its divergence is zero?
+
+**Check your reasoning.** Exercise 2 gives $G^2H^3/(12\mu)$ on both sides.
+Exercise 4 gives approximately $10.13\,\mathrm s$. A uniform nonzero velocity
+satisfies mass conservation but violates the stationary wall velocities.
+
+The original teaching materials for
+[MIT's Couette and Poiseuille lesson](https://ocw.mit.edu/courses/2-25-advanced-fluid-mechanics-fall-2013/resources/mit2_25f13_couet_and_pois/)
+provide a complementary treatment of these two experiments.
+
+[Previous: Mass, momentum and stress](/learn/fluid-mechanics/mass-and-momentum/) ·
+[Book map](/learn/fluid-mechanics/) ·
+[Next: Stokes flow and boundaries](/learn/fluid-mechanics/stokes-and-boundaries/)

@@ -25,6 +25,11 @@ class BuildProductsTests(unittest.TestCase):
         command = steps[0].command
         self.assertEqual(command[command.index("--features") + 1], "eqiora/cli")
         self.assertNotIn("eqiora-verify", command)
+        self.assertNotIn("--bins", command)
+        self.assertEqual(
+            [command[i + 1] for i, flag in enumerate(command) if flag == "--bin"],
+            ["eqiora", "xtask"],
+        )
 
     def test_plan_rejects_duplicate_product(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -115,7 +120,7 @@ class BuildProductsTests(unittest.TestCase):
                 if command[:2] == (CARGO, "build"):
                     development = target / "debug"
                     development.mkdir(parents=True)
-                    for name in ("eqiora", "eqiora-mcp", "xtask"):
+                    for name in ("eqiora", "xtask"):
                         (development / name).write_text(name, encoding="utf-8")
                     self.assertEqual(env["CARGO_PROFILE_DEV_DEBUG"], "0")
                     self.assertEqual(env["CARGO_PROFILE_DEV_INCREMENTAL"], "false")
@@ -133,7 +138,7 @@ class BuildProductsTests(unittest.TestCase):
             payload = json.loads(receipt.read_text(encoding="utf-8"))
             self.assertEqual(payload["schema"], build_products.RECEIPT_SCHEMA)
             self.assertEqual(payload["total_invocations"], 2)
-            self.assertEqual(payload["total_products"], 4)
+            self.assertEqual(payload["total_products"], 3)
             self.assertEqual(
                 payload["invocations_by_domain"],
                 {
@@ -144,10 +149,11 @@ class BuildProductsTests(unittest.TestCase):
             products = [
                 product for step in payload["steps"] for product in step["products"]
             ]
-            self.assertEqual(len({product["name"] for product in products}), 4)
+            self.assertEqual(len({product["name"] for product in products}), 3)
             self.assertTrue(all(product["build_count"] == 1 for product in products))
             self.assertNotIn("cache_hit", payload)
-            self.assertNotIn("cache", json.dumps(payload))
+            for record in [payload, *payload["steps"], *products]:
+                self.assertFalse(any("cache" in key for key in record))
             self.assertTrue(
                 all(toolchain == RUST_TOOLCHAIN for _, _, toolchain in invocations)
             )

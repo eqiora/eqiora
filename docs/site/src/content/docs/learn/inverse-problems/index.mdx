@@ -1,0 +1,48 @@
+---
+title: Inverse problems and differentiable design
+description: Infer hidden parameters from observations, discover what measurements can distinguish, and differentiate a solved physical model.
+sidebar:
+  order: 0
+---
+
+A temperature field can reveal a heat source. A decaying signal can reveal a time
+scale. But different materials and different sources can also produce the same
+observations. This book teaches you to ask both questions: **which parameters fit,
+and what have the measurements actually told us?**
+
+We begin with a decay rate you can recover on paper. Then we build a steady
+Poisson model, recover a source amplitude, and follow derivatives through its
+solution. The final investigation chooses measurements and parameter scales that
+make the inference informative.
+
+## Choose your starting point
+
+| Investigation | Question you will answer | Useful starting knowledge |
+| --- | --- | --- |
+| [1. Measurements to parameters](/learn/inverse-problems/measurements-to-parameters/) | What can one decay measurement tell me? | Exponentials and logarithms |
+| [2. Recovering a heat source](/learn/inverse-problems/heat-source-recovery/) | Can a field reveal the strength of its source? | Gradients and steady balance, recapped locally |
+| [3. Sensitivity and identifiability](/learn/inverse-problems/sensitivity-and-identifiability/) | Why can a perfect fit leave a parameter unknown? | Partial derivatives |
+| [4. Differentiating a solved model](/learn/inverse-problems/differentiating-a-solved-model/) | How does a source change propagate through a solver? | Matrix multiplication and the chain rule |
+| [5. Noise, scaling, and design](/learn/inverse-problems/noise-scaling-and-design/) | Which measurements should I take next? | The recovery formula from chapter 2 |
+
+Read in order for a connected course, or enter through a question that interests
+you. Each chapter contains a worked calculation, an experiment or prediction, and
+exercises. You can follow the mathematical argument without installing software.
+Use [Get started](/get-started/) for the shared Python environment when you want
+to run the examples.
+
+## One physical thread, several perspectives
+
+The running field problem is a square held at a fixed boundary temperature and
+heated smoothly inside. The [heat-transfer book](/learn/heat-transfer/) explains
+energy balance and conduction. Here we ask what the observed response says about
+the source and conductivity. The [numerical-simulation book](/learn/numerical-simulation/)
+explains why a computed field changes when its mesh changes.
+
+By the end, you will have an analytic parameter estimate, an Eqiora field
+calculation, a sensitivity experiment that exposes an ambiguity, and a reasoned
+choice of additional observations. These are the ingredients needed before a
+large optimization problem becomes useful.
+
+[Start: Measurements to parameters](/learn/inverse-problems/measurements-to-parameters/) ·
+[Explore other subjects](/learn/)

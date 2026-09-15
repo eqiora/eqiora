@@ -13,6 +13,28 @@ Time-integration policies for numerical plans.
 
 <ExactSourceLink path="bindings/python/python/eqiora/time.pyi" kind="blob">View source</ExactSourceLink>
 
+## Example: control ODE error
+
+Use `model` and `x` from the [decay example](/reference/python/#compile-and-run):
+
+```python
+import eqiora
+
+method = eqiora.time.Tsitouras45(
+    initial_step_s=0.01,
+    relative_tolerance=1e-9,
+    absolute_tolerances={x: 1e-11},
+)
+plan = eqiora.resolve(model, temporal=method)
+```
+
+The initial step is in seconds. Each absolute tolerance is bound to an exact
+Model field and expressed in that field's SI units; `x` is dimensionless here.
+`output_times_s` in `run` chooses observation times independently of the
+adaptive internal steps.
+
+## API
+
 <a id="api-eqiora-time-BackwardEuler"></a>
 
 ## `BackwardEuler`

@@ -19,8 +19,6 @@ REPOSITORY = Path(__file__).resolve().parents[4]
 GENERATOR = REPOSITORY / "tools/docs/generate_interface_reference.py"
 OUTPUTS = (
     Path("docs/site/src/content/docs/reference/cli/index.mdx"),
-    Path("docs/site/src/content/docs/reference/control-v2/index.mdx"),
-    Path("docs/site/src/content/docs/reference/mcp/index.mdx"),
 )
 FORBIDDEN_GIT_ENVIRONMENT = {
     "GIT_DIR",
@@ -79,23 +77,15 @@ def _extract_cli_output(page: str, command: str) -> str:
     return match.group("output") + "\n"
 
 
-def _accepted_live_observations() -> tuple[dict[str, str], list[dict]]:
+def _accepted_live_observations() -> dict[str, str]:
     cli_page = next(path for path in OUTPUTS if "/cli/" in path.as_posix())
-    mcp_page = next(path for path in OUTPUTS if "/mcp/" in path.as_posix())
     cli_text = (REPOSITORY / cli_page).read_text(encoding="utf-8")
     cli = {
         "--version": _extract_cli_output(cli_text, "eqiora --version"),
         "--help": _extract_cli_output(cli_text, "eqiora --help"),
         "check --help": _extract_cli_output(cli_text, "eqiora check --help"),
     }
-    response_blocks = re.findall(
-        r"^Live response:\n\n```json\n(?P<response>.*?)\n```$",
-        (REPOSITORY / mcp_page).read_text(encoding="utf-8"),
-        flags=re.MULTILINE | re.DOTALL,
-    )
-    if len(response_blocks) != 2:
-        raise AssertionError("accepted MCP projection must contain two live responses")
-    return cli, [json.loads(block) for block in response_blocks]
+    return cli
 
 
 class InterfaceReferenceFixture:
@@ -104,7 +94,6 @@ class InterfaceReferenceFixture:
         self.producer = root / "producer"
         self.observed = root / "observed"
         self.cli_marker = self.observed / "eqiora"
-        self.mcp_marker = self.observed / "eqiora-mcp"
         self._populate(self.producer)
         self._commit(self.producer)
         self.source_sha = _run_command(
@@ -122,18 +111,13 @@ class InterfaceReferenceFixture:
             target / "Cargo.toml",
             f'[workspace]\nmembers = []\n[workspace.package]\nversion = "{version}"\n',
         )
-        copied = [
-            Path("crates/eqiora-api/schemas/compile-v2.schema.json"),
-            Path("verify/interfaces/mcp-stdio-compile-check/case.toml"),
-            Path("verify/interfaces/mcp-stdio-compile-check/README.md"),
-            *OUTPUTS,
-        ]
+        copied = OUTPUTS
         for relative in copied:
             destination = target / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(REPOSITORY / relative, destination)
 
-        cli, mcp = _accepted_live_observations()
+        cli = _accepted_live_observations()
         cli_script = (
             f"#!{sys.executable}\n"
             "import json\n"
@@ -147,23 +131,7 @@ class InterfaceReferenceFixture:
             "    raise SystemExit(2)\n"
             "sys.stdout.write(responses[key])\n"
         )
-        mcp_script = (
-            f"#!{sys.executable}\n"
-            "import json\n"
-            "import os\n"
-            "import pathlib\n"
-            "import sys\n"
-            "pathlib.Path(os.environ['EQIORA_I01_CAPTURE_ROOT'], 'eqiora-mcp').touch()\n"
-            f"responses = json.loads({json.dumps(json.dumps(mcp))})\n"
-            "requests = [json.loads(line) for line in sys.stdin if line.strip()]\n"
-            "if [request.get('id') for request in requests] != "
-            "['docs-discover', 'docs-tools']:\n"
-            "    raise SystemExit(2)\n"
-            "for response in responses:\n"
-            "    print(json.dumps(response, ensure_ascii=False, separators=(',', ':')))\n"
-        )
         _write(target / "bin/eqiora", cli_script, executable=True)
-        _write(target / "bin/eqiora-mcp", mcp_script, executable=True)
 
     @staticmethod
     def _commit(repository: Path) -> None:
@@ -207,8 +175,7 @@ class InterfaceReferenceFixture:
         return archive
 
     def clear_markers(self) -> None:
-        for marker in (self.cli_marker, self.mcp_marker):
-            marker.unlink(missing_ok=True)
+        self.cli_marker.unlink(missing_ok=True)
 
 
 class InterfaceReferenceArchiveIdentityTests(unittest.TestCase):
@@ -237,8 +204,6 @@ class InterfaceReferenceArchiveIdentityTests(unittest.TestCase):
             str(repository),
             "--eqiora-binary",
             str(repository / "bin/eqiora"),
-            "--mcp-binary",
-            str(repository / "bin/eqiora-mcp"),
             "--check",
         ]
         if source_sha is not _MISSING:
@@ -280,7 +245,6 @@ class InterfaceReferenceArchiveIdentityTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(fixture.cli_marker.is_file(), result.stderr)
-        self.assertTrue(fixture.mcp_marker.is_file(), result.stderr)
         self.assertEqual(self._snapshot(repository), before)
 
     def _assert_identity_rejection(
@@ -303,7 +267,6 @@ class InterfaceReferenceArchiveIdentityTests(unittest.TestCase):
         )
         self.assertNotEqual(result.returncode, 0, result.stdout)
         self.assertFalse(fixture.cli_marker.exists(), result.stderr)
-        self.assertFalse(fixture.mcp_marker.exists(), result.stderr)
         self.assertEqual(self._snapshot(repository), before)
 
     def test_00_direct_archive_positive_precedes_identity_mutants(self) -> None:
@@ -474,10 +437,8 @@ class InterfaceReferenceArchiveIdentityTests(unittest.TestCase):
                 )
                 if result.returncode == 0:
                     self.assertTrue(fixture.cli_marker.is_file(), result.stderr)
-                    self.assertTrue(fixture.mcp_marker.is_file(), result.stderr)
                 else:
                     self.assertFalse(fixture.cli_marker.exists(), result.stderr)
-                    self.assertFalse(fixture.mcp_marker.exists(), result.stderr)
                 self.assertEqual(self._snapshot(fixture.producer), before)
 
     def test_missing_and_malformed_git_fail_before_product_capture(self) -> None:

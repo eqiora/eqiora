@@ -5,7 +5,32 @@ sidebar:
 description: Relate storage, outward flux, and sources, then move carefully between integral and local balance statements.
 ---
 
+import { Code } from '@astrojs/starlight/components';
+import fluidSource from '../../../../../../../crates/eqiora-api/packages/Eqiora.Fluid/src/fluid.eqi?raw';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+
+## Does the slab lose energy or merely pass it along?
+
+A steady slab conducts heat from a hot reservoir to a cold one without changing
+its own stored energy. That does not mean zero heat flux. It means the **total
+outward** power is zero: power entering one face leaves the other.
+
+```text
+hot side          slab of area A, thickness L          cold side
+           jx →   ┌─────────────────────────┐   jx →
+                  │       stored energy     │
+                  └─────────────────────────┘
+             n = −ex                         n = +ex
+```
+
+*Conceptual control volume. Heat travels to the right at both faces, while the
+outward normals point in opposite directions. Side faces are insulated.*
+
+If $j_x=20\,\mathrm{W/m^2}$ and $A=0.1\,\mathrm{m^2}$, the left face's
+outward power is $-2\,\mathrm W$ and the right face's is $+2\,\mathrm W$.
+Their sum is zero. If the right-face flux increases to $30\,\mathrm{W/m^2}$
+while the left remains unchanged, stored energy must decrease at $1\,\mathrm W$
+in the absence of internal generation. This is our sign check before calculus.
 
 ## Account for what can change
 
@@ -50,33 +75,70 @@ The integral form states the accounting principle directly. The local form is
 often convenient for authoring field relations. Moving between them requires
 regularity and a clear orientation; it is not a change of numerical method.
 
+## Derive the one-dimensional heat equation
+
+Let $u_v$ be internal energy per volume, $j_x$ heat flux, and $s_v$ internal
+heating per volume. Integrating a short slab from $x$ to $x+\Delta x$ gives
+
+$$
+\frac{\mathrm d}{\mathrm dt}\int_x^{x+\Delta x} u_v A\,\mathrm dx
++A\bigl[j_x(x+\Delta x)-j_x(x)\bigr]
+=\int_x^{x+\Delta x}s_v A\,\mathrm dx.
+$$
+
+Divide by $A\Delta x$ and take the smooth limit. With stationary material and
+constant volumetric heat capacity $c_v=\rho c$, where $c$ is the appropriate
+specific heat under this solid approximation, storage becomes
+$\partial_tu_v=c_v\partial_tT$. Thus
+
+$$
+c_v\partial_tT+\partial_xj_x=s_v.
+$$
+
+The units are watts per cubic metre in all three terms. This equation does not
+yet tell us $j_x$. If we additionally choose Fourier conduction
+$j_x=-\kappa\partial_xT$, it becomes
+
+$$
+c_v\partial_tT-\partial_x(\kappa\partial_xT)=s_v.
+$$
+
+For constant $\kappa$, steady state, and no source, it reduces to $T''=0$.
+Two integrations give $T=a+bx$; the two prescribed end temperatures then recover
+the linear profile from the fields chapter. The straight line comes from the
+whole combination of balance, material law, and boundary data.
+
+For constant positive $s_v$, steady balance instead gives
+$\partial_xj_x=s_v$: more power exits than enters because energy is added inside.
+With equal fixed temperatures at both ends, heat flows outward on both faces.
+The [heat-transfer path](/learn/heat-transfer/) explores these profiles.
+
+## Recover the small model by integration
+
+If the bead's temperature is uniform, integrate its volumetric storage over the
+whole volume to obtain $C\dot T$. Replacing the total outward surface power with
+$G(T-T_\infty)$ recovers the first chapter's ODE. The lumped equation and spatial
+balance therefore share the same energy accounting; their difference is the
+assumed spatial detail.
+
+A moving fluid needs care: a fixed control volume can receive energy or mass by
+advection as well as conduction. A balance written only for conductive flux
+must not be reused as the complete transport law for moving material.
+
 ## Two steady fluid balances
 
-For constant-density incompressible flow, mass conservation reduces to
+For constant-density incompressible flow, the corresponding mass statement is
+$\nabla\cdot\boldsymbol u=0$. It says there is no net volumetric outflow from a
+small fixed volume; it does not determine velocity by itself. Momentum balance
+adds the force accounting. In the fluid component, find
+`incompressibility` and `momentum`:
 
-```eqiora
-relation incompressibility on body {
-  div(velocity) = 0;
-}
-```
+<Code code={fluidSource.slice(fluidSource.indexOf('public component SteadyNewtonianBalance2d'), fluidSource.indexOf('public component VelocityTractionInterface2d')).trim()} lang="eqiora" title="steady balance component" />
 
-The zero divergence says that a small control volume has no net volumetric
-outflow. It does not determine the velocity by itself.
-
-The same standard package writes a steady momentum balance as
-
-```eqiora
-relation momentum on body {
-  -div(
-    2 * dynamic_viscosity * symmetric_part(grad(velocity))
-    - isotropic_lift(pressure)
-  ) - grad(force_potential) = 0;
-}
-```
-
-Here the divergence acts on the stress-like flux. Viscosity and pressure
-specify how that flux depends on the fields; those are constitutive ingredients
-inside the conservation statement.
+The divergence in momentum acts on stress. Its viscous term supplies a material
+relation, while pressure enforces the incompressibility constraint. A force
+potential supplies the body-force density through its gradient. The next
+chapter separates those material assumptions from conservation itself.
 
 <ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Fluid/src/fluid.eqi" kind="blob">Read the standard fluid components</ExactSourceLink>.
 
@@ -102,6 +164,29 @@ cannot infer which orientation you intended.
    constitutive ingredients separately.
 5. Draw a one-dimensional control volume and label the outward normal at both
    ends. Use it to check the flux signs.
+
+### Exercise guidance
+
+In exercise 1, zero total outward flux permits a nonzero flux through individual
+faces. For exercise 5, write the boundary sum as $A[j_x(L)-j_x(0)]$ before
+assigning numerical values. The minus sign at the left face comes from its
+outward normal, not from reversing the physical heat-flow direction.
+
+**Generation check.** A slab with volume $AL$ produces heat uniformly at
+$s_v\,\mathrm{W/m^3}$. Show that steady outward power must be $s_vAL$.
+If symmetry sends equal power through both ends, find each end's outward flux.
+This integrated check can expose a sign or source error even when a temperature
+plot looks smooth.
+
+## References
+
+- Gilbert Strang and Edwin “Jed” Herman, *Calculus*, volume 3 (OpenStax, 2016),
+  [section 6.8, The divergence theorem](https://openstax.org/books/calculus-volume-3/pages/6-8-the-divergence-theorem),
+  for converting an outward surface integral to a volume integral. The heat
+  balance above is derived directly by accounting for a short slab.
+
+Continue with [heat transfer](/learn/heat-transfer/) for energy balances or
+[fluid mechanics](/learn/fluid-mechanics/) for mass and momentum balances.
 
 [Previous: Fields and spatial domains](/learn/mathematical-modeling/fields-spatial-domains/) ·
 [Back to the series map](/learn/mathematical-modeling/) ·

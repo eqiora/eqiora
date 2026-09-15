@@ -1,0 +1,193 @@
+---
+title: 2. Displacement, strain and stress
+description: Understand tensor strain, outward traction and the different assumptions behind plane stress and plane strain.
+sidebar:
+  order: 2
+---
+
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+
+## Can a body move without straining?
+
+Slide a square rigidly across a table. Every point moves, but no pair of points
+changes its separation. Displacement alone cannot measure deformation; we need
+differences in displacement. Our continuum model will turn those differences
+into strain, turn strain into stress, then balance the resulting forces.
+
+Write the in-plane displacement as $\boldsymbol u=(u_x,u_y)$, in metres.
+Coordinates $x,y$ describe the reference, undeformed body. The gradient convention
+is $(\nabla\boldsymbol u)_{ij}=\partial u_i/\partial x_j$.
+
+## Strain removes infinitesimal rigid rotation
+
+For a short material vector $\mathrm{d}\boldsymbol x$, the change in its squared
+length is, to first order in the displacement gradient,
+
+$$
+|\mathrm{d}\boldsymbol x+\nabla\boldsymbol u\,\mathrm{d}\boldsymbol x|^2
+-|\mathrm{d}\boldsymbol x|^2
+\simeq 2\,\mathrm{d}\boldsymbol x^{\mathsf T}
+\boldsymbol\varepsilon\,\mathrm{d}\boldsymbol x,
+\qquad
+\boldsymbol\varepsilon=\frac12(\nabla\boldsymbol u+\nabla\boldsymbol u^{\mathsf T}).
+$$
+
+Thus
+
+$$
+\varepsilon_{xx}=\partial_xu_x,\qquad
+\varepsilon_{yy}=\partial_yu_y,\qquad
+\varepsilon_{xy}=\frac12(\partial_yu_x+\partial_xu_y).
+$$
+
+Strain is dimensionless. The engineering shear strain is
+$\gamma_{xy}=2\varepsilon_{xy}$; confusing the two creates a factor-of-two
+error. These are the infinitesimal-strain relations described in Roylance's
+[The Kinematic Equations, pp. 1–3](https://ocw.mit.edu/courses/3-11-mechanics-of-materials-fall-1999/d2507a08fe8bf09123bd0b333917a036_MIT3_11F99_kin.pdf).
+
+Try $\boldsymbol u=(-\theta y,\theta x)$. The gradient is skew-symmetric, so
+$\boldsymbol\varepsilon=0$: this is an infinitesimal rotation. The approximation
+discards terms quadratic in the gradient. For a finite rigid rotation, those
+terms matter, which is why a small-strain law is not a finite-rotation model.
+
+## Stress tells us the force on a cut
+
+A stress tensor $\boldsymbol\sigma$ has units of Pa. Given a surface with
+outward unit normal $\boldsymbol n$, its traction is
+
+$$
+\boldsymbol t=\boldsymbol\sigma\boldsymbol n.
+$$
+
+Traction is force per area, a vector. Reversing the normal reverses the traction
+on the same cut. On a vertical left edge $\boldsymbol n=(-1,0)$, positive
+$\sigma_{xx}$ therefore gives a leftward traction. On the right edge the same
+stress gives a rightward traction. This orientation rule is Cauchy's relation;
+see Roylance's
+[The Equilibrium Equations, pp. 1–3](https://ocw.mit.edu/courses/3-11-mechanics-of-materials-fall-1999/e0adfb0f62091b587d39b99bfc213e19_MIT3_11F99_eq.pdf).
+
+Balance an arbitrary piece of stationary material:
+
+$$
+\int_{\partial\Omega}\boldsymbol\sigma\boldsymbol n\,\mathrm{d}S
++\int_\Omega\boldsymbol b\,\mathrm{d}V=\boldsymbol0.
+$$
+
+Here $\boldsymbol b$ is body force per volume, in N/m³. The divergence theorem
+gives $\nabla\cdot\boldsymbol\sigma+\boldsymbol b=\boldsymbol0$.
+This is force balance, independent of the material law. In a two-dimensional
+calculation, area and edge integrals instead yield forces per out-of-plane
+thickness, in N/m. Multiplying by a chosen physical thickness gives forces in N.
+
+## Isotropic elasticity closes the equations
+
+Our in-plane law is
+
+$$
+\boldsymbol\sigma=2\mu\boldsymbol\varepsilon
++\lambda\,\operatorname{tr}(\boldsymbol\varepsilon)\boldsymbol I,
+\qquad \operatorname{tr}(\boldsymbol\varepsilon)=\nabla\cdot\boldsymbol u.
+$$
+
+Both $\mu$ and $\lambda$ have units of Pa. The identity tensor $\boldsymbol I$
+spreads the scalar trace over diagonal components. Stress is symmetric, so
+$\sigma_{xy}=\sigma_{yx}$. The law stores the energy density
+
+$$
+W=\frac12\boldsymbol\sigma:\boldsymbol\varepsilon
+=\mu\boldsymbol\varepsilon:\boldsymbol\varepsilon
++\frac\lambda2(\operatorname{tr}\boldsymbol\varepsilon)^2.
+$$
+
+The colon sums products of matching tensor entries, including both off-diagonal
+entries. $W$ has units of J/m³, the same dimensions as Pa. The square problem
+uses $\mu>0$ and $\lambda=0$, making every nonzero symmetric strain cost energy.
+Roylance's [Constitutive Equations, pp. 1–4](https://ocw.mit.edu/courses/3-11-mechanics-of-materials-fall-1999/b51fefe25af90628d210e7029c7f744c_MIT3_11F99_const.pdf)
+develops isotropic elasticity and its shear/volume decomposition.
+
+## A two-dimensional drawing does not choose a reduction
+
+Starting with a three-dimensional isotropic material, write
+$\mu=E/[2(1+\nu)]$ and
+$\lambda_3=E\nu/[(1+\nu)(1-2\nu)]$, where $\nu$ is dimensionless Poisson ratio.
+Two different physical assumptions lead to different in-plane coefficients:
+
+| Assumption | Out-of-plane condition | Coefficient in the in-plane law |
+| --- | --- | --- |
+| Plane strain | $\varepsilon_{zz}=\varepsilon_{xz}=\varepsilon_{yz}=0$ | $\lambda=\lambda_3$ |
+| Plane stress | $\sigma_{zz}=\sigma_{xz}=\sigma_{yz}=0$ | $\lambda=E\nu/(1-\nu^2)$ |
+
+Plane strain describes suppressed out-of-plane deformation; it need not mean
+zero out-of-plane stress. Plane stress can describe a thin sheet loaded in its
+plane with free broad faces; its thickness can change.
+
+We can derive the second coefficient rather than memorize it. From
+$0=\sigma_{zz}=2\mu\varepsilon_{zz}+
+\lambda_3(\varepsilon_{xx}+\varepsilon_{yy}+\varepsilon_{zz})$,
+
+$$
+\varepsilon_{zz}=-\frac{\lambda_3}{2\mu+\lambda_3}
+(\varepsilon_{xx}+\varepsilon_{yy}).
+$$
+
+Substitution into the two in-plane normal stresses changes the trace coefficient
+to $2\mu\lambda_3/(2\mu+\lambda_3)=E\nu/(1-\nu^2)$.
+For $\nu=0.3$, the plane-strain coefficient is about $0.577E$, while the
+plane-stress coefficient is about $0.330E$. Choosing the wrong reduction changes
+the model even when the mesh is identical.
+
+Our forthcoming example states its two-dimensional law directly through
+$\mu$ and $\lambda$. It computes two displacement components; there is no
+out-of-plane field to inspect. The derivation above explains how a physical
+three-dimensional interpretation would supply coefficients and additional
+assumptions.
+
+## Read the operators as mechanics
+
+The `.eqi` spelling maps directly to these definitions:
+
+| Mathematical meaning | Source expression |
+| --- | --- |
+| Small strain | `symmetric_part(grad(displacement))` |
+| Trace of strain | `div(displacement)` |
+| Scalar multiplied by identity | `isotropic_lift(...)` |
+| Stress traction on the owning boundary | `normal(...)` |
+
+<ExactSourceLink path="examples/mixed-boundary-elasticity.eqi" kind="blob">Open the direct elastic component</ExactSourceLink>.
+The declaration `vector<m, 2>` gives displacement both its unit and its two
+components. `load_potential` has units of Pa, so its gradient has the correct
+N/m³ body-force units.
+
+For a Newtonian fluid the same traction rule uses a different stress law:
+$\boldsymbol\sigma=-p\boldsymbol I+2\mu_f\operatorname{sym}(\nabla\boldsymbol v)$.
+The fluid's $\mu_f$ is a viscosity in Pa·s, while the solid's $\mu$ is a shear
+modulus in Pa. The [fluid path](/learn/fluid-mechanics/) uses velocity
+$\boldsymbol v$, in m/s; substituting velocity into an elastic law would change
+the dimensions.
+
+## Exercises
+
+1. Compute strain for $\boldsymbol u=(a x,b y)$ and for a constant translation.
+2. For $\boldsymbol\sigma=\begin{pmatrix}4&1\\1&2\end{pmatrix}\,\mathrm{Pa}$,
+   find traction on the left and upper edges.
+   **Check:** $(-4,-1)\,\mathrm{Pa}$ and $(1,2)\,\mathrm{Pa}$.
+3. For simple shear $\boldsymbol u=(c y,0)$, show that
+   $\sigma_{xy}=\mu c$ and $W=\mu c^2/2$.
+4. Why does setting both $\varepsilon_{zz}=0$ and $\sigma_{zz}=0$ generally
+   impose more than either plane reduction alone?
+5. In the square example $\lambda=0$. Show why a displacement depending only
+   on $x$ can leave the upper and lower edges traction-free. What changes if
+   $\lambda$ becomes positive?
+
+## Reading
+
+- David Roylance, *The Kinematic Equations*, MIT, September 19, 2000:
+  [module and PDF](https://ocw.mit.edu/courses/3-11-mechanics-of-materials-fall-1999/resources/mit3_11f99_kin/).
+- David Roylance, *The Equilibrium Equations*, MIT, September 26, 2000:
+  [module and PDF](https://ocw.mit.edu/courses/3-11-mechanics-of-materials-fall-1999/resources/mit3_11f99_eq/).
+- David Roylance, *Constitutive Equations*, MIT, October 4, 2000:
+  [module and PDF](https://ocw.mit.edu/courses/3-11-mechanics-of-materials-fall-1999/resources/mit3_11f99_const/).
+
+[Previous: Loads and energy](/learn/structural-mechanics/loads-energy/) ·
+[Path](/learn/structural-mechanics/) ·
+[Next: Virtual work and finite elements](/learn/structural-mechanics/virtual-work/)

@@ -22,12 +22,13 @@
   <a href="https://github.com/nkiyohara/eqiora/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/nkiyohara/eqiora/ci.yml?event=pull_request&amp;style=flat-square&amp;label=PR%20CI&amp;logo=githubactions&amp;logoColor=white" alt="Pull request CI"></a>
   <a href="https://github.com/nkiyohara/eqiora/actions/workflows/pages.yml"><img src="https://img.shields.io/github/actions/workflow/status/nkiyohara/eqiora/pages.yml?branch=main&amp;event=push&amp;style=flat-square&amp;label=docs%20build&amp;logo=githubactions&amp;logoColor=white" alt="Documentation build"></a>
   <a href="https://eqiora.org"><img src="https://img.shields.io/badge/docs-eqiora.org-17417e?style=flat-square" alt="Documentation at eqiora.org"></a>
-  <a href="https://eqiora.org/capabilities/"><img src="https://img.shields.io/badge/release-0.1.2-17417e?style=flat-square" alt="Current release: 0.1.2"></a>
+  <a href="https://eqiora.org/release-notes/"><img src="https://img.shields.io/badge/release-0.1.2-17417e?style=flat-square" alt="Current release: 0.1.2"></a>
   <a href="LICENSE"><img src="https://img.shields.io/pypi/l/eqiora?style=flat-square" alt="Apache License 2.0"></a>
 </p>
 
 <p align="center">
   <a href="#-get-started-with-uv"><strong>Get started</strong></a> ·
+  <a href="https://eqiora.org/learn/"><strong>Learn the physics</strong></a> ·
   <a href="https://eqiora.org/gallery/"><strong>Explore simulations</strong></a> ·
   <a href="https://eqiora.org/reference/">API reference</a> ·
   <a href="docs/roadmap.md">Roadmap</a> ·
@@ -40,10 +41,13 @@
 
 **A Kármán vortex street behind a circular obstacle.** This transient
 Navier–Stokes example starts with exact channel geometry, advances the wake,
-and visualizes cell-average vorticity with Python. It is an **unverified product
-example**; no cylinder benchmark validation is claimed.
+and visualizes cell-average vorticity with Python. Watch the alternating
+vortices travel downstream and follow the changing lift below the flow.
 
-[![Cell-average vorticity in a Kármán vortex street behind a circular cylinder](docs/site/src/assets/gallery/karman-vortex-street-poster.png)](https://eqiora.org/gallery/karman-vortex-street/)
+[![Animated cell-average vorticity and lift history in a Kármán vortex street behind a circular cylinder](docs/assets/karman-vortex-street.gif)](https://eqiora.org/gallery/karman-vortex-street/)
+
+[Watch the MP4](docs/site/src/assets/gallery/karman-vortex-street.mp4) ·
+[Explore the model and run it yourself](https://eqiora.org/gallery/karman-vortex-street/)
 
 | Explore | Inside the walkthrough |
 | --- | --- |
@@ -86,94 +90,19 @@ the problem.
 
 ## 🚀 Get started with uv
 
-With [uv](https://docs.astral.sh/uv/getting-started/installation/) installed,
-create a project with meshing and plotting support:
+Follow [Get started](https://eqiora.org/get-started/) to install Eqiora with
+[uv](https://docs.astral.sh/uv/getting-started/installation/), save a small decay
+model, and run it. The walkthrough keeps the installed package and example at
+the same source revision and explains each step.
 
-```console
-uv init --python ">=3.11,<3.15" eqiora-demo
-cd eqiora-demo
-uv add "eqiora[gmsh,matplotlib]==0.1.2"
-```
+Then choose a subject in [Learn](https://eqiora.org/learn/): mathematical
+modeling, heat transfer, numerical simulation, fluid flow, solid mechanics,
+circuits and dynamics, or inverse problems. Each path builds the mathematics,
+runs the model, and shows how reusable components simplify the same work.
 
-The published wheels support **ordinary-GIL CPython 3.11–3.14 on Linux x86-64
-(manylinux)**. Gmsh also needs the system OpenGL runtime; see the
-[installation guide](https://eqiora.org/get-started/) for setup details.
-
-Save the example below as `cylinder.py`, then run:
-
-```console
-uv run cylinder.py
-```
-
-It prints pressure, cylinder force, and net flux, then saves `pressure.png`.
-
-<details>
-<summary><strong>🐍 Show the complete cylinder-flow example</strong></summary>
-
-```python
-from importlib.resources import files
-
-import eqiora
-import eqiora.matplotlib as eqplot
-
-graph = eqiora.geometry.GeometryGraph()
-rectangle = graph.rectangle(x_bounds=(0.0, 2.2), y_bounds=(0.0, 0.41))
-circle = graph.circle(center=(0.2, 0.2), radius=0.05)
-fluid = graph.subtract(rectangle, circle)
-geometry = graph.build(fluid, named_topology={
-    "fluid": fluid.region,
-    "inlet": rectangle.boundaries[0],
-    "outlet": rectangle.boundaries[1],
-    "walls": rectangle.boundaries[2:4],
-    "cylinder": circle.boundaries[0],
-})
-mesh_request = eqiora.meshing.GmshMesher(
-    maximum_boundary_error=1e-4,
-    maximum_target_size=0.025,
-    minimum_mean_ratio=1e-5,
-    maximum_boundary_facets=50,
-)
-mesh_plan = eqiora.meshing.resolve(geometry, mesh_request)
-mesh = eqiora.meshing.generate(mesh_plan)
-
-model = eqiora.compile(
-    path=files(eqiora).joinpath("examples", "steady-flow-past-cylinder.eqi"),
-    geometry=geometry,
-    parameters={
-        "dynamic_viscosity": 1.0e-3,
-        "zero_pressure": 0.0,
-        "inlet_speed": 0.3,
-        "channel_height": geometry.bounds[1][1] - geometry.bounds[1][0],
-    },
-)
-linear = eqiora.solve.Linear(
-    relative_tolerance=1e-6,
-    absolute_tolerance=1e-13,
-    maximum_iterations=10_000,
-)
-plan = eqiora.resolve(
-    model, mesh=mesh, spatial=eqiora.fem.MiniP1(), solve=linear, scaling=None,
-)
-result = eqiora.run(plan)
-pressure = result.output(plan.capability.pressure)
-pressure_values = pressure.values("vertex")
-cylinder_force = result.boundary_force(geometry.selection("cylinder"))
-inlet_flux = result.boundary_flux(geometry.selection("inlet"))
-outlet_flux = result.boundary_flux(geometry.selection("outlet"))
-
-print(result.solve)
-print("pressure", min(pressure_values), max(pressure_values), "Pa")
-print("cylinder force on fluid", cylinder_force.on_domain, "N/m")
-print("net flux", inlet_flux.value + outlet_flux.value, "m^2/s")
-
-figure = eqplot.plot_scalar_field(result, field=plan.capability.pressure)
-figure.savefig("pressure.png", dpi=180)
-```
-
-</details>
-
-Read the [step-by-step walkthrough](https://eqiora.org/gallery/exact-cylinder-steady-stokes/)
-alongside the [full example script](examples/python/exact_cylinder_stokes.py).
+To start with steady flow around a cylinder, open the
+[step-by-step walkthrough](https://eqiora.org/gallery/exact-cylinder-steady-stokes/)
+and its [complete Python script](examples/python/exact_cylinder_stokes.py).
 
 ## 🧩 From a model to a result
 
@@ -209,7 +138,7 @@ backends, or browse the [API docs](https://docs.rs/eqiora/0.1.2/eqiora/).
 | --- | --- |
 | 🐍 **Python** | The primary simulation API: author, compile, mesh, solve, and plot. [Reference →](https://eqiora.org/reference/python/) |
 | 🦀 **Rust** | Embed Eqiora through the `eqiora` Rust crate. [Guide →](docs/rust-api.md) |
-| ⌨️ **CLI & MCP** | Check a local `.eqi` file with `eqiora check`, or connect agents to the compile/check tool in `eqiora-mcp`. [Build the tools →](docs/rust-api.md#build-command-line-tools-from-this-checkout) |
+| ⌨️ **CLI** | Check a local `.eqi` file with `eqiora check`. [Command reference →](https://eqiora.org/reference/cli/) |
 | 📝 **Editor preview** | Diagnostics, formatting, hover, and cross-module navigation through LSP. Currently installed from a source checkout. [Setup →](docs/language-server.md) |
 
 ## 🌱 Growing in the open

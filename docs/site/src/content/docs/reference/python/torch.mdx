@@ -13,6 +13,29 @@ Use Eqiora differentiable programs with PyTorch autograd.
 
 <ExactSourceLink path="bindings/python/python/eqiora/torch.pyi" kind="blob">View source</ExactSourceLink>
 
+## Example: differentiate a scalar objective
+
+Install the `torch` extra, then create `program` with the
+[differentiation example](/reference/python/diff/):
+
+```python
+import torch
+from eqiora.torch import bind
+
+operator = bind(program)
+parameters = torch.tensor([1.5], dtype=torch.float64, requires_grad=True)
+values = operator(parameters)
+values.square().sum().backward()
+print(parameters.grad)
+```
+
+The gradient is the derivative of the sum of squared output values with
+respect to the selected parameter. Inputs are contiguous, one-dimensional
+CPU `float64` tensors. See [framework adapters](/guides/differentiation/) for
+installation and compiled execution.
+
+## API
+
 <a id="api-eqiora-torch-TorchProgram"></a>
 
 ## `TorchProgram`

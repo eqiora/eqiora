@@ -1,0 +1,163 @@
+---
+title: 3. Weak forms and finite elements
+description: Derive a one-dimensional element matrix, assemble it, and connect the construction to the Poisson example.
+sidebar:
+  order: 3
+---
+
+import { Code } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import modelSource from '../../../../../../../verify/numerics/poisson-fem-fvm/models/poisson.eqi?raw';
+
+## How can straight segments solve a curved problem?
+
+A finite-element solution may be piecewise linear even when its differential
+equation contains a second derivative. Within each segment that second
+derivative is zero. How can it represent a nonzero source?
+
+The answer is to ask the equation to hold in an integrated sense. We will
+derive that statement, construct one element, and run a mesh comparison. For
+physical context, $u$ can represent a scaled temperature difference in
+[steady conduction](/learn/heat-transfer/).
+
+## Predict a field before discretizing
+
+Use a unit interval and dimensionless coordinate $\xi=x/L$, with $L=1\,\mathrm m$.
+The scaled problem is
+
+$$
+-u''(\xi)=f(\xi)=\pi^2\sin(\pi\xi),\qquad
+u(0)=u(1)=0.
+$$
+
+Here primes denote differentiation with respect to $\xi$. Direct substitution
+gives $u(\xi)=\sin(\pi\xi)$, so the field is symmetric, positive inside the
+interval, and has maximum 1 at the center. Its endpoint derivatives are
+$u'(0)=\pi$ and $u'(1)=-\pi$.
+
+The `.eqi` source below uses dimensional $x$: its wave number is $\pi/L$ and
+source scale is $\pi^2/L^2$. Keeping these scales explicit makes the sine's
+argument dimensionless.
+
+## Move one derivative onto a test function
+
+Multiply by a test function $v$ vanishing at both endpoints and integrate:
+
+$$
+\int_0^1(-u'')v\,d\xi
+=-[u'v]_0^1+\int_0^1u'v'\,d\xi
+=\int_0^1fv\,d\xi.
+$$
+
+The boundary term vanishes because $v$ vanishes there. The weak problem is
+therefore: find a function satisfying the endpoint values such that
+
+$$
+a(u,v)=\ell(v)\quad\text{for all admissible }v,
+\qquad
+a(u,v)=\int_0^1u'v'\,d\xi,\quad
+\ell(v)=\int_0^1fv\,d\xi.
+$$
+
+Only first derivatives now appear. Continuous piecewise linear functions have
+square-integrable first derivatives even though their slopes jump at nodes.
+That makes them admissible trial functions. A formal account of the spaces
+and boundary traces is in Schöberl's
+[weak formulation of Poisson's equation](https://jschoeberl.github.io/iFEM/sobolevspaces/preciseweak.html).
+
+## Build one element
+
+On an element $[\xi_i,\xi_{i+1}]$ of length $h$, take
+
+$$
+N_1=(\xi_{i+1}-\xi)/h,\qquad N_2=(\xi-\xi_i)/h,
+\qquad u_h=N_1U_i+N_2U_{i+1}.
+$$
+
+Their derivatives are $-1/h$ and $1/h$. Integrating each product of derivatives
+gives the element matrix
+
+$$
+K^{(e)}=\frac1h
+\begin{pmatrix}1&-1\\-1&1\end{pmatrix},\qquad
+F^{(e)}_a=\int_{\xi_i}^{\xi_{i+1}}fN_a\,d\xi.
+$$
+
+Notice two structural facts before looking at any output. The matrix is
+symmetric, and each row sums to zero. A constant local field therefore creates
+no diffusive flux. Essential endpoint values remove the global constant
+nullspace in this problem.
+
+### Assembly is addition at shared nodes
+
+Two neighboring elements contribute to the equation at their common node.
+On a uniform interior mesh their stiffness contributions produce
+
+$$
+\frac{-U_{i-1}+2U_i-U_{i+1}}h=F_i.
+$$
+
+For constant $f$, $F_i=fh$, giving the familiar centered second difference
+after division by $h$. For a variable source, keep the integrated load:
+replacing it by $hf(\xi_i)$ is an additional approximation.
+
+As a hand calculation, use $f=2$ and two elements of length $1/2$. The sole
+interior equation is $4U_1=1$, so $U_1=1/4$. The exact solution
+$u=\xi(1-\xi)$ also has value $1/4$ there. Between the nodes the numerical
+field is still linear, while the exact field is curved. Exact nodal values
+do not imply an exact field.
+
+## Express the equation and run
+
+<Code code={modelSource} lang="eqiora" title="poisson.eqi" />
+
+From the source checkout created in [Get started](/get-started/):
+
+```bash
+cargo run -p eqiora-numerics --example poisson_convergence
+```
+
+Read `fem_l2` first. It measures the error in the continuous piecewise linear
+field, integrated over the interval. The comparison program runs meshes with
+8, 16, 32, 64, and 128 cells. Predict a decreasing error before reading it;
+the [refinement lesson](/learn/numerical-simulation/refinement-and-reproducibility/)
+derives the order calculation.
+
+The <ExactSourceLink path="crates/eqiora-numerics/examples/poisson_convergence.rs" kind="blob">complete run program</ExactSourceLink>
+reads this equation and compares finite elements with finite volumes. The
+choice of approximation belongs to the computation, while the source states
+the mathematical problem.
+
+For Python applications, the corresponding choice is
+[`eqiora.fem.Q1()`](/reference/python/fem/). In one dimension it gives the
+linear construction just derived. On Cartesian rectangles, Q1 uses products
+of one-dimensional linear basis functions; the resulting fields are bilinear
+within each cell. This product structure also explains why mesh geometry and
+quadrature matter.
+
+## Essential and natural conditions
+
+We imposed endpoint values by restricting the trial field and taking zero test
+values there. These are essential conditions. If a test function is allowed
+to be nonzero at an endpoint, the integration-by-parts boundary term remains
+and carries derivative or flux data: this is the origin of a natural condition.
+Always derive its sign using the outward normal. Do not silently drop that term
+on a boundary where the field value is free.
+
+## Exercises
+
+1. Assemble the matrix for three equal elements with zero endpoint values.
+   Which entries receive contributions from two elements?
+2. For the two-element constant-source example, evaluate the numerical and
+   exact fields at $\xi=1/4$. Explain their difference despite the exact
+   midpoint value.
+3. Show that $a(v,v)>0$ for a nonzero piecewise linear function with zero
+   endpoint values. Why does removing both endpoint constraints change this?
+4. Derive the boundary term when the right endpoint derivative is prescribed.
+   State separately the outward diffusive flux $q_n=-u'n$.
+5. In two dimensions, write the four products of linear basis functions on a
+   unit square. Check that they sum to one.
+
+[Previous: Time integration](/learn/numerical-simulation/time-integration/) ·
+[Book map](/learn/numerical-simulation/) ·
+[Next: Finite-volume balance](/learn/numerical-simulation/finite-volume-balance/)

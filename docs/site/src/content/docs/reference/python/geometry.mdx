@@ -13,6 +13,29 @@ Construct exact geometry values and select regions and boundaries.
 
 <ExactSourceLink path="bindings/python/python/eqiora/geometry.pyi" kind="blob">View source</ExactSourceLink>
 
+## Example: name a rectangle and its edges
+
+```python
+from eqiora import geometry as g
+
+graph = g.GeometryGraph()
+rectangle = graph.rectangle(x_bounds=(0.0, 2.0), y_bounds=(0.0, 1.0))
+geometry = graph.build(rectangle, named_topology={
+    "body": rectangle.region,
+    "left": rectangle.boundaries[0],
+    "right": rectangle.boundaries[1],
+    "walls": rectangle.boundaries[2:],
+})
+print(geometry.selection_dimension("body"))
+print(geometry.selection_dimension("left"))
+```
+
+Coordinates are in metres. `body` has dimension 2; `left` has dimension 1.
+The boundary order is left, right, bottom, top. Bind these selections to model
+supports, or continue with [meshing](/reference/python/meshing/#example-mesh-the-rectangle).
+
+## API
+
 <a id="api-eqiora-geometry-Geometry"></a>
 
 ## `Geometry`

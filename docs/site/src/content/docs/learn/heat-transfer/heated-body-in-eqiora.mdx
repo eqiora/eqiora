@@ -1,0 +1,232 @@
+---
+title: 4. A heated body in Eqiora
+description: Derive a four-cell heat balance, read its maintained mathematical source, and reuse the same model through a local package.
+sidebar:
+  order: 4
+---
+
+import { Code } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import modelSource from '../../../../../../../examples/heated-body/src/main.eqi?raw';
+import runnerSource from '../../../../../../../examples/heated-body/run.py?raw';
+
+## The square experiment
+
+Consider a one-meter square cross-section per unit depth. All four sides are
+held at 300 K. The solid has conductivity $k=1$ W/(m K) and uniform generation
+$s=1$ W/m³. We seek the steady temperature from
+
+$$
+-\nabla\cdot(k\nabla T)=s,\qquad T|_{\partial\Omega}=300\,\mathrm K.
+$$
+
+A two-dimensional integral of the source has units W/m: power per depth.
+Multiplying by an actual uniform depth gives watts. The model assumes no
+variation or losses in that third direction.
+
+We predict a symmetric, positive temperature rise in the interior. Doubling
+$s$ doubles that rise; doubling $k$ halves it. Now make a more precise
+prediction for one particular spatial approximation.
+
+## Four cells, one unknown
+
+Divide each side into two, giving four bilinear quadrilateral elements, called
+Q1 elements. The temperature has coefficients at nine vertices. Eight lie on
+the prescribed boundary, leaving only the center coefficient unknown.
+
+```text
+                  y [m]
+                    ↑
+                 1  o──────o──────o
+                    │      │      │
+               1/2  o──────●──────o
+                    │      │      │
+                 0  o──────o──────o → x [m]
+                    0     1/2     1
+
+             o: 300 K       ●: unknown center temperature
+```
+
+*Original mesh schematic. Every square has side 1/2 m. The center coefficient
+multiplies a bilinear hat function that vanishes on the exterior.*
+
+Write $T_h=300+\theta\phi$, where $\phi$ equals one at the center and zero at all
+other vertices. Use $w=\phi$ in the weak equation:
+
+$$
+K\theta=F,\qquad K=\int_\Omega k|\nabla\phi|^2\,\mathrm dA,
+\qquad F=\int_\Omega s\phi\,\mathrm dA.
+$$
+
+On one cell of side $h$, local coordinates $0\le\xi,\eta\le h$ can be oriented
+so the center corner is at $(h,h)$. Then $\phi=\xi\eta/h^2$. Direct integration
+gives
+
+$$
+\int_{\mathrm{cell}}|\nabla\phi|^2\,\mathrm dA
+=\int_0^h\!\int_0^h\frac{\xi^2+\eta^2}{h^4}\,\mathrm d\xi\,\mathrm d\eta
+=\frac23,
+\qquad
+\int_{\mathrm{cell}}\phi\,\mathrm dA=\frac{h^2}{4}.
+$$
+
+Sum four contributions and set $h=1/2$ m:
+
+$$
+K=\frac83\,\mathrm{W/(m\,K)},\qquad F=\frac14\,\mathrm{W/m},
+\qquad \theta=\frac{3}{32}\,\mathrm K.
+$$
+
+The expected center coefficient is therefore **300.09375 K**. This is the exact
+answer to the four-cell Q1 system. Refining the mesh changes the approximation
+to the continuous square problem, so it need not preserve this center value.
+
+## Express those equations in `.eqi`
+
+Here is the mathematical source. Read `HeatedBody` first; the
+`TransientHeatedBody` component below it will be used in the next chapter.
+
+<Code code={modelSource} lang="eqiora" title="examples/heated-body/src/main.eqi" />
+
+The correspondence is direct:
+
+| Mathematics | Source declaration |
+| --- | --- |
+| Square region and its four oriented exterior supports | `body`, `x_lower`, `x_upper`, `y_lower`, `y_upper` |
+| Unknown absolute temperature | `variable temperature: K on body` |
+| Prescribed temperature | Four `trace(temperature) = 300[K]` relations |
+| Fourier flux and generation | `flux -conductivity * grad(temperature)` and `source heating` |
+| Test functions vanish on the prescribed boundary | `zero_on` in `weak_heat` |
+| Integrated steady balance | The two `integrate` expressions |
+
+The temperature remains an absolute Kelvin field. Our hand calculation used
+$\theta=T-300$ only to simplify algebra; the model retains its nonzero boundary
+data. The component does not choose the number of cells or the linear solver.
+
+## Compile the source directly
+
+Use the environment and `eqiora-source` checkout from
+[Get started](/get-started/). From that working folder, open a Python session:
+
+```bash
+.venv/bin/python
+```
+
+Then compile the `.eqi` file. We reuse the runner's geometry and
+numerical setup so this short session contains no second mathematical model:
+
+```python
+import sys
+from pathlib import Path
+import eqiora
+
+project = Path("eqiora-source/examples/heated-body").resolve()
+sys.path.insert(0, str(project))
+from run import geometry_and_bindings, resolve
+
+geometry, bindings = geometry_and_bindings()
+model = eqiora.compile(
+    path=project / "src/main.eqi", entry="HeatedBody",
+    geometry=geometry, bindings=bindings,
+)
+plan = resolve(model, geometry)
+result = eqiora.run(plan)
+trial_id, = model.authored_formulations[0].trial_field_ids
+print(result.output(model.field(trial_id)).values("vertex").numpy())
+```
+
+Expect eight boundary coefficients equal to 300 K and the center equal to
+300.09375 K. Inspect the array association as well as its values: a physically
+correct number at the wrong vertex would still be wrong.
+
+## Now reuse the package
+
+The same source already belongs to the local `org.example.HeatedBody` package.
+Once you understand its equations, you can select its public component instead
+of naming its source file. In the same session:
+
+```python
+import tempfile
+
+with tempfile.TemporaryDirectory(prefix="heated-body-") as scratch:
+    store = Path(scratch)
+    lock = eqiora.resolve_local_project(project, store)
+    packaged = eqiora.compile_package(
+        store, lock, entry="HeatedBody",
+        geometry=geometry, bindings=bindings,
+    )
+    packaged_result = eqiora.run(resolve(packaged, geometry))
+    field_id, = packaged.authored_formulations[0].trial_field_ids
+    print(packaged_result.output(packaged.field(field_id)).values("vertex").numpy())
+```
+
+This is the convenient reuse step: the package carries the component's equations,
+boundary relations, and formulation. You supply geometry and physical
+parameters. The package is local to the example; reading its source takes you
+back to the model just derived.
+
+The complete runner performs package resolution and runs both steady and
+transient entries:
+
+```bash
+.venv/bin/python eqiora-source/examples/heated-body/run.py
+```
+
+<details>
+<summary>Read the complete runner</summary>
+
+<Code code={runnerSource} lang="python" title="examples/heated-body/run.py" />
+
+</details>
+
+The runner selects a 2 × 2 Cartesian mesh, Q1 interpolation, and an explicit
+reference linear solver. `Geometry` supplies the exact region and boundary
+handles; names identify selections within that geometry. A `Plan` combines the
+model with these numerical choices. Python arranges the experiment while
+`.eqi` supplies its physical equations.
+
+## Change one physical parameter
+
+In the direct-source session, change `bindings["heating"]` to `2.0`, recompile,
+resolve, and run. Predict a center temperature of 300.1875 K. Restore heating to
+`1.0`, set conductivity to `2.0`, and predict 300.046875 K. Changing a parameter
+requires a new model and plan; the old result describes the old experiment.
+
+For each run, calculate the free-row balance $K\theta-F$. It should be small
+relative to the load and solver tolerance. This is a weighted equation with
+test function $\phi$; its load of 1/4 W/m is not the full source integral of
+1 W/m. We return to that distinction in the final chapter.
+
+## Exercises
+
+1. Recompute the one-cell stiffness integral yourself; explain why cell size
+   cancels in two dimensions.
+2. Why does the weak test function vanish at the exterior while temperature
+   itself equals 300 K there?
+3. Predict the center coefficient for heating 4 W/m³ and conductivity
+   2 W/(m K), then run the changed model.
+4. Which source lines change if you alter the physical law? Which runner
+   choices change if you only refine the mesh?
+
+<details>
+<summary>Solution hints</summary>
+
+1. Each gradient supplies $1/h$ and the area supplies $h^2$.
+2. The test represents admissible variations about prescribed temperature;
+   those variations are zero.
+3. The ratio $s/k$ doubles, giving 300.1875 K.
+4. Flux, source, and boundary relations express physics. Cell counts and
+   spatial method belong to the numerical realization.
+
+</details>
+
+## References and source
+
+- Klaus-Jürgen Bathe, *Finite Element Analysis of Solids and Fluids I*, MIT
+  2.092 (2009), [Lecture 20, pp. 3–4, transient heat-transfer matrices](https://ocw.mit.edu/courses/2-092-finite-element-analysis-of-solids-and-fluids-i-fall-2009/de3fe8a64f95eb82acd0cd3a279972a4_MIT2_092F09_lec20.pdf).
+  The integrals for this four-cell example are derived above.
+- <ExactSourceLink path="examples/heated-body/src/main.eqi" kind="blob">Mathematical source</ExactSourceLink> and
+  <ExactSourceLink path="examples/heated-body/run.py" kind="blob">complete runner</ExactSourceLink>.
+
+[Previous: Boundaries and interfaces](/learn/heat-transfer/boundaries-and-interfaces/) ·
+[Next: Transient storage](/learn/heat-transfer/transient-storage/)

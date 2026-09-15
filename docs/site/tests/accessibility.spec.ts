@@ -55,7 +55,7 @@ async function assertCylinderContent(page: Page): Promise<void> {
     }),
   ).toHaveAttribute(
     'href',
-    `https://github.com/nkiyohara/eqiora/blob/${sourceSha}/examples/python/exact_cylinder_stokes.py#L45-L57`,
+    `https://github.com/nkiyohara/eqiora/blob/${sourceSha}/examples/python/exact_cylinder_stokes.py#L51-L67`,
   );
   await assertNoFakeExecutionControls(page);
 }
@@ -264,7 +264,7 @@ test('00D exact real Rustdoc Diagnostic ordinary chunk is complete and green', a
   test.setTimeout(300_000);
   const plan = createOrdinaryRoutePlan();
   expect(assertOrdinaryRoutePlan(plan)).toEqual([...SITE_ROUTES]);
-  expect(ROUTES).toHaveLength(61);
+  expect(new Set(ROUTES).size).toBe(SITE_ROUTES.length + 1);
   const context = await browser.newContext({
     baseURL: BASE_URL,
     locale: 'en-GB',
@@ -354,7 +354,7 @@ test('table structure is complete across current site routes', async () => {
     await assertProductTableRouteInvariant(page, expected);
     invariantRoutes += 1;
   }
-  expect(invariantRoutes).toBe(14);
+  expect(invariantRoutes).toBe(40);
   await navigateSitePage(page, '/reference/python/eqiora/');
   await expect(page.locator('main table')).toHaveCount(0);
 

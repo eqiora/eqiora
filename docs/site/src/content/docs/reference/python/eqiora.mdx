@@ -13,6 +13,25 @@ Model authoring, numerical plans, execution, and results.
 
 <ExactSourceLink path="bindings/python/python/eqiora/__init__.pyi" kind="blob">View source</ExactSourceLink>
 
+## Example: model, plan, and result
+
+The [complete Python example](/reference/python/#compile-and-run) creates
+`model`, `plan`, `result`, and `x`. Continue with those objects:
+
+```python
+print(model.field("x") == x)
+print(model.parameter("rate").value)
+print(model.render_equations("flow", profile="plain")[0].text)
+values = result.series(x).values.numpy()
+print(values[-1])
+```
+
+This selects the declared field and parameter by name, displays the equation,
+and reads the final dimensionless value (about `0.367879`). Result arrays are
+read-only; use `values.copy()` when you need a writable NumPy array.
+
+## API
+
 <a id="api-eqiora-Module"></a>
 
 ## `Module`

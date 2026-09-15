@@ -1,37 +1,54 @@
 ---
-title: Eqiora Language
-description: A lookup guide to the language accepted by this source revision.
+title: Eqiora language
+description: Find syntax for quantities, equations, fields, components, and reusable physical models.
 editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/language/index.mdx
 ---
 
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
-This reference describes the same source revision installed in
-[Get started](/get-started/). Use that checkout and Python environment with these examples.
+An `.eqi` file describes a mathematical model: its quantities, equations, initial
+and boundary data, and measurements. Python chooses how to compute with that model.
+Use this reference to look up syntax; start with
+[Mathematical modeling](/learn/mathematical-modeling/) for the reasoning behind it.
 
-| Look up | Start here |
+| Write or look up | Reference |
 |---|---|
-| `model`, `parameter`, `field`, dimensions and spatial declarations | [Declarations](/reference/language/declarations/) |
-| Coherent SI values, dimension expressions and scaled inputs | [Quantities and units](/reference/language/units/) |
-| Residuals, time derivatives, initial values and periodic updates | [Equations and state](/reference/language/equations/) |
-| `component`, named parameters, ports and occurrence-bound fields | [Composition](/reference/language/composition/) |
-| Existing sources, constitutive laws and boundary conditions | [Standard sources](/reference/standard-packages/) |
+| `model`, `parameter`, `variable`, `state`, `domain`, `observable` | [Declarations](/reference/language/declarations/) |
+| Dimensions, SI units, scaled literals, vectors | [Quantities and units](/reference/language/units/) |
+| `relation`, `derivative`, `initial`, `law`, `form`, clocks | [Equations and state](/reference/language/equations/) |
+| `component`, `instance`, `connect`, `import`, material properties | [Composition](/reference/language/composition/) |
+| Electrical, solid, fluid, and sampled-control components | [Standard packages](/reference/standard-packages/) |
 
-Save a complete example as a UTF-8 `.eqi` file and compile it with the installed
-package:
+## Compile a first model
+
+Save this complete model as `current.eqi`:
+
+```eqi
+model Current() {
+  parameter voltage: V = 12;
+  parameter resistance: Ohm = 4;
+  variable current: A;
+  relation ohm { voltage = resistance * current; }
+  observable measured_current: A = current;
+}
+```
+
+After [installation](/get-started/), compile it:
 
 ```python
 import eqiora
 
-model = eqiora.compile(path="model.eqi")
+model = eqiora.compile(path="current.eqi")
+measurement = model.observable("measured_current")
 ```
 
-Compilation checks mathematical declarations. It does not choose a mesh, establish
-that every system is well posed, or execute a solver. The
-[ODE lesson](/learn/mathematical-modeling/ordinary-differential-equations/)
-continues from a compiled Model to a Plan, initial State and Result.
+The equation determines a current of 3 A. Compilation checks its types and
+mathematical structure; [execution](/guides/run-and-inspect/) selects a solver and
+produces a Result from which you can read the measurement.
 
-For exact syntax and checking rules, see the
-<ExactSourceLink kind="tree" path="crates/eqiora-lang/src">language frontend</ExactSourceLink>
-and <ExactSourceLink kind="tree" path="crates/eqiora-compiler/src">compiler</ExactSourceLink>.
-The [Python API reference](/reference/python/) describes the same documentation revision.
+For a time-dependent example, continue with
+[ordinary differential equations](/learn/mathematical-modeling/ordinary-differential-equations/).
+For exact API signatures, use the [Python reference](/reference/python/).
+
+<ExactSourceLink kind="tree" path="crates/eqiora-lang/src">Language implementation</ExactSourceLink>
+· <ExactSourceLink kind="tree" path="crates/eqiora-compiler/src">Compiler</ExactSourceLink>

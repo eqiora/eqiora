@@ -37,15 +37,10 @@ EDITOR_CHECK_INPUTS = (
 )
 PRESSURE_ALT = "Steady Stokes pressure around a cylinder, with the current mesh and pressure scale in pascals."
 WAKE_ALT = "Cell-average vorticity in a Kármán vortex street behind a circular cylinder."
-CASE_EVIDENCE_PATHS = (
-    "verify/fluid/packaged-steady-stokes-2d/README.md",
-    "verify/geometry/exact-circular-hole-geometry/README.md",
-    "verify/interfaces/python-exact-circular-hole-geometry/README.md",
-)
+
 SITE_ROUTES = (
     "/",
     "/contributing/architecture/",
-    "/capabilities/",
     "/guides/how-eqiora-fits-together/",
     "/contributing/",
     "/evidence/",
@@ -69,8 +64,6 @@ SITE_ROUTES = (
     "/reference/standard-packages/continuum/",
     "/reference/standard-packages/electrical/",
     "/reference/cli/",
-    "/reference/control-v2/",
-    "/reference/mcp/",
     "/reference/python/",
     "/reference/python/diff/",
     "/reference/python/eqiora/",
@@ -102,6 +95,48 @@ SITE_ROUTES = (
     "/learn/mathematical-modeling/models-not-simulations/",
     "/learn/mathematical-modeling/ordinary-differential-equations/",
     "/learn/mathematical-modeling/quantities-dimensions-units/",
+    "/reference/standard-packages/controls/",
+    "/reference/python/units/",
+    "/reference/python/colab/",
+    "/learn/circuits-dynamics/component-laws/",
+    "/learn/circuits-dynamics/conserving-networks/",
+    "/learn/circuits-dynamics/decay-and-storage/",
+    "/learn/circuits-dynamics/",
+    "/learn/circuits-dynamics/resistor-divider/",
+    "/learn/circuits-dynamics/voltage-current-power/",
+    "/learn/fluid-mechanics/computing-incompressible-flow/",
+    "/learn/fluid-mechanics/continuum-and-statics/",
+    "/learn/fluid-mechanics/cylinder-wakes/",
+    "/learn/fluid-mechanics/exact-parallel-flows/",
+    "/learn/fluid-mechanics/",
+    "/learn/fluid-mechanics/mass-and-momentum/",
+    "/learn/fluid-mechanics/references/",
+    "/learn/fluid-mechanics/stokes-and-boundaries/",
+    "/learn/heat-transfer/assessing-a-thermal-calculation/",
+    "/learn/heat-transfer/boundaries-and-interfaces/",
+    "/learn/heat-transfer/conservation-and-fourier-law/",
+    "/learn/heat-transfer/heated-body-in-eqiora/",
+    "/learn/heat-transfer/",
+    "/learn/heat-transfer/steady-conduction/",
+    "/learn/heat-transfer/transient-storage/",
+    "/learn/inverse-problems/differentiating-a-solved-model/",
+    "/learn/inverse-problems/heat-source-recovery/",
+    "/learn/inverse-problems/",
+    "/learn/inverse-problems/measurements-to-parameters/",
+    "/learn/inverse-problems/noise-scaling-and-design/",
+    "/learn/inverse-problems/sensitivity-and-identifiability/",
+    "/learn/numerical-simulation/errors-and-residuals/",
+    "/learn/numerical-simulation/finite-volume-balance/",
+    "/learn/numerical-simulation/",
+    "/learn/numerical-simulation/refinement-and-reproducibility/",
+    "/learn/numerical-simulation/time-integration/",
+    "/learn/numerical-simulation/weak-forms-and-finite-elements/",
+    "/learn/structural-mechanics/",
+    "/learn/structural-mechanics/interpreting-results/",
+    "/learn/structural-mechanics/loads-energy/",
+    "/learn/structural-mechanics/mixed-boundary-square/",
+    "/learn/structural-mechanics/strain-stress/",
+    "/learn/structural-mechanics/virtual-work/",
     "/404.html",
 )
 
@@ -573,7 +608,7 @@ python3 tools/site/check_site.py source-topology --root "$EQIORA_SITE_SOURCE_ROO
 python3 tools/site/check_site.py browser-supply --site-root docs/site --browser-cache "$PLAYWRIGHT_BROWSERS_PATH" --expected-executable-sha256 "$EQIORA_SITE_BROWSER_SHA256" --expected-executable-bytes "$EQIORA_SITE_BROWSER_BYTES"
 python3 -m unittest tools.site.tests.test_site_tools -v
 python3 tools/site/build_products.py
-python3 tools/docs/generate_interface_reference.py --repository . --eqiora-binary bin/eqiora --mcp-binary bin/eqiora-mcp --check
+python3 tools/docs/generate_interface_reference.py --repository . --eqiora-binary bin/eqiora --check
 python3 tools/site/build_rust_reference.py --rustdoc-root rustdoc/doc --output rustdoc-stage
 python3 tools/site/check_site.py check
 python3 tools/site/check_site.py serve
@@ -625,7 +660,7 @@ def _nav() -> str:
     return ('<a class="site-title" href="/"><img src="/assets/brand.svg" alt=""><span>Eqiora</span></a>'
             '<nav class="sidebar"><a href="/learn/">Learn</a><a href="/guides/">Guides</a>'
             '<a href="/gallery/">Gallery</a><a href="/reference/">Reference</a><a href="/get-started/">Get started</a>'
-            '<a href="/capabilities/">Capabilities</a><a href="/release-notes/">Releases</a>'
+            '<a href="/release-notes/">Releases</a>'
             '<a href="/contributing/">Contributing</a>'
             '<a href="https://github.com/nkiyohara/eqiora">GitHub</a></nav>')
 
@@ -636,7 +671,7 @@ def _page(route: str, body: str) -> str:
 
 def _exact_links() -> str:
     links = []
-    for relative in (*checker.CASE_SOURCE_PATHS, *CASE_EVIDENCE_PATHS):
+    for relative in checker.CASE_SOURCE_PATHS:
         url = f"https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/{relative}"
         label = Path(relative).parent.name + " " + Path(relative).name
         links.append(f'<a href="{url}">{label}</a>')
@@ -655,9 +690,9 @@ def _case_body() -> str:
 -div(sigma(u,p)) - grad(phi) = 0
 div(u) = 0</pre></section>
 <section><h2>Mesh and boundaries</h2></section>
-<section><h2>Submit and result</h2><p>One immutable common Plan and direct Result carrier.</p><a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/examples/python/exact_cylinder_stokes.py#L45-L57">Eqiora source form: Python resolve/run path</a></section>
+<section><h2>Submit and result</h2><p>One immutable common Plan and direct Result carrier.</p><a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/examples/python/exact_cylinder_stokes.py#L51-L67">Eqiora source form: Python resolve/run path</a></section>
 <section><h2>Pressure visualization</h2><figure><img src="/assets/pressure.png" alt="{PRESSURE_ALT}"><figcaption>{checker.PRESSURE_CAPTION}</figcaption></figure></section>
-<section><h2>Reading the pressure plot</h2>{_exact_links()}<a href="/capabilities/#exact-cylinder-steady-stokes">Explore related capabilities</a></section>"""
+<section><h2>Reading the pressure plot</h2>{_exact_links()}<a href="/learn/fluid-mechanics/">Continue with fluid mechanics</a></section>"""
 
 
 def _home_body() -> str:
@@ -670,9 +705,8 @@ def _home_body() -> str:
 <article><p>Featured walkthrough</p><h2>Kármán vortex street</h2><img src="/assets/wake.png" alt="{WAKE_ALT}"><p>Follow one transient cylinder flow from exact geometry through an accepted vorticity field.</p><p>Python</p><p>2D</p><p>transient Navier–Stokes</p><a href="/gallery/karman-vortex-street/">View the wake walkthrough</a></article>
 <article><h2>Get started</h2><p>Learn the Model–Realization boundary and start from bounded examples.</p></article>
 <article><h2>Textbooks</h2><p>Follow the planned path from mathematics and physics to Eqiora models, numerical realization, and interpretation.</p></article>
-<article><h2>Capabilities</h2><p>See what is available, executable, checked, or verified.</p></article>
-<article><h2>Reference</h2><p>Browse exact-commit Python, Rust, CLI, control-v2, and MCP surfaces.</p></article>
-<p>Docs explains how to use Eqiora. Textbooks teach the mathematics, physics, and numerics. Gallery presents complete simulations. Reference records exact APIs and protocols. Capabilities states what runs and the boundary of each claim.</p>
+<article><h2>Reference</h2><p>Browse exact-commit Python, Rust, and CLI surfaces.</p></article>
+<p>Docs explains how to use Eqiora. Textbooks teach the mathematics, physics, and numerics. Gallery presents complete simulations. Reference records exact APIs and protocols.</p>
 <p>Release {{python_version}}</p><p>Eqiora is pre-1.0 research software under active development. The capability matrix and verification guide bound what is currently supported; this site does not widen those claims.</p>
 <h2>One source of truth</h2><p>This website is a curated projection, not a parallel specification. Detailed contracts remain in the repository's architecture, RFCs, capability matrix, and validated verify manifests.</p>"""
 
@@ -698,10 +732,9 @@ def _artifact(root: Path, blobs: dict[str, bytes], python_version: str) -> Path:
     pages = {
         "/": _home_body().format(python_version=python_version),
         "/contributing/architecture/": "<h1>Architecture</h1><p>Eqiora architecture.</p>",
-        "/capabilities/": '<h1>Capabilities</h1><h2>Thermal</h2><article id="exact-cylinder-steady-stokes"><h3>Exact-cylinder steady Stokes product path</h3></article><h2>Checking a claim</h2><a href="/evidence/">Technical evidence entry</a>',
         "/guides/how-eqiora-fits-together/": "<h1>Concepts</h1><p>Eqiora concepts.</p>",
         "/contributing/": "<h1>Contributing</h1><p>Contribute to Eqiora.</p>",
-        "/evidence/": '<h1>Checking a claim</h1><h2>Find the source</h2><h2>Run a selected check</h2><a href="/capabilities/">Capabilities</a>',
+        "/evidence/": '<h1>Checking a claim</h1><h2>Find the source</h2><h2>Run a selected check</h2>',
         "/gallery/": '<h1>Gallery</h1><a href="/gallery/exact-cylinder-steady-stokes/">Exact-cylinder steady Stokes</a><a href="/gallery/mixed-boundary-elasticity/">Mixed-boundary linear elasticity</a>',
         "/gallery/exact-cylinder-steady-stokes/": _case_body(),
         "/gallery/mixed-boundary-elasticity/": "<h1>Mixed-boundary linear elasticity</h1><p>Static caller-owned displacement presentation.</p>",
@@ -712,7 +745,7 @@ def _artifact(root: Path, blobs: dict[str, bytes], python_version: str) -> Path:
         "/guides/differentiation/": "<h1>Differentiation</h1><p>View guide source</p><h2>Evaluate a point and its derivatives</h2>",
         "/guides/execution-and-arrays/": "<h1>Execution and arrays</h1><p>View guide source</p><h2>Structured failures</h2>",
         "/guides/modeling/": "<h1>Modeling</h1><p>View guide source</p><h2>Native declarations</h2>",
-        "/reference/": '<h1>Reference</h1><p>Python Rust CLI control-v2 MCP</p><p>API presence is not verification or maturity.</p><form action="/reference/"><input aria-label="Search"></form>',
+        "/reference/": '<h1>Reference</h1><p>Python Rust CLI</p><p>API presence is not verification or maturity.</p><form action="/reference/"><input aria-label="Search"></form>',
         "/reference/language/": "<h1>Language</h1>",
         "/reference/language/composition/": "<h1>Component composition</h1>",
         "/reference/language/declarations/": "<h1>Declarations</h1>",
@@ -722,8 +755,6 @@ def _artifact(root: Path, blobs: dict[str, bytes], python_version: str) -> Path:
         "/reference/standard-packages/continuum/": "<h1>Continuum laws and boundaries</h1>",
         "/reference/standard-packages/electrical/": "<h1>Electrical components</h1>",
         "/reference/cli/": "<h1>CLI</h1><p>eqiora check</p>",
-        "/reference/control-v2/": "<h1>control-v2</h1><p>eqiora.control/v2</p>",
-        "/reference/mcp/": "<h1>MCP</h1><p>eqiora.model.compile_check</p>",
         "/reference/python/": "<h1>Python reference</h1><p>Python API families.</p>",
         "/reference/python/diff/": "<h1>Diff reference</h1><p>Differentiation API.</p>",
         "/reference/python/eqiora/": "<h1>eqiora Python module</h1><p>Diagnostic</p>",
@@ -755,6 +786,48 @@ def _artifact(root: Path, blobs: dict[str, bytes], python_version: str) -> Path:
         "/learn/mathematical-modeling/models-not-simulations/": "<h1>Models are not simulations</h1><h2>Learning outcomes</h2><h2>Read the result</h2><h2>Deliberate failure</h2><h2>Exercises</h2><a href=\"/learn/mathematical-modeling/\">Back to the series map</a>",
         "/learn/mathematical-modeling/ordinary-differential-equations/": "<h1>Ordinary differential equations</h1><p>Compare observations with the independently derived closed form</p><h2>Learning outcomes</h2><h2>Read the result</h2><h2>Deliberate failure</h2><h2>Exercises</h2><a href=\"/learn/mathematical-modeling/\">Back to the series map</a>",
         "/learn/mathematical-modeling/quantities-dimensions-units/": "<h1>Quantities, dimensions, and units</h1><h2>Learning outcomes</h2><h2>Read the result</h2><h2>Deliberate failure</h2><h2>Exercises</h2><a href=\"/learn/mathematical-modeling/\">Back to the series map</a>",
+        '/reference/standard-packages/controls/': '<h1>Control components</h1>',
+        '/reference/python/units/': '<h1>Units</h1>',
+        '/reference/python/colab/': '<h1>Colab</h1>',
+        '/learn/circuits-dynamics/component-laws/': '<h1>4. Open the components</h1>',
+        '/learn/circuits-dynamics/conserving-networks/': '<h1>2. Conserving networks</h1>',
+        '/learn/circuits-dynamics/decay-and-storage/': '<h1>5. Storage and decay</h1>',
+        '/learn/circuits-dynamics/': '<h1>Circuits and dynamics</h1>',
+        '/learn/circuits-dynamics/resistor-divider/': '<h1>3. Build and run a divider</h1>',
+        '/learn/circuits-dynamics/voltage-current-power/': '<h1>1. Voltage, current, and power</h1>',
+        '/learn/fluid-mechanics/computing-incompressible-flow/': '<h1>5. Computing incompressible flow</h1>',
+        '/learn/fluid-mechanics/continuum-and-statics/': '<h1>1. Continuum and statics</h1>',
+        '/learn/fluid-mechanics/cylinder-wakes/': '<h1>6. Cylinder wakes</h1>',
+        '/learn/fluid-mechanics/exact-parallel-flows/': '<h1>3. Exact parallel flows</h1>',
+        '/learn/fluid-mechanics/': '<h1>Fluid mechanics and CFD</h1>',
+        '/learn/fluid-mechanics/mass-and-momentum/': '<h1>2. Mass, momentum and stress</h1>',
+        '/learn/fluid-mechanics/references/': '<h1>References and further study</h1>',
+        '/learn/fluid-mechanics/stokes-and-boundaries/': '<h1>4. Stokes flow and boundaries</h1>',
+        '/learn/heat-transfer/assessing-a-thermal-calculation/': '<h1>6. Assessing a thermal calculation</h1>',
+        '/learn/heat-transfer/boundaries-and-interfaces/': '<h1>3. Boundaries and interfaces</h1>',
+        '/learn/heat-transfer/conservation-and-fourier-law/': "<h1>1. Conservation and Fourier's law</h1>",
+        '/learn/heat-transfer/heated-body-in-eqiora/': '<h1>4. A heated body in Eqiora</h1>',
+        '/learn/heat-transfer/': '<h1>Heat transfer</h1>',
+        '/learn/heat-transfer/steady-conduction/': '<h1>2. Steady conduction</h1>',
+        '/learn/heat-transfer/transient-storage/': '<h1>5. Transient storage</h1>',
+        '/learn/inverse-problems/differentiating-a-solved-model/': '<h1>4. Differentiating a solved model</h1>',
+        '/learn/inverse-problems/heat-source-recovery/': '<h1>2. Recovering a heat source</h1>',
+        '/learn/inverse-problems/': '<h1>Inverse problems and differentiable design</h1>',
+        '/learn/inverse-problems/measurements-to-parameters/': '<h1>1. Measurements to parameters</h1>',
+        '/learn/inverse-problems/noise-scaling-and-design/': '<h1>5. Noise, scaling, and design</h1>',
+        '/learn/inverse-problems/sensitivity-and-identifiability/': '<h1>3. Sensitivity and identifiability</h1>',
+        '/learn/numerical-simulation/errors-and-residuals/': '<h1>1. Errors and residuals</h1>',
+        '/learn/numerical-simulation/finite-volume-balance/': '<h1>4. Finite-volume balance</h1>',
+        '/learn/numerical-simulation/': '<h1>Numerical simulation</h1>',
+        '/learn/numerical-simulation/refinement-and-reproducibility/': '<h1>5. Refinement and reproducibility</h1>',
+        '/learn/numerical-simulation/time-integration/': '<h1>2. Time integration</h1>',
+        '/learn/numerical-simulation/weak-forms-and-finite-elements/': '<h1>3. Weak forms and finite elements</h1>',
+        '/learn/structural-mechanics/': '<h1>Structural mechanics and finite elements</h1>',
+        '/learn/structural-mechanics/interpreting-results/': '<h1>5. Reading displacement, reactions and error</h1>',
+        '/learn/structural-mechanics/loads-energy/': '<h1>1. Loads, supports and elastic energy</h1>',
+        '/learn/structural-mechanics/mixed-boundary-square/': '<h1>4. A square with mixed boundaries</h1>',
+        '/learn/structural-mechanics/strain-stress/': '<h1>2. Displacement, strain and stress</h1>',
+        '/learn/structural-mechanics/virtual-work/': '<h1>3. Virtual work and finite elements</h1>',
         "/404.html": "<h1>Page not found</h1>",
     }
     assert tuple(pages) == SITE_ROUTES

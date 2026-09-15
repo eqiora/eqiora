@@ -15,7 +15,7 @@ RAW_IMPORT = re.compile(r"import (\w+) from '([^']+\.eqi)\?raw';")
 
 class CurrentReferenceContentTests(unittest.TestCase):
     def test_rendered_examples_have_one_maintained_source(self):
-        self.assertEqual(len(PAGES), 8)
+        self.assertEqual(len(PAGES), 9)
         examples = set()
         for page in PAGES:
             content = page.read_text(encoding="utf-8")
@@ -24,13 +24,16 @@ class CurrentReferenceContentTests(unittest.TestCase):
             self.assertIn("editUrl: https://github.com/nkiyohara/eqiora/edit/main/", content)
             for name, relative in RAW_IMPORT.findall(content):
                 path = (page.parent / relative).resolve()
-                self.assertTrue(path.is_relative_to(REFERENCE))
+                self.assertTrue(path.is_relative_to(ROOT))
                 self.assertTrue(path.is_file())
-                self.assertRegex(content, rf"<Code\s+code=\{{{name}\}}")
+                self.assertRegex(content, rf"<Code\s+code=\{{{name}(?:\}}|\.slice\()")
                 examples.add(path)
             for code in re.findall(r"```python\n(.*?)```", content, re.DOTALL):
                 compile(code, str(page), "exec")
-        self.assertEqual(examples, set(REFERENCE.glob("*/_examples/*.eqi")))
+        self.assertEqual(
+            {path for path in examples if path.is_relative_to(REFERENCE)},
+            set(REFERENCE.glob("*/_examples/*.eqi")),
+        )
 
     def test_reference_links_resolve_to_current_sources_and_routes(self):
         content_root = ROOT / "docs/site/src/content/docs"

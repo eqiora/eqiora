@@ -1,31 +1,32 @@
-// Append after the self-contained quasistatic declarations from the same checkout.
-// This example checks component composition; it does not select a mesh or solve.
-model ReferenceElasticBody(parameter mu: kg / (m * s ^ 2) = 3, parameter lambda: kg / (m * s ^ 2) = 2) {
-  domain body = box(0, 1, 0, 1);
-  domain x_lower = boundary(body, axis = 0, side = lower);
-  domain x_upper = boundary(body, axis = 0, side = upper);
-  domain y_lower = boundary(body, axis = 1, side = lower);
-  domain y_upper = boundary(body, axis = 1, side = upper);
-  variable displacement: vector<m, 2> on body;
-  variable load_potential: kg / (m * s ^ 2) on body;
+import Eqiora.Solid.LinearElasticity.linear_elasticity as solid;
 
-  relation unloaded on body { load_potential = 0; }
-  instance balance: IsotropicBalanceWithPotential2d(
+model ReferenceElasticBody() {
+  domain body = box(0, 1, 0, 1);
+  domain left = boundary(body, axis = 0, side = lower);
+  domain right = boundary(body, axis = 0, side = upper);
+  domain bottom = boundary(body, axis = 1, side = lower);
+  domain top = boundary(body, axis = 1, side = upper);
+  variable displacement: vector<m, 2> on body;
+  variable load_potential: Pa on body;
+  relation unloaded on body { load_potential = 0[Pa]; }
+
+  parameter mu: Pa = 3;
+  parameter lambda: Pa = 2;
+  instance balance: solid.IsotropicBalanceWithPotential2d(
     body = body, displacement = displacement,
     load_potential = load_potential, mu = mu, lambda = lambda
   );
-  instance surface: IsotropicMechanicalInterface2d(
-    body = body,
-    exterior = boundaries(x_lower, x_upper, y_lower, y_upper),
+  instance elasticity: solid.IsotropicMechanicalInterface2d(
+    body = body, exterior = boundaries(left, right, bottom, top),
     displacement = displacement, mu = mu, lambda = lambda
   );
-  instance fixed: FixedDisplacement2d(body = body, face = x_lower);
-  instance free_right: ZeroTraction2d(body = body, face = x_upper);
-  instance free_bottom: ZeroTraction2d(body = body, face = y_lower);
-  instance free_top: ZeroTraction2d(body = body, face = y_upper);
+  instance clamp: solid.FixedDisplacement2d(body = body, face = left);
+  instance free_right: solid.ZeroTraction2d(body = body, face = right);
+  instance free_bottom: solid.ZeroTraction2d(body = body, face = bottom);
+  instance free_top: solid.ZeroTraction2d(body = body, face = top);
 
-  connect surface.mechanical[boundary = x_lower], fixed.mechanical;
-  connect surface.mechanical[boundary = x_upper], free_right.mechanical;
-  connect surface.mechanical[boundary = y_lower], free_bottom.mechanical;
-  connect surface.mechanical[boundary = y_upper], free_top.mechanical;
+  connect elasticity.mechanical[boundary = left], clamp.mechanical;
+  connect elasticity.mechanical[boundary = right], free_right.mechanical;
+  connect elasticity.mechanical[boundary = bottom], free_bottom.mechanical;
+  connect elasticity.mechanical[boundary = top], free_top.mechanical;
 }

@@ -1,79 +1,122 @@
 ---
 title: Equations and state
-description: Simultaneous equations, explicit initial conditions and periodic activation.
+description: Write algebraic relations, evolution laws, conservation laws, weak forms, and sampled updates.
 editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/language/equations.mdx
 ---
 
 import { Code } from '@astrojs/starlight/components';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import decay from '../../../../../../../examples/decay.eqi?raw';
+import heat from '../../../../../../../examples/heated-body/src/main.eqi?raw';
 import clocked from './_examples/clocked.eqi?raw';
 
-[Language overview](/reference/language/) · [Install this source revision](/get-started/#install-with-uv)
+[Language overview](/reference/language/)
 
-## Continuous equations
-
-Use `relation name { left = right; }`, optionally `on support` and
-`at activation` before the body. A relation can contain several ordered pairs of
-left and right expressions; all its equations hold simultaneously. For example,
-`voltage = resistance * current` expresses Ohm's law, not an assignment.
-
-Both sides are checked before the compiler forms a typed residual. A bare exact
-zero can take the other side's dimension after expression admission; multiplying
-an invalid expression by zero does not make it admissible. A valid equation does
-not by itself establish that a numerical backend can solve it.
-
-## Inequalities and complementarity
-
-Conditions remain distinct from Boolean expressions and from their numerical enforcement:
+## Simultaneous relations
 
 ```eqi
-relation contact {
-  2[N/m] * gap - force = load;
-  complementarity(0[m] <= gap, force >= 0[N]);
-  inequality(gap <= 4[m]);
-}
+relation ohm { voltage = resistance * current; }
 ```
 
-`inequality(a <= b)` and `inequality(b >= a)` retain the same non-strict ordering. Their
-operands must be invariant real scalars with the same physical type and support.
-`complementarity(first, second)` requires two explicit nonnegativity predicates; the retained
-physical operands may have different dimensions, such as gap and force, but must share support.
-A bare operand, reversed sign, strict comparison, complex value or unsupported inclusion is
-rejected.
+A relation constrains quantities. It is not an assignment or a sequence of commands.
+Both sides must have matching dimensions and shapes. A relation may contain several
+equations, all of which hold simultaneously. Use `on body` for a spatial relation
+and `at tick` for a relation activated by a periodic clock.
 
-The current executable profile is a finite, nonspatial affine active set. A Plan must name each
-constraint, give coherent-SI tolerances for its operands and bound complete branch enumeration.
-Execution checks the original Model conditions again after the linear backend succeeds and
-retains the measured operands and active/inactive state in the Result. It does not introduce an
-implicit penalty, clipping or smoothing. Spatial contact, friction, nonlinear constraints and
-other formulations remain separate capabilities.
+## Continuous state and initial equations
 
-`derivative(x)` denotes the time derivative of an eligible continuous state, dividing its dimension by
-time. Spatial operators such as `grad`, `div`, `trace` and `normal` have separate
-support rules; the [continuum examples](/reference/standard-packages/continuum/)
-show their existing standard declarations without selecting a discretization.
+<Code code={decay} lang="eqiora" title="decay.eqi" />
 
-## Initial values and restart
+`derivative(x)` denotes the time derivative of a continuous state. Here the model
+has the solution $x(t)=\exp(-t)$ with the default rate of 1/s.
+`initial` supplies the mathematical initial equation; a solver's initial guess
+or time step does not replace it.
 
 The [ODE lesson](/learn/mathematical-modeling/ordinary-differential-equations/)
-uses `state x: 1; initial { x = 1; }` and the residual `derivative(x) + rate * x = 0`.
-Its complete source-installed example exercises `State.initial(plan)` and a run.
-The simultaneous initial equation belongs to the Model; a solver guess, tolerance or time step
-does not change that initial condition.
+continues through `State.initial(plan)` and execution. To continue an existing run,
+use its accepted State rather than reinitializing the model at each output time.
 
-Use a supported accepted State for continuation rather than constructing a fresh
-initial State at every output time. An initial value is a mathematical input, not an implicit result of choosing a solver.
+## Conservation laws and weak forms
+
+A `law` gives storage, outward flux, and source terms. A steady law has no storage
+term. The following complete component uses Fourier conduction and four fixed
+boundary temperatures:
+
+<Code code={heat.slice(0, heat.indexOf('/// Heat storage'))} lang="eqiora" title="HeatedBody — steady conduction" />
+
+Read its flux as $\mathbf q=-k\nabla T$ and source as volumetric heating.
+The local steady balance is $\nabla\cdot\mathbf q=Q$.
+`form weak_heat for heat_balance` attaches a weak form to that physical law.
+`test w: 1 for temperature zero_on ...` associates a test field with temperature
+and makes it vanish on the prescribed-temperature boundaries. `integrate` and
+`dot` express the resulting integral equation.
+
+For time-dependent storage, the same source provides:
+
+<Code code={heat.slice(heat.indexOf('/// Heat storage'))} lang="eqiora" title="TransientHeatedBody — heat storage and conduction" />
+
+The balance is now $\partial_t(cT)+\nabla\cdot\mathbf q=Q$ with constant
+volumetric heat capacity $c$. The initial field is 300 K everywhere.
+Follow [the thermal model walkthrough](/learn/heat-transfer/heated-body-in-eqiora/)
+for package construction and execution, or
+[weak forms and finite elements](/learn/numerical-simulation/weak-forms-and-finite-elements/)
+for the derivation.
+
+### Common spatial operators
+
+| Expression | Meaning |
+|---|---|
+| `grad(temperature)` | Spatial temperature gradient |
+| `div(velocity)` | Divergence of a velocity field |
+| `symmetric_part(grad(displacement))` | Infinitesimal strain tensor |
+| `trace(temperature)` | Temperature restricted to the relation's boundary |
+| `normal(stress)` | Stress contracted with the parent-outward normal, giving traction |
+| `isotropic_lift(pressure)` | Pressure times the identity tensor |
+| `dot(a, b)` | Inner product of compatible vectors |
+
+The support and tensor shapes must match the operation. See
+[continuum components](/reference/standard-packages/continuum/) for stress and
+boundary examples.
 
 ## Periodic state
 
-<Code code={clocked} lang="eqiora" title="clocked.eqi — compilation example" />
+<Code code={clocked} lang="eqiora" title="clocked.eqi" />
 
-The clock specifies a period of exactly 1/10 second and a phase of zero.
-`pre(memory)` refers to the pre-tick value; `next(memory)` participates in the
-candidate update. `relation advance at tick` activates the equation on that clock. `pre` and `next`
-require a state owned by that exact periodic clock; `derivative` is rejected there. This compilation
-example does not select a Python periodic execution method.
+The clock period is exactly 1/10 second, with phase zero. `pre(memory)` is the
+value before a tick; `next(memory)` is the candidate updated value. The first tick
+advances memory from 0 to 1. The update's equations are simultaneous.
 
-<ExactSourceLink kind="blob" path="docs/site/src/content/docs/reference/language/_examples/clocked.eqi">Clocked example source</ExactSourceLink>
-· <ExactSourceLink kind="blob" path="crates/eqiora-lang/src/parser/relation.rs">relation parser</ExactSourceLink>
-· Next: [Composition](/reference/language/composition/)
+`pre` and `next` require a state on that exact clock; use `derivative` for continuous
+state. Equal clock periods do not make independently declared clocks interchangeable.
+[Sampled controls](/reference/standard-packages/controls/) provides reusable delay
+and integration components and an executable project.
+
+## Inequalities and complementarity
+
+```eqi
+model Contact(parameter load: N = 0) {
+  variable gap: m;
+  variable force: N;
+  relation contact {
+    2[N/m] * gap - force = load;
+    complementarity(0[m] <= gap, force >= 0[N]);
+    inequality(gap <= 4[m]);
+  }
+}
+```
+
+The complementarity condition requires nonnegative gap and force with at least
+one equal to zero. A positive gap therefore has zero contact force; a positive
+contact force has zero gap. The inequality adds an upper bound on the gap.
+
+`inequality` uses non-strict `<=` or `>=` between compatible real scalars.
+`complementarity` takes two explicit nonnegativity predicates; its two operands
+may have different dimensions, as above, but share support.
+
+Execution supports finite nonspatial affine active sets. The Plan specifies
+constraint tolerances in coherent SI units and a bound on branch enumeration.
+This formulation adds no implicit penalty or smoothing. Spatial contact and
+friction require additional modeling and solver capabilities.
+
+<ExactSourceLink kind="blob" path="examples/heated-body/src/main.eqi">Heat component source</ExactSourceLink>
+· [Composition](/reference/language/composition/)

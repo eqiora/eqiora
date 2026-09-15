@@ -1,0 +1,162 @@
+---
+title: 1. Conservation and Fourier's law
+description: Distinguish temperature from energy and derive the heat equation from storage, outward flux, and generation.
+sidebar:
+  order: 1
+---
+
+## A hot center and a cool boundary
+
+A solid generates energy throughout its volume while its surface touches an
+ideal temperature-controlled bath. The bath holds the surface at 300 K. If the
+interior were also everywhere 300 K, there would be no temperature gradient and
+no conductive escape route for the generated energy. The interior must warm.
+The question is how much, and how quickly.
+
+Our model describes a stationary solid, with no transport of matter and no
+mechanical work. Material properties are constant over the temperature range
+we investigate. These choices let us isolate conduction and storage.
+
+By the end of this chapter, you can distinguish the quantities in the energy
+account, derive its local equation, and predict the sign of a heat flux.
+
+## Temperature is not the stored quantity
+
+Temperature $T$ measures thermal state. Internal energy is what we account for.
+For a small temperature change in a fixed solid, write
+
+$$
+e-e_{\mathrm{ref}}=c_v(T-T_{\mathrm{ref}}),
+\qquad c_v=\rho c.
+$$
+
+Here $e$ is internal energy per volume, $\rho$ is density, and $c$ is the
+appropriate specific heat for the solid approximation. We use $c_v$ to mean
+**volumetric heat capacity**, not a mass-specific heat symbol. With constant
+$c_v$, the energy rate is $\partial_t e=c_v\partial_t T$. The arbitrary reference
+energy disappears on differentiation. This is why a storage expression
+proportional to absolute temperature gives the same balance as one written in
+temperature rise. For the distinction between energy transfer and temperature,
+see [OpenStax, §1.4](https://openstax.org/books/university-physics-volume-2/pages/1-4-heat-transfer-specific-heat-and-calorimetry).
+
+| Symbol | Meaning | SI unit |
+| --- | --- | --- |
+| $T$ | Temperature | K |
+| $c_v$ | Volumetric heat capacity | J/(m³ K) |
+| $\boldsymbol q$ | Conductive energy flux | W/m² |
+| $s$ | Volumetric generation | W/m³ |
+| $k$ | Thermal conductivity | W/(m K) |
+
+A flux is a rate **per area**. Multiplying a uniform normal flux by an area
+produces power in watts; multiplying power by time produces energy in joules.
+
+## Draw the account before writing the PDE
+
+```text
+                      outward normal n
+                            ↑
+                    heat leaves: q · n
+                  ┌────────────────────┐
+       heat       │ stored energy      │       heat
+       enters →   │ generation s       │   →   leaves
+                  └────────────────────┘
+                       fixed region Ω
+```
+
+*Conceptual control-volume diagram. Arrows show energy transfer. The outward
+normal is defined by the region, regardless of whether energy enters or leaves.*
+
+For a fixed region $\Omega$, the account is
+
+$$
+\frac{\mathrm d}{\mathrm dt}\int_\Omega e\,\mathrm dV
++\int_{\partial\Omega}\boldsymbol q\cdot\boldsymbol n\,\mathrm dA
+=\int_\Omega s\,\mathrm dV.
+$$
+
+Positive outward flux is an energy loss. With insulated boundaries and positive
+generation, the boundary integral vanishes and stored energy increases. That
+simple thought experiment fixes the sign of the equation.
+
+Apply the divergence theorem and require this account on each small region:
+
+$$
+c_v\partial_t T+\nabla\cdot\boldsymbol q=s.
+$$
+
+This equation still does not tell us how energy moves. Conservation requires a
+constitutive law, a relationship describing the material's response.
+
+## Fourier's law supplies the flux
+
+For an isotropic conductor, the constitutive choice is
+
+$$
+\boldsymbol q=-k\nabla T,\qquad k>0.
+$$
+
+The gradient points toward increasing temperature; the minus sign makes flux
+point toward decreasing temperature. This is the local version of the slab law
+in [OpenStax, §1.6](https://openstax.org/books/university-physics-volume-2/pages/1-6-mechanisms-of-heat-transfer).
+Combining the law with the energy account gives
+
+$$
+c_v\partial_t T-\nabla\cdot(k\nabla T)=s.
+$$
+
+For constant $k$, define diffusivity $\alpha=k/c_v$:
+
+$$
+\partial_t T-\alpha\nabla^2T=\frac{s}{c_v},
+\qquad [\alpha]=\mathrm{m^2/s}.
+$$
+
+Conductivity determines flux for a given gradient. Diffusivity compares that
+transport with the energy needed to change temperature. Doubling $k$ and $c_v$
+together preserves source-free diffusion time scales, but doubles the flux
+carried by any fixed temperature profile.
+
+## Three predictions without a solver
+
+At steady state, storage vanishes. If $s=0$ and temperature is uniform, the
+balance is satisfied. If $s>0$ and every boundary is insulated, no steady state
+can satisfy the integrated account: zero outward power cannot equal positive
+generated power. If $s>0$ and the boundary is held cool, the center must become
+hotter so conduction can remove the power.
+
+For a characteristic length $L$, balancing $c_v\Delta T/t$ against
+$k\Delta T/L^2$ suggests a diffusion time $t_d=L^2/\alpha$. Balancing conduction
+against generation suggests a temperature rise $\Delta T\sim sL^2/k$. Geometry
+and boundary conditions determine the dimensionless factors. The next chapter
+calculates one exactly.
+
+## Exercises
+
+1. A uniform insulated volume has constant $c_v$ and constant source $s$.
+   Derive $T(t)$ from initial temperature $T_0$.
+2. In a one-dimensional body, $T$ increases with $x$. Give the sign of $q_x$,
+   and of outward flux at the left face.
+3. Two solids have equal conductivity but one has twice the volumetric heat
+   capacity. Which has the slower source-free diffusion time over equal lengths?
+4. Check the dimensions of every term in the local heat equation.
+
+<details>
+<summary>Solution hints</summary>
+
+1. Uniformity removes the gradient: $T=T_0+st/c_v$.
+2. $q_x<0$. The left normal is $-1$, so $q_n=-q_x>0$: heat leaves on the left.
+3. The larger-capacity solid has half the diffusivity and twice the time scale.
+4. Storage, divergence of flux, and source all have units W/m³.
+
+</details>
+
+## References
+
+- Samuel J. Ling, Jeff Sanny, and William Moebs, *University Physics, Volume 2*
+  (OpenStax, 2016), [§1.4, Heat Transfer, Specific Heat, and Calorimetry](https://openstax.org/books/university-physics-volume-2/pages/1-4-heat-transfer-specific-heat-and-calorimetry)
+  and [§1.6, Mechanisms of Heat Transfer](https://openstax.org/books/university-physics-volume-2/pages/1-6-mechanisms-of-heat-transfer).
+- Chris Schuh, *Materials Processing*, MIT 3.044 (2013),
+  [Lecture 2: Heat conduction](https://ocw.mit.edu/courses/3-044-materials-processing-spring-2013/resources/mit3_044s13_lec02/).
+
+[Book map](/learn/heat-transfer/) ·
+[Next: Steady conduction](/learn/heat-transfer/steady-conduction/)

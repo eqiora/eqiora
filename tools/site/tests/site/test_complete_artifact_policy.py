@@ -37,15 +37,10 @@ SOURCE_PATHS = (
     "examples/python/exact_cylinder_stokes.py",
     "examples/python/exact_cylinder_geometry.py",
     "examples/python/exact_cylinder_mesh.py",
-    "verify/fluid/packaged-steady-stokes-2d/models/direct.eqi",
-    "verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/src/incompressible.eqi",
+    "examples/steady-flow-past-cylinder.eqi",
     "crates/eqiora-api/packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi",
 )
-EVIDENCE_PATHS = (
-    "verify/fluid/packaged-steady-stokes-2d/README.md",
-    "verify/geometry/exact-circular-hole-geometry/README.md",
-    "verify/interfaces/python-exact-circular-hole-geometry/README.md",
-)
+
 STAGES = (
     ("problem-setup", "1", "Problem setup"),
     ("model-definition", "2", "Eqiora model definition"),
@@ -57,7 +52,6 @@ STAGES = (
 ST_STARLIGHT_ROUTES = (
     "/",
     "/contributing/architecture/",
-    "/capabilities/",
     "/guides/how-eqiora-fits-together/",
     "/contributing/",
     "/evidence/",
@@ -81,8 +75,6 @@ ST_STARLIGHT_ROUTES = (
     "/reference/standard-packages/continuum/",
     "/reference/standard-packages/electrical/",
     "/reference/cli/",
-    "/reference/control-v2/",
-    "/reference/mcp/",
     "/reference/python/",
     "/reference/python/diff/",
     "/reference/python/eqiora/",
@@ -114,6 +106,48 @@ ST_STARLIGHT_ROUTES = (
     "/learn/mathematical-modeling/models-not-simulations/",
     "/learn/mathematical-modeling/ordinary-differential-equations/",
     "/learn/mathematical-modeling/quantities-dimensions-units/",
+    "/reference/standard-packages/controls/",
+    "/reference/python/units/",
+    "/reference/python/colab/",
+    "/learn/circuits-dynamics/component-laws/",
+    "/learn/circuits-dynamics/conserving-networks/",
+    "/learn/circuits-dynamics/decay-and-storage/",
+    "/learn/circuits-dynamics/",
+    "/learn/circuits-dynamics/resistor-divider/",
+    "/learn/circuits-dynamics/voltage-current-power/",
+    "/learn/fluid-mechanics/computing-incompressible-flow/",
+    "/learn/fluid-mechanics/continuum-and-statics/",
+    "/learn/fluid-mechanics/cylinder-wakes/",
+    "/learn/fluid-mechanics/exact-parallel-flows/",
+    "/learn/fluid-mechanics/",
+    "/learn/fluid-mechanics/mass-and-momentum/",
+    "/learn/fluid-mechanics/references/",
+    "/learn/fluid-mechanics/stokes-and-boundaries/",
+    "/learn/heat-transfer/assessing-a-thermal-calculation/",
+    "/learn/heat-transfer/boundaries-and-interfaces/",
+    "/learn/heat-transfer/conservation-and-fourier-law/",
+    "/learn/heat-transfer/heated-body-in-eqiora/",
+    "/learn/heat-transfer/",
+    "/learn/heat-transfer/steady-conduction/",
+    "/learn/heat-transfer/transient-storage/",
+    "/learn/inverse-problems/differentiating-a-solved-model/",
+    "/learn/inverse-problems/heat-source-recovery/",
+    "/learn/inverse-problems/",
+    "/learn/inverse-problems/measurements-to-parameters/",
+    "/learn/inverse-problems/noise-scaling-and-design/",
+    "/learn/inverse-problems/sensitivity-and-identifiability/",
+    "/learn/numerical-simulation/errors-and-residuals/",
+    "/learn/numerical-simulation/finite-volume-balance/",
+    "/learn/numerical-simulation/",
+    "/learn/numerical-simulation/refinement-and-reproducibility/",
+    "/learn/numerical-simulation/time-integration/",
+    "/learn/numerical-simulation/weak-forms-and-finite-elements/",
+    "/learn/structural-mechanics/",
+    "/learn/structural-mechanics/interpreting-results/",
+    "/learn/structural-mechanics/loads-energy/",
+    "/learn/structural-mechanics/mixed-boundary-square/",
+    "/learn/structural-mechanics/strain-stress/",
+    "/learn/structural-mechanics/virtual-work/",
 )
 ABSENT_REFERENCES = (
     (
@@ -145,7 +179,7 @@ ABSENT_REFERENCES = (
 NAVIGATION = (
     '<nav class="sidebar"><a href="/learn/">Learn</a><a href="/guides/">Guides</a>'
     '<a href="/gallery/">Gallery</a><a href="/reference/">Reference</a>'
-    '<a href="/get-started/">Get started</a><a href="/capabilities/">Capabilities</a>'
+    '<a href="/get-started/">Get started</a>'
     '<a href="/release-notes/">Releases</a>'
     '<a href="/contributing/">Contributing</a>'
     '<a href="https://github.com/nkiyohara/eqiora">GitHub</a></nav>'
@@ -237,23 +271,20 @@ def _case_body() -> str:
     for relative in SOURCE_PATHS:
         label = Path(relative).name
         links.append(_exact_link(relative, label))
-    for relative in EVIDENCE_PATHS:
-        label = Path(relative).parent.name + " dossier"
-        links.append(_exact_link(relative, label))
 
     sentinel = _exact_link(
         "examples/python/exact_cylinder_stokes.py",
         "Eqiora source form: Python resolve/run path",
-        "#L45-L57",
+        "#L51-L67",
     )
 
-    source_form = """<p><strong>Eqiora source form</strong></p><pre>relation momentum on body {
+    source_form = """<p><strong>Eqiora source form</strong></p><pre>relation momentum on fluid {
   -div(
     2 * dynamic_viscosity * symmetric_part(grad(velocity))
     - isotropic_lift(pressure)
   ) - grad(force_potential) = 0;
 }
-relation incompressibility on body {
+relation incompressibility on fluid {
   div(velocity) = 0;
 }</pre>"""
     stage_bodies = (
@@ -270,7 +301,7 @@ relation incompressibility on body {
         + sentinel,
         f'<figure><img src="{PRESSURE_PATH}" alt="{PRESSURE_ALT}"><figcaption>'
         f"{PRESSURE_CAPTION}</figcaption></figure>",
-        '<a href="/capabilities/#exact-cylinder-steady-stokes">Read the human capability boundary</a>'
+        '<a href="/learn/fluid-mechanics/">Continue with fluid mechanics</a>'
         + " ".join(links),
     )
     sections = "".join(
@@ -346,7 +377,7 @@ def _ordinary(root: Path):
     )
     _set_main(
         artifact / "reference/index.html",
-        "<h1>Reference</h1><p>Python Rust CLI control-v2 MCP</p>"
+        "<h1>Reference</h1><p>Python Rust CLI</p>"
         f"<p>{REFERENCE_GUIDANCE}</p>",
     )
 
@@ -708,7 +739,7 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
         accepted_link = _exact_link(
             "examples/python/exact_cylinder_stokes.py",
             "Eqiora source form: Python resolve/run path",
-            "#L45-L57",
+            "#L51-L67",
         )
         accepted_href = accepted_link.split('href="', 1)[1].split('"', 1)[0]
         accepted_label = "Eqiora source form: Python resolve/run path"
@@ -738,8 +769,8 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
                 "navigation link became an action control",
             )
         for label, replacement in (
-            ("missing lines", accepted_href.removesuffix("#L45-L57")),
-            ("wrong lines", accepted_href.replace("#L45-L57", "#L44-L57")),
+            ("missing lines", accepted_href.removesuffix("#L51-L67")),
+            ("wrong lines", accepted_href.replace("#L51-L67", "#L44-L57")),
             (
                 "wrong exact head",
                 accepted_href.replace(SOURCE_SHA, "b" * 40),
@@ -750,7 +781,7 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
                 lambda artifact, replacement=replacement: _replace(
                     artifact / case, accepted_href, replacement
                 ),
-                "accepted source-form sentinel must be the exact-head L45-L57 anchor",
+                "accepted source-form sentinel must be the exact-head L51-L67 anchor",
             )
 
         reject(

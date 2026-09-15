@@ -13,6 +13,25 @@ Configure linear elasticity and inspect structural results.
 
 <ExactSourceLink path="bindings/python/python/eqiora/solid.pyi" kind="blob">View source</ExactSourceLink>
 
+## Example: read forces after an elastic solve
+
+Continue with the linear-elasticity `result` from
+[modeling](/guides/modeling/):
+
+```python
+from eqiora.solid import linear_elasticity_evidence
+
+forces = linear_elasticity_evidence(result)
+print(forces.integrated_body_force)
+print(forces.constrained_reaction)
+```
+
+Each pair gives the x and y components. For a static body loaded only by a
+body force, the constrained reaction balances the integrated body force.
+Keep the model's two-dimensional force convention when interpreting them.
+
+## API
+
 <a id="api-eqiora-solid-ElasticityPlanView"></a>
 
 ## `ElasticityPlanView`

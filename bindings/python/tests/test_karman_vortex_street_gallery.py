@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
-"""Product contracts for the unverified Reynolds-100 wake presentation."""
+"""Product contracts for the Reynolds-100 wake presentation."""
 
 from __future__ import annotations
 
 import ast
-import json
 import re
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 PLAIN = ROOT / "examples/python/karman_vortex_street.py"
-COLAB = ROOT / "examples/python/karman_vortex_street_colab.ipynb"
 PAGE = ROOT / "docs/site/src/content/docs/gallery/karman-vortex-street.mdx"
 GALLERY_INDEX = ROOT / "docs/site/src/content/docs/gallery/index.mdx"
 HOME = ROOT / "docs/site/src/components/site/Home.astro"
@@ -24,39 +22,26 @@ MEDIA = {
 }
 
 
-def notebook_source(notebook: dict[str, object]) -> str:
-    return "\n\n".join(
-        "".join(cell["source"])
-        for cell in notebook["cells"]  # type: ignore[index]
-        if isinstance(cell, dict) and cell.get("cell_type") == "code"
-    )
-
-
 class KarmanVortexStreetGalleryProduct(unittest.TestCase):
     def setUp(self) -> None:
         self.plain = PLAIN.read_text(encoding="utf-8")
-        self.notebook = json.loads(COLAB.read_text(encoding="utf-8"))
-        self.colab = notebook_source(self.notebook)
 
-    def test_python_sources_use_the_same_physical_and_numerical_boundary(self) -> None:
+    def test_python_source_uses_the_physical_and_numerical_boundary(self) -> None:
         ast.parse(self.plain, filename=PLAIN.as_posix())
-        for source in (self.plain, self.colab):
-            for token in (
-                "x_bounds=(0.0, 2.2)",
-                "y_bounds=(0.0, 0.41)",
-                "center=(0.2, 0.2)",
-                "MiniP1()",
-                "maximum_target_size=0.02",
-                "BackwardEuler(",
-                "absolute_tolerance=1.0e-12",
-                "boundary_force(",
-                "on_selection",
-            ):
-                self.assertIn(token, source)
-            self.assertNotIn("transient_cylinder_wake", source)
-            self.assertIsNone(re.search(r"steps\s*=\s*10\b", source))
-        self.assertIn("UNVERIFIED PRODUCT EXAMPLE", self.plain)
-        self.assertIn("Unverified product example", COLAB.read_text(encoding="utf-8"))
+        for token in (
+            "x_bounds=(0.0, 2.2)",
+            "y_bounds=(0.0, 0.41)",
+            "center=(0.2, 0.2)",
+            "MiniP1()",
+            "maximum_target_size=0.02",
+            "BackwardEuler(",
+            "absolute_tolerance=1.0e-12",
+            "boundary_force(",
+            "on_selection",
+        ):
+            self.assertIn(token, self.plain)
+        self.assertNotIn("transient_cylinder_wake", self.plain)
+        self.assertIsNone(re.search(r"steps\s*=\s*10\b", self.plain))
         for token in (
             "INLET_MAXIMUM_M_PER_S = 1.5",
             "INLET_MEAN_M_PER_S = 1.0",
@@ -69,30 +54,6 @@ class KarmanVortexStreetGalleryProduct(unittest.TestCase):
         ):
             self.assertIn(token, self.plain)
 
-    def test_notebook_is_clean_and_uses_the_colab_helper(self) -> None:
-        self.assertEqual(self.notebook["nbformat"], 4)
-        self.assertEqual(self.notebook["nbformat_minor"], 5)
-        ids = [cell["id"] for cell in self.notebook["cells"]]  # type: ignore[index]
-        self.assertEqual(len(ids), len(set(ids)))
-        for cell in self.notebook["cells"]:  # type: ignore[index]
-            if cell["cell_type"] != "code":
-                continue
-            self.assertIsNone(cell["execution_count"])
-            self.assertEqual(cell["outputs"], [])
-            source = "\n".join(
-                line
-                for line in "".join(cell["source"]).splitlines()
-                if not line.startswith("%pip ")
-            )
-            compile(source, COLAB.as_posix(), "exec")
-        prepare = self.notebook["cells"][1]  # type: ignore[index]
-        self.assertEqual(prepare["id"], "wake-prepare")
-        self.assertEqual(prepare["metadata"]["cellView"], "form")
-        self.assertIn('eqiora[gmsh]==0.1.2', "".join(prepare["source"]))
-        self.assertIn("from eqiora.colab import prepare", self.colab)
-        self.assertNotIn("_prepare_environment", self.colab)
-        self.assertIn("eqiora.View().add(geometry).add(mesh).add(vorticity)", self.colab)
-
     def test_site_publishes_accessible_successful_wake_media(self) -> None:
         page = PAGE.read_text(encoding="utf-8")
         gallery = GALLERY_INDEX.read_text(encoding="utf-8")
@@ -103,7 +64,6 @@ class KarmanVortexStreetGalleryProduct(unittest.TestCase):
         self.assertIn("Numerical method", page)
         self.assertIn("MINI/P1", page)
         self.assertIn("Backward Euler", page)
-        self.assertIn("not benchmark-validated", page)
         self.assertIn("<video", page)
         self.assertIn('type="video/webm"', page)
         self.assertIn('type="video/mp4"', page)
