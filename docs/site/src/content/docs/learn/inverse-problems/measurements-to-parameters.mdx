@@ -1,0 +1,126 @@
+---
+title: 1. Measurements to parameters
+description: Recover a decay rate by hand, connect observations to a forward model, and test a held-out prediction.
+sidebar:
+  order: 1
+---
+
+import { Code } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import modelSource from '../../../../../../../examples/decay.eqi?raw';
+
+## A signal has fallen to half its initial value
+
+You observe a signal one second after starting an experiment. Its initial value
+was 1 and its new value is 0.5. How fast is it decaying?
+
+A **forward problem** starts with a rate and predicts the signal. An **inverse
+problem** starts with the signal and asks about the rate. Both need the same
+physical model. Here we assume the rate is constant, the signal is proportional
+to the state, and the instrument has no unknown offset.
+
+The model says that the loss per unit time is proportional to the amount present:
+
+$$
+\frac{dx}{dt}=-kx,\qquad x(0)=x_0,\qquad k>0.
+$$
+
+The state $x$ is dimensionless, time $t$ is in seconds, and $k$ is in inverse
+seconds. Dividing by $x$ and integrating gives
+
+$$
+\log(x/x_0)=-kt,\qquad x(t)=x_0e^{-kt}.
+$$
+
+We have derived the forward answer before touching a solver. The
+[ODE lesson](/learn/mathematical-modeling/ordinary-differential-equations/)
+explores the evolution equation in more detail.
+
+## Turn the equation around
+
+For one observation $d$ at a known positive time $t$, with known $x_0$,
+
+$$
+k=-\frac{1}{t}\log\left(\frac{d}{x_0}\right).
+$$
+
+Our observation gives $k=\log 2\approx0.693147\,\mathrm{s}^{-1}$.
+The formula requires $d>0$. Under the assumed decay model, $d>x_0$ would produce
+a negative fitted rate and therefore contradict the assumption of decay.
+
+This is an unusually simple inverse problem: the answer is explicit. It is still
+worth stating the components separately.
+
+| Role | This experiment |
+| --- | --- |
+| Unknown parameter | $k$ |
+| State | $x(t;k)$ |
+| Observation rule | Read $x$ at $t=1\,\mathrm{s}$ |
+| Data | $d=0.5$ |
+| Objective | $\tfrac12[x(1;k)-d]^2$ |
+
+An observation rule can instead average a region, sample several times, or
+convert a physical quantity to instrument units. Keeping that rule explicit
+prevents fitting a model output that the instrument never measured. For the
+linear algebra of observations and data fitting, see Boyd and Vandenberghe,
+*Introduction to Applied Linear Algebra*, chapters 7 and 13, in the
+[authors' edition](https://web.stanford.edu/~boyd/vmls/).
+
+## Run the forward prediction
+
+Use the shared [Get started](/get-started/) files and environment. Their model is:
+
+<Code code={modelSource} lang="eqiora" title="decay.eqi" />
+
+Change `rate` to `0.6931471805599453` and run the maintained script:
+
+```bash
+uv run --no-project --python .venv/bin/python python run.py
+```
+
+Predict the printed values first: about $0.840896$ at $0.25$ seconds,
+$0.707107$ at $0.5$ seconds, and $0.5$ at one second. The
+<ExactSourceLink path="examples/python/textbook_decay.py" kind="blob">shared run script</ExactSourceLink>
+handles compilation, time integration, and sampling; the equation remains in
+`.eqi`.
+
+The final sample was used to choose $k$. The earlier samples are additional
+predictions. If independently measured values disagree with them, changing $k$
+to match one observation more closely will not necessarily repair the model.
+An unknown initial condition, an instrument offset, or a changing rate may matter.
+
+## What if the initial value is unknown?
+
+One observation now obeys $d=x_0e^{-kt}$. For every chosen $k$ there is an
+$x_0=de^{kt}$ producing exactly that observation. A good fit cannot select between
+them. Two positive measurements at distinct times allow the ratio
+
+$$
+\frac{d_2}{d_1}=e^{-k(t_2-t_1)},\qquad
+k=-\frac{\log(d_2/d_1)}{t_2-t_1}.
+$$
+
+This removes $x_0$, after which either observation determines it. The result
+assumes the two samples share one initial condition and one constant rate.
+
+## Exercises
+
+1. Recover $k$ when $x_0=2$ and $x(3\,\mathrm{s})=0.25$. Give its units.
+2. Fit $k$ from $x(1)=0.5$ and predict $x(2)$. Would a new measurement of 0.4
+   agree with this model? Name one additional experiment that could help explain it.
+3. With unknown $x_0$, use $d_1=0.8$ at one second and $d_2=0.4$ at three seconds
+   to recover both parameters.
+4. Differentiate the one-observation estimate with respect to $d$. Explain why
+   a small absolute measurement error becomes troublesome near zero.
+
+**Check your reasoning:** exercise 1 gives $k=\log 8/3$; exercise 3 gives
+$k=\log 2/2$ and $x_0=0.8\sqrt{2}$.
+
+## Reading
+
+Stephen Boyd and Lieven Vandenberghe, *Introduction to Applied Linear Algebra:
+Vectors, Matrices, and Least Squares*, Cambridge University Press, 2018,
+chapters 7 and 13. [Book and author resources](https://web.stanford.edu/~boyd/vmls/).
+
+[Book map](/learn/inverse-problems/) ·
+[Next: Recovering a heat source](/learn/inverse-problems/heat-source-recovery/)

@@ -1,0 +1,127 @@
+---
+title: 3. Sensitivity and identifiability
+description: Use derivatives and an exact ambiguity to discover what a temperature field can tell you about source and conductivity.
+sidebar:
+  order: 3
+---
+
+## Two explanations for one temperature field
+
+Suppose you observe the entire steady field in the previous chapter. Can you
+recover both the source strength $s$ and conductivity $a$?
+
+Recall the solution on the one-metre square:
+
+$$
+u=b+\frac{sL^2}{2a\pi^2}\,\psi,\qquad
+\psi(x,y)=\sin(\pi x/L)\sin(\pi y/L),
+$$
+
+where $L=1\,\mathrm m$. The response depends on the
+ratio $s/a$. Multiplying both parameters by the same positive factor leaves
+$u$ unchanged everywhere. More temperature sensors do not remove this particular
+ambiguity, even with exact measurements.
+
+| Source scale $s$ in $\mathrm m^{-2}$ | Conductivity ratio $a$ | Centre temperature, $b=0$ |
+| --- | --- | --- |
+| $2\pi^2$ | 1 | 1 |
+| $4\pi^2$ | 2 | 1 |
+| $\pi^2$ | 0.5 | 1 |
+
+These are analytically identical predictions. A numerical search can return one
+row with an excellent fit while the others remain equally compatible with the data.
+
+## Sensitivity asks about a small change
+
+A parameter sensitivity is the derivative of the observation with respect to a
+parameter. At fixed position,
+
+$$
+\frac{\partial u}{\partial s}=\frac{L^2\psi}{2a\pi^2},\qquad
+\frac{\partial u}{\partial a}=-\frac{sL^2\psi}{2a^2\pi^2},\qquad
+\frac{\partial u}{\partial b}=1.
+$$
+
+Let $J$ collect these derivatives for all observed positions. For a small
+parameter change $\delta p$,
+
+$$
+\delta y\approx J\delta p.
+$$
+
+The source and conductivity columns are proportional:
+$J_a=-(s/a)J_s$. In direction $\delta p=(s,a,0)$, they cancel. The measurements
+have no first-order response in that direction, consistent with the exact
+scaling ambiguity above.
+
+**Identifiability** asks whether observations distinguish the unknown parameters.
+Column dependence exposes a local ambiguity in a differentiable model. Here we
+also have the stronger, explicit family of exactly equivalent solutions.
+The linear-dependence language is developed in Boyd and Vandenberghe, chapter 5
+of [*Introduction to Applied Linear Algebra*](https://web.stanford.edu/~boyd/vmls/).
+
+## Try the cancellation in Eqiora
+
+The [Poisson script](/learn/inverse-problems/heat-source-recovery/#run-the-recovery-experiment)
+orders its inputs as source, conductivity, boundary value. Replace its `direction`
+array with:
+
+```python
+direction = np.array([2.0 * np.pi**2, 1.0, 0.0], dtype=np.float64)
+```
+
+The `program.jvp(direction)` call returns the field change in that direction.
+Predict a near-zero tangent. Compare it with the source-only direction
+`np.array([1.0, 0.0, 0.0], dtype=np.float64)`, which produces a nonzero field
+change in the interior. Both experiments reuse the same compiled mathematical
+component and the same numerical plan.
+
+For a finite change, compare `program.evaluate(nominal)` with
+`program.evaluate(np.array([4.0 * np.pi**2, 2.0, 0.0], dtype=np.float64))`.
+Their primary fields should agree up to the solution error.
+
+## Design an observation that adds information
+
+Which change helps? An independent conductivity measurement fixes $a$, so the
+field can determine $s$. Alternatively measure heat flux as well as temperature.
+In our normalized model the flux is $\boldsymbol q=-a\nabla u$, so substitution
+gives
+
+$$
+\boldsymbol q=-\frac{sL^2}{2\pi^2}\nabla\psi.
+$$
+
+Its dependence on $a$ has cancelled. A suitably located nonzero flux measurement
+can determine $s$, while temperature then determines $a$. A flux measurement at
+the centre is unhelpful because the gradient vanishes there. The instrument and
+its placement matter as much as the number of readings.
+
+If $b$ is also unknown, include information that separates a uniform offset from
+the sinusoidal response. A boundary-temperature reading directly observes $b$;
+two distinct interior response levels can also separate the offset and amplitude.
+Repeating the centre reading reduces random noise but does not create a second
+spatial response pattern.
+
+## Exercises
+
+1. Derive the three sensitivity formulas without looking at them above.
+2. Give two distinct $(s,a)$ pairs with centre temperature 0.75 and $b=0$.
+3. At $(x,y)=(0,0.5)$, calculate the normalized outward flux from the analytic
+   solution. Which unknown does it identify? Keep the outward normal sign explicit.
+4. Suppose $a$ is known but $s$ and $b$ are unknown. Compare two centre readings
+   with one centre and one boundary reading by writing their $2\times2$ Jacobians.
+5. Explain why reducing the optimizer's stopping tolerance cannot remove the
+   source/conductivity ambiguity.
+
+**Check your reasoning:** on the left edge at its midpoint the outward flux is
+$sL/(2\pi)$ in the normalized units; the normal points in the negative $x$ direction.
+
+## Reading
+
+Stephen Boyd and Lieven Vandenberghe, *Introduction to Applied Linear Algebra*,
+Cambridge University Press, 2018, chapters 5 and 12.
+[Authors' book](https://web.stanford.edu/~boyd/vmls/).
+
+[Previous: Recovering a heat source](/learn/inverse-problems/heat-source-recovery/) ·
+[Book map](/learn/inverse-problems/) ·
+[Next: Differentiating a solved model](/learn/inverse-problems/differentiating-a-solved-model/)
