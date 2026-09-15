@@ -1,5 +1,9 @@
 # Modeling and realization
 
+Use the environment from [Get started](/get-started/). The sections below show
+how to declare a model, connect its geometry, and select numerical methods. For
+a mathematical introduction, choose a subject in [Learn](/learn/).
+
 ## Native declarations
 
 Define fields, parameters, initial conditions, and equations in Python, then
@@ -1076,9 +1080,8 @@ Install the Gmsh and Matplotlib adapters and ask the same runnable file to save
 the pressure field:
 
 ```console
-uv venv --python 3.13 .venv
-uv pip install --python .venv/bin/python '.[gmsh,matplotlib]'
-uv run --no-project --python .venv/bin/python examples/python/exact_cylinder_stokes.py \
+uv pip install --python .venv/bin/python './eqiora-source[gmsh,matplotlib]'
+uv run --no-project --python .venv/bin/python eqiora-source/examples/python/exact_cylinder_stokes.py \
   --pressure-png exact-cylinder-pressure.png
 ```
 
@@ -1088,7 +1091,7 @@ equivalent composition API is:
 ```python
 import eqiora.matplotlib as eqplot
 
-pressure = result.snapshots[0]
+pressure = result.output(plan.capability.pressure)
 figure = eqplot.plot_scalar_field(result, field=pressure.field)
 figure.savefig("exact-cylinder-pressure.png")
 ```
@@ -1157,7 +1160,6 @@ result = eqiora.run(plan)
 
 displacement = result.output(plan.capability.displacement)
 mesh = displacement.mesh
-evidence = eqiora.solid.linear_elasticity_evidence(result)
 ```
 
 The Plan contains the mesh, Q1 elements, solver settings, and execution
@@ -1235,7 +1237,6 @@ state = eqiora.State.initial(
     ),
 )
 result = eqiora.run(plan, state=state, steps=2, output_steps=(1, 2))
-evidence = eqiora.fsi.evidence(result)
 ```
 
 This FSI model requires MINI/P1 elements for the fluid and P1 elements for
