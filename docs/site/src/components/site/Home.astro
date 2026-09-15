@@ -1,5 +1,7 @@
 ---
 import wakeImage from '../../assets/gallery/karman-vortex-street-poster.png';
+import wakeWebm from '../../assets/gallery/karman-vortex-street.webm';
+import wakeMp4 from '../../assets/gallery/karman-vortex-street.mp4';
 import ReleaseIdentity from './ReleaseIdentity.astro';
 ---
 
@@ -14,13 +16,20 @@ import ReleaseIdentity from './ReleaseIdentity.astro';
       </div>
       <p class="eq-release">Release <ReleaseIdentity /> · Actively developed. <a href="/capabilities/">See what works today.</a></p>
     </div>
+    <div class="eq-preview-shell" data-wake-preview>
     <a class="eq-preview-link" href="/gallery/karman-vortex-street/" aria-label="Explore the Kármán vortex street">
     <figure class="eq-preview">
       <div class="eq-preview__label"><span>Flow simulation</span><span>01 / Fluid mechanics</span></div>
-      <img src={wakeImage.src} alt="Cell-average vorticity in a Kármán vortex street behind a circular cylinder." width={wakeImage.width} height={wakeImage.height} fetchpriority="high" />
+      <video class="eq-preview__video" muted loop playsinline preload="metadata" poster={wakeImage.src} aria-hidden="true" tabindex="-1">
+        <source src={wakeWebm} type="video/webm" />
+        <source src={wakeMp4} type="video/mp4" />
+      </video>
+      <img class="eq-preview__still" src={wakeImage.src} alt="Cell-average vorticity in a Kármán vortex street behind a circular cylinder." width={wakeImage.width} height={wakeImage.height} fetchpriority="high" />
       <figcaption><span>Kármán vortex street <span aria-hidden="true">↗</span></span><span>2D · transient Navier–Stokes</span></figcaption>
     </figure>
     </a>
+    <button class="eq-preview__toggle" type="button" hidden>Pause animation</button>
+    </div>
   </section>
 
   <section class="eq-workflow" aria-labelledby="workflow-title">
@@ -72,6 +81,11 @@ import ReleaseIdentity from './ReleaseIdentity.astro';
   .eq-button--primary { background: var(--eq-color-action-bg); border-color: var(--eq-color-action-bg); color: var(--eq-color-action-text); }
   .eq-button:hover { text-decoration: underline; text-underline-offset: 0.2em; }
   .eq-release { font-size: 0.875rem; color: var(--eq-color-text-muted); }
+  .eq-preview-shell { min-width: 0; }
+  .eq-preview__video { display: none; width: 100%; height: auto; margin-block: 1rem; border-radius: 0.25rem; }
+  .eq-preview-shell[data-motion="ready"] .eq-preview__video { display: block; }
+  .eq-preview-shell[data-motion="ready"] .eq-preview__still { display: none; }
+  .eq-preview__toggle { margin-top: 0.5rem; padding: 0.375rem 0.75rem; border: 1px solid var(--eq-color-border); border-radius: 0.375rem; color: var(--eq-color-text); background: var(--eq-color-surface); font: inherit; font-size: 0.875rem; cursor: pointer; }
   .eq-preview-link { display: block; min-width: 0; color: inherit; text-decoration: none; border-radius: 0.875rem; }
   .eq-preview-link:hover .eq-preview { border-color: var(--eq-color-brand); }
   .eq-preview-link:hover figcaption > span:first-child { text-decoration: underline; text-underline-offset: 0.2em; }
@@ -98,7 +112,57 @@ import ReleaseIdentity from './ReleaseIdentity.astro';
     .eq-workflow ol { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .eq-path-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
+  @media (prefers-reduced-motion: reduce) {
+    .eq-preview-shell[data-motion="ready"] .eq-preview__video { display: none; }
+    .eq-preview-shell[data-motion="ready"] .eq-preview__still { display: block; }
+  }
   @media (forced-colors: active) {
     .eq-button--primary { border-color: ButtonText; color: ButtonText; background: ButtonFace; }
   }
 </style>
+
+<script>
+  const preview = document.querySelector<HTMLElement>('[data-wake-preview]');
+  const video = preview?.querySelector<HTMLVideoElement>('video');
+  const toggle = preview?.querySelector<HTMLButtonElement>('button');
+  if (preview && video && toggle) {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let userPaused = false;
+    const update = async () => {
+      if (reduced.matches) {
+        video.pause();
+        delete preview.dataset.motion;
+        toggle.hidden = true;
+        return;
+      }
+      toggle.hidden = false;
+      if (userPaused || document.hidden) {
+        video.pause();
+        toggle.textContent = userPaused ? 'Play animation' : 'Pause animation';
+        return;
+      }
+      video.muted = true;
+      try {
+        await video.play();
+        if (reduced.matches || userPaused || document.hidden) {
+          video.pause();
+          return;
+        }
+        preview.dataset.motion = 'ready';
+        toggle.hidden = false;
+        toggle.textContent = 'Pause animation';
+      } catch {
+        // The linked still remains usable when playback is unavailable.
+        toggle.hidden = reduced.matches;
+        toggle.textContent = 'Play animation';
+      }
+    };
+    toggle.addEventListener('click', () => {
+      userPaused = !video.paused;
+      void update();
+    });
+    reduced.addEventListener('change', () => void update());
+    document.addEventListener('visibilitychange', () => void update());
+    void update();
+  }
+</script>

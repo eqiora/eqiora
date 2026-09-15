@@ -26,6 +26,24 @@ test('homepage headline stays readable on desktop and mobile', async ({ page }) 
   }
 });
 
+test('homepage wake moves, pauses, and links to its walkthrough', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto('/');
+  const video = page.locator('.eq-preview__video');
+  await expect(video).toBeVisible();
+  await expect.poll(() => video.evaluate((node: HTMLVideoElement) => node.currentTime)).toBeGreaterThan(0);
+  await page.getByRole('button', { name: 'Pause animation', exact: true }).click();
+  expect(await video.evaluate((node: HTMLVideoElement) => node.paused)).toBe(true);
+  await page.getByRole('button', { name: 'Play animation', exact: true }).click();
+  await expect.poll(() => video.evaluate((node: HTMLVideoElement) => node.paused)).toBe(false);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(video).toBeHidden();
+  await expect(page.locator('.eq-preview__still')).toBeVisible();
+  expect(await video.evaluate((node: HTMLVideoElement) => node.paused)).toBe(true);
+  await page.getByRole('link', { name: 'Explore the Kármán vortex street', exact: true }).click();
+  await expect(page).toHaveURL(/\/gallery\/karman-vortex-street\/$/);
+});
+
 test('required routes, semantic stages, controls, and 404 are real static surfaces', async ({ page }) => {
   const external = await rejectExternalRequests(page);
   for (const route of ROUTES) {
@@ -38,8 +56,8 @@ test('required routes, semantic stages, controls, and 404 are real static surfac
   await expect(page.getByRole('banner').getByRole('link', { name: 'Eqiora', exact: true })).toHaveAttribute('href', '/');
   await expect(page.locator('.eq-actions').getByRole('link', { name: 'Get started', exact: true })).toHaveAttribute('href', '/get-started/');
   await expect(page.getByRole('link', { name: 'Explore simulations', exact: true })).toHaveAttribute('href', '/gallery/');
-  await expect(page.getByRole('img', { name: /vorticity in a Kármán vortex street/i })).toBeVisible();
-  await expect(page.locator('.eq-preview__label')).toContainText('Unverified product example');
+  await expect(page.locator('.eq-preview__video')).toBeVisible();
+  await expect(page.locator('.eq-preview__label')).toContainText('Flow simulation');
   await assertAccessibleTooltip(
     page,
     page.getByRole('button', { name: /search/i }).filter({ visible: true }).first(),
