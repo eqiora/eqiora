@@ -40,3 +40,32 @@ changes. Workspace analysis runs on one background worker, coalesces pending
 edits, and prevents superseded results from publishing diagnostics. An editor
 request waiting for the current snapshot can be cancelled through
 `$/cancelRequest`. Partial edits are planned next.
+
+## Rich model inspection
+
+The [official VS Code extension](https://github.com/nkiyohara/eqiora-vscode) consumes
+`capabilities.experimental.eqioraInspection = 1`. Other clients can send the same
+`eqiora/inspect` request:
+
+```json
+{"textDocument":{"uri":"file:///workspace/main.eqi"},"model":"Decay","fingerprint":false}
+```
+
+`model` is optional and defaults to the first Model declared in the selected file.
+The read-only response contains the exact open-document `version`, declared
+`models`, selected `model`, compiled `nodes` and `edges`, and rendered `equations`.
+Each equation retains generated `latex`, `plain`, `speech`, an explicit `fallback`
+flag, and referenced entity IDs. Node locations are standard LSP locations. Clients
+must discard responses for older document versions and render fallback text as text.
+No source text is interpreted as executable TeX or HTML.
+
+Compilation uses the retained resolved editor graph, including unsaved sources and
+exact local-package dependencies. Required unbound model parameters and invalid
+models return `errors` without a partial model. Limits are 4096 entities, 16384
+edges and 4 MiB per response. Graph kind strings are presentation labels, not an
+alternate semantic vocabulary or editable artifact.
+
+`fingerprint: true` requests Eqiora's existing bounded structural semantic
+fingerprint. Unsupported vocabulary or exhausted comparison limits leave
+`fingerprint` null with an error. Equal rendered equations do not substitute for
+that comparison. Inspection neither constructs a numerical Plan nor runs a solve.
