@@ -24,7 +24,7 @@ impl BoundRegionForm {
                 "region geometry and quadrature must match bound reference support",
             ));
         }
-        let exactness = if self
+        let mut exactness = if self
             .fields
             .iter()
             .any(|layout| layout.space.family() == SpaceFamily::SimplexP1Bubble)
@@ -35,6 +35,20 @@ impl BoundRegionForm {
         } else {
             2
         };
+        if self.form.rows.iter().any(|row| !row.dyadics.is_empty()) {
+            let degree = if self
+                .fields
+                .iter()
+                .any(|layout| layout.space.family() == SpaceFamily::SimplexP1Bubble)
+            {
+                3 * (self.form.dimension + 1) - 1
+            } else if self.reference.family() == ReferenceCellFamily::Hypercube {
+                3 * self.form.dimension - 1
+            } else {
+                2
+            };
+            exactness = exactness.max(degree);
+        }
         if quadrature
             .polynomial_exactness()
             .is_none_or(|order| order < exactness)
@@ -60,6 +74,20 @@ impl BoundRegionForm {
 
     /// Previous coefficients are physical coherent-SI values, not scaled algebraic unknowns.
     pub(crate) fn evaluate(
+        &self,
+        geometry: &AffineGeometryMap,
+        quadrature: &QuadratureRule,
+        previous: &BTreeMap<RawId, Vec<f64>>,
+    ) -> Result<LocalContribution, Diagnostic> {
+        if self.form.rows.iter().any(|row| !row.dyadics.is_empty()) {
+            return Err(invalid(
+                "nonlinear region evaluation requires an explicit candidate point",
+            ));
+        }
+        self.evaluate_affine(geometry, quadrature, previous)
+    }
+
+    pub(super) fn evaluate_affine(
         &self,
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,

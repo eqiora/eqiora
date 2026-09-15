@@ -168,7 +168,7 @@ where
             prepared,
             body_force,
             previous,
-            plan,
+            plan.clone(),
             cell_quadrature,
             facet_quadrature,
             assembly,
@@ -205,7 +205,7 @@ where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
 {
     let mut point = initial_point_prepared(mesh, prepared, previous)?;
-    require_consistent_initial_state(mesh, cell_quadrature, previous, plan)?;
+    require_consistent_initial_state(mesh, cell_quadrature, previous, plan.clone())?;
     let mut current = {
         let _assembly =
             eqiora_execution::telemetry_span!(assembly("initial_linearization")).entered();
@@ -215,7 +215,7 @@ where
             body_force,
             previous,
             &point,
-            plan,
+            plan.clone(),
             assembly_backend,
             viscous_form,
         )?
@@ -233,7 +233,7 @@ where
         return accept_step(
             mesh,
             previous,
-            plan,
+            plan.clone(),
             cell_quadrature,
             facet_quadrature,
             current,
@@ -295,7 +295,7 @@ where
                     body_force,
                     previous,
                     &candidate,
-                    plan,
+                    plan.clone(),
                     assembly_backend,
                     viscous_form,
                 )?
@@ -331,7 +331,7 @@ where
             return accept_step(
                 mesh,
                 previous,
-                plan,
+                plan.clone(),
                 cell_quadrature,
                 facet_quadrature,
                 current,

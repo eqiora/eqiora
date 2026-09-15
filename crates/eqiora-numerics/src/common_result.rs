@@ -231,8 +231,10 @@ struct ElasticityResultObservation {
 
 #[derive(Debug, Clone, PartialEq)]
 struct SteadyStokesResultObservation {
-    scalars: [f64; 6],
-    vectors: [[f64; 2]; 7],
+    scalars: [f64; 4],
+    vectors: [[f64; 2]; 6],
+    reactions: Vec<(String, [f64; 2])>,
+    fluxes: Vec<(String, f64)>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -499,18 +501,17 @@ impl CommonResult {
             solve,
             assembly,
             StaticObservation::SteadyStokes(SteadyStokesResultObservation {
+                reactions: solution.named_boundary_reactions().to_vec(),
+                fluxes: solution.named_boundary_fluxes().to_vec(),
                 scalars: [
                     observation.pressure_minimum(),
                     observation.pressure_maximum(),
-                    observation.inlet_flux(),
-                    observation.outlet_flux(),
                     observation.net_flux(),
                     observation.continuity_residual_norm(),
                 ],
                 vectors: [
                     observation.exact_bounds()[0],
                     observation.exact_bounds()[1],
-                    observation.cylinder_force_on_fluid(),
                     observation.constrained_reaction(),
                     observation.integrated_body_force(),
                     observation.integrated_boundary_traction(),
@@ -936,7 +937,7 @@ impl CommonResult {
         }
     }
     #[must_use]
-    pub fn steady_stokes_observation(&self) -> Option<([f64; 6], [[f64; 2]; 7])> {
+    pub fn steady_stokes_observation(&self) -> Option<([f64; 4], [[f64; 2]; 6])> {
         match &self.payload {
             CommonResultPayload::Static(payload) => match &payload.observation {
                 StaticObservation::SteadyStokes(value) => Some((value.scalars, value.vectors)),
@@ -944,6 +945,36 @@ impl CommonResult {
             },
             _ => None,
         }
+    }
+
+    #[must_use]
+    pub fn steady_stokes_boundary_reaction(&self, name: &str) -> Option<[f64; 2]> {
+        let CommonResultPayload::Static(payload) = &self.payload else {
+            return None;
+        };
+        let StaticObservation::SteadyStokes(value) = &payload.observation else {
+            return None;
+        };
+        value
+            .reactions
+            .iter()
+            .find(|(key, _)| key == name)
+            .map(|(_, value)| *value)
+    }
+
+    #[must_use]
+    pub fn steady_stokes_boundary_flux(&self, name: &str) -> Option<f64> {
+        let CommonResultPayload::Static(payload) = &self.payload else {
+            return None;
+        };
+        let StaticObservation::SteadyStokes(value) = &payload.observation else {
+            return None;
+        };
+        value
+            .fluxes
+            .iter()
+            .find(|(key, _)| key == name)
+            .map(|(_, value)| *value)
     }
 }
 

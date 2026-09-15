@@ -22,13 +22,13 @@ use validate::{
     require_text, require_trajectory_family, validate_fields,
 };
 
-const SCHEMA: &str = "eqiora.common-result/v5";
+const SCHEMA: &str = "eqiora.common-result/v6";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 512 * 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireCommonResultV5 {
+struct WireCommonResultV6 {
     schema: String,
     encoding: String,
     identity: String,
@@ -115,8 +115,10 @@ enum WireStaticObservation {
         exact_bounds: [[f64; 2]; 2],
     },
     SteadyStokes {
-        scalars: [f64; 6],
-        vectors: [[f64; 2]; 7],
+        scalars: [f64; 4],
+        vectors: [[f64; 2]; 6],
+        reactions: Vec<(String, [f64; 2])>,
+        fluxes: Vec<(String, f64)>,
     },
 }
 
@@ -243,7 +245,7 @@ struct WireFsiInterfaceAction {
 impl CommonResult {
     /// Encode all accepted Fields, observations, evidence, and Trajectory content canonically.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&WireCommonResultV5::from_result(self)?)
+        serde_json::to_vec(&WireCommonResultV6::from_result(self)?)
             .map_err(|error| invalid(format!("cannot encode common Result artifact: {error}")))
     }
 
@@ -255,7 +257,7 @@ impl CommonResult {
                 bytes.len()
             )));
         }
-        let wire: WireCommonResultV5 = serde_json::from_slice(bytes)
+        let wire: WireCommonResultV6 = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid common Result JSON: {error}")))?;
         if wire.schema != SCHEMA || wire.encoding != ENCODING {
             return Err(invalid("common Result has an unknown schema or encoding"));
@@ -270,7 +272,7 @@ impl CommonResult {
     }
 }
 
-impl WireCommonResultV5 {
+impl WireCommonResultV6 {
     fn from_result(result: &CommonResult) -> Result<Self, Diagnostic> {
         let content = WireResultContent::from_result(result)?;
         let identity = identity(&content)?;
@@ -413,6 +415,23 @@ impl WireResultContent {
                 let assembly = assembly.replay()?;
                 require_reference_assembly(&assembly)?;
                 let observation = observation.replay(self.family)?;
+                if let StaticObservation::SteadyStokes(value) = &observation {
+                    let ResolvedCommonPlan::SteadyStokes(plan) = plan else {
+                        unreachable!()
+                    };
+                    let (reactions, fluxes) = plan.boundary_observation_names();
+                    if value
+                        .reactions
+                        .iter()
+                        .map(|(name, _)| name)
+                        .ne(reactions.iter())
+                        || value.fluxes.iter().map(|(name, _)| name).ne(fluxes.iter())
+                    {
+                        return Err(invalid(
+                            "steady-Stokes boundary observations differ from exact Plan selections",
+                        ));
+                    }
+                }
                 CommonResultPayload::Static(Box::new(CommonStaticResultPayload {
                     fields,
                     solve,
@@ -531,6 +550,8 @@ impl WireStaticObservation {
             StaticObservation::SteadyStokes(value) => Self::SteadyStokes {
                 scalars: value.scalars,
                 vectors: value.vectors,
+                reactions: value.reactions.clone(),
+                fluxes: value.fluxes.clone(),
             },
         })
     }
@@ -556,16 +577,25 @@ impl WireStaticObservation {
                     exact_bounds: *exact_bounds,
                 })
             }
-            Self::SteadyStokes { scalars, vectors } => {
+            Self::SteadyStokes {
+                scalars,
+                vectors,
+                reactions,
+                fluxes,
+            } => {
                 let values = scalars
                     .iter()
                     .chain(vectors.iter().flatten())
+                    .chain(reactions.iter().flat_map(|(_, value)| value))
+                    .chain(fluxes.iter().map(|(_, value)| value))
                     .copied()
                     .collect::<Vec<_>>();
                 require_finite(&values, "steady-Stokes Result observation")?;
                 StaticObservation::SteadyStokes(SteadyStokesResultObservation {
                     scalars: *scalars,
                     vectors: *vectors,
+                    reactions: reactions.clone(),
+                    fluxes: fluxes.clone(),
                 })
             }
         };
@@ -941,7 +971,7 @@ fn identity(content: &WireResultContent) -> Result<String, Diagnostic> {
     let bytes = serde_json::to_vec(content)
         .map_err(|error| invalid(format!("cannot encode common Result identity: {error}")))?;
     Ok(
-        Sha256::digest([b"eqiora.common-result/v5\0".as_slice(), &bytes].concat())
+        Sha256::digest([b"eqiora.common-result/v6\0".as_slice(), &bytes].concat())
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect(),

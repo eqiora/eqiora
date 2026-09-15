@@ -17,6 +17,8 @@ use super::api::{
     SteadyStokesBoundaryEntry2d, SteadyStokesNormalPressure2d, StokesBoundaryKey2d,
 };
 use super::boundary::{self, NormalPressureSource2d};
+use super::domain::unique_named_geometry_domain;
+pub(super) use super::domain::{unique_bound_geometry_domain_2d, unique_box, unique_box_2d};
 use super::expression::{
     additive_load_definition_root, is_additive_divergence_of_field, load_definition_root,
     lower_exact_twice_viscosity, momentum_viscous_root,
@@ -106,7 +108,7 @@ pub(super) fn lower_steady_incompressible_stokes_geometry_2d(
     program: &KernelProgram,
     geometry: &CanonicalGeometryV1,
 ) -> Result<SteadyIncompressibleStokesModel2d, Diagnostic> {
-    let (domain, boundaries) = unique_circular_hole_domain(program, geometry)?;
+    let (domain, boundaries) = unique_bound_geometry_domain_2d(program, geometry)?;
     let bounds = geometry.circular_hole_bounds().ok_or_else(|| {
         lowering_error(
             domain,
@@ -569,140 +571,6 @@ fn lower_boundary_projection(
             })
         }
     }
-}
-
-pub(super) fn unique_circular_hole_domain(
-    program: &KernelProgram,
-    geometry: &CanonicalGeometryV1,
-) -> Result<(RawId, BTreeMap<String, RawId>), Diagnostic> {
-    let required = BTreeSet::from([
-        "cylinder".to_owned(),
-        "inlet".to_owned(),
-        "outlet".to_owned(),
-        "walls".to_owned(),
-    ]);
-    unique_named_geometry_domain(program, geometry.digest_bytes(), "fluid", &required)
-}
-
-fn unique_named_geometry_domain(
-    program: &KernelProgram,
-    geometry_digest: [u8; 32],
-    region_set: &str,
-    required_boundaries: &BTreeSet<String>,
-) -> Result<(RawId, BTreeMap<String, RawId>), Diagnostic> {
-    let regions = program
-        .nodes()
-        .filter_map(|node| match node {
-            KernelNode::Domain(domain)
-                if matches!(domain.kind(), DomainKind::GeometryRegion { .. }) =>
-            {
-                Some(domain)
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    if regions.len() != 1 {
-        return Err(model_lowering_error(
-            program,
-            format!(
-                "geometry-backed 2D Stokes requires exactly one GeometryRegion, found {}",
-                regions.len()
-            ),
-        ));
-    }
-    let region = regions[0];
-    let DomainKind::GeometryRegion {
-        geometry,
-        entity_set,
-    } = region.kind()
-    else {
-        unreachable!("GeometryRegion filter is exact");
-    };
-    if geometry.bytes() != geometry_digest || entity_set != region_set {
-        return Err(lowering_error(
-            region.id().erase(),
-            "Model GeometryRegion digest or exact entity-set identity differs from the bound chordal geometry",
-        ));
-    }
-    let domain = region.id().erase();
-    let boundaries = program
-        .nodes()
-        .filter_map(|node| match node {
-            KernelNode::Domain(boundary)
-                if has_edge(program, boundary.id().erase(), domain, EdgeKind::BoundaryOf) =>
-            {
-                match boundary.kind() {
-                    DomainKind::GeometryBoundary { entity_set } => {
-                        Some((entity_set.clone(), boundary.id().erase()))
-                    }
-                    _ => None,
-                }
-            }
-            _ => None,
-        })
-        .collect::<BTreeMap<_, _>>();
-    if boundaries.keys().cloned().collect::<BTreeSet<_>>() != *required_boundaries {
-        return Err(lowering_error(
-            domain,
-            "geometry-backed Stokes boundary entity-set inventory differs from the exact product contract",
-        ));
-    }
-    Ok((domain, boundaries))
-}
-
-pub(super) fn unique_box_2d(program: &KernelProgram) -> Result<(RawId, [[f64; 2]; 2]), Diagnostic> {
-    unique_box::<2>(program)
-}
-
-pub(super) fn unique_box<const D: usize>(
-    program: &KernelProgram,
-) -> Result<(RawId, [[f64; 2]; D]), Diagnostic> {
-    if !matches!(D, 2 | 3) {
-        return Err(model_lowering_error(
-            program,
-            format!(
-                "canonical Cartesian fluid lowering supports dimension two or three, received {D}"
-            ),
-        ));
-    }
-    let boxes = program
-        .nodes()
-        .filter_map(|node| match node {
-            KernelNode::Domain(domain)
-                if matches!(domain.kind(), DomainKind::CartesianBox { .. }) =>
-            {
-                Some(domain)
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    if boxes.len() != 1 {
-        return Err(model_lowering_error(
-            program,
-            format!(
-                "canonical {D}D fluid lowering requires exactly one Cartesian box, found {}",
-                boxes.len()
-            ),
-        ));
-    }
-    let domain = boxes[0];
-    let bounds = program.resolved_cartesian_bounds(domain.id())?;
-    if bounds.len() != D {
-        return Err(lowering_error(
-            domain.id().erase(),
-            format!(
-                "canonical Cartesian fluid lowering requires dimension {D}, received {}",
-                bounds.len()
-            ),
-        ));
-    }
-    let bounds = bounds
-        .iter()
-        .map(|bound| [bound.lower().value(), bound.upper().value()])
-        .collect::<Vec<_>>()
-        .try_into()
-        .expect("dimension equality establishes Cartesian bound count");
-    Ok((domain.id().erase(), bounds))
 }
 
 fn exact_steady_fields(

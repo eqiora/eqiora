@@ -52,6 +52,7 @@ impl CompiledRegionForm {
                     value_type: row.residual_type,
                     flux: vec![super::flux::FluxTerm::Trial(terms[0].clone())],
                     terms,
+                    dyadics: Vec::new(),
                     forcing: vec![row.forcing],
                 }
             })
@@ -114,6 +115,9 @@ impl CompiledRegionForm {
             }
             for component in &mut row.forcing {
                 *component = component.bind_parameter_point(fields, values)?;
+            }
+            for term in &mut row.dyadics {
+                term.coefficient = term.coefficient.bind_parameter_point(fields, values)?;
             }
             for term in &mut row.terms {
                 term.coefficient = term.coefficient.bind_parameter_point(fields, values)?;

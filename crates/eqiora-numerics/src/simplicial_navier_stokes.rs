@@ -10,6 +10,7 @@ mod acceptance;
 mod api;
 mod assembly;
 pub(crate) mod element;
+mod form;
 mod newton;
 mod verification;
 

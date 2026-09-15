@@ -59,20 +59,8 @@ impl PreparedResolvedTransientMiniRun2d<'_> {
             self.with_gauge,
         )?;
         let checked_assembly = self.block_system.checked_backend(self.assembly);
-        let model = &self.model;
-        let common = &self.common;
-        let scales = self.scales;
-        let lower = [model.bounds()[0][0], model.bounds()[1][0]];
-        let length = scales.length_value();
-        let pressure = scales.pressure_value();
-        let body_force = |coordinate_hat: [f64; DIMENSION]| {
-            let coordinate = [
-                lower[0] + length * coordinate_hat[0],
-                lower[1] + length * coordinate_hat[1],
-            ];
-            let force = common.conservative_body_force(&coordinate)?;
-            Ok([length * force[0] / pressure, length * force[1] / pressure])
-        };
+        // Loads are compiled from the authored relation, not re-evaluated by a flow kernel.
+        let body_force = |_coordinate: [f64; DIMENSION]| Ok([0.0; DIMENSION]);
         let numerical =
             advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_and_linear(
                 &self.normalized.mesh,
@@ -80,7 +68,7 @@ impl PreparedResolvedTransientMiniRun2d<'_> {
                 &body_force,
                 numerical_initial,
                 run.step_count,
-                self.numerical_plan,
+                self.numerical_plan.clone(),
                 &self.cell_quadrature,
                 &self.facet_quadrature,
                 &checked_assembly,
@@ -152,8 +140,13 @@ pub(super) fn prepare_resolved_transient_navier_stokes_mini_run_2d_with_assembly
     let common = model.common_projection();
     let with_gauge = boundary::pressure_uses_gauge(&common)?;
     let realization_graph = resolved.portable_graph()?;
-    let (scales, numerical_plan) =
-        require_exact_transient_plan(&common, resolved, &realization_graph, mesh_artifact)?;
+    let (scales, numerical_plan) = require_exact_transient_plan(
+        program,
+        &common,
+        resolved,
+        &realization_graph,
+        mesh_artifact,
+    )?;
     let normalized = normalize_cartesian_mesh(
         model.bounds(),
         mesh.mesh(),

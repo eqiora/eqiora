@@ -17,9 +17,6 @@ pub(crate) struct PySteadyStokesEvidence {
     pressure_minimum: f64,
     pressure_maximum: f64,
     exact_bounds: ((f64, f64), (f64, f64)),
-    cylinder_force_on_fluid: (f64, f64),
-    inlet_flux: f64,
-    outlet_flux: f64,
     net_flux: f64,
     constrained_reaction: (f64, f64),
     integrated_body_force: (f64, f64),
@@ -47,16 +44,13 @@ impl PySteadyStokesEvidence {
             pressure_minimum: scalars[0],
             pressure_maximum: scalars[1],
             exact_bounds: ((x_lower, x_upper), (y_lower, y_upper)),
-            cylinder_force_on_fluid: tuple2(vectors[2]),
-            inlet_flux: scalars[2],
-            outlet_flux: scalars[3],
-            net_flux: scalars[4],
-            constrained_reaction: tuple2(vectors[3]),
-            integrated_body_force: tuple2(vectors[4]),
-            integrated_boundary_traction: tuple2(vectors[5]),
-            momentum_closure: tuple2(vectors[6]),
+            net_flux: scalars[2],
+            constrained_reaction: tuple2(vectors[2]),
+            integrated_body_force: tuple2(vectors[3]),
+            integrated_boundary_traction: tuple2(vectors[4]),
+            momentum_closure: tuple2(vectors[5]),
             solve: Py::new(py, solve)?,
-            continuity_residual_norm: scalars[5],
+            continuity_residual_norm: scalars[3],
         })
     }
 }
@@ -78,18 +72,6 @@ impl PySteadyStokesEvidence {
     #[getter]
     const fn exact_bounds(&self) -> ((f64, f64), (f64, f64)) {
         self.exact_bounds
-    }
-    #[getter]
-    const fn cylinder_force_on_fluid(&self) -> (f64, f64) {
-        self.cylinder_force_on_fluid
-    }
-    #[getter]
-    const fn inlet_flux(&self) -> f64 {
-        self.inlet_flux
-    }
-    #[getter]
-    const fn outlet_flux(&self) -> f64 {
-        self.outlet_flux
     }
     #[getter]
     const fn net_flux(&self) -> f64 {

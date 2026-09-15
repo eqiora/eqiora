@@ -17,8 +17,9 @@ use crate::simplicial_stokes::{
 /// The type reuses the common [`SolverPlan`] directly. It adds only
 /// time-discretization and nonlinear-globalization choices that do not belong
 /// to a linear backend.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MiniNavierStokesStepPlan2d {
+    pub(super) form: std::sync::Arc<super::form::StepForm>,
     density: f64,
     viscosity: f64,
     time_step: f64,
@@ -97,6 +98,9 @@ impl MiniNavierStokesStepPlan2d {
             ));
         }
         Ok(Self {
+            form: std::sync::Arc::new(super::form::StepForm::reference(
+                density, viscosity, time_step,
+            )?),
             density,
             viscosity,
             time_step,
@@ -109,61 +113,75 @@ impl MiniNavierStokesStepPlan2d {
         })
     }
 
+    pub(crate) fn bind_authored_form(
+        &mut self,
+        program: &eqiora_sem::KernelProgram,
+        domain: eqiora_core::RawId,
+        step: f64,
+        scales: [f64; 3],
+        origin: [f64; 2],
+    ) -> Result<(), Diagnostic> {
+        self.form = std::sync::Arc::new(super::form::StepForm::bind(
+            program, domain, step, scales, origin,
+        )?);
+        Ok(())
+    }
+
     /// Constant mass density.
     #[must_use]
-    pub const fn density(self) -> f64 {
+    pub const fn density(&self) -> f64 {
         self.density
     }
 
     /// Constant dynamic viscosity.
     #[must_use]
-    pub const fn viscosity(self) -> f64 {
+    pub const fn viscosity(&self) -> f64 {
         self.viscosity
     }
 
     /// Fixed backward-Euler duration.
     #[must_use]
-    pub const fn time_step(self) -> f64 {
+    pub const fn time_step(&self) -> f64 {
         self.time_step
     }
 
     /// Relative nonlinear residual tolerance.
     #[must_use]
-    pub const fn nonlinear_relative_tolerance(self) -> f64 {
+    pub const fn nonlinear_relative_tolerance(&self) -> f64 {
         self.nonlinear_relative_tolerance
     }
 
     /// Absolute nonlinear residual tolerance.
     #[must_use]
-    pub const fn nonlinear_absolute_tolerance(self) -> f64 {
+    pub const fn nonlinear_absolute_tolerance(&self) -> f64 {
         self.nonlinear_absolute_tolerance
     }
 
     /// Newton iteration bound.
     #[must_use]
-    pub const fn maximum_newton_iterations(self) -> NonZeroUsize {
+    pub const fn maximum_newton_iterations(&self) -> NonZeroUsize {
         self.maximum_newton_iterations
     }
 
     /// Backtracking-halving bound.
     #[must_use]
-    pub const fn maximum_line_search_steps(self) -> usize {
+    pub const fn maximum_line_search_steps(&self) -> usize {
         self.maximum_line_search_steps
     }
 
     /// Common linear solver policy used at every accepted Newton point.
     #[must_use]
-    pub const fn linear_solver(self) -> SolverPlan {
+    pub const fn linear_solver(&self) -> SolverPlan {
         self.linear_solver
     }
 
     /// Exact one-worker host placement of this reference slice.
     #[must_use]
-    pub const fn target(self) -> Target {
+    pub const fn target(&self) -> Target {
         self.target
     }
 
-    pub(super) fn nonlinear_target(self, initial_norm: f64) -> Result<f64, Diagnostic> {
+    pub(super) fn nonlinear_target(&self, initial_norm: f64) -> Result<f64, Diagnostic> {
         let target = self
             .nonlinear_absolute_tolerance
             .max(self.nonlinear_relative_tolerance * initial_norm);

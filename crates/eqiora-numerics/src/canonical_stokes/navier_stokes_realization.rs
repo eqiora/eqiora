@@ -656,6 +656,7 @@ pub(crate) fn require_complete_zero_trace(
 }
 
 pub(super) fn require_exact_transient_plan(
+    program: &KernelProgram,
     model: &TransientIncompressibleNavierStokesModel2d,
     resolved: &ResolvedTransientFieldwiseRealization,
     graph: &PortableRealizationGraph,
@@ -845,7 +846,7 @@ pub(super) fn require_exact_transient_plan(
         / (scales.pressure_value() * scales.length_value());
     let time_step = resolved.plan().time_step().duration().value() * scales.velocity_value()
         / scales.length_value();
-    let numerical = crate::simplicial_navier_stokes::MiniNavierStokesStepPlan2d::new(
+    let mut numerical = crate::simplicial_navier_stokes::MiniNavierStokesStepPlan2d::new(
         density,
         viscosity,
         time_step,
@@ -857,6 +858,17 @@ pub(super) fn require_exact_transient_plan(
         resolved.plan().fieldwise().target(),
     )
     .map_err(|error| invalid_realization(error.message()))?;
+    numerical.bind_authored_form(
+        program,
+        model.domain,
+        resolved.plan().time_step().duration().value(),
+        [
+            scales.length_value(),
+            scales.velocity_value(),
+            scales.pressure_value(),
+        ],
+        [model.bounds[0][0], model.bounds[1][0]],
+    )?;
     Ok((scales, numerical))
 }
 

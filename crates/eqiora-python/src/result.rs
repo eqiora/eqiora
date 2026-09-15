@@ -115,7 +115,6 @@ struct CommonFieldResultPayload {
     lookup: BTreeMap<String, usize>,
     solve: Py<PyLinearSolveSummary>,
     evidence: Option<StaticScientificEvidence>,
-    steady_stokes_observation: Option<([f64; 6], [[f64; 2]; 7])>,
 }
 
 struct CommonTrajectoryResultPayload {
@@ -425,20 +424,18 @@ impl PyRunResult {
         let selected = selection.borrow(py);
         self.validate_observable_selection(py, payload, &selected)?;
         let name = selected.canonical_name().to_owned();
-        if name != "cylinder" {
-            return Err(PyKeyError::new_err(format!(
-                "this Result has no boundary-force observable for {name:?}"
-            )));
-        }
+        let force = self
+            .native
+            .steady_stokes_boundary_reaction(&name)
+            .ok_or_else(|| {
+                PyKeyError::new_err(format!(
+                    "this Result has no boundary-force observable for {name:?}"
+                ))
+            })?;
         let geometry_digest = selected.bound_source_digest().to_owned();
         drop(selected);
         let mesh = payload.outputs[0].borrow(py).mesh_handle(py);
         let mesh_digest = mesh.borrow(py).exact_mesh_digest().to_owned();
-        let force = payload
-            .steady_stokes_observation
-            .as_ref()
-            .expect("validated steady-Stokes observation")
-            .1[2];
         Py::new(
             py,
             PyBoundaryForce::new(
@@ -464,19 +461,14 @@ impl PyRunResult {
         let selected = selection.borrow(py);
         self.validate_observable_selection(py, payload, &selected)?;
         let name = selected.canonical_name().to_owned();
-        let observation = payload
-            .steady_stokes_observation
-            .as_ref()
-            .expect("validated steady-Stokes observation");
-        let value = match name.as_str() {
-            "inlet" => observation.0[2],
-            "outlet" => observation.0[3],
-            _ => {
-                return Err(PyKeyError::new_err(format!(
+        let value = self
+            .native
+            .steady_stokes_boundary_flux(&name)
+            .ok_or_else(|| {
+                PyKeyError::new_err(format!(
                     "this Result has no boundary-flux observable for {name:?}"
-                )));
-            }
-        };
+                ))
+            })?;
         let geometry_digest = selected.bound_source_digest().to_owned();
         drop(selected);
         let mesh = payload.outputs[0].borrow(py).mesh_handle(py);
@@ -563,7 +555,7 @@ impl PyRunResult {
                 &format!("this Result occurrence has no {observable} observable"),
             ));
         };
-        if payload.steady_stokes_observation.is_none() {
+        if self.native.family_name() != "steady-stokes" {
             return Err(capability_error(
                 py,
                 &format!("this Result occurrence has no {observable} observable"),
@@ -859,27 +851,16 @@ fn materialize_common_result_unprofiled(
     let solve = PyLinearSolveSummary::from_common_result(&result, None)
         .ok_or_else(|| PyRuntimeError::new_err("static common Result omitted solve evidence"))?;
     let solve = Py::new(py, solve)?;
-    let (evidence, steady_stokes_observation) = match result.family_name() {
-        "algebraic" | "scalar" => (None, None),
-        "elasticity" => (
-            Some(StaticScientificEvidence::LinearElasticity(Py::new(
-                py,
-                PyLinearElasticityEvidence::from_result(py, identity.plan_key(), &result)?,
-            )?)),
-            None,
-        ),
-        "steady-stokes" => {
-            let observation = result.steady_stokes_observation().ok_or_else(|| {
-                PyRuntimeError::new_err("steady-Stokes Result omitted its observation")
-            })?;
-            (
-                Some(StaticScientificEvidence::SteadyStokes(Py::new(
-                    py,
-                    PySteadyStokesEvidence::from_result(py, identity.plan_key(), &result)?,
-                )?)),
-                Some(observation),
-            )
-        }
+    let evidence = match result.family_name() {
+        "algebraic" | "scalar" => None,
+        "elasticity" => Some(StaticScientificEvidence::LinearElasticity(Py::new(
+            py,
+            PyLinearElasticityEvidence::from_result(py, identity.plan_key(), &result)?,
+        )?)),
+        "steady-stokes" => Some(StaticScientificEvidence::SteadyStokes(Py::new(
+            py,
+            PySteadyStokesEvidence::from_result(py, identity.plan_key(), &result)?,
+        )?)),
         _ => {
             return Err(PyRuntimeError::new_err(
                 "dynamic common Result reached static materialization",
@@ -896,7 +877,6 @@ fn materialize_common_result_unprofiled(
             lookup,
             solve,
             evidence,
-            steady_stokes_observation,
         })),
         profile: None,
     })

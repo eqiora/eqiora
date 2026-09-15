@@ -1,4 +1,3 @@
-use crate::simplicial_mini_transient::MiniFixedGeometryQuadrature;
 use eqiora_assembly::{
     AssemblyBackend, AssemblyMap, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget,
     IndexedAssemblyWork, LocalContribution, LocalUnknown, TargetAssemblyMap,
@@ -34,11 +33,8 @@ use crate::operator::LocalOperator;
 use crate::simplicial_elliptic::SimplicialP1Field;
 use crate::simplicial_stokes::boundary::{PreparedBoundary2d, PressureReferenceKind2d};
 use crate::simplicial_stokes::constraint::MiniPressureMeanConstraintCell;
-use crate::simplicial_stokes::facet::MiniConstantTractionFacet;
 use crate::simplicial_stokes::layout::MixedLayout;
-use crate::simplicial_stokes::{
-    CELL_LOCAL_DOF_COUNT, CONSTRAINT_LOCAL_DOF_COUNT, FACET_LOCAL_DOF_COUNT,
-};
+use crate::simplicial_stokes::{CELL_LOCAL_DOF_COUNT, CONSTRAINT_LOCAL_DOF_COUNT};
 use crate::simplicial_stokes::{
     SimplicialMiniStokesBoundary2d, SimplicialMiniStokesPressureReference2d,
     SimplicialMiniVelocityField2d,
@@ -136,9 +132,12 @@ pub(crate) struct PreparedStepStructure {
     local_sizes: Vec<usize>,
     reduced_assembly_plan: AssemblyPlan,
     cell_geometries: Vec<AffineGeometryMap>,
-    cell_quadratures: Vec<MiniFixedGeometryQuadrature<DIMENSION>>,
+    cell_quadrature: QuadratureRule,
     constraint_contributions: Vec<LocalContribution>,
-    traction_contributions: Vec<LocalContribution>,
+    facet_geometries: Vec<AffineGeometryMap>,
+    facet_incidence: Vec<eqiora_meshing::EntityIncidence>,
+    facet_parent_vertices: Vec<Vec<usize>>,
+    facet_quadrature: QuadratureRule,
     cell_count: usize,
     constraint_end: usize,
     packet_count: usize,
@@ -244,10 +243,6 @@ where
                 .expect("accepted simplex cell owns geometry")
         })
         .collect::<Vec<_>>();
-    let cell_quadratures = cell_geometries
-        .iter()
-        .map(|geometry| MiniFixedGeometryQuadrature::prepare(geometry, cell_quadrature))
-        .collect::<Result<Vec<_>, _>>()?;
     let constraint_contributions = if with_gauge {
         cell_geometries
             .iter()
@@ -256,19 +251,39 @@ where
     } else {
         Vec::new()
     };
-    let traction_contributions = boundary
-        .traction_facets
-        .iter()
-        .map(|facet| {
-            let geometry = mesh
-                .geometry_map(facet.facet)
-                .expect("validated traction facet owns geometry");
-            MiniConstantTractionFacet {
-                traction: facet.value,
-            }
-            .evaluate(&geometry, facet_quadrature)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let mut facet_geometries = Vec::new();
+    let mut facet_incidence = Vec::new();
+    let mut facet_parent_vertices = Vec::new();
+    for facet in &boundary.traction_facets {
+        let parents = mesh
+            .incidence(facet.facet, DIMENSION)
+            .ok_or_else(|| invalid("natural facet has no parent incidence"))?;
+        let [parent] = parents.as_slice() else {
+            return Err(invalid("natural facet requires exactly one parent cell"));
+        };
+        let vertices = mesh
+            .entity_vertices(facet.facet)
+            .expect("validated facet vertices");
+        let cell_vertices = mesh
+            .entity_vertices(parent.entity)
+            .expect("accepted parent vertices");
+        facet_parent_vertices.push(
+            vertices
+                .iter()
+                .map(|vertex| {
+                    cell_vertices
+                        .iter()
+                        .position(|value| value == vertex)
+                        .expect("facet belongs to parent")
+                })
+                .collect(),
+        );
+        facet_geometries.push(
+            mesh.geometry_map(facet.facet)
+                .expect("validated facet geometry"),
+        );
+        facet_incidence.push(*parent);
+    }
     let mut reduced_maps = Vec::with_capacity(packet_count);
     let mut full_maps = Vec::with_capacity(packet_count);
     let mut local_sizes = Vec::with_capacity(packet_count);
@@ -292,14 +307,14 @@ where
                 layout.full_constraint_map(&vertices)?,
             )
         } else {
-            let facet = boundary.traction_facets[packet - constraint_end];
+            let parent = facet_incidence[packet - constraint_end].entity;
             let vertices = mesh
-                .entity_vertices(facet.facet)
-                .expect("accepted boundary facet owns vertices");
+                .entity_vertices(parent)
+                .expect("accepted natural-facet parent vertices");
             (
-                FACET_LOCAL_DOF_COUNT,
-                layout.reduced_facet_map(&vertices, &boundary.fixed_velocity)?,
-                layout.full_facet_map(&vertices)?,
+                CELL_LOCAL_DOF_COUNT,
+                layout.reduced_cell_map(parent.index(), &vertices, &boundary.fixed_velocity)?,
+                layout.full_cell_map(parent.index(), &vertices)?,
             )
         };
         local_sizes.push(local_size);
@@ -324,13 +339,37 @@ where
         local_sizes,
         reduced_assembly_plan,
         cell_geometries,
-        cell_quadratures,
+        cell_quadrature: cell_quadrature.clone(),
         constraint_contributions,
-        traction_contributions,
+        facet_geometries,
+        facet_incidence,
+        facet_parent_vertices,
+        facet_quadrature: facet_quadrature.clone(),
         cell_count,
         constraint_end,
         packet_count,
     })
+}
+
+fn natural_facet_action(
+    step: &PreparedStepPoint<'_>,
+    facet: usize,
+    plan: &MiniNavierStokesStepPlan2d,
+    point: &[f64],
+) -> Result<crate::form_compiler::region::RegionLinearization, Diagnostic> {
+    let structure = step.structure;
+    let incidence = structure.facet_incidence[facet];
+    plan.form.natural_facet(
+        &structure.cell_geometries[incidence.entity.index()],
+        (
+            &structure.facet_geometries[facet],
+            incidence,
+            &structure.facet_parent_vertices[facet],
+        ),
+        &structure.facet_quadrature,
+        point,
+        structure.boundary.traction_facets[facet].value,
+    )
 }
 
 fn prepare_step_point<'a>(
@@ -464,9 +503,7 @@ where
             let cell = MiniNavierStokesCell {
                 cell: packet,
                 vertices: &vertices,
-                density: plan.density(),
-                viscosity: plan.viscosity(),
-                time_step: plan.time_step(),
+                form: &plan.form,
                 previous_velocity: previous.velocity(),
                 candidate_velocity: &step.velocity,
                 candidate_pressure: step.pressure.vertex_values(),
@@ -474,7 +511,7 @@ where
             };
             match viscous_form {
                 FixedDomainViscousForm::SymmetricNewtonian => {
-                    cell.residual_prepared(geometry, &step.structure.cell_quadratures[packet])?
+                    cell.residual_prepared(geometry, &step.structure.cell_quadrature)?
                 }
             }
         } else if packet < step.structure.constraint_end {
@@ -484,11 +521,14 @@ where
                 &local_point,
             )?
         } else {
-            step.structure.traction_contributions[packet - step.structure.constraint_end]
-                .rhs()
-                .iter()
-                .map(|value| -*value)
-                .collect()
+            let local_point = mapped_local_point(map, candidate)?;
+            natural_facet_action(
+                &step,
+                packet - step.structure.constraint_end,
+                &plan,
+                &local_point,
+            )?
+            .residual
         };
         scatter_residual(&mut residual, map, &local_residual)?;
     }
@@ -579,9 +619,7 @@ where
             let cell = MiniNavierStokesCell {
                 cell: packet,
                 vertices: &vertices,
-                density: plan.density(),
-                viscosity: plan.viscosity(),
-                time_step: plan.time_step(),
+                form: &plan.form,
                 previous_velocity: previous.velocity(),
                 candidate_velocity: &step.velocity,
                 candidate_pressure: step.pressure.vertex_values(),
@@ -589,7 +627,7 @@ where
             };
             let linearization = match viscous_form {
                 FixedDomainViscousForm::SymmetricNewtonian => {
-                    cell.linearize_prepared(geometry, &step.structure.cell_quadratures[packet])?
+                    cell.linearize_prepared(geometry, &step.structure.cell_quadrature)?
                 }
             };
             let residual = linearization.residual().to_vec();
@@ -615,11 +653,12 @@ where
                 residual,
             })
         } else {
-            let local = step.structure.traction_contributions
-                [packet - step.structure.constraint_end]
-                .clone();
             let reduced = Arc::clone(&step.structure.reduced_maps[packet]);
-            let residual = evaluate_linear_residual(&local, &reduced, candidate)?;
+            let point = mapped_local_point(&reduced, candidate)?;
+            let action =
+                natural_facet_action(&step, packet - step.structure.constraint_end, &plan, &point)?;
+            let residual = action.residual.clone();
+            let local = action.into_contribution(&point)?;
             Ok(EvaluatedStepPacket {
                 assembly: AssemblyPacket::new(
                     local,

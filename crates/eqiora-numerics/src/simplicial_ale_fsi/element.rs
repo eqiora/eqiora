@@ -128,7 +128,6 @@ mod tests {
 
     use super::*;
     use crate::discrete_space::{DiscreteSpace, SimplexP1BubbleSpace};
-    use crate::simplicial_stokes::SimplicialMiniVelocityField2d;
 
     const STEP: f64 = 0.2;
 
@@ -400,8 +399,115 @@ mod tests {
         assert_eq!(actual_jvp, expected_jvp);
     }
 
+    fn equation_derived_stationary_action<const D: usize>(
+        geometry: &eqiora_meshing::AffineGeometryMap,
+        rule: &QuadratureRule,
+        previous: &[[f64; D]],
+        current: &[[f64; D]],
+        scalar: &[f64],
+    ) -> Vec<f64> {
+        use crate::form_compiler::region::{
+            CompiledRegionForm, RegionFieldBinding, RegionTimeBinding,
+        };
+        use eqiora_core::{DimExponents, DynQuantity};
+        use eqiora_graph::{GraphStore, InMemoryGraphStore};
+        use eqiora_meshing::GeometryMap;
+        use eqiora_realization::Space;
+        use eqiora_schema::kernel::KernelNode;
+        use std::collections::BTreeMap;
+        let bounds = (0..D).map(|_| "0, 1").collect::<Vec<_>>().join(", ");
+        let source = format!("public operator outer_product(input left: spatial[1], input right: spatial[1]): spatial[2] = component(left, 0) * component(right, 1);
+model Mathematics() {{ domain body = box({bounds});
+            parameter c: kg/m^3 = 1.3; parameter d: kg/(m*s) = 0.08;
+            state a: vector<m/s, {D}> on body; variable b: kg/(m*s^2) on body;
+            relation first on body {{ c*derivative(a)+div(c*outer_product(left = a, right = a))-div(2*d*symmetric_part(grad(a))-isotropic_lift(b))=0; }}
+            relation second on body {{ div(a)=0; }} }}");
+        let (transaction, model, _) = eqiora_compiler::compile("mathematics.eqi", &source)
+            .unwrap()
+            .remove(0)
+            .into_parts();
+        let mut store = InMemoryGraphStore::new();
+        store.commit(transaction).unwrap();
+        let program = eqiora_sem::KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+        let domain = program
+            .nodes()
+            .find_map(|node| match node {
+                KernelNode::Domain(value) => Some(value.id().erase()),
+                _ => None,
+            })
+            .unwrap();
+        let compiled = CompiledRegionForm::derive(&program, domain, D).unwrap();
+        let bindings = compiled
+            .fields()
+            .map(|(field, value_type)| RegionFieldBinding {
+                field,
+                space: if value_type.shape().is_scalar() {
+                    Space::continuous_lagrange(std::num::NonZeroU16::MIN)
+                } else {
+                    Space::simplex_p1_bubble()
+                },
+                scale: DynQuantity::new(1., value_type.dimension()),
+            })
+            .collect::<Vec<_>>();
+        let measure = DimExponents::from_integers([0, D as i32, 0, 0, 0, 0, 0]).unwrap();
+        let rows = compiled
+            .rows()
+            .map(|(relation, _, value_type)| {
+                (
+                    relation,
+                    DynQuantity::new(
+                        if value_type.shape().is_scalar() {
+                            -1.
+                        } else {
+                            1.
+                        },
+                        value_type
+                            .dimension()
+                            .mul(measure)
+                            .unwrap()
+                            .pow(-1, 1)
+                            .unwrap(),
+                    ),
+                )
+            })
+            .collect();
+        let time = RegionTimeBinding {
+            step: DynQuantity::new(
+                STEP,
+                DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap(),
+            ),
+            states: Vec::new(),
+        };
+        let form = compiled
+            .bind(geometry.reference_cell(), &bindings, &rows, Some(&time))
+            .unwrap();
+        let vector = form
+            .fields()
+            .iter()
+            .find(|layout| !layout.value_type.shape().is_scalar())
+            .unwrap();
+        let scalar_layout = form
+            .fields()
+            .iter()
+            .find(|layout| layout.value_type.shape().is_scalar())
+            .unwrap();
+        let order = vector
+            .range
+            .clone()
+            .chain(scalar_layout.range.clone())
+            .collect::<Vec<_>>();
+        let mut point = vec![0.; order.len()];
+        for (index, value) in current.iter().flatten().chain(scalar).enumerate() {
+            point[order[index]] = *value;
+        }
+        let previous =
+            BTreeMap::from([(vector.field, previous.iter().flatten().copied().collect())]);
+        let action = form.linearize(geometry, rule, &previous, &point).unwrap();
+        order.iter().map(|index| action.residual[*index]).collect()
+    }
+
     #[test]
-    fn stationary_geometry_is_exactly_the_fixed_domain_local_action() {
+    fn stationary_geometry_matches_equation_derived_local_action() {
         let mesh = reference();
         let state = FixedTopologyGeometryState2d::reference(&mesh).unwrap();
         let action = FixedTopologyGeometryAction2d::new(&mesh, &state, &state, STEP).unwrap();
@@ -411,42 +517,14 @@ mod tests {
         let previous_coefficients = [[0.15, -0.05], [0.10, 0.02], [0.12, -0.03], [0.01, 0.02]];
         let current_coefficients = [[0.18, -0.01], [0.11, 0.04], [0.09, -0.02], [0.03, 0.01]];
         let pressure = [0.12, -0.08, 0.03];
-        let previous = SimplicialMiniVelocityField2d::new(
-            mesh.clone(),
-            previous_coefficients[..P1_BASIS_COUNT].to_vec(),
-            vec![previous_coefficients[P1_BASIS_COUNT]],
-        )
-        .unwrap();
-        let current = SimplicialMiniVelocityField2d::new(
-            mesh.clone(),
-            current_coefficients[..P1_BASIS_COUNT].to_vec(),
-            vec![current_coefficients[P1_BASIS_COUNT]],
-        )
-        .unwrap();
-        let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
-        let vertices = mesh
-            .entity_vertices(eqiora_meshing::MeshEntity::new(DIMENSION, 0))
-            .unwrap();
-        let fixed_geometry = action.cell(0).unwrap().current_map();
-        let fixed_quadrature =
-            crate::simplicial_mini_transient::MiniFixedGeometryQuadrature::prepare(
-                fixed_geometry,
-                &quadrature,
-            )
-            .unwrap();
-        let fixed = crate::simplicial_navier_stokes::element::MiniNavierStokesCell {
-            cell: 0,
-            vertices: &vertices,
-            density: 1.3,
-            viscosity: 0.08,
-            time_step: STEP,
-            previous_velocity: &previous,
-            candidate_velocity: &current,
-            candidate_pressure: &pressure,
-            body_force: &|_| Ok([0.0; COMPONENTS]),
-        }
-        .linearize_prepared(fixed_geometry, &fixed_quadrature)
-        .unwrap();
+        let quadrature = simplex_duffy_gauss_legendre(2, 5).unwrap();
+        let fixed = equation_derived_stationary_action::<2>(
+            action.cell(0).unwrap().current_map(),
+            &quadrature,
+            &previous_coefficients,
+            &current_coefficients,
+            &pressure,
+        );
         let zero_velocity = [[0.0; COMPONENTS]; VELOCITY_BASIS_COUNT];
         let zero_pressure = [0.0; P1_BASIS_COUNT];
         let ale = AleMiniFluidCell2d {
@@ -467,13 +545,13 @@ mod tests {
             &quadrature,
         )
         .unwrap();
-        for (ale, fixed) in ale.residual().iter().zip(fixed.residual()) {
-            assert_eq!(ale.to_bits(), fixed.to_bits());
+        for (ale, fixed) in ale.residual().iter().zip(&fixed) {
+            assert!((ale - fixed).abs() < 2e-12);
         }
     }
 
     #[test]
-    fn stationary_tetrahedron_is_exactly_the_fixed_domain_local_action() {
+    fn stationary_tetrahedron_matches_equation_derived_local_action() {
         const D3: usize = 3;
         let mesh = SimplicialMesh::new(
             D3,
@@ -511,27 +589,13 @@ mod tests {
         let zero_pressure = [0.0; D3 + 1];
         let quadrature = simplex_duffy_gauss_legendre(D3, 7).unwrap();
 
-        let fixed = MiniTransientCell::<D3> {
-            geometry: action.cell(0).unwrap().current_map(),
-            transport: MiniTransport::SkewStationary,
-            density: 1.3,
-            viscosity: 0.08,
-            time_step: STEP,
-            previous_velocity: &previous_velocity,
-            current_velocity: &current_velocity,
-            current_pressure: &pressure,
-        }
-        .evaluate(
-            MiniTransientDirection {
-                current_velocity: &zero_velocity,
-                current_pressure: &zero_pressure,
-                current_geometry: MiniGeometryDirection::Zero,
-            },
+        let fixed = equation_derived_stationary_action::<D3>(
+            action.cell(0).unwrap().current_map(),
             &quadrature,
-        )
-        .unwrap()
-        .into_parts()
-        .0;
+            &previous_velocity,
+            &current_velocity,
+            &pressure,
+        );
         let ale = AleMiniFluidCell::<D3> {
             geometry: action.cell(0).unwrap(),
             density: 1.3,
@@ -551,16 +615,13 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(
-            ale.residual()
-                .iter()
-                .map(|value| value.to_bits())
-                .collect::<Vec<_>>(),
-            fixed
-                .iter()
-                .map(|value| value.to_bits())
-                .collect::<Vec<_>>(),
-        );
+        for (actual, expected) in ale.residual().iter().zip(&fixed) {
+            // This tests the mathematical residual, not byte identity of two
+            // contraction orders. Allow roundoff at the unit local-action scale
+            // for a 343-point rule and nineteen local unknowns.
+            let tolerance = 8192.0 * f64::EPSILON * (1.0 + actual.abs().max(expected.abs()));
+            assert!((actual - expected).abs() <= tolerance);
+        }
     }
 
     #[test]

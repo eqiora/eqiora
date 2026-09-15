@@ -100,7 +100,7 @@ impl BoundRegionForm {
     }
 }
 
-fn parent_outward_normal(
+pub(super) fn parent_outward_normal(
     cell: &AffineGeometryMap,
     incidence: EntityIncidence,
 ) -> Result<Vec<f64>, Diagnostic> {

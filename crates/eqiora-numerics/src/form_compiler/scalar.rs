@@ -555,6 +555,9 @@ pub(super) fn require_closed_dag(expression: &ExprDag, owner: RawId) -> Result<(
 
 pub(super) fn push_operands(node: &ExprNode, pending: &mut Vec<ExprId>) {
     match node {
+        ExprNode::PureOperatorApplication(application) => {
+            pending.extend_from_slice(application.arguments())
+        }
         ExprNode::Neg(value)
         | ExprNode::PowI(value, _)
         | ExprNode::UnaryMath(_, value)

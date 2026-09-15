@@ -8,9 +8,6 @@ use super::{
     REQUIRED_CONVECTIVE_FACET_QUADRATURE_EXACTNESS, REQUIRED_CONVECTIVE_QUADRATURE_EXACTNESS,
     invalid,
 };
-use crate::simplicial_mini_transient::{
-    MiniFixedGeometryQuadrature, MiniTransientCell, MiniTransport,
-};
 use crate::simplicial_stokes::SimplicialMiniVelocityField2d;
 use crate::simplicial_stokes::element::{MiniSpaces, physical_gradients};
 use crate::simplicial_stokes::{
@@ -23,12 +20,10 @@ pub(super) enum FixedDomainViscousForm {
     SymmetricNewtonian,
 }
 
-pub(crate) struct MiniNavierStokesCell<'a, F> {
+pub(super) struct MiniNavierStokesCell<'a, F> {
     pub(crate) cell: usize,
     pub(crate) vertices: &'a [eqiora_meshing::MeshEntity],
-    pub(crate) density: f64,
-    pub(crate) viscosity: f64,
-    pub(crate) time_step: f64,
+    pub(crate) form: &'a super::form::StepForm,
     pub(crate) previous_velocity: &'a SimplicialMiniVelocityField2d,
     pub(crate) candidate_velocity: &'a SimplicialMiniVelocityField2d,
     pub(crate) candidate_pressure: &'a [f64],
@@ -83,44 +78,39 @@ where
     pub(crate) fn residual_prepared(
         &self,
         geometry: &AffineGeometryMap,
-        quadrature: &MiniFixedGeometryQuadrature<DIMENSION>,
+        quadrature: &QuadratureRule,
     ) -> Result<Vec<f64>, Diagnostic> {
         let (candidate, previous, pressure) = self.local_state();
-        MiniTransientCell::<DIMENSION> {
-            geometry,
-            transport: MiniTransport::SkewStationary,
-            density: self.density,
-            viscosity: self.viscosity,
-            time_step: self.time_step,
-            previous_velocity: &previous,
-            current_velocity: &candidate,
-            current_pressure: &pressure,
-        }
-        .residual_prepared_fixed_geometry_state(self.body_force, quadrature)
+        Ok(self
+            .form
+            .linearize(
+                geometry,
+                quadrature,
+                &previous,
+                &candidate,
+                &pressure,
+                self.body_force,
+            )?
+            .residual)
     }
 
     pub(crate) fn linearize_prepared(
         &self,
         geometry: &AffineGeometryMap,
-        quadrature: &MiniFixedGeometryQuadrature<DIMENSION>,
+        quadrature: &QuadratureRule,
     ) -> Result<MiniNavierStokesLocalLinearization, Diagnostic> {
         let (candidate, previous, pressure) = self.local_state();
-        let (jacobian, residual) = MiniTransientCell::<DIMENSION> {
+        let action = self.form.linearize(
             geometry,
-            transport: MiniTransport::SkewStationary,
-            density: self.density,
-            viscosity: self.viscosity,
-            time_step: self.time_step,
-            previous_velocity: &previous,
-            current_velocity: &candidate,
-            current_pressure: &pressure,
-        }
-        .linearize_prepared_fixed_geometry_state(self.body_force, quadrature)?
-        .into_parts();
-
+            quadrature,
+            &previous,
+            &candidate,
+            &pressure,
+            self.body_force,
+        )?;
         Ok(MiniNavierStokesLocalLinearization {
-            jacobian,
-            residual,
+            jacobian: action.jacobian,
+            residual: action.residual,
             point: local_point(&candidate, &pressure),
         })
     }
@@ -431,12 +421,11 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     use eqiora_meshing::{MeshQualityGate, SimplicialMesh, triangle_duffy_gauss_legendre};
-    use sha2::{Digest, Sha256};
 
     use super::*;
 
     #[test]
-    fn fixed_geometry_local_projection_has_stable_bits() {
+    fn compiled_local_projection_preserves_residual_and_exact_derivative() {
         let mesh = SimplicialMesh::new(
             DIMENSION,
             vec![vec![0.2, -0.3], vec![1.4, 0.1], vec![-0.15, 1.25]],
@@ -466,68 +455,35 @@ mod tests {
         let vertices = mesh.entity_vertices(cell).unwrap();
         let geometry = mesh.geometry_map(cell).unwrap();
         let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
+        let form = super::super::form::StepForm::reference(1.35, 0.07, 0.18).unwrap();
         let operator = MiniNavierStokesCell {
             cell: 0,
             vertices: &vertices,
-            density: 1.35,
-            viscosity: 0.07,
-            time_step: 0.18,
+            form: &form,
             previous_velocity: &previous,
             candidate_velocity: &candidate,
             candidate_pressure: &pressure,
             body_force: &body_force,
         };
-        let prepared = MiniFixedGeometryQuadrature::prepare(&geometry, &quadrature).unwrap();
-        let residual_only = operator.residual_prepared(&geometry, &prepared).unwrap();
-        let linearization = operator.linearize_prepared(&geometry, &prepared).unwrap();
+        let residual_only = operator.residual_prepared(&geometry, &quadrature).unwrap();
+        let linearization = operator.linearize_prepared(&geometry, &quadrature).unwrap();
 
-        assert_eq!(
-            bit_digest(&residual_only),
-            bit_digest(&linearization.residual)
-        );
-        let residual = bit_digest(&linearization.residual);
-        let jacobian = bit_digest(&linearization.jacobian);
-        let point = bit_digest(&linearization.point);
+        assert_eq!(residual_only, linearization.residual);
+        let point = linearization.point;
+        let residual = linearization.residual.clone();
+        let jacobian = linearization.jacobian.clone();
         let contribution = linearization.into_linear_contribution().unwrap();
-        let matrix = bit_digest(contribution.matrix());
-        let rhs = bit_digest(contribution.rhs());
-        assert_eq!(
-            residual,
-            [
-                209, 196, 225, 173, 63, 172, 57, 101, 81, 197, 107, 128, 202, 54, 147, 101, 213,
-                86, 132, 72, 90, 171, 199, 131, 145, 239, 33, 72, 147, 84, 245, 188,
-            ]
-        );
-        assert_eq!(
-            jacobian,
-            [
-                242, 68, 12, 192, 136, 45, 119, 67, 182, 20, 230, 152, 169, 36, 118, 103, 136, 180,
-                1, 213, 219, 227, 137, 94, 183, 60, 186, 139, 198, 219, 120, 142,
-            ]
-        );
-        assert_eq!(
-            point,
-            [
-                37, 66, 63, 68, 153, 50, 14, 4, 45, 3, 75, 214, 218, 95, 13, 63, 22, 57, 94, 30,
-                15, 223, 245, 180, 169, 58, 46, 12, 162, 13, 95, 195,
-            ]
-        );
-        assert_eq!(
-            rhs,
-            [
-                53, 81, 41, 209, 103, 144, 137, 140, 162, 52, 69, 197, 255, 100, 86, 204, 141, 199,
-                130, 183, 241, 176, 79, 151, 176, 175, 72, 93, 89, 13, 117, 210,
-            ]
-        );
-        assert_eq!(jacobian, matrix);
-        assert_eq!(calls.load(Ordering::Relaxed), 2 * quadrature.points().len());
-    }
-
-    fn bit_digest(values: &[f64]) -> [u8; 32] {
-        let mut digest = Sha256::new();
-        for value in values {
-            digest.update(value.to_bits().to_le_bytes());
+        assert_eq!(jacobian, contribution.matrix());
+        for (row, expected) in residual.iter().enumerate() {
+            let reconstructed = contribution.matrix()
+                [row * CELL_LOCAL_DOF_COUNT..(row + 1) * CELL_LOCAL_DOF_COUNT]
+                .iter()
+                .zip(point)
+                .map(|(j, u)| j * u)
+                .sum::<f64>()
+                - contribution.rhs()[row];
+            assert!((reconstructed - expected).abs() < 1e-12);
         }
-        digest.finalize().into()
+        assert_eq!(calls.load(Ordering::Relaxed), 2 * quadrature.points().len());
     }
 }
