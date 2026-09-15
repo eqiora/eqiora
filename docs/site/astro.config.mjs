@@ -135,7 +135,7 @@ export default defineConfig({
       sidebar: [
         { label: 'Learn', items: [
           { label: 'Browse topics', link: '/learn/' },
-          { label: 'Mathematical modeling', items: [{ autogenerate: { directory: 'learn/mathematical-modeling' } }] },
+          { label: 'Mathematical modeling', collapsed: true, items: [{ autogenerate: { directory: 'learn/mathematical-modeling' } }] },
           { label: 'Heat transfer', collapsed: true, items: [{ autogenerate: { directory: 'learn/heat-transfer' } }] },
           { label: 'Numerical simulation', collapsed: true, items: [{ autogenerate: { directory: 'learn/numerical-simulation' } }] },
           { label: 'Circuits and dynamics', collapsed: true, items: [{ autogenerate: { directory: 'learn/circuits-dynamics' } }] },
