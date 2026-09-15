@@ -38,7 +38,8 @@ test('required routes, semantic stages, controls, and 404 are real static surfac
   await expect(page.getByRole('banner').getByRole('link', { name: 'Eqiora', exact: true })).toHaveAttribute('href', '/');
   await expect(page.locator('.eq-actions').getByRole('link', { name: 'Get started', exact: true })).toHaveAttribute('href', '/get-started/');
   await expect(page.getByRole('link', { name: 'Explore simulations', exact: true })).toHaveAttribute('href', '/gallery/');
-  await expect(page.getByRole('img', { name: /Steady Stokes pressure around a cylinder/i })).toBeVisible();
+  await expect(page.getByRole('img', { name: /vorticity in a Kármán vortex street/i })).toBeVisible();
+  await expect(page.locator('.eq-preview__label')).toContainText('Unverified product example');
   await assertAccessibleTooltip(
     page,
     page.getByRole('button', { name: /search/i }).filter({ visible: true }).first(),
@@ -89,21 +90,22 @@ test('mixed-boundary elasticity is a static source-traced second gallery surface
   expect(external).toEqual([]);
 });
 
-test('transient cylinder startup publishes accessible caller-owned motion', async ({ page }) => {
+test('Kármán vortex street publishes accessible caller-owned motion', async ({ page }) => {
   const external = await rejectExternalRequests(page);
   await page.goto('/gallery/');
-  const card = page.getByRole('link', { name: /Transient cylinder-flow startup/i });
-  await expect(card).toHaveAttribute('href', '/gallery/transient-cylinder-startup/');
+  const card = page.getByRole('link', { name: 'Kármán vortex street', exact: true });
+  await expect(card).toHaveAttribute('href', '/gallery/karman-vortex-street/');
   await card.click();
-  await expect(page).toHaveURL(/\/gallery\/transient-cylinder-startup\/$/);
+  await expect(page).toHaveURL(/\/gallery\/karman-vortex-street\/$/);
+  await expect(page.getByText('Unverified product example', { exact: true })).toBeVisible();
 
   const video = page.locator('video.eq-gallery-motion__video');
   await expect(video).toHaveAttribute('controls', '');
   await expect(video.locator('source[type="video/webm"]')).toHaveCount(1);
   await expect(video.locator('source[type="video/mp4"]')).toHaveCount(1);
   await expect(video).not.toHaveAttribute('autoplay', /.*/u);
-  await expect(page.locator('#startup-motion-description')).toContainText(
-    'The sequence stays largely symmetric and attached.',
+  await expect(page.locator('#wake-motion-description')).toContainText(
+    'alternating signed vorticity',
   );
   await assertNoSeriousAxeViolations(page);
 
@@ -114,13 +116,13 @@ test('transient cylinder startup publishes accessible caller-owned motion', asyn
   expect(external).toEqual([]);
 });
 
-test('transient cylinder Colab launch binds the exact release source', async ({ page }) => {
-  await page.goto('/gallery/transient-cylinder-startup/');
+test('Kármán vortex-street Colab launch binds the exact release source', async ({ page }) => {
+  await page.goto('/gallery/karman-vortex-street/');
   const launch = page.getByRole('link', { name: 'Open in Colab', exact: true });
   const sourceSha = process.env.EQIORA_SITE_SOURCE_SHA;
   await expect(launch).toHaveAttribute(
     'href',
-    `https://colab.research.google.com/github/nkiyohara/eqiora/blob/${sourceSha}/examples/python/transient_cylinder_wake_colab.ipynb`,
+    `https://colab.research.google.com/github/nkiyohara/eqiora/blob/${sourceSha}/examples/python/karman_vortex_street_colab.ipynb`,
   );
 });
 

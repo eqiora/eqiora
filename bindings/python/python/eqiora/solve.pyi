@@ -130,6 +130,10 @@ class Linear:
 class Newton:
     """Newton solver policy with nested linear-solve controls.
 
+    A resolved nonlinear method may require the nested linear tolerances to be
+    at least as strict as its nonlinear absolute tolerance, so an unfinished
+    Newton iteration cannot accept a zero correction.
+
     Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyNewton``.
     """
     def __new__(

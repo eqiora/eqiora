@@ -227,6 +227,10 @@ class SolverProvider:
 
 Newton solver policy with nested linear-solve controls.
 
+A resolved nonlinear method may require the nested linear tolerances to be
+at least as strict as its nonlinear absolute tolerance, so an unfinished
+Newton iteration cannot accept a zero correction.
+
 ```python
 @final
 class Newton:

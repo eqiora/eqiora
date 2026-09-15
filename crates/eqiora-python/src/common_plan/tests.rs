@@ -1227,7 +1227,7 @@ linear = package.solve.Linear(
     reduction=package.solve.Reduction.Fast,
     provider=package.solve.SolverProvider.faer(),
     relative_tolerance=1e-6,
-    absolute_tolerance=1e-9,
+    absolute_tolerance=1e-12,
     maximum_iterations=20000,
 )
 steady_plan = package.resolve(

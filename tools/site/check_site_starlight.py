@@ -46,6 +46,7 @@ _require(
     _content,
     "check_site_starlight_content.py",
     (
+        "WAKE_ALT",
         "PRESSURE_ALT",
         "PRESSURE_CAPTION",
         "CASE_SOURCE_PATHS",
@@ -57,6 +58,7 @@ _require(
 __all__ = (
     "STARLIGHT_ROUTES",
     "SITEMAP_ROUTES",
+    "WAKE_ALT",
     "PRESSURE_ALT",
     "PRESSURE_CAPTION",
     "CASE_SOURCE_PATHS",
@@ -65,6 +67,7 @@ __all__ = (
 )
 
 SITEMAP_ROUTES = _sitemap.SITEMAP_ROUTES
+WAKE_ALT = _content.WAKE_ALT
 PRESSURE_ALT = _content.PRESSURE_ALT
 PRESSURE_CAPTION = _content.PRESSURE_CAPTION
 CASE_SOURCE_PATHS = _content.CASE_SOURCE_PATHS
@@ -81,7 +84,7 @@ STARLIGHT_ROUTES = {
     "/gallery/": "gallery/index.html",
     "/gallery/exact-cylinder-steady-stokes/": "gallery/exact-cylinder-steady-stokes/index.html",
     "/gallery/mixed-boundary-elasticity/": "gallery/mixed-boundary-elasticity/index.html",
-    "/gallery/transient-cylinder-startup/": "gallery/transient-cylinder-startup/index.html",
+    "/gallery/karman-vortex-street/": "gallery/karman-vortex-street/index.html",
     "/get-started/": "get-started/index.html",
     "/guides/": "guides/index.html",
     "/guides/run-and-inspect/": "guides/run-and-inspect/index.html",
@@ -289,6 +292,7 @@ def check_starlight(
     artifact: Path,
     inspections: dict[Path, tuple[str, object]],
     file_digests: dict[Path, str],
+    wake_digest: str,
     pressure_digest: str,
     favicon_digest: str,
     source_sha: str,
@@ -335,6 +339,7 @@ def check_starlight(
             artifact,
             inspections,
             file_digests,
+            wake_digest,
             pressure_digest,
             favicon_digest,
             source_sha,

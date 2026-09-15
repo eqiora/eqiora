@@ -21,6 +21,8 @@ QUOTED_FRAGMENT_ID = 'impl-Quoted%3C"Marker%3E-for-Thing'
 NUMERIC_FRAGMENT_ID = "123"
 LINE_RANGE_FRAGMENT = "1-325"
 BRAND_PATH = "/assets/eqiora-mark.BN8rmEAl.svg"
+WAKE_PATH = "/assets/karman-vortex.Bada55aa.png"
+WAKE_ALT = "Cell-average vorticity in a Kármán vortex street behind a circular cylinder."
 PRESSURE_PATH = "/assets/exact-cylinder-pressure.C0ffee42.png"
 PRESSURE_ALT = "Steady Stokes pressure around a cylinder, with the current mesh and pressure scale in pascals."
 PRESSURE_CAPTION = "Steady Stokes pressure on a 0.025 m target mesh."
@@ -62,7 +64,7 @@ ST_STARLIGHT_ROUTES = (
     "/gallery/",
     "/gallery/exact-cylinder-steady-stokes/",
     "/gallery/mixed-boundary-elasticity/",
-    "/gallery/transient-cylinder-startup/",
+    "/gallery/karman-vortex-street/",
     "/get-started/",
     "/guides/",
     "/guides/run-and-inspect/",
@@ -315,10 +317,13 @@ def _ordinary(root: Path):
     artifact, identities = make_fixture(root)
 
     brand = artifact / "assets/brand.svg"
+    wake = artifact / "assets/wake.png"
     pressure = artifact / "assets/pressure.png"
     _write(artifact / BRAND_PATH.removeprefix("/"), brand.read_bytes())
+    _write(artifact / WAKE_PATH.removeprefix("/"), wake.read_bytes())
     _write(artifact / PRESSURE_PATH.removeprefix("/"), pressure.read_bytes())
     brand.unlink()
+    wake.unlink()
     pressure.unlink()
 
     for page in sorted(artifact.rglob("*.html")):
@@ -328,7 +333,7 @@ def _ordinary(root: Path):
         _replace(page, OLD_SHELL, SHELL)
 
     home = artifact / "index.html"
-    _replace(home, 'src="/assets/pressure.png"', f'src="{PRESSURE_PATH}"')
+    _replace(home, 'src="/assets/wake.png"', f'src="{WAKE_PATH}"')
     _replace(
         home,
         "This website is a curated projection, not a parallel specification. "
@@ -534,11 +539,11 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             "header brand asset has the wrong digest",
         )
         reject(
-            "home pressure alt changed",
+            "home wake alt changed",
             lambda artifact: _replace(
-                artifact / home, PRESSURE_ALT, "Decorative pressure image"
+                artifact / home, WAKE_ALT, "Decorative wake image"
             ),
-            "featured walkthrough must expose the admitted pressure image",
+            "featured walkthrough must expose the admitted wake image",
         )
         reject(
             "gallery pressure alt changed",
@@ -555,14 +560,14 @@ class CompleteArtifactPolicyTests(unittest.TestCase):
             "admitted pressure image has the wrong digest",
         )
         reject(
-            "home pressure duplicated",
+            "home wake duplicated",
             lambda artifact: _replace(
                 artifact / home,
-                f'<img src="{PRESSURE_PATH}" alt="{PRESSURE_ALT}">',
-                f'<img src="{PRESSURE_PATH}" alt="{PRESSURE_ALT}">'
-                f'<img src="{PRESSURE_PATH}" alt="{PRESSURE_ALT}">',
+                f'<img src="{WAKE_PATH}" alt="{WAKE_ALT}">',
+                f'<img src="{WAKE_PATH}" alt="{WAKE_ALT}">'
+                f'<img src="{WAKE_PATH}" alt="{WAKE_ALT}">',
             ),
-            "featured walkthrough must expose exactly one admitted pressure image",
+            "featured walkthrough must expose exactly one admitted wake image",
         )
         reject(
             "gallery pressure duplicated",

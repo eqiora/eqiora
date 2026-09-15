@@ -147,21 +147,27 @@ impl CollectorState {
     }
 }
 
+const OCCURRENCE_FIELDS: [&str; 6] = [
+    "dt_s",
+    "iteration",
+    "residual_norm",
+    "solve",
+    "step",
+    "time_s",
+];
+
 fn identity_fields(fields: &BTreeMap<String, String>) -> BTreeMap<String, String> {
-    const OCCURRENCE_FIELDS: [&str; 7] = [
-        "dt_s",
-        "iteration",
-        "phase",
-        "residual_norm",
-        "solve",
-        "step",
-        "time_s",
-    ];
     fields
         .iter()
         .filter(|(name, _)| !OCCURRENCE_FIELDS.contains(&name.as_str()))
         .map(|(name, value)| (name.clone(), value.clone()))
         .collect()
+}
+
+fn has_occurrence_fields(fields: &BTreeMap<String, String>) -> bool {
+    fields
+        .keys()
+        .any(|name| OCCURRENCE_FIELDS.contains(&name.as_str()))
 }
 
 impl<S> Layer<S> for ProfileCollector
@@ -195,15 +201,18 @@ where
             path: path.clone(),
             fields: identity_fields(&visitor.0),
         };
-        if !state.phase_order.contains(&identity) {
+        let first_identity_occurrence = !state.phase_order.contains(&identity);
+        if first_identity_occurrence {
             state.phase_order.push(identity.clone());
         }
-        visitor.0.insert("phase".to_owned(), phase);
-        visitor.0.insert("event".to_owned(), "phase".to_owned());
-        state.events.push(ProfileEventData {
-            path: path.clone(),
-            fields: visitor.0,
-        });
+        if first_identity_occurrence || has_occurrence_fields(&visitor.0) {
+            visitor.0.insert("phase".to_owned(), phase);
+            visitor.0.insert("event".to_owned(), "phase".to_owned());
+            state.events.push(ProfileEventData {
+                path: path.clone(),
+                fields: visitor.0,
+            });
+        }
         state.open.insert(
             id.into_u64(),
             OpenSpan {
@@ -344,7 +353,8 @@ impl PyProfilePhase {
     skip_from_py_object
 )]
 #[derive(Clone)]
-/// Structured metadata for one phase or solver observation.
+/// Structured metadata for one occurrence-bearing phase, the first occurrence
+/// of an aggregate-only phase identity, or a solver observation.
 pub(crate) struct PyProfileEvent(ProfileEventData);
 
 #[pymethods]
@@ -612,6 +622,38 @@ mod tests {
             assembly_roles,
             ["initial_linearization", "line_search_trial"]
         );
+        let events = collector.finish().events;
+        let time_step_events = events
+            .iter()
+            .filter(|event| {
+                event
+                    .fields
+                    .get("phase")
+                    .is_some_and(|phase| phase == "time_step")
+            })
+            .count();
+        assert_eq!(time_step_events, 2);
+    }
+
+    #[test]
+    fn aggregate_only_phase_events_retain_one_representative() {
+        let collector = ProfileCollector::default();
+        collector.capture(|| {
+            for _ in 0..10_000 {
+                let _backend = tracing::span!(
+                    target: TELEMETRY_TARGET,
+                    tracing::Level::INFO,
+                    "eqiora_phase",
+                    phase = "assembly_local_evaluation",
+                    backend = "fixed-domain-mini"
+                )
+                .entered();
+            }
+        });
+        let data = collector.finish();
+        assert_eq!(data.phases.len(), 1);
+        assert_eq!(data.phases[0].calls, 10_000);
+        assert_eq!(data.events.len(), 1);
     }
 
     #[test]

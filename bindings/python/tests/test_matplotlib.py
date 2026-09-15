@@ -173,7 +173,7 @@ def transient_vorticity(cylinder_case):
         reduction=eqiora.solve.Reduction.Fast,
         provider=eqiora.solve.SolverProvider.faer(),
         relative_tolerance=1.0e-6,
-        absolute_tolerance=1.0e-9,
+        absolute_tolerance=1.0e-12,
         maximum_iterations=20_000,
     )
     plan = eqiora.resolve(

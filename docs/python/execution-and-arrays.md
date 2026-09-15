@@ -60,7 +60,10 @@ be added to recover a run total. Each `ProfilePhase` exposes the same values as
 Aggregation uses the nested phase path together with semantic identity fields,
 available through `ProfilePhase.fields`. Occurrence observations such as step,
 time, iteration, and residual remain on `ProfileEvent` and do not split repeated
-calls. Backend resolution and discretization preparation have distinct setup
+calls. Phase identities without occurrence fields retain one representative
+event; their complete count and timing remain on `ProfilePhase`, so repeated
+local evaluations do not make event storage grow with every cell. Backend
+resolution and discretization preparation have distinct setup
 roles; initial linearization and line-search trials have distinct assembly roles.
 Transient work nests under `run/solve/time_step`. Faer SparseLU distinguishes
 symbolic factorization, numeric factorization, and backsolve. A

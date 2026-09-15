@@ -1,5 +1,5 @@
 ---
-import pressureImage from '../../assets/gallery/exact-cylinder-pressure-presentation.png';
+import wakeImage from '../../assets/gallery/karman-vortex-street-poster.png';
 import ReleaseIdentity from './ReleaseIdentity.astro';
 ---
 
@@ -15,9 +15,9 @@ import ReleaseIdentity from './ReleaseIdentity.astro';
       <p class="eq-release">Release <ReleaseIdentity /> · Actively developed. <a href="/capabilities/">See what works today.</a></p>
     </div>
     <figure class="eq-preview">
-      <div class="eq-preview__label"><span>Inside a simulation</span><span>01 / Fluid mechanics</span></div>
-      <img src={pressureImage.src} alt="Steady Stokes pressure around a cylinder, with the current mesh and pressure scale in pascals." width={pressureImage.width} height={pressureImage.height} fetchpriority="high" />
-      <figcaption><span>Pressure around a circular obstacle</span><span>2D · steady Stokes</span></figcaption>
+      <div class="eq-preview__label"><span>Unverified product example</span><span>01 / Fluid mechanics</span></div>
+      <img src={wakeImage.src} alt="Cell-average vorticity in a Kármán vortex street behind a circular cylinder." width={wakeImage.width} height={wakeImage.height} fetchpriority="high" />
+      <figcaption><span>Kármán vortex street</span><span>2D · transient Navier–Stokes</span></figcaption>
     </figure>
   </section>
 
@@ -40,8 +40,8 @@ import ReleaseIdentity from './ReleaseIdentity.astro';
   <section class="eq-walkthrough" aria-labelledby="flow-title">
     <p class="eq-eyebrow">Featured walkthrough</p>
     <h2 id="flow-title">Follow a flow simulation, end to end.</h2>
-    <p>Follow the exact-cylinder steady-Stokes example from a Python model and named boundaries to a static pressure plot. Read the source, the numerical setup, and the result together.</p>
-    <a class="eq-text-link" href="/gallery/exact-cylinder-steady-stokes/">Explore the flow example <span aria-hidden="true">→</span></a>
+    <p>Follow the Kármán vortex-street example from exact channel geometry and named boundaries to an evolving vorticity field. Read the source, numerical setup, and result together.</p>
+    <a class="eq-text-link" href="/gallery/karman-vortex-street/">Explore the flow example <span aria-hidden="true">→</span></a>
   </section>
 
   <section class="eq-paths" aria-labelledby="paths-title">

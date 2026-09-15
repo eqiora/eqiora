@@ -36,6 +36,7 @@ EDITOR_CHECK_INPUTS = (
     "tools/editor/tests/test_syntax_bundle.py",
 )
 PRESSURE_ALT = "Steady Stokes pressure around a cylinder, with the current mesh and pressure scale in pascals."
+WAKE_ALT = "Cell-average vorticity in a Kármán vortex street behind a circular cylinder."
 CASE_EVIDENCE_PATHS = (
     "verify/fluid/packaged-steady-stokes-2d/README.md",
     "verify/geometry/exact-circular-hole-geometry/README.md",
@@ -51,7 +52,7 @@ SITE_ROUTES = (
     "/gallery/",
     "/gallery/exact-cylinder-steady-stokes/",
     "/gallery/mixed-boundary-elasticity/",
-    "/gallery/transient-cylinder-startup/",
+    "/gallery/karman-vortex-street/",
     "/get-started/",
     "/guides/",
     "/guides/run-and-inspect/",
@@ -666,7 +667,7 @@ def _home_body() -> str:
 <p>A model states typed mathematical relations. A realization chooses how those relations are discretized, solved, and executed.</p>
 <p>That separation lets block diagrams, acausal physical networks, PDE fields, hybrid dynamics, and reusable components share one canonical meaning without making a numerical method or hardware backend part of the model.</p>
 <a href="/get-started/">Get started</a><a href="/gallery/">Explore gallery</a>
-<article><p>Featured walkthrough</p><h2>Exact-cylinder steady Stokes</h2><img src="/assets/pressure.png" alt="{PRESSURE_ALT}"><p>Follow one frozen 2D steady-Stokes problem from model definition and named boundaries through one submit/Result path to an independently admitted static pressure image.</p><p>Python</p><p>2D</p><p>steady Stokes</p><a href="/gallery/exact-cylinder-steady-stokes/">View the static walkthrough</a></article>
+<article><p>Featured walkthrough</p><h2>Kármán vortex street</h2><img src="/assets/wake.png" alt="{WAKE_ALT}"><p>Follow one transient cylinder flow from exact geometry through an accepted vorticity field.</p><p>Python</p><p>2D</p><p>transient Navier–Stokes</p><a href="/gallery/karman-vortex-street/">View the wake walkthrough</a></article>
 <article><h2>Get started</h2><p>Learn the Model–Realization boundary and start from bounded examples.</p></article>
 <article><h2>Textbooks</h2><p>Follow the planned path from mathematics and physics to Eqiora models, numerical realization, and interpretation.</p></article>
 <article><h2>Capabilities</h2><p>See what is available, executable, checked, or verified.</p></article>
@@ -682,6 +683,7 @@ def _artifact(root: Path, blobs: dict[str, bytes], python_version: str) -> Path:
     _write(artifact / "favicon.svg", blobs["favicon"])
     _write(artifact / "apple-touch-icon.png", blobs["apple"])
     _write(artifact / "assets/pressure.png", blobs["pressure"])
+    _write(artifact / "assets/wake.png", blobs["wake"])
     _write(artifact / "assets/brand.svg", blobs["favicon"])
     _write(artifact / "assets/KaTeX_Main-Regular.woff2", b"font")
     _write(
@@ -703,7 +705,7 @@ def _artifact(root: Path, blobs: dict[str, bytes], python_version: str) -> Path:
         "/gallery/": '<h1>Gallery</h1><a href="/gallery/exact-cylinder-steady-stokes/">Exact-cylinder steady Stokes</a><a href="/gallery/mixed-boundary-elasticity/">Mixed-boundary linear elasticity</a>',
         "/gallery/exact-cylinder-steady-stokes/": _case_body(),
         "/gallery/mixed-boundary-elasticity/": "<h1>Mixed-boundary linear elasticity</h1><p>Static caller-owned displacement presentation.</p>",
-        "/gallery/transient-cylinder-startup/": "<h1>Transient cylinder-flow startup</h1>",
+        "/gallery/karman-vortex-street/": "<h1>Kármán vortex street</h1>",
         "/get-started/": "<h1>Get started</h1>",
         "/guides/": "<h1>Python</h1><p>Eqiora Python reference.</p>",
         "/guides/run-and-inspect/": "<h1>Run a model and inspect its result</h1><p>Installed release</p>",
@@ -789,6 +791,7 @@ def _artifact(root: Path, blobs: dict[str, bytes], python_version: str) -> Path:
 def make_fixture(root: Path, cargo_version: str = "0.1.0"):
     python_version = cargo_version
     blobs = {
+        "wake": b"fixture admitted wake poster",
         "pressure": b"fixture admitted pressure",
         "social": b"<svg><title>Eqiora</title></svg>\n",
         "favicon": b"<svg><title>Eqiora mark</title></svg>\n",
@@ -841,6 +844,10 @@ def make_fixture(root: Path, cargo_version: str = "0.1.0"):
         "];\n",
     )
     _write(
+        root / "docs/site/src/assets/gallery/karman-vortex-street-poster.png",
+        blobs["wake"],
+    )
+    _write(
         root / "docs/site/src/assets/gallery/exact-cylinder-pressure-presentation.png",
         blobs["pressure"],
     )
@@ -848,6 +855,9 @@ def make_fixture(root: Path, cargo_version: str = "0.1.0"):
     _write(root / "docs/site/public/favicon.svg", blobs["favicon"])
     _write(root / "docs/site/public/apple-touch-icon.png", blobs["apple"])
     identities = checker.SiteIdentities(
+        wake=checker.sha256(
+            root / "docs/site/src/assets/gallery/karman-vortex-street-poster.png"
+        ),
         pressure=checker.sha256(
             root / "docs/site/src/assets/gallery/exact-cylinder-pressure-presentation.png"
         ),

@@ -278,10 +278,10 @@ class CompleteContractTests(unittest.TestCase):
                 checker.PRESSURE_ALT,
                 "Pressure plot",
             ),
-            "missing featured pressure": lambda root, artifact: self._replace(
+            "missing featured wake": lambda root, artifact: self._replace(
                 artifact / "index.html",
-                checker.PRESSURE_ALT,
-                "Pressure plot",
+                checker.WAKE_ALT,
+                "Wake plot",
             ),
             "unlinked brand": lambda root, artifact: self._replace(
                 artifact / "index.html",

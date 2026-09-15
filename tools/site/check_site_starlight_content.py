@@ -4,6 +4,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 __all__ = (
+    "WAKE_ALT",
     "PRESSURE_ALT",
     "PRESSURE_CAPTION",
     "CASE_SOURCE_PATHS",
@@ -11,6 +12,7 @@ __all__ = (
     "check_starlight_content",
 )
 
+WAKE_ALT = "Cell-average vorticity in a Kármán vortex street behind a circular cylinder."
 PRESSURE_ALT = "Steady Stokes pressure around a cylinder, with the current mesh and pressure scale in pascals."
 PRESSURE_CAPTION = "Steady Stokes pressure on a 0.025 m target mesh."
 REFERENCE_GUIDANCE = "Look up a declaration, find a physical building block, or inspect an API signature."
@@ -181,12 +183,14 @@ def _same_origin_file(artifact: Path, page: Path, value: str) -> Path | None:
     return target if target.is_file() else None
 
 
-def _check_pressure_image(
+def _check_admitted_image(
     artifact: Path,
     page_path: Path,
     page: object,
     file_digests: dict[Path, str],
-    pressure_digest: str,
+    admitted_digest: str,
+    admitted_alt: str,
+    subject: str,
     label: str,
 ) -> list[str]:
     resolved = [
@@ -196,19 +200,19 @@ def _check_pressure_image(
     candidates = [
         (image, target)
         for image, target in resolved
-        if image.get("alt") == PRESSURE_ALT
-        or (target is not None and file_digests.get(target) == pressure_digest)
+        if image.get("alt") == admitted_alt
+        or (target is not None and file_digests.get(target) == admitted_digest)
     ]
     if len(candidates) != 1:
         qualifier = "exactly one " if len(candidates) > 1 else "the "
         return [
-            f"{label} must expose {qualifier}admitted pressure image with exact alt text"
+            f"{label} must expose {qualifier}admitted {subject} image with exact alt text"
         ]
     image, target = candidates[0]
-    if image.get("alt") != PRESSURE_ALT or target is None:
-        return [f"{label} must expose the admitted pressure image with exact alt text"]
-    if file_digests.get(target) != pressure_digest:
-        return [f"{label}: admitted pressure image has the wrong digest"]
+    if image.get("alt") != admitted_alt or target is None:
+        return [f"{label} must expose the admitted {subject} image with exact alt text"]
+    if file_digests.get(target) != admitted_digest:
+        return [f"{label}: admitted {subject} image has the wrong digest"]
     return []
 
 
@@ -217,7 +221,7 @@ def _check_home(
     home: object,
     expected_python_version: str,
     file_digests: dict[Path, str],
-    pressure_digest: str,
+    wake_digest: str,
     favicon_digest: str,
     enhanced: bool,
 ) -> list[str]:
@@ -241,12 +245,14 @@ def _check_home(
         if widening in featured:
             report(f"/: featured walkthrough widens its claim with {widening!r}")
     errors.extend(
-        _check_pressure_image(
+        _check_admitted_image(
             artifact,
             artifact / "index.html",
             home,
             file_digests,
-            pressure_digest,
+            wake_digest,
+            WAKE_ALT,
+            "wake",
             "/: featured walkthrough",
         )
     )
@@ -326,12 +332,14 @@ def _check_case(
     if any(token not in page.visible_text for token in source_tokens):
         report("Cylinder route omits the accepted Eqiora source form")
     errors.extend(
-        _check_pressure_image(
+        _check_admitted_image(
             artifact,
             artifact / "gallery/exact-cylinder-steady-stokes/index.html",
             page,
             file_digests,
             pressure_digest,
+            PRESSURE_ALT,
+            "pressure",
             "gallery walkthrough",
         )
     )
@@ -400,6 +408,7 @@ def check_starlight_content(
     artifact: Path,
     inspections: dict[Path, tuple[str, object]],
     file_digests: dict[Path, str],
+    wake_digest: str,
     pressure_digest: str,
     favicon_digest: str,
     source_sha: str,
@@ -417,7 +426,7 @@ def check_starlight_content(
             home_value[1],
             expected_python_version,
             file_digests,
-            pressure_digest,
+            wake_digest,
             favicon_digest,
             enhanced,
         )

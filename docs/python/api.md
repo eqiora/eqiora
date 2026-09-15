@@ -1813,7 +1813,11 @@ class Profile:
 
 ### `eqiora.ProfileEvent`
 
-Structured metadata for one phase or solver observation.
+Structured metadata for a retained phase or solver observation.
+
+Occurrence-bearing phases retain every event. Aggregate-only phase
+identities retain one representative event while `ProfilePhase.calls`
+records their full count.
 
 ```python
 @final
@@ -4466,6 +4470,10 @@ class SolverProvider:
 ### `eqiora.solve.Newton`
 
 Newton solver policy with nested linear-solve controls.
+
+A resolved nonlinear method may require the nested linear tolerances to be
+at least as strict as its nonlinear absolute tolerance, so an unfinished
+Newton iteration cannot accept a zero correction.
 
 ```python
 @final

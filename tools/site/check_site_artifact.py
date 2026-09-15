@@ -55,6 +55,7 @@ _require(
     (
         "STARLIGHT_ROUTES",
         "SITEMAP_ROUTES",
+        "WAKE_ALT",
         "PRESSURE_ALT",
         "PRESSURE_CAPTION",
         "CASE_SOURCE_PATHS",
@@ -68,6 +69,7 @@ __all__ = (
     "MAX_FILE_BYTES",
     "MAX_TOTAL_BYTES",
     "MAX_HTML_BYTES",
+    "WAKE_SHA256",
     "PRESSURE_SHA256",
     "SOCIAL_SHA256",
     "FAVICON_SHA256",
@@ -78,6 +80,7 @@ __all__ = (
     "PRODUCTION_IDENTITIES",
     "ROUTES",
     "SITEMAP_ROUTES",
+    "WAKE_ALT",
     "PRESSURE_ALT",
     "PRESSURE_CAPTION",
     "CASE_SOURCE_PATHS",
@@ -105,6 +108,8 @@ def _source_asset_digest(name: str) -> str:
 _pressure = (
     _PUBLIC_ASSETS.parent / "src/assets/gallery/exact-cylinder-pressure-presentation.png"
 )
+_wake = _PUBLIC_ASSETS.parent / "src/assets/gallery/karman-vortex-street-poster.png"
+WAKE_SHA256 = hashlib.sha256(_wake.read_bytes()).hexdigest() if _wake.is_file() else ""
 PRESSURE_SHA256 = (
     hashlib.sha256(_pressure.read_bytes()).hexdigest() if _pressure.is_file() else ""
 )
@@ -118,6 +123,7 @@ PRESSURE_CAPTION = _starlight.PRESSURE_CAPTION
 CASE_SOURCE_PATHS = _starlight.CASE_SOURCE_PATHS
 CASE_EVIDENCE_PATHS = _starlight.CASE_EVIDENCE_PATHS
 SITEMAP_ROUTES = _starlight.SITEMAP_ROUTES
+WAKE_ALT = _starlight.WAKE_ALT
 ROUTES = {
     **_starlight.STARLIGHT_ROUTES,
     "/reference/rust/api/eqiora/struct.Diagnostic.html": "reference/rust/api/eqiora/struct.Diagnostic.html",
@@ -129,6 +135,7 @@ SOURCE_SHA = re.compile(r"^[0-9a-f]{40}$")
 class SiteIdentities:
     """Current source-asset identities."""
 
+    wake: str = WAKE_SHA256
     pressure: str = PRESSURE_SHA256
     social: str = SOCIAL_SHA256
     favicon: str = FAVICON_SHA256
@@ -232,6 +239,8 @@ def _check_identities(
         errors.append("assembled site exposes the deprecated social-card bytes")
     if len(digest_paths.get(identities.pressure, [])) != 1:
         errors.append("assembled site must expose exactly one admitted pressure image")
+    if len(digest_paths.get(identities.wake, [])) != 1:
+        errors.append("assembled site must expose exactly one admitted wake poster")
     for path in files:
         if path.stat().st_size > MAX_HTML_BYTES or path.suffix.casefold() not in {
             ".html",
@@ -314,6 +323,7 @@ def check_artifact(
             artifact,
             starlight,
             file_digests,
+            identities.wake,
             identities.pressure,
             identities.favicon,
             source_sha,

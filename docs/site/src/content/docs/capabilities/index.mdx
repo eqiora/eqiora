@@ -16,7 +16,7 @@ provides detailed implementation, verification, and maturity status.
 | Problem family | What you can run |
 | --- | --- |
 | Scalar PDEs | Cartesian Poisson in 1D–3D and a 2D triangular finite-element example |
-| Fluid | 2D steady Stokes flow and transient cylinder-flow startup |
+| Fluid | 2D steady Stokes flow and a transient Kármán vortex-street example |
 | Solid | 2D mixed-boundary linear elasticity |
 | Thermal | Temperature transport as a passive scalar |
 | Circuits and hybrid systems | A packaged DC motor with a sampled controller |
@@ -52,12 +52,12 @@ provides detailed implementation, verification, and maturity status.
     casePath="verify/fluid/packaged-steady-stokes-2d/case.toml"
   />
   <CapabilitySummary
-    id="transient-cylinder-startup"
-    title="Transient cylinder-flow startup"
-    outcome="Advance a cylinder-flow startup simulation and plot vorticity, force, and pressure observations."
-    conditions="The example uses a fixed 2D geometry and serial execution over a short startup interval."
-    routeHref="/gallery/transient-cylinder-startup/"
-    routeLabel="Open the startup example"
+    id="karman-vortex-street"
+    title="Kármán vortex street"
+    outcome="Advance transient cylinder flow and inspect the evolving vorticity field, cylinder force, and pressure observations."
+    conditions="This unverified product example uses 2D MINI/P1 and Backward Euler. Its discretization differs from the reference benchmark method, and no benchmark validation is claimed."
+    routeHref="/gallery/karman-vortex-street/"
+    routeLabel="Open the transient flow example"
   />
 </div>
 
