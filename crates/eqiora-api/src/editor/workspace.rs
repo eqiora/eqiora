@@ -102,6 +102,7 @@ impl EditorDefinition {
 #[derive(Debug, Clone, PartialEq)]
 pub struct EditorWorkspaceSnapshot {
     version: u64,
+    input: Option<std::sync::Arc<ResolvedHierarchyInput>>,
     documents: Vec<(String, EditorSnapshot)>,
     diagnostics: Vec<Diagnostic>,
     definitions: Vec<EditorDefinition>,
@@ -259,7 +260,7 @@ impl EditorWorkspaceSnapshot {
             }
             sources.push((unit.diagnostic_file(), unit.source().into_owned()));
         }
-        let analyzed = match input.analyze_with_cancellation(&mut is_cancelled) {
+        let analyzed = match input.clone().analyze_with_cancellation(&mut is_cancelled) {
             Ok(Some(analyzed)) => analyzed,
             Ok(None) => return None,
             Err(diagnostics) => {
@@ -278,7 +279,7 @@ impl EditorWorkspaceSnapshot {
         if is_cancelled() {
             return None;
         }
-        Some(Self::from_analyzed(version, sources, &analyzed))
+        Some(Self::from_analyzed(version, sources, &analyzed, input))
     }
 
     /// Replay one exact locked package graph through the ordinary package and
@@ -319,6 +320,7 @@ impl EditorWorkspaceSnapshot {
         version: u64,
         sources: Vec<(String, String)>,
         analyzed: &AnalyzedResolvedHierarchy,
+        input: ResolvedHierarchyInput,
     ) -> Self {
         let resolved_sources = analyzed.resolved_source_files().collect::<Vec<_>>();
         debug_assert_eq!(sources.len(), resolved_sources.len());
@@ -403,6 +405,7 @@ impl EditorWorkspaceSnapshot {
             .collect();
         Self {
             version,
+            input: Some(std::sync::Arc::new(input)),
             documents,
             diagnostics: Vec::new(),
             definitions,
@@ -438,11 +441,48 @@ impl EditorWorkspaceSnapshot {
             .collect();
         Self {
             version,
+            input: None,
             documents,
             diagnostics,
             definitions: Vec::new(),
             references: Vec::new(),
         }
+    }
+
+    /// Compile a selected Model in one file of this exact editor snapshot.
+    ///
+    /// Uses the retained resolved graph, including unsaved sources and exact
+    /// package dependencies. Performs no filesystem discovery or writes.
+    ///
+    /// # Errors
+    /// Rejects invalid snapshots, unknown files, and models requiring bindings.
+    pub fn compile_model(
+        &self,
+        file: &str,
+        model: &str,
+    ) -> Result<crate::ModelDocument, Vec<Diagnostic>> {
+        let input = self
+            .input
+            .as_ref()
+            .ok_or_else(|| self.diagnostics.clone())?;
+        let unit = input
+            .units()
+            .iter()
+            .find(|unit| unit.diagnostic_file() == file)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    eqiora_core::diagnostic::codes::LANGUAGE_LOWERING_ERROR,
+                    "model inspection requires a file in the current resolved graph",
+                )]
+            })?;
+        let selected = ResolvedHierarchyInput::with_root_module(
+            unit.namespace().clone(),
+            unit.module_segments().iter().cloned(),
+            input.units().to_vec(),
+            input.dependencies().to_vec(),
+        )
+        .map_err(|error| vec![error])?;
+        crate::ModelDocument::compile_modules(selected, model, &[])
     }
 
     /// Exact workspace version supplied by the client.

@@ -68,7 +68,7 @@ pub(crate) fn analyze_editor_workspace_with_cancellation(
         }
         sources.push((unit.file().to_owned(), unit.source().into_owned()));
     }
-    let Some(analyzed) = input.analyze_with_cancellation(&mut is_cancelled)? else {
+    let Some(analyzed) = input.clone().analyze_with_cancellation(&mut is_cancelled)? else {
         return Ok(None);
     };
     verify_semantic_content(&resolved, &namespaces, &analyzed)?;
@@ -80,7 +80,7 @@ pub(crate) fn analyze_editor_workspace_with_cancellation(
         return Ok(None);
     }
     Ok(Some(crate::editor::EditorWorkspaceSnapshot::from_analyzed(
-        version, sources, &analyzed,
+        version, sources, &analyzed, input,
     )))
 }
 

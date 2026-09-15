@@ -37,6 +37,7 @@ use crate::{
 
 type ServerResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
+mod inspection;
 mod navigation;
 #[cfg(test)]
 mod tests;
@@ -421,6 +422,7 @@ pub fn run(connection: Connection, version: &str) -> ServerResult<()> {
                 ..TextDocumentSyncOptions::default()
             },
         )),
+        experimental: Some(serde_json::json!({"eqioraInspection": 1})),
         hover_provider: Some(HoverProviderCapability::Simple(true)),
         definition_provider: Some(OneOf::Left(true)),
         references_provider: Some(OneOf::Left(true)),
@@ -787,6 +789,10 @@ fn handle_request(
 ) -> ServerResult<()> {
     let id = request.id.clone();
     let response = match request.method.as_str() {
+        "eqiora/inspect" => response_from(
+            id,
+            decode(request.params).and_then(|params| inspection::inspect(params, state)),
+        ),
         "textDocument/formatting" => response_from(
             id,
             decode(request.params).and_then(|params| formatting(params, state)),
