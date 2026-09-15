@@ -13,6 +13,25 @@ Compose read-only views of geometry, meshes, and fields.
 
 <ExactSourceLink path="bindings/python/python/eqiora/viewer.pyi" kind="blob">View source</ExactSourceLink>
 
+## Example: view a geometry and mesh
+
+In a notebook, continue with `geometry` and `mesh` from the
+[meshing example](/reference/python/meshing/):
+
+```python
+from eqiora.viewer import View
+
+view = View().add(geometry).add(mesh)
+view.show()
+```
+
+The scene overlays the exact geometry and its mesh. Use `view.close()` when
+you no longer need it. Adding a field output changes the display without
+changing the model or numerical result. For Colab, first follow
+[notebook preparation](/reference/python/colab/).
+
+## API
+
 <a id="api-eqiora-viewer-View"></a>
 
 ## `View`

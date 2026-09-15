@@ -9,6 +9,75 @@ import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
 Browse the modules below for classes, functions, and signatures. Use [Get started](/get-started/) for installation and a first model.
 
+## Compile and run
+
+Follow [Get started](/get-started/) to install the Python package from the same
+source as these pages. This example needs only Eqiora and its NumPy dependency.
+
+```python
+import eqiora
+
+model = eqiora.compile(source="""
+model decay(parameter rate: 1 / s = 1) {
+    state x: 1;
+    initial { x = 1; }
+    relation flow { derivative(x) + rate * x = 0; }
+}
+""", filename="decay.eqi")
+x = model.field("x")
+plan = eqiora.resolve(
+    model,
+    temporal=eqiora.time.Tsitouras45(
+        initial_step_s=0.01,
+        relative_tolerance=1e-9,
+        absolute_tolerances={x: 1e-11},
+    ),
+)
+result = eqiora.run(
+    plan,
+    state=eqiora.State.initial(plan),
+    until_s=1.0,
+    output_times_s=(0.25, 0.5, 1.0),
+)
+series = result.series(x)
+for time_s, value in series:
+    print(f"{time_s:.2f} s: {value:.6f}")
+```
+
+The three values are approximately `0.778801`, `0.606531`, and `0.367879`:
+`x` is dimensionless, time is in seconds, and the equation gives exponential
+decay. `compile` defines the mathematics, `resolve` chooses its numerical method,
+and `run` computes the requested observations.
+
+## Inspect, edit, and save
+
+Continue with the objects above:
+
+```python
+print(model.parameter("rate").value)
+print(model.render_equations("flow", profile="plain")[0].text)
+
+faster = model.commit(model.preview_value_edit("rate", 2.0))
+print(model.parameter("rate").value, faster.parameter("rate").value)
+
+import numpy as np
+np.savetxt(
+    "decay.csv",
+    np.column_stack((series.time.numpy(), series.values.numpy())),
+    delimiter=",", header="time_s,x", comments="",
+)
+```
+
+The original rate remains `1.0`; the new Model has rate `2.0`. Resolve the new
+Model to simulate it. The CSV contains the observations from the original run.
+Equation rendering provides readable mathematics without reconstructing it
+from numerical output.
+
+For spatial models, continue with [geometry](/reference/python/geometry/),
+[meshing](/reference/python/meshing/), and the complete
+[modeling examples](/guides/modeling/). For gradients, see
+[differentiation](/guides/differentiation/).
+
 ## Modules
 
 | Module | Summary |

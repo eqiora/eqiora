@@ -13,6 +13,24 @@ Finite-element discretization policies.
 
 <ExactSourceLink path="bindings/python/python/eqiora/fem.pyi" kind="blob">View source</ExactSourceLink>
 
+## Example: select element spaces
+
+```python
+from eqiora import fem
+
+scalar_method = fem.Q1()
+flow_method = fem.MiniP1()
+print(scalar_method.space)
+print(flow_method.velocity_space, flow_method.pressure_space)
+```
+
+`Q1` selects continuous tensor-product elements for Cartesian scalar and
+elasticity problems. `MiniP1` selects the mixed velocity/pressure spaces for
+triangular Stokes problems. Pass the matching policy as `spatial=` to
+`eqiora.resolve`; complete setups are in [modeling](/guides/modeling/).
+
+## API
+
 <a id="api-eqiora-fem-MiniP1"></a>
 
 ## `MiniP1`

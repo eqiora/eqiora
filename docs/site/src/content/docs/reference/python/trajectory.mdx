@@ -13,6 +13,25 @@ Read spatial trajectories and derived fields.
 
 <ExactSourceLink path="bindings/python/python/eqiora/trajectory.pyi" kind="blob">View source</ExactSourceLink>
 
+## Example: inspect spatial observations
+
+A transient spatial run from [modeling](/guides/modeling/) returns a Result
+whose `trajectory` carries spatial observations:
+
+```python
+trajectory = result.trajectory
+for state in trajectory.states:
+    print(state.time_s)
+print(trajectory.coordinates.shape, trajectory.cells.shape)
+```
+
+The times are in seconds; the array shapes describe vertices and cells.
+Keep the trajectory with the Model and its field references. It provides the
+spatial data used by [Matplotlib](/reference/python/matplotlib/) and derived
+field operations below; an ODE's scalar time series is read with `result.series`.
+
+## API
+
 <a id="api-eqiora-trajectory-BoundaryForce"></a>
 
 ## `BoundaryForce`

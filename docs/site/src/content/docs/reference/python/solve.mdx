@@ -13,6 +13,25 @@ Linear and nonlinear solver policies.
 
 <ExactSourceLink path="bindings/python/python/eqiora/solve.pyi" kind="blob">View source</ExactSourceLink>
 
+## Example: configure linear and nonlinear tolerances
+
+```python
+from eqiora import solve
+
+linear = solve.Linear(objective=solve.Robust, relative_tolerance=1e-10, absolute_tolerance=1e-12,
+                      maximum_iterations=1000)
+nonlinear = solve.Newton(linear=linear, absolute_tolerance=1e-10,
+                         maximum_iterations=20)
+print(nonlinear.maximum_iterations)
+```
+
+Pass `linear` or `nonlinear` as `solve=` in `eqiora.resolve`. Newton uses the
+nested linear policy for each update. A smaller tolerance requests a more
+accurate algebraic solve; mesh refinement and time-step accuracy are separate
+choices. See [modeling](/guides/modeling/) for full solver setups.
+
+## API
+
 <a id="api-eqiora-solve-ConstraintTolerance"></a>
 
 ## `ConstraintTolerance`

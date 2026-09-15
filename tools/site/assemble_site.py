@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Assemble the checked Astro, rustdoc, and control-schema projections."""
+"""Assemble the checked Astro and rustdoc projections."""
 
 from __future__ import annotations
 
 import argparse
 import hashlib
-import json
 import os
 import shutil
 import stat
@@ -122,13 +121,11 @@ def assemble(
     *,
     astro_root: Path,
     rustdoc_root: Path,
-    control_schema: Path,
     output: Path,
     scratch_root: Path,
 ) -> int:
     astro = _directory(astro_root, "Astro output")
     rustdoc = _directory(rustdoc_root, "rustdoc output")
-    schema = _regular_file(control_schema, "control-v2 schema")
     scratch = _directory(scratch_root, "assembly scratch root")
 
     raw_output = output
@@ -145,7 +142,6 @@ def assemble(
     sources = (
         ("Astro output", astro),
         ("rustdoc output", rustdoc),
-        ("control-v2 schema", schema),
     )
     for index, (left_label, left) in enumerate(sources):
         for right_label, right in sources[index + 1 :]:
@@ -173,22 +169,9 @@ def assemble(
     if (rustdoc / "eqiora_mcp").exists():
         raise AssemblyError("rustdoc output contains the forbidden eqiora_mcp root")
 
-    try:
-        schema_document = json.loads(schema.read_text(encoding="utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise AssemblyError(f"control-v2 schema is not canonical UTF-8 JSON: {error}") from error
-    if schema_document.get("$id") != "urn:eqiora:schema:control:compile-v2":
-        raise AssemblyError("control-v2 schema has the wrong $id")
-
     entries = _manifest(
         _tree_entries(astro, PurePosixPath())
         + _tree_entries(rustdoc, PurePosixPath("reference/rust/api"))
-        + [
-            CopyEntry(
-                schema,
-                PurePosixPath("reference/control-v2/compile-v2.schema.json"),
-            )
-        ]
     )
 
     stage.mkdir(mode=0o755)
@@ -215,7 +198,6 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--astro-root", type=Path, required=True)
     parser.add_argument("--rustdoc-root", type=Path, required=True)
-    parser.add_argument("--control-schema", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--scratch-root", type=Path, required=True)
     return parser
@@ -227,7 +209,6 @@ def main(argv: list[str] | None = None) -> int:
         assemble(
             astro_root=args.astro_root,
             rustdoc_root=args.rustdoc_root,
-            control_schema=args.control_schema,
             output=args.output,
             scratch_root=args.scratch_root,
         )

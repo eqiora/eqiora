@@ -13,6 +13,28 @@ Author Eqiora Modules, Components, expressions, and equations in Python.
 
 <ExactSourceLink path="bindings/python/python/eqiora/lang/__init__.pyi" kind="blob">View source</ExactSourceLink>
 
+## Example: write equations in Python
+
+```python
+import eqiora
+from eqiora import lang as q
+
+source = eqiora.Module("example")
+component = source.model("Balance")
+x = component.field("x", value_type=eqiora.ValueType.real(),
+                    role=eqiora.FieldRole.Variable)
+component.relation("balance", q.equation(x, 2))
+print(source.to_eqi())
+model = eqiora.compile(source=source)
+```
+
+`to_eqi()` prints the model declaration and `x = 2` relation. Compilation
+uses the same language as a handwritten `.eqi` file. Build the declarations
+before emitting or compiling the Module. See [modeling](/guides/modeling/)
+for parameters, components, imports, and spatial equations.
+
+## API
+
 <a id="api-eqiora-lang-Inequality"></a>
 
 ## `Inequality`

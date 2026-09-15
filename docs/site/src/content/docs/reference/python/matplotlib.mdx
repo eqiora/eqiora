@@ -13,6 +13,25 @@ Plot Eqiora results with Matplotlib.
 
 <ExactSourceLink path="bindings/python/python/eqiora/matplotlib.pyi" kind="blob">View source</ExactSourceLink>
 
+## Example: save a spatial field plot
+
+Install the `matplotlib` extra in the source environment described in
+[Get started](/get-started/). Continue with a scalar spatial `result` and its
+Model field `field` from [modeling](/guides/modeling/):
+
+```python
+from eqiora.matplotlib import plot_scalar_field
+
+figure = plot_scalar_field(result, field=field)
+figure.savefig("field.png", dpi=150)
+```
+
+The color scale shows the field's values on its mesh. For a displacement
+field, use `plot_deformed_field(result, field=field, scale=10.0)`; `scale`
+magnifies the display without changing the computed displacement.
+
+## API
+
 <a id="api-eqiora-matplotlib-plot_deformed_field"></a>
 
 ## `plot_deformed_field`

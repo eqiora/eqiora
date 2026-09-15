@@ -13,6 +13,24 @@ Finite-volume discretization policies.
 
 <ExactSourceLink path="bindings/python/python/eqiora/fvm.pyi" kind="blob">View source</ExactSourceLink>
 
+## Example: select a cell-centred method
+
+```python
+from eqiora import fvm
+
+scalar_method = fvm.CellCenteredTpfa()
+flow_method = fvm.CellCentered()
+print(scalar_method.space)
+print(flow_method.velocity_space, flow_method.pressure_space)
+```
+
+TPFA uses two-point face fluxes on orthogonal meshes. The flow method stores
+velocity and pressure at cell centres. Supply the appropriate policy through
+`eqiora.resolve(..., spatial=...)`; see [modeling](/guides/modeling/) for the
+model, geometry, and boundary conditions that accompany each method.
+
+## API
+
 <a id="api-eqiora-fvm-CellCentered"></a>
 
 ## `CellCentered`

@@ -13,6 +13,21 @@ Configure incompressible flow and inspect its results.
 
 <ExactSourceLink path="bindings/python/python/eqiora/fluid.pyi" kind="blob">View source</ExactSourceLink>
 
+## Example: choose reference scales
+
+```python
+from eqiora.fluid import IncompressibleScaling
+
+scaling = IncompressibleScaling(length_m=0.1, velocity_m_per_s=1.0)
+print(scaling.length_m, scaling.velocity_m_per_s)
+```
+
+For the exact-cylinder flow setup in [modeling](/guides/modeling/), pass this
+as `scaling=` to `eqiora.resolve`. These reference values scale the numerical
+system; inlet speed, viscosity, and other physical values belong in the model.
+
+## API
+
 <a id="api-eqiora-fluid-IncompressibleFlowPlanView"></a>
 
 ## `IncompressibleFlowPlanView`

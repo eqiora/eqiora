@@ -16,6 +16,8 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
+from python_api_examples import WORKFLOW, module_example
+
 
 ROOT = Path(__file__).resolve().parents[2]
 STUB_ROOT = ROOT / "bindings/python/python/eqiora"
@@ -701,6 +703,7 @@ def render_mdx_module(
             "",
         ]
     )
+    lines.extend(module_example(module.spec.slug))
     for export in owned:
         lines.extend(render_mdx_export(export, declarations, modules))
     return "\n".join(lines).rstrip() + "\n"
@@ -716,6 +719,7 @@ def render_mdx_index(modules: tuple[ModuleData, ...], counts: dict[str, int]) ->
             "Browse the modules below for classes, functions, and signatures. "
             "Use [Get started](/get-started/) for installation and a first model.",
             "",
+            WORKFLOW,
             "## Modules",
             "",
             "| Module | Summary |",

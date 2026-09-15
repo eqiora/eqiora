@@ -199,15 +199,12 @@ python3 tools/site/build_products.py \
   --cargo "$rustup_proxy_bin/cargo" \
   --rust-toolchain "$selected_rust_toolchain"
 eqiora_binary="$cargo_target/debug/eqiora"
-mcp_binary="$cargo_target/debug/eqiora-mcp"
 test -x "$eqiora_binary"
-test -x "$mcp_binary"
 test "$($eqiora_binary --version)" = "eqiora $cargo_version"
 python3 tools/docs/generate_python_api.py --check
 python3 tools/docs/generate_interface_reference.py \
   --repository "$EQIORA_SITE_SOURCE_ROOT" \
   --eqiora-binary "$eqiora_binary" \
-  --mcp-binary "$mcp_binary" \
   --source-sha "$EQIORA_SITE_SOURCE_SHA" \
   --check
 "$cargo_target/debug/xtask" check-facade
@@ -235,7 +232,6 @@ mkdir "$assembly_scratch"
 python3 tools/site/assemble_site.py \
   --astro-root "$EQIORA_SITE_ASTRO_OUT_DIR" \
   --rustdoc-root "$rustdoc_handoff" \
-  --control-schema crates/eqiora-api/schemas/compile-v2.schema.json \
   --output "$EQIORA_SITE_ARTIFACT" \
   --scratch-root "$assembly_scratch"
 python3 tools/site/check_site.py check \

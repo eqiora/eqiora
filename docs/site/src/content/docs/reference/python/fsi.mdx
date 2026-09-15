@@ -13,6 +13,25 @@ Inspect fluid–structure interaction results.
 
 <ExactSourceLink path="bindings/python/python/eqiora/fsi.pyi" kind="blob">View source</ExactSourceLink>
 
+## Example: inspect a coupled result
+
+Run the fixed-reference fluid–structure example in [modeling](/guides/modeling/)
+to create `result`, then inspect its coupled output:
+
+```python
+from eqiora.fsi import evidence
+
+coupling = evidence(result)
+for state in coupling.states:
+    print(state.next_kinetic_energy_j_per_m, state.next_elastic_energy_j_per_m)
+```
+
+Each row reports kinetic and elastic energy per unit depth, in joules per
+metre, for one coupled state. Use the original result to plot displacement
+and flow on their respective domains.
+
+## API
+
 <a id="api-eqiora-fsi-FixedReferenceFsiPlanView"></a>
 
 ## `FixedReferenceFsiPlanView`

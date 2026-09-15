@@ -701,10 +701,6 @@ def _module_target(crate: Path, module: FacadePath) -> str:
     return PurePosixPath(*parts[1:], "index.html").as_posix()
 
 
-def _classification(value: str) -> str:
-    return "**stable**" if value == "stable" else "transitional"
-
-
 def _link(path: str, target: str) -> str:
     return f"[`{path}`]({PUBLIC_RUSTDOC_PREFIX}{target})"
 
@@ -732,32 +728,99 @@ def _render_landing(
         "",
         '<ExactSourceLink kind="blob" path="crates/eqiora/src/lib.rs">View source</ExactSourceLink>',
         "",
+        "## Compile and inspect a model",
+        "",
+        "Add `eqiora` to a Cargo project as described in the setup guide above,",
+        "then put this in `src/main.rs` and run `cargo run`:",
+        "",
+        "```rust",
+        "use eqiora::api::ModelDocument;",
+        "use eqiora::kernel::KernelNode;",
+        "use eqiora::language::NotationProfile;",
+        "",
+        "fn main() {",
+        '    let model = ModelDocument::compile("decay.eqi", r#"',
+        "        model decay(parameter rate: 1 / s = 1) {",
+        "            state x: 1;",
+        "            initial { x = 1; }",
+        "            relation flow { derivative(x) + rate * x = 0; }",
+        "        }",
+        '    "#).expect("model must compile");',
+        "",
+        "    for node in model.program().nodes() {",
+        "        if let KernelNode::Relation(relation) = node {",
+        "            let equations = model.render_equations(",
+        "                relation.id().into(), NotationProfile::Plain,",
+        '            ).expect("equations must render");',
+        "            for equation in equations {",
+        '                println!("{}", equation.text());',
+        "            }",
+        "        }",
+        "    }",
+        "}",
+        "```",
+        "",
+        "The program checks dimensions and names, then prints the compiled",
+        "equations as readable mathematics. Compilation creates an immutable Model;",
+        "it does not advance time. The [Python workflow](/reference/python/)",
+        "shows the corresponding compile, resolve, and run operations.",
+        "",
+        "## Work with physical quantities",
+        "",
+        "```rust",
+        "use eqiora::aliases::Velocity;",
+        "",
+        "let inlet = Velocity::new(3.0);",
+        "let correction = Velocity::new(0.5);",
+        'println!("{} m/s", (inlet + correction).value());',
+        "```",
+        "",
+        "The result is `3.5 m/s`. Quantities carry their dimension in the Rust",
+        "type; adding a velocity to a length is a type error. Values use SI units.",
+        "",
+        "## Save and reload a Model",
+        "",
+        "Continue with the compiled `model` from the first example:",
+        "",
+        "```rust",
+        'let bytes = model.canonical_json().expect("model must serialize");',
+        'std::fs::write("decay.model.json", &bytes).expect("file must be writable");',
+        'let restored = ModelDocument::replay(&bytes).expect("model must reload");',
+        "assert!(model.structurally_equivalent(&restored).unwrap());",
+        "```",
+        "",
+        "Replay restores the model's mathematical content. Keep the original `.eqi`",
+        "source for editing and source-level presentation.",
+        "",
         "## Modules",
         "",
-        "| Module | Classification |",
-        "| --- | --- |",
+        "Choose a module below, then use rustdoc's search to find a type or method.",
+        "",
+        "| Module |",
+        "| --- |",
     ]
     for module in modules:
         lines.append(
-            f"| {_link(module.path, _module_target(crate, module))} | "
-            f"{_classification(module.classification)} |"
+            f"| {_link(module.path, _module_target(crate, module))} |"
         )
     lines.extend(
         [
             "",
             "## Types and functions",
             "",
-            "| Item | Classification |",
-            "| --- | --- |",
+            "<details>",
+            "<summary>Browse the complete facade item index</summary>",
+            "",
+            "| Item |",
+            "| --- |",
         ]
     )
     for item in items:
         assert item.provider is not None
         lines.append(
-            f"| {_link(item.path, _item_target(crate, item))} | "
-            f"{_classification(item.classification)} |"
+            f"| {_link(item.path, _item_target(crate, item))} |"
         )
-    lines.append("")
+    lines.extend(["", "</details>", ""])
     return "\n".join(lines)
 
 

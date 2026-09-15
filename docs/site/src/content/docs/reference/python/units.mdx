@@ -13,6 +13,29 @@ Unit catalog for authoring Source quantities.
 
 <ExactSourceLink path="bindings/python/python/eqiora/units.pyi" kind="blob">View source</ExactSourceLink>
 
+## Example: dimensional quantities
+
+```python
+import eqiora
+from eqiora import lang as q, units as u
+
+source = eqiora.Module("units_example")
+component = source.model("Speed")
+speed = component.field(
+    "speed", role=eqiora.FieldRole.Variable,
+    value_type=eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1)),
+)
+component.relation("given", q.equation(speed, q.quantity(3, u.m / u.s)))
+print(source.to_eqi())
+model = eqiora.compile(source=source)
+```
+
+`Dimension` declares the field's physical type; `quantity` attaches an input
+unit to a value. The equation specifies 3 metres per second. Replacing the
+right-hand unit with `u.s` produces a dimensional error during compilation.
+
+## API
+
 <a id="api-eqiora-units-Unit"></a>
 
 ## `Unit`
