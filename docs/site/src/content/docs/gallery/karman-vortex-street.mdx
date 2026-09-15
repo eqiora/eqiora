@@ -20,7 +20,7 @@ Follow a two-dimensional incompressible Navier–Stokes simulation as vortices
 form behind a circular cylinder and travel downstream. The image and video show
 Eqiora output from the linked workflow.
 
-<Aside type="caution" title="Unverified product example">
+<Aside type="note" title="Numerical method">
 
 This example uses the geometry and physical parameters from the
 [FeatFlow DFG 2D-2 benchmark specification](https://wwwold.mathematik.tu-dortmund.de/~featflow/en/benchmarks/cfdbenchmarking/flow/dfg_benchmark2_re100.html),
@@ -58,10 +58,13 @@ geometry = graph.build(fluid, named_topology={...})
 <NotebookStage id="wake-model" step={2} title="Set the flow problem" emoji="🧩">
 
 The `.eqi` source defines transient incompressible Navier–Stokes equations,
-no-slip walls and cylinder, a parabolic inlet, and an open outlet. The physical
+no-slip walls and cylinder, a parabolic inlet, and a zero-traction outlet. The physical
 setup uses density `1 kg/m³`, dynamic viscosity `0.001 Pa·s`, and maximum inlet
 speed `1.5 m/s`. With mean inlet speed `1 m/s` and cylinder diameter `0.1 m`,
 the Reynolds number is $\mathrm{Re}=\rho\bar U D/\mu=100$.
+
+The outlet condition is authored in the same `.eqi` source:
+$(2\mu\,\mathrm{sym}(\nabla u)-pI)n=0$, where $n$ is the outward normal.
 
 <ExactSourceLink path="examples/transient-flow-past-cylinder.eqi" kind="blob">Open the Eqiora source</ExactSourceLink>
 

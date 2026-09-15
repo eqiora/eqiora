@@ -100,7 +100,7 @@ class KarmanVortexStreetGalleryProduct(unittest.TestCase):
         producer = PRODUCER.read_text(encoding="utf-8")
         self.assertIn("/gallery/karman-vortex-street/", gallery)
         self.assertIn("karman-vortex-street-poster.png", home)
-        self.assertIn("Unverified product example", page)
+        self.assertIn("Numerical method", page)
         self.assertIn("MINI/P1", page)
         self.assertIn("Backward Euler", page)
         self.assertIn("not benchmark-validated", page)

@@ -45,7 +45,7 @@ class GalleryMediaTests(unittest.TestCase):
         labels = " ".join(text.get_text() for text in figure.texts)
         self.assertIn("Re = 100", labels)
         self.assertIn("sampled St = 0.300", labels)
-        self.assertIn("UNVERIFIED PRODUCT EXAMPLE", labels)
+        self.assertIn("Eqiora simulation", labels)
 
     def test_published_pngs_decode_and_have_visible_content(self):
         self.assertFalse((ASSETS / "exact-cylinder-pressure.png").exists())

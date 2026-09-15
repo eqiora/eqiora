@@ -117,8 +117,8 @@ def _render_frame(
     figure.text(
         0.94,
         0.035,
-        "UNVERIFIED PRODUCT EXAMPLE",
-        color="#9f1239",
+        "Eqiora simulation",
+        color="#475569",
         fontsize=9,
         fontweight="bold",
         ha="right",
