@@ -47,7 +47,8 @@ their mesh, discretization, solver, and placement choices remain explicit. The
 exact-cylinder Stokes example uses that same common lifecycle with one bounded
 Geometry, Gmsh, MINI/P1, and linear-solve configuration.
 
-The [Poisson walkthrough](../docs/site/examples.md) explains what each stage means.
+The [numerical simulation lessons](https://eqiora.org/learn/numerical-simulation/)
+explain how equations, discretization, and a numerical solve fit together.
 
 The cylinder source and Python-authored exact geometry form one checked
 workflow. Its 50-chord mesh is an error-controlled realization of the exact
