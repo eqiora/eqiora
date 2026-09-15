@@ -14,7 +14,6 @@ MAX_CHILDREN = 16
 SITEMAP_ROUTES = (
     "/",
     "/contributing/architecture/",
-    "/capabilities/",
     "/guides/how-eqiora-fits-together/",
     "/contributing/",
     "/evidence/",

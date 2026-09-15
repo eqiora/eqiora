@@ -354,7 +354,7 @@ test('table structure is complete across current site routes', async () => {
     await assertProductTableRouteInvariant(page, expected);
     invariantRoutes += 1;
   }
-  expect(invariantRoutes).toBe(41);
+  expect(invariantRoutes).toBe(40);
   await navigateSitePage(page, '/reference/python/eqiora/');
   await expect(page.locator('main table')).toHaveCount(0);
 

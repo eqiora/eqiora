@@ -41,7 +41,6 @@ WAKE_ALT = "Cell-average vorticity in a Kármán vortex street behind a circular
 SITE_ROUTES = (
     "/",
     "/contributing/architecture/",
-    "/capabilities/",
     "/guides/how-eqiora-fits-together/",
     "/contributing/",
     "/evidence/",
@@ -661,7 +660,7 @@ def _nav() -> str:
     return ('<a class="site-title" href="/"><img src="/assets/brand.svg" alt=""><span>Eqiora</span></a>'
             '<nav class="sidebar"><a href="/learn/">Learn</a><a href="/guides/">Guides</a>'
             '<a href="/gallery/">Gallery</a><a href="/reference/">Reference</a><a href="/get-started/">Get started</a>'
-            '<a href="/capabilities/">Capabilities</a><a href="/release-notes/">Releases</a>'
+            '<a href="/release-notes/">Releases</a>'
             '<a href="/contributing/">Contributing</a>'
             '<a href="https://github.com/nkiyohara/eqiora">GitHub</a></nav>')
 
@@ -693,7 +692,7 @@ div(u) = 0</pre></section>
 <section><h2>Mesh and boundaries</h2></section>
 <section><h2>Submit and result</h2><p>One immutable common Plan and direct Result carrier.</p><a href="https://github.com/nkiyohara/eqiora/blob/{SOURCE_SHA}/examples/python/exact_cylinder_stokes.py#L51-L67">Eqiora source form: Python resolve/run path</a></section>
 <section><h2>Pressure visualization</h2><figure><img src="/assets/pressure.png" alt="{PRESSURE_ALT}"><figcaption>{checker.PRESSURE_CAPTION}</figcaption></figure></section>
-<section><h2>Reading the pressure plot</h2>{_exact_links()}<a href="/capabilities/#exact-cylinder-steady-stokes">Explore related capabilities</a></section>"""
+<section><h2>Reading the pressure plot</h2>{_exact_links()}<a href="/learn/fluid-mechanics/">Continue with fluid mechanics</a></section>"""
 
 
 def _home_body() -> str:
@@ -706,9 +705,8 @@ def _home_body() -> str:
 <article><p>Featured walkthrough</p><h2>Kármán vortex street</h2><img src="/assets/wake.png" alt="{WAKE_ALT}"><p>Follow one transient cylinder flow from exact geometry through an accepted vorticity field.</p><p>Python</p><p>2D</p><p>transient Navier–Stokes</p><a href="/gallery/karman-vortex-street/">View the wake walkthrough</a></article>
 <article><h2>Get started</h2><p>Learn the Model–Realization boundary and start from bounded examples.</p></article>
 <article><h2>Textbooks</h2><p>Follow the planned path from mathematics and physics to Eqiora models, numerical realization, and interpretation.</p></article>
-<article><h2>Capabilities</h2><p>See what is available, executable, checked, or verified.</p></article>
 <article><h2>Reference</h2><p>Browse exact-commit Python, Rust, and CLI surfaces.</p></article>
-<p>Docs explains how to use Eqiora. Textbooks teach the mathematics, physics, and numerics. Gallery presents complete simulations. Reference records exact APIs and protocols. Capabilities states what runs and the boundary of each claim.</p>
+<p>Docs explains how to use Eqiora. Textbooks teach the mathematics, physics, and numerics. Gallery presents complete simulations. Reference records exact APIs and protocols.</p>
 <p>Release {{python_version}}</p><p>Eqiora is pre-1.0 research software under active development. The capability matrix and verification guide bound what is currently supported; this site does not widen those claims.</p>
 <h2>One source of truth</h2><p>This website is a curated projection, not a parallel specification. Detailed contracts remain in the repository's architecture, RFCs, capability matrix, and validated verify manifests.</p>"""
 
@@ -734,10 +732,9 @@ def _artifact(root: Path, blobs: dict[str, bytes], python_version: str) -> Path:
     pages = {
         "/": _home_body().format(python_version=python_version),
         "/contributing/architecture/": "<h1>Architecture</h1><p>Eqiora architecture.</p>",
-        "/capabilities/": '<h1>Capabilities</h1><h2>Thermal</h2><article id="exact-cylinder-steady-stokes"><h3>Exact-cylinder steady Stokes product path</h3></article><h2>Checking a claim</h2><a href="/evidence/">Technical evidence entry</a>',
         "/guides/how-eqiora-fits-together/": "<h1>Concepts</h1><p>Eqiora concepts.</p>",
         "/contributing/": "<h1>Contributing</h1><p>Contribute to Eqiora.</p>",
-        "/evidence/": '<h1>Checking a claim</h1><h2>Find the source</h2><h2>Run a selected check</h2><a href="/capabilities/">Capabilities</a>',
+        "/evidence/": '<h1>Checking a claim</h1><h2>Find the source</h2><h2>Run a selected check</h2>',
         "/gallery/": '<h1>Gallery</h1><a href="/gallery/exact-cylinder-steady-stokes/">Exact-cylinder steady Stokes</a><a href="/gallery/mixed-boundary-elasticity/">Mixed-boundary linear elasticity</a>',
         "/gallery/exact-cylinder-steady-stokes/": _case_body(),
         "/gallery/mixed-boundary-elasticity/": "<h1>Mixed-boundary linear elasticity</h1><p>Static caller-owned displacement presentation.</p>",

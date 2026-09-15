@@ -103,9 +103,9 @@ class CompleteContractTests(unittest.TestCase):
             (
                 "broken learning route",
                 Path("gallery/exact-cylinder-steady-stokes/index.html"),
-                "/capabilities/#exact-cylinder-steady-stokes",
-                "/capabilities/#missing",
-                "omits the static learning-to-evidence route",
+                "/learn/fluid-mechanics/",
+                "/learn/missing/",
+                "omits the static learning route",
             ),
         )
         for label, relative, accepted, mutant, expected in mutations:

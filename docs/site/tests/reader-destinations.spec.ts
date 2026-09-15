@@ -148,7 +148,7 @@ test('search classifies migrated destinations and displaced routes are absent', 
   await page.getByRole('button', { name: /Search/ }).first().click();
   await page.locator('dialog input.pagefind-ui__search-input').fill('structured failures');
   await expect(page.locator('[data-eq-content-type]').filter({ hasText: 'Content type: Guide' }).first()).toBeVisible();
-  for (const route of ['/textbooks/', '/python/', '/api/', '/examples/', '/concepts/', '/architecture/', '/gallery/transient-cylinder-startup/']) {
+  for (const route of ['/textbooks/', '/python/', '/api/', '/examples/', '/concepts/', '/architecture/', '/gallery/transient-cylinder-startup/', '/capabilities/', '/reference/mcp/', '/reference/control-v2/']) {
     expect((await context.request.get(route)).status(), route).toBe(404);
   }
   await context.close();

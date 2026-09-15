@@ -454,7 +454,6 @@ def check_starlight_content(
             ("/gallery/", "Gallery"),
             ("/reference/", "Reference"),
             ("/get-started/", "Get started"),
-            ("/capabilities/", "Capabilities"),
             ("/release-notes/", "Releases"),
             ("/contributing/", "Contributing"),
             ("https://github.com/nkiyohara/eqiora", "GitHub"),
@@ -470,15 +469,8 @@ def check_starlight_content(
         if ("/evidence/", "Evidence") in anchors:
             errors.append("technical Evidence catalog remains in primary navigation")
 
-    capabilities_value = inspections.get(artifact / "capabilities/index.html")
     learn_value = inspections.get(artifact / "learn/index.html")
     evidence_value = inspections.get(artifact / "evidence/index.html")
-    if capabilities_value:
-        capabilities = capabilities_value[1]
-        required = ("Capabilities", "Thermal")
-        for phrase in required:
-            if phrase not in capabilities.visible_text:
-                errors.append(f"capabilities landing omits {phrase!r}")
     if learn_value:
         for phrase in ("Start a learning path", "Browse by topic"):
             if phrase not in learn_value[1].visible_text:
@@ -530,7 +522,7 @@ def check_starlight_content(
         for phrase in ("Checking a claim", "Find the source", "Run a selected check"):
             if phrase not in evidence.visible_text:
                 errors.append(f"verification guide omits {phrase!r}")
-    if capabilities_value and learn_value and case_value and evidence_value:
+    if learn_value and case_value:
         route_chain = (
             (
                 learn_value[1],
@@ -539,16 +531,11 @@ def check_starlight_content(
             ),
             (
                 case_value[1],
-                "/capabilities/#exact-cylinder-steady-stokes",
+                "/learn/fluid-mechanics/",
                 "Gallery walkthrough",
-            ),
-            (
-                capabilities_value[1],
-                "/evidence/",
-                "capability summary",
             ),
         )
         for page, href, label in route_chain:
             if href not in {anchor for anchor, _ in page.anchors}:
-                errors.append(f"{label} omits the static learning-to-evidence route {href}")
+                errors.append(f"{label} omits the static learning route {href}")
     return errors

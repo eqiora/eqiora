@@ -52,7 +52,6 @@ STAGES = (
 ST_STARLIGHT_ROUTES = (
     "/",
     "/contributing/architecture/",
-    "/capabilities/",
     "/guides/how-eqiora-fits-together/",
     "/contributing/",
     "/evidence/",
@@ -180,7 +179,7 @@ ABSENT_REFERENCES = (
 NAVIGATION = (
     '<nav class="sidebar"><a href="/learn/">Learn</a><a href="/guides/">Guides</a>'
     '<a href="/gallery/">Gallery</a><a href="/reference/">Reference</a>'
-    '<a href="/get-started/">Get started</a><a href="/capabilities/">Capabilities</a>'
+    '<a href="/get-started/">Get started</a>'
     '<a href="/release-notes/">Releases</a>'
     '<a href="/contributing/">Contributing</a>'
     '<a href="https://github.com/nkiyohara/eqiora">GitHub</a></nav>'
@@ -302,7 +301,7 @@ relation incompressibility on fluid {
         + sentinel,
         f'<figure><img src="{PRESSURE_PATH}" alt="{PRESSURE_ALT}"><figcaption>'
         f"{PRESSURE_CAPTION}</figcaption></figure>",
-        '<a href="/capabilities/#exact-cylinder-steady-stokes">Read the human capability boundary</a>'
+        '<a href="/learn/fluid-mechanics/">Continue with fluid mechanics</a>'
         + " ".join(links),
     )
     sections = "".join(

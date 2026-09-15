@@ -20,7 +20,6 @@ export const DIAGNOSTIC_ROUTE = '/reference/rust/api/eqiora/struct.Diagnostic.ht
 export const SITE_ROUTES = [
   '/',
   '/contributing/architecture/',
-  '/capabilities/',
   '/guides/how-eqiora-fits-together/',
   '/contributing/',
   '/evidence/',
@@ -148,7 +147,6 @@ export const TABLE_ROUTES = [
   { route: '/learn/mathematical-modeling/models-not-simulations/', tables: 1, direct: 1, component: 0 },
   { route: '/learn/mathematical-modeling/algebraic-relations-networks/', tables: 1, direct: 1, component: 0 },
   { route: '/learn/mathematical-modeling/fields-spatial-domains/', tables: 2, direct: 2, component: 0 },
-  { route: '/capabilities/', tables: 1, direct: 1, component: 0 },
   { route: '/evidence/', tables: 0, direct: 0, component: 0 },
   { route: '/gallery/exact-cylinder-steady-stokes/', tables: 0, direct: 0, component: 0 },
   { route: '/reference/language/', tables: 1, direct: 1, component: 0 },
@@ -212,8 +210,8 @@ export function createOrdinaryRoutePlan(): OrdinaryRoutePlan {
 
 export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly string[] {
   if (REFERENCE_START < 1) throw new Error('route authority missing /reference/');
-  if (SITE_ROUTES.length !== 100 || new Set(SITE_ROUTES).size !== 100) {
-    throw new Error('route authority is not 100 unique entries');
+  if (SITE_ROUTES.length !== 99 || new Set(SITE_ROUTES).size !== 99) {
+    throw new Error('route authority is not 99 unique entries');
   }
   const entries = (['A', 'B', 'C'] as const).flatMap((chunk) =>
     plan[chunk].map((route) => ({ chunk, route })),
@@ -231,7 +229,7 @@ export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly strin
   if (missing) throw new Error(`ORDER-MISSING: ${missing}`);
 
   const expected = createOrdinaryRoutePlan();
-  const cardinalities = { A: 1, B: 15, C: 84 } as const;
+  const cardinalities = { A: 1, B: 14, C: 84 } as const;
   for (const chunk of ['A', 'B', 'C'] as const) {
     if (plan[chunk].length !== cardinalities[chunk]) {
       throw new Error(`ORDER-CARDINALITY ${chunk}: ${plan[chunk].length}`);
@@ -243,12 +241,12 @@ export function assertOrdinaryRoutePlan(plan: OrdinaryRoutePlan): readonly strin
       throw new Error(`ORDER-REORDER ${chunk}`);
     }
   }
-  if (entries.length !== 100 || seen.size !== 100) {
-    throw new Error('ORDER-UNION is not exactly 100 entries');
+  if (entries.length !== 99 || seen.size !== 99) {
+    throw new Error('ORDER-UNION is not exactly 99 entries');
   }
 
   const byRoute = new Map(entries.map((entry) => [entry.route, entry]));
-  if (byRoute.size !== 100) throw new Error('ORDER-CANONICAL duplicate identity');
+  if (byRoute.size !== 99) throw new Error('ORDER-CANONICAL duplicate identity');
   const canonical = SITE_ROUTES.map((route) => {
     const entry = byRoute.get(route);
     if (!entry) throw new Error(`ORDER-CANONICAL missing: ${route}`);

@@ -74,7 +74,6 @@ SITE_ORIGIN = "https://eqiora.org"
 STARLIGHT_ROUTES = {
     "/": "index.html",
     "/contributing/architecture/": "contributing/architecture/index.html",
-    "/capabilities/": "capabilities/index.html",
     "/guides/how-eqiora-fits-together/": "guides/how-eqiora-fits-together/index.html",
     "/contributing/": "contributing/index.html",
     "/evidence/": "evidence/index.html",
