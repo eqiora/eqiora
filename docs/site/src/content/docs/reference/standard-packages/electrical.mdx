@@ -1,6 +1,6 @@
 ---
 title: Electrical components
-description: An exact bundled voltage divider with 4 mA current and an 8 V midpoint.
+description: Build and run an ideal voltage divider with reusable sources, resistors, and ground.
 editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/standard-packages/electrical.mdx
 ---
 
@@ -8,14 +8,14 @@ import { Code } from '@astrojs/starlight/components';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 import circuit from '../../../../../../../examples/voltage-divider/src/main.eqi?raw';
 
-[Standard sources](/reference/standard-packages/) · [Install this source revision](/get-started/#install-with-uv)
+[Standard packages](/reference/standard-packages/) · [Install Eqiora](/get-started/)
 
-Canonical owner: <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Electrical.Basic/src/basic.eqi">Electrical.Basic / basic.eqi</ExactSourceLink>.
-Its `Pin` is a scalar-physical connector: across is voltage in V, through is
+Open the equations: <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Electrical.Basic/src/basic.eqi">Electrical.Basic / basic.eqi</ExactSourceLink>.
+Its `Pin` is a conserving connector: across is voltage in V, through is
 current into the component in A. The declaration spells dimensions in
 [SI base units](/reference/language/units/).
 
-| Declaration | Required parameter | Ports and mathematical contract |
+| Declaration | Required parameter | Ports and equations |
 |---|---|---|
 | `IdealVoltageSource` | `voltage`, V | `positive`, `negative`: fixes their voltage difference and conserves current |
 | `Resistor` | `resistance`, ohm | `positive`, `negative`: voltage difference equals resistance times positive-port current; conserves current |
@@ -25,13 +25,13 @@ These are ideal, time-independent declarations. Ground fixes potential, not curr
 
 ## Grounded voltage divider
 
-<Code code={circuit} lang="eqiora" title="electrical.eqi" />
+<Code code={circuit} lang="eqiora" title="electrical.eqi — complete model" />
 
 The supply fixes 12 V across two series resistors, 1 kΩ and 2 kΩ.
 Ohm's law and current conservation give `12 / (1000 + 2000) = 0.004 A`;
 the midpoint is `0.004 * 2000 = 8 V` relative to ground.
-The common Result evaluates typed current, voltage and power Observables.
-Observation adds no equation.
+The `observable` declarations name current, voltage, and power measurements.
+They add no equations.
 
 After [installing Eqiora](/get-started/#install-with-uv), save the source above
 as `electrical.eqi` and run:
@@ -62,30 +62,22 @@ plan = eqiora.resolve(model, solve=eqiora.solve.Linear(
 result = eqiora.run(plan, state=eqiora.State.initial(plan))
 print(result.observe(model.observable("current")).value)   # 0.004 A
 print(result.observe(model.observable("midpoint")).value)  # 8 V
-replayed = eqiora.Plan.from_bytes(plan.to_bytes())
-assert replayed.identity == plan.identity
-
-# Keep the exact closure for offline reopening.
-vendor = project / "vendor"
-vendor.mkdir(exist_ok=True)
-eqiora.vendor_project(project, store, vendor)
-resolution = eqiora.open_project(project, vendor)
-model = eqiora.compile_package(vendor, resolution, entry="VoltageDivider")
 ```
 
-The distribution supplies the exact library source. The ordinary package lock
-contains the caller and `Eqiora.Electrical.Basic@0.1.0`; this operation requires
-no network fetch or provider installation. The explicit solver policy belongs to
-the Plan, independently of resistance, voltage and Model meaning. This steady algebraic solve needs no time horizon.
+The current is 0.004 A and the midpoint voltage is 8 V. Read `upper_power`,
+`lower_power`, and `source_power` in the same way: the resistors dissipate 0.016 W
+and 0.032 W, while the source absorbs −0.048 W. Their sum is zero.
 
-The final lines vendor the closure for offline use. After moving the project,
-open it from that vendored store and compile through the same API.
+Ground removes the arbitrary voltage offset. Removing it leaves the circuit
+without a potential reference; it does not impose a zero-current condition.
+The numerical solver settings are separate from the voltage and resistance inputs.
+This steady algebraic model needs no time horizon.
 
-The installed-package product test checks the analytic values and power balance,
-Plan/Result replay, and vendored reopening after deleting the original store. Removing the entire
-ground rejects resolution. This is one bounded real-scalar, time-independent
-reference circuit; it makes no general nonlinear circuit solver claim.
+For offline reuse, [vendor the project dependencies](/reference/standard-packages/#source-and-installation-boundary).
+For a step-by-step derivation, read
+[the resistor divider](/learn/circuits-dynamics/resistor-divider/) and
+[conserving networks](/learn/circuits-dynamics/conserving-networks/).
 
-<ExactSourceLink kind="blob" path="examples/voltage-divider/src/main.eqi">Example source</ExactSourceLink>
-· <ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Electrical.Basic/README.md">Canonical declaration and package description</ExactSourceLink>
-· Next: [Continuum laws and boundaries](/reference/standard-packages/continuum/)
+<ExactSourceLink kind="blob" path="examples/voltage-divider/src/main.eqi">Model source</ExactSourceLink>
+· <ExactSourceLink kind="blob" path="examples/voltage-divider/run.py">Complete Python runner</ExactSourceLink>
+· [Continuum components](/reference/standard-packages/continuum/)

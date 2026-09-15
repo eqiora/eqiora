@@ -1,53 +1,62 @@
 ---
 title: Sampled controls
-description: Supplied-clock delay and discrete integration with explicit initial memory and output timing.
-editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/standard-packages/controls.mdx
+description: Delay samples and integrate scalar rates with a shared clock and explicit initial memory.
 ---
 
+import { Code } from '@astrojs/starlight/components';
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import blocks from '../../../../../../../crates/eqiora-api/packages/Eqiora.Controls.Sampled/src/sampled.eqi?raw';
+import example from './_examples/sampled.eqi?raw';
 
-[Standard sources](/reference/standard-packages/) · [Install with uv](/get-started/#install-with-uv)
+[Standard packages](/reference/standard-packages/)
 
-<ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Controls.Sampled/src/sampled.eqi">Eqiora.Controls.Sampled</ExactSourceLink>
-contains ordinary real-scalar components.
-Every occurrence borrows the caller's exact clock and owns one initialized memory.
+`Eqiora.Controls.Sampled` supplies a unit delay and a discrete integrator.
+Each occurrence uses the caller's clock and owns one initialized memory.
 
-| Component | Inputs | Outputs at the tick |
+| Component | Input | Tick outputs |
 |---|---|---|
-| `UnitDelay` | `u: 1` | `y = pre(memory)`; commits `next(memory) = u` |
-| `DiscreteIntegrator` | `rate: 1/s` | `before = pre(memory)` and `after = next(memory)`; commits `pre(memory) + period(tick) * rate` |
+| `UnitDelay` | `u: 1` | `y` is the previous memory; current `u` becomes the next memory |
+| `DiscreteIntegrator` | `rate: 1 / s` | `before` is old memory; `after` is old memory plus period times rate |
 
-Both require `clock tick: periodic` and `parameter initial_value: 1`. There is
-no default period or default initial value. The integrator's named endpoints let
-you explicitly choose the old or updated value without adding another state.
-All tick equations are simultaneous, regardless of their written order.
+## Compose a sampled model
 
-For initial memory 3 and rates `[2, -1, 3] /s`, quarter-second ticks publish
-`before = [3, 3.5, 3.25]` and `after = [3.5, 3.25, 4]`. Half-second ticks instead
-publish `[3, 4, 3.5]` and `[4, 3.5, 5]`. A delay initialized to 5 publishes
-`[5, 2, -1]` for either period. These sequences include the first tick at zero;
-no output sample exists before that tick.
+<Code code={example} lang="eqiora" title="sampled.eqi" />
 
-## Physical units through explicit adapters
+The first tick is at zero and the period is 1/4 s. With input samples
+`[2, -1, 3]`, `delayed` is `[5, 2, -1]`. With rate samples `[2, -1, 3] /s`,
+`accumulated` is `[3.5, 3.25, 4]`. Select `integral.before` instead of
+`integral.after` to observe memory before the current increment.
 
-The current blocks specialize real, dimensionless scalar memory.
-For a physical quantity, divide its signal and rate by a fixed nonzero scale
-with that quantity's dimension, normalize initial memory with the same scale,
-and multiply the selected output by the scale. The compiler checks these
-ordinary equations; there is no implicit unit cast.
+Place this source in `src/main.eqi` of a local project and add
+`Eqiora.Controls.Sampled` at version `0.1.0` using the
+[package workflow](/reference/standard-packages/#source-and-installation-boundary).
+Compile with `entry="SampledSignals"`.
+The <ExactSourceLink kind="tree" path="examples/standard-sampled-components">complete sampled-controls example</ExactSourceLink>
+shows how to supply timestamped values and run an `execution_session`.
 
-The executable
-<ExactSourceLink kind="tree" path="examples/standard-sampled-components">voltage and displacement example</ExactSourceLink>
-uses 2 V and 0.5 m scales with distinct input sequences. Its local adapters contain no memory. It demonstrates
-both periods, typed V/s and m/s rates, and the installed Python
-`add_bundled_dependency` → `compile_package` → `execution_session` path. The exact
-dependency closure contains only the caller and `Eqiora.Controls.Sampled@0.1.0`.
-The example README supplies the complete commands after installation with uv.
+## Open the equations
 
-The clock is owned by the caller Model and supplied to each block occurrence.
-Equal periods do not make distinct clock identities interchangeable. Supply
-sampled inputs on the same clock; these blocks do not convert continuous or
-foreign-clock signals implicitly.
+<Code code={blocks} lang="eqiora" title="sampled.eqi — library definitions" />
 
-<ExactSourceLink kind="blob" path="crates/eqiora-api/packages/Eqiora.Controls.Sampled/README.md">Package contract</ExactSourceLink>
-· [Clock and state semantics](/reference/language/equations/)
+`initial_value` and `tick` are required bindings. The integrator uses the supplied
+period, so changing the period changes its increment. No output sample exists
+before the first tick. All equations at a tick hold simultaneously.
+
+## Physical quantities
+
+These blocks use dimensionless memory. To integrate a physical rate, choose a
+fixed nonzero scale in the desired output unit. Divide the physical rate by the
+scale, use a dimensionless initial value, and multiply the output by the same scale.
+For example, with a 2 V scale, 4 V/s becomes `2 /s`; a quarter-second step
+increases normalized memory by 0.5 and physical voltage by 1 V.
+
+The <ExactSourceLink kind="tree" path="examples/standard-sampled-components">example project</ExactSourceLink>
+contains voltage and displacement adapters. They are ordinary equations and
+introduce no additional state.
+
+Inputs must use the same clock as their receiving blocks. Two separate clocks
+with equal periods remain different clocks; sharing `tick` makes the intended
+activation explicit.
+
+[Clock syntax](/reference/language/equations/#periodic-state)
+· [State and storage](/learn/circuits-dynamics/decay-and-storage/)

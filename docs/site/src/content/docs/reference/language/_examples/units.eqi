@@ -1,5 +1,9 @@
 dimension Pressure = kg / (m * s ^ 2);
-model PressureInput(parameter pressure: Pressure = 210e9) {
+
+model UnitInputs() {
+  parameter pressure: Pressure = 210[GPa];
+  parameter duration: s = 10[ms];
+  parameter resistance: Ohm = 2[kOhm];
   variable measured: Pressure;
-  relation specified { measured - pressure = 0; }
+  relation specified { measured = pressure; }
 }
