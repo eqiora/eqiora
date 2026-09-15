@@ -6,7 +6,7 @@ description: Follow worked examples from model definition to plots and result in
 import GalleryGrid from '../../../components/gallery/GalleryGrid.astro';
 import pressureImage from '../../../assets/gallery/exact-cylinder-pressure-thumbnail.png';
 import displacementImage from '../../../assets/gallery/mixed-boundary-elasticity-displacement.png';
-import startupPoster from '../../../assets/gallery/transient-cylinder-startup-poster.png';
+import wakePoster from '../../../assets/gallery/karman-vortex-street-poster.png';
 
 Choose a worked example to define a model, run it in Python, and interpret
 the resulting fields.
@@ -14,12 +14,12 @@ the resulting fields.
 <GalleryGrid
   cards={[
     {
-      href: '/gallery/transient-cylinder-startup/',
-      title: 'Transient cylinder-flow startup',
-      description: 'Ten startup outputs showing vorticity and its change near the cylinder.',
-      imageSrc: startupPoster.src,
-      imageAlt: 'Final cell-average vorticity and its change from the first transient cylinder-flow startup output.',
-      tags: ['Python', '2D', 'transient'],
+      href: '/gallery/karman-vortex-street/',
+      title: 'Kármán vortex street',
+      description: 'Transient cylinder flow visualized through its evolving vorticity field.',
+      imageSrc: wakePoster.src,
+      imageAlt: 'Cell-average vorticity in a Kármán vortex street behind a circular cylinder.',
+      tags: ['Unverified example', '2D', 'Navier–Stokes'],
     },
     {
       href: '/gallery/exact-cylinder-steady-stokes/',

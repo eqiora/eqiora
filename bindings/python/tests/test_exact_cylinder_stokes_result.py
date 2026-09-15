@@ -214,7 +214,7 @@ def test_profile_reports_common_and_sparse_lu_phases_without_changing_the_plan()
         reduction=eqiora.solve.Reduction.Fast,
         provider=eqiora.solve.SolverProvider.faer(),
         relative_tolerance=1.0e-6,
-        absolute_tolerance=1.0e-9,
+        absolute_tolerance=1.0e-12,
         maximum_iterations=20_000,
     )
     plan = eqiora.resolve(

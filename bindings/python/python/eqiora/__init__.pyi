@@ -1754,7 +1754,11 @@ class ProfilePhase:
 
 @final
 class ProfileEvent:
-    """Structured metadata for one phase or solver observation.
+    """Structured metadata for a retained phase or solver observation.
+
+    Occurrence-bearing phases retain every event. Aggregate-only phase
+    identities retain one representative event while ``ProfilePhase.calls``
+    records their full count.
 
     Authority: ``crates/eqiora-python/src/profile.rs::PyProfileEvent``.
     """

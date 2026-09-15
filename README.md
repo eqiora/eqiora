@@ -38,17 +38,18 @@
 
 ## 🔬 See the physics
 
-**Pressure around a circular obstacle.** This steady-Stokes example starts with
-an exact geometry and a mathematical model, then produces a pressure field,
-boundary forces, and fluxes with Python.
+**A Kármán vortex street behind a circular obstacle.** This transient
+Navier–Stokes example starts with exact channel geometry, advances the wake,
+and visualizes cell-average vorticity with Python. It is an **unverified product
+example**; no cylinder benchmark validation is claimed.
 
-[![Fine-mesh exact-cylinder steady-Stokes pressure field](docs/site/src/assets/gallery/exact-cylinder-pressure-presentation.png)](https://eqiora.org/gallery/exact-cylinder-steady-stokes/)
+[![Cell-average vorticity in a Kármán vortex street behind a circular cylinder](docs/site/src/assets/gallery/karman-vortex-street-poster.png)](https://eqiora.org/gallery/karman-vortex-street/)
 
 | Explore | Inside the walkthrough |
 | --- | --- |
-| 🌊 [Flow past a cylinder](https://eqiora.org/gallery/exact-cylinder-steady-stokes/) | Exact geometry, Gmsh meshing, steady Stokes, pressure and boundary observables. |
+| 🎞️ [Kármán vortex street](https://eqiora.org/gallery/karman-vortex-street/) | Transient incompressible flow, vorticity, cylinder force, and pressure observations. |
+| 🌊 [Steady flow past a cylinder](https://eqiora.org/gallery/exact-cylinder-steady-stokes/) | Exact geometry, Gmsh meshing, steady Stokes, pressure and boundary observables. |
 | 🧱 [Linear elasticity](https://eqiora.org/gallery/mixed-boundary-elasticity/) | A constrained solid, mixed boundary conditions, and a displacement field. |
-| 🎞️ [Transient flow startup](https://eqiora.org/gallery/transient-cylinder-startup/) | A ten-step startup demonstration with vorticity and force outputs. |
 
 ## ✨ Why Eqiora?
 

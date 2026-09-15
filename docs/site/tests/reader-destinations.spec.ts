@@ -32,7 +32,7 @@ test('Learn table math retains an accessible alternative and all painted text ch
 const representatives = [
   '/', '/get-started/', '/learn/',
   '/learn/mathematical-modeling/fields-spatial-domains/',
-  '/guides/modeling/', '/gallery/transient-cylinder-startup/',
+  '/guides/modeling/', '/gallery/karman-vortex-street/',
   '/reference/language/', '/contributing/architecture/',
 ];
 
@@ -124,7 +124,7 @@ test('Home to released run to Guide and Learn works with keyboard and no JavaScr
   await page.getByRole('main').getByRole('link', { name: 'Next: Fields and spatial domains' }).click();
   await expect(page.getByRole('heading', { name: '5. Fields and spatial domains', exact: true })).toBeVisible();
   await assertNoPageOverflow(page);
-  await page.goto('/gallery/transient-cylinder-startup/');
+  await page.goto('/gallery/karman-vortex-street/');
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await expect(page.locator('img.eq-gallery-motion__still')).toBeVisible();
   await expect(page.locator('video.eq-gallery-motion__video')).toBeHidden();
@@ -148,7 +148,7 @@ test('search classifies migrated destinations and displaced routes are absent', 
   await page.getByRole('button', { name: /Search/ }).first().click();
   await page.locator('dialog input.pagefind-ui__search-input').fill('structured failures');
   await expect(page.locator('[data-eq-content-type]').filter({ hasText: 'Content type: Guide' }).first()).toBeVisible();
-  for (const route of ['/textbooks/', '/python/', '/api/', '/examples/', '/concepts/', '/architecture/']) {
+  for (const route of ['/textbooks/', '/python/', '/api/', '/examples/', '/concepts/', '/architecture/', '/gallery/transient-cylinder-startup/']) {
     expect((await context.request.get(route)).status(), route).toBe(404);
   }
   await context.close();

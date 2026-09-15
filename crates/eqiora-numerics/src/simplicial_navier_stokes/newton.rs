@@ -278,6 +278,7 @@ where
         reports.push(solution.report().clone());
         let correction = solution.values();
         let mut accepted = None;
+        let mut best_trial = (f64::INFINITY, 0.0);
         let mut scale = 1.0;
         for _ in 0..=plan.maximum_line_search_steps() {
             let candidate = point
@@ -300,6 +301,9 @@ where
                 )?
             };
             let norm = assembled.residual_norm()?;
+            if norm < best_trial.0 {
+                best_trial = (norm, scale);
+            }
             if norm <= residual_target || norm < previous_norm {
                 accepted = Some((candidate, assembled, norm));
                 break;
@@ -307,9 +311,12 @@ where
             scale *= 0.5;
         }
         let Some((candidate, assembled, norm)) = accepted else {
-            return Err(solve_failed(
-                "MINI Navier--Stokes Newton line search failed to decrease the residual",
-            ));
+            return Err(solve_failed(format!(
+                "MINI Navier--Stokes Newton line search failed at iteration {iteration}: \
+                     previous residual {previous_norm:e}, best trial residual {:e} at scale {:e}, \
+                     target {residual_target:e}",
+                best_trial.0, best_trial.1,
+            )));
         };
         point = candidate;
         current = assembled;

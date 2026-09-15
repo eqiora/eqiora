@@ -39,6 +39,7 @@ _ARTIFACT_EXPORTS = (
     "MAX_FILE_BYTES",
     "MAX_TOTAL_BYTES",
     "MAX_HTML_BYTES",
+    "WAKE_SHA256",
     "PRESSURE_SHA256",
     "SOCIAL_SHA256",
     "FAVICON_SHA256",
@@ -49,6 +50,7 @@ _ARTIFACT_EXPORTS = (
     "PRODUCTION_IDENTITIES",
     "ROUTES",
     "SITEMAP_ROUTES",
+    "WAKE_ALT",
     "PRESSURE_ALT",
     "PRESSURE_CAPTION",
     "CASE_SOURCE_PATHS",
@@ -102,12 +104,14 @@ MAX_FILES = _site_artifact.MAX_FILES
 MAX_FILE_BYTES = _site_artifact.MAX_FILE_BYTES
 MAX_TOTAL_BYTES = _site_artifact.MAX_TOTAL_BYTES
 MAX_HTML_BYTES = _site_artifact.MAX_HTML_BYTES
+WAKE_SHA256 = _site_artifact.WAKE_SHA256
 PRESSURE_SHA256 = _site_artifact.PRESSURE_SHA256
 SOCIAL_SHA256 = _site_artifact.SOCIAL_SHA256
 FAVICON_SHA256 = _site_artifact.FAVICON_SHA256
 APPLE_TOUCH_SHA256 = _site_artifact.APPLE_TOUCH_SHA256
 OLD_SOCIAL_SHA256 = _site_artifact.OLD_SOCIAL_SHA256
 OLD_SOCIAL_LINE = _site_artifact.OLD_SOCIAL_LINE
+WAKE_ALT = _site_artifact.WAKE_ALT
 PRESSURE_ALT = _site_artifact.PRESSURE_ALT
 PRESSURE_CAPTION = _site_artifact.PRESSURE_CAPTION
 SiteIdentities = _site_artifact.SiteIdentities
@@ -455,6 +459,13 @@ def check_source(
             errors.append(
                 f"obsolete successor source remains: {obsolete.relative_to(root)}"
             )
+    errors.extend(
+        _site_artifact.check_exact_source(
+            site / "src/assets/gallery/karman-vortex-street-poster.png",
+            identities.wake,
+            "admitted wake poster",
+        )
+    )
     errors.extend(
         _site_artifact.check_exact_source(
             site / "src/assets/gallery/exact-cylinder-pressure-presentation.png",

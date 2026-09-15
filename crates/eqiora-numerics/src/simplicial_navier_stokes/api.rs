@@ -34,9 +34,11 @@ impl MiniNavierStokesStepPlan2d {
     /// Validate one host-reference backward-Euler/Newton plan.
     ///
     /// # Errors
-    /// Returns `EQ0801` for non-positive physical/time data and `EQ0807` when
-    /// the linear policy is not serial identity-preconditioned fast-reduction
-    /// sparse LU. Production preconditioning is intentionally a later claim.
+    /// Returns `EQ0801` for non-positive physical/time data or nested linear
+    /// tolerances that could accept a zero correction above the nonlinear
+    /// target, and `EQ0807` when the linear policy is not serial
+    /// identity-preconditioned fast-reduction sparse LU. Production
+    /// preconditioning is intentionally a later claim.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         density: f64,
@@ -73,6 +75,13 @@ impl MiniNavierStokesStepPlan2d {
         if maximum_line_search_steps > 64 {
             return Err(invalid(
                 "bounded reference line search admits at most 64 halvings",
+            ));
+        }
+        if linear_solver.relative_tolerance() >= 1.0
+            || linear_solver.absolute_tolerance() > nonlinear_absolute_tolerance
+        {
+            return Err(invalid(
+                "MINI Navier--Stokes linear tolerances must require a nonzero correction whenever the nonlinear residual exceeds its target",
             ));
         }
         if linear_solver.algorithm() != LinearSolver::SparseLu
@@ -465,5 +474,48 @@ impl SimplicialMiniNavierStokesTrajectory2d {
     #[must_use]
     pub fn steps(&self) -> &[SimplicialMiniNavierStokesStepEvidence2d] {
         &self.steps
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::num::NonZeroUsize;
+
+    use eqiora_realization::Target;
+    use eqiora_solver::{LinearSolver, ReductionPolicy, SolverPlan};
+
+    use super::MiniNavierStokesStepPlan2d;
+
+    fn plan(
+        linear_relative: f64,
+        linear_absolute: f64,
+    ) -> Result<MiniNavierStokesStepPlan2d, eqiora_core::Diagnostic> {
+        MiniNavierStokesStepPlan2d::new(
+            1.0,
+            1.0e-3,
+            1.0e-2,
+            1.0e-9,
+            1.0e-11,
+            NonZeroUsize::new(8).unwrap(),
+            12,
+            SolverPlan::new(
+                LinearSolver::SparseLu,
+                linear_relative,
+                linear_absolute,
+                NonZeroUsize::new(100).unwrap(),
+            )
+            .unwrap()
+            .with_reduction(ReductionPolicy::Fast),
+            Target::HostCpu {
+                threads: NonZeroUsize::MIN,
+            },
+        )
+    }
+
+    #[test]
+    fn nested_linear_tolerances_cannot_accept_a_zero_newton_correction_above_target() {
+        assert!(plan(1.0e-6, 1.0e-11).is_ok());
+        assert!(plan(1.0e-6, 1.0e-9).is_err());
+        assert!(plan(1.0, 0.0).is_err());
     }
 }

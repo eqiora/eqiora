@@ -27,7 +27,7 @@ export const SITE_ROUTES = [
   '/gallery/',
   '/gallery/exact-cylinder-steady-stokes/',
   '/gallery/mixed-boundary-elasticity/',
-  '/gallery/transient-cylinder-startup/',
+  '/gallery/karman-vortex-street/',
   '/get-started/',
   '/guides/',
   '/guides/run-and-inspect/',

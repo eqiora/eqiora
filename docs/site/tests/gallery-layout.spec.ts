@@ -67,7 +67,7 @@ test('current full figures retain their aspect and the pressure generation is un
     await page.setViewportSize({ width, height: 1000 });
     for (const colorScheme of ['light', 'dark'] as const) {
       await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' });
-      for (const entry of ['exact-cylinder-steady-stokes', 'mixed-boundary-elasticity', 'transient-cylinder-startup']) {
+      for (const entry of ['exact-cylinder-steady-stokes', 'mixed-boundary-elasticity', 'karman-vortex-street']) {
         await page.goto(`/gallery/${entry}/`);
         const figures = page.locator('.eq-result-figure img, .eq-gallery-motion__still');
         for (const figure of await figures.all()) {

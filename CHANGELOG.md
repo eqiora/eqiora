@@ -6,6 +6,32 @@ are recorded here.
 
 ## [Unreleased]
 
+### Added
+
+- Replaced the short cylinder-startup showcase with a Reynolds-100 Kármán
+  vortex-street workflow. The Python and Colab examples retain a developed
+  observation window, cylinder drag and lift coefficients, front-to-rear
+  pressure difference, sampled Strouhal number, and matching accessible site
+  media while keeping the result explicitly outside benchmark validation.
+
+### Changed
+
+- Made the Kármán wake the primary README, documentation-home, and Gallery
+  presentation, with one canonical route and reproducible poster,
+  reduced-motion, WebM, and MP4 assets.
+
+### Fixed
+
+- Rejected nested Newton linear tolerances that could accept a zero correction
+  above the nonlinear target, and made line-search exhaustion report its best
+  attempted residual and scale.
+- Bounded long-run profiling memory by retaining every occurrence-bearing
+  phase and solver event while storing one representative event for phase
+  identities whose complete call count and timing already live in aggregates.
+- Allowed `eqiora.View.add()` to accept scalar cell-associated
+  `DerivedFieldSnapshot` values such as `State.curl(...)`, completing the
+  maintained Colab wake presentation.
+
 ## [0.1.1] - 2026-09-14
 
 ### Added
