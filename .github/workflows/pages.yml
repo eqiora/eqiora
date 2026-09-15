@@ -341,7 +341,8 @@ jobs:
           test -f "$EQIORA_SITE_ARTIFACT/index.html"
           test -f "$EQIORA_SITE_ARTIFACT/pagefind/pagefind.js"
           test -f "$EQIORA_SITE_ARTIFACT/reference/rust/api/eqiora/index.html"
-          test -f "$EQIORA_SITE_ARTIFACT/reference/control-v2/compile-v2.schema.json"
+          test ! -e "$EQIORA_SITE_ARTIFACT/reference/control-v2"
+          test ! -e "$EQIORA_SITE_ARTIFACT/reference/mcp"
           sha256sum docs/site/package.json docs/site/package-lock.json \
             mise.toml mise.lock rust-toolchain.toml .cargo/config.toml uv.lock \
             > "$RUNNER_TEMP/eqiora-site-input-sha256.after"
