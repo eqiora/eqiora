@@ -806,10 +806,7 @@ def _render_landing(
     lines.extend(
         [
             "",
-            "## Types and functions",
-            "",
-            "<details>",
-            "<summary>Browse the complete facade item index</summary>",
+            "## Complete item index",
             "",
             "| Item |",
             "| --- |",
@@ -820,7 +817,7 @@ def _render_landing(
         lines.append(
             f"| {_link(item.path, _item_target(crate, item))} |"
         )
-    lines.extend(["", "</details>", ""])
+    lines.append("")
     return "\n".join(lines)
 
 
