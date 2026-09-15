@@ -15,11 +15,13 @@ traction-free remaining edges, then compare its original and deformed mesh.
 
 ## Before you begin
 
-Follow [Get started](/get-started/) and install the `matplotlib` extra.
-From the matching repository checkout, save a displacement plot with:
+Follow [Get started](/get-started/) and keep its `eqiora-source` checkout and
+`.venv`. From the folder containing both, add plotting support and save the
+computed displacement:
 
 ```bash
-python examples/python/mixed_boundary_elasticity.py --displacement-png displacement.png
+uv pip install --python .venv/bin/python --reinstall-package eqiora './eqiora-source[matplotlib]'
+uv run --no-project --python .venv/bin/python python eqiora-source/examples/python/mixed_boundary_elasticity.py --displacement-png displacement.png
 ```
 
 <NotebookStage id="elasticity-problem" step={1} title="Problem and boundaries" emoji="🧱">
@@ -50,7 +52,7 @@ geometry = graph.build(
 <NotebookStage id="elasticity-model" step={2} title="Eqiora model definition" emoji="🧩">
 
 The `.eqi` component defines displacement, material parameters, load potential,
-equilibrium, and the four abstract supports. With displacement
+equilibrium, the body support and its four boundary supports. With displacement
 $\boldsymbol{u}$, shear modulus $\mu$, Lamé coefficient $\lambda$, and length
 $\ell$, its stress and load are
 
@@ -97,7 +99,7 @@ plan = eqiora.resolve(
 )
 ```
 
-<ExactSourceLink path="examples/python/mixed_boundary_elasticity.py" kind="blob" fragment="L26-L40">Shared compile and resolve workflow</ExactSourceLink>
+<ExactSourceLink path="examples/python/mixed_boundary_elasticity.py" kind="blob" fragment="L26-L53">Shared compile and resolve workflow</ExactSourceLink>
 
 </NotebookStage>
 
@@ -128,7 +130,7 @@ mesh generation, or solve policy.
   caption="Displacement at scale 1, with the undeformed reference mesh shown for comparison."
   units="m"
   sourcePath="examples/python/mixed_boundary_elasticity.py"
-  sourceFragment="L65-L74"
+  sourceFragment="L77-L85"
   sourceLabel="View the plotting path"
 />
 
@@ -143,15 +145,11 @@ Compare the fixed left edge with the displacement toward the loaded interior.
 The equations use small-strain linear elasticity; a visually large deformation
 does not make this a large-deformation material model.
 
-<ExactSourceLink path="verify/interfaces/python-mixed-boundary-elasticity-demo/README.md" kind="blob">Python example details</ExactSourceLink>
-· <ExactSourceLink path="verify/solid/mixed-boundary-elasticity-2d/README.md" kind="blob">Elasticity evidence</ExactSourceLink>
-· [Explore related capabilities](/capabilities/#mixed-boundary-elasticity)
-· [Read the evidence](/evidence/)
+[Explore related capabilities](/capabilities/#mixed-boundary-elasticity)
 
 </NotebookStage>
 
 ## Understand and reproduce the workflow
 
-Read the lessons on [constitutive laws](/learn/mathematical-modeling/constitutive-laws/)
-and [boundary and interface conditions](/learn/mathematical-modeling/boundary-interface-conditions/),
+Derive strain, stress and equilibrium in the [structural-mechanics book](/learn/structural-mechanics/),
 then follow the [same structural model in the Python guide](/guides/modeling/#mixed-boundary-structural-result).

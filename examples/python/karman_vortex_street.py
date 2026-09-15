@@ -1,4 +1,4 @@
-"""Compute and optionally plot an unverified Reynolds-100 Kármán vortex street."""
+"""Compute and optionally plot a Reynolds-100 Kármán vortex street."""
 
 from __future__ import annotations
 

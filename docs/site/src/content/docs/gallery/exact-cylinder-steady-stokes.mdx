@@ -3,7 +3,8 @@ title: Exact-cylinder steady Stokes
 description: Build a two-dimensional steady Stokes flow model and plot pressure around a cylinder.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, Code } from '@astrojs/starlight/components';
+import modelSource from '../../../../../../examples/steady-flow-past-cylinder.eqi?raw';
 import NotebookStage from '../../../components/gallery/NotebookStage.astro';
 import ResultFigure from '../../../components/gallery/ResultFigure.astro';
 import ExactSourceLink from '../../../components/site/ExactSourceLink.astro';
@@ -13,16 +14,18 @@ import pressureImage from '../../../assets/gallery/exact-cylinder-pressure-prese
 [Gallery](/gallery/)
 
 Build a two-dimensional steady Stokes flow model, generate a mesh, and plot
-pressure around a cylinder. The figures show one run; they do not establish
-pressure accuracy or mesh convergence.
+pressure around a cylinder. Connect its pressure field to the balance of
+viscous stress and pressure, then explore how the mesh affects the result.
 
 ## Before you begin
 
-Follow [Get started](/get-started/) to install Eqiora with the `gmsh` and
-`matplotlib` extras. From the matching repository checkout, run:
+Follow [Get started](/get-started/) and keep its `eqiora-source` checkout and
+`.venv`. From the folder containing both, add the mesh and plotting extras,
+then run the example with the same Python environment:
 
 ```bash
-python examples/python/exact_cylinder_stokes.py --pressure-png pressure.png
+uv pip install --python .venv/bin/python --reinstall-package eqiora './eqiora-source[gmsh,matplotlib]'
+uv run --no-project --python .venv/bin/python python eqiora-source/examples/python/exact_cylinder_stokes.py --pressure-png pressure.png
 ```
 
 The following stages explain the code and how to read the saved plot.
@@ -66,8 +69,6 @@ geometry = geometry_graph.build(
 
 <ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob" fragment="L10-L24">Python geometry</ExactSourceLink>
 · <ExactSourceLink path="examples/python/exact_cylinder_geometry.py" kind="blob">exact geometry adapter</ExactSourceLink>
-· <ExactSourceLink path="verify/geometry/exact-circular-hole-geometry/README.md" kind="blob">Geometry details</ExactSourceLink>
-· <ExactSourceLink path="verify/interfaces/python-exact-circular-hole-geometry/README.md" kind="blob">Python geometry details</ExactSourceLink>
 
 </NotebookStage>
 
@@ -93,22 +94,10 @@ $\phi=0\,\mathrm{Pa}$, and pressure has source unit
 
 **Eqiora source form**
 
-```eqiora
-relation momentum on body {
-  -div(
-    2 * dynamic_viscosity * symmetric_part(grad(velocity))
-    - isotropic_lift(pressure)
-  ) - grad(force_potential) = 0;
-}
-relation incompressibility on body {
-  div(velocity) = 0;
-}
-```
+<Code code={modelSource} lang="eqiora" title="steady-flow-past-cylinder.eqi" />
 
-<ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi" kind="blob">Eqiora source form: packaged incompressible component</ExactSourceLink>
-· <ExactSourceLink path="verify/fluid/packaged-steady-stokes-2d/package-v0.1.0/src/incompressible.eqi" kind="blob">Incompressible model example</ExactSourceLink>
-· <ExactSourceLink path="verify/fluid/packaged-steady-stokes-2d/README.md" kind="blob">Stokes model details</ExactSourceLink>
-· <ExactSourceLink path="verify/fluid/packaged-steady-stokes-2d/models/direct.eqi" kind="blob">Direct Stokes model example</ExactSourceLink>
+<ExactSourceLink path="examples/steady-flow-past-cylinder.eqi" kind="blob">Complete cylinder model</ExactSourceLink>
+· <ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Fluid.Incompressible/src/incompressible.eqi" kind="blob">Reusable incompressible balance component</ExactSourceLink>
 
 Compile the component with the geometry used for meshing:
 
@@ -131,7 +120,7 @@ model = eqiora.compile(
 )
 ```
 
-<ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob" fragment="L33-L44">Eqiora source form: Python compile path</ExactSourceLink>
+<ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob" fragment="L33-L50">Eqiora source form: Python compile path</ExactSourceLink>
 
 </NotebookStage>
 
@@ -149,34 +138,12 @@ $$
 At the outlet, $\operatorname{normal}(\boldsymbol{\sigma})=0$. The walls and
 cylinder use $\boldsymbol{u}=0$.
 
-**Eqiora source form**
+The full source above attaches these relations to `fluid`, `inlet`, `outlet`,
+`walls`, and `cylinder`. At the left inlet, the outward normal points left,
+so `trace(velocity) + normal(isotropic_lift(inlet_profile)) = 0` directs flow
+into the channel. The outlet law balances pressure and viscous traction together;
+it does not separately prescribe zero pressure and zero velocity gradient.
 
-```eqiora
-relation inlet_profile_definition on body {
-  inlet_profile
-    - 4 * inlet_speed * coordinate(1) * (channel_height - coordinate(1))
-      / channel_height ^ 2 = 0;
-}
-relation inlet_velocity on x_lower {
-  trace(velocity) + normal(isotropic_lift(inlet_profile)) = 0;
-}
-relation outlet_traction on x_upper {
-  normal(
-    2 * dynamic_viscosity * symmetric_part(grad(velocity))
-    - isotropic_lift(pressure)
-  ) = 0;
-}
-relation lower_wall on y_lower { trace(velocity) = 0; }
-relation upper_wall on y_upper { trace(velocity) = 0; }
-```
-
-**Cylinder and wall condition**
-
-```text
-walls_and_cylinder: trace(u) = [0, 0] m/s
-```
-
-<ExactSourceLink path="examples/steady-flow-past-cylinder.eqi" kind="blob">Eqiora source form: application boundary relations</ExactSourceLink>
 Request at most 50 circular-boundary facets, then generate the mesh:
 
 ```python
@@ -229,7 +196,7 @@ plan = eqiora.resolve(
 result = eqiora.run(plan)
 ```
 
-<ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob" fragment="L45-L57">Eqiora source form: Python resolve/run path</ExactSourceLink>
+<ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob" fragment="L51-L67">Eqiora source form: Python resolve/run path</ExactSourceLink>
 
 </NotebookStage>
 
@@ -261,16 +228,14 @@ upstream and downstream of the cylinder. This steady Stokes model omits
 inertial effects, so use the transient example to explore evolving flow.
 
 [Explore related capabilities](/capabilities/#exact-cylinder-steady-stokes)
-· [Read the evidence](/evidence/)
-· <ExactSourceLink path="verify/geometry/exact-circular-hole-geometry/README.md" kind="blob">exact geometry</ExactSourceLink>
 · <ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob">View plain Python example</ExactSourceLink>
 
 </NotebookStage>
 
 ## Understand and reproduce the workflow
 
-Learn about [fields and spatial domains](/learn/mathematical-modeling/fields-spatial-domains/)
-and [boundary conditions](/learn/mathematical-modeling/boundary-interface-conditions/).
+Derive the model in [Stokes flow and boundaries](/learn/fluid-mechanics/stokes-and-boundaries/)
+and study [pressure coupling and refinement](/learn/fluid-mechanics/computing-incompressible-flow/).
 The [modeling guide](/guides/modeling/#exact-cylinder-steady-stokes-result)
 explains the same cylinder problem's Python execution; the
 [Language reference](/reference/language/) defines its equation syntax.
