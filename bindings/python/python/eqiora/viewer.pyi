@@ -5,9 +5,10 @@ Authority: ``bindings/python/python/eqiora/viewer.py``.
 
 from typing import Self
 
-from . import DerivedFieldSnapshot, FieldOutput
+from . import FieldOutput
 from .geometry import Geometry
 from .meshing import Mesh
+from .trajectory import DerivedFieldSnapshot
 
 class View:
     """Disposable typed viewer scene; its transport is private and unstable.

@@ -25,7 +25,7 @@ MALFORMED_RETIRED_SCHEMA_SPECIMEN = b'{"schema":"eqiora.model-envelope/v7"}'
 def test_distribution_version_is_native_and_matches_installed_metadata() -> None:
     import eqiora
 
-    assert eqiora.__version__ == metadata.version("eqiora") == "0.1.1"
+    assert eqiora.__version__ == metadata.version("eqiora") == "0.1.2"
 
 
 def test_base_import_does_not_load_optional_numerical_frameworks() -> None:

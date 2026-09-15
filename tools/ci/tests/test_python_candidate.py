@@ -1069,6 +1069,19 @@ invalid candidate
         self.assertIn(
             Path("examples/python/coupled_scalar.py"), PYTHON_TEST_RESOURCES
         )
+        for relative in (
+            Path("examples/python/karman_vortex_street.py"),
+            Path("examples/python/karman_vortex_street_colab.ipynb"),
+            Path("docs/site/src/content/docs/gallery/karman-vortex-street.mdx"),
+            Path("docs/site/src/content/docs/gallery/index.mdx"),
+            Path("docs/site/src/components/site/Home.astro"),
+            Path("tools/site/produce_karman_vortex_street_media.py"),
+            Path("docs/site/src/assets/gallery/karman-vortex-street-poster.png"),
+            Path("docs/site/src/assets/gallery/karman-vortex-street-reduced-motion.png"),
+            Path("docs/site/src/assets/gallery/karman-vortex-street.webm"),
+            Path("docs/site/src/assets/gallery/karman-vortex-street.mp4"),
+        ):
+            self.assertIn(relative, PYTHON_TEST_RESOURCES)
         # Controls tests use the maintained adapter, but load the package from the wheel.
         self.assertIn(
             Path("examples/standard-sampled-components/src/main.eqi"),

@@ -92,9 +92,10 @@ case inventory, and selected Python, Studio, dependency-policy, or isolated-expe
 Use it for a high-risk integration boundary, an anomaly, or uncertainty that focused checks
 cannot resolve.
 
-`periodic` runs the full current-machine workspace, registered cases, MSRV, dependency policy,
-Python, Studio, and isolated experiments. Use it for a release, an unknown affected closure, or
-a concrete process investigation. It is not a calendar task.
+`periodic` runs the full current-machine workspace, all `host-cpu` registered cases, MSRV,
+dependency policy, Python, Studio, and isolated experiments. It validates every case manifest but
+reports evidence for other environments as `not-selected`. Use it for a release, an unknown
+affected closure, or a concrete process investigation. It is not a calendar task.
 
 Default tiers do not prove optional MPI, CUDA, Diffsol, browser, or other environment-specific
 claims. Run the matching case or documented environment command when the delta changes one of

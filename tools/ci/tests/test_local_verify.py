@@ -161,6 +161,20 @@ class PlanTests(unittest.TestCase):
         self.assertIn("--all-features", msrv.argv)
         self.assertIn("--locked", msrv.argv)
 
+    def test_periodic_runs_only_host_cpu_evidence(self) -> None:
+        plan = build_plan("periodic", [], [], workspace())
+        evidence = next(
+            item for item in plan.commands if item.label == "All registered evidence"
+        )
+        self.assertEqual(
+            evidence.argv,
+            (*EVIDENCE_RUN_PREFIX, "--environment", "host-cpu"),
+        )
+        self.assertIn(
+            "Physical MPI-CUDA, multi-node MPI, and GPU evidence requires an explicit matching environment run.",
+            plan.limitations,
+        )
+
     def test_site_only_changes_select_source_check_without_building(self) -> None:
         expected = (
             sys.executable, "tools/site/check_site.py", "source", "--root", "."

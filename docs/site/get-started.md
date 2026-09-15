@@ -10,7 +10,7 @@ Create a clean environment and install the exact release:
 ```bash
 python -m venv .venv
 . .venv/bin/activate
-python -m pip install eqiora==0.1.1
+python -m pip install eqiora==0.1.2
 ```
 
 ## Build and run a model
