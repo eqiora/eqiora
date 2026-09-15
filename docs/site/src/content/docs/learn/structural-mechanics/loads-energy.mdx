@@ -1,0 +1,173 @@
+---
+title: 1. Loads, supports and elastic energy
+description: Derive the extension, reaction and stored energy of a tensile bar before introducing a mesh.
+sidebar:
+  order: 1
+---
+
+## How far will the end move?
+
+A straight bar is fixed at its left end and pulled to the right by a force $F$.
+If the material is twice as stiff, does the support reaction double? Does the
+extension halve? We can answer both questions before constructing a numerical
+model.
+
+<figure>
+  <svg viewBox="0 0 680 220" role="img" aria-labelledby="bar-title bar-desc" style="width:100%;height:auto">
+    <title id="bar-title">Axial bar and its free body</title>
+    <desc id="bar-desc">A horizontal bar of length L and cross-sectional area A is fixed on the left. An applied force F points right at its right end. The support reaction R points left. The x coordinate increases to the right.</desc>
+    <g fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M150 45 V145 M150 50 L130 70 M150 75 L130 95 M150 100 L130 120 M150 125 L130 145" />
+      <rect x="150" y="65" width="350" height="60" />
+      <path d="M500 95 H600 M600 95 L585 87 M600 95 L585 103 M150 95 H60 M60 95 L75 87 M60 95 L75 103" />
+      <path d="M150 170 H500 M150 160 V180 M500 160 V180 M545 180 H610 M610 180 L599 173 M610 180 L599 187" />
+    </g>
+    <g fill="currentColor" font-size="18" text-anchor="middle">
+      <text x="325" y="102">area A; Young's modulus E</text>
+      <text x="570" y="74">F</text><text x="90" y="74">R</text>
+      <text x="325" y="198">length L</text><text x="628" y="186">x</text>
+    </g>
+  </svg>
+  <figcaption>Conceptual free-body sketch, not a computed deformation. Both forces act on the bar; their signed sum is zero.</figcaption>
+</figure>
+
+Assume a uniform cross-section $A$, length $L$, an axial load through its center,
+and slow loading so acceleration is negligible. We describe the interior away
+from the detailed grip by uniform axial stress. Strains are small, the material
+is homogeneous, and its axial response is linear elastic.
+
+## Three different ingredients
+
+**Equilibrium.** Taking rightward forces as positive, the complete bar satisfies
+$R+F=0$. Cut it at a position $x$. The tensile internal force $N(x)$ must balance
+the end load, so $N=F$ throughout the bar. The axial stress is
+$\sigma=N/A=F/A$, measured in pascals: $1\,\mathrm{Pa}=1\,\mathrm{N/m^2}$.
+
+**Kinematics.** Let $u(x)$ be displacement in metres, with $u(0)=0$. Two nearby
+points initially separated by $\mathrm{d}x$ acquire a separation change
+$u'(x)\mathrm{d}x$. The axial strain is therefore $\varepsilon=u'(x)$, a
+dimensionless ratio.
+
+**Material law.** For the chosen linear elastic material,
+$\sigma=E\varepsilon$, with Young's modulus $E$ in pascals. Equilibrium alone
+cannot supply $E$ or decide whether this law fits a specimen. These scalar
+definitions and Hooke's law are developed in Roylance's
+[Introduction to Elasticity, pp. 4–6](https://ocw.mit.edu/courses/3-11-mechanics-of-materials-fall-1999/e8b60e8a1efb6e7275372cc77f23ae9b_MIT3_11F99_elas_1.pdf).
+
+Combining the three ingredients gives
+
+$$
+EAu'(x)=F,\qquad
+u(x)=\frac{F}{EA}x,\qquad
+\delta=u(L)=\frac{FL}{EA}.
+$$
+
+The equivalent spring stiffness is $k=EA/L$, in N/m. It depends on geometry
+as well as material. Doubling $E$ halves $\delta$ under the same applied $F$,
+but leaves $R=-F$ unchanged. By contrast, if the end displacement $\delta$ is
+prescribed, the required force $F=EA\delta/L$ doubles.
+
+That distinction is the mechanical form of
+[prescribed values versus natural boundary data](/learn/mathematical-modeling/boundary-interface-conditions/).
+Changing which quantity is controlled changes the experiment.
+
+## An independent numerical prediction
+
+Choose illustrative values, not a material specification:
+
+| Quantity | Value |
+| --- | --- |
+| $L$ | $2\,\mathrm{m}$ |
+| $A$ | $100\,\mathrm{mm^2}=10^{-4}\,\mathrm{m^2}$ |
+| $E$ | $200\,\mathrm{GPa}=2\times10^{11}\,\mathrm{Pa}$ |
+| $F$ | $1000\,\mathrm{N}$ |
+
+Then $EA=2\times10^7\,\mathrm{N}$, $\sigma=10\,\mathrm{MPa}$,
+$\varepsilon=5\times10^{-5}$ and
+
+$$
+\delta=10^{-4}\,\mathrm{m}=0.1\,\mathrm{mm},\qquad R=-1000\,\mathrm{N}.
+$$
+
+The extension is tiny compared with the bar length, consistent with the
+small-strain approximation. This calculation says nothing about a material's
+yield stress: stiffness and strength answer different questions.
+
+## Energy gives the same answer
+
+For a spring loaded gradually from zero, the force rises from zero to $k\delta$.
+The work is the area under that force–displacement line:
+
+$$
+U=\int_0^\delta k s\,\mathrm{d}s=\frac12k\delta^2.
+$$
+
+At equilibrium this is $F\delta/2=0.05\,\mathrm{J}$ for our bar. The final
+force multiplied by the final displacement, $F\delta$, is twice the stored
+energy; it is not the work done during gradual loading.
+
+For a fixed external force, form the total potential energy
+
+$$
+\Pi(\delta)=\frac12k\delta^2-F\delta.
+$$
+
+A small admissible change $\eta$ gives
+$\Pi'(\delta)\eta=(k\delta-F)\eta$. Requiring this to vanish for every
+$\eta$ recovers $k\delta=F$. Because $k>0$, the second derivative is positive:
+equilibrium minimizes this potential. This is the discrete starting point for
+the virtual-work formulation in
+[chapter 3](/learn/structural-mechanics/virtual-work/); see also Bathe's
+[linear-analysis lecture 1](https://ocw.mit.edu/courses/res-2-002-finite-element-procedures-for-solids-and-structures-spring-2010/resources/lecture-1/).
+
+## Replace an end load by a distributed load
+
+Let $p$ be a constant axial force per unit length, in N/m, and make the right end
+free. A small segment gives $N'(x)+p=0$. With $N(L)=0$,
+
+$$
+N(x)=p(L-x),\qquad
+u(x)=\frac{p}{EA}\left(Lx-\frac{x^2}{2}\right),\qquad
+R=-pL.
+$$
+
+Stress now falls toward the free end, while displacement grows with a decreasing
+slope. This quadratic shape is exactly the idea behind the two-dimensional
+square we will run later. A uniform *body* load is not the same as a load applied
+only at the tip.
+
+## What goes wrong if a support is missing?
+
+If neither end fixes displacement, adding a constant $c$ to $u(x)$ changes no
+strain and costs no elastic energy. A balanced load can determine extension
+without determining absolute position. An unbalanced load cannot have a static
+equilibrium at all. A singular stiffness matrix can be a faithful report of a
+missing physical constraint.
+
+Likewise, fixing both ends while prescribing a nonzero extension would impose
+incompatible data. Adding restraints until a solve succeeds is not a substitute
+for deciding how the body is actually held.
+
+## Exercises
+
+1. Double the cross-sectional area under the same end force. Predict stress,
+   strain, extension and reaction before substituting numbers.
+2. Prescribe $\delta=0.2\,\mathrm{mm}$ for the numerical bar instead of $F$.
+   Find the new force and energy. **Check:** $2000\,\mathrm{N}$ and $0.2\,\mathrm{J}$.
+3. For the uniform distributed load, integrate $N(x)^2/(2EA)$ to find the stored
+   energy. **Check:** $p^2L^3/(6EA)$.
+4. Explain why replacing that distributed load by an end force $pL$ preserves
+   the reaction but doubles the end displacement.
+5. A plot shows an extension of one tenth of the bar length. Which physical
+   assumption would you revisit before interpreting the stress?
+
+## Reading
+
+- David Roylance, *Introduction to Elasticity*, MIT, January 21, 2000,
+  especially pp. 4–7: [course module](https://ocw.mit.edu/courses/3-11-mechanics-of-materials-fall-1999/resources/mit3_11f99_elas_1/).
+- Klaus-Jürgen Bathe, *Finite Element Procedures for Solids and Structures*,
+  MIT OpenCourseWare, Spring 2010, linear analysis,
+  [lecture 1: Some Basic Concepts of Engineering Analysis](https://ocw.mit.edu/courses/res-2-002-finite-element-procedures-for-solids-and-structures-spring-2010/resources/lecture-1/).
+
+[Path](/learn/structural-mechanics/) ·
+[Next: Displacement, strain and stress](/learn/structural-mechanics/strain-stress/)

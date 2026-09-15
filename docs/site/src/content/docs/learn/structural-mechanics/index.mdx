@@ -1,0 +1,54 @@
+---
+title: Structural mechanics and finite elements
+description: Build elastic models from forces and deformation, then solve a square and understand its finite-element error.
+sidebar:
+  order: 0
+---
+
+Pull on a solid and two questions appear: how far does it move, and what forces
+does it transmit? We begin with a bar you can solve on paper, then build a
+two-dimensional elastic body from equilibrium, geometry and a material law.
+After solving it with Eqiora, we open the reusable components that contain the
+same equations.
+
+The central investigation is a square held along its left edge and pulled by a
+uniform force throughout its interior. Its exact displacement is quadratic in
+position. That simple answer lets us distinguish a good displacement prediction
+from a good stress prediction without trusting a picture alone.
+
+## Follow the investigation
+
+1. [Loads, supports and elastic energy](/learn/structural-mechanics/loads-energy/)
+   — draw a free body, derive a bar's extension and calculate stored energy.
+2. [Displacement, strain and stress](/learn/structural-mechanics/strain-stress/)
+   — pass from scalar stretching to tensors, traction and two-dimensional laws.
+3. [Virtual work and finite elements](/learn/structural-mechanics/virtual-work/)
+   — turn equilibrium into a weak equation and understand what Q1 approximates.
+4. [A square with mixed boundaries](/learn/structural-mechanics/mixed-boundary-square/)
+   — derive the answer, read the `.eqi` equations, run the maintained example,
+   and find the same laws in components.
+5. [Reading displacement, reactions and error](/learn/structural-mechanics/interpreting-results/)
+   — explain mesh refinement, boundary stress and physical applicability.
+
+You need basic differentiation, integration and vector algebra. Each chapter
+introduces its own mechanics notation. If you already know equilibrium and
+small-strain elasticity, start at the square investigation.
+
+## Connections that help
+
+[Mathematical modeling](/learn/mathematical-modeling/) explains why a material
+law and boundary conditions belong to the model, while a mesh belongs to the
+numerical realization. In [heat transfer](/learn/heat-transfer/), temperature
+gradients drive heat flux; here displacement gradients create strain and stress.
+The common integration-by-parts idea is developed further in
+[numerical simulation](/learn/numerical-simulation/).
+
+The stress tensor also appears in [fluid mechanics](/learn/fluid-mechanics/).
+Its traction meaning stays the same. The solid's elastic law depends on
+displacement gradients; a Newtonian fluid's viscous law depends on velocity
+gradients.
+
+Use [Get started](/get-started/) for the shared Python environment. The executable
+chapter uses the source revision installed there and a Cartesian Q1 mesh; the
+opening bar calculation is a hand derivation. The mechanics in this path is
+static, isotropic and small-strain.

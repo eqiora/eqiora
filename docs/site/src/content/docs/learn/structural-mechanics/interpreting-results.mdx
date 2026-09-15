@@ -1,0 +1,211 @@
+---
+title: 5. Reading displacement, reactions and error
+description: Explain why exact nodal displacement does not imply exact stress, and derive the square's mesh-error trend.
+sidebar:
+  order: 5
+---
+
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+
+## Can the nodes be right while the field is wrong?
+
+In [the square investigation](/learn/structural-mechanics/mixed-boundary-square/),
+the exact displacement is quadratic in $x$. A Q1 field is only linear in $x$
+along a horizontal line inside each rectangular cell. It can agree at every
+vertex and still miss the curve between vertices.
+
+This example makes that distinction precise. We will derive errors from the
+exact curve, then use them to interpret displacement, stress and reaction.
+The calculation applies to the uniform square mesh and the stated constant
+coefficients, not to every problem that happens to use Q1 elements.
+
+## Scale the coordinates before comparing errors
+
+Let $X=x/L$, $Y=y/L$, and $\boldsymbol U=\boldsymbol u/L$, with
+$L=H=\ell=1\,\mathrm{m}$. On the dimensionless unit square,
+
+$$
+U_x(X,Y)=X-\frac{X^2}{2},\qquad U_y=0.
+$$
+
+For $n$ cells along an edge, the dimensionless cell width is $h=1/n$.
+Use $I_hU_x$ for the piecewise-linear interpolant of the exact nodal values.
+Inside a cell beginning at $X_i$, put $s=X-X_i$. Direct subtraction gives
+
+$$
+U_x-I_hU_x=\frac12s(h-s),\qquad
+\partial_X(U_x-I_hU_x)=\frac h2-s.
+$$
+
+Displacement error is zero at each endpoint, and derivative error integrates
+to zero across the cell.
+The latter means the interpolant satisfies the weak equation for this load and
+mesh. With the fixed-edge constraint giving a unique solution, it is the
+finite-element solution in exact arithmetic.
+
+Now integrate the squared errors. The $Y$ integral contributes a factor one;
+there are $1/h$ strips in $X$:
+
+$$
+\|\boldsymbol U-\boldsymbol U_h\|_{L^2}^2
+=\frac1h\int_0^h\frac{s^2(h-s)^2}{4}\,\mathrm{d}s
+=\frac{h^4}{120},
+$$
+
+$$
+|\boldsymbol U-\boldsymbol U_h|_{H^1}^2
+=\frac1h\int_0^h\left(\frac h2-s\right)^2\,\mathrm{d}s
+=\frac{h^2}{12}.
+$$
+
+The $L^2$ norm measures displacement error across the domain; the $H^1$
+seminorm measures error in its gradient. Here the latter is also axial-strain
+error. The [numerical-simulation path](/learn/numerical-simulation/) gives
+the wider interpretation of these norms.
+
+| Cells per edge | Displacement error $h^2/\sqrt{120}$ | Gradient error $h/\sqrt{12}$ |
+| --- | --- | --- |
+| 8 | $1.4264\times10^{-3}$ | $3.6084\times10^{-2}$ |
+| 16 | $3.5659\times10^{-4}$ | $1.8042\times10^{-2}$ |
+| 32 | $8.9148\times10^{-5}$ | $9.0211\times10^{-3}$ |
+| 64 | $2.2287\times10^{-5}$ | $4.5105\times10^{-3}$ |
+
+These are analytic interpolation predictions in dimensionless coordinates,
+rounded for reading. Halving the cell width divides displacement error by four
+and gradient error by two. A measured rate uses
+$p=\log(e_h/e_{h/2})/\log2$; the two predictions are $p=2$ and $p=1$.
+
+## Why a free edge can show a nonzero computed stress
+
+The exact stress is $\sigma_{xx}=2\mu(1-X)$. Within each vertical cell strip,
+the derivative of the interpolated displacement is constant, equal to the
+derivative of the exact curve at the strip midpoint. On the final strip,
+that midpoint is $X=1-h/2$, so the raw finite-element stress at the right
+boundary is
+
+$$
+\sigma_{xx,h}|_{X=1}=\mu h.
+$$
+
+At $n=16$, this is $0.1875\,\mathrm{Pa}$, although the prescribed traction is
+zero. The natural boundary condition entered the work equation; Q1 does not
+enforce its stress derivative pointwise at the edge. The discrepancy decreases
+linearly with $h$.
+
+At the left edge, outward traction from the raw element stress gives the
+resultant $(-6+3h,0)\,\mathrm{N/m}$. For $n=16$, that is
+$(-5.8125,0)\,\mathrm{N/m}$. The algebraic support reaction is instead
+$(-6,0)\,\mathrm{N/m}$ up to solve error: it is recovered from the complete
+assembled force equations, as derived in
+[virtual work](/learn/structural-mechanics/virtual-work/).
+
+These are different observations. Calling both “reaction” without saying how
+they were calculated creates a false contradiction. The maintained Python
+program prints the algebraic reaction. The boundary-stress values here come
+from differentiating the analytic Q1 interpolant.
+
+<ExactSourceLink path="examples/python/mixed_boundary_elasticity.py" kind="blob">Read the program's reaction observation</ExactSourceLink>.
+
+## Energy measures another part of the error
+
+For this conforming, exactly integrated problem, the error is orthogonal in
+elastic work to every admissible finite-element test function, including
+$\boldsymbol u_h$. Consequently,
+
+$$
+U'-U'_h=\frac12a(\boldsymbol u-\boldsymbol u_h,
+\boldsymbol u-\boldsymbol u_h).
+$$
+
+In this square, direct integration of the axial strain error gives
+
+$$
+U'-U'_h=\frac{\mu L^2h^2}{12}
+=\frac{h^2}{4}\,\mathrm{J/m},\qquad
+U'_h=\left(1-\frac{h^2}{4}\right)\,\mathrm{J/m}.
+$$
+
+The $16\times16$ prediction is $0.9990234375\,\mathrm{J/m}$.
+It approaches the exact $1\,\mathrm{J/m}$ from below for these nested spaces,
+fixed loads and exact integration. Changing constraints, quadrature, geometry
+or the physical load while refining would invalidate that comparison.
+
+## Make a useful mesh study
+
+In a working copy of the maintained Python example, change only
+`CartesianMesher(cells=(16, 16))` to `(8, 8)`, `(32, 32)` and `(64, 64)`.
+Keep the rectangle, all bindings, the boundary meanings and solver settings
+fixed. Before running, predict what each observation will tell you:
+
+- The integrated body load stays the same because geometry and load stay fixed.
+- The algebraic reaction remains its opposite; this tests balance, not the
+  displacement error order.
+- Vertex displacement agrees with the quadratic at the vertices in this
+  special problem; vertex-only comparisons miss the interpolation error.
+- Strain inferred inside elements improves more slowly than displacement.
+
+The familiar refinement exercise “compare successive plots” is therefore too
+weak on its own. Define the observation first. If you need a field norm,
+integrate the error between vertices instead of averaging only vertex errors.
+For a stress observation, specify the element side or recovery procedure.
+
+## Separate numerical accuracy from physical meaning
+
+The original example has $\varepsilon_{xx}(0)=1$. Solving its linear equations
+more accurately does not turn that into a realistic small-strain deformation.
+Increasing `length_scale` to $100\,\mathrm{m}$ while holding the $1\,\mathrm{m}$
+geometry fixed reduces this strain to 0.01 because it reduces the load. Changing
+the plot's displacement scale has no such physical effect.
+
+Other diagnostics answer other questions:
+
+| Observation | First interpretation to examine |
+| --- | --- |
+| A body can translate without resistance | Missing displacement constraint or a deliberate free rigid motion |
+| Reaction points with the load | Normal/sign convention or which body's force is being reported |
+| Reaction changes when only the plot scale changes | Presentation has been confused with physical displacement |
+| A stiffer material shows unchanged displacement | Check whether the load also contains the changed coefficient |
+| A refined mesh is much stiffer in nearly incompressible response | Investigate locking and the chosen formulation |
+| A peak stress grows near an ideal sharp corner | Examine regularity and what pointwise quantity is being requested |
+
+The last two observations concern other physical/modeling regimes. The smooth
+manufactured solution here does not contain a stress singularity. A singular
+corner in another geometry can make a pointwise maximum a poor convergence
+target; a displacement away from it or an integrated energy asks a different,
+often more useful question. Likewise, poor near-incompressible behavior cannot
+be diagnosed by this $\lambda=0$ experiment.
+
+## A small capstone
+
+Prepare a one-page explanation of the square for someone who has not seen the
+software. Include the boundary sketch, equation, three hand predictions, and
+the measured reaction from your run. Then answer:
+
+1. What is fixed when you refine the mesh?
+2. Why can the nodal displacement be exact while edge traction is not?
+3. Why is the printed support reaction preferable to raw boundary stress for
+   the total force balance in this problem?
+4. What change makes the strain smaller, and what change only makes the picture
+   look smaller?
+5. Which equations move into reusable components, and which remain local to
+   the physical question?
+
+For an additional calculation, show that the maximum dimensionless displacement
+interpolation error is $h^2/8$, attained at a strip midpoint. Then calculate it
+for $n=16$ and compare with the $L^2$ norm above. **Check:** the maximum is
+$4.8828125\times10^{-4}$; a maximum and a domain norm need not be equal.
+
+## Reading and next connections
+
+- Klaus-Jürgen Bathe, *Finite Element Procedures for Solids and Structures*,
+  MIT OpenCourseWare, Spring 2010,
+  [lecture 8: Numerical Integrations, Modeling Considerations](https://ocw.mit.edu/courses/res-2-002-finite-element-procedures-for-solids-and-structures-spring-2010/resources/lecture-8/), for stress calculation and numerical integration.
+- David Roylance, *The Kinematic Equations*, MIT, September 19, 2000,
+  [pp. 4–6 on finite strain](https://ocw.mit.edu/courses/3-11-mechanics-of-materials-fall-1999/d2507a08fe8bf09123bd0b333917a036_MIT3_11F99_kin.pdf), for the approximation discarded by infinitesimal strain.
+
+Continue with [numerical simulation](/learn/numerical-simulation/) to compare
+error measures and discretizations, or [heat transfer](/learn/heat-transfer/)
+to reuse the balance–constitutive-law–boundary reasoning with a scalar field.
+
+[Previous: The square investigation](/learn/structural-mechanics/mixed-boundary-square/) ·
+[Path](/learn/structural-mechanics/)

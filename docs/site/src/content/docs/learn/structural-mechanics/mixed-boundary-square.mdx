@@ -1,0 +1,253 @@
+---
+title: 4. A square with mixed boundaries
+description: Derive a quadratic displacement and its support reaction, then run the same equations with Eqiora.
+sidebar:
+  order: 4
+---
+
+import { Code } from '@astrojs/starlight/components';
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import ResultFigure from '@components/gallery/ResultFigure.astro';
+import modelSource from '../../../../../../../examples/mixed-boundary-elasticity.eqi?raw';
+import programSource from '../../../../../../../examples/python/mixed_boundary_elasticity.py?raw';
+import displacementImage from '../../../../assets/gallery/mixed-boundary-elasticity-displacement.png';
+
+## Where should the square move most?
+
+Hold the left edge of a square and apply a uniform rightward body force. Keep
+the other three edges free of traction. The right edge should move most, but
+the material near the support should carry the greatest tensile stress: it
+must transmit the load from all the material to its right.
+
+We will calculate both statements before running a solve. The two-dimensional
+model has displacement $\boldsymbol u$ in m, strain
+$\boldsymbol\varepsilon=\operatorname{sym}(\nabla\boldsymbol u)$, and stress
+$\boldsymbol\sigma=2\mu\boldsymbol\varepsilon+
+\lambda(\nabla\cdot\boldsymbol u)\boldsymbol I$ in Pa.
+Traction is $\boldsymbol\sigma\boldsymbol n$, with outward normal
+$\boldsymbol n$. See [strain and stress](/learn/structural-mechanics/strain-stress/)
+for a local derivation of those definitions.
+
+<figure>
+  <svg viewBox="0 0 680 360" role="img" aria-labelledby="square-title square-desc" style="width:100%;height:auto">
+    <title id="square-title">Square with fixed left edge and uniform rightward body force</title>
+    <desc id="square-desc">The square extends from zero to L in x and from zero to H in y. Its left edge has zero displacement. Upper, lower and right edges have zero traction. Interior arrows point right and represent body force b, not boundary traction.</desc>
+    <g fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="210" y="60" width="240" height="240" />
+      <path d="M210 65 L194 81 M210 95 L194 111 M210 125 L194 141 M210 155 L194 171 M210 185 L194 201 M210 215 L194 231 M210 245 L194 261 M210 275 L194 291" />
+      <path d="M260 120 H310 L299 113 M310 120 L299 127 M350 120 H400 L389 113 M400 120 L389 127 M260 200 H310 L299 193 M310 200 L299 207 M350 200 H400 L389 193 M400 200 L389 207 M260 260 H310 L299 253 M310 260 L299 267 M350 260 H400 L389 253 M400 260 L389 267" />
+      <path d="M480 300 H550 L540 293 M550 300 L540 307 M210 40 V15 L203 25 M210 15 L217 25" />
+    </g>
+    <g fill="currentColor" font-size="18" text-anchor="middle">
+      <text x="110" y="173">u = 0</text><text x="553" y="173">traction = 0</text>
+      <text x="338" y="39">traction = 0</text><text x="338" y="337">traction = 0</text>
+      <text x="334" y="161">b = (2μ/ℓ, 0)</text>
+      <text x="563" y="306">x</text><text x="181" y="23">y</text>
+    </g>
+  </svg>
+  <figcaption>Conceptual boundary and load diagram. Here L = H = ℓ = 1 m. Arrows show force direction; their length is not a displacement or a computed value.</figcaption>
+</figure>
+
+## Build the equations
+
+Use $0\le x\le L$, $0\le y\le H$, with $L=H=1\,\mathrm{m}$.
+Set $\mu=3\,\mathrm{Pa}$ and $\lambda=0\,\mathrm{Pa}$. Define the scalar
+load potential
+
+$$
+q(x)=\frac{2\mu x}{\ell},\qquad \ell=1\,\mathrm{m}.
+$$
+
+$q$ has units of Pa. Its gradient is the body force
+$\boldsymbol b=(2\mu/\ell,0)=(6,0)\,\mathrm{N/m^3}$.
+The field $q$ is a convenient way to state this conservative load; it is not
+an unknown pressure exerted on the outer edges. The balance is
+
+$$
+-\nabla\cdot\boldsymbol\sigma-\nabla q=\boldsymbol0.
+$$
+
+At $x=0$ prescribe $\boldsymbol u=\boldsymbol0$. On $x=L$, $y=0$ and $y=H$,
+prescribe $\boldsymbol\sigma\boldsymbol n=\boldsymbol0$. No traction is
+prescribed at the fixed edge: its reaction is part of the answer.
+
+## Derive the answer on paper
+
+Try $\boldsymbol u=(f(x),0)$. With $\lambda=0$, only
+$\sigma_{xx}=2\mu f'(x)$ is nonzero, so the horizontal free boundaries are
+automatically satisfied. The remaining equation and conditions reduce to
+
+$$
+-2\mu f''(x)=\frac{2\mu}{\ell},\qquad f(0)=0,\qquad f'(L)=0.
+$$
+
+Integrate once: $f'(x)=(L-x)/\ell$. Integrate again:
+
+$$
+\boxed{u_x(x,y)=\frac{Lx-x^2/2}{\ell},\quad u_y(x,y)=0},\qquad
+\sigma_{xx}=\frac{2\mu}{\ell}(L-x).
+$$
+
+At $x=L/2$, displacement is $0.375\,\mathrm{m}$; at $x=L$, it is
+$0.5\,\mathrm{m}$. These deliberately simple coefficients make a large
+deformation in a linear model. The result is a useful analytic test problem;
+it is not a small-strain approximation to a specimen stretched by 50%.
+We will return to that distinction when interpreting the plot.
+
+The outward normal on the left is $(-1,0)$, so its reaction per out-of-plane
+thickness is
+
+$$
+\boldsymbol R'=\int_0^H(-\sigma_{xx}(0),0)\,\mathrm{d}y
+=\left(-\frac{2\mu LH}{\ell},0\right)=(-6,0)\,\mathrm{N/m}.
+$$
+
+The integrated body force is $(6,0)\,\mathrm{N/m}$, equal and opposite.
+For a $1\,\mathrm{m}$ depth those numbers correspond to $-6$ N and $+6$ N.
+The area integral of stored energy is also available independently:
+
+$$
+U'=\int_0^H\int_0^L\mu\left(\frac{L-x}{\ell}\right)^2\,\mathrm{d}x\,\mathrm{d}y
+=\frac{\mu HL^3}{3\ell^2}=1\,\mathrm{J/m}.
+$$
+
+This follows directly from the elastic energy in
+[chapter 2](/learn/structural-mechanics/strain-stress/) and the work identity in
+[chapter 3](/learn/structural-mechanics/virtual-work/). We have displacement,
+reaction and energy predictions before choosing a mesh.
+
+## Write the equations directly
+
+The following listing is the maintained model source. It follows our derivation:
+declare the displacement and load potential, define $q$, impose balance, then
+state four boundary relations.
+
+<Code code={modelSource} lang="eqiora" title="mixed-boundary-elasticity.eqi" />
+
+<ExactSourceLink path="examples/mixed-boundary-elasticity.eqi" kind="blob">Open the model at this page's revision</ExactSourceLink>.
+
+`body` and the four boundary supports give roles to the equations. They do not
+choose coordinates or cells. The Python program supplies the concrete rectangle
+and associates its named edges with these roles. This is the same distinction
+between a [spatial field and its domain](/learn/mathematical-modeling/fields-spatial-domains/)
+used in the heat-transfer lessons.
+
+## Run the maintained example
+
+Use the source environment from [Get started](/get-started/#install-with-uv),
+where `eqiora-source` and `.venv` sit in the same working folder. The commands
+below use that checkout and its installed package together.
+
+```bash
+uv run --no-project --python .venv/bin/python python eqiora-source/examples/python/mixed_boundary_elasticity.py
+```
+
+The script prints the Plan identifier, linear-solve information, constrained
+reaction and integrated body force. Compare the last two vectors with the hand
+balance. They should be close to $(-6,0)$ and $(6,0)$ respectively, interpreted
+per metre of out-of-plane thickness.
+
+<details>
+<summary>Read the complete geometry, solve and plotting program</summary>
+
+<Code code={programSource} lang="python" title="mixed_boundary_elasticity.py" />
+
+</details>
+
+The program uses a $16\times16$ Cartesian mesh, Q1 displacement, and a linear
+solve with relative tolerance $10^{-10}$ and absolute tolerance $10^{-12}$.
+`eqiora.run(plan)` returns a Result. The displacement selector belongs to the
+Plan; it tells the Result exactly which field to return. This prevents a field
+from an unrelated model being mistaken for this displacement.
+
+To save a figure, install the plotting extra into the same environment, then
+run the optional plot argument:
+
+```bash
+uv pip install --python .venv/bin/python './eqiora-source[matplotlib]'
+uv run --no-project --python .venv/bin/python python eqiora-source/examples/python/mixed_boundary_elasticity.py --displacement-png displacement.png --scale 1
+```
+
+<ResultFigure
+  src={displacementImage.src}
+  alt="Dashed reference square and deformed mesh for a left-fixed elastic body pulled rightward by a uniform body force."
+  caption="Maintained example result on a 16 × 16 Cartesian Q1 mesh, displacement scale 1. The fixed edge stays still; the right edge moves furthest."
+  units="m"
+  sourcePath="examples/python/mixed_boundary_elasticity.py"
+  sourceLabel="Read the plotting program"
+/>
+
+The optional `--scale` multiplies displacement only for display. A scale of
+0.1 makes this picture less stretched; it does not reduce physical strain in
+the model.
+
+## Find the same equations inside reusable components
+
+We wrote balance and traction explicitly so their meaning was visible. The
+standard `Eqiora.Solid.LinearElasticity` package supplies those same pieces:
+
+| Part of our derivation | Reusable component |
+| --- | --- |
+| $-\nabla\cdot\boldsymbol\sigma-\nabla q=0$ | `IsotropicBalanceWithPotential2d` |
+| Displacement trace and outward elastic traction | `IsotropicMechanicalInterface2d` |
+| Zero displacement on one edge | `FixedDisplacement2d` |
+| Zero traction on one edge | `ZeroTraction2d` |
+
+<ExactSourceLink path="crates/eqiora-api/packages/Eqiora.Solid.LinearElasticity/src/linear_elasticity.eqi" kind="blob">Open the maintained component definitions</ExactSourceLink>.
+The balance contains the same symmetric displacement gradient and isotropic
+trace term. The interface uses that same stress on each exterior boundary.
+The fixed and free components supply boundary laws and connect to the interface.
+
+The component version of this exact square is available as
+<ExactSourceLink path="verify/solid/mixed-boundary-elasticity-2d/models/packaged.eqi" kind="blob">the composed square model</ExactSourceLink>.
+Its package binding imports `Eqiora.Solid.LinearElasticity.linear_elasticity`
+as `solid`; the body load remains local to the model. Read the shorter
+[continuum component example](/reference/standard-packages/continuum/#elastic-balance-and-boundaries)
+for a complete composition walkthrough.
+
+The convenience is now understandable: components let us reuse a material and
+boundary law whose equations we have already derived. Geometry, load and
+numerical choices remain separate decisions. Using the same $\mu$ and $\lambda$
+for interior stress and boundary traction is essential; otherwise they would
+describe different materials at the same boundary.
+
+## Predict a change before rerunning
+
+In the Python program, change the `mu` binding from 3 to 6, leaving `lambda` at
+zero. Would displacement halve? Here it will stay the same: our load definition
+also contains `mu`, so both stiffness and body load double. Reaction and stored
+energy double. This is different from increasing stiffness under a fixed load
+in [the bar experiment](/learn/structural-mechanics/loads-energy/).
+
+Alternatively, keep geometry and coefficients fixed and change `length_scale`
+from 1 to 100. The load, displacement and reaction become one hundredth as
+large; stored energy becomes one ten-thousandth as large. The tip displacement
+is then $0.005\,\mathrm{m}$ and maximum axial strain is $0.01$.
+The name `length_scale` belongs to the load expression; changing it does not
+resize the rectangle.
+
+## Exercises
+
+1. Derive the reaction moment about the lower-left corner. Explain how it
+   balances the moment of the distributed horizontal load.
+2. Change only `length_scale` as above and compare the reaction vectors with
+   your prediction. Explain why displacement and energy scale differently.
+3. Predict what goes wrong with the one-dimensional analytic solution when
+   `lambda` is made positive. Check the traction on the upper boundary first.
+4. In the component definitions, locate the repeated stress coefficients.
+   Explain why changing only the interface's coefficient would be a modeling
+   inconsistency rather than a new boundary condition.
+5. Change only the plot scale. Name two quantities that must stay unchanged.
+
+## Reading
+
+- David Roylance, *The Equilibrium Equations*, MIT, September 26, 2000,
+  especially Cauchy traction and force balance:
+  [module and PDF](https://ocw.mit.edu/courses/3-11-mechanics-of-materials-fall-1999/resources/mit3_11f99_eq/).
+- Klaus-Jürgen Bathe, *Finite Element Procedures for Solids and Structures*,
+  MIT OpenCourseWare, Spring 2010,
+  [linear-analysis lecture 3](https://ocw.mit.edu/courses/res-2-002-finite-element-procedures-for-solids-and-structures-spring-2010/resources/lecture-3/), for displacement interpolation and work balance.
+
+[Previous: Virtual work](/learn/structural-mechanics/virtual-work/) ·
+[Path](/learn/structural-mechanics/) ·
+[Next: Reading displacement, reactions and error](/learn/structural-mechanics/interpreting-results/)
