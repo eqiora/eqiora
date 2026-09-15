@@ -5,8 +5,8 @@ Eqiora provides equation authoring, synchronous and asynchronous execution,
 NumPy and DLPack arrays, first-order differentiation with PyTorch and JAX,
 and optional Matplotlib plots plus notebook views.
 
-**Release — `0.1.2`.** See [Capabilities](https://eqiora.org/capabilities/)
-for available models, methods, and platforms.
+**Release — `0.1.2`.** Explore the [Gallery](https://eqiora.org/gallery/)
+for complete modeling and simulation walkthroughs.
 
 ## Install
 
