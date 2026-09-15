@@ -5,6 +5,7 @@ mod api;
 mod block;
 mod boundary;
 mod dissipation_profile;
+mod domain;
 mod expression;
 mod geometry_realization;
 mod inertial;
