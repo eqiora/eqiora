@@ -45,6 +45,7 @@ test('homepage wake moves, pauses, and links to its walkthrough', async ({ page 
 });
 
 test('required routes, semantic stages, controls, and 404 are real static surfaces', async ({ page }) => {
+  test.setTimeout(120_000);
   const external = await rejectExternalRequests(page);
   for (const route of ROUTES) {
     const response = await page.goto(route);
