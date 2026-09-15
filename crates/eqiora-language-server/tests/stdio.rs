@@ -1,3 +1,6 @@
+#[path = "stdio/inspection.rs"]
+mod inspection;
+
 use std::{
     fs,
     io::Write,

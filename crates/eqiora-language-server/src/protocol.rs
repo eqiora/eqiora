@@ -366,11 +366,19 @@ fn analyze_group(
             AnalysisOutcome::Empty
         };
     }
-    let Some(snapshot) = EditorWorkspaceSnapshot::analyze_modules_with_cancellation(
-        version,
-        ResolvedHierarchyInput::new(owner, units, vec![]),
-        || cancelled.load(Ordering::Acquire),
-    ) else {
+    let root_module = units
+        .iter()
+        .find(|unit| unit.module_segments() == ["main"])
+        .unwrap_or(&units[0])
+        .module_segments()
+        .to_vec();
+    let input = ResolvedHierarchyInput::with_root_module(owner, root_module, units, vec![])
+        .expect("source-derived root module is valid");
+    let Some(snapshot) =
+        EditorWorkspaceSnapshot::analyze_modules_with_cancellation(version, input, || {
+            cancelled.load(Ordering::Acquire)
+        })
+    else {
         return AnalysisOutcome::Cancelled;
     };
     AnalysisOutcome::Workspace {

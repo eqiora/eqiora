@@ -11,7 +11,7 @@
   },
   "Model": {
     "prefix": "model",
-    "body": ["public model ${1:Name} {", "  $0", "}"],
+    "body": ["public model ${1:Name}() {", "  $0", "}"],
     "description": "Declare a public Eqiora model"
   },
   "Relation": {
