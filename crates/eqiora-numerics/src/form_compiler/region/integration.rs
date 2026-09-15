@@ -10,18 +10,17 @@ use crate::form_compiler::bilinear::{Basis, Pairing};
 
 use super::{binding::basis, invalid};
 
-pub(super) struct IntegralTerm<'a> {
+pub(super) struct IntegralTerm {
     pub row: usize,
     pub column: usize,
     pub pairing: Pairing,
     pub trial_scale: f64,
-    pub history: Option<(f64, &'a [f64])>,
 }
 
 pub(super) fn integrate(
     reference: ReferenceCell,
     fields: &[(Space, usize)],
-    terms: &[IntegralTerm<'_>],
+    terms: &[IntegralTerm],
     geometry: &AffineGeometryMap,
     quadrature: &QuadratureRule,
     values: impl Fn(&[f64], &mut [f64], &mut [f64], &mut [f64]) -> Result<(), Diagnostic>,
@@ -146,9 +145,6 @@ pub(super) fn integrate(
                                 );
                             matrix[global_test * count + offsets[column] + local_trial] +=
                                 entry * term.trial_scale;
-                            if let Some((scale, history)) = term.history {
-                                rhs[global_test] += entry * scale * history[local_trial];
-                            }
                         }
                     }
                 }
@@ -172,7 +168,6 @@ pub(in crate::form_compiler) fn integrate_scalar(
             column: 0,
             pairing: Pairing::Gradient,
             trial_scale: 1.0,
-            history: None,
         }],
         geometry,
         quadrature,

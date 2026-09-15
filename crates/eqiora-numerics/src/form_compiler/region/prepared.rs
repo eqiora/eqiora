@@ -41,12 +41,7 @@ impl BoundRegionForm {
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
     ) -> Result<PreparedRegionCell, Diagnostic> {
-        let zero = self
-            .previous
-            .iter()
-            .map(|(id, layout)| (*id, vec![0.; layout.range.len()]))
-            .collect();
-        let affine = self.evaluate_affine(geometry, quadrature, &zero)?;
+        let affine = self.prepare_affine(geometry, quadrature)?;
         let mut history = Vec::new();
         for (field, layout) in &self.previous {
             let (column, matrix) = self.history_matrix(*field, geometry, quadrature)?;
@@ -182,7 +177,6 @@ impl BoundRegionForm {
                     column: index,
                     pairing: term.pairing,
                     trial_scale: scale,
-                    history: None,
                 });
                 data.push((row, &term.coefficient));
             }
