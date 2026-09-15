@@ -1,0 +1,185 @@
+---
+title: 6. Assessing a thermal calculation
+description: Use independent temperatures, weighted energy balances, parameter changes, and separate spatial and temporal refinement to diagnose a heat calculation.
+sidebar:
+  order: 6
+---
+
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+
+## A plausible temperature is a starting point
+
+You have a warmed center, a cold exterior, and a smooth transient. What question
+does each comparison answer? This chapter turns the previous results into a
+method for investigating numerical error and physical assumptions.
+
+Begin with the observable that matters. A maximum temperature, an average
+stored energy, and power passing through a surface are different quantities.
+A calculation can approximate one well while approximating another poorly.
+
+## Keep three exact answers separate
+
+For the square investigation, we have derived:
+
+1. The steady four-cell Q1 center rise $F/K=3/32$ K.
+2. The continuous-time rise for that spatial system,
+   $(3/32)(1-e^{-24t})$ K.
+3. The Backward Euler rise at the original step,
+   $(3/32)(1-2^{-n})$ K.
+
+The first tests the algebraic spatial system. The second lets us isolate time
+integration error. The third checks the chosen discrete time update. None is
+the exact temperature field of the continuous two-dimensional heated square.
+The exact slab parabola answers yet another boundary-value problem.
+
+This separation makes a discrepancy useful. If the run matches the recurrence
+but differs from the exponential, the time step explains the difference. If a
+refined mesh no longer gives 300.09375 K at the center, the old one-coefficient
+calculation no longer describes that mesh.
+
+## Check the weighted balance at each step
+
+For the free center row, compute
+
+$$
+R_n=M\frac{\theta_n-\theta_{n-1}}{\Delta t}+K\theta_n-F.
+$$
+
+$R_n$ has units W/m. Compare it with the load scale rather than quoting an
+unqualified small number. For example, $|R_n|/|F|$ is dimensionless when
+$F\ne0$. Check all boundary values separately: a correct free-row residual
+does not excuse an incorrectly imposed boundary.
+
+The physical steady account is instead
+
+$$
+\int_{\partial\Omega}\boldsymbol q\cdot\boldsymbol n\,\mathrm ds
+=\int_\Omega s\,\mathrm dA=1\,\mathrm{W/m}.
+$$
+
+The free test function is not the constant function one; it vanishes at the
+boundary. Consequently its weighted source is $F=1/4$ W/m. Confusing the two
+integrals creates a spurious factor of four.
+
+## Why a raw boundary gradient can mislead
+
+On a lower cell of the four-cell mesh, the center hat has the form
+$\phi=\xi\eta/h^2$ with its center corner at $(h,h)$. At the outer face
+$\eta=0$, its normal derivative has magnitude $\xi/h^2$. Its integral along
+that face is $1/2$. There are eight such exterior cell faces, giving
+
+$$
+P'_{\mathrm{raw}}=4k\theta.
+$$
+
+At the steady Q1 coefficient $\theta=3/32$ K and $k=1$ W/(m K), this gives
+$P'_{\mathrm{raw}}=3/8$ W/m, while generation is 1 W/m. The free equation
+$K\theta=F$ is still satisfied. A raw derivative of the coarse interpolated
+field is a different flux estimate from the boundary reactions of the finite
+element equations.
+
+The practical lesson is to identify your flux observable and how it is
+constructed. A small temperature residual does not make every derivative or
+surface integral equally accurate. If heat rejection is the design quantity,
+it deserves its own comparison and refinement study.
+
+## Separate space and time errors
+
+First hold the four-cell mesh fixed. Choose a common final time $t_*$ and run
+with $\Delta t$, $\Delta t/2$, and $\Delta t/4$, adjusting the number of steps
+to keep $t_*$ fixed. Compare the center rise with the exact exponential for this
+spatial system. A simple absolute temporal error is
+
+$$
+E_t=\left|\theta_N-\frac FK(1-e^{-Kt_*/M})\right|.
+$$
+
+Avoid dividing by the full absolute temperature of roughly 300 K: that can
+hide a large relative error in a small heating-induced rise. Normalize by a
+relevant rise such as $F/K$ when a relative error is useful.
+
+Next study space while making the time error small enough for the intended
+comparison, or use the steady problem. Change the runner's Cartesian cell
+counts, hold the physical square and all material data fixed, and compare a
+chosen observable across meshes. A sequence of similar values supports a
+resolution judgment for that observable; it does not prove that the physical
+assumptions fit a real device.
+
+The [numerical simulation book](/learn/numerical-simulation/) develops norms,
+convergence rates, and comparisons between spatial methods. Carry this heated
+body with you as a concrete example of why those tools matter.
+
+## A diagnosis table
+
+| Observation | A discriminating next question |
+| --- | --- |
+| Interior becomes colder under positive generation and a cool fixed exterior | Did the source or flux sign change? |
+| Steady rise changes when only capacity changes | Is the run actually steady, or did another input change? |
+| Doubling heating does not double steady rise | Are properties and boundary data still linear and unchanged? |
+| Halving the step changes a transient temperature substantially | Does the error against the fixed-mesh exponential decrease? |
+| Mesh refinement barely changes temperature but flux changes | Are you comparing a derivative-sensitive observable? |
+| An insulated heated steady problem fails | Is the integrated energy account solvable? |
+
+Each question targets a specific premise. Re-running a larger calculation
+without deciding which premise is in doubt can obscure the diagnosis.
+
+## Capstone: a prediction sheet
+
+Use the maintained
+<ExactSourceLink path="examples/heated-body/run.py" kind="blob">heated-body runner</ExactSourceLink>
+and prepare a table before each run. Record the change, your predicted steady
+rise, your predicted warming direction, and the observable you will compare.
+
+1. Double heating alone.
+2. Double conductivity alone.
+3. Double capacity alone.
+4. Halve the time step at fixed final time.
+5. Refine the steady mesh while preserving the square geometry.
+
+For the first three experiments, derive $F/K$ and $M/K$ anew. In the fourth,
+keep the spatial system fixed. In the fifth, stop using the four-cell coefficient
+as an exact expectation and examine how the chosen observable changes.
+
+Finish with a short physical interpretation: which change cools the eventual
+center, which only delays its warming, and which merely improves the
+approximation? The useful result is that explanation, supported by the numbers.
+
+## Exercises
+
+1. The center value agrees to six digits after mesh refinement. Does that
+   establish equally accurate boundary heat flux? Explain.
+2. Two transient runs use different time steps but the same step count. What
+   must change before their final values measure temporal error?
+3. Derive the raw boundary-flux integral $4k\theta$ on the four-cell square.
+4. The heat source is zero. Propose a residual normalization without division
+   by zero.
+5. Your simulated component stays cool because the boundary is fixed at 300 K.
+   What additional physical information would you need to model a finite cooler?
+
+<details>
+<summary>Solution hints</summary>
+
+1. No. Flux depends on gradients and the chosen reconstruction, with its own
+   numerical error.
+2. Compare the same physical time and initial condition.
+3. Integrate the one-sided normal derivative on each of eight outer cell faces.
+4. Use a declared characteristic power or a combination of nonzero storage and
+   conduction scales; also report an absolute residual in physical units.
+5. An exchange relation or cooler model, its surroundings, geometry, material
+   data, and the operating regime that justifies that relation.
+
+</details>
+
+## References
+
+- Klaus-Jürgen Bathe, *Finite Element Analysis of Solids and Fluids I*, MIT
+  2.092 (2009), [Lecture 20, pp. 3–4](https://ocw.mit.edu/courses/2-092-finite-element-analysis-of-solids-and-fluids-i-fall-2009/de3fe8a64f95eb82acd0cd3a279972a4_MIT2_092F09_lec20.pdf):
+  finite element heat equations and time-step accuracy.
+- The independent integrals in Chapters 4–6 derive the temperature and raw-flux
+  comparisons for this particular mesh. The
+  <ExactSourceLink path="examples/heated-body/README.md" kind="blob">example explanation</ExactSourceLink>
+  connects those coefficients to the maintained model.
+
+[Previous: Transient storage](/learn/heat-transfer/transient-storage/) ·
+[Book map](/learn/heat-transfer/) ·
+[Continue: Numerical simulation](/learn/numerical-simulation/)

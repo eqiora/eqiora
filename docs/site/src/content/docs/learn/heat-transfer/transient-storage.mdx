@@ -1,0 +1,215 @@
+---
+title: 5. Transient storage
+description: Add initial conditions and constant heat capacity, derive warming times and a discrete recurrence, and separate stable stepping from accurate stepping.
+sidebar:
+  order: 5
+---
+
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+
+## Switching on the heater
+
+Start the square at 300 K everywhere. At time zero, switch on uniform heating
+while holding its exterior at 300 K. Initially there is no temperature gradient.
+Energy accumulates in the interior; gradients develop; conduction increasingly
+carries energy to the bath. Eventually storage becomes negligible and the
+steady solution from the previous chapter is approached.
+
+The governing equation and initial condition are
+
+$$
+c_v\partial_tT-\nabla\cdot(k\nabla T)=s,
+\qquad T(\boldsymbol x,0)=300\,\mathrm K.
+$$
+
+The exterior condition remains $T=300$ K. Initial data describe the starting
+thermal state; boundary data describe its surroundings for all subsequent
+times. We take $c_v>0$ constant, so storage is linear in temperature.
+
+This chapter connects that physical warming to the actual time-dependent model
+and to the approximation introduced by a time step.
+
+## A time scale and a simple exact mode
+
+The ratio $\alpha=k/c_v$ sets the diffusion scale. In a source-free slab with
+ends held at $T_b$, try the temperature rise
+
+$$
+\theta(x,t)=a(t)\sin(\pi x/L).
+$$
+
+It vanishes at both ends. Substituting into
+$\partial_t\theta=\alpha\partial_{xx}\theta$ gives
+
+$$
+a'=-\alpha(\pi/L)^2a,
+\qquad a(t)=a(0)\exp[-\alpha(\pi/L)^2t].
+$$
+
+Thus this mode decays with time constant $L^2/(\pi^2\alpha)$. A mode with twice
+the spatial frequency decays four times faster. Diffusion smooths small spatial
+features quickly. This analytic slab calculation explains the role of
+capacity; it is a different initial-boundary-value problem from the heated
+square we run below.
+
+## A uniform-temperature model needs its own assumption
+
+If internal conduction is sufficiently fast compared with boundary exchange,
+you may approximate an entire body by one temperature. With uniform body
+temperature $T$, constant bath temperature $T_\infty$, and surface exchange
+coefficient $h$, its energy account is
+
+$$
+c_vV\frac{\mathrm dT}{\mathrm dt}+hA_s(T-T_\infty)=sV.
+$$
+
+With no source, the decay time is $c_vV/(hA_s)$. This connects to the
+[scalar decay model](/learn/mathematical-modeling/ordinary-differential-equations/).
+Comparing internal and surface resistances suggests checking
+$\mathrm{Bi}=hL_c/k$, with $L_c=V/A_s$. A small value supports—but does not
+by itself quantify the error of—the uniform-temperature approximation.
+
+The heated square has fixed cold boundaries and a spatial temperature profile.
+Its single free coefficient on a coarse mesh is the height of a spatial hat,
+not the uniform temperature of the whole body. Having one unknown does not
+make the two physical models identical.
+
+## Derive the spatially discrete warming equation
+
+Retain the same center hat $\phi$ and write $T_h=300+\theta(t)\phi$.
+Testing the transient equation with $\phi$ gives
+
+$$
+M\dot\theta+K\theta=F,
+\qquad M=\int_\Omega c_v\phi^2\,\mathrm dA.
+$$
+
+For square side length $L$, the previous chapter's integrals give
+$K=8k/3$ and $F=sL^2/4$. Our square has $L=1$ m. On one cell,
+
+$$
+\int_{\mathrm{cell}}\phi^2\,\mathrm dA
+=\frac{1}{h^4}\left(\int_0^h\xi^2\,\mathrm d\xi\right)^2
+=\frac{h^2}{9}.
+$$
+
+Four cells with $h=L/2$ give $M=c_vL^2/9$, carrying units J/(m K).
+For $k=1$ W/(m K), $c_v=1$ J/(m³ K), and $s=1$ W/m³:
+
+$$
+\theta(t)=\frac FK\left(1-e^{-Kt/M}\right)
+=\frac{3}{32}\left(1-e^{-24t}\right)\,\mathrm K,
+$$
+
+where the numerical $t$ is in seconds. This is exact in time for the four-cell
+spatial approximation. Its time constant is $M/K=1/24$ s. Increasing capacity
+slows warming but leaves $F/K$, the eventual temperature rise, unchanged.
+The matrix form and time integration of heat equations are treated in
+[Bathe, Lecture 20, pp. 3–4](https://ocw.mit.edu/courses/2-092-finite-element-analysis-of-solids-and-fluids-i-fall-2009/de3fe8a64f95eb82acd0cd3a279972a4_MIT2_092F09_lec20.pdf).
+
+## Backward Euler changes the time history
+
+Backward Euler evaluates conduction at the new time:
+
+$$
+M\frac{\theta_n-\theta_{n-1}}{\Delta t}+K\theta_n=F.
+$$
+
+Solve this algebraic equation:
+
+$$
+\theta_n=\frac{M}{M+K\Delta t}\theta_{n-1}
++\frac{F\Delta t}{M+K\Delta t}.
+$$
+
+Subtract the steady value $\theta_\infty=F/K$. The deficit is multiplied each
+step by $r=M/(M+K\Delta t)$. With $\theta_0=0$,
+
+$$
+\theta_n=\frac FK(1-r^n).
+$$
+
+For $\Delta t=1/24$ s and unit material parameters, $r=1/2$. Before running,
+calculate the three center temperatures:
+
+| Step | Time [s] | Center temperature [K] |
+| --- | --- | --- |
+| 0 | 0 | 300 |
+| 1 | 1/24 | 300.046875 |
+| 2 | 1/12 | 300.0703125 |
+| 3 | 1/8 | 300.08203125 |
+
+These are values of the recurrence, not values of the continuous-time
+exponential. At the first step the exponential gives a rise
+$(3/32)(1-e^{-1})$, which exceeds the Backward Euler rise. The step is stable
+but coarse compared with the warming time.
+
+## Read and run the storage model
+
+Return to the
+[maintained source listing](/learn/heat-transfer/heated-body-in-eqiora/#express-those-equations-in-eqi).
+The `TransientHeatedBody` entry makes four changes to the physical declaration:
+
+- `state temperature` marks a quantity with evolution;
+- `initial` assigns its starting temperature;
+- the parameter `capacity` has units J/(m³ K); and
+- `storage capacity * temperature` contributes its rate to the balance.
+
+The runner binds `capacity` to `1.0`, selects
+`eqiora.time.BackwardEuler(step_s=1/24)`, creates the initial State, and requests
+three accepted steps. Run it from the Get started working folder:
+
+```bash
+.venv/bin/python eqiora-source/examples/heated-body/run.py
+```
+
+Inspect the printed time and the center value in each accepted State. All eight
+exterior coefficients remain 300 K. The center approaches the steady value
+from below. The
+<ExactSourceLink path="examples/heated-body/run.py" kind="blob">runner's transient block</ExactSourceLink>
+shows how the same local package supplies the transient entry.
+
+## Separate two experiments
+
+**Physical change:** double capacity, keeping heating, conductivity, and step
+fixed. The steady value is unchanged, but $r$ becomes $2/3$ and the first rise
+is $1/32$ K. More energy is needed for a given temperature change.
+
+**Numerical change:** restore capacity and halve the step. Compare at the same
+physical time, so use twice as many steps. At $t=1/24$ s, two steps of
+$1/48$ s give $r^2=(2/3)^2=4/9$, and a rise of $5/96$ K. This is closer to
+the continuous-time value than the single coarse step. Comparing both runs
+after one step would compare different physical times.
+
+## Exercises
+
+1. Derive the recurrence for arbitrary positive $M,K,\Delta t$ and constant
+   $F$. Why does the deficit always decrease without changing sign?
+2. For unit parameters and twice the capacity, calculate the first three
+   center rises at the original step size.
+3. Derive forward Euler for the same one-coefficient system. When does its
+   homogeneous error decay, and when does it decay without alternating sign?
+4. Why does shrinking the time step not remove the four-cell spatial error?
+
+<details>
+<summary>Solution hints</summary>
+
+1. $0<r=M/(M+K\Delta t)<1$.
+2. Use $(3/32)[1-(2/3)^n]$ K.
+3. The error multiplier is $1-K\Delta t/M$. Decay requires
+   $0<K\Delta t/M<2$; nonnegative decay requires $0<K\Delta t/M\le1$.
+   This is a mathematical comparison of methods; the runner uses Backward Euler.
+4. The time integrator approaches the ODE defined by the fixed spatial basis.
+   Increasing temporal resolution cannot add missing spatial variation.
+
+</details>
+
+## References
+
+- Klaus-Jürgen Bathe, *Finite Element Analysis of Solids and Fluids I*, MIT
+  2.092 (2009), [Lecture 20, transient heat-transfer analysis, pp. 3–4](https://ocw.mit.edu/courses/2-092-finite-element-analysis-of-solids-and-fluids-i-fall-2009/de3fe8a64f95eb82acd0cd3a279972a4_MIT2_092F09_lec20.pdf).
+- Chris Schuh, *Materials Processing*, MIT 3.044 (2013),
+  [Lecture 2: Heat conduction](https://ocw.mit.edu/courses/3-044-materials-processing-spring-2013/resources/mit3_044s13_lec02/).
+
+[Previous: A heated body in Eqiora](/learn/heat-transfer/heated-body-in-eqiora/) ·
+[Next: Assessing a thermal calculation](/learn/heat-transfer/assessing-a-thermal-calculation/)

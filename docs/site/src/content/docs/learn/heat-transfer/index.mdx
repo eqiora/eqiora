@@ -1,0 +1,54 @@
+---
+title: Heat transfer
+description: Build heat conduction from energy conservation, predict temperatures by hand, and investigate a heated body with Eqiora.
+sidebar:
+  order: 0
+---
+
+Why does a powered device become hotter inside than at its cooled surface? How
+long does warming take? How would you know whether a computed temperature is
+credible? This book follows those questions from a small energy account to a
+spatial model you can run and inspect.
+
+You can begin here. We introduce the needed conservation law, gradients, and
+boundary conditions as they become useful. Familiarity with derivatives and
+integrals is enough; the
+[mathematical modeling book](/learn/mathematical-modeling/) offers longer
+explanations when you want them.
+
+## The investigation
+
+Imagine a solid cross-section with uniform internal heating and a surface held
+at a fixed temperature. First predict the direction of heat flow and how the
+interior temperature changes with conductivity. Solve a simpler slab by hand.
+Then express the two-dimensional problem in `.eqi`, calculate a small finite
+element problem independently, and run the maintained heated-body example.
+Finally, add heat storage and distinguish physical warming from the error
+introduced by time stepping.
+
+| Chapter | Question to answer |
+| --- | --- |
+| [1. Conservation and Fourier's law](/learn/heat-transfer/conservation-and-fourier-law/) | What is stored, what crosses a surface, and what creates energy? |
+| [2. Steady conduction](/learn/heat-transfer/steady-conduction/) | Why is one profile straight and another curved? |
+| [3. Boundaries and interfaces](/learn/heat-transfer/boundaries-and-interfaces/) | What does a temperature, flux, or exchange condition mean? |
+| [4. A heated body in Eqiora](/learn/heat-transfer/heated-body-in-eqiora/) | How do the equations become a reusable model and a calculation? |
+| [5. Transient storage](/learn/heat-transfer/transient-storage/) | What determines the warming time? |
+| [6. Assessing a thermal calculation](/learn/heat-transfer/assessing-a-thermal-calculation/) | Which comparison diagnoses which error? |
+
+The slab and composite-wall calculations are pencil-and-paper investigations.
+The computational thread uses a square cross-section, constant conductivity,
+uniform generation, and prescribed exterior temperature. Keeping those
+assumptions visible makes comparisons meaningful.
+
+## How to use the chapters
+
+Make each prediction before running a calculation. Read the equations in the
+maintained component before using its package entry. Then change one physical
+parameter, predict its effect, and explain the result. The package saves you
+from repeating a model you already understand.
+
+For installation, use [Get started](/get-started/). For the next step after this
+book, [Numerical simulation](/learn/numerical-simulation/) develops the methods
+behind the mesh and time-step comparisons. The energy account also connects to
+[circuits and dynamics](/learn/circuits-dynamics/), where storage and exchange
+can be represented by a small number of states.
