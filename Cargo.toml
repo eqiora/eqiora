@@ -40,7 +40,7 @@ num-traits = "0.2.19"
 # XDMF metadata is an untrusted syntax boundary. Keep the reviewed pull-parser
 # release exact and apply Eqiora-owned depth/count/text/work budgets around it;
 # dependency parsing never grants filesystem or network authority.
-quick-xml = { version = "=0.41.0", default-features = false }
+quick-xml = { version = "=0.42.0", default-features = false }
 # Native HDF5 remains an optional L3 adapter. The reviewed met.no binding is
 # pinned exactly and linked to its bundled HDF5 source so builds do not acquire
 # an ambient host-library ABI. No compression/plugin feature is enabled: the
