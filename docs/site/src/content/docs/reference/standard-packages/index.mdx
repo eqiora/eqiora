@@ -1,12 +1,14 @@
 ---
-title: Standard packages
+title: Standard library
 description: Find reusable equations and boundary components for circuits, solids, fluids, and sampled controls.
 editUrl: https://github.com/nkiyohara/eqiora/edit/main/docs/site/src/content/docs/reference/standard-packages/index.mdx
 ---
 
 import ExactSourceLink from '@components/site/ExactSourceLink.astro';
 
-Standard packages contain ordinary `.eqi` source. Import a component, bind its
+Eqiora's **standard library** is the `Eqiora.*` collection of reusable physical
+components, laws and boundary conditions. Its ordinary `.eqi` definitions live in
+<ExactSourceLink kind="tree" path="crates/eqiora-api/packages">crates/eqiora-api/packages/</ExactSourceLink>. Import a component, bind its
 physical inputs, and open its definition whenever you want to see or change the
 underlying equations.
 
@@ -66,8 +68,10 @@ resolution = eqiora.open_project(project, vendor)
 model = eqiora.compile_package(vendor, resolution, entry="VoltageDivider")
 ```
 
+To build your own package, follow [Create and share a library](/guides/creating-libraries/)
+from directory layout to local imports, GitHub dependencies, and offline use.
 See [project packages](/guides/modeling/#resolve-and-lock-a-local-package-project)
-for authoring your own reusable modules and updating a changed project.
+for the detailed resolution and update rules.
 
 The bundled names are `Eqiora.Electrical.Basic`, `Eqiora.Controls.Sampled`,
 `Eqiora.Mechanics.Interfaces`, `Eqiora.Solid.LinearElasticity`, and

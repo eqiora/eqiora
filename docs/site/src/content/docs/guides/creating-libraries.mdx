@@ -1,0 +1,251 @@
+---
+title: Create and share a library
+description: Create an Eqiora package, use it locally, publish it in a GitHub repository, and lock it as a dependency.
+---
+
+Create a reusable `.eqi` component, import it from another project, then share
+the same package through GitHub. A third-party library uses the same package
+format as your own models; no registry account is needed.
+
+Use the Python environment from [Get started](/get-started/). Keep all the paths
+below in that working folder, beside `.venv`. Git acquisition currently requires
+Linux, `/usr/bin/git`, and `/usr/bin/prlimit`.
+
+## Create the library directory
+
+Create two sibling projects: a library and a small consumer.
+
+```bash
+mkdir -p offset-library/src demo/src
+```
+
+The completed layout will be:
+
+```text
+working-folder/
+├── .venv/
+├── offset-library/          # The root of the library's Git repository
+│   ├── eqiora.toml
+│   ├── README.md
+│   └── src/
+│       └── main.eqi
+├── demo/
+│   ├── eqiora.toml
+│   └── src/
+│       └── main.eqi
+└── check_library.py
+```
+
+Save this manifest at the library root, beside `src/`:
+
+```toml title="offset-library/eqiora.toml"
+[package]
+name = "org.example.Offsets"
+version = "0.1.0"
+source = "src"
+entry = "main"
+```
+
+`name` is the canonical package name used in imports. Choose your own namespace
+when publishing a real library. `version` is the package's exact version;
+it is separate from a Git tag. `source` is relative to this manifest and defaults
+to `src`. `entry` selects a module, so `main` means `src/main.eqi`.
+For a nested file such as `src/signals/offset.eqi`, the module name is
+`org.example.Offsets.signals.offset`; an entry there would be `signals.offset`.
+Module names come from paths, so there is no `module` declaration inside `.eqi`.
+
+## Export a component
+
+Save this complete source file:
+
+```eqi title="offset-library/src/main.eqi"
+public component Offset(parameter input: 1, parameter offset: 1 = 1) {
+  variable output: 1;
+  relation value { output - input - offset = 0; }
+}
+```
+
+`public` makes `Offset` accessible to importing modules. Its parameters and
+output are dimensionless. The caller supplies `input`, and can override the
+default `offset`. Each instance owns its own output and equation.
+The [composition reference](/reference/language/composition/) explains how this
+extends to physical components, connections, and material properties.
+
+Add a `README.md` describing the library's declarations, units, assumptions,
+and a usage example. Choose a license and include its file before sharing your
+own work. Commit the manifest and sources together with that documentation.
+
+## Use the library locally
+
+The consumer has its own manifest. Dependency paths are relative to the
+manifest that declares them, so `../offset-library` selects the sibling above.
+
+```toml title="demo/eqiora.toml"
+[package]
+name = "org.example.OffsetDemo"
+version = "0.1.0"
+source = "src"
+entry = "main"
+
+[dependencies."org.example.Offsets"]
+version = "0.1.0"
+sources = [{ path = "../offset-library" }]
+```
+
+Import the library's canonical module name and give it a local alias:
+
+```eqi title="demo/src/main.eqi"
+import org.example.Offsets.main as offsets;
+
+model Main() {
+  instance first: offsets.Offset(input = 2);
+  instance second: offsets.Offset(input = 5, offset = 3);
+}
+```
+
+The dependency key must match the library's package name. `offsets` is an alias
+inside this source file; neither the folder name nor the GitHub repository name
+determines the import name.
+
+Save the following script in the working folder:
+
+```python title="check_library.py"
+from pathlib import Path
+import eqiora
+
+project = Path("demo")
+store = Path("package-store")
+store.mkdir(exist_ok=True)
+resolution = eqiora.resolve_local_project(project, store)
+model = eqiora.compile_package(store, resolution, entry="Main")
+print("Compiled Main with org.example.Offsets")
+```
+
+Run it from that folder:
+
+```bash
+uv run --no-project --python .venv/bin/python python check_library.py
+```
+
+This creates `demo/eqiora.lock`, fills `package-store`, and compiles the imported
+component instances. The TOML `entry` selects the source module; the Python
+`entry="Main"` selects the Model declaration. This step checks package resolution
+and compilation. For numerical execution, continue with
+[running and inspecting a model](/guides/run-and-inspect/).
+
+## Publish the library on GitHub
+
+Create an empty public GitHub repository named `offset-library`. Replace `OWNER`
+below with your account or organization. Keep `eqiora.toml` at the repository
+root: the Git dependency source currently has no package-subdirectory option.
+
+From the working folder:
+
+```bash
+git -C offset-library init --initial-branch=main
+git -C offset-library add eqiora.toml src README.md
+git -C offset-library commit -m "Add Offset library"
+git -C offset-library tag v0.1.0
+git -C offset-library remote add origin https://github.com/OWNER/offset-library.git
+git -C offset-library push -u origin main
+git -C offset-library push origin v0.1.0
+```
+
+Also stage your chosen license file before the commit. Publishing uses your
+normal Git credentials. Eqiora's consumer fetch supports public HTTPS URLs and
+explicit local Git repository paths; authenticated private repositories and
+SSH URLs are not currently supported.
+
+## Consume the GitHub repository
+
+From the working folder, prepare home-backed scratch for Git acquisition:
+
+```bash
+mkdir -p "$HOME/.cache/eqiora/tmp"
+export TMPDIR="$HOME/.cache/eqiora/tmp"
+```
+
+Save and run this script with the same Python environment, replacing `OWNER`:
+
+```python title="use_github.py"
+from pathlib import Path
+import eqiora
+
+project = Path("demo")
+store = Path("package-store")
+store.mkdir(exist_ok=True)
+resolution = eqiora.add_git_dependency(
+    project, store, "org.example.Offsets", version="0.1.0",
+    repository="https://github.com/OWNER/offset-library.git",
+    revision="refs/tags/v0.1.0",
+)
+model = eqiora.compile_package(store, resolution, entry="Main")
+print("Compiled Main from the locked Git dependency")
+```
+
+```bash
+uv run --no-project --python .venv/bin/python python use_github.py
+```
+
+This replaces the local dependency with a Git source, installs the accepted
+package, and writes its lock. The dependency section in `demo/eqiora.toml`
+now represents:
+
+```toml
+[dependencies."org.example.Offsets"]
+version = "0.1.0"
+
+[[dependencies."org.example.Offsets".sources]]
+git = { repository = "https://github.com/OWNER/offset-library.git", rev = "refs/tags/v0.1.0" }
+```
+
+The `.eqi` import stays the same. `revision` in Python and `rev` in TOML accept
+a full lowercase 40-character commit ID, `refs/tags/...`, or `refs/heads/...`.
+For example, use `refs/heads/main`, not bare `main`. The selected commit's
+`eqiora.toml` must satisfy the requested package name and version.
+
+You can also author this TOML directly and call `eqiora.update_project` to
+resolve it. The API above performs the manifest and lock update together.
+
+## Lock, update, and carry dependencies offline
+
+Commit `demo/eqiora.toml`, `demo/eqiora.lock`, and the consumer sources together.
+The lock records the exact package selection and Git commit. Reopening and
+compiling use that selection; a moving branch does not silently update it.
+
+Use these operations with `project` and `store` from the scripts above:
+
+| Task | Python operation |
+|---|---|
+| Reopen an installed, unchanged project | `eqiora.open_project(project, store)` |
+| Refill a store for the existing lock | `eqiora.fetch_project(project, store)` |
+| Resolve changed sources or requests and write a new lock | `eqiora.update_project(project, store)` |
+| Inspect an update before committing it | `eqiora.preview_local_project(project)` |
+
+After editing library sources locally, explicitly update the consumer's lock
+before reopening it. For a new published release, update the library version,
+commit and tag it, then call `add_git_dependency` with the new version and ref.
+
+To carry the accepted closure with the consumer:
+
+```python title="vendor_library.py"
+from pathlib import Path
+import eqiora
+
+project = Path("demo")
+store = Path("package-store")
+vendor = project / "vendor"
+vendor.mkdir(exist_ok=True)
+eqiora.vendor_project(project, store, vendor)
+resolution = eqiora.open_project(project, vendor)
+model = eqiora.compile_package(vendor, resolution, entry="Main")
+```
+
+Move the whole `demo` directory, including its lock and `vendor`, and reopen it
+using the new paths. The original library checkout and GitHub connection are no
+longer needed for that accepted closure.
+
+See [package resolution](/guides/modeling/#resolve-and-lock-a-local-package-project)
+for version requests, dependency updates, and the Git acquisition limits.
+Browse the [standard library](/reference/standard-packages/) for larger physical
+components to reuse or study.

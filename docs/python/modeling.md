@@ -580,6 +580,9 @@ the authored source/projection identity changes when its test restriction change
 
 ## Resolve and lock a local package project
 
+For a complete walkthrough of directory layout, public declarations, local imports,
+and GitHub distribution, start with [Create and share a library](/guides/creating-libraries/).
+
 An installed Eqiora distribution can add an exact standard fluid or solid
 dependency to an existing project through the same manifest/lock transaction:
 

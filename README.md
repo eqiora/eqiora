@@ -30,6 +30,7 @@
   <a href="#-get-started-with-uv"><strong>Get started</strong></a> ·
   <a href="https://eqiora.org/learn/"><strong>Learn the physics</strong></a> ·
   <a href="https://eqiora.org/gallery/"><strong>Explore simulations</strong></a> ·
+  <a href="https://eqiora.org/reference/standard-packages/">Standard library</a> ·
   <a href="https://eqiora.org/reference/">API reference</a> ·
   <a href="docs/roadmap.md">Roadmap</a> ·
   <a href="CONTRIBUTING.md">Contribute</a>

@@ -143,6 +143,7 @@ export default defineConfig({
           { label: 'Choose a task', link: '/guides/' },
           { label: 'Run and inspect', link: '/guides/run-and-inspect/' },
           { label: 'How Eqiora fits together', link: '/guides/how-eqiora-fits-together/' },
+          { label: 'Create and share a library', link: '/guides/creating-libraries/' },
           { label: 'Modeling and realization', link: '/guides/modeling/' },
           { label: 'Execution, diagnostics, arrays', link: '/guides/execution-and-arrays/' },
           { label: 'Differentiation', link: '/guides/differentiation/' },
@@ -166,10 +167,11 @@ export default defineConfig({
           ],
         },
         {
-          label: 'Standard sources',
+          label: 'Standard library',
           items: [
             { label: 'Overview', link: '/reference/standard-packages/' },
             { label: 'Electrical components', link: '/reference/standard-packages/electrical/' },
+            { label: 'Sampled controls', link: '/reference/standard-packages/controls/' },
             { label: 'Continuum laws and boundaries', link: '/reference/standard-packages/continuum/' },
           ],
         },
