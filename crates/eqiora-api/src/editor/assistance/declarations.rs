@@ -1,12 +1,7 @@
-use super::{
-    EditorCandidate, EditorParameter, EditorSnapshot, EditorSymbol, EditorSymbolKind, cursor,
-};
+use super::{EditorSnapshot, EditorSymbol, EditorSymbolKind, cursor};
 use eqiora_lang::{Document, SignatureItem};
 
-pub(super) fn candidate(
-    snapshot: &EditorSnapshot,
-    symbol: &EditorSymbol,
-) -> Option<EditorCandidate> {
+pub(super) fn candidate(snapshot: &EditorSnapshot, symbol: &EditorSymbol) -> Option<EditorSymbol> {
     let text = snapshot
         .source
         .get(symbol.range().start() as usize..symbol.range().end() as usize)?;
@@ -25,39 +20,33 @@ pub(super) fn candidate(
             .iter()
             .filter(|p| p.range().start() < symbol.range().start() + end as u32)
             .filter_map(|p| {
-                Some(EditorParameter {
-                    name: p.name().into(),
-                    detail: cursor::clean(
-                        snapshot
-                            .source
-                            .get(p.range().start() as usize..p.range().end() as usize)?,
-                    ),
-                    documentation: p.doc_comment().cloned(),
-                    required: signature
-                        .and_then(|items| items.iter().find(|item| item.name() == p.name()))
-                        .and_then(|item| match item {
-                            SignatureItem::Parameter(value) => Some(value.default().is_none()),
-                            SignatureItem::Support(_)
-                            | SignatureItem::Field(_)
-                            | SignatureItem::Clock(_)
-                            | SignatureItem::Property(_)
-                            | SignatureItem::Input(_) => Some(true),
-                            _ => None,
-                        })
-                        .or_else(|| (symbol.kind() == EditorSymbolKind::Operator).then_some(true)),
-                })
+                let mut formal = p.clone();
+                formal.detail = Some(cursor::clean(
+                    snapshot
+                        .source
+                        .get(p.range().start() as usize..p.range().end() as usize)?,
+                ));
+                formal.binding_required = signature
+                    .and_then(|items| items.iter().find(|item| item.name() == p.name()))
+                    .and_then(|item| match item {
+                        SignatureItem::Parameter(value) => Some(value.default().is_none()),
+                        SignatureItem::Support(_)
+                        | SignatureItem::Field(_)
+                        | SignatureItem::Clock(_)
+                        | SignatureItem::Property(_)
+                        | SignatureItem::Input(_) => Some(true),
+                        _ => None,
+                    })
+                    .or_else(|| (symbol.kind() == EditorSymbolKind::Operator).then_some(true));
+                Some(formal)
             })
             .collect()
     });
-    Some(EditorCandidate {
-        name: symbol.name().into(),
-        insert_text: symbol.name().into(),
-        detail: cursor::clean(&text[..end]),
-        documentation: symbol.doc_comment().cloned(),
-        kind: symbol.kind(),
-        parameters,
-        required: None,
-    })
+    let mut candidate = symbol.clone();
+    candidate.detail = Some(cursor::clean(&text[..end]));
+    candidate.callable = callable;
+    candidate.children = parameters.unwrap_or_default();
+    Some(candidate)
 }
 
 pub(super) fn signature<'a>(document: &'a Document, name: &str) -> Option<&'a [SignatureItem]> {
@@ -81,16 +70,10 @@ pub(super) fn exported(snapshot: &EditorSnapshot, symbol: &EditorSymbol) -> bool
         .is_some_and(|t| t.text() == "public")
 }
 
-pub(super) fn simple(name: &str, detail: String, kind: EditorSymbolKind) -> EditorCandidate {
-    EditorCandidate {
-        name: name.into(),
-        insert_text: name.into(),
-        detail,
-        kind,
-        documentation: None,
-        parameters: None,
-        required: None,
-    }
+pub(super) fn simple(name: &str, detail: String, kind: EditorSymbolKind) -> EditorSymbol {
+    let mut symbol = EditorSymbol::leaf(kind, name, eqiora_lang::TextRange::default());
+    symbol.detail = Some(detail);
+    symbol
 }
 
 pub(super) fn target(document: &Document, symbol: &EditorSymbol) -> Option<String> {
@@ -156,7 +139,7 @@ pub(super) fn target(document: &Document, symbol: &EditorSymbol) -> Option<Strin
         })
 }
 
-pub(super) fn members(snapshot: &EditorSnapshot, symbol: &EditorSymbol) -> Vec<EditorCandidate> {
+pub(super) fn members(snapshot: &EditorSnapshot, symbol: &EditorSymbol) -> Vec<EditorSymbol> {
     let Some(document) = snapshot.syntax.as_ref() else {
         return Vec::new();
     };

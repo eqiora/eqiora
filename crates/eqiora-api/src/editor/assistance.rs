@@ -1,19 +1,19 @@
 //! Syntax recovery and declaration queries for editor assistance.
 use super::{EditorSnapshot, EditorSymbol, EditorSymbolKind, EditorWorkspaceSnapshot};
-use eqiora_lang::{DocComment, TextRange};
+use eqiora_lang::TextRange;
 use std::collections::BTreeMap;
 
+mod builtins;
 mod cursor;
 mod declarations;
 mod query;
 #[cfg(test)]
 mod tests;
-pub use cursor::EditorCall;
+mod vocabulary;
 
 /// Syntactic position used to select applicable completion families.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum EditorCompletionContext {
+enum Context {
     /// A declaration or its modifier may begin here.
     Declaration,
     /// A type or definition is expected after a colon.
@@ -28,50 +28,13 @@ pub enum EditorCompletionContext {
     Argument,
 }
 
-/// One declared formal, including whether an instance may bind it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EditorParameter {
-    /// Source name.
-    pub name: String,
-    /// Complete authored signature entry.
-    pub detail: String,
-    /// Source prose; [`DocComment::markdown`] provides bounded rendering.
-    pub documentation: Option<DocComment>,
-    /// `Some(true)` for required bindings, `Some(false)` for defaulted bindings,
-    /// and `None` for owned endpoints.
-    pub required: Option<bool>,
-}
-
-/// An authored declaration or insertion candidate from the current snapshot.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EditorCandidate {
-    /// Visible spelling, including any qualifier.
-    pub name: String,
-    /// Source declaration head.
-    pub detail: String,
-    /// Source prose; [`DocComment::markdown`] provides bounded rendering.
-    pub documentation: Option<DocComment>,
-    /// Editor declaration category.
-    pub kind: EditorSymbolKind,
-    /// Insertion replacing the completion's exact range.
-    pub insert_text: String,
-    /// Declared callable signature, when known.
-    pub parameters: Option<Vec<EditorParameter>>,
-    /// Required/defaulted classification for a named-argument candidate.
-    pub required: Option<bool>,
-}
-
 /// Completion at one UTF-8 cursor position in an immutable source snapshot.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EditorCompletion {
+struct Completion {
     /// Exact full token range to replace, including any qualification.
     pub range: TextRange,
-    /// Source spelling before the cursor, for filtering builtin candidates too.
-    pub prefix: String,
-    /// Syntactic candidate family.
-    pub context: EditorCompletionContext,
     /// Visible authored candidates matching the prefix.
-    pub items: Vec<EditorCandidate>,
+    pub items: Vec<EditorSymbol>,
 }
 
 impl EditorSnapshot {
@@ -85,40 +48,47 @@ impl EditorSnapshot {
         Some((name, TextRange::new(start, end)))
     }
 
-    /// Query current local declarations, recovering incomplete source.
+    /// Query documented builtin vocabulary and current local declarations.
+    /// Returns the replacement range and matching symbols, recovering incomplete source.
     /// Returns `None` inside comments/notation or at an invalid byte position.
     #[must_use]
-    pub fn completion(&self, offset: u32) -> Option<EditorCompletion> {
-        query::Query::local(self).completion(offset)
+    pub fn completion(&self, offset: u32) -> Option<(TextRange, Vec<EditorSymbol>)> {
+        query::Query::local(self)
+            .completion(offset)
+            .map(|c| (c.range, c.items))
     }
 
-    /// Resolve a visible authored spelling for hover or signature help.
+    /// Resolve documented vocabulary or a visible authored spelling for hover or signature help.
     #[must_use]
-    pub fn assistance(&self, offset: u32, name: &str) -> Option<EditorCandidate> {
+    pub fn assistance(&self, offset: u32, name: &str) -> Option<EditorSymbol> {
         query::Query::local(self).resolve(offset, name)
     }
 
-    /// Recover the callable containing the cursor, including missing delimiters.
+    /// Recover the callable name, argument index and named binding at the cursor,
+    /// including missing delimiters.
     #[must_use]
-    pub fn call_at(&self, offset: u32) -> Option<EditorCall> {
+    pub fn call_at(&self, offset: u32) -> Option<(String, usize, Option<String>)> {
         if self.source.len() > Self::MAX_SOURCE_BYTES {
             return None;
         }
-        cursor::call_at(&self.source, offset)
+        cursor::call_at(&self.source, offset).map(|call| (call.name, call.argument, call.named))
     }
 }
 
 impl EditorWorkspaceSnapshot {
-    /// Query declarations and canonical modules in the current graph.
+    /// Query documented vocabulary, declarations and canonical modules in the current graph.
+    /// Returns the replacement range and matching symbols.
     /// Recovery never grants executable validity or crosses a private boundary.
     #[must_use]
-    pub fn completion(&self, file: &str, offset: u32) -> Option<EditorCompletion> {
-        query::Query::workspace(self, file)?.completion(offset)
+    pub fn completion(&self, file: &str, offset: u32) -> Option<(TextRange, Vec<EditorSymbol>)> {
+        query::Query::workspace(self, file)?
+            .completion(offset)
+            .map(|c| (c.range, c.items))
     }
 
-    /// Resolve an authored local, imported or exposed member spelling.
+    /// Resolve documented vocabulary or an authored local, imported or exposed member spelling.
     #[must_use]
-    pub fn assistance(&self, file: &str, offset: u32, name: &str) -> Option<EditorCandidate> {
+    pub fn assistance(&self, file: &str, offset: u32, name: &str) -> Option<EditorSymbol> {
         query::Query::workspace(self, file)?.resolve(offset, name)
     }
 }
@@ -154,4 +124,16 @@ fn visible<'a>(
     for symbol in symbols.iter().filter(|s| contains(s, source, offset)) {
         visible(symbol.children(), source, offset, out);
     }
+}
+
+fn documented(
+    name: &str,
+    detail: &str,
+    documentation: &str,
+    kind: EditorSymbolKind,
+) -> EditorSymbol {
+    let mut symbol = EditorSymbol::leaf(kind, name, TextRange::default());
+    symbol.detail = Some(detail.into());
+    symbol.help = Some(documentation.into());
+    symbol
 }

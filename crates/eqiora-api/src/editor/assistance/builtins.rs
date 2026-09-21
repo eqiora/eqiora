@@ -1,9 +1,8 @@
 //! Editor prose for the currently admitted source vocabulary. These descriptions
 //! do not define typing or evaluation; those remain owned by the compiler.
-use super::{Entry, Parameter};
-use lsp_types::CompletionItemKind;
+use super::{EditorSymbol, EditorSymbolKind as Kind, documented};
 
-pub(super) fn entries() -> Vec<Entry> {
+pub(super) fn entries() -> Vec<EditorSymbol> {
     let mut entries = vec![
         function(
             "math.sin",
@@ -242,32 +241,17 @@ pub(super) fn entries() -> Vec<Entry> {
             "Dimensionless imaginary unit. Use math.complex(real_part, imaginary_part) to construct dimensioned complex scalars.",
         ),
     ] {
-        entries.push(Entry {
-            name: name.into(),
-            label: label.into(),
-            documentation: Some(doc.into()),
-            kind: CompletionItemKind::CONSTANT,
-            parameters: None,
-        });
+        entries.push(documented(name, label, doc, Kind::Let));
     }
     entries
 }
 
-fn function(name: &str, label: &str, doc: &str, parameters: &[(&str, &str)]) -> Entry {
-    Entry {
-        name: name.into(),
-        label: label.into(),
-        documentation: Some(doc.into()),
-        kind: CompletionItemKind::FUNCTION,
-        parameters: Some(
-            parameters
-                .iter()
-                .map(|(name, doc)| Parameter {
-                    name: (*name).into(),
-                    label: (*name).into(),
-                    documentation: Some((*doc).into()),
-                })
-                .collect(),
-        ),
-    }
+fn function(name: &str, label: &str, doc: &str, parameters: &[(&str, &str)]) -> EditorSymbol {
+    let mut symbol = documented(name, label, doc, Kind::Operator);
+    symbol.callable = true;
+    symbol.children = parameters
+        .iter()
+        .map(|(name, doc)| documented(name, name, doc, Kind::Formal))
+        .collect();
+    symbol
 }

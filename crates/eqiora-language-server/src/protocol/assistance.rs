@@ -1,6 +1,6 @@
 //! Documentation shared by hover, completion and signature help.
+use eqiora::api::EditorSymbol;
 use eqiora::api::EditorSymbolKind;
-use eqiora::api::{EditorCandidate, EditorCompletionContext as Context};
 use lsp_types::{
     CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse, CompletionTextEdit,
     Documentation, Hover, HoverContents, MarkupContent, MarkupKind, ParameterInformation,
@@ -10,10 +10,8 @@ use lsp_types::{
 use super::{ServerState, document};
 use crate::lsp_projection::{editor_position, source_range};
 
-mod builtins;
 #[cfg(test)]
 mod tests;
-mod vocabulary;
 
 struct Parameter {
     name: String,
@@ -103,30 +101,32 @@ impl Entry {
     }
 }
 
-fn authored(candidate: EditorCandidate) -> Entry {
+fn authored(candidate: EditorSymbol) -> Entry {
     Entry {
-        name: candidate.name,
-        label: candidate.detail,
-        documentation: candidate.documentation.map(|d| d.markdown()),
-        kind: match candidate.kind {
+        name: candidate.name().into(),
+        label: candidate.detail().unwrap_or(candidate.name()).into(),
+        documentation: candidate.documentation(),
+        kind: match candidate.kind() {
             EditorSymbolKind::Operator | EditorSymbolKind::Component | EditorSymbolKind::Model => {
                 CompletionItemKind::FUNCTION
             }
             EditorSymbolKind::Import => CompletionItemKind::MODULE,
+            EditorSymbolKind::Keyword => CompletionItemKind::KEYWORD,
+            EditorSymbolKind::Let => CompletionItemKind::CONSTANT,
             EditorSymbolKind::Enum => CompletionItemKind::ENUM,
             EditorSymbolKind::EnumMember => CompletionItemKind::ENUM_MEMBER,
             EditorSymbolKind::Record => CompletionItemKind::STRUCT,
-            EditorSymbolKind::Dimension | EditorSymbolKind::FiniteSpace => {
-                CompletionItemKind::CLASS
-            }
+            EditorSymbolKind::Dimension
+            | EditorSymbolKind::FiniteSpace
+            | EditorSymbolKind::ValueType => CompletionItemKind::CLASS,
             _ => CompletionItemKind::VARIABLE,
         },
-        parameters: candidate.parameters.map(|ps| {
-            ps.into_iter()
+        parameters: candidate.parameters().map(|ps| {
+            ps.iter()
                 .map(|p| Parameter {
-                    name: p.name,
-                    label: p.detail,
-                    documentation: p.documentation.map(|d| d.markdown()),
+                    name: p.name().into(),
+                    label: p.detail().unwrap_or(p.name()).into(),
+                    documentation: p.documentation(),
                 })
                 .collect()
         }),
@@ -140,12 +140,6 @@ fn entry(state: &ServerState, uri: &Uri, offset: u32, name: &str) -> Option<Entr
         .and_then(|(w, file)| w.assistance(file, offset, name))
         .or_else(|| open.snapshot().assistance(offset, name))
         .map(authored)
-        .or_else(|| {
-            builtins::entries()
-                .into_iter()
-                .chain(vocabulary::entries())
-                .find(|e| e.name == name)
-        })
 }
 
 pub(super) fn hover(
@@ -189,58 +183,22 @@ pub(super) fn completion(
         .resolved(uri)
         .and_then(|(w, file)| w.completion(file, offset))
         .or_else(|| open.snapshot().completion(offset));
-    let Some(completion) = completion else {
+    let Some((range, candidates)) = completion else {
         return Ok(empty());
     };
     let range = source_range(
         open.snapshot(),
-        completion.range.start() as usize,
-        completion.range.end() as usize,
+        range.start() as usize,
+        range.end() as usize,
     )?;
-    let mut items = std::collections::BTreeMap::new();
-    for e in builtins::entries()
+    let items = candidates
         .into_iter()
-        .chain(vocabulary::entries())
-        .filter(|e| {
-            e.name.starts_with(&completion.prefix)
-                && match completion.context {
-                    Context::Import | Context::Argument => false,
-                    Context::Member => {
-                        e.name.starts_with("math.") && completion.prefix.starts_with("math.")
-                    }
-                    Context::Type => e.kind == CompletionItemKind::CLASS,
-                    Context::Declaration => e.kind == CompletionItemKind::KEYWORD,
-                    _ => {
-                        (e.kind != CompletionItemKind::KEYWORD
-                            && e.kind != CompletionItemKind::CLASS)
-                            || matches!(
-                                e.name.as_str(),
-                                "if" | "then"
-                                    | "else"
-                                    | "case"
-                                    | "and"
-                                    | "or"
-                                    | "not"
-                                    | "true"
-                                    | "false"
-                            )
-                    }
-                }
+        .map(|candidate| {
+            let insertion = candidate.insert_text().to_owned();
+            let required = candidate.required();
+            completion_item(authored(candidate), insertion, required, range)
         })
-    {
-        let insertion = e.name.clone();
-        items.insert(e.name.clone(), completion_item(e, insertion, None, range));
-    }
-    for candidate in completion.items {
-        let insertion = candidate.insert_text.clone();
-        let required = candidate.required;
-        let e = authored(candidate);
-        items.insert(
-            e.name.clone(),
-            completion_item(e, insertion, required, range),
-        );
-    }
-    let items = items.into_values().collect();
+        .collect();
     Ok(CompletionResponse::Array(items))
 }
 
@@ -255,11 +213,11 @@ pub(super) fn signature_help(
     )) else {
         return Ok(None);
     };
-    let Some(call) = open.snapshot().call_at(offset) else {
+    let Some((name, argument, named)) = open.snapshot().call_at(offset) else {
         return Ok(None);
     };
-    let entry = entry(state, uri, offset, &call.name);
-    Ok(entry.and_then(|entry| entry.signature(call.argument, call.named.as_deref())))
+    let entry = entry(state, uri, offset, &name);
+    Ok(entry.and_then(|entry| entry.signature(argument, named.as_deref())))
 }
 
 fn completion_item(

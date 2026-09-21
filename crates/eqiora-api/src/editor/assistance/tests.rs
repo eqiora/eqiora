@@ -5,16 +5,17 @@ use eqiora_compiler::{
     ResolvedSourceUnit,
 };
 
-fn complete(marked: &str) -> EditorCompletion {
+fn complete(marked: &str) -> Vec<EditorSymbol> {
     let offset = marked.find('|').unwrap() as u32;
     EditorService::new("test", 1, marked.replacen('|', "", 1))
         .current()
         .completion(offset)
         .unwrap()
+        .1
 }
 
-fn names(completion: &EditorCompletion) -> Vec<&str> {
-    completion.items.iter().map(|c| c.name.as_str()).collect()
+fn names(completion: &[EditorSymbol]) -> Vec<&str> {
+    completion.iter().map(|c| c.name.as_str()).collect()
 }
 
 #[test]
@@ -41,29 +42,27 @@ fn incomplete_owners_recover_current_scope_without_leaking_closed_siblings() {
         ));
         assert_eq!(names(&c), [expected]);
     }
-    assert!(
-        complete("model M() { // parameter fake: 1;\n relation r { fa| ")
-            .items
-            .is_empty()
+    assert_eq!(
+        names(&complete(
+            "model M() { // parameter fake: 1;\n relation r { fa| "
+        )),
+        ["false"],
+        "the commented declaration is absent; the Boolean keyword remains"
     );
 }
 
 #[test]
 fn context_separates_declarations_types_and_values_and_respects_shadowing() {
-    assert_eq!(
-        complete("mod|").context,
-        EditorCompletionContext::Declaration
-    );
+    assert_eq!(names(&complete("mod|")), ["model"]);
     let c = complete("dimension Length = m; model M() { parameter value: Len| }");
-    assert_eq!(c.context, EditorCompletionContext::Type);
     assert_eq!(names(&c), ["Length"]);
     let c =
         complete("operator gain(input x: 1): 1 = x; model M(parameter gain: 1) { relation r { ga|");
-    assert_eq!(c.items[0].kind, EditorSymbolKind::Parameter);
-    assert!(c.items[0].parameters.is_none());
+    assert_eq!(c[0].kind, EditorSymbolKind::Parameter);
+    assert!(c[0].parameters().is_none());
     let c = complete("record Sample { value: 1 } model M() { variable x: Sam|");
     assert_eq!(names(&c), ["Sample"]);
-    assert_eq!(c.items[0].kind, EditorSymbolKind::Record);
+    assert_eq!(c[0].kind, EditorSymbolKind::Record);
 }
 
 #[test]
@@ -98,7 +97,7 @@ fn same_named_declarations_follow_aliases_and_ambiguous_exact_packages_are_omitt
         ResolvedHierarchyInput::new(owner.clone(), units, edges),
     );
     assert_eq!(
-        names(&snapshot.completion(&file, source.len() as u32).unwrap()),
+        names(&snapshot.completion(&file, source.len() as u32).unwrap().1),
         ["second"]
     );
 
@@ -123,7 +122,7 @@ fn same_named_declarations_follow_aliases_and_ambiguous_exact_packages_are_omitt
             ],
         ),
     );
-    assert!(snapshot.completion(&file, 10).unwrap().items.is_empty());
+    assert!(snapshot.completion(&file, 10).unwrap().1.is_empty());
 }
 
 const COMPONENT: &str = "public connector Pin { across voltage: V; through current: A; }\n/// Adjustable part.\npublic component Part(\n/// Required coefficient.\nparameter gain: 1, parameter offset: 1 = 0, output result: 1, port pin: Pin) { parameter secret: 1 = 2; }\nprivate component Hidden() {}";
@@ -168,52 +167,42 @@ fn incomplete_imports_use_only_current_graph_and_direct_dependencies() {
     ] {
         let (workspace, file, offset) = graph(source);
         assert_eq!(
-            names(&workspace.completion(&file, offset).unwrap()),
+            names(&workspace.completion(&file, offset).unwrap().1),
             [expected]
         );
         assert!(workspace.compile_model(&file, "M").is_err());
     }
     let (workspace, file, offset) = graph("import ind|");
-    assert!(
-        workspace
-            .completion(&file, offset)
-            .unwrap()
-            .items
-            .is_empty()
-    );
+    assert!(workspace.completion(&file, offset).unwrap().1.is_empty());
 }
 
 #[test]
 fn qualified_exports_and_exposed_members_recover_on_invalid_source() {
     assert!(
-        complete(&format!("{COMPONENT} model M() {{ relation r {{ Part.|"))
-            .items
-            .is_empty(),
+        complete(&format!("{COMPONENT} model M() {{ relation r {{ Part.|")).is_empty(),
         "a definition name is not an instance"
     );
     assert!(
-        complete("operator f(input x: 1): 1 = x; model M() { relation r { f.|")
-            .items
-            .is_empty(),
+        complete("operator f(input x: 1): 1 = x; model M() { relation r { f.|").is_empty(),
         "operator formals are private to the operator body"
     );
     let import = "import library.devices.electrical as electrical; ";
     let (w, f, p) = graph(&format!("{import} model M() {{ instance c: electrical.|"));
-    let c = w.completion(&f, p).unwrap();
+    let c = w.completion(&f, p).unwrap().1;
     assert!(names(&c).contains(&"electrical.Part"));
     assert!(!names(&c).contains(&"electrical.Hidden"));
     let (w, f, p) = graph(&format!(
         "{import} model M() {{ instance child: electrical.Part(gain = 2); relation r {{ child.|"
     ));
     assert_eq!(
-        names(&w.completion(&f, p).unwrap()),
+        names(&w.completion(&f, p).unwrap().1),
         ["child.pin", "child.result"]
     );
     let (w, f, p) = graph(&format!(
         "{import} model M() {{ instance child: electrical.Part(gain = 2); relation r {{ child.pin.|"
     ));
     assert_eq!(
-        names(&w.completion(&f, p).unwrap()),
+        names(&w.completion(&f, p).unwrap().1),
         ["child.pin.current", "child.pin.voltage"]
     );
 }
@@ -225,14 +214,11 @@ fn remaining_bindings_include_required_defaulted_docs_and_avoid_duplicate_equals
             "{COMPONENT} model M() {{ instance c: Part({suffix}"
         ));
         assert_eq!(names(&c), ["gain"]);
-        assert_eq!(c.items[0].insert_text, expected);
-        assert_eq!(c.items[0].required, Some(true));
+        assert_eq!(c[0].insert_text(), expected);
+        assert_eq!(c[0].required(), Some(true));
         assert!(
-            c.items[0]
-                .documentation
-                .as_ref()
+            c[0].documentation()
                 .unwrap()
-                .markdown()
                 .contains("Required coefficient")
         );
     }
@@ -240,7 +226,7 @@ fn remaining_bindings_include_required_defaulted_docs_and_avoid_duplicate_equals
         "{COMPONENT} model M() {{ instance c: Part(gain = math.max(1, 2), |"
     ));
     assert_eq!(names(&c), ["offset"]);
-    assert_eq!(c.items[0].required, Some(false));
+    assert_eq!(c[0].required(), Some(false));
     let c = complete(&format!(
         "{COMPONENT} model M() {{ instance c: Part(|, offset = 3)"
     ));
@@ -251,8 +237,13 @@ fn remaining_bindings_include_required_defaulted_docs_and_avoid_duplicate_equals
     assert_eq!(names(&c), ["value"]);
     let (w, f, p) =
         graph("import library.devices.electrical as e; model M() { instance c: e.Part(off|");
-    assert_eq!(names(&w.completion(&f, p).unwrap()), ["offset"]);
-    assert!(w.assistance(&f, p, "e.Part").unwrap().parameters.is_some());
+    assert_eq!(names(&w.completion(&f, p).unwrap().1), ["offset"]);
+    assert!(
+        w.assistance(&f, p, "e.Part")
+            .unwrap()
+            .parameters()
+            .is_some()
+    );
 
     let operator = "operator blend(input left: 1, input right: 1): 1 = left + right;";
     assert_eq!(
@@ -268,9 +259,5 @@ fn remaining_bindings_include_required_defaulted_docs_and_avoid_duplicate_equals
         .contains(&"right"),
         "positional calls cannot mix named bindings"
     );
-    assert!(
-        complete("model M() { instance c: Unknown(ga|")
-            .items
-            .is_empty()
-    );
+    assert!(complete("model M() { instance c: Unknown(ga|").is_empty());
 }

@@ -1,6 +1,6 @@
 use super::{
-    EditorCandidate, EditorCompletion, EditorCompletionContext as C, EditorSnapshot, EditorSymbol,
-    EditorSymbolKind as S, EditorWorkspaceSnapshot, cursor, declarations, visible,
+    Completion, Context as C, EditorSnapshot, EditorSymbol, EditorSymbolKind as S,
+    EditorWorkspaceSnapshot, cursor, declarations, visible,
 };
 use eqiora_lang::{TextRange, TokenKind as K};
 use std::collections::BTreeMap;
@@ -134,7 +134,16 @@ impl<'a> Query<'a> {
         self.locate(snapshot, symbol.range().start(), &target, depth + 1)
     }
 
-    pub(super) fn resolve(&self, offset: u32, name: &str) -> Option<EditorCandidate> {
+    pub(super) fn resolve(&self, offset: u32, name: &str) -> Option<EditorSymbol> {
+        self.resolve_authored(offset, name).or_else(|| {
+            super::builtins::entries()
+                .into_iter()
+                .chain(super::vocabulary::entries())
+                .find(|s| s.name == name)
+        })
+    }
+
+    fn resolve_authored(&self, offset: u32, name: &str) -> Option<EditorSymbol> {
         let mut candidate =
             if let Some((snapshot, symbol)) = self.locate(self.snapshot, offset, name, 0) {
                 declarations::candidate(snapshot, symbol)?
@@ -145,11 +154,11 @@ impl<'a> Query<'a> {
                     .find(|c| c.name == member)?
             };
         candidate.name = name.into();
-        candidate.insert_text = name.into();
+        candidate.insertion = Some(name.into());
         Some(candidate)
     }
 
-    fn members(&self, offset: u32, qualifier: &str) -> Vec<EditorCandidate> {
+    fn members(&self, offset: u32, qualifier: &str) -> Vec<EditorSymbol> {
         let Some((snapshot, symbol)) = self.locate(self.snapshot, offset, qualifier, 0) else {
             return Vec::new();
         };
@@ -173,7 +182,7 @@ impl<'a> Query<'a> {
             .unwrap_or_default()
     }
 
-    pub(super) fn completion(&self, offset: u32) -> Option<EditorCompletion> {
+    pub(super) fn completion(&self, offset: u32) -> Option<Completion> {
         let source = &self.snapshot.source;
         if source.len() > EditorSnapshot::MAX_SOURCE_BYTES
             || !source.is_char_boundary(offset as usize)
@@ -207,7 +216,7 @@ impl<'a> Query<'a> {
                 .into_iter()
                 .map(|mut c| {
                     c.name = format!("{qualifier}.{}", c.name);
-                    c.insert_text = c.name.clone();
+                    c.insertion = Some(c.name.clone());
                     c
                 })
                 .collect();
@@ -215,7 +224,9 @@ impl<'a> Query<'a> {
             .filter(|call| cursor::binding_position(source, offset, call))
             && let Some(target) = self.resolve(offset, &call.name).filter(|t| {
                 matches!(t.kind, S::Component | S::Model | S::Operator)
-                    && (t.kind != S::Operator || !cursor::positional_before(source, &call))
+                    && (t.kind != S::Operator
+                        || (t.children.iter().any(|p| p.binding_required.is_some())
+                            && !cursor::positional_before(source, &call)))
             })
         {
             context = C::Argument;
@@ -224,22 +235,16 @@ impl<'a> Query<'a> {
                 .first()
                 .is_some_and(|t| t.kind() == K::Equal);
             items = target
-                .parameters
-                .unwrap_or_default()
+                .children
                 .into_iter()
-                .filter(|p| p.required.is_some() && !supplied.contains(&p.name))
-                .map(|p| EditorCandidate {
-                    insert_text: if equals {
+                .filter(|p| p.binding_required.is_some() && !supplied.contains(&p.name))
+                .map(|mut p| {
+                    p.insertion = Some(if equals {
                         p.name.clone()
                     } else {
                         format!("{} = ", p.name)
-                    },
-                    name: p.name,
-                    detail: p.detail,
-                    documentation: p.documentation,
-                    kind: S::Parameter,
-                    parameters: None,
-                    required: p.required,
+                    });
+                    p
                 })
                 .collect();
         }
@@ -271,12 +276,41 @@ impl<'a> Query<'a> {
                     .filter_map(|s| declarations::candidate(self.snapshot, s)),
             );
         }
+        let mut combined: BTreeMap<_, _> = super::builtins::entries()
+            .into_iter()
+            .chain(super::vocabulary::entries())
+            .filter(|s| match context {
+                C::Import | C::Argument => false,
+                C::Member => s.name.starts_with("math.") && prefix.starts_with("math."),
+                C::Type => s.kind == S::ValueType,
+                C::Declaration => s.kind == S::Keyword,
+                C::Expression => {
+                    !matches!(s.kind, S::Keyword | S::ValueType)
+                        || matches!(
+                            s.name.as_str(),
+                            "if" | "then"
+                                | "else"
+                                | "case"
+                                | "and"
+                                | "or"
+                                | "not"
+                                | "true"
+                                | "false"
+                        )
+                }
+            })
+            .map(|s| (s.name.clone(), s))
+            .collect();
+        combined.extend(items.into_iter().map(|s| (s.name.clone(), s)));
+        let mut items: Vec<_> = combined.into_values().collect();
         items.retain(|c| c.name.starts_with(&prefix));
-        items.sort_by(|a, b| b.required.cmp(&a.required).then(a.name.cmp(&b.name)));
-        Some(EditorCompletion {
+        items.sort_by(|a, b| {
+            b.binding_required
+                .cmp(&a.binding_required)
+                .then(a.name.cmp(&b.name))
+        });
+        Some(Completion {
             range: TextRange::new(start, end),
-            prefix,
-            context,
             items,
         })
     }

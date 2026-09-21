@@ -249,21 +249,15 @@ fn local_project_editor_analysis_is_read_only_and_accepts_source_overrides() {
         .iter()
         .find_map(|(file, path)| (path == &PathBuf::from("root").join(SOURCE_PATH)).then_some(file))
         .unwrap();
-    let completion = recovered.completion(root, incomplete.len() as u32).unwrap();
+    let (_, completion) = recovered.completion(root, incomplete.len() as u32).unwrap();
     assert_eq!(
-        completion
-            .items
-            .iter()
-            .map(|c| c.name.as_str())
-            .collect::<Vec<_>>(),
+        completion.iter().map(|c| c.name()).collect::<Vec<_>>(),
         ["library.Revised"]
     );
     assert!(
-        completion.items[0]
-            .documentation
-            .as_ref()
+        completion[0]
+            .documentation()
             .unwrap()
-            .markdown()
             .contains("Newly authored")
     );
     assert!(recovered.references().is_empty());

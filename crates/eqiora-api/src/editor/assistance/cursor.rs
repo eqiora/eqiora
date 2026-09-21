@@ -61,11 +61,9 @@ pub(super) fn name_at(source: &str, offset: u32, prefix: bool) -> Option<(String
 
 /// Recovered innermost call, including unfinished argument lists.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EditorCall {
+pub(super) struct Call {
     /// Qualified callable spelling.
     pub name: String,
-    /// UTF-8 start of the callable name.
-    pub start: u32,
     /// Zero-based argument at the cursor.
     pub argument: usize,
     /// Named binding whose value contains the cursor.
@@ -74,7 +72,7 @@ pub struct EditorCall {
     pub(super) begin: usize,
 }
 
-pub(super) fn call_at(source: &str, offset: u32) -> Option<EditorCall> {
+pub(super) fn call_at(source: &str, offset: u32) -> Option<Call> {
     if in_comment(source, offset) {
         return None;
     }
@@ -124,9 +122,8 @@ pub(super) fn call_at(source: &str, offset: u32) -> Option<EditorCall> {
             .filter(|t| t.kind() == K::Identifier)
             .filter(|_| before.get(begin + 1).is_some_and(|t| t.kind() == K::Equal))
             .map(|t| t.text().to_owned());
-        return Some(EditorCall {
+        return Some(Call {
             name,
-            start,
             open,
             begin,
             argument,
@@ -162,8 +159,8 @@ pub(super) fn head_end(source: &str, callable: bool) -> usize {
     source.len()
 }
 
-pub(super) fn context(source: &str, start: u32) -> super::EditorCompletionContext {
-    use super::EditorCompletionContext as C;
+pub(super) fn context(source: &str, start: u32) -> super::Context {
+    use super::Context as C;
     let tokens = tokens(source);
     let before: Vec<_> = tokens
         .iter()
@@ -212,7 +209,7 @@ pub(super) fn context(source: &str, start: u32) -> super::EditorCompletionContex
     }
 }
 
-pub(super) fn binding_position(source: &str, offset: u32, call: &EditorCall) -> bool {
+pub(super) fn binding_position(source: &str, offset: u32, call: &Call) -> bool {
     let tokens = tokens(source);
     let current: Vec<_> = tokens[call.begin..]
         .iter()
@@ -221,7 +218,7 @@ pub(super) fn binding_position(source: &str, offset: u32, call: &EditorCall) -> 
     current.is_empty() || (current.len() == 1 && current[0].kind() == K::Identifier)
 }
 
-pub(super) fn positional_before(source: &str, call: &EditorCall) -> bool {
+pub(super) fn positional_before(source: &str, call: &Call) -> bool {
     let tokens = tokens(source);
     let mut depth = 0;
     let mut begin = call.open + 1;
@@ -244,7 +241,7 @@ pub(super) fn positional_before(source: &str, call: &EditorCall) -> bool {
 pub(super) fn supplied(
     source: &str,
     offset: u32,
-    call: &EditorCall,
+    call: &Call,
 ) -> std::collections::BTreeSet<String> {
     let tokens = tokens(source);
     let mut result = std::collections::BTreeSet::new();

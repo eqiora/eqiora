@@ -60,6 +60,9 @@ operator scale(
 ): 1 = x * factor;
 ```
 
+The native editor API supplies documented `EditorSymbol` values for all three
+features; the language server projects them into LSP responses.
+
 Local completion includes declarations in the cursor's enclosing lexical scope,
 including unfinished Model/Component bodies. Declaration, type and expression
 positions select different candidate families; sibling locals are never offered.
