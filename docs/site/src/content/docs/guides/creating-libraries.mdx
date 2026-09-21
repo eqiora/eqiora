@@ -124,7 +124,7 @@ print("Compiled Main with org.example.Offsets")
 Run it from that folder:
 
 ```bash
-uv run --no-project --python .venv/bin/python python check_library.py
+uv run python check_library.py
 ```
 
 This creates `demo/eqiora.lock`, fills `package-store`, and compiles the imported
@@ -184,7 +184,7 @@ print("Compiled Main from the locked Git dependency")
 ```
 
 ```bash
-uv run --no-project --python .venv/bin/python python use_github.py
+uv run python use_github.py
 ```
 
 This replaces the local dependency with a Git source, installs the accepted

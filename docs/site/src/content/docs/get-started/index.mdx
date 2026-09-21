@@ -11,36 +11,31 @@ import programSource from '../../../../../../examples/python/textbook_decay.py?r
 import programDownload from '../../../../../../examples/python/textbook_decay.py?url&no-inline';
 
 Run a small model, then change it and see the difference. You need two files and
-a Python environment. Install the same source revision as this page so the parser
-and downloaded model agree; no mesh generator or editor extension is needed.
+a Python environment. The example below works with the published Eqiora `0.1.2`
+package; no source checkout, Rust compiler, mesh generator or editor extension is needed.
 
 ## Install with uv
 
-These commands use **Linux x86-64** and ordinary-GIL **CPython 3.13**.
-Install Git, [Rust stable with Cargo](https://rustup.rs/), and a C compiler/linker
-before building the Python package from source. On Ubuntu, `build-essential`
-provides the compiler and linker.
+Prebuilt wheels support **Linux x86-64** and ordinary-GIL **CPython 3.11–3.14**.
+These commands select CPython 3.13. Install
+[uv](https://docs.astral.sh/uv/getting-started/installation/) if you do not have it,
+then create a project:
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/) if you do
-not have it, then open a terminal in a new working folder:
-
-export const installCommands = `mkdir first-eqiora-model
+```bash
+uv init --python 3.13 first-eqiora-model
 cd first-eqiora-model
-git init eqiora-source
-git -C eqiora-source remote add origin https://github.com/nkiyohara/eqiora.git
-git -C eqiora-source fetch --depth 1 origin ${process.env.EQIORA_SITE_SOURCE_SHA}
-git -C eqiora-source checkout --detach FETCH_HEAD
-uv venv --python 3.13
-uv pip install --python .venv/bin/python --reinstall-package eqiora ./eqiora-source`;
+uv add eqiora
+```
 
-<Code code={installCommands} lang="bash" title="Install the page's source revision" />
+In an existing uv project, just run `uv add eqiora`. This installs the published
+package from PyPI and records the dependency in `pyproject.toml` and `uv.lock`.
+Use `uv add eqiora==0.1.2` if you want to select the release used for this walkthrough
+explicitly. Keep the lockfile with your project to reproduce its environment.
 
-<ExactSourceLink path="examples/decay.eqi" kind="blob">The checked-out revision</ExactSourceLink>
-owns both the installed package and the model shown below. Building takes longer
-than installing a prebuilt wheel. Keep `eqiora-source` for the Learn lessons, Guides, and Reference examples.
-
-Keep the following files in this folder, beside `.venv`. No shell activation is
-needed: each run below explicitly selects that environment.
+Save the following files in the project folder, beside `pyproject.toml`.
+No shell activation is needed: `uv run` uses the project's environment.
+Lessons that run repository scripts use the optional [example files](#example-files).
+Downloading those files does not require rebuilding Eqiora.
 
 ## Predict the result
 
@@ -80,7 +75,7 @@ hold times in seconds and the corresponding dimensionless values.
 ## Run and inspect
 
 ```bash
-uv run --no-project --python .venv/bin/python python run.py
+uv run python run.py
 ```
 
 You should see values close to:
@@ -109,20 +104,61 @@ line should now be close to `t=1.00, x=0.1353352833`.
 You changed the model, not the time method. Restore `rate` to 1 when following
 the [ODE lesson](/learn/mathematical-modeling/ordinary-differential-equations/).
 
+## Example files
+
+Some lessons run scripts or model packages from the repository. Downloading
+those examples is separate from installing Eqiora: keep using the published
+package in your uv project. With Git installed, run these commands from the
+project folder to get the files linked by this site:
+
+export const exampleCommands = `git init eqiora-source
+git -C eqiora-source remote add origin https://github.com/eqiora/eqiora.git
+git -C eqiora-source fetch --depth 1 origin ${process.env.EQIORA_SITE_SOURCE_SHA}
+git -C eqiora-source checkout --detach FETCH_HEAD`;
+
+<Code code={exampleCommands} lang="bash" title="Optional: download the example files" />
+
+Keep `eqiora-source` beside `.venv` for the lessons that use repository paths.
+The decay, voltage-divider, heated-body and mixed-boundary elasticity examples
+run with the published `0.1.2` package. Add optional dependencies to that package
+as needed, for example `uv add 'eqiora[matplotlib]'`. Gmsh examples also need
+`uv add 'eqiora[gmsh,matplotlib]'` and the system GLU library; on Ubuntu, install
+it with `sudo apt-get install libglu1-mesa`.
+
+## Development build
+
+Use a development build only for a feature or result explicitly identified as
+newer than the published release. The current [Kármán wake](/gallery/karman-vortex-street/)
+video uses changes to equation-derived transport and outlet flux made after
+`0.1.2`; reproducing that result requires the linked development revision.
+
+After downloading the [example files](#example-files), install
+[Rust stable with Cargo](https://rustup.rs/) and a C compiler/linker. On Ubuntu,
+`build-essential` supplies the compiler and linker. Then replace the project's
+published dependency with the checkout:
+
+```bash
+uv add ./eqiora-source
+```
+
+<ExactSourceLink path="examples/decay.eqi" kind="blob">The checked-out revision</ExactSourceLink>
+now supplies the installed package. uv records this local source in the project,
+so later `uv run` commands keep using it. For this development build, add extras
+to the same source, for example `uv add './eqiora-source[gmsh,matplotlib]'`.
+Building takes longer than installing a prebuilt wheel.
+
 ## If something goes wrong
 
 - **`uv: command not found`:** install uv using its linked instructions, reopen
   the terminal and check `uv --version`.
 - **Source build fails:** check `cargo --version` and `cc --version`, then repeat
-  the uv install command. Use CPython 3.13 and the checked-out source revision.
+  the development-build command. Use CPython 3.13 and the checked-out source revision.
 - **Wrong Python or missing `eqiora`:** run
-  `uv run --no-project --python .venv/bin/python python -c "import eqiora; print(eqiora.__version__)"`.
-  A version number alone does not identify a source build. Check
-  `git -C eqiora-source rev-parse HEAD` against the revision in the install command,
-  then reinstall from that checkout. Use the same folder and environment for each run.
+  `uv run python -c "import eqiora; print(eqiora.__version__)"` from the project folder.
+  For the optional source build, also compare `git -C eqiora-source rev-parse HEAD`
+  with the revision in the example-download command; the version alone does not identify it.
 - **Model file not found:** keep `decay.eqi` beside `run.py` and run from their
-  folder, or pass its path: `python run.py path/to/decay.eqi` inside the selected
-  environment.
+  project folder, or pass its path: `uv run python run.py path/to/decay.eqi`.
 - **A source diagnostic:** misspelling `rate` as `missing_rate` in the relation
   produces `EQ0603: unresolved expression symbol`. Correct the
   name to match the declaration. Changing the rate's unit to `m` instead produces
@@ -132,7 +168,7 @@ the [ODE lesson](/learn/mathematical-modeling/ordinary-differential-equations/).
 ## Where next?
 
 - **Learn:** [choose a subject](/learn/), from heat and fluid flow to circuits and inverse problems, or [derive this ODE](/learn/mathematical-modeling/ordinary-differential-equations/).
-- **Guides:** [run a model and inspect its result](/guides/run-and-inspect/) with the same installed source build.
+- **Guides:** [run a model and inspect its result](/guides/run-and-inspect/) with the same project environment.
 - **Gallery:** [explore complete simulation investigations](/gallery/).
 - **Standard library:** [reuse physical components, laws and boundary conditions](/reference/standard-packages/).
 - **Reference:** [look up the public interfaces](/reference/).

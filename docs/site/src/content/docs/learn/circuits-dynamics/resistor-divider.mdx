@@ -56,7 +56,7 @@ will let you distinguish a mistaken sign or resistance from roundoff.
 
 ## Express the equations directly
 
-Use the environment from [Get started](/get-started/). In the folder containing
+Use the environment from [Get started](/get-started/#example-files). In the folder containing
 `.venv`, save this complete listing as `divider.eqi`:
 
 <Code code={directSource} lang="eqiora" title="divider.eqi — complete component definitions and circuit" />
@@ -83,7 +83,7 @@ Save the following as `run-divider.py` beside `divider.eqi`:
 <Code code={directProgram} lang="python" title="run-divider.py" />
 
 ```bash
-uv run --no-project --python .venv/bin/python python run-divider.py
+uv run python run-divider.py
 ```
 
 The Python program compiles the equations, chooses a linear solver, creates
@@ -114,7 +114,7 @@ standard library has saved you from maintaining those common definitions.
 To run this packaged version, use the checkout kept during Get started:
 
 ```bash
-uv run --no-project --python .venv/bin/python python eqiora-source/examples/voltage-divider/run.py
+uv run python eqiora-source/examples/voltage-divider/run.py
 ```
 
 The script brings the bundled dependency into a local store and compiles the

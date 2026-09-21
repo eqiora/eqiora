@@ -193,7 +193,7 @@ From the same working folder, install the optional adapter and bind outside
 the compiled function:
 
 ```console
-uv pip install --python .venv/bin/python "./eqiora-source[torch]"
+uv add "eqiora[torch]"
 ```
 
 ```python
@@ -233,7 +233,7 @@ AOT packaging are not yet supported.
 Install the optional JAX adapter into the same environment:
 
 ```console
-uv pip install --python .venv/bin/python "./eqiora-source[jax]"
+uv add "eqiora[jax]"
 ```
 
 ```python

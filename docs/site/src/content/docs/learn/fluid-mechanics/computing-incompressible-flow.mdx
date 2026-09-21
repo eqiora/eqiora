@@ -47,13 +47,13 @@ The current cylinder run uses the stated finite-element method.
 
 ## Run the investigation
 
-Complete [Get started](/get-started/) first, retaining its `eqiora-source`
+Complete [Get started](/get-started/#example-files) first, retaining its `eqiora-source`
 checkout and `.venv`. Work from the same folder. Add the geometry and plotting
-extras to that exact source installation:
+extras to the published package:
 
 ```bash
-uv pip install --python .venv/bin/python --reinstall-package eqiora './eqiora-source[gmsh,matplotlib]'
-uv run --no-project --python .venv/bin/python python eqiora-source/examples/python/exact_cylinder_stokes.py --pressure-png pressure.png
+uv add 'eqiora[gmsh,matplotlib]'
+uv run python eqiora-source/examples/python/exact_cylinder_stokes.py --pressure-png pressure.png
 ```
 
 The script compiles the equations, generates a triangular mesh, resolves the
@@ -62,8 +62,8 @@ Its full explanation lives in the
 [steady-cylinder walkthrough](/gallery/exact-cylinder-steady-stokes/).
 
 <ExactSourceLink path="examples/python/exact_cylinder_stokes.py" kind="blob">Read the Python workflow</ExactSourceLink>.
-Change parameters or numerical settings there, keeping the installed source
-revision and the script together.
+Change parameters or numerical settings there, keeping the project lockfile
+and the script together.
 
 <figure>
 <img src={pressureImage.src} alt="Steady Stokes pressure field around the cylinder in the channel, with pressure in pascals and the triangular mesh visible." />

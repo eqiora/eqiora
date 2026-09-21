@@ -19,13 +19,13 @@ viscous stress and pressure, then explore how the mesh affects the result.
 
 ## Before you begin
 
-Follow [Get started](/get-started/) and keep its `eqiora-source` checkout and
+Follow [Get started](/get-started/#example-files) and keep its `eqiora-source` checkout and
 `.venv`. From the folder containing both, add the mesh and plotting extras,
 then run the example with the same Python environment:
 
 ```bash
-uv pip install --python .venv/bin/python --reinstall-package eqiora './eqiora-source[gmsh,matplotlib]'
-uv run --no-project --python .venv/bin/python python eqiora-source/examples/python/exact_cylinder_stokes.py --pressure-png pressure.png
+uv add 'eqiora[gmsh,matplotlib]'
+uv run python eqiora-source/examples/python/exact_cylinder_stokes.py --pressure-png pressure.png
 ```
 
 The following stages explain the code and how to read the saved plot.

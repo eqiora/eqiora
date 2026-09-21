@@ -357,7 +357,7 @@ field operations below; an ODE's scalar time series is read with `result.series`
 ''',
     "matplotlib": '''## Example: save a spatial field plot
 
-Install the `matplotlib` extra in the source environment described in
+Run `uv add "eqiora[matplotlib]"` in the project environment described in
 [Get started](/get-started/). Continue with a scalar spatial `result` and its
 Model field `field` from [modeling](/guides/modeling/):
 

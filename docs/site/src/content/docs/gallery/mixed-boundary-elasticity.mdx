@@ -15,13 +15,13 @@ traction-free remaining edges, then compare its original and deformed mesh.
 
 ## Before you begin
 
-Follow [Get started](/get-started/) and keep its `eqiora-source` checkout and
+Follow [Get started](/get-started/#example-files) and keep its `eqiora-source` checkout and
 `.venv`. From the folder containing both, add plotting support and save the
 computed displacement:
 
 ```bash
-uv pip install --python .venv/bin/python --reinstall-package eqiora './eqiora-source[matplotlib]'
-uv run --no-project --python .venv/bin/python python eqiora-source/examples/python/mixed_boundary_elasticity.py --displacement-png displacement.png
+uv add 'eqiora[matplotlib]'
+uv run python eqiora-source/examples/python/mixed_boundary_elasticity.py --displacement-png displacement.png
 ```
 
 <NotebookStage id="elasticity-problem" step={1} title="Problem and boundaries" emoji="🧱">
