@@ -1,3 +1,5 @@
+#[path = "stdio/assistance.rs"]
+mod assistance;
 #[path = "stdio/inspection.rs"]
 mod inspection;
 
@@ -258,6 +260,7 @@ fn stdio_workspace_resolves_open_modules_and_tracks_unsaved_changes() {
         json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":library_uri,"version":2},"contentChanges":[{"text":changed_library}]}}),
         json!({"jsonrpc":"2.0","id":3,"method":"textDocument/hover","params":{"textDocument":{"uri":main_uri},"position":source_position(main, "Resistor()")}}),
         json!({"jsonrpc":"2.0","id":4,"method":"textDocument/definition","params":{"textDocument":{"uri":main_uri},"position":source_position(main, "Resistor()")}}),
+        json!({"jsonrpc":"2.0","id":8,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":main_uri},"position":source_position(main, ");")}}),
         json!({"jsonrpc":"2.0","id":5,"method":"shutdown","params":null}),
         json!({"jsonrpc":"2.0","method":"exit","params":null}),
     ];
@@ -308,6 +311,15 @@ fn stdio_workspace_resolves_open_modules_and_tracks_unsaved_changes() {
     ));
     assert!(!hover.contains("[run](command:delete)"));
     assert_eq!(response(&messages, 4)["result"]["uri"], library_uri);
+    let signature = &response(&messages, 8)["result"]["signatures"][0];
+    assert_eq!(signature["label"], "public component Resistor()");
+    assert!(
+        signature["documentation"]["value"]
+            .as_str()
+            .unwrap()
+            .starts_with("**Updated summary**")
+    );
+    assert_eq!(signature["parameters"], json!([]));
     assert!(response(&messages, 5)["result"].is_null());
 }
 

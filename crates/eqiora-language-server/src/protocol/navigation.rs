@@ -99,11 +99,11 @@ pub(super) fn hover(params: HoverParams, state: &ServerState) -> Result<Option<H
     let uri = &params.text_document_position_params.text_document.uri;
     document(state, uri)?;
     let Some((workspace, file)) = state.resolved(uri) else {
-        return Ok(None);
+        return super::assistance::hover(uri, params.text_document_position_params.position, state);
     };
     let position = editor_position(params.text_document_position_params.position);
     let Some((definition, source)) = workspace.hover_at_position(file, position) else {
-        return Ok(None);
+        return super::assistance::hover(uri, params.text_document_position_params.position, state);
     };
     let documentation = definition.doc_comment().map(|doc| doc.markdown());
     Ok(Some(Hover {

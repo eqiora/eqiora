@@ -33,6 +33,7 @@ use crate::{
 
 type ServerResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
+mod assistance;
 mod inspection;
 mod navigation;
 #[cfg(test)]
@@ -428,6 +429,15 @@ pub fn run(connection: Connection, version: &str) -> ServerResult<()> {
         )),
         experimental: Some(serde_json::json!({"eqioraInspection": 1})),
         hover_provider: Some(HoverProviderCapability::Simple(true)),
+        completion_provider: Some(lsp_types::CompletionOptions {
+            trigger_characters: Some(vec![".".into()]),
+            ..Default::default()
+        }),
+        signature_help_provider: Some(lsp_types::SignatureHelpOptions {
+            trigger_characters: Some(vec!["(".into(), ",".into(), "=".into()]),
+            retrigger_characters: Some(vec![")".into()]),
+            ..Default::default()
+        }),
         definition_provider: Some(OneOf::Left(true)),
         references_provider: Some(OneOf::Left(true)),
         document_symbol_provider: Some(OneOf::Left(true)),
@@ -812,6 +822,14 @@ fn handle_request(
         "textDocument/hover" => response_from(
             id,
             decode(request.params).and_then(|params| navigation::hover(params, state)),
+        ),
+        "textDocument/completion" => response_from(
+            id,
+            decode(request.params).and_then(|params| assistance::completion(params, state)),
+        ),
+        "textDocument/signatureHelp" => response_from(
+            id,
+            decode(request.params).and_then(|params| assistance::signature_help(params, state)),
         ),
         "textDocument/definition" => response_from(
             id,

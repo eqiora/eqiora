@@ -30,6 +30,50 @@ Resolved references can be found across open modules and exact local packages.
 Lifecycle events are emitted as one JSON object per line on stderr, leaving
 stdout exclusively for LSP framing.
 
+## Documentation while editing
+
+Hover, completion (`textDocument/completion`) and signature help
+(`textDocument/signatureHelp`) share descriptions of the currently supported
+scalar mathematics, integer conversion, spatial and time operators. Hover and
+completion also explain common language constructs (`model`, `component`,
+`relation`, `parameter`, `state`, `initial`, `import`, conditionals and connectors)
+and mathematical types (`integer`, `bool`, `complex`, `array`, `vector`, `tensor`
+and the operator-local generic classes). Construct help includes syntax and
+meaning: a Relation is simultaneous equations; an array axis is not a spatial axis.
+These are documented keyword/type candidates, not callable signatures or a claim
+that every specialized grammar child has help. For example,
+`math.sqrt` explains its dimension rule, value domain and derivative restriction.
+Completion after `math.` replaces the complete qualified name, and call help
+tracks the active argument through nested calls and array expressions, including
+unfinished calls. Constants such as `math.pi` have documentation but no call signature.
+
+Authored declarations use the existing `///` comments; no new language syntax is
+needed. Document each signature entry immediately before its declaration:
+
+```eqiora
+/// Scale a dimensionless value.
+operator scale(
+  /// Value to scale.
+  input x: 1,
+  /// Multiplicative factor.
+  input factor: 1
+): 1 = x * factor;
+```
+
+Local completion includes declarations in the cursor's enclosing lexical scope.
+Hover also describes local members. Operator, Component and Model signature help
+includes argument declarations and their documentation, and named arguments select
+the matching formal even when written out of declaration order. Compiler-resolved
+imported calls use their exact declaration's signature and documentation. Authored
+prose retains the language's bounded Markdown rendering; comments and notation
+islands do not trigger code assistance.
+
+This is a bounded editing preview: suggestions are not filtered by inferred argument
+type or expected physical dimension. Import-member discovery, automatic imports,
+overload selection, and imported-call recovery in an unresolved workspace remain
+outside this surface. Completion and signature help are independent of the optional
+inspection protocol and are advertised as ordinary LSP capabilities.
+
 Files opened under the same initialization workspace folder are analyzed as one
 module graph. When that folder contains `eqiora.toml`, the server reads its explicit
 local candidate sources, including unopened files, without writing a lock or store.
