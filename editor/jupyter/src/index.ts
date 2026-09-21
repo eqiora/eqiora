@@ -11,6 +11,7 @@ const plugin: JupyterFrontEndPlugin<void> = {
     editors.addExtension({
       name: '@eqiora/jupyter:source-cells',
       factory: ({ inline, model }) => inline
+        && 'cell_type' in model.sharedModel && model.sharedModel.cell_type === 'code'
         ? EditorExtensionRegistry.createImmutableExtension(eqioraMagic(model.sharedModel.getSource()))
         : null,
     });

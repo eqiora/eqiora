@@ -16,8 +16,9 @@
   "jupyterlab": {
     "extension": true,
     "outputDir": "wheel-data/data/share/jupyter/labextensions/@eqiora/jupyter",
+    "webpackConfig": "webpack.config.cjs",
     "_build": {
-      "load": "static/remoteEntry.317e200e5f1a27563dd2.js",
+      "load": "static/remoteEntry.e12d65257c3516986c5e.js",
       "extension": "./extension"
     }
   },

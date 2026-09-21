@@ -15,7 +15,8 @@
   },
   "jupyterlab": {
     "extension": true,
-    "outputDir": "wheel-data/data/share/jupyter/labextensions/@eqiora/jupyter"
+    "outputDir": "wheel-data/data/share/jupyter/labextensions/@eqiora/jupyter",
+    "webpackConfig": "webpack.config.cjs"
   },
   "dependencies": {
     "@codemirror/language": "6.12.4",
