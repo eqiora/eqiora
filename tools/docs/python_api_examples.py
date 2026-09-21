@@ -273,6 +273,21 @@ you no longer need it. Adding a field output changes the display without
 changing the model or numerical result. For Colab, first follow
 [notebook preparation](/reference/python/colab/).
 ''',
+    "jupyter": '''## Example: compile an Eqiora cell
+
+In an IPython kernel using a development build with this extension, run:
+
+```python
+%load_ext eqiora.jupyter
+import eqiora
+```
+
+In a separate cell, start with `%%eqiora model` and paste the source from
+[Get started](/get-started/#save-the-model). Subsequent Python cells use `model`
+with the ordinary configuration and execution APIs. A failed cell preserves
+the previous binding. See [notebook source cells](/guides/notebooks/) for
+arguments and frontend limitations. This extension is not in Eqiora 0.1.2.
+''',
     "colab": '''## Example: prepare the notebook viewer
 
 After installing Eqiora in a Google Colab runtime:
