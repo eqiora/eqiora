@@ -6,6 +6,7 @@ use eqiora_lang::{
     ComponentItem, DocComment, Document, Item, SignatureItem, TextRange, format, parse,
 };
 
+mod assistance;
 mod workspace;
 
 pub use workspace::{
@@ -45,6 +46,10 @@ impl EditorPosition {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum EditorSymbolKind {
+    /// Language keyword offered by completion.
+    Keyword,
+    /// Builtin mathematical type syntax offered by completion.
+    ValueType,
     /// Imported module alias.
     Import,
     /// Structural dimension alias.
@@ -61,6 +66,10 @@ pub enum EditorSymbolKind {
     Operator,
     /// Declaration-owned finite enumeration.
     Enum,
+    /// Closed nominal record type.
+    Record,
+    /// Named finite index space.
+    FiniteSpace,
     /// Ordered member of a finite enumeration.
     EnumMember,
     /// Executable model.
@@ -87,7 +96,7 @@ pub enum EditorSymbolKind {
     Instance,
 }
 
-/// One recovered named declaration and its nested declarations.
+/// A recovered declaration or documented assistance symbol.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EditorSymbol {
     kind: EditorSymbolKind,
@@ -95,6 +104,11 @@ pub struct EditorSymbol {
     range: TextRange,
     children: Vec<Self>,
     doc_comment: Option<DocComment>,
+    detail: Option<String>,
+    help: Option<String>,
+    insertion: Option<String>,
+    binding_required: Option<bool>,
+    callable: bool,
 }
 
 impl EditorSymbol {
@@ -105,6 +119,11 @@ impl EditorSymbol {
             range,
             children: Vec::new(),
             doc_comment: None,
+            detail: None,
+            help: None,
+            insertion: None,
+            binding_required: None,
+            callable: false,
         }
     }
 
@@ -121,7 +140,44 @@ impl EditorSymbol {
             range,
             children,
             doc_comment: None,
+            detail: None,
+            help: None,
+            insertion: None,
+            binding_required: None,
+            callable: false,
         }
+    }
+
+    /// Declaration head supplied by an assistance query.
+    #[must_use]
+    pub fn detail(&self) -> Option<&str> {
+        self.detail.as_deref()
+    }
+
+    /// Rendered documentation, including builtin prose and sanitized source comments.
+    #[must_use]
+    pub fn documentation(&self) -> Option<String> {
+        self.help
+            .clone()
+            .or_else(|| self.doc_comment.as_ref().map(DocComment::markdown))
+    }
+
+    /// Text to insert at the completion query's replacement range.
+    #[must_use]
+    pub fn insert_text(&self) -> &str {
+        self.insertion.as_deref().unwrap_or(&self.name)
+    }
+
+    /// Required/defaulted status for a bindable signature entry, when applicable.
+    #[must_use]
+    pub const fn required(&self) -> Option<bool> {
+        self.binding_required
+    }
+
+    /// Signature entries supplied by an assistance query; excludes private body members.
+    #[must_use]
+    pub fn parameters(&self) -> Option<&[Self]> {
+        self.callable.then_some(&self.children)
     }
 
     /// Declaration category.
@@ -130,19 +186,19 @@ impl EditorSymbol {
         self.kind
     }
 
-    /// Source-declared name or import alias.
+    /// Declared, qualified or builtin spelling.
     #[must_use]
     pub fn name(&self) -> &str {
         &self.name
     }
 
-    /// Complete UTF-8 byte range of the declaration.
+    /// Complete UTF-8 byte range of an authored declaration; empty for builtin help.
     #[must_use]
     pub const fn range(&self) -> TextRange {
         self.range
     }
 
-    /// Directly nested named declarations in source order.
+    /// Nested declarations, or signature entries for an assistance result.
     #[must_use]
     pub fn children(&self) -> &[Self] {
         &self.children
@@ -164,6 +220,7 @@ pub struct EditorSnapshot {
     diagnostics: Vec<Diagnostic>,
     formatted: Option<String>,
     symbols: Vec<EditorSymbol>,
+    syntax: Option<Document>,
 }
 
 impl EditorSnapshot {
@@ -184,6 +241,7 @@ impl EditorSnapshot {
                 )],
                 formatted: None,
                 symbols: Vec::new(),
+                syntax: None,
             };
         }
 
@@ -214,6 +272,7 @@ impl EditorSnapshot {
             diagnostics,
             formatted,
             symbols,
+            syntax: parsed.document().cloned(),
         }
     }
 
@@ -230,6 +289,7 @@ impl EditorSnapshot {
             diagnostics: Vec::new(),
             formatted: Some(format(document)),
             symbols: document_symbols(document),
+            syntax: Some(document.clone()),
         }
     }
 
@@ -247,6 +307,7 @@ impl EditorSnapshot {
                 diagnostics,
                 formatted: None,
                 symbols: Vec::new(),
+                syntax: None,
             };
         }
         let parsed = parse(file, &source);
@@ -263,6 +324,7 @@ impl EditorSnapshot {
             diagnostics,
             formatted,
             symbols,
+            syntax: parsed.document().cloned(),
         }
     }
 
@@ -432,6 +494,23 @@ fn line_starts(source: &str) -> Vec<u32> {
 
 fn document_symbols(document: &Document) -> Vec<EditorSymbol> {
     let mut symbols = Vec::new();
+    symbols.extend(document.records().iter().map(|r| {
+        EditorSymbol::branch(
+            EditorSymbolKind::Record,
+            r.name(),
+            r.range(),
+            r.members()
+                .iter()
+                .map(|m| EditorSymbol::leaf(EditorSymbolKind::Field, m.name(), m.range()))
+                .collect(),
+        )
+    }));
+    symbols.extend(
+        document
+            .finite_spaces()
+            .iter()
+            .map(|s| EditorSymbol::leaf(EditorSymbolKind::FiniteSpace, s.name(), s.range())),
+    );
     symbols.extend(
         document
             .imports()

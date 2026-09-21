@@ -192,6 +192,10 @@ pub(crate) struct CompilationModuleId {
 }
 
 impl CompilationModuleId {
+    pub(super) fn import_path(&self) -> String {
+        format!("{}.{}", self.owner().package_name(), self.name())
+    }
+
     /// Bind one logical module to its exact compilation owner.
     #[must_use]
     pub const fn new(owner: CompilationNamespaceId, name: ModuleName) -> Self {
@@ -406,6 +410,12 @@ impl ResolvedSourceUnit {
     #[must_use]
     pub fn module_segments(&self) -> &[String] {
         self.module.name().segments()
+    }
+
+    /// Canonical source import spelling; exact ownership remains in `namespace`.
+    #[must_use]
+    pub fn import_path(&self) -> String {
+        self.module.import_path()
     }
 
     /// Provenance path supplied by the exact source bundle.

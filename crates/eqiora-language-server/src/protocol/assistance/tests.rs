@@ -196,7 +196,10 @@ fn language_constructs_and_types_have_hover_and_documented_completion() {
         assert!(items.iter().any(|item| matches!(&item.documentation, Some(Documentation::MarkupContent(doc)) if doc.value.contains(expected))));
     }
     assert_eq!(complete("mod|")[0].kind, Some(CompletionItemKind::KEYWORD));
-    assert_eq!(complete("arr|")[0].kind, Some(CompletionItemKind::CLASS));
+    assert_eq!(
+        complete("model M() { variable x: arr|")[0].kind,
+        Some(CompletionItemKind::CLASS)
+    );
     assert!(signature("model M(|) {}").is_none());
     assert!(complete("// rel|").is_empty());
     assert!(
@@ -207,4 +210,27 @@ fn language_constructs_and_types_have_hover_and_documented_completion() {
         complete("rea|").is_empty(),
         "there is no real<...> constructor"
     );
+}
+
+#[test]
+fn unfinished_local_expressions_keep_current_scope_candidates_at_eof() {
+    for source in [
+        "model M(parameter gain: 1) { relation r { ga|",
+        "model M() { parameter gain: 1 = 2; relation r { ga|",
+        "model M() { state position: m; relation r { pos|",
+        "component C() {} model M() { instance child: C(); relation r { chi|",
+    ] {
+        let expected = if source.contains("pos|") {
+            "position"
+        } else if source.contains("chi|") {
+            "child"
+        } else {
+            "gain"
+        };
+        assert!(
+            complete(source).iter().any(|item| item.label == expected),
+            "missing {expected} in {source}"
+        );
+    }
+    assert!(complete("model M() { parameter secret: 1 = 2; } sec|").is_empty());
 }

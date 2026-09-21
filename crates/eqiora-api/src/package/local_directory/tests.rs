@@ -231,6 +231,47 @@ fn local_project_editor_analysis_is_read_only_and_accepts_source_overrides() {
     assert_eq!(workspace.references().len(), 1);
     assert_eq!(workspace.references()[0].definition().file(), library_file);
     assert!(!fixture.0.join(PROJECT_LOCK).exists());
+
+    let incomplete = "import org.example.EditorLibrary.main as library; model Main() { instance load: library.Re";
+    let (recovered, paths) = analyze_local_package_editor_project_v1(
+        42,
+        &fixture.0,
+        &BTreeMap::from([
+            (PathBuf::from("root").join(SOURCE_PATH), incomplete.into()),
+            (
+                PathBuf::from("library").join(SOURCE_PATH),
+                "/// Newly authored name.\npublic component Revised() {".into(),
+            ),
+        ]),
+    )
+    .expect("completion retains admitted dependencies during incomplete edits");
+    let root = paths
+        .iter()
+        .find_map(|(file, path)| (path == &PathBuf::from("root").join(SOURCE_PATH)).then_some(file))
+        .unwrap();
+    let (_, completion) = recovered.completion(root, incomplete.len() as u32).unwrap();
+    assert_eq!(
+        completion.iter().map(|c| c.name()).collect::<Vec<_>>(),
+        ["library.Revised"]
+    );
+    assert!(
+        completion[0]
+            .documentation()
+            .unwrap()
+            .contains("Newly authored")
+    );
+    assert!(recovered.references().is_empty());
+    assert!(recovered.definitions().is_empty());
+    assert!(recovered.compile_model(root, "Main").is_err());
+    assert_eq!(
+        fs::read_to_string(fixture.0.join("root").join(SOURCE_PATH)).unwrap(),
+        root_source
+    );
+    assert_eq!(
+        fs::read_to_string(library_path.join(SOURCE_PATH)).unwrap(),
+        "public component Resistor() {}"
+    );
+    assert!(!fixture.0.join(PROJECT_LOCK).exists());
 }
 
 #[test]

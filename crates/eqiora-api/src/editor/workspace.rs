@@ -102,7 +102,7 @@ impl EditorDefinition {
 #[derive(Debug, Clone, PartialEq)]
 pub struct EditorWorkspaceSnapshot {
     version: u64,
-    input: Option<std::sync::Arc<ResolvedHierarchyInput>>,
+    pub(super) input: Option<std::sync::Arc<ResolvedHierarchyInput>>,
     documents: Vec<(String, EditorSnapshot)>,
     diagnostics: Vec<Diagnostic>,
     definitions: Vec<EditorDefinition>,
@@ -183,6 +183,31 @@ impl EditorWorkspaceService {
 }
 
 impl EditorWorkspaceSnapshot {
+    // The disk graph has passed package admission, but these editor texts have
+    // not. Keep only graph metadata for assistance; never publish canonical
+    // references or compile this recovery snapshot.
+    #[cfg(feature = "project-filesystem")]
+    pub(crate) fn recover_overrides(
+        mut self,
+        overrides: &BTreeMap<String, String>,
+        diagnostic: Diagnostic,
+    ) -> Self {
+        for (file, snapshot) in &mut self.documents {
+            if let Some(source) = overrides.get(file) {
+                *snapshot = EditorSnapshot::from_recovered_source(
+                    self.version,
+                    file,
+                    source.clone(),
+                    vec![diagnostic.clone()],
+                );
+            }
+        }
+        self.diagnostics = vec![diagnostic];
+        self.definitions.clear();
+        self.references.clear();
+        self
+    }
+
     /// Analyze an exact local package project without writing its lock or store.
     ///
     /// `overrides` replaces declared model sources by project-relative path so
@@ -251,7 +276,12 @@ impl EditorWorkspaceSnapshot {
             if is_cancelled() {
                 return None;
             }
-            return Some(Self::from_recovered(version, Vec::new(), vec![diagnostic]));
+            return Some(Self::from_recovered(
+                version,
+                Vec::new(),
+                vec![diagnostic],
+                None,
+            ));
         }
         let mut sources = Vec::with_capacity(input.units().len());
         for unit in input.units() {
@@ -267,14 +297,24 @@ impl EditorWorkspaceSnapshot {
                 if is_cancelled() {
                     return None;
                 }
-                return Some(Self::from_recovered(version, sources, diagnostics));
+                return Some(Self::from_recovered(
+                    version,
+                    sources,
+                    diagnostics,
+                    Some(input),
+                ));
             }
         };
         if let Err(diagnostics) = analyzed.clone().validate_definitions() {
             if is_cancelled() {
                 return None;
             }
-            return Some(Self::from_recovered(version, sources, diagnostics));
+            return Some(Self::from_recovered(
+                version,
+                sources,
+                diagnostics,
+                Some(input),
+            ));
         }
         if is_cancelled() {
             return None;
@@ -417,6 +457,7 @@ impl EditorWorkspaceSnapshot {
         version: u64,
         sources: Vec<(String, String)>,
         diagnostics: Vec<Diagnostic>,
+        input: Option<ResolvedHierarchyInput>,
     ) -> Self {
         let documents = sources
             .into_iter()
@@ -441,7 +482,7 @@ impl EditorWorkspaceSnapshot {
             .collect();
         Self {
             version,
-            input: None,
+            input: input.map(std::sync::Arc::new),
             documents,
             diagnostics,
             definitions: Vec::new(),
@@ -461,6 +502,9 @@ impl EditorWorkspaceSnapshot {
         file: &str,
         model: &str,
     ) -> Result<crate::ModelDocument, Vec<Diagnostic>> {
+        if !self.diagnostics.is_empty() {
+            return Err(self.diagnostics.clone());
+        }
         let input = self
             .input
             .as_ref()

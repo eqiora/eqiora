@@ -22,7 +22,10 @@ impl Parser<'_> {
         while !self.at(TokenKind::RightBrace) && !self.at(TokenKind::Eof) {
             if self.at_keyword("form") {
                 formulations_started = true;
-                formulations.push(self.parse_formulation()?);
+                match self.parse_formulation() {
+                    Some(formulation) => formulations.push(formulation),
+                    None => self.recover_item(),
+                }
                 continue;
             }
             if formulations_started {
@@ -42,9 +45,8 @@ impl Parser<'_> {
             }
         }
         let end = self
-            .expect(TokenKind::RightBrace, "`}` to close component")?
-            .range()
-            .end();
+            .expect(TokenKind::RightBrace, "`}` to close component")
+            .map_or_else(|| self.current().range().end(), |token| token.range().end());
         Some(ComponentDecl {
             comments: Default::default(),
             visibility,

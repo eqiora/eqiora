@@ -78,7 +78,7 @@ fn analyze_inner(
 
     let mut module_index = BTreeMap::new();
     for unit in &units {
-        let path = canonical_module_path(&unit.module);
+        let path = unit.module.import_path();
         if let Some(previous) = module_index.insert(path.clone(), unit.file.clone()) {
             diagnostics.push(resolved_error(format!(
                 "canonical module identity `{path}` is supplied by both `{previous}` and `{}`",
@@ -205,10 +205,6 @@ fn analyze_inner(
         stable_sort(&mut diagnostics);
         Err(diagnostics)
     }
-}
-
-fn canonical_module_path(module: &CompilationModuleId) -> String {
-    format!("{}.{}", module.owner().package_name(), module.name())
 }
 
 fn validate_dependencies(

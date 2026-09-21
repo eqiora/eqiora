@@ -200,9 +200,8 @@ impl Parser<'_> {
             }
         }
         let end = self
-            .expect(TokenKind::RightBrace, "`}` to close model")?
-            .range()
-            .end();
+            .expect(TokenKind::RightBrace, "`}` to close model")
+            .map_or_else(|| self.current().range().end(), |token| token.range().end());
         Some(ModelDecl {
             comments: Default::default(),
             visibility,

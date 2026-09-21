@@ -60,18 +60,35 @@ operator scale(
 ): 1 = x * factor;
 ```
 
-Local completion includes declarations in the cursor's enclosing lexical scope.
+The native editor API supplies documented `EditorSymbol` values for all three
+features; the language server projects them into LSP responses.
+
+Local completion includes declarations in the cursor's enclosing lexical scope,
+including unfinished Model/Component bodies. Declaration, type and expression
+positions select different candidate families; sibling locals are never offered.
 Hover also describes local members. Operator, Component and Model signature help
 includes argument declarations and their documentation, and named arguments select
-the matching formal even when written out of declaration order. Compiler-resolved
-imported calls use their exact declaration's signature and documentation. Authored
+the matching formal even when written out of declaration order. Imported calls use the current graph's public declaration signatures and
+documentation, including recovered unsaved source. Authored
 prose retains the language's bounded Markdown rendering; comments and notation
 islands do not trigger code assistance.
 
-This is a bounded editing preview: suggestions are not filtered by inferred argument
-type or expected physical dimension. Import-member discovery, automatic imports,
-overload selection, and imported-call recovery in an unresolved workspace remain
-outside this surface. Completion and signature help are independent of the optional
+Import completion walks canonical module segments from the supplied workspace and
+its exact direct dependencies. An imported alias exposes public declarations;
+instance and connector completion exposes declared interface members, not private
+bodies. Named-argument completion includes remaining required/defaulted bindings,
+their types and documentation. It inserts `name = `, or only the name when an equals
+sign already follows, and ignores commas in nested expressions. Unknown targets
+do not fabricate signatures.
+
+Invalid unsaved package source can recover names from the admitted disk graph with
+the current text overlaid. This recovery does not publish resolved references or
+a compilable Model. Completion performs no fetch, install, lock or store writes;
+unavailable dependencies are not invented.
+
+This is a bounded editing preview: suggestions are not ranked by inferred argument
+type or expected physical dimension. Automatic imports, overload selection and
+member inference through arbitrary expressions remain outside this surface. Completion and signature help are independent of the optional
 inspection protocol and are advertised as ordinary LSP capabilities.
 
 Files opened under the same initialization workspace folder are analyzed as one

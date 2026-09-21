@@ -1,8 +1,7 @@
 //! Help for source constructs, using the existing grammar and type contracts.
-use super::Entry;
-use lsp_types::CompletionItemKind;
+use super::{EditorSymbol, EditorSymbolKind as Kind, documented};
 
-pub(super) fn entries() -> Vec<Entry> {
+pub(super) fn entries() -> Vec<EditorSymbol> {
     let mut entries = Vec::new();
     for (name, syntax, description) in [
         (
@@ -246,12 +245,7 @@ pub(super) fn entries() -> Vec<Entry> {
             "The Boolean false value. It is not a special numeric zero and is not implicitly coerced to a number.",
         ),
     ] {
-        entries.push(entry(
-            name,
-            syntax,
-            description,
-            CompletionItemKind::KEYWORD,
-        ));
+        entries.push(documented(name, syntax, description, Kind::Keyword));
     }
     for (name, syntax, description) in [
         (
@@ -295,17 +289,7 @@ pub(super) fn entries() -> Vec<Entry> {
             "Generic spatial tensor class in the admitted pure-operator profile. Rank and exact calculus restrictions are checked by the compiler; this is distinct from an ordinary concrete field's physical type.",
         ),
     ] {
-        entries.push(entry(name, syntax, description, CompletionItemKind::CLASS));
+        entries.push(documented(name, syntax, description, Kind::ValueType));
     }
     entries
-}
-
-fn entry(name: &str, syntax: &str, description: &str, kind: CompletionItemKind) -> Entry {
-    Entry {
-        name: name.into(),
-        label: syntax.into(),
-        documentation: Some(description.into()),
-        kind,
-        parameters: None,
-    }
 }
