@@ -22,7 +22,10 @@ impl Parser<'_> {
         while !self.at(TokenKind::RightBrace) && !self.at(TokenKind::Eof) {
             if self.at_keyword("form") {
                 formulations_started = true;
-                formulations.push(self.parse_formulation()?);
+                match self.parse_formulation() {
+                    Some(formulation) => formulations.push(formulation),
+                    None => self.recover_item(),
+                }
                 continue;
             }
             if formulations_started {

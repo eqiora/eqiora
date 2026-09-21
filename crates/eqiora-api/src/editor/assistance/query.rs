@@ -105,6 +105,9 @@ impl<'a> Query<'a> {
                     .iter()
                     .find(|s| s.name() == part && declarations::exported(snapshot, s))?;
             } else {
+                if !matches!(symbol.kind(), S::Instance | S::Port | S::Enum) {
+                    return None;
+                }
                 (snapshot, symbol) = self.dereference(snapshot, symbol, depth + 1)?;
                 if !declarations::members(snapshot, symbol)
                     .iter()
@@ -161,6 +164,9 @@ impl<'a> Query<'a> {
                         .collect()
                 })
                 .unwrap_or_default();
+        }
+        if !matches!(symbol.kind(), S::Instance | S::Port | S::Enum) {
+            return Vec::new();
         }
         self.dereference(snapshot, symbol, 0)
             .map(|(s, symbol)| declarations::members(s, symbol))

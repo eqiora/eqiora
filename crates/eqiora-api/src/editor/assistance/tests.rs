@@ -23,6 +23,12 @@ fn incomplete_owners_recover_current_scope_without_leaking_closed_siblings() {
         "model Other() { parameter secret: 1 = 1; } model M(parameter gain: 1) { relation r { ga|",
     );
     assert_eq!(names(&c), ["gain"]);
+    assert_eq!(
+        names(&complete(
+            "component C(parameter gain: 1) { form f for r { ga|"
+        )),
+        ["gain"]
+    );
     let c = complete("model Other() { parameter secret: 1 = 1; } |");
     assert!(!names(&c).contains(&"secret"));
     for (declaration, prefix, expected) in [
@@ -179,6 +185,18 @@ fn incomplete_imports_use_only_current_graph_and_direct_dependencies() {
 
 #[test]
 fn qualified_exports_and_exposed_members_recover_on_invalid_source() {
+    assert!(
+        complete(&format!("{COMPONENT} model M() {{ relation r {{ Part.|"))
+            .items
+            .is_empty(),
+        "a definition name is not an instance"
+    );
+    assert!(
+        complete("operator f(input x: 1): 1 = x; model M() { relation r { f.|")
+            .items
+            .is_empty(),
+        "operator formals are private to the operator body"
+    );
     let import = "import library.devices.electrical as electrical; ";
     let (w, f, p) = graph(&format!("{import} model M() {{ instance c: electrical.|"));
     let c = w.completion(&f, p).unwrap();

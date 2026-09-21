@@ -35,7 +35,7 @@ pub struct EditorParameter {
     pub name: String,
     /// Complete authored signature entry.
     pub detail: String,
-    /// Sanitized declaration documentation.
+    /// Source prose; [`DocComment::markdown`] provides bounded rendering.
     pub documentation: Option<DocComment>,
     /// `Some(true)` for required bindings, `Some(false)` for defaulted bindings,
     /// and `None` for owned endpoints.
@@ -49,7 +49,7 @@ pub struct EditorCandidate {
     pub name: String,
     /// Source declaration head.
     pub detail: String,
-    /// Sanitized declaration documentation.
+    /// Source prose; [`DocComment::markdown`] provides bounded rendering.
     pub documentation: Option<DocComment>,
     /// Editor declaration category.
     pub kind: EditorSymbolKind,
