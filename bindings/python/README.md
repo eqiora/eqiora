@@ -14,16 +14,20 @@ Eqiora `0.1.2` supports ordinary-GIL CPython 3.11–3.14 on
 manylinux x86-64:
 
 ```console
-uv venv --python 3.13 .venv
-uv pip install --python .venv/bin/python eqiora==0.1.2
+uv init --python 3.13 first-eqiora-model
+cd first-eqiora-model
+uv add eqiora
 ```
+
+In an existing uv project, just run `uv add eqiora`. A matching prebuilt wheel
+needs no Rust compiler. To select this release explicitly, use `uv add eqiora==0.1.2`.
 
 Automatic exact-cylinder meshing requires Gmsh 4.15.2. The conventional Linux
 installation is:
 
 ```console
 sudo apt-get install libglu1-mesa
-uv pip install --python .venv/bin/python "eqiora[gmsh]==0.1.2"
+uv add "eqiora[gmsh]"
 ```
 
 The Gmsh extra is separate so the base `manylinux_2_17` package keeps its
@@ -32,16 +36,16 @@ compatibility floor; the current Gmsh wheel has a newer Linux floor.
 Install plotting or first-order framework adapters as needed:
 
 ```console
-uv pip install --python .venv/bin/python "eqiora[torch]==0.1.2"
-uv pip install --python .venv/bin/python "eqiora[jax]==0.1.2"
-uv pip install --python .venv/bin/python "eqiora[matplotlib]==0.1.2"
+uv add "eqiora[torch]"
+uv add "eqiora[jax]"
+uv add "eqiora[matplotlib]"
 ```
 
 The exact-cylinder pressure example combines the mesher and plot adapter:
-`uv pip install --python .venv/bin/python "eqiora[gmsh,matplotlib]==0.1.2"`.
+`uv add "eqiora[gmsh,matplotlib]"`.
 
-Run scripts with `uv run --no-project --python .venv/bin/python your_script.py`
-to use this environment explicitly. Current-source features described in the
+Run scripts with `uv run python your_script.py`; uv manages the project
+environment and locks its dependencies. Current-source features described in the
 development guides may not yet be included in this published release.
 
 The base package pins `anywidget==0.11.0` and carries its viewer JavaScript and
@@ -55,8 +59,8 @@ The JAX extra requires Python 3.12 or newer.
 ## Run a model
 
 Start with [Get started](https://eqiora.org/get-started/) for a complete decay
-example. The guides follow the current source revision; use their source-install
-instructions when trying features newer than `0.1.2`.
+example using the published package. For lessons that use features newer than
+`0.1.2`, follow the explicitly marked [development-build instructions](https://eqiora.org/get-started/#development-build).
 
 A spatial workflow has five steps:
 

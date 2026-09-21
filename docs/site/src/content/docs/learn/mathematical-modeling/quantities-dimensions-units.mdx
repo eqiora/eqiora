@@ -95,10 +95,10 @@ Here `1` in the type position means dimensionless, while `1 / s` means inverse
 seconds. The same spelling `= 1` on the right supplies the default numeric
 value; it does not erase the declared dimension.
 
-With the [source build from Get started](/get-started/), check the saved source:
+With the [package from Get started](/get-started/), check the saved source:
 
 ```console
-$ uv run --no-project --python .venv/bin/python python -c "import eqiora; eqiora.compile(path='decay.eqi')"
+$ uv run python -c "import eqiora; eqiora.compile(path='decay.eqi')"
 ```
 
 A zero exit status means the current compiler accepted the source. The command

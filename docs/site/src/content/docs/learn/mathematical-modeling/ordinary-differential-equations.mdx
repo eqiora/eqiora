@@ -2,7 +2,7 @@
 title: 4. Ordinary differential equations
 sidebar:
   order: 4
-description: Derive, run, and interpret a first-order initial-value problem through the installed Eqiora source build.
+description: Derive, run, and interpret a first-order initial-value problem through the installed Eqiora package.
 ---
 
 import { Code } from '@astrojs/starlight/components';
@@ -110,11 +110,11 @@ Realization or Run.
 
 ## Execute the model
 
-Follow [Get started](/get-started/) to install the source build and download the same
+Follow [Get started](/get-started/) to install the published package and download the same
 `decay.eqi` and `run.py` used here. Set `rate` to 1, then run from their folder:
 
 ```console
-$ uv run --no-project --python .venv/bin/python python run.py
+$ uv run python run.py
 ```
 
 The complete script uses the public compile → resolve → run path:

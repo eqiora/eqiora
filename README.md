@@ -91,10 +91,17 @@ the problem.
 
 ## 🚀 Get started with uv
 
-Follow [Get started](https://eqiora.org/get-started/) to install Eqiora with
+Add the published Python package to your project:
+
+```console
+uv add eqiora
+```
+
+Prebuilt wheels support Linux x86-64 and ordinary-GIL CPython 3.11–3.14.
+Follow [Get started](https://eqiora.org/get-started/) to create a project with
 [uv](https://docs.astral.sh/uv/getting-started/installation/), save a small decay
-model, and run it. The walkthrough keeps the installed package and example at
-the same source revision and explains each step.
+model, and run it. The first model works with the published package; no Rust
+compiler or source checkout is needed.
 
 Then choose a subject in [Learn](https://eqiora.org/learn/): mathematical
 modeling, heat transfer, numerical simulation, fluid flow, solid mechanics,

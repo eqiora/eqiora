@@ -134,12 +134,12 @@ used in the heat-transfer lessons.
 
 ## Run the example
 
-Use the source environment from [Get started](/get-started/#install-with-uv),
-where `eqiora-source` and `.venv` sit in the same working folder. The commands
-below use that checkout and its installed package together.
+Install the published package with [Get started](/get-started/#install-with-uv),
+then [download the example files](/get-started/#example-files). Run from the
+project folder containing `eqiora-source` and `.venv`.
 
 ```bash
-uv run --no-project --python .venv/bin/python python eqiora-source/examples/python/mixed_boundary_elasticity.py
+uv run python eqiora-source/examples/python/mixed_boundary_elasticity.py
 ```
 
 The script prints the Plan identifier, linear-solve information, constrained
@@ -164,8 +164,8 @@ To save a figure, install the plotting extra into the same environment, then
 run the optional plot argument:
 
 ```bash
-uv pip install --python .venv/bin/python './eqiora-source[matplotlib]'
-uv run --no-project --python .venv/bin/python python eqiora-source/examples/python/mixed_boundary_elasticity.py --displacement-png displacement.png --scale 1
+uv add 'eqiora[matplotlib]'
+uv run python eqiora-source/examples/python/mixed_boundary_elasticity.py --displacement-png displacement.png --scale 1
 ```
 
 <ResultFigure

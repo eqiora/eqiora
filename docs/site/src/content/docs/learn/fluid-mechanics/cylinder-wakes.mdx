@@ -98,12 +98,13 @@ Its shorter name cannot substitute for inspecting which terms it supplies.
 
 ## Run and interpret physical time
 
-Use the same source installation and extras as
+For the current wake result, use the [development build](/get-started/#development-build)
+with the same mesh and plotting extras as
 [Chapter 5](/learn/fluid-mechanics/computing-incompressible-flow/#run-the-investigation).
 From the folder containing `.venv` and `eqiora-source`, run:
 
 ```bash
-uv run --no-project --python .venv/bin/python python eqiora-source/examples/python/karman_vortex_street.py --vorticity-png wake.png
+uv run python eqiora-source/examples/python/karman_vortex_street.py --vorticity-png wake.png
 ```
 
 The complete workflow begins from a steady Stokes field, advances 700 steps
