@@ -1,10 +1,13 @@
-//! Advisory completion retains contracts from the ordinary definition scope.
+//! Prepared editor projection of ordinary definition-scope contracts.
+mod description;
+mod scope_ranges;
 use super::{
     model::ModelBodyChecker,
     scope::{PortContract, SymbolContract},
 };
 use crate::hierarchy::{HierarchyLimits, parameters::SymbolicParameterMap, preflight::Elaborator};
 use crate::resolved::AnalyzedResolvedHierarchy;
+use description::{bounded_description, describe_port, describe_type};
 use eqiora_lang::{Expr, ExprKind, Item, NamePath, SignatureItem, TextRange};
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -12,6 +15,13 @@ use std::{collections::BTreeMap, sync::Arc};
 enum Candidate {
     Parameter(eqiora_core::ValueType),
     Port(Box<PortContract>),
+    Field(
+        Box<(
+            eqiora_schema::kernel::typing::ExpressionType<String>,
+            eqiora_lang::FieldRoleSyntax,
+            eqiora_lang::ActivationSyntax,
+        )>,
+    ),
 }
 
 #[derive(Clone, Debug)]
@@ -29,6 +39,7 @@ enum Expected {
 struct Scope {
     range: TextRange,
     candidates: BTreeMap<String, Candidate>,
+    declarations: BTreeMap<String, (Arc<str>, TextRange)>,
     exposed_signals: std::collections::BTreeSet<String>,
     contexts: Vec<(TextRange, Expected)>,
 }
@@ -36,6 +47,7 @@ struct Scope {
 #[derive(Clone, Debug, Default)]
 pub(crate) struct CompletionIndex {
     files: BTreeMap<String, Vec<Scope>>,
+    excluded: BTreeMap<String, Vec<TextRange>>,
 }
 
 fn contains(range: TextRange, offset: u32) -> bool {
@@ -59,6 +71,10 @@ impl CompletionIndex {
             return (!is_cancelled()).then(Self::default);
         };
         let mut result = Self::default();
+        for unit in &analysis.units {
+            let ranges = scope_ranges::excluded(&unit.document, &mut is_cancelled)?;
+            result.excluded.insert(unit.file.clone(), ranges);
+        }
         for (_, definition) in elaborator.models() {
             if is_cancelled() {
                 return None;
@@ -68,13 +84,27 @@ impl CompletionIndex {
             checker.bind_scope();
             let scope = &checker.scope;
             let mut candidates = BTreeMap::new();
+            let mut declarations = BTreeMap::new();
+            let declaration_file: Arc<str> = definition.file.into();
+            for item in definition.owned_items() {
+                let (name, range) = match item {
+                    Item::Field(value) => (value.name(), value.range()),
+                    Item::Parameter(value) => (value.name(), value.range()),
+                    Item::Port(value) => (value.name(), value.range()),
+                    _ => continue,
+                };
+                declarations.insert(name.to_owned(), (declaration_file.clone(), range));
+            }
             let mut names = scope.symbols.keys().cloned().collect::<Vec<_>>();
             for (instance, child) in &scope.children {
+                let declaration_file: Arc<str> = child.file.into();
                 names.extend(child.owned_items().filter_map(|item| match item {
                     eqiora_lang::ComponentItem::Port(port)
                         if port.visibility() == eqiora_lang::VisibilitySyntax::Public =>
                     {
-                        Some(format!("{instance}.{}", port.name()))
+                        let name = format!("{instance}.{}", port.name());
+                        declarations.insert(name.clone(), (declaration_file.clone(), port.range()));
+                        Some(name)
                     }
                     _ => None,
                 }));
@@ -90,6 +120,9 @@ impl CompletionIndex {
                 let candidate = match scope.resolve_symbol(&path) {
                     Ok(SymbolContract::Parameter(value)) => Candidate::Parameter(value.value_type),
                     Ok(SymbolContract::Port(port)) => Candidate::Port(Box::new(port)),
+                    Ok(SymbolContract::Field(value, role, activation)) => {
+                        Candidate::Field(Box::new((value, role, activation)))
+                    }
                     _ => continue,
                 };
                 candidates.insert(name, candidate);
@@ -188,11 +221,35 @@ impl CompletionIndex {
                 .push(Scope {
                     range: definition.range(),
                     candidates,
+                    declarations,
                     contexts,
                     exposed_signals: scope.exposed_signals.clone(),
                 });
         }
         (!is_cancelled()).then_some(result)
+    }
+
+    pub(crate) fn describe(
+        &self,
+        file: &str,
+        offset: u32,
+        name: &str,
+        declaration: (&str, TextRange),
+    ) -> Option<String> {
+        let scope = self.scope_at(file, offset)?;
+        let (origin, range) = scope.declarations.get(name)?;
+        if (origin.as_ref(), *range) != declaration {
+            return None;
+        }
+        let text = match scope.candidates.get(name)? {
+            Candidate::Parameter(value) => format!(
+                "parameter; {}; static; no spatial support",
+                describe_type(value)
+            ),
+            Candidate::Port(port) => describe_port(port),
+            Candidate::Field(field) => description::describe_field(&field.0, field.1, &field.2),
+        };
+        Some(bounded_description(text))
     }
 
     pub(crate) fn classify(
@@ -201,11 +258,7 @@ impl CompletionIndex {
         offset: u32,
         names: &[&str],
     ) -> Option<Vec<Option<(bool, String)>>> {
-        let scope = self
-            .files
-            .get(file)?
-            .iter()
-            .find(|scope| contains(scope.range, offset))?;
+        let scope = self.scope_at(file, offset)?;
         let (_, expected) = scope
             .contexts
             .iter()
@@ -282,17 +335,21 @@ impl CompletionIndex {
                 .collect(),
         )
     }
-}
 
-fn bounded_description(mut text: String) -> String {
-    let mut characters = text.char_indices();
-    if let Some((end, _)) = characters.nth(511)
-        && characters.next().is_some()
-    {
-        text.truncate(end);
-        text.push('…');
+    fn scope_at(&self, file: &str, offset: u32) -> Option<&Scope> {
+        if self
+            .excluded
+            .get(file)?
+            .iter()
+            .any(|range| contains(*range, offset))
+        {
+            return None;
+        }
+        self.files
+            .get(file)?
+            .iter()
+            .find(|scope| contains(scope.range, offset))
     }
-    text
 }
 
 // Clock/support identities that require occurrence binding remain unknown.
@@ -305,63 +362,4 @@ fn static_scalar_port(port: &PortContract) -> bool {
             ..
         } | PortContract::Physical { .. }
     )
-}
-
-fn describe_type(value: &eqiora_core::ValueType) -> String {
-    let nominal = value
-        .enum_definition()
-        .map(|id| format!("; nominal enum {id}"))
-        .or_else(|| {
-            value
-                .finite_space()
-                .map(|id| format!("; nominal finite space {id}, counts={}", value.is_count()))
-        })
-        .or_else(|| {
-            value
-                .index_set()
-                .map(|id| format!("; nominal index set {id}"))
-        })
-        .unwrap_or_default();
-    format!(
-        "{:?}; dimension {}; shape {:?}; frame {:?}{nominal}",
-        value.scalar_domain(),
-        value.dimension(),
-        value.shape().extents(),
-        value.frame()
-    )
-}
-
-fn describe_port(port: &PortContract) -> String {
-    match port {
-        PortContract::Signal {
-            direction,
-            value_type,
-            ..
-        } => format!(
-            "signal {direction:?}; {}; continuous; no spatial support",
-            describe_type(value_type)
-        ),
-        PortContract::Physical {
-            nominal,
-            across_type,
-            through_type,
-            ..
-        } => {
-            let nominal = match nominal {
-                super::scope::PhysicalNominal::Connector(key) => key.display(),
-                super::scope::PhysicalNominal::ModelDomain(name) => name.clone(),
-                super::scope::PhysicalNominal::BoundaryConnector { definition, .. } => {
-                    definition.display()
-                }
-            };
-            format!(
-                "physical; across {}; through {}; nominal {nominal}",
-                describe_type(across_type),
-                describe_type(through_type)
-            )
-        }
-        PortContract::BoundaryPhysical { .. } => {
-            "field-physical endpoint (compatibility unknown)".into()
-        }
-    }
 }

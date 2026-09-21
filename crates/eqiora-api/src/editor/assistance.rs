@@ -6,6 +6,8 @@ use std::collections::BTreeMap;
 mod builtins;
 mod cursor;
 mod declarations;
+#[cfg(test)]
+mod hover_tests;
 mod query;
 #[cfg(test)]
 mod tests;
@@ -92,6 +94,9 @@ impl EditorWorkspaceSnapshot {
     }
 
     /// Resolve documented vocabulary or an authored local, imported or exposed member spelling.
+    /// Prepared Model fields, parameters and Ports include known compiler type,
+    /// role, support and activation facts matched to the exact declaration.
+    /// Unsupported or incomplete declarations retain their authored detail.
     #[must_use]
     pub fn assistance(&self, file: &str, offset: u32, name: &str) -> Option<EditorSymbol> {
         query::Query::workspace(self, file)?.resolve(offset, name)
