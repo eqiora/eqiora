@@ -1,7 +1,6 @@
 //! Documentation shared by hover, completion and signature help.
-use std::collections::BTreeMap;
-
-use eqiora::api::{EditorService, EditorSymbol, EditorSymbolKind};
+use eqiora::api::EditorSymbolKind;
+use eqiora::api::{EditorCandidate, EditorCompletionContext as Context};
 use lsp_types::{
     CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse, CompletionTextEdit,
     Documentation, Hover, HoverContents, MarkupContent, MarkupKind, ParameterInformation,
@@ -12,7 +11,6 @@ use super::{ServerState, document};
 use crate::lsp_projection::{editor_position, source_range};
 
 mod builtins;
-mod syntax;
 #[cfg(test)]
 mod tests;
 mod vocabulary;
@@ -105,89 +103,49 @@ impl Entry {
     }
 }
 
-fn symbol_entry(symbol: &EditorSymbol, source: &str, origin: u32) -> Option<Entry> {
-    let start = symbol.range().start().checked_sub(origin)? as usize;
-    let end = symbol.range().end().checked_sub(origin)? as usize;
-    let text = source.get(start..end)?;
-    let callable = matches!(
-        symbol.kind(),
-        EditorSymbolKind::Operator | EditorSymbolKind::Component | EditorSymbolKind::Model
-    );
-    let head_end = syntax::head_end(text, callable);
-    let parameters = callable.then(|| {
-        symbol
-            .children()
-            .iter()
-            .filter(|p| (p.range().start() - symbol.range().start()) < head_end as u32)
-            .filter_map(|p| {
-                let label = syntax::clean(source.get(
-                    (p.range().start() - origin) as usize..(p.range().end() - origin) as usize,
-                )?);
-                Some(Parameter {
-                    name: p.name().into(),
-                    label,
-                    documentation: p.doc_comment().map(|doc| doc.markdown()),
-                })
-            })
-            .collect()
-    });
-    Some(Entry {
-        name: symbol.name().into(),
-        label: syntax::clean(&text[..head_end]),
-        documentation: symbol.doc_comment().map(|doc| doc.markdown()),
-        kind: if callable {
-            CompletionItemKind::FUNCTION
-        } else {
-            CompletionItemKind::VARIABLE
+fn authored(candidate: EditorCandidate) -> Entry {
+    Entry {
+        name: candidate.name,
+        label: candidate.detail,
+        documentation: candidate.documentation.map(|d| d.markdown()),
+        kind: match candidate.kind {
+            EditorSymbolKind::Operator | EditorSymbolKind::Component | EditorSymbolKind::Model => {
+                CompletionItemKind::FUNCTION
+            }
+            EditorSymbolKind::Import => CompletionItemKind::MODULE,
+            EditorSymbolKind::Enum => CompletionItemKind::ENUM,
+            EditorSymbolKind::EnumMember => CompletionItemKind::ENUM_MEMBER,
+            EditorSymbolKind::Record => CompletionItemKind::STRUCT,
+            EditorSymbolKind::Dimension | EditorSymbolKind::FiniteSpace => {
+                CompletionItemKind::CLASS
+            }
+            _ => CompletionItemKind::VARIABLE,
         },
-        parameters,
-    })
-}
-
-fn local_entries(
-    symbols: &[EditorSymbol],
-    source: &str,
-    offset: u32,
-    entries: &mut BTreeMap<String, Entry>,
-) {
-    for symbol in symbols {
-        if let Some(entry) = symbol_entry(symbol, source, 0) {
-            entries.insert(entry.name.clone(), entry);
-        }
-    }
-    // Only descend into the cursor's lexical owner; sibling members are private.
-    for symbol in symbols
-        .iter()
-        .filter(|s| s.range().start() <= offset && offset < s.range().end())
-    {
-        local_entries(symbol.children(), source, offset, entries);
+        parameters: candidate.parameters.map(|ps| {
+            ps.into_iter()
+                .map(|p| Parameter {
+                    name: p.name,
+                    label: p.detail,
+                    documentation: p.documentation.map(|d| d.markdown()),
+                })
+                .collect()
+        }),
     }
 }
 
-fn entries(state: &ServerState, uri: &Uri, offset: u32) -> Result<BTreeMap<String, Entry>, String> {
-    let open = document(state, uri)?;
-    let mut entries: BTreeMap<_, _> = builtins::entries()
-        .into_iter()
-        .chain(vocabulary::entries())
-        .map(|e| (e.name.clone(), e))
-        .collect();
-    local_entries(
-        open.snapshot().symbols(),
-        &open.source,
-        offset,
-        &mut entries,
-    );
-    Ok(entries)
-}
-
-fn resolved_entry(state: &ServerState, uri: &Uri, offset: u32) -> Option<Entry> {
-    let (workspace, file) = state.resolved(uri)?;
-    let (definition, source) = workspace.hover(file, offset)?;
-    let service = EditorService::new("signature", 0, source.to_owned());
-    let symbol = service.current().symbols().first()?;
-    let mut entry = symbol_entry(symbol, source, 0)?;
-    entry.documentation = definition.doc_comment().map(|doc| doc.markdown());
-    Some(entry)
+fn entry(state: &ServerState, uri: &Uri, offset: u32, name: &str) -> Option<Entry> {
+    let open = document(state, uri).ok()?;
+    state
+        .resolved(uri)
+        .and_then(|(w, file)| w.assistance(file, offset, name))
+        .or_else(|| open.snapshot().assistance(offset, name))
+        .map(authored)
+        .or_else(|| {
+            builtins::entries()
+                .into_iter()
+                .chain(vocabulary::entries())
+                .find(|e| e.name == name)
+        })
 }
 
 pub(super) fn hover(
@@ -199,14 +157,18 @@ pub(super) fn hover(
     let Some(offset) = open.snapshot().byte_offset(editor_position(position)) else {
         return Ok(None);
     };
-    let Some((name, start, end)) = syntax::name_at(&open.source, offset, false) else {
+    let Some((name, range)) = open.snapshot().name_at(offset) else {
         return Ok(None);
     };
-    let Some(entry) = entries(state, uri, offset)?.remove(&name) else {
+    let Some(entry) = entry(state, uri, offset, &name) else {
         return Ok(None);
     };
     let mut hover = entry.hover();
-    hover.range = Some(source_range(open.snapshot(), start as usize, end as usize)?);
+    hover.range = Some(source_range(
+        open.snapshot(),
+        range.start() as usize,
+        range.end() as usize,
+    )?);
     Ok(Some(hover))
 }
 
@@ -223,27 +185,62 @@ pub(super) fn completion(
     else {
         return Ok(empty());
     };
-    let Some((prefix, start, end)) = syntax::name_at(&open.source, offset, true) else {
+    let completion = state
+        .resolved(uri)
+        .and_then(|(w, file)| w.completion(file, offset))
+        .or_else(|| open.snapshot().completion(offset));
+    let Some(completion) = completion else {
         return Ok(empty());
     };
-    let range = source_range(open.snapshot(), start as usize, end as usize)?;
-    let items = entries(state, uri, offset)?
-        .into_values()
-        .filter(|e| e.name.starts_with(&prefix))
-        .map(|e| CompletionItem {
-            label: e.name.clone(),
-            kind: Some(e.kind),
-            detail: Some(e.label),
-            documentation: e
-                .documentation
-                .map(|doc| Documentation::MarkupContent(markdown(doc))),
-            text_edit: Some(CompletionTextEdit::Edit(TextEdit {
-                range,
-                new_text: e.name,
-            })),
-            ..Default::default()
+    let range = source_range(
+        open.snapshot(),
+        completion.range.start() as usize,
+        completion.range.end() as usize,
+    )?;
+    let mut items = std::collections::BTreeMap::new();
+    for e in builtins::entries()
+        .into_iter()
+        .chain(vocabulary::entries())
+        .filter(|e| {
+            e.name.starts_with(&completion.prefix)
+                && match completion.context {
+                    Context::Import | Context::Argument => false,
+                    Context::Member => {
+                        e.name.starts_with("math.") && completion.prefix.starts_with("math.")
+                    }
+                    Context::Type => e.kind == CompletionItemKind::CLASS,
+                    Context::Declaration => e.kind == CompletionItemKind::KEYWORD,
+                    _ => {
+                        (e.kind != CompletionItemKind::KEYWORD
+                            && e.kind != CompletionItemKind::CLASS)
+                            || matches!(
+                                e.name.as_str(),
+                                "if" | "then"
+                                    | "else"
+                                    | "case"
+                                    | "and"
+                                    | "or"
+                                    | "not"
+                                    | "true"
+                                    | "false"
+                            )
+                    }
+                }
         })
-        .collect();
+    {
+        let insertion = e.name.clone();
+        items.insert(e.name.clone(), completion_item(e, insertion, None, range));
+    }
+    for candidate in completion.items {
+        let insertion = candidate.insert_text.clone();
+        let required = candidate.required;
+        let e = authored(candidate);
+        items.insert(
+            e.name.clone(),
+            completion_item(e, insertion, required, range),
+        );
+    }
+    let items = items.into_values().collect();
     Ok(CompletionResponse::Array(items))
 }
 
@@ -258,10 +255,36 @@ pub(super) fn signature_help(
     )) else {
         return Ok(None);
     };
-    let Some(call) = syntax::call_at(&open.source, offset) else {
+    let Some(call) = open.snapshot().call_at(offset) else {
         return Ok(None);
     };
-    let entry = resolved_entry(state, uri, call.start)
-        .or_else(|| entries(state, uri, offset).ok()?.remove(&call.name));
+    let entry = entry(state, uri, offset, &call.name);
     Ok(entry.and_then(|entry| entry.signature(call.argument, call.named.as_deref())))
+}
+
+fn completion_item(
+    e: Entry,
+    insertion: String,
+    required: Option<bool>,
+    range: lsp_types::Range,
+) -> CompletionItem {
+    let status = required.map(|r| if r { "required" } else { "defaulted" });
+    CompletionItem {
+        label: e.name.clone(),
+        kind: Some(e.kind),
+        detail: Some(status.map_or(e.label.clone(), |s| format!("{} ({s})", e.label))),
+        sort_text: Some(format!(
+            "{}{}",
+            if required == Some(true) { "0" } else { "1" },
+            e.name
+        )),
+        documentation: e
+            .documentation
+            .map(|doc| Documentation::MarkupContent(markdown(doc))),
+        text_edit: Some(CompletionTextEdit::Edit(TextEdit {
+            range,
+            new_text: insertion,
+        })),
+        ..Default::default()
+    }
 }

@@ -238,17 +238,38 @@ pub(crate) fn analyze_local_package_editor_project_v1(
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
         Err(error) => return Err(git::error(&error.to_string())),
     };
-    let prepared = prepare_local_package_project(
-        project,
-        &project_path,
-        LocalProjectOverrides {
-            manifest: None,
-            sources: overrides.clone(),
-            locked_versions: accepted.as_ref().map(lock::ProjectLock::versions),
-            locked_requests: accepted.map(|lock| lock.requests),
-            ..Default::default()
-        },
-    )?;
+    let settings = LocalProjectOverrides {
+        manifest: None,
+        sources: overrides.clone(),
+        locked_versions: accepted.as_ref().map(lock::ProjectLock::versions),
+        locked_requests: accepted.as_ref().map(|lock| lock.requests.clone()),
+        ..Default::default()
+    };
+    let (prepared, recovery) = match prepare_local_package_project(project, &project_path, settings)
+    {
+        Ok(prepared) => (prepared, None),
+        Err(error) if !overrides.is_empty() => {
+            // Recover names from the admitted disk graph only. Unsaved invalid
+            // bytes are not releases and must never authorize compilation.
+            let prepared = prepare_local_package_project(
+                open_project_root(&project_path)?,
+                &project_path,
+                LocalProjectOverrides {
+                    locked_versions: accepted.as_ref().map(lock::ProjectLock::versions),
+                    locked_requests: accepted.map(|lock| lock.requests),
+                    ..Default::default()
+                },
+            )?;
+            (
+                prepared,
+                Some(eqiora_core::Diagnostic::error(
+                    eqiora_core::diagnostic::codes::LANGUAGE_LOWERING_ERROR,
+                    format!("unsaved package source is incomplete or invalid: {error}"),
+                )),
+            )
+        }
+        Err(error) => return Err(error),
+    };
     let dependencies = prepared
         .root
         .dependencies
@@ -305,10 +326,19 @@ pub(crate) fn analyze_local_package_editor_project_v1(
             );
         }
     }
-    Ok((
-        crate::editor::EditorWorkspaceSnapshot::analyze_modules(version, input),
-        relative_paths,
-    ))
+    let mut snapshot = crate::editor::EditorWorkspaceSnapshot::analyze_modules(version, input);
+    if let Some(diagnostic) = recovery {
+        let sources = relative_paths
+            .iter()
+            .filter_map(|(file, path)| {
+                overrides
+                    .get(path)
+                    .map(|source| (file.clone(), source.clone()))
+            })
+            .collect();
+        snapshot = snapshot.recover_overrides(&sources, diagnostic);
+    }
+    Ok((snapshot, relative_paths))
 }
 
 fn prepare_local_package_project(

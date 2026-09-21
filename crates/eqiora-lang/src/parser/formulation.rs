@@ -42,9 +42,8 @@ impl Parser<'_> {
             }
         }
         let end = self
-            .expect(TokenKind::RightBrace, "`}` to close component")?
-            .range()
-            .end();
+            .expect(TokenKind::RightBrace, "`}` to close component")
+            .map_or_else(|| self.current().range().end(), |token| token.range().end());
         Some(ComponentDecl {
             comments: Default::default(),
             visibility,

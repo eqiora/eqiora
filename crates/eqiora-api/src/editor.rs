@@ -6,7 +6,11 @@ use eqiora_lang::{
     ComponentItem, DocComment, Document, Item, SignatureItem, TextRange, format, parse,
 };
 
+mod assistance;
 mod workspace;
+pub use assistance::{
+    EditorCall, EditorCandidate, EditorCompletion, EditorCompletionContext, EditorParameter,
+};
 
 pub use workspace::{
     EditorDefinition, EditorReference, EditorWorkspaceService, EditorWorkspaceSnapshot,
@@ -61,6 +65,10 @@ pub enum EditorSymbolKind {
     Operator,
     /// Declaration-owned finite enumeration.
     Enum,
+    /// Closed nominal record type.
+    Record,
+    /// Named finite index space.
+    FiniteSpace,
     /// Ordered member of a finite enumeration.
     EnumMember,
     /// Executable model.
@@ -164,6 +172,7 @@ pub struct EditorSnapshot {
     diagnostics: Vec<Diagnostic>,
     formatted: Option<String>,
     symbols: Vec<EditorSymbol>,
+    syntax: Option<Document>,
 }
 
 impl EditorSnapshot {
@@ -184,6 +193,7 @@ impl EditorSnapshot {
                 )],
                 formatted: None,
                 symbols: Vec::new(),
+                syntax: None,
             };
         }
 
@@ -214,6 +224,7 @@ impl EditorSnapshot {
             diagnostics,
             formatted,
             symbols,
+            syntax: parsed.document().cloned(),
         }
     }
 
@@ -230,6 +241,7 @@ impl EditorSnapshot {
             diagnostics: Vec::new(),
             formatted: Some(format(document)),
             symbols: document_symbols(document),
+            syntax: Some(document.clone()),
         }
     }
 
@@ -247,6 +259,7 @@ impl EditorSnapshot {
                 diagnostics,
                 formatted: None,
                 symbols: Vec::new(),
+                syntax: None,
             };
         }
         let parsed = parse(file, &source);
@@ -263,6 +276,7 @@ impl EditorSnapshot {
             diagnostics,
             formatted,
             symbols,
+            syntax: parsed.document().cloned(),
         }
     }
 
@@ -432,6 +446,23 @@ fn line_starts(source: &str) -> Vec<u32> {
 
 fn document_symbols(document: &Document) -> Vec<EditorSymbol> {
     let mut symbols = Vec::new();
+    symbols.extend(document.records().iter().map(|r| {
+        EditorSymbol::branch(
+            EditorSymbolKind::Record,
+            r.name(),
+            r.range(),
+            r.members()
+                .iter()
+                .map(|m| EditorSymbol::leaf(EditorSymbolKind::Field, m.name(), m.range()))
+                .collect(),
+        )
+    }));
+    symbols.extend(
+        document
+            .finite_spaces()
+            .iter()
+            .map(|s| EditorSymbol::leaf(EditorSymbolKind::FiniteSpace, s.name(), s.range())),
+    );
     symbols.extend(
         document
             .imports()
