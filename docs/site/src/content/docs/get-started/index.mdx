@@ -153,6 +153,8 @@ Building takes longer than installing a prebuilt wheel.
   the terminal and check `uv --version`.
 - **Source build fails:** check `cargo --version` and `cc --version`, then repeat
   the development-build command. Use CPython 3.13 and the checked-out source revision.
+- **macOS import fails with `mis-aligned LINKEDIT string pool`:** see the
+  [source-build workaround](#macos-source-build-linkedit-error) below.
 - **Wrong Python or missing `eqiora`:** run
   `uv run python -c "import eqiora; print(eqiora.__version__)"` from the project folder.
   For the optional source build, also compare `git -C eqiora-source rev-parse HEAD`
@@ -164,6 +166,38 @@ Building takes longer than installing a prebuilt wheel.
   name to match the declaration. Changing the rate's unit to `m` instead produces
   an addition/subtraction dimension mismatch: the two terms must both have
   inverse-time units.
+
+### macOS source-build LINKEDIT error
+
+A source build can succeed on macOS 27 while `import eqiora` fails with
+`mis-aligned LINKEDIT string pool` when loading `_eqiora`. This matches a
+[Rust/LLVM stripping defect](https://github.com/rust-lang/rust/issues/157750);
+Rust has merged an [upstream fix](https://github.com/rust-lang/rust/pull/158410).
+
+For an affected source build, add the following to the **consuming project's**
+`pyproject.toml`, beside `run.py`. If the table already exists, add only the
+`eqiora` entry. This passes both stripping overrides to Eqiora's build backend:
+
+```toml
+[tool.uv.config-settings-package]
+eqiora = { build-args = "--strip=false --config profile.release.strip=false" }
+```
+
+Rebuild the existing source dependency, then check the import and rerun the model:
+
+```bash
+uv sync --reinstall-package eqiora
+uv run python -c "import eqiora; print(eqiora.__version__)"
+uv run python run.py
+```
+
+The [reported workaround](https://github.com/eqiora/eqiora/issues/1266) restored
+import and the decay example on macOS 27.0 arm64 with CPython 3.13.11, uv 0.12.15,
+Rust 1.96.0 and Apple clang 21.0.0, using Eqiora `0.1.0a7`. Both overrides were
+applied together; neither was tested alone. This is a source-build workaround,
+not verification of current macOS packages. The prebuilt-wheel support boundary
+above remains Linux x86-64. After upgrading the affected toolchain, remove the
+override and repeat the rebuild and checks before relying on the default settings.
 
 ## Where next?
 
