@@ -52,7 +52,7 @@ shutil.copytree(source, target, dirs_exist_ok=True)
 PY
 jupyter labextension list
 python example.py
-jupyter lab --no-browser --ServerApp.ip=127.0.0.1 --ServerApp.port=18927 --ServerApp.port_retries=0 --IdentityProvider.token=eqiora-test --ServerApp.root_dir="$PWD"
+JUPYTER_CONFIG_DIR="$PWD/.jupyter-test/config" JUPYTER_DATA_DIR="$PWD/.jupyter-test/data" JUPYTER_RUNTIME_DIR="$PWD/.jupyter-test/runtime" jupyter lab --no-browser --ServerApp.ip=127.0.0.1 --ServerApp.port=18927 --ServerApp.port_retries=0 --FileContentsManager.delete_to_trash=False --IdentityProvider.token=eqiora-test --ServerApp.root_dir="$PWD"
 ```
 
 Open `decay.ipynb` under `/lab/tree/decay.ipynb` or `/notebooks/decay.ipynb`.

@@ -38,7 +38,7 @@ for (const route of ['lab/tree', 'notebooks']) {
       for (const session of sessions) {
         if (session.path === name) await request.delete(`/api/sessions/${session.id}${query}`);
       }
-      await request.delete(`/api/contents/${name}${query}`);
+      expect((await request.delete(`/api/contents/${name}${query}`)).ok()).toBe(true);
     }
   });
 }

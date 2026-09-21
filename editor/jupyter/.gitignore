@@ -9,3 +9,4 @@ src/grammar.json
 .venv/
 .ipynb_checkpoints/
 __pycache__/
+.jupyter-test/
