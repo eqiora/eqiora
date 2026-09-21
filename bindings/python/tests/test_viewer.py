@@ -301,7 +301,7 @@ def test_base_import_does_not_load_notebook_frameworks() -> None:
             (
                 "import json, sys; import eqiora; "
                 "print(json.dumps([name for name in "
-                "('anywidget', 'traitlets', 'ipywidgets') if name in sys.modules]))"
+                "('anywidget', 'traitlets', 'ipywidgets', 'IPython', 'eqiora.jupyter') if name in sys.modules]))"
             ),
         ],
         text=True,

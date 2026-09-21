@@ -1,0 +1,75 @@
+---
+title: Use Eqiora source cells in a Python notebook
+description: Compile ordinary Eqiora source in an IPython cell and use its Model in subsequent Python cells.
+---
+
+import { Code } from '@astrojs/starlight/components';
+import modelSource from '../../../../../../examples/decay.eqi?raw';
+
+The current development package provides an opt-in IPython extension. It is
+not included in the published Eqiora `0.1.2` package. Use the
+[development installation](/get-started/#development-build) when trying it.
+Ordinary Python scripts continue to use `eqiora.compile` directly.
+
+## Select your Python environment
+
+Use a Python kernel from the environment containing Eqiora. For a local
+JupyterLab environment, install the notebook tools into that same uv project:
+
+```bash
+uv add --dev jupyterlab ipykernel
+uv run jupyter lab
+```
+
+In a Python cell, load the extension explicitly:
+
+```python
+%load_ext eqiora.jupyter
+import eqiora
+```
+
+## Compile a source cell
+
+Create another code cell with this content:
+
+<Code code={`%%eqiora model\n${modelSource}`} lang="eqiora" />
+
+After successful execution, `model` is the ordinary compiled `eqiora.Model` in
+the shared Python namespace. Continue with the configuration and execution
+steps from [Run and inspect](/guides/run-and-inspect/), using this `model` in
+place of that guide's `eqiora.compile(...)` call. Editing the cell has no effect
+on a compiled Model until you execute the cell again.
+
+Compilation errors retain the native diagnostic codes and source spans. Notes
+show the notebook cell's line and column, counting the `%%eqiora` header as
+line 1. A failed re-execution preserves the last successful `model`; correct
+the source and rerun the cell before continuing your numerical investigation.
+
+## Supply ordinary compiler inputs
+
+The magic accepts these optional arguments:
+
+```text
+%%eqiora model --entry SelectedModel --bindings inputs --geometry geometry
+```
+
+`SelectedModel` is a declaration name. `inputs` and `geometry` are names of
+existing Python variables containing the same bindings and Geometry accepted
+by [`eqiora.compile`](/reference/python/eqiora/). Supply only the options your
+source needs. Variable names are single Python identifiers; the extension does
+not evaluate Python expressions in the header or interpolate the Eqiora body.
+
+## Frontend support
+
+The extension registers execution in an existing IPython kernel. It does not
+install syntax highlighting, completion or hover into the notebook editor.
+JupyterLab highlighting and independent Notebook, VS Code and Colab checks are
+still being implemented under
+[Issue #1060](https://github.com/eqiora/eqiora/issues/1060).
+Kernel execution alone does not establish support for a frontend's editor.
+
+If `%load_ext` reports that `eqiora.jupyter` is absent, check the kernel's
+`eqiora.__file__` and package version: a different environment or the published
+0.1.2 package will not contain this development feature. Loading Eqiora in a
+normal Python process does not load IPython. `%unload_ext eqiora.jupyter`
+removes the magic and leaves existing compiled Models available.

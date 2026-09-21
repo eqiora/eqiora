@@ -24,6 +24,7 @@ Browse the modules below for classes, functions, and signatures. Start with the 
 | [`eqiora.solid`](#module-eqiora-solid) | Configure linear elasticity and inspect structural results. |
 | [`eqiora.viewer`](#module-eqiora-viewer) | Compose read-only views of geometry, meshes, and fields. |
 | [`eqiora.colab`](#module-eqiora-colab) | Prepare a coherent Google Colab runtime for Eqiora's notebook viewer. |
+| [`eqiora.jupyter`](#module-eqiora-jupyter) | Compile Eqiora notebook cells through the ordinary Python compiler. |
 | [`eqiora.matplotlib`](#module-eqiora-matplotlib) | Plot Eqiora results with Matplotlib. |
 | [`eqiora.diff`](#module-eqiora-diff) | Implicit differentiation of Eqiora programs. |
 | [`eqiora.torch`](#module-eqiora-torch) | Use Eqiora differentiable programs with PyTorch autograd. |
@@ -5502,6 +5503,34 @@ Validate and prepare the current runtime for Eqiora's Colab viewer.
 
 ```python
 def prepare() -> None: ...
+```
+
+<a id="module-eqiora-jupyter"></a>
+
+## `eqiora.jupyter`
+
+Compile Eqiora notebook cells through the ordinary Python compiler.
+
+[View source](../../bindings/python/python/eqiora/jupyter.pyi)
+
+<a id="api-eqiora-jupyter-load_ipython_extension"></a>
+
+### `eqiora.jupyter.load_ipython_extension`
+
+Register the cell magic when IPython loads this extension explicitly.
+
+```python
+def load_ipython_extension(ipython: Any) -> None: ...
+```
+
+<a id="api-eqiora-jupyter-unload_ipython_extension"></a>
+
+### `eqiora.jupyter.unload_ipython_extension`
+
+Remove the cell magic while preserving compiled Python variables.
+
+```python
+def unload_ipython_extension(ipython: Any) -> None: ...
 ```
 
 <a id="module-eqiora-matplotlib"></a>
