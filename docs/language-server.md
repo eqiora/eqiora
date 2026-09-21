@@ -3,22 +3,15 @@
 `eqiora-language-server` is an editor-independent LSP preview backed by
 Eqiora's compiler-owned editor analysis service.
 
-Install it from a checkout:
+For released binaries and tested Vim/Neovim configuration, follow the
+[editor setup guide](site/src/content/docs/guides/editors.mdx). The same guide is
+[published on the documentation site](https://eqiora.org/guides/editors/).
+
+To build the development server from a checkout:
 
 ```console
 cargo install --locked --path crates/eqiora-language-server
 eqiora-language-server --version
-```
-
-Configure an LSP client to start `eqiora-language-server` over stdio for `.eqi`
-files. For example, Neovim 0.11 can start it from `ftplugin/eqiora.lua`:
-
-```lua
-vim.lsp.start({
-  name = "eqiora",
-  cmd = { "eqiora-language-server" },
-  root_dir = vim.fs.root(0, { "eqiora.toml", ".git" }) or vim.fn.getcwd(),
-})
 ```
 
 The preview uses standard UTF-16 LSP positions and full-document synchronization.

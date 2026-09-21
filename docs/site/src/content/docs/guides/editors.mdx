@@ -1,0 +1,166 @@
+---
+title: Configure Vim, Neovim, or another LSP client
+description: Use the published Eqiora language server for diagnostics, formatting, hover, and declaration navigation without VS Code.
+---
+
+Use [Get started](/get-started/) to install the Python package and save its
+`decay.eqi` and `run.py`. The language server is a separate executable: it
+analyzes source while the Python environment runs your model.
+
+These recipes were exercised on Linux x86-64 with Neovim **0.12.5** and Vim
+**9.1** (Debian patches 1–16, 647, 678, 697) plus
+[vim-lsp](https://github.com/prabirshrestha/vim-lsp) revision
+`bbffa60cb08a6a2d67e2086a89699ab00a084fe9`.
+Both used the same server from the published Eqiora extension **0.1.1**,
+whose server reports **0.1.2**. Remote hosts and other platform/client
+combinations have not been exercised by these recipes.
+
+## Obtain the released server
+
+The extension release includes a standalone server. You can extract it without
+installing VS Code or compiling Eqiora. From your project directory, run these
+commands on Linux x86-64; they require `curl`, `unzip` and `sha256sum`:
+
+```bash
+mkdir -p .tools/eqiora-0.1.1
+cd .tools/eqiora-0.1.1
+curl -fL https://github.com/eqiora/eqiora-vscode/releases/download/v0.1.1/eqiora-linux-x64.vsix -o eqiora-linux-x64.vsix
+curl -fL https://github.com/eqiora/eqiora-vscode/releases/download/v0.1.1/eqiora-linux-x64.sha256 -o eqiora-linux-x64.sha256
+sha256sum --check eqiora-linux-x64.sha256
+unzip -p eqiora-linux-x64.vsix extension/server/eqiora-language-server > eqiora-language-server
+chmod +x eqiora-language-server
+export PATH="$PWD:$PATH"
+eqiora-language-server --version
+cd ../..
+```
+
+Launch your editor from this shell. Alternatively, use the executable's full
+absolute path in the client configuration. This server is pinned to its release;
+current-source reference pages may describe features added later. The release's
+`upstream.json` inside the VSIX records the exact Eqiora revision.
+
+## Neovim
+
+Add this to `init.lua`:
+
+```lua
+vim.filetype.add({ extension = { eqi = "eqiora" } })
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = "eqiora",
+  callback = function()
+    vim.lsp.start({
+      name = "eqiora",
+      cmd = { "eqiora-language-server" },
+      root_dir = vim.fs.root(0, { "eqiora.toml", ".git" })
+        or vim.fs.dirname(vim.api.nvim_buf_get_name(0)),
+    })
+  end,
+})
+```
+
+Open `decay.eqi`. Use `:lua vim.lsp.buf.hover()` for hover,
+`:lua vim.lsp.buf.definition()` for a supported declaration reference,
+`:lua vim.lsp.buf.document_symbol()` for the outline and
+`:lua vim.lsp.buf.format({async = false})` to format the file.
+Diagnostics are available through `:lua vim.diagnostic.open_float()`.
+
+## Vim
+
+Vim needs an LSP client plugin. Install the tested vim-lsp revision using Vim's
+native package directory:
+
+```bash
+git clone https://github.com/prabirshrestha/vim-lsp.git ~/.vim/pack/eqiora/start/vim-lsp
+git -C ~/.vim/pack/eqiora/start/vim-lsp checkout bbffa60cb08a6a2d67e2086a89699ab00a084fe9
+```
+
+If you already manage vim-lsp with a plugin manager, use that installation.
+Add this to `.vimrc`:
+
+```vim
+filetype plugin on
+augroup eqiora_filetype
+  autocmd!
+  autocmd BufRead,BufNewFile *.eqi setfiletype eqiora
+augroup END
+
+function! EqioraRoot() abort
+  let root = lsp#utils#find_nearest_parent_file_directory(
+        \ lsp#utils#get_buffer_path(), ['eqiora.toml', '.git/'])
+  return lsp#utils#path_to_uri(empty(root) ? expand('%:p:h') : root)
+endfunction
+
+augroup eqiora_lsp
+  autocmd!
+  autocmd User lsp_setup call lsp#register_server({
+        \ 'name': 'eqiora',
+        \ 'cmd': {info->['eqiora-language-server']},
+        \ 'allowlist': ['eqiora'],
+        \ 'root_uri': {info->EqioraRoot()},
+        \ })
+augroup END
+```
+
+Open `decay.eqi`. Use `:LspHover`, `:LspDefinition`, `:LspDocumentSymbol`,
+`:LspDocumentFormatSync` and `:LspDocumentDiagnostics`. Key mappings are optional;
+the commands invoke the same server operations.
+
+## Exercise diagnostics and declaration navigation
+
+Use the maintained Get started model. Add this before its `model` declaration:
+
+```eqiora
+dimension Rate = 1 / s;
+```
+
+Change the parameter declaration to `parameter rate: Rate = 1;`. Hover over
+`Rate` in this declaration and navigate to its definition. The outline contains
+the dimension and the model. This exercises a same-file top-level declaration
+reference. The tested released server does not provide definition navigation
+for arbitrary local value references such as `rate` inside an equation.
+
+Change the dimension definition to `dimension Rate = m;`. The evolution
+equation now adds terms with incompatible dimensions, so the editor reports an
+error. Restore `1 / s`; the error disappears. Format and save the model, then
+run the existing script with `uv run python run.py` from the project directory.
+The parameter still means one inverse second, so the predicted decay values
+from Get started are unchanged. The editor does not choose a numerical method
+or execute the model.
+
+## Other LSP clients and projects
+
+Associate `.eqi` with language ID `eqiora` and launch the executable over stdio,
+with no command-line arguments. Send the project directory in `rootUri` or
+`workspaceFolders` during initialization. The server negotiates UTF-16
+positions and full-document changes. Keep stdout for LSP frames and capture
+stderr as the server log. Standard diagnostics, hover, formatting, symbols,
+folding and the supported definition/reference requests need no VS Code
+inspection extension.
+
+For package projects, choose the directory containing `eqiora.toml`, not an
+individual source subdirectory. The server uses the manifest and exact local
+package context; it does not fetch missing dependencies or update a lockfile
+while you type. Use the ordinary [project workflow](/guides/creating-libraries/)
+to prepare those inputs. Run and inspect results through the
+[Python workflow](/guides/run-and-inspect/) in its selected uv environment.
+
+## Troubleshooting
+
+- **Server not found:** run `eqiora-language-server --version` in the shell
+  that launches your editor, or configure its absolute path. Installing the
+  Python package does not install this executable.
+- **Wrong project:** inspect the initialized root and use the directory
+  containing `eqiora.toml`. A missing dependency is not repaired by changing
+  syntax highlighting.
+- **Feature missing:** compare the server version and the VSIX's exact
+  upstream revision with the documentation you are using. Current-source
+  completion features are not implied by an older distributed server.
+- **Need logs:** in Neovim, use `:lua vim.lsp.set_log_level("debug")` and
+  `:lua print(vim.lsp.log.get_filename())`. With vim-lsp, set
+  `let g:lsp_log_file = expand('~/eqiora-lsp.log')` before reproducing the
+  issue. Turn verbose logging off after diagnosis.
+
+For the official extension, use the
+[VS Code guide](https://github.com/eqiora/eqiora-vscode/blob/main/docs/guide.md).
+Each client consumes Eqiora's compiler-owned analysis; these recipes add no
+editor-specific language grammar or scientific rules.
