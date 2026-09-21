@@ -76,3 +76,22 @@ def test_unicode_python_names_and_reload(shell, source):
     shell.run_line_magic("unload_ext", "eqiora.jupyter")
     assert shell.find_cell_magic("eqiora") is None
     assert shell.user_ns["model"] is previous
+
+
+def test_installed_wheel_contains_discoverable_notebook_frontend():
+    import importlib.metadata
+    import json
+
+    distribution = importlib.metadata.distribution("eqiora")
+    suffix = "share/jupyter/labextensions/@eqiora/jupyter/package.json"
+    manifests = [file for file in distribution.files or () if str(file).endswith(suffix)]
+    assert len(manifests) == 1
+    manifest_path = Path(distribution.locate_file(manifests[0]))
+    manifest = json.loads(manifest_path.read_text())
+    assert manifest["name"] == "@eqiora/jupyter"
+    assert manifest["jupyterlab"]["extension"] is True
+    load = manifest["jupyterlab"]["_build"]["load"]
+    asset = manifest_path.parent / load
+    assert asset.resolve().is_relative_to(manifest_path.parent.resolve())
+    assert asset.is_file() and asset.stat().st_size > 0
+    assert (manifest_path.parent / "static/third-party-licenses.json").is_file()

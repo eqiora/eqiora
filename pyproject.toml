@@ -47,6 +47,8 @@ Changelog = "https://github.com/nkiyohara/eqiora/blob/main/CHANGELOG.md"
 Security = "https://github.com/nkiyohara/eqiora/security/policy"
 
 [tool.maturin]
+# Prebuilt editor assets; normal wheel/source installation needs no Node toolchain.
+data = "editor/jupyter/wheel-data"
 include = [
     { path = "steady-flow-past-cylinder.eqi", from = "out-dir", to = "eqiora/examples/" },
     { path = "transient-flow-past-cylinder.eqi", from = "out-dir", to = "eqiora/examples/" },
