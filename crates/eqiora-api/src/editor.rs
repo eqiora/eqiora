@@ -221,6 +221,7 @@ pub struct EditorSnapshot {
     formatted: Option<String>,
     symbols: Vec<EditorSymbol>,
     syntax: Option<Document>,
+    semantics: Option<assistance::PreparedCompletion>,
 }
 
 impl EditorSnapshot {
@@ -242,6 +243,7 @@ impl EditorSnapshot {
                 formatted: None,
                 symbols: Vec::new(),
                 syntax: None,
+                semantics: None,
             };
         }
 
@@ -273,6 +275,7 @@ impl EditorSnapshot {
             formatted,
             symbols,
             syntax: parsed.document().cloned(),
+            semantics: None,
         }
     }
 
@@ -290,6 +293,7 @@ impl EditorSnapshot {
             formatted: Some(format(document)),
             symbols: document_symbols(document),
             syntax: Some(document.clone()),
+            semantics: None,
         }
     }
 
@@ -308,6 +312,7 @@ impl EditorSnapshot {
                 formatted: None,
                 symbols: Vec::new(),
                 syntax: None,
+                semantics: None,
             };
         }
         let parsed = parse(file, &source);
@@ -325,6 +330,7 @@ impl EditorSnapshot {
             formatted,
             symbols,
             syntax: parsed.document().cloned(),
+            semantics: None,
         }
     }
 

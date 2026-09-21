@@ -25,6 +25,7 @@ use crate::provenance::ProvenanceLimits;
 use crate::source_identity::LocalSourceIdentity;
 
 mod body_check;
+pub(crate) use body_check::CompletionIndex;
 mod check;
 mod clocks;
 mod complete_exterior;

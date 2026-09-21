@@ -29,6 +29,38 @@ fn complete(marked: &str) -> Vec<CompletionItem> {
     items
 }
 
+#[test]
+fn protocol_preserves_compiler_ranking_in_client_sort_text() {
+    let marked = "model M() { parameter value_bad:s=1[s]; parameter value_good:m=2[m]; parameter result:m=value_|; }";
+    let (mut state, uri, position) = fixture(marked);
+    let snapshot =
+        eqiora::api::EditorWorkspaceSnapshot::analyze_standalone(1, marked.replace('|', ""));
+    let file = snapshot.files().next().unwrap().to_owned();
+    let group = state.group_for_uri(uri.as_str());
+    state.workspaces.insert(
+        group,
+        super::super::WorkspaceAnalysis {
+            snapshot,
+            file_by_uri: [(uri.as_str().to_owned(), file.clone())].into(),
+            uri_by_file: [(file, uri.clone())].into(),
+        },
+    );
+    let params =
+        serde_json::from_value(json!({"textDocument":{"uri":uri},"position":position})).unwrap();
+    let CompletionResponse::Array(items) = completion(params, &state).unwrap() else {
+        panic!("array")
+    };
+    assert_eq!(
+        items
+            .iter()
+            .map(|item| item.label.as_str())
+            .collect::<Vec<_>>(),
+        ["value_good", "value_bad"]
+    );
+    assert!(items[0].sort_text < items[1].sort_text);
+    assert!(items[0].detail.as_ref().unwrap().contains("dimension L"));
+}
+
 fn signature(marked: &str) -> Option<SignatureHelp> {
     let (state, uri, position) = fixture(marked);
     let params =

@@ -193,6 +193,7 @@ impl EditorWorkspaceSnapshot {
         diagnostic: Diagnostic,
     ) -> Self {
         for (file, snapshot) in &mut self.documents {
+            snapshot.semantics = None;
             if let Some(source) = overrides.get(file) {
                 *snapshot = EditorSnapshot::from_recovered_source(
                     self.version,
@@ -309,17 +310,14 @@ impl EditorWorkspaceSnapshot {
             if is_cancelled() {
                 return None;
             }
-            return Some(Self::from_recovered(
-                version,
-                sources,
-                diagnostics,
-                Some(input),
-            ));
+            return Self::from_recovered(version, sources, diagnostics, Some(input))
+                .with_assistance(analyzed, &mut is_cancelled);
         }
         if is_cancelled() {
             return None;
         }
-        Some(Self::from_analyzed(version, sources, &analyzed, input))
+        Self::from_analyzed_unprepared(version, sources, &analyzed, input)
+            .with_assistance(analyzed, &mut is_cancelled)
     }
 
     /// Replay one exact locked package graph through the ordinary package and
@@ -357,6 +355,37 @@ impl EditorWorkspaceSnapshot {
     }
 
     pub(crate) fn from_analyzed(
+        version: u64,
+        sources: Vec<(String, String)>,
+        analyzed: AnalyzedResolvedHierarchy,
+        input: ResolvedHierarchyInput,
+        is_cancelled: impl FnMut() -> bool,
+    ) -> Option<Self> {
+        Self::from_analyzed_unprepared(version, sources, &analyzed, input)
+            .with_assistance(analyzed, is_cancelled)
+    }
+
+    fn with_assistance(
+        mut self,
+        mut analyzed: AnalyzedResolvedHierarchy,
+        is_cancelled: impl FnMut() -> bool,
+    ) -> Option<Self> {
+        if !analyzed.prepare_completion(is_cancelled) {
+            return None;
+        }
+        let input = self.input.as_ref()?.clone();
+        let analysis = std::sync::Arc::new(analyzed);
+        for (file, document) in &mut self.documents {
+            document.semantics = Some(super::assistance::PreparedCompletion {
+                input: input.clone(),
+                analysis: analysis.clone(),
+                file: file.clone(),
+            });
+        }
+        Some(self)
+    }
+
+    fn from_analyzed_unprepared(
         version: u64,
         sources: Vec<(String, String)>,
         analyzed: &AnalyzedResolvedHierarchy,

@@ -18,6 +18,104 @@ fn names(completion: &[EditorSymbol]) -> Vec<&str> {
     completion.iter().map(|c| c.name.as_str()).collect()
 }
 
+fn semantic_complete(marked: &str) -> Vec<EditorSymbol> {
+    let offset = marked.find('|').unwrap() as u32;
+    let workspace = EditorWorkspaceSnapshot::analyze_standalone(1, marked.replacen('|', "", 1));
+    let file = workspace.files().next().unwrap();
+    workspace.completion(file, offset).unwrap().1
+}
+
+#[test]
+fn semantic_completion_prioritizes_exact_parameter_dimensions() {
+    let c = semantic_complete(
+        "dimension Length = m; model M() { parameter value_bad: s = 1[s]; parameter value_good: Length = 2[m]; parameter result: m = value_|; }",
+    );
+    assert_eq!(names(&c), ["value_good", "value_bad"]);
+    assert!(c[0].detail().unwrap().contains("expected"));
+    let c = semantic_complete(
+        "component C(parameter length: m) {} model M() { parameter value_bad: s = 1[s]; parameter value_good: m = 2[m]; instance child: C(length = value_|); }",
+    );
+    assert_eq!(names(&c), ["value_good", "value_bad"]);
+}
+
+#[test]
+fn semantic_completion_uses_imported_formal_aliases_and_nominal_types() {
+    for (library, declarations, formal) in [
+        (
+            "public dimension Length = m; public component Receiver(parameter value: Length) {}",
+            "parameter value_bad:s=1[s]; parameter value_good:m=2[m];",
+            "dimension L",
+        ),
+        (
+            "public enum Mode {First,Second} public enum Other {First,Second} public component Receiver(parameter value: Mode) {}",
+            "parameter value_bad:lib.Other=lib.Other.First; parameter value_good:lib.Mode=lib.Mode.First;",
+            "enum",
+        ),
+    ] {
+        let owner = Namespace::new(["app", "exact-root"]).unwrap();
+        let dep = Namespace::new(["library", "exact-dependency"]).unwrap();
+        let marked = format!(
+            "import library.types as lib; model M() {{ {declarations} instance child:lib.Receiver(value=value_|good); }}"
+        );
+        let root =
+            ResolvedSourceUnit::new(owner.clone(), "src/main.eqi", marked.replacen('|', "", 1))
+                .unwrap();
+        let file = root.diagnostic_file();
+        let workspace = EditorWorkspaceSnapshot::analyze_modules(
+            1,
+            ResolvedHierarchyInput::new(
+                owner.clone(),
+                vec![
+                    root,
+                    ResolvedSourceUnit::new(dep.clone(), "src/types.eqi", library).unwrap(),
+                ],
+                vec![ResolvedDependency::new(owner, dep)],
+            ),
+        );
+        let c = workspace
+            .completion(&file, marked.find('|').unwrap() as u32)
+            .unwrap()
+            .1;
+        assert_eq!(names(&c), ["value_good", "value_bad"]);
+        assert!(c[0].detail().unwrap().contains(formal));
+        assert!(c[1].detail().unwrap().contains("expected"));
+    }
+}
+
+#[test]
+fn semantic_completion_preserves_unknown_incomplete_and_expression_contexts() {
+    for ending in ["value_|", "2 * value_|; }"] {
+        let c = semantic_complete(&format!(
+            "model M() {{ parameter value_bad: s = 1[s]; parameter value_good: m = 2[m]; parameter result: m = {ending}"
+        ));
+        assert_eq!(names(&c), ["value_bad", "value_good"]);
+        assert!(
+            c.iter()
+                .all(|item| !item.detail().unwrap().contains("expected"))
+        );
+    }
+}
+
+#[test]
+fn semantic_connection_completion_checks_direction_dimension_and_nominal_identity() {
+    let c = semantic_complete(
+        "model M() { port source: signal output m; port target_bad_dimension: signal input s; port target_bad_role: signal output m; port target_good: signal input m; connect source -> target_|; }",
+    );
+    assert_eq!(
+        names(&c),
+        ["target_good", "target_bad_dimension", "target_bad_role"]
+    );
+    let c = semantic_complete(
+        "model M() { domain first = scalar_physical(across x: m, through y: s); domain second = scalar_physical(across x: m, through y: s); port source: first; port target_bad: second; port target_good: first; connect source, target_|; }",
+    );
+    assert_eq!(names(&c), ["target_good", "target_bad"]);
+    assert!(c[1].detail().unwrap().contains("nominal"));
+    let c = semantic_complete(
+        "model M() { port target_bad:signal input m; port target_good:signal output m; port sink:signal input m; connect target_| -> sink; }",
+    );
+    assert_eq!(names(&c), ["target_good", "target_bad"]);
+}
+
 #[test]
 fn incomplete_owners_recover_current_scope_without_leaking_closed_siblings() {
     let c = complete(
@@ -260,4 +358,44 @@ fn remaining_bindings_include_required_defaulted_docs_and_avoid_duplicate_equals
         "positional calls cannot mix named bindings"
     );
     assert!(complete("model M() { instance c: Unknown(ga|").is_empty());
+}
+
+#[test]
+fn semantic_completion_keeps_distinct_nominal_values_and_connectors_distinct() {
+    let c = semantic_complete(
+        "enum Mode {First,Second} enum Other {First,Second} model M() { parameter value_bad:Other=Other.First; parameter value_good:Mode=Mode.First; parameter result:Mode=value_|good; }",
+    );
+    assert_eq!(names(&c), ["value_good", "value_bad"]);
+    let c = semantic_complete(
+        "connector A {across potential:V; through flow:A;} connector B {across potential:V; through flow:A;} component Ports(port source:A,port target_bad:B,port target_good:A) {} model M() {instance child:Ports();connect child.source,child.target_|good;}",
+    );
+    assert_eq!(names(&c), ["child.target_good", "child.target_bad"]);
+}
+
+#[test]
+fn semantic_completion_leaves_clock_and_support_identity_unknown() {
+    for declarations in [
+        "clock tick=periodic(1[s]); port target_unknown:signal input m at tick;",
+        "domain body=box(0,1); port target_unknown:signal input m on body;",
+    ] {
+        let c = semantic_complete(&format!(
+            "model M() {{port source:signal output m; port target_bad:signal input s; port target_good:signal input m; {declarations} connect source -> target_|;}}"
+        ));
+        assert_eq!(names(&c), ["target_good", "target_unknown", "target_bad"]);
+        assert!(!c[1].detail().unwrap().contains("compatible"));
+    }
+}
+
+#[test]
+fn semantic_completion_checks_shape_and_rebuilds_current_version() {
+    let marked = "model M() {parameter value_bad:array<m,3>=[1[m],2[m],3[m]]; parameter value_good:array<m,2>=[1[m],2[m]]; parameter result:array<m,2>=value_|; }";
+    assert_eq!(
+        names(&semantic_complete(marked)),
+        ["value_good", "value_bad"]
+    );
+    let changed = marked.replace("result:array<m,2>", "result:array<m,3>");
+    assert_eq!(
+        names(&semantic_complete(&changed)),
+        ["value_bad", "value_good"]
+    );
 }

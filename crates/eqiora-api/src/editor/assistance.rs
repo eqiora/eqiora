@@ -79,6 +79,11 @@ impl EditorWorkspaceSnapshot {
     /// Query documented vocabulary, declarations and canonical modules in the current graph.
     /// Returns the replacement range and matching symbols.
     /// Recovery never grants executable validity or crosses a private boundary.
+    /// Prepared Model parameter initializers, component parameter bindings and
+    /// scalar connection endpoints rank compatible contracts first, unknown
+    /// candidates next, and incompatible contracts last. Only complete simple
+    /// references are ranked. Clocked/spatial endpoints, arithmetic operands,
+    /// unsupported types and failed analysis retain ordinary name completion.
     #[must_use]
     pub fn completion(&self, file: &str, offset: u32) -> Option<(TextRange, Vec<EditorSymbol>)> {
         query::Query::workspace(self, file)?
@@ -136,4 +141,19 @@ fn documented(
     symbol.detail = Some(detail.into());
     symbol.help = Some(documentation.into());
     symbol
+}
+
+// This cache is a deterministic projection of the exact admitted input graph.
+// Compare the inputs rather than requiring compiler implementation internals to
+// become part of the editor snapshot's equality contract.
+#[derive(Clone, Debug)]
+pub(super) struct PreparedCompletion {
+    pub(super) input: std::sync::Arc<eqiora_compiler::ResolvedHierarchyInput>,
+    pub(super) analysis: std::sync::Arc<eqiora_compiler::AnalyzedResolvedHierarchy>,
+    pub(super) file: String,
+}
+impl PartialEq for PreparedCompletion {
+    fn eq(&self, other: &Self) -> bool {
+        self.input == other.input && self.file == other.file
+    }
 }

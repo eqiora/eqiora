@@ -18,6 +18,7 @@ use crate::hierarchy::HierarchyLimits;
 use crate::source_identity::{LocalSourceIdentity, ResolvedAliasTarget};
 
 mod analyze;
+mod completion;
 mod declaration;
 mod graph;
 mod source;
@@ -694,6 +695,7 @@ pub(crate) struct AnalyzedSourceUnit {
 /// [`ValidatedResolvedHierarchy::compile_root`] becomes available.
 #[derive(Clone, Debug)]
 pub struct AnalyzedResolvedHierarchy {
+    pub(crate) completion: std::sync::Arc<crate::hierarchy::CompletionIndex>,
     pub(crate) root: CompilationModuleId,
     pub(crate) units: Vec<AnalyzedSourceUnit>,
     pub(crate) aliases: Vec<ResolvedAlias>,

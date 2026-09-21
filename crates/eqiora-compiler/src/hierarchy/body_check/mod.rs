@@ -19,6 +19,8 @@ use super::parameters::SymbolicParameterMap;
 use super::preflight::{ComponentDefinition, DefinitionKey, Elaborator, ModelDefinition};
 use super::supports::SupportInterface;
 
+mod completion;
+pub(crate) use completion::CompletionIndex;
 mod component;
 mod expression;
 mod indexed;

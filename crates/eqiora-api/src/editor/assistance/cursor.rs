@@ -192,7 +192,9 @@ pub(super) fn context(source: &str, start: u32) -> super::Context {
     {
         return C::Import;
     }
-    if statement.iter().any(|t| t.kind() == K::Equal) {
+    if statement.first().is_some_and(|t| t.text() == "connect")
+        || statement.iter().any(|t| t.kind() == K::Equal)
+    {
         return C::Expression;
     }
     if let Some(colon) = statement.iter().rposition(|t| t.kind() == K::Colon)

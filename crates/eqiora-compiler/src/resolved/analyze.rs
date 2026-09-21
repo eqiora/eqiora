@@ -147,6 +147,7 @@ fn analyze_inner(
         return Err(diagnostics);
     }
     let mut analysis = AnalyzedResolvedHierarchy {
+        completion: Default::default(),
         root: input.root,
         units,
         aliases,

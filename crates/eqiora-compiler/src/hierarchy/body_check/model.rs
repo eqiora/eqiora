@@ -30,9 +30,9 @@ pub(super) fn validate(
     }
 }
 
-struct ModelBodyChecker<'e, 'd> {
+pub(super) struct ModelBodyChecker<'e, 'd> {
     definition: &'e ModelDefinition<'d>,
-    scope: DefinitionScope<'e, 'd>,
+    pub(super) scope: DefinitionScope<'e, 'd>,
     connected_ports: BTreeSet<Vec<String>>,
     proof: DefinitionBodyProof,
     diagnostics: Vec<Diagnostic>,
@@ -40,7 +40,7 @@ struct ModelBodyChecker<'e, 'd> {
 }
 
 impl<'e, 'd> ModelBodyChecker<'e, 'd> {
-    fn new(
+    pub(super) fn new(
         elaborator: &'e Elaborator<'d>,
         definition: &'e ModelDefinition<'d>,
         compile_time_values: &'e SymbolicParameterMap,
@@ -60,6 +60,11 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
     }
 
     fn validate(&mut self) {
+        self.bind_scope();
+        self.validate_declarations();
+    }
+
+    pub(super) fn bind_scope(&mut self) {
         self.diagnostics.extend(super::property::bind(
             &mut self.scope,
             self.definition.declaration.signature(),
@@ -105,7 +110,6 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
         ) {
             self.diagnostics.extend(errors);
         }
-        self.validate_declarations();
     }
 
     fn bind_non_boundary_interfaces(&mut self) {
