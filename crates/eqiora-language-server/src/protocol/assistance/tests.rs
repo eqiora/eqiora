@@ -164,3 +164,47 @@ fn builtin_hover_and_local_hover_expose_docs_without_resolved_analysis() {
         }));
     }
 }
+
+#[test]
+fn language_constructs_and_types_have_hover_and_documented_completion() {
+    for (source, expected) in [
+        ("mo|del M() {}", "executable model"),
+        (
+            "model M() { rel|ation law { 1 = 1; } }",
+            "simultaneous mathematical equalities",
+        ),
+        (
+            "model M() { par|ameter gain: 1 = 2; }",
+            "static typed parameter",
+        ),
+        (
+            "model M() { variable channels: arr|ay<V, 3>; }",
+            "channel axis is not a spatial vector axis",
+        ),
+        (
+            "model M() { parameter count: int|eger = 2; }",
+            "checked arithmetic",
+        ),
+    ] {
+        let (state, uri, position) = fixture(source);
+        let result = hover(&uri, position, &state).unwrap().unwrap();
+        let HoverContents::Markup(contents) = result.contents else {
+            panic!("Markdown")
+        };
+        assert!(contents.value.contains(expected), "{}", contents.value);
+        let items = complete(source);
+        assert!(items.iter().any(|item| matches!(&item.documentation, Some(Documentation::MarkupContent(doc)) if doc.value.contains(expected))));
+    }
+    assert_eq!(complete("mod|")[0].kind, Some(CompletionItemKind::KEYWORD));
+    assert_eq!(complete("arr|")[0].kind, Some(CompletionItemKind::CLASS));
+    assert!(signature("model M(|) {}").is_none());
+    assert!(complete("// rel|").is_empty());
+    assert!(
+        complete("pur|").is_empty(),
+        "obsolete pure operator syntax is not suggested"
+    );
+    assert!(
+        complete("rea|").is_empty(),
+        "there is no real<...> constructor"
+    );
+}

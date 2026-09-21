@@ -34,7 +34,14 @@ stdout exclusively for LSP framing.
 
 Hover, completion (`textDocument/completion`) and signature help
 (`textDocument/signatureHelp`) share descriptions of the currently supported
-scalar mathematics, integer conversion, spatial and time operators. For example,
+scalar mathematics, integer conversion, spatial and time operators. Hover and
+completion also explain common language constructs (`model`, `component`,
+`relation`, `parameter`, `state`, `initial`, `import`, conditionals and connectors)
+and mathematical types (`integer`, `bool`, `complex`, `array`, `vector`, `tensor`
+and the operator-local generic classes). Construct help includes syntax and
+meaning: a Relation is simultaneous equations; an array axis is not a spatial axis.
+These are documented keyword/type candidates, not callable signatures or a claim
+that every specialized grammar child has help. For example,
 `math.sqrt` explains its dimension rule, value domain and derivative restriction.
 Completion after `math.` replaces the complete qualified name, and call help
 tracks the active argument through nested calls and array expressions, including

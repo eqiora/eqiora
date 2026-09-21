@@ -18,6 +18,7 @@ fn stdio_documentation_is_shared_by_hover_completion_and_signature_help() {
         json!({"jsonrpc":"2.0","id":3,"method":"textDocument/completion","params":{"textDocument":{"uri":uri},"position":source_position(source,"sqrt(4)")}}),
         json!({"jsonrpc":"2.0","id":4,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":uri},"position":source_position(source,"math.sqrt(4)")}}),
         json!({"jsonrpc":"2.0","id":5,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":uri},"position":source_position(source,"4))")}}),
+        json!({"jsonrpc":"2.0","id":8,"method":"textDocument/hover","params":{"textDocument":{"uri":uri},"position":source_position(source,"relation r")}}),
         json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":uri,"version":2},"contentChanges":[{"text":"model M() { let x = math.clamp(1, "}]}}),
         json!({"jsonrpc":"2.0","id":6,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":uri},"position":{"line":0,"character":34}}}),
         json!({"jsonrpc":"2.0","id":7,"method":"shutdown","params":null}),
@@ -74,4 +75,10 @@ fn stdio_documentation_is_shared_by_hover_completion_and_signature_help() {
         "math.sqrt(x)"
     );
     assert_eq!(response(&messages, 6)["result"]["activeParameter"], 1);
+    assert!(
+        response(&messages, 8)["result"]["contents"]["value"]
+            .as_str()
+            .unwrap()
+            .contains("simultaneous mathematical equalities")
+    );
 }

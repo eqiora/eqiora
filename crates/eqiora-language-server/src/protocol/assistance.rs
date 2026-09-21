@@ -15,6 +15,7 @@ mod builtins;
 mod syntax;
 #[cfg(test)]
 mod tests;
+mod vocabulary;
 
 struct Parameter {
     name: String,
@@ -167,6 +168,7 @@ fn entries(state: &ServerState, uri: &Uri, offset: u32) -> Result<BTreeMap<Strin
     let open = document(state, uri)?;
     let mut entries: BTreeMap<_, _> = builtins::entries()
         .into_iter()
+        .chain(vocabulary::entries())
         .map(|e| (e.name.clone(), e))
         .collect();
     local_entries(
