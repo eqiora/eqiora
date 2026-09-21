@@ -10,6 +10,7 @@ import tempfile
 import tomllib
 import unittest
 from pathlib import Path
+from dataclasses import replace
 from unittest import mock
 
 
@@ -29,6 +30,7 @@ from classify_changes import (  # noqa: E402
     changed_paths,
     classify,
     impact_plan,
+    jupyter_assets_required,
     render_outputs,
     snapshot_changed_paths,
 )
@@ -763,6 +765,26 @@ class PythonPackageGateTests(unittest.TestCase):
             }.isdisjoint(maturin["exclude"])
         )
 
+    def test_python_lane_checks_notebook_assets_once_before_building_wheels(
+        self,
+    ) -> None:
+        workflow = (REPOSITORY_ROOT / ".github/workflows/ci.yml").read_text()
+        python_job = workflow.split("  python_wheel:\n", 1)[1].split("  studio:\n", 1)[
+            0
+        ]
+        step = python_job.split("      - name: Check notebook frontend assets\n", 1)[
+            1
+        ].split("      - name:", 1)[0]
+        self.assertIn("needs.changes.outputs.jupyter_assets == 'true'", step)
+        self.assertIn(
+            "matrix.python == fromJSON(needs.changes.outputs.python_versions)[0]", step
+        )
+        self.assertIn("run: python tools/editor/check_jupyter.py", step)
+        self.assertLess(
+            python_job.index("Check notebook frontend assets"),
+            python_job.index("Test installed wheel"),
+        )
+
     def test_fallback_activates_venv_for_pep517_backend_tools(self) -> None:
         virtual_environment = Path("/tmp/eqiora-test-venv")
         environment = venv_environment(
@@ -1129,6 +1151,61 @@ class ChangeClassificationTests(unittest.TestCase):
         self.assertFalse(selected["studio"])
         self.assertFalse(selected["rust"])
 
+    def test_jupyter_build_inputs_select_python_without_studio_or_rust(self) -> None:
+        for path in (
+            "editor/jupyter/src/language.ts",
+            "editor/jupyter/package-lock.json",
+            "editor/jupyter/wheel-data/data/share/jupyter/labextensions/@eqiora/jupyter/package.json",
+            "editor/eqiora/syntaxes/eqiora.tmLanguage.json",
+            "tools/editor/check_jupyter.py",
+            "tools/editor/tests/test_jupyter_assets.py",
+        ):
+            with self.subTest(path=path):
+                selected = classify([path])
+                self.assertTrue(selected["python"])
+                self.assertTrue(jupyter_assets_required(impact_plan([path])))
+                self.assertFalse(selected["studio"])
+                self.assertFalse(selected["rust"])
+
+    def test_jupyter_assets_projection_preserves_fail_closed_and_skips_unrelated_python(
+        self,
+    ) -> None:
+        for path in (
+            "bindings/python/python/eqiora/__init__.py",
+            "crates/eqiora/src/lib.rs",
+            "editor/jupyter/README.md",
+        ):
+            with self.subTest(path=path):
+                self.assertFalse(jupyter_assets_required(impact_plan([path])))
+        for path in (
+            "mise.toml",
+            "mise.lock",
+            "tools/ci/local_verify.py",
+            ".github/workflows/ci.yml",
+            "new-unknown-area/file.bin",
+        ):
+            with self.subTest(path=path):
+                self.assertTrue(jupyter_assets_required(impact_plan([path])))
+        self.assertTrue(jupyter_assets_required(impact_plan([], full=True)))
+        self.assertFalse(jupyter_assets_required(impact_plan([])))
+        selected = impact_plan(["editor/jupyter/src/index.ts"])
+        reused = replace(
+            selected,
+            lanes=tuple(
+                replace(lane, selected=False, owning_changed_inputs=())
+                for lane in selected.lanes
+            ),
+        )
+        self.assertFalse(jupyter_assets_required(reused))
+        plan = impact_plan(["editor/jupyter/src/index.ts"])
+        rendered = render_outputs(
+            "a" * 40,
+            plan.selections(),
+            full=False,
+            jupyter_assets=jupyter_assets_required(plan),
+        )
+        self.assertIn("jupyter_assets=true", rendered)
+
     def test_studio_npm_lock_selects_only_the_studio_gate(self) -> None:
         selected = classify(["studio/package-lock.json"])
         self.assertTrue(selected["studio"])
@@ -1360,6 +1437,8 @@ class ChangeClassificationTests(unittest.TestCase):
             valid.replace("site_source_sha=" + "b" * 40, "site_source_sha=forged"),
             valid.replace("site_reason=unchanged input closure", "site_reason=forged"),
             valid + "\nsite=false",
+            valid.replace("jupyter_assets=false", "jupyter_assets=true"),
+            valid.replace("jupyter_assets=false", "jupyter_assets=unknown"),
         )
         with tempfile.TemporaryDirectory(dir=Path.home()) as value:
             output = Path(value) / "github-output"

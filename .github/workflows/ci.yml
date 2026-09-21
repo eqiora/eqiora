@@ -39,6 +39,7 @@ jobs:
       msrv_reason: ${{ steps.classify.outputs.msrv_reason }}
       python: ${{ steps.classify.outputs.python }}
       python_reason: ${{ steps.classify.outputs.python_reason }}
+      jupyter_assets: ${{ steps.classify.outputs.jupyter_assets }}
       studio: ${{ steps.classify.outputs.studio }}
       studio_reason: ${{ steps.classify.outputs.studio_reason }}
       dependency_policy: ${{ steps.classify.outputs.dependency_policy }}
@@ -395,6 +396,15 @@ jobs:
         if: needs.changes.outputs.python == 'true'
         with:
           python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        if: needs.changes.outputs.python == 'true' && needs.changes.outputs.jupyter_assets == 'true' && matrix.python == fromJSON(needs.changes.outputs.python_versions)[0]
+        with:
+          node-version: 24.18.1
+          cache: npm
+          cache-dependency-path: editor/jupyter/package-lock.json
+      - name: Check notebook frontend assets
+        if: needs.changes.outputs.python == 'true' && needs.changes.outputs.jupyter_assets == 'true' && matrix.python == fromJSON(needs.changes.outputs.python_versions)[0]
+        run: python tools/editor/check_jupyter.py
       - name: Install Gmsh native runtime dependency
         if: needs.changes.outputs.python == 'true'
         run: |
