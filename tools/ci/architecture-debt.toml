@@ -156,7 +156,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-io-vtu/src/parse.rs"
-ceiling = 1648
+ceiling = 1633
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
