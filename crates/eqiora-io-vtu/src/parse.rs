@@ -939,7 +939,7 @@ fn parse_xml_tree(
                 let builder = stack
                     .pop()
                     .ok_or_else(|| invalid_import("VTU XML end tag has no start tag"))?;
-                if end.name().as_ref() != builder.node.name.as_bytes() {
+                if end.name().as_ref() != builder.node.name {
                     return Err(invalid_import("VTU XML end tag differs from its start tag"));
                 }
                 if let Some(parent) = stack.last_mut() {
@@ -955,16 +955,12 @@ fn parse_xml_tree(
             }
             Event::Text(text) => {
                 saw_event_before_declaration = true;
-                if text.as_ref().contains(&b'&')
-                    || text.as_ref().windows(3).any(|window| window == b"]]>")
-                {
+                if text.contains('&') || text.contains("]]>") {
                     return Err(invalid_import(
                         "VTU text references and forbidden XML sequences are unsupported",
                     ));
                 }
-                let decoded = text
-                    .decode()
-                    .map_err(|_| invalid_import("VTU text is not valid UTF-8"))?;
+                let decoded = text.as_ref();
                 text_bytes = checked_add(text_bytes, decoded.len(), "VTU decoded text bytes")?;
                 if text_bytes > limits.max_text_bytes {
                     return Err(invalid_import(
@@ -978,16 +974,14 @@ fn parse_xml_tree(
                         .text
                         .try_reserve(decoded.len())
                         .map_err(|_| invalid_import("VTU text allocation failed"))?;
-                    current.node.text.push_str(&decoded);
-                } else if !contains_only_xml_space(&decoded) {
+                    current.node.text.push_str(decoded);
+                } else if !contains_only_xml_space(decoded) {
                     return Err(invalid_import("VTU source has text outside its root"));
                 }
             }
             Event::Comment(comment) => {
                 saw_event_before_declaration = true;
-                let decoded = comment
-                    .decode()
-                    .map_err(|_| invalid_import("VTU comment is not valid UTF-8"))?;
+                let decoded = comment.as_ref();
                 text_bytes = checked_add(text_bytes, decoded.len(), "VTU decoded text bytes")?;
                 if text_bytes > limits.max_text_bytes {
                     return Err(invalid_import(
@@ -1049,11 +1043,7 @@ fn parse_start(
     limits: VtuImportLimits,
     work: &mut WorkBudget,
 ) -> Result<(String, BTreeMap<String, String>, usize), Diagnostic> {
-    let name = copy_string(
-        std::str::from_utf8(start.name().as_ref())
-            .map_err(|_| invalid_import("VTU element name must be UTF-8"))?,
-        "VTU element name",
-    )?;
+    let name = copy_string(start.name().as_ref(), "VTU element name")?;
     if name.contains(':') {
         return Err(invalid_import(
             "XML namespaces are outside the admitted VTU subset",
@@ -1070,16 +1060,12 @@ fn parse_start(
         }
         let attribute =
             attribute.map_err(|_| invalid_import("VTU element has malformed attributes"))?;
-        if attribute.value.as_ref().contains(&b'<') || attribute.value.as_ref().contains(&b'&') {
+        if attribute.value.contains('<') || attribute.value.contains('&') {
             return Err(invalid_import(
                 "VTU attributes may not contain references or literal less-than signs",
             ));
         }
-        let key = copy_string(
-            std::str::from_utf8(attribute.key.as_ref())
-                .map_err(|_| invalid_import("VTU attribute name must be UTF-8"))?,
-            "VTU attribute name",
-        )?;
+        let key = copy_string(attribute.key.as_ref(), "VTU attribute name")?;
         if key.contains(':') {
             return Err(invalid_import(
                 "XML namespaces are outside the admitted VTU subset",
@@ -1103,8 +1089,7 @@ fn validate_declaration(
     declaration: &BytesDecl<'_>,
     work: &mut WorkBudget,
 ) -> Result<(), Diagnostic> {
-    let raw = std::str::from_utf8(declaration.as_ref())
-        .map_err(|_| invalid_import("VTU XML declaration must be UTF-8"))?;
+    let raw = declaration.as_ref();
     let start = BytesStart::from_content(raw, 3);
     let mut count = 0_usize;
     let mut second_was_encoding = false;
@@ -1120,12 +1105,12 @@ fn validate_declaration(
         let key = attribute.key.as_ref();
         let value = attribute.value.as_ref();
         match (count, key) {
-            (0, b"version") if value == b"1.0" => {}
-            (1, b"encoding") if value.eq_ignore_ascii_case(b"UTF-8") => {
+            (0, "version") if value == "1.0" => {}
+            (1, "encoding") if value.eq_ignore_ascii_case("UTF-8") => {
                 second_was_encoding = true;
             }
-            (1, b"standalone") if matches!(value, b"yes" | b"no") => {}
-            (2, b"standalone") if second_was_encoding && matches!(value, b"yes" | b"no") => {}
+            (1, "standalone") if matches!(value, "yes" | "no") => {}
+            (2, "standalone") if second_was_encoding && matches!(value, "yes" | "no") => {}
             _ => {
                 return Err(invalid_import(
                     "VTU XML declaration attributes are unknown, repeated, or out of order",

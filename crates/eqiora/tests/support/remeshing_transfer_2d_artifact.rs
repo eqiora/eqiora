@@ -660,7 +660,7 @@ pub(super) fn assert_artifact_vertical_slice(
             match xml.read_event().unwrap() {
                 quick_xml::events::Event::Start(element)
                 | quick_xml::events::Event::Empty(element)
-                    if element.name().as_ref() == b"Time" =>
+                    if element.name().as_ref() == "Time" =>
                 {
                     time_elements += 1;
                 }
