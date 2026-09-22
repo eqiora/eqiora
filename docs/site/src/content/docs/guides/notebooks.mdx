@@ -17,7 +17,7 @@ Use a Python kernel from the environment containing Eqiora. For a local
 JupyterLab environment, install the notebook tools into that same uv project:
 
 ```bash
-uv add --dev jupyterlab ipykernel
+uv add --dev jupyterlab==4.5.11 ipykernel
 uv run jupyter lab
 ```
 
@@ -61,11 +61,20 @@ not evaluate Python expressions in the header or interpolate the Eqiora body.
 
 ## Frontend support
 
-The extension registers execution in an existing IPython kernel. It does not
-install syntax highlighting, completion or hover into the notebook editor.
-JupyterLab highlighting and independent Notebook, VS Code and Colab checks are
-still being implemented.
-Kernel execution alone does not establish support for a frontend's editor.
+The development package includes a prebuilt editor extension for JupyterLab
+4.5.11 and Notebook 7.5.6. A code cell beginning with `%%eqiora` uses the same
+syntax grammar as `.eqi` files, before execution and after reopening the notebook.
+Removing the header restores the ordinary Python editor. Completion and hover
+inside notebook cells are not yet provided.
+
+Install Eqiora into the environment that runs the **Jupyter server** as well as
+the Python kernel if those are separate. Restart the server after installing
+or updating the extension; `uv run jupyter labextension list` should list
+`@eqiora/jupyter`. The frontend does not need a Node.js build during installation.
+
+The editor was exercised on Linux x86-64 with the versions above. VS Code
+notebooks and Colab do not load this Jupyter extension; their highlighting and
+Colab Restart and Run All are not claimed by these checks.
 
 If `%load_ext` reports that `eqiora.jupyter` is absent, check the kernel's
 `eqiora.__file__` and package version: a different environment or the published

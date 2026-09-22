@@ -115,6 +115,8 @@ class PackageSelectionTests(unittest.TestCase):
             reverse_dependency_closure({"eqiora-core"}, workspace()),
             {"eqiora-core", "eqiora-compiler", "eqiora"},
         )
+
+
 class PlanTests(unittest.TestCase):
     def test_local_planner_consumes_the_shared_impact_plan_owner(self) -> None:
         with mock.patch("local_verify.impact_plan", wraps=impact_plan) as owner:
@@ -485,6 +487,27 @@ class PlanTests(unittest.TestCase):
         self.assertFalse(
             any("maturin develop" in item.render() for item in python_commands)
         )
+
+    def test_jupyter_changes_use_existing_python_lane_for_assets_and_wheel(
+        self,
+    ) -> None:
+        plan = build_plan(
+            "affected", ["editor/jupyter/src/language.ts"], [], workspace()
+        )
+        commands = {item.label: item for item in plan.commands}
+        assets = commands["Jupyter prebuilt assets"]
+        wheel = commands["Python isolated wheel and tests"]
+        self.assertEqual(assets.argv, (sys.executable, "tools/editor/check_jupyter.py"))
+        self.assertIs(assets.lane, wheel.lane)
+        self.assertNotIn("Studio unit tests", commands)
+
+    def test_unrelated_python_changes_skip_jupyter_asset_rebuild(self) -> None:
+        plan = build_plan(
+            "affected", ["bindings/python/python/eqiora/__init__.py"], [], workspace()
+        )
+        labels = {item.label for item in plan.commands}
+        self.assertIn("Python isolated wheel and tests", labels)
+        self.assertNotIn("Jupyter prebuilt assets", labels)
 
     def test_studio_npm_lock_change_runs_browser_checks_only(self) -> None:
         plan = build_plan(

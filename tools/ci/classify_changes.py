@@ -62,6 +62,31 @@ class ImpactPlan:
         raise KeyError(name)
 
 
+def jupyter_build_input(path: str) -> bool:
+    """Inputs to the prebuilt notebook assets within the existing Python surface."""
+    return path.startswith("editor/jupyter/") or path in {
+        "editor/eqiora/syntaxes/eqiora.tmLanguage.json",
+        "tools/editor/check_jupyter.py",
+        "tools/editor/tests/test_jupyter_assets.py",
+        "mise.toml",
+        "mise.lock",
+    }
+
+
+def jupyter_assets_required(plan: ImpactPlan) -> bool:
+    """Project asset work from the Python lane, preserving full/fail-closed runs."""
+    python = plan.lane("python")
+    return python.selected and (
+        plan.full
+        or any(
+            jupyter_build_input(path)
+            or path.startswith((".github/workflows/", "tools/ci/"))
+            or not recognized_path(path)
+            for path in python.owning_changed_inputs
+        )
+    )
+
+
 def documentation_path(path: str) -> bool:
     """Return whether a path is owned entirely by documentation/process."""
     name = PurePosixPath(path).name
@@ -284,9 +309,11 @@ def impact_plan(
         if msrv_path(path):
             selected["msrv"] = True
             owning_inputs["msrv"].add(path)
-        if path.startswith(
-            ("bindings/python/", "crates/eqiora-python/")
-        ) or public_facade_path(path):
+        if (
+            path.startswith(("bindings/python/", "crates/eqiora-python/"))
+            or jupyter_build_input(path)
+            or public_facade_path(path)
+        ):
             selected["python"] = True
             owning_inputs["python"].add(path)
         if path.startswith("studio/") or public_facade_path(path):
@@ -485,6 +512,7 @@ def render_outputs(
     selected: dict[str, bool],
     *,
     full: bool,
+    jupyter_assets: bool | None = None,
     site_source_sha: str = "",
     site_reason: str = "",
     reasons: dict[str, str] | None = None,
@@ -494,6 +522,8 @@ def render_outputs(
     lines.extend(
         f"{surface}={'true' if selected[surface] else 'false'}" for surface in SURFACES
     )
+    assets = selected["python"] and (full if jupyter_assets is None else jupyter_assets)
+    lines.append(f"jupyter_assets={'true' if assets else 'false'}")
     reasons = reasons or {}
     lines.extend(
         f"{surface}_reason={reasons.get(surface, 'changed input closure' if selected[surface] else 'unchanged input closure')}"
@@ -523,6 +553,7 @@ def append_github_outputs(path: Path, rendered: str) -> None:
         "target_sha",
         "full",
         *SURFACES,
+        "jupyter_assets",
         *(f"{surface}_reason" for surface in SURFACES),
         "site",
         "site_source_sha",
@@ -543,11 +574,15 @@ def append_github_outputs(path: Path, rendered: str) -> None:
         or FULL_SHA.fullmatch(values["site_source_sha"]) is None
     ):
         raise ValueError("classification output contains an invalid source identity")
-    for key in ("full", *SURFACES, "site"):
+    for key in ("full", *SURFACES, "site", "jupyter_assets"):
         if values[key] not in {"true", "false"}:
             raise ValueError(
                 f"classification output contains an invalid {key} decision"
             )
+    if values["jupyter_assets"] == "true" and values["python"] != "true":
+        raise ValueError("Jupyter asset work requires the Python surface")
+    if values["full"] == "true" and values["jupyter_assets"] != "true":
+        raise ValueError("a full decision must check Jupyter assets")
     for surface in SURFACES:
         if not values[f"{surface}_reason"]:
             raise ValueError(f"classification output omits the {surface} reason")
@@ -721,6 +756,7 @@ def main() -> int:
         target_sha,
         selected,
         full=full,
+        jupyter_assets=jupyter_assets_required(plan),
         site_source_sha=site_source_sha,
         site_reason=site_reason,
         reasons={decision.lane: decision.reason for decision in plan.lanes},

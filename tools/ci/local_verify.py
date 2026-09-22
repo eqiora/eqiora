@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Iterable, Mapping, Sequence
 
-from classify_changes import impact_plan
+from classify_changes import impact_plan, jupyter_assets_required
 from verification_scheduler import (
     CUBECL_LANE,
     DEPENDENCY_POLICY_LANE,
@@ -253,7 +253,7 @@ def _case_commands(cases: Iterable[str]) -> list[PlannedCommand]:
 
 
 def _surface_commands(
-    surfaces: Mapping[str, bool], *, chrome_available: bool = True
+    surfaces: Mapping[str, bool], *, jupyter_assets: bool, chrome_available: bool = True
 ) -> list[PlannedCommand]:
     commands: list[PlannedCommand] = []
     if surfaces["dependency_policy"]:
@@ -265,6 +265,15 @@ def _surface_commands(
                 "--locked",
                 "check",
                 lane=DEPENDENCY_POLICY_LANE,
+            )
+        )
+    if surfaces["python"] and jupyter_assets:
+        commands.append(
+            command(
+                "Jupyter prebuilt assets",
+                sys.executable,
+                "tools/editor/check_jupyter.py",
+                lane=PYTHON_LANE,
             )
         )
     if surfaces["python"]:
@@ -364,12 +373,13 @@ def build_plan(
         chrome_executable if chrome_executable is not None else CHROME_EXECUTABLE
     ).exists()
     if tier == "periodic":
-        surfaces = impact_plan(
+        impact = impact_plan(
             [],
             full=True,
             target_authority="local-worktree",
             base_authority="local-periodic-run",
-        ).selections()
+        )
+        surfaces = impact.selections()
         selected_packages = set(packages)
         cases = all_case_ids(root)
         ci_contract_lane = (
@@ -479,18 +489,25 @@ def build_plan(
                 lane=ROOT_CARGO_LANE,
             ),
         ]
-        commands.extend(_surface_commands(surfaces, chrome_available=chrome_available))
+        commands.extend(
+            _surface_commands(
+                surfaces,
+                jupyter_assets=jupyter_assets_required(impact),
+                chrome_available=chrome_available,
+            )
+        )
         limitations = (
             "Python coverage is the current interpreter, not the complete 3.11-3.14 matrix.",
             "Physical MPI-CUDA, multi-node MPI, and GPU evidence requires an explicit matching environment run.",
             "Studio browser interaction coverage requires its documented Chrome dependency.",
         )
     else:
-        surfaces = impact_plan(
+        impact = impact_plan(
             paths,
             target_authority="local-worktree",
             base_authority="local-change-set",
-        ).selections()
+        )
+        surfaces = impact.selections()
         direct = direct_packages(paths, packages)
         selected_packages = (
             reverse_dependency_closure(direct, packages)
@@ -621,7 +638,11 @@ def build_plan(
             )
         if tier == "affected":
             commands.extend(
-                _surface_commands(surfaces, chrome_available=chrome_available)
+                _surface_commands(
+                    surfaces,
+                    jupyter_assets=jupyter_assets_required(impact),
+                    chrome_available=chrome_available,
+                )
             )
         if tier == "pr":
             limitations = (
