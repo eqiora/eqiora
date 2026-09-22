@@ -168,3 +168,33 @@ fn admitted_binder_scope_suppresses_an_outer_reference_without_rejecting_the_sou
     let recovering = "model M(){indexset Rows=range(2);parameter value @{q}:integer=sum(ordinal(va|lue),over=(value in Rows));relation r{";
     assert!(assistance(recovering).unwrap().notation().is_none());
 }
+
+#[test]
+fn recovered_declaration_name_can_equal_its_keyword_without_labelling_the_keyword() {
+    for (declaration, name, expected) in [
+        ("variable variable @{v}:1;", "variable", "v"),
+        ("parameter parameter @{p}:1=1;", "parameter", "p"),
+    ] {
+        let valid = format!("model M(){{{declaration}}}");
+        let workspace = EditorWorkspaceSnapshot::analyze_standalone(1, valid);
+        assert!(
+            workspace.diagnostics().is_empty(),
+            "{:?}",
+            workspace.diagnostics()
+        );
+        let source = format!("model M(){{{declaration}relation r{{");
+        let service = EditorService::new("main.eqi", 1, &source);
+        let name_offset = source.find(&format!("{name} @")).unwrap() as u32;
+        let symbol = service.current().assistance(name_offset, name).unwrap();
+        assert_eq!(label(&symbol).as_deref(), Some(expected));
+        let keyword_offset = source.find(&format!("{name} {name}")).unwrap() as u32;
+        assert!(
+            service
+                .current()
+                .assistance(keyword_offset, name)
+                .unwrap()
+                .notation()
+                .is_none()
+        );
+    }
+}

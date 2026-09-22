@@ -6,6 +6,21 @@ fn stdio_authored_notation_respects_current_declarations_and_proven_references()
     let source = "model Other(){variable value @{q}:1;}model M(){variable value @{\\mathbf{x_i}}:1;relation r{value=1;}}";
     let changed = source.replace(r"@{\mathbf{x_i}}", r"@{\alpha_2}");
     let cases = [
+        (
+            "model M(){variable variable @{v}:1;relation r{",
+            "variable @{",
+            Some("v"),
+        ),
+        (
+            "model M(){variable variable @{v}:1;relation r{",
+            "variable variable",
+            None,
+        ),
+        (
+            "model M(){parameter parameter @{p}:1=1;relation r{",
+            "parameter @{",
+            Some("p"),
+        ),
         (source, "value=1", Some("x_{i}")),
         (changed.as_str(), "value=1", Some("alpha_{2}")),
         (
@@ -58,7 +73,7 @@ fn stdio_authored_notation_respects_current_declarations_and_proven_references()
             &mut stdin,
             &json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":uri,"version":index+2},"contentChanges":[{"text":text}]}}),
         );
-        if index == 1 {
+        if index == 4 {
             write_packet(
                 &mut stdin,
                 &json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":uri,"version":1},"contentChanges":[{"text":source}]}}),

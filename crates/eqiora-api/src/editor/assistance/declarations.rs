@@ -1,24 +1,29 @@
 use super::{EditorSnapshot, EditorSymbol, EditorSymbolKind, cursor};
 use eqiora_lang::{Document, SignatureItem};
 
-// The first exact identifier in an AST declaration is its name. Testing this
-// token, rather than the whole declaration, excludes initializer binder uses.
+// The owned notation token follows its declaration name, even when the name
+// equals an introducer keyword. Initializer and binder tokens cannot match it.
 pub(super) fn at_name(snapshot: &EditorSnapshot, symbol: &EditorSymbol, offset: u32) -> bool {
+    let Some(notation) = symbol.notation() else {
+        return false;
+    };
     let Some(source) = snapshot
         .source
         .get(symbol.range().start() as usize..symbol.range().end() as usize)
     else {
         return false;
     };
-    cursor::tokens(source)
-        .iter()
-        .find(|token| {
-            token.kind() == eqiora_lang::TokenKind::Identifier && token.text() == symbol.name()
-        })
-        .is_some_and(|token| {
-            symbol.range().start() + token.range().start() <= offset
-                && offset < symbol.range().start() + token.range().end()
-        })
+    cursor::tokens(source).windows(2).any(|pair| {
+        let name = &pair[0];
+        let marker = &pair[1];
+        name.kind() == eqiora_lang::TokenKind::Identifier
+            && name.text() == symbol.name()
+            && marker.kind() == eqiora_lang::TokenKind::Notation
+            && symbol.range().start() + marker.range().start() == notation.range().start()
+            && symbol.range().start() + marker.range().end() == notation.range().end()
+            && symbol.range().start() + name.range().start() <= offset
+            && offset < symbol.range().start() + name.range().end()
+    })
 }
 
 pub(super) fn candidate(snapshot: &EditorSnapshot, symbol: &EditorSymbol) -> Option<EditorSymbol> {

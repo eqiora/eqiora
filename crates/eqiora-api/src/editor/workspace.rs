@@ -691,13 +691,21 @@ fn declaration_name_range(
     path: &str,
 ) -> Option<TextRange> {
     let name = path.rsplit('.').next()?;
-    tokens.get(file)?.tokens().iter().find_map(|token| {
-        (token.kind() == TokenKind::Identifier
-            && token.text() == name
-            && declaration.start() <= token.range().start()
-            && token.range().end() <= declaration.end())
-        .then_some(token.range())
-    })
+    // Keywords are Identifier tokens too. The declaration name is the last
+    // matching spelling in the header before notation, signature or body syntax.
+    tokens
+        .get(file)?
+        .tokens()
+        .iter()
+        .filter(|token| {
+            !token.kind().is_trivia()
+                && declaration.start() <= token.range().start()
+                && token.range().end() <= declaration.end()
+        })
+        .take_while(|token| token.kind() == TokenKind::Identifier)
+        .filter(|token| token.text() == name)
+        .last()
+        .map(|token| token.range())
 }
 
 const fn canonical_symbol_kind(kind: CanonicalDeclarationKind) -> Option<EditorSymbolKind> {

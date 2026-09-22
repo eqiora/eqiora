@@ -93,3 +93,37 @@ fn changed_absent_and_rejected_notation_never_reuse_an_old_label() {
     assert!(!rejected.diagnostics().is_empty());
     assert_eq!(label(&rejected, "left.Part"), None);
 }
+
+#[test]
+fn canonical_name_ranges_exclude_equal_spelled_declaration_keywords() {
+    for source in [
+        "// 🧪\r\npublic component component(){} model model(){instance a:component();}",
+        "// 🧪\r\npublic component component @{c}(){} model model @{m}(){instance a:component();}",
+    ] {
+        let workspace = EditorWorkspaceSnapshot::analyze_standalone(1, source);
+        assert!(
+            workspace.diagnostics().is_empty(),
+            "{:?}",
+            workspace.diagnostics()
+        );
+        for name in ["component", "model"] {
+            let definition = workspace
+                .definitions()
+                .iter()
+                .find(|value| value.path().rsplit('.').next() == Some(name))
+                .unwrap();
+            let prefix = format!("{name} {name}");
+            let start = (source.find(&prefix).unwrap() + name.len() + 1) as u32;
+            let expected = eqiora_lang::TextRange::new(start, start + name.len() as u32);
+            assert_eq!(definition.name_range(), Some(expected));
+            for reference in workspace
+                .references()
+                .iter()
+                .filter(|value| value.definition().path().rsplit('.').next() == Some(name))
+            {
+                assert_eq!(reference.definition().name_range(), Some(expected));
+            }
+        }
+        assert!(!workspace.references().is_empty());
+    }
+}
