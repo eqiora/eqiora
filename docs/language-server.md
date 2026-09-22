@@ -68,6 +68,14 @@ operator scale(
 The native editor API supplies documented `EditorSymbol` values for all three
 features; the language server projects them into LSP responses.
 
+Canonical top-level declaration hover also displays admitted `@{...}` notation as
+an accessible plain label, with explicit script delimiters and no TeX execution.
+`EditorDefinition::notation()` retains the validated notation and source range
+selected by the compiler's exact definition, including imported declarations.
+This is declaration notation only: occurrence qualification, inferred styling,
+activation and local-field notation are not part of this projection. Missing or
+rejected notation never supplies a label from another declaration or snapshot.
+
 For prepared Model fields, parameters and public child Ports, hover adds known
 scalar domain, physical dimension, shape/frame, outer channel-array rank, field
 or Port role, activation and spatial support to the authored declaration. These facts come from the same
