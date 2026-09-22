@@ -1,6 +1,18 @@
 use super::AnalyzedResolvedHierarchy;
 
 impl AnalyzedResolvedHierarchy {
+    /// Resolve a simple value-name occurrence to a same-file Model field or
+    /// parameter declaration. Nested binder scopes and qualified members are
+    /// unavailable. Uses the prepared immutable scope without elaboration.
+    #[must_use]
+    pub fn local_definition(
+        &self,
+        file: &str,
+        offset: u32,
+    ) -> Option<(&str, eqiora_lang::TextRange)> {
+        self.completion.local_definition(file, offset)
+    }
+
     /// Describe known Model-scope type, role, activation and spatial support
     /// facts only when the resolved declaration's source identity matches.
     /// The prepared index is immutable; this query performs no elaboration.

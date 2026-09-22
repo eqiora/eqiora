@@ -2,6 +2,8 @@
 mod assistance;
 #[path = "stdio/inspection.rs"]
 mod inspection;
+#[path = "stdio/local_navigation.rs"]
+mod local_navigation;
 
 use std::{
     fs,

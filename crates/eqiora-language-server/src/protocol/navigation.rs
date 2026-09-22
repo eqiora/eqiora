@@ -17,6 +17,13 @@ pub(super) fn definition(
         return Ok(None);
     };
     let position = editor_position(params.text_document_position_params.position);
+    if let Some(range) = workspace.local_definition_at_position(file, position) {
+        let snapshot = workspace.document(file).ok_or("source is unavailable")?;
+        return Ok(Some(GotoDefinitionResponse::Scalar(Location::new(
+            uri.clone(),
+            source_range(snapshot, range.start() as usize, range.end() as usize)?,
+        ))));
+    }
     let Some(definition) = workspace.definition_for_reference_at_position(file, position) else {
         return Ok(None);
     };

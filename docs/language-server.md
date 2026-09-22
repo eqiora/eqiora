@@ -20,6 +20,11 @@ parser/compiler diagnostics after open and accepted newer changes, clears
 diagnostics on close, and serves whole-document formatting, nested document
 symbols, folding ranges, Markdown declaration hover, and definition locations.
 Resolved references can be found across open modules and exact local packages.
+Go to Definition also resolves simple value references to fields and parameters
+declared in the same Model and file, using the compiler's prepared scope and
+exact declaration name ranges. Unsaved document versions are respected. Invalid
+snapshots, nested binder scopes, Component locals, aliases and qualified members
+do not gain local navigation; this does not extend Find References or add rename.
 Lifecycle events are emitted as one JSON object per line on stderr, leaving
 stdout exclusively for LSP framing.
 
