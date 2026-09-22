@@ -123,3 +123,26 @@ alternate semantic vocabulary or editable artifact.
 fingerprint. Unsupported vocabulary or exhausted comparison limits leave
 `fingerprint` null with an error. Equal rendered equations do not substitute for
 that comparison. Inspection neither constructs a numerical Plan nor runs a solve.
+
+### Validated numerical Plan inspection
+
+Servers advertising `capabilities.experimental.eqioraPlanInspection = 1` accept
+an optional `plan` string on `eqiora/inspect`: the exact canonical UTF-8 contents
+of a `.eqplan` artifact written through the ordinary Python Plan API. The limit
+is 2 MiB. Do not parse and reserialize the artifact before sending it.
+
+The existing native Plan decoder validates schema, identity, provider versions
+and numerical admission without running a solve. Invalid, noncanonical or
+unsupported artifacts reject the request. The response's `plan` projection
+includes its identity, Model revision/digest, Geometry and Mesh digests, backend,
+and canonical metadata with embedded binary roots omitted. `matchesSelectedModel`
+compares the artifact's exact Model digest to `selectedModelDigest`; a false value
+means the validated artifact belongs to a different Model and must be displayed
+as such. This comparison is independent of the structural fingerprint.
+
+Clients must clear stale projections on edits and revalidate against the new
+selected Model. A server without this capability cannot validate an attachment.
+The first adapter uses the same Faer and Diffsol providers as Python, so other
+provider identities or versions may be rejected. Complex, spectral and modal
+Result projections remain unavailable; clients must not infer phase, power or
+probability from this Plan metadata.

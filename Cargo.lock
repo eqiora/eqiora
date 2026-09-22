@@ -980,6 +980,7 @@ version = "0.1.2"
 dependencies = [
  "crossbeam-channel",
  "eqiora",
+ "eqiora-numerics",
  "lsp-server",
  "lsp-types",
  "serde",

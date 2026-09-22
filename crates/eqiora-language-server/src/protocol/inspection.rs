@@ -7,6 +7,8 @@ use serde_json::{Value, json};
 
 use super::{ServerState, document, source_range};
 
+mod plan;
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct InspectParams {
@@ -14,9 +16,17 @@ pub(super) struct InspectParams {
     model: Option<String>,
     #[serde(default)]
     fingerprint: bool,
+    plan: Option<String>,
 }
 
 pub(super) fn inspect(params: InspectParams, state: &ServerState) -> Result<Value, String> {
+    if params
+        .plan
+        .as_ref()
+        .is_some_and(|plan| plan.len() > 2 * 1024 * 1024)
+    {
+        return Err("Plan exceeds the 2 MiB editor admission limit".to_owned());
+    }
     let uri = &params.text_document.uri;
     let open = document(state, uri)?;
     let (workspace, file) = state
@@ -30,7 +40,7 @@ pub(super) fn inspect(params: InspectParams, state: &ServerState) -> Result<Valu
         .map(|symbol| symbol.name())
         .collect::<Vec<_>>();
     let mut result = json!({"version": open.version, "models": models, "model": null,
-        "nodes": [], "edges": [], "equations": [], "fingerprint": null, "errors": []});
+        "nodes": [], "edges": [], "equations": [], "fingerprint": null, "plan": null, "errors": []});
     let Some(selected) = params.model.as_deref().or_else(|| models.first().copied()) else {
         return Ok(result);
     };
@@ -54,6 +64,9 @@ pub(super) fn inspect(params: InspectParams, state: &ServerState) -> Result<Valu
         return Err(
             "model exceeds the rich editor view limit (4096 nodes / 16384 edges)".to_owned(),
         );
+    }
+    if let Some(bytes) = params.plan {
+        result["plan"] = plan::project(bytes.as_bytes(), &compiled)?;
     }
     let mut nodes = Vec::new();
     let mut equations = Vec::new();

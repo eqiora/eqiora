@@ -9,7 +9,8 @@ rust-version.workspace = true
 
 [dependencies]
 crossbeam-channel = { workspace = true }
-eqiora = { workspace = true, features = ["package-filesystem"] }
+eqiora = { workspace = true, features = ["package-filesystem", "faer", "diffsol"] }
+eqiora-numerics.workspace = true
 lsp-server = { workspace = true }
 lsp-types = { workspace = true }
 serde = { workspace = true }
