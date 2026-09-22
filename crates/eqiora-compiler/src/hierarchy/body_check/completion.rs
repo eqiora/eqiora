@@ -13,6 +13,10 @@ use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Clone, Debug)]
 enum Candidate {
+    Clock(
+        eqiora_schema::kernel::RationalTime,
+        eqiora_schema::kernel::RationalTime,
+    ),
     Parameter(eqiora_core::ValueType),
     Port(Box<PortContract>),
     Field(
@@ -91,6 +95,17 @@ impl CompletionIndex {
                     Item::Field(value) => (value.name(), value.range()),
                     Item::Parameter(value) => (value.name(), value.range()),
                     Item::Port(value) => (value.name(), value.range()),
+                    Item::Clock(value) => {
+                        if let Ok((period, phase)) = crate::units::lower_clock(
+                            definition.file,
+                            value.period(),
+                            value.phase(),
+                        ) {
+                            candidates
+                                .insert(value.name().to_owned(), Candidate::Clock(period, phase));
+                        }
+                        (value.name(), value.range())
+                    }
                     _ => continue,
                 };
                 declarations.insert(name.to_owned(), (declaration_file.clone(), range));
@@ -287,6 +302,15 @@ impl CompletionIndex {
         Some((*declaration, references))
     }
 
+    pub(crate) fn is_value_reference(&self, file: &str, offset: u32, name: &str) -> bool {
+        self.scope_at(file, offset).is_some()
+            && self.sources.get(file).is_some_and(|source| {
+                source.references.iter().any(|(range, candidate)| {
+                    candidate == name && range.start() <= offset && offset < range.end()
+                })
+            })
+    }
+
     pub(crate) fn describe(
         &self,
         file: &str,
@@ -300,6 +324,7 @@ impl CompletionIndex {
             return None;
         }
         let text = match scope.candidates.get(name)? {
+            Candidate::Clock(period, phase) => description::describe_clock(*period, *phase),
             Candidate::Parameter(value) => format!(
                 "parameter; {}; static; no spatial support",
                 describe_type(value)

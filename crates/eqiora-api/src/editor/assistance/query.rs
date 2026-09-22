@@ -147,9 +147,12 @@ impl<'a> Query<'a> {
     }
 
     fn resolve_authored(&self, offset: u32, name: &str) -> Option<EditorSymbol> {
+        let mut notation_verified = false;
         let mut candidate =
             if let Some((snapshot, symbol)) = self.locate(self.snapshot, offset, name, 0) {
                 let mut candidate = declarations::candidate(snapshot, symbol)?;
+                notation_verified = std::ptr::eq(snapshot, self.snapshot)
+                    && declarations::at_name(snapshot, symbol, offset);
                 if let Some(semantics) = &self.snapshot.semantics
                     && let Some(description) = semantics.analysis.symbol_description(
                         &semantics.file,
@@ -158,6 +161,15 @@ impl<'a> Query<'a> {
                         (self.file_for(snapshot), symbol.range()),
                     )
                 {
+                    if !notation_verified
+                        && !(cursor::at_value_name(&self.snapshot.source, offset, name)
+                            && semantics
+                                .analysis
+                                .is_value_reference(&semantics.file, offset, name))
+                    {
+                        return None;
+                    }
+                    notation_verified = true;
                     let detail = candidate.detail.get_or_insert_default();
                     detail.push_str("\n// ");
                     detail.push_str(&description);
@@ -169,6 +181,9 @@ impl<'a> Query<'a> {
                     .into_iter()
                     .find(|c| c.name == member)?
             };
+        if !notation_verified {
+            candidate.notation = None;
+        }
         candidate.name = name.into();
         candidate.insertion = Some(name.into());
         Some(candidate)

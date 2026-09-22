@@ -1,9 +1,17 @@
 #[path = "stdio/assistance.rs"]
 mod assistance;
+#[path = "stdio/authored_notation.rs"]
+mod authored_notation;
+#[path = "stdio/clock_details.rs"]
+mod clock_details;
 #[path = "stdio/inspection.rs"]
 mod inspection;
 #[path = "stdio/local_navigation.rs"]
 mod local_navigation;
+#[path = "stdio/notation.rs"]
+mod notation;
+#[path = "stdio/symbol_details.rs"]
+mod symbol_details;
 
 use std::{
     fs,

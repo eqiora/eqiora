@@ -71,6 +71,27 @@ fn model_hover_projects_known_fields_parameters_ports_and_nominal_types() {
 }
 
 #[test]
+fn hover_distinguishes_channel_array_axes_from_equal_shaped_spatial_axes() {
+    let source = "model M(){domain body=box(0,1,0,1);variable channels:array<vector<m,2>,2> on body;variable matrix:tensor<m,2,2> on body;}";
+    let workspace = EditorWorkspaceSnapshot::analyze_standalone(1, source);
+    assert!(
+        workspace.diagnostics().is_empty(),
+        "{:?}",
+        workspace.diagnostics()
+    );
+    let file = workspace.files().next().unwrap();
+    for (name, rank) in [("channels", 1), ("matrix", 0)] {
+        let symbol = workspace
+            .assistance(file, source.find(name).unwrap() as u32, name)
+            .unwrap();
+        let detail = symbol.detail().unwrap();
+        assert!(detail.contains("shape [2, 2]"), "{detail}");
+        assert!(detail.contains("frame SpatialCartesian"), "{detail}");
+        assert!(detail.contains(&format!("array rank {rank}")), "{detail}");
+    }
+}
+
+#[test]
 fn hover_uses_current_model_scope_and_source_version() {
     let marked =
         "model Other(){variable value:s;} model M(){variable value:m; relation r{va|lue=1[m];}}";

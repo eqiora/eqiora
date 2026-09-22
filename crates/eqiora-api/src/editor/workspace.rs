@@ -9,7 +9,7 @@ use eqiora_compiler::{
     preflight_resolved_hierarchy,
 };
 use eqiora_core::Diagnostic;
-use eqiora_lang::{DocComment, ParseResult, TextRange, TokenKind, parse};
+use eqiora_lang::{DocComment, Notation, ParseResult, TextRange, TokenKind, parse};
 
 use super::{EditorPosition, EditorSnapshot, EditorSymbolKind, stale_version};
 
@@ -23,6 +23,7 @@ pub struct EditorDefinition {
     range: TextRange,
     name_range: Option<TextRange>,
     doc_comment: Option<DocComment>,
+    notation: Option<Notation>,
 }
 
 /// One compiler-resolved source reference and its canonical definition.
@@ -95,6 +96,13 @@ impl EditorDefinition {
     #[must_use]
     pub const fn doc_comment(&self) -> Option<&DocComment> {
         self.doc_comment.as_ref()
+    }
+
+    /// Validated notation selected by this exact declaration's source file and range.
+    /// This is the declaration symbol, without occurrence qualification or inferred type.
+    #[must_use]
+    pub const fn notation(&self) -> Option<&Notation> {
+        self.notation.as_ref()
     }
 }
 
@@ -193,7 +201,7 @@ impl EditorWorkspaceSnapshot {
         diagnostic: Diagnostic,
     ) -> Self {
         for (file, snapshot) in &mut self.documents {
-            snapshot.semantics = None;
+            snapshot.clear_semantics();
             if let Some(source) = overrides.get(file) {
                 *snapshot = EditorSnapshot::from_recovered_source(
                     self.version,
@@ -368,21 +376,27 @@ impl EditorWorkspaceSnapshot {
     fn with_assistance(
         mut self,
         mut analyzed: AnalyzedResolvedHierarchy,
-        is_cancelled: impl FnMut() -> bool,
+        mut is_cancelled: impl FnMut() -> bool,
     ) -> Option<Self> {
-        if !analyzed.prepare_completion(is_cancelled) {
+        if !analyzed.prepare_completion(&mut is_cancelled) {
             return None;
         }
         let input = self.input.as_ref()?.clone();
         let analysis = std::sync::Arc::new(analyzed);
         for (file, document) in &mut self.documents {
+            if is_cancelled()
+                || (self.diagnostics.is_empty()
+                    && !document.prepare_symbol_details(file, &analysis, &mut is_cancelled))
+            {
+                return None;
+            }
             document.semantics = Some(super::assistance::PreparedCompletion {
                 input: input.clone(),
                 analysis: analysis.clone(),
                 file: file.clone(),
             });
         }
-        Some(self)
+        (!is_cancelled()).then_some(self)
     }
 
     fn from_analyzed_unprepared(
@@ -401,18 +415,23 @@ impl EditorWorkspaceSnapshot {
             })
             .collect::<BTreeMap<_, _>>();
 
-        let documentation_by_file = tokens_by_file
+        let metadata_by_file = tokens_by_file
             .iter()
             .map(|(file, parsed)| {
-                let comments = parsed
+                let metadata = parsed
                     .document()
                     .map(|document| {
-                        document
+                        let mut metadata = document
                             .doc_comments()
-                            .collect::<std::collections::HashMap<_, _>>()
+                            .map(|(range, doc)| (range, (Some(doc), None)))
+                            .collect::<std::collections::HashMap<_, _>>();
+                        for (range, notation) in document.notations() {
+                            metadata.entry(range).or_default().1 = Some(notation);
+                        }
+                        metadata
                     })
                     .unwrap_or_default();
-                (file.as_str(), comments)
+                (file.as_str(), metadata)
             })
             .collect::<BTreeMap<_, _>>();
 
@@ -431,10 +450,14 @@ impl EditorWorkspaceSnapshot {
                         range,
                         identity.path(),
                     ),
-                    doc_comment: documentation_by_file
+                    doc_comment: metadata_by_file
                         .get(resolved_file)
-                        .and_then(|comments| comments.get(&range))
-                        .map(|doc| (*doc).clone()),
+                        .and_then(|metadata| metadata.get(&range)?.0)
+                        .cloned(),
+                    notation: metadata_by_file
+                        .get(resolved_file)
+                        .and_then(|metadata| metadata.get(&range)?.1)
+                        .cloned(),
                 })
             })
             .collect::<Vec<_>>();
@@ -456,10 +479,14 @@ impl EditorWorkspaceSnapshot {
                             definition_range,
                             target.path(),
                         ),
-                        doc_comment: documentation_by_file
+                        doc_comment: metadata_by_file
                             .get(definition_file)
-                            .and_then(|comments| comments.get(&definition_range))
-                            .map(|doc| (*doc).clone()),
+                            .and_then(|metadata| metadata.get(&definition_range)?.0)
+                            .cloned(),
+                        notation: metadata_by_file
+                            .get(definition_file)
+                            .and_then(|metadata| metadata.get(&definition_range)?.1)
+                            .cloned(),
                     },
                 })
             })
@@ -664,13 +691,21 @@ fn declaration_name_range(
     path: &str,
 ) -> Option<TextRange> {
     let name = path.rsplit('.').next()?;
-    tokens.get(file)?.tokens().iter().find_map(|token| {
-        (token.kind() == TokenKind::Identifier
-            && token.text() == name
-            && declaration.start() <= token.range().start()
-            && token.range().end() <= declaration.end())
-        .then_some(token.range())
-    })
+    // Keywords are Identifier tokens too. The declaration name is the last
+    // matching spelling in the header before notation, signature or body syntax.
+    tokens
+        .get(file)?
+        .tokens()
+        .iter()
+        .filter(|token| {
+            !token.kind().is_trivia()
+                && declaration.start() <= token.range().start()
+                && token.range().end() <= declaration.end()
+        })
+        .take_while(|token| token.kind() == TokenKind::Identifier)
+        .filter(|token| token.text() == name)
+        .last()
+        .map(|token| token.range())
 }
 
 const fn canonical_symbol_kind(kind: CanonicalDeclarationKind) -> Option<EditorSymbolKind> {

@@ -1,6 +1,7 @@
 //! Documentation shared by hover, completion and signature help.
 use eqiora::api::EditorSymbol;
 use eqiora::api::EditorSymbolKind;
+use eqiora::language::{Notation, NotationLabel, NotationProfile};
 use lsp_types::{
     CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse, CompletionTextEdit,
     Documentation, Hover, HoverContents, MarkupContent, MarkupKind, ParameterInformation,
@@ -19,11 +20,20 @@ struct Parameter {
     documentation: Option<String>,
 }
 
+pub(super) fn append_notation(value: &mut String, notation: Option<&Notation>) {
+    if let Some(notation) = notation {
+        let label = NotationLabel::from_notation(notation).render(NotationProfile::Plain);
+        // The admitted plain alphabet has no code-span delimiter or executable markup.
+        value.push_str(&format!("\n\nNotation: `{label}`"));
+    }
+}
+
 struct Entry {
     name: String,
     label: String,
     documentation: Option<String>,
     kind: CompletionItemKind,
+    notation: Option<Notation>,
     parameters: Option<Vec<Parameter>>,
 }
 
@@ -50,6 +60,7 @@ impl Entry {
             value.push_str("\n\n");
             value.push_str(doc);
         }
+        append_notation(&mut value, self.notation.as_ref());
         Hover {
             contents: HoverContents::Markup(markdown(value)),
             range: None,
@@ -106,6 +117,7 @@ fn authored(candidate: EditorSymbol) -> Entry {
         name: candidate.name().into(),
         label: candidate.detail().unwrap_or(candidate.name()).into(),
         documentation: candidate.documentation(),
+        notation: candidate.notation().cloned(),
         kind: match candidate.kind() {
             EditorSymbolKind::Operator | EditorSymbolKind::Component | EditorSymbolKind::Model => {
                 CompletionItemKind::FUNCTION
@@ -135,11 +147,15 @@ fn authored(candidate: EditorSymbol) -> Entry {
 
 fn entry(state: &ServerState, uri: &Uri, offset: u32, name: &str) -> Option<Entry> {
     let open = document(state, uri).ok()?;
-    state
-        .resolved(uri)
-        .and_then(|(w, file)| w.assistance(file, offset, name))
-        .or_else(|| open.snapshot().assistance(offset, name))
-        .map(authored)
+    // An available workspace owns both positive and negative scope results.
+    // Retrying its rejection through a lexical snapshot would resurrect a
+    // declaration at a keyword, unit or other unsupported cursor position.
+    let candidate = if let Some((workspace, file)) = state.resolved(uri) {
+        workspace.assistance(file, offset, name)
+    } else {
+        open.snapshot().assistance(offset, name)
+    };
+    candidate.map(authored)
 }
 
 pub(super) fn hover(

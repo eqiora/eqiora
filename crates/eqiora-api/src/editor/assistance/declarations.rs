@@ -1,6 +1,50 @@
 use super::{EditorSnapshot, EditorSymbol, EditorSymbolKind, cursor};
 use eqiora_lang::{Document, SignatureItem};
 
+// The owned notation token follows its declaration name, even when the name
+// equals an introducer keyword. Initializer and binder tokens cannot match it.
+pub(super) fn at_name(snapshot: &EditorSnapshot, symbol: &EditorSymbol, offset: u32) -> bool {
+    let Some(source) = snapshot
+        .source
+        .get(symbol.range().start() as usize..symbol.range().end() as usize)
+    else {
+        return false;
+    };
+    let tokens = cursor::tokens(source);
+    if let Some(notation) = symbol.notation() {
+        return tokens.windows(2).any(|pair| {
+            let name = &pair[0];
+            let marker = &pair[1];
+            name.kind() == eqiora_lang::TokenKind::Identifier
+                && name.text() == symbol.name()
+                && marker.kind() == eqiora_lang::TokenKind::Notation
+                && symbol.range().start() + marker.range().start() == notation.range().start()
+                && symbol.range().start() + marker.range().end() == notation.range().end()
+                && symbol.range().start() + name.range().start() <= offset
+                && offset < symbol.range().start() + name.range().end()
+        });
+    }
+    // Undecorated typed declarations end their name with the first type colon
+    // (or the first equals for a Clock). Later initializer tokens cannot match.
+    let delimiter = match symbol.kind() {
+        EditorSymbolKind::Field | EditorSymbolKind::Parameter | EditorSymbolKind::Port => {
+            eqiora_lang::TokenKind::Colon
+        }
+        EditorSymbolKind::Clock => eqiora_lang::TokenKind::Equal,
+        _ => return false,
+    };
+    tokens
+        .windows(2)
+        .find(|pair| pair[1].kind() == delimiter)
+        .is_some_and(|pair| {
+            let name = &pair[0];
+            name.kind() == eqiora_lang::TokenKind::Identifier
+                && name.text() == symbol.name()
+                && symbol.range().start() + name.range().start() <= offset
+                && offset < symbol.range().start() + name.range().end()
+        })
+}
+
 pub(super) fn candidate(snapshot: &EditorSnapshot, symbol: &EditorSymbol) -> Option<EditorSymbol> {
     let text = snapshot
         .source

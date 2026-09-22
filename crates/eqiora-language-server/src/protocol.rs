@@ -911,7 +911,12 @@ fn lsp_symbol(snapshot: &EditorSnapshot, symbol: &EditorSymbol) -> Result<Docume
         .collect::<Result<Vec<_>, _>>()?;
     Ok(DocumentSymbol {
         name: symbol.name().to_owned(),
-        detail: Some(symbol_label(symbol.kind()).to_owned()),
+        detail: Some(
+            symbol
+                .detail()
+                .unwrap_or_else(|| symbol_label(symbol.kind()))
+                .to_owned(),
+        ),
         kind: symbol_kind(symbol.kind()),
         tags: None,
         deprecated: None,

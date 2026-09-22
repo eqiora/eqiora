@@ -68,14 +68,48 @@ operator scale(
 The native editor API supplies documented `EditorSymbol` values for all three
 features; the language server projects them into LSP responses.
 
+Declaration hover displays admitted `@{...}` notation through the existing plain
+label renderer, with explicit script delimiters and no TeX execution.
+`EditorDefinition::notation()` retains the compiler-selected top-level declaration's
+validated notation and source range, including imported declarations.
+`EditorSymbol::notation()` also retains notation on exact authored declarations,
+including local fields, parameters and public interface members. Authored hover
+shows the label at the current declaration-name token, or at the terminal name
+of a compiler-recorded value reference whose declaration file and range match.
+Keyword, unit and qualifier tokens cannot borrow a supported declaration's
+hover. Recovery can retain
+notation on a declaration without granting typed facts; nested binder scopes,
+recovering references and unsupported Component-body references omit the label.
+Missing or rejected notation never supplies another declaration's or snapshot's
+label. Occurrence qualification, inferred styling and activation are not added by
+this notation projection.
+
 For prepared Model fields, parameters and public child Ports, hover adds known
-scalar domain, physical dimension, shape/frame, field or Port role, activation
-and spatial support to the authored declaration. These facts come from the same
-compiler scope used by completion and are attached only when the resolved
-declaration's file and range match. Named activation retains an unknown occurrence
+scalar domain, physical dimension, shape/frame, outer channel-array rank, field
+or Port role, activation and spatial support to the authored declaration. These facts come from the same
+compiler scope used by completion and are attached only at the exact declaration
+name or terminal value-reference token, with a matching declaration file and range.
+Named activation retains an unknown occurrence
 identity; spatial support identity is definition-local. Component bodies, aliases,
 arbitrary expression inference and nested binder scopes retain authored detail
 without claiming inferred types. Hover queries perform no elaboration or solve.
+
+Model-owned periodic Clock hover adds the exact reduced period and phase in
+coherent seconds from the existing compiler time conversion. For example,
+`periodic(100[ms], phase=50[ms])` displays period `1/10 s` and phase `1/20 s`.
+The same facts appear at value uses such as `period(tick)`; activation clauses
+such as `at tick` have no retained value-reference occurrence and omit Clock hover.
+Equal schedules remain distinct declarations. This does not assign occurrence
+identity or infer borrowed, Component-local or child Clock schedules; Event
+metadata and Clock definition/reference navigation remain outside this slice.
+
+Document-symbol details reuse the same prepared compiler facts for exact Model
+field, parameter, Port and periodic Clock declarations, including channel-array
+rank and exact local schedules. Unsupported
+declarations keep their lexical kind. Invalid or incomplete workspace snapshots
+clear earlier typed details while retaining the recovered outline. Cancelled and
+stale preparation cannot publish those facts. Component and nested-binder
+inference and exact named activation identities remain outside this projection.
 
 Local completion includes declarations in the cursor's enclosing lexical scope,
 including unfinished Model/Component bodies. Declaration, type and expression

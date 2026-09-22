@@ -1,4 +1,5 @@
 use eqiora::api::{EditorDefinition, EditorSymbolKind, EditorWorkspaceSnapshot};
+use eqiora::language::Notation;
 use lsp_types::{
     GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams, Location,
     MarkupContent, MarkupKind, ReferenceParams, Uri,
@@ -135,6 +136,7 @@ pub(super) fn hover(params: HoverParams, state: &ServerState) -> Result<Option<H
                 definition.path(),
                 source,
                 documentation.as_deref(),
+                definition.notation(),
             ),
         }),
         range: None,
@@ -146,6 +148,7 @@ fn markdown_hover(
     path: &str,
     source: &str,
     documentation: Option<&str>,
+    notation: Option<&Notation>,
 ) -> String {
     let longest_run = source
         .split(|character| character != '`')
@@ -153,10 +156,11 @@ fn markdown_hover(
         .max()
         .unwrap_or_default();
     let fence = "`".repeat(longest_run.saturating_add(1).max(3));
-    let detail = format!(
+    let mut detail = format!(
         "**{}** `{path}`\n\n{fence}eqiora\n{source}\n{fence}",
         symbol_label(kind)
     );
+    super::assistance::append_notation(&mut detail, notation);
     match documentation {
         Some(prose) => format!("{prose}\n\n{detail}"),
         None => detail,
@@ -171,7 +175,7 @@ mod tests {
     fn hover_keeps_sanitized_prose_outside_a_source_derived_safe_fence() {
         let source = "public component C() { // ``` hostile fence\n}";
         let prose = "Summary&#46;\n\n\\[run\\](command&#58;delete)\n\\<script\\>";
-        let rendered = markdown_hover(EditorSymbolKind::Component, "C", source, Some(prose));
+        let rendered = markdown_hover(EditorSymbolKind::Component, "C", source, Some(prose), None);
         assert!(rendered.starts_with(prose));
         assert!(rendered.contains("\n````eqiora\npublic component C"));
         assert!(rendered.ends_with("\n````"));

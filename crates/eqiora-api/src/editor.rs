@@ -3,10 +3,11 @@
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_lang::{
-    ComponentItem, DocComment, Document, Item, SignatureItem, TextRange, format, parse,
+    ComponentItem, DocComment, Document, Item, Notation, SignatureItem, TextRange, format, parse,
 };
 
 mod assistance;
+mod symbol_details;
 mod workspace;
 
 pub use workspace::{
@@ -104,6 +105,7 @@ pub struct EditorSymbol {
     range: TextRange,
     children: Vec<Self>,
     doc_comment: Option<DocComment>,
+    notation: Option<Notation>,
     detail: Option<String>,
     help: Option<String>,
     insertion: Option<String>,
@@ -119,6 +121,7 @@ impl EditorSymbol {
             range,
             children: Vec::new(),
             doc_comment: None,
+            notation: None,
             detail: None,
             help: None,
             insertion: None,
@@ -140,6 +143,7 @@ impl EditorSymbol {
             range,
             children,
             doc_comment: None,
+            notation: None,
             detail: None,
             help: None,
             insertion: None,
@@ -148,7 +152,8 @@ impl EditorSymbol {
         }
     }
 
-    /// Declaration head supplied by an assistance query.
+    /// Prepared compiler facts for an outline entry, or the declaration head
+    /// supplied by an assistance query. Unresolved outline entries have no detail.
     #[must_use]
     pub fn detail(&self) -> Option<&str> {
         self.detail.as_deref()
@@ -208,6 +213,13 @@ impl EditorSymbol {
     #[must_use]
     pub const fn doc_comment(&self) -> Option<&DocComment> {
         self.doc_comment.as_ref()
+    }
+
+    /// Admitted source notation attached to this exact authored declaration.
+    /// Syntax recovery may retain it without granting semantic validity or an inferred type.
+    #[must_use]
+    pub const fn notation(&self) -> Option<&Notation> {
+        self.notation.as_ref()
     }
 }
 
@@ -597,13 +609,21 @@ fn document_symbols(document: &Document) -> Vec<EditorSymbol> {
     fn attach(
         symbols: &mut [EditorSymbol],
         documentation: &std::collections::HashMap<TextRange, &DocComment>,
+        notations: &std::collections::HashMap<TextRange, &Notation>,
     ) {
         for symbol in symbols {
             symbol.doc_comment = documentation.get(&symbol.range).map(|doc| (*doc).clone());
-            attach(&mut symbol.children, documentation);
+            symbol.notation = notations
+                .get(&symbol.range)
+                .map(|notation| (*notation).clone());
+            attach(&mut symbol.children, documentation, notations);
         }
     }
-    attach(&mut symbols, &document.doc_comments().collect());
+    attach(
+        &mut symbols,
+        &document.doc_comments().collect(),
+        &document.notations().collect(),
+    );
     symbols
 }
 

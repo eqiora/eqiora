@@ -59,6 +59,17 @@ pub(super) fn name_at(source: &str, offset: u32, prefix: bool) -> Option<(String
     ))
 }
 
+// A qualified value names its terminal member, not a qualifier or dot token.
+pub(super) fn at_value_name(source: &str, offset: u32, name: &str) -> bool {
+    name_at(source, offset, false).is_some_and(|(actual, _, end)| {
+        let terminal = name.rsplit('.').next().unwrap_or(name);
+        actual == name
+            && end
+                .checked_sub(terminal.len() as u32)
+                .is_some_and(|start| start <= offset && offset < end)
+    })
+}
+
 /// Recovered innermost call, including unfinished argument lists.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct Call {

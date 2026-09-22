@@ -29,11 +29,25 @@ pub(super) fn describe_type(value: &eqiora_core::ValueType) -> String {
         })
         .unwrap_or_default();
     format!(
-        "{:?}; dimension {}; shape {:?}; frame {:?}{nominal}",
+        "{:?}; dimension {}; shape {:?}; array rank {}; frame {:?}{nominal}",
         value.scalar_domain(),
         value.dimension(),
         value.shape().extents(),
+        value.array_rank(),
         value.frame()
+    )
+}
+
+pub(super) fn describe_clock(
+    period: eqiora_schema::kernel::RationalTime,
+    phase: eqiora_schema::kernel::RationalTime,
+) -> String {
+    format!(
+        "periodic clock; period {}/{} s; phase {}/{} s; Model-local declaration; occurrence identity unknown",
+        period.numerator(),
+        period.denominator(),
+        phase.numerator(),
+        phase.denominator(),
     )
 }
 
