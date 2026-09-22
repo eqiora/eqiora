@@ -27,6 +27,18 @@ impl AnalyzedResolvedHierarchy {
         self.completion.local_references(file, offset, name)
     }
 
+    /// Whether the position lies in a prepared Model value Name or Path
+    /// expression with this full spelling, outside unsupported binder scopes.
+    /// This syntactic occurrence check does not resolve the target declaration.
+    /// Callers must also validate the exact cursor token and match the target's
+    /// source identity with `symbol_description`; expression ranges can include
+    /// parentheses. Declaration names, units and named activation clauses are
+    /// not value expressions. No parsing or elaboration occurs during this query.
+    #[must_use]
+    pub fn is_value_reference(&self, file: &str, offset: u32, name: &str) -> bool {
+        self.completion.is_value_reference(file, offset, name)
+    }
+
     /// Describe known Model-scope type, role, activation, spatial support and
     /// exact local periodic schedule facts only when the resolved declaration's
     /// source identity matches.
@@ -78,6 +90,46 @@ mod tests {
         CompilationNamespaceId, ResolvedHierarchyInput, ResolvedSourceUnit,
         analyze_resolved_hierarchy,
     };
+
+    #[test]
+    fn value_occurrence_proof_keeps_units_declarations_and_wrong_names_out() {
+        let owner = CompilationNamespaceId::new(["test"]).unwrap();
+        let source = "component C(output value:1){} model M(){parameter m:1=1;parameter copy:1=(m);variable x:m;instance child:C();relation r{x=1[m];child.value=child.value;}}";
+        let unit = ResolvedSourceUnit::new(owner.clone(), "src/main.eqi", source).unwrap();
+        let file = unit.diagnostic_file();
+        let mut analysis =
+            analyze_resolved_hierarchy(ResolvedHierarchyInput::new(owner, vec![unit], vec![]))
+                .unwrap();
+        assert!(analysis.prepare_completion(|| false));
+        for (needle, shift, name, expected) in [
+            ("m:1", 0, "m", false),
+            ("x:m", 2, "m", false),
+            ("[m]", 1, "m", false),
+            ("(m)", 1, "m", true),
+            ("(m)", 1, "copy", false),
+            ("child.value", 6, "child.value", true),
+            ("child.value", 6, "value", false),
+        ] {
+            assert_eq!(
+                analysis.is_value_reference(
+                    &file,
+                    (source.find(needle).unwrap() + shift) as u32,
+                    name
+                ),
+                expected,
+                "{needle} / {name}"
+            );
+        }
+        // Extending the shared syntax ranges to paths must not broaden local
+        // definition/reference navigation beyond simple Fields and Parameters.
+        let offset = source.find("child.value").unwrap() as u32 + 6;
+        assert!(analysis.local_definition(&file, offset).is_none());
+        assert!(
+            analysis
+                .local_references(&file, offset, "child.value")
+                .is_none()
+        );
+    }
 
     #[test]
     fn hover_requires_the_exact_declaration_within_the_current_model() {

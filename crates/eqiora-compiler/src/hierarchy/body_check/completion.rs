@@ -302,6 +302,15 @@ impl CompletionIndex {
         Some((*declaration, references))
     }
 
+    pub(crate) fn is_value_reference(&self, file: &str, offset: u32, name: &str) -> bool {
+        self.scope_at(file, offset).is_some()
+            && self.sources.get(file).is_some_and(|source| {
+                source.references.iter().any(|(range, candidate)| {
+                    candidate == name && range.start() <= offset && offset < range.end()
+                })
+            })
+    }
+
     pub(crate) fn describe(
         &self,
         file: &str,

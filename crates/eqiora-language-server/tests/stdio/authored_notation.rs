@@ -1,6 +1,81 @@
 use super::*;
 
 #[test]
+fn stdio_valid_value_names_do_not_lend_hover_to_keywords_units_or_qualifiers() {
+    let uri = "file:///workspace/main.eqi";
+    let source = "component C(output value @{q}:1){} model M(){variable variable @{v}:1;parameter m @{p}:1=1;parameter copy:1=m;variable x:m;instance child:C();relation r{variable=1;x=1[m];child.value=child.value;}}";
+    let cases = [
+        ("variable variable", 0, None),
+        ("x:m", 2, None),
+        ("[m]", 1, None),
+        ("child.value", 0, None),
+        ("child.value", 5, None),
+        ("variable @{", 0, Some("v")),
+        ("variable=1", 0, Some("v")),
+        ("m @{", 0, Some("p")),
+        ("1=m", 2, Some("p")),
+        ("child.value", 6, Some("q")),
+    ];
+    let mut child = Command::new(SERVER)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    for message in [
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
+        json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+        json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":uri,"languageId":"eqiora","version":1,"text":source}}}),
+    ] {
+        write_packet(&mut stdin, &message);
+    }
+    for (index, (needle, shift, _)) in cases.iter().enumerate() {
+        write_packet(
+            &mut stdin,
+            &json!({"jsonrpc":"2.0","id":index+2,"method":"textDocument/hover","params":{"textDocument":{"uri":uri},"position":{"line":0,"character":source.find(needle).unwrap()+shift}}}),
+        );
+    }
+    write_packet(
+        &mut stdin,
+        &json!({"jsonrpc":"2.0","id":30,"method":"shutdown","params":null}),
+    );
+    write_packet(
+        &mut stdin,
+        &json!({"jsonrpc":"2.0","method":"exit","params":null}),
+    );
+    drop(stdin);
+    let output = child.wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let messages = parse_packets(&output.stdout);
+    let diagnostics = messages
+        .iter()
+        .find(|message| message["method"] == "textDocument/publishDiagnostics")
+        .unwrap();
+    assert_eq!(diagnostics["params"]["diagnostics"], json!([]));
+    for (index, (needle, _, expected)) in cases.iter().enumerate() {
+        let result = &response(&messages, (index + 2) as i64)["result"];
+        let text = result["contents"]["value"].as_str().unwrap_or_default();
+        if let Some(label) = expected {
+            assert!(
+                text.contains(&format!("Notation: `{label}`")),
+                "{needle}: {text}"
+            );
+            assert!(text.contains("//"), "{needle}: {text}");
+        } else {
+            assert!(
+                !text.contains("Notation:") && !text.contains("//") && !text.contains("@{"),
+                "{needle}: {text}"
+            );
+        }
+    }
+}
+
+#[test]
 fn stdio_authored_notation_respects_current_declarations_and_proven_references() {
     let uri = "file:///workspace/main.eqi";
     let source = "model Other(){variable value @{q}:1;}model M(){variable value @{\\mathbf{x_i}}:1;relation r{value=1;}}";

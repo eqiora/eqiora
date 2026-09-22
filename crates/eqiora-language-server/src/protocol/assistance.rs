@@ -147,11 +147,15 @@ fn authored(candidate: EditorSymbol) -> Entry {
 
 fn entry(state: &ServerState, uri: &Uri, offset: u32, name: &str) -> Option<Entry> {
     let open = document(state, uri).ok()?;
-    state
-        .resolved(uri)
-        .and_then(|(w, file)| w.assistance(file, offset, name))
-        .or_else(|| open.snapshot().assistance(offset, name))
-        .map(authored)
+    // An available workspace owns both positive and negative scope results.
+    // Retrying its rejection through a lexical snapshot would resurrect a
+    // declaration at a keyword, unit or other unsupported cursor position.
+    let candidate = if let Some((workspace, file)) = state.resolved(uri) {
+        workspace.assistance(file, offset, name)
+    } else {
+        open.snapshot().assistance(offset, name)
+    };
+    candidate.map(authored)
 }
 
 pub(super) fn hover(

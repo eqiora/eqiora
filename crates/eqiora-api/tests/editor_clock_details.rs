@@ -19,7 +19,7 @@ fn member<'a>(snapshot: &'a EditorSnapshot, owner: &str, name: &str) -> &'a Edit
 
 #[test]
 fn exact_clock_details_preserve_declarations_without_claiming_occurrence_identity() {
-    let source = "model Other(){clock tick=periodic(2[s]);} model M(){clock tick=periodic(100[ms],phase=50[ms]);clock peer=periodic(1[s]/10,phase=1[s]/20);state memory:1 at tick;}";
+    let source = "model Other(){clock tick=periodic(2[s]);} model M(){clock tick=periodic(100[ms],phase=50[ms]);clock peer=periodic(1[s]/10,phase=1[s]/20);state memory:1 at tick;relation schedule{period(tick)=period(tick);}}";
     let workspace = EditorWorkspaceSnapshot::analyze_standalone(1, source);
     assert!(
         workspace.diagnostics().is_empty(),
@@ -36,7 +36,7 @@ fn exact_clock_details_preserve_declarations_without_claiming_occurrence_identit
     assert_ne!(tick.range(), peer.range());
     for symbol in [tick, peer] {
         let hover = workspace
-            .assistance(file, symbol.range().start(), symbol.name())
+            .assistance(file, symbol.range().start() + 6, symbol.name())
             .unwrap();
         assert_eq!(hover.range(), symbol.range());
         assert_eq!(hover.detail().unwrap().matches(EXACT).count(), 1);
@@ -46,6 +46,11 @@ fn exact_clock_details_preserve_declarations_without_claiming_occurrence_identit
         .unwrap();
     assert_eq!(reference.range(), tick.range());
     assert!(reference.detail().unwrap().contains(EXACT));
+    assert!(
+        workspace
+            .assistance(file, source.find("tick;").unwrap() as u32, "tick")
+            .is_none()
+    );
     assert!(
         member(snapshot, "Other", "tick")
             .detail()
@@ -101,7 +106,7 @@ fn clock_details_select_the_current_file_and_model() {
         let symbol = member(workspace.document(file).unwrap(), owner, "tick");
         assert_eq!(symbol.detail(), Some(expected));
         let hover = workspace
-            .assistance(file, symbol.range().start(), "tick")
+            .assistance(file, symbol.range().start() + 6, "tick")
             .unwrap();
         assert!(hover.detail().unwrap().contains(expected));
     }
@@ -138,7 +143,7 @@ fn clock_updates_reject_stale_facts_and_recover_after_invalid_source() {
         let symbol = member(current.document(file).unwrap(), "M", "tick");
         assert!(symbol.detail().is_none(), "{invalid}");
         let hover = current
-            .assistance(file, symbol.range().start(), "tick")
+            .assistance(file, symbol.range().start() + 6, "tick")
             .unwrap();
         assert!(!hover.detail().unwrap().contains("periodic clock;"));
     }
@@ -173,7 +178,7 @@ fn borrowed_component_and_event_activations_have_no_concrete_clock_facts() {
         let symbol = member(snapshot, owner, name);
         assert!(symbol.detail().is_none());
         let hover = workspace
-            .assistance(file, symbol.range().start(), name)
+            .assistance(file, symbol.range().start() + 6, name)
             .unwrap();
         assert!(!hover.detail().unwrap().contains("periodic clock;"));
     }

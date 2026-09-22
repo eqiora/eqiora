@@ -74,8 +74,10 @@ label renderer, with explicit script delimiters and no TeX execution.
 validated notation and source range, including imported declarations.
 `EditorSymbol::notation()` also retains notation on exact authored declarations,
 including local fields, parameters and public interface members. Authored hover
-shows the label at the current declaration-name token, or at a reference whose
-declaration identity the prepared compiler scope proves. Recovery can retain
+shows the label at the current declaration-name token, or at the terminal name
+of a compiler-recorded value reference whose declaration file and range match.
+Keyword, unit and qualifier tokens cannot borrow a supported declaration's
+hover. Recovery can retain
 notation on a declaration without granting typed facts; nested binder scopes,
 recovering references and unsupported Component-body references omit the label.
 Missing or rejected notation never supplies another declaration's or snapshot's
@@ -85,8 +87,9 @@ this notation projection.
 For prepared Model fields, parameters and public child Ports, hover adds known
 scalar domain, physical dimension, shape/frame, outer channel-array rank, field
 or Port role, activation and spatial support to the authored declaration. These facts come from the same
-compiler scope used by completion and are attached only when the resolved
-declaration's file and range match. Named activation retains an unknown occurrence
+compiler scope used by completion and are attached only at the exact declaration
+name or terminal value-reference token, with a matching declaration file and range.
+Named activation retains an unknown occurrence
 identity; spatial support identity is definition-local. Component bodies, aliases,
 arbitrary expression inference and nested binder scopes retain authored detail
 without claiming inferred types. Hover queries perform no elaboration or solve.
@@ -94,6 +97,8 @@ without claiming inferred types. Hover queries perform no elaboration or solve.
 Model-owned periodic Clock hover adds the exact reduced period and phase in
 coherent seconds from the existing compiler time conversion. For example,
 `periodic(100[ms], phase=50[ms])` displays period `1/10 s` and phase `1/20 s`.
+The same facts appear at value uses such as `period(tick)`; activation clauses
+such as `at tick` have no retained value-reference occurrence and omit Clock hover.
 Equal schedules remain distinct declarations. This does not assign occurrence
 identity or infer borrowed, Component-local or child Clock schedules; Event
 metadata and Clock definition/reference navigation remain outside this slice.

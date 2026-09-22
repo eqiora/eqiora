@@ -37,8 +37,14 @@ pub(super) fn collect(
         if !cancelled && matches!(expression.kind(), ExprKind::Reduction { .. }) {
             ranges.push(expression.range());
         }
-        if !cancelled && let ExprKind::Name(name) = expression.kind() {
-            references.push((expression.range(), name.clone()));
+        if !cancelled {
+            match expression.kind() {
+                ExprKind::Name(name) => references.push((expression.range(), name.clone())),
+                ExprKind::Path(path) => {
+                    references.push((expression.range(), path.as_str().to_owned()))
+                }
+                _ => {}
+            }
         }
     });
     if cancelled || is_cancelled() {

@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn stdio_clock_hover_and_outline_share_exact_current_declaration_facts() {
     let uri = "file:///workspace/main.eqi";
-    let source = "model Other(){clock tick=periodic(2[s]);} model M(){clock tick=periodic(100[ms],phase=50[ms]);clock peer=periodic(1[s]/10,phase=1[s]/20);state memory:1 at tick;}";
+    let source = "model Other(){clock tick=periodic(2[s]);} model M(){clock tick=periodic(100[ms],phase=50[ms]);clock peer=periodic(1[s]/10,phase=1[s]/20);state memory:1 at tick;relation schedule{period(tick)=period(tick);}}";
     let changed = source.replace("100[ms]", "200[ms]");
     let invalid = "model M(){clock tick=periodic(0[s]);}";
     let incomplete = "model M(){clock tick=periodic(100[ms]);relation r{";
@@ -24,11 +24,12 @@ fn stdio_clock_hover_and_outline_share_exact_current_declaration_facts() {
         json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":uri,"languageId":"eqiora","version":1,"text":source}}}),
         outline(2),
         hover(3, source, "tick=periodic(100"),
-        hover(4, source, "tick;}"),
+        hover(4, source, "tick);"),
+        hover(17, source, "tick;"),
         change(2, &changed),
         change(1, source),
         outline(5),
-        hover(6, &changed, "tick;}"),
+        hover(6, &changed, "tick);"),
         change(3, invalid),
         outline(7),
         hover(8, invalid, "tick"),
@@ -41,7 +42,7 @@ fn stdio_clock_hover_and_outline_share_exact_current_declaration_facts() {
         hover(16, unsupported, "hit"),
         change(6, source),
         outline(13),
-        hover(14, source, "tick;}"),
+        hover(14, source, "tick);"),
         json!({"jsonrpc":"2.0","id":15,"method":"shutdown","params":null}),
         json!({"jsonrpc":"2.0","method":"exit","params":null}),
     ] {
@@ -105,6 +106,7 @@ fn stdio_clock_hover_and_outline_share_exact_current_declaration_facts() {
             .all(|symbol| symbol["name"] != "hit")
     );
     assert!(response(&messages, 16)["result"].is_null());
+    assert!(response(&messages, 17)["result"].is_null());
     for id in [8, 10, 12] {
         assert!(
             !response(&messages, id)["result"]["contents"]["value"]

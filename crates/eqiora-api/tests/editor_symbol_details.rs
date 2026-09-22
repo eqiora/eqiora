@@ -44,7 +44,14 @@ fn outline_details_share_exact_model_types_without_duplicating_hover_details() {
             symbol.detail()
         );
         let hover = workspace
-            .assistance(file, symbol.range().start(), name)
+            .assistance(
+                file,
+                symbol.range().start()
+                    + source[symbol.range().start() as usize..]
+                        .find(name)
+                        .unwrap() as u32,
+                name,
+            )
             .unwrap();
         assert_eq!(
             hover

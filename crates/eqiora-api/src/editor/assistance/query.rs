@@ -161,6 +161,14 @@ impl<'a> Query<'a> {
                         (self.file_for(snapshot), symbol.range()),
                     )
                 {
+                    if !notation_verified
+                        && !(cursor::at_value_name(&self.snapshot.source, offset, name)
+                            && semantics
+                                .analysis
+                                .is_value_reference(&semantics.file, offset, name))
+                    {
+                        return None;
+                    }
                     notation_verified = true;
                     let detail = candidate.detail.get_or_insert_default();
                     detail.push_str("\n// ");

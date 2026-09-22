@@ -16,6 +16,60 @@ fn assistance(marked: &str) -> Option<EditorSymbol> {
     workspace.assistance(file, offset, &name)
 }
 
+fn assert_value_positions(source: &str, positions: &[(&str, usize, bool)]) {
+    let workspace = EditorWorkspaceSnapshot::analyze_standalone(1, source);
+    assert!(
+        workspace.diagnostics().is_empty(),
+        "{:?}",
+        workspace.diagnostics()
+    );
+    let file = workspace.files().next().unwrap();
+    for (needle, shift, is_value) in positions {
+        let offset = (source.find(needle).unwrap() + shift) as u32;
+        let (name, _) = workspace.document(file).unwrap().name_at(offset).unwrap();
+        let symbol = workspace.assistance(file, offset, &name);
+        if *is_value {
+            let symbol = symbol.unwrap();
+            assert!(symbol.notation().is_some(), "{needle}");
+            assert!(symbol.detail().unwrap().contains("//"), "{needle}");
+        } else {
+            assert!(
+                symbol.is_none_or(|symbol| {
+                    symbol.notation().is_none()
+                        && !symbol.detail().unwrap_or_default().contains("//")
+                        && !symbol.detail().unwrap_or_default().contains("@{")
+                }),
+                "{needle}"
+            );
+        }
+    }
+}
+
+#[test]
+fn valid_keyword_spelling_is_not_a_declaration_or_value_reference() {
+    assert_value_positions(
+        "model M(){variable variable @{v}:1;relation r{variable=1;}}",
+        &[
+            ("variable variable", 0, false),
+            ("variable @{", 0, true),
+            ("variable=1", 0, true),
+        ],
+    );
+}
+
+#[test]
+fn valid_unit_spelling_is_not_a_parameter_reference() {
+    assert_value_positions(
+        "model M(){parameter m @{p}:1=1;parameter copy:1=m;variable x:m;relation r{x=1[m];}}",
+        &[
+            ("x:m", 2, false),
+            ("[m]", 1, false),
+            ("m @{", 0, true),
+            ("1=m", 2, true),
+        ],
+    );
+}
+
 #[test]
 fn authored_symbols_keep_their_own_notation_across_lexical_scopes() {
     for (marked, expected) in [
@@ -127,9 +181,19 @@ fn imported_public_members_keep_target_notation_and_hide_private_fields() {
         .unwrap();
     for (name, expected) in [("a.value", "x_{i}"), ("b.value", "hat(q)^{2}")] {
         let symbol = workspace
-            .assistance(file, main.find(name).unwrap() as u32, name)
+            .assistance(file, (main.find(name).unwrap() + 2) as u32, name)
             .unwrap();
         assert_eq!(label(&symbol).as_deref(), Some(expected));
+        assert!(
+            workspace
+                .assistance(file, main.find(name).unwrap() as u32, name)
+                .is_none()
+        );
+        assert!(
+            workspace
+                .assistance(file, (main.find(name).unwrap() + 1) as u32, name)
+                .is_none()
+        );
     }
     assert!(
         workspace
