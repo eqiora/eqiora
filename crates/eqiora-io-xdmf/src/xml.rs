@@ -239,7 +239,7 @@ fn parse_xml_tree(metadata: &[u8], limits: XdmfImportLimits) -> Result<Node, Dia
                 let builder = stack
                     .pop()
                     .ok_or_else(|| invalid_import("XDMF XML end tag has no start tag"))?;
-                if end.name().as_ref() != builder.node.name.as_bytes() {
+                if end.name().as_ref() != builder.node.name {
                     return Err(invalid_import(
                         "XDMF XML end tag differs from its start tag",
                     ));
@@ -254,14 +254,12 @@ fn parse_xml_tree(metadata: &[u8], limits: XdmfImportLimits) -> Result<Node, Dia
             }
             Event::Text(text) => {
                 saw_event_before_declaration = true;
-                if text.as_ref().windows(3).any(|window| window == b"]]>") {
+                if text.contains("]]>") {
                     return Err(invalid_import(
                         "XDMF character data contains the forbidden XML sequence ]]>",
                     ));
                 }
-                let decoded = text
-                    .decode()
-                    .map_err(|_| invalid_import("XDMF text is not valid UTF-8"))?;
+                let decoded = text.as_ref();
                 text_bytes = checked_add(text_bytes, decoded.len(), "XDMF decoded text bytes")?;
                 if text_bytes > limits.max_text_bytes {
                     return Err(invalid_import(
@@ -274,16 +272,14 @@ fn parse_xml_tree(metadata: &[u8], limits: XdmfImportLimits) -> Result<Node, Dia
                         .text
                         .try_reserve(decoded.len())
                         .map_err(|_| invalid_import("XDMF text allocation failed"))?;
-                    current.node.text.push_str(&decoded);
-                } else if !contains_only_xml_space(&decoded) {
+                    current.node.text.push_str(decoded);
+                } else if !contains_only_xml_space(decoded) {
                     return Err(invalid_import("XDMF metadata has text outside its root"));
                 }
             }
             Event::Comment(comment) => {
                 saw_event_before_declaration = true;
-                let decoded = comment
-                    .decode()
-                    .map_err(|_| invalid_import("XDMF comment is not valid UTF-8"))?;
+                let decoded = comment.as_ref();
                 text_bytes = checked_add(text_bytes, decoded.len(), "XDMF decoded text bytes")?;
                 if text_bytes > limits.max_text_bytes {
                     return Err(invalid_import(
@@ -343,9 +339,7 @@ fn parse_start(
     start: &BytesStart<'_>,
     limits: XdmfImportLimits,
 ) -> Result<(String, BTreeMap<String, String>, usize), Diagnostic> {
-    let name = std::str::from_utf8(start.name().as_ref())
-        .map_err(|_| invalid_import("XDMF element name must be UTF-8"))?
-        .to_owned();
+    let name = start.name().as_ref().to_owned();
     let mut attributes = BTreeMap::new();
     let mut decoded = name.len();
     for (index, attribute) in start.attributes().with_checks(true).enumerate() {
@@ -356,14 +350,12 @@ fn parse_start(
         }
         let attribute =
             attribute.map_err(|_| invalid_import("XDMF element has malformed attributes"))?;
-        if attribute.value.as_ref().contains(&b'<') {
+        if attribute.value.contains('<') {
             return Err(invalid_import(
                 "XDMF attribute contains a literal less-than sign",
             ));
         }
-        let key = std::str::from_utf8(attribute.key.as_ref())
-            .map_err(|_| invalid_import("XDMF attribute name must be UTF-8"))?
-            .to_owned();
+        let key = attribute.key.as_ref().to_owned();
         let value = attribute
             .normalized_value(XmlVersion::Explicit1_0)
             .map_err(|_| invalid_import("XDMF attribute contains an invalid reference"))?
@@ -599,8 +591,7 @@ fn validate_field_shape(
 }
 
 fn validate_declaration(declaration: &BytesDecl<'_>) -> Result<(), Diagnostic> {
-    let raw = std::str::from_utf8(declaration.as_ref())
-        .map_err(|_| invalid_import("XDMF XML declaration must be UTF-8"))?;
+    let raw = declaration.as_ref();
     let start = BytesStart::from_content(raw, 3);
     let attributes = start
         .attributes()
@@ -616,12 +607,11 @@ fn validate_declaration(declaration: &BytesDecl<'_>) -> Result<(), Diagnostic> {
         let key = attribute.key.as_ref();
         let value = attribute.value.as_ref();
         match (index, key) {
-            (0, b"version") if value == b"1.0" => {}
-            (1, b"encoding") if value.eq_ignore_ascii_case(b"UTF-8") => {}
-            (1, b"standalone") if matches!(value, b"yes" | b"no") => {}
-            (2, b"standalone")
-                if attributes[1].key.as_ref() == b"encoding" && matches!(value, b"yes" | b"no") => {
-            }
+            (0, "version") if value == "1.0" => {}
+            (1, "encoding") if value.eq_ignore_ascii_case("UTF-8") => {}
+            (1, "standalone") if matches!(value, "yes" | "no") => {}
+            (2, "standalone")
+                if attributes[1].key.as_ref() == "encoding" && matches!(value, "yes" | "no") => {}
             _ => {
                 return Err(invalid_import(
                     "XDMF XML declaration attributes are unknown, repeated, or out of order",
