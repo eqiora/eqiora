@@ -64,8 +64,20 @@ not evaluate Python expressions in the header or interpolate the Eqiora body.
 The development package includes a prebuilt editor extension for JupyterLab
 4.5.11 and Notebook 7.5.6. A code cell beginning with `%%eqiora` uses the same
 syntax grammar as `.eqi` files, before execution and after reopening the notebook.
-Removing the header restores the ordinary Python editor. Completion and hover
-inside notebook cells are not yet provided.
+Removing the header restores the ordinary Python editor. After loading the
+IPython extension, request completion at the end of a name prefix with Tab,
+then select a candidate and press Enter.
+The current source cell uses the same contextual vocabulary and visible
+declarations as the native editor service, including incomplete source.
+Completion neither executes the cell nor changes its Python variable. Ordinary
+Python cells keep Python completion.
+
+This is standalone source-cell completion: Python variables, other cells and
+external package imports do not become Eqiora declarations. Completion inside
+an existing token is omitted because the IPython matcher only replaces text
+before the cursor. Notebook hover is not yet provided. Installed-package matcher
+tests used IPython 9.17.0; notebook host checks used IPython 9.17.1 and
+ipykernel 7.3.0.
 
 Install Eqiora into the environment that runs the **Jupyter server** as well as
 the Python kernel if those are separate. Restart the server after installing

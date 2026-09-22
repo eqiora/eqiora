@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 from IPython.core.error import UsageError
+from IPython.core.completer import provisionalcompleter
 from IPython.core.interactiveshell import InteractiveShell
 
 import eqiora
@@ -76,6 +77,65 @@ def test_unicode_python_names_and_reload(shell, source):
     shell.run_line_magic("unload_ext", "eqiora.jupyter")
     assert shell.find_cell_magic("eqiora") is None
     assert shell.user_ns["model"] is previous
+
+
+def completions(shell, text, cursor=None):
+    with provisionalcompleter():
+        return list(shell.Completer.completions(text, len(text) if cursor is None else cursor))
+
+
+def test_source_completion_uses_current_scope_without_executing(shell, monkeypatch):
+    previous = object()
+    shell.user_ns["model"] = previous
+    shell.user_ns["speed_python_only"] = object()
+
+    def forbidden_compile(**_kwargs):
+        raise AssertionError("completion executed the cell")
+
+    monkeypatch.setattr(eqiora, "compile", forbidden_compile)
+    body = "model Cell(){ parameter speed:1=2; variable x:1; relation law{x=spe"
+    text = "%%eqiora model --entry Cell\n" + body
+    items = completions(shell, text)
+    assert [item.text for item in items] == ["speed"]
+    assert all((item.start, item.end) == (len(text) - 3, len(text)) for item in items)
+    assert shell.user_ns["model"] is previous
+    renamed = text.replace("speed:1", "specific:1")
+    assert [item.text for item in completions(shell, renamed)] == ["specific"]
+    assert "speed" not in [item.text for item in completions(shell, renamed)]
+
+
+def test_completion_keeps_unicode_offsets_and_recovers_incomplete_source(shell):
+    text = "%%eqiora model\r\n// 日本語 🦀\r\nmo"
+    items = completions(shell, text)
+    model = next(item for item in items if item.text == "model")
+    assert (model.start, model.end) == (len(text) - 2, len(text))
+
+
+def test_completion_does_not_cross_model_scopes_or_replace_token_suffixes(shell):
+    from eqiora._eqiora import _complete_source_cell
+
+    body = "model A(){parameter secret:1=2;} model B(){variable x:1; relation law{x=sec"
+    result = _complete_source_cell(body, len(body), 50)
+    assert result is not None and "secret" not in result[1]
+    body = "model A(){parameter speed:1=2;variable x:1;relation law{x=speed;}}"
+    cursor = body.rindex("speed") + 3
+    assert _complete_source_cell(body, cursor, 50) is None
+    comment = "model A(){ // spe"
+    assert _complete_source_cell(comment, len(comment), 50) is None
+
+
+def test_plain_python_and_extension_lifecycle_keep_their_completion_owner(shell):
+    import eqiora.jupyter as extension
+
+    shell.user_ns["notebook_python_value"] = 7
+    assert "notebook_python_value" in [item.text for item in completions(shell, "notebook_python_v")]
+    assert shell.Completer.custom_matchers.count(extension._complete_eqiora) == 1
+    shell.run_line_magic("reload_ext", "eqiora.jupyter")
+    assert shell.Completer.custom_matchers.count(extension._complete_eqiora) == 1
+    assert "model" in [item.text for item in completions(shell, "%%eqiora model\nmo")]
+    shell.run_line_magic("unload_ext", "eqiora.jupyter")
+    assert extension._complete_eqiora not in shell.Completer.custom_matchers
+    assert "notebook_python_value" in [item.text for item in completions(shell, "notebook_python_v")]
 
 
 def test_installed_wheel_contains_discoverable_notebook_frontend():

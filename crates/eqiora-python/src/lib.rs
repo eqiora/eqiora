@@ -9,6 +9,7 @@ mod cad_authored;
 mod clock;
 mod common_plan;
 mod differentiation;
+mod editor;
 mod elasticity;
 mod error;
 mod execution;
@@ -234,6 +235,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     viewer::register(module)?;
     module.add_function(wrap_pyfunction!(compile, module)?)?;
     module.add_function(wrap_pyfunction!(_input_unit_catalog, module)?)?;
+    module.add_function(wrap_pyfunction!(editor::_complete_source_cell, module)?)?;
     Ok(())
 }
 
