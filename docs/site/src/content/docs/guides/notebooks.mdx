@@ -75,8 +75,9 @@ Python cells keep Python completion.
 This is standalone source-cell completion: Python variables, other cells and
 external package imports do not become Eqiora declarations. Completion inside
 an existing token is omitted because the IPython matcher only replaces text
-before the cursor. Notebook hover is not yet provided. The kernel completion
-integration was checked with IPython 9.17.0.
+before the cursor. Notebook hover is not yet provided. Installed-package matcher
+tests used IPython 9.17.0; notebook host checks used IPython 9.17.1 and
+ipykernel 7.3.0.
 
 Install Eqiora into the environment that runs the **Jupyter server** as well as
 the Python kernel if those are separate. Restart the server after installing

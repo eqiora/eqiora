@@ -88,7 +88,8 @@ header edits, restoration of Python, Markdown/Raw preservation, saved reopening 
 counts. A separate host check loads the IPython extension and completes a local
 name in an unexecuted source cell. Verified on Linux x86_64,
 Chromium 151.0.7922.34 (Playwright 1.62.1),
-JupyterLab 4.5.11 and Notebook 7.5.6. Host checks used locally built prebuilt assets;
+JupyterLab 4.5.11 and Notebook 7.5.6, with IPython 9.17.1 and ipykernel 7.3.0.
+Host checks used locally built prebuilt assets;
 installed-wheel delivery must also be checked by the Python package gate.
 The notebook execution contract is covered separately by
 `bindings/python/tests/test_jupyter.py`; frontend tests do not establish Colab
