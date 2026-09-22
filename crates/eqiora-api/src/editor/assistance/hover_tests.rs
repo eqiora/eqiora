@@ -7,10 +7,22 @@ fn hover(marked: &str) -> EditorSymbol {
     let file = workspace.files().next().unwrap();
     let (name, _) = workspace.document(file).unwrap().name_at(offset).unwrap();
     let symbol = workspace.assistance(file, offset, &name).unwrap();
-    assert_eq!(
-        workspace.document(file).unwrap().assistance(offset, &name),
-        Some(symbol.clone())
+    let local = workspace
+        .document(file)
+        .unwrap()
+        .assistance(offset, &name)
+        .unwrap();
+    // A contextless document retains the same declaration/type facts; exact
+    // workspace origin is added only by the workspace query.
+    assert!(
+        symbol
+            .detail()
+            .unwrap()
+            .starts_with(local.detail().unwrap())
     );
+    let mut same_facts = symbol.clone();
+    same_facts.detail = local.detail.clone();
+    assert_eq!(same_facts, local);
     symbol
 }
 

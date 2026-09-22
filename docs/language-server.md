@@ -111,6 +111,15 @@ clear earlier typed details while retaining the recovered outline. Cancelled and
 stale preparation cannot publish those facts. Component and nested-binder
 inference and exact named activation identities remain outside this projection.
 
+Hover in a validated workspace includes the declaration's origin. Canonical
+hover shows its complete compilation namespace and source label; supported
+authored declaration/value hover shows the namespace, canonical module and source
+path. Identical exports from different exact packages or modules remain
+distinguishable after import aliases change. Namespace segments retain their
+boundaries as escaped literals; the editor does not interpret opaque segments as
+version or digest fields. Invalid/recovering workspaces and contextless document
+assistance omit exact origin. All origin text stays inside a source-safe code fence.
+
 Local completion includes declarations in the cursor's enclosing lexical scope,
 including unfinished Model/Component bodies. Declaration, type and expression
 positions select different candidate families; sibling locals are never offered.

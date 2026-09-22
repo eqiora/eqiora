@@ -137,6 +137,8 @@ pub(super) fn hover(params: HoverParams, state: &ServerState) -> Result<Option<H
                 source,
                 documentation.as_deref(),
                 definition.notation(),
+                definition.namespace(),
+                definition.file(),
             ),
         }),
         range: None,
@@ -149,15 +151,18 @@ fn markdown_hover(
     source: &str,
     documentation: Option<&str>,
     notation: Option<&Notation>,
+    namespace: &[String],
+    file: &str,
 ) -> String {
-    let longest_run = source
+    let literal = format!("{source}\n// Origin namespace: {namespace:?}\n// Source file: {file:?}");
+    let longest_run = literal
         .split(|character| character != '`')
         .map(str::len)
         .max()
         .unwrap_or_default();
     let fence = "`".repeat(longest_run.saturating_add(1).max(3));
     let mut detail = format!(
-        "**{}** `{path}`\n\n{fence}eqiora\n{source}\n{fence}",
+        "**{}** `{path}`\n\n{fence}eqiora\n{literal}\n{fence}",
         symbol_label(kind)
     );
     super::assistance::append_notation(&mut detail, notation);
@@ -175,10 +180,51 @@ mod tests {
     fn hover_keeps_sanitized_prose_outside_a_source_derived_safe_fence() {
         let source = "public component C() { // ``` hostile fence\n}";
         let prose = "Summary&#46;\n\n\\[run\\](command&#58;delete)\n\\<script\\>";
-        let rendered = markdown_hover(EditorSymbolKind::Component, "C", source, Some(prose), None);
+        let rendered = markdown_hover(
+            EditorSymbolKind::Component,
+            "C",
+            source,
+            Some(prose),
+            None,
+            &["local".into()],
+            "src/main.eqi",
+        );
         assert!(rendered.starts_with(prose));
         assert!(rendered.contains("\n````eqiora\npublic component C"));
         assert!(rendered.ends_with("\n````"));
         assert!(!rendered.contains("[run](command:"));
+    }
+    #[test]
+    fn hover_origin_preserves_opaque_segment_boundaries_inside_the_safe_fence() {
+        let namespace = vec![
+            "pkg".into(),
+            "a::b".into(),
+            "opaque````\n[run](command:run)".into(),
+        ];
+        let rendered = markdown_hover(
+            EditorSymbolKind::Component,
+            "main.Part",
+            "public component Part(){}",
+            None,
+            None,
+            &namespace,
+            "src/quoted\"file.eqi",
+        );
+        assert!(rendered.contains("\n`````eqiora\n"));
+        assert!(rendered.ends_with("\n`````"));
+        assert!(rendered.contains("[\"pkg\", \"a::b\", \"opaque````\\n[run](command:run)\"]"));
+        assert!(rendered.contains("Source file: \"src/quoted\\\"file.eqi\""));
+        assert!(!rendered.contains("\n[run]"));
+        let split = markdown_hover(
+            EditorSymbolKind::Component,
+            "main.Part",
+            "public component Part(){}",
+            None,
+            None,
+            &["pkg".into(), "a".into(), "b".into()],
+            "src/main.eqi",
+        );
+        assert!(split.contains("[\"pkg\", \"a\", \"b\"]"));
+        assert_ne!(rendered, split);
     }
 }
