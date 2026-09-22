@@ -4,7 +4,7 @@ use eqiora_core::{Diagnostic, DimExponents};
 use eqiora_lang::{BinaryOp, Expr, ExprKind, UnaryOp};
 use eqiora_schema::kernel::RationalTime;
 use num_bigint::BigInt;
-use num_rational::BigRational;
+use num_rational::Ratio;
 use num_traits::{Signed, ToPrimitive, Zero};
 
 use crate::diagnostics::source_error;
@@ -60,7 +60,7 @@ fn evaluate(
     file: &str,
     expression: &Expr,
     depth: usize,
-) -> Result<(BigRational, DimExponents), Diagnostic> {
+) -> Result<(Ratio<BigInt>, DimExponents), Diagnostic> {
     let fail = |message| error(file, expression, message);
     if depth > 256 {
         return Err(fail("clock literal expression exceeds depth 256"));
@@ -69,7 +69,7 @@ fn evaluate(
         ExprKind::Quantity { value, unit } => {
             let unit = super::lower_unit(unit, depth + 1).map_err(fail)?;
             if value.is_zero() {
-                (BigRational::zero(), unit.dimension)
+                (Ratio::zero(), unit.dimension)
             } else {
                 let power = value
                     .exponent10()
@@ -87,9 +87,9 @@ fn evaluate(
                 }
                 let scale = BigInt::from(10u8).pow(power.unsigned_abs() as u32);
                 let value = if power >= 0 {
-                    BigRational::from_integer(coefficient * scale)
+                    Ratio::from_integer(coefficient * scale)
                 } else {
-                    BigRational::new(coefficient, scale)
+                    Ratio::new(coefficient, scale)
                 };
                 (value, unit.dimension)
             }

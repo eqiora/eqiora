@@ -702,7 +702,7 @@ fn decimal_signed(
     exponent_shift: i32,
 ) -> Result<ExactRational, Diagnostic> {
     use num_bigint::BigInt;
-    use num_rational::BigRational;
+    use num_rational::Ratio;
     use num_traits::ToPrimitive;
     let error = || {
         pure_error(
@@ -728,9 +728,9 @@ fn decimal_signed(
     }
     let power = BigInt::from(10).pow(exponent.unsigned_abs() as u32);
     let rational = if exponent >= 0 {
-        BigRational::from_integer(numerator * power)
+        Ratio::from_integer(numerator * power)
     } else {
-        BigRational::new(numerator, power)
+        Ratio::new(numerator, power)
     };
     ExactRational::new(
         rational.numer().to_i64().ok_or_else(error)?,
