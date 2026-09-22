@@ -29,10 +29,11 @@ pub(super) fn describe_type(value: &eqiora_core::ValueType) -> String {
         })
         .unwrap_or_default();
     format!(
-        "{:?}; dimension {}; shape {:?}; frame {:?}{nominal}",
+        "{:?}; dimension {}; shape {:?}; array rank {}; frame {:?}{nominal}",
         value.scalar_domain(),
         value.dimension(),
         value.shape().extents(),
+        value.array_rank(),
         value.frame()
     )
 }
