@@ -85,6 +85,13 @@ identity; spatial support identity is definition-local. Component bodies, aliase
 arbitrary expression inference and nested binder scopes retain authored detail
 without claiming inferred types. Hover queries perform no elaboration or solve.
 
+Document-symbol details reuse the same prepared compiler facts for exact Model
+field, parameter and Port declarations, including channel-array rank. Unsupported
+declarations keep their lexical kind. Invalid or incomplete workspace snapshots
+clear earlier typed details while retaining the recovered outline. Cancelled and
+stale preparation cannot publish those facts. Component and nested-binder
+inference and exact named activation identities remain outside this projection.
+
 Local completion includes declarations in the cursor's enclosing lexical scope,
 including unfinished Model/Component bodies. Declaration, type and expression
 positions select different candidate families; sibling locals are never offered.
