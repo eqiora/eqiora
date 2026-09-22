@@ -59,7 +59,10 @@ impl<'a> Query<'a> {
         modules
     }
 
-    fn file_for(&self, snapshot: &EditorSnapshot) -> &str {
+    fn file_for(&self, snapshot: &'a EditorSnapshot) -> &str {
+        if let Some(semantics) = &snapshot.semantics {
+            return &semantics.file;
+        }
         self.workspace
             .and_then(|w| {
                 w.files()
@@ -146,7 +149,20 @@ impl<'a> Query<'a> {
     fn resolve_authored(&self, offset: u32, name: &str) -> Option<EditorSymbol> {
         let mut candidate =
             if let Some((snapshot, symbol)) = self.locate(self.snapshot, offset, name, 0) {
-                declarations::candidate(snapshot, symbol)?
+                let mut candidate = declarations::candidate(snapshot, symbol)?;
+                if let Some(semantics) = &self.snapshot.semantics
+                    && let Some(description) = semantics.analysis.symbol_description(
+                        &semantics.file,
+                        offset,
+                        name,
+                        (self.file_for(snapshot), symbol.range()),
+                    )
+                {
+                    let detail = candidate.detail.get_or_insert_default();
+                    detail.push_str("\n// ");
+                    detail.push_str(&description);
+                }
+                candidate
             } else {
                 let (qualifier, member) = name.rsplit_once('.')?;
                 self.members(offset, qualifier)

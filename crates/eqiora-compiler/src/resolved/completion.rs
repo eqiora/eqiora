@@ -1,7 +1,21 @@
 use super::AnalyzedResolvedHierarchy;
 
 impl AnalyzedResolvedHierarchy {
-    /// Prepare advisory Model binding and scalar endpoint contracts once per
+    /// Describe known Model-scope type, role, activation and spatial support
+    /// facts only when the resolved declaration's source identity matches.
+    /// The prepared index is immutable; this query performs no elaboration.
+    #[must_use]
+    pub fn symbol_description(
+        &self,
+        file: &str,
+        offset: u32,
+        name: &str,
+        declaration: (&str, eqiora_lang::TextRange),
+    ) -> Option<String> {
+        self.completion.describe(file, offset, name, declaration)
+    }
+
+    /// Prepare advisory Model contracts for completion and hover once per
     /// immutable analysis. Cancellation discards the whole new index. Existing
     /// bounded definition scopes are reused; no execution graph, package I/O,
     /// or solve is performed.
@@ -37,6 +51,49 @@ mod tests {
         CompilationNamespaceId, ResolvedHierarchyInput, ResolvedSourceUnit,
         analyze_resolved_hierarchy,
     };
+
+    #[test]
+    fn hover_requires_the_exact_declaration_within_the_current_model() {
+        let owner = CompilationNamespaceId::new(["test"]).unwrap();
+        let first = "variable value:m;";
+        let second = "variable value:s;";
+        let source = format!("model A(){{{first}}} model B(){{{second}}}");
+        let declaration = |text: &str| {
+            let start = source.find(text).unwrap() as u32;
+            eqiora_lang::TextRange::new(start, start + text.len() as u32)
+        };
+        let first = declaration(first);
+        let second = declaration(second);
+        let offset = second.start() + 10;
+        let unit = ResolvedSourceUnit::new(owner.clone(), "src/main.eqi", source).unwrap();
+        let file = unit.diagnostic_file();
+        let mut analysis =
+            analyze_resolved_hierarchy(ResolvedHierarchyInput::new(owner, vec![unit], vec![]))
+                .unwrap();
+        assert!(!analysis.prepare_completion(|| true));
+        assert!(
+            analysis
+                .symbol_description(&file, offset, "value", (&file, second))
+                .is_none()
+        );
+        assert!(analysis.prepare_completion(|| false));
+        assert!(
+            analysis
+                .symbol_description(&file, offset, "value", (&file, second))
+                .unwrap()
+                .contains("dimension T")
+        );
+        assert!(
+            analysis
+                .symbol_description(&file, offset, "value", (&file, first))
+                .is_none()
+        );
+        assert!(
+            analysis
+                .symbol_description(&file, offset, "value", ("other", second))
+                .is_none()
+        );
+    }
 
     #[test]
     fn long_unicode_nominal_labels_are_bounded_without_changing_compatibility() {

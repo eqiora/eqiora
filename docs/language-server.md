@@ -56,6 +56,15 @@ operator scale(
 The native editor API supplies documented `EditorSymbol` values for all three
 features; the language server projects them into LSP responses.
 
+For prepared Model fields, parameters and public child Ports, hover adds known
+scalar domain, physical dimension, shape/frame, field or Port role, activation
+and spatial support to the authored declaration. These facts come from the same
+compiler scope used by completion and are attached only when the resolved
+declaration's file and range match. Named activation retains an unknown occurrence
+identity; spatial support identity is definition-local. Component bodies, aliases,
+arbitrary expression inference and nested binder scopes retain authored detail
+without claiming inferred types. Hover queries perform no elaboration or solve.
+
 Local completion includes declarations in the cursor's enclosing lexical scope,
 including unfinished Model/Component bodies. Declaration, type and expression
 positions select different candidate families; sibling locals are never offered.

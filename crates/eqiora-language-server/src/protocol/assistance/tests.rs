@@ -61,6 +61,48 @@ fn protocol_preserves_compiler_ranking_in_client_sort_text() {
     assert!(items[0].detail.as_ref().unwrap().contains("dimension L"));
 }
 
+#[test]
+fn navigation_hover_projects_current_types_and_exact_utf16_reference_range() {
+    let marked = "// 🧪\nmodel M(){\n/// Measured length.\nvariable value:array<m,2>;relation r{va|lue=value;}}";
+    let (mut state, uri, position) = fixture(marked);
+    let snapshot =
+        eqiora::api::EditorWorkspaceSnapshot::analyze_standalone(1, marked.replace('|', ""));
+    let file = snapshot.files().next().unwrap().to_owned();
+    let group = state.group_for_uri(uri.as_str());
+    state.workspaces.insert(
+        group,
+        super::super::WorkspaceAnalysis {
+            snapshot,
+            file_by_uri: [(uri.as_str().to_owned(), file.clone())].into(),
+            uri_by_file: [(file, uri.clone())].into(),
+        },
+    );
+    let params =
+        serde_json::from_value(json!({"textDocument":{"uri":uri},"position":position})).unwrap();
+    let result = super::super::navigation::hover(params, &state)
+        .unwrap()
+        .unwrap();
+    let range = result.range.unwrap();
+    assert_eq!(
+        range.start,
+        lsp_types::Position::new(position.line, position.character - 2)
+    );
+    assert_eq!(
+        range.end,
+        lsp_types::Position::new(position.line, position.character + 3)
+    );
+    let HoverContents::Markup(contents) = result.contents else {
+        panic!("Markdown")
+    };
+    for fact in ["dimension L", "shape [2]", "Variable", "Measured length"] {
+        assert!(
+            contents.value.contains(fact),
+            "missing {fact:?} in {:?}",
+            contents.value
+        );
+    }
+}
+
 fn signature(marked: &str) -> Option<SignatureHelp> {
     let (state, uri, position) = fixture(marked);
     let params =
