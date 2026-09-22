@@ -1,6 +1,26 @@
 use super::{EditorSnapshot, EditorSymbol, EditorSymbolKind, cursor};
 use eqiora_lang::{Document, SignatureItem};
 
+// The first exact identifier in an AST declaration is its name. Testing this
+// token, rather than the whole declaration, excludes initializer binder uses.
+pub(super) fn at_name(snapshot: &EditorSnapshot, symbol: &EditorSymbol, offset: u32) -> bool {
+    let Some(source) = snapshot
+        .source
+        .get(symbol.range().start() as usize..symbol.range().end() as usize)
+    else {
+        return false;
+    };
+    cursor::tokens(source)
+        .iter()
+        .find(|token| {
+            token.kind() == eqiora_lang::TokenKind::Identifier && token.text() == symbol.name()
+        })
+        .is_some_and(|token| {
+            symbol.range().start() + token.range().start() <= offset
+                && offset < symbol.range().start() + token.range().end()
+        })
+}
+
 pub(super) fn candidate(snapshot: &EditorSnapshot, symbol: &EditorSymbol) -> Option<EditorSymbol> {
     let text = snapshot
         .source

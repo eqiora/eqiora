@@ -1,6 +1,7 @@
 //! Documentation shared by hover, completion and signature help.
 use eqiora::api::EditorSymbol;
 use eqiora::api::EditorSymbolKind;
+use eqiora::language::{Notation, NotationLabel, NotationProfile};
 use lsp_types::{
     CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse, CompletionTextEdit,
     Documentation, Hover, HoverContents, MarkupContent, MarkupKind, ParameterInformation,
@@ -19,11 +20,20 @@ struct Parameter {
     documentation: Option<String>,
 }
 
+pub(super) fn append_notation(value: &mut String, notation: Option<&Notation>) {
+    if let Some(notation) = notation {
+        let label = NotationLabel::from_notation(notation).render(NotationProfile::Plain);
+        // The admitted plain alphabet has no code-span delimiter or executable markup.
+        value.push_str(&format!("\n\nNotation: `{label}`"));
+    }
+}
+
 struct Entry {
     name: String,
     label: String,
     documentation: Option<String>,
     kind: CompletionItemKind,
+    notation: Option<Notation>,
     parameters: Option<Vec<Parameter>>,
 }
 
@@ -50,6 +60,7 @@ impl Entry {
             value.push_str("\n\n");
             value.push_str(doc);
         }
+        append_notation(&mut value, self.notation.as_ref());
         Hover {
             contents: HoverContents::Markup(markdown(value)),
             range: None,
@@ -106,6 +117,7 @@ fn authored(candidate: EditorSymbol) -> Entry {
         name: candidate.name().into(),
         label: candidate.detail().unwrap_or(candidate.name()).into(),
         documentation: candidate.documentation(),
+        notation: candidate.notation().cloned(),
         kind: match candidate.kind() {
             EditorSymbolKind::Operator | EditorSymbolKind::Component | EditorSymbolKind::Model => {
                 CompletionItemKind::FUNCTION

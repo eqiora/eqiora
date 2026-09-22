@@ -1,5 +1,5 @@
 use eqiora::api::{EditorDefinition, EditorSymbolKind, EditorWorkspaceSnapshot};
-use eqiora::language::{NotationLabel, NotationProfile};
+use eqiora::language::Notation;
 use lsp_types::{
     GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams, Location,
     MarkupContent, MarkupKind, ReferenceParams, Uri,
@@ -128,9 +128,6 @@ pub(super) fn hover(params: HoverParams, state: &ServerState) -> Result<Option<H
         return super::assistance::hover(uri, params.text_document_position_params.position, state);
     };
     let documentation = definition.doc_comment().map(|doc| doc.markdown());
-    let notation = definition
-        .notation()
-        .map(|value| NotationLabel::from_notation(value).render(NotationProfile::Plain));
     Ok(Some(Hover {
         contents: HoverContents::Markup(MarkupContent {
             kind: MarkupKind::Markdown,
@@ -139,7 +136,7 @@ pub(super) fn hover(params: HoverParams, state: &ServerState) -> Result<Option<H
                 definition.path(),
                 source,
                 documentation.as_deref(),
-                notation.as_deref(),
+                definition.notation(),
             ),
         }),
         range: None,
@@ -151,7 +148,7 @@ fn markdown_hover(
     path: &str,
     source: &str,
     documentation: Option<&str>,
-    notation: Option<&str>,
+    notation: Option<&Notation>,
 ) -> String {
     let longest_run = source
         .split(|character| character != '`')
@@ -163,11 +160,7 @@ fn markdown_hover(
         "**{}** `{path}`\n\n{fence}eqiora\n{source}\n{fence}",
         symbol_label(kind)
     );
-    if let Some(label) = notation {
-        // Plain notation emits only admitted symbol names and script delimiters;
-        // a code span preserves their literal meaning for generic Markdown clients.
-        detail.push_str(&format!("\n\nNotation: `{label}`"));
-    }
+    super::assistance::append_notation(&mut detail, notation);
     match documentation {
         Some(prose) => format!("{prose}\n\n{detail}"),
         None => detail,

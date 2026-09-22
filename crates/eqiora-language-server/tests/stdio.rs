@@ -1,5 +1,7 @@
 #[path = "stdio/assistance.rs"]
 mod assistance;
+#[path = "stdio/authored_notation.rs"]
+mod authored_notation;
 #[path = "stdio/inspection.rs"]
 mod inspection;
 #[path = "stdio/local_navigation.rs"]
