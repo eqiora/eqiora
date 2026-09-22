@@ -2,6 +2,8 @@
 mod assistance;
 #[path = "stdio/authored_notation.rs"]
 mod authored_notation;
+#[path = "stdio/clock_details.rs"]
+mod clock_details;
 #[path = "stdio/inspection.rs"]
 mod inspection;
 #[path = "stdio/local_navigation.rs"]

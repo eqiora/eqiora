@@ -38,6 +38,19 @@ pub(super) fn describe_type(value: &eqiora_core::ValueType) -> String {
     )
 }
 
+pub(super) fn describe_clock(
+    period: eqiora_schema::kernel::RationalTime,
+    phase: eqiora_schema::kernel::RationalTime,
+) -> String {
+    format!(
+        "periodic clock; period {}/{} s; phase {}/{} s; Model-local declaration; occurrence identity unknown",
+        period.numerator(),
+        period.denominator(),
+        phase.numerator(),
+        phase.denominator(),
+    )
+}
+
 pub(super) fn describe_port(port: &PortContract) -> String {
     match port {
         PortContract::Signal {

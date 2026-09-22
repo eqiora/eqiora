@@ -13,6 +13,10 @@ use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Clone, Debug)]
 enum Candidate {
+    Clock(
+        eqiora_schema::kernel::RationalTime,
+        eqiora_schema::kernel::RationalTime,
+    ),
     Parameter(eqiora_core::ValueType),
     Port(Box<PortContract>),
     Field(
@@ -91,6 +95,17 @@ impl CompletionIndex {
                     Item::Field(value) => (value.name(), value.range()),
                     Item::Parameter(value) => (value.name(), value.range()),
                     Item::Port(value) => (value.name(), value.range()),
+                    Item::Clock(value) => {
+                        if let Ok((period, phase)) = crate::units::lower_clock(
+                            definition.file,
+                            value.period(),
+                            value.phase(),
+                        ) {
+                            candidates
+                                .insert(value.name().to_owned(), Candidate::Clock(period, phase));
+                        }
+                        (value.name(), value.range())
+                    }
                     _ => continue,
                 };
                 declarations.insert(name.to_owned(), (declaration_file.clone(), range));
@@ -300,6 +315,7 @@ impl CompletionIndex {
             return None;
         }
         let text = match scope.candidates.get(name)? {
+            Candidate::Clock(period, phase) => description::describe_clock(*period, *phase),
             Candidate::Parameter(value) => format!(
                 "parameter; {}; static; no spatial support",
                 describe_type(value)

@@ -15,7 +15,10 @@ impl EditorSnapshot {
             }
             if matches!(
                 symbol.kind,
-                EditorSymbolKind::Field | EditorSymbolKind::Parameter | EditorSymbolKind::Port
+                EditorSymbolKind::Field
+                    | EditorSymbolKind::Parameter
+                    | EditorSymbolKind::Port
+                    | EditorSymbolKind::Clock
             ) {
                 symbol.detail = analysis.symbol_description(
                     file,
