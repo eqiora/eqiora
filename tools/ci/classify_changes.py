@@ -322,7 +322,11 @@ def impact_plan(
         if dependency_policy_path(path):
             selected["dependency_policy"] = True
             owning_inputs["dependency_policy"].add(path)
-        if path.startswith("experiments/cubecl-local-action/"):
+        # The isolated workspace consumes root crates (including compiler code
+        # through numerics) and their inherited workspace dependency versions.
+        if path == "Cargo.toml" or path.startswith(
+            ("experiments/cubecl-local-action/", "crates/")
+        ):
             selected["cubecl_experiment"] = True
             owning_inputs["cubecl_experiment"].add(path)
 

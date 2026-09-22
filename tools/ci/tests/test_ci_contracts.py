@@ -992,7 +992,7 @@ class ChangeClassificationTests(unittest.TestCase):
         self.assertEqual(first.lane("rust").reason, "changed input closure")
         self.assertEqual(
             first.lane("cubecl_experiment").reason,
-            "unchanged input closure",
+            "changed input closure",
         )
 
     def test_impact_plan_preserves_public_and_private_lane_selection(self) -> None:
@@ -1225,6 +1225,22 @@ class ChangeClassificationTests(unittest.TestCase):
         cubecl = classify(["experiments/cubecl-local-action/src/lib.rs"])
         self.assertTrue(cubecl["cubecl_experiment"])
         self.assertFalse(cubecl["rust"])
+
+    def test_isolated_experiment_includes_shared_dependency_inputs(self) -> None:
+        for path in (
+            "Cargo.toml",
+            "crates/eqiora-compiler/Cargo.toml",
+            "crates/eqiora-compiler/src/units/exact_time.rs",
+            "crates/eqiora-numerics/src/lib.rs",
+        ):
+            with self.subTest(path=path):
+                lane = impact_plan([path]).lane("cubecl_experiment")
+                self.assertTrue(lane.selected)
+                self.assertEqual(lane.owning_changed_inputs, (path,))
+                self.assertEqual(lane.reason, "changed input closure")
+
+        # This workspace resolves through its own lockfile, not the root lock.
+        self.assertFalse(classify(["Cargo.lock"])["cubecl_experiment"])
 
     def test_verification_data_does_not_select_msrv(self) -> None:
         selected = classify(["verify/numerics/linear-backends/case.toml"])

@@ -392,6 +392,24 @@ class PlanTests(unittest.TestCase):
         self.assertFalse(any("--all-features" in item for item in rendered))
         self.assertTrue(any("--case language.explicit" in item for item in rendered))
 
+    def test_affected_checks_isolated_experiment_for_shared_dependency_changes(self) -> None:
+        for path in (
+            "Cargo.toml",
+            "crates/eqiora-compiler/Cargo.toml",
+            "crates/eqiora-compiler/src/units/exact_time.rs",
+            "crates/eqiora-numerics/src/lib.rs",
+        ):
+            with self.subTest(path=path):
+                plan = build_plan("affected", [path], [], workspace())
+                commands = {item.label: item for item in plan.commands}
+                for label in ("CubeCL Clippy", "CubeCL tests"):
+                    command = commands[label]
+                    self.assertIn("--locked", command.argv)
+                    self.assertIn(
+                        "experiments/cubecl-local-action/Cargo.toml", command.argv
+                    )
+                    self.assertEqual(command.lane.name, "cubecl")
+
     def test_affected_plan_does_not_infer_semantic_cases_from_executor_crates(
         self,
     ) -> None:
