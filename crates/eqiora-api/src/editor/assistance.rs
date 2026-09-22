@@ -8,6 +8,7 @@ mod cursor;
 mod declarations;
 #[cfg(test)]
 mod hover_tests;
+mod navigation;
 mod query;
 #[cfg(test)]
 mod tests;
@@ -78,42 +79,6 @@ impl EditorSnapshot {
 }
 
 impl EditorWorkspaceSnapshot {
-    /// Resolve a simple Model field or parameter reference to its same-file
-    /// declaration name. Invalid snapshots, positions, qualified members and
-    /// nested binder scopes return no location; recovery grants no navigation.
-    #[must_use]
-    pub fn local_definition_at_position(
-        &self,
-        file: &str,
-        position: super::EditorPosition,
-    ) -> Option<TextRange> {
-        if !self.diagnostics().is_empty() {
-            return None;
-        }
-        let snapshot = self.document(file)?;
-        let offset = snapshot.byte_offset(position)?;
-        let semantics = snapshot.semantics.as_ref()?;
-        let (name, declaration) = semantics.analysis.local_definition(file, offset)?;
-        if snapshot.name_at(offset)?.0 != name {
-            return None;
-        }
-        let source = snapshot
-            .source
-            .get(declaration.start() as usize..declaration.end() as usize)?;
-        cursor::tokens(source).windows(2).find_map(|pair| {
-            let token = &pair[0];
-            (token.kind() == eqiora_lang::TokenKind::Identifier
-                && token.text() == name
-                && pair[1].kind() == eqiora_lang::TokenKind::Colon)
-                .then(|| {
-                    TextRange::new(
-                        declaration.start() + token.range().start(),
-                        declaration.start() + token.range().end(),
-                    )
-                })
-        })
-    }
-
     /// Query documented vocabulary, declarations and canonical modules in the current graph.
     /// Returns the replacement range and matching symbols.
     /// Recovery never grants executable validity or crosses a private boundary.
