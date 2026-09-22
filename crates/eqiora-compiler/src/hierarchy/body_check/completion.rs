@@ -244,7 +244,11 @@ impl CompletionIndex {
         (!is_cancelled()).then_some(result)
     }
 
-    pub(crate) fn local_definition(&self, file: &str, offset: u32) -> Option<(&str, TextRange)> {
+    pub(crate) fn value_definition(
+        &self,
+        file: &str,
+        offset: u32,
+    ) -> Option<(&str, eqiora_core::Span)> {
         let scope = self.scope_at(file, offset)?;
         let (_, name) = self
             .sources
@@ -252,14 +256,22 @@ impl CompletionIndex {
             .references
             .iter()
             .find(|(range, _)| range.start() <= offset && offset < range.end())?;
-        if !matches!(
-            scope.candidates.get(name)?,
-            Candidate::Field(_) | Candidate::Parameter(_)
-        ) {
-            return None;
-        }
         let (origin, range) = scope.declarations.get(name)?;
-        (origin.as_ref() == file).then_some((name.as_str(), *range))
+        match scope.candidates.get(name)? {
+            Candidate::Field(_) | Candidate::Parameter(_) if origin.as_ref() == file => {}
+            // Model Ports and direct child public Ports share the exact
+            // admitted declaration map; private child members never enter it.
+            Candidate::Port(_) => {}
+            _ => return None,
+        }
+        Some((
+            name.as_str(),
+            eqiora_core::Span {
+                file: origin.to_string(),
+                start: range.start(),
+                end: range.end(),
+            },
+        ))
     }
 
     pub(crate) fn local_references(

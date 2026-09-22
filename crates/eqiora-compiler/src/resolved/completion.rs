@@ -1,16 +1,14 @@
 use super::AnalyzedResolvedHierarchy;
 
 impl AnalyzedResolvedHierarchy {
-    /// Resolve a simple value-name occurrence to a same-file Model field or
-    /// parameter declaration. Nested binder scopes and qualified members are
-    /// unavailable. Uses the prepared immutable scope without elaboration.
+    /// Resolve a Model value Name or Path occurrence to its stored declaration:
+    /// a same-file Field/Parameter/Port or a direct child's public Port. The returned
+    /// spelling covers the whole expression; callers must prove the cursor is
+    /// on its terminal identifier. Deeper members and nested binder scopes are
+    /// unavailable. Uses the prepared index without elaboration.
     #[must_use]
-    pub fn local_definition(
-        &self,
-        file: &str,
-        offset: u32,
-    ) -> Option<(&str, eqiora_lang::TextRange)> {
-        self.completion.local_definition(file, offset)
+    pub fn value_definition(&self, file: &str, offset: u32) -> Option<(&str, eqiora_core::Span)> {
+        self.completion.value_definition(file, offset)
     }
 
     /// Query a named Field or Parameter in the Model scope containing `offset`.
@@ -120,10 +118,21 @@ mod tests {
                 "{needle} / {name}"
             );
         }
-        // Extending the shared syntax ranges to paths must not broaden local
-        // definition/reference navigation beyond simple Fields and Parameters.
+        // The admitted child Port has a stored declaration target. Reference
+        // enumeration remains limited to simple Model Fields and Parameters.
         let offset = source.find("child.value").unwrap() as u32 + 6;
-        assert!(analysis.local_definition(&file, offset).is_none());
+        let start = source.find("output value:1").unwrap() as u32;
+        assert_eq!(
+            analysis.value_definition(&file, offset),
+            Some((
+                "child.value",
+                eqiora_core::Span {
+                    file: file.clone(),
+                    start,
+                    end: start + "output value:1".len() as u32,
+                }
+            ))
+        );
         assert!(
             analysis
                 .local_references(&file, offset, "child.value")

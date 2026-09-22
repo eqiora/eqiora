@@ -127,6 +127,17 @@ The parameter still means one inverse second, so the predicted decay values
 from Get started are unchanged. The editor does not choose a numerical method
 or execute the model.
 
+## Source-checkout navigation
+
+The current source-checkout server also navigates from Model field/parameter/Port
+value references and direct child public Port references to their exact
+source declarations. For `child.value`, place the cursor on `value`; the target
+can be in an imported component file and follows unsaved document changes.
+Qualifiers, deeper members, private child Ports, nested binders and
+invalid source do not gain definition targets. Find References remains limited
+to simple same-file Model fields and parameters. These additions are separate
+from the published-server checks above.
+
 ## Other LSP clients and projects
 
 Associate `.eqi` with language ID `eqiora` and launch the executable over stdio,
