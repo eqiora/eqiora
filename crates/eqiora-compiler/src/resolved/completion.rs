@@ -13,6 +13,20 @@ impl AnalyzedResolvedHierarchy {
         self.completion.local_definition(file, offset)
     }
 
+    /// Query a named Field or Parameter in the Model scope containing `offset`.
+    /// Returns its same-file declaration and value-name expression ranges in
+    /// source order, excluding nested binder scopes. The caller projects exact
+    /// identifier tokens and validates whether its cursor names this target.
+    #[must_use]
+    pub fn local_references(
+        &self,
+        file: &str,
+        offset: u32,
+        name: &str,
+    ) -> Option<(eqiora_lang::TextRange, Vec<eqiora_lang::TextRange>)> {
+        self.completion.local_references(file, offset, name)
+    }
+
     /// Describe known Model-scope type, role, activation and spatial support
     /// facts only when the resolved declaration's source identity matches.
     /// The prepared index is immutable; this query performs no elaboration.

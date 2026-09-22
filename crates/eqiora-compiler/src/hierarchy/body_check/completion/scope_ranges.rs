@@ -41,8 +41,24 @@ pub(super) fn collect(
             references.push((expression.range(), name.clone()));
         }
     });
-    (!cancelled && !is_cancelled()).then_some(SourceRanges {
-        excluded: ranges,
+    if cancelled || is_cancelled() {
+        return None;
+    }
+    references.sort_by_key(|(range, _)| (range.start(), range.end()));
+    references.dedup();
+    ranges.sort_by_key(|range| (range.start(), range.end()));
+    let mut excluded: Vec<TextRange> = Vec::new();
+    for range in ranges {
+        if let Some(previous) = excluded.last_mut()
+            && range.start() <= previous.end()
+        {
+            *previous = TextRange::new(previous.start(), previous.end().max(range.end()));
+        } else {
+            excluded.push(range);
+        }
+    }
+    (!is_cancelled()).then_some(SourceRanges {
+        excluded,
         references,
     })
 }

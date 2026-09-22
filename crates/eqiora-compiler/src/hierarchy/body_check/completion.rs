@@ -247,6 +247,46 @@ impl CompletionIndex {
         (origin.as_ref() == file).then_some((name.as_str(), *range))
     }
 
+    pub(crate) fn local_references(
+        &self,
+        file: &str,
+        offset: u32,
+        name: &str,
+    ) -> Option<(TextRange, Vec<TextRange>)> {
+        let scope = self.scope_at(file, offset)?;
+        if !matches!(
+            scope.candidates.get(name)?,
+            Candidate::Field(_) | Candidate::Parameter(_)
+        ) {
+            return None;
+        }
+        let (origin, declaration) = scope.declarations.get(name)?;
+        if origin.as_ref() != file {
+            return None;
+        }
+        let source = self.sources.get(file)?;
+        let mut excluded = source.excluded.iter().peekable();
+        let mut references = Vec::new();
+        for (range, candidate) in &source.references {
+            while excluded
+                .peek()
+                .is_some_and(|item| item.end() < range.start())
+            {
+                excluded.next();
+            }
+            if candidate == name
+                && scope.range.start() <= range.start()
+                && range.end() <= scope.range.end()
+                && !excluded
+                    .peek()
+                    .is_some_and(|item| contains(**item, range.start()))
+            {
+                references.push(*range);
+            }
+        }
+        Some((*declaration, references))
+    }
+
     pub(crate) fn describe(
         &self,
         file: &str,

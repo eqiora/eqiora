@@ -52,3 +52,72 @@ fn stdio_local_definition_uses_current_model_and_document_version() {
         assert!(response(&messages, id)["result"].is_null());
     }
 }
+
+#[test]
+fn stdio_local_references_include_declarations_and_reject_stale_versions() {
+    let uri = "file:///workspace/main.eqi";
+    let source = "// 🧪\r\nmodel Other(){parameter rate:1=2;}\r\nmodel M(){parameter rate:1=1;parameter unused:1=0;variable x:1;relation r{x=(rate)+rate;}}";
+    let moved = source.replace("relation r{", "relation r{\r\n");
+    let invalid = "model M(){parameter rate:1=1;relation r{rate";
+    let request = |id, source: &str, occurrence, include| {
+        json!({
+            "jsonrpc":"2.0","id":id,"method":"textDocument/references",
+            "params":{"textDocument":{"uri":uri},"position":source_position(source,occurrence),"context":{"includeDeclaration":include}}
+        })
+    };
+    let mut child = Command::new(SERVER)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    for message in [
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
+        json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+        json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":uri,"languageId":"eqiora","version":1,"text":source}}}),
+        request(2, source, "rate:1=1", false),
+        request(3, source, "rate)+", true),
+        request(4, source, "unused:", false),
+        request(5, source, "unused:", true),
+        json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":uri,"version":2},"contentChanges":[{"text":moved}]}}),
+        json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":uri,"version":1},"contentChanges":[{"text":source}]}}),
+        request(6, &moved, "rate:1=1", false),
+        json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":uri,"version":3},"contentChanges":[{"text":invalid}]}}),
+        request(7, invalid, "rate:1=1", true),
+        json!({"jsonrpc":"2.0","id":8,"method":"shutdown","params":null}),
+        json!({"jsonrpc":"2.0","method":"exit","params":null}),
+    ] {
+        write_packet(&mut stdin, &message);
+    }
+    drop(stdin);
+    let output = child.wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let messages = parse_packets(&output.stdout);
+    let location = |source: &str, occurrence: &str, length| {
+        let start = source_position(source, occurrence);
+        let end =
+            json!({"line":start["line"],"character":start["character"].as_u64().unwrap()+length});
+        json!({"uri":uri,"range":{"start":start,"end":end}})
+    };
+    let uses = vec![location(source, "rate)+", 4), location(source, "rate;}", 4)];
+    assert_eq!(response(&messages, 2)["result"], json!(uses));
+    assert_eq!(
+        response(&messages, 3)["result"],
+        json!([location(source, "rate:1=1", 4), uses[0], uses[1]])
+    );
+    assert_eq!(response(&messages, 4)["result"], json!([]));
+    assert_eq!(
+        response(&messages, 5)["result"],
+        json!([location(source, "unused:", 6)])
+    );
+    assert_eq!(
+        response(&messages, 6)["result"],
+        json!([location(&moved, "rate)+", 4), location(&moved, "rate;}", 4)])
+    );
+    assert_eq!(response(&messages, 7)["result"], json!([]));
+}

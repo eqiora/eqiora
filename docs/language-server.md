@@ -24,7 +24,13 @@ Go to Definition also resolves simple value references to fields and parameters
 declared in the same Model and file, using the compiler's prepared scope and
 exact declaration name ranges. Unsaved document versions are respected. Invalid
 snapshots, nested binder scopes, Component locals, aliases and qualified members
-do not gain local navigation; this does not extend Find References or add rename.
+do not gain local navigation. Find References accepts either a same-Model field
+or parameter declaration or one of its supported value references, optionally
+including the declaration. It returns exact identifier ranges in source order,
+including an empty list for an unused declaration. Its results are limited to
+simple value references outside nested binder scopes: qualified names, Component
+locals, aliases and cross-file local references remain unsupported. These bounded
+results do not support rename.
 Lifecycle events are emitted as one JSON object per line on stderr, leaving
 stdout exclusively for LSP framing.
 

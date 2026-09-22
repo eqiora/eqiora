@@ -42,6 +42,20 @@ pub(super) fn references(
         return Ok(Vec::new());
     };
     let position = editor_position(params.text_document_position.position);
+    if let Some(ranges) =
+        workspace.local_references_at_position(file, position, params.context.include_declaration)
+    {
+        let snapshot = workspace.document(file).ok_or("source is unavailable")?;
+        return ranges
+            .into_iter()
+            .map(|range| {
+                Ok(Location::new(
+                    uri.clone(),
+                    source_range(snapshot, range.start() as usize, range.end() as usize)?,
+                ))
+            })
+            .collect();
+    }
     let Some((target, _source)) = workspace.hover_at_position(file, position) else {
         return Ok(Vec::new());
     };
