@@ -69,8 +69,9 @@ for (const route of ['lab/tree', 'notebooks']) {
       await page.goto(`/${route}/${name}${query}`);
       const cells = page.locator('.jp-CodeCell .cm-content:visible');
       await expect(cells).toHaveCount(3, { timeout: 30000 });
+      await expect.poll(() => cells.nth(0).innerText()).toBe(notebook.cells[0].source[0]);
       await cells.nth(0).click();
-      await page.keyboard.press('Shift+Enter');
+      await cells.nth(0).press('Shift+Enter');
       await expect(page.locator('.jp-CodeCell:visible').nth(0).locator('.jp-OutputArea')).toContainText('Eqiora completion ready', { timeout: 30000 });
       const source = cells.nth(1);
       await source.click();
