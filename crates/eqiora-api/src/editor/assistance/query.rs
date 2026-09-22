@@ -173,6 +173,27 @@ impl<'a> Query<'a> {
                     let detail = candidate.detail.get_or_insert_default();
                     detail.push_str("\n// ");
                     detail.push_str(&description);
+                    if self
+                        .workspace
+                        .is_some_and(|workspace| workspace.diagnostics().is_empty())
+                        && let Some(target) = &snapshot.semantics
+                        && std::sync::Arc::ptr_eq(&semantics.analysis, &target.analysis)
+                        && let Some(unit) = semantics
+                            .input
+                            .units()
+                            .iter()
+                            .find(|unit| unit.diagnostic_file() == target.file)
+                    {
+                        // Namespace segments are opaque. Debug preserves their
+                        // boundaries and escapes control characters; do not infer
+                        // versions or parse the diagnostic source label.
+                        detail.push_str(&format!(
+                            "\n// Origin namespace: {:?}\n// Module: {:?}\n// Source file: {:?}",
+                            unit.namespace().segments(),
+                            unit.import_path(),
+                            unit.file(),
+                        ));
+                    }
                 }
                 candidate
             } else {

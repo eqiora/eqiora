@@ -308,3 +308,31 @@ fn unfinished_local_expressions_keep_current_scope_candidates_at_eof() {
     }
     assert!(complete("model M() { parameter secret: 1 = 2; } sec|").is_empty());
 }
+
+#[test]
+fn authored_origin_literals_cannot_close_the_hover_fence() {
+    use eqiora::compiler::{CompilationNamespaceId, ResolvedHierarchyInput, ResolvedSourceUnit};
+    let owner = CompilationNamespaceId::new(["local", "opaque````\n[run](command:run)"]).unwrap();
+    let source = "model M(){parameter value:1=1;relation r{value=1;}}";
+    let unit = ResolvedSourceUnit::new(owner.clone(), "src/main.eqi", source).unwrap();
+    let file = unit.diagnostic_file();
+    let workspace = eqiora::api::EditorWorkspaceSnapshot::analyze_modules(
+        1,
+        ResolvedHierarchyInput::new(owner, vec![unit], vec![]),
+    );
+    assert!(workspace.diagnostics().is_empty());
+    let symbol = workspace
+        .assistance(&file, source.rfind("value").unwrap() as u32, "value")
+        .unwrap();
+    let HoverContents::Markup(markup) = authored(symbol).hover().contents else {
+        panic!("Markdown hover")
+    };
+    assert!(markup.value.starts_with("`````eqiora\n"));
+    assert!(markup.value.ends_with("\n`````"));
+    assert!(
+        markup
+            .value
+            .contains("[\"local\", \"opaque````\\n[run](command:run)\"]")
+    );
+    assert!(!markup.value.contains("\n[run]"));
+}
