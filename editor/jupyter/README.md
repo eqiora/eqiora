@@ -16,7 +16,9 @@ development revision. In a split server/kernel installation, install the fronten
 assets in the **Jupyter server environment** and Eqiora in the **kernel environment**.
 This development feature is absent from the published Eqiora 0.1.2 package.
 Colab and VS Code notebook editors do not load this Jupyter plugin; their
-highlighting is not claimed. Completion and hover are not implemented here.
+highlighting is not claimed. Completion is supplied by the opt-in Python
+extension through the shared native editor service, not by this syntax adapter.
+Notebook hover is not implemented.
 
 ## Build and inspect
 
@@ -83,7 +85,9 @@ EQIORA_JUPYTER_URL=http://127.0.0.1:18927 EQIORA_JUPYTER_TOKEN=eqiora-test npm r
 Tests use temporary notebooks and remove them afterward. Browser tests cover
 canonical keywords/types/units/numbers/comments, initial unexecuted cells,
 header edits, restoration of Python, Markdown/Raw preservation, saved reopening and unchanged execution
-counts. Verified on Linux x86_64, Chromium 151.0.7922.34 (Playwright 1.62.1),
+counts. A separate host check loads the IPython extension and completes a local
+name in an unexecuted source cell. Verified on Linux x86_64,
+Chromium 151.0.7922.34 (Playwright 1.62.1),
 JupyterLab 4.5.11 and Notebook 7.5.6. Host checks used locally built prebuilt assets;
 installed-wheel delivery must also be checked by the Python package gate.
 The notebook execution contract is covered separately by
