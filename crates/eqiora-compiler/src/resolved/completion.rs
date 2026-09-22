@@ -27,8 +27,9 @@ impl AnalyzedResolvedHierarchy {
         self.completion.local_references(file, offset, name)
     }
 
-    /// Describe known Model-scope type, role, activation and spatial support
-    /// facts only when the resolved declaration's source identity matches.
+    /// Describe known Model-scope type, role, activation, spatial support and
+    /// exact local periodic schedule facts only when the resolved declaration's
+    /// source identity matches.
     /// The prepared index is immutable; this query performs no elaboration.
     #[must_use]
     pub fn symbol_description(

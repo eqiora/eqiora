@@ -91,8 +91,16 @@ identity; spatial support identity is definition-local. Component bodies, aliase
 arbitrary expression inference and nested binder scopes retain authored detail
 without claiming inferred types. Hover queries perform no elaboration or solve.
 
+Model-owned periodic Clock hover adds the exact reduced period and phase in
+coherent seconds from the existing compiler time conversion. For example,
+`periodic(100[ms], phase=50[ms])` displays period `1/10 s` and phase `1/20 s`.
+Equal schedules remain distinct declarations. This does not assign occurrence
+identity or infer borrowed, Component-local or child Clock schedules; Event
+metadata and Clock definition/reference navigation remain outside this slice.
+
 Document-symbol details reuse the same prepared compiler facts for exact Model
-field, parameter and Port declarations, including channel-array rank. Unsupported
+field, parameter, Port and periodic Clock declarations, including channel-array
+rank and exact local schedules. Unsupported
 declarations keep their lexical kind. Invalid or incomplete workspace snapshots
 clear earlier typed details while retaining the recovered outline. Cancelled and
 stale preparation cannot publish those facts. Component and nested-binder
