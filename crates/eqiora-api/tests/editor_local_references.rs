@@ -68,6 +68,9 @@ fn valid_binders_and_qualified_names_do_not_join_the_local_reference_set() {
     );
     assert_eq!(references(source, "gain+", false), None);
     assert_eq!(references(source, "config.gain", false), None);
+    let source = "model M(){parameter m:1=1;variable y:m;}";
+    assert_eq!(references(source, "m:1", false), Some(vec![]));
+    assert_eq!(references(source, "m;", false), None);
 }
 
 #[test]
