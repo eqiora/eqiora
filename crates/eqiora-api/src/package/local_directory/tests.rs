@@ -284,9 +284,10 @@ fn path_loaded_and_in_memory_source_have_identical_declaration_documentation() {
         analyze_local_package_editor_project_v1(1, &fixture.0, &BTreeMap::new()).unwrap();
     let file = paths.keys().next().unwrap();
     let loaded = workspace.document(file).unwrap();
-    let memory = crate::editor::EditorService::new(file, 1, source);
-    assert_eq!(loaded.symbols(), memory.current().symbols());
-    assert_eq!(loaded.formatted(), memory.current().formatted());
+    let memory = crate::editor::EditorWorkspaceSnapshot::analyze_standalone(1, source);
+    let memory = memory.document(memory.files().next().unwrap()).unwrap();
+    assert_eq!(loaded.symbols(), memory.symbols());
+    assert_eq!(loaded.formatted(), memory.formatted());
     let model = &loaded.symbols()[0];
     assert_eq!(model.doc_comment().unwrap().summary(), "Model explanation.");
     let doc = model.children()[0].doc_comment().unwrap();

@@ -201,7 +201,7 @@ impl EditorWorkspaceSnapshot {
         diagnostic: Diagnostic,
     ) -> Self {
         for (file, snapshot) in &mut self.documents {
-            snapshot.semantics = None;
+            snapshot.clear_semantics();
             if let Some(source) = overrides.get(file) {
                 *snapshot = EditorSnapshot::from_recovered_source(
                     self.version,
@@ -376,21 +376,27 @@ impl EditorWorkspaceSnapshot {
     fn with_assistance(
         mut self,
         mut analyzed: AnalyzedResolvedHierarchy,
-        is_cancelled: impl FnMut() -> bool,
+        mut is_cancelled: impl FnMut() -> bool,
     ) -> Option<Self> {
-        if !analyzed.prepare_completion(is_cancelled) {
+        if !analyzed.prepare_completion(&mut is_cancelled) {
             return None;
         }
         let input = self.input.as_ref()?.clone();
         let analysis = std::sync::Arc::new(analyzed);
         for (file, document) in &mut self.documents {
+            if is_cancelled()
+                || (self.diagnostics.is_empty()
+                    && !document.prepare_symbol_details(file, &analysis, &mut is_cancelled))
+            {
+                return None;
+            }
             document.semantics = Some(super::assistance::PreparedCompletion {
                 input: input.clone(),
                 analysis: analysis.clone(),
                 file: file.clone(),
             });
         }
-        Some(self)
+        (!is_cancelled()).then_some(self)
     }
 
     fn from_analyzed_unprepared(

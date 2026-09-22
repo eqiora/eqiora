@@ -7,6 +7,7 @@ use eqiora_lang::{
 };
 
 mod assistance;
+mod symbol_details;
 mod workspace;
 
 pub use workspace::{
@@ -148,7 +149,8 @@ impl EditorSymbol {
         }
     }
 
-    /// Declaration head supplied by an assistance query.
+    /// Prepared compiler facts for an outline entry, or the declaration head
+    /// supplied by an assistance query. Unresolved outline entries have no detail.
     #[must_use]
     pub fn detail(&self) -> Option<&str> {
         self.detail.as_deref()

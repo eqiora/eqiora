@@ -6,6 +6,8 @@ mod inspection;
 mod local_navigation;
 #[path = "stdio/notation.rs"]
 mod notation;
+#[path = "stdio/symbol_details.rs"]
+mod symbol_details;
 
 use std::{
     fs,
