@@ -2,14 +2,21 @@
 //! Keep their positions unknown instead of attaching an outer declaration's type.
 use eqiora_lang::{Document, ExprKind, Item, SourceAstFactory, TextRange};
 
-pub(super) fn excluded(
+#[derive(Clone, Debug)]
+pub(super) struct SourceRanges {
+    pub excluded: Vec<TextRange>,
+    pub references: Vec<(TextRange, String)>,
+}
+
+pub(super) fn collect(
     document: &Document,
     is_cancelled: &mut impl FnMut() -> bool,
-) -> Option<Vec<TextRange>> {
+) -> Option<SourceRanges> {
     if is_cancelled() {
         return None;
     }
     let mut ranges = Vec::new();
+    let mut references = Vec::new();
     for model in document.models() {
         for item in model.items() {
             match item {
@@ -30,6 +37,12 @@ pub(super) fn excluded(
         if !cancelled && matches!(expression.kind(), ExprKind::Reduction { .. }) {
             ranges.push(expression.range());
         }
+        if !cancelled && let ExprKind::Name(name) = expression.kind() {
+            references.push((expression.range(), name.clone()));
+        }
     });
-    (!cancelled && !is_cancelled()).then_some(ranges)
+    (!cancelled && !is_cancelled()).then_some(SourceRanges {
+        excluded: ranges,
+        references,
+    })
 }

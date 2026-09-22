@@ -47,7 +47,7 @@ struct Scope {
 #[derive(Clone, Debug, Default)]
 pub(crate) struct CompletionIndex {
     files: BTreeMap<String, Vec<Scope>>,
-    excluded: BTreeMap<String, Vec<TextRange>>,
+    sources: BTreeMap<String, scope_ranges::SourceRanges>,
 }
 
 fn contains(range: TextRange, offset: u32) -> bool {
@@ -72,8 +72,8 @@ impl CompletionIndex {
         };
         let mut result = Self::default();
         for unit in &analysis.units {
-            let ranges = scope_ranges::excluded(&unit.document, &mut is_cancelled)?;
-            result.excluded.insert(unit.file.clone(), ranges);
+            let ranges = scope_ranges::collect(&unit.document, &mut is_cancelled)?;
+            result.sources.insert(unit.file.clone(), ranges);
         }
         for (_, definition) in elaborator.models() {
             if is_cancelled() {
@@ -229,6 +229,24 @@ impl CompletionIndex {
         (!is_cancelled()).then_some(result)
     }
 
+    pub(crate) fn local_definition(&self, file: &str, offset: u32) -> Option<(&str, TextRange)> {
+        let scope = self.scope_at(file, offset)?;
+        let (_, name) = self
+            .sources
+            .get(file)?
+            .references
+            .iter()
+            .find(|(range, _)| range.start() <= offset && offset < range.end())?;
+        if !matches!(
+            scope.candidates.get(name)?,
+            Candidate::Field(_) | Candidate::Parameter(_)
+        ) {
+            return None;
+        }
+        let (origin, range) = scope.declarations.get(name)?;
+        (origin.as_ref() == file).then_some((name.as_str(), *range))
+    }
+
     pub(crate) fn describe(
         &self,
         file: &str,
@@ -338,8 +356,9 @@ impl CompletionIndex {
 
     fn scope_at(&self, file: &str, offset: u32) -> Option<&Scope> {
         if self
-            .excluded
+            .sources
             .get(file)?
+            .excluded
             .iter()
             .any(|range| contains(*range, offset))
         {
