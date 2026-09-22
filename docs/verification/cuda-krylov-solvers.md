@@ -60,7 +60,7 @@ CUDA_VISIBLE_DEVICES=<physical-index> \
 EQIORA_CUDA_DEVICE=0 \
 cargo test -p eqiora-backend-cuda --features cuda-runtime \
   --test contract_boundary \
-  cuda_runtime::physical_cuda_cg_and_bicgstab_are_independently_accepted \
+  cuda_runtime::physical_cuda_krylov_paths_are_independently_accepted \
   -- --ignored --exact
 ```
 

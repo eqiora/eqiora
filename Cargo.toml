@@ -69,10 +69,10 @@ truck-topology = "=0.6.0"
 # plus sensitivity tolerance scaling; do not relax this pin without rerunning
 # every registered BDF, mass-matrix, sensitivity, and restart case.
 diffsol = { version = "=0.16.2", default-features = false, features = ["nalgebra", "faer"] }
-# cudarc 0.18.2 is the exact binding/runtime baseline covered by current device
-# evidence. A 0.19 upgrade is a separate adapter-and-hardware-evidence slice,
-# not an incidental consequence of the workspace MSRV decision.
-cudarc = { version = "=0.18.2", default-features = false, features = ["std", "driver", "cuda-12000", "dynamic-loading"] }
+# cudarc 0.19.9 is the exact binding/runtime baseline covered by current device
+# conformance. Further upgrades require adapter API review and rerunning the
+# existing physical CUDA and MPI-CUDA gates; the CUDA 12 binding ABI stays pinned.
+cudarc = { version = "=0.19.9", default-features = false, features = ["std", "driver", "cuda-12000", "dynamic-loading"] }
 crossbeam-channel = "=0.5.17"
 libloading = "=0.8.9"
 lsp-server = "=0.10.0"

@@ -37,7 +37,7 @@ pub const CUDA_RUNTIME_ID: eqiora_device::RuntimeId =
 pub const CUDA_ADAPTER_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Exact dynamically loaded driver-binding dependency version.
-pub const CUDARC_VERSION: &str = "0.18.2";
+pub const CUDARC_VERSION: &str = "0.19.9";
 
 /// CUDA toolkit ABI selected for the generated driver bindings.
 pub const CUDA_BINDING_TOOLKIT: &str = "12.0";

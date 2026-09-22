@@ -38,19 +38,18 @@ References:
 
 ### Rust CUDA adapter baseline
 
-- Checked 2026-07-21: cudarc 0.19.8 is current. The optional adapter remains
-  exact-pinned to cudarc 0.18.2 plus libloading 0.8.9 because that is the
-  binding/runtime line covered by Eqiora's committed device evidence. The
-  workspace's newer MSRV makes 0.19 admissible to investigate, but does not
-  substitute for API review and fresh physical hardware evidence.
+- Checked 2026-09-22: the optional adapter is exact-pinned to cudarc 0.19.9
+  plus libloading 0.8.9 for Eqiora's private library bindings. The binding ABI
+  remains `cuda-12000`; the dependency update does not expand CUDA toolkit,
+  device, reproducibility, or performance claims. Physical conformance must
+  run the existing CUDA gates and the accepted MPI-CUDA case for this tuple.
 - cudarc owns CUDA driver discovery, contexts, streams, and typed allocations.
-  cuSPARSE has no safe cudarc wrapper in this line. Its generated dynamic
-  loader also resolves unrelated release-specific symbols eagerly, which
-  rejects otherwise compatible 12.x libraries. Eqiora's private FFI modules
-  load only the CUDA 12 cuSPARSE Generic API and cuBLAS level-1/diagonal-band
-  symbols they execute and retain each library for every handle/descriptor
-  lifetime. cuBLAS uses explicit host scalar pointer mode and disables atomic
-  routines; its reductions remain `Fast`, not Eqiora `Reproducible`.
+  Eqiora retains its private FFI modules for the CUDA 12 cuSPARSE Generic API
+  and cuBLAS level-1/diagonal-band symbols it executes. The narrow symbol set
+  originated with cudarc 0.18's eager loader; cudarc 0.19 loads symbols on use.
+  Each library remains owned for every handle/descriptor lifetime. cuBLAS
+  uses explicit host scalar pointer mode and disables atomic routines; its
+  reductions remain `Fast`, not Eqiora `Reproducible`.
 - `cuda-runtime` remains optional and dynamically loaded. Default and
   all-features CI can compile on hosts without a CUDA device; only an explicit
   ignored hardware gate executes the adapter.
@@ -60,8 +59,8 @@ References:
 
 References:
 
-- <https://docs.rs/cudarc/0.18.2/cudarc/>
-- <https://docs.rs/cudarc/0.19.8/cudarc/>
+- <https://docs.rs/cudarc/0.19.9/cudarc/>
+- <https://github.com/chelsea0x3b/cudarc/releases/tag/v0.19.0>
 - <https://docs.nvidia.com/cuda/cusparse/generic-api/generic-api-functions.html>
 - <https://docs.nvidia.com/cuda/cublas/>
 - <https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html>
