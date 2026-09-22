@@ -26,7 +26,10 @@ impl EditorWorkspaceSnapshot {
         let source = snapshot
             .source
             .get(declaration.start() as usize..declaration.end() as usize)?;
-        cursor::tokens(source).windows(2).find_map(|pair| {
+        let mut tokens = cursor::tokens(source);
+        // Admitted declaration notation sits between its name and type colon.
+        tokens.retain(|token| token.kind() != TokenKind::Notation);
+        tokens.windows(2).find_map(|pair| {
             let token = &pair[0];
             (token.kind() == eqiora_lang::TokenKind::Identifier
                 && token.text() == name
@@ -65,7 +68,8 @@ impl EditorWorkspaceSnapshot {
             semantics.analysis.local_references(file, offset, &name)?;
         // A single source token sweep handles parenthesized Name expressions
         // without re-lexing the whole source for every occurrence.
-        let tokens = cursor::tokens(&snapshot.source);
+        let mut tokens = cursor::tokens(&snapshot.source);
+        tokens.retain(|token| token.kind() != TokenKind::Notation);
         let declaration_name = tokens.windows(2).find_map(|pair| {
             let token = &pair[0];
             (declaration.start() <= token.range().start()

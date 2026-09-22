@@ -143,3 +143,58 @@ fn references_use_current_unsaved_versions_and_validate_utf16_positions() {
             .is_none()
     );
 }
+
+#[test]
+fn notation_between_name_and_type_preserves_exact_navigation() {
+    let source = "// 🧪\r\nmodel Other(){parameter m:1=2;}model M(){parameter m @{m_0}:1=1;variable x @{x_i}:1;parameter unused @{u}:1=0;relation r{x=m;}}";
+    let workspace = EditorWorkspaceSnapshot::analyze_standalone(1, source);
+    assert!(
+        workspace.diagnostics().is_empty(),
+        "{:?}",
+        workspace.diagnostics()
+    );
+    let file = workspace.files().next().unwrap();
+    let snapshot = workspace.document(file).unwrap();
+    for (name, declaration, reference) in [("m", "m @{", "m;"), ("x", "x @{", "x=m")] {
+        let target = range(source, declaration, name);
+        let occurrence = range(source, reference, name);
+        let position = snapshot.position(occurrence.start()).unwrap();
+        assert_eq!(
+            workspace.local_definition_at_position(file, position),
+            Some(target)
+        );
+        for cursor in [target.start(), occurrence.start()] {
+            assert_eq!(
+                workspace.local_references_at_position(
+                    file,
+                    snapshot.position(cursor).unwrap(),
+                    true
+                ),
+                Some(vec![target, occurrence])
+            );
+            assert_eq!(
+                workspace.local_references_at_position(
+                    file,
+                    snapshot.position(cursor).unwrap(),
+                    false
+                ),
+                Some(vec![occurrence])
+            );
+        }
+    }
+    assert_eq!(references(source, "unused @{", false), Some(vec![]));
+    assert_eq!(
+        references(source, "unused @{", true),
+        Some(vec![range(source, "unused @{", "unused")])
+    );
+    for notation in ["m_0", "x_i"] {
+        let position = snapshot
+            .position(source.find(notation).unwrap() as u32)
+            .unwrap();
+        assert_eq!(
+            workspace.local_references_at_position(file, position, true),
+            None
+        );
+        assert_eq!(workspace.local_definition_at_position(file, position), None);
+    }
+}

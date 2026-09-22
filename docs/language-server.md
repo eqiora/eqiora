@@ -30,7 +30,8 @@ including the declaration. It returns exact identifier ranges in source order,
 including an empty list for an unused declaration. Its results are limited to
 simple value references outside nested binder scopes: qualified names, Component
 locals, aliases and cross-file local references remain unsupported. These bounded
-results do not support rename.
+results do not support rename. Admitted declaration notation does not change
+navigation targets, and names inside notation islands are not references.
 Lifecycle events are emitted as one JSON object per line on stderr, leaving
 stdout exclusively for LSP framing.
 
