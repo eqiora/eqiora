@@ -68,13 +68,19 @@ operator scale(
 The native editor API supplies documented `EditorSymbol` values for all three
 features; the language server projects them into LSP responses.
 
-Canonical top-level declaration hover also displays admitted `@{...}` notation as
-an accessible plain label, with explicit script delimiters and no TeX execution.
-`EditorDefinition::notation()` retains the validated notation and source range
-selected by the compiler's exact definition, including imported declarations.
-This is declaration notation only: occurrence qualification, inferred styling,
-activation and local-field notation are not part of this projection. Missing or
-rejected notation never supplies a label from another declaration or snapshot.
+Declaration hover displays admitted `@{...}` notation through the existing plain
+label renderer, with explicit script delimiters and no TeX execution.
+`EditorDefinition::notation()` retains the compiler-selected top-level declaration's
+validated notation and source range, including imported declarations.
+`EditorSymbol::notation()` also retains notation on exact authored declarations,
+including local fields, parameters and public interface members. Authored hover
+shows the label at the current declaration-name token, or at a reference whose
+declaration identity the prepared compiler scope proves. Recovery can retain
+notation on a declaration without granting typed facts; nested binder scopes,
+recovering references and unsupported Component-body references omit the label.
+Missing or rejected notation never supplies another declaration's or snapshot's
+label. Occurrence qualification, inferred styling and activation are not added by
+this notation projection.
 
 For prepared Model fields, parameters and public child Ports, hover adds known
 scalar domain, physical dimension, shape/frame, outer channel-array rank, field
