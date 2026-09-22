@@ -193,10 +193,11 @@ pub(super) fn completion(
     )?;
     let items = candidates
         .into_iter()
-        .map(|candidate| {
+        .enumerate()
+        .map(|(index, candidate)| {
             let insertion = candidate.insert_text().to_owned();
             let required = candidate.required();
-            completion_item(authored(candidate), insertion, required, range)
+            completion_item(authored(candidate), insertion, required, index, range)
         })
         .collect();
     Ok(CompletionResponse::Array(items))
@@ -224,6 +225,7 @@ fn completion_item(
     e: Entry,
     insertion: String,
     required: Option<bool>,
+    index: usize,
     range: lsp_types::Range,
 ) -> CompletionItem {
     let status = required.map(|r| if r { "required" } else { "defaulted" });
@@ -231,11 +233,7 @@ fn completion_item(
         label: e.name.clone(),
         kind: Some(e.kind),
         detail: Some(status.map_or(e.label.clone(), |s| format!("{} ({s})", e.label))),
-        sort_text: Some(format!(
-            "{}{}",
-            if required == Some(true) { "0" } else { "1" },
-            e.name
-        )),
+        sort_text: Some(format!("{index:010}")),
         documentation: e
             .documentation
             .map(|doc| Documentation::MarkupContent(markdown(doc))),

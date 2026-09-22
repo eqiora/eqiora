@@ -309,9 +309,49 @@ impl<'a> Query<'a> {
                 .cmp(&a.binding_required)
                 .then(a.name.cmp(&b.name))
         });
+        if matches!(context, C::Expression | C::Member) {
+            self.rank(offset, &mut items);
+        }
         Some(Completion {
             range: TextRange::new(start, end),
             items,
         })
+    }
+}
+
+impl Query<'_> {
+    fn rank(&self, offset: u32, items: &mut Vec<EditorSymbol>) {
+        let Some(semantics) = &self.snapshot.semantics else {
+            return;
+        };
+        let names = items
+            .iter()
+            .map(|item| item.name.as_str())
+            .collect::<Vec<_>>();
+        let Some(matches) =
+            semantics
+                .analysis
+                .completion_compatibility(&semantics.file, offset, &names)
+        else {
+            return;
+        };
+        let mut ranked = items
+            .drain(..)
+            .zip(matches)
+            .map(|(mut item, contract)| {
+                let priority = match contract {
+                    Some((compatible, explanation)) => {
+                        let detail = item.detail.get_or_insert_default();
+                        detail.push_str(" — ");
+                        detail.push_str(&explanation);
+                        if compatible { 0 } else { 2 }
+                    }
+                    None => 1,
+                };
+                (priority, item)
+            })
+            .collect::<Vec<_>>();
+        ranked.sort_by_key(|(priority, _)| *priority);
+        items.extend(ranked.into_iter().map(|(_, item)| item));
     }
 }

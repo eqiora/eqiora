@@ -79,10 +79,26 @@ the current text overlaid. This recovery does not publish resolved references or
 a compilable Model. Completion performs no fetch, install, lock or store writes;
 unavailable dependencies are not invented.
 
-This is a bounded editing preview: suggestions are not ranked by inferred argument
-type or expected physical dimension. Automatic imports, overload selection and
-member inference through arbitrary expressions remain outside this surface. Completion and signature help are independent of the optional
-inspection protocol and are advertised as ordinary LSP capabilities.
+For simple name/path references in Model parameter initializers, Component named
+parameter bindings and scalar connection endpoints, a prepared compiler scope
+ranks compatible candidates before unknown and incompatible candidates. Details
+explain the available type, physical dimension, shape, nominal identity or
+endpoint role using the compiler's existing rules. Equal dimensions do not make
+distinct nominal types or physical Connectors interchangeable. Completion inserts
+names only; it does not insert conversions or physical adapters.
+
+This initial ranking covers continuous non-spatial signal connections and scalar
+physical endpoints. Clock/support identities, dependent types that cannot be
+resolved, arithmetic operands, Component bodies and incomplete analysis retain
+ordinary name completion without claiming compatibility. Ranking is advisory and
+does not establish the validity of every connection in a Model. The immutable
+workspace analysis prepares the contracts with cancellation checkpoints; each
+completion query performs no parsing, elaboration, network access or solve.
+
+Automatic imports, overload selection and member inference through arbitrary
+expressions remain outside this surface. Completion and signature help are
+independent of the optional inspection protocol and are advertised as ordinary
+LSP capabilities.
 
 Files opened under the same initialization workspace folder are analyzed as one
 module graph. When that folder contains `eqiora.toml`, the server reads its explicit

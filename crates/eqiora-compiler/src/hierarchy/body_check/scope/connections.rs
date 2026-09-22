@@ -28,7 +28,7 @@ pub(in crate::hierarchy::body_check) fn validate_connection(
                 path.segments().map(str::to_owned).collect::<Vec<_>>()
             },
         );
-        let mut contract = if matches!(expression.kind(), eqiora_lang::ExprKind::Member { .. }) {
+        let contract = if matches!(expression.kind(), eqiora_lang::ExprKind::Member { .. }) {
             let key = &keys[keys.len() - 1];
             match scope.resolve_symbol_at(path, key[1].parse().ok())? {
                 SymbolContract::Port(contract) => contract,
@@ -37,21 +37,33 @@ pub(in crate::hierarchy::body_check) fn validate_connection(
         } else {
             scope.resolve_port(path)?
         };
-        if declaration.syntax() == ConnectionSyntax::Signal
-            && scope.exposed_signals.contains(path.as_str())
-            && let PortContract::Signal { direction, .. } = &mut contract
-        {
-            *direction = match direction {
-                SignalDirectionSyntax::Input => SignalDirectionSyntax::Output,
-                SignalDirectionSyntax::Output => SignalDirectionSyntax::Input,
-            };
-        }
-        contracts.push(contract);
+        contracts.push(contract.for_connection(
+            declaration.syntax(),
+            scope.exposed_signals.contains(path.as_str()),
+        ));
     }
+    validate_resolved_connection(
+        declaration,
+        &keys,
+        &contracts,
+        connected_ports,
+        connection_limits,
+        scope.file,
+    )
+}
+
+pub(in crate::hierarchy::body_check) fn validate_resolved_connection(
+    declaration: &ConnectionDecl,
+    keys: &[Vec<String>],
+    contracts: &[PortContract],
+    connected_ports: &mut BTreeSet<Vec<String>>,
+    connection_limits: ConnectionSetLimits,
+    file: &str,
+) -> Result<Option<PhysicalConnectionFragment>, Diagnostic> {
     if keys.iter().collect::<BTreeSet<_>>().len() != keys.len() {
         return Err(source_error(
             codes::LANGUAGE_TYPE_ERROR,
-            scope.file,
+            file,
             declaration.range(),
             "Connection repeats the same Port",
         ));
@@ -61,14 +73,14 @@ pub(in crate::hierarchy::body_check) fn validate_connection(
             .iter()
             .all(|contract| matches!(contract, PortContract::Physical { .. }));
     if scalar_physical {
-        validate_connection_contract(declaration, &contracts, scope.file)?;
+        validate_connection_contract(declaration, contracts, file)?;
         let endpoints = keys
             .iter()
             .map(|key| {
                 ResolvedPhysicalEndpoint::from_key(key).ok_or_else(|| {
                     source_error(
                         codes::LANGUAGE_TYPE_ERROR,
-                        scope.file,
+                        file,
                         declaration.range(),
                         "physical connection requires an exact static indexed occurrence",
                     )
@@ -77,7 +89,7 @@ pub(in crate::hierarchy::body_check) fn validate_connection(
             .collect::<Result<Vec<_>, _>>()?;
         return ConnectionFragment::try_new(endpoints, connection_limits)
             .map(Some)
-            .map_err(|error| connection_fragment_error(scope.file, declaration.range(), error));
+            .map_err(|error| connection_fragment_error(file, declaration.range(), error));
     }
     let boundary_physical = matches!(
         contracts.first(),
@@ -89,7 +101,7 @@ pub(in crate::hierarchy::body_check) fn validate_connection(
         if declaration.syntax() != ConnectionSyntax::Conserving {
             return Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
-                scope.file,
+                file,
                 declaration.range(),
                 "field-physical Ports require a conserving Connection",
             ));
@@ -102,7 +114,7 @@ pub(in crate::hierarchy::body_check) fn validate_connection(
         }) {
             return Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
-                scope.file,
+                file,
                 declaration.range(),
                 "field-physical Connection requires the exact same specialized Connector",
             ));
@@ -113,7 +125,7 @@ pub(in crate::hierarchy::body_check) fn validate_connection(
                 ResolvedPhysicalEndpoint::from_key(key).ok_or_else(|| {
                     source_error(
                         codes::LANGUAGE_TYPE_ERROR,
-                        scope.file,
+                        file,
                         declaration.range(),
                         "physical connection requires an exact static indexed occurrence",
                     )
@@ -122,12 +134,12 @@ pub(in crate::hierarchy::body_check) fn validate_connection(
             .collect::<Result<Vec<_>, _>>()?;
         return ConnectionFragment::try_new(endpoints, connection_limits)
             .map(Some)
-            .map_err(|error| connection_fragment_error(scope.file, declaration.range(), error));
+            .map_err(|error| connection_fragment_error(file, declaration.range(), error));
     }
     let members = if declaration.syntax() == ConnectionSyntax::Signal {
         &keys[1..]
     } else {
-        &keys[..]
+        keys
     };
     if let Some(key) = members
         .iter()
@@ -135,7 +147,7 @@ pub(in crate::hierarchy::body_check) fn validate_connection(
     {
         return Err(source_error(
             codes::LANGUAGE_TYPE_ERROR,
-            scope.file,
+            file,
             declaration.range(),
             format!(
                 "Port `{}` already belongs to another Connection",
@@ -143,7 +155,7 @@ pub(in crate::hierarchy::body_check) fn validate_connection(
             ),
         ));
     }
-    validate_connection_contract(declaration, &contracts, scope.file)?;
+    validate_connection_contract(declaration, contracts, file)?;
     connected_ports.extend(members.iter().cloned());
     Ok(None)
 }

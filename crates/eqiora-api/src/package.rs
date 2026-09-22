@@ -79,9 +79,13 @@ pub(crate) fn analyze_editor_workspace_with_cancellation(
     if is_cancelled() {
         return Ok(None);
     }
-    Ok(Some(crate::editor::EditorWorkspaceSnapshot::from_analyzed(
-        version, sources, &analyzed, input,
-    )))
+    Ok(crate::editor::EditorWorkspaceSnapshot::from_analyzed(
+        version,
+        sources,
+        analyzed,
+        input,
+        is_cancelled,
+    ))
 }
 
 const AUTHORING_NAMESPACE_DOMAIN_V1: &str = "eqiora.package-authoring.v1";

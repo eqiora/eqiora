@@ -4,7 +4,7 @@ mod value_shape;
 use value_shape::resolve_frame;
 pub(in crate::hierarchy) use value_shape::resolve_value_shape;
 mod indexed;
-pub(super) use connections::validate_connection;
+pub(super) use connections::{validate_connection, validate_resolved_connection};
 mod ports;
 pub(super) use ports::{component_port_contract, model_port_contract};
 mod child_ports;
@@ -179,6 +179,19 @@ impl BoundaryFamilyScope {
 }
 
 impl PortContract {
+    pub(super) fn for_connection(mut self, syntax: ConnectionSyntax, exposed: bool) -> Self {
+        if exposed
+            && syntax == ConnectionSyntax::Signal
+            && let Self::Signal { direction, .. } = &mut self
+        {
+            *direction = match direction {
+                SignalDirectionSyntax::Input => SignalDirectionSyntax::Output,
+                SignalDirectionSyntax::Output => SignalDirectionSyntax::Input,
+            };
+        }
+        self
+    }
+
     pub(super) fn expression_type(&self) -> Option<ExpressionType<String>> {
         match self {
             Self::Signal {
