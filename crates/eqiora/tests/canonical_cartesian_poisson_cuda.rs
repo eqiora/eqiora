@@ -23,7 +23,7 @@ use eqiora_numerics::scalar::finalize_resolved_scalar_elliptic_cartesian;
 fn cuda_facade_is_optional_and_admission_fails_closed_without_runtime_work() {
     assert!(!CUDA_ADAPTER_VERSION.is_empty());
     assert!(!CUDA_ADAPTER_VERSION.chars().any(char::is_control));
-    assert_eq!(CUDARC_VERSION, "0.18.2");
+    assert_eq!(CUDARC_VERSION, "0.19.9");
     assert_eq!(CUDA_BINDING_TOOLKIT, "12.0");
     assert_eq!(
         CudaLinearSolver::capabilities(),

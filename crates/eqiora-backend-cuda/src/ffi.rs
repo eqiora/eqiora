@@ -1,10 +1,9 @@
 //! The complete unsafe cuSPARSE boundary.
 //!
-//! cudarc owns contexts, streams, and allocations. Its 0.18 dynamic cuSPARSE
-//! bindings eagerly require every symbol generated for a toolkit release,
-//! including unrelated APIs removed from some compatible 12.x libraries.
-//! This module therefore loads only the Generic API symbols used by Eqiora.
-//! The library and all descriptors share one owned lifetime.
+//! cudarc owns contexts, streams, and allocations. This private boundary loads
+//! only the CUDA 12 Generic API symbols used by Eqiora and retains the library
+//! for every handle and descriptor lifetime. The narrow symbol set originated
+//! with cudarc 0.18's eager loader; cudarc 0.19 now loads symbols on use.
 
 use std::ffi::c_void;
 use std::fmt;
