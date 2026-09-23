@@ -663,7 +663,7 @@ fn validate_definition_bodies_and_parameters(
     body_proofs
 }
 
-fn enforce_parameter_term_limit(elaborator: &Elaborator<'_>) -> Result<(), Diagnostic> {
+pub(super) fn enforce_parameter_term_limit(elaborator: &Elaborator<'_>) -> Result<(), Diagnostic> {
     let mut terms = 0_usize;
     for (_, definition) in elaborator.components() {
         for item in definition.declaration.items() {

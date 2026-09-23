@@ -92,6 +92,35 @@ mod tests {
     };
 
     #[test]
+    fn static_preparation_never_invents_free_extents_or_keeps_a_failed_partial_map() {
+        for source in [
+            "model M(parameter n:integer){variable values:array<1,n>;}",
+            "model M(){parameter n:integer=3;let broken=1[m]+1[s];variable values:array<1,n>;}",
+        ] {
+            let owner = CompilationNamespaceId::new(["static_editor"]).unwrap();
+            let unit = ResolvedSourceUnit::new(owner.clone(), "src/main.eqi", source).unwrap();
+            let file = unit.diagnostic_file();
+            // Direct advisory preparation is also callable before body validation.
+            let mut analysis =
+                analyze_resolved_hierarchy(ResolvedHierarchyInput::new(owner, vec![unit], vec![]))
+                    .unwrap();
+            assert!(analysis.prepare_completion(|| false));
+            let start = source.find("variable values").unwrap() as u32;
+            let end = source[start as usize..].find(';').unwrap() as u32 + start + 1;
+            assert!(
+                analysis
+                    .symbol_description(
+                        &file,
+                        start,
+                        "values",
+                        (&file, eqiora_lang::TextRange::new(start, end)),
+                    )
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
     fn value_occurrence_proof_keeps_units_declarations_and_wrong_names_out() {
         let owner = CompilationNamespaceId::new(["test"]).unwrap();
         let source = "component C(output value:1){} model M(){parameter m:1=1;parameter copy:1=(m);variable x:m;instance child:C();relation r{x=1[m];child.value=child.value;}}";
