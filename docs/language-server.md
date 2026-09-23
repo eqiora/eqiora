@@ -95,6 +95,13 @@ Named activation retains an unknown occurrence
 identity; spatial support identity is definition-local. Component bodies, aliases,
 arbitrary expression inference and nested binder scopes retain authored detail
 without claiming inferred types. Hover queries perform no elaboration or solve.
+Preparation resolves Model static Parameter defaults and Let expressions through
+the existing compiler owner, so a declared `array<1,n>` with `n=3` retains
+shape `[3]` and channel-array rank `1` across hover, outline and supported
+completion/navigation. Required free values and borrowed clocks remain symbolic;
+this does not grant aliases declaration-navigation targets or infer missing extents.
+If static resolution fails during editing, completion retains its existing
+literal-type advice without using a partially resolved static map.
 
 Model-owned periodic Clock hover adds the exact reduced period and phase in
 coherent seconds from the existing compiler time conversion. For example,

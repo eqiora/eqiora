@@ -5,7 +5,7 @@ use super::{
     model::ModelBodyChecker,
     scope::{PortContract, SymbolContract},
 };
-use crate::hierarchy::{HierarchyLimits, parameters::SymbolicParameterMap, preflight::Elaborator};
+use crate::hierarchy::{HierarchyLimits, preflight::Elaborator};
 use crate::resolved::AnalyzedResolvedHierarchy;
 use description::{bounded_description, describe_port, describe_type};
 use eqiora_lang::{Expr, ExprKind, Item, NamePath, SignatureItem, TextRange};
@@ -74,6 +74,14 @@ impl CompletionIndex {
         let Ok(elaborator) = Elaborator::new_resolved(analysis, HierarchyLimits::default()) else {
             return (!is_cancelled()).then(Self::default);
         };
+        if is_cancelled() {
+            return None;
+        }
+        // Preparation is also callable without successful definition validation.
+        // Reuse its resource guard before evaluating static aliases.
+        if crate::hierarchy::check::enforce_parameter_term_limit(&elaborator).is_err() {
+            return (!is_cancelled()).then(Self::default);
+        }
         let mut result = Self::default();
         for unit in &analysis.units {
             let ranges = scope_ranges::collect(&unit.document, &mut is_cancelled)?;
@@ -83,7 +91,50 @@ impl CompletionIndex {
             if is_cancelled() {
                 return None;
             }
-            let parameters = SymbolicParameterMap::new();
+            let parameters = crate::hierarchy::parameters::resolve_model_parameters_symbolically(
+                definition.file,
+                definition.declaration,
+                |name| {
+                    crate::hierarchy::clocks::model(definition.file, definition.declaration, name)
+                },
+                &crate::hierarchy::parameters::RecordContext::model(&elaborator, definition),
+            );
+            if is_cancelled() {
+                return None;
+            }
+            let parameters = parameters.and_then(|mut values| {
+                elaborator.bind_symbolic_properties(
+                    &definition.namespace,
+                    definition.file,
+                    definition.declaration.signature(),
+                    &mut values,
+                )?;
+                Ok(values)
+            });
+            if is_cancelled() {
+                return None;
+            }
+            let parameters = parameters.and_then(|mut values| {
+                crate::hierarchy::parameters::resolve_model_lets(
+                    definition.file,
+                    definition.declaration,
+                    &mut values,
+                    |name| {
+                        crate::hierarchy::clocks::model(
+                            definition.file,
+                            definition.declaration,
+                            name,
+                        )
+                    },
+                )?;
+                Ok(values)
+            });
+            if is_cancelled() {
+                return None;
+            }
+            // Failed static resolution must not publish a partially populated map.
+            // The empty-map binder preserves existing literal-type assistance while typing.
+            let parameters = parameters.unwrap_or_default();
             let mut checker = ModelBodyChecker::new(&elaborator, definition, &parameters);
             checker.bind_scope();
             let scope = &checker.scope;

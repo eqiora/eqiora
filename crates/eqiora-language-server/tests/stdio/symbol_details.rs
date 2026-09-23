@@ -73,3 +73,66 @@ fn stdio_outline_details_follow_current_authority_and_recover_after_invalid_edit
         assert_eq!(detail(id, "M", "value"), "Field");
     }
 }
+
+#[test]
+fn stdio_static_extents_update_hover_and_outline_without_accepting_stale_changes() {
+    let uri = "file:///workspace/main.eqi";
+    let source =
+        "model M(){parameter n:integer=3;variable values:array<1,n>;relation r{values=[0,0,0];}}";
+    let changed = source.replace("=3", "=4").replace("[0,0,0]", "[0,0,0,0]");
+    let query = |id| json!({"jsonrpc":"2.0","id":id,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":uri}}});
+    let change = |version, text: &str| json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":uri,"version":version},"contentChanges":[{"text":text}]}});
+    let mut child = Command::new(SERVER)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    for message in [
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
+        json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+        json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":uri,"languageId":"eqiora","version":1,"text":source}}}),
+        json!({"jsonrpc":"2.0","id":2,"method":"textDocument/hover","params":{"textDocument":{"uri":uri},"position":{"line":0,"character":source.rfind("values=").unwrap()}}}),
+        query(3),
+        change(2, &changed),
+        change(1, source),
+        query(4),
+        json!({"jsonrpc":"2.0","id":5,"method":"shutdown","params":null}),
+        json!({"jsonrpc":"2.0","method":"exit","params":null}),
+    ] {
+        write_packet(&mut stdin, &message);
+    }
+    drop(stdin);
+    let output = child.wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let messages = parse_packets(&output.stdout);
+    for diagnostic in messages
+        .iter()
+        .filter(|m| m["method"] == "textDocument/publishDiagnostics")
+    {
+        assert_eq!(diagnostic["params"]["diagnostics"], json!([]));
+    }
+    let hover = response(&messages, 2)["result"]["contents"]["value"]
+        .as_str()
+        .unwrap();
+    assert!(hover.contains("shape [3]") && hover.contains("array rank 1"));
+    for (id, shape) in [(3, "shape [3]"), (4, "shape [4]")] {
+        let detail = response(&messages, id)["result"][0]["children"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|s| s["name"] == "values")
+            .unwrap()["detail"]
+            .as_str()
+            .unwrap();
+        assert!(
+            detail.contains(shape) && detail.contains("array rank 1"),
+            "{detail}"
+        );
+    }
+}

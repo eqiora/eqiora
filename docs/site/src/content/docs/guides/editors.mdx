@@ -127,7 +127,16 @@ The parameter still means one inverse second, so the predicted decay values
 from Get started are unchanged. The editor does not choose a numerical method
 or execute the model.
 
-## Source-checkout navigation
+## Source-checkout assistance
+
+The source-checkout server resolves static Model parameters and `let` expressions
+when preparing editor types. For example, `parameter n:integer=3;` followed by
+`variable values:array<1,n>;` shows shape `[3]` and array rank `1` in hover and
+the outline. Supported completion and value navigation use these same facts.
+Required free values and borrowed clocks remain symbolic; the editor does not
+invent missing array extents or turn a `let` alias into a navigation target.
+While an expression is incomplete, existing literal-type completion remains
+available without trusting partially resolved static values.
 
 The current source-checkout server also navigates from Model field/parameter/Port
 value references and direct child public Port references to their exact
