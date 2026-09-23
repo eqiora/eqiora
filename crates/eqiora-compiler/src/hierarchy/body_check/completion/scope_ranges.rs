@@ -1,6 +1,8 @@
 //! The editor's declaration resolver does not yet bind nested finite members.
 //! Keep their positions unknown instead of attaching an outer declaration's type.
-use eqiora_lang::{Document, ExprKind, Item, SourceAstFactory, TextRange};
+use eqiora_lang::{
+    ComponentItem, Document, ExprKind, Item, SignatureItem, SourceAstFactory, TextRange,
+};
 
 #[derive(Clone, Debug)]
 pub(super) struct SourceRanges {
@@ -24,6 +26,27 @@ pub(super) fn collect(
                 Item::Instance(value) if value.family().is_some() => ranges.push(value.range()),
                 Item::Connection(value) if value.binder().is_some() => ranges.push(value.range()),
                 Item::BoundaryConnection(value) => ranges.push(value.range()),
+                _ => {}
+            }
+        }
+    }
+    for component in document.components() {
+        for item in component.signature() {
+            if let SignatureItem::PortFamily(value) = item {
+                ranges.push(value.range());
+            }
+        }
+        for item in component.items() {
+            match item {
+                ComponentItem::RelationFamily(value) => ranges.push(value.range()),
+                ComponentItem::Instance(value) if value.family().is_some() => {
+                    ranges.push(value.range())
+                }
+                ComponentItem::Connection(value) if value.binder().is_some() => {
+                    ranges.push(value.range())
+                }
+                ComponentItem::BoundaryConnection(value) => ranges.push(value.range()),
+                ComponentItem::PortFamily(value) => ranges.push(value.range()),
                 _ => {}
             }
         }
@@ -67,4 +90,32 @@ pub(super) fn collect(
         excluded,
         references,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn component_signature_and_body_port_families_keep_binder_ranges_unknown() {
+        let source = "component C(support exterior:complete_exterior(parent=body),support body:volume(ambient_dimension=2),port natural[boundary in exterior]:Scalar over boundary){port local[boundary in exterior]:Scalar over boundary;relation law[boundary in exterior] on boundary{natural[boundary=boundary].flux=0;}connect [boundary in exterior] natural[boundary=boundary],local[boundary=boundary];}";
+        let document = eqiora_lang::parse("families.eqi", source)
+            .into_document()
+            .expect("family syntax");
+        let ranges = super::collect(&document, &mut || false).unwrap();
+        for needle in [
+            "natural[boundary in",
+            "local[boundary in",
+            "natural[boundary=boundary].flux",
+            "natural[boundary=boundary],",
+        ] {
+            let offset = source.find(needle).unwrap() as u32;
+            assert!(
+                ranges
+                    .excluded
+                    .iter()
+                    .any(|range| range.start() <= offset && offset < range.end()),
+                "{needle}"
+            );
+        }
+        assert!(super::collect(&document, &mut || true).is_none());
+    }
 }

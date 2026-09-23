@@ -121,9 +121,19 @@ fn stdio_port_declaration_references_keep_source_identity_and_current_overlays()
         response(&messages, 6)["result"],
         json!([location(main_uri, main, "unused:", 0, 6)])
     );
-    for id in [5, 7, 8, 10] {
+    for id in [5, 7, 10] {
         assert_eq!(response(&messages, id)["result"], json!([]));
     }
+    assert_eq!(
+        response(&messages, 8)["result"],
+        json!([location(
+            library_uri,
+            library,
+            "Never(output p",
+            "Never(output ".len(),
+            1
+        )])
+    );
     let revised = vec![
         location(main_uri, &changed, "a . p", 4, 1),
         location(main_uri, &changed, "a.p;", 2, 1),

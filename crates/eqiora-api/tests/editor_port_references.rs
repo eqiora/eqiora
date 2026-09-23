@@ -111,6 +111,13 @@ fn port_references_follow_declaration_provenance_across_models_modules_and_packa
             "hidden[row in Rows]{a.".len(),
             "p",
         ),
+        token(&files[2], library, "@{q}", 2, "q"),
+    ] {
+        assert_eq!(query(&workspace, &cursor, true), None, "{cursor:?}");
+    }
+    // Private self-owned and uninstantiated public declarations are now
+    // admitted without adding any external private-member reference.
+    for declaration in [
         token(&files[2], library, "hidden:", 0, "hidden"),
         token(
             &files[2],
@@ -119,9 +126,12 @@ fn port_references_follow_declaration_provenance_across_models_modules_and_packa
             "Never(output ".len(),
             "p",
         ),
-        token(&files[2], library, "@{q}", 2, "q"),
     ] {
-        assert_eq!(query(&workspace, &cursor, true), None, "{cursor:?}");
+        assert_eq!(query(&workspace, &declaration, false), Some(vec![]));
+        assert_eq!(
+            query(&workspace, &declaration, true),
+            Some(vec![declaration])
+        );
     }
 }
 

@@ -1,4 +1,5 @@
 //! Prepared editor projection of ordinary definition-scope contracts.
+mod components;
 mod description;
 mod scope_ranges;
 use super::{
@@ -292,6 +293,9 @@ impl CompletionIndex {
                     exposed_signals: scope.exposed_signals.clone(),
                 });
         }
+        for (file, scope) in components::collect(&elaborator, &mut is_cancelled)? {
+            result.files.entry(file).or_default().push(scope);
+        }
         (!is_cancelled()).then_some(result)
     }
 
@@ -310,7 +314,7 @@ impl CompletionIndex {
         let (origin, range) = scope.declarations.get(name)?;
         match scope.candidates.get(name)? {
             Candidate::Field(_) | Candidate::Parameter(_) if origin.as_ref() == file => {}
-            // Model Ports and direct child public Ports share the exact
+            // Owned Ports and Model child public Ports share the exact
             // admitted declaration map; private child members never enter it.
             Candidate::Port(_) => {}
             _ => return None,
@@ -357,7 +361,7 @@ impl CompletionIndex {
                     continue;
                 }
                 admitted = true;
-                // Each relevant Model scans only its slice of the sorted source
+                // Each relevant declaration scope scans only its slice of the sorted source
                 // expressions, even when one Port declaration has many aliases.
                 let start = source
                     .references

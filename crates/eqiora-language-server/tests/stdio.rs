@@ -4,6 +4,8 @@ mod assistance;
 mod authored_notation;
 #[path = "stdio/clock_details.rs"]
 mod clock_details;
+#[path = "stdio/component_values.rs"]
+mod component_values;
 #[path = "stdio/hover_origin.rs"]
 mod hover_origin;
 #[path = "stdio/inspection.rs"]

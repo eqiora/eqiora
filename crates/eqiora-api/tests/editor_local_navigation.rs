@@ -65,7 +65,6 @@ fn local_navigation_never_invents_a_target_from_lexical_recovery() {
     for source in [
         "model A(){variable x:1;} model B(){relation r{|x=0;}}",
         "model M(){parameter value:m=1[m];indexset Rows=range(2);relation r{sum(ordinal(|value),over=(value in Rows))=1;}}",
-        "component C(){variable x:1;relation r{|x=0;}} model M(){}",
         "model M(){parameter value:1=1;let alias=value;relation r{|alias=1;}}",
         "model M(){variable x:1;relation r{|x",
         "model M(){variable x:1;} // |x",

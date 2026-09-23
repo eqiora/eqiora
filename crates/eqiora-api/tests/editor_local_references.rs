@@ -87,7 +87,6 @@ fn valid_binders_and_qualified_names_do_not_join_the_local_reference_set() {
 #[test]
 fn unsupported_positions_do_not_acquire_references_from_name_recovery() {
     for marked in [
-        "component C(){parameter x:1=1;relation r{|x=1;}} model M(){}",
         "model M(){parameter x:1=1;let alias=x;relation r{|alias=1;}}",
         "model M(){parameter x:1=1;} // |x",
         "model M(){parameter x:1=1;relation r{x|=1;}}",

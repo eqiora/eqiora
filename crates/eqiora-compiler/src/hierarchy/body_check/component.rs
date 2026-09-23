@@ -42,6 +42,30 @@ pub(super) fn validate(
     }
 }
 
+// Editor preparation retains only the declaration symbols. It never binds
+// child instances or validates/expands an occurrence graph.
+pub(super) fn declaration_symbols(
+    elaborator: &Elaborator<'_>,
+    definition: &ComponentDefinition<'_>,
+    compile_time_values: &SymbolicParameterMap,
+    supports: &SupportInterface,
+    fields: &FieldInterface,
+) -> Result<std::collections::BTreeMap<String, SymbolContract>, Vec<Diagnostic>> {
+    let mut checker = ComponentBodyChecker::new(
+        elaborator,
+        definition,
+        compile_time_values,
+        supports,
+        fields,
+    );
+    checker.bind_declaration_scope();
+    if checker.diagnostics.is_empty() {
+        Ok(checker.scope.symbols)
+    } else {
+        Err(checker.diagnostics)
+    }
+}
+
 struct ComponentBodyChecker<'e, 'd> {
     definition: &'e ComponentDefinition<'d>,
     compile_time_values: &'e SymbolicParameterMap,
@@ -77,7 +101,7 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
         }
     }
 
-    fn validate(&mut self) {
+    fn bind_declaration_scope(&mut self) {
         self.diagnostics.extend(super::property::bind(
             &mut self.scope,
             self.definition.declaration.signature(),
@@ -110,7 +134,12 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
         }
         self.bind_borrowed_interfaces();
         self.bind_complete_exteriors();
-        self.bind_interfaces();
+        self.bind_owned_interfaces();
+    }
+
+    fn validate(&mut self) {
+        self.bind_declaration_scope();
+        self.bind_child_instances();
         if let Err(errors) = super::expression::validate_aliases(
             &mut self.scope,
             self.definition
@@ -227,7 +256,7 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
         }
     }
 
-    fn bind_interfaces(&mut self) {
+    fn bind_owned_interfaces(&mut self) {
         for item in self.definition.owned_items() {
             match item {
                 ComponentItem::Let(declaration) => {
@@ -398,6 +427,9 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                 )),
             }
         }
+    }
+
+    fn bind_child_instances(&mut self) {
         for item in self.definition.declaration.items() {
             if let ComponentItem::Instance(instance) = item
                 && let Ok(child) = self.scope.elaborator.resolve_component(

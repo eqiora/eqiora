@@ -20,17 +20,17 @@ parser/compiler diagnostics after open and accepted newer changes, clears
 diagnostics on close, and serves whole-document formatting, nested document
 symbols, folding ranges, Markdown declaration hover, and definition locations.
 Resolved references can be found across open modules and exact local packages.
-Go to Definition also resolves Model Field/Parameter/Port value references and
-public Ports of direct children to exact declaration names, including imported
+Go to Definition also resolves owned Model/Component Field/Parameter/Port references and
+public Ports of Model direct children to exact declaration names, including imported
 sources. Find References accepts their terminal value-reference tokens or exact
 declaration names and returns source-qualified identifier spans in file/offset
 order, optionally including the declaration once. An admitted unused declaration
-returns an empty list. Public Component Port declarations are supported only when
-already indexed through a prepared Model's direct child. Multiple spellings such
+returns an empty list. Successfully prepared owned Component declarations are
+supported without a Model instance, including private body locals. Multiple spellings such
 as `a.p` and `b.p` can refer to the same source declaration across Models and files;
 these results describe declaration provenance, not physical occurrence identity.
-Nested binder scopes, private or deeper child members, uninstantiated Component
-Ports, other Component locals and aliases remain unsupported. Qualifiers, units,
+Nested binder scopes and families, private or deeper child members, borrowed Fields,
+record members and aliases remain unsupported. Qualifiers, units,
 comments and notation contents are not value references. Invalid or recovering
 snapshots grant no navigation; unsaved versions remain authoritative. The bounded
 reference results do not support rename.
@@ -81,18 +81,19 @@ of a compiler-recorded value reference whose declaration file and range match.
 Keyword, unit and qualifier tokens cannot borrow a supported declaration's
 hover. Recovery can retain
 notation on a declaration without granting typed facts; nested binder scopes,
-recovering references and unsupported Component-body references omit the label.
+recovering references and unsupported declaration scopes omit the label.
 Missing or rejected notation never supplies another declaration's or snapshot's
 label. Occurrence qualification, inferred styling and activation are not added by
 this notation projection.
 
-For prepared Model fields, parameters and public child Ports, hover adds known
+For prepared owned Model/Component Fields, Parameters and Ports, and Model public
+child Ports, hover adds known
 scalar domain, physical dimension, shape/frame, outer channel-array rank, field
 or Port role, activation and spatial support to the authored declaration. These facts come from the same
 compiler scope used by completion and are attached only at the exact declaration
 name or terminal value-reference token, with a matching declaration file and range.
 Named activation retains an unknown occurrence
-identity; spatial support identity is definition-local. Component bodies, aliases,
+identity; spatial support identity is definition-local. Aliases,
 arbitrary expression inference and nested binder scopes retain authored detail
 without claiming inferred types. Hover queries perform no elaboration or solve.
 Preparation resolves Model static Parameter defaults and Let expressions through
@@ -102,6 +103,12 @@ completion/navigation. Required free values and borrowed clocks remain symbolic;
 this does not grant aliases declaration-navigation targets or infer missing extents.
 If static resolution fails during editing, completion retains its existing
 literal-type advice without using a partially resolved static map.
+Component preparation instead requires successful unspecialized support, symbolic
+Parameter/property/Let, Field-interface and declaration-scope preparation. It reuses
+ordinary compiler binding without child expansion or instance specialization; failed
+preparation publishes no Component type or declaration target. Required symbolic
+scalar Parameters can retain their type, but unknown extents, frames, supports and
+clock identities are not borrowed from an instantiated Component.
 
 Model-owned periodic Clock hover adds the exact reduced period and phase in
 coherent seconds from the existing compiler time conversion. For example,
@@ -112,13 +119,14 @@ Equal schedules remain distinct declarations. This does not assign occurrence
 identity or infer borrowed, Component-local or child Clock schedules; Event
 metadata and Clock definition/reference navigation remain outside this slice.
 
-Document-symbol details reuse the same prepared compiler facts for exact Model
-field, parameter, Port and periodic Clock declarations, including channel-array
+Document-symbol details reuse the same prepared compiler facts for exact owned
+Model/Component Field, Parameter and Port declarations and Model periodic Clocks, including channel-array
 rank and exact local schedules. Unsupported
 declarations keep their lexical kind. Invalid or incomplete workspace snapshots
 clear earlier typed details while retaining the recovered outline. Cancelled and
-stale preparation cannot publish those facts. Component and nested-binder
-inference and exact named activation identities remain outside this projection.
+stale preparation cannot publish those facts. Nested-binder inference, borrowed
+Fields, Component Clock facts and exact named activation identities remain outside
+this projection.
 
 Hover in a validated workspace includes the declaration's origin. Canonical
 hover shows its complete compilation namespace and source label; supported
@@ -152,8 +160,8 @@ the current text overlaid. This recovery does not publish resolved references or
 a compilable Model. Completion performs no fetch, install, lock or store writes;
 unavailable dependencies are not invented.
 
-For simple name/path references in Model parameter initializers, Component named
-parameter bindings and scalar connection endpoints, a prepared compiler scope
+For simple name/path references in Model or owned Component Parameter initializers,
+Model instance named bindings and scalar connection endpoints, a prepared compiler scope
 ranks compatible candidates before unknown and incompatible candidates. Details
 explain the available type, physical dimension, shape, nominal identity or
 endpoint role using the compiler's existing rules. Equal dimensions do not make
@@ -162,8 +170,10 @@ names only; it does not insert conversions or physical adapters.
 
 This initial ranking covers continuous non-spatial signal connections and scalar
 physical endpoints. Clock/support identities, dependent types that cannot be
-resolved, arithmetic operands, Component bodies and incomplete analysis retain
-ordinary name completion without claiming compatibility. Ranking is advisory and
+resolved, arithmetic operands, unsupported Component contexts and incomplete analysis retain
+ordinary name completion without claiming compatibility. General Component field
+suggestions keep authored source detail; only supported Parameter defaults gain
+contextual type ranking. Ranking is advisory and
 does not establish the validity of every connection in a Model. The immutable
 workspace analysis prepares the contracts with cancellation checkpoints; each
 completion query performs no parsing, elaboration, network access or solve.

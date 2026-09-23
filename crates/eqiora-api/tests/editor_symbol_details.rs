@@ -70,7 +70,7 @@ fn outline_details_share_exact_model_types_without_duplicating_hover_details() {
 }
 
 #[test]
-fn outline_distinguishes_channel_axes_and_keeps_component_and_binder_boundaries() {
+fn outline_distinguishes_channel_axes_and_keeps_binder_boundaries() {
     let source = "component C(){variable value:s;} model M(){domain body=box(0,1,0,1);variable channels:array<vector<m,2>,2> on body;variable matrix:tensor<m,2,2> on body;parameter value:m=1[m];indexset Rows=range(2);relation family[member in Rows]{value=1[m];}}";
     let workspace = EditorWorkspaceSnapshot::analyze_standalone(1, source);
     assert!(
@@ -91,7 +91,12 @@ fn outline_distinguishes_channel_axes_and_keeps_component_and_binder_boundaries(
         }
         assert!(detail.contains(&format!("array rank {rank}")), "{detail}");
     }
-    assert!(member(snapshot, "C", "value").detail().is_none());
+    assert!(
+        member(snapshot, "C", "value")
+            .detail()
+            .unwrap()
+            .contains("dimension T")
+    );
     let binder_start = source.find("relation family").unwrap() as u32;
     let model = snapshot
         .symbols()

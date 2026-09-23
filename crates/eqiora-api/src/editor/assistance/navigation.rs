@@ -5,7 +5,7 @@ use eqiora_core::Span;
 use eqiora_lang::{TextRange, Token, TokenKind};
 
 impl EditorWorkspaceSnapshot {
-    /// Resolve a Model Field/Parameter/Port value reference or a direct child's
+    /// Resolve an owned Model/Component Field/Parameter/Port reference or a Model child's
     /// public Port reference to the exact declaration name in its source file.
     /// The cursor must cover the terminal identifier, not a qualifier or dot.
     /// Deeper members, nested binders and invalid snapshots return no location;
@@ -40,14 +40,14 @@ impl EditorWorkspaceSnapshot {
         })
     }
 
-    /// Find references to an admitted Model Field/Parameter/Port declaration or
-    /// a direct child's public Port declaration across prepared Model scopes.
+    /// Find references to an owned Model/Component Field/Parameter/Port declaration or
+    /// a Model child's public Port across prepared declaration scopes.
     /// The cursor must be on its declaration name or a terminal value-reference
     /// token. Multiple instance spellings may share one source declaration;
     /// these results do not identify physical occurrences or support rename.
     /// Results use source-qualified exact identifier spans, sorted by file and
     /// offset. Include the declaration once only when requested. An admitted
-    /// unused declaration returns `Some([])`; unknown targets, private/deeper
+    /// unused declaration returns `Some([])`; unknown targets, private child/deeper
     /// members, binder cursors and invalid/recovering snapshots return `None`.
     #[must_use]
     pub fn value_references_at_position(

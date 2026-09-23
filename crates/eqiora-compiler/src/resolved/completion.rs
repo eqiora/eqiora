@@ -1,8 +1,8 @@
 use super::AnalyzedResolvedHierarchy;
 
 impl AnalyzedResolvedHierarchy {
-    /// Resolve a Model value Name or Path occurrence to its stored declaration:
-    /// a same-file Field/Parameter/Port or a direct child's public Port. The returned
+    /// Resolve a Model/Component value Name or Path occurrence to its stored declaration:
+    /// an owned Field/Parameter/Port or a Model's direct child public Port. The returned
     /// spelling covers the whole expression; callers must prove the cursor is
     /// on its terminal identifier. Deeper members and nested binder scopes are
     /// unavailable. Uses the prepared index without elaboration.
@@ -12,9 +12,9 @@ impl AnalyzedResolvedHierarchy {
     }
 
     /// Find value Name/Path expressions referring to an exact whole declaration
-    /// Span already admitted by prepared Model scopes: an owned Field, Parameter
+    /// Span already admitted by prepared declaration scopes: an owned Field, Parameter
     /// or Port, or a direct child's public Port. Results are sorted by source file
-    /// and range, excluding nested binders and unsupported deeper/private members.
+    /// and range, excluding nested binders and unsupported deeper/private child members.
     /// Multiple instance spellings may refer to the same source declaration;
     /// this is declaration provenance, not occurrence identity or rename support.
     /// An admitted unused declaration returns `Some([])`; an unknown key returns
@@ -27,7 +27,7 @@ impl AnalyzedResolvedHierarchy {
         self.completion.value_references(declaration)
     }
 
-    /// Whether the position lies in a prepared Model value Name or Path
+    /// Whether the position lies in a prepared declaration-scope value Name or Path
     /// expression with this full spelling, outside unsupported binder scopes.
     /// This syntactic occurrence check does not resolve the target declaration.
     /// Callers must also validate the exact cursor token and match the target's
@@ -39,8 +39,8 @@ impl AnalyzedResolvedHierarchy {
         self.completion.is_value_reference(file, offset, name)
     }
 
-    /// Describe known Model-scope type, role, activation, spatial support and
-    /// exact local periodic schedule facts only when the resolved declaration's
+    /// Describe known declaration-scope type, role, activation, spatial support and
+    /// Model-local periodic schedule facts only when the resolved declaration's
     /// source identity matches.
     /// The prepared index is immutable; this query performs no elaboration.
     #[must_use]
@@ -54,7 +54,7 @@ impl AnalyzedResolvedHierarchy {
         self.completion.describe(file, offset, name, declaration)
     }
 
-    /// Prepare advisory Model contracts for completion and hover once per
+    /// Prepare advisory Model and unspecialized Component contracts once per
     /// immutable analysis. Cancellation discards the whole new index. Existing
     /// bounded definition scopes are reused; no execution graph, package I/O,
     /// or solve is performed.
