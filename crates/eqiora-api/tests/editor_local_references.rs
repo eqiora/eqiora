@@ -1,4 +1,5 @@
 use eqiora_api::editor::{EditorPosition, EditorWorkspaceService, EditorWorkspaceSnapshot};
+use eqiora_core::Span;
 use eqiora_lang::TextRange;
 
 fn range(source: &str, occurrence: &str, name: &str) -> TextRange {
@@ -17,7 +18,17 @@ fn references(source: &str, occurrence: &str, include_declaration: bool) -> Opti
     let position = workspace
         .document(file)?
         .position(source.find(occurrence)? as u32)?;
-    workspace.local_references_at_position(file, position, include_declaration)
+    workspace
+        .value_references_at_position(file, position, include_declaration)
+        .map(|spans| {
+            spans
+                .into_iter()
+                .map(|span| {
+                    assert_eq!(span.file, file);
+                    TextRange::new(span.start, span.end)
+                })
+                .collect()
+        })
 }
 
 #[test]
@@ -94,7 +105,7 @@ fn unsupported_positions_do_not_acquire_references_from_name_recovery() {
             .unwrap();
         assert!(
             workspace
-                .local_references_at_position(file, position, true)
+                .value_references_at_position(file, position, true)
                 .is_none(),
             "{marked}"
         );
@@ -119,11 +130,11 @@ fn references_use_current_unsaved_versions_and_validate_utf16_positions() {
         .position(source.rfind("rate").unwrap() as u32)
         .unwrap();
     let actual = current
-        .local_references_at_position(file, position, false)
+        .value_references_at_position(file, position, false)
         .unwrap();
-    assert_eq!(actual, vec![range(&source, "rate=", "rate")]);
+    assert_eq!(actual, vec![at(file, range(&source, "rate=", "rate"))]);
     assert_eq!(
-        snapshot.position(actual[0].start()),
+        snapshot.position(actual[0].start),
         Some(EditorPosition::new(2, 0))
     );
     for position in [
@@ -133,13 +144,13 @@ fn references_use_current_unsaved_versions_and_validate_utf16_positions() {
     ] {
         assert!(
             current
-                .local_references_at_position(file, position, true)
+                .value_references_at_position(file, position, true)
                 .is_none()
         );
     }
     assert!(
         current
-            .local_references_at_position("missing", position, true)
+            .value_references_at_position("missing", position, true)
             .is_none()
     );
 }
@@ -169,20 +180,20 @@ fn notation_between_name_and_type_preserves_exact_navigation() {
         );
         for cursor in [target.start(), occurrence.start()] {
             assert_eq!(
-                workspace.local_references_at_position(
+                workspace.value_references_at_position(
                     file,
                     snapshot.position(cursor).unwrap(),
                     true
                 ),
-                Some(vec![target, occurrence])
+                Some(vec![at(file, target), at(file, occurrence)])
             );
             assert_eq!(
-                workspace.local_references_at_position(
+                workspace.value_references_at_position(
                     file,
                     snapshot.position(cursor).unwrap(),
                     false
                 ),
-                Some(vec![occurrence])
+                Some(vec![at(file, occurrence)])
             );
         }
     }
@@ -196,9 +207,17 @@ fn notation_between_name_and_type_preserves_exact_navigation() {
             .position(source.find(notation).unwrap() as u32)
             .unwrap();
         assert_eq!(
-            workspace.local_references_at_position(file, position, true),
+            workspace.value_references_at_position(file, position, true),
             None
         );
         assert_eq!(workspace.value_definition_at_position(file, position), None);
+    }
+}
+
+fn at(file: &str, range: TextRange) -> Span {
+    Span {
+        file: file.to_owned(),
+        start: range.start(),
+        end: range.end(),
     }
 }

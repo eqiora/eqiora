@@ -14,6 +14,8 @@ mod local_navigation;
 mod notation;
 #[path = "stdio/symbol_details.rs"]
 mod symbol_details;
+#[path = "stdio/value_references.rs"]
+mod value_references;
 
 use std::{
     fs,

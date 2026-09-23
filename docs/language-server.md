@@ -20,18 +20,20 @@ parser/compiler diagnostics after open and accepted newer changes, clears
 diagnostics on close, and serves whole-document formatting, nested document
 symbols, folding ranges, Markdown declaration hover, and definition locations.
 Resolved references can be found across open modules and exact local packages.
-Go to Definition also resolves simple value references to fields and parameters
-declared in the same Model and file, using the compiler's prepared scope and
-exact declaration name ranges. Unsaved document versions are respected. Invalid
-snapshots, nested binder scopes, Component locals, aliases and qualified members
-do not gain local navigation. Find References accepts either a same-Model field
-or parameter declaration or one of its supported value references, optionally
-including the declaration. It returns exact identifier ranges in source order,
-including an empty list for an unused declaration. Its results are limited to
-simple value references outside nested binder scopes: qualified names, Component
-locals, aliases and cross-file local references remain unsupported. These bounded
-results do not support rename. Admitted declaration notation does not change
-navigation targets, and names inside notation islands are not references.
+Go to Definition also resolves Model Field/Parameter/Port value references and
+public Ports of direct children to exact declaration names, including imported
+sources. Find References accepts their terminal value-reference tokens or exact
+declaration names and returns source-qualified identifier spans in file/offset
+order, optionally including the declaration once. An admitted unused declaration
+returns an empty list. Public Component Port declarations are supported only when
+already indexed through a prepared Model's direct child. Multiple spellings such
+as `a.p` and `b.p` can refer to the same source declaration across Models and files;
+these results describe declaration provenance, not physical occurrence identity.
+Nested binder scopes, private or deeper child members, uninstantiated Component
+Ports, other Component locals and aliases remain unsupported. Qualifiers, units,
+comments and notation contents are not value references. Invalid or recovering
+snapshots grant no navigation; unsaved versions remain authoritative. The bounded
+reference results do not support rename.
 Lifecycle events are emitted as one JSON object per line on stderr, leaving
 stdout exclusively for LSP framing.
 

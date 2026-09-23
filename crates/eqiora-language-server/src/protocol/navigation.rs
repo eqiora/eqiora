@@ -49,15 +49,20 @@ pub(super) fn references(
     };
     let position = editor_position(params.text_document_position.position);
     if let Some(ranges) =
-        workspace.local_references_at_position(file, position, params.context.include_declaration)
+        workspace.value_references_at_position(file, position, params.context.include_declaration)
     {
-        let snapshot = workspace.document(file).ok_or("source is unavailable")?;
         return ranges
             .into_iter()
-            .map(|range| {
+            .map(|span| {
+                let reference_uri = state
+                    .uri_for_file(uri, &span.file)
+                    .ok_or("resolved reference URI is unavailable")?;
+                let snapshot = workspace
+                    .document(&span.file)
+                    .ok_or("source is unavailable")?;
                 Ok(Location::new(
-                    uri.clone(),
-                    source_range(snapshot, range.start() as usize, range.end() as usize)?,
+                    reference_uri,
+                    source_range(snapshot, span.start as usize, span.end as usize)?,
                 ))
             })
             .collect();
