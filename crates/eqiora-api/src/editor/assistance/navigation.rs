@@ -1,7 +1,8 @@
 //! Navigation projects compiler-owned declaration identities and source owners.
 use super::{EditorWorkspaceSnapshot, cursor};
-use crate::editor::EditorPosition;
-use eqiora_lang::{TextRange, TokenKind};
+use crate::editor::{EditorPosition, EditorSymbol, EditorSymbolKind};
+use eqiora_core::Span;
+use eqiora_lang::{TextRange, Token, TokenKind};
 
 impl EditorWorkspaceSnapshot {
     /// Resolve a Model Field/Parameter/Port value reference or a direct child's
@@ -30,90 +31,166 @@ impl EditorWorkspaceSnapshot {
         let source = target
             .source
             .get(declaration.start as usize..declaration.end as usize)?;
-        let mut tokens = cursor::tokens(source);
-        // Admitted declaration notation sits between its name and type colon.
-        tokens.retain(|token| token.kind() != TokenKind::Notation);
-        tokens.windows(2).find_map(|pair| {
-            let token = &pair[0];
-            (token.kind() == TokenKind::Identifier
-                && token.text() == terminal
-                && pair[1].kind() == TokenKind::Colon)
-                .then(|| eqiora_core::Span {
-                    file: declaration.file.clone(),
-                    start: declaration.start + token.range().start(),
-                    end: declaration.start + token.range().end(),
-                })
+        let tokens = source_tokens(source);
+        let range = declaration_name(&tokens, TextRange::new(0, source.len() as u32), terminal)?;
+        Some(Span {
+            file: declaration.file,
+            start: declaration.start + range.start(),
+            end: declaration.start + range.end(),
         })
     }
 
-    /// Find simple value references to a same-file Model field or parameter.
-    /// The cursor must name its declaration or an admitted value reference.
-    /// Results have exact identifier ranges in source order; declarations are
-    /// included only when requested. A supported unused declaration returns an
-    /// empty list. Invalid snapshots and unsupported scopes return `None`.
-    /// References inside nested binders and qualified names are omitted; this
-    /// bounded query is not a complete rename or cross-file reference index.
+    /// Find references to an admitted Model Field/Parameter/Port declaration or
+    /// a direct child's public Port declaration across prepared Model scopes.
+    /// The cursor must be on its declaration name or a terminal value-reference
+    /// token. Multiple instance spellings may share one source declaration;
+    /// these results do not identify physical occurrences or support rename.
+    /// Results use source-qualified exact identifier spans, sorted by file and
+    /// offset. Include the declaration once only when requested. An admitted
+    /// unused declaration returns `Some([])`; unknown targets, private/deeper
+    /// members, binder cursors and invalid/recovering snapshots return `None`.
     #[must_use]
-    pub fn local_references_at_position(
+    pub fn value_references_at_position(
         &self,
         file: &str,
         position: EditorPosition,
         include_declaration: bool,
-    ) -> Option<Vec<TextRange>> {
+    ) -> Option<Vec<Span>> {
         if !self.diagnostics().is_empty() {
             return None;
         }
         let snapshot = self.document(file)?;
         let offset = snapshot.byte_offset(position)?;
-        let (name, cursor_range) = snapshot.name_at(offset)?;
-        let semantics = snapshot.semantics.as_ref()?;
-        let (declaration, expressions) =
-            semantics.analysis.local_references(file, offset, &name)?;
-        // A single source token sweep handles parenthesized Name expressions
-        // without re-lexing the whole source for every occurrence.
-        let mut tokens = cursor::tokens(&snapshot.source);
-        tokens.retain(|token| token.kind() != TokenKind::Notation);
-        let declaration_name = tokens.windows(2).find_map(|pair| {
-            let token = &pair[0];
-            (declaration.start() <= token.range().start()
-                && pair[1].range().end() <= declaration.end()
-                && token.kind() == TokenKind::Identifier
-                && token.text() == name
-                && pair[1].kind() == TokenKind::Colon)
-                .then_some(token.range())
+        let tokens = source_tokens(&snapshot.source);
+        let token = tokens.iter().find(|token| {
+            token.kind() == TokenKind::Identifier
+                && token.range().start() <= offset
+                && offset < token.range().end()
         })?;
-        let mut expressions = expressions.iter().peekable();
-        let mut ranges = Vec::new();
-        for (index, token) in tokens.iter().enumerate() {
-            while expressions
-                .peek()
-                .is_some_and(|range| range.end() <= token.range().start())
-            {
-                expressions.next();
+        let cursor = span(file, token.range());
+        let semantics = snapshot.semantics.as_ref()?;
+        let (name, declaration) =
+            if let Some((name, declaration)) = semantics.analysis.value_definition(file, offset) {
+                (name.rsplit('.').next()?.to_owned(), declaration)
+            } else {
+                let symbol = declared_at(snapshot.symbols(), &tokens, offset)?;
+                (symbol.name().to_owned(), span(file, symbol.range()))
+            };
+        if token.text() != name {
+            return None;
+        }
+        // Lexical declaration selection is only a query key; the compiler must
+        // have admitted this exact whole declaration before any result exists.
+        let expressions = semantics.analysis.value_references(&declaration)?;
+        let mut by_file = std::collections::BTreeMap::<String, Vec<Span>>::new();
+        for expression in expressions {
+            by_file
+                .entry(expression.file.clone())
+                .or_default()
+                .push(expression);
+        }
+        by_file.entry(declaration.file.clone()).or_default();
+        let mut input_tokens = Some(tokens);
+        let mut declaration_token = None;
+        let mut references = Vec::new();
+        for (origin, expressions) in by_file {
+            // Reuse the input tokens and sweep each other participating file
+            // once, including parenthesized names and spaced qualified paths.
+            let tokens = if origin == file {
+                input_tokens.take()?
+            } else {
+                source_tokens(&self.document(&origin)?.source)
+            };
+            if origin == declaration.file {
+                declaration_token = declaration_name(
+                    &tokens,
+                    TextRange::new(declaration.start, declaration.end),
+                    &name,
+                )
+                .map(|range| span(&origin, range));
             }
-            if token.kind() == TokenKind::Identifier
-                && token.text() == name
-                && index
-                    .checked_sub(1)
-                    .and_then(|i| tokens.get(i))
-                    .is_none_or(|previous| previous.kind() != TokenKind::Dot)
-                && tokens
-                    .get(index + 1)
-                    .is_none_or(|next| next.kind() != TokenKind::Dot)
-                && expressions.peek().is_some_and(|range| {
-                    range.start() <= token.range().start() && token.range().end() <= range.end()
-                })
-            {
-                ranges.push(token.range());
+            let mut index = 0;
+            for expression in expressions {
+                while tokens
+                    .get(index)
+                    .is_some_and(|token| token.range().end() <= expression.start)
+                {
+                    index += 1;
+                }
+                let mut terminal = None;
+                while let Some(token) = tokens
+                    .get(index)
+                    .filter(|token| token.range().start() < expression.end)
+                {
+                    if token.kind() == TokenKind::Identifier
+                        && token.range().end() <= expression.end
+                    {
+                        terminal = Some(token);
+                    }
+                    index += 1;
+                }
+                let terminal = terminal?;
+                if terminal.text() != name {
+                    return None;
+                }
+                references.push(span(&origin, terminal.range()));
             }
         }
-        if cursor_range != declaration_name && !ranges.contains(&cursor_range) {
+        let declaration_token = declaration_token?;
+        // A qualifier with the same spelling as its terminal member still has
+        // a different range. Neither qualifiers nor units acquire references.
+        if cursor != declaration_token && !references.contains(&cursor) {
             return None;
         }
         if include_declaration {
-            let index = ranges.partition_point(|range| range.start() < declaration_name.start());
-            ranges.insert(index, declaration_name);
+            references.push(declaration_token);
         }
-        Some(ranges)
+        references.sort_by(|left, right| {
+            (&left.file, left.start, left.end).cmp(&(&right.file, right.start, right.end))
+        });
+        references.dedup();
+        Some(references)
     }
+}
+
+fn source_tokens(source: &str) -> Vec<Token> {
+    let mut tokens = cursor::tokens(source);
+    tokens.retain(|token| token.kind() != TokenKind::Notation);
+    tokens
+}
+
+fn span(file: &str, range: TextRange) -> Span {
+    Span {
+        file: file.to_owned(),
+        start: range.start(),
+        end: range.end(),
+    }
+}
+
+fn declaration_name(tokens: &[Token], range: TextRange, name: &str) -> Option<TextRange> {
+    let start = tokens.partition_point(|token| token.range().start() < range.start());
+    let end = tokens.partition_point(|token| token.range().start() < range.end());
+    let pair = tokens[start..end]
+        .windows(2)
+        .find(|pair| pair[1].kind() == TokenKind::Colon)?;
+    (pair[0].kind() == TokenKind::Identifier && pair[0].text() == name).then_some(pair[0].range())
+}
+
+fn declared_at<'a>(
+    symbols: &'a [EditorSymbol],
+    tokens: &[Token],
+    offset: u32,
+) -> Option<&'a EditorSymbol> {
+    let symbol = symbols
+        .iter()
+        .find(|symbol| symbol.range().start() <= offset && offset < symbol.range().end())?;
+    if matches!(
+        symbol.kind(),
+        EditorSymbolKind::Field | EditorSymbolKind::Parameter | EditorSymbolKind::Port
+    ) && declaration_name(tokens, symbol.range(), symbol.name())
+        .is_some_and(|range| range.start() <= offset && offset < range.end())
+    {
+        return Some(symbol);
+    }
+    declared_at(symbol.children(), tokens, offset)
 }

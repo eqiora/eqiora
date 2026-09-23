@@ -169,10 +169,14 @@ fn public_child_ports_use_their_exact_source_owner_and_declaration_name() {
                 end: expected + 5,
             })
         );
-        // Navigation adds no cross-file/Port Find References promise.
+        // Declaration references retain the exact current source occurrence.
         assert_eq!(
-            workspace.local_references_at_position(&files[0], position, true),
-            None
+            workspace.value_references_at_position(&files[0], position, false),
+            Some(vec![Span {
+                file: files[0].clone(),
+                start: offset,
+                end: offset + 5
+            }])
         );
         for offset in [offset - 2, offset - 1, offset + 5] {
             assert_eq!(
@@ -236,8 +240,19 @@ fn bare_model_port_uses_the_same_admitted_declaration_owner() {
         })
     );
     assert_eq!(
-        workspace.local_references_at_position(file, position, true),
-        None
+        workspace.value_references_at_position(file, position, true),
+        Some(vec![
+            Span {
+                file: file.to_owned(),
+                start,
+                end: start + 5
+            },
+            Span {
+                file: file.to_owned(),
+                start: source.rfind("value)").unwrap() as u32,
+                end: source.rfind("value)").unwrap() as u32 + 5,
+            }
+        ])
     );
     assert_eq!(
         workspace.value_definition_at_position(file, snapshot.position(start).unwrap()),

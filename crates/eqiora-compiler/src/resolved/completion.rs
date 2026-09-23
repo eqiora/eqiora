@@ -11,18 +11,20 @@ impl AnalyzedResolvedHierarchy {
         self.completion.value_definition(file, offset)
     }
 
-    /// Query a named Field or Parameter in the Model scope containing `offset`.
-    /// Returns its same-file declaration and value-name expression ranges in
-    /// source order, excluding nested binder scopes. The caller projects exact
-    /// identifier tokens and validates whether its cursor names this target.
+    /// Find value Name/Path expressions referring to an exact whole declaration
+    /// Span already admitted by prepared Model scopes: an owned Field, Parameter
+    /// or Port, or a direct child's public Port. Results are sorted by source file
+    /// and range, excluding nested binders and unsupported deeper/private members.
+    /// Multiple instance spellings may refer to the same source declaration;
+    /// this is declaration provenance, not occurrence identity or rename support.
+    /// An admitted unused declaration returns `Some([])`; an unknown key returns
+    /// `None`. Callers project each expression to its terminal identifier token.
     #[must_use]
-    pub fn local_references(
+    pub fn value_references(
         &self,
-        file: &str,
-        offset: u32,
-        name: &str,
-    ) -> Option<(eqiora_lang::TextRange, Vec<eqiora_lang::TextRange>)> {
-        self.completion.local_references(file, offset, name)
+        declaration: &eqiora_core::Span,
+    ) -> Option<Vec<eqiora_core::Span>> {
+        self.completion.value_references(declaration)
     }
 
     /// Whether the position lies in a prepared Model value Name or Path
@@ -118,26 +120,38 @@ mod tests {
                 "{needle} / {name}"
             );
         }
-        // The admitted child Port has a stored declaration target. Reference
-        // enumeration remains limited to simple Model Fields and Parameters.
         let offset = source.find("child.value").unwrap() as u32 + 6;
         let start = source.find("output value:1").unwrap() as u32;
+        let declaration = eqiora_core::Span {
+            file: file.clone(),
+            start,
+            end: start + "output value:1".len() as u32,
+        };
         assert_eq!(
             analysis.value_definition(&file, offset),
-            Some((
-                "child.value",
-                eqiora_core::Span {
-                    file: file.clone(),
-                    start,
-                    end: start + "output value:1".len() as u32,
-                }
-            ))
+            Some(("child.value", declaration.clone()))
         );
-        assert!(
-            analysis
-                .local_references(&file, offset, "child.value")
-                .is_none()
-        );
+        let expected = source
+            .match_indices("child.value")
+            .map(|(start, name)| eqiora_core::Span {
+                file: file.clone(),
+                start: start as u32,
+                end: (start + name.len()) as u32,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(analysis.value_references(&declaration), Some(expected));
+        for wrong in [
+            eqiora_core::Span {
+                file: "other".into(),
+                ..declaration.clone()
+            },
+            eqiora_core::Span {
+                start: declaration.start + 1,
+                ..declaration
+            },
+        ] {
+            assert!(analysis.value_references(&wrong).is_none());
+        }
     }
 
     #[test]

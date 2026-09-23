@@ -274,44 +274,78 @@ impl CompletionIndex {
         ))
     }
 
-    pub(crate) fn local_references(
+    pub(crate) fn value_references(
         &self,
-        file: &str,
-        offset: u32,
-        name: &str,
-    ) -> Option<(TextRange, Vec<TextRange>)> {
-        let scope = self.scope_at(file, offset)?;
-        if !matches!(
-            scope.candidates.get(name)?,
-            Candidate::Field(_) | Candidate::Parameter(_)
-        ) {
-            return None;
-        }
-        let (origin, declaration) = scope.declarations.get(name)?;
-        if origin.as_ref() != file {
-            return None;
-        }
-        let source = self.sources.get(file)?;
-        let mut excluded = source.excluded.iter().peekable();
+        declaration: &eqiora_core::Span,
+    ) -> Option<Vec<eqiora_core::Span>> {
+        let mut admitted = false;
         let mut references = Vec::new();
-        for (range, candidate) in &source.references {
-            while excluded
-                .peek()
-                .is_some_and(|item| item.end() < range.start())
-            {
-                excluded.next();
-            }
-            if candidate == name
-                && scope.range.start() <= range.start()
-                && range.end() <= scope.range.end()
-                && !excluded
-                    .peek()
-                    .is_some_and(|item| contains(**item, range.start()))
-            {
-                references.push(*range);
+        for (file, scopes) in &self.files {
+            let source = self.sources.get(file)?;
+            for scope in scopes {
+                let names = scope
+                    .declarations
+                    .iter()
+                    .filter_map(|(name, (origin, range))| {
+                        if origin.as_ref() != declaration.file
+                            || range.start() != declaration.start
+                            || range.end() != declaration.end
+                        {
+                            return None;
+                        }
+                        match scope.candidates.get(name)? {
+                            Candidate::Field(_) | Candidate::Parameter(_)
+                                if origin.as_ref() == file => {}
+                            Candidate::Port(_) => {}
+                            _ => return None,
+                        }
+                        Some(name.as_str())
+                    })
+                    .collect::<std::collections::BTreeSet<_>>();
+                if names.is_empty() {
+                    continue;
+                }
+                admitted = true;
+                // Each relevant Model scans only its slice of the sorted source
+                // expressions, even when one Port declaration has many aliases.
+                let start = source
+                    .references
+                    .partition_point(|(range, _)| range.start() < scope.range.start());
+                let end = source
+                    .references
+                    .partition_point(|(range, _)| range.start() < scope.range.end());
+                let mut excluded = source
+                    .excluded
+                    .partition_point(|range| range.end() < scope.range.start());
+                for (range, name) in &source.references[start..end] {
+                    while source
+                        .excluded
+                        .get(excluded)
+                        .is_some_and(|item| item.end() < range.start())
+                    {
+                        excluded += 1;
+                    }
+                    if names.contains(name.as_str())
+                        && range.end() <= scope.range.end()
+                        && !source
+                            .excluded
+                            .get(excluded)
+                            .is_some_and(|item| contains(*item, range.start()))
+                    {
+                        references.push(eqiora_core::Span {
+                            file: file.clone(),
+                            start: range.start(),
+                            end: range.end(),
+                        });
+                    }
+                }
             }
         }
-        Some((*declaration, references))
+        references.sort_by(|left, right| {
+            (&left.file, left.start, left.end).cmp(&(&right.file, right.start, right.end))
+        });
+        references.dedup();
+        admitted.then_some(references)
     }
 
     pub(crate) fn is_value_reference(&self, file: &str, offset: u32, name: &str) -> bool {
