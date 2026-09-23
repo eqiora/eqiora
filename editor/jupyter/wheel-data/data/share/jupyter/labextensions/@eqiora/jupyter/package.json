@@ -18,7 +18,7 @@
     "outputDir": "wheel-data/data/share/jupyter/labextensions/@eqiora/jupyter",
     "webpackConfig": "webpack.config.cjs",
     "_build": {
-      "load": "static/remoteEntry.e12d65257c3516986c5e.js",
+      "load": "static/remoteEntry.b0b84fd047d487c3115b.js",
       "extension": "./extension"
     }
   },
@@ -28,9 +28,10 @@
     "@codemirror/view": "6.43.12",
     "@jupyterlab/application": "4.5.11",
     "@jupyterlab/codemirror": "4.5.11",
+    "@jupyterlab/notebook": "4.5.11",
+    "@lezer/highlight": "1.2.3",
     "@shikijs/engine-javascript": "4.4.3",
-    "@shikijs/vscode-textmate": "10.0.2",
-    "@lezer/highlight": "1.2.3"
+    "@shikijs/vscode-textmate": "10.0.2"
   },
   "devDependencies": {
     "@codemirror/lang-python": "6.2.1",

@@ -75,7 +75,14 @@ Python cells keep Python completion.
 This is standalone source-cell completion: Python variables, other cells and
 external package imports do not become Eqiora declarations. Completion inside
 an existing token is omitted because the IPython matcher only replaces text
-before the cursor. Notebook hover is not yet provided. Installed-package matcher
+before the cursor. Hovering over a name shows the native editor's available
+declaration/type details, documentation and notation for the current cell, without
+executing it. Hover is a preview for these Jupyter frontends after `%load_ext`;
+it requests from the owning notebook's idle kernel and discards responses after edits, kernel
+restart or replacement, disconnection or closing the editor. It accepts cells up
+to 256 KiB, displays up to 4096 Unicode code points and stops waiting after three
+seconds. It does not provide Shift-Tab inspection or cross-cell/package context;
+ordinary Python inspection is unchanged. Installed-package matcher
 tests used IPython 9.17.0; notebook host checks used IPython 9.17.1 and
 ipykernel 7.3.0.
 
@@ -92,4 +99,5 @@ If `%load_ext` reports that `eqiora.jupyter` is absent, check the kernel's
 `eqiora.__file__` and package version: a different environment or the published
 0.1.2 package will not contain this development feature. Loading Eqiora in a
 normal Python process does not load IPython. `%unload_ext eqiora.jupyter`
-removes the magic and leaves existing compiled Models available.
+removes the magic, completion matcher and hover target, leaving existing compiled
+Models available.

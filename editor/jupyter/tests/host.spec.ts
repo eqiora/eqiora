@@ -2,6 +2,73 @@ import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 
 for (const route of ['lab/tree', 'notebooks']) {
+  test(`${route}: hover reads the current unexecuted cell through its owning kernel`, async ({ page, request }) => {
+    const notebook = JSON.parse(await readFile(new URL('../decay.ipynb', import.meta.url), 'utf8'));
+    notebook.cells[0].source = ['print("Eqiora kernel ready")'];
+    const source = '%%eqiora model\n// 🦀 日本語\nmodel Cell(){\n/// Travel speed.\nparameter speed @{v}:m/s=2[m/s];\nvariable x:m/s;relation r{x=speed;}\n}';
+    notebook.cells[1].source = [source];
+    const name = `${route.replace('/', '-')}-${Date.now()}-hover.ipynb`;
+    const query = `?token=${encodeURIComponent(process.env.EQIORA_JUPYTER_TOKEN ?? 'eqiora-test')}`;
+    expect((await request.put(`/api/contents/${name}${query}`, { data: { type: 'notebook', content: notebook } })).ok()).toBeTruthy();
+    try {
+      await page.goto(`/${route}/${name}${query}`);
+      const cells = page.locator('.jp-CodeCell .cm-content:visible');
+      await expect(cells).toHaveCount(3, { timeout: 30000 });
+      await expect.poll(() => cells.nth(0).innerText()).toBe(notebook.cells[0].source[0]);
+      // Hover is opt-in: a live but unloaded kernel supplies no tooltip.
+      await cells.nth(0).click();
+      await cells.nth(0).press('Shift+Enter');
+      await expect(page.locator('.jp-CodeCell:visible').nth(0).locator('.jp-OutputArea')).toContainText('Eqiora kernel ready', { timeout: 30000 });
+      const target = cells.nth(1).locator('.cm-line').filter({ hasText: /^parameter speed/ });
+      const hoverName = async () => {
+        await expect(target).toBeVisible();
+        const point = await target.evaluate(element => {
+          let offset = element.textContent!.indexOf('speed') + 2;
+          const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            if (offset < node.textContent!.length) {
+              const range = document.createRange();
+              range.setStart(node, offset);
+              range.setEnd(node, offset + 1);
+              const rect = range.getBoundingClientRect();
+              return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+            }
+            offset -= node.textContent!.length;
+          }
+          throw new Error('Missing declaration text');
+        });
+        await page.mouse.move(point.x, point.y);
+      };
+      await hoverName();
+      await page.waitForTimeout(3500);
+      await expect(page.locator('.eqiora-source-hover')).toHaveCount(0);
+      await cells.nth(0).fill('%load_ext eqiora.jupyter\nprint("Eqiora hover ready")');
+      await cells.nth(0).press('Shift+Enter');
+      await expect(page.locator('.jp-CodeCell:visible').nth(0).locator('.jp-OutputArea')).toContainText('Eqiora hover ready', { timeout: 30000 });
+      await hoverName();
+      await expect(page.locator('.eqiora-source-hover')).toContainText('Travel speed.');
+      await expect(page.locator('.eqiora-source-hover')).toContainText('Notation: v');
+      await cells.nth(1).fill(source.replace('Travel speed.', 'Current speed.'));
+      await expect(page.locator('.eqiora-source-hover')).toHaveCount(0);
+      await page.mouse.move(0, 0);
+      await hoverName();
+      await expect(page.locator('.eqiora-source-hover')).toContainText('Current speed.');
+      await cells.nth(1).press('ControlOrMeta+s');
+      await expect.poll(async () => {
+        const saved = await (await request.get(`/api/contents/${name}${query}`)).json();
+        return saved.content.cells[1].source;
+      }).toBe(source.replace('Travel speed.', 'Current speed.'));
+      const saved = await (await request.get(`/api/contents/${name}${query}`)).json();
+      expect(saved.content.cells[1].execution_count).toBeNull();
+    } finally {
+      const sessions = await (await request.get(`/api/sessions${query}`)).json();
+      for (const session of sessions) {
+        if (session.path === name) await request.delete(`/api/sessions/${session.id}${query}`);
+      }
+      expect((await request.delete(`/api/contents/${name}${query}`)).ok()).toBe(true);
+    }
+  });
+
   test(`${route}: source highlighting before execution, dynamic switching and saved reopen`, async ({ page, request }) => {
     const notebook = JSON.parse(await readFile(new URL('../decay.ipynb', import.meta.url), 'utf8'));
     notebook.cells.push(

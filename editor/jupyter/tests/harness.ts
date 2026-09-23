@@ -3,6 +3,7 @@ import { EditorView } from '@codemirror/view';
 import { python } from '@codemirror/lang-python';
 import { syntaxHighlighting, defaultHighlightStyle, syntaxTree, language } from '@codemirror/language';
 import { eqioraMagic } from '../src/language';
+import './hover-harness';
 
 let view: EditorView;
 function open(source: string) {
