@@ -114,7 +114,7 @@ fn hover_uses_current_model_scope_and_source_version() {
     let incomplete = "model M(){variable value:m; relation r{va|lue";
     assert!(!hover(incomplete).detail().unwrap().contains("//"));
     let component = "component C(){variable va|lue:m;} model M(){}";
-    assert!(!hover(component).detail().unwrap().contains("//"));
+    assert!(hover(component).detail().unwrap().contains("dimension L"));
 
     let old = EditorWorkspaceSnapshot::analyze_standalone(1, marked.replace('|', ""));
     let mut service = crate::editor::EditorWorkspaceService::new(old.clone());

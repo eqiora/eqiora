@@ -82,8 +82,8 @@ impl EditorWorkspaceSnapshot {
     /// Query documented vocabulary, declarations and canonical modules in the current graph.
     /// Returns the replacement range and matching symbols.
     /// Recovery never grants executable validity or crosses a private boundary.
-    /// Prepared Model parameter initializers, component parameter bindings and
-    /// scalar connection endpoints rank compatible contracts first, unknown
+    /// Prepared Model/owned Component Parameter initializers, Model instance bindings
+    /// and scalar connection endpoints rank compatible contracts first, unknown
     /// candidates next, and incompatible contracts last. Only complete simple
     /// references are ranked. Clocked/spatial endpoints, arithmetic operands,
     /// unsupported types and failed analysis retain ordinary name completion.
@@ -95,7 +95,7 @@ impl EditorWorkspaceSnapshot {
     }
 
     /// Resolve documented vocabulary or an authored local, imported or exposed member spelling.
-    /// Prepared Model fields, parameters and Ports include known compiler type,
+    /// Prepared owned Model/Component Fields, Parameters and Ports include known type,
     /// role, support and activation facts matched to the exact declaration.
     /// Unsupported or incomplete declarations retain their authored detail.
     #[must_use]

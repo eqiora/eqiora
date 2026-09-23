@@ -138,19 +138,27 @@ invent missing array extents or turn a `let` alias into a navigation target.
 While an expression is incomplete, existing literal-type completion remains
 available without trusting partially resolved static values.
 
-The current source-checkout server also navigates from Model field/parameter/Port
-value references and direct child public Port references to their exact
+Owned Component Fields, Parameters and Ports now share hover/outline types,
+bounded Parameter completion and value navigation through the same declaration
+scope. This includes private body locals and uninstantiated Components when their
+unspecialized contracts can be prepared. General field suggestions retain authored
+source detail; contextual type ranking covers supported Parameter defaults.
+Borrowed Fields, record members, aliases,
+Component Clock details and family/binder scopes remain unsupported; instance
+extents, frames, supports and clock identities are not inferred.
+
+The current source-checkout server also navigates from owned Model/Component
+Field/Parameter/Port references and Model direct-child public Port references to their exact
 source declarations. For `child.value`, place the cursor on `value`; the target
 can be in an imported component file and follows unsaved document changes.
 Qualifiers, deeper members, private child Ports, nested binders and
 invalid source do not gain definition targets. Find References accepts these
 terminal value-reference tokens or their admitted declaration names and returns
-exact identifiers across prepared Models and source files. A public Component
-Port declaration is supported only when indexed through a Model's direct child;
-an unused admitted declaration returns an empty list. `a.p` and `b.p` may share
+exact identifiers across prepared declaration scopes and source files.
+An unused admitted declaration returns an empty list. `a.p` and `b.p` may share
 one source declaration, so these are declaration references, not physical
-occurrence identity or rename support. Private/deeper members, nested binders and
-uninstantiated Component Ports remain unsupported. These additions are separate
+occurrence identity or rename support. Private/deeper child members and nested
+binders remain unsupported. These additions are separate
 from the published-server checks above.
 
 ## Other LSP clients and projects

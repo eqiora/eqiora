@@ -207,7 +207,6 @@ fn nested_binders_and_initializers_do_not_inherit_outer_notation() {
     for marked in [
         "model M(){parameter value @{q}:1=1;indexset Rows=range(2);relation r[value in Rows]{ordinal(va|lue)=0;}}",
         "model M(){indexset Rows=range(2);parameter value @{q}:integer=sum(ordinal(va|lue),over=(value in Rows));}",
-        "component C(){parameter value @{q}:1=1;relation r{va|lue=1;}}",
     ] {
         assert!(assistance(marked).unwrap().notation().is_none(), "{marked}");
     }
