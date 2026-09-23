@@ -160,8 +160,12 @@ fn notation_between_name_and_type_preserves_exact_navigation() {
         let occurrence = range(source, reference, name);
         let position = snapshot.position(occurrence.start()).unwrap();
         assert_eq!(
-            workspace.local_definition_at_position(file, position),
-            Some(target)
+            workspace.value_definition_at_position(file, position),
+            Some(eqiora_core::Span {
+                file: file.to_owned(),
+                start: target.start(),
+                end: target.end()
+            })
         );
         for cursor in [target.start(), occurrence.start()] {
             assert_eq!(
@@ -195,6 +199,6 @@ fn notation_between_name_and_type_preserves_exact_navigation() {
             workspace.local_references_at_position(file, position, true),
             None
         );
-        assert_eq!(workspace.local_definition_at_position(file, position), None);
+        assert_eq!(workspace.value_definition_at_position(file, position), None);
     }
 }

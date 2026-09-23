@@ -18,11 +18,16 @@ pub(super) fn definition(
         return Ok(None);
     };
     let position = editor_position(params.text_document_position_params.position);
-    if let Some(range) = workspace.local_definition_at_position(file, position) {
-        let snapshot = workspace.document(file).ok_or("source is unavailable")?;
+    if let Some(span) = workspace.value_definition_at_position(file, position) {
+        let target_uri = state
+            .uri_for_file(uri, &span.file)
+            .ok_or("resolved definition URI is unavailable")?;
+        let snapshot = workspace
+            .document(&span.file)
+            .ok_or("source is unavailable")?;
         return Ok(Some(GotoDefinitionResponse::Scalar(Location::new(
-            uri.clone(),
-            source_range(snapshot, range.start() as usize, range.end() as usize)?,
+            target_uri,
+            source_range(snapshot, span.start as usize, span.end as usize)?,
         ))));
     }
     let Some(definition) = workspace.definition_for_reference_at_position(file, position) else {

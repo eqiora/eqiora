@@ -1,44 +1,47 @@
-//! Same-file navigation projects compiler-owned declaration identities.
+//! Navigation projects compiler-owned declaration identities and source owners.
 use super::{EditorWorkspaceSnapshot, cursor};
 use crate::editor::EditorPosition;
 use eqiora_lang::{TextRange, TokenKind};
 
 impl EditorWorkspaceSnapshot {
-    /// Resolve a simple Model field or parameter reference to its same-file
-    /// declaration name. Invalid snapshots, positions, qualified members and
-    /// nested binder scopes return no location; recovery grants no navigation.
+    /// Resolve a Model Field/Parameter/Port value reference or a direct child's
+    /// public Port reference to the exact declaration name in its source file.
+    /// The cursor must cover the terminal identifier, not a qualifier or dot.
+    /// Deeper members, nested binders and invalid snapshots return no location;
+    /// lexical recovery never grants navigation.
     #[must_use]
-    pub fn local_definition_at_position(
+    pub fn value_definition_at_position(
         &self,
         file: &str,
         position: EditorPosition,
-    ) -> Option<TextRange> {
+    ) -> Option<eqiora_core::Span> {
         if !self.diagnostics().is_empty() {
             return None;
         }
         let snapshot = self.document(file)?;
         let offset = snapshot.byte_offset(position)?;
         let semantics = snapshot.semantics.as_ref()?;
-        let (name, declaration) = semantics.analysis.local_definition(file, offset)?;
-        if snapshot.name_at(offset)?.0 != name {
+        let (name, declaration) = semantics.analysis.value_definition(file, offset)?;
+        if !cursor::at_value_name(&snapshot.source, offset, name) {
             return None;
         }
-        let source = snapshot
+        let terminal = name.rsplit('.').next()?;
+        let target = self.document(&declaration.file)?;
+        let source = target
             .source
-            .get(declaration.start() as usize..declaration.end() as usize)?;
+            .get(declaration.start as usize..declaration.end as usize)?;
         let mut tokens = cursor::tokens(source);
         // Admitted declaration notation sits between its name and type colon.
         tokens.retain(|token| token.kind() != TokenKind::Notation);
         tokens.windows(2).find_map(|pair| {
             let token = &pair[0];
-            (token.kind() == eqiora_lang::TokenKind::Identifier
-                && token.text() == name
-                && pair[1].kind() == eqiora_lang::TokenKind::Colon)
-                .then(|| {
-                    TextRange::new(
-                        declaration.start() + token.range().start(),
-                        declaration.start() + token.range().end(),
-                    )
+            (token.kind() == TokenKind::Identifier
+                && token.text() == terminal
+                && pair[1].kind() == TokenKind::Colon)
+                .then(|| eqiora_core::Span {
+                    file: declaration.file.clone(),
+                    start: declaration.start + token.range().start(),
+                    end: declaration.start + token.range().end(),
                 })
         })
     }

@@ -121,3 +121,66 @@ fn stdio_local_references_include_declarations_and_reject_stale_versions() {
     );
     assert_eq!(response(&messages, 7)["result"], json!([]));
 }
+
+#[test]
+fn stdio_public_port_definition_tracks_the_target_file_and_unsaved_version() {
+    let uri = "file:///workspace/main.eqi";
+    let target_uri = "file:///workspace/library.eqi";
+    let source = "// 🧪\r\nimport editor.workspace.library as lib;model M(){instance child:lib.Part();relation r{child.value=0;}}";
+    let library = "// 🧪\r\npublic component Part(output value @{v}:1){}";
+    let moved = format!("// moved\r\n{library}");
+    let broken = "public component Part(output value:1){";
+    let query = |id| json!({"jsonrpc":"2.0","id":id,"method":"textDocument/definition","params":{"textDocument":{"uri":uri},"position":source_position(source,"value=0")}});
+    let change = |version, text| json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":target_uri,"version":version},"contentChanges":[{"text":text}]}});
+    let mut child = Command::new(SERVER)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    for message in [
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{"workspace":{"workspaceFolders":true}},"workspaceFolders":[{"uri":"file:///workspace","name":"workspace"}]}}),
+        json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+        json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":target_uri,"languageId":"eqiora","version":1,"text":library}}}),
+        json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":uri,"languageId":"eqiora","version":1,"text":source}}}),
+        query(2),
+        change(2, moved.as_str()),
+        change(1, library),
+        query(3),
+        change(3, broken),
+        query(4),
+        change(4, moved.as_str()),
+        query(5),
+        json!({"jsonrpc":"2.0","id":6,"method":"textDocument/definition","params":{"textDocument":{"uri":uri},"position":source_position(source,"child.value")}}),
+        json!({"jsonrpc":"2.0","id":7,"method":"textDocument/definition","params":{"textDocument":{"uri":uri},"position":source_position(source,".value")}}),
+        json!({"jsonrpc":"2.0","id":8,"method":"shutdown","params":null}),
+        json!({"jsonrpc":"2.0","method":"exit","params":null}),
+    ] {
+        write_packet(&mut stdin, &message);
+    }
+    drop(stdin);
+    let output = child.wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let messages = parse_packets(&output.stdout);
+    for (id, text) in [(2, library), (3, moved.as_str()), (5, moved.as_str())] {
+        let result = &response(&messages, id)["result"];
+        assert_eq!(result["uri"], target_uri);
+        assert_eq!(result["range"]["start"], source_position(text, "value @{"));
+        assert_eq!(
+            result["range"]["end"]["line"],
+            result["range"]["start"]["line"]
+        );
+        assert_eq!(
+            result["range"]["end"]["character"].as_u64().unwrap(),
+            result["range"]["start"]["character"].as_u64().unwrap() + 5
+        );
+    }
+    for id in [4, 6, 7] {
+        assert!(response(&messages, id)["result"].is_null());
+    }
+}
