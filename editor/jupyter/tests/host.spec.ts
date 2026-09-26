@@ -2,6 +2,63 @@ import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 
 for (const route of ['lab/tree', 'notebooks']) {
+  test(`${route}: mixed notebook survives restart, run all and a failed re-execution`, async ({ page, request }) => {
+    const notebook = JSON.parse(await readFile(new URL('../decay.ipynb', import.meta.url), 'utf8'));
+    notebook.cells[0].source.push('\nimport os\nprint("Kernel PID:", os.getpid())');
+    const workspace = `${route.replace('/', '-')}-${Date.now()}-execution`;
+    const name = `${workspace}.ipynb`;
+    const query = `?token=${encodeURIComponent(process.env.EQIORA_JUPYTER_TOKEN ?? 'eqiora-test')}`;
+    expect((await request.put(`/api/contents/${name}${query}`, { data: { type: 'notebook', content: notebook } })).ok()).toBe(true);
+    try {
+      // A private Lab workspace prevents restored tabs from becoming the active notebook.
+      const path = route === 'lab/tree' ? `lab/workspaces/${workspace}/tree` : route;
+      await page.goto(`/${path}/${name}${query}`);
+      if (route === 'lab/tree') await page.getByRole('tab', { name, exact: true }).click();
+      const cells = page.locator('.jp-CodeCell:visible');
+      const editors = cells.locator('.cm-content');
+      await expect(editors).toHaveCount(3, { timeout: 30000 });
+      await editors.nth(0).click();
+      await page.getByRole('menuitem', { name: 'Run', exact: true }).click();
+      await page.getByRole('menuitem', { name: /^Run All(?: Cells)?$/ }).click({ timeout: 10000 });
+      const output = cells.nth(2).locator('.jp-OutputArea');
+      await expect(output).toContainText(/[0-9a-f]{64}/, { timeout: 30000 });
+      const digest = (await output.innerText()).trim();
+      const previousKernel = await cells.nth(0).locator('.jp-OutputArea').innerText();
+      await page.getByRole('menuitem', { name: 'Kernel', exact: true }).click();
+      await page.getByRole('menuitem', { name: /Restart Kernel and Run All/ }).click();
+      await page.getByRole('dialog').getByRole('button', { name: 'Confirm Kernel Restart', exact: true }).click();
+      await expect.poll(async () => {
+        const current = await cells.nth(0).locator('.jp-OutputArea').innerText();
+        return current.includes('Kernel PID:') && current !== previousKernel;
+      }, { timeout: 30000 }).toBe(true);
+      await expect(output).toHaveText(digest, { timeout: 30000 });
+      await editors.nth(1).fill('%%eqiora model\nmodel Broken(){parameter value:m=missing;}');
+      await editors.nth(1).press('Shift+Enter');
+      await expect(cells.nth(1).locator('.jp-OutputArea')).toContainText('EQ0603', { timeout: 30000 });
+      await editors.nth(2).fill('print("Preserved Model:", model.digest)');
+      await editors.nth(2).press('Control+Enter');
+      await expect(output).toHaveText(`Preserved Model: ${digest}`);
+      await editors.nth(1).fill(notebook.cells[1].source.join(''));
+      await editors.nth(1).press('Shift+Enter');
+      await expect(cells.nth(1).locator('.jp-OutputArea')).toBeEmpty();
+      await editors.nth(2).fill(notebook.cells[2].source.join(''));
+      await editors.nth(2).press('Control+Enter');
+      await expect(output).toHaveText(digest);
+      await page.getByRole('button', { name: /^Save and create checkpoint/ }).click();
+      await expect.poll(async () => {
+        const saved = await (await request.get(`/api/contents/${name}${query}`)).json();
+        return saved.content.cells.map((cell: { execution_count: number }) => cell.execution_count);
+      }).toEqual([1, 6, 7]);
+    } finally {
+      const sessions = await (await request.get(`/api/sessions${query}`)).json();
+      for (const session of sessions) {
+        if (session.path === name) await request.delete(`/api/sessions/${session.id}${query}`);
+      }
+      expect((await request.delete(`/api/contents/${name}${query}`)).ok()).toBe(true);
+      if (route === 'lab/tree') await request.delete(`/lab/api/workspaces/${workspace}${query}`);
+    }
+  });
+
   test(`${route}: hover reads the current unexecuted cell through its owning kernel`, async ({ page, request }) => {
     const notebook = JSON.parse(await readFile(new URL('../decay.ipynb', import.meta.url), 'utf8'));
     notebook.cells[0].source = ['print("Eqiora kernel ready")'];
