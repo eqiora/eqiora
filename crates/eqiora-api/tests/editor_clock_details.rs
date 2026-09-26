@@ -182,17 +182,16 @@ fn borrowed_component_and_event_activations_have_no_concrete_clock_facts() {
             .unwrap();
         assert!(!hover.detail().unwrap().contains("periodic clock;"));
     }
+    let event = member(snapshot, "M", "hit");
+    assert_eq!(event.kind(), eqiora_api::editor::EditorSymbolKind::Event);
+    assert!(event.detail().is_none());
     assert!(
-        snapshot
-            .symbols()
-            .iter()
-            .flat_map(EditorSymbol::children)
-            .all(|symbol| symbol.name() != "hit")
-    );
-    assert!(
-        workspace
+        !workspace
             .assistance(file, source.find("hit").unwrap() as u32, "hit")
-            .is_none()
+            .unwrap()
+            .detail()
+            .unwrap()
+            .contains("periodic clock;")
     );
     assert!(
         member(snapshot, "Borrowed", "memory")

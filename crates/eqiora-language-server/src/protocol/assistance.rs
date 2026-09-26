@@ -125,6 +125,7 @@ fn authored(candidate: EditorSymbol) -> Entry {
             EditorSymbolKind::Import => CompletionItemKind::MODULE,
             EditorSymbolKind::Keyword => CompletionItemKind::KEYWORD,
             EditorSymbolKind::Let => CompletionItemKind::CONSTANT,
+            EditorSymbolKind::Event => CompletionItemKind::EVENT,
             EditorSymbolKind::Enum => CompletionItemKind::ENUM,
             EditorSymbolKind::EnumMember => CompletionItemKind::ENUM_MEMBER,
             EditorSymbolKind::Record => CompletionItemKind::STRUCT,

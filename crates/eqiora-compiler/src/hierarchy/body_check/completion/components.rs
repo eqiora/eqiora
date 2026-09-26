@@ -107,6 +107,13 @@ pub(super) fn collect(
                 ComponentItem::Field(value) => (value.name(), value.range()),
                 ComponentItem::Parameter(value) => (value.name(), value.range()),
                 ComponentItem::Port(value) => (value.name(), value.range()),
+                ComponentItem::Event(value) => {
+                    if matches!(symbols.get(value.name()), Some(SymbolContract::Event)) {
+                        candidates.insert(value.name().to_owned(), Candidate::Event);
+                        declarations.insert(value.name().to_owned(), (file.clone(), value.range()));
+                    }
+                    continue;
+                }
                 ComponentItem::Clock(value) => {
                     if let Ok((period, phase)) =
                         crate::units::lower_clock(definition.file, value.period(), value.phase())

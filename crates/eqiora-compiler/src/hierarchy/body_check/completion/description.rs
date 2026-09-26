@@ -1,4 +1,5 @@
 use super::super::scope::{PhysicalNominal, PortContract};
+use super::Candidate;
 use eqiora_lang::{ActivationSyntax, FieldRoleSyntax};
 use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
 
@@ -146,4 +147,19 @@ fn describe_support(support: Option<&SpatialSupport<String>>) -> String {
             format!("support interface {connection}; axes {dimensions} (definition-local identity)")
         }
     }
+}
+
+pub(super) fn describe_candidate(candidate: &Candidate) -> Option<String> {
+    let text = match candidate {
+        // Formal requirements and Event navigation retain source identity only.
+        Candidate::Requirement | Candidate::Event => return None,
+        Candidate::Clock(period, phase, owner) => describe_clock(*period, *phase, owner),
+        Candidate::Parameter(value) => format!(
+            "parameter; {}; static; no spatial support",
+            describe_type(value)
+        ),
+        Candidate::Port(port) => describe_port(port),
+        Candidate::Field(field) => describe_field(&field.0, field.1, &field.2),
+    };
+    Some(bounded_description(text))
 }

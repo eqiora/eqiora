@@ -117,10 +117,6 @@ fn clock_navigation_never_recovers_invalid_or_nested_bindings() {
             "model M(){clock tick=periodic(1[s]);indexset Rows=range(2);relation r[i in Rows] at |tick{period(tick)=1[s];}}",
             true,
         ),
-        (
-            "model M(){state x:m;event hit=crossing(x,direction=falling);relation reset at |hit{next(x)=1[m];}}",
-            true,
-        ),
         ("model M(){clock |tick=periodic(0[s]);}", false),
         ("model M(){clock |tick=periodic(1[m]);}", false),
         (

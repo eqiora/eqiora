@@ -122,12 +122,19 @@ factory nodes have no activation-name range. Activation meaning and equality rem
 independent of this location metadata.
 Equal schedules remain distinct declarations. This does not assign occurrence
 identity or infer borrowed or child Clock schedules; Event
-metadata remains outside this slice. Clock definition/reference navigation uses
+inferred guard types and event times remain outside this slice. Clock definition/reference navigation uses
 the exact owned Model/Component declaration or prepared signature Clock requirement
 for retained value occurrences such as `period(tick)` and these activation names.
 A required Clock has a source declaration even when its schedule is unknown.
 Caller binding labels are not value uses; instance schedules are never projected
 onto the requirement. An unused admitted declaration differs from an unsupported query.
+
+Owned Model/Component Events appear in the outline and authored hover/completion.
+Their retained activation-name tokens navigate to the exact Event declaration and
+participate in Find References, including an unused declaration when requested.
+Authored crossing expressions, directions and prose remain source text; this
+projection does not infer a guard type, occurrence identity or event time. Invalid
+and recovered snapshots retain safe lexical structure but grant no navigation.
 
 Document-symbol details reuse the same prepared compiler facts for exact owned
 Model/Component Field, Parameter and Port declarations and owned periodic Clocks, including channel-array

@@ -15,6 +15,7 @@ use std::{collections::BTreeMap, sync::Arc};
 #[derive(Clone, Debug)]
 enum Candidate {
     Requirement,
+    Event,
     Clock(
         eqiora_schema::kernel::RationalTime,
         eqiora_schema::kernel::RationalTime,
@@ -149,6 +150,12 @@ impl CompletionIndex {
                     Item::Field(value) => (value.name(), value.range()),
                     Item::Parameter(value) => (value.name(), value.range()),
                     Item::Port(value) => (value.name(), value.range()),
+                    Item::Event(value) => {
+                        if matches!(scope.symbols.get(value.name()), Some(SymbolContract::Event)) {
+                            candidates.insert(value.name().to_owned(), Candidate::Event);
+                        }
+                        (value.name(), value.range())
+                    }
                     Item::Clock(value) => {
                         if let Ok((period, phase)) = crate::units::lower_clock(
                             definition.file,
@@ -349,6 +356,7 @@ impl CompletionIndex {
             | Candidate::Parameter(_)
             | Candidate::Clock(..)
             | Candidate::Requirement
+            | Candidate::Event
                 if origin.as_ref() == file => {}
             // Owned Ports and Model child public Ports share the exact
             // admitted declaration map; private child members never enter it.
@@ -389,6 +397,7 @@ impl CompletionIndex {
                             | Candidate::Parameter(_)
                             | Candidate::Clock(..)
                             | Candidate::Requirement
+                            | Candidate::Event
                                 if origin.as_ref() == file => {}
                             Candidate::Port(_) => {}
                             _ => return None,
@@ -463,20 +472,7 @@ impl CompletionIndex {
         if (origin.as_ref(), *range) != declaration {
             return None;
         }
-        let text = match scope.candidates.get(name)? {
-            // Formal declarations retain source identity without occurrence facts.
-            Candidate::Requirement => return None,
-            Candidate::Clock(period, phase, owner) => {
-                description::describe_clock(*period, *phase, owner)
-            }
-            Candidate::Parameter(value) => format!(
-                "parameter; {}; static; no spatial support",
-                describe_type(value)
-            ),
-            Candidate::Port(port) => describe_port(port),
-            Candidate::Field(field) => description::describe_field(&field.0, field.1, &field.2),
-        };
-        Some(bounded_description(text))
+        description::describe_candidate(scope.candidates.get(name)?)
     }
 
     pub(crate) fn classify(
