@@ -110,22 +110,22 @@ preparation publishes no Component type or declaration target. Required symbolic
 scalar Parameters can retain their type, but unknown extents, frames, supports and
 clock identities are not borrowed from an instantiated Component.
 
-Model-owned periodic Clock hover adds the exact reduced period and phase in
+Owned Model/Component periodic Clock hover adds the exact reduced period and phase in
 coherent seconds from the existing compiler time conversion. For example,
 `periodic(100[ms], phase=50[ms])` displays period `1/10 s` and phase `1/20 s`.
 The same facts appear at value uses such as `period(tick)`; activation clauses
 such as `at tick` have no retained value-reference occurrence and omit Clock hover.
 Equal schedules remain distinct declarations. This does not assign occurrence
-identity or infer borrowed, Component-local or child Clock schedules; Event
+identity or infer borrowed or child Clock schedules; Event
 metadata and Clock definition/reference navigation remain outside this slice.
 
 Document-symbol details reuse the same prepared compiler facts for exact owned
-Model/Component Field, Parameter and Port declarations and Model periodic Clocks, including channel-array
+Model/Component Field, Parameter and Port declarations and owned periodic Clocks, including channel-array
 rank and exact local schedules. Unsupported
 declarations keep their lexical kind. Invalid or incomplete workspace snapshots
 clear earlier typed details while retaining the recovered outline. Cancelled and
 stale preparation cannot publish those facts. Nested-binder inference, borrowed
-Fields, Component Clock facts and exact named activation identities remain outside
+Fields and exact named activation identities remain outside
 this projection.
 
 Hover in a validated workspace includes the declaration's origin. Canonical

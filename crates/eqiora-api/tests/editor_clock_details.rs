@@ -66,7 +66,7 @@ fn exact_clock_details_preserve_declarations_without_claiming_occurrence_identit
 }
 
 #[test]
-fn clock_details_select_the_current_file_and_model() {
+fn clock_details_select_the_current_file_and_definition() {
     let namespace = CompilationNamespaceId::new(["clocks"]).unwrap();
     let workspace = EditorWorkspaceSnapshot::analyze_modules(
         1,
@@ -82,7 +82,7 @@ fn clock_details_select_the_current_file_and_model() {
                 ResolvedSourceUnit::new(
                     namespace,
                     "src/other.eqi",
-                    "model Other(){clock tick=periodic(3[s]);}",
+                    "public component Other(){clock tick=periodic(3[s]);}",
                 )
                 .unwrap(),
             ],
@@ -100,7 +100,7 @@ fn clock_details_select_the_current_file_and_model() {
         } else {
             (
                 "Other",
-                "periodic clock; period 3/1 s; phase 0/1 s; Model-local declaration; occurrence identity unknown",
+                "periodic clock; period 3/1 s; phase 0/1 s; Component-local declaration; occurrence identity unknown",
             )
         };
         let symbol = member(workspace.document(file).unwrap(), owner, "tick");
@@ -165,7 +165,7 @@ fn clock_updates_reject_stale_facts_and_recover_after_invalid_source() {
 
 #[test]
 fn borrowed_component_and_event_activations_have_no_concrete_clock_facts() {
-    let source = "component C(){clock tick=periodic(100[ms]);} model Borrowed(clock tick:periodic){state memory:1 at tick;} model M(){state x:m;event hit=crossing(x,direction=falling);}";
+    let source = "component C(clock tick:periodic){} model Borrowed(clock tick:periodic){state memory:1 at tick;} model M(){state x:m;event hit=crossing(x,direction=falling);}";
     let workspace = EditorWorkspaceSnapshot::analyze_standalone(1, source);
     assert!(
         workspace.diagnostics().is_empty(),
@@ -200,4 +200,63 @@ fn borrowed_component_and_event_activations_have_no_concrete_clock_facts() {
             .unwrap()
             .contains("activation tick (occurrence identity unknown)")
     );
+}
+
+#[test]
+fn component_clock_details_are_owned_unspecialized_and_use_exact_current_source() {
+    let source = "component C(){clock tick=periodic(100[ms],phase=50[ms]);clock peer=periodic(1[s]/10,phase=1[s]/20);relation r{period(tick)=period(tick);}} model M(){clock tick=periodic(2[s]);instance first:C();instance second:C();}";
+    let expected = "periodic clock; period 1/10 s; phase 1/20 s; Component-local declaration; occurrence identity unknown";
+    let mut service =
+        EditorWorkspaceService::new(EditorWorkspaceSnapshot::analyze_standalone(1, source));
+    let current = service.current().unwrap();
+    assert!(
+        current.diagnostics().is_empty(),
+        "{:?}",
+        current.diagnostics()
+    );
+    let file = current.files().next().unwrap();
+    let snapshot = current.document(file).unwrap();
+    let tick = member(snapshot, "C", "tick");
+    let peer = member(snapshot, "C", "peer");
+    // 100/1000 and 50/1000 seconds reduce to 1/10 and 1/20 independently.
+    assert_eq!(tick.detail(), Some(expected));
+    assert_eq!(peer.detail(), Some(expected));
+    assert_ne!(tick.range(), peer.range());
+    let hover = current
+        .assistance(file, source.find("tick);").unwrap() as u32, "tick")
+        .unwrap();
+    assert_eq!(hover.range(), tick.range());
+    assert!(hover.detail().unwrap().contains(expected));
+    assert!(
+        member(snapshot, "M", "tick")
+            .detail()
+            .unwrap()
+            .contains("period 2/1 s")
+    );
+    service.begin(2).unwrap();
+    assert!(service.current().is_none());
+    let changed = source.replace("100[ms]", "200[ms]");
+    let current = service
+        .replace(EditorWorkspaceSnapshot::analyze_standalone(2, changed))
+        .unwrap();
+    let file = current.files().next().unwrap();
+    assert!(
+        member(current.document(file).unwrap(), "C", "tick")
+            .detail()
+            .unwrap()
+            .contains("period 1/5 s; phase 1/20 s; Component-local")
+    );
+    for (index, invalid) in [
+        "component C(){clock tick=periodic(0[s]);}",
+        "component C(){clock tick=periodic(1[m]);}",
+        "component C(){clock tick=periodic(1[s],phase=-1[s]);}",
+        "component C(){clock tick=periodic(100[ms]);relation r{",
+        "component C(parameter n:integer){clock tick=periodic(100[ms]);variable unknown:array<1,n>;}",
+    ].into_iter().enumerate() {
+        let version = index as u64 + 3;
+        service.begin(version).unwrap();
+        let current = service.replace(EditorWorkspaceSnapshot::analyze_standalone(version, invalid)).unwrap();
+        let file = current.files().next().unwrap();
+        assert!(member(current.document(file).unwrap(), "C", "tick").detail().is_none(), "{invalid}");
+    }
 }

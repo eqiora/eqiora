@@ -87,6 +87,18 @@ pub(super) fn collect(
                 ComponentItem::Field(value) => (value.name(), value.range()),
                 ComponentItem::Parameter(value) => (value.name(), value.range()),
                 ComponentItem::Port(value) => (value.name(), value.range()),
+                ComponentItem::Clock(value) => {
+                    if let Ok((period, phase)) =
+                        crate::units::lower_clock(definition.file, value.period(), value.phase())
+                    {
+                        candidates.insert(
+                            value.name().to_owned(),
+                            Candidate::Clock(period, phase, "Component"),
+                        );
+                        declarations.insert(value.name().to_owned(), (file.clone(), value.range()));
+                    }
+                    continue;
+                }
                 _ => continue,
             };
             let candidate = match symbols.remove(name) {
