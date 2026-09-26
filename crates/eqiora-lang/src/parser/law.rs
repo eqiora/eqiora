@@ -44,6 +44,7 @@ impl Parser<'_> {
             return None;
         };
         Some(RelationDecl {
+            activation_name_range: None,
             comments: Default::default(),
             name,
             activation: ActivationSyntax::Continuous,

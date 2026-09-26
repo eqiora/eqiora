@@ -46,11 +46,11 @@ fn exact_clock_details_preserve_declarations_without_claiming_occurrence_identit
         .unwrap();
     assert_eq!(reference.range(), tick.range());
     assert!(reference.detail().unwrap().contains(EXACT));
-    assert!(
-        workspace
-            .assistance(file, source.find("tick;").unwrap() as u32, "tick")
-            .is_none()
-    );
+    let activation = workspace
+        .assistance(file, source.find("tick;").unwrap() as u32, "tick")
+        .unwrap();
+    assert_eq!(activation.range(), tick.range());
+    assert!(activation.detail().unwrap().contains(EXACT));
     assert!(
         member(snapshot, "Other", "tick")
             .detail()

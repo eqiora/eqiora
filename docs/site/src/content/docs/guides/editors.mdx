@@ -159,9 +159,9 @@ Qualifiers, deeper members, private child Ports, nested binders and
 invalid source do not gain definition targets. Find References accepts these
 terminal value-reference tokens or their admitted declaration names and returns
 exact identifiers across prepared declaration scopes and source files.
-Clock navigation covers owned periodic declarations and value uses such as
-`period(tick)`; borrowed Clocks and activation clauses such as `at tick` remain
-outside this projection.
+Clock navigation covers owned periodic declarations, value uses such as
+`period(tick)`, and clock names in `at` clauses on Fields, signal Ports, Relations
+and `let` assertions. Borrowed Clocks remain outside this projection.
 An unused admitted declaration returns an empty list. `a.p` and `b.p` may share
 one source declaration, so these are declaration references, not physical
 occurrence identity or rename support. Private/deeper child members and nested

@@ -26,6 +26,7 @@ impl SourceAstFactory {
         validate_expression(&flux)?;
         validate_expression(&source)?;
         Ok(RelationDecl {
+            activation_name_range: None,
             comments: Default::default(),
             name: checked_identifier(name, "Law")?,
             activation: ActivationSyntax::Continuous,

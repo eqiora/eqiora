@@ -120,19 +120,32 @@ fn stdio_clock_assistance_uses_exact_current_declarations() {
         response(&messages, 25)["result"],
         json!([location(&changed, "beat)="), location(&changed, "beat);")])
     );
-    for id in [23, 27, 29, 31] {
+    for id in [23, 27, 29] {
         assert_eq!(response(&messages, id)["result"], json!([]));
     }
-    for id in [26, 28, 32] {
+    for id in [26, 28] {
         assert!(response(&messages, id)["result"].is_null());
     }
+    assert_eq!(
+        response(&messages, 32)["result"],
+        location(source, "tick=periodic(100")
+    );
+    assert_eq!(
+        response(&messages, 31)["result"],
+        json!([
+            location(source, "tick=periodic(100"),
+            location(source, "tick;"),
+            location(source, "tick)=period(tick);"),
+            location(source, "tick);")
+        ])
+    );
     let exact = "periodic clock; period 1/10 s; phase 1/20 s; Model-local declaration; occurrence identity unknown";
     assert_eq!(detail(2, "M", "tick"), exact);
     assert_eq!(detail(2, "M", "peer"), exact);
     assert_eq!(detail(13, "M", "tick"), exact);
     assert!(detail(2, "Other", "tick").contains("period 2/1 s; phase 0/1 s"));
     assert!(detail(2, "M", "memory").contains("activation tick (occurrence identity unknown)"));
-    for id in [3, 4, 14] {
+    for id in [3, 4, 14, 17] {
         let text = response(&messages, id)["result"]["contents"]["value"]
             .as_str()
             .unwrap();
@@ -182,7 +195,7 @@ fn stdio_clock_assistance_uses_exact_current_declarations() {
             .all(|symbol| symbol["name"] != "hit")
     );
     assert!(response(&messages, 16)["result"].is_null());
-    assert!(response(&messages, 17)["result"].is_null());
+
     for id in [8, 10, 12] {
         assert!(
             !response(&messages, id)["result"]["contents"]["value"]

@@ -62,7 +62,7 @@ fn owned_clock_navigation_preserves_declaration_identity_and_exact_source_tokens
         file,
         source,
         "tick @{t_c}",
-        &["tick)=period(tick)+", "tick)+"],
+        &["tick;", "tick)=period(tick)+", "tick)+"],
     );
     assert_clock(
         &workspace,
@@ -90,8 +90,8 @@ fn owned_clock_navigation_preserves_declaration_identity_and_exact_source_tokens
         workspace.value_references_at_position(file, unused, true),
         Some(vec![span(file, source, "peer=", "peer")])
     );
-    // Activation names, notation contents and unit tokens are not value occurrences.
-    for needle in ["tick;", "t_c}", "ms]", "period(tick)"] {
+    // Notation contents and unit tokens are not declaration references.
+    for needle in ["t_c}", "ms]", "period(tick)"] {
         let position = snapshot
             .position(source.find(needle).unwrap() as u32)
             .unwrap();
@@ -113,6 +113,22 @@ fn owned_clock_navigation_preserves_declaration_identity_and_exact_source_tokens
 #[test]
 fn clock_navigation_never_recovers_borrowed_invalid_or_nested_bindings() {
     for (marked, valid_source) in [
+        (
+            "component C(clock tick:periodic){state memory:1 at |tick;}",
+            true,
+        ),
+        (
+            "model M(clock tick:periodic){state memory:1 at |tick;}",
+            true,
+        ),
+        (
+            "model M(){clock tick=periodic(1[s]);indexset Rows=range(2);relation r[i in Rows] at |tick{period(tick)=1[s];}}",
+            true,
+        ),
+        (
+            "model M(){state x:m;event hit=crossing(x,direction=falling);relation reset at |hit{next(x)=1[m];}}",
+            true,
+        ),
         (
             "component C(clock tick:periodic){relation r{period(|tick)=1[s];}}",
             true,
@@ -213,4 +229,46 @@ fn same_named_clock_files_and_new_unsaved_versions_do_not_share_references() {
             .value_references_at_position(file, position, true)
             .is_none()
     );
+}
+
+#[test]
+fn activation_clauses_share_owned_clock_declarations_and_follow_current_source() {
+    for owner in ["model M", "component C"] {
+        let source = format!(
+            "{owner}(){{clock tick=periodic(100[ms]);state memory:1 at tick;port out:signal output 1 at tick;let previous at tick=pre(memory);relation step at tick{{next(memory)=previous;out=memory;}}}}"
+        );
+        let old = EditorWorkspaceSnapshot::analyze_standalone(1, &source);
+        assert!(
+            old.diagnostics().is_empty(),
+            "{source}: {:?}",
+            old.diagnostics()
+        );
+        let mut service = EditorWorkspaceService::new(old.clone());
+        let uses = ["tick;port", "tick;let", "tick=pre", "tick{"];
+        {
+            let current = &old;
+            let file = current.files().next().unwrap();
+            assert_clock(current, file, &source, "tick=periodic", &uses);
+            for needle in uses {
+                let hover = current
+                    .assistance(file, source.find(needle).unwrap() as u32, "tick")
+                    .unwrap();
+                assert!(
+                    hover
+                        .detail()
+                        .unwrap()
+                        .contains("periodic clock; period 1/10 s; phase 0/1 s;")
+                );
+            }
+        }
+        service.begin(2).unwrap();
+        assert!(service.current().is_none());
+        assert!(service.replace(old).is_err());
+        let changed = format!("// 🧪\r\n{source}");
+        let current = service
+            .replace(EditorWorkspaceSnapshot::analyze_standalone(2, &changed))
+            .unwrap();
+        let file = current.files().next().unwrap();
+        assert_clock(current, file, &changed, "tick=periodic", &uses);
+    }
 }

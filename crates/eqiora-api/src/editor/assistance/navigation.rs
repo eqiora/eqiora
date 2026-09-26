@@ -10,7 +10,7 @@ impl EditorWorkspaceSnapshot {
     /// The cursor must cover the terminal identifier, not a qualifier or dot.
     /// Deeper members, nested binders and invalid snapshots return no location;
     /// lexical recovery never grants navigation. Clock targets require owned periodic
-    /// declarations; activation clauses have no retained value-reference occurrence.
+    /// declarations. Exact authored activation-name tokens use the same target.
     #[must_use]
     pub fn value_definition_at_position(
         &self,
@@ -46,7 +46,8 @@ impl EditorWorkspaceSnapshot {
     /// The cursor must be on its declaration name or a terminal value-reference
     /// token. Multiple instance spellings may share one source declaration;
     /// these results do not identify physical occurrences or support rename.
-    /// Clock results cover retained value uses, not activation clauses or borrowed clocks.
+    /// Clock results cover retained value uses and authored activation-name tokens,
+    /// excluding borrowed Clocks.
     /// Results use source-qualified exact identifier spans, sorted by file and
     /// offset. Include the declaration once only when requested. An admitted
     /// unused declaration returns `Some([])`; unknown targets, private child/deeper

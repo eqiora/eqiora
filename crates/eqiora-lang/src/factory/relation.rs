@@ -80,6 +80,7 @@ impl SourceAstFactory {
             checked_range(equation.range())?;
         }
         Ok(RelationDecl {
+            activation_name_range: None,
             comments: Default::default(),
             name: checked_identifier(name, "Relation")?,
             activation,

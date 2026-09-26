@@ -86,6 +86,7 @@ impl SourceAstFactory {
     ) -> Result<NamedDefinitionDecl, AstConstructionError> {
         validate_expression(&value)?;
         Ok(NamedDefinitionDecl {
+            activation_name_range: None,
             visibility: crate::VisibilitySyntax::Private,
             comments: Default::default(),
             name: checked_identifier(name, "let alias")?,

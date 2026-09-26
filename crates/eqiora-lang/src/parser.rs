@@ -488,13 +488,15 @@ impl Parser<'_> {
         } else {
             None
         };
-        let activation = if self.at_keyword("at") {
+        let (activation, activation_name_range) = if self.at_keyword("at") {
             self.bump();
-            crate::ActivationSyntax::Named(
-                self.expect_identifier("unknown clock")?.text().to_owned(),
+            let token = self.expect_identifier("unknown clock")?;
+            (
+                crate::ActivationSyntax::Named(token.text().to_owned()),
+                Some(token.range()),
             )
         } else {
-            crate::ActivationSyntax::Continuous
+            (crate::ActivationSyntax::Continuous, None)
         };
         let end = if terminated {
             self.expect(TokenKind::Semicolon, "`;` after declaration")?
@@ -504,6 +506,7 @@ impl Parser<'_> {
             self.previous_significant_range().end()
         };
         Some(FieldDecl {
+            activation_name_range,
             comments: Default::default(),
             name,
             domain,
@@ -618,11 +621,11 @@ impl Parser<'_> {
         let start = self.expect_keyword("port")?.range().start();
         let name = self.declaration_name("Port name")?.text().to_owned();
         self.expect(TokenKind::Colon, "`:` before Port contract")?;
-        let syntax = if self.at_keyword("signal") {
+        let (syntax, activation_name_range) = if self.at_keyword("signal") {
             self.parse_signal_port_syntax()?
         } else {
             let connector = self.parse_name_path("physical Domain or Connector name")?;
-            if self.at_keyword("over") {
+            let syntax = if self.at_keyword("over") {
                 self.bump();
                 PortSyntax::FieldPhysical {
                     connector,
@@ -638,13 +641,15 @@ impl Parser<'_> {
             } else {
                 self.error_here("a model-local physical Domain requires a local declaration name");
                 return None;
-            }
+            };
+            (syntax, None)
         };
         let end = self
             .expect(TokenKind::Semicolon, "`;` after Port declaration")?
             .range()
             .end();
         Some(PortDecl {
+            activation_name_range,
             comments: Default::default(),
             name,
             syntax,
@@ -668,11 +673,11 @@ impl Parser<'_> {
             .then(|| self.parse_boundary_family_binder())
             .flatten();
         self.expect(TokenKind::Colon, "`:` before component Port contract")?;
-        let syntax = if self.at_keyword("signal") {
+        let (syntax, activation_name_range) = if self.at_keyword("signal") {
             self.parse_signal_port_syntax()?
         } else {
             let connector = self.parse_name_path("physical Connector name")?;
-            if self.at_keyword("over") {
+            let syntax = if self.at_keyword("over") {
                 self.bump();
                 PortSyntax::FieldPhysical {
                     connector,
@@ -683,7 +688,8 @@ impl Parser<'_> {
                 }
             } else {
                 PortSyntax::ScalarPhysicalConnector { connector }
-            }
+            };
+            (syntax, None)
         };
         let end = if terminated {
             self.expect(TokenKind::Semicolon, "`;` after component Port")?
@@ -693,6 +699,7 @@ impl Parser<'_> {
             self.previous_significant_range().end()
         };
         let port = ComponentPortDecl {
+            activation_name_range,
             comments: Default::default(),
             visibility,
             name,
@@ -718,7 +725,7 @@ impl Parser<'_> {
         }))
     }
 
-    fn parse_signal_port_syntax(&mut self) -> Option<PortSyntax> {
+    fn parse_signal_port_syntax(&mut self) -> Option<(PortSyntax, Option<TextRange>)> {
         self.expect_keyword("signal")?;
         let direction = if self.at_keyword("input") {
             self.bump();
@@ -737,20 +744,25 @@ impl Parser<'_> {
         } else {
             None
         };
-        let activation = if self.at_keyword("at") {
+        let (activation, activation_name_range) = if self.at_keyword("at") {
             self.bump();
-            crate::ActivationSyntax::Named(
-                self.expect_identifier("signal clock")?.text().to_owned(),
+            let token = self.expect_identifier("signal clock")?;
+            (
+                crate::ActivationSyntax::Named(token.text().to_owned()),
+                Some(token.range()),
             )
         } else {
-            crate::ActivationSyntax::Continuous
+            (crate::ActivationSyntax::Continuous, None)
         };
-        Some(PortSyntax::Signal {
-            direction,
-            value_type,
-            domain,
-            activation,
-        })
+        Some((
+            PortSyntax::Signal {
+                direction,
+                value_type,
+                domain,
+                activation,
+            },
+            activation_name_range,
+        ))
     }
 
     fn parse_name_path(&mut self, expected: &str) -> Option<NamePath> {
