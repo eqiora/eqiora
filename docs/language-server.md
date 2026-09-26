@@ -51,8 +51,8 @@ with selection ranges and details. Other clients receive a flat symbol list with
 source locations and display container names. Without a symbol-kind value set,
 icons use the original LSP kind range; declaring a value set allows extended kinds.
 
-Hierarchical document symbols preserve each full declaration range and separately select the
-recovered name token when an outline item is picked. Keywords used as names,
+Hierarchical document symbols preserve each full declaration range and separately
+select the recovered name token when an outline item is picked. Keywords used as names,
 notation, comments and current unsaved source positions use the parser's header
 tokens. These lexical locations survive safe recovery without granting semantic
 identity or navigation. Import aliases and other entries without a locatable
