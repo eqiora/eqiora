@@ -5,15 +5,15 @@ use eqiora_core::Span;
 use eqiora_lang::{TextRange, Token, TokenKind};
 
 impl EditorWorkspaceSnapshot {
-    /// Resolve a prepared Model/Component Field/Parameter/Port/Clock value reference or a Model child's
-    /// public Port reference to the exact declaration name in its source file.
+    /// Resolve a prepared Model/Component value or owned Event activation reference,
+    /// or a Model child's public Port reference, to its exact source declaration name.
     /// The cursor must cover the terminal identifier, not a qualifier or dot.
     /// Deeper members, nested binders and invalid snapshots return no location;
     /// lexical recovery never grants navigation. Clock targets include owned periodic
     /// declarations and prepared signature requirements, without inferring a borrowed
     /// schedule. Prepared Field requirements also retain their own source target,
     /// without inferring occurrence-specific type/support facts. Exact authored
-    /// activation-name tokens use the same Clock target.
+    /// activation-name tokens use the same Clock or owned Event target.
     #[must_use]
     pub fn value_definition_at_position(
         &self,
@@ -44,12 +44,13 @@ impl EditorWorkspaceSnapshot {
         })
     }
 
-    /// Find references to a prepared Model/Component Field/Parameter/Port/Clock declaration or
+    /// Find references to a prepared Model/Component Field/Parameter/Port/Clock/Event declaration or
     /// a Model child's public Port across prepared declaration scopes.
     /// The cursor must be on its declaration name or a terminal value-reference
     /// token. Multiple instance spellings may share one source declaration;
     /// these results do not identify physical occurrences or support rename.
-    /// Clock results cover retained value uses and authored activation-name tokens,
+    /// Owned Event results cover authored activation-name tokens. Clock results
+    /// cover retained value uses and authored activation-name tokens,
     /// including prepared Clock requirements. Field requirements retain their own
     /// declaration references. Caller binding labels are not value uses.
     /// Results use source-qualified exact identifier spans, sorted by file and
@@ -197,6 +198,7 @@ fn declared_at<'a>(
             | EditorSymbolKind::Parameter
             | EditorSymbolKind::Port
             | EditorSymbolKind::Clock
+            | EditorSymbolKind::Event
     ) && declaration_name(tokens, symbol.range(), symbol.name())
         .is_some_and(|range| range.start() <= offset && offset < range.end())
     {

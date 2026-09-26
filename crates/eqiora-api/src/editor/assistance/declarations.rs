@@ -30,7 +30,7 @@ pub(super) fn at_name(snapshot: &EditorSnapshot, symbol: &EditorSymbol, offset: 
         EditorSymbolKind::Field | EditorSymbolKind::Parameter | EditorSymbolKind::Port => {
             eqiora_lang::TokenKind::Colon
         }
-        EditorSymbolKind::Clock => eqiora_lang::TokenKind::Equal,
+        EditorSymbolKind::Clock | EditorSymbolKind::Event => eqiora_lang::TokenKind::Equal,
         _ => return false,
     };
     tokens

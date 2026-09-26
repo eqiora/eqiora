@@ -7,7 +7,7 @@ fn stdio_clock_assistance_uses_exact_current_declarations() {
     let changed = source.replace("100[ms]", "200[ms]");
     let invalid = "model M(){clock tick=periodic(0[s]);}";
     let incomplete = "model M(){clock tick=periodic(100[ms]);relation r{";
-    let unsupported = "component C(clock tick:periodic){state memory:1 at tick;relation update at tick{next(memory)=pre(memory);}} model Borrowed(clock tick:periodic){relation r{period(tick)=period(tick);}} model M(){state x:m;event hit=crossing(x,direction=falling);}";
+    let unsupported = "component C(clock tick:periodic){state memory:1 at tick;relation update at tick{next(memory)=pre(memory);}} model Borrowed(clock tick:periodic){relation r{period(tick)=period(tick);}} model M(){state x:m;event hit=crossing(x,direction=falling);relation reset at hit{next(x)=1[m];}}";
     let outline = |id| json!({"jsonrpc":"2.0","id":id,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":uri}}});
     let hover = |id, text: &str, needle: &str| json!({"jsonrpc":"2.0","id":id,"method":"textDocument/hover","params":{"textDocument":{"uri":uri},"position":source_position(text, needle)}});
     let definition = |id, text: &str, needle: &str| json!({"jsonrpc":"2.0","id":id,"method":"textDocument/definition","params":{"textDocument":{"uri":uri},"position":source_position(text, needle)}});
@@ -60,6 +60,8 @@ fn stdio_clock_assistance_uses_exact_current_declarations() {
         definition(35, unsupported, "tick)=period"),
         references(36, unsupported, "tick)=period", false),
         hover(16, unsupported, "hit"),
+        definition(37, unsupported, "hit{next"),
+        references(38, unsupported, "hit=crossing", true),
         change(6, source),
         outline(13),
         hover(14, source, "tick);"),
@@ -220,15 +222,25 @@ fn stdio_clock_assistance_uses_exact_current_declarations() {
     for (owner, name, kind) in [("C", "tick", "Clock"), ("Borrowed", "tick", "Clock")] {
         assert_eq!(detail(11, owner, name), kind);
     }
+    assert_eq!(detail(11, "M", "hit"), "Event");
     assert!(
-        response(&messages, 11)["result"]
-            .as_array()
+        response(&messages, 16)["result"]["contents"]["value"]
+            .as_str()
             .unwrap()
-            .iter()
-            .flat_map(|owner| owner["children"].as_array().unwrap())
-            .all(|symbol| symbol["name"] != "hit")
+            .contains("crossing(x,direction=falling)")
     );
-    assert!(response(&messages, 16)["result"].is_null());
+    let event_location = |needle| {
+        let start = source_position(unsupported, needle);
+        json!({"uri":uri,"range":{"start":start,"end":{"line":start["line"],"character":start["character"].as_u64().unwrap()+3}}})
+    };
+    assert_eq!(
+        response(&messages, 37)["result"],
+        event_location("hit=crossing")
+    );
+    assert_eq!(
+        response(&messages, 38)["result"],
+        json!([event_location("hit=crossing"), event_location("hit{next")])
+    );
 
     for id in [8, 10, 12] {
         assert!(

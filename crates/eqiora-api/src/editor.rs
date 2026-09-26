@@ -91,6 +91,8 @@ pub enum EditorSymbolKind {
     Port,
     /// Exact periodic clock.
     Clock,
+    /// Authored zero-crossing event declaration.
+    Event,
     /// Residual relation.
     Relation,
     /// Component instance.
@@ -675,6 +677,9 @@ fn component_item_symbol(item: &ComponentItem) -> Option<EditorSymbol> {
         ComponentItem::Clock(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Clock, value.name(), value.range())
         }
+        ComponentItem::Event(value) => {
+            EditorSymbol::leaf(EditorSymbolKind::Event, value.name(), value.range())
+        }
         ComponentItem::Initial(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Relation, "initial", value.range())
         }
@@ -712,6 +717,9 @@ fn model_item_symbol(item: &Item) -> Option<EditorSymbol> {
         }
         Item::Clock(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Clock, value.name(), value.range())
+        }
+        Item::Event(value) => {
+            EditorSymbol::leaf(EditorSymbolKind::Event, value.name(), value.range())
         }
         Item::Initial(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Relation, "initial", value.range())
