@@ -175,7 +175,18 @@ For package projects, choose the directory containing `eqiora.toml`, not an
 individual source subdirectory. The server uses the manifest and exact local
 package context; it does not fetch missing dependencies or update a lockfile
 while you type. Use the ordinary [project workflow](/guides/creating-libraries/)
-to prepare those inputs. Run and inspect results through the
+to prepare those inputs. The current source-checkout server asks clients that support
+LSP file-watch registration to report changes to `.eqi`, `eqiora.toml` and
+`eqiora.lock`. Changes inside an initialized package project refresh its open
+documents, including hover and definition locations in unopened source files.
+Current unsaved editor text takes precedence over disk text; refresh does not
+write the lockfile or fetch packages. Saving an open document also reloads that
+project, which is useful when the client does not provide file watching.
+Restart the server after adding a workspace root or preparing a project that
+could not be loaded at initialization. These additions require the current
+source-checkout server, separately from the published-server checks above.
+
+Run and inspect results through the
 [Python workflow](/guides/run-and-inspect/) in its selected uv environment.
 
 ## Troubleshooting
