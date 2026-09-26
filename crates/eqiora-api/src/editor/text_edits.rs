@@ -1,43 +1,12 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, ops::Range};
 
 use super::{EditorPosition, EditorService, EditorSnapshot, codes, positions, stale_version};
 use eqiora_core::Diagnostic;
 
-/// One whole-source replacement or UTF-16 range edit in an ordered change batch.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EditorTextChange {
-    range: Option<(EditorPosition, EditorPosition)>,
-    text: String,
-}
-
-impl EditorTextChange {
-    /// Replace the complete source at this point in the batch.
-    #[must_use]
-    pub fn replace_all(text: impl Into<String>) -> Self {
-        Self {
-            range: None,
-            text: text.into(),
-        }
-    }
-
-    /// Replace a half-open range in the source produced by preceding changes.
-    /// Columns beyond a line's end clamp to its end; lines must exist and
-    /// positions must not split a UTF-16 surrogate pair.
-    #[must_use]
-    pub fn replace_range(
-        start: EditorPosition,
-        end: EditorPosition,
-        text: impl Into<String>,
-    ) -> Self {
-        Self {
-            range: Some((start, end)),
-            text: text.into(),
-        }
-    }
-}
-
 impl EditorService {
     /// Apply ordered text changes atomically and analyze the final source once.
+    /// Each pair contains an optional half-open UTF-16 range and replacement
+    /// text. A missing range replaces the complete intermediate source.
     /// An empty batch advances the version without changing text. This performs
     /// whole-source analysis, not incremental parsing or compilation.
     ///
@@ -49,14 +18,14 @@ impl EditorService {
     pub fn apply_changes(
         &mut self,
         version: u64,
-        changes: impl IntoIterator<Item = EditorTextChange>,
+        changes: impl IntoIterator<Item = (Option<Range<EditorPosition>>, String)>,
     ) -> Result<&EditorSnapshot, Diagnostic> {
         if version <= self.current.version {
             return Err(stale_version(version, self.current.version));
         }
         let mut source = Cow::Borrowed(self.current.source.as_str());
-        for change in changes {
-            if let Some((start, end)) = change.range {
+        for (range, text) in changes {
+            if let Some(Range { start, end }) = range {
                 let invalid = || {
                     Diagnostic::error(
                         codes::PRECONDITION_FAILED,
@@ -68,9 +37,9 @@ impl EditorService {
                 }
                 let start = positions::edit_offset(&source, start).ok_or_else(invalid)?;
                 let end = positions::edit_offset(&source, end).ok_or_else(invalid)?;
-                source.to_mut().replace_range(start..end, &change.text);
+                source.to_mut().replace_range(start..end, &text);
             } else {
-                source = Cow::Owned(change.text);
+                source = Cow::Owned(text);
             }
         }
         let source = source.into_owned();

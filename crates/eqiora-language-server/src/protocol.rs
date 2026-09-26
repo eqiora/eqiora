@@ -13,8 +13,7 @@ use std::{
 
 use crossbeam_channel::{Receiver, Sender};
 use eqiora::api::{
-    EditorPosition, EditorService, EditorSnapshot, EditorSymbol, EditorTextChange,
-    EditorWorkspaceSnapshot,
+    EditorPosition, EditorService, EditorSnapshot, EditorSymbol, EditorWorkspaceSnapshot,
 };
 use eqiora::compiler::{CompilationNamespaceId, ResolvedHierarchyInput, ResolvedSourceUnit};
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, RequestId, Response};
@@ -72,13 +71,12 @@ impl OpenDocument {
         if version <= self.version {
             return false;
         }
-        let changes = changes.into_iter().map(|change| match change.range {
-            Some(range) => EditorTextChange::replace_range(
-                EditorPosition::new(range.start.line, range.start.character),
-                EditorPosition::new(range.end.line, range.end.character),
-                change.text,
-            ),
-            None => EditorTextChange::replace_all(change.text),
+        let changes = changes.into_iter().map(|change| {
+            let range = change.range.map(|range| {
+                EditorPosition::new(range.start.line, range.start.character)
+                    ..EditorPosition::new(range.end.line, range.end.character)
+            });
+            (range, change.text)
         });
         let Ok(snapshot) = self
             .analysis

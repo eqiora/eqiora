@@ -13,7 +13,6 @@ mod text_edits;
 mod workspace;
 
 use positions::{line_end, line_starts, utf16_offset};
-pub use text_edits::EditorTextChange;
 
 pub use workspace::{
     EditorDefinition, EditorReference, EditorWorkspaceService, EditorWorkspaceSnapshot,

@@ -1,6 +1,4 @@
-use eqiora_api::editor::{
-    EditorPosition as P, EditorService, EditorSnapshot, EditorTextChange as C,
-};
+use eqiora_api::editor::{EditorPosition as P, EditorService, EditorSnapshot};
 use eqiora_core::diagnostic::codes;
 
 #[test]
@@ -11,10 +9,13 @@ fn ordered_batch_uses_intermediate_utf16_text_and_analyzes_final_source() {
         .apply_changes(
             2,
             [
-                C::replace_all("// 🧪e\u{301}\r\nmodel () {relation r{1=1;}}\r// end\n"),
-                C::replace_range(P::new(0, 3), P::new(0, 5), "😀"),
-                C::replace_range(P::new(1, 6), P::new(1, 6), "Bad"),
-                C::replace_range(P::new(1, 6), P::new(1, 9), "Final"),
+                (
+                    None,
+                    "// 🧪e\u{301}\r\nmodel () {relation r{1=1;}}\r// end\n".into(),
+                ),
+                (Some(P::new(0, 3)..P::new(0, 5)), "😀".into()),
+                (Some(P::new(1, 6)..P::new(1, 6)), "Bad".into()),
+                (Some(P::new(1, 6)..P::new(1, 9)), "Final".into()),
             ],
         )
         .unwrap();
@@ -43,7 +44,7 @@ fn ordered_batch_uses_intermediate_utf16_text_and_analyzes_final_source() {
 fn end_columns_clamp_but_invalid_ranges_reject_the_entire_batch() {
     let mut service = EditorService::new("edit.eqi", 1, "// 🧪\r\nmodel M() {}\r\n");
     service
-        .apply_changes(2, [C::replace_range(P::new(0, 99), P::new(1, 0), "\n")])
+        .apply_changes(2, [(Some(P::new(0, 99)..P::new(1, 0)), "\n".into())])
         .unwrap();
     assert_eq!(service.current().source(), "// 🧪\nmodel M() {}\r\n");
     for (start, end) in [
@@ -57,8 +58,8 @@ fn end_columns_clamp_but_invalid_ranges_reject_the_entire_batch() {
             .apply_changes(
                 3,
                 [
-                    C::replace_range(P::new(1, 6), P::new(1, 7), "Changed"),
-                    C::replace_range(start, end, "bad"),
+                    (Some(P::new(1, 6)..P::new(1, 7)), "Changed".into()),
+                    (Some(start..end), "bad".into()),
                 ],
             )
             .unwrap_err();
@@ -67,7 +68,7 @@ fn end_columns_clamp_but_invalid_ranges_reject_the_entire_batch() {
     }
     assert!(
         service
-            .apply_changes(2, [C::replace_all("model Stale() {}")])
+            .apply_changes(2, [(None, "model Stale() {}".into())])
             .is_err()
     );
     assert_eq!(service.current().version(), 2);
@@ -87,10 +88,9 @@ fn range_edits_recover_oversized_unindexed_source() {
     let snapshot = service
         .apply_changes(
             2,
-            [C::replace_range(
-                P::new(0, 0),
-                P::new(0, u32::MAX),
-                "model Small() {relation r{1=1;}}",
+            [(
+                Some(P::new(0, 0)..P::new(0, u32::MAX)),
+                "model Small() {relation r{1=1;}}".into(),
             )],
         )
         .unwrap();
