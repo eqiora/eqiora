@@ -1,8 +1,9 @@
 use eqiora::api::{EditorDefinition, EditorSymbolKind, EditorWorkspaceSnapshot};
 use eqiora::language::Notation;
 use lsp_types::{
-    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams, Location,
-    MarkupContent, MarkupKind, ReferenceParams, Uri,
+    DocumentHighlight, DocumentHighlightKind, DocumentHighlightParams, GotoDefinitionParams,
+    GotoDefinitionResponse, Hover, HoverContents, HoverParams, Location, MarkupContent, MarkupKind,
+    ReferenceContext, ReferenceParams, Uri,
 };
 
 use super::{ServerState, document};
@@ -96,6 +97,39 @@ pub(super) fn references(
         }
     }
     Ok(locations)
+}
+
+pub(super) fn document_highlights(
+    params: DocumentHighlightParams,
+    state: &ServerState,
+) -> Result<Vec<DocumentHighlight>, String> {
+    let uri = params
+        .text_document_position_params
+        .text_document
+        .uri
+        .clone();
+    let mut highlights = references(
+        ReferenceParams {
+            text_document_position: params.text_document_position_params,
+            context: ReferenceContext {
+                include_declaration: true,
+            },
+            work_done_progress_params: params.work_done_progress_params,
+            partial_result_params: params.partial_result_params,
+        },
+        state,
+    )?
+    .into_iter()
+    .filter(|location| location.uri == uri)
+    .map(|location| DocumentHighlight {
+        range: location.range,
+        // An Eqiora relation does not imply an assignment or a read/write role.
+        kind: Some(DocumentHighlightKind::TEXT),
+    })
+    .collect::<Vec<_>>();
+    highlights.sort_by_key(|highlight| (highlight.range.start, highlight.range.end));
+    highlights.dedup_by_key(|highlight| highlight.range);
+    Ok(highlights)
 }
 
 fn same_definition(left: &EditorDefinition, right: &EditorDefinition) -> bool {

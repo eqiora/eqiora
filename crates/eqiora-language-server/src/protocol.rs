@@ -443,6 +443,7 @@ pub fn run(connection: Connection, version: &str) -> ServerResult<()> {
         }),
         definition_provider: Some(OneOf::Left(true)),
         references_provider: Some(OneOf::Left(true)),
+        document_highlight_provider: Some(OneOf::Left(true)),
         document_symbol_provider: Some(OneOf::Left(true)),
         document_formatting_provider: Some(OneOf::Left(true)),
         folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
@@ -827,6 +828,11 @@ fn handle_request(
         "textDocument/definition" => response_from(
             id,
             decode(request.params).and_then(|params| navigation::definition(params, state)),
+        ),
+        "textDocument/documentHighlight" => response_from(
+            id,
+            decode(request.params)
+                .and_then(|params| navigation::document_highlights(params, state)),
         ),
         "textDocument/references" => response_from(
             id,

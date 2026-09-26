@@ -6,6 +6,8 @@ mod authored_notation;
 mod clock_details;
 #[path = "stdio/component_values.rs"]
 mod component_values;
+#[path = "stdio/document_highlights.rs"]
+mod document_highlights;
 #[path = "stdio/hover_origin.rs"]
 mod hover_origin;
 #[path = "stdio/incremental_sync.rs"]
