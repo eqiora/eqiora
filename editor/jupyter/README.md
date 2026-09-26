@@ -97,6 +97,10 @@ counts. A separate host check loads the IPython extension and completes a local
 name in an unexecuted source cell. Hover checks exercise an unloaded kernel,
 current source edits, Unicode positions and an unexecuted cell; the focused
 adapter tests also cover late replies, restarts and plain-text rendering.
+The mixed-example host check executes all cells, restarts the kernel and runs
+them again, then verifies that failed compilation preserves the previous Model
+and that corrected source can run. It checks a changed kernel process and saved
+execution counts in both frontends.
 These checks were verified on Linux x86_64,
 Chromium 151.0.7922.34 (Playwright 1.62.1),
 JupyterLab 4.5.11 and Notebook 7.5.6, with IPython 9.17.1 and ipykernel 7.3.0.

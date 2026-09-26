@@ -28,6 +28,23 @@ In a Python cell, load the extension explicitly:
 import eqiora
 ```
 
+## Open the mixed-language example
+
+From the uv project containing the development checkout named `eqiora-source`,
+generate the example and open it:
+
+```bash
+uv run python eqiora-source/editor/jupyter/example.py decay.ipynb
+uv run jupyter lab decay.ipynb
+```
+
+The generator reads the maintained `examples/decay.eqi` into an Eqiora source cell.
+The surrounding Python cells load the extension and inspect the compiled Model;
+the notebook starts without saved outputs. Choose **Kernel → Restart Kernel and
+Run All Cells** to run the complete example in a fresh kernel. The last cell
+prints the Model digest. This small example compiles the equations; continue with
+[Run and inspect](/guides/run-and-inspect/) to configure and run a numerical method.
+
 ## Compile a source cell
 
 Create another code cell with this content:
