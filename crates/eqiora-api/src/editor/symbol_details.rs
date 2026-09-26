@@ -1,6 +1,35 @@
-//! Prepared outline details share hover's compiler authority and invalidation.
+//! Outline source locations and prepared compiler details.
 use super::{EditorSnapshot, EditorSymbol, EditorSymbolKind};
 use eqiora_compiler::AnalyzedResolvedHierarchy;
+use eqiora_lang::{TextRange, Token, TokenKind};
+
+pub(super) fn prepare_name_ranges(symbols: &mut [EditorSymbol], tokens: &[Token]) {
+    visit(symbols, &mut |symbol| {
+        // An import alias follows a qualified path, not a declaration header.
+        if symbol.kind != EditorSymbolKind::Import {
+            symbol.name_range = declaration_name_range(tokens, symbol.range, &symbol.name);
+        }
+        true
+    });
+}
+
+pub(super) fn declaration_name_range(
+    tokens: &[Token],
+    declaration: TextRange,
+    name: &str,
+) -> Option<TextRange> {
+    // Keywords are Identifier tokens too. Select the last matching spelling in
+    // the header before notation, signature or body syntax, as for definitions.
+    let start = tokens.partition_point(|token| token.range().start() < declaration.start());
+    let end = tokens.partition_point(|token| token.range().start() < declaration.end());
+    tokens[start..end]
+        .iter()
+        .filter(|token| !token.kind().is_trivia() && token.range().end() <= declaration.end())
+        .take_while(|token| token.kind() == TokenKind::Identifier)
+        .filter(|token| token.text() == name)
+        .last()
+        .map(Token::range)
+}
 
 impl EditorSnapshot {
     pub(super) fn prepare_symbol_details(

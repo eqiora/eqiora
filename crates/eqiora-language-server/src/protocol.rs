@@ -922,7 +922,10 @@ fn lsp_symbol(snapshot: &EditorSnapshot, symbol: &EditorSymbol) -> Result<Docume
         tags: None,
         deprecated: None,
         range,
-        selection_range: range,
+        selection_range: match symbol.name_range() {
+            Some(name) => source_range(snapshot, name.start() as usize, name.end() as usize)?,
+            None => range,
+        },
         children: (!children.is_empty()).then_some(children),
     })
 }

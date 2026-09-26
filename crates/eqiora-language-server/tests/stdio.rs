@@ -26,6 +26,8 @@ mod notation;
 mod project_refresh;
 #[path = "stdio/symbol_details.rs"]
 mod symbol_details;
+#[path = "stdio/symbol_names.rs"]
+mod symbol_names;
 #[path = "stdio/value_references.rs"]
 mod value_references;
 

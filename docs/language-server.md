@@ -46,6 +46,13 @@ comments and notation contents are not value references. Invalid or recovering
 snapshots grant no navigation; unsaved versions remain authoritative. The bounded
 reference results do not support rename.
 
+Document symbols preserve each full declaration range and separately select the
+recovered name token when an outline item is picked. Keywords used as names,
+notation, comments and current unsaved source positions use the parser's header
+tokens. These lexical locations survive safe recovery without granting semantic
+identity or navigation. Import aliases and other entries without a locatable
+header name retain full-range selection.
+
 Standard `textDocument/documentHighlight` requests reuse the same resolved
 references, including the declaration when it is in the current file. Results
 contain only that file's ranges, ordered and deduplicated by source position.
