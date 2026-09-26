@@ -236,6 +236,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(compile, module)?)?;
     module.add_function(wrap_pyfunction!(_input_unit_catalog, module)?)?;
     module.add_function(wrap_pyfunction!(editor::_complete_source_cell, module)?)?;
+    module.add_function(wrap_pyfunction!(editor::_hover_source_cell, module)?)?;
     Ok(())
 }
 

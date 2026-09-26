@@ -155,3 +155,75 @@ def test_installed_wheel_contains_discoverable_notebook_frontend():
     assert asset.resolve().is_relative_to(manifest_path.parent.resolve())
     assert asset.is_file() and asset.stat().st_size > 0
     assert (manifest_path.parent / "static/third-party-licenses.json").is_file()
+
+
+def test_native_hover_projects_current_compiler_facts_without_execution(monkeypatch):
+    from eqiora._eqiora import _hover_source_cell
+
+    def forbidden_compile(*args, **kwargs):
+        pytest.fail("hover must not execute the source cell")
+
+    monkeypatch.setattr(eqiora, "compile", forbidden_compile)
+    body = "// 日本語 🦀\nmodel Cell(){\n/// Travel distance.\nparameter distance @{d}:m=2[m];variable x:m;relation law{x=distance;}}"
+    cursor = body.rindex("distance") + 2
+    start, end, text = _hover_source_cell(body, cursor)
+    assert body[start:end] == "distance"
+    assert "Travel distance." in text and "Notation: d" in text
+    assert "dimension L" in text
+    assert _hover_source_cell(body.replace("distance", "rate"), cursor) is None
+    assert _hover_source_cell(body, len(body) + 1) is None
+    assert _hover_source_cell("// speed", 5) is None
+
+
+def test_hover_comm_is_opt_in_transient_and_uses_full_cell_code_points(shell, monkeypatch):
+    from types import SimpleNamespace
+    import eqiora.jupyter as extension
+
+    class Manager:
+        targets = {}
+
+        def register_target(self, name, target):
+            self.targets[name] = target
+
+        def unregister_target(self, name, target):
+            del self.targets[name]
+
+    class Comm:
+        def __init__(self):
+            self.sent = []
+            self.closed = False
+
+        def send(self, *, data):
+            self.sent.append(data)
+
+        def close(self):
+            self.closed = True
+
+    manager = Manager()
+    monkeypatch.setattr(shell, "kernel", SimpleNamespace(comm_manager=manager), raising=False)
+    extension.load_ipython_extension(shell)
+    extension.load_ipython_extension(shell)
+    assert manager.targets == {extension._HOVER_TARGET: extension._hover_request}
+    source = "%%eqiora model\r\n// 🦀 日本語\nmodel Cell(){parameter speed:1=2;variable x:1;relation r{x=speed;}}"
+    cursor = source.rindex("speed") + 2
+    comm = Comm()
+    manager.targets[extension._HOVER_TARGET](comm, {"content": {"data": {"source": source, "cursor": cursor}}})
+    start, end, text = comm.sent[0]["result"]
+    assert source[start:end] == "speed" and "speed" in text
+    assert comm.closed
+    for data in (
+        {}, {"source": source, "cursor": True}, {"source": source, "cursor": -1},
+        {"source": source, "cursor": len(source) + 1}, {"source": source, "cursor": 2},
+        {"source": "speed = 2", "cursor": 2},
+        {"source": "%%eqiorax model\nmodel Cell(){}", "cursor": 20},
+        {"source": "x" * (extension._MAX_HOVER_SOURCE + 1), "cursor": 2},
+    ):
+        rejected = Comm()
+        extension._hover_request(rejected, {"content": {"data": data}})
+        assert rejected.sent == [{"result": None}] and rejected.closed
+    extension.unload_ipython_extension(shell)
+    assert manager.targets == {}
+    replacement = lambda *args: None
+    manager.targets[extension._HOVER_TARGET] = replacement
+    extension.unload_ipython_extension(shell)
+    assert manager.targets[extension._HOVER_TARGET] is replacement

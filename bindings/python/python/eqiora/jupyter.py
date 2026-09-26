@@ -1,4 +1,4 @@
-"""Opt-in IPython execution and completion of Eqiora source cells.
+"""Opt-in IPython execution, completion and Jupyter hover for Eqiora source cells.
 
 Load with ``%load_ext eqiora.jupyter``. The body of ``%%eqiora model`` is
 ordinary Eqiora source; successful compilation binds ``model`` in the Python
@@ -16,7 +16,42 @@ from IPython.core.magic import Magics, cell_magic, magics_class, no_var_expand
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
 
 import eqiora
-from eqiora._eqiora import _complete_source_cell
+from eqiora._eqiora import _complete_source_cell, _hover_source_cell
+
+
+_HOVER_TARGET = "eqiora.source_hover"
+_MAX_HOVER_SOURCE = 256 * 1024
+
+
+def _hover_request(comm, message):
+    """Answer one transient request using the current, unexecuted source body."""
+    try:
+        data = message.get("content", {}).get("data", {})
+        source = data.get("source") if isinstance(data, dict) else None
+        cursor = data.get("cursor") if isinstance(data, dict) else None
+        result = None
+        if (
+            isinstance(source, str)
+            and len(source) <= _MAX_HOVER_SOURCE
+            and len(source.encode("utf-8")) <= _MAX_HOVER_SOURCE
+            and type(cursor) is int
+            and 0 <= cursor <= len(source)
+        ):
+            header, separator, body = source.partition("\n")
+            prefix = len(header) + 1
+            header = header.removesuffix("\r")
+            if separator and cursor >= prefix and (
+                header == "%%eqiora" or header.startswith(("%%eqiora ", "%%eqiora\t"))
+            ):
+                hover = _hover_source_cell(body, cursor - prefix)
+                if hover is not None:
+                    start, end, text = hover
+                    result = [start + prefix, end + prefix, text]
+        comm.send(data={"result": result})
+    except UnicodeError:
+        comm.send(data={"result": None})
+    finally:
+        comm.close()
 
 
 @context_matcher(priority=100, identifier="eqiora.source_cells")
@@ -100,16 +135,23 @@ class _EqioraMagics(Magics):
 
 
 def load_ipython_extension(ipython) -> None:
-    """Register ``%%eqiora`` and its completion on the supplied IPython shell."""
+    """Register the magic, completion and optional kernel hover target."""
     ipython.register_magics(_EqioraMagics)
     if _complete_eqiora not in ipython.Completer.custom_matchers:
         ipython.Completer.custom_matchers.append(_complete_eqiora)
+    # A terminal InteractiveShell has no kernel or Comm transport.
+    kernel = getattr(ipython, "kernel", None)
+    if kernel is not None:
+        kernel.comm_manager.register_target(_HOVER_TARGET, _hover_request)
 
 
 def unload_ipython_extension(ipython) -> None:
-    """Remove the magic and matcher without deleting compiled Python variables."""
+    """Remove owned adapters without deleting compiled Python variables."""
     if _complete_eqiora in ipython.Completer.custom_matchers:
         ipython.Completer.custom_matchers.remove(_complete_eqiora)
+    kernel = getattr(ipython, "kernel", None)
+    if kernel is not None and kernel.comm_manager.targets.get(_HOVER_TARGET) is _hover_request:
+        kernel.comm_manager.unregister_target(_HOVER_TARGET, _hover_request)
     magic = ipython.find_cell_magic("eqiora")
     if isinstance(getattr(magic, "__self__", None), _EqioraMagics):
         del ipython.magics_manager.magics["cell"]["eqiora"]

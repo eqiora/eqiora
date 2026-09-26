@@ -18,7 +18,15 @@ This development feature is absent from the published Eqiora 0.1.2 package.
 Colab and VS Code notebook editors do not load this Jupyter plugin; their
 highlighting is not claimed. Completion is supplied by the opt-in Python
 extension through the shared native editor service, not by this syntax adapter.
-Notebook hover is not implemented.
+Hover uses the same native standalone editor snapshot through a short-lived Comm
+to that cell's owning kernel. It shows available compiler-owned declaration/type
+details, documentation and notation as plain text. It requires an idle kernel and the loaded extension,
+does not execute the Eqiora cell, and discards replies after edits, kernel changes,
+restart, disconnection or editor disposal. Requests are limited to 256 KiB of current
+cell source, responses to 4096 Unicode code points, and waiting to three seconds.
+This is a current-cell preview: other cells, Python bindings, external package
+context, Colab/VS Code hover and Shift-Tab inspection are not supported. Ordinary
+Python inspection remains owned by the host kernel.
 
 ## Build and inspect
 
@@ -86,11 +94,15 @@ Tests use temporary notebooks and remove them afterward. Browser tests cover
 canonical keywords/types/units/numbers/comments, initial unexecuted cells,
 header edits, restoration of Python, Markdown/Raw preservation, saved reopening and unchanged execution
 counts. A separate host check loads the IPython extension and completes a local
-name in an unexecuted source cell. Verified on Linux x86_64,
+name in an unexecuted source cell. Hover checks exercise an unloaded kernel,
+current source edits, Unicode positions and an unexecuted cell; the focused
+adapter tests also cover late replies, restarts and plain-text rendering.
+These checks were verified on Linux x86_64,
 Chromium 151.0.7922.34 (Playwright 1.62.1),
 JupyterLab 4.5.11 and Notebook 7.5.6, with IPython 9.17.1 and ipykernel 7.3.0.
-Host checks used locally built prebuilt assets;
-installed-wheel delivery must also be checked by the Python package gate.
+The hover host checks used an installed source-built wheel, with its seven
+frontend files byte-equal to the current generated assets. The isolated Python
+package gate separately checks wheel delivery and the native adapter.
 The notebook execution contract is covered separately by
 `bindings/python/tests/test_jupyter.py`; frontend tests do not establish Colab
 Restart and Run All behavior.
