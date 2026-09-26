@@ -21,7 +21,7 @@ fn stdio_clock_assistance_uses_exact_current_declarations() {
         .unwrap();
     let mut stdin = child.stdin.take().unwrap();
     for message in [
-        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{"textDocument":{"documentSymbol":{"hierarchicalDocumentSymbolSupport":true,"symbolKind":{"valueSet":[3,5,7,8,10,11,12,13,14,18,19,22,23,24,25,26]}}}}}}),
         json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
         json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":uri,"languageId":"eqiora","version":1,"text":source}}}),
         outline(2),

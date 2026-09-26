@@ -187,10 +187,15 @@ inferred types, evaluated values or new value-definition/reference navigation.
 
 ## Other LSP clients and projects
 
+Clients that advertise hierarchical document symbols receive the nested outline
+with selection ranges and details. Other clients receive a flat symbol list with
+source locations and display container names. Without a symbol-kind value set,
+icons use the original LSP kind range; declaring a value set allows extended kinds.
+
 Associate `.eqi` with language ID `eqiora` and launch the executable over stdio,
 with no command-line arguments. Send the project directory in `rootUri` or
 `workspaceFolders` during initialization. The server negotiates UTF-16
-positions and incremental text changes. Outline selection moves to recovered
+positions and incremental text changes. Hierarchical outline selection moves to recovered
 declaration names while preserving full declaration ranges for structure.
 Imports and entries without a locatable header name keep full-range selection.
 Document highlights reuse resolved references within the current file, including its declaration; they do not
