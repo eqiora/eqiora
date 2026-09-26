@@ -316,7 +316,8 @@ impl CompletionIndex {
             .find(|(range, _)| range.start() <= offset && offset < range.end())?;
         let (origin, range) = scope.declarations.get(name)?;
         match scope.candidates.get(name)? {
-            Candidate::Field(_) | Candidate::Parameter(_) if origin.as_ref() == file => {}
+            Candidate::Field(_) | Candidate::Parameter(_) | Candidate::Clock(..)
+                if origin.as_ref() == file => {}
             // Owned Ports and Model child public Ports share the exact
             // admitted declaration map; private child members never enter it.
             Candidate::Port(_) => {}
@@ -352,7 +353,9 @@ impl CompletionIndex {
                             return None;
                         }
                         match scope.candidates.get(name)? {
-                            Candidate::Field(_) | Candidate::Parameter(_)
+                            Candidate::Field(_)
+                            | Candidate::Parameter(_)
+                            | Candidate::Clock(..)
                                 if origin.as_ref() == file => {}
                             Candidate::Port(_) => {}
                             _ => return None,

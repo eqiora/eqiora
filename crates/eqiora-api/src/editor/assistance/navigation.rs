@@ -5,11 +5,12 @@ use eqiora_core::Span;
 use eqiora_lang::{TextRange, Token, TokenKind};
 
 impl EditorWorkspaceSnapshot {
-    /// Resolve an owned Model/Component Field/Parameter/Port reference or a Model child's
+    /// Resolve an owned Model/Component Field/Parameter/Port/Clock value reference or a Model child's
     /// public Port reference to the exact declaration name in its source file.
     /// The cursor must cover the terminal identifier, not a qualifier or dot.
     /// Deeper members, nested binders and invalid snapshots return no location;
-    /// lexical recovery never grants navigation.
+    /// lexical recovery never grants navigation. Clock targets require owned periodic
+    /// declarations; activation clauses have no retained value-reference occurrence.
     #[must_use]
     pub fn value_definition_at_position(
         &self,
@@ -40,11 +41,12 @@ impl EditorWorkspaceSnapshot {
         })
     }
 
-    /// Find references to an owned Model/Component Field/Parameter/Port declaration or
+    /// Find references to an owned Model/Component Field/Parameter/Port/Clock declaration or
     /// a Model child's public Port across prepared declaration scopes.
     /// The cursor must be on its declaration name or a terminal value-reference
     /// token. Multiple instance spellings may share one source declaration;
     /// these results do not identify physical occurrences or support rename.
+    /// Clock results cover retained value uses, not activation clauses or borrowed clocks.
     /// Results use source-qualified exact identifier spans, sorted by file and
     /// offset. Include the declaration once only when requested. An admitted
     /// unused declaration returns `Some([])`; unknown targets, private child/deeper
@@ -172,7 +174,7 @@ fn declaration_name(tokens: &[Token], range: TextRange, name: &str) -> Option<Te
     let end = tokens.partition_point(|token| token.range().start() < range.end());
     let pair = tokens[start..end]
         .windows(2)
-        .find(|pair| pair[1].kind() == TokenKind::Colon)?;
+        .find(|pair| matches!(pair[1].kind(), TokenKind::Colon | TokenKind::Equal))?;
     (pair[0].kind() == TokenKind::Identifier && pair[0].text() == name).then_some(pair[0].range())
 }
 
@@ -186,7 +188,10 @@ fn declared_at<'a>(
         .find(|symbol| symbol.range().start() <= offset && offset < symbol.range().end())?;
     if matches!(
         symbol.kind(),
-        EditorSymbolKind::Field | EditorSymbolKind::Parameter | EditorSymbolKind::Port
+        EditorSymbolKind::Field
+            | EditorSymbolKind::Parameter
+            | EditorSymbolKind::Port
+            | EditorSymbolKind::Clock
     ) && declaration_name(tokens, symbol.range(), symbol.name())
         .is_some_and(|range| range.start() <= offset && offset < range.end())
     {

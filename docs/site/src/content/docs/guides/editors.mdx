@@ -152,13 +152,16 @@ Borrowed Fields, record members, aliases and family/binder scopes remain unsuppo
 instance extents, frames, supports and clock identities are not inferred.
 
 The current source-checkout server also navigates from owned Model/Component
-Field/Parameter/Port references and Model direct-child public Port references to their exact
+Field/Parameter/Port/Clock value references and Model direct-child public Port references to their exact
 source declarations. For `child.value`, place the cursor on `value`; the target
 can be in an imported component file and follows unsaved document changes.
 Qualifiers, deeper members, private child Ports, nested binders and
 invalid source do not gain definition targets. Find References accepts these
 terminal value-reference tokens or their admitted declaration names and returns
 exact identifiers across prepared declaration scopes and source files.
+Clock navigation covers owned periodic declarations and value uses such as
+`period(tick)`; borrowed Clocks and activation clauses such as `at tick` remain
+outside this projection.
 An unused admitted declaration returns an empty list. `a.p` and `b.p` may share
 one source declaration, so these are declaration references, not physical
 occurrence identity or rename support. Private/deeper child members and nested
