@@ -179,6 +179,12 @@ Clock-style navigation from an Event activation name resolves its exact source
 Event declaration; Find References keeps distinct same-named declarations separate.
 It does not calculate an event time, guard type or physical occurrence identity.
 
+Lexical outlines distinguish Model/Component `indexset` and `observable`
+declarations and retain their authored prose. Component `let` declarations and
+Model Relation families also appear alongside their existing counterparts.
+Hover/name completion shows authored declarations; these entries do not gain
+inferred types, evaluated values or new value-definition/reference navigation.
+
 ## Other LSP clients and projects
 
 Associate `.eqi` with language ID `eqiora` and launch the executable over stdio,

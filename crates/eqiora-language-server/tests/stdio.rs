@@ -10,6 +10,8 @@ mod component_values;
 mod hover_origin;
 #[path = "stdio/inspection.rs"]
 mod inspection;
+#[path = "stdio/lexical_outline.rs"]
+mod lexical_outline;
 #[path = "stdio/local_navigation.rs"]
 mod local_navigation;
 #[path = "stdio/notation.rs"]

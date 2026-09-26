@@ -71,6 +71,10 @@ pub enum EditorSymbolKind {
     Record,
     /// Named finite index space.
     FiniteSpace,
+    /// Declaration-owned bounded nominal index set.
+    IndexSet,
+    /// Authored derived result, separate from unknown Fields.
+    Observable,
     /// Ordered member of a finite enumeration.
     EnumMember,
     /// Executable model.
@@ -662,6 +666,9 @@ fn signature_item_symbol(item: &SignatureItem) -> Option<EditorSymbol> {
 
 fn component_item_symbol(item: &ComponentItem) -> Option<EditorSymbol> {
     let symbol = match item {
+        ComponentItem::Let(value) => {
+            EditorSymbol::leaf(EditorSymbolKind::Let, value.name(), value.range())
+        }
         ComponentItem::Parameter(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Parameter, value.name(), value.range())
         }
@@ -673,6 +680,12 @@ fn component_item_symbol(item: &ComponentItem) -> Option<EditorSymbol> {
         }
         ComponentItem::Field(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Field, value.name(), value.range())
+        }
+        ComponentItem::IndexSet(value) => {
+            EditorSymbol::leaf(EditorSymbolKind::IndexSet, value.name(), value.range())
+        }
+        ComponentItem::Observable(value) => {
+            EditorSymbol::leaf(EditorSymbolKind::Observable, value.name(), value.range())
         }
         ComponentItem::Clock(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Clock, value.name(), value.range())
@@ -715,6 +728,12 @@ fn model_item_symbol(item: &Item) -> Option<EditorSymbol> {
         Item::Port(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Port, value.name(), value.range())
         }
+        Item::IndexSet(value) => {
+            EditorSymbol::leaf(EditorSymbolKind::IndexSet, value.name(), value.range())
+        }
+        Item::Observable(value) => {
+            EditorSymbol::leaf(EditorSymbolKind::Observable, value.name(), value.range())
+        }
         Item::Clock(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Clock, value.name(), value.range())
         }
@@ -727,6 +746,11 @@ fn model_item_symbol(item: &Item) -> Option<EditorSymbol> {
         Item::Relation(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Relation, value.name(), value.range())
         }
+        Item::RelationFamily(value) => EditorSymbol::leaf(
+            EditorSymbolKind::Relation,
+            value.relation().name(),
+            value.range(),
+        ),
         Item::Instance(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Instance, value.name(), value.range())
         }
