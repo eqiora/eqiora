@@ -14,6 +14,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Clone, Debug)]
 enum Candidate {
+    ClockRequirement,
     Clock(
         eqiora_schema::kernel::RationalTime,
         eqiora_schema::kernel::RationalTime,
@@ -143,6 +144,20 @@ impl CompletionIndex {
             let mut candidates = BTreeMap::new();
             let mut declarations = BTreeMap::new();
             let declaration_file: Arc<str> = definition.file.into();
+            for item in definition.declaration.signature() {
+                if is_cancelled() {
+                    return None;
+                }
+                if let SignatureItem::Clock(value) = item
+                    && matches!(scope.symbols.get(value.name()), Some(SymbolContract::Clock))
+                {
+                    candidates.insert(value.name().to_owned(), Candidate::ClockRequirement);
+                    declarations.insert(
+                        value.name().to_owned(),
+                        (declaration_file.clone(), value.range()),
+                    );
+                }
+            }
             for item in definition.owned_items() {
                 let (name, range) = match item {
                     Item::Field(value) => (value.name(), value.range()),
@@ -316,7 +331,10 @@ impl CompletionIndex {
             .find(|(range, _)| range.start() <= offset && offset < range.end())?;
         let (origin, range) = scope.declarations.get(name)?;
         match scope.candidates.get(name)? {
-            Candidate::Field(_) | Candidate::Parameter(_) | Candidate::Clock(..)
+            Candidate::Field(_)
+            | Candidate::Parameter(_)
+            | Candidate::Clock(..)
+            | Candidate::ClockRequirement
                 if origin.as_ref() == file => {}
             // Owned Ports and Model child public Ports share the exact
             // admitted declaration map; private child members never enter it.
@@ -356,6 +374,7 @@ impl CompletionIndex {
                             Candidate::Field(_)
                             | Candidate::Parameter(_)
                             | Candidate::Clock(..)
+                            | Candidate::ClockRequirement
                                 if origin.as_ref() == file => {}
                             Candidate::Port(_) => {}
                             _ => return None,
@@ -431,6 +450,8 @@ impl CompletionIndex {
             return None;
         }
         let text = match scope.candidates.get(name)? {
+            // A formal declaration has an exact source identity but no schedule.
+            Candidate::ClockRequirement => return None,
             Candidate::Clock(period, phase, owner) => {
                 description::describe_clock(*period, *phase, owner)
             }

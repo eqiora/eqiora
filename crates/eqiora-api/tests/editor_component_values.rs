@@ -160,7 +160,6 @@ fn component_binders_never_lend_outer_value_identity() {
 fn unsupported_component_contracts_and_names_do_not_gain_navigation() {
     for marked in [
         "component C(){let alias:integer=2;relation r{|alias=2;}}",
-        "component C(clock tick:periodic){state value:1 at |tick;}",
         "component C(){variable value:m;} model M(){instance child:C();relation r{child.|value=1[m];}}",
         "component C(){port value:signal input 1;} model M(){instance child:C();relation r{child.|value=0;}}",
         "component C(parameter n:integer){variable value:array<1,n>;relation r{|value=value;}}",

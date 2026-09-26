@@ -7,7 +7,7 @@ fn stdio_clock_assistance_uses_exact_current_declarations() {
     let changed = source.replace("100[ms]", "200[ms]");
     let invalid = "model M(){clock tick=periodic(0[s]);}";
     let incomplete = "model M(){clock tick=periodic(100[ms]);relation r{";
-    let unsupported = "component C(clock tick:periodic){} model Borrowed(clock tick:periodic){} model M(){state x:m;event hit=crossing(x,direction=falling);}";
+    let unsupported = "component C(clock tick:periodic){state memory:1 at tick;relation update at tick{next(memory)=pre(memory);}} model Borrowed(clock tick:periodic){relation r{period(tick)=period(tick);}} model M(){state x:m;event hit=crossing(x,direction=falling);}";
     let outline = |id| json!({"jsonrpc":"2.0","id":id,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":uri}}});
     let hover = |id, text: &str, needle: &str| json!({"jsonrpc":"2.0","id":id,"method":"textDocument/hover","params":{"textDocument":{"uri":uri},"position":source_position(text, needle)}});
     let definition = |id, text: &str, needle: &str| json!({"jsonrpc":"2.0","id":id,"method":"textDocument/definition","params":{"textDocument":{"uri":uri},"position":source_position(text, needle)}});
@@ -55,6 +55,10 @@ fn stdio_clock_assistance_uses_exact_current_declarations() {
         hover(12, unsupported, "tick:periodic"),
         definition(28, unsupported, "tick:periodic"),
         references(29, unsupported, "tick:periodic", true),
+        definition(33, unsupported, "tick;relation"),
+        references(34, unsupported, "tick{next", false),
+        definition(35, unsupported, "tick)=period"),
+        references(36, unsupported, "tick)=period", false),
         hover(16, unsupported, "hit"),
         change(6, source),
         outline(13),
@@ -120,7 +124,7 @@ fn stdio_clock_assistance_uses_exact_current_declarations() {
         response(&messages, 25)["result"],
         json!([location(&changed, "beat)="), location(&changed, "beat);")])
     );
-    for id in [23, 27, 29] {
+    for id in [23, 27] {
         assert_eq!(response(&messages, id)["result"], json!([]));
     }
     for id in [26, 28] {
@@ -137,6 +141,36 @@ fn stdio_clock_assistance_uses_exact_current_declarations() {
             location(source, "tick;"),
             location(source, "tick)=period(tick);"),
             location(source, "tick);")
+        ])
+    );
+    assert_eq!(
+        response(&messages, 33)["result"],
+        location(unsupported, "tick:periodic")
+    );
+    assert_eq!(
+        response(&messages, 29)["result"],
+        json!([
+            location(unsupported, "tick:periodic"),
+            location(unsupported, "tick;relation"),
+            location(unsupported, "tick{next")
+        ])
+    );
+    assert_eq!(
+        response(&messages, 34)["result"],
+        json!([
+            location(unsupported, "tick;relation"),
+            location(unsupported, "tick{next")
+        ])
+    );
+    assert_eq!(
+        response(&messages, 35)["result"],
+        location(unsupported, "tick:periodic){relation")
+    );
+    assert_eq!(
+        response(&messages, 36)["result"],
+        json!([
+            location(unsupported, "tick)=period"),
+            location(unsupported, "tick);")
         ])
     );
     let exact = "periodic clock; period 1/10 s; phase 1/20 s; Model-local declaration; occurrence identity unknown";

@@ -29,7 +29,7 @@ returns an empty list. Successfully prepared owned Component declarations are
 supported without a Model instance, including private body locals. Multiple spellings such
 as `a.p` and `b.p` can refer to the same source declaration across Models and files;
 these results describe declaration provenance, not physical occurrence identity.
-Nested binder scopes and families, private or deeper child members, borrowed Fields/Clocks,
+Nested binder scopes and families, private or deeper child members, borrowed Fields,
 record members and alias declaration targets remain unsupported. Qualifiers, units,
 comments and notation contents are not value references. Invalid or recovering
 snapshots grant no navigation; unsaved versions remain authoritative. The bounded
@@ -121,9 +121,11 @@ independent of this location metadata.
 Equal schedules remain distinct declarations. This does not assign occurrence
 identity or infer borrowed or child Clock schedules; Event
 metadata remains outside this slice. Clock definition/reference navigation uses
-the exact owned Model/Component declaration for retained value occurrences such as
-`period(tick)` and these activation names. It omits borrowed Clocks and distinguishes
-an unused owned declaration from an unsupported query.
+the exact owned Model/Component declaration or prepared signature Clock requirement
+for retained value occurrences such as `period(tick)` and these activation names.
+A required Clock has a source declaration even when its schedule is unknown.
+Caller binding labels are not value uses; instance schedules are never projected
+onto the requirement. An unused admitted declaration differs from an unsupported query.
 
 Document-symbol details reuse the same prepared compiler facts for exact owned
 Model/Component Field, Parameter and Port declarations and owned periodic Clocks, including channel-array
