@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn stdio_clock_hover_and_outline_share_exact_current_declaration_facts() {
+fn stdio_clock_assistance_uses_exact_current_declarations() {
     let uri = "file:///workspace/main.eqi";
     let source = "component C(){clock beat=periodic(100[ms],phase=50[ms]);relation r{period(beat)=period(beat);}} model Other(){clock tick=periodic(2[s]);} model M(){clock tick=periodic(100[ms],phase=50[ms]);clock peer=periodic(1[s]/10,phase=1[s]/20);state memory:1 at tick;relation schedule{period(tick)=period(tick);}}";
     let changed = source.replace("100[ms]", "200[ms]");
@@ -10,6 +10,8 @@ fn stdio_clock_hover_and_outline_share_exact_current_declaration_facts() {
     let unsupported = "component C(clock tick:periodic){} model Borrowed(clock tick:periodic){} model M(){state x:m;event hit=crossing(x,direction=falling);}";
     let outline = |id| json!({"jsonrpc":"2.0","id":id,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":uri}}});
     let hover = |id, text: &str, needle: &str| json!({"jsonrpc":"2.0","id":id,"method":"textDocument/hover","params":{"textDocument":{"uri":uri},"position":source_position(text, needle)}});
+    let definition = |id, text: &str, needle: &str| json!({"jsonrpc":"2.0","id":id,"method":"textDocument/definition","params":{"textDocument":{"uri":uri},"position":source_position(text, needle)}});
+    let references = |id, text: &str, needle: &str, include| json!({"jsonrpc":"2.0","id":id,"method":"textDocument/references","params":{"textDocument":{"uri":uri},"position":source_position(text, needle),"context":{"includeDeclaration":include}}});
     let change = |version, text: &str| json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":uri,"version":version},"contentChanges":[{"text":text}]}});
     let mut child = Command::new(SERVER)
         .stdin(Stdio::piped())
@@ -28,24 +30,36 @@ fn stdio_clock_hover_and_outline_share_exact_current_declaration_facts() {
         hover(17, source, "tick;"),
         hover(18, source, "beat=periodic"),
         hover(19, source, "beat);"),
+        definition(21, source, "beat);"),
+        references(22, source, "beat);", true),
+        references(23, source, "peer=", false),
+        references(31, source, "tick;", true),
+        definition(32, source, "tick;"),
         change(2, &changed),
         change(1, source),
         outline(5),
         hover(6, &changed, "tick);"),
         hover(20, &changed, "beat);"),
+        definition(24, &changed, "beat);"),
+        references(25, &changed, "beat=", false),
         change(3, invalid),
         outline(7),
         hover(8, invalid, "tick"),
+        definition(26, invalid, "tick"),
+        references(27, invalid, "tick", true),
         change(4, incomplete),
         outline(9),
         hover(10, incomplete, "tick"),
         change(5, unsupported),
         outline(11),
         hover(12, unsupported, "tick:periodic"),
+        definition(28, unsupported, "tick:periodic"),
+        references(29, unsupported, "tick:periodic", true),
         hover(16, unsupported, "hit"),
         change(6, source),
         outline(13),
         hover(14, source, "tick);"),
+        definition(30, source, "beat);"),
         json!({"jsonrpc":"2.0","id":15,"method":"shutdown","params":null}),
         json!({"jsonrpc":"2.0","method":"exit","params":null}),
     ] {
@@ -82,6 +96,36 @@ fn stdio_clock_hover_and_outline_share_exact_current_declaration_facts() {
             .as_str()
             .unwrap()
     };
+    let location = |text: &str, needle: &str| {
+        let start = source_position(text, needle);
+        let end = json!({"line":start["line"],"character":start["character"].as_u64().unwrap()+4});
+        json!({"uri":uri,"range":{"start":start,"end":end}})
+    };
+    for id in [21, 30] {
+        assert_eq!(response(&messages, id)["result"], location(source, "beat="));
+    }
+    assert_eq!(
+        response(&messages, 24)["result"],
+        location(&changed, "beat=")
+    );
+    assert_eq!(
+        response(&messages, 22)["result"],
+        json!([
+            location(source, "beat="),
+            location(source, "beat)="),
+            location(source, "beat);")
+        ])
+    );
+    assert_eq!(
+        response(&messages, 25)["result"],
+        json!([location(&changed, "beat)="), location(&changed, "beat);")])
+    );
+    for id in [23, 27, 29, 31] {
+        assert_eq!(response(&messages, id)["result"], json!([]));
+    }
+    for id in [26, 28, 32] {
+        assert!(response(&messages, id)["result"].is_null());
+    }
     let exact = "periodic clock; period 1/10 s; phase 1/20 s; Model-local declaration; occurrence identity unknown";
     assert_eq!(detail(2, "M", "tick"), exact);
     assert_eq!(detail(2, "M", "peer"), exact);

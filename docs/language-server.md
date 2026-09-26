@@ -20,7 +20,7 @@ parser/compiler diagnostics after open and accepted newer changes, clears
 diagnostics on close, and serves whole-document formatting, nested document
 symbols, folding ranges, Markdown declaration hover, and definition locations.
 Resolved references can be found across open modules and exact local packages.
-Go to Definition also resolves owned Model/Component Field/Parameter/Port references and
+Go to Definition also resolves owned Model/Component Field/Parameter/Port/Clock value references and
 public Ports of Model direct children to exact declaration names, including imported
 sources. Find References accepts their terminal value-reference tokens or exact
 declaration names and returns source-qualified identifier spans in file/offset
@@ -29,8 +29,8 @@ returns an empty list. Successfully prepared owned Component declarations are
 supported without a Model instance, including private body locals. Multiple spellings such
 as `a.p` and `b.p` can refer to the same source declaration across Models and files;
 these results describe declaration provenance, not physical occurrence identity.
-Nested binder scopes and families, private or deeper child members, borrowed Fields,
-record members and aliases remain unsupported. Qualifiers, units,
+Nested binder scopes and families, private or deeper child members, borrowed Fields/Clocks,
+Clock activation clauses, record members and aliases remain unsupported. Qualifiers, units,
 comments and notation contents are not value references. Invalid or recovering
 snapshots grant no navigation; unsaved versions remain authoritative. The bounded
 reference results do not support rename.
@@ -117,7 +117,10 @@ The same facts appear at value uses such as `period(tick)`; activation clauses
 such as `at tick` have no retained value-reference occurrence and omit Clock hover.
 Equal schedules remain distinct declarations. This does not assign occurrence
 identity or infer borrowed or child Clock schedules; Event
-metadata and Clock definition/reference navigation remain outside this slice.
+metadata remains outside this slice. Clock definition/reference navigation uses
+the exact owned Model/Component declaration for retained value occurrences such as
+`period(tick)`. It omits activation clauses and borrowed Clocks, and distinguishes
+an unused owned declaration from an unsupported query.
 
 Document-symbol details reuse the same prepared compiler facts for exact owned
 Model/Component Field, Parameter and Port declarations and owned periodic Clocks, including channel-array
