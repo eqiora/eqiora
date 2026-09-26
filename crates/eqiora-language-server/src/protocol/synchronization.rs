@@ -7,15 +7,23 @@ const WATCH_REGISTRATION: &str = "eqiora.workspace-files";
 pub(super) fn register_watchers(
     connection: &Connection,
     params: &InitializeParams,
+    state: &mut ServerState,
 ) -> ServerResult<()> {
-    let supported = params
+    state.watch_registration_pending = params
         .capabilities
         .workspace
         .as_ref()
         .and_then(|workspace| workspace.did_change_watched_files.as_ref())
         .and_then(|watching| watching.dynamic_registration)
         .unwrap_or(false);
-    if supported && !workspace_roots(params).is_empty() {
+    register_pending_watchers(connection, state)
+}
+
+pub(super) fn register_pending_watchers(
+    connection: &Connection,
+    state: &mut ServerState,
+) -> ServerResult<()> {
+    if state.watch_registration_pending && !state.roots.is_empty() {
         connection.sender.send(
             Request::new(
                 RequestId::from(WATCH_REGISTRATION.to_owned()),
@@ -36,6 +44,7 @@ pub(super) fn register_watchers(
             )
             .into(),
         )?;
+        state.watch_registration_pending = false;
     }
     Ok(())
 }
@@ -89,7 +98,7 @@ pub(super) fn refresh(
                             .is_some_and(|name| name == "eqiora.toml" || name == "eqiora.lock")
                 })
             })
-            // An initialized nested workspace can also be a dependency source
+            // A client-declared nested workspace can also be a dependency source
             // of its parent project, so refresh every containing project.
             .flat_map(|event| {
                 state
@@ -108,28 +117,35 @@ pub(super) fn refresh(
         {
             continue;
         }
-        if !state.projects.contains_key(&group) {
-            // Retry a newly created or initially invalid manifest only inside an
-            // initialized root. The native owner must still admit every source;
-            // an empty map grants no guessed path or current-buffer override.
-            let Some(root_path) = Uri::from_str(&group)
-                .ok()
-                .and_then(|uri| file_uri_path(&uri))
-                .filter(|path| path.join("eqiora.toml").is_file())
-            else {
-                continue;
-            };
-            state.projects.insert(
-                group.clone(),
-                PackageProject {
-                    root_path,
-                    relative_by_uri: BTreeMap::new(),
-                },
-            );
+        if !stage_project(state, &group) {
+            continue;
         }
         state.schedule_group(&group, scheduler)?;
     }
     Ok(())
+}
+
+// Callers select this group from the current client-declared root set. Native
+// admission must still supply every path before current buffers can override it.
+pub(super) fn stage_project(state: &mut ServerState, group: &str) -> bool {
+    if state.projects.contains_key(group) {
+        return true;
+    }
+    let Some(root_path) = Uri::from_str(group)
+        .ok()
+        .and_then(|uri| file_uri_path(&uri))
+        .filter(|path| path.join("eqiora.toml").is_file())
+    else {
+        return false;
+    };
+    state.projects.insert(
+        group.to_owned(),
+        PackageProject {
+            root_path,
+            relative_by_uri: BTreeMap::new(),
+        },
+    );
+    true
 }
 
 #[cfg(test)]
@@ -149,7 +165,9 @@ mod tests {
                 "capabilities":{"workspace":{"didChangeWatchedFiles":{"dynamicRegistration":support}}},
                 "workspaceFolders": if folders { json!([{"uri":"file:///project","name":"project"}]) } else { json!([]) }
             })).unwrap();
-            register_watchers(&connection, &params).unwrap();
+            let mut state = ServerState::new(workspace_roots(&params));
+            register_watchers(&connection, &params, &mut state).unwrap();
+            assert_eq!(state.watch_registration_pending, support && !folders);
             let response = client.receiver.try_recv();
             assert_eq!(response.is_ok(), expected);
             if let Ok(Message::Request(request)) = response {

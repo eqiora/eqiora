@@ -40,6 +40,7 @@ mod package_analysis;
 mod synchronization;
 #[cfg(test)]
 mod tests;
+mod workspace_folders;
 
 struct OpenDocument {
     uri: Uri,
@@ -97,6 +98,7 @@ struct PackageProject {
 struct ServerState {
     documents: BTreeMap<String, OpenDocument>,
     roots: Vec<String>,
+    watch_registration_pending: bool,
     projects: BTreeMap<String, PackageProject>,
     workspaces: BTreeMap<String, WorkspaceAnalysis>,
     pending: BTreeMap<String, PendingAnalysis>,
@@ -151,6 +153,7 @@ impl ServerState {
         let mut state = Self {
             documents: BTreeMap::new(),
             roots,
+            watch_registration_pending: false,
             projects: BTreeMap::new(),
             workspaces: BTreeMap::new(),
             pending: BTreeMap::new(),
@@ -433,7 +436,7 @@ pub fn run(connection: Connection, version: &str) -> ServerResult<()> {
         workspace: Some(WorkspaceServerCapabilities {
             workspace_folders: Some(WorkspaceFoldersServerCapabilities {
                 supported: Some(true),
-                change_notifications: Some(OneOf::Left(false)),
+                change_notifications: Some(OneOf::Left(true)),
             }),
             file_operations: None,
         }),
@@ -450,8 +453,8 @@ pub fn run(connection: Connection, version: &str) -> ServerResult<()> {
         }),
     )?;
 
-    synchronization::register_watchers(&connection, &initialize_params)?;
     let mut state = ServerState::new(roots);
+    synchronization::register_watchers(&connection, &initialize_params, &mut state)?;
     let queued = Arc::new(Mutex::new(BTreeMap::<String, AnalysisJob>::new()));
     let (wake, wake_receiver) = crossbeam_channel::bounded(1);
     let scheduler = AnalysisScheduler {
@@ -560,17 +563,7 @@ fn workspace_roots(params: &InitializeParams) -> Vec<String> {
         || params.root_uri.iter().collect::<Vec<_>>(),
         |folders| folders.iter().map(|folder| &folder.uri).collect(),
     );
-    roots
-        .into_iter()
-        .map(|uri| {
-            let uri = uri.as_str();
-            if uri.ends_with('/') {
-                uri.to_owned()
-            } else {
-                format!("{uri}/")
-            }
-        })
-        .collect()
+    roots.into_iter().map(workspace_folders::root_key).collect()
 }
 
 fn handle_notification(
@@ -635,6 +628,9 @@ fn handle_notification(
                 );
                 connection.sender.send(notification.into())?;
             }
+        }
+        "workspace/didChangeWorkspaceFolders" => {
+            workspace_folders::change(connection, notification, state, scheduler)?;
         }
         "workspace/didChangeWatchedFiles" | "textDocument/didSave" => {
             synchronization::refresh(notification, state, scheduler)?;
