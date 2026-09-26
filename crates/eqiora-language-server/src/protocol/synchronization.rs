@@ -67,8 +67,8 @@ pub(super) fn refresh(
             return Ok(());
         }
         state
-            .projects
-            .keys()
+            .roots
+            .iter()
             .filter(|root| params.text_document.uri.as_str().starts_with(root.as_str()))
             .cloned()
             .collect()
@@ -93,23 +93,41 @@ pub(super) fn refresh(
             // of its parent project, so refresh every containing project.
             .flat_map(|event| {
                 state
-                    .projects
-                    .keys()
+                    .roots
+                    .iter()
                     .filter(|root| event.uri.as_str().starts_with(root.as_str()))
                     .cloned()
             })
             .collect()
     };
     for group in groups {
-        // Only admitted initialized package projects read unopened files. Other
-        // workspaces continue to consist of the client's open document snapshots.
-        if state
+        if !state
             .documents
             .keys()
             .any(|uri| state.group_for_uri(uri) == group)
         {
-            state.schedule_group(&group, scheduler)?;
+            continue;
         }
+        if !state.projects.contains_key(&group) {
+            // Retry a newly created or initially invalid manifest only inside an
+            // initialized root. The native owner must still admit every source;
+            // an empty map grants no guessed path or current-buffer override.
+            let Some(root_path) = Uri::from_str(&group)
+                .ok()
+                .and_then(|uri| file_uri_path(&uri))
+                .filter(|path| path.join("eqiora.toml").is_file())
+            else {
+                continue;
+            };
+            state.projects.insert(
+                group.clone(),
+                PackageProject {
+                    root_path,
+                    relative_by_uri: BTreeMap::new(),
+                },
+            );
+        }
+        state.schedule_group(&group, scheduler)?;
     }
     Ok(())
 }
