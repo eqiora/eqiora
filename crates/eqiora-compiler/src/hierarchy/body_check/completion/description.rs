@@ -41,9 +41,10 @@ pub(super) fn describe_type(value: &eqiora_core::ValueType) -> String {
 pub(super) fn describe_clock(
     period: eqiora_schema::kernel::RationalTime,
     phase: eqiora_schema::kernel::RationalTime,
+    owner: &str,
 ) -> String {
     format!(
-        "periodic clock; period {}/{} s; phase {}/{} s; Model-local declaration; occurrence identity unknown",
+        "periodic clock; period {}/{} s; phase {}/{} s; {owner}-local declaration; occurrence identity unknown",
         period.numerator(),
         period.denominator(),
         phase.numerator(),

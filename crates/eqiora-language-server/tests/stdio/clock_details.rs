@@ -3,11 +3,11 @@ use super::*;
 #[test]
 fn stdio_clock_hover_and_outline_share_exact_current_declaration_facts() {
     let uri = "file:///workspace/main.eqi";
-    let source = "model Other(){clock tick=periodic(2[s]);} model M(){clock tick=periodic(100[ms],phase=50[ms]);clock peer=periodic(1[s]/10,phase=1[s]/20);state memory:1 at tick;relation schedule{period(tick)=period(tick);}}";
+    let source = "component C(){clock beat=periodic(100[ms],phase=50[ms]);relation r{period(beat)=period(beat);}} model Other(){clock tick=periodic(2[s]);} model M(){clock tick=periodic(100[ms],phase=50[ms]);clock peer=periodic(1[s]/10,phase=1[s]/20);state memory:1 at tick;relation schedule{period(tick)=period(tick);}}";
     let changed = source.replace("100[ms]", "200[ms]");
     let invalid = "model M(){clock tick=periodic(0[s]);}";
     let incomplete = "model M(){clock tick=periodic(100[ms]);relation r{";
-    let unsupported = "component C(){clock tick=periodic(100[ms]);} model Borrowed(clock tick:periodic){} model M(){state x:m;event hit=crossing(x,direction=falling);}";
+    let unsupported = "component C(clock tick:periodic){} model Borrowed(clock tick:periodic){} model M(){state x:m;event hit=crossing(x,direction=falling);}";
     let outline = |id| json!({"jsonrpc":"2.0","id":id,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":uri}}});
     let hover = |id, text: &str, needle: &str| json!({"jsonrpc":"2.0","id":id,"method":"textDocument/hover","params":{"textDocument":{"uri":uri},"position":source_position(text, needle)}});
     let change = |version, text: &str| json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":uri,"version":version},"contentChanges":[{"text":text}]}});
@@ -26,10 +26,13 @@ fn stdio_clock_hover_and_outline_share_exact_current_declaration_facts() {
         hover(3, source, "tick=periodic(100"),
         hover(4, source, "tick);"),
         hover(17, source, "tick;"),
+        hover(18, source, "beat=periodic"),
+        hover(19, source, "beat);"),
         change(2, &changed),
         change(1, source),
         outline(5),
         hover(6, &changed, "tick);"),
+        hover(20, &changed, "beat);"),
         change(3, invalid),
         outline(7),
         hover(8, invalid, "tick"),
@@ -56,6 +59,14 @@ fn stdio_clock_hover_and_outline_share_exact_current_declaration_facts() {
         String::from_utf8_lossy(&output.stderr)
     );
     let messages = parse_packets(&output.stdout);
+    let initial_diagnostics = messages
+        .iter()
+        .find(|message| {
+            message["method"] == "textDocument/publishDiagnostics"
+                && message["params"]["version"] == 1
+        })
+        .unwrap();
+    assert_eq!(initial_diagnostics["params"]["diagnostics"], json!([]));
     let detail = |id, owner: &str, name: &str| {
         response(&messages, id)["result"]
             .as_array()
@@ -83,6 +94,27 @@ fn stdio_clock_hover_and_outline_share_exact_current_declaration_facts() {
             .unwrap();
         assert_eq!(text.matches(exact).count(), 1, "{text}");
     }
+    let component_exact = "periodic clock; period 1/10 s; phase 1/20 s; Component-local declaration; occurrence identity unknown";
+    assert_eq!(detail(2, "C", "beat"), component_exact);
+    assert_eq!(detail(13, "C", "beat"), component_exact);
+    for id in [18, 19] {
+        assert_eq!(
+            response(&messages, id)["result"]["contents"]["value"]
+                .as_str()
+                .unwrap()
+                .matches(component_exact)
+                .count(),
+            1
+        );
+    }
+    let component_revised = "periodic clock; period 1/5 s; phase 1/20 s; Component-local declaration; occurrence identity unknown";
+    assert_eq!(detail(5, "C", "beat"), component_revised);
+    assert!(
+        response(&messages, 20)["result"]["contents"]["value"]
+            .as_str()
+            .unwrap()
+            .contains(component_revised)
+    );
     let revised = "periodic clock; period 1/5 s; phase 1/20 s; Model-local declaration; occurrence identity unknown";
     assert_eq!(detail(5, "M", "tick"), revised);
     assert!(

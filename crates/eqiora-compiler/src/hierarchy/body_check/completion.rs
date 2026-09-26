@@ -17,6 +17,7 @@ enum Candidate {
     Clock(
         eqiora_schema::kernel::RationalTime,
         eqiora_schema::kernel::RationalTime,
+        &'static str,
     ),
     Parameter(eqiora_core::ValueType),
     Port(Box<PortContract>),
@@ -153,8 +154,10 @@ impl CompletionIndex {
                             value.period(),
                             value.phase(),
                         ) {
-                            candidates
-                                .insert(value.name().to_owned(), Candidate::Clock(period, phase));
+                            candidates.insert(
+                                value.name().to_owned(),
+                                Candidate::Clock(period, phase, "Model"),
+                            );
                         }
                         (value.name(), value.range())
                     }
@@ -425,7 +428,9 @@ impl CompletionIndex {
             return None;
         }
         let text = match scope.candidates.get(name)? {
-            Candidate::Clock(period, phase) => description::describe_clock(*period, *phase),
+            Candidate::Clock(period, phase, owner) => {
+                description::describe_clock(*period, *phase, owner)
+            }
             Candidate::Parameter(value) => format!(
                 "parameter; {}; static; no spatial support",
                 describe_type(value)
