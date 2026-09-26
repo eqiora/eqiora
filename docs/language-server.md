@@ -14,7 +14,13 @@ cargo install --locked --path crates/eqiora-language-server
 eqiora-language-server --version
 ```
 
-The preview uses standard UTF-16 LSP positions and full-document synchronization.
+The preview uses standard UTF-16 LSP positions and incremental document synchronization.
+Ordered range edits and whole-document replacements are applied atomically per
+notification against the current unsaved text. Each range uses the text produced
+by preceding edits in that notification; deprecated `rangeLength` is ignored.
+Columns beyond a line clamp to its end. Reversed ranges, nonexistent lines,
+surrogate-pair interiors and stale versions leave the accepted text and version
+unchanged. Parsing and semantic analysis still rebuild the final whole snapshot.
 Each document has a 16 MiB analysis limit. The server publishes ordered
 parser/compiler diagnostics after open and accepted newer changes, clears
 diagnostics on close, and serves whole-document formatting, nested document
@@ -211,11 +217,11 @@ module graph. When that folder contains `eqiora.toml`, the server reads its expl
 local candidate sources, including unopened files, without writing a lock or store.
 An existing lock fixes the selected versions and authored requests during analysis;
 changing a request requires an explicit project update. Open model sources override their disk content until they are
-closed, so hover and definition navigation stay current after full-document
-changes. Workspace analysis runs on one background worker, coalesces pending
+closed, so hover and definition navigation stay current after range edits or whole-document
+replacements. Workspace analysis runs on one background worker, coalesces pending
 edits, and prevents superseded results from publishing diagnostics. An editor
 request waiting for the current snapshot can be cancelled through
-`$/cancelRequest`. Partial edits are planned next.
+`$/cancelRequest`.
 
 Watch notifications for Eqiora sources, `eqiora.toml` and `eqiora.lock`, or saving an
 open Eqiora document, retry package discovery within the current client-declared root.

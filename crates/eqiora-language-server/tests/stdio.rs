@@ -8,6 +8,8 @@ mod clock_details;
 mod component_values;
 #[path = "stdio/hover_origin.rs"]
 mod hover_origin;
+#[path = "stdio/incremental_sync.rs"]
+mod incremental_sync;
 #[path = "stdio/inspection.rs"]
 mod inspection;
 #[path = "stdio/lexical_outline.rs"]
