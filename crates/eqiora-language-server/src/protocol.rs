@@ -36,6 +36,8 @@ type ServerResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 mod assistance;
 mod inspection;
 mod navigation;
+mod package_analysis;
+mod synchronization;
 #[cfg(test)]
 mod tests;
 
@@ -305,29 +307,11 @@ fn analyze_group(
     if cancelled.load(Ordering::Acquire) {
         return AnalysisOutcome::Cancelled;
     }
-    if let Some(project) = project {
-        let overrides = documents
-            .iter()
-            .filter_map(|document| {
-                project
-                    .relative_by_uri
-                    .get(&document.key)
-                    .cloned()
-                    .map(|path| (path, document.source.clone()))
-            })
-            .collect::<BTreeMap<_, _>>();
-        if let Ok((snapshot, paths)) = EditorWorkspaceSnapshot::analyze_local_package_project_v1(
-            version,
-            &project.root_path,
-            &overrides,
-        ) && !cancelled.load(Ordering::Acquire)
-            && let Some((analysis, relative_by_uri)) = package_workspace(group, snapshot, paths)
-        {
-            return AnalysisOutcome::Workspace {
-                analysis,
-                relative_by_uri: Some(relative_by_uri),
-            };
-        }
+    if let Some(project) = project
+        && let Some(outcome) =
+            package_analysis::analyze(group, version, &documents, project, cancelled)
+    {
+        return outcome;
     }
     let owner = CompilationNamespaceId::new(["editor.workspace"])
         .expect("fixed editor workspace namespace is valid");
@@ -424,6 +408,7 @@ pub fn run(connection: Connection, version: &str) -> ServerResult<()> {
             TextDocumentSyncOptions {
                 open_close: Some(true),
                 change: Some(TextDocumentSyncKind::FULL),
+                save: Some(lsp_types::TextDocumentSyncSaveOptions::Supported(true)),
                 ..TextDocumentSyncOptions::default()
             },
         )),
@@ -463,6 +448,7 @@ pub fn run(connection: Connection, version: &str) -> ServerResult<()> {
         }),
     )?;
 
+    synchronization::register_watchers(&connection, &initialize_params)?;
     let mut state = ServerState::new(roots);
     let queued = Arc::new(Mutex::new(BTreeMap::<String, AnalysisJob>::new()));
     let (wake, wake_receiver) = crossbeam_channel::bounded(1);
@@ -560,7 +546,7 @@ pub fn run(connection: Connection, version: &str) -> ServerResult<()> {
                 }
                 handle_notification(&connection, notification, &mut state, &scheduler)?;
             }
-            Message::Response(_) => {}
+            Message::Response(response) => synchronization::registration_result(response),
         }
     }
     Ok(())
@@ -647,6 +633,9 @@ fn handle_notification(
                 );
                 connection.sender.send(notification.into())?;
             }
+        }
+        "workspace/didChangeWatchedFiles" | "textDocument/didSave" => {
+            synchronization::refresh(notification, state, scheduler)?;
         }
         "initialized" | "$/cancelRequest" => {}
         _ => {}
