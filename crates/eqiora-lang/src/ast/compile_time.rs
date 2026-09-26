@@ -52,10 +52,17 @@ pub struct NamedDefinitionDecl {
     pub(crate) domain: Option<String>,
     pub(crate) activation: Option<String>,
     pub(crate) value: Expr,
+    pub(crate) activation_name_range: Option<TextRange>,
     pub(crate) range: TextRange,
 }
 
 impl NamedDefinitionDecl {
+    /// Exact authored activation-name token; absent without an assertion or source tokens.
+    #[must_use]
+    pub const fn activation_name_range(&self) -> Option<TextRange> {
+        self.activation_name_range
+    }
+
     /// Visibility of this named definition in its compilation unit.
     #[must_use]
     pub const fn visibility(&self) -> super::VisibilitySyntax {
@@ -77,6 +84,7 @@ impl NamedDefinitionDecl {
             value_type: None,
             domain: None,
             activation: None,
+            activation_name_range: None,
         }
     }
 

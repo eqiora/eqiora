@@ -33,10 +33,17 @@ pub struct RelationDecl {
     pub(crate) activation: ActivationSyntax,
     pub(crate) domain: Option<String>,
     pub(crate) body: RelationBody,
+    pub(crate) activation_name_range: Option<TextRange>,
     pub(crate) range: TextRange,
 }
 
 impl RelationDecl {
+    /// Exact authored activation-name token; absent without an assertion or source tokens.
+    #[must_use]
+    pub const fn activation_name_range(&self) -> Option<TextRange> {
+        self.activation_name_range
+    }
+
     /// Source name.
     #[must_use]
     pub fn name(&self) -> &str {

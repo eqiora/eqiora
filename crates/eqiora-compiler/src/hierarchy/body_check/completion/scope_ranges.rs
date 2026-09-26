@@ -1,7 +1,8 @@
 //! The editor's declaration resolver does not yet bind nested finite members.
 //! Keep their positions unknown instead of attaching an outer declaration's type.
 use eqiora_lang::{
-    ComponentItem, Document, ExprKind, Item, SignatureItem, SourceAstFactory, TextRange,
+    ActivationSyntax, ComponentItem, Document, ExprKind, Item, PortSyntax, SignatureItem,
+    SourceAstFactory, TextRange,
 };
 
 #[derive(Clone, Debug)]
@@ -20,7 +21,21 @@ pub(super) fn collect(
     let mut ranges = Vec::new();
     let mut references = Vec::new();
     for model in document.models() {
+        references.extend(model.signature().iter().filter_map(signature_reference));
         for item in model.items() {
+            references.extend(match item {
+                Item::Field(value) => {
+                    activation_reference(value.activation(), value.activation_name_range())
+                }
+                Item::Port(value) => port_reference(value.syntax(), value.activation_name_range()),
+                Item::Relation(value) => {
+                    activation_reference(value.activation(), value.activation_name_range())
+                }
+                Item::Let(value) => {
+                    named_reference(value.activation(), value.activation_name_range())
+                }
+                _ => None,
+            });
             match item {
                 Item::RelationFamily(value) => ranges.push(value.range()),
                 Item::Instance(value) if value.family().is_some() => ranges.push(value.range()),
@@ -32,11 +47,27 @@ pub(super) fn collect(
     }
     for component in document.components() {
         for item in component.signature() {
+            references.extend(signature_reference(item));
             if let SignatureItem::PortFamily(value) = item {
                 ranges.push(value.range());
             }
         }
         for item in component.items() {
+            references.extend(match item {
+                ComponentItem::Field(value) => {
+                    activation_reference(value.activation(), value.activation_name_range())
+                }
+                ComponentItem::Port(value) => {
+                    port_reference(value.syntax(), value.activation_name_range())
+                }
+                ComponentItem::Relation(value) => {
+                    activation_reference(value.activation(), value.activation_name_range())
+                }
+                ComponentItem::Let(value) => {
+                    named_reference(value.activation(), value.activation_name_range())
+                }
+                _ => None,
+            });
             match item {
                 ComponentItem::RelationFamily(value) => ranges.push(value.range()),
                 ComponentItem::Instance(value) if value.family().is_some() => {
@@ -90,6 +121,41 @@ pub(super) fn collect(
         excluded,
         references,
     })
+}
+
+// Activation syntax carries meaning; declaration metadata carries its authored token.
+// Native factory nodes have no such token and never acquire a guessed occurrence.
+fn named_reference(name: Option<&str>, range: Option<TextRange>) -> Option<(TextRange, String)> {
+    Some((range?, name?.to_owned()))
+}
+
+fn activation_reference(
+    activation: &ActivationSyntax,
+    range: Option<TextRange>,
+) -> Option<(TextRange, String)> {
+    let ActivationSyntax::Named(name) = activation else {
+        return None;
+    };
+    named_reference(Some(name), range)
+}
+
+fn port_reference(syntax: &PortSyntax, range: Option<TextRange>) -> Option<(TextRange, String)> {
+    let PortSyntax::Signal { activation, .. } = syntax else {
+        return None;
+    };
+    activation_reference(activation, range)
+}
+
+fn signature_reference(item: &SignatureItem) -> Option<(TextRange, String)> {
+    match item {
+        SignatureItem::Field(value)
+        | SignatureItem::Input(value)
+        | SignatureItem::Output(value) => {
+            activation_reference(value.activation(), value.activation_name_range())
+        }
+        SignatureItem::Port(value) => port_reference(value.syntax(), value.activation_name_range()),
+        _ => None,
+    }
 }
 
 #[cfg(test)]

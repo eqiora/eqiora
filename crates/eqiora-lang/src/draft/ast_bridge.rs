@@ -130,6 +130,7 @@ impl super::ModelDeclarations {
                     range,
                 }),
                 DraftDeclaration::Field(field) => Item::Field(FieldDecl {
+                    activation_name_range: None,
                     comments: Default::default(),
                     name: field.name.clone(),
                     domain: field
@@ -192,6 +193,7 @@ impl super::ModelDeclarations {
                     .expect("validated native Observable projection"),
                 ),
                 DraftDeclaration::ConservingPort(port) => Item::Port(PortDecl {
+                    activation_name_range: None,
                     comments: Default::default(),
                     name: port.name.clone(),
                     syntax: PortSyntax::ScalarPhysical {
@@ -200,6 +202,7 @@ impl super::ModelDeclarations {
                     range,
                 }),
                 DraftDeclaration::Relation(relation) => Item::Relation(RelationDecl {
+                    activation_name_range: None,
                     comments: Default::default(),
                     name: relation.name.clone(),
                     activation: ActivationSyntax::Continuous,

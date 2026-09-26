@@ -63,15 +63,12 @@ impl Parser<'_> {
         } else {
             None
         };
-        let activation = if self.at_keyword("at") {
+        let (activation, activation_name_range) = if self.at_keyword("at") {
             self.bump();
-            Some(
-                self.expect_identifier("let activation assertion")?
-                    .text()
-                    .to_owned(),
-            )
+            let token = self.expect_identifier("let activation assertion")?;
+            (Some(token.text().to_owned()), Some(token.range()))
         } else {
-            None
+            (None, None)
         };
         self.expect(TokenKind::Equal, "`=` before alias expression")?;
         let value = self.parse_expression(0)?;
@@ -80,6 +77,7 @@ impl Parser<'_> {
             .range()
             .end();
         Some(NamedDefinitionDecl {
+            activation_name_range,
             visibility: crate::VisibilitySyntax::Private,
             comments: Default::default(),
             name,

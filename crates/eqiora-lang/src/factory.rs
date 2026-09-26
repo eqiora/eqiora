@@ -159,6 +159,7 @@ impl SourceAstFactory {
     ) -> Result<ComponentPortDecl, AstConstructionError> {
         validate_port_syntax(&syntax)?;
         Ok(ComponentPortDecl {
+            activation_name_range: None,
             comments: Default::default(),
             visibility,
             name: checked_identifier(name, "component Port")?,
@@ -274,6 +275,7 @@ impl SourceAstFactory {
         }
         Self::value_type(value_type.kind().clone(), value_type.range)?;
         Ok(FieldDecl {
+            activation_name_range: None,
             comments: Default::default(),
             name: checked_identifier(name, "unknown")?,
             domain,
@@ -295,6 +297,7 @@ impl SourceAstFactory {
     ) -> Result<PortDecl, AstConstructionError> {
         validate_port_syntax(&syntax)?;
         Ok(PortDecl {
+            activation_name_range: None,
             comments: Default::default(),
             name: checked_identifier(name, "Port")?,
             syntax,

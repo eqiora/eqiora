@@ -53,15 +53,15 @@ impl Parser<'_> {
         } else {
             None
         };
-        let activation = if self.at_keyword("at") {
+        let (activation, activation_name_range) = if self.at_keyword("at") {
             self.bump();
-            ActivationSyntax::Named(
-                self.expect_identifier("Relation activation")?
-                    .text()
-                    .to_owned(),
+            let token = self.expect_identifier("Relation activation")?;
+            (
+                ActivationSyntax::Named(token.text().to_owned()),
+                Some(token.range()),
             )
         } else {
-            ActivationSyntax::Continuous
+            (ActivationSyntax::Continuous, None)
         };
         self.expect(TokenKind::LeftBrace, "`{` before equations")?;
         let mut equations = Vec::new();
@@ -76,6 +76,7 @@ impl Parser<'_> {
             .range()
             .end();
         let relation = RelationDecl {
+            activation_name_range,
             comments: Default::default(),
             name,
             activation,

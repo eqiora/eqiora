@@ -326,6 +326,7 @@ pub struct ComponentPortDecl {
     pub(crate) visibility: VisibilitySyntax,
     pub(crate) name: String,
     pub(crate) syntax: PortSyntax,
+    pub(crate) activation_name_range: Option<TextRange>,
     pub(crate) range: TextRange,
 }
 
@@ -360,6 +361,12 @@ impl ComponentPortFamilyDecl {
 }
 
 impl ComponentPortDecl {
+    /// Exact authored activation-name token; absent without an assertion or source tokens.
+    #[must_use]
+    pub const fn activation_name_range(&self) -> Option<TextRange> {
+        self.activation_name_range
+    }
+
     /// Private-by-default or explicit public visibility.
     #[must_use]
     pub const fn visibility(&self) -> VisibilitySyntax {
@@ -640,10 +647,17 @@ pub struct FieldDecl {
     pub(crate) role: FieldRoleSyntax,
     pub(crate) activation: ActivationSyntax,
     pub(crate) value_type: ValueTypeSyntax,
+    pub(crate) activation_name_range: Option<TextRange>,
     pub(crate) range: TextRange,
 }
 
 impl FieldDecl {
+    /// Exact authored activation-name token; absent without an assertion or source tokens.
+    #[must_use]
+    pub const fn activation_name_range(&self) -> Option<TextRange> {
+        self.activation_name_range
+    }
+
     /// Source name.
     #[must_use]
     pub fn name(&self) -> &str {
@@ -693,10 +707,17 @@ pub struct PortDecl {
     pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) name: String,
     pub(crate) syntax: PortSyntax,
+    pub(crate) activation_name_range: Option<TextRange>,
     pub(crate) range: TextRange,
 }
 
 impl PortDecl {
+    /// Exact authored activation-name token; absent without an assertion or source tokens.
+    #[must_use]
+    pub const fn activation_name_range(&self) -> Option<TextRange> {
+        self.activation_name_range
+    }
+
     /// Source name.
     #[must_use]
     pub fn name(&self) -> &str {

@@ -30,7 +30,7 @@ supported without a Model instance, including private body locals. Multiple spel
 as `a.p` and `b.p` can refer to the same source declaration across Models and files;
 these results describe declaration provenance, not physical occurrence identity.
 Nested binder scopes and families, private or deeper child members, borrowed Fields/Clocks,
-Clock activation clauses, record members and aliases remain unsupported. Qualifiers, units,
+record members and alias declaration targets remain unsupported. Qualifiers, units,
 comments and notation contents are not value references. Invalid or recovering
 snapshots grant no navigation; unsaved versions remain authoritative. The bounded
 reference results do not support rename.
@@ -113,13 +113,16 @@ clock identities are not borrowed from an instantiated Component.
 Owned Model/Component periodic Clock hover adds the exact reduced period and phase in
 coherent seconds from the existing compiler time conversion. For example,
 `periodic(100[ms], phase=50[ms])` displays period `1/10 s` and phase `1/20 s`.
-The same facts appear at value uses such as `period(tick)`; activation clauses
-such as `at tick` have no retained value-reference occurrence and omit Clock hover.
+The same facts appear at value uses such as `period(tick)` and at exact authored
+activation names on Fields, signal Ports, Relations and `let` assertions. The
+ordinary parser retains these token ranges on the declaration AST; source-free
+factory nodes have no activation-name range. Activation meaning and equality remain
+independent of this location metadata.
 Equal schedules remain distinct declarations. This does not assign occurrence
 identity or infer borrowed or child Clock schedules; Event
 metadata remains outside this slice. Clock definition/reference navigation uses
 the exact owned Model/Component declaration for retained value occurrences such as
-`period(tick)`. It omits activation clauses and borrowed Clocks, and distinguishes
+`period(tick)` and these activation names. It omits borrowed Clocks and distinguishes
 an unused owned declaration from an unsupported query.
 
 Document-symbol details reuse the same prepared compiler facts for exact owned
