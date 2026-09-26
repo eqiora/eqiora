@@ -254,3 +254,92 @@ fn watched_project_files_refresh_unopened_sources_and_preserve_unsaved_text() {
     session.send(json!({"jsonrpc":"2.0","method":"exit","params":null}));
     assert!(session.child.wait().unwrap().success());
 }
+
+#[test]
+fn initialized_roots_retry_missing_or_invalid_manifests_without_losing_open_buffers() {
+    for missing in [false, true] {
+        let fixture = TestDirectory::create("package admission retry");
+        fs::create_dir(fixture.0.join("src")).unwrap();
+        let main_path = fixture.0.join("src/main.eqi");
+        let other_path = fixture.0.join("src/other.eqi");
+        let manifest_path = fixture.0.join("eqiora.toml");
+        let manifest =
+            "[package]\nname=\"org.example.Recovery\"\nversion=\"1.0.0\"\nentry=\"main\"\n";
+        let disk_main = "model DiskOnly() {}";
+        let disk_other = "/// Disk declaration.\npublic component Part() {}";
+        let main = "// unsaved 🦀\nimport org.example.Recovery.other as other;\nmodel Main(){instance load:other.Part();}";
+        let other = "/// Current unsaved declaration.\npublic component Part() {}";
+        fs::write(&main_path, disk_main).unwrap();
+        fs::write(&other_path, disk_other).unwrap();
+        if !missing {
+            fs::write(&manifest_path, "invalid manifest").unwrap();
+        }
+        let uri = file_uri(&main_path);
+        let other_uri = file_uri(&other_path);
+        let mut session = Session::new();
+        session.send(
+            json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{
+                "capabilities":{},"workspaceFolders":[{"uri":file_uri(&fixture.0),"name":"project"}]
+            }}),
+        );
+        session.response(1);
+        session.send(json!({"jsonrpc":"2.0","method":"initialized","params":{}}));
+        for (document_uri, source) in [(&uri, main), (&other_uri, other)] {
+            session.send(
+                json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{
+                    "uri":document_uri,"languageId":"eqiora","version":7,"text":source
+                }}}),
+            );
+        }
+        let hover = |id| {
+            json!({"jsonrpc":"2.0","id":id,"method":"textDocument/hover","params":{
+                "textDocument":{"uri":uri},"position":source_position(main,"Part()")
+            }})
+        };
+        let event = |changed_uri: String| {
+            json!({"jsonrpc":"2.0","method":"workspace/didChangeWatchedFiles","params":{
+                "changes":[{"uri":changed_uri,"type":2}]
+            }})
+        };
+        session.send(event(file_uri(&manifest_path)));
+        session.send(hover(2));
+        assert!(session.response(2).is_null(), "unadmitted manifest");
+        fs::write(&manifest_path, manifest).unwrap();
+        // A now-valid file is not ambient authority: an unrelated root event
+        // cannot trigger admission or replace the current open-source snapshot.
+        let unrelated = TestDirectory::create("unrelated retry root");
+        session.send(event(file_uri(&unrelated.0.join("eqiora.toml"))));
+        session.send(hover(3));
+        assert!(session.response(3).is_null(), "unrelated event");
+        if missing {
+            session.send(event(file_uri(&manifest_path)));
+        } else {
+            session.send(
+                json!({"jsonrpc":"2.0","method":"textDocument/didSave","params":{
+                    "textDocument":{"uri":uri},"text":"model IgnoredSaveText() {}"
+                }}),
+            );
+        }
+        session.send(hover(4));
+        let recovered = session.response(4);
+        let text = recovered["contents"]["value"].as_str().unwrap();
+        assert!(text.contains("Current unsaved declaration"), "{recovered}");
+        assert!(!text.contains("Disk declaration"), "{recovered}");
+        session.send(
+            json!({"jsonrpc":"2.0","id":5,"method":"textDocument/definition","params":{
+                "textDocument":{"uri":uri},"position":source_position(main,"Part()")
+            }}),
+        );
+        let definition = session.response(5);
+        assert_eq!(definition["uri"], other_uri);
+        assert_eq!(definition["range"]["start"]["line"], 1);
+        assert_eq!(fs::read_to_string(&main_path).unwrap(), disk_main);
+        assert_eq!(fs::read_to_string(&other_path).unwrap(), disk_other);
+        assert_eq!(fs::read_to_string(&manifest_path).unwrap(), manifest);
+        assert!(!fixture.0.join("eqiora.lock").exists());
+        session.send(json!({"jsonrpc":"2.0","id":6,"method":"shutdown","params":null}));
+        session.response(6);
+        session.send(json!({"jsonrpc":"2.0","method":"exit","params":null}));
+        assert!(session.child.wait().unwrap().success());
+    }
+}

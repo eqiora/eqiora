@@ -200,6 +200,14 @@ edits, and prevents superseded results from publishing diagnostics. An editor
 request waiting for the current snapshot can be cancelled through
 `$/cancelRequest`. Partial edits are planned next.
 
+Watch notifications for Eqiora sources, `eqiora.toml` and `eqiora.lock`, or saving an
+open Eqiora document, retry package discovery within the already initialized root.
+A manifest missing or invalid at startup can recover after correction. Native
+package admission still owns the source-path map; current open buffers are applied
+only to admitted paths before a snapshot publishes. Failed admission keeps current
+open-source assistance without canonical package facts. Events outside initialized
+roots do not discover projects; changing the workspace roots requires a restart.
+
 ## Rich model inspection
 
 The [official VS Code extension](https://github.com/nkiyohara/eqiora-vscode) consumes

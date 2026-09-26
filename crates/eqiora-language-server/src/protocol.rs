@@ -86,6 +86,8 @@ struct WorkspaceAnalysis {
     uri_by_file: BTreeMap<String, Uri>,
 }
 
+// An initialized root selected for native admission or retry. Only the native
+// package owner supplies the admitted URI/path map; candidates start empty.
 #[derive(Clone)]
 struct PackageProject {
     root_path: PathBuf,
