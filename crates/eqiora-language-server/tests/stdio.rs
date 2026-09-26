@@ -8,6 +8,8 @@ mod clock_details;
 mod component_values;
 #[path = "stdio/document_highlights.rs"]
 mod document_highlights;
+#[path = "stdio/document_lifecycle.rs"]
+mod document_lifecycle;
 #[path = "stdio/hover_origin.rs"]
 mod hover_origin;
 #[path = "stdio/incremental_sync.rs"]
