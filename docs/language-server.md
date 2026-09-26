@@ -42,6 +42,17 @@ Nested binder scopes and families, private or deeper child members, record membe
 comments and notation contents are not value references. Invalid or recovering
 snapshots grant no navigation; unsaved versions remain authoritative. The bounded
 reference results do not support rename.
+
+Standard `textDocument/documentHighlight` requests reuse the same resolved
+references, including the declaration when it is in the current file. Results
+contain only that file's ranges, ordered and deduplicated by source position.
+Qualified type names retain their existing complete reference range.
+Unsupported queries and invalid analysis return no highlights. Highlight kind is
+`Text`: equations do not establish a read/write or assignment classification.
+Comments, units and unrelated same-spelled declarations are not text matches.
+Current unsaved versions, workspace waiting and cancellation use the same guards
+as Find References.
+
 Lifecycle events are emitted as one JSON object per line on stderr, leaving
 stdout exclusively for LSP framing.
 

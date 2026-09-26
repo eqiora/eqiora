@@ -190,7 +190,9 @@ inferred types, evaluated values or new value-definition/reference navigation.
 Associate `.eqi` with language ID `eqiora` and launch the executable over stdio,
 with no command-line arguments. Send the project directory in `rootUri` or
 `workspaceFolders` during initialization. The server negotiates UTF-16
-positions and incremental text changes. Ordered range edits and whole-document
+positions and incremental text changes. Document highlights reuse resolved
+references within the current file, including its declaration; they do not
+classify equation occurrences as reads or writes. Ordered range edits and whole-document
 replacements keep unsaved source navigation current; semantic analysis still
 rebuilds the final document snapshot. Keep stdout for LSP frames and capture
 stderr as the server log. Standard diagnostics, hover, formatting, symbols,
