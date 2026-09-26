@@ -91,6 +91,7 @@
         { "name": "EditorSnapshot", "from": "eqiora_api::editor::EditorSnapshot" },
         { "name": "EditorSymbol", "from": "eqiora_api::editor::EditorSymbol" },
         { "name": "EditorSymbolKind", "from": "eqiora_api::editor::EditorSymbolKind" },
+        { "name": "EditorTextChange", "from": "eqiora_api::editor::EditorTextChange" },
         { "name": "EditorWorkspaceService", "from": "eqiora_api::editor::EditorWorkspaceService" },
         { "name": "EditorWorkspaceSnapshot", "from": "eqiora_api::editor::EditorWorkspaceSnapshot" },
         { "name": "DerivativeContract", "from": "eqiora_api::DerivativeContract" },

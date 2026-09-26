@@ -7,8 +7,13 @@ use eqiora_lang::{
 };
 
 mod assistance;
+mod positions;
 mod symbol_details;
+mod text_edits;
 mod workspace;
+
+use positions::{line_end, line_starts, utf16_offset};
+pub use text_edits::EditorTextChange;
 
 pub use workspace::{
     EditorDefinition, EditorReference, EditorWorkspaceService, EditorWorkspaceSnapshot,
@@ -358,6 +363,12 @@ impl EditorSnapshot {
         self.version
     }
 
+    /// Exact current source, including unparsed or oversized input.
+    #[must_use]
+    pub fn source(&self) -> &str {
+        &self.source
+    }
+
     /// Recovered lexical, syntactic, and available semantic diagnostics.
     #[must_use]
     pub fn diagnostics(&self) -> &[Diagnostic] {
@@ -405,33 +416,23 @@ impl EditorSnapshot {
         let start = usize::try_from(*self.line_starts.get(line)?).ok()?;
         let end = self.line_end(line)?;
 
-        let target = usize::try_from(position.character).ok()?;
-        let mut utf16 = 0_usize;
-        for (relative, character) in self.source[start..end].char_indices() {
-            if utf16 == target {
-                return u32::try_from(start + relative).ok();
-            }
-            utf16 = utf16.checked_add(character.len_utf16())?;
-            if utf16 > target {
-                return None;
-            }
-        }
-        (utf16 == target).then(|| u32::try_from(end).ok()).flatten()
+        u32::try_from(utf16_offset(
+            &self.source,
+            start,
+            end,
+            position.character,
+            false,
+        )?)
+        .ok()
     }
 
     fn line_end(&self, line: usize) -> Option<usize> {
         let start = usize::try_from(*self.line_starts.get(line)?).ok()?;
-        let mut end = match self.line_starts.get(line + 1) {
+        let end = match self.line_starts.get(line + 1) {
             Some(next) => usize::try_from(*next).ok()?,
             None => self.source.len(),
         };
-        if end > start && self.source.as_bytes().get(end - 1) == Some(&b'\n') {
-            end -= 1;
-        }
-        if end > start && self.source.as_bytes().get(end - 1) == Some(&b'\r') {
-            end -= 1;
-        }
-        Some(end)
+        Some(line_end(&self.source, start, end))
     }
 }
 
@@ -493,27 +494,6 @@ fn stale_version(requested: u64, current: u64) -> Diagnostic {
         codes::PRECONDITION_FAILED,
         format!("editor request version {requested} does not match current version {current}"),
     )
-}
-
-fn line_starts(source: &str) -> Vec<u32> {
-    let mut starts = vec![0];
-    let bytes = source.as_bytes();
-    let mut offset = 0;
-    while offset < bytes.len() {
-        let width = match bytes[offset] {
-            b'\r' if bytes.get(offset + 1) == Some(&b'\n') => 2,
-            b'\r' | b'\n' => 1,
-            _ => {
-                offset += 1;
-                continue;
-            }
-        };
-        offset += width;
-        if let Ok(start) = u32::try_from(offset) {
-            starts.push(start);
-        }
-    }
-    starts
 }
 
 fn document_symbols(document: &Document) -> Vec<EditorSymbol> {

@@ -12,7 +12,10 @@ use std::{
 };
 
 use crossbeam_channel::{Receiver, Sender};
-use eqiora::api::{EditorService, EditorSnapshot, EditorSymbol, EditorWorkspaceSnapshot};
+use eqiora::api::{
+    EditorPosition, EditorService, EditorSnapshot, EditorSymbol, EditorTextChange,
+    EditorWorkspaceSnapshot,
+};
 use eqiora::compiler::{CompilationNamespaceId, ResolvedHierarchyInput, ResolvedSourceUnit};
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, RequestId, Response};
 use lsp_types::{
@@ -61,17 +64,29 @@ impl OpenDocument {
         }
     }
 
-    fn replace(&mut self, version: i32, source: String) -> bool {
-        let analysis_version = analysis_version(version);
-        if version <= self.version
-            || self
-                .analysis
-                .replace(analysis_version, source.clone())
-                .is_err()
-        {
+    fn apply_changes(
+        &mut self,
+        version: i32,
+        changes: Vec<lsp_types::TextDocumentContentChangeEvent>,
+    ) -> bool {
+        if version <= self.version {
             return false;
         }
-        self.source = source;
+        let changes = changes.into_iter().map(|change| match change.range {
+            Some(range) => EditorTextChange::replace_range(
+                EditorPosition::new(range.start.line, range.start.character),
+                EditorPosition::new(range.end.line, range.end.character),
+                change.text,
+            ),
+            None => EditorTextChange::replace_all(change.text),
+        });
+        let Ok(snapshot) = self
+            .analysis
+            .apply_changes(analysis_version(version), changes)
+        else {
+            return false;
+        };
+        self.source = snapshot.source().to_owned();
         self.version = version;
         true
     }
@@ -412,7 +427,7 @@ pub fn run(connection: Connection, version: &str) -> ServerResult<()> {
         text_document_sync: Some(TextDocumentSyncCapability::Options(
             TextDocumentSyncOptions {
                 open_close: Some(true),
-                change: Some(TextDocumentSyncKind::FULL),
+                change: Some(TextDocumentSyncKind::INCREMENTAL),
                 save: Some(lsp_types::TextDocumentSyncSaveOptions::Supported(true)),
                 ..TextDocumentSyncOptions::default()
             },
@@ -592,20 +607,13 @@ fn handle_notification(
             };
             let params: DidChangeTextDocumentParams = params;
             let identifier = params.text_document;
-            if params.content_changes.len() != 1 {
-                return Ok(());
-            }
-            let Some(change) = params.content_changes.into_iter().next() else {
-                return Ok(());
-            };
-            if change.range.is_some() {
-                return Ok(());
-            }
             let group = state.group_for_uri(identifier.uri.as_str());
             let accepted = state
                 .documents
                 .get_mut(identifier.uri.as_str())
-                .is_some_and(|document| document.replace(identifier.version, change.text));
+                .is_some_and(|document| {
+                    document.apply_changes(identifier.version, params.content_changes)
+                });
             if accepted {
                 state.schedule_group(&group, scheduler)?;
             }
