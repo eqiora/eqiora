@@ -29,8 +29,10 @@ returns an empty list. Successfully prepared owned Component declarations are
 supported without a Model instance, including private body locals. Multiple spellings such
 as `a.p` and `b.p` can refer to the same source declaration across Models and files;
 these results describe declaration provenance, not physical occurrence identity.
-Nested binder scopes and families, private or deeper child members, borrowed Fields,
-record members and alias declaration targets remain unsupported. Qualifiers, units,
+Prepared signature Field requirements also retain their own declaration and value
+references, without projecting occurrence-specific types or supports from bindings.
+Caller binding labels are not value references.
+Nested binder scopes and families, private or deeper child members, record members and alias declaration targets remain unsupported. Qualifiers, units,
 comments and notation contents are not value references. Invalid or recovering
 snapshots grant no navigation; unsaved versions remain authoritative. The bounded
 reference results do not support rename.

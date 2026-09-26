@@ -14,7 +14,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Clone, Debug)]
 enum Candidate {
-    ClockRequirement,
+    Requirement,
     Clock(
         eqiora_schema::kernel::RationalTime,
         eqiora_schema::kernel::RationalTime,
@@ -144,20 +144,6 @@ impl CompletionIndex {
             let mut candidates = BTreeMap::new();
             let mut declarations = BTreeMap::new();
             let declaration_file: Arc<str> = definition.file.into();
-            for item in definition.declaration.signature() {
-                if is_cancelled() {
-                    return None;
-                }
-                if let SignatureItem::Clock(value) = item
-                    && matches!(scope.symbols.get(value.name()), Some(SymbolContract::Clock))
-                {
-                    candidates.insert(value.name().to_owned(), Candidate::ClockRequirement);
-                    declarations.insert(
-                        value.name().to_owned(),
-                        (declaration_file.clone(), value.range()),
-                    );
-                }
-            }
             for item in definition.owned_items() {
                 let (name, range) = match item {
                     Item::Field(value) => (value.name(), value.range()),
@@ -211,6 +197,34 @@ impl CompletionIndex {
                     _ => continue,
                 };
                 candidates.insert(name, candidate);
+            }
+            // Navigation of a requirement preserves source identity without publishing
+            // an occurrence-specific value type or Clock schedule.
+            for item in definition.declaration.signature() {
+                if is_cancelled() {
+                    return None;
+                }
+                let (name, range) = match item {
+                    SignatureItem::Clock(value)
+                        if matches!(
+                            scope.symbols.get(value.name()),
+                            Some(SymbolContract::Clock)
+                        ) =>
+                    {
+                        (value.name(), value.range())
+                    }
+                    SignatureItem::Field(value)
+                        if matches!(
+                            scope.symbols.get(value.name()),
+                            Some(SymbolContract::Field(..))
+                        ) =>
+                    {
+                        (value.name(), value.range())
+                    }
+                    _ => continue,
+                };
+                candidates.insert(name.to_owned(), Candidate::Requirement);
+                declarations.insert(name.to_owned(), (declaration_file.clone(), range));
             }
             let mut contexts = Vec::new();
             for item in definition.items() {
@@ -334,7 +348,7 @@ impl CompletionIndex {
             Candidate::Field(_)
             | Candidate::Parameter(_)
             | Candidate::Clock(..)
-            | Candidate::ClockRequirement
+            | Candidate::Requirement
                 if origin.as_ref() == file => {}
             // Owned Ports and Model child public Ports share the exact
             // admitted declaration map; private child members never enter it.
@@ -374,7 +388,7 @@ impl CompletionIndex {
                             Candidate::Field(_)
                             | Candidate::Parameter(_)
                             | Candidate::Clock(..)
-                            | Candidate::ClockRequirement
+                            | Candidate::Requirement
                                 if origin.as_ref() == file => {}
                             Candidate::Port(_) => {}
                             _ => return None,
@@ -450,8 +464,8 @@ impl CompletionIndex {
             return None;
         }
         let text = match scope.candidates.get(name)? {
-            // A formal declaration has an exact source identity but no schedule.
-            Candidate::ClockRequirement => return None,
+            // Formal declarations retain source identity without occurrence facts.
+            Candidate::Requirement => return None,
             Candidate::Clock(period, phase, owner) => {
                 description::describe_clock(*period, *phase, owner)
             }

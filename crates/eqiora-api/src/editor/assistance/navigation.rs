@@ -11,7 +11,9 @@ impl EditorWorkspaceSnapshot {
     /// Deeper members, nested binders and invalid snapshots return no location;
     /// lexical recovery never grants navigation. Clock targets include owned periodic
     /// declarations and prepared signature requirements, without inferring a borrowed
-    /// schedule. Exact authored activation-name tokens use the same target.
+    /// schedule. Prepared Field requirements also retain their own source target,
+    /// without inferring occurrence-specific type/support facts. Exact authored
+    /// activation-name tokens use the same Clock target.
     #[must_use]
     pub fn value_definition_at_position(
         &self,
@@ -48,7 +50,8 @@ impl EditorWorkspaceSnapshot {
     /// token. Multiple instance spellings may share one source declaration;
     /// these results do not identify physical occurrences or support rename.
     /// Clock results cover retained value uses and authored activation-name tokens,
-    /// including prepared Clock requirements. Caller binding labels are not value uses.
+    /// including prepared Clock requirements. Field requirements retain their own
+    /// declaration references. Caller binding labels are not value uses.
     /// Results use source-qualified exact identifier spans, sorted by file and
     /// offset. Include the declaration once only when requested. An admitted
     /// unused declaration returns `Some([])`; unknown targets, private child/deeper
