@@ -591,6 +591,9 @@ fn handle_notification(
             };
             let params: DidOpenTextDocumentParams = params;
             let item = params.text_document;
+            if state.documents.contains_key(item.uri.as_str()) {
+                return Ok(());
+            }
             let document = OpenDocument::new(item.uri.clone(), item.version, item.text);
             let group = state.group_for_uri(item.uri.as_str());
             state

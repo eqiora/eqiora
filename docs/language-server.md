@@ -21,6 +21,9 @@ by preceding edits in that notification; deprecated `rangeLength` is ignored.
 Columns beyond a line clamp to its end. Reversed ranges, nonexistent lines,
 surrogate-pair interiors and stale versions leave the accepted text and version
 unchanged. Parsing and semantic analysis still rebuild the final whole snapshot.
+Repeated `didOpen` notifications for an already-open URI preserve its current
+text and version. A corresponding `didClose` followed by `didOpen` starts a new
+document lifetime and can restart the version sequence.
 Each document has a 16 MiB analysis limit. The server publishes ordered
 parser/compiler diagnostics after open and accepted newer changes, clears
 diagnostics on close, and serves whole-document formatting, nested document
