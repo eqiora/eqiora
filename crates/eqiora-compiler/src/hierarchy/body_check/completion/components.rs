@@ -83,12 +83,21 @@ pub(super) fn collect(
             if is_cancelled() {
                 return None;
             }
-            if let SignatureItem::Clock(value) = item
-                && matches!(symbols.get(value.name()), Some(SymbolContract::Clock))
-            {
-                candidates.insert(value.name().to_owned(), Candidate::ClockRequirement);
-                declarations.insert(value.name().to_owned(), (file.clone(), value.range()));
-            }
+            let (name, range) = match item {
+                SignatureItem::Clock(value)
+                    if matches!(symbols.get(value.name()), Some(SymbolContract::Clock)) =>
+                {
+                    (value.name(), value.range())
+                }
+                SignatureItem::Field(value)
+                    if matches!(symbols.get(value.name()), Some(SymbolContract::Field(..))) =>
+                {
+                    (value.name(), value.range())
+                }
+                _ => continue,
+            };
+            candidates.insert(name.to_owned(), Candidate::Requirement);
+            declarations.insert(name.to_owned(), (file.clone(), range));
         }
         for item in definition.owned_items() {
             if is_cancelled() {

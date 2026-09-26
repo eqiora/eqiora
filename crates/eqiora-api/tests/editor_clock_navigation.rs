@@ -111,12 +111,8 @@ fn owned_clock_navigation_preserves_declaration_identity_and_exact_source_tokens
 }
 
 #[test]
-fn clock_navigation_never_recovers_borrowed_fields_invalid_or_nested_bindings() {
+fn clock_navigation_never_recovers_invalid_or_nested_bindings() {
     for (marked, valid_source) in [
-        (
-            "component C(variable external:1){relation r{|external=0;}}",
-            true,
-        ),
         (
             "model M(){clock tick=periodic(1[s]);indexset Rows=range(2);relation r[i in Rows] at |tick{period(tick)=1[s];}}",
             true,

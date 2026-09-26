@@ -158,7 +158,9 @@ can be in an imported component file and follows unsaved document changes.
 Qualifiers, deeper members, private child Ports, nested binders and
 invalid source do not gain definition targets. Find References accepts these
 terminal value-reference tokens or their admitted declaration names and returns
-exact identifiers across prepared declaration scopes and source files.
+exact identifiers across prepared declaration scopes and source files. Prepared
+signature Field requirements also support this navigation, while instance types,
+supports and physical identity remain unknown.
 Clock navigation covers owned periodic declarations and prepared signature Clock
 requirements, value uses such as
 `period(tick)`, and clock names in `at` clauses on Fields, signal Ports, Relations

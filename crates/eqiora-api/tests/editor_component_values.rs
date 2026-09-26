@@ -190,7 +190,7 @@ fn unsupported_component_contracts_and_names_do_not_gain_navigation() {
 }
 
 #[test]
-fn valid_borrowed_signature_field_does_not_become_an_owned_declaration() {
+fn borrowed_signature_field_navigates_without_owned_occurrence_facts() {
     let source = "component C(variable borrowed:m){relation r{borrowed=1[m];}}";
     let workspace = EditorWorkspaceSnapshot::analyze_standalone(1, source);
     assert!(
@@ -216,10 +216,17 @@ fn valid_borrowed_signature_field_does_not_become_an_owned_declaration() {
                 .detail()
                 .is_none_or(|detail| !detail.contains("dimension L"))
         );
-        assert_eq!(workspace.value_definition_at_position(file, position), None);
+        let declaration = span(file, source, "borrowed:m", "borrowed");
+        assert_eq!(
+            workspace.value_definition_at_position(file, position),
+            (needle == "borrowed=1").then_some(declaration.clone())
+        );
         assert_eq!(
             workspace.value_references_at_position(file, position, true),
-            None
+            Some(vec![
+                declaration,
+                span(file, source, "borrowed=1", "borrowed")
+            ])
         );
     }
 }
@@ -229,6 +236,10 @@ fn valid_specialization_and_record_members_do_not_supply_owned_source_targets() 
     for (source, needle) in [
         (
             "component C(parameter n:integer){variable value:array<1,n>;relation r{value=value;}} model M(){instance child:C(n=2);}",
+            "value=value",
+        ),
+        (
+            "component C(parameter n:integer,variable value:array<1,n>){relation r{value=value;}} model M(){variable field:array<1,2>;instance child:C(n=2,value=field);}",
             "value=value",
         ),
         (
@@ -252,5 +263,89 @@ fn valid_specialization_and_record_members_do_not_supply_owned_source_targets() 
             workspace.value_references_at_position(file, position, true),
             None
         );
+    }
+}
+
+#[test]
+fn field_requirements_keep_exact_formal_identity_across_roles_and_instances() {
+    for owner in ["model", "component"] {
+        for role in ["variable", "state"] {
+            let mut source = format!(
+                "// 🧪\r\n{owner} Other({role} value:s){{relation r{{value=1[s];}}}} {owner} C({role} value @{{v}}:m,{role} unused:m){{relation r{{value=1[m];value=value;}}}}"
+            );
+            if owner == "component" {
+                source.push_str(&format!(" model Main(){{{role} first:m;{role} second:m;instance one:C(value=first,unused=second);instance two:C(value=second,unused=first);}}"));
+            }
+            let workspace = EditorWorkspaceSnapshot::analyze_standalone(1, &source);
+            assert!(
+                workspace.diagnostics().is_empty(),
+                "{source}: {:?}",
+                workspace.diagnostics()
+            );
+            let file = workspace.files().next().unwrap();
+            let snapshot = workspace.document(file).unwrap();
+            let target = span(file, &source, "value @{", "value");
+            let uses = ["value=1[m]", "value=value", "value;"]
+                .map(|needle| span(file, &source, needle, "value"));
+            for reference in &uses {
+                assert_eq!(
+                    workspace.value_definition_at_position(
+                        file,
+                        snapshot.position(reference.start).unwrap()
+                    ),
+                    Some(target.clone())
+                );
+            }
+            for cursor in std::iter::once(&target).chain(uses.iter()) {
+                let position = snapshot.position(cursor.start).unwrap();
+                assert_eq!(
+                    workspace.value_references_at_position(file, position, false),
+                    Some(uses.to_vec())
+                );
+                assert_eq!(
+                    workspace.value_references_at_position(file, position, true),
+                    Some(
+                        std::iter::once(target.clone())
+                            .chain(uses.iter().cloned())
+                            .collect()
+                    )
+                );
+            }
+            let unused = snapshot
+                .position(source.find("unused:m").unwrap() as u32)
+                .unwrap();
+            assert_eq!(
+                workspace.value_references_at_position(file, unused, false),
+                Some(vec![])
+            );
+            let declaration = snapshot.symbols().iter().find(|s| s.name() == "C").unwrap();
+            assert!(
+                declaration
+                    .children()
+                    .iter()
+                    .filter(|s| ["value", "unused"].contains(&s.name()))
+                    .all(|s| s.detail().is_none())
+            );
+            for needle in ["v}", "m]"]
+                .into_iter()
+                .chain((owner == "component").then_some("value=first"))
+            {
+                let position = snapshot
+                    .position(source.find(needle).unwrap() as u32)
+                    .unwrap();
+                assert!(
+                    workspace
+                        .value_definition_at_position(file, position)
+                        .is_none(),
+                    "{needle}"
+                );
+                assert!(
+                    workspace
+                        .value_references_at_position(file, position, true)
+                        .is_none(),
+                    "{needle}"
+                );
+            }
+        }
     }
 }

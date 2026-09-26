@@ -9,6 +9,8 @@ fn stdio_component_values_follow_current_types_and_source_locations() {
         source.replace(":m", ":s").replace("[m]", "[s]")
     );
     let broken = "component C(){variable value:m;relation r{value";
+    let required = "component C(variable value @{v}:m){relation r{value=1[m];}} model Borrowed(state value:s){relation r{value=1[s];}}";
+    let required_changed = format!("// 🧪\r\n{required}");
     let query = |id, method, text: &str, needle| json!({"jsonrpc":"2.0","id":id,"method":method,"params":{"textDocument":{"uri":uri},"position":source_position(text,needle),"context":{"includeDeclaration":true}}});
     let change = |version, text: &str| json!({"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":uri,"version":version},"contentChanges":[{"text":text}]}});
     let mut child = Command::new(SERVER)
@@ -33,6 +35,26 @@ fn stdio_component_values_follow_current_types_and_source_locations() {
         change(3, broken),
         query(8, "textDocument/definition", broken, "value:m"),
         query(9, "textDocument/references", broken, "value:m"),
+        change(4, required),
+        query(11, "textDocument/definition", required, "value=1[m]"),
+        query(12, "textDocument/references", required, "value @{v}"),
+        query(13, "textDocument/hover", required, "value=1[m]"),
+        query(14, "textDocument/definition", required, "value=1[s]"),
+        query(15, "textDocument/references", required, "value:s"),
+        change(5, &required_changed),
+        change(4, required),
+        query(
+            16,
+            "textDocument/definition",
+            &required_changed,
+            "value=1[m]",
+        ),
+        query(
+            17,
+            "textDocument/references",
+            &required_changed,
+            "value @{v}",
+        ),
         json!({"jsonrpc":"2.0","id":10,"method":"shutdown","params":null}),
         json!({"jsonrpc":"2.0","method":"exit","params":null}),
     ] {
@@ -68,6 +90,34 @@ fn stdio_component_values_follow_current_types_and_source_locations() {
             json!([location(text, "value @{v}"), location(text, "value=1")])
         );
     }
+    for (definition, references, text) in [(11, 12, required), (16, 17, required_changed.as_str())]
+    {
+        assert_eq!(
+            response(&messages, definition)["result"],
+            location(text, "value @{v}")
+        );
+        assert_eq!(
+            response(&messages, references)["result"],
+            json!([location(text, "value @{v}"), location(text, "value=1[m]")])
+        );
+    }
+    assert_eq!(
+        response(&messages, 14)["result"],
+        location(required, "value:s")
+    );
+    assert_eq!(
+        response(&messages, 15)["result"],
+        json!([
+            location(required, "value:s"),
+            location(required, "value=1[s]")
+        ])
+    );
+    assert!(
+        !response(&messages, 13)["result"]["contents"]["value"]
+            .as_str()
+            .unwrap()
+            .contains("dimension L")
+    );
     assert!(response(&messages, 8)["result"].is_null());
     assert_eq!(response(&messages, 9)["result"], json!([]));
 }
