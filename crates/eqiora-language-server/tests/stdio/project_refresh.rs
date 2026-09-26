@@ -343,3 +343,100 @@ fn initialized_roots_retry_missing_or_invalid_manifests_without_losing_open_buff
         assert!(session.child.wait().unwrap().success());
     }
 }
+
+#[test]
+fn workspace_folder_changes_admit_and_remove_package_scope_without_losing_open_buffers() {
+    for watch_supported in [false, true] {
+        let fixture = TestDirectory::create("dynamic workspace folders");
+        fs::create_dir(fixture.0.join("src")).unwrap();
+        let main_path = fixture.0.join("src/main.eqi");
+        let other_path = fixture.0.join("src/other.eqi");
+        let manifest_path = fixture.0.join("eqiora.toml");
+        let manifest =
+            "[package]\nname=\"org.example.Folders\"\nversion=\"1.0.0\"\nentry=\"main\"\n";
+        let disk_main = "model DiskOnly(){}";
+        let disk_other = "/// Disk declaration.\npublic component Part(){}";
+        let main = "// unsaved 🦀\nimport org.example.Folders.other as other;\nmodel Main(){instance load:other.Part();}";
+        let other = "/// Current unsaved declaration.\npublic component Part(){}";
+        fs::write(&main_path, disk_main).unwrap();
+        fs::write(&other_path, disk_other).unwrap();
+        fs::write(&manifest_path, manifest).unwrap();
+        let uri = file_uri(&main_path);
+        let other_uri = file_uri(&other_path);
+        let root_uri = file_uri(&fixture.0);
+        let mut session = Session::new();
+        session.send(json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{"workspace":{"workspaceFolders":true,"didChangeWatchedFiles":{"dynamicRegistration":watch_supported}}},"workspaceFolders":[]}}));
+        assert_eq!(
+            session.response(1)["capabilities"]["workspace"]["workspaceFolders"]["changeNotifications"],
+            true
+        );
+        session.send(json!({"jsonrpc":"2.0","method":"initialized","params":{}}));
+        for (document_uri, source) in [(&uri, main), (&other_uri, other)] {
+            session.send(json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":document_uri,"languageId":"eqiora","version":7,"text":source}}}));
+        }
+        let hover = |id| json!({"jsonrpc":"2.0","id":id,"method":"textDocument/hover","params":{"textDocument":{"uri":uri},"position":source_position(main,"Part()")}});
+        let folders = |added: bool| {
+            let root = json!([{"uri":root_uri,"name":"project"}]);
+            json!({"jsonrpc":"2.0","method":"workspace/didChangeWorkspaceFolders","params":{"event":{"added":if added { root.clone() } else { json!([]) },"removed":if added { json!([]) } else { root }}}})
+        };
+        session.send(hover(2));
+        assert!(session.response(2).is_null());
+        let watch = json!({"jsonrpc":"2.0","method":"workspace/didChangeWatchedFiles","params":{"changes":[{"uri":file_uri(&manifest_path),"type":2}]}});
+        session.send(watch.clone());
+        session.send(hover(3));
+        assert!(
+            session.response(3).is_null(),
+            "watch event cannot grant root authority"
+        );
+        session.send(folders(true));
+        if watch_supported {
+            loop {
+                let message = session.next();
+                if message["method"] == "client/registerCapability" {
+                    assert_eq!(
+                        message["params"]["registrations"][0]["method"],
+                        "workspace/didChangeWatchedFiles"
+                    );
+                    session.send(json!({"jsonrpc":"2.0","id":message["id"],"result":null}));
+                    break;
+                }
+                assert_eq!(message["method"], "textDocument/publishDiagnostics");
+                assert_eq!(message["params"]["version"], 7);
+            }
+        }
+        session.send(hover(4));
+        let text = session.response(4)["contents"]["value"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        assert!(text.contains("Current unsaved declaration"), "{text}");
+        assert!(!text.contains("Disk declaration"));
+        session.send(json!({"jsonrpc":"2.0","id":5,"method":"textDocument/definition","params":{"textDocument":{"uri":uri},"position":source_position(main,"Part()")}}));
+        let definition = session.response(5);
+        assert_eq!(definition["uri"], other_uri);
+        assert_eq!(definition["range"]["start"]["line"], 1);
+        session.send(folders(false));
+        session.send(watch);
+        session.send(hover(6));
+        assert!(
+            session.response(6).is_null(),
+            "removed roots cannot retain package facts"
+        );
+        session.send(folders(true));
+        session.send(hover(7));
+        assert!(
+            session.response(7)["contents"]["value"]
+                .as_str()
+                .unwrap()
+                .contains("Current unsaved declaration")
+        );
+        assert_eq!(fs::read_to_string(&main_path).unwrap(), disk_main);
+        assert_eq!(fs::read_to_string(&other_path).unwrap(), disk_other);
+        assert_eq!(fs::read_to_string(&manifest_path).unwrap(), manifest);
+        assert!(!fixture.0.join("eqiora.lock").exists());
+        session.send(json!({"jsonrpc":"2.0","id":8,"method":"shutdown","params":null}));
+        session.response(8);
+        session.send(json!({"jsonrpc":"2.0","method":"exit","params":null}));
+        assert!(session.child.wait().unwrap().success());
+    }
+}

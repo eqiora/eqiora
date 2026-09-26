@@ -206,7 +206,7 @@ expressions remain outside this surface. Completion and signature help are
 independent of the optional inspection protocol and are advertised as ordinary
 LSP capabilities.
 
-Files opened under the same initialization workspace folder are analyzed as one
+Files opened under the same current client-declared workspace folder are analyzed as one
 module graph. When that folder contains `eqiora.toml`, the server reads its explicit
 local candidate sources, including unopened files, without writing a lock or store.
 An existing lock fixes the selected versions and authored requests during analysis;
@@ -218,12 +218,20 @@ request waiting for the current snapshot can be cancelled through
 `$/cancelRequest`. Partial edits are planned next.
 
 Watch notifications for Eqiora sources, `eqiora.toml` and `eqiora.lock`, or saving an
-open Eqiora document, retry package discovery within the already initialized root.
+open Eqiora document, retry package discovery within the current client-declared root.
 A manifest missing or invalid at startup can recover after correction. Native
 package admission still owns the source-path map; current open buffers are applied
 only to admitted paths before a snapshot publishes. Failed admission keeps current
-open-source assistance without canonical package facts. Events outside initialized
-roots do not discover projects; changing the workspace roots requires a restart.
+open-source assistance without canonical package facts. File events outside current
+roots do not discover projects. Standard `workspace/didChangeWorkspaceFolders`
+notifications add or remove root authority without restarting. A changed folder
+set cancels previous analyses, discards their snapshots and regroups all currently
+open documents, preserving unsaved text and document versions. Removed roots
+lose their package maps; new package roots still pass ordinary native admission.
+Normalized no-op changes do not schedule analysis. Clients opting into file
+watch registration receive it when the first folder becomes available, including
+a session initialized without folders. Clients that do not report folder changes
+still need a restart when their workspace roots change.
 
 ## Rich model inspection
 
