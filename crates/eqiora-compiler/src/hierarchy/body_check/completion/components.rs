@@ -9,7 +9,7 @@ use crate::hierarchy::{
     preflight::Elaborator,
     supports::component_support_interface,
 };
-use eqiora_lang::ComponentItem;
+use eqiora_lang::{ComponentItem, SignatureItem};
 use std::{collections::BTreeMap, sync::Arc};
 
 pub(super) fn collect(
@@ -79,6 +79,17 @@ pub(super) fn collect(
         let mut declarations = BTreeMap::new();
         let mut contexts = Vec::new();
         let file: Arc<str> = definition.file.into();
+        for item in definition.declaration.signature() {
+            if is_cancelled() {
+                return None;
+            }
+            if let SignatureItem::Clock(value) = item
+                && matches!(symbols.get(value.name()), Some(SymbolContract::Clock))
+            {
+                candidates.insert(value.name().to_owned(), Candidate::ClockRequirement);
+                declarations.insert(value.name().to_owned(), (file.clone(), value.range()));
+            }
+        }
         for item in definition.owned_items() {
             if is_cancelled() {
                 return None;

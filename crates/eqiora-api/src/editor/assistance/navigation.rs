@@ -5,12 +5,13 @@ use eqiora_core::Span;
 use eqiora_lang::{TextRange, Token, TokenKind};
 
 impl EditorWorkspaceSnapshot {
-    /// Resolve an owned Model/Component Field/Parameter/Port/Clock value reference or a Model child's
+    /// Resolve a prepared Model/Component Field/Parameter/Port/Clock value reference or a Model child's
     /// public Port reference to the exact declaration name in its source file.
     /// The cursor must cover the terminal identifier, not a qualifier or dot.
     /// Deeper members, nested binders and invalid snapshots return no location;
-    /// lexical recovery never grants navigation. Clock targets require owned periodic
-    /// declarations. Exact authored activation-name tokens use the same target.
+    /// lexical recovery never grants navigation. Clock targets include owned periodic
+    /// declarations and prepared signature requirements, without inferring a borrowed
+    /// schedule. Exact authored activation-name tokens use the same target.
     #[must_use]
     pub fn value_definition_at_position(
         &self,
@@ -41,13 +42,13 @@ impl EditorWorkspaceSnapshot {
         })
     }
 
-    /// Find references to an owned Model/Component Field/Parameter/Port/Clock declaration or
+    /// Find references to a prepared Model/Component Field/Parameter/Port/Clock declaration or
     /// a Model child's public Port across prepared declaration scopes.
     /// The cursor must be on its declaration name or a terminal value-reference
     /// token. Multiple instance spellings may share one source declaration;
     /// these results do not identify physical occurrences or support rename.
     /// Clock results cover retained value uses and authored activation-name tokens,
-    /// excluding borrowed Clocks.
+    /// including prepared Clock requirements. Caller binding labels are not value uses.
     /// Results use source-qualified exact identifier spans, sorted by file and
     /// offset. Include the declaration once only when requested. An admitted
     /// unused declaration returns `Some([])`; unknown targets, private child/deeper
