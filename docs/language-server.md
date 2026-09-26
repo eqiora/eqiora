@@ -136,6 +136,12 @@ Authored crossing expressions, directions and prose remain source text; this
 projection does not infer a guard type, occurrence identity or event time. Invalid
 and recovered snapshots retain safe lexical structure but grant no navigation.
 
+Lexical outlines distinguish Model/Component `indexset` and `observable`
+declarations and retain their authored prose. Component `let` declarations and
+Model Relation families also appear alongside their existing counterparts.
+Hover/name completion shows authored declarations; these entries do not gain
+inferred types, evaluated values or new value-definition/reference navigation.
+
 Document-symbol details reuse the same prepared compiler facts for exact owned
 Model/Component Field, Parameter and Port declarations and owned periodic Clocks, including channel-array
 rank and exact local schedules. Unsupported
