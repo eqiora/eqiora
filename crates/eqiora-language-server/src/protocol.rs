@@ -46,7 +46,6 @@ mod workspace_folders;
 
 struct OpenDocument {
     uri: Uri,
-    source: String,
     version: i32,
     analysis: EditorService,
 }
@@ -54,10 +53,9 @@ struct OpenDocument {
 impl OpenDocument {
     fn new(uri: Uri, version: i32, source: String) -> Self {
         let analysis_version = analysis_version(version);
-        let analysis = EditorService::new(uri.as_str(), analysis_version, source.clone());
+        let analysis = EditorService::new(uri.as_str(), analysis_version, source);
         Self {
             uri,
-            source,
             version,
             analysis,
         }
@@ -78,13 +76,13 @@ impl OpenDocument {
             });
             (range, change.text)
         });
-        let Ok(snapshot) = self
+        if self
             .analysis
             .apply_changes(analysis_version(version), changes)
-        else {
+            .is_err()
+        {
             return false;
-        };
-        self.source = snapshot.source().to_owned();
+        }
         self.version = version;
         true
     }
@@ -235,7 +233,7 @@ impl ServerState {
             .map(|(uri, document)| AnalysisDocument {
                 key: uri.clone(),
                 uri: document.uri.clone(),
-                source: document.source.clone(),
+                source: document.snapshot().source().to_owned(),
             })
             .collect();
         let project = self.projects.get(group).cloned();
@@ -874,15 +872,16 @@ fn formatting(
     state: &ServerState,
 ) -> Result<Vec<TextEdit>, String> {
     let document = document(state, &params.text_document.uri)?;
+    let source = document.snapshot().source();
     let snapshot = state.snapshot(&params.text_document.uri)?;
     let Some(formatted) = snapshot.formatted() else {
         return Ok(Vec::new());
     };
-    if formatted == document.source {
+    if formatted == source {
         return Ok(Vec::new());
     }
     Ok(vec![TextEdit {
-        range: source_range(snapshot, 0, document.source.len())?,
+        range: source_range(snapshot, 0, source.len())?,
         new_text: formatted.to_owned(),
     }])
 }
