@@ -173,6 +173,21 @@ fn maximum_matching(rows: &[Vec<usize>], columns: usize) -> Vec<Option<usize>> {
     row_match
 }
 
+impl Interpreter {
+    /// Analyze the admitted scalar continuous profile without solving or requiring balance.
+    /// Candidate derivative matching is informational; numerical regularity is separate.
+    ///
+    /// # Errors
+    /// Rejects unsupported reference profiles or malformed connection/activation plans.
+    pub fn analyze_equations(
+        &self,
+        program: &KernelProgram,
+    ) -> Result<EquationAnalysis, Diagnostic> {
+        let plan = ExecutionPlan::for_analysis(program)?;
+        report::analyze(program, &plan)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{deficient_blocks, maximum_matching};
@@ -270,20 +285,5 @@ mod tests {
                 }
             }
         }
-    }
-}
-
-impl Interpreter {
-    /// Analyze the admitted scalar continuous profile without solving or requiring balance.
-    /// Candidate derivative matching is informational; numerical regularity is separate.
-    ///
-    /// # Errors
-    /// Rejects unsupported reference profiles or malformed connection/activation plans.
-    pub fn analyze_equations(
-        &self,
-        program: &KernelProgram,
-    ) -> Result<EquationAnalysis, Diagnostic> {
-        let plan = ExecutionPlan::for_analysis(program)?;
-        report::analyze(program, &plan)
     }
 }
