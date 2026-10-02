@@ -120,7 +120,7 @@ jobs:
           key: eqiora-site-${{ runner.os }}-${{ runner.arch }}-playwright-1.62.1-r1234-${{ hashFiles('docs/site/package-lock.json') }}
       - name: Install the locked mise toolchain
         if: steps.site_closure.outputs.site == 'true'
-        uses: jdx/mise-action@9149ea85001c7435d5a66bb127d6a1b6227cb0a5 # v5.0.0
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
         with:
           version: 2026.5.10
           # Rust toolchains live in rustup's home, outside mise's cache. Restoring
