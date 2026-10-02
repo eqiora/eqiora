@@ -113,6 +113,7 @@ pub struct EditorSymbol {
     kind: EditorSymbolKind,
     name: String,
     range: TextRange,
+    name_range: Option<TextRange>,
     children: Vec<Self>,
     doc_comment: Option<DocComment>,
     notation: Option<Notation>,
@@ -129,6 +130,7 @@ impl EditorSymbol {
             kind,
             name: name.into(),
             range,
+            name_range: None,
             children: Vec::new(),
             doc_comment: None,
             notation: None,
@@ -151,6 +153,7 @@ impl EditorSymbol {
             kind,
             name: name.into(),
             range,
+            name_range: None,
             children,
             doc_comment: None,
             notation: None,
@@ -211,6 +214,14 @@ impl EditorSymbol {
     #[must_use]
     pub const fn range(&self) -> TextRange {
         self.range
+    }
+
+    /// Recovered declaration-name token, when available.
+    /// This lexical outline location does not grant semantic identity. Import
+    /// aliases and assistance-only entries may have no separate name range.
+    #[must_use]
+    pub const fn name_range(&self) -> Option<TextRange> {
+        self.name_range
     }
 
     /// Nested declarations, or signature entries for an assistance result.
@@ -275,7 +286,9 @@ impl EditorSnapshot {
             .is_empty()
             .then(|| parsed.document().map(format))
             .flatten();
-        let symbols = parsed.document().map_or_else(Vec::new, document_symbols);
+        let symbols = parsed.document().map_or_else(Vec::new, |document| {
+            document_symbols(document, parsed.tokens())
+        });
         let diagnostics = if parsed.diagnostics().is_empty()
             && parsed
                 .document()
@@ -313,7 +326,7 @@ impl EditorSnapshot {
             source,
             diagnostics: Vec::new(),
             formatted: Some(format(document)),
-            symbols: document_symbols(document),
+            symbols: document_symbols(document, parsed.tokens()),
             syntax: Some(document.clone()),
             semantics: None,
         }
@@ -343,7 +356,9 @@ impl EditorSnapshot {
             .is_empty()
             .then(|| parsed.document().map(format))
             .flatten();
-        let symbols = parsed.document().map_or_else(Vec::new, document_symbols);
+        let symbols = parsed.document().map_or_else(Vec::new, |document| {
+            document_symbols(document, parsed.tokens())
+        });
         Self {
             version,
             line_starts: line_starts(&source),
@@ -495,7 +510,7 @@ fn stale_version(requested: u64, current: u64) -> Diagnostic {
     )
 }
 
-fn document_symbols(document: &Document) -> Vec<EditorSymbol> {
+fn document_symbols(document: &Document, tokens: &[eqiora_lang::Token]) -> Vec<EditorSymbol> {
     let mut symbols = Vec::new();
     symbols.extend(document.records().iter().map(|r| {
         EditorSymbol::branch(
@@ -609,6 +624,7 @@ fn document_symbols(document: &Document) -> Vec<EditorSymbol> {
         &document.doc_comments().collect(),
         &document.notations().collect(),
     );
+    symbol_details::prepare_name_ranges(&mut symbols, tokens);
     symbols
 }
 

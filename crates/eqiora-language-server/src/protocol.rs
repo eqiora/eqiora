@@ -19,17 +19,16 @@ use eqiora::compiler::{CompilationNamespaceId, ResolvedHierarchyInput, ResolvedS
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, RequestId, Response};
 use lsp_types::{
     CancelParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DocumentFormattingParams, DocumentSymbol, DocumentSymbolParams,
-    DocumentSymbolResponse, FoldingRange, FoldingRangeParams, FoldingRangeProviderCapability,
-    HoverProviderCapability, InitializeParams, NumberOrString, OneOf, PositionEncodingKind,
-    PublishDiagnosticsParams, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
-    TextDocumentSyncOptions, TextEdit, Uri, WorkspaceFoldersServerCapabilities,
-    WorkspaceServerCapabilities,
+    DidOpenTextDocumentParams, DocumentFormattingParams, FoldingRange, FoldingRangeParams,
+    FoldingRangeProviderCapability, HoverProviderCapability, InitializeParams, NumberOrString,
+    OneOf, PositionEncodingKind, PublishDiagnosticsParams, ServerCapabilities,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions, TextEdit, Uri,
+    WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
 };
 use serde::de::DeserializeOwned;
 
 use crate::{
-    lsp_projection::{lsp_diagnostic, source_range, symbol_kind, symbol_label, symbol_range},
+    lsp_projection::{lsp_diagnostic, source_range, symbol_range},
     workspace_uri::{file_uri_path, project_file_uri},
 };
 
@@ -39,6 +38,7 @@ mod assistance;
 mod inspection;
 mod navigation;
 mod package_analysis;
+mod symbols;
 mod synchronization;
 #[cfg(test)]
 mod tests;
@@ -107,6 +107,7 @@ struct PackageProject {
 }
 
 struct ServerState {
+    symbol_options: symbols::Options,
     documents: BTreeMap<String, OpenDocument>,
     roots: Vec<String>,
     watch_registration_pending: bool,
@@ -162,6 +163,7 @@ impl ServerState {
         roots.dedup();
         roots.sort_by_key(|root| std::cmp::Reverse(root.len()));
         let mut state = Self {
+            symbol_options: symbols::Options::default(),
             documents: BTreeMap::new(),
             roots,
             watch_registration_pending: false,
@@ -466,6 +468,7 @@ pub fn run(connection: Connection, version: &str) -> ServerResult<()> {
     )?;
 
     let mut state = ServerState::new(roots);
+    state.symbol_options = symbols::Options::from_initialize(&initialize_params);
     synchronization::register_watchers(&connection, &initialize_params, &mut state)?;
     let queued = Arc::new(Mutex::new(BTreeMap::<String, AnalysisJob>::new()));
     let (wake, wake_receiver) = crossbeam_channel::bounded(1);
@@ -808,7 +811,7 @@ fn handle_request(
         ),
         "textDocument/documentSymbol" => response_from(
             id,
-            decode(request.params).and_then(|params| document_symbols(params, state)),
+            decode(request.params).and_then(|params| symbols::document_symbols(params, state)),
         ),
         "textDocument/foldingRange" => response_from(
             id,
@@ -887,44 +890,6 @@ fn formatting(
         range: source_range(snapshot, 0, source.len())?,
         new_text: formatted.to_owned(),
     }])
-}
-
-fn document_symbols(
-    params: DocumentSymbolParams,
-    state: &ServerState,
-) -> Result<DocumentSymbolResponse, String> {
-    let snapshot = state.snapshot(&params.text_document.uri)?;
-    let symbols = snapshot
-        .symbols()
-        .iter()
-        .map(|symbol| lsp_symbol(snapshot, symbol))
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(DocumentSymbolResponse::Nested(symbols))
-}
-
-#[allow(deprecated)]
-fn lsp_symbol(snapshot: &EditorSnapshot, symbol: &EditorSymbol) -> Result<DocumentSymbol, String> {
-    let range = symbol_range(snapshot, symbol)?;
-    let children = symbol
-        .children()
-        .iter()
-        .map(|child| lsp_symbol(snapshot, child))
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(DocumentSymbol {
-        name: symbol.name().to_owned(),
-        detail: Some(
-            symbol
-                .detail()
-                .unwrap_or_else(|| symbol_label(symbol.kind()))
-                .to_owned(),
-        ),
-        kind: symbol_kind(symbol.kind()),
-        tags: None,
-        deprecated: None,
-        range,
-        selection_range: range,
-        children: (!children.is_empty()).then_some(children),
-    })
 }
 
 fn folding_ranges(

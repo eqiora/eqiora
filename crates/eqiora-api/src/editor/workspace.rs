@@ -9,7 +9,7 @@ use eqiora_compiler::{
     preflight_resolved_hierarchy,
 };
 use eqiora_core::Diagnostic;
-use eqiora_lang::{DocComment, Notation, ParseResult, TextRange, TokenKind, parse};
+use eqiora_lang::{DocComment, Notation, ParseResult, TextRange, parse};
 
 use super::{EditorPosition, EditorSnapshot, EditorSymbolKind, stale_version};
 
@@ -689,22 +689,11 @@ fn declaration_name_range(
     declaration: TextRange,
     path: &str,
 ) -> Option<TextRange> {
-    let name = path.rsplit('.').next()?;
-    // Keywords are Identifier tokens too. The declaration name is the last
-    // matching spelling in the header before notation, signature or body syntax.
-    tokens
-        .get(file)?
-        .tokens()
-        .iter()
-        .filter(|token| {
-            !token.kind().is_trivia()
-                && declaration.start() <= token.range().start()
-                && token.range().end() <= declaration.end()
-        })
-        .take_while(|token| token.kind() == TokenKind::Identifier)
-        .filter(|token| token.text() == name)
-        .last()
-        .map(|token| token.range())
+    super::symbol_details::declaration_name_range(
+        tokens.get(file)?.tokens(),
+        declaration,
+        path.rsplit('.').next()?,
+    )
 }
 
 const fn canonical_symbol_kind(kind: CanonicalDeclarationKind) -> Option<EditorSymbolKind> {

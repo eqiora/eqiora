@@ -24,8 +24,12 @@ mod local_navigation;
 mod notation;
 #[path = "stdio/project_refresh.rs"]
 mod project_refresh;
+#[path = "stdio/symbol_capabilities.rs"]
+mod symbol_capabilities;
 #[path = "stdio/symbol_details.rs"]
 mod symbol_details;
+#[path = "stdio/symbol_names.rs"]
+mod symbol_names;
 #[path = "stdio/value_references.rs"]
 mod value_references;
 
@@ -145,7 +149,7 @@ fn stdio_session_syncs_diagnostics_and_serves_editor_requests() {
         .expect("spawn language server");
 
     let messages = [
-        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}),
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{"textDocument":{"documentSymbol":{"hierarchicalDocumentSymbolSupport":true,"symbolKind":{"valueSet":[3,5,7,8,10,11,12,13,14,18,19,22,23,24,25,26]}}}}}}),
         json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
         json!({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":uri,"languageId":"eqiora","version":-3,"text":source}}}),
         json!({"jsonrpc":"2.0","id":2,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":uri}}}),
