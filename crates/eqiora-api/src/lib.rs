@@ -380,7 +380,6 @@ impl ModelDocument {
     ///
     /// Canonical Model artifacts deliberately exclude this compiler sidecar;
     /// replay therefore returns an empty slice instead of fabricating a form.
-    #[must_use]
     pub fn authored_formulations(
         &self,
     ) -> impl ExactSizeIterator<Item = &CompiledAuthoredFormulation> {

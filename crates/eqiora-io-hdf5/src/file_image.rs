@@ -53,6 +53,7 @@ pub(crate) fn open(bytes: &[u8]) -> Result<File, Diagnostic> {
 }
 
 fn logical_file_image_name() -> Result<String, Diagnostic> {
+    #[allow(deprecated, reason = "try_update requires Rust 1.95; MSRV is 1.89")]
     let ordinal = NEXT_FILE_IMAGE_NAME
         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
             current.checked_add(1)

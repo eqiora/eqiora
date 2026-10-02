@@ -16,7 +16,6 @@ impl ComponentDecl {
     /// Authored mathematical formulations in source order.
     ///
     /// They are a compiler sidecar and never alter canonical Model identity.
-    #[must_use]
     pub fn formulations(
         &self,
     ) -> impl ExactSizeIterator<Item = (&str, &[String], &[(Expr, Expr)], TextRange)> {

@@ -166,7 +166,6 @@ impl Document {
     }
 
     /// Typed declaration notations paired with their original declaration ranges.
-    #[must_use]
     pub fn notations(&self) -> impl ExactSizeIterator<Item = (TextRange, &crate::Notation)> {
         let mut result = Vec::new();
         self.visit_comments(|range, metadata| {
@@ -193,7 +192,6 @@ impl Document {
     ///
     /// One traversal lets editor and documentation clients index a complete source
     /// without searching the syntax tree separately for every declaration.
-    #[must_use]
     pub fn doc_comments(&self) -> impl ExactSizeIterator<Item = (TextRange, &super::DocComment)> {
         let mut comments = Vec::new();
         self.visit_comments(|range, owner| {

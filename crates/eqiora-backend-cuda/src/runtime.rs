@@ -1450,10 +1450,10 @@ pub(crate) fn descriptor<T: eqiora_device::DeviceElement>(
 }
 
 fn next_process_identity(timeline: &AtomicU64, label: &str) -> Result<NonZeroU64, Diagnostic> {
+    // try_update requires Rust 1.95; the declared MSRV is 1.89.
+    #[allow(deprecated)]
     let identity = timeline
-        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |allocation| {
-            allocation.checked_add(1)
-        })
+        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
         .map_err(|_| unsupported(format!("{label} space is exhausted")))?;
     Ok(NonZeroU64::new(identity).expect("process identity timelines begin at one"))
 }

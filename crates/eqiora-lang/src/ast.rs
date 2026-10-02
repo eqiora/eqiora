@@ -84,7 +84,6 @@ impl NamePath {
     }
 
     /// Identifier segments in lexical order.
-    #[must_use]
     pub fn segments(&self) -> impl ExactSizeIterator<Item = &str> {
         self.segments.iter().map(|range| &self.text[range.clone()])
     }

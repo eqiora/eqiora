@@ -620,7 +620,6 @@ impl CommonScalarPlan {
     }
 
     /// Complete scalar-valued Field inventory in canonical identity order.
-    #[must_use]
     pub fn fields(
         &self,
     ) -> impl ExactSizeIterator<

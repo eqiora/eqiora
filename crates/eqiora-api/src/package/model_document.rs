@@ -180,7 +180,6 @@ impl PackagedModelDocument {
     ///
     /// Each item is `(composition, contract, release, component, requirement,
     /// meaning, validity, citation, license)`.
-    #[must_use]
     pub fn property_bindings(
         &self,
     ) -> impl ExactSizeIterator<
