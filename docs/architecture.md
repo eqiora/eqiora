@@ -52,6 +52,29 @@ volume and oriented boundary Domains define continuous geometry;
 relation scope explicit. A continuum Representation states continuous meaning
 without choosing a mesh, basis, or solver.
 
+## Common initialization derivative owner
+
+Architecture decision for [#1002](https://github.com/eqiora/eqiora/issues/1002):
+`eqiora-sem` may depend one way on `eqiora-ir` to check the accepted fresh scalar
+initial point with the existing typed Operator IR derivative owner. This is an
+explicit same-layer composition; it grants no reverse edge or permission for
+other L2 dependencies.
+
+SEM still owns canonical value evaluation, simultaneous initialization, the
+initial solver's rank threshold, activation, and state commit. The IR result is
+an additional accepted-point Jacobian check before commit. SEM does not consume
+an optimized backend, device runtime, lowered time problem, or backend-produced
+expected value. Derivative products have independent analytic product tests;
+sharing their implementation does not itself establish independent evidence.
+
+Forward secants cannot certify a derivative at a singular point (`x*x=0` at
+zero is the minimal counterexample). A second differentiation implementation in
+SEM would duplicate the existing calculus owner. Moving that owner into the
+kernel/schema or adding a new crate would widen the architecture beyond this
+current use. The chosen edge reuses the existing pure typed derivative boundary
+without changing canonical Model bytes or introducing backend execution into the
+reference interpreter. Layer checks retain every other dependency restriction.
+
 ## Standard Ontology
 
 Model, Coupling, Scale, Objective, Solver, and EvidenceSet are typed named
