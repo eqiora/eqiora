@@ -76,12 +76,74 @@ pub(crate) fn require_zero_parameter_tangent(
     let initial = initialize(kernel, fields, relation, ReferenceConfig::new(0.0, 1.0)?)?;
     let n = fields.len();
     let width = 2 * n + parameters.len();
+    let rows = linearized_constraints(kernel, fields, parameters, relation, &initial, true)?;
+    let derivative_rank = rank(&rows, n..2 * n)?;
+    if rank(&rows, 0..2 * n)? != n + derivative_rank || rank(&rows, n..width)? != derivative_rank {
+        return Err(unsupported());
+    }
+    Ok(())
+}
+
+/// At a fresh initial point, a constant-mass system needs its algebraic
+/// constraints to determine the null directions of the mass matrix locally.
+/// This neither differentiates a constraint nor certifies an entire trajectory.
+pub(crate) fn require_constant_mass_regularity(
+    kernel: &KernelProgram,
+    fields: &[Id<kinds::Field>],
+    relation: Id<kinds::Relation>,
+    initial: &ImplicitDaeInitialization,
+    mass: &eqiora_time::ConstantDerivativeMatrixProof,
+) -> Result<(), Diagnostic> {
+    let n = fields.len();
+    if mass.exact_rank() == n {
+        return Ok(());
+    }
+    let rows = linearized_constraints(kernel, fields, &[], relation, initial, false)?;
+    let mut block = vec![vec![0.0; 2 * n]; 2 * n];
+    for row in 0..n {
+        let coefficients = &mass.coefficients()[row * n..(row + 1) * n];
+        block[row][..n].copy_from_slice(coefficients);
+        block[n + row][..n].copy_from_slice(&rows[row][..n]);
+        block[n + row][n..].copy_from_slice(coefficients);
+    }
+    // B=[M 0; A M]. Its kernel has the expected dimension n-rank(M)
+    // exactly when Mu=0 and Au+Mv=0 force u=0. Then the algebraic
+    // constraints fix every mass-null state direction without index reduction.
+    let actual = rank(&block, 0..2 * n)?;
+    let expected = n + mass.exact_rank();
+    if actual != expected {
+        return Err(invalid_time(
+            relation,
+            format!(
+                "fresh constant-mass initialization has an unsupported high-index or singular constraint block: local regularity rank {actual}, required {expected}"
+            ),
+        ));
+    }
+    Ok(())
+}
+
+fn linearized_constraints(
+    kernel: &KernelProgram,
+    fields: &[Id<kinds::Field>],
+    parameters: &[Id<kinds::Parameter>],
+    relation: Id<kinds::Relation>,
+    initial: &ImplicitDaeInitialization,
+    include_initial: bool,
+) -> Result<Vec<Vec<f64>>, Diagnostic> {
+    let unsupported = || {
+        invalid_time(
+            relation,
+            "initial constraint linearization contains an unsupported symbol",
+        )
+    };
+    let n = fields.len();
+    let width = 2 * n + parameters.len();
     let mut rows = Vec::new();
     for node in kernel.nodes() {
         let KernelNode::Relation(definition) = node else {
             continue;
         };
-        if definition.id() != relation && !definition.is_initial() {
+        if definition.id() != relation && !(include_initial && definition.is_initial()) {
             continue;
         }
         let typed = kernel
@@ -144,11 +206,7 @@ pub(crate) fn require_zero_parameter_tangent(
         }
         rows.extend(block);
     }
-    let derivative_rank = rank(&rows, n..2 * n)?;
-    if rank(&rows, 0..2 * n)? != n + derivative_rank || rank(&rows, n..width)? != derivative_rank {
-        return Err(unsupported());
-    }
-    Ok(())
+    Ok(rows)
 }
 
 fn rank(rows: &[Vec<f64>], columns: std::ops::Range<usize>) -> Result<usize, Diagnostic> {

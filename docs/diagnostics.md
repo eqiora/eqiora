@@ -54,7 +54,7 @@ strings.
 | `EQ0702` | Operator IR receives the wrong scalar symbol input count |
 | `EQ0703` | Canonical spatial semantics cannot be lowered by the selected realization |
 | `EQ0704` | A linearization point, variable binding, tangent, or cotangent is invalid |
-| `EQ0705` | A continuous subsystem cannot be lowered to the selected time-equation class |
+| `EQ0705` | A continuous subsystem cannot be lowered to the selected time-equation class, or fresh constant-mass initialization has a locally high-index or singular constraint block |
 | `EQ0801` | A numerical grid, coefficient, time step, or state is invalid |
 | `EQ0802` | A numerical linear solve failed or produced a non-finite result |
 | `EQ0803` | Mesh topology or geometry violates a realization invariant |
