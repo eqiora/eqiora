@@ -6,7 +6,7 @@ use eqiora_core::diagnostic::codes;
 /// Exact Rust binding implementation.
 pub const HDF5_BINDING_ID: &str = "hdf5-metno";
 /// Exact Rust binding release pinned by the workspace.
-pub const HDF5_BINDING_VERSION: &str = "0.13.0";
+pub const HDF5_BINDING_VERSION: &str = "0.14.1";
 /// Native storage implementation recorded separately from its runtime release.
 pub const HDF5_NATIVE_LIBRARY_ID: &str = "HDF5";
 
