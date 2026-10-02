@@ -46,8 +46,7 @@ mod tests {
         assert_eq!(report.equations().len(), 4);
         let owners = report
             .equations()
-            .iter()
-            .map(|row| row.owner())
+            .map(|(owner, _, _)| owner)
             .collect::<std::collections::BTreeSet<_>>();
         assert_eq!(
             owners,
@@ -55,8 +54,8 @@ mod tests {
                 .into_iter()
                 .collect()
         );
-        for equation in report.equations() {
-            let span = model.definition_span(equation.owner()).unwrap();
+        for (owner, _, _) in report.equations() {
+            let span = model.definition_span(owner).unwrap();
             assert_eq!(span.start as usize, source.find(relation).unwrap());
             assert_eq!(
                 span.end as usize,
@@ -68,8 +67,7 @@ mod tests {
         assert!(
             report
                 .equations()
-                .iter()
-                .all(|row| replay.definition_span(row.owner()).is_none())
+                .all(|(owner, _, _)| replay.definition_span(owner).is_none())
         );
         let foreign = eqiora_core::Id::<eqiora_core::entity::kinds::Relation>::new().erase();
         assert!(model.definition_span(foreign).is_none());

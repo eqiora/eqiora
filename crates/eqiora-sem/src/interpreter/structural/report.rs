@@ -3,27 +3,10 @@ use super::*;
 
 /// One scalar equation occurrence in a continuous structural analysis.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EquationIncidence {
+struct EquationIncidence {
     owner: RawId,
     ordinal: usize,
     coordinates: BTreeSet<Variable>,
-}
-
-impl EquationIncidence {
-    /// Exact Relation or conserving Connection occurrence.
-    #[must_use]
-    pub const fn owner(&self) -> RawId {
-        self.owner
-    }
-    /// Zero-based equation ordinal within the owning Relation or junction.
-    #[must_use]
-    pub const fn ordinal(&self) -> usize {
-        self.ordinal
-    }
-    /// Referenced coordinates, retaining distinct value and derivative slots.
-    pub fn coordinates(&self) -> impl Iterator<Item = SymbolRef> + '_ {
-        self.coordinates.iter().copied().map(symbol)
-    }
 }
 
 /// A necessary incidence matching, not a numerical rank certificate.
@@ -80,10 +63,20 @@ pub struct EquationAnalysis {
 }
 
 impl EquationAnalysis {
-    /// Continuous Relation and conserving junction rows with exact owners.
-    #[must_use]
-    pub fn equations(&self) -> &[EquationIncidence] {
-        &self.equations
+    /// Continuous rows as (exact owner, zero-based equation ordinal, coordinates).
+    /// Value and derivative coordinates remain distinct. Row indices in matching
+    /// blocks refer to this deterministic iterator order.
+    pub fn equations(
+        &self,
+    ) -> impl ExactSizeIterator<Item = (RawId, usize, impl Iterator<Item = SymbolRef> + '_)> + '_
+    {
+        self.equations.iter().map(|row| {
+            (
+                row.owner,
+                row.ordinal,
+                row.coordinates.iter().copied().map(symbol),
+            )
+        })
     }
     /// Necessary balance, identifying a Field and its derivative as one unknown.
     #[must_use]
@@ -137,7 +130,7 @@ pub(super) fn analyze(
         for junction in system.junctions() {
             for (ordinal, &root) in junction.dag().roots().iter().enumerate() {
                 equations.push(EquationIncidence {
-                    owner: junction.connection().erase(),
+                    owner: junction.owner().erase(),
                     ordinal,
                     coordinates: incidence::variables(
                         junction.dag(),

@@ -40,7 +40,7 @@ fn series(trajectory: &Trajectory, symbols: &ModelSymbols, name: &str) -> Vec<(f
     trajectory
         .samples()
         .iter()
-        .filter(|sample| sample.field() == field)
+        .filter(|sample| sample.coordinate() == field)
         .map(|sample| (sample.time(), sample.value().value()))
         .collect()
 }

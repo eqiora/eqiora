@@ -5,8 +5,8 @@ pub(super) fn record_samples(
     plan: &ExecutionPlan,
     state: &RuntimeState,
     time: f64,
-    samples: &mut Vec<Sample>,
-    physical_samples: &mut Vec<PhysicalSample>,
+    samples: &mut Vec<Sample<RawId>>,
+    physical_samples: &mut Vec<Sample<PhysicalUnknown>>,
 ) {
     for &field in &plan.fields {
         let Some(KernelNode::Field(definition)) = program.node(field) else {
@@ -42,7 +42,7 @@ pub(super) fn record_samples(
             PhysicalUnknown::Across(_) => across_type.dimension(),
             PhysicalUnknown::Through(_) => through_type.dimension(),
         };
-        physical_samples.push(PhysicalSample::new(
+        physical_samples.push(Sample::new(
             time,
             unknown,
             DynQuantity::new(value, dimension),

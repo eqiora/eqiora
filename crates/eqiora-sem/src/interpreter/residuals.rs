@@ -50,7 +50,7 @@ pub(super) fn evaluate_relations(
     for system in physical_systems {
         for junction in system.junctions() {
             residuals.extend(evaluate::real_values(backend.evaluate(
-                junction.connection().erase(),
+                junction.owner().erase(),
                 junction.dag(),
                 junction.dag().roots(),
                 &mut |symbol| evaluate::resolve_symbol(symbol, &context),

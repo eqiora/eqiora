@@ -28,12 +28,11 @@ mod solver;
 
 pub use boundary_physical::{BoundaryJunctionGeometry, BoundaryJunctionResidual};
 pub use conserving::{
-    ComposedResidualSystem, JunctionResidual, PhysicalUnknown, RelationResidual,
-    ScalarPhysicalSubsystemId,
+    ComposedResidualSystem, PhysicalUnknown, ResidualGroup, ScalarPhysicalSubsystemId,
 };
 pub use interpreter::{
-    EquationAnalysis, EquationIncidence, ExecutionObserver, ExecutionOutcome, ExecutionProgress,
-    ExecutionSession, IncidenceMatching, InitialState, ReferenceConfig,
+    EquationAnalysis, ExecutionObserver, ExecutionOutcome, ExecutionProgress, ExecutionSession,
+    IncidenceMatching, InitialState, ReferenceConfig,
 };
 pub use program::KernelProgram;
 
@@ -60,35 +59,20 @@ pub trait ExpressionBackend {
     ) -> Result<Vec<eqiora_core::ValueLiteral>, Diagnostic>;
 }
 
-/// One sample of one field along a trajectory.
+/// One dimensioned observation at a model time and an exact typed coordinate.
+/// Field observations use `RawId`; physical observations use `PhysicalUnknown`.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Sample {
-    /// Model time, seconds.
+pub struct Sample<Coordinate> {
     time: f64,
-    /// Field the sample belongs to.
-    field: RawId,
-    /// Sampled value. The reference interpreter carries dimensions at
-    /// runtime — it is the oracle, so it re-checks everything.
+    coordinate: Coordinate,
     value: DynQuantity,
 }
 
-/// One accepted scalar physical value along a reference trajectory.
-///
-/// These samples expose the algebraic values already accepted by the joint
-/// residual solve. They are observations, not additional state or hidden
-/// Semantic Kernel nodes.
-#[derive(Debug, Clone, PartialEq)]
-pub struct PhysicalSample {
-    time: f64,
-    unknown: PhysicalUnknown,
-    value: DynQuantity,
-}
-
-impl PhysicalSample {
-    pub(crate) const fn new(time: f64, unknown: PhysicalUnknown, value: DynQuantity) -> Self {
+impl<Coordinate: Copy> Sample<Coordinate> {
+    pub(crate) const fn new(time: f64, coordinate: Coordinate, value: DynQuantity) -> Self {
         Self {
             time,
-            unknown,
+            coordinate,
             value,
         }
     }
@@ -99,37 +83,13 @@ impl PhysicalSample {
         self.time
     }
 
-    /// Canonical across or through slot.
+    /// Exact Field identity or physical across/through coordinate.
     #[must_use]
-    pub const fn unknown(&self) -> PhysicalUnknown {
-        self.unknown
+    pub const fn coordinate(&self) -> Coordinate {
+        self.coordinate
     }
 
     /// Accepted coherent-SI value with its physical dimension.
-    #[must_use]
-    pub const fn value(&self) -> DynQuantity {
-        self.value
-    }
-}
-
-impl Sample {
-    pub(crate) const fn new(time: f64, field: RawId, value: DynQuantity) -> Self {
-        Self { time, field, value }
-    }
-
-    /// Model time in seconds.
-    #[must_use]
-    pub const fn time(&self) -> f64 {
-        self.time
-    }
-
-    /// Sampled Field.
-    #[must_use]
-    pub const fn field(&self) -> RawId {
-        self.field
-    }
-
-    /// Dimensioned sample value.
     #[must_use]
     pub const fn value(&self) -> DynQuantity {
         self.value
@@ -141,13 +101,16 @@ impl Sample {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Trajectory {
     /// Samples in non-decreasing time order.
-    samples: Vec<Sample>,
+    samples: Vec<Sample<RawId>>,
     /// Accepted scalar physical algebraic observations.
-    physical_samples: Vec<PhysicalSample>,
+    physical_samples: Vec<Sample<PhysicalUnknown>>,
 }
 
 impl Trajectory {
-    pub(crate) const fn new(samples: Vec<Sample>, physical_samples: Vec<PhysicalSample>) -> Self {
+    pub(crate) const fn new(
+        samples: Vec<Sample<RawId>>,
+        physical_samples: Vec<Sample<PhysicalUnknown>>,
+    ) -> Self {
         Self {
             samples,
             physical_samples,
@@ -156,13 +119,13 @@ impl Trajectory {
 
     /// Samples in non-decreasing model-time order.
     #[must_use]
-    pub fn samples(&self) -> &[Sample] {
+    pub fn samples(&self) -> &[Sample<RawId>] {
         &self.samples
     }
 
     /// Scalar physical values at accepted trajectory boundaries.
     #[must_use]
-    pub fn physical_samples(&self) -> &[PhysicalSample] {
+    pub fn physical_samples(&self) -> &[Sample<PhysicalUnknown>] {
         &self.physical_samples
     }
 
@@ -172,7 +135,7 @@ impl Trajectory {
         self.samples
             .iter()
             .rev()
-            .find(|sample| sample.field == field)
+            .find(|sample| sample.coordinate == field)
             .map(|sample| sample.value)
     }
 
@@ -182,7 +145,7 @@ impl Trajectory {
         self.physical_samples
             .iter()
             .rev()
-            .find(|sample| sample.unknown == unknown)
+            .find(|sample| sample.coordinate == unknown)
             .map(|sample| sample.value)
     }
 }

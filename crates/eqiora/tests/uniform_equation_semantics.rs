@@ -84,7 +84,7 @@ fn equation_permutation_preserves_simultaneous_solution_not_ordered_identity() {
             let sample = trajectory
                 .samples()
                 .iter()
-                .find(|sample| sample.field() == model.aliases()[name])
+                .find(|sample| sample.coordinate() == model.aliases()[name])
                 .unwrap();
             assert!((sample.value().value() - expected).abs() <= RESIDUAL_BOUND);
         }

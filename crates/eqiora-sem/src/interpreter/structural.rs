@@ -6,7 +6,7 @@ use super::*;
 mod incidence;
 mod report;
 use eqiora_schema::kernel::{ExprDag, ExprId};
-pub use report::{EquationAnalysis, EquationIncidence, IncidenceMatching};
+pub use report::{EquationAnalysis, IncidenceMatching};
 
 pub(super) fn validate(program: &KernelProgram, plan: &ExecutionPlan) -> Result<(), Diagnostic> {
     let analysis = report::analyze(program, plan)?;
@@ -16,8 +16,7 @@ pub(super) fn validate(program: &KernelProgram, plan: &ExecutionPlan) -> Result<
     let matched = &projection.matched;
     let owners = analysis
         .equations()
-        .iter()
-        .map(|row| (row.owner(), row.ordinal()))
+        .map(|(owner, ordinal, _)| (owner, ordinal))
         .collect::<Vec<_>>();
     let rank = projection.rank();
     if rows.len() != variables.len() || rank != variables.len() {

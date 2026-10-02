@@ -20,14 +20,12 @@ fn derivative_incidence_distinguishes_candidates_without_changing_balance() {
         assert!(
             report
                 .equations()
-                .iter()
-                .all(|row| row.owner() == model.aliases()["r"])
+                .all(|(owner, _, _)| owner == model.aliases()["r"])
         );
         assert_eq!(
             report
                 .equations()
-                .iter()
-                .map(|row| row.ordinal())
+                .map(|(_, ordinal, _)| ordinal)
                 .collect::<Vec<_>>(),
             [0, 1]
         );

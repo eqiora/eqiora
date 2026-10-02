@@ -16,7 +16,7 @@ mod state;
 mod structural;
 pub use session::ExecutionSession;
 use state::RuntimeState;
-pub use structural::{EquationAnalysis, EquationIncidence, IncidenceMatching};
+pub use structural::{EquationAnalysis, IncidenceMatching};
 
 use event_localization::{crossing_events, locate_event_bracket};
 use samples::record_samples;
@@ -35,8 +35,8 @@ use crate::evaluate::{self, EvalContext, ReferenceExpressionBackend};
 use crate::event::{self, EventTask};
 use crate::solver::{self, NonlinearSettings};
 use crate::{
-    ComposedResidualSystem, ExpressionBackend, Interpreter, KernelProgram, PhysicalSample,
-    PhysicalUnknown, Sample, Trajectory,
+    ComposedResidualSystem, ExpressionBackend, Interpreter, KernelProgram, PhysicalUnknown, Sample,
+    Trajectory,
 };
 
 /// One accepted semantic-execution boundary visible to control-plane clients.

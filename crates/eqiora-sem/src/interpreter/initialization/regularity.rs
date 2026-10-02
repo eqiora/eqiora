@@ -67,7 +67,7 @@ pub(super) fn validate(
         for junction in system.junctions() {
             matrix.extend(jacobian(
                 program,
-                junction.connection().erase(),
+                junction.owner().erase(),
                 junction.dag(),
                 junction.dag().roots(),
                 variables,
