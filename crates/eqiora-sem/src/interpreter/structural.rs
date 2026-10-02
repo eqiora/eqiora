@@ -1,56 +1,27 @@
-//! Necessary equation balance for the already admitted scalar continuous system.
-//! A Field and its derivative share a column here: this is incidence matching,
-//! not index reduction, numerical rank, or a choice of solved variable.
+//! Raw scalar equation incidence and necessary continuous balance.
+//! Balance alone merges Field/rate coordinates; the report retains both.
+//! Matching is not index reduction, numerical rank, or a choice of solved variable.
 
 use super::*;
+mod incidence;
+mod report;
 use eqiora_schema::kernel::{ExprDag, ExprId};
+pub use report::{EquationAnalysis, EquationIncidence, IncidenceMatching};
 
 pub(super) fn validate(program: &KernelProgram, plan: &ExecutionPlan) -> Result<(), Diagnostic> {
-    let variables = plan
-        .differential_fields
-        .union(&plan.algebraic_fields)
-        .copied()
-        .map(Variable::Field)
-        .chain(plan.continuous_ports.iter().copied().map(Variable::Port))
-        .chain(
-            plan.physical_unknowns
-                .iter()
-                .copied()
-                .map(Variable::Physical),
-        )
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .enumerate()
-        .map(|(index, variable)| (variable, index))
-        .collect::<BTreeMap<_, _>>();
-    let mut rows = Vec::new();
-    let mut owners = Vec::new();
-    for &owner in &plan.continuous_relations {
-        let Some(KernelNode::Relation(relation)) = program.node(owner) else {
-            return Err(execution_error("validated Relation is unavailable", 0.0));
-        };
-        for (index, (left, right)) in relation.equation_sides().enumerate() {
-            rows.push(incidence(
-                relation.expression(),
-                &[left, right],
-                plan,
-                &variables,
-            )?);
-            owners.push((owner, index));
-        }
-    }
-    for system in &plan.physical_systems {
-        for junction in system.junctions() {
-            for (index, &root) in junction.dag().roots().iter().enumerate() {
-                rows.push(incidence(junction.dag(), &[root], plan, &variables)?);
-                owners.push((junction.connection().erase(), index));
-            }
-        }
-    }
-    let matched = maximum_matching(&rows, variables.len());
-    let rank = matched.iter().filter(|entry| entry.is_some()).count();
+    let analysis = report::analyze(program, plan)?;
+    let projection = analysis.balance();
+    let variables = &projection.variables;
+    let rows = &projection.rows;
+    let matched = &projection.matched;
+    let owners = analysis
+        .equations()
+        .iter()
+        .map(|row| (row.owner(), row.ordinal()))
+        .collect::<Vec<_>>();
+    let rank = projection.rank();
     if rows.len() != variables.len() || rank != variables.len() {
-        let (over, under) = deficient_blocks(&rows, variables.len(), &matched);
+        let (over, under) = deficient_blocks(rows, variables.len(), matched);
         let describe = |(block_rows, block_columns): &(BTreeSet<usize>, BTreeSet<usize>)| {
             let equations = block_rows
                 .iter()
@@ -115,95 +86,6 @@ pub(super) fn validate(program: &KernelProgram, plan: &ExecutionPlan) -> Result<
         return Err(Diagnostic::error(code, message).with_graph_path(path));
     }
     Ok(())
-}
-
-fn incidence(
-    dag: &ExprDag,
-    roots: &[ExprId],
-    plan: &ExecutionPlan,
-    variables: &BTreeMap<Variable, usize>,
-) -> Result<Vec<usize>, Diagnostic> {
-    let mut pending = roots.to_vec();
-    let mut seen = vec![false; dag.nodes().len()];
-    let mut columns = BTreeSet::new();
-    while let Some(id) = pending.pop() {
-        let index = id.index() as usize;
-        if std::mem::replace(&mut seen[index], true) {
-            continue;
-        }
-        match &dag.nodes()[index] {
-            ExprNode::Symbol(symbol) => {
-                let variable = match symbol {
-                    SymbolRef::Field(field) | SymbolRef::Derivative(field) => {
-                        Some(Variable::Field(field.erase()))
-                    }
-                    SymbolRef::Port(port) => Some(Variable::Port(
-                        plan.signal_sources
-                            .get(&port.erase())
-                            .copied()
-                            .unwrap_or_else(|| port.erase()),
-                    )),
-                    SymbolRef::Across(port) => {
-                        Some(Variable::Physical(PhysicalUnknown::Across(*port)))
-                    }
-                    SymbolRef::Through(port) => {
-                        Some(Variable::Physical(PhysicalUnknown::Through(*port)))
-                    }
-                    _ => None,
-                };
-                if let Some(column) = variable.and_then(|variable| variables.get(&variable)) {
-                    columns.insert(*column);
-                }
-            }
-            ExprNode::Constant(_) | ExprNode::SpatialCoordinate(_) => {}
-            ExprNode::Require { condition, value } => pending.extend([*condition, *value]),
-            ExprNode::Select {
-                condition,
-                then_value,
-                else_value,
-            } => pending.extend([*condition, *then_value, *else_value]),
-            ExprNode::Array { elements } => pending.extend(elements),
-            ExprNode::Index { value, .. }
-            | ExprNode::Sample { value, .. }
-            | ExprNode::Not(value)
-            | ExprNode::Ordinal(value)
-            | ExprNode::ToReal(value)
-            | ExprNode::ToInteger(value)
-            | ExprNode::Hold(value)
-            | ExprNode::Neg(value)
-            | ExprNode::PowI(value, _)
-            | ExprNode::UnaryMath(_, value)
-            | ExprNode::Gradient(value)
-            | ExprNode::Divergence(value)
-            | ExprNode::SymmetricPart(value)
-            | ExprNode::IsotropicLift(value)
-            | ExprNode::Trace(value)
-            | ExprNode::NormalComponent(value) => pending.push(*value),
-            ExprNode::Complex {
-                real: left,
-                imag: right,
-            }
-            | ExprNode::Compare(_, left, right)
-            | ExprNode::And(left, right)
-            | ExprNode::Or(left, right)
-            | ExprNode::Add(left, right)
-            | ExprNode::Sub(left, right)
-            | ExprNode::Mul(left, right)
-            | ExprNode::Div(left, right)
-            | ExprNode::Quotient(left, right)
-            | ExprNode::Remainder(left, right) => pending.extend([*left, *right]),
-            ExprNode::PureOperatorApplication(application) => {
-                pending.extend(application.arguments())
-            }
-            _ => {
-                return Err(Diagnostic::error(
-                    codes::NOT_IMPLEMENTED,
-                    "expression is newer than scalar structural incidence analysis",
-                ));
-            }
-        }
-    }
-    Ok(columns.into_iter().collect())
 }
 
 /// The coarse deficient blocks of a maximum matching are invariant under the
@@ -388,5 +270,20 @@ mod tests {
                 }
             }
         }
+    }
+}
+
+impl Interpreter {
+    /// Analyze the admitted scalar continuous profile without solving or requiring balance.
+    /// Candidate derivative matching is informational; numerical regularity is separate.
+    ///
+    /// # Errors
+    /// Rejects unsupported reference profiles or malformed connection/activation plans.
+    pub fn analyze_equations(
+        &self,
+        program: &KernelProgram,
+    ) -> Result<EquationAnalysis, Diagnostic> {
+        let plan = ExecutionPlan::for_analysis(program)?;
+        report::analyze(program, &plan)
     }
 }

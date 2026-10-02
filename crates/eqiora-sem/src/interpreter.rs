@@ -16,6 +16,7 @@ mod state;
 mod structural;
 pub use session::ExecutionSession;
 use state::RuntimeState;
+pub use structural::{EquationAnalysis, EquationIncidence, IncidenceMatching};
 
 use event_localization::{crossing_events, locate_event_bracket};
 use samples::record_samples;

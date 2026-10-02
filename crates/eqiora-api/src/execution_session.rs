@@ -28,7 +28,7 @@ impl ModelDocument {
             })
     }
 
-    fn with_source_origin(&self, diagnostic: Diagnostic) -> Diagnostic {
+    pub(crate) fn with_source_origin(&self, diagnostic: Diagnostic) -> Diagnostic {
         if diagnostic.source_span().is_some() {
             return diagnostic;
         }
@@ -42,10 +42,7 @@ impl ModelDocument {
             let node = self.program.nodes().find(|node| {
                 node.id().to_string() == *id && format!("{:?}", node.id().kind()) == *kind
             })?;
-            self.source_provenance
-                .as_ref()?
-                .get_by_graph_id(node.id())
-                .map(|origin| origin.definition_span().clone())
+            self.definition_span(node.id()).cloned()
         })();
         match span {
             Some(span) => diagnostic.with_span(span),

@@ -9,6 +9,7 @@ mod cad;
 pub mod control;
 mod differentiation;
 pub mod editor;
+mod equation_analysis;
 mod evaluation_map;
 mod execution_session;
 #[cfg(any(feature = "vtu", feature = "xdmf"))]
