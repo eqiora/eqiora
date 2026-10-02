@@ -71,7 +71,7 @@ use eqiora_lang::Module;
 use eqiora_sem::KernelProgram;
 
 /// One immutable, validated canonical model revision plus non-semantic source
-/// aliases used by client presentation layers.
+/// aliases and diagnostic source locations used by client presentation layers.
 #[derive(Debug, Clone)]
 pub struct ModelDocument {
     notation: eqiora_compiler::ModelNotation,
@@ -81,6 +81,7 @@ pub struct ModelDocument {
     store: InMemoryGraphStore,
     geometry_authority: Vec<CanonicalGeometryV1>,
     authored_formulations: Vec<CompiledAuthoredFormulation>,
+    source_provenance: Option<eqiora_compiler::provenance::ProvenanceMap>,
 }
 
 impl PartialEq for ModelDocument {
@@ -279,6 +280,7 @@ impl ModelDocument {
         let aliases = aliases(compiled.symbols());
         let authored_formulations = compiled.authored_formulations().cloned().collect();
         let notation = compiled.notation().clone();
+        let source_provenance = compiled.provenance().cloned();
         let model = compiled.model();
 
         // Every source/UI/language client crosses the same bounded,
@@ -298,6 +300,7 @@ impl ModelDocument {
         let mut document =
             Self::from_store(store, program, aliases, geometry_authority, Some(notation))?;
         document.authored_formulations = authored_formulations;
+        document.source_provenance = source_provenance;
         for form in &document.authored_formulations {
             if form.projection().test_restrictions().len() > 1 {
                 eqiora_numerics::check_authored_mixed_formulation(
@@ -337,6 +340,7 @@ impl ModelDocument {
             store,
             geometry_authority: Vec::new(),
             authored_formulations: Vec::new(),
+            source_provenance: None,
         })
     }
 
@@ -369,6 +373,7 @@ impl ModelDocument {
             store,
             geometry_authority,
             authored_formulations: Vec::new(),
+            source_provenance: None,
         };
         document
             .replay_with_retained_geometry()
