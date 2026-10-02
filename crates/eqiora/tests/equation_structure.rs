@@ -49,6 +49,16 @@ fn initial_equations_cannot_complete_an_incomplete_regular_system() {
     assert!(
         errors[0]
             .message()
+            .contains("overdetermined block: 0 equations [], 0 unknowns []")
+    );
+    assert!(
+        errors[0]
+            .message()
+            .contains("underdetermined block: 1 equations")
+    );
+    assert!(
+        errors[0]
+            .message()
             .contains("initial equations are separate")
     );
 }
@@ -156,6 +166,44 @@ fn nonlinear_index_one_dae_uses_the_common_source_and_cpu_execution() {
             Interpreter::new()
                 .initialize(inconsistent.program(), config)
                 .is_err()
+        );
+    }
+}
+
+#[test]
+fn deficient_blocks_exclude_an_independent_balanced_component() {
+    for equations in [
+        "x = 0; x = 0; y + z = 0; w = 1;",
+        "w = 1; y + z = 0; x = 0; x = 0;",
+    ] {
+        let model = compile_model(&format!(
+            "model M() {{ variable x: 1; variable y: 1; variable z: 1; variable w: 1; relation r {{ {equations} }} }}"
+        ));
+        let errors = Interpreter::new()
+            .initialize(model.program(), ReferenceConfig::new(0.0, 0.1).unwrap())
+            .unwrap_err();
+        let message = errors[0].message();
+        let (over, under) = message.split_once("underdetermined block:").unwrap();
+        assert!(
+            over.contains("overdetermined block: 2 equations"),
+            "{message}"
+        );
+        assert!(over.contains("1 unknowns"), "{message}");
+        assert!(
+            over.contains(&model.aliases()["x"].to_string()),
+            "{message}"
+        );
+        assert!(under.contains("1 equations"), "{message}");
+        assert!(under.contains("2 unknowns"), "{message}");
+        for name in ["y", "z"] {
+            assert!(
+                under.contains(&model.aliases()[name].to_string()),
+                "{message}"
+            );
+        }
+        assert!(
+            !message.contains(&model.aliases()["w"].to_string()),
+            "{message}"
         );
     }
 }
