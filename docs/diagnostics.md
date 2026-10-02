@@ -43,7 +43,7 @@ strings.
 | `EQ0501` | Reference-execution time or iteration configuration is invalid |
 | `EQ0502` | A required initial value or external input is missing |
 | `EQ0503` | An active executable-kernel v0 system is not square; continuous regular balance excludes initial equations |
-| `EQ0504` | The reference nonlinear solve did not converge or is singular, including deficient continuous equation incidence |
+| `EQ0504` | The reference nonlinear solve did not converge or is singular, including deficient continuous equation incidence with the overdetermined/underdetermined equation and unknown blocks |
 | `EQ0505` | Expression or solver evaluation produced a non-finite value |
 | `EQ0506` | Cooperative execution cancellation was accepted at a safe boundary |
 | `EQ0601` | Source text contains an invalid token |
