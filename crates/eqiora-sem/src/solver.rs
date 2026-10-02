@@ -119,7 +119,7 @@ where
     .with_graph_path(path))
 }
 
-fn solve_linear(mut matrix: Vec<Vec<f64>>, mut right: Vec<f64>) -> Option<Vec<f64>> {
+pub(crate) fn solve_linear(mut matrix: Vec<Vec<f64>>, mut right: Vec<f64>) -> Option<Vec<f64>> {
     let size = right.len();
     let scale = matrix
         .iter()

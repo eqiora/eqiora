@@ -1053,6 +1053,7 @@ dependencies = [
  "eqiora-core",
  "eqiora-geometry",
  "eqiora-graph",
+ "eqiora-ir",
  "eqiora-schema",
 ]
 

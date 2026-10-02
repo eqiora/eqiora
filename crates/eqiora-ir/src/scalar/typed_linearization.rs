@@ -29,6 +29,11 @@ impl ScalarOperatorIr {
             .collect::<HashMap<_, _>>();
         let (_, trace) =
             projected.evaluate_trace(&roots, &mut |symbol| point.get(&symbol).cloned())?;
+        // Validate all demanded typed values before choosing components: an
+        // Array eagerly evaluates even its nonselected elements.
+        let (projected, roots) = projected.point_components(&trace)?;
+        let (_, trace) =
+            projected.evaluate_trace(&roots, &mut |symbol| point.get(&symbol).cloned())?;
         let dependencies = projected.active_input_dependencies(&trace, roles)?;
         for (index, node) in projected.instructions.iter().enumerate() {
             if trace[index].is_none() {
@@ -50,10 +55,11 @@ impl ScalarOperatorIr {
                     }
                 }
                 Instruction::Sqrt(a)
-                    if trace[a.0 as usize]
-                        .as_ref()
-                        .and_then(ValueLiteral::real_scalar_value)
-                        .is_some_and(|value| value.value() == 0.) =>
+                    if dependencies[index]
+                        && trace[a.0 as usize]
+                            .as_ref()
+                            .and_then(ValueLiteral::real_scalar_value)
+                            .is_some_and(|value| value.value() == 0.) =>
                 {
                     return Err(ir_builder_error(
                         "square-root derivative is undefined at zero",
@@ -62,7 +68,7 @@ impl ScalarOperatorIr {
                 _ => {}
             }
         }
-        let active = projected.active_program(&trace)?;
+        let active = projected.active_program(&trace, &dependencies)?;
         let point = inputs
             .iter()
             .map(|value| {
@@ -139,11 +145,16 @@ impl ScalarOperatorIr {
                                 },
                             )
                     }
-                    _ => {
-                        return Err(ir_builder_error(
-                            "active derivative dependency is outside the real scalar profile",
-                        ));
-                    }
+                    Instruction::Index(a, _)
+                    | Instruction::ToReal(a)
+                    | Instruction::ToInteger(a)
+                    | Instruction::Ordinal(a) => at(a),
+                    Instruction::Quotient(a, b) | Instruction::Remainder(a, b) => at(a) || at(b),
+                    Instruction::Array { start, len }
+                    | Instruction::PureOperator { start, len, .. } => self.array_operands
+                        [start as usize..start as usize + len as usize]
+                        .iter()
+                        .any(|id| at(*id)),
                 }
             };
             dependencies.push(depends);
@@ -151,7 +162,11 @@ impl ScalarOperatorIr {
         Ok(dependencies)
     }
 
-    fn active_program(&self, trace: &[Option<ValueLiteral>]) -> Result<Self, Diagnostic> {
+    fn active_program(
+        &self,
+        trace: &[Option<ValueLiteral>],
+        dependencies: &[bool],
+    ) -> Result<Self, Diagnostic> {
         let chosen = |node: Instruction| -> Option<ValueId> {
             match node {
                 Instruction::Select {
@@ -171,6 +186,11 @@ impl ScalarOperatorIr {
         let mut pending = self.roots.clone();
         while let Some(id) = pending.pop() {
             if std::mem::replace(&mut needed[id.0 as usize], true) {
+                continue;
+            }
+            // Frozen demanded values use the typed evaluator's exact result.
+            // Stop here: their typed operands need no derivative projection.
+            if !dependencies[id.0 as usize] {
                 continue;
             }
             let node = self.instructions[id.0 as usize];
@@ -199,6 +219,17 @@ impl ScalarOperatorIr {
         let mut instructions = Vec::new();
         for (index, node) in self.instructions.iter().copied().enumerate() {
             if !needed[index] {
+                continue;
+            }
+            if !dependencies[index] {
+                let value = trace[index]
+                    .as_ref()
+                    .and_then(ValueLiteral::real_scalar_value)
+                    .ok_or_else(|| {
+                        ir_builder_error("active residual requires a real scalar value")
+                    })?;
+                mapped[index] = Some(ValueId(instructions.len() as u32));
+                instructions.push(Instruction::Constant(value));
                 continue;
             }
             let at = |id: ValueId| mapped[id.0 as usize].expect("prior active operand");

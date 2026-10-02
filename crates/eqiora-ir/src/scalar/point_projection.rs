@@ -92,7 +92,9 @@ impl ScalarOperatorIr {
         let mut builder = ExprDagBuilder::new();
         let mut source = Vec::with_capacity(self.instructions.len());
         for instruction in &self.instructions {
-            source.push(self.append_instruction(&mut builder, *instruction, &source)?);
+            source.push(
+                self.append_instruction(&mut builder, *instruction, |id| source[id.0 as usize])?,
+            );
         }
         let dag = builder.finish(roots.iter().map(|id| source[id.0 as usize]))?;
         let types = self
@@ -148,7 +150,7 @@ impl ScalarOperatorIr {
                     .collect::<Vec<_>>();
                 builder.project_scalar_operator(&instance, &ids, 1_000_000)?
             } else {
-                self.append_instruction(&mut builder, *instruction, &projected)?
+                self.append_instruction(&mut builder, *instruction, |id| projected[id.0 as usize])?
             };
             projected.push(result);
         }
@@ -166,19 +168,29 @@ impl ScalarOperatorIr {
         Ok((projected, roots))
     }
 
-    fn append_instruction(
+    pub(super) fn append_instruction(
         &self,
         builder: &mut ExprDagBuilder,
         node: Instruction,
-        ids: &[ExprId],
+        at: impl Fn(ValueId) -> ExprId,
     ) -> Result<ExprId, Diagnostic> {
-        let at = |id: ValueId| ids[id.0 as usize];
         match node {
             Instruction::Constant(value) => builder.constant(value),
             Instruction::TypedConstant(index) => {
                 builder.constant(self.typed_constants[index as usize].clone())
             }
             Instruction::Read(slot) => builder.symbol(self.symbols[slot.0 as usize]),
+            Instruction::Array { start, len } => builder.array(
+                self.array_operands[start as usize..start as usize + len as usize]
+                    .iter()
+                    .map(|id| at(*id)),
+            ),
+            Instruction::Index(a, index) => builder.index(at(a), index),
+            Instruction::Quotient(a, b) => builder.quotient(at(a), at(b)),
+            Instruction::Remainder(a, b) => builder.remainder(at(a), at(b)),
+            Instruction::ToReal(a) => builder.to_real(at(a)),
+            Instruction::ToInteger(a) => builder.to_integer(at(a)),
+            Instruction::Ordinal(a) => builder.ordinal(at(a)),
             Instruction::Neg(a) => builder.neg(at(a)),
             Instruction::Add(a, b) => builder.add(at(a), at(b)),
             Instruction::Sub(a, b) => builder.sub(at(a), at(b)),
@@ -207,9 +219,6 @@ impl ScalarOperatorIr {
                     .iter()
                     .map(|id| at(*id)),
             ),
-            _ => Err(ir_builder_error(
-                "typed property projection requires scalar arithmetic, predicates and retained scalar operators",
-            )),
         }
     }
 }

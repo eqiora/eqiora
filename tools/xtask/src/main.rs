@@ -197,6 +197,10 @@ fn same_layer_dependency_is_allowed(package: &str, dependency: &str) -> bool {
             // RFC 0080: semantic admission derives non-forgeable spatial
             // support from canonical geometry rather than caller-owned facts.
             | ("eqiora-sem", "eqiora-geometry")
+            // #1002; docs/architecture.md, Common initialization derivative
+            // owner: one-way reuse of pure typed derivatives, never a backend
+            // or a reverse IR-to-SEM dependency.
+            | ("eqiora-sem", "eqiora-ir")
             // RFC 0080/#520: external Component lowering consumes the same
             // opaque canonical-geometry projection so no caller can forge a
             // digest, dimension, or entity-set fact at the compiler boundary.

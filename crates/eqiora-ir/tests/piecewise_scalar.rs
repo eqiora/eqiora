@@ -287,3 +287,68 @@ fn sine_direct_and_retained_operator_share_values_and_first_derivatives() {
         );
     }
 }
+
+#[test]
+fn frozen_typed_subgraphs_have_zero_tangent_without_evaluating_inactive_domains() {
+    let d = DimExponents::DIMENSIONLESS;
+    let mut b = ExprDagBuilder::new();
+    let x = b.symbol(SymbolRef::Field(Id::new())).unwrap();
+    let integer = |n| {
+        ValueLiteral::integer(ValueType::scalar(ScalarDomain::Integer, d).unwrap(), [n]).unwrap()
+    };
+    let n = b.constant(integer(7)).unwrap();
+    let two = b.constant(integer(2)).unwrap();
+    let quotient = b.quotient(n, two).unwrap();
+    let coefficient = b.to_real(quotient).unwrap();
+    let active = b.mul(coefficient, x).unwrap();
+    let zero = b.constant(real(d, 0.)).unwrap();
+    let sqrt_zero = b.unary_math(UnaryMathFunction::Sqrt, zero).unwrap();
+    let minus_one = b.constant(real(d, -1.)).unwrap();
+    let invalid = b.unary_math(UnaryMathFunction::Sqrt, minus_one).unwrap();
+    let yes = b.constant(ValueLiteral::boolean(true)).unwrap();
+    let chosen = b.select(yes, active, invalid).unwrap();
+    let root = b.add(chosen, sqrt_zero).unwrap();
+    let ir = ScalarOperatorIr::lower(&b.finish([root]).unwrap()).unwrap();
+    let linear = ir
+        .linearize_typed(&[real(d, 2.)], &[DifferentiationRole::Unknown])
+        .unwrap();
+    let mut tangent = [0.];
+    linear
+        .jvp(RelationTangent::Unknown(&[1.]), &mut tangent)
+        .unwrap();
+    // Integer quotient 7/2 is 3; hence d(3*x + sqrt(0))/dx = 3.
+    assert_eq!(tangent, [3.]);
+    let mut adjoint = [0.];
+    linear
+        .vjp(&[1.], RelationCotangent::Unknown(&mut adjoint))
+        .unwrap();
+    assert_eq!(adjoint, [3.]);
+}
+
+#[test]
+fn selected_array_derivatives_preserve_eager_value_errors_and_only_selected_boundaries() {
+    let d = DimExponents::DIMENSIONLESS;
+    let mut b = ExprDagBuilder::new();
+    let x = b.symbol(SymbolRef::Field(Id::new())).unwrap();
+    let zero = b.constant(real(d, 0.)).unwrap();
+    let twice = b.add(x, x).unwrap();
+    let root = b.unary_math(UnaryMathFunction::Sqrt, x).unwrap();
+    let array = b.array([twice, root, zero]).unwrap();
+    let first = b.index(array, 0).unwrap();
+    let last = b.index(array, 2).unwrap();
+    let ir = ScalarOperatorIr::lower(&b.finish([first, last]).unwrap()).unwrap();
+    let linear = ir
+        .linearize_typed(&[real(d, 0.)], &[DifferentiationRole::Unknown])
+        .unwrap();
+    let mut tangent = [0.; 2];
+    linear
+        .jvp(RelationTangent::Unknown(&[1.]), &mut tangent)
+        .unwrap();
+    assert_eq!(tangent, [2., 0.]);
+    // sqrt(0) is a valid eagerly evaluated value, but its derivative is not
+    // demanded. sqrt(-1) is an invalid value even in the nonselected component.
+    assert!(
+        ir.linearize_typed(&[real(d, -1.)], &[DifferentiationRole::Unknown])
+            .is_err()
+    );
+}

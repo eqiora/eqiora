@@ -11,6 +11,7 @@ rust-version.workspace = true
 eqiora-core = { workspace = true }
 eqiora-geometry = { workspace = true }
 eqiora-graph = { workspace = true }
+eqiora-ir = { workspace = true }
 eqiora-schema = { workspace = true }
 
 [lints]
