@@ -324,3 +324,31 @@ fn frozen_typed_subgraphs_have_zero_tangent_without_evaluating_inactive_domains(
         .unwrap();
     assert_eq!(adjoint, [3.]);
 }
+
+#[test]
+fn selected_array_derivatives_preserve_eager_value_errors_and_only_selected_boundaries() {
+    let d = DimExponents::DIMENSIONLESS;
+    let mut b = ExprDagBuilder::new();
+    let x = b.symbol(SymbolRef::Field(Id::new())).unwrap();
+    let zero = b.constant(real(d, 0.)).unwrap();
+    let twice = b.add(x, x).unwrap();
+    let root = b.unary_math(UnaryMathFunction::Sqrt, x).unwrap();
+    let array = b.array([twice, root, zero]).unwrap();
+    let first = b.index(array, 0).unwrap();
+    let last = b.index(array, 2).unwrap();
+    let ir = ScalarOperatorIr::lower(&b.finish([first, last]).unwrap()).unwrap();
+    let linear = ir
+        .linearize_typed(&[real(d, 0.)], &[DifferentiationRole::Unknown])
+        .unwrap();
+    let mut tangent = [0.; 2];
+    linear
+        .jvp(RelationTangent::Unknown(&[1.]), &mut tangent)
+        .unwrap();
+    assert_eq!(tangent, [2., 0.]);
+    // sqrt(0) is a valid eagerly evaluated value, but its derivative is not
+    // demanded. sqrt(-1) is an invalid value even in the nonselected component.
+    assert!(
+        ir.linearize_typed(&[real(d, -1.)], &[DifferentiationRole::Unknown])
+            .is_err()
+    );
+}

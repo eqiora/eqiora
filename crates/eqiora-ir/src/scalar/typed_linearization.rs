@@ -29,6 +29,11 @@ impl ScalarOperatorIr {
             .collect::<HashMap<_, _>>();
         let (_, trace) =
             projected.evaluate_trace(&roots, &mut |symbol| point.get(&symbol).cloned())?;
+        // Validate all demanded typed values before choosing components: an
+        // Array eagerly evaluates even its nonselected elements.
+        let (projected, roots) = projected.point_components(&trace)?;
+        let (_, trace) =
+            projected.evaluate_trace(&roots, &mut |symbol| point.get(&symbol).cloned())?;
         let dependencies = projected.active_input_dependencies(&trace, roles)?;
         for (index, node) in projected.instructions.iter().enumerate() {
             if trace[index].is_none() {

@@ -7,6 +7,7 @@ mod batch;
 mod enum_tests;
 mod linearization;
 mod numerical_evaluation;
+mod point_components;
 mod point_projection;
 mod sampled_linearization;
 mod typed;

@@ -76,3 +76,47 @@ fn frozen_typed_expressions_keep_their_regular_scalar_solution() {
         );
     }
 }
+
+#[test]
+fn scalar_equations_can_select_from_constructed_active_arrays() {
+    for expression in [
+        "[2*x,3][0]",
+        "([[2*x,3],[4,5]][0])[0]",
+        "(if true then [2*x,3] else [4*x,5])[0]",
+        "math.sqrt([0,x][0])",
+    ] {
+        // The first three equations reduce to -x=0; the last to x=0.
+        let model = ModelDocument::compile(
+            "active-array.eqi",
+            &format!("model M() {{ variable x: 1; relation r {{ x={expression}; }} }}"),
+        )
+        .unwrap();
+        let initial = Interpreter::new()
+            .initialize(model.program(), ReferenceConfig::new(0.0, 0.1).unwrap())
+            .unwrap();
+        assert_eq!(
+            initial.fields()[&model.aliases()["x"]]
+                .real_scalar_value()
+                .unwrap()
+                .value(),
+            0.0
+        );
+    }
+}
+
+#[test]
+fn unindexed_channel_array_arithmetic_retains_its_existing_rejection() {
+    let model = ModelDocument::compile(
+        "array-arithmetic.eqi",
+        "model M() { variable x: 1; relation r { x=([x,3]+[x,4])[0]; } }",
+    )
+    .unwrap();
+    let errors = Interpreter::new()
+        .initialize(model.program(), ReferenceConfig::new(0.0, 0.1).unwrap())
+        .unwrap_err();
+    assert!(
+        errors[0]
+            .message()
+            .contains("channel arrays require explicit indexing before arithmetic")
+    );
+}
