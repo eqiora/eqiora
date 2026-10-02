@@ -141,12 +141,26 @@ impl GeneralImplicitProgram {
     /// Restart consumes an accepted pair without invoking this operation.
     ///
     /// # Errors
-    /// Returns initialization diagnostics for missing, inconsistent, or unsupported conditions.
+    /// Returns initialization diagnostics for missing, inconsistent, or unsupported conditions,
+    /// including a locally singular differential/algebraic partition.
     pub fn initialize(
         &self,
         config: ReferenceConfig,
     ) -> Result<ImplicitDaeInitialization, Diagnostic> {
-        super::initialization::initialize(&self.kernel, &self.state_fields, self.relation, config)
+        let initial = super::initialization::initialize(
+            &self.kernel,
+            &self.state_fields,
+            self.relation,
+            config,
+        )?;
+        super::initialization::require_implicit_regularity(
+            &self.kernel,
+            &self.state_fields,
+            self.relation,
+            &initial,
+            self.proof.variable_kinds(),
+        )?;
+        Ok(initial)
     }
 
     /// Deterministic first-occurrence Parameter order.

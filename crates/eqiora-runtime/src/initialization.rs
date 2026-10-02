@@ -122,6 +122,44 @@ pub(crate) fn require_constant_mass_regularity(
     Ok(())
 }
 
+/// The declared residual-native partition must locally determine differential
+/// rates and algebraic values with differential values held fixed.
+pub(crate) fn require_implicit_regularity(
+    kernel: &KernelProgram,
+    fields: &[Id<kinds::Field>],
+    relation: Id<kinds::Relation>,
+    initial: &ImplicitDaeInitialization,
+    kinds: &[eqiora_time::DaeVariableKind],
+) -> Result<(), Diagnostic> {
+    let n = fields.len();
+    let rows = linearized_constraints(kernel, fields, &[], relation, initial, false)?;
+    let selected = rows
+        .iter()
+        .map(|row| {
+            kinds
+                .iter()
+                .enumerate()
+                .map(|(column, kind)| {
+                    row[match kind {
+                        eqiora_time::DaeVariableKind::Differential => n + column,
+                        eqiora_time::DaeVariableKind::Algebraic => column,
+                    }]
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    let actual = rank(&selected, 0..n)?;
+    if actual != n {
+        return Err(invalid_time(
+            relation,
+            format!(
+                "fresh residual-native initialization has an unsupported high-index or singular differential/algebraic partition: local regularity rank {actual}, required {n}; explicit state selection or index reduction may be needed"
+            ),
+        ));
+    }
+    Ok(())
+}
+
 fn linearized_constraints(
     kernel: &KernelProgram,
     fields: &[Id<kinds::Field>],
