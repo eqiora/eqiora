@@ -46,7 +46,7 @@ quick-xml = { version = "=0.42.0", default-features = false }
 # an ambient host-library ABI. No compression/plugin feature is enabled: the
 # admitted file-image profile rejects every filter pipeline before data reads.
 hdf5-metno = { version = "=0.14.1", default-features = false, features = ["static"] }
-hdf5-metno-sys = { version = "=0.12.2", package = "hdf5-metno-sys", default-features = false, features = ["static"] }
+hdf5-metno-sys = { version = "=0.12.4", package = "hdf5-metno-sys", default-features = false, features = ["static"] }
 # Adaptive Shewchuk predicates decide only the topology of bounded 2D
 # common-refinement intersections. Keep the reviewed release exact: changing
 # predicate behavior requires replaying remesh coverage and conservation
