@@ -11,9 +11,19 @@ impl ScalarOperatorIr {
         let mut summaries: Vec<AffineSummary> = Vec::with_capacity(self.instructions.len());
         for (index, instruction) in self.instructions.iter().copied().enumerate() {
             let summary = match instruction {
-                Instruction::Sin(_)
-                | Instruction::Sqrt(_)
-                | Instruction::Select { .. }
+                Instruction::Sin(value) | Instruction::Sqrt(value) => {
+                    let argument = &summaries[summary_index(value, index)?];
+                    if argument.depends_on_selected() {
+                        return Err(SymbolicLinearityFailure::Nonlinear { instruction: index });
+                    }
+                    let constant = argument.constant.map(|value| match instruction {
+                        Instruction::Sin(_) => value.sin(),
+                        Instruction::Sqrt(_) => value.sqrt(),
+                        _ => unreachable!(),
+                    });
+                    AffineSummary::finite(constant, vec![0.0; dimension], index)?
+                }
+                Instruction::Select { .. }
                 | Instruction::Require { .. }
                 | Instruction::PureOperator { .. }
                 | Instruction::Compare(_, _, _)

@@ -99,27 +99,12 @@ pub(crate) fn require_constant_mass_regularity(
         return Ok(());
     }
     let rows = linearized_constraints(kernel, fields, &[], relation, initial, false)?;
-    let mut block = vec![vec![0.0; 2 * n]; 2 * n];
-    for row in 0..n {
-        let coefficients = &mass.coefficients()[row * n..(row + 1) * n];
-        block[row][..n].copy_from_slice(coefficients);
-        block[n + row][..n].copy_from_slice(&rows[row][..n]);
-        block[n + row][n..].copy_from_slice(coefficients);
-    }
-    // B=[M 0; A M]. Its kernel has the expected dimension n-rank(M)
-    // exactly when Mu=0 and Au+Mv=0 force u=0. Then the algebraic
-    // constraints fix every mass-null state direction without index reduction.
-    let actual = rank(&block, 0..2 * n)?;
-    let expected = n + mass.exact_rank();
-    if actual != expected {
-        return Err(invalid_time(
-            relation,
-            format!(
-                "fresh constant-mass initialization has an unsupported high-index or singular constraint block: local regularity rank {actual}, required {expected}"
-            ),
-        ));
-    }
-    Ok(())
+    let state_jacobian = rows
+        .iter()
+        .flat_map(|row| row[..n].iter().copied())
+        .collect::<Vec<_>>();
+    mass.require_index_one_regularity(&state_jacobian)
+        .map_err(|error| invalid_time(relation, error.message()))
 }
 
 /// The declared residual-native partition must locally determine differential

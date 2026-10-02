@@ -1,7 +1,7 @@
 //! Raw scalar occurrence incidence; derivative and value coordinates stay distinct.
 use super::*;
 
-pub(super) fn variables(
+pub(in crate::interpreter) fn variables(
     dag: &ExprDag,
     roots: &[ExprId],
     signal_sources: &BTreeMap<RawId, RawId>,

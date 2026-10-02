@@ -445,3 +445,32 @@ fn scalar_transition_projection_reuses_values_and_remaps_subsequent_operands() {
     assert_eq!(ir.symbols(), &[SymbolRef::Field(field)]);
     assert_eq!(ir.evaluate(&[3.]).unwrap(), vec![3., 3., 3.]);
 }
+
+#[test]
+fn constant_rate_coefficients_allow_nonlinear_values_but_not_nonlinear_rates() {
+    use eqiora_schema::kernel::UnaryMathFunction;
+    let field = Id::<kinds::Field>::new();
+    let derivative = SymbolRef::Derivative(field);
+    for function in [UnaryMathFunction::Sin, UnaryMathFunction::Sqrt] {
+        let mut builder = ExprDagBuilder::new();
+        let rate = builder.symbol(derivative).unwrap();
+        let value = builder.symbol(SymbolRef::Field(field)).unwrap();
+        let nonlinear = builder.unary_math(function, value).unwrap();
+        let root = builder.add(rate, nonlinear).unwrap();
+        let ir = ScalarOperatorIr::lower(&builder.finish([root]).unwrap()).unwrap();
+        assert_eq!(
+            ir.constant_symbol_jacobian(&[derivative])
+                .unwrap()
+                .coefficients(),
+            &[1.0]
+        );
+        let mut builder = ExprDagBuilder::new();
+        let rate = builder.symbol(derivative).unwrap();
+        let root = builder.unary_math(function, rate).unwrap();
+        let ir = ScalarOperatorIr::lower(&builder.finish([root]).unwrap()).unwrap();
+        assert!(matches!(
+            ir.constant_symbol_jacobian(&[derivative]),
+            Err(SymbolicLinearityFailure::Nonlinear { .. })
+        ));
+    }
+}

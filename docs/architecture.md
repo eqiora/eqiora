@@ -75,6 +75,16 @@ current use. The chosen edge reuses the existing pure typed derivative boundary
 without changing canonical Model bytes or introducing backend execution into the
 reference interpreter. Layer checks retain every other dependency restriction.
 
+The same common admission also consumes `eqiora-time`'s pure matrix proof to
+check regular continuous equations separately from the joint initial system.
+This explicit one-way SEM→time composition reuses the exact binary-rational rank
+owner and the constant-mass null-space criterion already used by runtime time
+adapters. SEM does not consume a time backend, lowered time problem, or integration
+policy. Moving the proof into core would add arbitrary-precision arithmetic to
+the identity/unit layer; copying it would create a competing rank oracle. Initial
+conditions cannot repair a high-index regular system, and a solvable discrete
+step is not an index-one certificate.
+
 ## Standard Ontology
 
 Model, Coupling, Scale, Objective, Solver, and EvidenceSet are typed named

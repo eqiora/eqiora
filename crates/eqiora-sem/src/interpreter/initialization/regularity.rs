@@ -1,5 +1,6 @@
 //! Accepted-point initial Jacobian through the existing scalar Operator IR AD.
 use super::*;
+mod continuous;
 use eqiora_ir::{DifferentiationRole, LinearizedRelation, RelationTangent, ScalarOperatorIr};
 use eqiora_schema::kernel::typing::RootContract;
 use eqiora_schema::kernel::{ExprDag, ExprDagBuilder, ExprId};
@@ -101,7 +102,7 @@ pub(super) fn validate(
             "initial Jacobian is singular at the accepted point (Operator IR automatic differentiation)")
             .with_graph_path(execution_path("initialization", 0.0))
     })?;
-    Ok(())
+    continuous::validate(program, plan, &context)
 }
 
 fn coordinate(
@@ -137,12 +138,27 @@ fn jacobian(
     variables: &[Variable],
     context: &EvalContext<'_>,
 ) -> Result<Vec<Vec<f64>>, Diagnostic> {
+    let operator = point_operator(program, owner, expression, roots, variables, context)?;
+    differentiate(&operator, variables, context, roots.len())
+}
+
+fn point_operator(
+    program: &KernelProgram,
+    owner: RawId,
+    expression: &ExprDag,
+    roots: &[ExprId],
+    variables: &[Variable],
+    context: &EvalContext<'_>,
+) -> Result<ScalarOperatorIr, Diagnostic> {
     // Bind only frozen inputs. This is a point projection, never a mutation of
     // authored equations, identities, properties, or the accepted Model.
     let mut builder = ExprDagBuilder::new();
     for node in expression.nodes() {
         match node {
-            ExprNode::Symbol(symbol) if coordinate(*symbol, variables, context).is_none() => {
+            ExprNode::Symbol(symbol)
+                if !matches!(symbol, SymbolRef::Time)
+                    && coordinate(*symbol, variables, context).is_none() =>
+            {
                 let value = evaluate::resolve_symbol(*symbol, context).ok_or_else(|| {
                     execution_error("initial Jacobian has an unavailable frozen input", 0.0)
                 })?;
@@ -174,7 +190,15 @@ fn jacobian(
             },
         )
         .map_err(|errors| errors.into_iter().next().expect("typing failure"))?;
-    let operator = ScalarOperatorIr::lower_typed_scalar(&typed)?;
+    ScalarOperatorIr::lower_typed_scalar(&typed)
+}
+
+fn differentiate(
+    operator: &ScalarOperatorIr,
+    variables: &[Variable],
+    context: &EvalContext<'_>,
+    root_count: usize,
+) -> Result<Vec<Vec<f64>>, Diagnostic> {
     let inputs = operator
         .symbols()
         .iter()
@@ -187,20 +211,26 @@ fn jacobian(
     let columns = operator
         .symbols()
         .iter()
-        .map(|&symbol| {
-            coordinate(symbol, variables, context)
-                .expect("unbound symbols are active initial coordinates")
+        .map(|&symbol| coordinate(symbol, variables, context))
+        .collect::<Vec<_>>();
+    let roles = columns
+        .iter()
+        .map(|column| {
+            if column.is_some() {
+                DifferentiationRole::Unknown
+            } else {
+                DifferentiationRole::Frozen
+            }
         })
         .collect::<Vec<_>>();
-    let linearization =
-        operator.linearize_typed(&inputs, &vec![DifferentiationRole::Unknown; inputs.len()])?;
-    let mut rows = vec![vec![0.0; variables.len()]; roots.len()];
+    let linearization = operator.linearize_typed(&inputs, &roles)?;
+    let mut rows = vec![vec![0.0; variables.len()]; root_count];
     for column in 0..variables.len() {
         let direction = columns
             .iter()
-            .map(|&mapped| if mapped == column { 1.0 } else { 0.0 })
+            .filter_map(|mapped| mapped.map(|mapped| if mapped == column { 1.0 } else { 0.0 }))
             .collect::<Vec<_>>();
-        let mut output = vec![0.0; roots.len()];
+        let mut output = vec![0.0; root_count];
         linearization.jvp(RelationTangent::Unknown(&direction), &mut output)?;
         for (row, value) in rows.iter_mut().zip(output) {
             row[column] = value;
