@@ -7,7 +7,7 @@
 use super::*;
 
 pub(super) struct Tangent {
-    coefficients: Vec<(RawId, f64)>,
+    pub(super) coefficients: Vec<(RawId, f64)>,
     constant: f64,
 }
 

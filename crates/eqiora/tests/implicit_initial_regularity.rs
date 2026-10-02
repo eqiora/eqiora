@@ -6,7 +6,7 @@ use eqiora::sem::{Interpreter, ReferenceConfig};
 use eqiora::time::{ReferenceImplicitTimeBackend, TimeMethod, TimePlan};
 
 #[test]
-fn hidden_and_singular_constraints_reject_after_a_consistent_initial_solve() {
+fn hidden_and_singular_constraints_reject_at_their_regularity_boundary() {
     for (declarations, equations, initial, rank) in [
         (
             "variable z: 1;",
@@ -31,24 +31,35 @@ fn hidden_and_singular_constraints_reject_after_a_consistent_initial_solve() {
             "model M() {{ parameter rate: 1/s=1; state x: 1; {declarations} initial {{ {initial} }} relation r {{ {equations} }} }}"
         )).unwrap();
         let config = ReferenceConfig::new(0.0, 1.0).unwrap();
-        // The hidden-constraint initial Jacobian is regular. For the squared
-        // terms, forward secants instead give spurious nonzero derivatives.
-        Interpreter::new()
-            .initialize(model.program(), config)
-            .unwrap();
+        // Only the hidden constraint is regular as a joint initial solve.
+        // Squared zero terms have exactly zero differential at this point.
+        let singular_initial = equations.contains("z*z") || declarations.is_empty();
+        let common = Interpreter::new().initialize(model.program(), config);
+        if singular_initial {
+            let errors = common.unwrap_err();
+            assert_eq!(errors[0].code(), codes::NONLINEAR_SOLVE_FAILED);
+            assert!(errors[0].message().contains("initial Jacobian"));
+        } else {
+            common.unwrap();
+        }
         let cpu = CpuProgram::lower(model.program()).unwrap();
         let relation = model.aliases()["r"].downcast().unwrap();
         let system = GeneralImplicitProgram::lower(&cpu, relation).unwrap();
         let error = system.initialize(config).unwrap_err();
-        assert_eq!(error.code(), codes::INVALID_TIME_LOWERING);
-        assert!(error.message().contains(rank), "{error:?}");
-        assert!(
-            error
-                .graph_path()
-                .unwrap()
-                .to_string()
-                .contains(&relation.to_string())
-        );
+        if singular_initial {
+            assert_eq!(error.code(), codes::NONLINEAR_SOLVE_FAILED);
+            assert!(error.message().contains("initial Jacobian"));
+        } else {
+            assert_eq!(error.code(), codes::INVALID_TIME_LOWERING);
+            assert!(error.message().contains(rank), "{error:?}");
+            assert!(
+                error
+                    .graph_path()
+                    .unwrap()
+                    .to_string()
+                    .contains(&relation.to_string())
+            );
+        }
         assert!(system.implicit_problem().is_err());
     }
 }

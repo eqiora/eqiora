@@ -179,6 +179,17 @@ impl ScalarOperatorIr {
                 builder.constant(self.typed_constants[index as usize].clone())
             }
             Instruction::Read(slot) => builder.symbol(self.symbols[slot.0 as usize]),
+            Instruction::Array { start, len } => builder.array(
+                self.array_operands[start as usize..start as usize + len as usize]
+                    .iter()
+                    .map(|id| at(*id)),
+            ),
+            Instruction::Index(a, index) => builder.index(at(a), index),
+            Instruction::Quotient(a, b) => builder.quotient(at(a), at(b)),
+            Instruction::Remainder(a, b) => builder.remainder(at(a), at(b)),
+            Instruction::ToReal(a) => builder.to_real(at(a)),
+            Instruction::ToInteger(a) => builder.to_integer(at(a)),
+            Instruction::Ordinal(a) => builder.ordinal(at(a)),
             Instruction::Neg(a) => builder.neg(at(a)),
             Instruction::Add(a, b) => builder.add(at(a), at(b)),
             Instruction::Sub(a, b) => builder.sub(at(a), at(b)),
@@ -207,9 +218,6 @@ impl ScalarOperatorIr {
                     .iter()
                     .map(|id| at(*id)),
             ),
-            _ => Err(ir_builder_error(
-                "typed property projection requires scalar arithmetic, predicates and retained scalar operators",
-            )),
         }
     }
 }

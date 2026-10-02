@@ -1,6 +1,7 @@
 //! Fresh simultaneous initialization, before any periodic activation.
 
 use super::*;
+mod regularity;
 mod tangent;
 
 /// Accepted typed fresh-initialization values before the first tick.
@@ -129,6 +130,9 @@ pub(super) fn solve_initialization(
             );
             Ok(residuals)
         },
+    )?;
+    regularity::validate(
+        program, plan, state, &variables, &solution, &relations, &tangents,
     )?;
     commit_solution(&variables, &solution, state);
     Ok(())
