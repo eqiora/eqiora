@@ -351,7 +351,7 @@ fn field_at(trajectory: &Trajectory, field: eqiora::RawId, time: f64) -> f64 {
     trajectory
         .samples()
         .iter()
-        .find(|sample| sample.field() == field && (sample.time() - time).abs() <= 2.0e-12)
+        .find(|sample| sample.coordinate() == field && (sample.time() - time).abs() <= 2.0e-12)
         .unwrap_or_else(|| panic!("missing Field {field} sample at {time}"))
         .value()
         .value()
@@ -361,7 +361,7 @@ fn physical_at(trajectory: &Trajectory, unknown: PhysicalUnknown, time: f64) -> 
     trajectory
         .physical_samples()
         .iter()
-        .find(|sample| sample.unknown() == unknown && (sample.time() - time).abs() <= 2.0e-12)
+        .find(|sample| sample.coordinate() == unknown && (sample.time() - time).abs() <= 2.0e-12)
         .unwrap_or_else(|| panic!("missing {unknown:?} sample at {time}"))
         .value()
         .value()
@@ -396,13 +396,13 @@ fn assert_physical_frame_contract(
     assert_eq!(
         frame
             .iter()
-            .map(|sample| sample.unknown())
+            .map(|sample| sample.coordinate())
             .collect::<Vec<_>>(),
         expected_unknowns,
         "physical frame must be complete and canonically ordered at {time}"
     );
     for sample in frame {
-        let unknown = sample.unknown();
+        let unknown = sample.coordinate();
         let expected_dimension = if electrical_ports.contains(&unknown.port()) {
             match unknown {
                 PhysicalUnknown::Across(_) => VOLTAGE_DIMENSION,

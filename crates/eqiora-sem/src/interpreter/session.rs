@@ -30,8 +30,8 @@ pub struct ExecutionSession {
     arming: BTreeMap<RawId, i8>,
     last_event_time: Option<f64>,
     zero_time_events: usize,
-    pub(super) boundary_samples: Vec<Sample>,
-    pub(super) boundary_physical: Vec<PhysicalSample>,
+    pub(super) boundary_samples: Vec<Sample<RawId>>,
+    pub(super) boundary_physical: Vec<Sample<PhysicalUnknown>>,
 }
 
 impl Interpreter {

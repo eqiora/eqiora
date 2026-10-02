@@ -307,8 +307,8 @@ impl ExecutionSession {
         plan: &ExecutionPlan,
         state: &RuntimeState,
         time: f64,
-        samples: &mut Vec<Sample>,
-        physical: &mut Vec<PhysicalSample>,
+        samples: &mut Vec<Sample<RawId>>,
+        physical: &mut Vec<Sample<PhysicalUnknown>>,
     ) -> Result<(), Diagnostic> {
         let existing = samples
             .len()

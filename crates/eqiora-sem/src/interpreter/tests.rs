@@ -168,7 +168,7 @@ fn thermostat_thresholds_rearm_and_omitted_states_remain_continuous() {
             let samples = trajectory
                 .samples()
                 .iter()
-                .filter(|s| s.field() == field.erase())
+                .filter(|s| s.coordinate() == field.erase())
                 .collect::<Vec<_>>();
             let resets = samples
                 .windows(2)

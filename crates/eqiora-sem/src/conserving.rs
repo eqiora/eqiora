@@ -70,42 +70,23 @@ impl Ord for PhysicalUnknown {
     }
 }
 
-/// One participating constitutive Relation and its original root ordering.
+/// A residual DAG paired with its exact typed semantic owner.
+/// Constitutive groups retain `Id<Relation>` and original root order;
+/// conserving groups retain `Id<Connection>` and generated junction root order.
 #[derive(Debug, Clone, PartialEq)]
-pub struct RelationResidual {
-    relation: Id<kinds::Relation>,
+pub struct ResidualGroup<Owner> {
+    owner: Owner,
     dag: ExprDag,
 }
 
-impl RelationResidual {
-    /// Relation owning this residual group.
+impl<Owner: Copy> ResidualGroup<Owner> {
+    /// Exact Relation or Connection owning this group.
     #[must_use]
-    pub const fn relation(&self) -> Id<kinds::Relation> {
-        self.relation
+    pub const fn owner(&self) -> Owner {
+        self.owner
     }
 
-    /// Original validated Relation DAG.
-    #[must_use]
-    pub const fn dag(&self) -> &ExprDag {
-        &self.dag
-    }
-}
-
-/// Deterministically generated equality and conservation residuals.
-#[derive(Debug, Clone, PartialEq)]
-pub struct JunctionResidual {
-    connection: Id<kinds::Connection>,
-    dag: ExprDag,
-}
-
-impl JunctionResidual {
-    /// Connection owning this generated group.
-    #[must_use]
-    pub const fn connection(&self) -> Id<kinds::Connection> {
-        self.connection
-    }
-
-    /// Across-equality roots followed by one left-associated through sum.
+    /// Original constitutive DAG or generated equality/conservation DAG.
     #[must_use]
     pub const fn dag(&self) -> &ExprDag {
         &self.dag
@@ -121,8 +102,8 @@ pub struct ComposedResidualSystem {
     parameters: Vec<Id<kinds::Parameter>>,
     parameter_types: Vec<eqiora_core::ValueType>,
     uses_time: bool,
-    relations: Vec<RelationResidual>,
-    junctions: Vec<JunctionResidual>,
+    relations: Vec<ResidualGroup<Id<kinds::Relation>>>,
+    junctions: Vec<ResidualGroup<Id<kinds::Connection>>>,
 }
 
 impl ComposedResidualSystem {
@@ -164,13 +145,13 @@ impl ComposedResidualSystem {
 
     /// Participating Relations in canonical ID order.
     #[must_use]
-    pub fn relations(&self) -> &[RelationResidual] {
+    pub fn relations(&self) -> &[ResidualGroup<Id<kinds::Relation>>] {
         &self.relations
     }
 
     /// Junction residual groups in canonical Connection order.
     #[must_use]
-    pub fn junctions(&self) -> &[JunctionResidual] {
+    pub fn junctions(&self) -> &[ResidualGroup<Id<kinds::Connection>>] {
         &self.junctions
     }
 
@@ -310,14 +291,14 @@ impl ComposedResidualSystem {
         })?;
         for relation in &self.relations {
             residuals.extend(crate::evaluate::real_values(evaluate_expression(
-                relation.relation().erase(),
+                relation.owner().erase(),
                 relation.dag(),
                 &mut |symbol| inputs.get(&symbol).cloned(),
             )?)?);
         }
         for junction in &self.junctions {
             residuals.extend(crate::evaluate::real_values(evaluate_expression(
-                junction.connection().erase(),
+                junction.owner().erase(),
                 junction.dag(),
                 &mut |symbol| inputs.get(&symbol).cloned(),
             )?)?);
@@ -364,7 +345,7 @@ impl KernelProgram {
                 .any(|node| !is_static_physical_node(node))
             {
                 return Err(kernel_error(
-                    relation.relation().erase(),
+                    relation.owner().erase(),
                     "static scalar physical composition does not admit state, derivative, signal, hybrid, or spatial expressions",
                 ));
             }
@@ -509,8 +490,8 @@ impl KernelProgram {
                     }
                 }
             }
-            relation_residuals.push(RelationResidual {
-                relation: relation.downcast::<kinds::Relation>().ok_or_else(|| {
+            relation_residuals.push(ResidualGroup {
+                owner: relation.downcast::<kinds::Relation>().ok_or_else(|| {
                     kernel_error(
                         relation,
                         "physical subsystem contains a non-Relation member",
@@ -746,7 +727,7 @@ pub(crate) fn validate_scalar_physical_networks(
 fn compose_junction(
     program: &KernelProgram,
     connection: RawId,
-) -> Result<JunctionResidual, Diagnostic> {
+) -> Result<ResidualGroup<Id<kinds::Connection>>, Diagnostic> {
     let ports = edge_targets(program.edges(), connection, EdgeKind::Connects)
         .into_iter()
         .map(|port| {
@@ -771,8 +752,8 @@ fn compose_junction(
         through = builder.add(through, next)?;
     }
     roots.push(through);
-    Ok(JunctionResidual {
-        connection: connection.downcast::<kinds::Connection>().ok_or_else(|| {
+    Ok(ResidualGroup {
+        owner: connection.downcast::<kinds::Connection>().ok_or_else(|| {
             kernel_error(
                 connection,
                 "physical junction has a non-Connection identity",

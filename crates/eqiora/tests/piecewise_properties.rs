@@ -324,7 +324,7 @@ fn memoryless_branch_crossing_requires_a_separately_declared_reset_event() {
             let samples = trajectory
                 .samples()
                 .iter()
-                .filter(|sample| sample.field() == state)
+                .filter(|sample| sample.coordinate() == state)
                 .collect::<Vec<_>>();
             let reset = samples
                 .windows(2)

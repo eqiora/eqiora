@@ -4,6 +4,12 @@ use super::*;
 
 impl ExecutionPlan {
     pub(super) fn new(program: &KernelProgram) -> Result<Self, Diagnostic> {
+        let plan = Self::for_analysis(program)?;
+        structural::validate(program, &plan)?;
+        Ok(plan)
+    }
+
+    pub(super) fn for_analysis(program: &KernelProgram) -> Result<Self, Diagnostic> {
         direct_assignments::validate_storage_budget(program)?;
         for node in program.nodes() {
             if let KernelNode::Relation(relation) = node
@@ -306,7 +312,6 @@ impl ExecutionPlan {
             physical_unknowns,
             fields,
         };
-        structural::validate(program, &plan)?;
         Ok(plan)
     }
 }

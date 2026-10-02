@@ -133,10 +133,13 @@ fn zero_time_chatter_terminates_with_a_zeno_diagnostic() {
     assert!(diagnostics[0].message().contains("Zeno"));
 }
 
-fn field_samples(samples: &[Sample], field: Id<kinds::Field>) -> Vec<(f64, f64)> {
+fn field_samples(
+    samples: &[Sample<eqiora_core::RawId>],
+    field: Id<kinds::Field>,
+) -> Vec<(f64, f64)> {
     samples
         .iter()
-        .filter(|sample| sample.field() == field.erase())
+        .filter(|sample| sample.coordinate() == field.erase())
         .map(|sample| (sample.time(), sample.value().value()))
         .collect()
 }

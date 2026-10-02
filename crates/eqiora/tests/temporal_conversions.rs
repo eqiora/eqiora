@@ -43,7 +43,7 @@ fn at(trajectory: &Trajectory, symbols: &ModelSymbols, name: &str, time: f64) ->
     trajectory
         .samples()
         .iter()
-        .find(|sample| sample.field() == field && sample.time() == time)
+        .find(|sample| sample.coordinate() == field && sample.time() == time)
         .unwrap_or_else(|| panic!("missing {name} at {time}"))
         .value()
         .value()

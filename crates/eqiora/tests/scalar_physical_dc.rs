@@ -435,14 +435,14 @@ fn assert_canonical_order(problem: &ScalarPhysicalAffineProblem) {
             .composed_system()
             .relations()
             .windows(2)
-            .all(|pair| pair[0].relation().erase() < pair[1].relation().erase())
+            .all(|pair| pair[0].owner().erase() < pair[1].owner().erase())
     );
     assert!(
         problem
             .composed_system()
             .junctions()
             .windows(2)
-            .all(|pair| pair[0].connection().erase() < pair[1].connection().erase())
+            .all(|pair| pair[0].owner().erase() < pair[1].owner().erase())
     );
 }
 

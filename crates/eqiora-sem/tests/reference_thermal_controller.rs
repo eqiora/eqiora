@@ -65,7 +65,7 @@ fn periodic_update_samples_the_continuous_state_at_the_tick() {
         trajectory
             .samples()
             .iter()
-            .filter(|sample| sample.field() == fixture.command.erase())
+            .filter(|sample| sample.coordinate() == fixture.command.erase())
             .count(),
         11
     );

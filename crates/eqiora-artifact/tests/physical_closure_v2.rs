@@ -232,7 +232,7 @@ fn relation_ids(program: &eqiora_sem::ComposedResidualSystem) -> BTreeSet<RawId>
     program
         .relations()
         .iter()
-        .map(|group| group.relation().erase())
+        .map(|group| group.owner().erase())
         .collect()
 }
 
@@ -260,7 +260,7 @@ fn bridge_closure_is_canonical_and_parameter_sharing_does_not_join_subsystems() 
         selected_high
             .junctions()
             .iter()
-            .map(|junction| junction.connection())
+            .map(|junction| junction.owner())
             .collect::<Vec<_>>(),
         ids.joined_connections
     );
