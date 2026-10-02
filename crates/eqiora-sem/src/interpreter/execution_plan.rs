@@ -293,7 +293,7 @@ impl ExecutionPlan {
                 _ => None,
             })
             .collect();
-        Ok(Self {
+        let plan = Self {
             initial_relations,
             continuous_relations,
             periodic,
@@ -305,7 +305,9 @@ impl ExecutionPlan {
             physical_systems,
             physical_unknowns,
             fields,
-        })
+        };
+        structural::validate(program, &plan)?;
+        Ok(plan)
     }
 }
 

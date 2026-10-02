@@ -13,6 +13,7 @@ use residuals::evaluate_relations;
 mod samples;
 mod session;
 mod state;
+mod structural;
 pub use session::ExecutionSession;
 use state::RuntimeState;
 
