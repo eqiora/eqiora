@@ -55,11 +55,11 @@ fn frozen_typed_expressions_keep_their_regular_scalar_solution() {
             3.0,
         ),
         (
-            "model M() { variable x: 1; relation r { x=sqrt(0); } }",
+            "model M() { variable x: 1; relation r { x=math.sqrt(0); } }",
             0.0,
         ),
         (
-            "model M() { parameter n: integer=7; variable x: 1; relation r { x=if n > 0 then 2 else sqrt(-1); } }",
+            "model M() { parameter n: integer=7; variable x: 1; relation r { x=if n > 0 then 2 else math.sqrt(-1); } }",
             2.0,
         ),
     ] {
