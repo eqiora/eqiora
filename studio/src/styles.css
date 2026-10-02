@@ -93,6 +93,7 @@ button:disabled {
 }
 
 .studio-shell {
+  color: var(--text);
   height: 100vh;
   min-height: 620px;
   display: flex;
