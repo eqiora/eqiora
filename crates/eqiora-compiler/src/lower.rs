@@ -143,7 +143,6 @@ impl CompiledModel {
     }
 
     /// Typed authored mathematics retained only by fresh source compilation.
-    #[must_use]
     pub fn authored_formulations(
         &self,
     ) -> impl ExactSizeIterator<Item = &CompiledAuthoredFormulation> {

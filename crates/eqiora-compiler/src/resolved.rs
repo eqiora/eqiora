@@ -714,13 +714,11 @@ impl AnalyzedResolvedHierarchy {
     }
 
     /// Package-qualified source labels in resolved-graph order.
-    #[must_use]
     pub fn resolved_source_files(&self) -> impl ExactSizeIterator<Item = &str> {
         self.units.iter().map(|unit| unit.file.as_str())
     }
 
     /// Compiler-resolved top-level declarations and their definition locations.
-    #[must_use]
     pub fn resolved_declarations(
         &self,
     ) -> impl ExactSizeIterator<Item = (&CanonicalDeclarationIdentity, &str, TextRange)> {
@@ -768,7 +766,6 @@ impl AnalyzedResolvedHierarchy {
     }
 
     /// Read-only nominal property bindings retained through elaboration.
-    #[must_use]
     pub fn property_bindings(
         &self,
     ) -> impl ExactSizeIterator<

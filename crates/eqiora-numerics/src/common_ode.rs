@@ -300,7 +300,6 @@ impl CommonOdePlan {
         &self.temporal
     }
 
-    #[must_use]
     pub fn field_ids(&self) -> impl ExactSizeIterator<Item = Id<kinds::Field>> + '_ {
         self.program.state_fields().iter().copied()
     }

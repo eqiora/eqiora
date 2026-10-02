@@ -94,7 +94,6 @@ impl Document {
         &self.finite_spaces
     }
     /// Explicit semantic imports in authored order.
-    #[must_use]
     pub fn imports(&self) -> impl ExactSizeIterator<Item = (&NamePath, &str, TextRange)> {
         self.imports
             .iter()

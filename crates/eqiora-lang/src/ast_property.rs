@@ -118,7 +118,6 @@ pub(crate) struct PropertyBindingDecl {
 
 impl Document {
     /// Ordered independent inputs, derivative requirement, and declared phase branch.
-    #[must_use]
     pub fn property_contract_profiles(
         &self,
     ) -> impl ExactSizeIterator<
@@ -140,7 +139,6 @@ impl Document {
     }
 
     /// Exact operating-domain predicate and phase branch; absent predicate is unconditional.
-    #[must_use]
     pub fn property_release_profiles(
         &self,
     ) -> impl ExactSizeIterator<Item = (&str, Option<&Expr>, Option<&NamePath>)> {
@@ -152,7 +150,6 @@ impl Document {
             )
         })
     }
-    #[must_use]
     pub fn property_contract_syntax(
         &self,
     ) -> impl ExactSizeIterator<Item = (VisibilitySyntax, &str, &crate::ValueTypeSyntax, TextRange)>
@@ -167,7 +164,6 @@ impl Document {
         })
     }
 
-    #[must_use]
     pub fn property_release_syntax(
         &self,
     ) -> impl ExactSizeIterator<
@@ -198,7 +194,6 @@ impl Document {
         })
     }
 
-    #[must_use]
     pub fn material_composition_syntax(
         &self,
     ) -> impl ExactSizeIterator<

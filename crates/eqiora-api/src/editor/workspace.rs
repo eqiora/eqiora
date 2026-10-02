@@ -598,7 +598,6 @@ impl EditorWorkspaceSnapshot {
     }
 
     /// Package-qualified source labels in resolved-graph order.
-    #[must_use]
     pub fn files(&self) -> impl ExactSizeIterator<Item = &str> {
         self.documents.iter().map(|(file, _)| file.as_str())
     }

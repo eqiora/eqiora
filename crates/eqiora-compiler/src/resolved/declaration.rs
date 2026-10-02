@@ -19,7 +19,6 @@ impl AnalyzedResolvedHierarchy {
     }
 
     /// Compiler-resolved declaration references in source-file and range order.
-    #[must_use]
     pub fn resolved_references(
         &self,
     ) -> impl ExactSizeIterator<
