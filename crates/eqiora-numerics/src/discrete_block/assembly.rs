@@ -110,6 +110,7 @@ impl AssemblyBackend for CheckedBlockAssemblyBackend<'_> {
             .system
             .bind_materialization(&canonical, result.report())?;
         materialization.validate(&canonical)?;
+        #[allow(deprecated, reason = "try_update requires Rust 1.95; MSRV is 1.89")]
         self.validated_materializations
             .fetch_update(
                 std::sync::atomic::Ordering::Relaxed,

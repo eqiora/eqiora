@@ -1450,6 +1450,7 @@ pub(crate) fn descriptor<T: eqiora_device::DeviceElement>(
 }
 
 fn next_process_identity(timeline: &AtomicU64, label: &str) -> Result<NonZeroU64, Diagnostic> {
+    #[allow(deprecated, reason = "try_update requires Rust 1.95; MSRV is 1.89")]
     let identity = timeline
         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |allocation| {
             allocation.checked_add(1)
