@@ -8,6 +8,37 @@ use eqiora_io_hdf5::{
 const SOURCE: &[u8] =
     include_bytes!("../../../verify/artifacts/xdmf-uniform-grid-import/fixtures/unit-square.h5");
 
+#[test]
+fn runtime_binding_provenance_matches_the_resolved_workspace_dependency() {
+    let manifest: toml::Value = toml::from_str(include_str!("../../../Cargo.toml")).unwrap();
+    let lock: toml::Value = toml::from_str(include_str!("../../../Cargo.lock")).unwrap();
+    let binding = &manifest["workspace"]["dependencies"][HDF5_BINDING_ID];
+    let pinned = binding["version"]
+        .as_str()
+        .unwrap()
+        .strip_prefix('=')
+        .unwrap();
+    let resolved: Vec<_> = lock["package"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|package| package["name"].as_str() == Some(HDF5_BINDING_ID))
+        .collect();
+    assert_eq!(
+        resolved.len(),
+        1,
+        "runtime provenance needs one binding release"
+    );
+    assert_eq!(resolved[0]["version"].as_str(), Some(pinned));
+    let runtime = resolve_hdf5_file_image(
+        Hdf5FileImage::new(SOURCE),
+        &requests(),
+        Hdf5ResolveLimits::default(),
+    )
+    .unwrap();
+    assert_eq!(runtime.runtime().binding_version(), pinned);
+}
+
 fn requests() -> Vec<Hdf5DatasetRequest> {
     vec![
         Hdf5DatasetRequest::new("/mesh/geometry", Hdf5ScalarType::F64, vec![4, 2]).unwrap(),

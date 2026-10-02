@@ -937,6 +937,7 @@ dependencies = [
  "eqiora-core",
  "hdf5-metno",
  "hdf5-metno-sys",
+ "toml",
 ]
 
 [[package]]

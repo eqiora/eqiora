@@ -12,5 +12,8 @@ eqiora-core = { workspace = true }
 hdf5-metno = { workspace = true }
 hdf5-metno-sys = { workspace = true }
 
+[dev-dependencies]
+toml = { workspace = true }
+
 [lints]
 workspace = true
