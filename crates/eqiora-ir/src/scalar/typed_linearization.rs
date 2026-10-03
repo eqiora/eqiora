@@ -98,7 +98,7 @@ impl ScalarOperatorIr {
     // A branch boundary constrains derivatives only when its predicate can
     // vary with this admitted input map. Frozen values still pass ordinary
     // domain validation in evaluate_trace, but contribute no derivative inputs.
-    fn active_input_dependencies(
+    pub(super) fn active_input_dependencies(
         &self,
         trace: &[Option<ValueLiteral>],
         roles: &[DifferentiationRole],

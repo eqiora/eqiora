@@ -132,7 +132,13 @@ pub(super) fn solve_initialization(
         },
     )?;
     regularity::validate(
-        program, plan, state, &variables, &solution, &relations, &tangents,
+        program,
+        plan,
+        state,
+        (&variables, &solution),
+        &relations,
+        &tangents,
+        config.nonlinear_settings(),
     )?;
     commit_solution(&variables, &solution, state);
     Ok(())

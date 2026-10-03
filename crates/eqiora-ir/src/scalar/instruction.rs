@@ -46,3 +46,46 @@ pub(super) enum Instruction {
     Div(ValueId, ValueId),
     PowI(ValueId, i32),
 }
+
+impl Instruction {
+    pub(super) fn map_scalar_operands(
+        self,
+        mut at: impl FnMut(ValueId) -> ValueId,
+    ) -> Option<Self> {
+        Some(match self {
+            Self::Constant(_) | Self::TypedConstant(_) | Self::Read(_) => self,
+            Self::Neg(a) => Self::Neg(at(a)),
+            Self::Sin(a) => Self::Sin(at(a)),
+            Self::Sqrt(a) => Self::Sqrt(at(a)),
+            Self::Not(a) => Self::Not(at(a)),
+            Self::ToReal(a) => Self::ToReal(at(a)),
+            Self::ToInteger(a) => Self::ToInteger(at(a)),
+            Self::Ordinal(a) => Self::Ordinal(at(a)),
+            Self::Index(a, n) => Self::Index(at(a), n),
+            Self::PowI(a, n) => Self::PowI(at(a), n),
+            Self::Add(a, b) => Self::Add(at(a), at(b)),
+            Self::Sub(a, b) => Self::Sub(at(a), at(b)),
+            Self::Mul(a, b) => Self::Mul(at(a), at(b)),
+            Self::Div(a, b) => Self::Div(at(a), at(b)),
+            Self::Quotient(a, b) => Self::Quotient(at(a), at(b)),
+            Self::Remainder(a, b) => Self::Remainder(at(a), at(b)),
+            Self::And(a, b) => Self::And(at(a), at(b)),
+            Self::Or(a, b) => Self::Or(at(a), at(b)),
+            Self::Compare(op, a, b) => Self::Compare(op, at(a), at(b)),
+            Self::Select {
+                condition,
+                then_value,
+                else_value,
+            } => Self::Select {
+                condition: at(condition),
+                then_value: at(then_value),
+                else_value: at(else_value),
+            },
+            Self::Require { condition, value } => Self::Require {
+                condition: at(condition),
+                value: at(value),
+            },
+            Self::Array { .. } | Self::PureOperator { .. } => return None,
+        })
+    }
+}

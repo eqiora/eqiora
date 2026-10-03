@@ -474,3 +474,225 @@ fn constant_rate_coefficients_allow_nonlinear_values_but_not_nonlinear_rates() {
         ));
     }
 }
+
+#[test]
+fn additive_terms_preserve_singular_atoms_and_canonicalize_across_roots() {
+    use eqiora_core::ValueLiteral;
+    use eqiora_schema::kernel::UnaryMathFunction;
+    let symbol = SymbolRef::Field(Id::<kinds::Field>::new());
+    let point = ValueLiteral::try_from(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)).unwrap();
+    let mut builder = ExprDagBuilder::new();
+    let x = builder.symbol(symbol).unwrap();
+    let root = builder.unary_math(UnaryMathFunction::Sqrt, x).unwrap();
+    let twice = builder.add(root, root).unwrap();
+    let squared = builder.powi(root, 2).unwrap();
+    let ir = ScalarOperatorIr::lower(&builder.finish([root, twice, squared]).unwrap()).unwrap();
+    let terms = ir
+        .additive_terms(std::slice::from_ref(&point), symbol)
+        .unwrap();
+    assert_eq!(terms.len(), 2);
+    assert_eq!(
+        terms[0].1,
+        [1, 2, 0].map(|value| num_rational::BigRational::from_integer(value.into()))
+    );
+    assert_eq!(
+        terms[1].1,
+        [0, 0, 1].map(|value| num_rational::BigRational::from_integer(value.into()))
+    );
+    for (atom, _) in &terms {
+        assert!(
+            atom.linearize_typed(
+                std::slice::from_ref(&point),
+                &[DifferentiationRole::Unknown]
+            )
+            .is_err()
+        );
+    }
+    let mut other = ExprDagBuilder::new();
+    other
+        .constant(DynQuantity::new(7.0, DimExponents::DIMENSIONLESS))
+        .unwrap();
+    let x = other.symbol(symbol).unwrap();
+    let root = other.unary_math(UnaryMathFunction::Sqrt, x).unwrap();
+    let other = ScalarOperatorIr::lower(&other.finish([root]).unwrap()).unwrap();
+    assert_eq!(
+        other.additive_terms(&[point], symbol).unwrap()[0].0,
+        terms[0].0
+    );
+}
+
+#[test]
+fn additive_terms_retain_active_guard_boundaries_and_original_domains() {
+    use eqiora_core::ValueLiteral;
+    use eqiora_schema::kernel::{ComparisonOp, UnaryMathFunction};
+    let symbol = SymbolRef::Field(Id::<kinds::Field>::new());
+    let point = ValueLiteral::try_from(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)).unwrap();
+    let mut builder = ExprDagBuilder::new();
+    let x = builder.symbol(symbol).unwrap();
+    let zero = builder
+        .constant(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
+        .unwrap();
+    let condition = builder.compare(ComparisonOp::Greater, x, zero).unwrap();
+    let branch = builder.select(condition, x, zero).unwrap();
+    let ir = ScalarOperatorIr::lower(&builder.finish([branch]).unwrap()).unwrap();
+    let terms = ir
+        .additive_terms(std::slice::from_ref(&point), symbol)
+        .unwrap();
+    assert_eq!(terms.len(), 1);
+    assert!(
+        terms[0]
+            .0
+            .linearize_typed(
+                std::slice::from_ref(&point),
+                &[DifferentiationRole::Unknown]
+            )
+            .is_err()
+    );
+    let mut builder = ExprDagBuilder::new();
+    let x = builder.symbol(symbol).unwrap();
+    let root = builder.unary_math(UnaryMathFunction::Sqrt, x).unwrap();
+    let canceled = builder.sub(root, root).unwrap();
+    let ir = ScalarOperatorIr::lower(&builder.finish([canceled]).unwrap()).unwrap();
+    let negative =
+        ValueLiteral::try_from(DynQuantity::new(-1.0, DimExponents::DIMENSIONLESS)).unwrap();
+    assert!(ir.additive_terms(&[negative], symbol).is_err());
+}
+
+#[test]
+fn additive_coefficients_do_not_erase_nonzero_dependence_by_rounding() {
+    use eqiora_core::ValueLiteral;
+    use eqiora_schema::kernel::UnaryMathFunction;
+    use num_rational::BigRational;
+    let symbol = SymbolRef::Field(Id::<kinds::Field>::new());
+    let point = ValueLiteral::try_from(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)).unwrap();
+    let mut builder = ExprDagBuilder::new();
+    let x = builder.symbol(symbol).unwrap();
+    let g = builder.unary_math(UnaryMathFunction::Sqrt, x).unwrap();
+    let large = builder
+        .constant(DynQuantity::new(
+            2.0_f64.powi(53),
+            DimExponents::DIMENSIONLESS,
+        ))
+        .unwrap();
+    let tiny_value = f64::from_bits(1);
+    let tiny = builder
+        .constant(DynQuantity::new(tiny_value, DimExponents::DIMENSIONLESS))
+        .unwrap();
+    let scaled = builder.mul(large, g).unwrap();
+    let plus_one = builder.add(scaled, g).unwrap();
+    let canceled = builder.sub(plus_one, scaled).unwrap();
+    let small = builder.mul(tiny, g).unwrap();
+    let smaller = builder.mul(tiny, small).unwrap();
+    let ir = ScalarOperatorIr::lower(&builder.finish([canceled, smaller]).unwrap()).unwrap();
+    let terms = ir.additive_terms(&[point], symbol).unwrap();
+    let tiny = BigRational::from_float(tiny_value).unwrap();
+    assert_eq!(terms.len(), 1);
+    assert_eq!(
+        terms[0].1,
+        vec![BigRational::from_integer(1.into()), &tiny * &tiny]
+    );
+}
+
+#[test]
+fn additive_coefficients_preserve_frozen_grouping_and_shared_dags() {
+    use eqiora_core::ValueLiteral;
+    use num_rational::BigRational;
+    let symbol = SymbolRef::Field(Id::<kinds::Field>::new());
+    let point = ValueLiteral::try_from(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)).unwrap();
+    let mut builder = ExprDagBuilder::new();
+    let x = builder.symbol(symbol).unwrap();
+    let tenth = builder
+        .constant(DynQuantity::new(0.1, DimExponents::DIMENSIONLESS))
+        .unwrap();
+    let square = builder.mul(tenth, tenth).unwrap();
+    let grouped = builder.mul(square, x).unwrap();
+    let inner = builder.mul(tenth, x).unwrap();
+    let nested = builder.mul(tenth, inner).unwrap();
+    let large = builder
+        .constant(DynQuantity::new(
+            2.0_f64.powi(53),
+            DimExponents::DIMENSIONLESS,
+        ))
+        .unwrap();
+    let one = builder
+        .constant(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
+        .unwrap();
+    let plus = builder.add(large, one).unwrap();
+    let difference = builder.sub(plus, large).unwrap();
+    let retained = builder.mul(difference, x).unwrap();
+    let mut doubled = x;
+    for _ in 0..40 {
+        doubled = builder.add(doubled, doubled).unwrap();
+    }
+    let ir = ScalarOperatorIr::lower(
+        &builder
+            .finish([grouped, nested, retained, doubled])
+            .unwrap(),
+    )
+    .unwrap();
+    let terms = ir.additive_terms(&[point], symbol).unwrap();
+    let tenth = BigRational::from_float(0.1).unwrap();
+    assert_eq!(terms.len(), 1);
+    assert_eq!(
+        terms[0].1,
+        vec![
+            &tenth * &tenth,
+            &tenth * &tenth,
+            BigRational::from_integer(1.into()),
+            BigRational::from_integer((1_u64 << 40).into())
+        ]
+    );
+}
+
+#[test]
+fn additive_coefficients_bound_shared_squaring_growth() {
+    use eqiora_core::ValueLiteral;
+    let symbol = SymbolRef::Field(Id::<kinds::Field>::new());
+    let point = ValueLiteral::try_from(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)).unwrap();
+    let mut builder = ExprDagBuilder::new();
+    let x = builder.symbol(symbol).unwrap();
+    // The ordinary point underflows harmlessly; its exact denominator grows
+    // exponentially in this compact DAG and must be rejected while bounded.
+    let mut coefficient = builder
+        .constant(DynQuantity::new(0.5, DimExponents::DIMENSIONLESS))
+        .unwrap();
+    for _ in 0..30 {
+        coefficient = builder.mul(coefficient, coefficient).unwrap();
+    }
+    let root = builder.mul(coefficient, x).unwrap();
+    let ir = ScalarOperatorIr::lower(&builder.finish([root]).unwrap()).unwrap();
+    let error = ir.additive_terms(&[point], symbol).unwrap_err();
+    assert!(format!("{error:?}").contains("exact coefficient budget exceeded"));
+}
+
+#[test]
+fn additive_coefficients_do_not_expand_opaque_or_canceled_frozen_subtrees() {
+    use eqiora_core::ValueLiteral;
+    use eqiora_schema::kernel::UnaryMathFunction;
+    let symbol = SymbolRef::Field(Id::<kinds::Field>::new());
+    let point = ValueLiteral::try_from(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)).unwrap();
+    let mut builder = ExprDagBuilder::new();
+    let x = builder.symbol(symbol).unwrap();
+    // The trace stays near one, but an exact expansion has millions of bits.
+    let mut coefficient = builder
+        .constant(DynQuantity::new(
+            1.0 + f64::EPSILON,
+            DimExponents::DIMENSIONLESS,
+        ))
+        .unwrap();
+    for _ in 0..20 {
+        coefficient = builder.mul(coefficient, coefficient).unwrap();
+    }
+    let offset = builder.add(x, coefficient).unwrap();
+    let opaque = builder.unary_math(UnaryMathFunction::Sin, offset).unwrap();
+    let scaled = builder.mul(coefficient, x).unwrap();
+    let canceled = builder.sub(scaled, scaled).unwrap();
+    let ir =
+        ScalarOperatorIr::lower(&builder.finish([opaque, coefficient, canceled]).unwrap()).unwrap();
+    let terms = ir.additive_terms(&[point], symbol).unwrap();
+    assert_eq!(terms.len(), 1);
+    assert_eq!(
+        terms[0].1,
+        [1, 0, 0].map(|value| num_rational::BigRational::from_integer(value.into()))
+    );
+}

@@ -1,11 +1,13 @@
 //! Regular equations alone must locally determine an admitted continuous DAE.
 use super::*;
+mod compatibility;
 use eqiora_time::ConstantDerivativeMatrixProof;
 
-pub(super) fn validate(
-    program: &KernelProgram,
-    plan: &ExecutionPlan,
+pub(super) fn validate<'a>(
+    program: &'a KernelProgram,
+    plan: &'a ExecutionPlan,
     context: &EvalContext<'_>,
+    settings: solver::NonlinearSettings,
 ) -> Result<(), Diagnostic> {
     let values = plan
         .differential_fields
@@ -51,47 +53,52 @@ pub(super) fn validate(
         .collect::<BTreeMap<_, _>>();
     let mut equations = Vec::new();
     let mut operators = Vec::new();
-    let mut append =
-        |owner, expression: &ExprDag, roots: &[ExprId], paired: bool| -> Result<(), Diagnostic> {
-            let operator = point_operator(program, owner, expression, roots, &variables, context)?;
-            let rows = differentiate(&operator, &variables, context, roots.len())?;
-            let width = if paired { 2 } else { 1 };
-            for (ordinal, sides) in roots.chunks_exact(width).enumerate() {
-                let root = ordinal * width;
-                let jacobian = if paired {
-                    rows[root]
-                        .iter()
-                        .zip(&rows[root + 1])
-                        .map(|(left, right)| left - right)
-                        .collect()
-                } else {
-                    rows[root].clone()
-                };
-                equations.push(Equation {
-                    owner,
-                    operator: operators.len(),
-                    root,
-                    paired,
-                    jacobian,
-                    incidence: structural::incidence::variables(
-                        expression,
-                        sides,
-                        &plan.signal_sources,
-                    )?
-                    .into_iter()
-                    .map(|variable| match variable {
-                        Variable::Derivative(field) => Variable::Field(field),
-                        other => other,
-                    })
-                    .filter_map(|variable| columns.get(&variable).copied())
-                    .collect::<BTreeSet<_>>()
-                    .into_iter()
-                    .collect(),
-                });
-            }
-            operators.push(operator);
-            Ok(())
-        };
+    let mut append = |owner,
+                      expression: &'a ExprDag,
+                      roots: &[ExprId],
+                      paired: bool|
+     -> Result<(), Diagnostic> {
+        let operator = point_operator(program, owner, expression, roots, &variables, context)?;
+        let rows = differentiate(&operator, &variables, context, roots.len())?;
+        let width = if paired { 2 } else { 1 };
+        for (ordinal, sides) in roots.chunks_exact(width).enumerate() {
+            let root = ordinal * width;
+            let jacobian = if paired {
+                rows[root]
+                    .iter()
+                    .zip(&rows[root + 1])
+                    .map(|(left, right)| left - right)
+                    .collect()
+            } else {
+                rows[root].clone()
+            };
+            equations.push(Equation {
+                owner,
+                expression,
+                sides: sides.to_vec(),
+                operator: operators.len(),
+                root,
+                paired,
+                jacobian,
+                incidence: structural::incidence::variables(
+                    expression,
+                    sides,
+                    &plan.signal_sources,
+                )?
+                .into_iter()
+                .map(|variable| match variable {
+                    Variable::Derivative(field) => Variable::Field(field),
+                    other => other,
+                })
+                .filter_map(|variable| columns.get(&variable).copied())
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect(),
+            });
+        }
+        operators.push(operator);
+        Ok(())
+    };
     for &owner in &plan.continuous_relations {
         let Some(KernelNode::Relation(relation)) = program.node(owner) else {
             return Err(execution_error("continuous Relation is unavailable", 0.0));
@@ -123,6 +130,17 @@ pub(super) fn validate(
             &block_columns,
             plan,
         )
+        .and_then(|()| {
+            compatibility::validate(
+                &equations,
+                &values,
+                &rates,
+                &block_rows,
+                &block_columns,
+                context,
+                settings,
+            )
+        })
         .map_err(|error| {
             Diagnostic::error(codes::NONLINEAR_SOLVE_FAILED, error.message())
                 .with_graph_path(kernel_path(equations[block_rows[0]].owner))
@@ -131,7 +149,9 @@ pub(super) fn validate(
     Ok(())
 }
 
-struct Equation {
+struct Equation<'a> {
+    expression: &'a ExprDag,
+    sides: Vec<ExprId>,
     owner: RawId,
     operator: usize,
     root: usize,
@@ -140,7 +160,7 @@ struct Equation {
     incidence: Vec<usize>,
 }
 
-fn connected_blocks(equations: &[Equation], count: usize) -> Vec<(Vec<usize>, Vec<usize>)> {
+fn connected_blocks(equations: &[Equation<'_>], count: usize) -> Vec<(Vec<usize>, Vec<usize>)> {
     let mut seen = BTreeSet::new();
     let mut blocks = Vec::new();
     for start in 0..count {
@@ -168,7 +188,7 @@ fn connected_blocks(equations: &[Equation], count: usize) -> Vec<(Vec<usize>, Ve
 }
 
 fn check_block(
-    equations: &[Equation],
+    equations: &[Equation<'_>],
     operators: &[ScalarOperatorIr],
     values: &[Variable],
     rates: &[(usize, SymbolRef)],
