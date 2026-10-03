@@ -2,6 +2,8 @@
 //! Model conditions remain unchanged; numerical acceptance never implies exact satisfaction.
 mod complex;
 mod configuration;
+mod gauge;
+pub(crate) use gauge::FiniteGauge;
 mod coordinates;
 mod linearization;
 mod nonlinear;

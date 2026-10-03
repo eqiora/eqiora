@@ -63,7 +63,7 @@ a fixed one-dimensional domain and classical divergence and boundary traces;
 it does not establish these regularity assumptions or the reverse implication.
 
 Native AST construction, source formatting, Python inspection and mathematical
-rendering retain the interval. The projection uses one tagged v5 wire for plural Relation-owned equations,
+rendering retain the interval. The projection uses one tagged v6 wire for plural Relation-owned equations,
 weak-test inventories and interval binders; displaced projection decoders are removed. Forms
 remain outside Model identity. The ordinary single-region scalar TPFA path admits
 this form on a fixed 1D Geometry with the existing positive diffusion and supported boundary conditions.
@@ -95,8 +95,8 @@ original matrix and checks the assembled load balance without projection. Result
 acceptance and replay reassemble the original equations and reference, retaining
 separate original-equation, compatibility and gauge residuals and the numerical
 multiplier. The scalar Field contains no multiplier entry. Python exposes these
-as `scalar_original_residual_norm`, `scalar_compatibility_residual`,
-`scalar_gauge_residual` and `scalar_gauge_multiplier`; the solve report describes
+as `original_residual_norm`, `compatibility_residual`,
+`gauge_residual` and `gauge_multiplier`; the solve report describes
 the bordered system. Constrained differentiation is not admitted.
 
 The native P1 and TPFA paths also support an explicit spatial mean. General
@@ -112,3 +112,40 @@ from vector `dot`. Compilation through the public Model API checks every produce
 term against the live Stokes certificate before exposing Python inspection or
 rendering. This profile supports inspection only; authored mixed numerical
 execution and stability claims remain unavailable.
+
+
+A finite global scalar system can retain an explicit constant-shift reference without
+Geometry or a Mesh. Each equation corresponds to the Field in the same position
+of the finite binder:
+
+```eqi
+form floating for first, second {
+  finite voltage(v1, v2);
+  gauge voltage {
+    reference v1 = offset;
+    compatibility i1 + i2 = 0;
+  }
+  g * (v1 - v2) = i1;
+  g * (v2 - v1) = i2;
+}
+```
+
+Here the original global Relations `first` and `second` contain these same
+operand pairs; `g`, `i1`, `i2` and `offset` are explicit Component parameter
+bindings. Trial Fields must be invariant real scalars with one physical dimension.
+The first finite execution profile requires homogeneous affine left operands,
+Field-independent right operands and an actual symmetric matrix with the declared
+uniform shift mode. Compatibility must state the sum of original loads equals
+zero; execution also checks their numerical balance independently of solver tolerance.
+The reference fixes one listed Field to a literal or exact scalar Parameter with
+its dimension. SparseLU with Identity/Fast controls solves the bordered system.
+No original equation is removed, pinned or shifted.
+
+The authored-form v6 projection retains the ordered finite coordinates and the two
+conditions separately from Model identity. Plan replay checks these operands and
+identities against the live Model. Result v9 rechecks the original equations,
+reference and multiplier. Its `original_residual_norm`, `compatibility_residual`,
+`gauge_residual` and `gauge_multiplier` properties apply to both finite and spatial
+gauges; displaced scalar-prefixed properties are removed. General left/right
+nullspaces, multiple independent modes, non-affine gauges, complex coordinates,
+constrained differentiation and distributed/device execution remain outside this profile.

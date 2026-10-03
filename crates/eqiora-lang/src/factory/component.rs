@@ -119,6 +119,20 @@ impl SourceAstFactory {
             checked_identifier(relation.clone(), "Formulation Relation")?;
         }
         match &binding {
+            crate::FormulationBinding::Finite { name, trials } => {
+                checked_identifier(name.clone(), "finite coordinate space")?;
+                if trials.is_empty() {
+                    return Err(AstConstructionError::new(
+                        "finite Formulation requires a trial Field",
+                    ));
+                }
+                for (index, trial) in trials.iter().enumerate() {
+                    checked_identifier(trial.clone(), "finite trial Field")?;
+                    if trial == name || trials[..index].contains(trial) {
+                        return Err(AstConstructionError::new("finite binders must be distinct"));
+                    }
+                }
+            }
             crate::FormulationBinding::WeakTests { tests } => {
                 if tests.is_empty() {
                     return Err(AstConstructionError::new(

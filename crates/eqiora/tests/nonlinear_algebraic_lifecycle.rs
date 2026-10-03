@@ -47,7 +47,8 @@ fn fixture(p: f64, margin: f64, equality: &str) -> (ModelDocument, CommonAlgebra
         linear: CommonLinearRequest::exact(linear, FaerLinearSolver.provider()).unwrap(),
     };
     let plan =
-        CommonAlgebraicPlan::resolve(&model, solve, Some(enforcement), &FaerLinearSolver).unwrap();
+        CommonAlgebraicPlan::resolve(&model, solve, Some(enforcement), None, &FaerLinearSolver)
+            .unwrap();
     (document, plan)
 }
 fn seed(document: &ModelDocument, plan: &CommonAlgebraicPlan, value: f64) -> CommonInitialField {

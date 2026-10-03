@@ -38,14 +38,17 @@ impl ModelDocument {
                     Math::Function("system".into(), equations)
                 };
                 if let Some((interval, lower, upper)) = form.interval() {
-                    let parent = context.exact(form.domain_ulid(), EntityKind::Domain)?;
+                    let domain = form
+                        .domain_ulid()
+                        .ok_or_else(|| failure("interval Domain is missing"))?;
+                    let parent = context.exact(domain, EntityKind::Domain)?;
                     context.reference(MathReference {
                         graph_id: Some(parent),
                         role: None,
                         declarations: vec![],
                         operator: None,
                     });
-                    let mut arguments = [interval, lower, upper, form.domain_ulid()]
+                    let mut arguments = [interval, lower, upper, domain]
                         .into_iter()
                         .map(|name| {
                             NotationLabel::identifier(name)
@@ -56,11 +59,21 @@ impl ModelDocument {
                     arguments.push(equation);
                     equation = Math::Function("for_all_ordered_intervals".into(), arguments);
                 }
-                if let Some(field) = form.gauge_field_ulid() {
-                    let field = context.quantity(
-                        context.exact(field, EntityKind::Field)?,
-                        QuantityRole::Value,
-                    )?;
+                if let Some(fields) = form.gauge_field_ulids() {
+                    let mut fields = fields
+                        .iter()
+                        .map(|field| {
+                            context.quantity(
+                                context.exact(field, EntityKind::Field)?,
+                                QuantityRole::Value,
+                            )
+                        })
+                        .collect::<Result<Vec<_>, Diagnostic>>()?;
+                    let field = if fields.len() == 1 {
+                        fields.remove(0)
+                    } else {
+                        Math::Function("coordinates".into(), fields)
+                    };
                     let conditions = [
                         ("reference", form.gauge_reference()),
                         ("compatibility", form.gauge_compatibility()),

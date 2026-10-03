@@ -27,7 +27,7 @@ impl PrimalGalerkinCorrespondence {
         {
             return Err("Relation differs from the admitted strong Law");
         }
-        if self.law.domain.ulid().to_string() != authored.domain_ulid() {
+        if Some(self.law.domain.ulid().to_string().as_str()) != authored.domain_ulid() {
             return Err("integration support differs from the admitted Domain");
         }
         if self.formulation.trial.ulid().to_string() != authored.trial_ulids()[0].as_str() {

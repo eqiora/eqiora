@@ -19,6 +19,28 @@ pub(super) struct AlgebraicSolution {
 }
 
 impl AlgebraicProblem {
+    pub(super) fn gauge(
+        &self,
+        form: &eqiora_compiler::AuthoredFormulationProjection,
+    ) -> Result<crate::finite_constraints::FiniteGauge, Diagnostic> {
+        match self {
+            Self::Constrained(problem) => problem.gauge(form),
+            _ => Err(invalid(
+                "authored finite gauges currently require global scalar Fields",
+            )),
+        }
+    }
+    pub(super) fn gauge_assessment(
+        &self,
+        values: &[f64],
+        plan: SolverPlan,
+    ) -> Result<ConstraintAssessment, Diagnostic> {
+        match self {
+            Self::Constrained(problem) => problem.validate_values(values, plan, 0),
+            _ => Err(invalid("finite gauge lost its scalar Field problem")),
+        }
+    }
+
     pub(super) fn admit(
         kernel: &KernelProgram,
         enforcement: Option<FiniteConstraintEnforcement>,

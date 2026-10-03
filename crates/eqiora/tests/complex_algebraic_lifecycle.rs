@@ -41,7 +41,7 @@ fn solve_with(source: &str, complex: bool) -> (ModelDocument, CommonAlgebraicPla
     });
     let request =
         CommonSolvePolicy::Linear(CommonLinearRequest::exact(solver, backend.provider()).unwrap());
-    let plan = CommonAlgebraicPlan::resolve(&model, request, None, backend).unwrap();
+    let plan = CommonAlgebraicPlan::resolve(&model, request, None, None, backend).unwrap();
     let initial = plan.initial_state(&[]).unwrap();
     assert_eq!(
         CommonAlgebraicState::from_bytes(&initial.to_bytes().unwrap(), &plan).unwrap(),
@@ -164,7 +164,8 @@ fn finite_admission_counts_both_parts_before_expanding_large_fields() {
     let request = CommonSolvePolicy::Linear(
         CommonLinearRequest::exact(solver, FaerLinearSolver.provider()).unwrap(),
     );
-    let error = CommonAlgebraicPlan::resolve(&model, request, None, &FaerLinearSolver).unwrap_err();
+    let error =
+        CommonAlgebraicPlan::resolve(&model, request, None, None, &FaerLinearSolver).unwrap_err();
     assert!(
         error.message().contains("256 real coordinates"),
         "{error:?}"

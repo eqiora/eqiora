@@ -78,7 +78,29 @@ impl Parser<'_> {
             self.bump();
         }
         self.expect(TokenKind::LeftBrace, "`{` before authored Formulation")?;
-        let binding = if self.at_keyword("interval") {
+        let binding = if self.at_keyword("finite") {
+            self.bump();
+            let name = self
+                .expect_identifier("finite coordinate space")?
+                .text()
+                .to_owned();
+            self.expect(TokenKind::LeftParen, "`(` before finite Fields")?;
+            let mut trials = Vec::new();
+            loop {
+                trials.push(
+                    self.expect_identifier("finite trial Field")?
+                        .text()
+                        .to_owned(),
+                );
+                if !self.at(TokenKind::Comma) {
+                    break;
+                }
+                self.bump();
+            }
+            self.expect(TokenKind::RightParen, "`)` after finite Fields")?;
+            self.expect(TokenKind::Semicolon, "`;` after finite binder")?;
+            FormulationBinding::Finite { name, trials }
+        } else if self.at_keyword("interval") {
             self.bump();
             let name = self
                 .expect_identifier("mathematical interval name")?

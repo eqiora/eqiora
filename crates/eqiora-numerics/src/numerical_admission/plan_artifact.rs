@@ -356,6 +356,9 @@ impl WireResolvedCommonPlanV6 {
             effective_formulation: description.map(|description| description.effective().into()),
             authored_formulation_base64: match plan {
                 ResolvedCommonPlan::Scalar(plan) => plan.authored_formulation_bytes().map(encode),
+                ResolvedCommonPlan::Algebraic(plan) => {
+                    plan.authored_formulation_bytes().map(encode)
+                }
                 _ => None,
             },
             scaling: scaling_request(plan),
@@ -391,7 +394,6 @@ impl WireResolvedCommonPlanV6 {
                 || self.scaling.is_some()
                 || self.requested_formulation.is_some()
                 || self.effective_formulation.is_some()
-                || self.authored_formulation_base64.is_some()
                 || self.solve.is_none()
             {
                 return Err(invalid(
@@ -458,6 +460,16 @@ impl WireResolvedCommonPlanV6 {
                     .as_ref()
                     .map(WireEnforcement::to_native)
                     .transpose()?,
+                self.authored_formulation_base64
+                    .as_ref()
+                    .map(|encoded| {
+                        eqiora_compiler::AuthoredFormulationProjection::decode(&decode(
+                            encoded,
+                            "finite authored Formulation",
+                        )?)
+                    })
+                    .transpose()?
+                    .as_ref(),
                 linear_backend,
             )
             .map(|plan| ResolvedCommonPlan::Algebraic(Box::new(plan)));

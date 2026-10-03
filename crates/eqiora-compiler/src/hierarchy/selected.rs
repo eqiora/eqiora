@@ -451,17 +451,10 @@ fn compile(
         limits,
     )?;
     if component.formulations().len() != 0 {
-        let geometry = bindings
-            .iter()
-            .find_map(|(_, value)| match value {
-                StaticBindingValue::GeometrySupport { geometry, .. } => Some(*geometry),
-                _ => None,
-            })
-            .ok_or_else(|| {
-                vec![hierarchy_error(
-                    "authored formulations require exact Geometry support bindings",
-                )]
-            })?;
+        let geometry = bindings.iter().find_map(|(_, value)| match value {
+            StaticBindingValue::GeometrySupport { geometry, .. } => Some(*geometry),
+            _ => None,
+        });
         let formulations = crate::formulation::compile_component_formulations(
             component.file,
             component.declaration,

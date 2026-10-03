@@ -52,7 +52,7 @@ pub(super) fn compile(
         Ok((wire::expression(&left), wire::expression(&right)))
     };
     Ok(wire::WireGauge {
-        field_ulid: field.ulid().to_string(),
+        field_ulids: vec![field.ulid().to_string()],
         reference: compile_equality(&conditions[0])?,
         compatibility: compile_equality(&conditions[1])?,
     })

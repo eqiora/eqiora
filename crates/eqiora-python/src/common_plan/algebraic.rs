@@ -61,6 +61,10 @@ pub(super) fn resolve(
         model.borrow(py).artifact(),
         request,
         enforcement.map(|(_, native)| native),
+        model
+            .borrow(py)
+            .authored_formulation_projection()
+            .map_err(|d| validation_error(py, &[d]))?,
         &FaerLinearSolver,
     )
     .map_err(|d| validation_error(py, &[d]))?;

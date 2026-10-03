@@ -5,14 +5,9 @@ impl WireStaticObservation {
     pub(super) fn from_observation(value: &StaticObservation) -> Result<Self, Diagnostic> {
         Ok(match value {
             StaticObservation::Scalar(evidence) => Self::Scalar {
-                nullspace: evidence.as_ref().map(|e| {
-                    [
-                        e.multiplier,
-                        e.compatibility_residual,
-                        e.original_residual_norm,
-                        e.gauge_residual,
-                    ]
-                }),
+                nullspace: evidence
+                    .as_ref()
+                    .map(crate::nullspace::NullspaceEvidence::to_array),
             },
             StaticObservation::Elasticity(value) => Self::Elasticity {
                 constrained_reaction: value.constrained_reaction,
@@ -30,14 +25,9 @@ impl WireStaticObservation {
 
     pub(super) fn replay(&self, family: WireResultFamily) -> Result<StaticObservation, Diagnostic> {
         let observation = match self {
-            Self::Scalar { nullspace } => StaticObservation::Scalar(nullspace.map(|values| {
-                crate::nullspace::NullspaceEvidence {
-                    multiplier: values[0],
-                    compatibility_residual: values[1],
-                    original_residual_norm: values[2],
-                    gauge_residual: values[3],
-                }
-            })),
+            Self::Scalar { nullspace } => StaticObservation::Scalar(
+                nullspace.map(crate::nullspace::NullspaceEvidence::from_array),
+            ),
             Self::Elasticity {
                 constrained_reaction,
                 integrated_body_force,

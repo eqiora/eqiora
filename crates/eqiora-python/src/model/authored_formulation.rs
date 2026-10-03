@@ -20,8 +20,8 @@ pub(super) struct PyAuthoredFormulation {
     implication: String,
     assumptions: Vec<String>,
     relation_ids: Vec<String>,
-    domain_id: String,
-    gauge_field_id: Option<String>,
+    domain_id: Option<String>,
+    gauge_field_ids: Option<Vec<String>>,
     trial_field_ids: Vec<String>,
     filename: String,
     range: (u32, u32),
@@ -51,7 +51,9 @@ impl PyAuthoredFormulation {
     }
     #[getter]
     fn kind(&self) -> &'static str {
-        if self.interval.is_some() {
+        if self.domain_id.is_none() {
+            "finite"
+        } else if self.interval.is_some() {
             "integral-conservative"
         } else if self.trial_field_ids.len() > 1 {
             "mixed-galerkin"
@@ -61,8 +63,8 @@ impl PyAuthoredFormulation {
     }
 
     #[getter]
-    fn gauge_field_id(&self) -> Option<&str> {
-        self.gauge_field_id.as_deref()
+    fn gauge_field_ids(&self) -> Option<Vec<String>> {
+        self.gauge_field_ids.clone()
     }
 
     #[getter]
@@ -76,8 +78,8 @@ impl PyAuthoredFormulation {
     }
 
     #[getter]
-    fn domain_id(&self) -> &str {
-        &self.domain_id
+    fn domain_id(&self) -> Option<&str> {
+        self.domain_id.as_deref()
     }
 
     #[getter]
@@ -128,8 +130,11 @@ pub(super) fn project(py: Python<'_>, document: Option<&ModelDocument>) -> PyRes
                 .iter()
                 .map(|id| id.ulid().to_string())
                 .collect(),
-            domain_id: form.domain().ulid().to_string(),
-            gauge_field_id: form.projection().gauge_field_ulid().map(str::to_owned),
+            domain_id: form.domain().map(|id| id.ulid().to_string()),
+            gauge_field_ids: form
+                .projection()
+                .gauge_field_ulids()
+                .map(<[String]>::to_vec),
             trial_field_ids: form
                 .trials()
                 .iter()

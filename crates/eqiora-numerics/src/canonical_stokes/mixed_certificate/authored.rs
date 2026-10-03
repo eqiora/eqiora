@@ -32,7 +32,7 @@ pub(super) fn check_terms(
             "authored mixed form has unmatched equation, term, test/trial, boundary, or assumption",
         )
     };
-    if form.domain_ulid() != source.domain.ulid().to_string()
+    if form.domain_ulid() != Some(source.domain.ulid().to_string().as_str())
         || form.interval().is_some()
         || form.equations().len() != 2
         || form.trial_ulids().len() != 2

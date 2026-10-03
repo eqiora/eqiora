@@ -457,7 +457,9 @@ fn interval_rendering_retains_gauge_reference_and_compatibility() {
         }
         assert!(rendered.references().iter().any(|reference| {
             reference.graph_id().is_some_and(|id| {
-                Some(id.ulid().to_string().as_str()) == projection.gauge_field_ulid()
+                projection
+                    .gauge_field_ulids()
+                    .is_some_and(|fields| fields.contains(&id.ulid().to_string()))
             })
         }));
     }

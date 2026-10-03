@@ -107,7 +107,7 @@ impl ExpressionContext<'_> {
                     AuthoredFormExpressionKind::Field(field.id()),
                     field.dimension(),
                     field.shape().clone(),
-                    Some(support),
+                    support,
                 ))
             }
             Some(KernelNode::Field(_)) => Err(error(
@@ -135,20 +135,17 @@ impl ExpressionContext<'_> {
         &self,
         expression: &Expr,
         field: RawId,
-    ) -> Result<Id<kinds::Domain>, Diagnostic> {
-        let support = self
-            .index
-            .defined_on
-            .get(&field)
-            .copied()
-            .and_then(RawId::downcast::<kinds::Domain>)
-            .ok_or_else(|| {
+    ) -> Result<Option<Id<kinds::Domain>>, Diagnostic> {
+        let support = match self.index.defined_on.get(&field).copied() {
+            Some(raw) => Some(raw.downcast::<kinds::Domain>().ok_or_else(|| {
                 error(
                     self.file,
                     expression.range(),
-                    "Formulation Field has no exact DefinedOn Domain",
+                    "Formulation Field support is not a Domain",
                 )
-            })?;
+            })?),
+            None => None,
+        };
         if support != self.relation_domain {
             return Err(error(
                 self.file,
@@ -470,7 +467,7 @@ impl ExpressionContext<'_> {
             AuthoredFormExpressionKind::Test(field.id()),
             DimExponents::DIMENSIONLESS,
             field.shape().clone(),
-            Some(support),
+            support,
         ))
     }
 
@@ -493,7 +490,7 @@ impl ExpressionContext<'_> {
             AuthoredFormExpressionKind::Coordinate(axis),
             length_dimension(),
             ValueShape::scalar(),
-            Some(self.relation_domain),
+            self.relation_domain,
         ))
     }
 
@@ -519,7 +516,7 @@ impl ExpressionContext<'_> {
             )
         })?;
         if !matches!(self.index.nodes.get(&raw), Some(KernelNode::Domain(_)))
-            || domain_id != self.relation_domain
+            || Some(domain_id) != self.relation_domain
         {
             return Err(error(
                 self.file,

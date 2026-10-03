@@ -262,6 +262,7 @@ enum CommonResultPayload {
         initial_state: crate::CommonAlgebraicState,
         reference_residual_norm: f64,
         assessment: Option<crate::finite_constraints::ConstraintAssessment>,
+        nullspace: Option<crate::nullspace::NullspaceEvidence>,
     },
     Static(Box<CommonStaticResultPayload>),
     Trajectory {
@@ -288,9 +289,14 @@ impl CommonResult {
         values: Vec<f64>,
         report: eqiora_solver::SolveReport,
         active_set_mask: Option<u32>,
+        nullspace: Option<crate::nullspace::NullspaceEvidence>,
     ) -> Result<Self, Diagnostic> {
-        let (reference_residual_norm, assessment) =
-            plan.validate_values(&values, report.residual_target(), active_set_mask)?;
+        let (reference_residual_norm, assessment) = plan.validate_values(
+            &values,
+            report.residual_target(),
+            active_set_mask,
+            nullspace.as_ref(),
+        )?;
         let resolved = ResolvedCommonPlan::Algebraic(Box::new(plan.clone()));
         let solve = CommonSolveEvidence::from_report(&report);
         artifact::require_plan_solver(&resolved, &solve)?;
@@ -305,6 +311,7 @@ impl CommonResult {
                 initial_state: state.clone(),
                 reference_residual_norm,
                 assessment,
+                nullspace,
             },
         }
         .refresh_identity()

@@ -242,8 +242,8 @@ fn authored_neumann_plan_binds_and_replays_zero_integral_tpfa_execution() {
     ));
     let output = scalar.run(&REFERENCE_LINEAR_SOLVER).unwrap();
     let result = scalar.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
-    assert!(result.scalar_original_residual_norm().unwrap() < 1e-10);
-    assert!(result.scalar_gauge_residual().unwrap().abs() < 1e-10);
+    assert!(result.original_residual_norm().unwrap() < 1e-10);
+    assert!(result.gauge_residual().unwrap().abs() < 1e-10);
     let bytes = result.to_bytes().unwrap();
     let restored = crate::CommonResult::from_bytes(&bytes, &replayed).unwrap();
     assert_eq!(restored.to_bytes().unwrap(), bytes);

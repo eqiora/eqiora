@@ -12,7 +12,7 @@ fn reject() -> Diagnostic {
 
 pub(super) struct Statement<'a> {
     pub relation: &'a str,
-    pub domain: &'a str,
+    pub domain: Option<&'a str>,
     pub trial: &'a str,
     pub binder: Option<(&'a str, &'a str, &'a str)>,
     pub implication: &'a str,
@@ -68,7 +68,7 @@ pub(super) fn check(
         return Err(reject());
     }
     let domain = index.applies_on.get(&relation.0).ok_or_else(reject)?;
-    if domain.ulid().to_string() != form.domain {
+    if Some(domain.ulid().to_string().as_str()) != form.domain {
         return Err(reject());
     }
     let Some(KernelNode::Domain(definition)) = index.nodes.get(domain).copied() else {

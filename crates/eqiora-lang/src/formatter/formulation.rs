@@ -44,6 +44,10 @@ pub(super) fn format_formulation(
     output.push_str(&declaration.name);
     writeln!(output, " for {} {{", declaration.relations.join(", ")).expect("String write");
     match &declaration.binding {
+        FormulationBinding::Finite { name, trials } => {
+            write_indent(output, indent + 2);
+            writeln!(output, "finite {name}({});", trials.join(", ")).expect("String write");
+        }
         FormulationBinding::WeakTests { tests } => {
             for (name, trial, zero_on) in tests {
                 write_indent(output, indent + 2);
@@ -94,6 +98,37 @@ pub(super) fn format_formulation(
 #[cfg(test)]
 mod tests {
     use crate::{format, parse};
+
+    #[test]
+    fn finite_gauge_retains_coordinate_order_and_both_conditions() {
+        let source = "component Network() { form floating for first, second { finite voltage(v1,v2); gauge voltage { reference v1=offset; compatibility i1+i2=0; } g*(v1-v2)=i1; g*(v2-v1)=i2; } }";
+        let first = parse("finite.eqi", source).into_document().unwrap();
+        let formatted = format(&first);
+        let second = parse("finite.eqi", &formatted).into_document().unwrap();
+        assert_eq!(format(&second), formatted);
+        let component = &second.components()[0];
+        assert_eq!(
+            component.formulation_binding("floating"),
+            Some(&crate::FormulationBinding::Finite {
+                name: "voltage".into(),
+                trials: vec!["v1".into(), "v2".into()]
+            })
+        );
+        assert_eq!(
+            component.formulation_gauge("floating").unwrap().0,
+            "voltage"
+        );
+        assert!(formatted.contains("reference v1 = offset;"));
+        assert!(formatted.contains("compatibility i1 + i2 = 0;"));
+        for binder in [
+            "finite voltage();",
+            "finite voltage(v1,);",
+            "finite voltage(v1,v2)",
+        ] {
+            let malformed = source.replace("finite voltage(v1,v2);", binder);
+            assert!(parse("finite.eqi", &malformed).into_document().is_err());
+        }
+    }
 
     #[test]
     fn primal_form_has_one_canonical_roundtrip() {
