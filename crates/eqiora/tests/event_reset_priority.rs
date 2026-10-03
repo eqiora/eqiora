@@ -240,7 +240,7 @@ fn suppressed_event_can_rearm_for_a_later_genuine_crossing() {
 fn canonical_execution_rejects_priority_on_a_grouped_peer() {
     use eqiora::artifact::{ModelEnvelope, RootRegistrationEnvelopeV1, TimeLoweringEnvelopeV1};
     use eqiora::runtime::{CanonicalEventProgram, CpuProgram, FirstOrderProgram};
-    let source = "model M(){state x:1;initial{x=0;}relation flow{derivative(x)=1[1/s];}event a=crossing(x-1,direction=rising);event b=crossing(x-1,direction=rising,priority=1);relation reset at b{next(x)=0;}}";
+    let source = "model M(){state x:1;state y:1;initial{x=0;y=0;}relation flow{derivative(x)=1[1/s];derivative(y)=0[1/s];}event a=crossing(x-1,direction=rising);event b=crossing(x-1,direction=rising,priority=1);relation first at a{next(x)=0;}relation second at b{next(y)=0;}}";
     for priority in [0, 1] {
         let document = ModelDocument::compile(
             "group.eqi",

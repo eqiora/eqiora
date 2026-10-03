@@ -32,13 +32,11 @@ pub(super) fn resolve(
     }
     // Event priority never resolves a triggered periodic/event conflict, even
     // if another event would later suppress the overlapping event owner.
-    let mut writers: BTreeMap<RawId, Vec<RawId>> = BTreeMap::new();
+    let mut writers = BTreeMap::new();
     for (&owner, fields) in &targets {
         for &field in fields {
-            let prior = writers.entry(field).or_default();
-            if let Some(&other) = prior
-                .iter()
-                .find(|&&other| priorities[&owner].is_none() || priorities[&other].is_none())
+            if let Some(other) = writers.insert(field, owner)
+                && (priorities[&owner].is_none() || priorities[&other].is_none())
             {
                 return Err(activation_error(
                     "conflicting activation ownership of next State",
@@ -46,7 +44,6 @@ pub(super) fn resolve(
                     [other, owner, field],
                 ));
             }
-            prior.push(owner);
         }
     }
     let mut groups: BTreeMap<i64, Vec<RawId>> = BTreeMap::new();
