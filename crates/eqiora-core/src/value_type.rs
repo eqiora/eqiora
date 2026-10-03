@@ -34,8 +34,8 @@ enum Meaning {
         definition: Id<kinds::Enum>,
         members: u32,
     },
-    Coordinates(FiniteBasis),
-    Counts(FiniteBasis),
+    Coordinates(Box<FiniteBasis>),
+    Counts(Box<FiniteBasis>),
     LinearMap(Box<(FiniteBasis, FiniteBasis)>),
     Index {
         set: Id<kinds::IndexSet>,

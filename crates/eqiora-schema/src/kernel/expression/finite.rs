@@ -8,6 +8,8 @@ pub enum FiniteUnaryOperation {
     Transpose,
     /// Conjugate transpose in the declared orthonormal component bases.
     Adjoint,
+    /// Explicit ordering of the two tensor factors, applied to both map endpoints.
+    PermuteFactors([u8; 2]),
 }
 
 /// Closed finite-basis binary algebra with exact nominal endpoint matching.
@@ -19,6 +21,8 @@ pub enum FiniteBinaryOperation {
     Compose,
     /// Bilinear evaluation of a dual coordinate and its exact primal coordinate.
     Pair,
+    /// Ordered two-factor tensor product, with the right factor varying fastest.
+    TensorProduct,
 }
 
 impl ExprDagBuilder {

@@ -8,6 +8,7 @@ pub struct FiniteBasis {
     space: Id<kinds::FiniteSpace>,
     extent: u32,
     dual: bool,
+    second: Option<(Id<kinds::FiniteSpace>, u32)>,
 }
 
 impl FiniteBasis {
@@ -20,15 +21,69 @@ impl FiniteBasis {
             space,
             extent,
             dual: false,
+            second: None,
         })
     }
-    /// Exact declaration identity, distinct from every equal-sized foreign space.
-    pub const fn space(self) -> Id<kinds::FiniteSpace> {
-        self.space
+    /// Exact atomic declaration identity; a product is defined by its ordered factors.
+    pub const fn space(self) -> Option<Id<kinds::FiniteSpace>> {
+        if self.second.is_none() {
+            Some(self.space)
+        } else {
+            None
+        }
+    }
+    /// Ordered tensor product of two atomic bases with the same dual role.
+    /// Nested products and mixed primal/dual factors are outside the bounded profile.
+    pub fn product(left: Self, right: Self) -> Result<Self, InvalidValueType> {
+        if left.second.is_some() || right.second.is_some() || left.dual != right.dual {
+            return Err(InvalidValueType::FiniteSpaceType);
+        }
+        left.extent
+            .checked_mul(right.extent)
+            .ok_or(InvalidValueType::ComponentCountOverflow)?;
+        Ok(Self {
+            second: Some((right.space, right.extent)),
+            ..left
+        })
+    }
+    /// The ordered atomic factors of a two-factor product, excluding aliases.
+    pub const fn factors(self) -> Option<[Self; 2]> {
+        match self.second {
+            Some((space, extent)) => Some([
+                Self {
+                    second: None,
+                    ..self
+                },
+                Self {
+                    space,
+                    extent,
+                    dual: self.dual,
+                    second: None,
+                },
+            ]),
+            None => None,
+        }
+    }
+    /// Atomic declarations in semantic factor order, including their dual roles.
+    pub fn atoms(self) -> impl Iterator<Item = Self> {
+        match self.factors() {
+            Some([left, right]) => [Some(left), Some(right)],
+            None => [Some(self), None],
+        }
+        .into_iter()
+        .flatten()
+    }
+    /// Reverse the two factors explicitly; an atomic basis has no factor permutation.
+    pub fn swapped(self) -> Result<Self, InvalidValueType> {
+        let [left, right] = self.factors().ok_or(InvalidValueType::FiniteSpaceType)?;
+        Self::product(right, left)
     }
     /// Declared number of basis elements.
     pub const fn extent(self) -> u32 {
-        self.extent
+        match self.second {
+            Some((_, extent)) => self.extent * extent,
+            None => self.extent,
+        }
     }
     /// Whether coordinates refer to the algebraic dual basis.
     pub const fn is_dual(self) -> bool {
@@ -55,7 +110,9 @@ impl ValueType {
             domain,
             ScalarDomain::Integer | ScalarDomain::Real | ScalarDomain::Complex
         ) || (domain == ScalarDomain::Integer
-            && (basis.is_dual() || dimension != DimExponents::DIMENSIONLESS))
+            && (basis.is_dual()
+                || basis.factors().is_some()
+                || dimension != DimExponents::DIMENSIONLESS))
         {
             return Err(InvalidValueType::FiniteSpaceType);
         }
@@ -65,7 +122,7 @@ impl ValueType {
             shape: ValueShape::new([basis.extent()]).map_err(|_| InvalidValueType::ArrayExtent)?,
             frame: ValueFrame::Invariant,
             array_rank: 0,
-            meaning: Meaning::Coordinates(basis),
+            meaning: Meaning::Coordinates(Box::new(basis)),
         })
     }
 
@@ -74,7 +131,7 @@ impl ValueType {
         let basis = FiniteBasis::new(space, extent)?;
         let mut value =
             Self::coordinates(basis, ScalarDomain::Integer, DimExponents::DIMENSIONLESS)?;
-        value.meaning = Meaning::Counts(basis);
+        value.meaning = Meaning::Counts(Box::new(basis));
         Ok(value)
     }
 
@@ -106,8 +163,8 @@ impl ValueType {
 
     /// Exact basis of coordinates, excluding counts and linear maps.
     pub const fn coordinate_basis(&self) -> Option<FiniteBasis> {
-        match self.meaning {
-            Meaning::Coordinates(basis) => Some(basis),
+        match &self.meaning {
+            Meaning::Coordinates(basis) => Some(**basis),
             _ => None,
         }
     }
@@ -121,7 +178,7 @@ impl ValueType {
     /// Every nominal finite basis referenced by this type, input before output for maps.
     pub fn finite_bases(&self) -> impl Iterator<Item = FiniteBasis> {
         match &self.meaning {
-            Meaning::Coordinates(basis) | Meaning::Counts(basis) => [Some(*basis), None],
+            Meaning::Coordinates(basis) | Meaning::Counts(basis) => [Some(**basis), None],
             Meaning::LinearMap(bases) => [Some(bases.0), Some(bases.1)],
             _ => [None, None],
         }
@@ -130,8 +187,8 @@ impl ValueType {
     }
     /// Single finite declaration of a coordinate or count; maps have two explicit bases.
     pub const fn finite_space(&self) -> Option<Id<kinds::FiniteSpace>> {
-        match self.meaning {
-            Meaning::Coordinates(basis) | Meaning::Counts(basis) => Some(basis.space()),
+        match &self.meaning {
+            Meaning::Coordinates(basis) | Meaning::Counts(basis) => basis.space(),
             _ => None,
         }
     }
@@ -145,6 +202,40 @@ impl ValueType {
 mod tests {
     use super::*;
     use crate::ValueLiteral;
+
+    #[test]
+    fn products_retain_factor_identity_order_and_duality_without_alias_identity() {
+        let left = FiniteBasis::new(Id::new(), 2).unwrap();
+        let right = FiniteBasis::new(Id::new(), 3).unwrap();
+        let product = FiniteBasis::product(left, right).unwrap();
+        assert_eq!(product.extent(), 6);
+        assert_eq!(product.space(), None);
+        assert_eq!(product.factors(), Some([left, right]));
+        assert_eq!(product.atoms().collect::<Vec<_>>(), [left, right]);
+        assert_eq!(product.dual().factors(), Some([left.dual(), right.dual()]));
+        assert_eq!(
+            FiniteBasis::product(left.dual(), right.dual()).unwrap(),
+            product.dual()
+        );
+        assert_eq!(product.swapped().unwrap().swapped().unwrap(), product);
+        assert_ne!(product, product.swapped().unwrap());
+        assert_ne!(product, FiniteBasis::new(Id::new(), 6).unwrap());
+        assert!(FiniteBasis::product(product, left).is_err());
+        assert!(FiniteBasis::product(left.dual(), right).is_err());
+        assert!(
+            FiniteBasis::product(FiniteBasis::new(Id::new(), u32::MAX).unwrap(), left).is_err()
+        );
+        assert!(
+            ValueType::coordinates(product, ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
+                .is_err()
+        );
+        let coordinate =
+            ValueType::coordinates(product, ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+                .unwrap();
+        assert_eq!(coordinate.coordinate_basis(), Some(product));
+        assert!(coordinate.finite_space().is_none());
+        assert!(coordinate.array(1).is_err());
+    }
 
     #[test]
     fn nominal_identity_variance_and_channel_axes_are_not_interchangeable() {

@@ -142,8 +142,13 @@ pub(super) fn encode_expression(
                 let tag = match operation {
                     FiniteUnaryOperation::Transpose => 36,
                     FiniteUnaryOperation::Adjoint => 37,
+                    FiniteUnaryOperation::PermuteFactors(_) => 42,
                 };
                 unary_expr(encoder, tag, *value, &canonical_index)?;
+                if let FiniteUnaryOperation::PermuteFactors(order) = operation {
+                    encoder.u8(order[0])?;
+                    encoder.u8(order[1])?;
+                }
             }
             ExprNode::FiniteBinary(operation, left, right) => {
                 use eqiora_schema::kernel::FiniteBinaryOperation;
@@ -151,6 +156,7 @@ pub(super) fn encode_expression(
                     FiniteBinaryOperation::Apply => 38,
                     FiniteBinaryOperation::Compose => 39,
                     FiniteBinaryOperation::Pair => 40,
+                    FiniteBinaryOperation::TensorProduct => 41,
                 };
                 binary_expr(encoder, tag, *left, *right, &canonical_index)?;
             }

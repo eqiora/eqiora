@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use crate::{ArtifactDigest, invalid_artifact};
 
 use super::relation::WireRelationMeaning;
-use super::value_type::WireValueType;
+use super::value_type::{WireFiniteFactor, WireValueType};
 use super::*;
 use super::{expression::*, primitive::*, vocabulary::*};
 
@@ -39,8 +39,16 @@ impl WireNode {
             KernelNode::Enum(value) => WireNodeDefinition::Enum {
                 members: value.members().to_vec(),
             },
-            KernelNode::FiniteSpace(value) => WireNodeDefinition::FiniteSpace {
-                labels: value.labels().to_vec(),
+            KernelNode::FiniteSpace(value) => match value.factors() {
+                Some(factors) => WireNodeDefinition::FiniteProduct {
+                    factors: factors.map(|basis| WireFiniteFactor {
+                        space: WireId::from_raw(basis.space().expect("atomic factor").erase()),
+                        extent: basis.extent(),
+                    }),
+                },
+                None => WireNodeDefinition::FiniteSpace {
+                    labels: value.labels().expect("atomic labels").to_vec(),
+                },
             },
             KernelNode::IndexSet(value) => WireNodeDefinition::IndexSet {
                 extent: value.extent(),
@@ -141,6 +149,23 @@ impl WireNode {
                     .map(Into::into)
                     .map_err(|error| invalid_artifact(error.to_string()))
             }
+            WireNodeDefinition::FiniteProduct {
+                factors: [left, right],
+            } => FiniteSpaceDef::product(
+                self.id.typed::<kinds::FiniteSpace>()?,
+                eqiora_core::FiniteBasis::new(
+                    left.space.typed::<kinds::FiniteSpace>()?,
+                    left.extent,
+                )
+                .map_err(|error| invalid_artifact(error.to_string()))?,
+                eqiora_core::FiniteBasis::new(
+                    right.space.typed::<kinds::FiniteSpace>()?,
+                    right.extent,
+                )
+                .map_err(|error| invalid_artifact(error.to_string()))?,
+            )
+            .map(Into::into)
+            .map_err(|error| invalid_artifact(error.to_string())),
             WireNodeDefinition::FiniteSpace { labels } => FiniteSpaceDef::new(
                 self.id.typed::<kinds::FiniteSpace>()?,
                 labels.iter().cloned(),
@@ -362,6 +387,9 @@ impl WireNode {
 
     pub(crate) fn semantic_references(&self) -> Vec<&WireId> {
         match &self.definition {
+            WireNodeDefinition::FiniteProduct { factors } => {
+                factors.iter().map(|factor| &factor.space).collect()
+            }
             WireNodeDefinition::Record { members } => members
                 .iter()
                 .flat_map(|(_, ty)| ty.nominal_references())
@@ -443,6 +471,9 @@ pub(crate) enum WireNodeDefinition {
     },
     Enum {
         members: Vec<String>,
+    },
+    FiniteProduct {
+        factors: [WireFiniteFactor; 2],
     },
     FiniteSpace {
         labels: Vec<String>,

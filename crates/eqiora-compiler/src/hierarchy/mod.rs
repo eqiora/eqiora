@@ -274,6 +274,7 @@ fn compile_external_component_from_definition<'a>(
                         })
                 },
                 |id| elaborator.enum_definition(id),
+                |_| None,
             )
             .map_err(|error| vec![hierarchy_error(error.message())])?,
             range,

@@ -10,6 +10,7 @@ use eqiora_core::{
 pub struct FiniteSpaceDef {
     id: Id<kinds::FiniteSpace>,
     labels: Vec<String>,
+    factors: Option<[FiniteBasis; 2]>,
 }
 
 impl FiniteSpaceDef {
@@ -31,7 +32,37 @@ impl FiniteSpaceDef {
                 "finite space requires a nonempty ordered basis with unique nonempty labels",
             ));
         }
-        Ok(Self { id, labels })
+        Ok(Self {
+            id,
+            labels,
+            factors: None,
+        })
+    }
+    /// Alias an ordered tensor product of two atomic primal orthonormal bases.
+    /// Alias identity is retained by the declaration; coordinate type equality uses factors.
+    pub fn product(
+        id: Id<kinds::FiniteSpace>,
+        left: FiniteBasis,
+        right: FiniteBasis,
+    ) -> Result<Self, Diagnostic> {
+        FiniteBasis::product(left, right).map_err(|error| {
+            Diagnostic::error(codes::INVALID_KERNEL_DEFINITION, error.to_string())
+        })?;
+        if left.is_dual() || right.is_dual() {
+            return Err(Diagnostic::error(
+                codes::INVALID_KERNEL_DEFINITION,
+                "product declarations require primal atomic factors",
+            ));
+        }
+        Ok(Self {
+            id,
+            labels: Vec::new(),
+            factors: Some([left, right]),
+        })
+    }
+    /// Ordered product factors; atomic label declarations have none.
+    pub const fn factors(&self) -> Option<[FiniteBasis; 2]> {
+        self.factors
     }
     /// Exact nominal identity, never derived from labels or cardinality.
     #[must_use]
@@ -40,13 +71,16 @@ impl FiniteSpaceDef {
     }
     /// Ordered basis labels.
     #[must_use]
-    pub fn labels(&self) -> &[String] {
-        &self.labels
+    pub fn labels(&self) -> Option<&[String]> {
+        self.factors.is_none().then_some(&self.labels)
     }
     /// Exact primal basis, preserving declaration identity and label order.
     #[must_use]
     pub fn basis(&self) -> FiniteBasis {
-        FiniteBasis::new(self.id, self.labels.len() as u32).expect("checked basis")
+        match self.factors {
+            Some([left, right]) => FiniteBasis::product(left, right).expect("checked product"),
+            None => FiniteBasis::new(self.id, self.labels.len() as u32).expect("checked basis"),
+        }
     }
     /// Numeric coordinates using this declaration's exact cardinality.
     pub fn coordinates(
@@ -57,9 +91,11 @@ impl FiniteSpaceDef {
         ValueType::coordinates(self.basis(), domain, dimension)
     }
     /// Nonnegative count type using this declaration's exact cardinality.
-    #[must_use]
-    pub fn counts(&self) -> ValueType {
-        ValueType::counts(self.id, self.labels.len() as u32).expect("checked basis")
+    pub fn counts(&self) -> Result<ValueType, InvalidValueType> {
+        if self.factors.is_some() {
+            return Err(InvalidValueType::FiniteSpaceType);
+        }
+        ValueType::counts(self.id, self.labels.len() as u32)
     }
 }
 
@@ -79,17 +115,17 @@ mod tests {
         let b = FiniteSpaceDef::new(Id::new(), ["A".into(), "B".into()]).unwrap();
         let reversed = FiniteSpaceDef::new(id, ["B".into(), "A".into()]).unwrap();
         assert_ne!(a, reversed);
-        assert_ne!(a.counts(), b.counts());
+        assert_ne!(a.counts().unwrap(), b.counts().unwrap());
         assert_ne!(
-            a.counts(),
+            a.counts().unwrap(),
             a.coordinates(
                 eqiora_core::ScalarDomain::Integer,
                 eqiora_core::DimExponents::DIMENSIONLESS
             )
             .expect("integer coordinates")
         );
-        assert_eq!(a.counts().shape().extents()[0].get(), 2);
-        assert_eq!(a.counts().array_rank(), 0);
+        assert_eq!(a.counts().unwrap().shape().extents()[0].get(), 2);
+        assert_eq!(a.counts().unwrap().array_rank(), 0);
         assert!(FiniteSpaceDef::new(id, []).is_err());
         assert!(FiniteSpaceDef::new(id, ["A".into(), "A".into()]).is_err());
         assert!(FiniteSpaceDef::new(id, [" ".into()]).is_err());

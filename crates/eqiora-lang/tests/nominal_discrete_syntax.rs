@@ -41,7 +41,7 @@ fn native_nominal_projection_requires_registered_exact_declaration_identity() {
         ["A".to_owned(), "B".to_owned()],
     )
     .unwrap();
-    let value = ValueLiteral::integer(definition.counts(), [2, 9007199254740993]).unwrap();
+    let value = ValueLiteral::integer(definition.counts().unwrap(), [2, 9007199254740993]).unwrap();
     let parameter = DraftParameter::new("population", value.clone());
     assert!(Module::new("M", [parameter.clone().into()]).is_err());
     let draft = Module::new(
@@ -130,15 +130,18 @@ fn nominal_resolution_metadata_preserves_authored_expression_and_rejects_foreign
             SourceAstFactory::bind_nominal_expression(
                 expression,
                 std::slice::from_ref(&name),
-                first.counts(),
+                first.counts().unwrap(),
             )
             .unwrap();
-            assert_eq!(expression.resolved_nominal(), Some(&first.counts()));
+            assert_eq!(
+                expression.resolved_nominal(),
+                Some(&first.counts().unwrap())
+            );
             assert!(
                 SourceAstFactory::bind_nominal_expression(
                     expression,
                     std::slice::from_ref(&name),
-                    foreign.counts()
+                    foreign.counts().unwrap()
                 )
                 .is_err()
             );

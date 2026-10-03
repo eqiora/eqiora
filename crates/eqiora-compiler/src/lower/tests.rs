@@ -186,9 +186,13 @@ fn component_parameters_preserve_complex_and_array_literals() {
             } => relation.expression().nodes().iter().any(|node| {
                 match node {
                     eqiora_schema::kernel::ExprNode::Constant(value) => {
-                        eqiora_lang::ValueTypeSyntax::from_checked(value.value_type(), |_| None)
-                            .unwrap()
-                            .to_source()
+                        eqiora_lang::ValueTypeSyntax::from_checked(
+                            value.value_type(),
+                            |_| None,
+                            |_| None,
+                        )
+                        .unwrap()
+                        .to_source()
                             == syntax
                     }
                     _ => false,
@@ -298,7 +302,8 @@ fn typed_lowering_keeps_parameter_domains_and_array_roles() {
     let scalar = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
         .expect("admitted numeric scalar type");
     for value_type in [scalar.clone(), scalar.array(3).unwrap()] {
-        let syntax = eqiora_lang::ValueTypeSyntax::from_checked(&value_type, |_| None).unwrap();
+        let syntax =
+            eqiora_lang::ValueTypeSyntax::from_checked(&value_type, |_| None, |_| None).unwrap();
         let source = format!(
             "model M() {{ parameter p: {} = 0; relation r {{ p - p = 0; }} }}",
             syntax.to_source(),
@@ -397,7 +402,8 @@ fn typed_cartesian_coordinates_require_real_scalar_lengths() {
             .array(1)
             .unwrap(),
     ] {
-        let syntax = eqiora_lang::ValueTypeSyntax::from_checked(&value_type, |_| None).unwrap();
+        let syntax =
+            eqiora_lang::ValueTypeSyntax::from_checked(&value_type, |_| None, |_| None).unwrap();
         let source = format!(
             "model M() {{ parameter extent: {} = 0; domain body = box(0, extent); relation r {{ extent - extent = 0; }} }}",
             syntax.to_source(),

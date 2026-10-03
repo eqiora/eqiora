@@ -55,7 +55,8 @@ fn shape(kind: &PyValueType) -> PyResult<(ValueShapeSyntax, FrameSyntax)> {
 fn dimension(kind: &PyValueType) -> PyResult<eqiora::language::Expr> {
     let scalar = eqiora::ValueType::scalar(eqiora::ScalarDomain::Real, kind.value.dimension())
         .map_err(syntax_error)?;
-    let syntax = ValueTypeSyntax::from_checked(&scalar, |_| None).map_err(syntax_error)?;
+    let syntax =
+        ValueTypeSyntax::from_checked(&scalar, |_| None, |_| None).map_err(syntax_error)?;
     if let ValueTypeSyntaxKind::Named(name) = syntax.kind() {
         let expression = if name.is_qualified() {
             ExprKind::Path(name.clone())

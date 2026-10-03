@@ -72,15 +72,26 @@ impl super::ModelDeclarations {
                     continue;
                 }
                 DraftDeclaration::FiniteSpace { name, definition } => {
-                    finite_spaces.push(
+                    let space = if let Some(labels) = definition.labels() {
                         crate::SourceAstFactory::finite_space(
                             VisibilitySyntax::Private,
                             name.clone(),
-                            definition.labels().to_vec(),
+                            labels.to_vec(),
                             range,
                         )
-                        .expect("checked finite space"),
-                    );
+                    } else {
+                        let factors = definition.factors().expect("product factors").map(|basis| {
+                            self.nominal_name(basis.space().expect("atomic factor").erase())
+                                .expect("validated factor scope")
+                        });
+                        crate::SourceAstFactory::finite_product(
+                            VisibilitySyntax::Private,
+                            name.clone(),
+                            factors,
+                            range,
+                        )
+                    };
+                    finite_spaces.push(space.expect("checked finite space"));
                     nominal_ids.insert(name.clone(), definition.id().erase());
                     continue;
                 }
@@ -117,6 +128,7 @@ impl super::ModelDeclarations {
                             &mut ranges,
                             &mut paths,
                             &mut |id| self.nominal_name(id),
+                            &mut |basis| self.product_name(basis),
                         ),
                         through_name: domain.through_name.clone(),
                         through_type: value_type::project(
@@ -125,6 +137,7 @@ impl super::ModelDeclarations {
                             &mut ranges,
                             &mut paths,
                             &mut |id| self.nominal_name(id),
+                            &mut |basis| self.product_name(basis),
                         ),
                     },
                     range,
@@ -145,6 +158,7 @@ impl super::ModelDeclarations {
                         &mut ranges,
                         &mut paths,
                         &mut |id| self.nominal_name(id),
+                        &mut |basis| self.product_name(basis),
                     ),
                     range,
                 }),
@@ -157,6 +171,7 @@ impl super::ModelDeclarations {
                         &mut ranges,
                         &mut paths,
                         &mut |id| self.nominal_name(id),
+                        &mut |basis| self.product_name(basis),
                     ),
                     value: crate::SourceAstFactory::value_literal(
                         parameter.value(),
@@ -164,6 +179,7 @@ impl super::ModelDeclarations {
                         range,
                         |id| self.nominal_name(id),
                         |id| self.enum_definition(id),
+                        |basis| self.product_name(basis),
                     )
                     .expect("validated native Parameter projection"),
                     range,
@@ -177,6 +193,7 @@ impl super::ModelDeclarations {
                             &mut ranges,
                             &mut paths,
                             &mut |id| self.nominal_name(id),
+                            &mut |basis| self.product_name(basis),
                         ),
                         value
                             .expression()

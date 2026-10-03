@@ -18,9 +18,47 @@ impl Operation {
             "adjoint" => Self::Unary(FiniteUnaryOperation::Adjoint),
             "apply" => Self::Binary(FiniteBinaryOperation::Apply),
             "compose" => Self::Binary(FiniteBinaryOperation::Compose),
+            "tensor_product" => Self::Binary(FiniteBinaryOperation::TensorProduct),
+            "permute_factors" => Self::Unary(FiniteUnaryOperation::PermuteFactors([0, 1])),
             "pair" => Self::Binary(FiniteBinaryOperation::Pair),
             _ => return None,
         })
+    }
+
+    pub(crate) fn source<'a>(
+        name: &str,
+        arguments: &'a [eqiora_lang::Expr],
+    ) -> Result<(Self, &'a [eqiora_lang::Expr]), &'static str> {
+        let operation = Self::named(name).ok_or("unknown finite operation")?;
+        if name != "permute_factors" {
+            return Ok((operation, arguments));
+        }
+        let [_, permutation] = arguments else {
+            return Err("permute_factors requires a value and a two-factor permutation");
+        };
+        let eqiora_lang::ExprKind::Array(entries) = permutation.kind() else {
+            return Err("factor permutation must be a literal array [0,1] or [1,0]");
+        };
+        let order = entries
+            .iter()
+            .map(|entry| match entry.kind() {
+                eqiora_lang::ExprKind::Number(value) => {
+                    value.to_i64().ok().and_then(|n| u8::try_from(n).ok())
+                }
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>()
+            .ok_or("factor indices must be exact nonnegative integers")?;
+        let order: [u8; 2] = order
+            .try_into()
+            .map_err(|_| "factor permutation requires two indices")?;
+        if !matches!(order, [0, 1] | [1, 0]) {
+            return Err("factor permutation must contain each factor exactly once");
+        }
+        Ok((
+            Self::Unary(FiniteUnaryOperation::PermuteFactors(order)),
+            &arguments[..1],
+        ))
     }
 
     pub(crate) fn arity(self) -> usize {

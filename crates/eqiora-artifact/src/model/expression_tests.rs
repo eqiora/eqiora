@@ -245,8 +245,14 @@ fn finite_operations_preserve_operand_roles_and_reject_forward_references() {
     let applied = builder.finite_binary(B::Apply, map, vector).unwrap();
     let composed = builder.finite_binary(B::Compose, map, map).unwrap();
     let paired = builder.finite_binary(B::Pair, adjoint, vector).unwrap();
+    let product = builder
+        .finite_binary(B::TensorProduct, vector, vector)
+        .unwrap();
+    let permutation = builder
+        .finite_unary(U::PermuteFactors([1, 0]), product)
+        .unwrap();
     let expression = builder
-        .finish([transpose, applied, composed, paired])
+        .finish([transpose, applied, composed, paired, permutation])
         .unwrap();
     let wire = WireExpression::encode(&expression).unwrap();
     let json = serde_json::to_value(&wire).unwrap();
@@ -270,6 +276,14 @@ fn finite_operations_preserve_operand_roles_and_reject_forward_references() {
         json["nodes"][6],
         serde_json::json!({"op":"finite-pair","left":3,"right":1})
     );
+    assert_eq!(
+        json["nodes"][7],
+        serde_json::json!({"op":"finite-tensor-product","left":1,"right":1})
+    );
+    assert_eq!(
+        json["nodes"][8],
+        serde_json::json!({"op":"finite-permutation","value":7,"order":[1,0]})
+    );
     let restored: WireExpression = serde_json::from_value(json).unwrap();
     assert_eq!(restored.decode().unwrap(), expression);
     for invalid in [
@@ -278,6 +292,11 @@ fn finite_operations_preserve_operand_roles_and_reject_forward_references() {
         WireExpressionNode::FiniteApply { left: 0, right: 2 },
         WireExpressionNode::FiniteCompose { left: 2, right: 0 },
         WireExpressionNode::FinitePair { left: 0, right: 2 },
+        WireExpressionNode::FiniteTensorProduct { left: 0, right: 2 },
+        WireExpressionNode::FinitePermutation {
+            value: 2,
+            order: [1, 0],
+        },
     ] {
         let mut invalid_wire = wire.clone();
         invalid_wire.nodes[2] = invalid;

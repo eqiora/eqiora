@@ -797,6 +797,7 @@ fn bind_model(
                         declaration.range(),
                         |id| record_nominal_path(syntax, id),
                         |id| elaborator.enum_definition(id),
+                        |basis| record_product_path(syntax, basis),
                     )
                     .map_err(|error| vec![hierarchy_error(error.message())])?;
                     arguments.push(
@@ -858,6 +859,7 @@ fn bind_model(
                         })
                 },
                 |id| elaborator.enum_definition(id),
+                |basis| record_product_path(declaration.value_type(), basis),
             )
             .map_err(|error| vec![hierarchy_error(error.message())])?;
             SourceAstFactory::component_parameter(
@@ -881,6 +883,32 @@ fn bind_model(
     .map_err(|error| vec![hierarchy_error(error.message())])
 }
 
+fn record_product_path(
+    syntax: &eqiora_lang::ValueTypeSyntax,
+    basis: eqiora_core::FiniteBasis,
+) -> Option<NamePath> {
+    use eqiora_lang::ValueTypeSyntaxKind;
+    let primal = |b: eqiora_core::FiniteBasis| if b.is_dual() { b.dual() } else { b };
+    match syntax.kind() {
+        ValueTypeSyntaxKind::Array { element, .. } => record_product_path(element, basis),
+        ValueTypeSyntaxKind::Coordinates { basis: name, .. } => {
+            (primal(syntax.resolved_nominal()?.coordinate_basis()?) == basis)
+                .then(|| name.name.clone())
+        }
+        ValueTypeSyntaxKind::LinearMap { source, target, .. } => {
+            let (s, t) = syntax.resolved_nominal()?.map_bases()?;
+            if primal(s) == basis {
+                Some(source.name.clone())
+            } else if primal(t) == basis {
+                Some(target.name.clone())
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
 fn record_nominal_path(
     syntax: &eqiora_lang::ValueTypeSyntax,
     id: eqiora_core::RawId,
@@ -898,9 +926,9 @@ fn record_nominal_path(
     }
     if let ValueTypeSyntaxKind::LinearMap { source, target, .. } = syntax.kind() {
         let (s, t) = syntax.resolved_nominal()?.map_bases()?;
-        return if s.space().erase() == id {
+        return if s.space().is_some_and(|space| space.erase() == id) {
             Some(source.name.clone())
-        } else if t.space().erase() == id {
+        } else if t.space().is_some_and(|space| space.erase() == id) {
             Some(target.name.clone())
         } else {
             None

@@ -18,7 +18,7 @@ pub(crate) struct WireValueType {
     shape: WireValueShape,
     frame: WireValueFrame,
     array_rank: u32,
-    basis: WireValueBasis,
+    basis: Box<WireValueBasis>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -46,22 +46,70 @@ enum WireValueBasis {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+enum WireFiniteBasis {
+    Atomic {
+        space: WireId,
+        dual: bool,
+    },
+    Product {
+        factors: [WireFiniteFactor; 2],
+        dual: bool,
+    },
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireFiniteBasis {
-    space: WireId,
-    dual: bool,
+pub(crate) struct WireFiniteFactor {
+    pub(super) space: WireId,
+    pub(super) extent: u32,
 }
 impl WireFiniteBasis {
     fn encode(basis: FiniteBasis) -> Self {
-        Self {
-            space: WireId::from_raw(basis.space().erase()),
-            dual: basis.is_dual(),
+        match basis.factors() {
+            Some(factors) => Self::Product {
+                factors: factors.map(|factor| WireFiniteFactor {
+                    space: WireId::from_raw(factor.space().expect("atomic factor").erase()),
+                    extent: factor.extent(),
+                }),
+                dual: basis.is_dual(),
+            },
+            None => Self::Atomic {
+                space: WireId::from_raw(basis.space().expect("atomic basis").erase()),
+                dual: basis.is_dual(),
+            },
+        }
+    }
+    fn references(&self) -> [Option<&WireId>; 2] {
+        match self {
+            Self::Atomic { space, .. } => [Some(space), None],
+            Self::Product { factors, .. } => [Some(&factors[0].space), Some(&factors[1].space)],
         }
     }
     fn decode(&self, extent: u32) -> Result<FiniteBasis, Diagnostic> {
-        let basis = FiniteBasis::new(self.space.typed::<kinds::FiniteSpace>()?, extent)
-            .map_err(|error| invalid_artifact(error.to_string()))?;
-        Ok(if self.dual { basis.dual() } else { basis })
+        let atomic = |space: &WireId, extent| {
+            FiniteBasis::new(space.typed::<kinds::FiniteSpace>()?, extent)
+                .map_err(|error| invalid_artifact(error.to_string()))
+        };
+        let (basis, dual) = match self {
+            Self::Atomic { space, dual } => (atomic(space, extent)?, *dual),
+            Self::Product {
+                factors: [left, right],
+                dual,
+            } => (
+                FiniteBasis::product(
+                    atomic(&left.space, left.extent)?,
+                    atomic(&right.space, right.extent)?,
+                )
+                .map_err(|error| invalid_artifact(error.to_string()))?,
+                *dual,
+            ),
+        };
+        if basis.extent() != extent {
+            return Err(invalid_artifact(
+                "finite product extent does not match its factor extents",
+            ));
+        }
+        Ok(if dual { basis.dual() } else { basis })
     }
 }
 
@@ -126,7 +174,7 @@ impl WireValueType {
             WireValueBasis::Ordinary
         };
         Ok(Self {
-            basis,
+            basis: Box::new(basis),
             domain: WireScalarDomain::encode(value.scalar_domain()),
             dimension: WireDimension::encode(value.dimension()),
             shape: WireValueShape::encode(value.shape()),
@@ -141,7 +189,7 @@ impl WireValueType {
         let rank = usize::try_from(self.array_rank)
             .map_err(|_| invalid_artifact("array rank exceeds usize"))?;
         if rank > shape.rank()
-            || (matches!(self.basis, WireValueBasis::Ordinary)
+            || (matches!(*self.basis, WireValueBasis::Ordinary)
                 && self.frame.decode() == ValueFrame::Invariant
                 && rank != shape.rank())
         {
@@ -149,7 +197,7 @@ impl WireValueType {
                 "mathematical type has inconsistent array and spatial axis roles",
             ));
         }
-        match &self.basis {
+        match self.basis.as_ref() {
             WireValueBasis::Ordinary => {
                 if self.domain == WireScalarDomain::Enum {
                     return Err(invalid_artifact(
@@ -248,15 +296,20 @@ impl WireValueType {
     }
 
     pub(super) fn nominal_references(&self) -> impl Iterator<Item = &WireId> {
-        match &self.basis {
-            WireValueBasis::Ordinary => [None, None],
-            WireValueBasis::Enum { definition, .. } => [Some(definition), None],
-            WireValueBasis::Coordinates { basis } => [Some(&basis.space), None],
-            WireValueBasis::LinearMap { source, target } => {
-                [Some(&source.space), Some(&target.space)]
+        match self.basis.as_ref() {
+            WireValueBasis::Ordinary => [None, None, None, None],
+            WireValueBasis::Enum { definition, .. } => [Some(definition), None, None, None],
+            WireValueBasis::Coordinates { basis } => {
+                let [a, b] = basis.references();
+                [a, b, None, None]
             }
-            WireValueBasis::Counts { space } => [Some(space), None],
-            WireValueBasis::Index { set, .. } => [Some(set), None],
+            WireValueBasis::LinearMap { source, target } => {
+                let [a, b] = source.references();
+                let [c, d] = target.references();
+                [a, b, c, d]
+            }
+            WireValueBasis::Counts { space } => [Some(space), None, None, None],
+            WireValueBasis::Index { set, .. } => [Some(set), None, None, None],
         }
         .into_iter()
         .flatten()
@@ -279,7 +332,16 @@ mod tests {
         let input = FiniteBasis::new(Id::new(), 2).unwrap();
         let output = FiniteBasis::new(Id::new(), 3).unwrap();
         let dimension = DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap();
+        let product = FiniteBasis::product(input, output).unwrap();
         let types = [
+            ValueType::coordinates(product, ScalarDomain::Complex, dimension).unwrap(),
+            ValueType::linear_map(
+                product,
+                product.swapped().unwrap().dual(),
+                ScalarDomain::Complex,
+                dimension,
+            )
+            .unwrap(),
             ValueType::coordinates(input, ScalarDomain::Real, dimension).unwrap(),
             ValueType::coordinates(input.dual(), ScalarDomain::Complex, dimension).unwrap(),
             ValueType::linear_map(input, output, ScalarDomain::Complex, dimension).unwrap(),
@@ -304,7 +366,8 @@ mod tests {
                 references,
                 value
                     .finite_bases()
-                    .map(|basis| basis.space())
+                    .flat_map(|basis| basis.atoms())
+                    .map(|basis| basis.space().unwrap())
                     .collect::<Vec<_>>()
             );
             let mut invalid = wire.clone();

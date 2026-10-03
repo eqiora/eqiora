@@ -79,7 +79,7 @@ fn bind(
     }
     let value_type = if callee.as_str() == "counts" {
         if bases[0].is_dual() { return Err(invalid("counts require a primal finite basis")); }
-        ValueType::counts(bases[0].space(),bases[0].extent())
+        ValueType::counts(bases[0].space().ok_or_else(|| invalid("counts require an atomic finite basis"))?,bases[0].extent())
     } else {
         let scalar = if let Some(expected) = expected {
             (expected.scalar_domain(),expected.dimension())

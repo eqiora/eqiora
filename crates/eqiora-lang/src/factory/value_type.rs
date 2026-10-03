@@ -168,7 +168,7 @@ mod tests {
         .unwrap()
         .array(3)
         .unwrap();
-        let value_type = ValueTypeSyntax::from_checked(&checked, |_| None).unwrap();
+        let value_type = ValueTypeSyntax::from_checked(&checked, |_| None, |_| None).unwrap();
         let declaration = SourceAstFactory::component_parameter(
             crate::VisibilitySyntax::Public,
             "channels",

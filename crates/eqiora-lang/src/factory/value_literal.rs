@@ -81,6 +81,7 @@ impl SourceAstFactory {
         range: TextRange,
         mut resolve: impl FnMut(eqiora_core::RawId) -> Option<NamePath>,
         mut resolve_enum: impl FnMut(eqiora_core::RawId) -> Option<&'a eqiora_schema::kernel::EnumDef>,
+        mut resolve_product: impl FnMut(eqiora_core::FiniteBasis) -> Option<NamePath>,
     ) -> Result<Expr, AstConstructionError> {
         checked_range(range)?;
         Self::value_literal_nodes(value, frame.is_some())?;
@@ -128,7 +129,11 @@ impl SourceAstFactory {
         if let Some(frame) = &frame {
             super::validate_name_path(frame)?;
         }
-        let syntax = crate::ValueTypeSyntax::from_checked(value.value_type(), &mut resolve)?;
+        let syntax = crate::ValueTypeSyntax::from_checked(
+            value.value_type(),
+            &mut resolve,
+            &mut resolve_product,
+        )?;
         if let Some(value) = value.as_bool() {
             return Self::expression(ExprKind::Boolean(value), range);
         }
@@ -438,6 +443,7 @@ mod tests {
             TextRange::new(0, 1),
             |_| None,
             |_| None,
+            |_| None,
         )
         .unwrap();
         let ExprKind::Array(elements) = expression.kind() else {
@@ -469,7 +475,7 @@ mod tests {
         .unwrap();
         let zero = ValueLiteral::from_real(vector.clone(), 0.0).unwrap();
         assert!(matches!(
-            SourceAstFactory::value_literal(&zero, None, TextRange::new(0, 1), |_| None, |_| None)
+            SourceAstFactory::value_literal(&zero, None, TextRange::new(0, 1), |_| None, |_| None, |_| None)
                 .unwrap()
                 .kind(),
             ExprKind::Number(number) if number.is_zero()
@@ -482,6 +488,7 @@ mod tests {
             range,
             |_| None,
             |_| None,
+            |_| None,
         )
         .unwrap();
         let ExprKind::Call { arguments, .. } = projected.kind() else {
@@ -491,10 +498,17 @@ mod tests {
             matches!(arguments.named().unwrap()[1].value().kind(), ExprKind::Array(values) if values.len() == 2)
         );
         assert!(
-            SourceAstFactory::value_literal(&value, None, TextRange::new(0, 1), |_| None, |_| None)
-                .unwrap_err()
-                .to_string()
-                .contains("frame-bearing")
+            SourceAstFactory::value_literal(
+                &value,
+                None,
+                TextRange::new(0, 1),
+                |_| None,
+                |_| None,
+                |_| None
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("frame-bearing")
         );
     }
     #[test]
@@ -526,6 +540,7 @@ mod tests {
             &literal,
             Some(frame.clone()),
             range,
+            |_| None,
             |_| None,
             |_| None,
         )
@@ -582,8 +597,15 @@ mod tests {
         )
         .unwrap();
         assert!(
-            SourceAstFactory::value_literal(&invariant, Some(frame), range, |_| None, |_| None)
-                .is_err()
+            SourceAstFactory::value_literal(
+                &invariant,
+                Some(frame),
+                range,
+                |_| None,
+                |_| None,
+                |_| None
+            )
+            .is_err()
         );
     }
     #[test]
@@ -601,10 +623,17 @@ mod tests {
         .unwrap();
         let zero = ValueLiteral::from_real(huge, 0.0).unwrap();
         assert!(
-            SourceAstFactory::value_literal(&zero, Some(frame.clone()), range, |_| None, |_| None)
-                .unwrap_err()
-                .message()
-                .contains("65536")
+            SourceAstFactory::value_literal(
+                &zero,
+                Some(frame.clone()),
+                range,
+                |_| None,
+                |_| None,
+                |_| None
+            )
+            .unwrap_err()
+            .message()
+            .contains("65536")
         );
         let mut components = SourceAstFactory::expression(
             ExprKind::Number(crate::DecimalLiteral::parse("1").unwrap()),

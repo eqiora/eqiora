@@ -5,6 +5,17 @@ use eqiora_core::{ScalarDomain, ValueFrame, ValueType};
 pub(super) fn validate(nodes: &BTreeMap<RawId, KernelNode>, diagnostics: &mut Vec<Diagnostic>) {
     for (&owner, node) in nodes {
         match node {
+            KernelNode::FiniteSpace(space) => {
+                if let Some(factors) = space.factors() {
+                    for factor in factors {
+                        if !matches!(nodes.get(&factor.space().expect("atomic factor").erase()), Some(KernelNode::FiniteSpace(definition)) if definition.basis() == factor)
+                        {
+                            diagnostics.push(kernel_error(owner, "finite product requires exact selected atomic factor declarations and cardinalities"));
+                        }
+                    }
+                }
+            }
+
             KernelNode::Field(field) => check(owner, field.value_type(), nodes, diagnostics),
             KernelNode::Parameter(parameter) => {
                 check_literal(owner, parameter.value(), nodes, diagnostics)
@@ -62,8 +73,8 @@ pub(super) fn check(
             "integer values require dimensionless invariant types",
         ));
     }
-    for basis in value.finite_bases() {
-        let matches = matches!(nodes.get(&basis.space().erase()), Some(KernelNode::FiniteSpace(definition)) if definition.basis().extent() == basis.extent());
+    for basis in value.finite_bases().flat_map(|basis| basis.atoms()) {
+        let matches = matches!(nodes.get(&basis.space().expect("atomic factor").erase()), Some(KernelNode::FiniteSpace(definition)) if definition.basis().space() == basis.space() && definition.basis().extent() == basis.extent());
         if !matches {
             diagnostics.push(kernel_error(owner,
                 "nominal value requires each exact selected FiniteSpace declaration and cardinality"));
@@ -229,7 +240,7 @@ mod tests {
             (index.id().erase(), index.clone().into()),
         ]);
         for (value, expected) in [
-            (space.counts(), true),
+            (space.counts().unwrap(), true),
             (ValueType::counts(space.id(), 3).unwrap(), false),
             (ValueType::counts(Id::new(), 2).unwrap(), false),
             (ValueType::index(index.id(), 3).unwrap(), true),
@@ -272,7 +283,7 @@ mod tests {
         for value in [
             ValueType::boolean(),
             ordinary,
-            space.counts(),
+            space.counts().unwrap(),
             space
                 .coordinates(
                     eqiora_core::ScalarDomain::Integer,

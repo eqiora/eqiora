@@ -484,7 +484,18 @@ impl ExpressionChecker<'_, '_, '_> {
                     )
                 });
         }
-        if let Some(operation) = crate::math::finite::Operation::named(callee_name) {
+        if crate::math::finite::Operation::named(callee_name).is_some() {
+            let (operation, arguments) =
+                crate::math::finite::Operation::source(callee_name, arguments).map_err(
+                    |message| {
+                        source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            self.scope.file,
+                            expression.range(),
+                            message,
+                        )
+                    },
+                )?;
             let operands = arguments
                 .iter()
                 .map(|value| self.check(value))

@@ -78,3 +78,48 @@ def test_python_quantum_map_authoring_and_plan_result_replay():
     foreign = eqiora.FiniteSpace("Spin", labels=("up", "down"))
     with pytest.raises(q.ModuleError):
         owner.linear_map(foreign, spin, ((1, 0), (0, 1)))
+
+
+def test_two_factor_state_uses_structural_aliases_and_explicit_permutations():
+    q = eqiora.lang
+    source = eqiora.Module("products")
+    a = source.space("A", labels=("up", "down"))
+    b = source.space("B", labels=("x", "y", "z"))
+    ab = source.space("AB", factors=(a, b))
+    alias = source.space("Alias", factors=(a, b))
+    ba = source.space("BA", factors=(b, a))
+    scalar = eqiora.ValueType.complex()
+    ab_type = eqiora.ValueType.coordinates(scalar, ab)
+    assert ab_type == eqiora.ValueType.coordinates(scalar, alias)
+    assert ab_type != eqiora.ValueType.coordinates(scalar, ba)
+    assert ab.labels is None and ab.factors == (a, b)
+    owner = source.model("M")
+    x = owner.parameter("x", value_type=eqiora.ValueType.coordinates(scalar, a))
+    y = owner.parameter("y", value_type=eqiora.ValueType.coordinates(scalar, b))
+    owner.set_default(x, owner.coordinates(a, (1+1j, 2)))
+    owner.set_default(y, owner.coordinates(b, (3, -1j, 4)))
+    state = owner.field("state", role=eqiora.FieldRole.Variable, value_type=ab_type)
+    owner.relation("r", q.equation(state, q.tensor_product(x, y)))
+    owner.observable("output", state, value_type=ab_type)
+    owner.observable("swapped", q.permute_factors(state, (1, 0)), value_type=eqiora.ValueType.coordinates(scalar, ba))
+    model = eqiora.compile(source=source, entry="M")
+    assert model.structural_fingerprint == eqiora.compile(source=source.to_eqi(), entry="M").structural_fingerprint
+    observed = {name: model.observable(name) for name in ("output", "swapped")}
+    model = eqiora.Model.from_bytes(model.to_bytes())
+    plan = eqiora.resolve(model, solve=eqiora.solve.Linear(
+        relative_tolerance=1e-13, absolute_tolerance=1e-15, maximum_iterations=8,
+        algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
+        preconditioner=eqiora.solve.Preconditioner.Identity,
+        reduction=eqiora.solve.Reduction.Reproducible,
+        provider=eqiora.solve.SolverProvider.reference()))
+    plan = eqiora.Plan.from_bytes(plan.to_bytes())
+    result = eqiora.run(plan, state=eqiora.State.initial(plan))
+    result = eqiora.Result.from_bytes(plan, result.to_bytes())
+    assert result.observe(observed["output"]).value == pytest.approx((3+3j, 1-1j, 4+4j, 6, -2j, 8), abs=1e-10)
+    assert result.observe(observed["swapped"]).value == pytest.approx((3+3j, 6, 1-1j, -2j, 4+4j, 8), abs=1e-10)
+    with pytest.raises(ValueError):
+        q.permute_factors(state, (0, 0))
+    with pytest.raises(ValueError):
+        eqiora.FiniteSpace.product("Nested", ab, b)
+    with pytest.raises(ValueError):
+        eqiora.ValueType.counts(ab)

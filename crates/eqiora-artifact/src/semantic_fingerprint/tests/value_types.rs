@@ -1173,3 +1173,41 @@ fn finite_operations_model_replay_and_fingerprint_keep_duality_and_operand_order
         );
     }
 }
+
+#[test]
+fn finite_product_fingerprints_bind_factor_order_duality_and_permutation() {
+    let source = "space A=orthonormal(a,b); space B=orthonormal(x,y); space AB=product(A,B); model M(){variable x:coordinates<complex<1>,AB>; relation r{x=x;} observable y:coordinates<complex<1>,AB>=permute_factors(x,[0,1]);}";
+    let original = program(source);
+    let encoded = ModelEnvelope::from_program(&original)
+        .unwrap()
+        .canonical_json()
+        .unwrap();
+    let replay = ModelEnvelope::from_json(&encoded, ModelDecoderLimits::default())
+        .unwrap()
+        .to_program()
+        .unwrap();
+    assert_eq!(original, replay);
+    let fingerprint = StructuralSemanticFingerprint::from_program(&original).unwrap();
+    assert_ne!(
+        fingerprint,
+        StructuralSemanticFingerprint::from_program(&program(
+            &source.replace("product(A,B)", "product(B,A)")
+        ))
+        .unwrap()
+    );
+    assert_ne!(
+        fingerprint,
+        StructuralSemanticFingerprint::from_program(&program(
+            &source.replace("complex<1>,AB", "complex<1>,dual<AB>")
+        ))
+        .unwrap()
+    );
+    // Repeated factor identities have the same type after swapping, but the
+    // permutation is still an observable component operation and must be bound.
+    let repeated = source.replace("product(A,B)", "product(A,A)");
+    assert_ne!(
+        StructuralSemanticFingerprint::from_program(&program(&repeated)).unwrap(),
+        StructuralSemanticFingerprint::from_program(&program(&repeated.replace("[0,1]", "[1,0]")))
+            .unwrap()
+    );
+}

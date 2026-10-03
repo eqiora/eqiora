@@ -72,7 +72,7 @@ impl PyValueType {
 impl PyValueType {
     /// Emit the bounded canonical language type using the native formatter.
     fn to_eqi(&self) -> PyResult<String> {
-        eqiora::language::ValueTypeSyntax::from_checked(&self.value, |_| None)
+        eqiora::language::ValueTypeSyntax::from_checked(&self.value, |_| None, |_| None)
             .map(|syntax| syntax.to_source())
             .map_err(|error| PyValueError::new_err(error.to_string()))
     }
@@ -156,10 +156,13 @@ impl PyValueType {
     }
 
     #[staticmethod]
-    fn counts(space: &super::nominal::PyFiniteSpace) -> Self {
-        Self {
-            value: space.value.counts(),
-        }
+    fn counts(space: &super::nominal::PyFiniteSpace) -> PyResult<Self> {
+        Ok(Self {
+            value: space
+                .value
+                .counts()
+                .map_err(|error| PyValueError::new_err(error.to_string()))?,
+        })
     }
 
     #[staticmethod]

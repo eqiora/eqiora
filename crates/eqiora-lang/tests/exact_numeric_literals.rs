@@ -49,9 +49,15 @@ fn integer_type_and_native_component_data_share_the_source_boundary() {
     )
     .unwrap();
     let literal = eqiora_core::ValueLiteral::from_integer(ty, 9007199254740993).unwrap();
-    let expression =
-        SourceAstFactory::value_literal(&literal, None, TextRange::new(0, 0), |_| None, |_| None)
-            .unwrap();
+    let expression = SourceAstFactory::value_literal(
+        &literal,
+        None,
+        TextRange::new(0, 0),
+        |_| None,
+        |_| None,
+        |_| None,
+    )
+    .unwrap();
     assert!(
         matches!(expression.kind(), ExprKind::Number(value) if value.to_i64().ok() == Some(9007199254740993))
     );

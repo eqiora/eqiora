@@ -27,4 +27,24 @@ impl DraftExpression {
     pub fn pair(self, right: Self) -> Self {
         Self::call("pair", vec![self, right])
     }
+    /// Ordered tensor product; the right factor varies fastest.
+    #[must_use]
+    pub fn tensor_product(self, right: Self) -> Self {
+        Self::call("tensor_product", vec![self, right])
+    }
+    /// Explicitly reorder the two factors of coordinates or both map endpoints.
+    #[must_use]
+    pub fn permute_factors(self, order: [u8; 2]) -> Self {
+        Self::call(
+            "permute_factors",
+            vec![
+                self,
+                Self::array(order.map(|index| {
+                    Self::constant(
+                        crate::DecimalLiteral::parse(&index.to_string()).expect("factor index"),
+                    )
+                })),
+            ],
+        )
+    }
 }

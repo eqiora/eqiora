@@ -413,6 +413,17 @@ def pair(left: object, right: object) -> Expression:
     return _binary_function("pair", left, right)
 
 
+def tensor_product(left: object, right: object) -> Expression:
+    """Ordered product of two atomic coordinate values or maps."""
+    return _binary_function("tensor_product", left, right)
+
+def permute_factors(value: object, permutation: Sequence[int]) -> Expression:
+    """Explicitly reorder both factors; map permutations act on both endpoints."""
+    if not isinstance(permutation, Sequence) or any(type(i) is not int for i in permutation) or tuple(permutation) not in ((0, 1), (1, 0)):
+        raise ValueError("factor permutation must be [0,1] or [1,0]")
+    return _binary_function("permute_factors", value, array(permutation))
+
+
 class _Math:
     __slots__ = ()
     pi: Final = Expression(_CREATE, _Ast.name("math.pi"), None)
@@ -2208,16 +2219,34 @@ class Module:
         self._enums.append((result, documentation))
         return result
 
-    def space(self, name: str, *, labels: Sequence[str], doc: str | None = None) -> FiniteSpace:
+    def space(self, name: str, *, labels: Sequence[str] | None = None, factors: Sequence[FiniteSpace] | None = None, doc: str | None = None) -> FiniteSpace:
         """Declare one exact ordered finite basis shared by this Module's components."""
         self._ensure_open()
         doc_lines = _doc(doc)
-        if isinstance(labels, str) or not isinstance(labels, Sequence):
-            raise TypeError("space labels must be an ordered sequence")
-        value = FiniteSpace(_name(name), labels=labels)
+        if (labels is None) == (factors is None):
+            raise TypeError("space requires exactly one of labels or factors")
+        if factors is not None:
+            if not isinstance(factors, Sequence) or len(factors) != 2 or any(not isinstance(f, FiniteSpace) for f in factors):
+                raise TypeError("product space requires two atomic FiniteSpace factors")
+            for factor in factors:
+                self._space_name(factor)
+            value = FiniteSpace.product(_name(name), *factors)
+        else:
+            if isinstance(labels, str) or not isinstance(labels, Sequence):
+                raise TypeError("space labels must be an ordered sequence")
+            value = FiniteSpace(_name(name), labels=labels)
         self._add_top_name(name)
         self._spaces.append((value, doc_lines))
         return value
+
+    def _space_name(self, space: FiniteSpace) -> str:
+        for value, _ in self._spaces:
+            if value == space:
+                return value.name
+        for value, syntax in self._imported_spaces:
+            if value == space:
+                return syntax
+        raise ModuleError("product factor is absent from this Module's exact declaration scope")
 
     def _ensure_open(self) -> None:
         if self._operator_building:
@@ -2513,8 +2542,11 @@ class Module:
             graph = graph.with_enum(enumeration.name, enumeration.members,
                                     allocate(doc, self._notations.get(enumeration.name)))
         for space, doc in self._spaces:
-            graph = graph.with_space(space.name, space.labels,
-                                     allocate(doc, self._notations.get(space.name)))
+            ordinal = allocate(doc, self._notations.get(space.name))
+            if space.factors is None:
+                graph = graph.with_space(space.name, space.labels, ordinal)
+            else:
+                graph = graph.with_product_space(space.name, [self._space_name(f) for f in space.factors], ordinal)
         for release in self._releases:
             if release._table is not None:
                 from ._property_tables import emit
@@ -2596,7 +2628,7 @@ from ._constraints import Inequality, Complementarity, inequality, complementari
 
 
 __all__ = [
-    "transpose", "adjoint", "apply", "compose", "pair",
+    "transpose", "adjoint", "apply", "compose", "pair", "tensor_product", "permute_factors",
     "BoundarySet",
     "BoundaryMember",
     "BoundarySelectionSet",

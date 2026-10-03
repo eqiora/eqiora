@@ -424,6 +424,14 @@ pub(crate) enum WireExpressionNode {
         function: WireUnaryMath,
         value: u32,
     },
+    FinitePermutation {
+        value: u32,
+        order: [u8; 2],
+    },
+    FiniteTensorProduct {
+        left: u32,
+        right: u32,
+    },
     FiniteTranspose {
         value: u32,
     },
@@ -568,6 +576,10 @@ impl WireExpressionNode {
                 value: value.index(),
             },
             ExprNode::FiniteUnary(operation, value) => match operation {
+                FiniteUnaryOperation::PermuteFactors(order) => Self::FinitePermutation {
+                    value: value.index(),
+                    order: *order,
+                },
                 FiniteUnaryOperation::Transpose => Self::FiniteTranspose {
                     value: value.index(),
                 },
@@ -576,6 +588,10 @@ impl WireExpressionNode {
                 },
             },
             ExprNode::FiniteBinary(operation, left, right) => match operation {
+                FiniteBinaryOperation::TensorProduct => Self::FiniteTensorProduct {
+                    left: left.index(),
+                    right: right.index(),
+                },
                 FiniteBinaryOperation::Apply => Self::FiniteApply {
                     left: left.index(),
                     right: right.index(),
@@ -689,6 +705,15 @@ impl WireExpressionNode {
             Self::UnaryMath { function, value } => {
                 builder.unary_math(function.decode(), operand(ids, *value)?)
             }
+            Self::FinitePermutation { value, order } => builder.finite_unary(
+                FiniteUnaryOperation::PermuteFactors(*order),
+                operand(ids, *value)?,
+            ),
+            Self::FiniteTensorProduct { left, right } => builder.finite_binary(
+                FiniteBinaryOperation::TensorProduct,
+                operand(ids, *left)?,
+                operand(ids, *right)?,
+            ),
             Self::FiniteTranspose { value } => {
                 builder.finite_unary(FiniteUnaryOperation::Transpose, operand(ids, *value)?)
             }

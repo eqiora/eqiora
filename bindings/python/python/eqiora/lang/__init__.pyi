@@ -588,7 +588,7 @@ class Module:
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Module.enum``.
         """
         ...
-    def space(self, name: str, *, labels: Sequence[str], doc: str | None = None) -> FiniteSpace:
+    def space(self, name: str, *, labels: Sequence[str] | None = None, factors: Sequence[FiniteSpace] | None = None, doc: str | None = None) -> FiniteSpace:
         """Declare an exact ordered basis registered in this Module.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Module.space``.
@@ -1153,5 +1153,18 @@ def tensor_value(*, frame: Support, components: Sequence[object] | Expression) -
     Channel axes remain explicit array constructions.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::tensor_value``.
+    """
+    ...
+
+def tensor_product(left: object, right: object) -> Expression:
+    """Ordered product of two atomic coordinate values or maps.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::tensor_product``.
+    """
+    ...
+def permute_factors(value: object, permutation: Sequence[int]) -> Expression:
+    """Explicitly reorder both factors; map permutations act on both endpoints.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::permute_factors``.
     """
     ...

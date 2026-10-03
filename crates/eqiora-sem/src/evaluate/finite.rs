@@ -31,7 +31,22 @@ pub(super) fn unary(
     ValueLiteral::new(
         output,
         (0..count).map(|index| {
-            let source = if let (Some(input), Some(output)) = (input_columns, output_columns) {
+            let source = if let FiniteUnaryOperation::PermuteFactors(order) = operation {
+                if let Some((input, target)) = value.value_type().map_bases() {
+                    let columns = input.extent() as usize;
+                    permuted_component(target, index / columns, order) * columns
+                        + permuted_component(input, index % columns, order)
+                } else {
+                    permuted_component(
+                        value
+                            .value_type()
+                            .coordinate_basis()
+                            .expect("typed coordinates"),
+                        index,
+                        order,
+                    )
+                }
+            } else if let (Some(input), Some(output)) = (input_columns, output_columns) {
                 (index % output) * input + index / output
             } else {
                 index
@@ -64,6 +79,37 @@ pub(super) fn binary(
         .shape()
         .component_count()
         .expect("checked finite shape");
+    if operation == FiniteBinaryOperation::TensorProduct {
+        check_component_work(*used, count)?;
+        *used += count;
+        return ValueLiteral::new(
+            output,
+            (0..count).map(|index| {
+                let (a, b) = if let (Some((ls, _)), Some((rs, rt))) = (
+                    left.value_type().map_bases(),
+                    right.value_type().map_bases(),
+                ) {
+                    let (lc, rc, rr) = (
+                        ls.extent() as usize,
+                        rs.extent() as usize,
+                        rt.extent() as usize,
+                    );
+                    let (row, col) = (index / (lc * rc), index % (lc * rc));
+                    ((row / rr) * lc + col / rc, (row % rr) * rc + col % rc)
+                } else {
+                    (
+                        index / right.component_count(),
+                        index % right.component_count(),
+                    )
+                };
+                let (ar, ai) = left.component(a).expect("typed tensor factor");
+                let (br, bi) = right.component(b).expect("typed tensor factor");
+                let value = Complex64::new(ar, ai) * Complex64::new(br, bi);
+                (value.re, value.im)
+            }),
+        )
+        .map_err(invalid);
+    }
     let inner = if let Some((source, _)) = left.value_type().map_bases() {
         source.extent() as usize
     } else {
@@ -106,4 +152,12 @@ pub(super) fn binary(
         }),
     )
     .map_err(invalid)
+}
+
+fn permuted_component(basis: eqiora_core::FiniteBasis, index: usize, order: [u8; 2]) -> usize {
+    if order == [0, 1] {
+        return index;
+    }
+    let [left, right] = basis.factors().expect("typed product basis");
+    (index % left.extent() as usize) * right.extent() as usize + index / left.extent() as usize
 }

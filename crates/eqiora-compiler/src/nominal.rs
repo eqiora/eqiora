@@ -2,8 +2,11 @@
 use std::collections::BTreeMap;
 mod local_index;
 mod resolved;
+mod spaces;
 pub(crate) use local_index::bind_local_index_types;
 pub(crate) use resolved::bind_resolved;
+pub(crate) use resolved::resolved_spaces;
+pub(crate) use spaces::finite_spaces;
 
 use eqiora_core::{Diagnostic, EntityKind, RawId, ValueType, diagnostic::codes, entity::kinds};
 use eqiora_lang::{Document, ExprKind, SourceAstFactory, ValueTypeSyntax, ValueTypeSyntaxKind};
@@ -19,96 +22,6 @@ pub(crate) struct BoundFiniteSpace {
     pub(crate) definition: FiniteSpaceDef,
     pub(crate) key: ElaborationKey,
     pub(crate) range: eqiora_lang::TextRange,
-}
-
-pub(crate) fn finite_spaces(
-    file: &str,
-    document: &Document,
-    namespace: &IdentityNamespace,
-    mut native_identity: impl FnMut(&str) -> Option<RawId>,
-) -> Result<BTreeMap<String, BoundFiniteSpace>, Vec<Diagnostic>> {
-    let mut values = BTreeMap::new();
-    let mut errors = Vec::new();
-    for declaration in document.finite_spaces() {
-        let result = (|| {
-            let invalid = |message: &str| {
-                source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    file,
-                    declaration.range(),
-                    message,
-                )
-            };
-            let ExprKind::Call {
-                callee,
-                arguments: eqiora_lang::CallArguments::Positional(arguments),
-            } = declaration.value().kind()
-            else {
-                return Err(invalid(
-                    "finite space requires an orthonormal basis declaration",
-                ));
-            };
-            if callee.as_str() != "orthonormal"
-                || declaration.value_type().is_some()
-                || declaration.domain().is_some()
-                || declaration.activation().is_some()
-            {
-                return Err(invalid(
-                    "finite space requires only its closed orthonormal basis declaration",
-                ));
-            }
-            let labels = arguments
-                .iter()
-                .map(|argument| match argument.kind() {
-                    ExprKind::Name(label) => Ok(label.clone()),
-                    _ => Err(invalid(
-                        "finite space basis entries must be distinct labels",
-                    )),
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            let key = ElaborationKey::entity(
-                namespace.clone(),
-                InstancePath::new(["$definitions"])?,
-                DeclarationPath::new(["space", declaration.name()])?,
-                EntityKind::FiniteSpace,
-            )?;
-            let id = if let Some(raw) = native_identity(declaration.name()) {
-                raw.downcast::<kinds::FiniteSpace>()
-                    .ok_or_else(|| invalid("native finite space has a different entity kind"))?
-            } else {
-                let mut identities = StagingIdAllocator::new();
-                let full = identities.stage(&key)?;
-                identities
-                    .finish()
-                    .resolve::<kinds::FiniteSpace>(full)?
-                    .id()
-            };
-            let definition =
-                FiniteSpaceDef::new(id, labels).map_err(|error| invalid(&error.to_string()))?;
-            Ok(BoundFiniteSpace {
-                definition,
-                key,
-                range: declaration.range(),
-            })
-        })();
-        match result {
-            Ok(value) if !values.contains_key(declaration.name()) => {
-                values.insert(declaration.name().to_owned(), value);
-            }
-            Ok(_) => errors.push(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                file,
-                declaration.range(),
-                "finite space name is declared more than once",
-            )),
-            Err(error) => errors.push(error),
-        }
-    }
-    if errors.is_empty() {
-        Ok(values)
-    } else {
-        Err(errors)
-    }
 }
 
 pub(crate) fn bind_finite_types(
@@ -149,7 +62,8 @@ fn bind_type(
                 .get(name.as_str())
                 .ok_or_else(|| invalid(format!("unresolved finite space `{name}`")))?
                 .definition
-                .counts(),
+                .counts()
+                .map_err(|error| invalid(error.to_string()))?,
         ),
         ValueTypeSyntaxKind::Coordinates {
             scalar,

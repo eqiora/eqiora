@@ -123,6 +123,7 @@ fn compile_model(
                     eqiora_lang::TextRange::default(),
                     |_| None,
                     |_| None,
+                    |_| None,
                 )
                 .unwrap(),
             )

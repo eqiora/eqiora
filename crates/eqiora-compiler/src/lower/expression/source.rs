@@ -107,9 +107,12 @@ pub(in crate::lower) fn from_source(expression: &Expr) -> LoweringExpression {
             callee,
             arguments: eqiora_lang::CallArguments::Positional(arguments),
         } if crate::math::finite::Operation::named(callee.as_str()).is_some() => {
-            LoweringExpressionNode::Finite {
-                operation: crate::math::finite::Operation::named(callee.as_str()).unwrap(),
-                arguments: arguments.iter().map(from_source).collect(),
+            match crate::math::finite::Operation::source(callee.as_str(), arguments) {
+                Ok((operation, arguments)) => LoweringExpressionNode::Finite {
+                    operation,
+                    arguments: arguments.iter().map(from_source).collect(),
+                },
+                Err(message) => LoweringExpressionNode::InvalidValue(message),
             }
         }
         ExprKind::Call {

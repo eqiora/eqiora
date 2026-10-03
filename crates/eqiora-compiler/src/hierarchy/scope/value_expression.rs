@@ -137,8 +137,19 @@ pub(in crate::hierarchy) fn rewrite_expression_with_boundary_member(
             callee,
             arguments: eqiora_lang::CallArguments::Positional(arguments),
         } if crate::math::finite::Operation::named(callee.as_str()).is_some() => {
+            let (operation, arguments) =
+                crate::math::finite::Operation::source(callee.as_str(), arguments).map_err(
+                    |message| {
+                        source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            file,
+                            expression.range(),
+                            message,
+                        )
+                    },
+                )?;
             LoweringExpression::finite(
-                crate::math::finite::Operation::named(callee.as_str()).unwrap(),
+                operation,
                 arguments
                     .iter()
                     .map(|argument| {

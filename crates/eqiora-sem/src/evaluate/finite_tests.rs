@@ -229,3 +229,212 @@ fn finite_contraction_work_rejects_before_large_expansion() {
         "{error:?}"
     );
 }
+
+#[test]
+fn finite_tensor_products_and_factor_permutations_use_ordered_rectangular_components() {
+    let s = FiniteBasis::new(Id::new(), 2).unwrap();
+    let t = FiniteBasis::new(Id::new(), 3).unwrap();
+    let r = FiniteBasis::new(Id::new(), 2).unwrap();
+    let mut b = ExprDagBuilder::new();
+    let x = b.constant(coordinates(s, &[(1., 1.), (2., 0.)])).unwrap();
+    let y = b
+        .constant(coordinates(t, &[(3., 0.), (0., -1.), (4., 0.)]))
+        .unwrap();
+    let xy = b.finite_binary(B::TensorProduct, x, y).unwrap();
+    let swapped = b.finite_unary(U::PermuteFactors([1, 0]), xy).unwrap();
+    let restored = b.finite_unary(U::PermuteFactors([1, 0]), swapped).unwrap();
+    let a = b
+        .constant(map(s, s, &[(1., 0.), (0., 1.), (0., 0.), (2., 0.)]))
+        .unwrap();
+    let c = b
+        .constant(map(
+            r,
+            t,
+            &[(1., 0.), (2., 0.), (0., 0.), (3., 0.), (4., 0.), (5., 0.)],
+        ))
+        .unwrap();
+    let ac = b.finite_binary(B::TensorProduct, a, c).unwrap();
+    let permuted_map = b.finite_unary(U::PermuteFactors([1, 0]), ac).unwrap();
+    let dag = b.finish([xy, swapped, restored, ac, permuted_map]).unwrap();
+    // Distribute x_i*y_j with the right index fastest. For maps, each A_ij
+    // multiplies the whole B block; exchanging factors permutes both axes.
+    let vector = vec![(3., 3.), (1., -1.), (4., 4.), (6., 0.), (0., -2.), (8., 0.)];
+    let expected = vec![
+        vector.clone(),
+        vec![(3., 3.), (6., 0.), (1., -1.), (0., -2.), (4., 4.), (8., 0.)],
+        vector,
+        vec![
+            (1., 0.),
+            (2., 0.),
+            (0., 1.),
+            (0., 2.),
+            (0., 0.),
+            (3., 0.),
+            (0., 0.),
+            (0., 3.),
+            (4., 0.),
+            (5., 0.),
+            (0., 4.),
+            (0., 5.),
+            (0., 0.),
+            (0., 0.),
+            (2., 0.),
+            (4., 0.),
+            (0., 0.),
+            (0., 0.),
+            (0., 0.),
+            (6., 0.),
+            (0., 0.),
+            (0., 0.),
+            (8., 0.),
+            (10., 0.),
+        ],
+        vec![
+            (1., 0.),
+            (0., 1.),
+            (2., 0.),
+            (0., 2.),
+            (0., 0.),
+            (2., 0.),
+            (0., 0.),
+            (4., 0.),
+            (0., 0.),
+            (0., 0.),
+            (3., 0.),
+            (0., 3.),
+            (0., 0.),
+            (0., 0.),
+            (0., 0.),
+            (6., 0.),
+            (4., 0.),
+            (0., 4.),
+            (5., 0.),
+            (0., 5.),
+            (0., 0.),
+            (8., 0.),
+            (0., 0.),
+            (10., 0.),
+        ],
+    ];
+    let actual = evaluate(&dag).unwrap();
+    for (value, expected) in actual.iter().zip(&expected) {
+        assert_eq!(
+            (0..value.component_count())
+                .map(|i| value.component(i).unwrap())
+                .collect::<Vec<_>>(),
+            *expected
+        );
+    }
+    assert_eq!(
+        actual[0].value_type().coordinate_basis(),
+        Some(FiniteBasis::product(s, t).unwrap())
+    );
+    assert_eq!(
+        actual[1].value_type().coordinate_basis(),
+        Some(FiniteBasis::product(t, s).unwrap())
+    );
+    assert_eq!(
+        actual[4].value_type().map_bases(),
+        Some((
+            FiniteBasis::product(r, s).unwrap(),
+            FiniteBasis::product(t, s).unwrap()
+        ))
+    );
+    let lowered = ComponentScalarization::lower(&typed(dag))
+        .unwrap()
+        .evaluate(|_| None)
+        .unwrap();
+    assert_eq!(
+        lowered,
+        expected
+            .iter()
+            .flatten()
+            .flat_map(|&(re, im)| [re, im])
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn finite_product_admission_rejects_implicit_reshaping_and_invalid_factor_roles() {
+    let s = FiniteBasis::new(Id::new(), 2).unwrap();
+    let t = FiniteBasis::new(Id::new(), 3).unwrap();
+    let value = |basis| {
+        ExpressionType::<()>::new(
+            ValueType::coordinates(basis, ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+                .unwrap(),
+            None,
+        )
+    };
+    let product = value(s).finite_binary(B::TensorProduct, value(t)).unwrap();
+    for order in [[0, 0], [1, 1], [2, 0]] {
+        assert!(
+            product
+                .clone()
+                .finite_unary(U::PermuteFactors(order))
+                .is_err()
+        );
+    }
+    assert!(value(s).finite_unary(U::PermuteFactors([0, 1])).is_err());
+    assert!(
+        product
+            .clone()
+            .finite_binary(B::TensorProduct, value(s))
+            .is_err()
+    );
+    assert!(
+        value(s)
+            .finite_binary(B::TensorProduct, value(t.dual()))
+            .is_err()
+    );
+    let dual = product.clone().finite_unary(U::Transpose).unwrap();
+    assert_eq!(
+        dual.value_type.coordinate_basis(),
+        Some(FiniteBasis::product(s, t).unwrap().dual())
+    );
+    assert!(dual.finite_binary(B::Pair, product.clone()).is_ok());
+    let swapped = product
+        .clone()
+        .finite_unary(U::PermuteFactors([1, 0]))
+        .unwrap();
+    assert_ne!(swapped.value_type, product.value_type);
+    // Equal factor positions remain two positions even when their identities agree.
+    let repeated = value(s).finite_binary(B::TensorProduct, value(s)).unwrap();
+    assert_eq!(
+        repeated
+            .clone()
+            .finite_unary(U::PermuteFactors([1, 0]))
+            .unwrap()
+            .value_type,
+        repeated.value_type
+    );
+}
+
+#[test]
+fn finite_tensor_product_work_rejects_before_large_expansion() {
+    let basis = FiniteBasis::new(Id::new(), 1001).unwrap();
+    let mut b = ExprDagBuilder::new();
+    let zero = b
+        .constant(
+            ValueLiteral::from_real(
+                ValueType::coordinates(basis, ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                    .unwrap(),
+                0.,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    let product = b.finite_binary(B::TensorProduct, zero, zero).unwrap();
+    let dag = b.finish([product]).unwrap();
+    assert!(
+        evaluate(&dag)
+            .unwrap_err()
+            .message()
+            .contains("one-million component work budget")
+    );
+    assert!(
+        ComponentScalarization::lower(&typed(dag))
+            .unwrap_err()
+            .message()
+            .contains("one million component products")
+    );
+}

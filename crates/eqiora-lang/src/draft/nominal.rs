@@ -3,6 +3,34 @@
 use super::*;
 
 impl ModelDeclarations {
+    pub(super) fn product_name(&self, basis: eqiora_core::FiniteBasis) -> Option<NamePath> {
+        self.declarations
+            .iter()
+            .find_map(|declaration| match declaration {
+                DraftDeclaration::FiniteSpace { name, definition }
+                    if definition.basis() == basis =>
+                {
+                    Some(NamePath::single(name.clone(), TextRange::new(0, 0)))
+                }
+                _ => None,
+            })
+    }
+
+    pub(super) fn validate_factors(
+        &self,
+        definition: &eqiora_schema::kernel::FiniteSpaceDef,
+    ) -> Result<(), crate::AstConstructionError> {
+        if let Some(factors) = definition.factors() {
+            for factor in factors {
+                if !self.declarations.iter().any(|declaration| matches!(declaration,
+                    DraftDeclaration::FiniteSpace { definition, .. } if definition.basis() == factor)) {
+                    return Err(crate::AstConstructionError::new("product factor references an omitted or foreign atomic declaration"));
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn validate_enum_type(
         &self,
         value: &ValueType,

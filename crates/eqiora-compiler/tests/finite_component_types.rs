@@ -359,3 +359,141 @@ fn native_finite_algebra_retains_registered_parameter_references() {
     omitted.remove(1);
     assert!(Module::new("M", omitted).is_err());
 }
+
+#[test]
+fn finite_product_aliases_are_structural_and_source_order_independent() {
+    let source = r#"
+space AB=product(A,B); space Alias=product(A,B); space BA=product(B,A);
+space A=orthonormal(a,b); space B=orthonormal(x,y,z);
+model M(){
+ parameter x:coordinates<complex<1>,A> = coordinates(A,[math.complex(1,1),2]);
+ parameter y:coordinates<complex<1>,B> = coordinates(B,[3,math.complex(0,-1),4]);
+ variable xy:coordinates<complex<1>,AB>;
+ variable alias:coordinates<complex<1>,Alias>;
+ variable yx:coordinates<complex<1>,BA>;
+ relation r {xy=tensor_product(x,y); alias=xy; yx=permute_factors(xy,[1,0]);}
+}"#;
+    let original = compile(source);
+    let fields = field_types(&original);
+    assert_eq!(fields[0], fields[1]);
+    assert_ne!(fields[0], fields[2]);
+    let reordered = source
+        .replace("space AB=product(A,B);", "")
+        .replace("model M()", "space AB=product(A,B); model M()");
+    assert_eq!(fields, field_types(&compile(&reordered)));
+    let formatted = eqiora_lang::format(
+        &eqiora_lang::parse("finite.eqi", source)
+            .into_document()
+            .unwrap(),
+    );
+    assert_eq!(
+        original.transaction().ops(),
+        compile(&formatted).transaction().ops()
+    );
+    for invalid in [
+        source.replace("[1,0]", "[0,0]"),
+        source.replace("[1,0]", "[2,0]"),
+        source.replace("permute_factors(xy,[1,0])", "xy"),
+        source.replace("product(A,B)", "product(BA,B)"),
+        source.replace("product(A,B)", "product(dual(A),B)"),
+    ] {
+        assert!(
+            CompiledModel::compile_selected("bad.eqi", &invalid, "M", &[]).is_err(),
+            "{invalid}"
+        );
+    }
+}
+
+#[test]
+fn imported_product_aliases_resolve_atomic_factors_before_any_declaration_order() {
+    use eqiora_compiler::{
+        CompilationNamespaceId, ResolvedHierarchyInput, ResolvedSourceUnit,
+        analyze_resolved_hierarchy,
+    };
+    let library = "public space Pair=product(A,B); public space A=orthonormal(a,b); public space B=orthonormal(x,y,z);";
+    let source = "import org.example.finite.types as lib; space Local=product(lib.A,lib.B); model Main(){variable x:coordinates<1,Local>; variable y:coordinates<1,lib.Pair>; relation r{x=y;}}";
+    let owner =
+        CompilationNamespaceId::new(["org.example.finite", "0.1.0", "finite-product-types"])
+            .unwrap();
+    let input = ResolvedHierarchyInput::new(
+        owner.clone(),
+        vec![
+            ResolvedSourceUnit::new(owner.clone(), "src/main.eqi", source).unwrap(),
+            ResolvedSourceUnit::new(owner, "src/types.eqi", library).unwrap(),
+        ],
+        vec![],
+    );
+    let compiled = analyze_resolved_hierarchy(input)
+        .unwrap()
+        .validate_definitions()
+        .unwrap()
+        .compile_root("Main")
+        .unwrap();
+    let types = field_types(&compiled);
+    assert_eq!(types[0], types[1]);
+}
+
+#[test]
+fn native_product_aliases_project_without_replacing_exact_factor_identities() {
+    use eqiora_core::{DimExponents, Id, ValueLiteral};
+    use eqiora_lang::{DraftDeclaration, DraftParameter, DraftRelation, Module};
+    use eqiora_schema::kernel::FiniteSpaceDef;
+    let a = FiniteSpaceDef::new(Id::new(), ["a".into(), "b".into()]).unwrap();
+    let b = FiniteSpaceDef::new(Id::new(), ["x".into(), "y".into(), "z".into()]).unwrap();
+    let ab = FiniteSpaceDef::product(Id::new(), a.basis(), b.basis()).unwrap();
+    let p = DraftParameter::new(
+        "state",
+        ValueLiteral::new(
+            ab.coordinates(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+                .unwrap(),
+            [(3., 3.), (1., -1.), (4., 4.), (6., 0.), (0., -2.), (8., 0.)],
+        )
+        .unwrap(),
+    );
+    let relation = DraftRelation::continuous(
+        "r",
+        [(
+            p.expression(),
+            p.expression()
+                .permute_factors([1, 0])
+                .permute_factors([1, 0]),
+        )],
+    );
+    let declarations = vec![
+        DraftDeclaration::FiniteSpace {
+            name: "AB".into(),
+            definition: ab,
+        },
+        DraftDeclaration::FiniteSpace {
+            name: "A".into(),
+            definition: a,
+        },
+        DraftDeclaration::FiniteSpace {
+            name: "B".into(),
+            definition: b,
+        },
+        p.into(),
+        relation.into(),
+    ];
+    let draft = Module::new("M", declarations.clone()).unwrap();
+    eqiora_compiler::lower_module(&draft, None, &[]).unwrap();
+    compile(&eqiora_lang::format(draft.document()));
+    let omitted = declarations
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, d)| (i != 1).then_some(d));
+    assert!(Module::new("M", omitted).is_err());
+}
+
+#[test]
+fn finite_three_channels_reject_spatial_vectors_and_implicit_reshape() {
+    let source = "space Channels=orthonormal(a,b,c); model M(){parameter rhs:coordinates<1,Channels>=coordinates(Channels,[1,2,3]); variable state:coordinates<1,Channels>; relation r{state=rhs;}}";
+    compile(source);
+    for ty in ["vector<1,3>", "array<1,3>"] {
+        let invalid = source.replace(
+            "variable state:coordinates<1,Channels>",
+            &format!("variable state:{ty}"),
+        );
+        assert!(CompiledModel::compile_selected("bad.eqi", &invalid, "M", &[]).is_err());
+    }
+}

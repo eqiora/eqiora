@@ -82,6 +82,7 @@ fn literal_projection_counts_prefixes_before_nested_array_allocation() {
             None,
             TextRange::new(0, 1),
             |_| None,
+            |_| None,
             |_| None
         )
         .is_err()

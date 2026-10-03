@@ -1,7 +1,7 @@
 //! Finite algebra owns nominal endpoints independently of storage extents and spatial frames.
 use super::{ExpressionType, TypeViolation, combine_additive_support};
 use crate::kernel::{FiniteBinaryOperation, FiniteUnaryOperation};
-use eqiora_core::{ScalarDomain, ValueType};
+use eqiora_core::{FiniteBasis, ScalarDomain, ValueType};
 
 fn continuous<I>(value: &ValueType) -> Result<(), TypeViolation<I>> {
     if matches!(
@@ -19,6 +19,31 @@ impl<I: Clone + Eq> ExpressionType<I> {
     pub fn finite_unary(self, operation: FiniteUnaryOperation) -> Result<Self, TypeViolation<I>> {
         continuous(&self.value_type)?;
         let value = &self.value_type;
+        if let FiniteUnaryOperation::PermuteFactors(order) = operation {
+            let permute = |basis: FiniteBasis| -> Result<FiniteBasis, TypeViolation<I>> {
+                let [left, right] = basis.factors().ok_or(TypeViolation::FiniteBasisMismatch)?;
+                match order {
+                    [0, 1] => Ok(basis),
+                    [1, 0] => FiniteBasis::product(right, left)
+                        .map_err(|_| TypeViolation::FiniteBasisMismatch),
+                    _ => Err(TypeViolation::FiniteBasisMismatch),
+                }
+            };
+            let output = if let Some(basis) = value.coordinate_basis() {
+                ValueType::coordinates(permute(basis)?, value.scalar_domain(), value.dimension())
+            } else if let Some((source, target)) = value.map_bases() {
+                ValueType::linear_map(
+                    permute(source)?,
+                    permute(target)?,
+                    value.scalar_domain(),
+                    value.dimension(),
+                )
+            } else {
+                return Err(TypeViolation::FiniteBasisMismatch);
+            }
+            .map_err(|_| TypeViolation::FiniteBasisMismatch)?;
+            return Ok(Self::new(output, self.support));
+        }
         let output = if let Some(basis) = value.coordinate_basis() {
             ValueType::coordinates(basis.dual(), value.scalar_domain(), value.dimension())
         } else if let Some((source, target)) = value.map_bases() {
@@ -70,6 +95,25 @@ impl<I: Clone + Eq> ExpressionType<I> {
                     return Err(TypeViolation::FiniteBasisMismatch);
                 }
                 ValueType::linear_map(source, target, domain, dimension)
+            }
+            FiniteBinaryOperation::TensorProduct => {
+                let product = |a, b| {
+                    FiniteBasis::product(a, b).map_err(|_| TypeViolation::FiniteBasisMismatch)
+                };
+                if let (Some(left), Some(right)) = (a.coordinate_basis(), b.coordinate_basis()) {
+                    ValueType::coordinates(product(left, right)?, domain, dimension)
+                } else if let (Some((a_source, a_target)), Some((b_source, b_target))) =
+                    (a.map_bases(), b.map_bases())
+                {
+                    ValueType::linear_map(
+                        product(a_source, b_source)?,
+                        product(a_target, b_target)?,
+                        domain,
+                        dimension,
+                    )
+                } else {
+                    return Err(TypeViolation::FiniteBasisMismatch);
+                }
             }
             FiniteBinaryOperation::Pair => {
                 let dual = a

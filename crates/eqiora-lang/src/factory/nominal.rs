@@ -55,6 +55,36 @@ impl SourceAstFactory {
         ))
     }
 
+    /// Construct an alias for an ordered pair of primal atomic spaces.
+    ///
+    /// # Errors
+    /// Rejects malformed names and ranges; factor identity is checked during binding.
+    pub fn finite_product(
+        visibility: VisibilitySyntax,
+        name: impl Into<String>,
+        factors: [NamePath; 2],
+        range: TextRange,
+    ) -> Result<NamedDefinitionDecl, AstConstructionError> {
+        let arguments = factors
+            .into_iter()
+            .map(|path| {
+                validate_name_path(&path)?;
+                Ok(Expr {
+                    resolved_enum: None,
+                    resolved_nominal: None,
+                    kind: crate::ExprKind::Path(path),
+                    range,
+                })
+            })
+            .collect::<Result<Vec<_>, AstConstructionError>>()?;
+        Ok(NamedDefinitionDecl::plain(
+            checked_identifier(name, "finite product")?,
+            crate::ast::nominal::definition_call("product", arguments, checked_range(range)?),
+            checked_range(range)?,
+            visibility,
+        ))
+    }
+
     /// Construct an index-set declaration, preserving its exact extent expression.
     /// Integer type, positivity, and structural resource bounds are elaboration checks.
     ///
@@ -98,7 +128,11 @@ impl SourceAstFactory {
         mut document: crate::Document,
         declaration: NamedDefinitionDecl,
     ) -> Result<crate::Document, AstConstructionError> {
-        validate_definition(&declaration, "orthonormal")?;
+        let constructor = match declaration.value().kind() {
+            crate::ExprKind::Call { callee, .. } if callee.as_str() == "product" => "product",
+            _ => "orthonormal",
+        };
+        validate_definition(&declaration, constructor)?;
         document.finite_spaces.push(declaration);
         Ok(document)
     }
@@ -155,7 +189,9 @@ pub(super) fn validate_definition(
             "nominal definitions cannot carry let type, support or activation assertions",
         ));
     }
-    validate_expression(declaration.value())?;
+    if constructor != "product" {
+        validate_expression(declaration.value())?;
+    }
     let crate::ExprKind::Call { callee, arguments } = declaration.value().kind() else {
         return Err(AstConstructionError::new(
             "nominal definition requires its closed constructor",
@@ -166,6 +202,7 @@ pub(super) fn validate_definition(
     })?;
     if callee.as_str() != constructor
         || (constructor == "range" && arguments.len() != 1)
+        || (constructor == "product" && arguments.len() != 2)
         || arguments.is_empty()
     {
         return Err(AstConstructionError::new(
@@ -183,6 +220,16 @@ pub(super) fn validate_definition(
             if !labels.insert(label) {
                 return Err(AstConstructionError::new(
                     "finite space basis requires distinct labels",
+                ));
+            }
+        }
+    } else if constructor == "product" {
+        for argument in arguments {
+            validate_expression(argument)?;
+            if !crate::FiniteBasisSyntax::from_expression(argument).is_some_and(|basis| !basis.dual)
+            {
+                return Err(AstConstructionError::new(
+                    "product factors require primal space names",
                 ));
             }
         }

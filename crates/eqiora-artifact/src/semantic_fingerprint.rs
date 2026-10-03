@@ -314,9 +314,28 @@ fn encode_node(
         }
         KernelNode::FiniteSpace(space) => {
             encoder.u8(10)?;
-            encoder.len(space.labels().len())?;
-            for label in space.labels() {
-                encoder.bytes(label.as_bytes())?;
+            if let Some(factors) = space.factors() {
+                encoder.u8(2)?;
+                for (position, factor) in factors.into_iter().enumerate() {
+                    encoder.u32(factor.extent())?;
+                    push_reference(
+                        references,
+                        vec![14, position as u8],
+                        lookup(
+                            ids,
+                            factor.space().expect("atomic factor").erase(),
+                            "product factor",
+                        )?,
+                        budget,
+                    )?;
+                }
+            } else {
+                encoder.u8(1)?;
+                let labels = space.labels().expect("atomic labels");
+                encoder.len(labels.len())?;
+                for label in labels {
+                    encoder.bytes(label.as_bytes())?;
+                }
             }
         }
         KernelNode::IndexSet(set) => {

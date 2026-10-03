@@ -71,3 +71,36 @@ model M() {
         .is_err()
     );
 }
+
+#[test]
+fn finite_product_package_preserves_alias_factors_and_explicit_permutations() {
+    let source = r#"
+space AB=product(A,B); space BA=product(B,A);
+space A=orthonormal(up,down); space B=orthonormal(x,y,z);
+component State(parameter initial:coordinates<complex<1>,AB>) {
+    variable state:coordinates<complex<1>,AB>;
+    relation r {state=initial;}
+    observable reordered:coordinates<complex<1>,BA>=permute_factors(state,[1,0]);
+}
+model M(){instance state:State(initial=coordinates(AB,[math.complex(3,3),math.complex(1,-1),math.complex(4,4),6,math.complex(0,-2),8]));}
+"#;
+    let direct = ModelDocument::compile("finite.eqi", source).unwrap();
+    for authored in [
+        source.to_owned(),
+        source
+            .replace("space AB=product(A,B);", "")
+            .replace("component State", "space AB=product(A,B); component State"),
+    ] {
+        let package = packaged(&authored);
+        assert!(package.model().structurally_equivalent(&direct).unwrap());
+        let bytes = ModelEnvelope::from_program(package.model().program())
+            .unwrap()
+            .canonical_json()
+            .unwrap();
+        let replay = ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default())
+            .unwrap()
+            .to_program()
+            .unwrap();
+        assert_eq!(&replay, package.model().program());
+    }
+}
