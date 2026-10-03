@@ -2,6 +2,7 @@
 
 use super::*;
 use eqiora_solver::LinearSolverBackend;
+use eqiora_solver::REFERENCE_LINEAR_SOLVER;
 
 impl DifferentiableProgram {
     pub(crate) fn validate_map_provider(&self) -> Result<(), Diagnostic> {

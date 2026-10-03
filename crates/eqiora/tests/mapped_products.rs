@@ -17,7 +17,16 @@ fn public_q1_and_tpfa_map_products_use_retained_evaluations() {
         let field = document
             .field_ref(&plan.fields().next().unwrap().0.ulid().to_string())
             .unwrap();
-        let program = Arc::new(DifferentiableProgram::compile(plan, &inputs, &field).unwrap());
+        let program = Arc::new(
+            DifferentiableProgram::compile(
+                eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(plan)),
+                &inputs,
+                &field,
+                None,
+                &eqiora_solver::REFERENCE_LINEAR_SOLVER,
+            )
+            .unwrap(),
+        );
         let map = EvaluationMapPlan::new(
             program.clone(),
             &[&[2.0, 1.0, 0.0], &[2.0, 2.0, 0.5], &[2.0, 1.0, 0.0]],

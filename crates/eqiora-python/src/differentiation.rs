@@ -56,12 +56,14 @@ impl From<DifferentiationMode> for PyDifferentiationMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum PyDerivativeImplementation {
     AnalyticAssembled,
+    OperatorIr,
 }
 
 impl From<DerivativeImplementation> for PyDerivativeImplementation {
     fn from(value: DerivativeImplementation) -> Self {
         match value {
             DerivativeImplementation::AnalyticAssembled => Self::AnalyticAssembled,
+            DerivativeImplementation::OperatorIr => Self::OperatorIr,
         }
     }
 }
@@ -109,7 +111,7 @@ pub(crate) struct PyDifferentiationEvidence {
     state_system_fingerprint: String,
     primal_residual_norm: f64,
     residual_tolerance: f64,
-    primal_solve: PyLinearSolveSummary,
+    primal_solve: Option<PyLinearSolveSummary>,
     derivative_solve: Option<PyLinearSolveSummary>,
 }
 
@@ -131,7 +133,7 @@ impl PyDifferentiationEvidence {
             state_system_fingerprint: hex(value.state_system().as_bytes()),
             primal_residual_norm: value.primal_residual_norm(),
             residual_tolerance: value.residual_tolerance(),
-            primal_solve: PyLinearSolveSummary::from_report(value.primal_solve()),
+            primal_solve: value.primal_solve().map(PyLinearSolveSummary::from_report),
             derivative_solve: value
                 .derivative_solve()
                 .map(PyLinearSolveSummary::from_report),
@@ -212,7 +214,7 @@ impl PyDifferentiationEvidence {
     }
 
     #[getter]
-    fn primal_solve(&self) -> PyLinearSolveSummary {
+    fn primal_solve(&self) -> Option<PyLinearSolveSummary> {
         self.primal_solve.clone()
     }
 
@@ -618,7 +620,15 @@ pub(crate) fn compile_differentiable(
             ));
         }
         let value = py
-            .detach(move || DifferentiableProgram::compile(native_plan, &selected, &output))
+            .detach(move || {
+                DifferentiableProgram::compile(
+                    eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(native_plan)),
+                    &selected,
+                    &output,
+                    None,
+                    &eqiora::solver::REFERENCE_LINEAR_SOLVER,
+                )
+            })
             .map_err(|diagnostics| diagnostic_error(py, &diagnostics))?;
         Ok(PyDifferentiableProgram {
             value: Arc::new(value),

@@ -15,7 +15,16 @@ fn program() -> Arc<DifferentiableProgram> {
     let output = document
         .field_ref(&plan.fields().next().unwrap().0.ulid().to_string())
         .unwrap();
-    Arc::new(DifferentiableProgram::compile(plan, &inputs, &output).unwrap())
+    Arc::new(
+        DifferentiableProgram::compile(
+            eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(plan)),
+            &inputs,
+            &output,
+            None,
+            &eqiora_solver::REFERENCE_LINEAR_SOLVER,
+        )
+        .unwrap(),
+    )
 }
 
 fn request(id: u8, lineage: &[u64]) -> SamplingIdentity {

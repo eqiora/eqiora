@@ -264,7 +264,14 @@ fn runtime_heat_flux_alias_preserves_bounded_spatial_execution_and_parameter_cha
             let output = document
                 .field_ref(&plan.fields().next().unwrap().0.ulid().to_string())
                 .unwrap();
-            let program = DifferentiableProgram::compile(plan, &[input], &output).unwrap();
+            let program = DifferentiableProgram::compile(
+                eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(plan)),
+                &[input],
+                &output,
+                None,
+                &eqiora_solver::REFERENCE_LINEAR_SOLVER,
+            )
+            .unwrap();
             let primal = program.primal();
             let values = primal.output();
             let tangent = program.jvp(&[1.0]).unwrap();
@@ -301,7 +308,14 @@ fn static_math_aliases_retain_spatial_derivatives_and_domain_failure_after_param
         let output = document
             .field_ref(&plan.fields().next().unwrap().0.ulid().to_string())
             .unwrap();
-        let program = DifferentiableProgram::compile(plan, &[input], &output).unwrap();
+        let program = DifferentiableProgram::compile(
+            eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(plan)),
+            &[input],
+            &output,
+            None,
+            &eqiora_solver::REFERENCE_LINEAR_SOLVER,
+        )
+        .unwrap();
         for p in [1.0_f64, 9.0] {
             let point = program.evaluate(&[p]).unwrap();
             let primal = point.primal();

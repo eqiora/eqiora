@@ -408,7 +408,14 @@ pub(super) fn program_for(
     let output = document
         .field_ref(&plan.fields().next().unwrap().0.ulid().to_string())
         .unwrap();
-    DifferentiableProgram::compile(plan, &inputs, &output).unwrap()
+    DifferentiableProgram::compile(
+        eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(plan)),
+        &inputs,
+        &output,
+        None,
+        &eqiora_solver::REFERENCE_LINEAR_SOLVER,
+    )
+    .unwrap()
 }
 
 fn document_from_source(source: &str, entry: &str) -> ModelDocument {

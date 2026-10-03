@@ -238,3 +238,104 @@ fn accepted_finite_point_separates_residual_partials_and_reduced_output_actions(
     assert_eq!(point.nonlinear_iterations(), Some(0));
     assert!(point.receipt().is_none());
 }
+
+#[test]
+fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_points() {
+    use eqiora::api::{DerivativeImplementation, DifferentiableProgram};
+    let (document, plan) = fixture(4.0, 1e-8, "w*w=p");
+    let initial = plan.initial_state(&[seed(&document, &plan, 2.0)]).unwrap();
+    let input = document.parameter_ref("p").unwrap();
+    let output = document.observable_ref("output").unwrap();
+    let program = DifferentiableProgram::compile(
+        ResolvedCommonPlan::Algebraic(Box::new(plan.clone())),
+        &[input.clone()],
+        &output,
+        Some(initial.clone()),
+        &FaerLinearSolver,
+    )
+    .unwrap();
+    let default = program.evaluate(&[4.0]).unwrap();
+    assert_eq!(default.primal().evidence().nonlinear_iterations(), Some(0));
+    assert!(default.primal().evidence().receipt().is_none());
+    assert!(default.primal().evidence().primal_solve().is_none());
+    assert_eq!(
+        program.identity().initial_state_identity(),
+        Some(initial.identity())
+    );
+    for (p, w, total) in [(4.0, 2.0, 1.25), (9.0, 3.0, 7.0 / 6.0)] {
+        let point = program.evaluate(&[p]).unwrap();
+        assert!((point.accepted_unknowns()[0] - w).abs() <= 1e-12);
+        assert!((point.primal().output()[0] - (w + p)).abs() <= 1e-12);
+        assert_eq!(point.residual_jvp(&[0.0], &[1.0]).unwrap(), [-1.0]);
+        assert!((point.residual_jvp(&[1.0], &[0.0]).unwrap()[0] - 2.0 * w).abs() <= 2e-12);
+        let (rw, rp) = point.residual_vjp(&[1.0]).unwrap();
+        assert!((rw[0] - 2.0 * w).abs() <= 2e-12);
+        assert_eq!(rp, [-1.0]);
+        assert_eq!(point.output_partial_jvp(&[0.0], &[1.0]).unwrap(), [1.0]);
+        assert_eq!(
+            point.output_partial_vjp(&[1.0]).unwrap(),
+            (vec![1.0], vec![1.0])
+        );
+        assert!((point.jvp(&[1.0]).unwrap().tangent()[0] - total).abs() <= 1e-12);
+        let reverse = point.vjp(&[1.0]).unwrap();
+        assert!((reverse.input_cotangent()[0] - total).abs() <= 1e-12);
+        assert_eq!(
+            reverse.evidence().implementation(),
+            DerivativeImplementation::OperatorIr
+        );
+        assert_eq!(
+            reverse.evidence().nonlinear_initial_state_identity(),
+            Some(initial.identity())
+        );
+        assert_eq!(
+            reverse.evidence().nonlinear_accepted_unknowns(),
+            Some(point.accepted_unknowns())
+        );
+        assert!(point.residual_jvp(&[], &[1.0]).is_err());
+        assert!(point.output_partial_vjp(&[]).is_err());
+    }
+    // Another evaluation cannot replace the point retained for a paired reverse action.
+    assert_eq!(default.vjp(&[1.0]).unwrap().input_cotangent(), [1.25]);
+    assert!(program.evaluate(&[0.0]).is_err());
+    assert!(program.evaluate(&[f64::NAN]).is_err());
+    assert!(program.evaluate(&[]).is_err());
+    let (foreign, foreign_plan) = fixture(9.0, 1e-8, "w*w=p");
+    let foreign_initial = foreign_plan
+        .initial_state(&[seed(&foreign, &foreign_plan, 2.0)])
+        .unwrap();
+    let resolved = ResolvedCommonPlan::Algebraic(Box::new(plan));
+    assert!(
+        DifferentiableProgram::compile(
+            resolved.clone(),
+            &[input.clone()],
+            &output,
+            Some(foreign_initial),
+            &FaerLinearSolver
+        )
+        .is_err()
+    );
+    assert!(
+        DifferentiableProgram::compile(
+            resolved.clone(),
+            &[foreign.parameter_ref("p").unwrap()],
+            &output,
+            Some(initial.clone()),
+            &FaerLinearSolver
+        )
+        .is_err()
+    );
+    assert!(
+        DifferentiableProgram::compile(
+            resolved.clone(),
+            &[input.clone()],
+            &foreign.observable_ref("output").unwrap(),
+            Some(initial.clone()),
+            &FaerLinearSolver
+        )
+        .is_err()
+    );
+    assert!(
+        DifferentiableProgram::compile(resolved, &[input], &output, None, &FaerLinearSolver)
+            .is_err()
+    );
+}
