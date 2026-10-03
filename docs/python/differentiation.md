@@ -110,7 +110,7 @@ Each program selects one output field and computes first derivatives.
 ## Finite nonlinear points and partial actions
 
 A strict-interior finite nonlinear Plan from the
-[constraints guide](https://github.com/eqiora/eqiora/blob/main/docs/language/constraints.md#strict-interior-nonlinear-execution)
+[constraints guide](../language/constraints.md#strict-interior-nonlinear-execution)
 uses the same Program API. Supply its exact initial State and a scalar
 instantaneous Observable:
 

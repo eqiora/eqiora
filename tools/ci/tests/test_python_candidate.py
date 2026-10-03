@@ -1059,6 +1059,11 @@ invalid candidate
             with self.assertRaisesRegex(CandidateError, "escapes its root"):
                 safe_extract_sdist(archive, root / "extract")
 
+    def test_consumer_resources_exist_in_repository(self) -> None:
+        for relative in PYTHON_TEST_RESOURCES:
+            with self.subTest(resource=str(relative)):
+                self.assertTrue((REPOSITORY_ROOT / relative).is_file())
+
     def test_consumer_tree_preserves_repository_relative_fixture_paths(self) -> None:
         # test_vertical_slice reads the canonical model schema during collection.
         self.assertIn(
@@ -1095,6 +1100,8 @@ invalid candidate
         for relative in (
             reference / "standard-packages/continuum.mdx",
             reference / "standard-packages/controls.mdx",
+            reference / "standard-packages/_examples/stokes.eqi",
+            reference / "standard-packages/_examples/sampled.eqi",
             reference / "language/_examples/clocked.eqi",
             Path("crates/eqiora-api/packages/Eqiora.Fluid.InertialStokes/src/inertial_stokes.eqi"),
         ):
