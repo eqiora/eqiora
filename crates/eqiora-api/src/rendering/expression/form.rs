@@ -56,6 +56,33 @@ impl ModelDocument {
                     arguments.push(equation);
                     equation = Math::Function("for_all_ordered_intervals".into(), arguments);
                 }
+                if let Some(field) = form.gauge_field_ulid() {
+                    let field = context.quantity(
+                        context.exact(field, EntityKind::Field)?,
+                        QuantityRole::Value,
+                    )?;
+                    let conditions = [
+                        ("reference", form.gauge_reference()),
+                        ("compatibility", form.gauge_compatibility()),
+                    ]
+                    .into_iter()
+                    .map(|(label, condition)| {
+                        let (left, right) =
+                            condition.ok_or_else(|| failure("gauge condition is missing"))?;
+                        Ok(Math::Function(
+                            label.into(),
+                            vec![Math::Binary(
+                                "=",
+                                Box::new(context.form(left, 0)?),
+                                Box::new(context.form(right, 0)?),
+                            )],
+                        ))
+                    })
+                    .collect::<Result<Vec<_>, Diagnostic>>()?;
+                    let mut arguments = vec![equation, field];
+                    arguments.extend(conditions);
+                    equation = Math::Function("with_constant_gauge".into(), arguments);
+                }
                 super::super::output::render(equation, context.references, profile)
             })
             .collect()

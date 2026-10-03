@@ -1,5 +1,7 @@
 //! Checked mathematical interval admission for the existing scalar TPFA executor.
 use super::*;
+mod gauge;
+pub(in crate::numerical_admission) use gauge::admit as admit_gauge;
 
 pub(super) fn admit(
     admission: &NativeNumericalAdmission,
@@ -57,6 +59,11 @@ pub(super) fn admit(
         .map_err(|errors| invalid(format!("interval Model snapshot rejected: {errors:?}")))?;
     let geometry = admission.resources().geometry();
     if let Some(authored) = authored {
+        if admit_gauge(program, lowered, authored)?.is_some() {
+            return Err(invalid(
+                "the interval Plan requires an executable gauge admission before a declared nullspace can run",
+            ));
+        }
         if authored.equations()[0].0.as_str() != law.ulid().to_string()
             || authored.trial_ulids()[0].as_str() != region.form.fields()[0].0.ulid().to_string()
         {

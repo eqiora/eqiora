@@ -65,6 +65,20 @@ pub(super) fn format_formulation(
                 .expect("String write");
         }
     }
+    if let Some((field, conditions)) = &declaration.gauge {
+        write_indent(output, indent + 2);
+        writeln!(output, "gauge {field} {{").expect("String write");
+        for (label, (left, right)) in ["reference", "compatibility"].into_iter().zip(conditions) {
+            write_indent(output, indent + 4);
+            write!(output, "{label} ").expect("String write");
+            format_expression(left, 0, output);
+            output.push_str(" = ");
+            format_expression(right, 0, output);
+            output.push_str(";\n");
+        }
+        write_indent(output, indent + 2);
+        output.push_str("}\n");
+    }
     for (left, right) in &declaration.equations {
         write_indent(output, indent + 2);
         format_expression(left, 0, output);

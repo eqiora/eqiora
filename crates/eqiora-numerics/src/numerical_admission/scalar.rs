@@ -1,6 +1,6 @@
 use super::*;
 
-mod interval;
+pub(super) mod interval;
 mod regions;
 mod transient;
 pub(crate) use regions::ExecutableScalarEquations;

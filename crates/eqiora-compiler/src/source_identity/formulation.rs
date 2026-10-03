@@ -3,7 +3,7 @@
 use super::*;
 
 const MAGIC: &[u8; 8] = b"EQIORAFM";
-const CANONICAL_FORMULATION_VERSION: u16 = 4;
+const CANONICAL_FORMULATION_VERSION: u16 = 5;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct AuthoredFormSourceIdentity([u8; 32]);
@@ -77,6 +77,19 @@ impl AuthoredFormSourceIdentity {
                         })?;
                     }
                 }
+                encoder.field(8, |encoder| {
+                    if let Some((field, conditions)) = component.formulation_gauge(name) {
+                        encoder.u16(1)?;
+                        encode_name(encoder, field, budget)?;
+                        for (left, right) in conditions {
+                            encode_expression(encoder, left, budget, 1)?;
+                            encode_expression(encoder, right, budget, 1)?;
+                        }
+                        Ok(())
+                    } else {
+                        encoder.u16(0)
+                    }
+                })?;
                 encoder.finish()
             },
         )?;

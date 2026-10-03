@@ -461,3 +461,126 @@ fn canonical_parameter_values_are_typed_unique_snapshot_bindings() {
     });
     assert!(form.projection().check_interval(&wrong, &geometry).is_err());
 }
+
+#[test]
+fn explicit_gauge_retains_typed_reference_and_compatibility_separately_from_model() {
+    let geometry = geometry();
+    let gauge_form = FORM.replace(
+        "interval segment(a, b) on body;",
+        r#"interval segment(a, b) on body;
+        gauge T {
+            reference integrate(body, T) = 0;
+            compatibility integrate(body, s) = 0;
+        }"#,
+    );
+    let input = source(&gauge_form);
+    let parsed = eqiora_lang::parse("gauge.eqi", &input)
+        .into_document()
+        .unwrap();
+    let formatted = eqiora_lang::format(&parsed);
+    assert!(formatted.contains("gauge T {"));
+    let original = &parsed.components()[0];
+    let (name, relations, equations, range) = original.formulations().next().unwrap();
+    let rebuilt = eqiora_lang::SourceAstFactory::component_with_form(
+        eqiora_lang::VisibilitySyntax::Public,
+        "M",
+        original.signature().to_vec(),
+        original.items().to_vec(),
+        (
+            name.into(),
+            relations.to_vec(),
+            original.formulation_binding(name).unwrap().clone(),
+        ),
+        (equations.to_vec(), range),
+        original.range(),
+    )
+    .unwrap();
+    let (field, conditions) = original.formulation_gauge(name).unwrap();
+    let rebuilt = eqiora_lang::SourceAstFactory::with_formulation_gauge(
+        rebuilt,
+        name,
+        field,
+        conditions.clone(),
+    )
+    .unwrap();
+    let rebuilt =
+        eqiora_lang::SourceAstFactory::document(vec![], vec![], vec![rebuilt], vec![]).unwrap();
+    assert_eq!(eqiora_lang::format(&rebuilt), formatted);
+
+    let plain = compile(&source(FORM), &geometry).unwrap();
+    let compiled = compile(&input, &geometry).unwrap_or_else(|e| panic!("{e:?}"));
+    let reformatted = compile(&formatted, &geometry).unwrap();
+    let form = compiled
+        .authored_formulations()
+        .next()
+        .unwrap()
+        .projection();
+    let plain_form = plain.authored_formulations().next().unwrap().projection();
+    assert_eq!(compiled.transaction().ops(), plain.transaction().ops());
+    assert_eq!(
+        form,
+        reformatted
+            .authored_formulations()
+            .next()
+            .unwrap()
+            .projection()
+    );
+    assert_ne!(form.source_identity(), plain_form.source_identity());
+    assert_eq!(
+        form.gauge_field_ulid(),
+        Some(
+            compiled.authored_formulations().next().unwrap().trials()[0]
+                .ulid()
+                .to_string()
+                .as_str()
+        )
+    );
+    assert!(form.gauge_reference().is_some());
+    assert!(form.gauge_compatibility().is_some());
+    let decoded = AuthoredFormulationProjection::decode(form.canonical_bytes()).unwrap();
+    assert_eq!(&decoded, form);
+    // These typed declarations are conditions, not a proof that the nonzero
+    // source here is compatible. Numerical admission must establish that claim.
+    for changed in [
+        input.replace(
+            "reference integrate(body, T) = 0",
+            "reference integrate(body, T) = integrate(body, other_T)",
+        ),
+        input.replace(
+            "compatibility integrate(body, s)",
+            "compatibility integrate(body, other_s)",
+        ),
+    ] {
+        let changed = compile(&changed, &geometry).unwrap();
+        assert_ne!(
+            form.source_identity(),
+            changed
+                .authored_formulations()
+                .next()
+                .unwrap()
+                .source_identity()
+        );
+    }
+    for changed in [
+        input.replace("gauge T", "gauge other_T"),
+        input.replace(
+            "reference integrate(body, T) = 0",
+            "reference integrate(body, T) = k",
+        ),
+        input.replace(
+            "compatibility integrate(body, s) = 0",
+            "compatibility integrate(body, s) = k",
+        ),
+        input.replace("integrate(body, T)", "T"),
+    ] {
+        assert!(compile(&changed, &geometry).is_err(), "{changed}");
+    }
+    let text = std::str::from_utf8(form.canonical_bytes()).unwrap();
+    assert!(
+        AuthoredFormulationProjection::decode(
+            text.replace("eqiora.authored-form/v5", "eqiora.authored-form/v4")
+                .as_bytes()
+        )
+        .is_err()
+    );
+}

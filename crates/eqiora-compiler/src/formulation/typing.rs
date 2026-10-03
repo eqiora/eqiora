@@ -530,7 +530,10 @@ impl ExpressionContext<'_> {
         let integrand_range = integrand.range();
         let integrand = self.compile(integrand)?;
         require_scalar(self.file, integrand_range, &integrand)?;
-        if integrand.support != Some(domain_id) {
+        if integrand
+            .support
+            .is_some_and(|support| support != domain_id)
+        {
             return Err(error(
                 self.file,
                 expression.range(),

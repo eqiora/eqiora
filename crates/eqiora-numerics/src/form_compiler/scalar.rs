@@ -28,7 +28,9 @@ use crate::form_compiler::{
     DIVERGENCE_BY_PARTS, MatrixSlot, SOURCE_PAIRING, TEST_PAIRING, WeakSign, WeakTermSlot,
     ZERO_TEST_TRACE_DISCHARGE,
 };
-pub(crate) use authored::admit as admit_authored_scalar_primal_form;
+pub(crate) use authored::{
+    admit as admit_authored_scalar_primal_form, equivalent as equivalent_authored_expression,
+};
 use recognition::{recognize_essential_trace, recognize_volume, validate_source_expression};
 
 const MAX_DAG_NODES: usize = 4_096;

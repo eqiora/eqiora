@@ -6,7 +6,7 @@ use ulid::Ulid;
 
 use super::{AuthoredFormExpression, AuthoredFormExpressionKind};
 
-const SCHEMA: &str = "eqiora.authored-form/v4";
+const SCHEMA: &str = "eqiora.authored-form/v5";
 const MAX_BYTES: usize = 1024 * 1024;
 
 /// Exact compiler-owned projection of one authored Formulation.
@@ -30,9 +30,20 @@ struct WireForm {
     trial_ulids: Vec<String>,
     name: String,
     binding: WireBinding,
+    gauge: Option<WireGauge>,
     implication: String,
     assumptions: Vec<String>,
     equations: Vec<(String, AuthoredFormExpressionV1, AuthoredFormExpressionV1)>,
+}
+
+/// One declared constant scalar gauge; numerical admission checks its actual
+/// nullspace and the original load independently of this authored condition.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct WireGauge {
+    pub(super) field_ulid: String,
+    pub(super) reference: (AuthoredFormExpressionV1, AuthoredFormExpressionV1),
+    pub(super) compatibility: (AuthoredFormExpressionV1, AuthoredFormExpressionV1),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -150,6 +161,7 @@ impl AuthoredFormulationProjection {
                 lower: interval.1,
                 upper: interval.2,
             },
+            gauge: None,
             implication: "strong-implies-interval-conservation".into(),
             assumptions: super::interval::ASSUMPTIONS
                 .iter()
@@ -181,6 +193,7 @@ impl AuthoredFormulationProjection {
             trial_ulids: tests.iter().map(|t| t.1.clone()).collect(),
             name,
             binding: WireBinding::WeakTests { tests },
+            gauge: None,
             implication: "strong-implies-weak".into(),
             assumptions: assumptions.iter().map(|s| (*s).into()).collect(),
             equations,
@@ -188,7 +201,43 @@ impl AuthoredFormulationProjection {
         Self::decode(&serde_json::to_vec(&wire).map_err(|_| rejection("nonfinite form"))?)
     }
 
-    /// Decode exactly one bounded canonical v4 projection.
+    pub(super) fn with_gauge(mut self, gauge: WireGauge) -> Result<Self, Diagnostic> {
+        self.wire.gauge = Some(gauge);
+        Self::decode(&serde_json::to_vec(&self.wire).map_err(|_| rejection("nonfinite gauge"))?)
+    }
+
+    /// Exact Field carrying the declared constant scalar shift freedom.
+    #[must_use]
+    pub fn gauge_field_ulid(&self) -> Option<&str> {
+        self.wire
+            .gauge
+            .as_ref()
+            .map(|gauge| gauge.field_ulid.as_str())
+    }
+
+    /// Authored reference equality, separate from the original Model equations.
+    #[must_use]
+    pub fn gauge_reference(
+        &self,
+    ) -> Option<(&AuthoredFormExpressionV1, &AuthoredFormExpressionV1)> {
+        self.wire
+            .gauge
+            .as_ref()
+            .map(|gauge| (&gauge.reference.0, &gauge.reference.1))
+    }
+
+    /// Authored load compatibility equality, never a permission to project a load.
+    #[must_use]
+    pub fn gauge_compatibility(
+        &self,
+    ) -> Option<(&AuthoredFormExpressionV1, &AuthoredFormExpressionV1)> {
+        self.wire
+            .gauge
+            .as_ref()
+            .map(|gauge| (&gauge.compatibility.0, &gauge.compatibility.1))
+    }
+
+    /// Decode exactly one bounded canonical v5 projection.
     ///
     /// # Errors
     /// Returns a diagnostic for an oversized, malformed, noncanonical, or
@@ -264,6 +313,14 @@ impl AuthoredFormulationProjection {
         {
             return Err(rejection(
                 "scalar implication or required hypotheses differ from the admitted profile",
+            ));
+        }
+        if let Some(gauge) = &wire.gauge
+            && (!matches!(wire.binding, WireBinding::Interval { .. })
+                || wire.trial_ulids.as_slice() != [gauge.field_ulid.clone()])
+        {
+            return Err(rejection(
+                "constant gauge requires the exact scalar interval trial",
             ));
         }
         let mut names = vec![wire.name.as_str()];
@@ -567,7 +624,7 @@ mod tests {
         let bytes = projection().canonical_bytes().to_vec();
         let old = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.authored-form/v4", "eqiora.authored-scalar-form/v3");
+            .replace("eqiora.authored-form/v5", "eqiora.authored-scalar-form/v3");
         assert!(AuthoredFormulationProjection::decode(old.as_bytes()).is_err());
     }
 

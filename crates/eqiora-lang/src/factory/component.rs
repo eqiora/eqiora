@@ -53,6 +53,36 @@ impl SourceAstFactory {
         })
     }
 
+    /// Attach an explicit constant scalar gauge to one existing Formulation.
+    /// The ordered equalities are its reference and load compatibility condition.
+    ///
+    /// # Errors
+    /// Rejects malformed expressions, an unknown form, or a repeated gauge declaration.
+    pub fn with_formulation_gauge(
+        mut component: ComponentDecl,
+        form_name: &str,
+        field: impl Into<String>,
+        conditions: [(Expr, Expr); 2],
+    ) -> Result<ComponentDecl, AstConstructionError> {
+        let field = checked_identifier(field, "gauge Field")?;
+        for (left, right) in &conditions {
+            validate_expression(left)?;
+            validate_expression(right)?;
+        }
+        let form = component
+            .formulations
+            .iter_mut()
+            .find(|form| form.name == form_name)
+            .ok_or_else(|| AstConstructionError::new("gauge requires an existing Formulation"))?;
+        if form.gauge.is_some() {
+            return Err(AstConstructionError::new(
+                "Formulation already declares a gauge",
+            ));
+        }
+        form.gauge = Some((field, conditions));
+        Ok(component)
+    }
+
     /// Construct a Component with one bound mathematical formulation after its members.
     ///
     /// # Errors
@@ -133,6 +163,7 @@ impl SourceAstFactory {
                 binding,
                 relations,
                 equations,
+                gauge: None,
                 range: formulation_range,
             }],
             range,

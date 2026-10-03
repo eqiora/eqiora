@@ -149,6 +149,28 @@ impl Parser<'_> {
             }
             FormulationBinding::WeakTests { tests }
         };
+        let gauge = if self.at_keyword("gauge") {
+            self.bump();
+            let field = self
+                .expect_identifier("constant-gauge Field")?
+                .text()
+                .to_owned();
+            self.expect(TokenKind::LeftBrace, "`{` before gauge conditions")?;
+            let mut equality = |keyword: &str| {
+                self.expect_keyword(keyword)?;
+                let left = self.parse_expression(0)?;
+                self.expect(TokenKind::Equal, "`=` in gauge condition")?;
+                let right = self.parse_expression(0)?;
+                self.expect(TokenKind::Semicolon, "`;` after gauge condition")?;
+                Some((left, right))
+            };
+            let reference = equality("reference")?;
+            let compatibility = equality("compatibility")?;
+            self.expect(TokenKind::RightBrace, "`}` after gauge conditions")?;
+            Some((field, [reference, compatibility]))
+        } else {
+            None
+        };
         let mut equations = Vec::new();
         loop {
             let left = self.parse_expression(0)?;
@@ -176,6 +198,7 @@ impl Parser<'_> {
             binding,
             relations,
             equations,
+            gauge,
             range: TextRange::new(start, end),
         })
     }
@@ -241,6 +264,42 @@ component Diffusion(
         ] {
             let source = format!("component C() {{ form weak for balance {{ {body} }} }}");
             assert!(parse("invalid.eqi", &source).into_document().is_err());
+        }
+    }
+}
+
+#[cfg(test)]
+mod gauge_tests {
+    use crate::{format, parse};
+
+    #[test]
+    fn gauge_requires_both_labeled_conditions_in_canonical_order() {
+        let source = "component C() { form f for r { interval i(a,b) on d; gauge u { reference integrate(d,u)=0; compatibility integrate(d,s)=0; } outward_flux(i,a,q)+outward_flux(i,b,q)=integrate(i,s); } }";
+        let parsed = parse("gauge.eqi", source).into_document().unwrap();
+        let formatted = format(&parsed);
+        assert_eq!(
+            format(&parse("gauge.eqi", &formatted).into_document().unwrap()),
+            formatted
+        );
+        let (field, conditions) = parsed.components()[0].formulation_gauge("f").unwrap();
+        assert_eq!(field, "u");
+        assert_eq!(conditions.len(), 2);
+        for invalid in [
+            source.replace("compatibility integrate(d,s)=0;", ""),
+            source.replace("reference integrate(d,u)=0;", ""),
+            source.replace(
+                "reference integrate(d,u)=0; compatibility integrate(d,s)=0;",
+                "compatibility integrate(d,s)=0; reference integrate(d,u)=0;",
+            ),
+            source.replace(
+                "reference integrate(d,u)=0;",
+                "reference integrate(d,u)>=0;",
+            ),
+        ] {
+            assert!(
+                parse("invalid.eqi", &invalid).into_document().is_err(),
+                "{invalid}"
+            );
         }
     }
 }
