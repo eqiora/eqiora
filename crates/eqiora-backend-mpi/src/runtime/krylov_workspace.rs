@@ -2,7 +2,33 @@ use eqiora_core::Diagnostic;
 use eqiora_distributed::DistributedLinearProblem;
 use eqiora_solver::{LinearSolver, SolverPlan};
 
-use super::{CgWorkspace, KrylovWorkspace, MinresWorkspace, invalid_realization, zeroed};
+use super::{invalid_realization, zeroed};
+
+pub(super) enum KrylovWorkspace {
+    Cg(CgWorkspace),
+    Minres(MinresWorkspace),
+}
+
+pub(super) struct CgWorkspace {
+    pub(super) solution: Vec<f64>,
+    pub(super) applied: Vec<f64>,
+    pub(super) residual: Vec<f64>,
+    pub(super) preconditioned: Vec<f64>,
+    pub(super) direction: Vec<f64>,
+    pub(super) inverse_diagonal: Vec<f64>,
+}
+
+pub(super) struct MinresWorkspace {
+    pub(super) solution: Vec<f64>,
+    pub(super) applied: Vec<f64>,
+    pub(super) previous_residual: Vec<f64>,
+    pub(super) current_residual: Vec<f64>,
+    pub(super) lanczos_image: Vec<f64>,
+    pub(super) basis: Vec<f64>,
+    pub(super) direction: Vec<f64>,
+    pub(super) previous_direction: Vec<f64>,
+    pub(super) older_direction: Vec<f64>,
+}
 
 impl KrylovWorkspace {
     pub(super) fn new(

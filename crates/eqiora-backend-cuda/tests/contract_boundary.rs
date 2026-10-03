@@ -122,6 +122,7 @@ mod cuda_runtime {
         CudaLinearSolver::capabilities()
             .require_problem(
                 supported,
+                eqiora_core::ScalarDomain::Real,
                 ScalarType::F64,
                 LinearOperatorProperties::SymmetricIndefinite,
             )
@@ -168,7 +169,12 @@ mod cuda_runtime {
             ),
         ] {
             let error = CudaLinearSolver::capabilities()
-                .require_problem(plan, ScalarType::F64, properties)
+                .require_problem(
+                    plan,
+                    eqiora_core::ScalarDomain::Real,
+                    ScalarType::F64,
+                    properties,
+                )
                 .unwrap_err();
             assert_eq!(error.code(), codes::INVALID_REALIZATION);
             assert!(error.message().contains(missing_policy));

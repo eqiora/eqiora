@@ -339,6 +339,7 @@ mod tests {
 
         fn capabilities(&self) -> SolverCapabilities {
             SolverCapabilities::exact([SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::SparseLu,
                 operator_properties: LinearOperatorProperties::General,
                 preconditioner: PreconditionerPolicy::Identity,

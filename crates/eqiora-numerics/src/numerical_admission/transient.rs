@@ -865,7 +865,12 @@ pub(super) fn transient_realization_capabilities(
     solver: SolverPlan,
     backend: &SolverCapabilities,
 ) -> Result<RealizationCapabilities, Diagnostic> {
-    backend.require_problem(solver, ScalarType::F64, LinearOperatorProperties::General)?;
+    backend.require_problem(
+        solver,
+        eqiora_core::ScalarDomain::Real,
+        ScalarType::F64,
+        LinearOperatorProperties::General,
+    )?;
     RealizationCapabilities::cartesian_product(
         [method],
         [(
@@ -874,6 +879,7 @@ pub(super) fn transient_realization_capabilities(
         )],
         [VectorLayoutKind::Replicated],
         SolverCapabilities::exact([SolverCapability {
+            scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: solver.algorithm(),
             operator_properties: LinearOperatorProperties::General,
             preconditioner: solver.preconditioner(),

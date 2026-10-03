@@ -423,6 +423,7 @@ fn resolve_plan_with_placement(
         Target::CudaGpu { device } => TargetCapabilities::none().with_cuda_device(device),
     };
     let solver_capabilities = SolverCapabilities::exact([SolverCapability {
+        scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: solver.algorithm(),
         operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
         preconditioner: solver.preconditioner(),

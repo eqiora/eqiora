@@ -361,11 +361,13 @@ fn distributed_capabilities(solver: eqiora::solver::SolverCapabilities) -> Reali
     solver
         .require_problem(
             plan,
+            eqiora_core::ScalarDomain::Real,
             ScalarType::F64,
             LinearOperatorProperties::SymmetricPositiveDefinite,
         )
         .expect("the MPI group implements the exact Poisson solver tuple");
     let solver = SolverCapabilities::exact([SolverCapability {
+        scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: plan.algorithm(),
         operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
         preconditioner: plan.preconditioner(),

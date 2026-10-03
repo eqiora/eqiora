@@ -625,6 +625,7 @@ pub(crate) fn advance_simplicial_ale_fsi_prepared_step<const D: usize>(
     }
     solver.capabilities().require_problem(
         plan.linear_solver(),
+        eqiora_core::ScalarDomain::Real,
         ScalarType::F64,
         LinearOperatorProperties::General,
     )?;

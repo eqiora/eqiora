@@ -80,6 +80,7 @@ impl<const D: usize> P1HarmonicMeshMotionAction<D> {
         }
         solver.backend().capabilities().require_problem(
             solver.plan(),
+            eqiora_core::ScalarDomain::Real,
             ScalarType::F64,
             LinearOperatorProperties::SymmetricPositiveDefinite,
         )?;

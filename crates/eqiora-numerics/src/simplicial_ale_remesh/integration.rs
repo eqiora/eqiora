@@ -178,6 +178,7 @@ pub(super) fn require_projection_solver(solver: LinearSolveRequest<'_>) -> Resul
     }
     solver.backend().capabilities().require_problem(
         solver.plan(),
+        eqiora_core::ScalarDomain::Real,
         ScalarType::F64,
         LinearOperatorProperties::SymmetricIndefinite,
     )?;
@@ -191,10 +192,12 @@ pub(super) fn solve_dense(
     solver: LinearSolveRequest<'_>,
 ) -> Result<(Vec<f64>, SolveReport, f64), Diagnostic> {
     let operator = DenseSymmetricOperator::new(values, right_hand_side.len())?;
-    solver
-        .backend()
-        .capabilities()
-        .require_problem(solver.plan(), ScalarType::F64, properties)?;
+    solver.backend().capabilities().require_problem(
+        solver.plan(),
+        eqiora_core::ScalarDomain::Real,
+        ScalarType::F64,
+        properties,
+    )?;
     let problem = LinearProblem::new(&operator, right_hand_side, properties)?;
     let (solution, report) = solver.solve(&problem)?.into_parts();
     let residual = residual_norm(&operator, &solution, right_hand_side)?;

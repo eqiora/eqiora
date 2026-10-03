@@ -340,6 +340,11 @@ impl RealizationCapability {
         context: RealizationCapabilityContext,
         solver: SolverCapability,
     ) -> Result<Self, Diagnostic> {
+        if solver.scalar_domain != eqiora_core::ScalarDomain::Real {
+            return Err(invalid_realization(
+                "spatial realization capabilities currently require real scalar operators",
+            ));
+        }
         if !solver.algorithm.accepts(solver.operator_properties) {
             return Err(invalid_realization(format!(
                 "realization capability has an incompatible solver/property pair: {solver:?}",
@@ -474,6 +479,9 @@ impl RealizationCapabilities {
         let mut combinations = BTreeSet::new();
         for (method, mesh_kind, spatial_dimensions) in profiles {
             for &solver in solver.combinations() {
+                if solver.scalar_domain != eqiora_core::ScalarDomain::Real {
+                    continue;
+                }
                 let context = RealizationCapabilityContext::new(
                     SpatialCapability::new(method, mesh_kind, spatial_dimensions),
                     vector_layout,
@@ -500,6 +508,7 @@ impl RealizationCapabilities {
         .expect("one through three is a valid dimension range");
         let solver = SolverCapabilities::exact([
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::ConjugateGradient,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
                 preconditioner: PreconditionerPolicy::Identity,
@@ -507,6 +516,7 @@ impl RealizationCapabilities {
                 scalar_type: ScalarType::F64,
             },
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::ConjugateGradient,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
                 preconditioner: PreconditionerPolicy::Jacobi,
@@ -551,6 +561,7 @@ impl RealizationCapabilities {
     #[must_use]
     pub fn cell_centered_transport_2d_reference() -> Self {
         let solver = SolverCapabilities::exact([SolverCapability {
+            scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::BiConjugateGradientStabilized,
             operator_properties: LinearOperatorProperties::General,
             preconditioner: PreconditionerPolicy::Jacobi,
@@ -581,6 +592,7 @@ impl RealizationCapabilities {
     #[must_use]
     pub fn isotropic_elasticity_2d_reference() -> Self {
         let solver = SolverCapabilities::exact([SolverCapability {
+            scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::ConjugateGradient,
             operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
             preconditioner: PreconditionerPolicy::Identity,
@@ -611,6 +623,7 @@ impl RealizationCapabilities {
     #[must_use]
     pub fn symmetric_mixed_simplicial_2d_reference() -> Self {
         let solver = SolverCapabilities::exact([SolverCapability {
+            scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::MinimumResidual,
             operator_properties: LinearOperatorProperties::SymmetricIndefinite,
             preconditioner: PreconditionerPolicy::Identity,
@@ -791,6 +804,7 @@ mod tests {
 
     fn solver(algorithm: LinearSolver, properties: LinearOperatorProperties) -> SolverCapability {
         SolverCapability {
+            scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm,
             operator_properties: properties,
             preconditioner: PreconditionerPolicy::Identity,
@@ -830,6 +844,31 @@ mod tests {
             error.code(),
             eqiora_core::diagnostic::codes::INVALID_REALIZATION
         );
+    }
+
+    #[test]
+    fn complex_solver_support_does_not_imply_spatial_realization_support() {
+        let context = RealizationCapabilityContext::new(
+            SpatialCapability::new(
+                DiscretizationMethod::ContinuousGalerkin,
+                MeshKind::GeneratedCartesian,
+                SpatialDimensionSupport::exact(NonZeroUsize::MIN),
+            ),
+            VectorLayoutKind::Replicated,
+            TargetCapability::HostCpu {
+                maximum_threads: NonZeroUsize::MIN,
+            },
+            ScheduleCapability::Offline,
+        );
+        let mut tuple = solver(
+            LinearSolver::BiConjugateGradientStabilized,
+            LinearOperatorProperties::General,
+        );
+        RealizationCapability::new(context, tuple).unwrap();
+        tuple.scalar_domain = eqiora_core::ScalarDomain::Complex;
+        SolverCapabilities::exact([tuple]).unwrap();
+        let error = RealizationCapability::new(context, tuple).unwrap_err();
+        assert!(error.message().contains("real scalar operators"));
     }
 
     #[test]

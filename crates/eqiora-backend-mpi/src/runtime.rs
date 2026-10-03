@@ -36,6 +36,8 @@ use crate::{
 
 mod krylov_workspace;
 
+use krylov_workspace::{CgWorkspace, KrylovWorkspace, MinresWorkspace};
+
 /// Stable backend identity for Eqiora's distributed Krylov solvers over MPI.
 pub const MPI_DISTRIBUTED_KRYLOV_BACKEND: BackendId = BackendId::new("eqiora.mpi.krylov");
 
@@ -267,6 +269,7 @@ impl MpiExecutionGroup {
     pub fn solver_capabilities(&self) -> SolverCapabilities {
         SolverCapabilities::exact([
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::ConjugateGradient,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
                 preconditioner: PreconditionerPolicy::Jacobi,
@@ -274,6 +277,7 @@ impl MpiExecutionGroup {
                 scalar_type: ScalarType::F64,
             },
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::ConjugateGradient,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
                 preconditioner: PreconditionerPolicy::Jacobi,
@@ -281,6 +285,7 @@ impl MpiExecutionGroup {
                 scalar_type: ScalarType::F64,
             },
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::MinimumResidual,
                 operator_properties: LinearOperatorProperties::SymmetricIndefinite,
                 preconditioner: PreconditionerPolicy::Identity,
@@ -1872,6 +1877,7 @@ impl<'model> PreparedRun<'model> {
         }
         group.solver_capabilities().require_problem(
             plan,
+            eqiora_core::ScalarDomain::Real,
             system.partition().space().scalar_type(),
             complete.properties(),
         )?;
@@ -1912,32 +1918,6 @@ struct RunBuffers {
     gathered_values: Vec<f64>,
     complete_values: Vec<f64>,
     acceptance: LinearAcceptanceWorkspace,
-}
-
-enum KrylovWorkspace {
-    Cg(CgWorkspace),
-    Minres(MinresWorkspace),
-}
-
-struct CgWorkspace {
-    solution: Vec<f64>,
-    applied: Vec<f64>,
-    residual: Vec<f64>,
-    preconditioned: Vec<f64>,
-    direction: Vec<f64>,
-    inverse_diagonal: Vec<f64>,
-}
-
-struct MinresWorkspace {
-    solution: Vec<f64>,
-    applied: Vec<f64>,
-    previous_residual: Vec<f64>,
-    current_residual: Vec<f64>,
-    lanczos_image: Vec<f64>,
-    basis: Vec<f64>,
-    direction: Vec<f64>,
-    previous_direction: Vec<f64>,
-    older_direction: Vec<f64>,
 }
 
 impl RunBuffers {

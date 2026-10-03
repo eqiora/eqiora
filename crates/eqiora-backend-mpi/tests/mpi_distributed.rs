@@ -349,6 +349,7 @@ fn mpi_child_rejects_unverified_solver_tuples_at_preflight() {
         group.solver_capabilities().combinations(),
         &BTreeSet::from([
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::ConjugateGradient,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
                 preconditioner: PreconditionerPolicy::Jacobi,
@@ -356,6 +357,7 @@ fn mpi_child_rejects_unverified_solver_tuples_at_preflight() {
                 scalar_type: ScalarType::F64,
             },
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::ConjugateGradient,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
                 preconditioner: PreconditionerPolicy::Jacobi,
@@ -363,6 +365,7 @@ fn mpi_child_rejects_unverified_solver_tuples_at_preflight() {
                 scalar_type: ScalarType::F64,
             },
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::MinimumResidual,
                 operator_properties: LinearOperatorProperties::SymmetricIndefinite,
                 preconditioner: PreconditionerPolicy::Identity,
@@ -375,6 +378,7 @@ fn mpi_child_rejects_unverified_solver_tuples_at_preflight() {
         .solver_capabilities()
         .require_problem(
             minres_plan(),
+            eqiora_core::ScalarDomain::Real,
             ScalarType::F64,
             LinearOperatorProperties::SymmetricIndefinite,
         )
@@ -388,6 +392,7 @@ fn mpi_child_rejects_unverified_solver_tuples_at_preflight() {
             .solver_capabilities()
             .require_problem(
                 unsupported,
+                eqiora_core::ScalarDomain::Real,
                 ScalarType::F64,
                 LinearOperatorProperties::SymmetricIndefinite,
             )
@@ -410,6 +415,7 @@ fn mpi_child_rejects_unverified_solver_tuples_at_preflight() {
             .solver_capabilities()
             .require_problem(
                 unverified_cross_product,
+                eqiora_core::ScalarDomain::Real,
                 ScalarType::F64,
                 LinearOperatorProperties::SymmetricPositiveDefinite,
             )

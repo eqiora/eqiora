@@ -417,6 +417,7 @@ impl DeploymentBinding {
         let contract = host_contract(realization)?;
         executor.solver_capabilities.require_problem(
             contract.plan,
+            eqiora_core::ScalarDomain::Real,
             ScalarType::F64,
             contract.properties,
         )?;
@@ -457,6 +458,7 @@ impl DeploymentBinding {
         let contract = cuda_contract(realization)?;
         executor.solver_capabilities.require_problem(
             contract.plan,
+            eqiora_core::ScalarDomain::Real,
             ScalarType::F64,
             contract.properties,
         )?;
@@ -493,6 +495,7 @@ impl DeploymentBinding {
         let contract = distributed_contract(realization)?;
         executor.solver_capabilities.require_problem(
             contract.plan,
+            eqiora_core::ScalarDomain::Real,
             ScalarType::F64,
             contract.properties,
         )?;
@@ -533,6 +536,7 @@ impl DeploymentBinding {
         let contract = distributed_cuda_contract(realization)?;
         distributed.solver_capabilities.require_problem(
             contract.plan,
+            eqiora_core::ScalarDomain::Real,
             ScalarType::F64,
             contract.properties,
         )?;

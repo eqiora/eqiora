@@ -550,6 +550,7 @@ fn capabilities(dimension: usize) -> RealizationCapabilities {
         [VectorLayoutKind::Replicated],
         SolverCapabilities::exact([
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::BiConjugateGradientStabilized,
                 operator_properties: LinearOperatorProperties::General,
                 preconditioner: PreconditionerPolicy::Identity,
@@ -557,6 +558,7 @@ fn capabilities(dimension: usize) -> RealizationCapabilities {
                 scalar_type: ScalarType::F64,
             },
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::ConjugateGradient,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
                 preconditioner: PreconditionerPolicy::Identity,
@@ -861,6 +863,7 @@ impl LinearSolverBackend for NoSolveGeneralBackend {
 
     fn capabilities(&self) -> SolverCapabilities {
         SolverCapabilities::exact([SolverCapability {
+            scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::BiConjugateGradientStabilized,
             operator_properties: LinearOperatorProperties::General,
             preconditioner: PreconditionerPolicy::Identity,

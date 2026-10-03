@@ -32,7 +32,11 @@ fn cuda_facade_is_optional_and_admission_fails_closed_without_runtime_work() {
 
     let reproducible = canonical::solver_plan(ReductionPolicy::Reproducible);
     let unsupported = CudaLinearSolver::capabilities()
-        .require(reproducible, ScalarType::F64)
+        .require(
+            reproducible,
+            eqiora_core::ScalarDomain::Real,
+            ScalarType::F64,
+        )
         .unwrap_err();
     assert_eq!(
         unsupported.code(),

@@ -315,6 +315,7 @@ fn distributed_cuda_capabilities(
     solver: eqiora::solver::SolverCapabilities,
 ) -> RealizationCapabilities {
     let selected = SolverCapability {
+        scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::MinimumResidual,
         operator_properties: LinearOperatorProperties::SymmetricIndefinite,
         preconditioner: PreconditionerPolicy::Identity,
@@ -325,6 +326,7 @@ fn distributed_cuda_capabilities(
         .require_problem(
             eqiora::solver::SolverPlan::new(selected.algorithm, 1.0e-8, 1.0e-12, NonZeroUsize::MIN)
                 .expect("the admission probe is valid"),
+            eqiora_core::ScalarDomain::Real,
             selected.scalar_type,
             selected.operator_properties,
         )

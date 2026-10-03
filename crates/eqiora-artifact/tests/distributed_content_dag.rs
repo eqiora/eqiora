@@ -240,6 +240,7 @@ fn realization(
 
 fn scalar_elliptic_solver_capabilities() -> SolverCapabilities {
     SolverCapabilities::exact([SolverCapability {
+        scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::ConjugateGradient,
         operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
         preconditioner: PreconditionerPolicy::Identity,

@@ -120,6 +120,7 @@ fn compile_program_with_identity_from_source(
 pub fn cuda_solver_contract() -> SolverCapabilities {
     SolverCapabilities::exact([
         SolverCapability {
+            scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::ConjugateGradient,
             operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
             preconditioner: PreconditionerPolicy::Jacobi,
@@ -127,6 +128,7 @@ pub fn cuda_solver_contract() -> SolverCapabilities {
             scalar_type: ScalarType::F64,
         },
         SolverCapability {
+            scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::BiConjugateGradientStabilized,
             operator_properties: LinearOperatorProperties::General,
             preconditioner: PreconditionerPolicy::Identity,
@@ -134,6 +136,7 @@ pub fn cuda_solver_contract() -> SolverCapabilities {
             scalar_type: ScalarType::F64,
         },
         SolverCapability {
+            scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::MinimumResidual,
             operator_properties: LinearOperatorProperties::SymmetricIndefinite,
             preconditioner: PreconditionerPolicy::Identity,
@@ -152,11 +155,13 @@ pub fn exact_capabilities(
     solver
         .require_problem(
             plan,
+            eqiora_core::ScalarDomain::Real,
             ScalarType::F64,
             LinearOperatorProperties::SymmetricPositiveDefinite,
         )
         .expect("the provider implements the exact Poisson solver tuple");
     let solver = SolverCapabilities::exact([SolverCapability {
+        scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: plan.algorithm(),
         operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
         preconditioner: plan.preconditioner(),

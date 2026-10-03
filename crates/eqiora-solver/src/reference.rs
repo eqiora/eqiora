@@ -5,7 +5,7 @@ use eqiora_core::diagnostic::codes;
 
 use crate::{
     ConvergenceReason, DiagonalAvailability, FixedOrderInnerProduct, LinearProblem, LinearSolution,
-    LinearSolver, LinearSolverBackend, PreconditionerPolicy, ReplicatedLinearExecution, ScalarType,
+    LinearSolver, LinearSolverBackend, PreconditionerPolicy, ReplicatedLinearExecution,
     SolveReport, SolverCapabilities, SolverPlan, SolverProvider,
 };
 
@@ -38,8 +38,12 @@ impl LinearSolverBackend for ReferenceLinearSolver {
         plan: SolverPlan,
         execution: &dyn ReplicatedLinearExecution,
     ) -> Result<LinearSolution, Diagnostic> {
-        self.capabilities()
-            .require_problem(plan, ScalarType::F64, problem.properties())?;
+        self.capabilities().require_problem(
+            plan,
+            problem.scalar_domain(),
+            problem.scalar_type(),
+            problem.properties(),
+        )?;
         execution.require_reduction(plan.reduction())?;
         match plan.algorithm() {
             LinearSolver::ConjugateGradient => {

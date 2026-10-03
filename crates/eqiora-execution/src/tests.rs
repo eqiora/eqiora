@@ -195,6 +195,7 @@ fn portable_graph_with_workers(
 
 fn reference_spd_solver_capabilities() -> SolverCapabilities {
     SolverCapabilities::exact([SolverCapability {
+        scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::ConjugateGradient,
         operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
         preconditioner: PreconditionerPolicy::Identity,
@@ -215,8 +216,14 @@ const TEST_CUDA_EXECUTION: ExecutionId = ExecutionId::new("eqiora.test.cuda.queu
 fn cuda_solver_capabilities() -> SolverCapabilities {
     SolverCapabilities::new(
         [LinearSolver::ConjugateGradient],
+        [
+            eqiora_solver::LinearOperatorProperties::General,
+            eqiora_solver::LinearOperatorProperties::SymmetricPositiveDefinite,
+            eqiora_solver::LinearOperatorProperties::SymmetricIndefinite,
+        ],
         [PreconditionerPolicy::Jacobi],
         [ReductionPolicy::Fast],
+        eqiora_core::ScalarDomain::Real,
         [ScalarType::F64],
     )
     .unwrap()
@@ -224,6 +231,7 @@ fn cuda_solver_capabilities() -> SolverCapabilities {
 
 fn cuda_minres_solver_capabilities() -> SolverCapabilities {
     SolverCapabilities::exact([SolverCapability {
+        scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::MinimumResidual,
         operator_properties: LinearOperatorProperties::SymmetricIndefinite,
         preconditioner: PreconditionerPolicy::Identity,
@@ -339,8 +347,14 @@ const TEST_DISTRIBUTED_EXECUTION: ExecutionId = ExecutionId::new("eqiora.test.di
 fn distributed_solver_capabilities(reduction: ReductionPolicy) -> SolverCapabilities {
     SolverCapabilities::new(
         [LinearSolver::ConjugateGradient],
+        [
+            eqiora_solver::LinearOperatorProperties::General,
+            eqiora_solver::LinearOperatorProperties::SymmetricPositiveDefinite,
+            eqiora_solver::LinearOperatorProperties::SymmetricIndefinite,
+        ],
         [PreconditionerPolicy::Jacobi],
         [reduction],
+        eqiora_core::ScalarDomain::Real,
         [ScalarType::F64],
     )
     .unwrap()
@@ -348,6 +362,7 @@ fn distributed_solver_capabilities(reduction: ReductionPolicy) -> SolverCapabili
 
 fn distributed_minres_solver_capabilities() -> SolverCapabilities {
     SolverCapabilities::exact([SolverCapability {
+        scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::MinimumResidual,
         operator_properties: LinearOperatorProperties::SymmetricIndefinite,
         preconditioner: PreconditionerPolicy::Identity,
@@ -1145,8 +1160,14 @@ fn distributed_binding_accepts_only_the_exact_symmetric_indefinite_minres_tuple(
     let partitions = NonZeroUsize::new(2).unwrap();
     let capabilities = SolverCapabilities::new(
         [LinearSolver::MinimumResidual],
+        [
+            eqiora_solver::LinearOperatorProperties::General,
+            eqiora_solver::LinearOperatorProperties::SymmetricPositiveDefinite,
+            eqiora_solver::LinearOperatorProperties::SymmetricIndefinite,
+        ],
         [PreconditionerPolicy::Identity],
         [ReductionPolicy::Reproducible],
+        eqiora_core::ScalarDomain::Real,
         [ScalarType::F64],
     )
     .unwrap();
@@ -1423,8 +1444,14 @@ fn binding_rejects_a_provider_without_the_exact_solver_tuple() {
     let graph = portable_graph();
     let unsupported = SolverCapabilities::new(
         [LinearSolver::BiConjugateGradientStabilized],
+        [
+            eqiora_solver::LinearOperatorProperties::General,
+            eqiora_solver::LinearOperatorProperties::SymmetricPositiveDefinite,
+            eqiora_solver::LinearOperatorProperties::SymmetricIndefinite,
+        ],
         [PreconditionerPolicy::Identity],
         [ReductionPolicy::Reproducible],
+        eqiora_core::ScalarDomain::Real,
         [ScalarType::F64],
     )
     .unwrap();
@@ -1722,8 +1749,14 @@ fn cuda_binding_rejects_capability_and_memory_before_device_allocation() {
     let allocation_attempted = Cell::new(false);
     let unsupported = SolverCapabilities::new(
         [LinearSolver::ConjugateGradient],
+        [
+            eqiora_solver::LinearOperatorProperties::General,
+            eqiora_solver::LinearOperatorProperties::SymmetricPositiveDefinite,
+            eqiora_solver::LinearOperatorProperties::SymmetricIndefinite,
+        ],
         [PreconditionerPolicy::Jacobi],
         [ReductionPolicy::Reproducible],
+        eqiora_core::ScalarDomain::Real,
         [ScalarType::F64],
     )
     .unwrap();

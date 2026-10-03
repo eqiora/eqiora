@@ -83,6 +83,7 @@ pub(super) fn resolve_common_scalar_portable(
     let solver = admission.linear.solver;
     admission.linear.capabilities.require_problem(
         solver,
+        eqiora_core::ScalarDomain::Real,
         ScalarType::F64,
         scalar_operator_properties(admission.spatial),
     )?;

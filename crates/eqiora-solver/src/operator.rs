@@ -114,6 +114,18 @@ pub enum LinearOperatorProperties {
     SymmetricIndefinite,
 }
 
+impl LinearOperatorProperties {
+    /// Whether this mathematical assertion is defined for the selected scalar domain.
+    #[must_use]
+    pub const fn supports_domain(self, domain: eqiora_core::ScalarDomain) -> bool {
+        match domain {
+            eqiora_core::ScalarDomain::Real => true,
+            eqiora_core::ScalarDomain::Complex => matches!(self, Self::General),
+            _ => false,
+        }
+    }
+}
+
 /// One validated host-local linear problem.
 #[derive(Debug)]
 pub struct LinearProblem<'a, S = f64> {
@@ -137,6 +149,12 @@ impl<'a, S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
         right_hand_side: &'a [S],
         properties: LinearOperatorProperties,
     ) -> Result<Self, Diagnostic> {
+        if !properties.supports_domain(S::DOMAIN) {
+            return Err(Diagnostic::error(
+                codes::INVALID_REALIZATION,
+                "operator property is incompatible with the mathematical scalar domain",
+            ));
+        }
         if operator.rows() == 0 || operator.rows() != operator.columns() {
             return Err(solve_failed(
                 "a linear solve requires a nonempty square operator",

@@ -207,6 +207,7 @@ fn faer_bicgstab_jacobi_and_exact_capability_boundary_are_registered() {
     let capabilities = FaerLinearSolver.capabilities();
     let mut expected = BTreeSet::from([
         SolverCapability {
+            scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::ConjugateGradient,
             operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
             preconditioner: PreconditionerPolicy::Identity,
@@ -214,6 +215,7 @@ fn faer_bicgstab_jacobi_and_exact_capability_boundary_are_registered() {
             scalar_type: ScalarType::F64,
         },
         SolverCapability {
+            scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::ConjugateGradient,
             operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
             preconditioner: PreconditionerPolicy::Jacobi,
@@ -221,6 +223,7 @@ fn faer_bicgstab_jacobi_and_exact_capability_boundary_are_registered() {
             scalar_type: ScalarType::F64,
         },
         SolverCapability {
+            scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::BiConjugateGradientStabilized,
             operator_properties: LinearOperatorProperties::General,
             preconditioner: PreconditionerPolicy::Identity,
@@ -228,6 +231,7 @@ fn faer_bicgstab_jacobi_and_exact_capability_boundary_are_registered() {
             scalar_type: ScalarType::F64,
         },
         SolverCapability {
+            scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::BiConjugateGradientStabilized,
             operator_properties: LinearOperatorProperties::General,
             preconditioner: PreconditionerPolicy::Jacobi,
@@ -250,7 +254,12 @@ fn faer_bicgstab_jacobi_and_exact_capability_boundary_are_registered() {
             .with_preconditioner(tuple.preconditioner)
             .with_reduction(tuple.reduction);
         capabilities
-            .require_problem(plan, tuple.scalar_type, tuple.operator_properties)
+            .require_problem(
+                plan,
+                eqiora_core::ScalarDomain::Real,
+                tuple.scalar_type,
+                tuple.operator_properties,
+            )
             .unwrap_err();
     }
 
@@ -284,7 +293,12 @@ fn faer_bicgstab_jacobi_and_exact_capability_boundary_are_registered() {
         ),
     ] {
         let error = capabilities
-            .require_problem(unsupported, ScalarType::F64, properties)
+            .require_problem(
+                unsupported,
+                eqiora_core::ScalarDomain::Real,
+                ScalarType::F64,
+                properties,
+            )
             .unwrap_err();
         assert!(error.message().contains("exact"));
     }
@@ -559,6 +573,7 @@ fn capability_from_fixture(value: &FrozenCapability) -> SolverCapability {
     assert_eq!(value.solver, "SparseLu");
     assert_eq!(value.scalar, "F64");
     SolverCapability {
+        scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::SparseLu,
         operator_properties: match value.operator_property.as_str() {
             "General" => LinearOperatorProperties::General,

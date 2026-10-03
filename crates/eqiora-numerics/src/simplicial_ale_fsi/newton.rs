@@ -206,6 +206,7 @@ impl<'a, const D: usize> PreparedAleFsiRun<'a, D> {
     ) -> Result<Self, Diagnostic> {
         solver.capabilities().require_problem(
             plan.linear_solver(),
+            eqiora_core::ScalarDomain::Real,
             ScalarType::F64,
             LinearOperatorProperties::General,
         )?;

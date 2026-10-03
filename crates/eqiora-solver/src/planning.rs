@@ -702,6 +702,7 @@ fn rejection_reason(
         return Some(reason);
     }
     let required = SolverCapability {
+        scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: expected.algorithm,
         operator_properties: expected.properties,
         preconditioner: expected.preconditioner,

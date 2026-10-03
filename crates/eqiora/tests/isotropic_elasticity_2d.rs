@@ -241,6 +241,7 @@ fn elasticity_finalization_requires_an_admitted_spd_operator() {
             ScheduleCapability::Offline,
         ),
         SolverCapability {
+            scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::MinimumResidual,
             operator_properties: LinearOperatorProperties::SymmetricIndefinite,
             preconditioner: PreconditionerPolicy::Identity,

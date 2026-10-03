@@ -239,11 +239,13 @@ fn cuda_capabilities(device: u16, plan: SolverPlan) -> RealizationCapabilities {
     CudaLinearSolver::capabilities()
         .require_problem(
             plan,
+            eqiora_core::ScalarDomain::Real,
             ScalarType::F64,
             LinearOperatorProperties::SymmetricIndefinite,
         )
         .expect("the CUDA provider implements the exact selected FSI solver tuple");
     let solver = SolverCapabilities::exact([SolverCapability {
+        scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: plan.algorithm(),
         operator_properties: LinearOperatorProperties::SymmetricIndefinite,
         preconditioner: plan.preconditioner(),

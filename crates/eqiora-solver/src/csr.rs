@@ -161,6 +161,11 @@ impl<S: Scalar + ComplexFloat<Real = f64> + Sync> CanonicalCsrSystemView<S> {
         storage: &dyn CompleteCsrStorage<S>,
         properties: LinearOperatorProperties,
     ) -> Result<Self, Diagnostic> {
+        if !properties.supports_domain(S::DOMAIN) {
+            return Err(invalid_realization(
+                "canonical CSR property is incompatible with its scalar domain",
+            ));
+        }
         let rows = storage.rows();
         let columns = storage.columns();
         let row_offsets = try_copy_slice(storage.row_offsets(), "CSR row offsets")?;

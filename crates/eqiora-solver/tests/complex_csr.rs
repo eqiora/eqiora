@@ -123,3 +123,75 @@ fn imaginary_nonfinite_values_cannot_enter_a_captured_problem_or_guess() {
             .is_err()
     );
 }
+
+#[test]
+fn scalar_domain_admission_is_independent_of_binary64_precision() {
+    use eqiora_core::{ScalarDomain as Domain, ScalarType, diagnostic::codes};
+    use eqiora_solver::{
+        LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverCapabilities, SolverCapability,
+        SolverPlan,
+    };
+    let capability = SolverCapability {
+        scalar_domain: Domain::Real,
+        algorithm: LinearSolver::BiConjugateGradientStabilized,
+        operator_properties: Properties::General,
+        preconditioner: PreconditionerPolicy::Identity,
+        reduction: ReductionPolicy::Reproducible,
+        scalar_type: ScalarType::F64,
+    };
+    let real = SolverCapabilities::exact([capability]).unwrap();
+    let plan = SolverPlan::new(
+        capability.algorithm,
+        1e-12,
+        1e-14,
+        std::num::NonZeroUsize::new(8).unwrap(),
+    )
+    .unwrap();
+    real.require_problem(plan, Domain::Real, ScalarType::F64, Properties::General)
+        .unwrap();
+    assert!(real.supports_scalar(Domain::Real, ScalarType::F64));
+    assert!(!real.supports_scalar(Domain::Complex, ScalarType::F64));
+    assert_eq!(
+        real.require_problem(plan, Domain::Complex, ScalarType::F64, Properties::General)
+            .unwrap_err()
+            .code(),
+        codes::INVALID_REALIZATION
+    );
+    assert!(
+        real.require_problem(plan, Domain::Real, ScalarType::F32, Properties::General)
+            .is_err()
+    );
+    let complex = SolverCapabilities::exact([SolverCapability {
+        scalar_domain: Domain::Complex,
+        ..capability
+    }])
+    .unwrap();
+    complex
+        .require_problem(plan, Domain::Complex, ScalarType::F64, Properties::General)
+        .unwrap();
+    assert!(
+        complex
+            .require_problem(plan, Domain::Real, ScalarType::F64, Properties::General)
+            .is_err()
+    );
+    assert!(
+        SolverCapabilities::exact([SolverCapability {
+            scalar_domain: Domain::Integer,
+            ..capability
+        }])
+        .is_err()
+    );
+    assert!(
+        SolverCapabilities::exact([SolverCapability {
+            scalar_domain: Domain::Complex,
+            operator_properties: Properties::SymmetricPositiveDefinite,
+            ..capability
+        }])
+        .is_err()
+    );
+    let storage = Storage {
+        values: [C::new(1., 0.); 4],
+        rhs: [C::new(1., 0.); 2],
+    };
+    assert!(CanonicalCsrSystemView::new(&storage, Properties::SymmetricPositiveDefinite).is_err());
+}

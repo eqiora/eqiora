@@ -93,6 +93,7 @@ fn faer_sparse_lu_plan() -> SolverPlan {
 
 fn capability(plan: SolverPlan) -> SolverCapability {
     SolverCapability {
+        scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: plan.algorithm(),
         operator_properties: LinearOperatorProperties::General,
         preconditioner: plan.preconditioner(),
@@ -1171,6 +1172,7 @@ fn profile_and_capability_rejections_cannot_be_ranked() {
     let exact = capability(faer_bicgstab_plan());
     let capability_mutants = [
         SolverCapability {
+            scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::SparseLu,
             ..exact
         },
