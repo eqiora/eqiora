@@ -1,6 +1,7 @@
 //! Explicit bounded active-set realization of finite affine real constraints.
 //! Model conditions remain unchanged; numerical acceptance never implies exact satisfaction.
 mod configuration;
+mod linearization;
 mod nonlinear;
 pub(crate) use nonlinear::FiniteNonlinearSolution;
 mod preparation;

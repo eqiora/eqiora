@@ -22,7 +22,7 @@ use crate::spatial_design::SpatialDesignCoordinate;
 pub struct AssembledLinearizedRelation {
     state_jacobian: Arc<CanonicalCsrSystemView>,
     accepted_unknowns: Vec<f64>,
-    primal_residual: Vec<f64>,
+    primal_residual: Option<Vec<f64>>,
     design_coordinates: Vec<SpatialDesignCoordinate>,
     design_values: Vec<f64>,
     design_jacobian: Vec<f64>,
@@ -182,23 +182,14 @@ impl AssembledLinearizedRelation {
                 "assembled linearization requires finite point and action data",
             ));
         }
-        let primal_residual = match primal_residual {
-            Some(residual) => residual,
-            None => {
-                let mut residual = vec![0.0; dimension];
-                state_jacobian.apply(&accepted_unknowns, &mut residual)?;
-                for (value, rhs) in residual.iter_mut().zip(state_jacobian.right_hand_side()) {
-                    *value -= rhs;
-                }
-                residual
+        if let Some(residual) = &primal_residual {
+            if residual.len() != dimension {
+                return Err(invalid(
+                    "original residual differs from its Jacobian row dimension",
+                ));
             }
-        };
-        if primal_residual.len() != dimension {
-            return Err(invalid(
-                "original residual differs from its Jacobian row dimension",
-            ));
+            finite_output(residual, "assembled original residual")?;
         }
-        finite_output(&primal_residual, "assembled original residual")?;
         Ok(Self {
             state_jacobian,
             accepted_unknowns,
@@ -292,7 +283,18 @@ impl LinearizedRelation<f64> for AssembledLinearizedRelation {
         if residual.len() != self.residual_dimension() {
             return Err(invalid("assembled primal residual shape mismatch"));
         }
-        residual.copy_from_slice(&self.primal_residual);
+        if let Some(original) = &self.primal_residual {
+            residual.copy_from_slice(original);
+        } else {
+            self.state_jacobian
+                .apply(&self.accepted_unknowns, residual)?;
+            for (value, rhs) in residual
+                .iter_mut()
+                .zip(self.state_jacobian.right_hand_side())
+            {
+                *value -= rhs;
+            }
+        }
         finite_output(residual, "assembled primal residual")
     }
 
