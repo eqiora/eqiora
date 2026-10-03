@@ -69,7 +69,7 @@ enum NativeWorkerOutcome {
     Cancelled(NativeRunCancellation),
 }
 
-fn resolved_linear_backend(
+pub(crate) fn resolved_linear_backend(
     provider: SolverProvider,
 ) -> Result<&'static dyn LinearSolverBackend, Vec<Diagnostic>> {
     let _setup = setup_phase("backend_resolution").entered();

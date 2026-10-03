@@ -8,15 +8,16 @@ use eqiora::api::{
     LinearizationState,
 };
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyModule, PySequence};
+use pyo3::types::{PyAny, PyModule};
 
 use crate::array::{PyArrayBuffer, stage_f64_input};
-use crate::common_plan::PyPlan;
 use crate::error::{diagnostic_error, panic_boundary, validation_error};
-use crate::model::{PyModelFieldRef, PyModelParameterRef};
 use crate::realization::PyLinearSolveSummary;
 
 mod batch;
+mod compile;
+mod evaluation;
+pub(crate) use compile::compile_differentiable;
 
 /// Primal, JVP, or VJP occurrence.
 #[pyclass(
@@ -92,6 +93,12 @@ impl From<LinearizationState> for PyLinearizationState {
     }
 }
 
+#[derive(Debug, Clone)]
+enum PrimalSummary {
+    Linear(Box<PyLinearSolveSummary>),
+    Nonlinear(crate::result::PyNonlinearSolveSummary),
+}
+
 /// Typed in-memory provenance for one differentiation occurrence.
 #[pyclass(
     name = "DifferentiationEvidence",
@@ -111,7 +118,8 @@ pub(crate) struct PyDifferentiationEvidence {
     state_system_fingerprint: String,
     primal_residual_norm: f64,
     residual_tolerance: f64,
-    primal_solve: Option<PyLinearSolveSummary>,
+    primal_solve: PrimalSummary,
+    initial_state_identity: Option<String>,
     derivative_solve: Option<PyLinearSolveSummary>,
 }
 
@@ -133,7 +141,16 @@ impl PyDifferentiationEvidence {
             state_system_fingerprint: hex(value.state_system().as_bytes()),
             primal_residual_norm: value.primal_residual_norm(),
             residual_tolerance: value.residual_tolerance(),
-            primal_solve: value.primal_solve().map(PyLinearSolveSummary::from_report),
+            primal_solve: match value.primal_solve() {
+                Some(report) => {
+                    PrimalSummary::Linear(Box::new(PyLinearSolveSummary::from_report(report)))
+                }
+                None => PrimalSummary::Nonlinear(
+                    crate::result::PyNonlinearSolveSummary::from_differentiation(value)
+                        .expect("accepted nonlinear differentiation summary"),
+                ),
+            },
+            initial_state_identity: value.nonlinear_initial_state_identity().map(str::to_owned),
             derivative_solve: value
                 .derivative_solve()
                 .map(PyLinearSolveSummary::from_report),
@@ -214,8 +231,16 @@ impl PyDifferentiationEvidence {
     }
 
     #[getter]
-    fn primal_solve(&self) -> Option<PyLinearSolveSummary> {
-        self.primal_solve.clone()
+    fn primal_solve(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        match &self.primal_solve {
+            PrimalSummary::Linear(value) => Ok(Py::new(py, value.as_ref().clone())?.into_any()),
+            PrimalSummary::Nonlinear(value) => Ok(Py::new(py, value.clone())?.into_any()),
+        }
+    }
+
+    #[getter]
+    fn initial_state_identity(&self) -> Option<&str> {
+        self.initial_state_identity.as_deref()
     }
 
     #[getter]
@@ -342,60 +367,6 @@ impl PyDifferentiableVjp {
 pub(crate) struct PyDifferentiableEvaluation {
     value: Arc<DifferentiableEvaluation>,
     point: Py<PyArrayBuffer>,
-}
-
-#[pymethods]
-impl PyDifferentiableEvaluation {
-    /// The Parameter point this evaluation is bound to.
-    fn __repr__(&self, py: Python<'_>) -> String {
-        let point = self.point.bind(py).as_any().len().unwrap_or(0);
-        format!("DifferentiableEvaluation(point={point} values)")
-    }
-    /// Complete accepted Parameter point in exact program input order.
-    #[getter]
-    fn point(&self, py: Python<'_>) -> Py<PyArrayBuffer> {
-        self.point.clone_ref(py)
-    }
-
-    fn primal(&self, py: Python<'_>) -> PyResult<PyDifferentiablePrimal> {
-        panic_boundary(py, || {
-            let evaluation = Arc::clone(&self.value);
-            let result = py.detach(move || evaluation.primal());
-            primal_result(py, result)
-        })
-    }
-
-    fn jvp(&self, py: Python<'_>, tangent: &Bound<'_, PyAny>) -> PyResult<PyDifferentiableJvp> {
-        panic_boundary(py, || {
-            let tangent = stage_f64_input(
-                py,
-                tangent,
-                self.value.identity().input_dimension(),
-                "tangent",
-            )?;
-            let evaluation = Arc::clone(&self.value);
-            let result = py
-                .detach(move || evaluation.jvp(&tangent))
-                .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
-            jvp_result(py, result)
-        })
-    }
-
-    fn vjp(&self, py: Python<'_>, cotangent: &Bound<'_, PyAny>) -> PyResult<PyDifferentiableVjp> {
-        panic_boundary(py, || {
-            let cotangent = stage_f64_input(
-                py,
-                cotangent,
-                self.value.identity().output_dimension(),
-                "cotangent",
-            )?;
-            let evaluation = Arc::clone(&self.value);
-            let result = py
-                .detach(move || evaluation.vjp(&cotangent))
-                .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
-            vjp_result(py, result)
-        })
-    }
 }
 
 /// Opaque immutable program over one fixed input coordinate set.
@@ -563,77 +534,6 @@ impl PyDifferentiableProgram {
             vjp_result(py, result)
         })
     }
-}
-
-/// Compile one exact accepted-point differentiable program.
-#[pyfunction(name = "_compile_differentiable")]
-#[pyo3(signature = (plan, /, *, inputs, output))]
-pub(crate) fn compile_differentiable(
-    py: Python<'_>,
-    plan: &PyPlan,
-    inputs: &Bound<'_, PyAny>,
-    output: &PyModelFieldRef,
-) -> PyResult<PyDifferentiableProgram> {
-    panic_boundary(py, || {
-        let sequence = inputs.cast::<PySequence>().map_err(|_| {
-            validation_error(
-                py,
-                &[eqiora::Diagnostic::error(
-                    eqiora::diagnostic::codes::INVALID_LINEARIZATION,
-                    "differentiable inputs must be an ordered sequence of ParameterRef values",
-                )],
-            )
-        })?;
-        let mut selected = Vec::with_capacity(sequence.len()?);
-        for index in 0..sequence.len()? {
-            let item = sequence.get_item(index)?;
-            let parameter = item.extract::<PyRef<'_, PyModelParameterRef>>()?;
-            selected.push(parameter.value.clone());
-        }
-        let native_plan = plan.scalar_native().cloned().ok_or_else(|| {
-            validation_error(
-                py,
-                &[eqiora::Diagnostic::error(
-                    eqiora::diagnostic::codes::INVALID_LINEARIZATION,
-                    "differentiation requires a 2D scalar Q1 or cell-centered TPFA Plan",
-                )],
-            )
-        })?;
-        let model = plan.model_handle(py);
-        let document = model
-            .bind(py)
-            .borrow()
-            .document()
-            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?
-            .clone();
-        let output_model_digest = output.exact_model_digest().to_owned();
-        let output = document
-            .field_ref(output.exact_id())
-            .map_err(|diagnostic| diagnostic_error(py, &[diagnostic]))?;
-        if output.model().artifact().to_string() != output_model_digest {
-            return Err(validation_error(
-                py,
-                &[eqiora::Diagnostic::error(
-                    eqiora::diagnostic::codes::INVALID_LINEARIZATION,
-                    "differentiable output FieldRef belongs to another exact Model artifact",
-                )],
-            ));
-        }
-        let value = py
-            .detach(move || {
-                DifferentiableProgram::compile(
-                    eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(native_plan)),
-                    &selected,
-                    &output,
-                    None,
-                    &eqiora::solver::REFERENCE_LINEAR_SOLVER,
-                )
-            })
-            .map_err(|diagnostics| diagnostic_error(py, &diagnostics))?;
-        Ok(PyDifferentiableProgram {
-            value: Arc::new(value),
-        })
-    })
 }
 
 fn primal_result(py: Python<'_>, value: DifferentiablePrimal) -> PyResult<PyDifferentiablePrimal> {

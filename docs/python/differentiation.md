@@ -107,6 +107,42 @@ cotangents must be rank-one CPU arrays with the layout described in
 
 Each program selects one output field and computes first derivatives.
 
+## Finite nonlinear points and partial actions
+
+A strict-interior finite nonlinear Plan from the
+[constraints guide](/language/constraints/#strict-interior-nonlinear-execution)
+uses the same Program API. Supply its exact initial State and a scalar
+instantaneous Observable:
+
+```python
+program = eqiora.diff.compile(
+    plan, inputs=(model.parameter("p"),),
+    output=model.observable("output"), state=state,
+)
+point = program.evaluate(np.array([4.0], dtype=np.float64))
+zero = np.array([0.0], dtype=np.float64)
+one = np.array([1.0], dtype=np.float64)
+partial = point.output_partial_jvp(zero, one)
+reduced = point.jvp(one)
+```
+
+For `R(w,p)=w*w-p`, positive `w`, and `O(w,p)=w+p`, this point has
+`w=2` and `O=6`. Holding `w` fixed gives `partial=1`; solving the implicit
+sensitivity gives `reduced.tangent=1.25`. At `p=9` the corresponding total
+is `7/6`. `residual_jvp(dw, dp)` applies `R_w dw + R_p dp`, while
+`output_partial_jvp(dw, dp)` applies `O_w dw + O_p dp`. Their VJP counterparts
+return `(unknown_cotangent, parameter_cotangent)` without an implicit solve.
+Unknown coordinates follow `point.accepted_unknowns`; Parameter coordinates
+follow the ordered `inputs` selection.
+
+Each evaluation retains its own accepted solution and original-expression
+partials. Evaluating another point cannot replace a retained reverse action.
+The exact seed, strict-interior conditions, original residual and regularity
+checks apply at each point. `evidence.primal_solve` is a `NonlinearSolveSummary`,
+including when no Newton update was needed; `derivative_solve` describes the
+normal or transposed linear sensitivity solve. This finite path does not admit
+ordered maps, global branch tracking, or higher implicit derivatives.
+
 ## Native ordered batches
 
 Continue in the same environment and reuse the program above. No additional
