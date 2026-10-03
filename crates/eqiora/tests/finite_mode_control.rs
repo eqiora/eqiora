@@ -249,8 +249,7 @@ fn mode_initialization_never_chooses_an_implicit_first_member() {
     let model = ModelDocument::compile("missing-initial-mode.eqi", &source).unwrap();
     let error = Interpreter::new()
         .execution_session(model.program(), config(1.0), [])
-        .err()
-        .expect("an enum member must be selected explicitly");
+        .expect_err("an enum member must be selected explicitly");
     assert!(
         error
             .iter()
