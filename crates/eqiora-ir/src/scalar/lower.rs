@@ -118,6 +118,26 @@ impl ScalarOperatorIr {
                     condition: value_id(*condition, &values)?,
                     value: value_id(*value, &values)?,
                 },
+                ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Abs, value) => {
+                    let value = value_id(*value, &values)?;
+                    let first = u32::try_from(instructions.len()).map_err(|_| ir_size_error())?;
+                    let condition = first.checked_add(1).ok_or_else(ir_size_error)?;
+                    let negative = first.checked_add(2).ok_or_else(ir_size_error)?;
+                    // Derive a same-dimension zero and retain the existing point-bound
+                    // comparison policy: a demanded switch at zero has no derivative.
+                    instructions.push(Instruction::Sub(value, value));
+                    instructions.push(Instruction::Compare(
+                        eqiora_schema::kernel::ComparisonOp::GreaterEqual,
+                        value,
+                        ValueId(first),
+                    ));
+                    instructions.push(Instruction::Neg(value));
+                    Instruction::Select {
+                        condition: ValueId(condition),
+                        then_value: value,
+                        else_value: ValueId(negative),
+                    }
+                }
                 ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Sin, value) => {
                     Instruction::Sin(value_id(*value, &values)?)
                 }

@@ -56,7 +56,6 @@ use eqiora_schema::kernel::{
     ActivationDef, BoundaryPhysicalConnector, BoundarySide, ClockDomainDef, ConnectionDef,
     ConnectionSemantics, DomainDef, ExprDag, ExprDagBuilder, ExprId, FieldDef, KernelNode,
     ParameterDef, PortDef, RelationDef, RepresentationDef, SignalDirection, SymbolRef,
-    UnaryMathFunction,
 };
 use eqiora_schema::{Model, ModelView};
 

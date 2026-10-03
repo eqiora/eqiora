@@ -244,7 +244,7 @@ fn expression_type_cached(
                     "bare `sin` is not language vocabulary; use compiler-owned `math.sin`",
                 ));
             }
-            if callee.starts_with("math.") && !matches!(callee.as_str(), "math.sin" | "math.sqrt") {
+            if callee.starts_with("math.") && crate::math::unary_function(callee).is_none() {
                 return Err(source_error(
                     codes::LANGUAGE_TYPE_ERROR,
                     file,
@@ -362,6 +362,9 @@ fn expression_type_cached(
                 ));
             }
             let operand = infer(argument)?;
+            if let Some(function) = crate::math::unary_function(callee) {
+                return typing::unary_math(function, &operand).map_err(violation);
+            }
             match callee.as_str() {
                 "grad" => typing::gradient(&operand),
                 "div" => typing::divergence(&operand),
@@ -369,8 +372,6 @@ fn expression_type_cached(
                 "isotropic_lift" => typing::isotropic_lift(&operand),
                 "trace" => typing::trace(&operand, support),
                 "normal" => typing::normal(&operand, support),
-                "math.sin" => typing::unary_math(UnaryMathFunction::Sin, &operand),
-                "math.sqrt" => typing::unary_math(UnaryMathFunction::Sqrt, &operand),
                 "derivative" => typing::time_derivative(&operand),
                 "pre" | "next" | "hold" => Ok(operand),
                 _ => {

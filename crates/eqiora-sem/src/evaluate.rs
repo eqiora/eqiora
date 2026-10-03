@@ -155,11 +155,7 @@ fn evaluate_selected(
                         check_component_work(component_work, elements.len())?;
                         pending.extend(elements.iter().rev().copied().map(Frame::Demand));
                     }
-                    ExprNode::UnaryMath(
-                        eqiora_schema::kernel::UnaryMathFunction::Sqrt
-                        | eqiora_schema::kernel::UnaryMathFunction::Sin,
-                        value,
-                    )
+                    ExprNode::UnaryMath(_, value)
                     | ExprNode::Index { value, .. }
                     | ExprNode::Sample { value, .. }
                     | ExprNode::Hold(value)
@@ -203,34 +199,8 @@ fn evaluate_selected(
                     operand(&values, *selected, owner)?.clone()
                 }
                 ExprNode::Require { value, .. } => operand(&values, *value, owner)?.clone(),
-                ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Sin, value) => {
-                    let value = real(operand(&values, *value, owner)?)?;
-                    if value.dim() != eqiora_core::DimExponents::DIMENSIONLESS {
-                        return Err(Diagnostic::error(
-                            codes::NONFINITE_EVALUATION,
-                            "sine requires a dimensionless real scalar",
-                        ));
-                    }
-                    literal(DynQuantity::new(
-                        value.value().sin(),
-                        eqiora_core::DimExponents::DIMENSIONLESS,
-                    ))?
-                }
-                ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Sqrt, value) => {
-                    let value = real(operand(&values, *value, owner)?)?;
-                    if value.value() < 0. {
-                        return Err(Diagnostic::error(
-                            codes::NONFINITE_EVALUATION,
-                            "real square root requires a nonnegative argument",
-                        ));
-                    }
-                    let dimension = value.dim().pow(1, 2).ok_or_else(|| {
-                        Diagnostic::error(
-                            codes::NONFINITE_EVALUATION,
-                            "square-root dimension exceeds bounds",
-                        )
-                    })?;
-                    literal(DynQuantity::new(value.value().sqrt(), dimension))?
+                ExprNode::UnaryMath(function, value) => {
+                    function.evaluate(operand(&values, *value, owner)?)?
                 }
 
                 ExprNode::PureOperatorApplication(application) => {

@@ -352,3 +352,56 @@ fn selected_array_derivatives_preserve_eager_value_errors_and_only_selected_boun
             .is_err()
     );
 }
+
+#[test]
+fn canonical_abs_preserves_real_values_slopes_and_zero_boundary_rejection() {
+    let dimension = voltage();
+    for retained in [false, true] {
+        let mut b = ExprDagBuilder::new();
+        let x = b.symbol(SymbolRef::Parameter(Id::new())).unwrap();
+        let root = if retained {
+            let mut c = CalculusBuilder::new([class(dimension)], class(dimension)).unwrap();
+            let input = formal(&mut c, 0);
+            let root = c
+                .push(CalculusNode::UnaryMath(UnaryMathFunction::Abs, input))
+                .unwrap();
+            b.pure_operator(&c.finish(root).unwrap(), [x]).unwrap()
+        } else {
+            b.unary_math(UnaryMathFunction::Abs, x).unwrap()
+        };
+        let ir = ScalarOperatorIr::lower(&b.finish([root]).unwrap()).unwrap();
+        for (point, expected, slope) in [(-3., 3., -1.), (2., 2., 1.)] {
+            let input = real(dimension, point);
+            let result = ir
+                .evaluate_typed(&[root], &mut |_| Some(input.clone()))
+                .unwrap();
+            assert_eq!(value(&result[0]), expected);
+            assert_eq!(result[0].value_type().dimension(), dimension);
+            let linear = ir
+                .linearize_typed(&[input], &[DifferentiationRole::Unknown])
+                .unwrap();
+            let mut tangent = [0.];
+            linear
+                .jvp(RelationTangent::Unknown(&[1.]), &mut tangent)
+                .unwrap();
+            assert_eq!(tangent, [slope]);
+            let mut adjoint = [0.];
+            linear
+                .vjp(&[1.], RelationCotangent::Unknown(&mut adjoint))
+                .unwrap();
+            assert_eq!(adjoint, [slope]);
+        }
+        let zero = real(dimension, 0.);
+        assert_eq!(
+            value(
+                &ir.evaluate_typed(&[root], &mut |_| Some(zero.clone()))
+                    .unwrap()[0]
+            ),
+            0.
+        );
+        assert!(
+            ir.linearize_typed(&[zero], &[DifferentiationRole::Unknown])
+                .is_err()
+        );
+    }
+}

@@ -32,7 +32,6 @@ impl ExpressionLowerer<'_> {
                     ),
                     dimension,
                 ),
-                Primitive::Neg(value) => (self.builder.neg(value.id), value.dimension),
                 Primitive::Compare(op, left, right) => (
                     self.builder.compare(op, left.id, right.id),
                     DimExponents::DIMENSIONLESS,

@@ -4,7 +4,6 @@ use eqiora_schema::kernel::ComparisonOp;
 
 pub(crate) enum Primitive<N> {
     Constant(i8, DimExponents),
-    Neg(N),
     Compare(ComparisonOp, N, N),
     Select {
         condition: N,
@@ -19,7 +18,7 @@ pub(crate) enum Primitive<N> {
 
 pub(crate) fn arity(name: &str) -> Option<usize> {
     match name {
-        "math.abs" | "math.sign" | "math.step" => Some(1),
+        "math.sign" | "math.step" => Some(1),
         "math.min" | "math.max" => Some(2),
         "math.clamp" => Some(3),
         _ => None,
@@ -29,7 +28,6 @@ pub(crate) fn arity(name: &str) -> Option<usize> {
 /// Additional graph shape charged by the existing expression preflight.
 pub(crate) fn cost(name: &str) -> Option<(usize, usize)> {
     match name {
-        "math.abs" => Some((4, 2)),
         "math.min" | "math.max" => Some((2, 2)),
         "math.clamp" => Some((6, 4)),
         "math.sign" => Some((8, 3)),
@@ -92,20 +90,6 @@ pub(crate) fn emit<N: Clone, E>(
                 append(Primitive::Require {
                     condition: valid,
                     value,
-                })
-            }
-            "math.abs" => {
-                let zero = append(Primitive::Constant(0, dimension))?;
-                let condition = append(Primitive::Compare(
-                    ComparisonOp::GreaterEqual,
-                    x.clone(),
-                    zero,
-                ))?;
-                let negative = append(Primitive::Neg(x.clone()))?;
-                append(Primitive::Select {
-                    condition,
-                    then_value: x,
-                    else_value: negative,
                 })
             }
             "math.sign" => {

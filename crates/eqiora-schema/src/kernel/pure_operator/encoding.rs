@@ -66,6 +66,15 @@ pub(super) fn canonical_definition_bytes(definition: &PureOperatorDefinition) ->
                 bytes.push(match function {
                     super::super::UnaryMathFunction::Sqrt => 0,
                     super::super::UnaryMathFunction::Sin => 1,
+                    super::super::UnaryMathFunction::Cos => 2,
+                    super::super::UnaryMathFunction::Exp => 3,
+                    super::super::UnaryMathFunction::Log => 4,
+                    super::super::UnaryMathFunction::Conj => 5,
+                    super::super::UnaryMathFunction::Real => 6,
+                    super::super::UnaryMathFunction::Imag => 7,
+                    super::super::UnaryMathFunction::Abs => 8,
+                    super::super::UnaryMathFunction::Abs2 => 9,
+                    super::super::UnaryMathFunction::Arg => 10,
                 });
                 bytes.extend_from_slice(&value.index().to_be_bytes());
             }

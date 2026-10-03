@@ -413,6 +413,46 @@ class _Math:
 
 
     @staticmethod
+    def cos(value: object) -> Expression:
+        """Author cosine of a dimensionless real or complex scalar."""
+        return _unary("math.cos", value)
+
+    @staticmethod
+    def exp(value: object) -> Expression:
+        """Author exponential of a dimensionless real or complex scalar."""
+        return _unary("math.exp", value)
+
+    @staticmethod
+    def log(value: object) -> Expression:
+        """Author natural logarithm with the principal complex branch."""
+        return _unary("math.log", value)
+
+    @staticmethod
+    def conj(value: object) -> Expression:
+        """Author complex conjugation without changing dimensions."""
+        return _unary("math.conj", value)
+
+    @staticmethod
+    def real(value: object) -> Expression:
+        """Explicitly select the real component with its physical dimension."""
+        return _unary("math.real", value)
+
+    @staticmethod
+    def imag(value: object) -> Expression:
+        """Explicitly select the imaginary component with its physical dimension."""
+        return _unary("math.imag", value)
+
+    @staticmethod
+    def abs2(value: object) -> Expression:
+        """Author real squared magnitude with squared physical dimension."""
+        return _unary("math.abs2", value)
+
+    @staticmethod
+    def arg(value: object) -> Expression:
+        """Author principal phase; execution rejects zero amplitude."""
+        return _unary("math.arg", value)
+
+    @staticmethod
     def abs(value: object) -> Expression:
         """Author absolute value, preserving its physical dimension."""
         return _unary("math.abs", value)

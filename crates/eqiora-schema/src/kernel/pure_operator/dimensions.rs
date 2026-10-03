@@ -214,7 +214,13 @@ fn prove(
                 if value.domain != Some(ScalarDomain::Real) {
                     return Err(PureOperatorError::FormalTypeMismatch);
                 }
-                if *function == super::super::UnaryMathFunction::Sin {
+                if matches!(
+                    function,
+                    super::super::UnaryMathFunction::Sin
+                        | super::super::UnaryMathFunction::Cos
+                        | super::super::UnaryMathFunction::Exp
+                        | super::super::UnaryMathFunction::Log
+                ) {
                     if normalized(formals, &value.dimension)?
                         != normalized(formals, &dimensionless(formals.len()))?
                     {
@@ -224,13 +230,31 @@ fn prove(
                     proofs.push(value);
                     continue;
                 }
+                use super::super::UnaryMathFunction;
+                let (numerator, denominator) = match function {
+                    UnaryMathFunction::Sqrt => (1, 2),
+                    UnaryMathFunction::Abs2 => (2, 1),
+                    UnaryMathFunction::Arg => {
+                        value.dimension = dimensionless(formals.len());
+                        proofs.push(value);
+                        continue;
+                    }
+                    _ => {
+                        proofs.push(value);
+                        continue;
+                    }
+                };
                 value.dimension.fixed_dimension = value
                     .dimension
                     .fixed_dimension
-                    .pow(1, 2)
+                    .pow(numerator, denominator)
                     .ok_or(PureOperatorError::ResultDimensionOverflow)?;
                 for exponent in &mut value.dimension.exponents {
-                    *exponent = bounded(exponent.checked_mul(ExactRational::new(1, 2)?)?)?;
+                    *exponent =
+                        bounded(exponent.checked_mul(ExactRational::new(
+                            numerator.into(),
+                            denominator.into(),
+                        )?)?)?;
                 }
                 value
             }

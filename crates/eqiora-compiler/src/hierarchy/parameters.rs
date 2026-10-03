@@ -834,20 +834,6 @@ fn exact_i32(value: f64) -> Option<i32> {
         .then_some(value as i32)
 }
 
-fn finite_constant(file: &str, range: TextRange, value: f64) -> Result<f64, Diagnostic> {
-    value
-        .is_finite()
-        .then_some(normalize_zero(value))
-        .ok_or_else(|| {
-            source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                file,
-                range,
-                "compile-time Parameter evaluation produced a non-finite value",
-            )
-        })
-}
-
 pub(super) fn normalize_zero(value: f64) -> f64 {
     if value == 0.0 { 0.0 } else { value }
 }

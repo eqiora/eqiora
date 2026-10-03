@@ -661,6 +661,70 @@ class _Math:
     def sqrt(value: Expression | float | int | _builtins.complex) -> Expression: ...
 
     @staticmethod
+    def cos(value: object) -> Expression:
+        """Author cosine of a dimensionless real or complex scalar.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::_Math.cos``.
+        """
+        ...
+
+    @staticmethod
+    def exp(value: object) -> Expression:
+        """Author exponential of a dimensionless real or complex scalar.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::_Math.exp``.
+        """
+        ...
+
+    @staticmethod
+    def log(value: object) -> Expression:
+        """Author natural logarithm with the principal complex branch.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::_Math.log``.
+        """
+        ...
+
+    @staticmethod
+    def conj(value: object) -> Expression:
+        """Author complex conjugation without changing dimensions.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::_Math.conj``.
+        """
+        ...
+
+    @staticmethod
+    def real(value: object) -> Expression:
+        """Explicitly select the real component with its physical dimension.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::_Math.real``.
+        """
+        ...
+
+    @staticmethod
+    def imag(value: object) -> Expression:
+        """Explicitly select the imaginary component with its physical dimension.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::_Math.imag``.
+        """
+        ...
+
+    @staticmethod
+    def abs2(value: object) -> Expression:
+        """Author real squared magnitude with squared physical dimension.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::_Math.abs2``.
+        """
+        ...
+
+    @staticmethod
+    def arg(value: object) -> Expression:
+        """Author principal phase; execution rejects zero amplitude.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::_Math.arg``.
+        """
+        ...
+
+    @staticmethod
     def abs(value: object) -> Expression:
         """Author dimension-preserving absolute value.
 

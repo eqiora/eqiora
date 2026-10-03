@@ -675,6 +675,15 @@ fn encode_expression(
                 match function {
                     UnaryMathFunction::Sin => encoder.u8(1)?,
                     UnaryMathFunction::Sqrt => encoder.u8(2)?,
+                    UnaryMathFunction::Cos => encoder.u8(3)?,
+                    UnaryMathFunction::Exp => encoder.u8(4)?,
+                    UnaryMathFunction::Log => encoder.u8(5)?,
+                    UnaryMathFunction::Conj => encoder.u8(6)?,
+                    UnaryMathFunction::Real => encoder.u8(7)?,
+                    UnaryMathFunction::Imag => encoder.u8(8)?,
+                    UnaryMathFunction::Abs => encoder.u8(9)?,
+                    UnaryMathFunction::Abs2 => encoder.u8(10)?,
+                    UnaryMathFunction::Arg => encoder.u8(11)?,
                     _ => return Err(newer_vocabulary("unary math function")),
                 }
                 encoder.u32(canonical_expr_id(*value, &canonical_index)?)?;
