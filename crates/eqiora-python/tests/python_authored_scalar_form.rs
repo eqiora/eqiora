@@ -122,6 +122,47 @@ for changed in (
         assert "strong-law weak residual" in str(error), str(error)
     else:
         raise AssertionError("energy/strong-law mismatch was admitted")
+# Public Python authoring emits the same retained energy and variation syntax.
+q = eqiora.lang
+energy_module = eqiora.Module("energy")
+component = energy_module.component("Energy")
+body = component.volume("body", dimensions=2)
+surface = component.complete_exterior("surface", parent=body)
+u = component.field("u", value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)), role=eqiora.FieldRole.Variable, on=body)
+k = component.parameter("k", value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, time=-2)))
+f = component.parameter("f", value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2)))
+balance = component.law("balance", on=body, flux=-k*q.grad(u), source=f)
+face = surface.member("face")
+component.relation("fixed", q.equation(q.trace(u), q.quantity(0, eqiora.units.m)), on=face)
+energy = component.observable("energy", k*q.contract(q.grad(u), q.grad(u), axes=((0,0),))/2-f*u,
+                              value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=2, time=-2)), on=body)
+w = component.test("w", for_=u, dimension=eqiora.Dimension(length=1), zero_on=surface)
+first = q.variation(energy, wrt=u, direction=w, holding=(k,f))
+component.weak_form("stationary", [balance], equations=[(first,0)])
+emitted = energy_module.to_eqi()
+assert "variation(energy" in emitted and "measure(body)" in emitted
+energy_bindings = {"body": geometry.selection("square"), "surface": (tuple(geometry.selection(name) for name in ("x_lower", "x_upper", "y_lower", "y_upper")), geometry.selection("square")), "k": 1.0, "f": 1.0}
+for authored in (energy_module, emitted):
+    authored_model = eqiora.compile(source=authored, geometry=geometry, entry="Energy", bindings=energy_bindings)
+    authored_plan = eqiora.resolve(authored_model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
+    authored_result = eqiora.run(eqiora.Plan.from_bytes(authored_plan.to_bytes()))
+    check_analytic_coefficients(authored_model, authored_result)
+    assert abs(authored_result.observe(authored_model.observable("definition.energy"), quadrature_points=2).value + 3/256) <= 1e-10
+try:
+    q.equation(energy, 0)
+except TypeError:
+    pass
+else:
+    raise AssertionError("Observable entered ordinary expression algebra")
+foreign_module = eqiora.Module("foreign")
+foreign_component = foreign_module.component("Foreign")
+foreign = foreign_component.parameter("foreign", value_type=eqiora.ValueType.real())
+try:
+    q.variation(energy, wrt=foreign, direction=w, holding=(k,f))
+except q.ModuleError:
+    pass
+else:
+    raise AssertionError("foreign variation binding was accepted")
 # Program-controlled and manual solver choices preserve the same exact scalar structure.
 planned = eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.Q1(),
     solve=eqiora.solve.Linear(objective=eqiora.solve.Robust,

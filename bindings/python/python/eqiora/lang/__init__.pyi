@@ -308,6 +308,11 @@ class MaterialComposition:
     def __getitem__(self, name: str) -> PropertyRelease: ...
 
 @final
+class Observable:
+    """Opaque authored output reference returned by Component.observable()."""
+    def __init__(self, _token: Never, _component: object = ..., _name: str = "") -> None: ...
+
+@final
 class Relation:
     """Identify one relation declaration in its exact Module.
 
@@ -445,8 +450,8 @@ class Component:
     ) -> Expression: ...
     def observable(
         self, name: str, expression: Expression | int | float | complex, *,
-        value_type: ValueType, doc: str | None = None,
-    ) -> None: ...
+        value_type: ValueType, on: Support | None = None, doc: str | None = None,
+    ) -> Observable: ...
     def relation(
         self,
         name: str,
@@ -1186,3 +1191,6 @@ def permute_factors(value: object, permutation: Sequence[int]) -> Expression:
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::permute_factors``.
     """
     ...
+
+def variation(value: Observable | Expression, *, wrt: Expression, direction: Expression, holding: Sequence[Expression] = ()) -> Expression: ...
+def contract(left: object, right: object, *, axes: Sequence[tuple[int, int]]) -> Expression: ...

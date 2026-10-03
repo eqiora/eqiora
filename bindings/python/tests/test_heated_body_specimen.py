@@ -17,7 +17,8 @@ spec.loader.exec_module(example)
 def check_heat(model, result, heating=1):
     form, = model.authored_formulations
     trial_id, = form.trial_field_ids
-    (_, restriction_trial_id, zero_on), = form.test_restrictions
+    (_, restriction_trial_id, zero_on, dimension), = form.test_restrictions
+    assert len(dimension) == 7 and all(numerator == 0 and denominator == 1 for numerator, denominator in dimension)
     assert restriction_trial_id == trial_id
     assert len(zero_on) == len(set(zero_on)) == 4
     field = model.field(trial_id)
