@@ -379,17 +379,20 @@ impl SolveReport {
 
 /// Accepted solution values and their evidence.
 #[derive(Debug, Clone, PartialEq)]
-pub struct LinearSolution {
-    values: Vec<f64>,
+pub struct LinearSolution<S = f64> {
+    values: Vec<S>,
     report: SolveReport,
 }
 
-impl LinearSolution {
+impl<S> LinearSolution<S> {
     /// Pair finite solution values with an accepted report.
     ///
     /// # Errors
     /// Returns `EQ0802` when a solution value is non-finite.
-    pub(crate) fn new(values: Vec<f64>, report: SolveReport) -> Result<Self, Diagnostic> {
+    pub(crate) fn new(values: Vec<S>, report: SolveReport) -> Result<Self, Diagnostic>
+    where
+        S: num_complex::ComplexFloat,
+    {
         if values.iter().any(|value| !value.is_finite()) {
             return Err(solve_failed("linear solution contains a non-finite value"));
         }
@@ -398,7 +401,7 @@ impl LinearSolution {
 
     /// Solution vector.
     #[must_use]
-    pub fn values(&self) -> &[f64] {
+    pub fn values(&self) -> &[S] {
         &self.values
     }
 
@@ -413,7 +416,7 @@ impl LinearSolution {
     /// This ownership boundary lets a method-native result retain the exact
     /// accepted vector and the paired [`SolveReport`] that admitted it.
     #[must_use]
-    pub fn into_parts(self) -> (Vec<f64>, SolveReport) {
+    pub fn into_parts(self) -> (Vec<S>, SolveReport) {
         (self.values, self.report)
     }
 }

@@ -268,8 +268,194 @@ fn complex_property_admission_requires_the_exact_assertion_and_implemented_tuple
             domain == ScalarDomain::Complex
         );
     }
-    // Mathematical eligibility does not advertise an unimplemented reference path.
+    // Only the implemented complex tuple is advertised; binary32 remains unsupported.
     assert!(
-        !SolverCapabilities::reference().supports_scalar(ScalarDomain::Complex, ScalarType::F64)
+        !SolverCapabilities::reference().supports_scalar(ScalarDomain::Complex, ScalarType::F32)
     );
+}
+
+#[test]
+fn one_request_surface_solves_general_and_hpd_complex_systems_and_replays_original_residuals() {
+    use eqiora_solver::{LinearSolveRequest, LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
+    let expected = [C::new(1., 2.), C::new(-2., 1.)];
+    for (values, rhs, properties, algorithm) in [
+        (
+            [
+                C::new(1., 1.),
+                C::new(2., 0.),
+                C::new(0., 3.),
+                C::new(4., -1.),
+            ],
+            [C::new(-5., 5.), C::new(-13., 9.)],
+            Properties::General,
+            LinearSolver::BiConjugateGradientStabilized,
+        ),
+        (
+            [
+                C::new(4., 0.),
+                C::new(1., 1.),
+                C::new(1., -1.),
+                C::new(3., 0.),
+            ],
+            [C::new(1., 7.), C::new(-3., 4.)],
+            Properties::HermitianPositiveDefinite,
+            LinearSolver::ConjugateGradient,
+        ),
+    ] {
+        let storage = Storage { values, rhs };
+        let system = CanonicalCsrSystemView::new(&storage, properties).unwrap();
+        let plan = SolverPlan::new(algorithm, 1e-12, 1e-12, 32.try_into().unwrap()).unwrap();
+        let request = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan);
+        let solution = request.solve(&system.linear_problem().unwrap()).unwrap();
+        for (actual, expected) in solution.values().iter().zip(expected) {
+            assert!((*actual - expected).norm() <= 1e-10);
+        }
+        // Independently multiply the authored 2x2 coefficients, without CSR or lowering.
+        let x = solution.values();
+        let residual = [
+            rhs[0] - (values[0] * x[0] + values[1] * x[1]),
+            rhs[1] - (values[2] * x[0] + values[3] * x[1]),
+        ];
+        let norm = residual[0].norm().hypot(residual[1].norm());
+        assert!(norm <= solution.report().residual_target());
+        assert!((norm - solution.report().true_residual_norm()).abs() <= 1e-14);
+    }
+    let real = Storage {
+        values: [4., 1., 1., 3.],
+        rhs: [2., -5.],
+    };
+    let system = CanonicalCsrSystemView::new(&real, Properties::SymmetricPositiveDefinite).unwrap();
+    let plan = SolverPlan::new(
+        LinearSolver::ConjugateGradient,
+        1e-12,
+        1e-12,
+        32.try_into().unwrap(),
+    )
+    .unwrap();
+    let solution = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan)
+        .solve(&system.linear_problem().unwrap())
+        .unwrap();
+    for (actual, expected) in solution.values().iter().zip([1., -2.]) {
+        assert!((actual - expected).abs() <= 1e-10);
+    }
+}
+
+#[test]
+fn oriented_complex_solves_keep_transpose_and_adjoint_distinct() {
+    use eqiora_solver::{LinearSolveRequest, LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
+    let storage = Storage {
+        values: [
+            C::new(1., 1.),
+            C::new(2., 0.),
+            C::new(0., 3.),
+            C::new(4., -1.),
+        ],
+        rhs: [C::new(-5., 5.), C::new(-13., 9.)],
+    };
+    let system = CanonicalCsrSystemView::new(&storage, Properties::General).unwrap();
+    let plan = SolverPlan::new(
+        LinearSolver::BiConjugateGradientStabilized,
+        1e-12,
+        1e-12,
+        32.try_into().unwrap(),
+    )
+    .unwrap();
+    let request = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan);
+    for (orientation, rhs) in [
+        (
+            Orientation::Transposed,
+            [C::new(-4., -3.), C::new(-5., 10.)],
+        ),
+        (
+            Orientation::ConjugateTransposed,
+            [C::new(6., 7.), C::new(-7., 6.)],
+        ),
+    ] {
+        let solution = request
+            .solve_canonical_oriented(&system, &rhs, orientation)
+            .unwrap();
+        for (actual, expected) in solution
+            .values()
+            .iter()
+            .zip([C::new(1., 2.), C::new(-2., 1.)])
+        {
+            assert!((*actual - expected).norm() <= 1e-10);
+        }
+        assert_eq!(solution.report().orientation(), orientation);
+    }
+    assert_eq!(system.right_hand_side(), storage.rhs);
+}
+
+#[test]
+fn hpd_admission_rejects_indefiniteness_even_when_the_rhs_avoids_the_negative_eigenspace() {
+    use eqiora_solver::{LinearSolveRequest, LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
+    let plan = SolverPlan::new(
+        LinearSolver::ConjugateGradient,
+        1e-12,
+        1e-12,
+        32.try_into().unwrap(),
+    )
+    .unwrap();
+    let request = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan);
+    for negative in [-1., 0.] {
+        let storage = Storage {
+            values: [
+                C::new(1., 0.),
+                C::new(0., 0.),
+                C::new(0., 0.),
+                C::new(negative, 0.),
+            ],
+            // Ordinary CG sees only the positive eigenvector and could accept.
+            rhs: [C::new(1., 1.), C::new(0., 0.)],
+        };
+        let system =
+            CanonicalCsrSystemView::new(&storage, Properties::HermitianPositiveDefinite).unwrap();
+        let error = request
+            .solve(&system.linear_problem().unwrap())
+            .unwrap_err();
+        assert!(error.message().contains("Cholesky pivot"));
+    }
+}
+
+#[test]
+fn repeating_a_complex_request_uses_changed_coefficients_instead_of_stale_numeric_state() {
+    use eqiora_solver::{
+        LinearSolveRequest, LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, SolverPlan,
+    };
+    let plan = SolverPlan::new(
+        LinearSolver::BiConjugateGradientStabilized,
+        1e-12,
+        1e-12,
+        32.try_into().unwrap(),
+    )
+    .unwrap();
+    // The reference provider exposes no retained factors. Callers must execute
+    // each candidate freshly when preparation returns None.
+    assert!(
+        <_ as LinearSolverBackend<C>>::prepare_linear(&REFERENCE_LINEAR_SOLVER, plan)
+            .unwrap()
+            .is_none()
+    );
+    let request = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan);
+    let original = [
+        C::new(1., 1.),
+        C::new(2., 0.),
+        C::new(0., 3.),
+        C::new(4., -1.),
+    ];
+    for scale in [1., 2., 1.] {
+        let storage = Storage {
+            values: original.map(|value| scale * value),
+            rhs: [C::new(-5., 5.), C::new(-13., 9.)],
+        };
+        let system = CanonicalCsrSystemView::new(&storage, Properties::General).unwrap();
+        let solution = request.solve(&system.linear_problem().unwrap()).unwrap();
+        for (actual, expected) in solution
+            .values()
+            .iter()
+            .zip([C::new(1., 2.) / scale, C::new(-2., 1.) / scale])
+        {
+            assert!((*actual - expected).norm() <= 1e-10);
+        }
+    }
 }

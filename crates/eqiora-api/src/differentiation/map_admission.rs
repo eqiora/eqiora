@@ -1,7 +1,6 @@
 //! Private shape and retained-numerical-storage projection for independent maps.
 
 use super::*;
-use eqiora_solver::LinearSolverBackend;
 use eqiora_solver::REFERENCE_LINEAR_SOLVER;
 
 impl DifferentiableProgram {

@@ -1,4 +1,5 @@
 mod bicgstab;
+mod complex;
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
@@ -23,13 +24,33 @@ pub const REFERENCE_SOLVER_PROVIDER: SolverProvider = SolverProvider::new(
     &[],
 );
 
-impl LinearSolverBackend for ReferenceLinearSolver {
-    fn provider(&self) -> SolverProvider {
+impl ReferenceLinearSolver {
+    /// Exact release identity shared by the admitted scalar specializations.
+    #[must_use]
+    pub const fn provider(&self) -> SolverProvider {
         REFERENCE_SOLVER_PROVIDER
     }
 
-    fn capabilities(&self) -> SolverCapabilities {
+    /// Stable reference adapter identity.
+    #[must_use]
+    pub const fn id(&self) -> crate::BackendId {
+        REFERENCE_SOLVER_PROVIDER.id()
+    }
+
+    /// Exact real and complex policies implemented by this adapter.
+    #[must_use]
+    pub fn capabilities(&self) -> SolverCapabilities {
         SolverCapabilities::reference()
+    }
+}
+
+impl LinearSolverBackend for ReferenceLinearSolver {
+    fn provider(&self) -> SolverProvider {
+        Self::provider(self)
+    }
+
+    fn capabilities(&self) -> SolverCapabilities {
+        Self::capabilities(self)
     }
 
     fn solve_with_execution(

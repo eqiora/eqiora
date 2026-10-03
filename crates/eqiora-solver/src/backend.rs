@@ -110,6 +110,25 @@ impl SolverCapabilities {
                 });
             }
         }
+        for (algorithm, operator_properties) in [
+            (
+                LinearSolver::BiConjugateGradientStabilized,
+                LinearOperatorProperties::General,
+            ),
+            (
+                LinearSolver::ConjugateGradient,
+                LinearOperatorProperties::HermitianPositiveDefinite,
+            ),
+        ] {
+            combinations.push(SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Complex,
+                algorithm,
+                operator_properties,
+                preconditioner: PreconditionerPolicy::Identity,
+                reduction: ReductionPolicy::Reproducible,
+                scalar_type: ScalarType::F64,
+            });
+        }
         Self::exact(combinations).expect("reference exact capability set is nonempty")
     }
 
@@ -289,7 +308,7 @@ impl SolverCapabilities {
 }
 
 /// Backend-neutral solver execution boundary.
-pub trait LinearSolverBackend: Debug + Sync {
+pub trait LinearSolverBackend<S = f64>: Debug + Sync {
     /// Stable identity and declared release/dependency inventory of this provider.
     fn provider(&self) -> SolverProvider;
 
@@ -313,7 +332,7 @@ pub trait LinearSolverBackend: Debug + Sync {
     fn prepare_linear(
         &self,
         _plan: SolverPlan,
-    ) -> Result<Option<Box<dyn PreparedLinearSolver>>, Diagnostic> {
+    ) -> Result<Option<Box<dyn PreparedLinearSolver<S>>>, Diagnostic> {
         Ok(None)
     }
 
@@ -324,9 +343,9 @@ pub trait LinearSolverBackend: Debug + Sync {
     /// behavior, breakdown, non-convergence, or true-residual rejection.
     fn solve(
         &self,
-        problem: &LinearProblem<'_>,
+        problem: &LinearProblem<'_, S>,
         plan: SolverPlan,
-    ) -> Result<LinearSolution, Diagnostic> {
+    ) -> Result<LinearSolution<S>, Diagnostic> {
         self.solve_with_execution(problem, plan, &SERIAL_LINEAR_EXECUTION)
     }
 
@@ -341,23 +360,25 @@ pub trait LinearSolverBackend: Debug + Sync {
     /// true-residual rejection.
     fn solve_with_execution(
         &self,
-        problem: &LinearProblem<'_>,
+        problem: &LinearProblem<'_, S>,
         plan: SolverPlan,
         execution: &dyn ReplicatedLinearExecution,
-    ) -> Result<LinearSolution, Diagnostic>;
+    ) -> Result<LinearSolution<S>, Diagnostic>;
 }
 
 /// One resolved backend instance paired with the sole validated solver plan.
 #[derive(Debug, Clone, Copy)]
-pub struct LinearSolveRequest<'a> {
-    backend: &'a dyn LinearSolverBackend,
+pub struct LinearSolveRequest<'a, S = f64> {
+    backend: &'a dyn LinearSolverBackend<S>,
     plan: SolverPlan,
 }
 
-impl<'a> LinearSolveRequest<'a> {
+impl<'a, S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
+    LinearSolveRequest<'a, S>
+{
     /// Bind an executable adapter to a validated plan.
     #[must_use]
-    pub const fn new(backend: &'a dyn LinearSolverBackend, plan: SolverPlan) -> Self {
+    pub const fn new(backend: &'a dyn LinearSolverBackend<S>, plan: SolverPlan) -> Self {
         Self { backend, plan }
     }
 
@@ -365,7 +386,7 @@ impl<'a> LinearSolveRequest<'a> {
     ///
     /// # Errors
     /// Returns the backend's structured capability or numerical diagnostic.
-    pub fn solve(&self, problem: &LinearProblem<'_>) -> Result<LinearSolution, Diagnostic> {
+    pub fn solve(&self, problem: &LinearProblem<'_, S>) -> Result<LinearSolution<S>, Diagnostic> {
         self.backend.solve(problem, self.plan)
     }
 
@@ -380,10 +401,10 @@ impl<'a> LinearSolveRequest<'a> {
     /// problem validation or the selected backend.
     pub fn solve_canonical_oriented(
         &self,
-        state_jacobian: &CanonicalCsrSystemView,
-        right_hand_side: &[f64],
+        state_jacobian: &CanonicalCsrSystemView<S>,
+        right_hand_side: &[S],
         orientation: LinearOperatorOrientation,
-    ) -> Result<LinearSolution, Diagnostic> {
+    ) -> Result<LinearSolution<S>, Diagnostic> {
         match orientation {
             LinearOperatorOrientation::Normal => {
                 let problem = LinearProblem::from_oriented_canonical(
@@ -420,7 +441,7 @@ impl<'a> LinearSolveRequest<'a> {
 
     /// Resolved adapter.
     #[must_use]
-    pub const fn backend(self) -> &'a dyn LinearSolverBackend {
+    pub const fn backend(self) -> &'a dyn LinearSolverBackend<S> {
         self.backend
     }
 
