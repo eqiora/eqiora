@@ -1,7 +1,7 @@
 use super::*;
-use crate::physical_network::{AffineCsrStorage, append_affine_group};
-use eqiora_core::{ValueLiteral, diagnostic::codes};
-use eqiora_schema::kernel::KernelNode;
+use crate::physical_network::AffineCsrStorage;
+use eqiora_core::{ScalarDomain, diagnostic::codes};
+use eqiora_ir::ComponentScalarization;
 use eqiora_solver::{
     CanonicalCsrSystemView, FixedOrderInnerProduct, LinearOperatorProperties,
     ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION,
@@ -17,7 +17,7 @@ pub(crate) fn solve_finite_constraints(
     problem: &FiniteConstraintProblem,
     solver: LinearSolveRequest<'_>,
 ) -> Result<FiniteConstraintSolution, Diagnostic> {
-    if problem.enforcement.is_strict_interior() {
+    if problem.is_strict_interior() {
         return Err(invalid(
             "strict-interior execution requires nonlinear controls",
         ));
@@ -70,7 +70,7 @@ pub(super) fn assess_original(
     values: &[f64],
     target: f64,
 ) -> Result<(ConstraintAssessment, Vec<f64>), Diagnostic> {
-    if values.len() != problem.symbols.len()
+    if values.len() != problem.coordinate_count()
         || values.iter().any(|value| !value.is_finite())
         || !target.is_finite()
         || target < 0.0
@@ -79,22 +79,7 @@ pub(super) fn assess_original(
             "constraint reevaluation requires the exact finite vector and finite nonnegative equality target",
         ));
     }
-    let mut field_values = Vec::new();
-    for (symbol, value) in problem.symbols.iter().zip(values) {
-        let SymbolRef::Field(field) = symbol else {
-            return Err(invalid("finite constraint unknown is not a Field"));
-        };
-        let Some(KernelNode::Field(definition)) = problem.kernel.node(field.erase()) else {
-            return Err(invalid(
-                "finite constraint Field is outside the exact Model",
-            ));
-        };
-        field_values.push((
-            *field,
-            ValueLiteral::from_real(definition.value_type().clone(), *value)
-                .map_err(|error| invalid(error.to_string()))?,
-        ));
-    }
+    let field_values = problem.field_values(values)?;
     let mut residuals = Vec::new();
     let mut measurements = Vec::new();
     for relation in &problem.relations {
@@ -110,6 +95,32 @@ pub(super) fn assess_original(
             .zip(&relation.dimensions)
             .enumerate()
         {
+            if *kind == RelationConditionKind::Equality {
+                if pair[0].value_type().dimension() != dimensions.0
+                    || pair[1].value_type().dimension() != dimensions.1
+                    || pair[0].value_type().shape() != pair[1].value_type().shape()
+                {
+                    return Err(invalid(
+                        "original equality changed its physical dimension or shape",
+                    ));
+                }
+                let complex = pair
+                    .iter()
+                    .any(|value| value.value_type().scalar_domain() == ScalarDomain::Complex);
+                for index in 0..pair[0].component_count() {
+                    let left = pair[0]
+                        .component(index)
+                        .ok_or_else(|| invalid("equality operand is not numeric"))?;
+                    let right = pair[1]
+                        .component(index)
+                        .ok_or_else(|| invalid("equality operand is not numeric"))?;
+                    residuals.push(left.0 - right.0);
+                    if complex {
+                        residuals.push(left.1 - right.1);
+                    }
+                }
+                continue;
+            }
             let left = pair[0]
                 .real_scalar_value()
                 .ok_or_else(|| invalid("original constraint first operand is not a real scalar"))?;
@@ -121,21 +132,18 @@ pub(super) fn assess_original(
                     "original constraint reevaluation changed physical dimensions",
                 ));
             }
-            if *kind == RelationConditionKind::Equality {
-                residuals.push(left.value() - right.value());
-                continue;
-            }
             let reference = ConstraintRef::new(
                 relation.id,
                 u32::try_from(ordinal).map_err(|_| invalid("constraint ordinal overflow"))?,
             );
             let tolerance = problem
                 .enforcement
-                .tolerance(reference)
+                .as_ref()
+                .and_then(|policy| policy.tolerance(reference))
                 .expect("lowering checked exact tolerance closure");
             let activity = if *kind == RelationConditionKind::Inequality {
                 let slack = left.value() - right.value();
-                let violates = if problem.enforcement.is_strict_interior() {
+                let violates = if problem.is_strict_interior() {
                     !slack.is_finite() || slack <= tolerance.left().value()
                 } else {
                     !slack.is_finite() || slack < -tolerance.left().value()
@@ -202,16 +210,15 @@ fn branch_system(
     problem: &FiniteConstraintProblem,
     mask: u32,
 ) -> Result<CanonicalCsrSystemView, Diagnostic> {
-    let mut storage = AffineCsrStorage::new(problem.symbols.len(), problem.symbols.len())?;
+    let mut storage =
+        AffineCsrStorage::new(problem.coordinate_count(), problem.coordinate_count())?;
     let mut pair = 0;
     for relation in &problem.relations {
         if let Some(expression) = preparation::branch_expression(relation, mask, &mut pair)? {
-            append_affine_group(
-                &mut storage,
-                &expression,
-                &problem.symbols,
-                &problem.bindings,
-            )?;
+            let typed = coordinates::typed_expression(&problem.kernel, &expression)?;
+            for row in ComponentScalarization::lower(&typed)?.rows() {
+                storage.append(&row.bind_affine(&problem.coordinates, &problem.bindings)?)?;
+            }
         }
     }
     storage.finish()?;
@@ -255,6 +262,6 @@ pub(super) fn validate_values(
             "original selected active-set zero operands exceed independently derived SolverPlan target",
         ));
     }
-    assessment.active_set_mask = Some(mask);
+    assessment.active_set_mask = problem.enforcement.is_some().then_some(mask);
     Ok(assessment)
 }

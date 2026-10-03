@@ -243,7 +243,9 @@ class AlgebraicPlanView:
     @property
     def kind(self) -> str: ...
     @property
-    def unknown_count(self) -> int: ...
+    def unknown_count(self) -> int:
+        """Number of real numerical coordinates, including both parts of complex values."""
+        ...
 
 
 @final

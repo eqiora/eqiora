@@ -36,6 +36,46 @@ pub struct ScalarSymbolCoordinate {
 }
 
 impl ScalarSymbolCoordinate {
+    /// Enumerate a numeric value's coordinates in channel-major, real/imaginary order.
+    ///
+    /// # Errors
+    /// Rejects discrete values or unrepresentable component cardinalities.
+    pub fn for_value(
+        symbol: SymbolRef,
+        value_type: &eqiora_core::ValueType,
+    ) -> Result<Vec<Self>, Diagnostic> {
+        let parts: &[ScalarPart] = match value_type.scalar_domain() {
+            eqiora_core::ScalarDomain::Real => &[ScalarPart::Real],
+            eqiora_core::ScalarDomain::Complex => &[ScalarPart::Real, ScalarPart::Imaginary],
+            _ => {
+                return Err(invalid_component_ir(
+                    "scalar coordinates require a numeric value",
+                ));
+            }
+        };
+        let count = value_type
+            .shape()
+            .component_count()
+            .ok_or_else(|| invalid_component_ir("coordinate count overflow"))?;
+        let mut coordinates = Vec::new();
+        coordinates
+            .try_reserve_exact(
+                count
+                    .checked_mul(parts.len())
+                    .ok_or_else(|| invalid_component_ir("coordinate count overflow"))?,
+            )
+            .map_err(|_| invalid_component_ir("cannot allocate scalar coordinates"))?;
+        for flat in 0..count {
+            let component_index = row_major_index(value_type.shape(), flat)?;
+            coordinates.extend(parts.iter().map(|&part| Self {
+                symbol,
+                component_index: component_index.clone(),
+                part,
+            }));
+        }
+        Ok(coordinates)
+    }
+
     /// Semantic symbol before Operator lowering.
     #[must_use]
     pub const fn symbol(&self) -> SymbolRef {
@@ -98,6 +138,20 @@ impl ComponentScalarRow {
     #[must_use]
     pub fn input_slots(&self) -> &[ScalarInputSlot] {
         self.ir.slots()
+    }
+
+    /// Structurally bind a real affine row in exact symbol/channel/part coordinates.
+    /// This uses the ordinary scalar SSA affine proof, without numerical probing.
+    ///
+    /// # Errors
+    /// Rejects nonlinear dependence, duplicate coordinates, missing or nonfinite
+    /// bindings, selected coordinates bound as constants, and invalid arithmetic.
+    pub fn bind_affine(
+        &self,
+        selected: &[ScalarSymbolCoordinate],
+        bindings: &[(ScalarSymbolCoordinate, f64)],
+    ) -> Result<crate::BoundAffineScalarIr<ScalarSymbolCoordinate>, Diagnostic> {
+        self.ir.bind_affine(selected, bindings)
     }
 
     /// Evaluate this scalar row using dense inputs matching [`Self::symbols`].

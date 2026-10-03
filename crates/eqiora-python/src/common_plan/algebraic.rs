@@ -74,7 +74,7 @@ pub(super) fn view(
     Py::new(
         py,
         PyAlgebraicPlanView {
-            unknown_count: plan.symbols().len(),
+            unknown_count: plan.coordinate_count(),
             kind: if plan.nonlinear().is_some() {
                 "finite-nonlinear"
             } else {

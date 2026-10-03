@@ -356,8 +356,11 @@ separately admitted branch and real-linear derivative rules.
 
 Source constant folding and the typed reference evaluator share `sin`, `cos`, `exp`,
 `log`, `sqrt`, `conj`, `real`, `imag`, `abs`, `abs2` and `arg` for invariant numeric
-scalars. This profile does not establish complex Plan/Run execution or derivatives of
-these complex functions. Scalar Operator IR retains its separately admitted real
+scalars. Finite affine Plan/Run admits complex scalar/channel construction, addition,
+subtraction, multiplication and explicit real/imaginary/conjugate projections through
+real coordinate lowering. Original residuals and finite Observables use the typed
+reference evaluator. This profile does not establish complex Newton execution or
+derivatives of these complex functions. Scalar Operator IR retains its separately admitted real
 `sin`, `sqrt` and `abs` paths; other functions reject there until explicitly admitted.
 
 `conj` preserves the mathematical domain and dimension. `real` and `imag` explicitly

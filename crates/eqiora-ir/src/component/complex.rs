@@ -55,6 +55,10 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                         value
                     }
                 }
+                UnaryMathFunction::Sin | UnaryMathFunction::Sqrt if !self.is_complex(operand) => {
+                    let value = self.lower_shaped_part(operand, component, Real)?;
+                    self.builder.unary_math(function, value)?
+                }
                 UnaryMathFunction::Abs2 => {
                     let real = self.lower_shaped_part(operand, component, Real)?;
                     let imaginary = self.lower_shaped_part(operand, component, Imaginary)?;
@@ -154,6 +158,55 @@ mod tests {
         assert_eq!(lowering.rows()[2].component_index(), [1]);
         assert_eq!(lowering.rows()[3].part(), ScalarPart::Imaginary);
         assert_eq!(lowering.rows()[6].part(), ScalarPart::Real);
+        // Deliberately permute the requested columns: y_im, x_re, y_re, x_im.
+        let selected = [
+            (1, ScalarPart::Imaginary),
+            (0, ScalarPart::Real),
+            (1, ScalarPart::Real),
+            (0, ScalarPart::Imaginary),
+        ]
+        .map(|(index, part)| {
+            lowering
+                .rows()
+                .iter()
+                .flat_map(|row| row.symbols())
+                .find(|coordinate| {
+                    coordinate.component_index() == [index] && coordinate.part() == part
+                })
+                .unwrap()
+                .clone()
+        });
+        for (row, expected) in lowering.rows()[..4].iter().zip([
+            [0., 1., 0., 2.],
+            [0., -2., 0., 1.],
+            [2., 0., 1., 0.],
+            [1., 0., -2., 0.],
+        ]) {
+            let affine = row.bind_affine(&selected, &[]).unwrap();
+            assert_eq!(affine.selected_symbols(), selected);
+            assert_eq!(affine.coefficients(), expected);
+            assert_eq!(affine.offsets(), [0.]);
+        }
+        assert!(lowering.rows()[6].bind_affine(&selected, &[]).is_err());
+        assert!(lowering.rows()[0].bind_affine(&selected[..1], &[]).is_err());
+        assert!(
+            lowering.rows()[0]
+                .bind_affine(&[selected[1].clone(), selected[1].clone()], &[])
+                .is_err()
+        );
+        assert!(
+            lowering.rows()[0]
+                .bind_affine(&selected, &[(selected[1].clone(), 3.)])
+                .is_err()
+        );
+        let bindings = [(selected[1].clone(), 3.), (selected[3].clone(), 4.)];
+        assert_eq!(
+            lowering.rows()[0]
+                .bind_affine(&[], &bindings)
+                .unwrap()
+                .offsets(),
+            [11.]
+        );
     }
 
     #[test]

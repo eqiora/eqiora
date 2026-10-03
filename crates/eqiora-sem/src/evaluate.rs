@@ -15,7 +15,7 @@ use crate::{ExpressionBackend, KernelProgram, PhysicalUnknown};
 /// Canonical typed DAG evaluator used to independently inspect numerical candidates.
 /// Symbol resolution and root selection use the existing `ExpressionBackend` contract.
 #[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct ReferenceExpressionBackend;
+pub struct ReferenceExpressionBackend;
 
 impl ExpressionBackend for ReferenceExpressionBackend {
     fn evaluate(

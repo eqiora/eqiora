@@ -308,6 +308,9 @@ impl CommonResult {
         }
         .refresh_identity()
     }
+    /// Numerical real coordinates in original-symbol order, then row-major channel
+    /// order, with real before imaginary for each complex component. The exact Plan
+    /// retains the mathematical value types; these coordinates do not create Fields.
     #[must_use]
     pub fn finite_values(&self) -> Option<&[f64]> {
         match &self.payload {

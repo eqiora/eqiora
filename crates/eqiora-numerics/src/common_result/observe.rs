@@ -3,9 +3,9 @@
 use eqiora_artifact::ModelEnvelope;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id, ValueLiteral};
-use eqiora_ir::ScalarOperatorIr;
 use eqiora_meshing::QuadratureRule;
 use eqiora_schema::kernel::{KernelNode, ObservableReduction, SymbolRef};
+use eqiora_sem::{ExpressionBackend, ReferenceExpressionBackend};
 
 use super::{CommonResult, invalid};
 
@@ -86,9 +86,13 @@ impl CommonResult {
                 let values = self
                     .finite_values()
                     .ok_or_else(|| invalid("finite Observable has no accepted algebraic values"))?;
-                let operator = ScalarOperatorIr::lower(typed.expression())?;
+                let fields = plan.field_values(values)?;
                 let mut resolve = |symbol| match symbol {
                     SymbolRef::Parameter(id) => program.typed_value(id.erase()).cloned(),
+                    SymbolRef::Field(id) => fields
+                        .iter()
+                        .find(|(field, _)| *field == id)
+                        .map(|(_, value)| value.clone()),
                     _ => plan
                         .symbols()
                         .iter()
@@ -102,7 +106,12 @@ impl CommonResult {
                             ValueLiteral::from_real(ty, values[index]).ok()
                         }),
                 };
-                let values = operator.evaluate_typed(typed.expression().roots(), &mut resolve)?;
+                let values = ReferenceExpressionBackend.evaluate(
+                    observable.erase(),
+                    typed.expression(),
+                    typed.expression().roots(),
+                    &mut resolve,
+                )?;
                 values
                     .into_iter()
                     .next()

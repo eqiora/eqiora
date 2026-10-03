@@ -333,7 +333,7 @@ impl AffineCsrStorage {
         })
     }
 
-    fn append(&mut self, affine: &BoundAffineScalarIr) -> Result<(), Diagnostic> {
+    pub(crate) fn append<S>(&mut self, affine: &BoundAffineScalarIr<S>) -> Result<(), Diagnostic> {
         if affine.selected_symbol_count() != self.columns {
             return Err(affine_error(
                 "bound affine group changed the canonical unknown count",

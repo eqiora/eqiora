@@ -30,6 +30,7 @@ pub use boundary_physical::{BoundaryJunctionGeometry, BoundaryJunctionResidual};
 pub use conserving::{
     ComposedResidualSystem, PhysicalUnknown, ResidualGroup, ScalarPhysicalSubsystemId,
 };
+pub use evaluate::ReferenceExpressionBackend;
 pub use interpreter::{
     EquationAnalysis, ExecutionObserver, ExecutionOutcome, ExecutionProgress, ExecutionSession,
     IncidenceMatching, InitialState, ReferenceConfig,

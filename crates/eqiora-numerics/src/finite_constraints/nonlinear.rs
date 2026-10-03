@@ -29,7 +29,7 @@ impl FiniteConstraintProblem {
         selected: &[Id<kinds::Parameter>],
         values: &[f64],
     ) -> Result<Self, Diagnostic> {
-        if !self.enforcement.is_strict_interior() || selected.len() != values.len() {
+        if !self.is_strict_interior() || selected.len() != values.len() {
             return Err(invalid(
                 "finite nonlinear Parameter point has incompatible controls or shape",
             ));
@@ -57,7 +57,7 @@ impl FiniteConstraintProblem {
     }
 
     pub(crate) fn assess_seed(&self, values: &[f64]) -> Result<ConstraintAssessment, Diagnostic> {
-        if !self.enforcement.is_strict_interior() {
+        if !self.is_strict_interior() {
             return Err(invalid(
                 "nonlinear seed requires strict-interior enforcement",
             ));
@@ -99,7 +99,7 @@ impl FiniteConstraintProblem {
         nonlinear: NonlinearSolvePlan,
         linear: LinearSolveRequest<'_>,
     ) -> Result<FiniteNonlinearSolution, Diagnostic> {
-        if !self.enforcement.is_strict_interior() {
+        if !self.is_strict_interior() {
             return Err(invalid(
                 "nonlinear finite execution requires strict-interior enforcement",
             ));
@@ -264,7 +264,7 @@ mod tests {
                 .collect(),
         )
         .unwrap();
-        lower_finite_constraints(&kernel, &policy).unwrap()
+        lower_finite_constraints(&kernel, Some(&policy)).unwrap()
     }
 
     fn solve(

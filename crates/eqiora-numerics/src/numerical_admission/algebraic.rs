@@ -129,10 +129,31 @@ impl CommonAlgebraicPlan {
     pub fn kernel(&self) -> &KernelProgram {
         &self.kernel
     }
+    /// Distinct original Model unknowns; a shaped or complex value has multiple
+    /// numerical coordinates without creating additional semantic symbols.
     #[must_use]
     pub fn symbols(&self) -> &[SymbolRef] {
         &self.symbols
     }
+    /// Number of real numerical coordinates, including both parts of complex values.
+    #[must_use]
+    pub fn coordinate_count(&self) -> usize {
+        self.problem.coordinate_count()
+    }
+
+    pub(crate) fn field_values(
+        &self,
+        values: &[f64],
+    ) -> Result<
+        Vec<(
+            eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+            eqiora_core::ValueLiteral,
+        )>,
+        Diagnostic,
+    > {
+        self.problem.field_values(values)
+    }
+
     #[must_use]
     pub fn dimensions(&self) -> &[DimExponents] {
         &self.dimensions
