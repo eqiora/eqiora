@@ -17,7 +17,7 @@ fn check_relations(source: &str, tolerance: f64) {
                 .evaluate_relation_operands(relation.id(), &[], &[])
                 .unwrap();
             assert_eq!(values.len() % 2, 0);
-            for pair in values.chunks_exact(2) {
+            for pair in values.as_chunks::<2>().0 {
                 assert_eq!(pair[0].value_type(), pair[1].value_type());
                 for (actual, expected) in pair[0]
                     .components()
