@@ -555,7 +555,7 @@ pub(super) fn evaluate_mode(
             None => resolve(path.as_str(), path.range())?.into(),
         },
         ExprKind::Call { callee, arguments }
-            if matches!(context, ExpressionContext::Let) && crate::math::is_function(callee) =>
+            if crate::math::unary_function(callee.as_str()).is_some() =>
         {
             let Some([argument]) = arguments.positional() else {
                 return Err(source_error(
@@ -582,11 +582,8 @@ pub(super) fn evaluate_mode(
                     "static scalar mathematics requires a known operand dimension",
                 ));
             };
-            let function = match callee.as_str() {
-                "math.sin" => eqiora_schema::kernel::UnaryMathFunction::Sin,
-                "math.sqrt" => eqiora_schema::kernel::UnaryMathFunction::Sqrt,
-                _ => unreachable!("compiler-owned scalar mathematics was checked"),
-            };
+            let function = crate::math::unary_function(callee.as_str())
+                .expect("compiler-owned unary mathematics was checked");
             let inferred = eqiora_schema::kernel::typing::unary_math(
                 function,
                 &eqiora_schema::kernel::typing::ExpressionType::<()>::new(value_type.clone(), None),
@@ -602,35 +599,12 @@ pub(super) fn evaluate_mode(
             let value = operand
                 .value
                 .map(|value| {
-                    let value = value
-                        .real_scalar_value()
-                        .expect("scalar math type checked")
-                        .value();
-                    if matches!(function, eqiora_schema::kernel::UnaryMathFunction::Sqrt)
-                        && value < 0.0
-                    {
-                        return Err(source_error(
-                            codes::LANGUAGE_TYPE_ERROR,
-                            file,
-                            expression.range(),
-                            "math.sqrt requires a nonnegative real operand",
-                        ));
-                    }
-                    let value = finite_constant(
-                        file,
-                        expression.range(),
-                        match function {
-                            eqiora_schema::kernel::UnaryMathFunction::Sin => value.sin(),
-                            eqiora_schema::kernel::UnaryMathFunction::Sqrt => value.sqrt(),
-                            _ => unreachable!("admitted scalar mathematics"),
-                        },
-                    )?;
-                    ValueLiteral::from_real(inferred.value_type.clone(), value).map_err(|error| {
+                    function.evaluate(&value).map_err(|error| {
                         source_error(
                             codes::LANGUAGE_TYPE_ERROR,
                             file,
                             expression.range(),
-                            error.to_string(),
+                            error.message(),
                         )
                     })
                 })

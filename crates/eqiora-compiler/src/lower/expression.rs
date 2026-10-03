@@ -662,7 +662,7 @@ impl ExpressionLowerer<'_> {
                 "bare `sin` is not language vocabulary; use compiler-owned `math.sin`",
             ));
         }
-        if callee.starts_with("math.") && !matches!(callee, "math.sin" | "math.sqrt") {
+        if callee.starts_with("math.") && crate::math::unary_function(callee).is_none() {
             return Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 self.file,
@@ -702,30 +702,23 @@ impl ExpressionLowerer<'_> {
                 })
                 .map_err(|diagnostic| self.builder_error(expression, diagnostic));
         }
-        if matches!(callee, "math.sin" | "math.sqrt") {
+        if let Some(function) = crate::math::unary_function(callee) {
             let operand = self.lower(argument)?;
-            if callee == "math.sin" && operand.dimension != DimExponents::DIMENSIONLESS {
-                return Err(source_error(
+            // Full operand admission has already checked its domain and shape.
+            // The dimensional rule is independent of real/complex embedding.
+            let dimension = typing::unary_math(
+                function,
+                &ExpressionType::<()>::scalar(operand.dimension, None),
+            )
+            .map_err(|error| {
+                source_error(
                     codes::LANGUAGE_TYPE_ERROR,
                     self.file,
-                    argument.range(),
-                    format!(
-                        "math.sin(...) requires a dimensionless scalar, received [{}]",
-                        operand.dimension
-                    ),
-                ));
-            }
-            let (function, dimension) = if callee == "math.sqrt" {
-                (
-                    UnaryMathFunction::Sqrt,
-                    operand
-                        .dimension
-                        .pow(1, 2)
-                        .ok_or_else(|| dimension_overflow(self.file, expression.range()))?,
+                    expression.range(),
+                    error.to_string(),
                 )
-            } else {
-                (UnaryMathFunction::Sin, DimExponents::DIMENSIONLESS)
-            };
+            })?
+            .dimension();
             return self
                 .builder
                 .unary_math(function, operand.id)

@@ -1,6 +1,7 @@
-//! Explicit bounded active-set realization of finite affine real constraints.
+//! Finite typed equalities with explicit numerical enforcement of real constraints.
 //! Model conditions remain unchanged; numerical acceptance never implies exact satisfaction.
 mod configuration;
+mod coordinates;
 mod linearization;
 mod nonlinear;
 pub(crate) use nonlinear::FiniteNonlinearSolution;
@@ -18,16 +19,17 @@ pub use configuration::{ConstraintRef, ConstraintTolerance, FiniteConstraintEnfo
 pub(crate) use preparation::lower_finite_constraints;
 pub(crate) use solve::solve_finite_constraints;
 
-/// Original finite Model plus its explicitly selected enforcement policy.
+/// Original finite Model and any explicitly selected inequality enforcement policy.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FiniteConstraintProblem {
     kernel: KernelProgram,
     symbols: Vec<SymbolRef>,
     dimensions: Vec<DimExponents>,
-    bindings: Vec<(SymbolRef, f64)>,
+    coordinates: Vec<eqiora_ir::ScalarSymbolCoordinate>,
+    bindings: Vec<(eqiora_ir::ScalarSymbolCoordinate, f64)>,
     parameter_candidates: Vec<(Id<kinds::Parameter>, eqiora_core::ValueLiteral)>,
     relations: Vec<RelationOperands>,
-    enforcement: FiniteConstraintEnforcement,
+    enforcement: Option<FiniteConstraintEnforcement>,
     complementarity_count: usize,
 }
 
@@ -40,7 +42,7 @@ struct RelationOperands {
 }
 
 impl FiniteConstraintProblem {
-    /// Canonical scalar Field unknown ordering.
+    /// Canonical original Field ordering, independent of numerical component count.
     #[must_use]
     pub fn symbols(&self) -> &[SymbolRef] {
         &self.symbols
@@ -52,8 +54,13 @@ impl FiniteConstraintProblem {
     }
     /// Explicit numerical enforcement; never part of Model meaning.
     #[must_use]
-    pub const fn enforcement(&self) -> &FiniteConstraintEnforcement {
-        &self.enforcement
+    pub const fn enforcement(&self) -> Option<&FiniteConstraintEnforcement> {
+        self.enforcement.as_ref()
+    }
+    pub(crate) fn is_strict_interior(&self) -> bool {
+        self.enforcement
+            .as_ref()
+            .is_some_and(FiniteConstraintEnforcement::is_strict_interior)
     }
     /// Independently check original DAG conditions at a candidate vector.
     ///

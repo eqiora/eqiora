@@ -2,6 +2,7 @@ mod additive_terms;
 mod affine_analysis;
 mod instruction;
 mod lower;
+mod slot_affine;
 use instruction::{Instruction, ValueId};
 mod batch;
 #[cfg(test)]
@@ -195,6 +196,20 @@ impl ScalarInputIrBuilder {
         right: ScalarInputValueId,
     ) -> Result<ScalarInputValueId, Diagnostic> {
         self.binary(left, right, Instruction::Div)
+    }
+
+    pub(crate) fn unary_math(
+        &mut self,
+        function: eqiora_schema::kernel::UnaryMathFunction,
+        value: ScalarInputValueId,
+    ) -> Result<ScalarInputValueId, Diagnostic> {
+        match function {
+            eqiora_schema::kernel::UnaryMathFunction::Sin => self.unary(value, Instruction::Sin),
+            eqiora_schema::kernel::UnaryMathFunction::Sqrt => self.unary(value, Instruction::Sqrt),
+            _ => Err(ir_builder_error(
+                "unadmitted input-slot mathematical function",
+            )),
+        }
     }
 
     pub(crate) fn powi(
@@ -460,17 +475,17 @@ impl ScalarOperatorIr {
 
 /// Immutable dense affine form `R(w) = A w + c` admitted from scalar SSA.
 #[derive(Debug, Clone, PartialEq)]
-pub struct BoundAffineScalarIr {
-    selected_symbols: Vec<SymbolRef>,
+pub struct BoundAffineScalarIr<S = SymbolRef> {
+    selected_symbols: Vec<S>,
     residuals: usize,
     coefficients: Vec<f64>,
     offsets: Vec<f64>,
 }
 
-impl BoundAffineScalarIr {
+impl<S> BoundAffineScalarIr<S> {
     /// Selected-symbol order defining the columns of `A`.
     #[must_use]
-    pub fn selected_symbols(&self) -> &[SymbolRef] {
+    pub fn selected_symbols(&self) -> &[S] {
         &self.selected_symbols
     }
 

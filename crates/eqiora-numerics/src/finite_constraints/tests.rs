@@ -168,7 +168,7 @@ fn reopened_exact_model_accepts_both_contact_branches() {
             bytes
         );
         for kernel in [&fixture.kernel, &reopened] {
-            let problem = lower_finite_constraints(kernel, &enforcement(&fixture)).unwrap();
+            let problem = lower_finite_constraints(kernel, Some(&enforcement(&fixture))).unwrap();
             assert_eq!(&problem.kernel, kernel);
             let candidate = values(&problem, &fixture, gap, force_value);
             let assessment = problem.validate_values(&candidate, plan(), mask).unwrap();
@@ -198,7 +198,7 @@ fn reopened_exact_model_accepts_both_contact_branches() {
 #[test]
 fn original_conditions_reject_negative_product_positive_and_false_equilibrium_candidates() {
     let fixture = fixture(6.0, false);
-    let problem = lower_finite_constraints(&fixture.kernel, &enforcement(&fixture)).unwrap();
+    let problem = lower_finite_constraints(&fixture.kernel, Some(&enforcement(&fixture))).unwrap();
     for (gap, force_value, message) in [
         (0.0, -6.0, "nonnegative"), // Exact equilibrium and zero gap, but negative force.
         (4.0, 2.0, "at least one operand zero"), // Exact equilibrium, positive product.
@@ -262,7 +262,7 @@ fn tolerances_require_exact_condition_closure_units_and_complete_branch_budget()
         (vec![tolerance(exact, length())], 1, "bounded budget"),
     ] {
         let enforcement = FiniteConstraintEnforcement::active_set(entries, budget).unwrap();
-        let error = lower_finite_constraints(&fixture.kernel, &enforcement).unwrap_err();
+        let error = lower_finite_constraints(&fixture.kernel, Some(&enforcement)).unwrap_err();
         assert!(error.to_string().contains(expected), "{error:?}");
     }
     assert!(FiniteConstraintEnforcement::active_set(vec![], 2).is_err());
@@ -279,7 +279,7 @@ fn nonlinear_operand_cannot_hide_in_an_inactive_branch() {
         2,
     )
     .unwrap();
-    let error = lower_finite_constraints(&fixture.kernel, &enforcement).unwrap_err();
+    let error = lower_finite_constraints(&fixture.kernel, Some(&enforcement)).unwrap_err();
     assert!(error.to_string().contains("not affine"), "{error:?}");
 }
 
@@ -331,7 +331,7 @@ impl eqiora_solver::LinearSolverBackend for InflatedTargetBackend {
 #[test]
 fn successful_backend_report_cannot_inflate_original_model_acceptance_target() {
     let fixture = fixture(6.0, false);
-    let problem = lower_finite_constraints(&fixture.kernel, &enforcement(&fixture)).unwrap();
+    let problem = lower_finite_constraints(&fixture.kernel, Some(&enforcement(&fixture))).unwrap();
     let backend = InflatedTargetBackend {
         candidate: values(&problem, &fixture, 30.0, 0.0),
         reached: std::sync::atomic::AtomicBool::new(false),
@@ -345,7 +345,7 @@ fn successful_backend_report_cannot_inflate_original_model_acceptance_target() {
 #[test]
 fn feasible_values_cannot_authorize_a_false_backend_target_receipt() {
     let fixture = fixture(6.0, false);
-    let problem = lower_finite_constraints(&fixture.kernel, &enforcement(&fixture)).unwrap();
+    let problem = lower_finite_constraints(&fixture.kernel, Some(&enforcement(&fixture))).unwrap();
     let backend = InflatedTargetBackend {
         candidate: values(&problem, &fixture, 3.0, 0.0),
         reached: std::sync::atomic::AtomicBool::new(false),

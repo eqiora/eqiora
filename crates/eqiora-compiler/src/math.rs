@@ -32,7 +32,25 @@ pub(crate) fn is_namespaced(path: &NamePath) -> bool {
 
 /// Whether a path names an admitted scalar mathematical function.
 pub(crate) fn is_function(path: &NamePath) -> bool {
-    matches!(path.as_str(), "math.sin" | "math.sqrt") || piecewise::arity(path.as_str()).is_some()
+    unary_function(path.as_str()).is_some() || piecewise::arity(path.as_str()).is_some()
+}
+
+pub(crate) fn unary_function(name: &str) -> Option<eqiora_schema::kernel::UnaryMathFunction> {
+    use eqiora_schema::kernel::UnaryMathFunction;
+    Some(match name {
+        "math.sin" => UnaryMathFunction::Sin,
+        "math.sqrt" => UnaryMathFunction::Sqrt,
+        "math.cos" => UnaryMathFunction::Cos,
+        "math.exp" => UnaryMathFunction::Exp,
+        "math.log" => UnaryMathFunction::Log,
+        "math.conj" => UnaryMathFunction::Conj,
+        "math.real" => UnaryMathFunction::Real,
+        "math.imag" => UnaryMathFunction::Imag,
+        "math.abs" => UnaryMathFunction::Abs,
+        "math.abs2" => UnaryMathFunction::Abs2,
+        "math.arg" => UnaryMathFunction::Arg,
+        _ => return None,
+    })
 }
 
 /// Returns the compiler-owned value of a canonical mathematical constant.

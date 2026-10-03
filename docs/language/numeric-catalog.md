@@ -352,6 +352,31 @@ to reproduce the rounding error of a literal subtraction or addition in another 
 Invalid real arguments never silently promote to complex. Complex functions retain their
 separately admitted branch and real-linear derivative rules.
 
+### Current real/complex scalar evaluation
+
+Source constant folding and the typed reference evaluator share `sin`, `cos`, `exp`,
+`log`, `sqrt`, `conj`, `real`, `imag`, `abs`, `abs2` and `arg` for invariant numeric
+scalars. Finite affine Plan/Run admits complex scalar/channel construction, addition,
+subtraction, multiplication and explicit real/imaginary/conjugate projections through
+real coordinate lowering. Original residuals and finite Observables use the typed
+reference evaluator. This profile does not establish complex Newton execution or
+derivatives of these complex functions. Scalar Operator IR retains its separately admitted real
+`sin`, `sqrt` and `abs` paths; other functions reject there until explicitly admitted.
+
+`conj` preserves the mathematical domain and dimension. `real` and `imag` explicitly
+return real scalars with the input dimension; `abs` returns real magnitude with that
+dimension, and `abs2` returns real squared magnitude with twice the dimension exponents.
+`arg` returns a dimensionless real angle in `(-pi, pi]` and rejects zero amplitude.
+It accepts dimensioned input without changing its physical meaning.
+
+`sin`, `cos`, `exp` and `log` require dimensionless input. Real `sqrt` requires a
+nonnegative input, and real `log` requires a positive input; neither promotes an invalid
+real value to complex. Complex `log` rejects zero and selects the principal argument
+in `(-pi, pi]`. Complex `sqrt` selects the root with nonnegative real part and, on the
+negative real axis, nonnegative imaginary part. Signed zero is normalized before branch
+selection. Every result component must be finite. These value conventions confer no
+branch-cut, zero-root or complex differentiation capability.
+
 ## Value powers
 
 Dimension exponents remain exact rational arithmetic. Value powers additionally check numerical

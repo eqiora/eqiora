@@ -24,7 +24,7 @@ impl AlgebraicProblem {
         enforcement: Option<FiniteConstraintEnforcement>,
     ) -> Result<Self, Diagnostic> {
         if let Some(enforcement) = enforcement {
-            return lower_finite_constraints(kernel, &enforcement).map(Self::Constrained);
+            return lower_finite_constraints(kernel, Some(&enforcement)).map(Self::Constrained);
         }
         if kernel.nodes().any(|node| {
             matches!(node,
@@ -33,6 +33,12 @@ impl AlgebraicProblem {
             return Err(invalid(
                 "mathematical constraints require explicit finite enforcement",
             ));
+        }
+        if kernel
+            .nodes()
+            .any(|node| matches!(node, KernelNode::Field(_)))
+        {
+            return lower_finite_constraints(kernel, None).map(Self::Constrained);
         }
         if kernel.nodes().any(|node| {
             matches!(node, KernelNode::Field(_) | KernelNode::ClockDomain(_))
@@ -74,7 +80,7 @@ impl AlgebraicProblem {
 
     pub(super) fn nonlinear(&self) -> Result<&FiniteConstraintProblem, Diagnostic> {
         match self {
-            Self::Constrained(problem) if problem.enforcement().is_strict_interior() => Ok(problem),
+            Self::Constrained(problem) if problem.is_strict_interior() => Ok(problem),
             _ => Err(invalid(
                 "nonlinear finite Plan requires strict-interior constraints",
             )),
@@ -99,6 +105,29 @@ impl AlgebraicProblem {
         }
     }
 
+    pub(super) fn coordinate_count(&self) -> usize {
+        match self {
+            Self::Conserving(problem) => problem.composed_system().unknowns().len(),
+            Self::Constrained(problem) => problem.coordinate_count(),
+        }
+    }
+
+    pub(super) fn field_values(
+        &self,
+        values: &[f64],
+    ) -> Result<
+        Vec<(
+            eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+            eqiora_core::ValueLiteral,
+        )>,
+        Diagnostic,
+    > {
+        match self {
+            Self::Conserving(_) => Ok(Vec::new()),
+            Self::Constrained(problem) => problem.field_values(values),
+        }
+    }
+
     pub(super) fn dimensions(&self) -> Vec<DimExponents> {
         match self {
             Self::Conserving(problem) => problem
@@ -114,7 +143,7 @@ impl AlgebraicProblem {
     pub(super) fn enforcement(&self) -> Option<&FiniteConstraintEnforcement> {
         match self {
             Self::Conserving(_) => None,
-            Self::Constrained(problem) => Some(problem.enforcement()),
+            Self::Constrained(problem) => problem.enforcement(),
         }
     }
 
@@ -152,9 +181,15 @@ impl AlgebraicProblem {
     ) -> Result<(f64, Option<ConstraintAssessment>), Diagnostic> {
         match self {
             Self::Constrained(problem) => {
-                let mask = mask.ok_or_else(|| {
-                    invalid("constrained Result requires its selected active-set mask")
-                })?;
+                let mask = match (problem.enforcement(), mask) {
+                    (Some(_), Some(mask)) => mask,
+                    (None, None) => 0,
+                    _ => {
+                        return Err(invalid(
+                            "finite Result active-set mask differs from its enforcement policy",
+                        ));
+                    }
+                };
                 let assessment = problem.validate_values(values, plan, mask)?;
                 if target.to_bits() != assessment.residual_target().to_bits() {
                     return Err(invalid(

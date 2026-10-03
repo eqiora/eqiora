@@ -768,7 +768,10 @@ model valid() {
         .expect("canonical Relation");
     assert!(relation.expression().nodes().iter().any(|node| matches!(
         node,
-        eqiora_schema::kernel::ExprNode::UnaryMath(UnaryMathFunction::Sin, _)
+        eqiora_schema::kernel::ExprNode::UnaryMath(
+            eqiora_schema::kernel::UnaryMathFunction::Sin,
+            _
+        )
     )));
     assert!(relation.expression().nodes().iter().any(|node| matches!(
         node,
@@ -782,8 +785,8 @@ model valid() {
             "bare `sin` is not language vocabulary",
         ),
         (
-            "model invalid() { domain d = box(0, 1); variable u: 1 on d; initial { u = 0; } relation law on d { u - math.cos(0) = 0; } }",
-            "unknown compiler-owned scalar mathematics member `math.cos`",
+            "model invalid() { domain d = box(0, 1); variable u: 1 on d; initial { u = 0; } relation law on d { u - math.tan(0) = 0; } }",
+            "unknown compiler-owned scalar mathematics member `math.tan`",
         ),
         (
             "model invalid() { domain d = box(0, 1); variable u: 1 on d; initial { u = 0; } relation law on d { u - math.tau = 0; } }",
@@ -1797,5 +1800,17 @@ fn field_initial_units_normalize_and_report_the_exact_literal() {
             }),
             "{errors:?}"
         );
+    }
+}
+
+#[test]
+fn complex_unary_functions_compile_through_shared_nodes() {
+    for name in [
+        "conj", "real", "imag", "abs", "abs2", "arg", "sin", "cos", "exp", "log", "sqrt",
+    ] {
+        let source = format!(
+            "model M() {{ variable z: complex<1>; relation r {{ z = math.complex(3,4); math.{name}(z) = math.{name}(z); }} }}"
+        );
+        compile("complex-unary.eqi", &source).unwrap_or_else(|errors| panic!("{name}: {errors:?}"));
     }
 }

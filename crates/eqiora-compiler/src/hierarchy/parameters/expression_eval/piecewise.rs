@@ -124,23 +124,6 @@ fn evaluate_node(
                 lineage: Some(ParameterLineage::Constant),
             }
         }
-        Primitive::Neg(value) => {
-            let value = evaluate(*value, evaluate_values)?;
-            EvaluatedParameter {
-                value: value
-                    .value
-                    .as_ref()
-                    .map(crate::typed_values::negate)
-                    .transpose()
-                    .map_err(error)?,
-                expression: value
-                    .expression
-                    .map(|value| LoweringExpression::neg(value, range)),
-                value_type: value.value_type,
-                bare_literal: false,
-                lineage: transform_lineage(value.lineage),
-            }
-        }
         Primitive::Compare(op, left, right) => {
             use eqiora_schema::kernel::ComparisonOp;
             let op = match op {

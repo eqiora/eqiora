@@ -1163,6 +1163,31 @@ def test_typed_value_authoring_preserves_complex_and_nested_channel_expressions(
     assert "([supplied, 1] + [2, 3])[1]" in text
 
 
+@pytest.mark.parametrize("name", [
+    "sin", "cos", "exp", "log", "sqrt", "conj", "real", "imag", "abs", "abs2", "arg",
+])
+def test_complex_math_authoring_preserves_source_and_artifact_graphs(tmp_path, name):
+    source = eqiora.Module("main")
+    owner = source.model("ComplexMath")
+    z = owner.field("z", value_type=eqiora.ValueType.complex(),
+                    role=eqiora.FieldRole.Variable)
+    function = getattr(q.math, name)
+    owner.relation("value", q.equation(z, q.math.complex(3, 4)))
+    owner.relation("math_identity", q.equation(function(z), function(z)))
+    foreign = source.model("Foreign")
+    with pytest.raises(q.ModuleError, match="Component|Model"):
+        foreign.let_alias("captured", function(z))
+    assert f"math.{name}(z)" in source.to_eqi()
+    model = eqiora.compile(source=source, entry="ComplexMath")
+    path = tmp_path / "complex-math.eqi"
+    source.write_eqi(path)
+    emitted = eqiora.compile(path=path, entry="ComplexMath")
+    assert emitted.structural_fingerprint == model.structural_fingerprint
+    restored = eqiora.Model.from_bytes(model.to_bytes())
+    assert restored.structural_fingerprint == model.structural_fingerprint
+    assert restored.digest == model.digest
+
+
 def test_typed_value_authoring_rejects_foreign_array_and_complex_operands():
     source = eqiora.Module("main")
     left = source.component("Left")

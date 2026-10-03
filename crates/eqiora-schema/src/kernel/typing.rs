@@ -128,8 +128,8 @@ pub enum TypeViolation<I> {
     DivisionDenominatorNotScalar,
     /// Integer power received a non-scalar base.
     PowerRequiresScalar,
-    /// Sine received a dimensioned or non-scalar operand.
-    SinRequiresDimensionlessScalar,
+    /// A dimensionless mathematical function received a dimensioned operand.
+    MathRequiresDimensionlessScalar,
     /// A coordinate was used without a spatial Relation scope.
     CoordinateRequiresSpatialScope,
     /// A coordinate axis is outside the ambient dimension.
@@ -196,7 +196,7 @@ impl<I> TypeViolation<I> {
                 | Self::IncompatibleFrame
                 | Self::DivisionDenominatorNotScalar
                 | Self::PowerRequiresScalar
-                | Self::SinRequiresDimensionlessScalar
+                | Self::MathRequiresDimensionlessScalar
                 | Self::SpatialExtentInvalid
                 | Self::DivergenceRequiresTensor
                 | Self::SymmetricPartRequiresSquareSpatialTensor
@@ -252,8 +252,8 @@ impl<I: fmt::Debug> fmt::Display for TypeViolation<I> {
             Self::PowerRequiresScalar => {
                 formatter.write_str("integer power requires a scalar operand")
             }
-            Self::SinRequiresDimensionlessScalar => {
-                formatter.write_str("sin requires a dimensionless scalar operand")
+            Self::MathRequiresDimensionlessScalar => {
+                formatter.write_str("mathematical function requires a dimensionless scalar operand")
             }
             Self::CoordinateRequiresSpatialScope => {
                 formatter.write_str("coordinate operator requires a Cartesian Relation scope")
@@ -678,40 +678,53 @@ pub fn unary_math<I: Clone>(
     function: UnaryMathFunction,
     operand: &ExpressionType<I>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
-    if matches!(
+    use eqiora_core::{ScalarDomain, ValueType};
+    if !matches!(
         operand.value_type.scalar_domain(),
-        eqiora_core::ScalarDomain::Boolean | eqiora_core::ScalarDomain::Enum
+        ScalarDomain::Real | ScalarDomain::Complex
     ) {
         return Err(TypeViolation::ScalarDomainMismatch);
     }
-
-    if operand.value_type.scalar_domain() == eqiora_core::ScalarDomain::Integer {
-        return Err(TypeViolation::ScalarDomainMismatch);
+    if !operand.shape().is_scalar() || operand.frame() != ValueFrame::Invariant {
+        return Err(TypeViolation::PowerRequiresScalar);
     }
-    if function == UnaryMathFunction::Sqrt {
-        if !operand.shape().is_scalar() || operand.frame() != ValueFrame::Invariant {
-            return Err(TypeViolation::PowerRequiresScalar);
+    let dimension = match function {
+        UnaryMathFunction::Sqrt => operand.dimension().pow(1, 2),
+        UnaryMathFunction::Abs2 => operand.dimension().pow(2, 1),
+        UnaryMathFunction::Arg => Some(DimExponents::DIMENSIONLESS),
+        UnaryMathFunction::Conj
+        | UnaryMathFunction::Real
+        | UnaryMathFunction::Imag
+        | UnaryMathFunction::Abs => Some(operand.dimension()),
+        UnaryMathFunction::Sin
+        | UnaryMathFunction::Cos
+        | UnaryMathFunction::Exp
+        | UnaryMathFunction::Log => {
+            if operand.dimension() != DimExponents::DIMENSIONLESS {
+                return Err(TypeViolation::MathRequiresDimensionlessScalar);
+            }
+            Some(DimExponents::DIMENSIONLESS)
         }
-        let mut result = operand.clone();
-        let dimension = operand
-            .dimension()
-            .pow(1, 2)
-            .ok_or(TypeViolation::DimensionOverflow {
-                operation: "square root",
-            })?;
-        result.value_type = result
-            .value_type
-            .with_dimension(dimension)
-            .map_err(|_| TypeViolation::ScalarDomainMismatch)?;
-        return Ok(result);
     }
-    if !operand.shape().is_scalar()
-        || operand.dimension() != DimExponents::DIMENSIONLESS
-        || operand.frame() != ValueFrame::Invariant
-    {
-        return Err(TypeViolation::SinRequiresDimensionlessScalar);
-    }
-    Ok(operand.clone())
+    .ok_or(TypeViolation::DimensionOverflow {
+        operation: "unary mathematics",
+    })?;
+    let domain = if matches!(
+        function,
+        UnaryMathFunction::Real
+            | UnaryMathFunction::Imag
+            | UnaryMathFunction::Abs
+            | UnaryMathFunction::Abs2
+            | UnaryMathFunction::Arg
+    ) {
+        ScalarDomain::Real
+    } else {
+        operand.value_type.scalar_domain()
+    };
+    Ok(ExpressionType::new(
+        ValueType::scalar(domain, dimension).map_err(|_| TypeViolation::ScalarDomainMismatch)?,
+        operand.support.clone(),
+    ))
 }
 
 /// Type a physical-space gradient.

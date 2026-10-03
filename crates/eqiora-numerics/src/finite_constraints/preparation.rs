@@ -1,6 +1,6 @@
 use super::*;
 use eqiora_core::{ScalarDomain, ValueFrame};
-use eqiora_ir::ScalarOperatorIr;
+use eqiora_ir::{ComponentScalarization, ScalarOperatorIr, ScalarSymbolCoordinate};
 use eqiora_schema::kernel::typing::{ExpressionType, RootContract, TypedResidual};
 use eqiora_schema::kernel::{ActivationKind, ExprDagBuilder, ExprNode, FieldRole, KernelNode};
 use std::collections::BTreeSet;
@@ -12,39 +12,90 @@ use std::collections::BTreeSet;
 /// missing/foreign/wrong-unit tolerance entries and excessive active-set enumeration.
 pub(crate) fn lower_finite_constraints(
     kernel: &KernelProgram,
-    enforcement: &FiniteConstraintEnforcement,
+    enforcement: Option<&FiniteConstraintEnforcement>,
 ) -> Result<FiniteConstraintProblem, Diagnostic> {
-    let max_active_sets = enforcement.max_active_sets();
+    let max_active_sets = enforcement.and_then(FiniteConstraintEnforcement::max_active_sets);
+    let strict_interior = enforcement.is_some_and(FiniteConstraintEnforcement::is_strict_interior);
     let mut symbols = Vec::new();
     let mut dimensions = Vec::new();
+    let mut coordinates = Vec::new();
     let mut bindings = Vec::new();
     for node in kernel.nodes() {
         match node {
             KernelNode::Field(field) => {
                 let value = field.value_type();
                 if field.role() != FieldRole::Variable
-                    || value.scalar_domain() != ScalarDomain::Real
-                    || !value.shape().is_scalar()
+                    || !matches!(
+                        value.scalar_domain(),
+                        ScalarDomain::Real | ScalarDomain::Complex
+                    )
                     || value.frame() != ValueFrame::Invariant
+                    || value.array_rank() != value.shape().rank()
+                    || (strict_interior
+                        && (value.scalar_domain() != ScalarDomain::Real
+                            || !value.shape().is_scalar()))
                 {
                     return Err(invalid(
-                        "finite constraint execution requires invariant real scalar algebraic Fields",
+                        "finite affine execution requires invariant numeric Fields; Newton requires real scalars",
                     ));
                 }
                 symbols.push(SymbolRef::Field(field.id()));
                 dimensions.push(value.dimension());
-                if symbols.len() > 256 {
+                let count = value
+                    .shape()
+                    .component_count()
+                    .and_then(|count| {
+                        count.checked_mul(if value.scalar_domain() == ScalarDomain::Complex {
+                            2
+                        } else {
+                            1
+                        })
+                    })
+                    .ok_or_else(|| invalid("Field coordinate count overflow"))?;
+                if coordinates.len().saturating_add(count) > 256 {
                     return Err(invalid(
-                        "finite constraint profile permits at most 256 scalar Fields",
+                        "finite constraint profile permits at most 256 real coordinates",
                     ));
                 }
+                coordinates.extend(ScalarSymbolCoordinate::for_value(
+                    SymbolRef::Field(field.id()),
+                    value,
+                )?);
             }
             KernelNode::Parameter(parameter) => {
-                let value = parameter
-                    .value()
-                    .real_scalar_value()
-                    .ok_or_else(|| invalid("finite constraint Parameters must be real scalars"))?;
-                bindings.push((SymbolRef::Parameter(parameter.id()), value.value()));
+                let value = parameter.value();
+                if strict_interior && value.real_scalar_value().is_none() {
+                    return Err(invalid("finite Newton Parameters must be real scalars"));
+                }
+                if value.value_type().frame() != ValueFrame::Invariant
+                    || value.value_type().array_rank() != value.value_type().shape().rank()
+                {
+                    return Err(invalid(
+                        "finite Parameters require invariant numeric channels",
+                    ));
+                }
+                let count = value
+                    .component_count()
+                    .checked_mul(
+                        if value.value_type().scalar_domain() == ScalarDomain::Complex {
+                            2
+                        } else {
+                            1
+                        },
+                    )
+                    .ok_or_else(|| invalid("Parameter coordinate count overflow"))?;
+                if bindings.len().saturating_add(count) > 65_536 {
+                    return Err(invalid(
+                        "finite Parameter coordinates exceed the 65536-component work bound",
+                    ));
+                }
+                for coordinate in ScalarSymbolCoordinate::for_value(
+                    SymbolRef::Parameter(parameter.id()),
+                    value.value_type(),
+                )? {
+                    let scalar = coordinates::component(value, &coordinate)?;
+                    bindings.push((coordinate, scalar));
+                }
             }
             KernelNode::Relation(_) | KernelNode::Observable(_) => {}
             KernelNode::Activation(activation)
@@ -66,6 +117,7 @@ pub(crate) fn lower_finite_constraints(
     let mut equality_count = 0usize;
     let mut complementarity_count = 0usize;
     let mut expression_nodes = 0usize;
+    let mut affine_node_work = 0usize;
     for node in kernel.nodes() {
         let KernelNode::Relation(relation) = node else {
             continue;
@@ -121,18 +173,44 @@ pub(crate) fn lower_finite_constraints(
             let right = typed.node_type(right).expect("admitted root type");
             for operand in [left, right] {
                 if operand.support.is_some()
-                    || operand.value_type.scalar_domain() != ScalarDomain::Real
-                    || !operand.shape().is_scalar()
+                    || !matches!(
+                        operand.value_type.scalar_domain(),
+                        ScalarDomain::Real | ScalarDomain::Complex
+                    )
                     || operand.frame() != ValueFrame::Invariant
+                    || operand.value_type.array_rank() != operand.shape().rank()
+                    || ((*kind != RelationConditionKind::Equality || strict_interior)
+                        && (operand.value_type.scalar_domain() != ScalarDomain::Real
+                            || !operand.shape().is_scalar()))
                 {
                     return Err(invalid(
-                        "finite constraints require nonspatial invariant real scalar operands",
+                        "finite equalities require invariant numeric operands; ordered constraints and Newton require real scalars",
                     ));
                 }
             }
             operand_dimensions.push((left.dimension(), right.dimension()));
             match kind {
-                RelationConditionKind::Equality => equality_count += 1,
+                RelationConditionKind::Equality => {
+                    let value_type = eqiora_schema::kernel::typing::additive(left, right)
+                        .map_err(|error| invalid(error.to_string()))?
+                        .value_type;
+                    let count = value_type
+                        .shape()
+                        .component_count()
+                        .and_then(|count| {
+                            count.checked_mul(
+                                if value_type.scalar_domain() == ScalarDomain::Complex {
+                                    2
+                                } else {
+                                    1
+                                },
+                            )
+                        })
+                        .ok_or_else(|| invalid("equality coordinate count overflow"))?;
+                    equality_count = equality_count
+                        .checked_add(count)
+                        .ok_or_else(|| invalid("equality coordinate count overflow"))?;
+                }
                 RelationConditionKind::Inequality | RelationConditionKind::Complementarity => {
                     let reference = ConstraintRef::new(
                         relation.id(),
@@ -140,16 +218,18 @@ pub(crate) fn lower_finite_constraints(
                             .map_err(|_| invalid("condition ordinal overflow"))?,
                     );
                     expected.insert(reference);
-                    let tolerance = enforcement.tolerance(reference).ok_or_else(|| {
-                        invalid("each exact Model constraint requires an explicit tolerance")
-                    })?;
+                    let tolerance = enforcement
+                        .and_then(|policy| policy.tolerance(reference))
+                        .ok_or_else(|| {
+                            invalid("each exact Model constraint requires an explicit tolerance")
+                        })?;
                     if tolerance.left().dim() != left.dimension() {
                         return Err(invalid(
                             "constraint left tolerance has the wrong physical dimension",
                         ));
                     }
                     if *kind == RelationConditionKind::Complementarity {
-                        if enforcement.is_strict_interior() {
+                        if strict_interior {
                             return Err(invalid(
                                 "strict-interior execution rejects complementarity",
                             ));
@@ -171,15 +251,67 @@ pub(crate) fn lower_finite_constraints(
                 }
             }
         }
+        if equality_count + complementarity_count > coordinates.len() {
+            return Err(invalid(
+                "finite active-set branches must be square: too many equality coordinates",
+            ));
+        }
+        if !strict_interior {
+            // Every scalarized operand row may traverse the original DAG; a
+            // complex node may need both parts. Charge that expansion before
+            // constructing rows, within the existing finite node-work budget.
+            let operand_coordinates = typed
+                .expression()
+                .roots()
+                .iter()
+                .try_fold(0usize, |total, root| {
+                    let ty = &typed.node_type(*root).expect("admitted operand").value_type;
+                    let count = ty.shape().component_count()?.checked_mul(
+                        if ty.scalar_domain() == ScalarDomain::Complex {
+                            2
+                        } else {
+                            1
+                        },
+                    )?;
+                    total.checked_add(count)
+                })
+                .ok_or_else(|| invalid("finite operand coordinate count overflow"))?;
+            let parts = if typed
+                .node_types()
+                .iter()
+                .any(|ty| ty.value_type.scalar_domain() == ScalarDomain::Complex)
+            {
+                2
+            } else {
+                1
+            };
+            affine_node_work = affine_node_work.saturating_add(
+                relation
+                    .expression()
+                    .nodes()
+                    .len()
+                    .saturating_mul(operand_coordinates)
+                    .saturating_mul(parts),
+            );
+            if affine_node_work > 16_777_216 {
+                return Err(invalid(
+                    "finite component expansion exceeds 16777216 node evaluations",
+                ));
+            }
+        }
         // Prove every original operand affine before considering any active branch.
         // A branch must never hide a nonlinear inactive operand.
-        let operator = ScalarOperatorIr::lower(relation.expression())?;
-        if !enforcement.is_strict_interior() {
-            operator.bind_affine(&symbols, &bindings).map_err(|error| {
-                invalid(format!(
-                    "finite condition operands are not affine: {error:?}"
-                ))
-            })?;
+        if strict_interior {
+            ScalarOperatorIr::lower(relation.expression())?;
+        } else {
+            for row in ComponentScalarization::lower(&typed)?.rows() {
+                row.bind_affine(&coordinates, &bindings).map_err(|error| {
+                    invalid(format!(
+                        "finite condition operands are not affine: {}",
+                        error.message()
+                    ))
+                })?;
+            }
         }
         relations.push(RelationOperands {
             id: relation.id(),
@@ -188,7 +320,7 @@ pub(crate) fn lower_finite_constraints(
             dimensions: operand_dimensions,
         });
     }
-    if expected.len() != enforcement.tolerances().len() {
+    if expected.len() != enforcement.map_or(0, |policy| policy.tolerances().len()) {
         return Err(invalid(
             "enforcement names a foreign or non-constraint Relation condition",
         ));
@@ -200,24 +332,30 @@ pub(crate) fn lower_finite_constraints(
             "complete active-set enumeration exceeds its explicit bounded budget",
         ));
     }
-    if expression_nodes.saturating_mul(1usize << complementarity_count) > 16_777_216 {
+    let node_work = if strict_interior {
+        expression_nodes
+    } else {
+        affine_node_work
+    };
+    if node_work.saturating_mul(1usize << complementarity_count) > 16_777_216 {
         return Err(invalid(
             "finite active-set expression work exceeds 16777216 node evaluations",
         ));
     }
-    if equality_count + complementarity_count != symbols.len() {
+    if equality_count + complementarity_count != coordinates.len() {
         return Err(invalid(
-            "finite active-set branches must be square: equalities plus complementarity pairs equal scalar Fields",
+            "finite active-set branches must be square: equality coordinates plus complementarity pairs equal unknown coordinates",
         ));
     }
     Ok(FiniteConstraintProblem {
         kernel: kernel.clone(),
         symbols,
         dimensions,
+        coordinates,
         bindings,
         parameter_candidates: Vec::new(),
         relations,
-        enforcement: enforcement.clone(),
+        enforcement: enforcement.cloned(),
         complementarity_count,
     })
 }

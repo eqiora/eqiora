@@ -67,7 +67,7 @@ impl CommonAlgebraicPlan {
             if !fields.is_empty() {
                 return Err(invalid("affine finite State requires no seed assignments"));
             }
-            return self.state_from_values(vec![0.0; self.symbols.len()]);
+            return self.state_from_values(vec![0.0; self.coordinate_count()]);
         }
         if fields.len() != self.symbols.len() {
             return Err(invalid(
@@ -103,7 +103,8 @@ impl CommonAlgebraicPlan {
         &self,
         mut values: Vec<f64>,
     ) -> Result<CommonAlgebraicState, Diagnostic> {
-        if values.len() != self.symbols.len() || values.iter().any(|value| !value.is_finite()) {
+        if values.len() != self.coordinate_count() || values.iter().any(|value| !value.is_finite())
+        {
             return Err(invalid(
                 "finite seed requires the complete finite Plan coordinate vector",
             ));

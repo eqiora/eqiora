@@ -3,6 +3,7 @@
 pub mod property;
 mod scalar_projection;
 mod time_derivative;
+mod unary_math;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -63,8 +64,26 @@ pub enum SymbolRef {
 pub enum UnaryMathFunction {
     /// Sine of a dimensionless scalar.
     Sin,
-    /// Nonnegative real square root; halves exact dimension exponents.
+    /// Real nonnegative or principal complex square root; halves dimensions.
     Sqrt,
+    /// Cosine of a dimensionless scalar.
+    Cos,
+    /// Exponential of a dimensionless scalar.
+    Exp,
+    /// Natural logarithm, with the principal branch for complex input.
+    Log,
+    /// Complex conjugate, preserving dimension and scalar domain.
+    Conj,
+    /// Explicit real component, preserving dimension.
+    Real,
+    /// Explicit imaginary component, preserving dimension.
+    Imag,
+    /// Real magnitude, preserving dimension.
+    Abs,
+    /// Squared real magnitude, squaring dimension.
+    Abs2,
+    /// Principal dimensionless phase; zero amplitude is undefined.
+    Arg,
 }
 
 /// Exact scalar comparison operation.

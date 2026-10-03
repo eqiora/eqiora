@@ -308,6 +308,9 @@ impl CommonResult {
         }
         .refresh_identity()
     }
+    /// Numerical real coordinates in original-symbol order, then row-major channel
+    /// order, with real before imaginary for each complex component. The exact Plan
+    /// retains the mathematical value types; these coordinates do not create Fields.
     #[must_use]
     pub fn finite_values(&self) -> Option<&[f64]> {
         match &self.payload {
@@ -921,67 +924,6 @@ impl CommonResult {
     pub fn fsi_state_assembly_counts(&self, index: usize) -> Option<(usize, usize)> {
         self.fsi_state(index)
             .map(|state| (state.assembly.packet_count(), state.assembly.target_count()))
-    }
-    #[must_use]
-    #[allow(clippy::type_complexity)]
-    pub fn elasticity_observation(
-        &self,
-    ) -> Option<([f64; 2], [f64; 2], [usize; 2], [[f64; 2]; 2])> {
-        match &self.payload {
-            CommonResultPayload::Static(payload) => match &payload.observation {
-                StaticObservation::Elasticity(value) => Some((
-                    value.constrained_reaction,
-                    value.integrated_body_force,
-                    [
-                        payload.assembly.packet_count(),
-                        payload.assembly.target_count(),
-                    ],
-                    value.exact_bounds,
-                )),
-                StaticObservation::Scalar | StaticObservation::SteadyStokes(_) => None,
-            },
-            _ => None,
-        }
-    }
-    #[must_use]
-    pub fn steady_stokes_observation(&self) -> Option<([f64; 4], [[f64; 2]; 6])> {
-        match &self.payload {
-            CommonResultPayload::Static(payload) => match &payload.observation {
-                StaticObservation::SteadyStokes(value) => Some((value.scalars, value.vectors)),
-                StaticObservation::Scalar | StaticObservation::Elasticity(_) => None,
-            },
-            _ => None,
-        }
-    }
-
-    #[must_use]
-    pub fn steady_stokes_boundary_reaction(&self, name: &str) -> Option<[f64; 2]> {
-        let CommonResultPayload::Static(payload) = &self.payload else {
-            return None;
-        };
-        let StaticObservation::SteadyStokes(value) = &payload.observation else {
-            return None;
-        };
-        value
-            .reactions
-            .iter()
-            .find(|(key, _)| key == name)
-            .map(|(_, value)| *value)
-    }
-
-    #[must_use]
-    pub fn steady_stokes_boundary_flux(&self, name: &str) -> Option<f64> {
-        let CommonResultPayload::Static(payload) = &self.payload else {
-            return None;
-        };
-        let StaticObservation::SteadyStokes(value) = &payload.observation else {
-            return None;
-        };
-        value
-            .fluxes
-            .iter()
-            .find(|(key, _)| key == name)
-            .map(|(_, value)| *value)
     }
 }
 

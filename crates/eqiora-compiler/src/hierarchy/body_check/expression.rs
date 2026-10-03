@@ -591,12 +591,7 @@ impl ExpressionChecker<'_, '_, '_> {
             return typing::coordinate(axis, self.relation_support.as_ref())
                 .map_err(|error| type_error(self.scope.file, expression, error));
         }
-        if matches!(callee_name, "math.sin" | "math.sqrt") {
-            let function = if callee_name == "math.sqrt" {
-                eqiora_schema::kernel::UnaryMathFunction::Sqrt
-            } else {
-                eqiora_schema::kernel::UnaryMathFunction::Sin
-            };
+        if let Some(function) = crate::math::unary_function(callee_name) {
             return typing::unary_math(function, &self.check(argument)?)
                 .map_err(|error| type_error(self.scope.file, expression, error));
         }
@@ -836,8 +831,8 @@ fn type_error(file: &str, expression: &Expr, error: TypeViolation<String>) -> Di
                 right.dimension()
             )
         }
-        TypeViolation::SinRequiresDimensionlessScalar => {
-            "math.sin(...) requires a dimensionless scalar".to_owned()
+        TypeViolation::MathRequiresDimensionlessScalar => {
+            "mathematical function requires a dimensionless scalar".to_owned()
         }
         _ => error.to_string(),
     };
