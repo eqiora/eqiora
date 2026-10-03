@@ -176,7 +176,7 @@ public component Neumann(support body:volume(ambient_dimension=1), support left:
 bindings={"body":geometry.selection("body"),"left":(geometry.selection("left"),geometry.selection("body")),"right":(geometry.selection("right"),geometry.selection("body")),"s":-2.0,"lower_load":1.0,"upper_load":1.0}
 model=eqiora.compile(source=source,geometry=geometry,entry="Neumann",bindings=bindings)
 form,=model.authored_formulations
-assert form.gauge_field_id==form.trial_field_ids[0]
+assert form.gauge_field_ids==form.trial_field_ids
 mesh=eqiora.meshing.generate(eqiora.meshing.resolve(geometry,eqiora.meshing.CartesianMesher(cells=(4,))))
 linear=eqiora.solve.Linear(algorithm=eqiora.solve.LinearSolver.MinimumResidual,preconditioner=eqiora.solve.Preconditioner.Identity,reduction=eqiora.solve.Reduction.Reproducible,provider=eqiora.solve.SolverProvider.reference(),relative_tolerance=1e-12,absolute_tolerance=1e-12,maximum_iterations=128)
 plan=eqiora.resolve(model,mesh=mesh,spatial=eqiora.fvm.CellCenteredTpfa(),solve=linear)
@@ -184,11 +184,11 @@ replayed=eqiora.Plan.from_bytes(plan.to_bytes())
 result=eqiora.run(replayed)
 restored=eqiora.Result.from_bytes(replayed,result.to_bytes())
 assert restored.to_bytes()==result.to_bytes()
-assert restored.scalar_compatibility_residual==0.0
-assert restored.scalar_original_residual_norm<1e-10
-assert abs(restored.scalar_gauge_residual)<1e-10
-assert abs(restored.scalar_gauge_multiplier)<1e-10
-values=restored.output(model.field(form.gauge_field_id)).values("cell").numpy().reshape(-1).tolist()
+assert restored.compatibility_residual==0.0
+assert restored.original_residual_norm<1e-10
+assert abs(restored.gauge_residual)<1e-10
+assert abs(restored.gauge_multiplier)<1e-10
+values=restored.output(model.field(form.gauge_field_ids[0])).values("cell").numpy().reshape(-1).tolist()
 # Midpoint samples of x²-x+1/6, corrected by +h²/12 for zero cell integral.
 assert all(abs(a-b)<1e-10 for a,b in zip(values,[0.0625,-0.0625,-0.0625,0.0625]))
 # The symbolic compatibility condition remains the same; incompatible numeric
@@ -202,6 +202,48 @@ except Exception as error:
  assert "incompatible" in str(error), str(error)
 else:
  raise AssertionError("incompatible source was silently repaired")
+"#),Some(&locals),Some(&locals))
+    })
+}
+
+#[test]
+fn python_floating_network_reference_runs_and_replays_without_geometry() -> PyResult<()> {
+    Python::initialize();
+    Python::attach(|py| {
+        let locals = PyDict::new(py);
+        locals.set_item("eqiora", public_module(py)?)?;
+        py.run(c_str!(r#"
+source = '''public component Network(parameter g:1, parameter i1:1, parameter i2:1, parameter offset:1) {
+ variable v1:1; variable v2:1;
+ relation first {g*(v1-v2)=i1;}
+ relation second {g*(v2-v1)=i2;}
+ observable drop:1=v1-v2;
+ observable reference_value:1=v1;
+ form floating for first,second {
+  finite voltage(v1,v2);
+  gauge voltage {reference v1=offset; compatibility i1+i2=0;}
+  g*(v1-v2)=i1;
+  g*(v2-v1)=i2;
+ }
+}'''
+linear=eqiora.solve.Linear(algorithm=eqiora.solve.LinearSolver.SparseLu,preconditioner=eqiora.solve.Preconditioner.Identity,reduction=eqiora.solve.Reduction.Fast,provider=eqiora.solve.SolverProvider.faer(),relative_tolerance=1e-12,absolute_tolerance=1e-14,maximum_iterations=100)
+for offset in [0.0,4.0,-2.0]:
+ model=eqiora.compile(source=source,entry="Network",bindings={"g":2.0,"i1":6.0,"i2":-6.0,"offset":offset})
+ form,=model.authored_formulations
+ assert form.kind=="finite" and form.domain_id is None
+ assert form.gauge_field_ids==form.trial_field_ids and len(form.trial_field_ids)==2
+ plan=eqiora.resolve(model,solve=linear)
+ restored_plan=eqiora.Plan.from_bytes(plan.to_bytes())
+ assert restored_plan.mesh is None
+ state=eqiora.State.initial(restored_plan)
+ result=eqiora.run(restored_plan,state=state)
+ result=eqiora.Result.from_bytes(restored_plan,result.to_bytes())
+ assert abs(result.observe(model.observable("definition.drop")).value-3.0)<1e-12
+ assert abs(result.observe(model.observable("definition.reference_value")).value-offset)<1e-12
+ assert result.original_residual_norm<1e-12
+ assert abs(result.compatibility_residual)<1e-12
+ assert abs(result.gauge_residual)<1e-12
+ assert abs(result.gauge_multiplier)<1e-12
 "#),Some(&locals),Some(&locals))
     })
 }

@@ -15,6 +15,7 @@ use crate::lower::ModelSymbols;
 use crate::source_identity::formulation::AuthoredFormSourceIdentity;
 
 mod expression;
+mod finite;
 mod gauge;
 mod index;
 mod interval;
@@ -84,7 +85,7 @@ pub(crate) enum AuthoredFormExpressionKind {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CompiledAuthoredFormulation {
     relations: Vec<Id<kinds::Relation>>,
-    domain: Id<kinds::Domain>,
+    domain: Option<Id<kinds::Domain>>,
     trials: Vec<Id<kinds::Field>>,
     projection: AuthoredFormulationProjection,
     file: String,
@@ -104,9 +105,9 @@ impl CompiledAuthoredFormulation {
         &self.relations
     }
 
-    /// Exact integration and Relation Domain.
+    /// Exact integration and Relation Domain; absent for finite global coordinates.
     #[must_use]
-    pub const fn domain(&self) -> Id<kinds::Domain> {
+    pub const fn domain(&self) -> Option<Id<kinds::Domain>> {
         self.domain
     }
 
@@ -140,7 +141,7 @@ pub(crate) fn compile_component_formulations(
     component: &ComponentDecl,
     symbols: &ModelSymbols,
     transaction: &Transaction,
-    geometry: &eqiora_geometry::CanonicalGeometryV1,
+    geometry: Option<&eqiora_geometry::CanonicalGeometryV1>,
     supports: &[crate::external::ExternalGeometrySupportBinding],
 ) -> Result<Vec<CompiledAuthoredFormulation>, Vec<Diagnostic>> {
     if component.formulations().len() == 0 {
@@ -163,6 +164,25 @@ pub(crate) fn compile_component_formulations(
             let binding = component
                 .formulation_binding(name)
                 .expect("retained binder");
+            if matches!(binding, eqiora_lang::FormulationBinding::Finite { .. }) {
+                return finite::compile(
+                    file,
+                    component,
+                    (name, relations, equations, range),
+                    binding,
+                    source_identity,
+                    symbols,
+                    &index,
+                )
+                .map_err(|e| vec![e]);
+            }
+            let geometry = geometry.ok_or_else(|| {
+                vec![error(
+                    file,
+                    range,
+                    "spatial forms require exact Geometry support bindings",
+                )]
+            })?;
             if matches!(binding, eqiora_lang::FormulationBinding::Interval { .. }) {
                 let ([relation], [(left, right)]) = (relations, equations) else {
                     return Err(vec![error(
@@ -193,11 +213,11 @@ pub(crate) fn compile_component_formulations(
                 return Err(vec![error(
                     file,
                     range,
-                    "explicit gauges currently require an interval Formulation",
+                    "explicit gauges require an interval or finite Formulation",
                 )]);
             }
             let eqiora_lang::FormulationBinding::WeakTests { tests } = binding else {
-                unreachable!()
+                unreachable!("finite and interval binders returned above");
             };
             compile_weak(
                 file,
@@ -306,7 +326,7 @@ fn compile_weak(
         index,
         ambient_dimension: geometry.ambient_dimension(),
         topological_dimension: geometry.topological_dimension(),
-        relation_domain: domain,
+        relation_domain: Some(domain),
         tests: named_tests,
         used_tests: std::collections::BTreeSet::new(),
     };
@@ -343,7 +363,7 @@ fn compile_weak(
     )?;
     Ok(CompiledAuthoredFormulation {
         relations,
-        domain,
+        domain: Some(domain),
         trials,
         projection,
         file: file.into(),
@@ -357,7 +377,7 @@ struct ExpressionContext<'a> {
     index: &'a KernelIndex<'a>,
     ambient_dimension: usize,
     topological_dimension: usize,
-    relation_domain: Id<kinds::Domain>,
+    relation_domain: Option<Id<kinds::Domain>>,
     tests: BTreeMap<&'a str, &'a str>,
     used_tests: std::collections::BTreeSet<String>,
 }

@@ -19,6 +19,8 @@ pub struct CommonAlgebraicPlan {
     model: Arc<ModelEnvelope>,
     kernel: KernelProgram,
     problem: AlgebraicProblem,
+    authored: Option<eqiora_compiler::AuthoredFormulationProjection>,
+    gauge: Option<crate::finite_constraints::FiniteGauge>,
     complex_system: Option<eqiora_solver::CanonicalCsrSystemView<num_complex::Complex64>>,
     pub(super) linear: NativeLinearPolicy,
     nonlinear: Option<NonlinearSolvePlan>,
@@ -38,6 +40,7 @@ impl CommonAlgebraicPlan {
         model: &ModelEnvelope,
         solve: CommonSolvePolicy,
         enforcement: Option<FiniteConstraintEnforcement>,
+        authored: Option<&eqiora_compiler::AuthoredFormulationProjection>,
         backend: &dyn LinearSolverBackend,
     ) -> Result<Self, Diagnostic> {
         let (request, nonlinear) = match solve {
@@ -60,6 +63,7 @@ impl CommonAlgebraicPlan {
                 .unwrap_or_else(|| invalid("finite Model replay failed"))
         })?;
         let problem = AlgebraicProblem::admit(&kernel, enforcement)?;
+        let gauge = authored.map(|form| problem.gauge(form)).transpose()?;
         let symbols = problem.symbols();
         let dimensions = problem.dimensions();
         if request.objective().is_some() {
@@ -91,7 +95,11 @@ impl CommonAlgebraicPlan {
         } else {
             solver_planning::resolve_linear(
                 request,
-                LinearOperatorProperties::General,
+                if gauge.is_some() {
+                    LinearOperatorProperties::SymmetricIndefinite
+                } else {
+                    LinearOperatorProperties::General
+                },
                 None,
                 None,
                 None,
@@ -115,11 +123,17 @@ impl CommonAlgebraicPlan {
             &mut bytes,
             &super::plan_artifact::finite_enforcement_bytes(problem.enforcement())?,
         );
-        let identity = finite_digest(b"eqiora.common-algebraic-plan/v4\0", &bytes);
+        push_framed(
+            &mut bytes,
+            authored.map_or(&[], |form| form.canonical_bytes()),
+        );
+        let identity = finite_digest(b"eqiora.common-algebraic-plan/v5\0", &bytes);
         Ok(Self {
             model: Arc::new(model.clone()),
             kernel,
             problem,
+            authored: authored.cloned(),
+            gauge,
             complex_system,
             linear,
             nonlinear,
@@ -130,6 +144,11 @@ impl CommonAlgebraicPlan {
             model_digest,
             model_revision: reference.semantic_revision().get(),
         })
+    }
+    /// Exact authored finite reference retained for Plan replay.
+    #[must_use]
+    pub fn authored_formulation_bytes(&self) -> Option<&[u8]> {
+        self.authored.as_ref().map(|form| form.canonical_bytes())
     }
     #[must_use]
     pub fn identity(&self) -> &str {
@@ -216,6 +235,17 @@ impl CommonAlgebraicPlan {
             ));
         }
         let checked = self.linear.checked_backend(backend, None)?;
+        if let Some(gauge) = &self.gauge {
+            let solution = gauge.solve(LinearSolveRequest::new(&checked, self.linear.solver))?;
+            return crate::CommonResult::from_algebraic(
+                self,
+                state,
+                solution.values,
+                solution.report,
+                None,
+                Some(solution.evidence),
+            );
+        }
         if let Some(system) = &self.complex_system {
             let initial = state
                 .values
@@ -237,6 +267,7 @@ impl CommonAlgebraicPlan {
                 state,
                 values,
                 solution.report().clone(),
+                None,
                 None,
             );
         }
@@ -260,6 +291,7 @@ impl CommonAlgebraicPlan {
             solution.values,
             solution.report,
             solution.active_set_mask,
+            None,
         )
     }
     pub(crate) fn validate_nonlinear_values(
@@ -282,7 +314,28 @@ impl CommonAlgebraicPlan {
         values: &[f64],
         target: f64,
         mask: Option<u32>,
+        evidence: Option<&crate::nullspace::NullspaceEvidence>,
     ) -> Result<(f64, Option<ConstraintAssessment>), Diagnostic> {
+        match (&self.gauge, evidence) {
+            (Some(gauge), Some(evidence)) => {
+                if mask.is_some()
+                    || gauge.residual_target(self.linear.solver)?.to_bits() != target.to_bits()
+                    || &gauge.assess(values, evidence.multiplier, self.linear.solver)? != evidence
+                {
+                    return Err(invalid(
+                        "finite gauge Result evidence differs from its original equations or explicit reference",
+                    ));
+                }
+                let assessment = self.problem.gauge_assessment(values, self.linear.solver)?;
+                return Ok((assessment.equality_residual_norm(), Some(assessment)));
+            }
+            (None, None) => {}
+            _ => {
+                return Err(invalid(
+                    "finite Result gauge evidence presence differs from its Plan",
+                ));
+            }
+        }
         self.problem
             .validate_values(values, self.linear.solver, target, mask)
     }

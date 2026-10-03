@@ -25,7 +25,7 @@ use validate::{
     require_text, require_trajectory_family, validate_fields,
 };
 
-const SCHEMA: &str = "eqiora.common-result/v8";
+const SCHEMA: &str = "eqiora.common-result/v9";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 512 * 1024 * 1024;
 
@@ -68,6 +68,7 @@ enum WireResultPayload {
         initial_state_base64: String,
         reference_residual_norm: f64,
         active_set_mask: Option<u32>,
+        nullspace: Option<[f64; 4]>,
     },
     Static {
         fields: Vec<WireField>,
@@ -320,11 +321,15 @@ impl WireResultContent {
                 initial_state,
                 reference_residual_norm,
                 assessment,
+                nullspace,
             } => WireResultPayload::Algebraic {
                 values: values.clone(),
                 solve: WireAlgebraicSolve::from_evidence(solve)?,
                 initial_state_base64: BASE64_STANDARD.encode(initial_state.to_bytes()?),
                 reference_residual_norm: *reference_residual_norm,
+                nullspace: nullspace
+                    .as_ref()
+                    .map(crate::nullspace::NullspaceEvidence::to_array),
                 active_set_mask: assessment
                     .as_ref()
                     .and_then(|value| value.active_set_mask()),
@@ -374,6 +379,7 @@ impl WireResultContent {
                 initial_state_base64,
                 reference_residual_norm,
                 active_set_mask,
+                nullspace,
             } => {
                 let native = plan
                     .as_algebraic()
@@ -382,8 +388,14 @@ impl WireResultContent {
                     .decode(initial_state_base64)
                     .map_err(|error| invalid(format!("invalid finite State encoding: {error}")))?;
                 let initial_state = crate::CommonAlgebraicState::from_bytes(&bytes, native)?;
-                let (solve, derived_norm, assessment) =
-                    solve.replay(plan, &initial_state, values, *active_set_mask)?;
+                let nullspace = nullspace.map(crate::nullspace::NullspaceEvidence::from_array);
+                let (solve, derived_norm, assessment) = solve.replay(
+                    plan,
+                    &initial_state,
+                    values,
+                    *active_set_mask,
+                    nullspace.as_ref(),
+                )?;
                 if derived_norm.to_bits() != reference_residual_norm.to_bits() {
                     return Err(invalid(
                         "finite Result original residual evidence is inconsistent",
@@ -395,6 +407,7 @@ impl WireResultContent {
                     initial_state,
                     reference_residual_norm: *reference_residual_norm,
                     assessment,
+                    nullspace,
                 }
             }
             WireResultPayload::Static {
@@ -904,7 +917,7 @@ fn identity(content: &WireResultContent) -> Result<String, Diagnostic> {
     let bytes = serde_json::to_vec(content)
         .map_err(|error| invalid(format!("cannot encode common Result identity: {error}")))?;
     Ok(
-        Sha256::digest([b"eqiora.common-result/v8\0".as_slice(), &bytes].concat())
+        Sha256::digest([b"eqiora.common-result/v9\0".as_slice(), &bytes].concat())
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect(),

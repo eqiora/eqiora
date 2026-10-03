@@ -55,6 +55,7 @@ impl CommonResult {
                 initial_state: state.clone(),
                 reference_residual_norm: assessment.equality_residual_norm(),
                 assessment: Some(assessment),
+                nullspace: None,
             },
         }
         .refresh_identity()

@@ -6,7 +6,7 @@ use ulid::Ulid;
 
 use super::{AuthoredFormExpression, AuthoredFormExpressionKind};
 
-const SCHEMA: &str = "eqiora.authored-form/v5";
+const SCHEMA: &str = "eqiora.authored-form/v6";
 const MAX_BYTES: usize = 1024 * 1024;
 
 /// Exact compiler-owned projection of one authored Formulation.
@@ -26,7 +26,7 @@ pub struct AuthoredFormulationProjection {
 struct WireForm {
     schema: String,
     source_identity: String,
-    domain_ulid: String,
+    domain_ulid: Option<String>,
     trial_ulids: Vec<String>,
     name: String,
     binding: WireBinding,
@@ -41,7 +41,7 @@ struct WireForm {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct WireGauge {
-    pub(super) field_ulid: String,
+    pub(super) field_ulids: Vec<String>,
     pub(super) reference: (AuthoredFormExpressionV1, AuthoredFormExpressionV1),
     pub(super) compatibility: (AuthoredFormExpressionV1, AuthoredFormExpressionV1),
 }
@@ -49,6 +49,9 @@ pub(super) struct WireGauge {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub(super) enum WireBinding {
+    Finite {
+        name: String,
+    },
     WeakTests {
         tests: Vec<(String, String, Vec<String>)>,
     },
@@ -141,6 +144,32 @@ pub enum AuthoredFormExpressionV1 {
 }
 
 impl AuthoredFormulationProjection {
+    pub(super) fn encode_finite(
+        source_identity: String,
+        name: String,
+        space: String,
+        trials: Vec<String>,
+        equations: Vec<(String, AuthoredFormExpressionV1, AuthoredFormExpressionV1)>,
+        gauge: Option<WireGauge>,
+    ) -> Result<Self, Diagnostic> {
+        let wire = WireForm {
+            schema: SCHEMA.into(),
+            source_identity,
+            name,
+            domain_ulid: None,
+            trial_ulids: trials,
+            binding: WireBinding::Finite { name: space },
+            gauge,
+            implication: "strong-equivalent-finite".into(),
+            assumptions: super::finite::ASSUMPTIONS
+                .iter()
+                .map(|s| (*s).into())
+                .collect(),
+            equations,
+        };
+        Self::decode(&serde_json::to_vec(&wire).map_err(|_| rejection("nonfinite form"))?)
+    }
+
     pub(super) fn encode_interval(
         source_identity: String,
         relation: RawId,
@@ -153,7 +182,7 @@ impl AuthoredFormulationProjection {
         let wire = WireForm {
             schema: SCHEMA.into(),
             source_identity,
-            domain_ulid: ulid(domain),
+            domain_ulid: Some(ulid(domain)),
             trial_ulids: vec![ulid(trial)],
             name,
             binding: WireBinding::Interval {
@@ -189,7 +218,7 @@ impl AuthoredFormulationProjection {
         let wire = WireForm {
             schema: SCHEMA.into(),
             source_identity,
-            domain_ulid: ulid(domain),
+            domain_ulid: Some(ulid(domain)),
             trial_ulids: tests.iter().map(|t| t.1.clone()).collect(),
             name,
             binding: WireBinding::WeakTests { tests },
@@ -208,11 +237,11 @@ impl AuthoredFormulationProjection {
 
     /// Exact Field carrying the declared constant scalar shift freedom.
     #[must_use]
-    pub fn gauge_field_ulid(&self) -> Option<&str> {
+    pub fn gauge_field_ulids(&self) -> Option<&[String]> {
         self.wire
             .gauge
             .as_ref()
-            .map(|gauge| gauge.field_ulid.as_str())
+            .map(|gauge| gauge.field_ulids.as_slice())
     }
 
     /// Authored reference equality, separate from the original Model equations.
@@ -237,7 +266,7 @@ impl AuthoredFormulationProjection {
             .map(|gauge| (&gauge.compatibility.0, &gauge.compatibility.1))
     }
 
-    /// Decode exactly one bounded canonical v5 projection.
+    /// Decode exactly one bounded canonical v6 projection.
     ///
     /// # Errors
     /// Returns a diagnostic for an oversized, malformed, noncanonical, or
@@ -284,16 +313,14 @@ impl AuthoredFormulationProjection {
                 return Err(rejection("repeated trial Field"));
             }
         }
-        for value in std::iter::once(&wire.domain_ulid)
-            .chain(relations)
-            .chain(trials)
-        {
+        for value in wire.domain_ulid.iter().chain(relations).chain(trials) {
             if value.parse::<Ulid>().ok().map(|id| id.to_string()).as_ref() != Some(value) {
                 return Err(rejection("form identity is not one canonical ULID"));
             }
         }
         if wire.implication
             != match wire.binding {
+                WireBinding::Finite { .. } => "strong-equivalent-finite",
                 WireBinding::WeakTests { .. } => "strong-implies-weak",
                 WireBinding::Interval { .. } => "strong-implies-interval-conservation",
             }
@@ -305,6 +332,7 @@ impl AuthoredFormulationProjection {
                     WireBinding::WeakTests { ref tests } if tests.len() > 1 => {
                         Self::mixed_assumptions()
                     }
+                    WireBinding::Finite { .. } => super::finite::ASSUMPTIONS,
                     WireBinding::WeakTests { .. } => Self::required_assumptions(),
                     WireBinding::Interval { .. } => super::interval::ASSUMPTIONS,
                 }
@@ -315,16 +343,29 @@ impl AuthoredFormulationProjection {
                 "scalar implication or required hypotheses differ from the admitted profile",
             ));
         }
+        if matches!(wire.binding, WireBinding::Finite { .. }) != wire.domain_ulid.is_none() {
+            return Err(rejection(
+                "finite forms have no spatial Domain; spatial forms require one",
+            ));
+        }
         if let Some(gauge) = &wire.gauge
-            && (!matches!(wire.binding, WireBinding::Interval { .. })
-                || wire.trial_ulids.as_slice() != [gauge.field_ulid.clone()])
+            && (!matches!(
+                wire.binding,
+                WireBinding::Interval { .. } | WireBinding::Finite { .. }
+            ) || wire.trial_ulids != gauge.field_ulids)
         {
             return Err(rejection(
-                "constant gauge requires the exact scalar interval trial",
+                "constant gauge requires the exact ordered trial Fields",
             ));
         }
         let mut names = vec![wire.name.as_str()];
         match &wire.binding {
+            WireBinding::Finite { name } => {
+                names.push(name);
+                if wire.equations.len() != wire.trial_ulids.len() {
+                    return Err(rejection("finite equation and trial inventories differ"));
+                }
+            }
             WireBinding::WeakTests { tests } => {
                 if tests.len() != wire.trial_ulids.len() || tests.len() != wire.equations.len() {
                     return Err(rejection("equations and test/trial inventories differ"));
@@ -449,8 +490,16 @@ impl AuthoredFormulationProjection {
     }
 
     #[must_use]
-    pub fn domain_ulid(&self) -> &str {
-        &self.wire.domain_ulid
+    pub fn domain_ulid(&self) -> Option<&str> {
+        self.wire.domain_ulid.as_deref()
+    }
+    /// Ordered finite coordinate binder; no spatial Domain is fabricated.
+    #[must_use]
+    pub fn finite_space(&self) -> Option<&str> {
+        match &self.wire.binding {
+            WireBinding::Finite { name } => Some(name),
+            _ => None,
+        }
     }
     #[must_use]
     pub fn trial_ulids(&self) -> &[String] {
@@ -624,7 +673,7 @@ mod tests {
         let bytes = projection().canonical_bytes().to_vec();
         let old = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.authored-form/v5", "eqiora.authored-scalar-form/v3");
+            .replace("eqiora.authored-form/v6", "eqiora.authored-scalar-form/v3");
         assert!(AuthoredFormulationProjection::decode(old.as_bytes()).is_err());
     }
 

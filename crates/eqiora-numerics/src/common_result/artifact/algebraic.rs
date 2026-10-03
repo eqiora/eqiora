@@ -41,6 +41,7 @@ impl WireAlgebraicSolve {
         state: &crate::CommonAlgebraicState,
         values: &[f64],
         mask: Option<u32>,
+        nullspace: Option<&crate::nullspace::NullspaceEvidence>,
     ) -> Result<(AlgebraicSolveEvidence, f64, Option<ConstraintAssessment>), Diagnostic> {
         let native = plan
             .as_algebraic()
@@ -53,7 +54,7 @@ impl WireAlgebraicSolve {
                 let solve = solve.replay()?;
                 require_plan_solver(plan, &solve)?;
                 let (norm, assessment) =
-                    native.validate_values(values, solve.residual_target(), mask)?;
+                    native.validate_values(values, solve.residual_target(), mask, nullspace)?;
                 Ok((
                     AlgebraicSolveEvidence::Linear(Box::new(solve)),
                     norm,
@@ -68,7 +69,8 @@ impl WireAlgebraicSolve {
                 let nonlinear = native
                     .nonlinear()
                     .ok_or_else(|| invalid("Newton Result requires Newton Plan"))?;
-                if mask.is_some()
+                if nullspace.is_some()
+                    || mask.is_some()
                     || *iterations != linear_solves.len()
                     || *iterations > nonlinear.maximum_iterations().get()
                 {

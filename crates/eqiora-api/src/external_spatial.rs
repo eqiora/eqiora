@@ -305,7 +305,10 @@ public component SteadyFlowPastCylinder(
         let [form] = forms.as_slice() else {
             panic!("fresh compilation must retain exactly one typed form")
         };
-        assert_eq!(form.domain(), with_form.domain_ref("fluid").unwrap().id());
+        assert_eq!(
+            form.domain(),
+            Some(with_form.domain_ref("fluid").unwrap().id())
+        );
         let local_alias = |name: &str| {
             let suffix = format!(".{name}");
             with_form

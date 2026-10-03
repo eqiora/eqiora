@@ -3,7 +3,7 @@
 use super::*;
 
 const MAGIC: &[u8; 8] = b"EQIORAFM";
-const CANONICAL_FORMULATION_VERSION: u16 = 5;
+const CANONICAL_FORMULATION_VERSION: u16 = 6;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct AuthoredFormSourceIdentity([u8; 32]);
@@ -42,6 +42,18 @@ impl AuthoredFormSourceIdentity {
                 })?;
                 encoder.field(5, |encoder| encode_name(encoder, name, budget))?;
                 match binding {
+                    eqiora_lang::FormulationBinding::Finite { name, trials } => {
+                        budget.account_members(trials.len(), "finite trial Fields")?;
+                        encoder.field(6, |e| {
+                            e.u16(3)?;
+                            encode_name(e, name, budget)?;
+                            e.u32(as_u32(trials.len(), "finite trial Fields")?)?;
+                            for trial in trials {
+                                encode_name(e, trial, budget)?;
+                            }
+                            Ok(())
+                        })?;
+                    }
                     eqiora_lang::FormulationBinding::WeakTests { tests } => {
                         budget.account_members(tests.len(), "Formulation tests")?;
                         encoder.field(6, |e| {

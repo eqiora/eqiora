@@ -71,6 +71,25 @@ pub(crate) struct NullspaceEvidence {
     pub(crate) gauge_residual: f64,
 }
 
+impl NullspaceEvidence {
+    pub(crate) fn to_array(&self) -> [f64; 4] {
+        [
+            self.multiplier,
+            self.compatibility_residual,
+            self.original_residual_norm,
+            self.gauge_residual,
+        ]
+    }
+    pub(crate) fn from_array(values: [f64; 4]) -> Self {
+        Self {
+            multiplier: values[0],
+            compatibility_residual: values[1],
+            original_residual_norm: values[2],
+            gauge_residual: values[3],
+        }
+    }
+}
+
 /// Solve a captured real symmetric system with one explicit nullspace reference.
 ///
 /// Validates `A z = 0` and `zᵀ b = 0` within floating-point summation error,

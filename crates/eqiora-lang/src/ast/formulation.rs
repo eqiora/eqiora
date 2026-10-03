@@ -61,6 +61,8 @@ impl ComponentDecl {
 /// Mathematical variables introduced by an authored formulation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FormulationBinding {
+    /// Ordered global scalar Fields sharing one explicitly named finite coordinate space.
+    Finite { name: String, trials: Vec<String> },
     /// Ordered tests with exact trials and optional zero-trace boundary restrictions.
     WeakTests {
         tests: Vec<(String, String, Vec<String>)>,

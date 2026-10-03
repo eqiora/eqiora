@@ -179,20 +179,20 @@ impl PyRunResult {
 #[pymethods]
 impl PyRunResult {
     #[getter]
-    fn scalar_original_residual_norm(&self) -> Option<f64> {
-        self.native.scalar_original_residual_norm()
+    fn original_residual_norm(&self) -> Option<f64> {
+        self.native.original_residual_norm()
     }
     #[getter]
-    fn scalar_compatibility_residual(&self) -> Option<f64> {
-        self.native.scalar_compatibility_residual()
+    fn compatibility_residual(&self) -> Option<f64> {
+        self.native.compatibility_residual()
     }
     #[getter]
-    fn scalar_gauge_residual(&self) -> Option<f64> {
-        self.native.scalar_gauge_residual()
+    fn gauge_residual(&self) -> Option<f64> {
+        self.native.gauge_residual()
     }
     #[getter]
-    fn scalar_gauge_multiplier(&self) -> Option<f64> {
-        self.native.scalar_gauge_multiplier()
+    fn gauge_multiplier(&self) -> Option<f64> {
+        self.native.gauge_multiplier()
     }
 
     /// Independently evaluated original mathematical conditions with operand units.

@@ -102,9 +102,11 @@ pub(super) fn compile(
         index,
         ambient_dimension: 1,
         topological_dimension: 1,
-        relation_domain: parent
-            .downcast()
-            .ok_or_else(|| error(file, range, "interval parent is not a Domain"))?,
+        relation_domain: Some(
+            parent
+                .downcast()
+                .ok_or_else(|| error(file, range, "interval parent is not a Domain"))?,
+        ),
         tests: BTreeMap::new(),
         used_tests: BTreeSet::new(),
     };
@@ -215,7 +217,7 @@ pub(super) fn compile(
     check::check((&projection).into(), index, geometry)?;
     Ok(CompiledAuthoredFormulation {
         relations: vec![relation.downcast().expect("Law")],
-        domain: parent.downcast().expect("Domain"),
+        domain: Some(parent.downcast().expect("Domain")),
         trials: vec![trial.downcast().expect("Field")],
         projection,
         file: file.to_owned(),
@@ -337,7 +339,7 @@ pub fn check_derived_interval_conservation(
     check::check(
         check::Statement {
             relation: &relation.ulid().to_string(),
-            domain: &domain,
+            domain: Some(&domain),
             trial: &trial.ulid().to_string(),
             binder: Some(("interval", "a", "b")),
             implication: "strong-implies-interval-conservation",

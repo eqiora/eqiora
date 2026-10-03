@@ -527,12 +527,12 @@ fn explicit_gauge_retains_typed_reference_and_compatibility_separately_from_mode
     );
     assert_ne!(form.source_identity(), plain_form.source_identity());
     assert_eq!(
-        form.gauge_field_ulid(),
+        form.gauge_field_ulids(),
         Some(
-            compiled.authored_formulations().next().unwrap().trials()[0]
+            [compiled.authored_formulations().next().unwrap().trials()[0]
                 .ulid()
-                .to_string()
-                .as_str()
+                .to_string()]
+            .as_slice()
         )
     );
     assert!(form.gauge_reference().is_some());
@@ -578,7 +578,7 @@ fn explicit_gauge_retains_typed_reference_and_compatibility_separately_from_mode
     let text = std::str::from_utf8(form.canonical_bytes()).unwrap();
     assert!(
         AuthoredFormulationProjection::decode(
-            text.replace("eqiora.authored-form/v5", "eqiora.authored-form/v4")
+            text.replace("eqiora.authored-form/v6", "eqiora.authored-form/v5")
                 .as_bytes()
         )
         .is_err()

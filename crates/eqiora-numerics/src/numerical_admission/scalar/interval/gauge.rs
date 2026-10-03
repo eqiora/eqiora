@@ -9,12 +9,15 @@ pub(in crate::numerical_admission) fn admit(
     equations: &ExecutableScalarEquations,
     authored: &AuthoredFormulationProjection,
 ) -> Result<Option<AlgebraicConstraint>, Diagnostic> {
-    let Some(field) = authored.gauge_field_ulid() else {
+    let Some(fields) = authored.gauge_field_ulids() else {
         return Ok(None);
+    };
+    let [field] = fields else {
+        return Err(invalid("interval gauge requires exactly one Field"));
     };
     let descriptor = equations.conservation_descriptor(program)?;
     let region = descriptor.regions().next().expect("single scalar region");
-    if region.dimensions() != 1 || field != region.field().ulid().to_string() {
+    if region.dimensions() != 1 || field.as_str() != region.field().ulid().to_string() {
         return Err(invalid(
             "constant gauge requires the exact one-dimensional scalar Field",
         ));
@@ -22,7 +25,9 @@ pub(in crate::numerical_admission) fn admit(
     let domain = region.domain().ulid().to_string();
     let expected_reference = E::Integrate {
         domain_ulid: domain.clone(),
-        integrand: Box::new(E::Field { ulid: field.into() }),
+        integrand: Box::new(E::Field {
+            ulid: field.clone(),
+        }),
     };
     let zero = E::Number { value: 0.0 };
     let same = crate::form_compiler::equivalent_authored_expression;
