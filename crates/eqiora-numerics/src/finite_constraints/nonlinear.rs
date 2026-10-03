@@ -19,6 +19,39 @@ pub(crate) struct FiniteNonlinearSolution {
 }
 
 impl FiniteConstraintProblem {
+    /// Bind one evaluation-local Parameter point without replacing the mathematical Model.
+    pub(crate) fn at_parameters(
+        &self,
+        selected: &[Id<kinds::Parameter>],
+        values: &[f64],
+    ) -> Result<Self, Diagnostic> {
+        if !self.enforcement.is_strict_interior() || selected.len() != values.len() {
+            return Err(invalid(
+                "finite nonlinear Parameter point has incompatible controls or shape",
+            ));
+        }
+        let mut point = self.clone();
+        point.parameter_candidates.clear();
+        for (index, (id, value)) in selected.iter().zip(values).enumerate() {
+            if selected[..index].contains(id) || !value.is_finite() {
+                return Err(invalid(
+                    "finite nonlinear Parameter point has duplicate identities or nonfinite values",
+                ));
+            }
+            let Some(KernelNode::Parameter(parameter)) = self.kernel.node(id.erase()) else {
+                return Err(invalid(
+                    "finite nonlinear Parameter is outside the exact Model",
+                ));
+            };
+            point.parameter_candidates.push((
+                *id,
+                ValueLiteral::from_real(parameter.value().value_type().clone(), *value)
+                    .map_err(|error| invalid(error.to_string()))?,
+            ));
+        }
+        Ok(point)
+    }
+
     pub(crate) fn assess_seed(&self, values: &[f64]) -> Result<ConstraintAssessment, Diagnostic> {
         if !self.enforcement.is_strict_interior() {
             return Err(invalid(
@@ -45,6 +78,18 @@ impl FiniteConstraintProblem {
     }
 
     pub(crate) fn solve_nonlinear(
+        &self,
+        initial: &[f64],
+        selected: &[Id<kinds::Parameter>],
+        parameters: &[f64],
+        nonlinear: NonlinearSolvePlan,
+        linear: LinearSolveRequest<'_>,
+    ) -> Result<FiniteNonlinearSolution, Diagnostic> {
+        self.at_parameters(selected, parameters)?
+            .solve_at_point(initial, nonlinear, linear)
+    }
+
+    fn solve_at_point(
         &self,
         initial: &[f64],
         nonlinear: NonlinearSolvePlan,
@@ -165,7 +210,15 @@ impl FiniteConstraintProblem {
                         else {
                             return Err(invalid("nonlinear Parameter is absent from its Model"));
                         };
-                        inputs.push(parameter.value().clone());
+                        inputs.push(
+                            self.parameter_candidates
+                                .iter()
+                                .find(|(candidate, _)| candidate == id)
+                                .map_or_else(
+                                    || parameter.value().clone(),
+                                    |(_, value)| value.clone(),
+                                ),
+                        );
                         roles.push(DifferentiationRole::Frozen);
                     }
                     _ => {
@@ -270,11 +323,111 @@ mod tests {
         )
         .unwrap()
         .with_reduction(ReductionPolicy::Reproducible);
-        problem.solve_nonlinear(
+        problem.solve_at_point(
             &[seed],
             nonlinear,
             LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, linear),
         )
+    }
+
+    #[test]
+    fn original_parameter_candidates_are_typed_exact_and_do_not_mutate_the_model() {
+        let problem = problem(4.0, "w*w=p");
+        let parameter = problem
+            .kernel
+            .nodes()
+            .find_map(|node| match node {
+                KernelNode::Parameter(parameter) => Some(parameter),
+                _ => None,
+            })
+            .unwrap();
+        let field = match problem.symbols[0] {
+            SymbolRef::Field(field) => field,
+            _ => unreachable!(),
+        };
+        let typed =
+            |value| ValueLiteral::from_real(parameter.value().value_type().clone(), value).unwrap();
+        let fields = [(field, typed(2.0))];
+        let relation = problem.relations[0].id;
+        let candidate = [(parameter.id(), typed(9.0))];
+        let evaluate = |parameters: &[(Id<kinds::Parameter>, ValueLiteral)]| {
+            problem
+                .kernel
+                .evaluate_relation_operands(relation, &fields, parameters)
+        };
+        // At fixed w=2, original operands are [w², p, p, 0, w, 0].
+        let values = evaluate(&candidate)
+            .unwrap()
+            .iter()
+            .map(|value| value.real_scalar_value().unwrap().value())
+            .collect::<Vec<_>>();
+        assert_eq!(values, [4.0, 9.0, 9.0, 0.0, 2.0, 0.0]);
+        assert_eq!(
+            evaluate(&[]).unwrap()[1]
+                .real_scalar_value()
+                .unwrap()
+                .value(),
+            4.0
+        );
+        let duplicate = [candidate[0].clone(), candidate[0].clone()];
+        assert!(
+            evaluate(&duplicate)
+                .unwrap_err()
+                .message()
+                .contains("repeat one exact Parameter")
+        );
+        assert!(
+            evaluate(&[(Id::new(), typed(9.0))])
+                .unwrap_err()
+                .message()
+                .contains("outside this Model")
+        );
+        let wrong_type = ValueLiteral::from_real(
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
+            )
+            .unwrap(),
+            9.0,
+        )
+        .unwrap();
+        assert!(
+            evaluate(&[(parameter.id(), wrong_type)])
+                .unwrap_err()
+                .message()
+                .contains("exact Parameter type")
+        );
+    }
+
+    #[test]
+    fn nonlinear_points_share_parameter_values_between_original_acceptance_and_ad() {
+        let problem = problem(4.0, "w*w=p");
+        let parameter = problem
+            .kernel
+            .nodes()
+            .find_map(|node| match node {
+                KernelNode::Parameter(parameter) => Some(parameter.id()),
+                _ => None,
+            })
+            .unwrap();
+        let changed = problem.at_parameters(&[parameter], &[9.0]).unwrap();
+        assert!((solve(&changed, 1.0).unwrap().values[0] - 3.0).abs() < 1e-12);
+        assert!((solve(&problem, 1.0).unwrap().values[0] - 2.0).abs() < 1e-12);
+        let outside = problem.at_parameters(&[parameter], &[0.0]).unwrap();
+        assert!(
+            solve(&outside, 1.0)
+                .unwrap_err()
+                .message()
+                .contains("inequality")
+        );
+        assert!(
+            problem
+                .at_parameters(&[parameter, parameter], &[9.0, 9.0])
+                .is_err()
+        );
+        assert!(problem.at_parameters(&[Id::new()], &[9.0]).is_err());
+        assert!(problem.at_parameters(&[parameter], &[f64::NAN]).is_err());
+        assert!(problem.at_parameters(&[parameter], &[]).is_err());
     }
 
     #[test]

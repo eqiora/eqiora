@@ -90,9 +90,11 @@ pub(super) fn original_assessment(
     let mut residuals = Vec::new();
     let mut measurements = Vec::new();
     for relation in &problem.relations {
-        let evaluated = problem
-            .kernel
-            .evaluate_relation_operands(relation.id, &field_values)?;
+        let evaluated = problem.kernel.evaluate_relation_operands(
+            relation.id,
+            &field_values,
+            &problem.parameter_candidates,
+        )?;
         for (ordinal, ((kind, pair), dimensions)) in relation
             .conditions
             .iter()

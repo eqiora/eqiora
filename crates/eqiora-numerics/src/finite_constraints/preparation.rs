@@ -215,6 +215,7 @@ pub(crate) fn lower_finite_constraints(
         symbols,
         dimensions,
         bindings,
+        parameter_candidates: Vec::new(),
         relations,
         enforcement: enforcement.clone(),
         complementarity_count,

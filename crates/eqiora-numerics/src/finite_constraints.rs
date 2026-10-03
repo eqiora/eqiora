@@ -24,6 +24,7 @@ pub(crate) struct FiniteConstraintProblem {
     symbols: Vec<SymbolRef>,
     dimensions: Vec<DimExponents>,
     bindings: Vec<(SymbolRef, f64)>,
+    parameter_candidates: Vec<(Id<kinds::Parameter>, eqiora_core::ValueLiteral)>,
     relations: Vec<RelationOperands>,
     enforcement: FiniteConstraintEnforcement,
     complementarity_count: usize,

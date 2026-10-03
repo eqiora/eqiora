@@ -171,6 +171,8 @@ impl CommonAlgebraicPlan {
         if let Some(nonlinear) = self.nonlinear {
             let solution = self.problem.nonlinear()?.solve_nonlinear(
                 &state.values,
+                &[],
+                &[],
                 nonlinear,
                 LinearSolveRequest::new(&checked, self.linear.solver),
             )?;

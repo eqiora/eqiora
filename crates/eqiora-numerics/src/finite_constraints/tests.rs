@@ -371,7 +371,7 @@ fn original_operand_evaluation_binds_relation_field_types_and_parameter_values()
     ]);
     let evaluated = fixture
         .kernel
-        .evaluate_relation_operands(fixture.relation, &candidates)
+        .evaluate_relation_operands(fixture.relation, &candidates, &[])
         .unwrap();
     let expected = [
         (6.0, force()),
@@ -388,7 +388,7 @@ fn original_operand_evaluation_binds_relation_field_types_and_parameter_values()
     candidates[0].1 = ValueLiteral::from_real(real(force()), 3.0).unwrap();
     let error = fixture
         .kernel
-        .evaluate_relation_operands(fixture.relation, &candidates)
+        .evaluate_relation_operands(fixture.relation, &candidates, &[])
         .unwrap_err();
     assert!(error.to_string().contains("exact Field type"));
     candidates[0].1 = ValueLiteral::from_real(real(length()), 3.0).unwrap();
@@ -398,12 +398,12 @@ fn original_operand_evaluation_binds_relation_field_types_and_parameter_values()
     ));
     let error = fixture
         .kernel
-        .evaluate_relation_operands(fixture.relation, &candidates)
+        .evaluate_relation_operands(fixture.relation, &candidates, &[])
         .unwrap_err();
     assert!(error.to_string().contains("outside this Model"));
     let error = fixture
         .kernel
-        .evaluate_relation_operands(Id::new(), &[])
+        .evaluate_relation_operands(Id::new(), &[], &[])
         .unwrap_err();
     assert!(error.to_string().contains("exact retained Relation"));
 }
