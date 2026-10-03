@@ -9,9 +9,9 @@ use crate::csr::CanonicalCsrOperatorCallLedger;
 use crate::{
     BackendId, CanonicalCsrSystemView, CompleteCsrStorage, LinearOperator,
     LinearOperatorOrientation, LinearOperatorProperties, LinearProblem, LinearSolution,
-    LinearSolveRequest, LinearSolver, LinearSolverBackend, PreconditionerPolicy, ProviderLibrary,
-    ReductionPolicy, ReplicatedLinearExecution, ScalarType, SolverCapabilities, SolverCapability,
-    SolverPlan, SolverProvider, TransposeLinearOperator, Transposed,
+    LinearSolveRequest, LinearSolver, LinearSolverBackend, Oriented, OrientedLinearOperator,
+    PreconditionerPolicy, ProviderLibrary, ReductionPolicy, ReplicatedLinearExecution, ScalarType,
+    SolverCapabilities, SolverCapability, SolverPlan, SolverProvider,
 };
 
 const POLICY_ID: &str = "eqiora.host-serial-solver-planning/v2";
@@ -198,7 +198,7 @@ impl CountingBackend {
 #[derive(Debug)]
 struct CountingAcceptanceExecution<'a> {
     delegate: &'a dyn ReplicatedLinearExecution,
-    expected_operator: &'a dyn LinearOperator,
+    expected_operator: &'a dyn LinearOperator<Scalar = f64>,
     operator_apply_calls: &'a AtomicUsize,
 }
 
@@ -217,7 +217,7 @@ impl ReplicatedLinearExecution for CountingAcceptanceExecution<'_> {
 
     fn apply(
         &self,
-        operator: &dyn LinearOperator,
+        operator: &dyn LinearOperator<Scalar = f64>,
         input: &[f64],
         output: &mut [f64],
     ) -> Result<(), Diagnostic> {
@@ -422,6 +422,8 @@ impl CompleteCsrStorage for CountingCsrStorage {
 }
 
 impl LinearOperator for CountingCsrStorage {
+    type Scalar = f64;
+
     fn rows(&self) -> usize {
         2
     }
@@ -520,6 +522,8 @@ impl CountingOperator {
 }
 
 impl LinearOperator for CountingOperator {
+    type Scalar = f64;
+
     fn rows(&self) -> usize {
         2
     }
@@ -546,8 +550,20 @@ impl LinearOperator for CountingOperator {
     }
 }
 
-impl TransposeLinearOperator for CountingOperator {
-    fn apply_transpose(&self, input: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
+impl OrientedLinearOperator for CountingOperator {
+    fn supports_orientation(&self, _orientation: crate::LinearOperatorOrientation) -> bool {
+        true
+    }
+
+    fn apply_oriented(
+        &self,
+        orientation: crate::LinearOperatorOrientation,
+        input: &[f64],
+        output: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        if orientation == crate::LinearOperatorOrientation::Normal {
+            return self.apply(input, output);
+        }
         self.apply_calls.fetch_add(1, Ordering::SeqCst);
         output[0] = 4.0 * input[0] + 2.0 * input[1];
         output[1] = input[0] + 3.0 * input[1];
@@ -877,7 +893,7 @@ fn malformed_inventory_rejects_before_profile_or_numerical_work() {
     let problem = system.linear_problem().unwrap();
     assert!(std::ptr::addr_eq(
         problem.operator(),
-        &system as &dyn LinearOperator
+        &system as &dyn LinearOperator<Scalar = f64>
     ));
     let (reference, faer_bicgstab, faer_sparse_lu) = backends();
     let catalog = exact_catalog(&reference, &faer_bicgstab, &faer_sparse_lu);
@@ -920,7 +936,7 @@ fn common_controls_are_compared_by_bits_and_exact_iteration_count() {
     let problem = system.linear_problem().unwrap();
     assert!(std::ptr::addr_eq(
         problem.operator(),
-        &system as &dyn LinearOperator
+        &system as &dyn LinearOperator<Scalar = f64>
     ));
     let (reference, faer_bicgstab, faer_sparse_lu) = backends();
     let catalog = exact_catalog(&reference, &faer_bicgstab, &faer_sparse_lu);
@@ -1332,7 +1348,11 @@ fn unsupported_profiles_reject_with_zero_numerical_calls() {
     assert_zero_backend_solves(&reference, &faer_bicgstab, &faer_sparse_lu);
 
     let transposed_source = CountingOperator::default();
-    let transposed_operator = Transposed::new(&transposed_source);
+    let transposed_operator = Oriented::new(
+        &transposed_source,
+        crate::LinearOperatorOrientation::Transposed,
+    )
+    .unwrap();
     let transposed = LinearProblem::new(
         &transposed_operator,
         &[6.0, 8.0],

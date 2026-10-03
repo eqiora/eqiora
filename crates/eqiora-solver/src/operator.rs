@@ -1,3 +1,6 @@
+mod oriented;
+pub use oriented::{Oriented, OrientedLinearOperator};
+
 use std::fmt::Debug;
 use std::ops::Range;
 
@@ -22,6 +25,8 @@ pub enum LinearOperatorOrientation {
     Normal,
     /// Apply the mathematical transpose of a source operator.
     Transposed,
+    /// Apply the conjugate transpose (Euclidean adjoint), without a metric claim.
+    ConjugateTransposed,
 }
 
 /// Independent action on a contiguous subset of output rows.
@@ -31,6 +36,9 @@ pub enum LinearOperatorOrientation {
 /// exactly `rows.len()` values corresponding to the ordered global row range.
 /// Disjoint ranges may be evaluated concurrently.
 pub trait RowLinearAction: Debug + Sync {
+    /// Value stored in each input and output coordinate.
+    type Scalar;
+
     /// Compute one contiguous output-row range without allocating.
     ///
     /// # Errors
@@ -39,17 +47,20 @@ pub trait RowLinearAction: Debug + Sync {
     fn apply_rows(
         &self,
         rows: Range<usize>,
-        input: &[f64],
-        output: &mut [f64],
+        input: &[Self::Scalar],
+        output: &mut [Self::Scalar],
     ) -> Result<(), Diagnostic>;
 }
 
-/// A host-local linear action over complete finite `f64` vectors.
+/// A host-local linear action over complete typed finite vectors.
 ///
 /// This v0 trait is intentionally not a distributed-vector abstraction. The
 /// complete input is resident in one process, the caller owns both buffers,
 /// and `apply` must not allocate merely to return its output.
 pub trait LinearOperator: Debug + Sync {
+    /// Arithmetic value in each mathematical coordinate.
+    type Scalar;
+
     /// Output dimension.
     fn rows(&self) -> usize;
 
@@ -60,20 +71,20 @@ pub trait LinearOperator: Debug + Sync {
     ///
     /// # Errors
     /// Returns a numerical diagnostic for shape or non-finite failures.
-    fn apply(&self, input: &[f64], output: &mut [f64]) -> Result<(), Diagnostic>;
+    fn apply(&self, input: &[Self::Scalar], output: &mut [Self::Scalar]) -> Result<(), Diagnostic>;
 
     /// Expose independently executable row ranges when the realization has
     /// that capability.
     ///
     /// The default is an explicit absence. Threaded adapters must fail closed
     /// rather than silently running an unpartitionable operator serially.
-    fn row_action(&self) -> Option<&dyn RowLinearAction> {
+    fn row_action(&self) -> Option<&dyn RowLinearAction<Scalar = Self::Scalar>> {
         None
     }
 
     /// Orientation represented by this callable action.
     ///
-    /// Ordinary operators are normal. Eqiora's [`Transposed`] view overrides
+    /// Ordinary operators are normal. Eqiora's [`Oriented`] view overrides
     /// this metadata so solve evidence distinguishes `A x = b` from
     /// `A^T x = b` without duplicating the solver plan.
     fn orientation(&self) -> LinearOperatorOrientation {
@@ -87,62 +98,8 @@ pub trait LinearOperator: Debug + Sync {
     /// # Errors
     /// Implementations return a numerical diagnostic for shape or non-finite
     /// failures.
-    fn diagonal(&self, _output: &mut [f64]) -> Result<DiagonalAvailability, Diagnostic> {
+    fn diagonal(&self, _output: &mut [Self::Scalar]) -> Result<DiagonalAvailability, Diagnostic> {
         Ok(DiagonalAvailability::Unavailable)
-    }
-}
-
-/// Independent capability to apply the mathematical transpose.
-///
-/// Operators that cannot supply a transpose action do not implement this
-/// trait; adjoint availability is therefore explicit before a solve begins.
-pub trait TransposeLinearOperator: LinearOperator {
-    /// Compute `output = self^T * input`.
-    ///
-    /// # Errors
-    /// Returns a numerical diagnostic for shape or non-finite failures.
-    fn apply_transpose(&self, input: &[f64], output: &mut [f64]) -> Result<(), Diagnostic>;
-}
-
-/// Allocation-free oriented view of one transpose-capable operator.
-#[derive(Debug, Clone, Copy)]
-pub struct Transposed<'a, O: TransposeLinearOperator + ?Sized> {
-    source: &'a O,
-}
-
-impl<'a, O: TransposeLinearOperator + ?Sized> Transposed<'a, O> {
-    /// Borrow an operator through its mathematical transpose action.
-    #[must_use]
-    pub const fn new(source: &'a O) -> Self {
-        Self { source }
-    }
-
-    /// Underlying normal-orientation operator.
-    #[must_use]
-    pub const fn source(self) -> &'a O {
-        self.source
-    }
-}
-
-impl<O: TransposeLinearOperator + ?Sized> LinearOperator for Transposed<'_, O> {
-    fn rows(&self) -> usize {
-        self.source.columns()
-    }
-
-    fn columns(&self) -> usize {
-        self.source.rows()
-    }
-
-    fn apply(&self, input: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
-        self.source.apply_transpose(input, output)
-    }
-
-    fn orientation(&self) -> LinearOperatorOrientation {
-        LinearOperatorOrientation::Transposed
-    }
-
-    fn diagonal(&self, output: &mut [f64]) -> Result<DiagonalAvailability, Diagnostic> {
-        self.source.diagonal(output)
     }
 }
 
@@ -160,7 +117,7 @@ pub enum LinearOperatorProperties {
 /// One validated host-local linear problem.
 #[derive(Debug)]
 pub struct LinearProblem<'a> {
-    operator: &'a dyn LinearOperator,
+    operator: &'a dyn LinearOperator<Scalar = f64>,
     right_hand_side: &'a [f64],
     initial_guess: Option<&'a [f64]>,
     properties: LinearOperatorProperties,
@@ -174,7 +131,7 @@ impl<'a> LinearProblem<'a> {
     /// Returns `EQ0802` for empty/non-square shape, right-hand-side mismatch,
     /// or non-finite data.
     pub fn new(
-        operator: &'a dyn LinearOperator,
+        operator: &'a dyn LinearOperator<Scalar = f64>,
         right_hand_side: &'a [f64],
         properties: LinearOperatorProperties,
     ) -> Result<Self, Diagnostic> {
@@ -209,7 +166,7 @@ impl<'a> LinearProblem<'a> {
     }
 
     pub(crate) fn from_oriented_canonical(
-        operator: &'a dyn LinearOperator,
+        operator: &'a dyn LinearOperator<Scalar = f64>,
         system: &'a CanonicalCsrSystemView,
         right_hand_side: &'a [f64],
     ) -> Result<Self, Diagnostic> {
@@ -241,7 +198,7 @@ impl<'a> LinearProblem<'a> {
 
     /// Operator action.
     #[must_use]
-    pub const fn operator(&self) -> &'a dyn LinearOperator {
+    pub const fn operator(&self) -> &'a dyn LinearOperator<Scalar = f64> {
         self.operator
     }
 
@@ -287,6 +244,8 @@ mod tests {
     struct Rectangular;
 
     impl LinearOperator for Rectangular {
+        type Scalar = f64;
+
         fn rows(&self) -> usize {
             2
         }
@@ -305,8 +264,20 @@ mod tests {
         }
     }
 
-    impl TransposeLinearOperator for Rectangular {
-        fn apply_transpose(&self, input: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
+    impl OrientedLinearOperator for Rectangular {
+        fn supports_orientation(&self, _orientation: crate::LinearOperatorOrientation) -> bool {
+            true
+        }
+
+        fn apply_oriented(
+            &self,
+            orientation: crate::LinearOperatorOrientation,
+            input: &[f64],
+            output: &mut [f64],
+        ) -> Result<(), Diagnostic> {
+            if orientation == crate::LinearOperatorOrientation::Normal {
+                return self.apply(input, output);
+            }
             if input.len() != 2 || output.len() != 3 {
                 return Err(solve_failed("transpose test action shape mismatch"));
             }
@@ -319,7 +290,8 @@ mod tests {
 
     #[test]
     fn transposed_view_swaps_spaces_and_uses_the_explicit_capability() {
-        let transposed = Transposed::new(&Rectangular);
+        let transposed =
+            Oriented::new(&Rectangular, crate::LinearOperatorOrientation::Transposed).unwrap();
         assert_eq!(transposed.rows(), 3);
         assert_eq!(transposed.columns(), 2);
         assert_eq!(

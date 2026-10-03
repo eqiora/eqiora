@@ -12,7 +12,7 @@ use eqiora_ir::{
 };
 use eqiora_solver::{
     CanonicalCsrSystemView, LinearOperator, LinearOperatorOrientation, LinearOperatorProperties,
-    LinearProblem, LinearSolution, LinearSolveRequest, TransposeLinearOperator, Transposed,
+    LinearProblem, LinearSolution, LinearSolveRequest, Oriented, OrientedLinearOperator,
 };
 
 /// A linearization whose primal residual has been independently accepted.
@@ -180,6 +180,8 @@ impl<'a, R: LinearizedRelation<f64> + ?Sized> StateJacobian<'a, R> {
 }
 
 impl<R: LinearizedRelation<f64> + ?Sized> LinearOperator for StateJacobian<'_, R> {
+    type Scalar = f64;
+
     fn rows(&self) -> usize {
         self.relation.residual_dimension()
     }
@@ -193,8 +195,20 @@ impl<R: LinearizedRelation<f64> + ?Sized> LinearOperator for StateJacobian<'_, R
     }
 }
 
-impl<R: LinearizedRelation<f64> + ?Sized> TransposeLinearOperator for StateJacobian<'_, R> {
-    fn apply_transpose(&self, input: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
+impl<R: LinearizedRelation<f64> + ?Sized> OrientedLinearOperator for StateJacobian<'_, R> {
+    fn supports_orientation(&self, _orientation: eqiora_solver::LinearOperatorOrientation) -> bool {
+        true
+    }
+
+    fn apply_oriented(
+        &self,
+        orientation: eqiora_solver::LinearOperatorOrientation,
+        input: &[f64],
+        output: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        if orientation == eqiora_solver::LinearOperatorOrientation::Normal {
+            return self.apply(input, output);
+        }
         self.relation.vjp(input, RelationCotangent::Unknown(output))
     }
 }
@@ -214,6 +228,8 @@ impl<'a, R: LinearizedRelation<f64> + ?Sized> ParameterJacobian<'a, R> {
 }
 
 impl<R: LinearizedRelation<f64> + ?Sized> LinearOperator for ParameterJacobian<'_, R> {
+    type Scalar = f64;
+
     fn rows(&self) -> usize {
         self.relation.residual_dimension()
     }
@@ -227,8 +243,20 @@ impl<R: LinearizedRelation<f64> + ?Sized> LinearOperator for ParameterJacobian<'
     }
 }
 
-impl<R: LinearizedRelation<f64> + ?Sized> TransposeLinearOperator for ParameterJacobian<'_, R> {
-    fn apply_transpose(&self, input: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
+impl<R: LinearizedRelation<f64> + ?Sized> OrientedLinearOperator for ParameterJacobian<'_, R> {
+    fn supports_orientation(&self, _orientation: eqiora_solver::LinearOperatorOrientation) -> bool {
+        true
+    }
+
+    fn apply_oriented(
+        &self,
+        orientation: eqiora_solver::LinearOperatorOrientation,
+        input: &[f64],
+        output: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        if orientation == eqiora_solver::LinearOperatorOrientation::Normal {
+            return self.apply(input, output);
+        }
         self.relation
             .vjp(input, RelationCotangent::Parameter(output))
     }
@@ -436,13 +464,19 @@ fn adjoint_gradient_with_canonical<R: LinearizedRelation<f64> + ?Sized>(
         solution
     } else {
         let state_jacobian = StateJacobian::new(relation);
-        let transposed = Transposed::new(&state_jacobian);
+        let transposed = Oriented::new(
+            &state_jacobian,
+            eqiora_solver::LinearOperatorOrientation::Transposed,
+        )?;
         let problem = LinearProblem::new(&transposed, objective_unknown_cotangent, properties)?;
         solver.solve(&problem)?
     };
 
     let parameter_jacobian = ParameterJacobian::new(relation);
-    let parameter_transposed = Transposed::new(&parameter_jacobian);
+    let parameter_transposed = Oriented::new(
+        &parameter_jacobian,
+        eqiora_solver::LinearOperatorOrientation::Transposed,
+    )?;
     let mut indirect = vec![0.0; relation.parameter_dimension()];
     parameter_transposed.apply(adjoint.values(), &mut indirect)?;
     let gradient = objective_parameter_cotangent
@@ -531,7 +565,7 @@ fn replay_state_solution<R: LinearizedRelation<f64> + ?Sized>(
         LinearOperatorOrientation::Normal => {
             relation.jvp(RelationTangent::Unknown(solution.values()), &mut applied)?;
         }
-        LinearOperatorOrientation::Transposed => {
+        LinearOperatorOrientation::Transposed | LinearOperatorOrientation::ConjugateTransposed => {
             relation.vjp(solution.values(), RelationCotangent::Unknown(&mut applied))?;
         }
     }

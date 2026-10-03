@@ -50,6 +50,8 @@ impl CongruenceScaledLaplacian {
 }
 
 impl LinearOperator for CongruenceScaledLaplacian {
+    type Scalar = f64;
+
     fn rows(&self) -> usize {
         self.scales.len()
     }

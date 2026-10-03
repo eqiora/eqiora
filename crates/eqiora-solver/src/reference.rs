@@ -471,6 +471,8 @@ mod tests {
     struct DenseSpd;
 
     impl LinearOperator for DenseSpd {
+        type Scalar = f64;
+
         fn rows(&self) -> usize {
             2
         }
@@ -500,6 +502,8 @@ mod tests {
     }
 
     impl LinearOperator for DenseSymmetricIndefinite {
+        type Scalar = f64;
+
         fn rows(&self) -> usize {
             2
         }
@@ -522,6 +526,8 @@ mod tests {
     struct DenseGeneral;
 
     impl LinearOperator for DenseGeneral {
+        type Scalar = f64;
+
         fn rows(&self) -> usize {
             2
         }
@@ -549,6 +555,8 @@ mod tests {
     struct SingularGeneral;
 
     impl LinearOperator for SingularGeneral {
+        type Scalar = f64;
+
         fn rows(&self) -> usize {
             2
         }
@@ -568,6 +576,8 @@ mod tests {
     struct NonFiniteGeneral;
 
     impl LinearOperator for NonFiniteGeneral {
+        type Scalar = f64;
+
         fn rows(&self) -> usize {
             2
         }
@@ -744,7 +754,10 @@ mod tests {
             NonZeroUsize::new(20).unwrap(),
         )
         .unwrap();
-        for operator in [&SingularGeneral as &dyn LinearOperator, &NonFiniteGeneral] {
+        for operator in [
+            &SingularGeneral as &dyn LinearOperator<Scalar = f64>,
+            &NonFiniteGeneral,
+        ] {
             let problem =
                 LinearProblem::new(operator, &[1.0, 0.0], LinearOperatorProperties::General)
                     .unwrap();

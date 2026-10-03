@@ -310,7 +310,7 @@ impl ReplicatedLinearExecution for RayonLinearExecution<'_> {
 
     fn apply(
         &self,
-        operator: &dyn LinearOperator,
+        operator: &dyn LinearOperator<Scalar = f64>,
         input: &[f64],
         output: &mut [f64],
     ) -> Result<(), Diagnostic> {
@@ -427,6 +427,8 @@ mod tests {
     }
 
     impl RowLinearAction for DenseRows {
+        type Scalar = f64;
+
         fn apply_rows(
             &self,
             rows: Range<usize>,
@@ -448,6 +450,8 @@ mod tests {
     }
 
     impl LinearOperator for DenseRows {
+        type Scalar = f64;
+
         fn rows(&self) -> usize {
             4
         }
@@ -460,7 +464,7 @@ mod tests {
             self.apply_rows(0..4, input, output)
         }
 
-        fn row_action(&self) -> Option<&dyn RowLinearAction> {
+        fn row_action(&self) -> Option<&dyn RowLinearAction<Scalar = f64>> {
             Some(self)
         }
 
@@ -479,6 +483,8 @@ mod tests {
     struct Unpartitioned;
 
     impl LinearOperator for Unpartitioned {
+        type Scalar = f64;
+
         fn rows(&self) -> usize {
             1
         }

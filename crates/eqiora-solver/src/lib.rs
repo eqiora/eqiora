@@ -28,7 +28,7 @@ pub use execution::{
 };
 pub use operator::{
     DiagonalAvailability, LinearOperator, LinearOperatorOrientation, LinearOperatorProperties,
-    LinearProblem, RowLinearAction, TransposeLinearOperator, Transposed,
+    LinearProblem, Oriented, OrientedLinearOperator, RowLinearAction,
 };
 pub use plan::{LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan};
 pub use planning::{

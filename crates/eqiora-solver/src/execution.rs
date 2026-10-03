@@ -123,7 +123,7 @@ pub trait ReplicatedLinearExecution: Debug + Sync {
     /// operator.
     fn apply(
         &self,
-        operator: &dyn LinearOperator,
+        operator: &dyn LinearOperator<Scalar = f64>,
         input: &[f64],
         output: &mut [f64],
     ) -> Result<(), Diagnostic>;
@@ -165,7 +165,7 @@ impl ReplicatedLinearExecution for SerialLinearExecution {
 
     fn apply(
         &self,
-        operator: &dyn LinearOperator,
+        operator: &dyn LinearOperator<Scalar = f64>,
         input: &[f64],
         output: &mut [f64],
     ) -> Result<(), Diagnostic> {

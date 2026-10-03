@@ -6,9 +6,9 @@ use eqiora_core::diagnostic::codes;
 
 use crate::{
     CanonicalCsrSystemView, LinearOperatorOrientation, LinearOperatorProperties, LinearProblem,
-    LinearSolution, LinearSolver, PreconditionerPolicy, PreparedLinearSolver, ReductionPolicy,
-    ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, ScalarType, SolverPlan, SolverProvider,
-    Transposed,
+    LinearSolution, LinearSolver, Oriented, PreconditionerPolicy, PreparedLinearSolver,
+    ReductionPolicy, ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, ScalarType, SolverPlan,
+    SolverProvider,
 };
 
 /// One exact numerical-policy tuple implemented by a solver adapter.
@@ -399,7 +399,20 @@ impl<'a> LinearSolveRequest<'a> {
                 self.solve(&problem)
             }
             LinearOperatorOrientation::Transposed => {
-                let transposed = Transposed::new(state_jacobian);
+                let transposed =
+                    Oriented::new(state_jacobian, crate::LinearOperatorOrientation::Transposed)?;
+                let problem = LinearProblem::from_oriented_canonical(
+                    &transposed,
+                    state_jacobian,
+                    right_hand_side,
+                )?;
+                self.solve(&problem)
+            }
+            LinearOperatorOrientation::ConjugateTransposed => {
+                let transposed = crate::Oriented::new(
+                    state_jacobian,
+                    LinearOperatorOrientation::ConjugateTransposed,
+                )?;
                 let problem = LinearProblem::from_oriented_canonical(
                     &transposed,
                     state_jacobian,

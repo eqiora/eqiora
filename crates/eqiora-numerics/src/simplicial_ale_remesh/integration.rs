@@ -121,6 +121,8 @@ impl DenseSymmetricOperator {
 }
 
 impl LinearOperator for DenseSymmetricOperator {
+    type Scalar = f64;
+
     fn rows(&self) -> usize {
         self.dimension
     }
@@ -213,7 +215,7 @@ pub(super) fn solve_dense(
 }
 
 pub(super) fn residual_norm(
-    operator: &dyn LinearOperator,
+    operator: &dyn LinearOperator<Scalar = f64>,
     solution: &[f64],
     right_hand_side: &[f64],
 ) -> Result<f64, Diagnostic> {

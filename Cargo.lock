@@ -1120,6 +1120,7 @@ name = "eqiora-solver"
 version = "0.1.2"
 dependencies = [
  "eqiora-core",
+ "num-complex",
  "sha2",
 ]
 

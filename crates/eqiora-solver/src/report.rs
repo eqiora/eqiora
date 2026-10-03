@@ -667,6 +667,8 @@ mod tests {
     struct Diagonal;
 
     impl LinearOperator for Diagonal {
+        type Scalar = f64;
+
         fn rows(&self) -> usize {
             2
         }

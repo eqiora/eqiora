@@ -340,12 +340,12 @@ impl ApplyFailure {
 
 #[derive(Debug, Clone)]
 struct FaerOperator<'a> {
-    operator: &'a dyn LinearOperator,
+    operator: &'a dyn LinearOperator<Scalar = f64>,
     failure: ApplyFailure,
 }
 
 impl<'a> FaerOperator<'a> {
-    const fn new(operator: &'a dyn LinearOperator, failure: ApplyFailure) -> Self {
+    const fn new(operator: &'a dyn LinearOperator<Scalar = f64>, failure: ApplyFailure) -> Self {
         Self { operator, failure }
     }
 
@@ -507,6 +507,8 @@ mod tests {
     }
 
     impl LinearOperator for DenseOperator {
+        type Scalar = f64;
+
         fn rows(&self) -> usize {
             2
         }
@@ -691,6 +693,8 @@ mod tests {
         struct FailingOperator;
 
         impl LinearOperator for FailingOperator {
+            type Scalar = f64;
+
             fn rows(&self) -> usize {
                 1
             }

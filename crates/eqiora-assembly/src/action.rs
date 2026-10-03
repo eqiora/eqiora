@@ -4,7 +4,7 @@ use std::ops::Range;
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_solver::{
-    DiagonalAvailability, LinearOperator, RowLinearAction, TransposeLinearOperator,
+    DiagonalAvailability, LinearOperator, OrientedLinearOperator, RowLinearAction,
 };
 
 use crate::{AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyTargetId, AssemblyWork, DofId};
@@ -82,6 +82,8 @@ impl PacketLinearOperator {
 }
 
 impl LinearOperator for PacketLinearOperator {
+    type Scalar = f64;
+
     fn rows(&self) -> usize {
         self.size
     }
@@ -94,7 +96,7 @@ impl LinearOperator for PacketLinearOperator {
         self.apply_row_range(0..self.size, input, output)
     }
 
-    fn row_action(&self) -> Option<&dyn RowLinearAction> {
+    fn row_action(&self) -> Option<&dyn RowLinearAction<Scalar = f64>> {
         Some(self)
     }
 
@@ -112,6 +114,8 @@ impl LinearOperator for PacketLinearOperator {
 }
 
 impl RowLinearAction for PacketLinearOperator {
+    type Scalar = f64;
+
     fn apply_rows(
         &self,
         rows: Range<usize>,
@@ -122,8 +126,20 @@ impl RowLinearAction for PacketLinearOperator {
     }
 }
 
-impl TransposeLinearOperator for PacketLinearOperator {
-    fn apply_transpose(&self, input: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
+impl OrientedLinearOperator for PacketLinearOperator {
+    fn supports_orientation(&self, _orientation: eqiora_solver::LinearOperatorOrientation) -> bool {
+        true
+    }
+
+    fn apply_oriented(
+        &self,
+        orientation: eqiora_solver::LinearOperatorOrientation,
+        input: &[f64],
+        output: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        if orientation == eqiora_solver::LinearOperatorOrientation::Normal {
+            return self.apply(input, output);
+        }
         if input.len() != self.size || output.len() != self.size {
             return Err(solve_failed(format!(
                 "transposed packet action is {}x{} but input/output have {}/{} values",
@@ -438,7 +454,11 @@ mod tests {
         let mut transposed = [f64::INFINITY; 3];
         system
             .operator()
-            .apply_transpose(&cotangent, &mut transposed)
+            .apply_oriented(
+                eqiora_solver::LinearOperatorOrientation::Transposed,
+                &cotangent,
+                &mut transposed,
+            )
             .unwrap();
         assert_eq!(transposed, [583.0, -1053.0, 1108.0]);
         assert_eq!(
@@ -474,7 +494,11 @@ mod tests {
         let mut assembled_transpose = [0.0; 3];
         assembled
             .matrix()
-            .apply_transpose(&cotangent, &mut assembled_transpose)
+            .apply_oriented(
+                eqiora_solver::LinearOperatorOrientation::Transposed,
+                &cotangent,
+                &mut assembled_transpose,
+            )
             .unwrap();
         assert_eq!(assembled_transpose, transposed);
     }

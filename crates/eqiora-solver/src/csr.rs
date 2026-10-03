@@ -9,8 +9,8 @@ use eqiora_core::diagnostic::codes;
 use sha2::{Digest, Sha256};
 
 use crate::{
-    DiagonalAvailability, LinearOperator, LinearOperatorProperties, LinearProblem, RowLinearAction,
-    TransposeLinearOperator,
+    DiagonalAvailability, LinearOperator, LinearOperatorProperties, LinearProblem,
+    OrientedLinearOperator, RowLinearAction,
 };
 
 const AGREEMENT_DOMAIN_V1: &[u8] = b"eqiora.canonical-csr-agreement/v1\0";
@@ -340,6 +340,8 @@ fn try_copy_f64_slice(source: &[f64], name: &'static str) -> Result<Vec<f64>, Di
 }
 
 impl LinearOperator for CanonicalCsrSystemView {
+    type Scalar = f64;
+
     fn rows(&self) -> usize {
         self.rows
     }
@@ -354,7 +356,7 @@ impl LinearOperator for CanonicalCsrSystemView {
         self.apply_range(0..self.rows, input, output)
     }
 
-    fn row_action(&self) -> Option<&dyn RowLinearAction> {
+    fn row_action(&self) -> Option<&dyn RowLinearAction<Scalar = f64>> {
         Some(self)
     }
 
@@ -384,6 +386,8 @@ impl LinearOperator for CanonicalCsrSystemView {
 }
 
 impl RowLinearAction for CanonicalCsrSystemView {
+    type Scalar = f64;
+
     fn apply_rows(
         &self,
         rows: Range<usize>,
@@ -394,8 +398,20 @@ impl RowLinearAction for CanonicalCsrSystemView {
     }
 }
 
-impl TransposeLinearOperator for CanonicalCsrSystemView {
-    fn apply_transpose(&self, input: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
+impl OrientedLinearOperator for CanonicalCsrSystemView {
+    fn supports_orientation(&self, _orientation: crate::LinearOperatorOrientation) -> bool {
+        true
+    }
+
+    fn apply_oriented(
+        &self,
+        orientation: crate::LinearOperatorOrientation,
+        input: &[f64],
+        output: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        if orientation == crate::LinearOperatorOrientation::Normal {
+            return self.apply(input, output);
+        }
         if input.len() != self.rows || output.len() != self.columns {
             return Err(solve_failed(format!(
                 "transposed canonical CSR is {}x{} but input/output have {}/{} values",
@@ -762,7 +778,12 @@ mod tests {
         let mut normal = [0.0; 2];
         let mut transposed = [0.0; 2];
         view.apply(&[5.0, 6.0], &mut normal).unwrap();
-        view.apply_transpose(&[5.0, 6.0], &mut transposed).unwrap();
+        view.apply_oriented(
+            crate::LinearOperatorOrientation::Transposed,
+            &[5.0, 6.0],
+            &mut transposed,
+        )
+        .unwrap();
 
         assert_eq!(normal, [17.0, 39.0]);
         assert_eq!(transposed, [23.0, 34.0]);

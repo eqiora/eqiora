@@ -8,8 +8,8 @@ use eqiora::assembly::{
 use eqiora::meshing::{MeshEntity, MeshTopology, QuadratureRule};
 use eqiora::solver::{
     DiagonalAvailability, LinearOperator, LinearOperatorProperties, LinearProblem,
-    LinearSolveRequest, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, SolverPlan,
-    TransposeLinearOperator,
+    LinearSolveRequest, LinearSolver, OrientedLinearOperator, PreconditionerPolicy,
+    REFERENCE_LINEAR_SOLVER, SolverPlan,
 };
 use eqiora_meshing::CartesianMesh;
 use eqiora_numerics::scalar::lower_cartesian_q1_diffusion_local_action;
@@ -23,7 +23,13 @@ fn maximum_difference(left: &[f64], right: &[f64]) -> f64 {
 
 fn apply_transpose(matrix: &CsrMatrix, input: &[f64]) -> Vec<f64> {
     let mut output = vec![0.0; matrix.columns()];
-    matrix.apply_transpose(input, &mut output).unwrap();
+    matrix
+        .apply_oriented(
+            eqiora_solver::LinearOperatorOrientation::Transposed,
+            input,
+            &mut output,
+        )
+        .unwrap();
     output
 }
 
@@ -113,7 +119,11 @@ fn nonsymmetric_packet_projection_matches_a_hand_calculated_oracle() {
     let mut transpose = [f64::INFINITY; 3];
     matrix_free
         .operator()
-        .apply_transpose(&cotangent, &mut transpose)
+        .apply_oriented(
+            eqiora_solver::LinearOperatorOrientation::Transposed,
+            &cotangent,
+            &mut transpose,
+        )
         .unwrap();
     assert_eq!(transpose, [583.0, -1053.0, 1108.0]);
     assert_eq!(
@@ -309,8 +319,16 @@ fn packet_action_rejects_invalid_or_nonfinite_buffers() {
         operator.apply(&[], &mut [0.0]),
         operator.apply(&[1.0], &mut []),
         operator.apply(&[f64::NAN], &mut [0.0]),
-        operator.apply_transpose(&[], &mut [0.0]),
-        operator.apply_transpose(&[f64::INFINITY], &mut [0.0]),
+        operator.apply_oriented(
+            eqiora_solver::LinearOperatorOrientation::Transposed,
+            &[],
+            &mut [0.0],
+        ),
+        operator.apply_oriented(
+            eqiora_solver::LinearOperatorOrientation::Transposed,
+            &[f64::INFINITY],
+            &mut [0.0],
+        ),
         operator.diagonal(&mut []).map(|_| ()),
     ] {
         assert_eq!(
@@ -473,7 +491,11 @@ fn cartesian_q1_packet_action_matches_csr_and_solves_in_one_through_three_dimens
         let mut matrix_free_transpose = vec![f64::INFINITY; free_count];
         matrix_free
             .operator()
-            .apply_transpose(&cotangent, &mut matrix_free_transpose)
+            .apply_oriented(
+                eqiora_solver::LinearOperatorOrientation::Transposed,
+                &cotangent,
+                &mut matrix_free_transpose,
+            )
             .unwrap();
         let assembled_transpose = apply_transpose(assembled.matrix(), &cotangent);
         assert!(

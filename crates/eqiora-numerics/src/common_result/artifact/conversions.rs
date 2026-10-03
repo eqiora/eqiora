@@ -110,6 +110,7 @@ impl From<LinearOperatorOrientation> for WireOrientation {
         match value {
             LinearOperatorOrientation::Normal => Self::Normal,
             LinearOperatorOrientation::Transposed => Self::Transposed,
+            LinearOperatorOrientation::ConjugateTransposed => Self::ConjugateTransposed,
         }
     }
 }
@@ -118,6 +119,7 @@ impl From<WireOrientation> for LinearOperatorOrientation {
         match value {
             WireOrientation::Normal => Self::Normal,
             WireOrientation::Transposed => Self::Transposed,
+            WireOrientation::ConjugateTransposed => Self::ConjugateTransposed,
         }
     }
 }

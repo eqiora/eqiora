@@ -96,9 +96,11 @@ pub(super) fn solve_factored_oriented(
         LinearOperatorOrientation::Normal => symbolic
             .factor
             .solve_in_place_scratch::<f64>(1, parallelism),
-        LinearOperatorOrientation::Transposed => symbolic
-            .factor
-            .solve_transpose_in_place_scratch::<f64>(1, parallelism),
+        LinearOperatorOrientation::Transposed | LinearOperatorOrientation::ConjugateTransposed => {
+            symbolic
+                .factor
+                .solve_transpose_in_place_scratch::<f64>(1, parallelism)
+        }
     };
     let mut buffer = MemBuffer::try_new(scratch)
         .map_err(|error| solve_failed(format!("faer sparse LU solve workspace failed: {error}")))?;
@@ -111,7 +113,7 @@ pub(super) fn solve_factored_oriented(
                 MemStack::new(&mut buffer),
             );
         }
-        LinearOperatorOrientation::Transposed => {
+        LinearOperatorOrientation::Transposed | LinearOperatorOrientation::ConjugateTransposed => {
             LuRef::new_unchecked(&symbolic.factor, &numeric.factor)
                 .solve_transpose_in_place_with_conj(
                     Conj::No,

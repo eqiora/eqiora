@@ -8,9 +8,9 @@ use eqiora::ir::LinearizedOutput;
 use eqiora::solver::{
     CanonicalCsrSystemView, CompleteCsrStorage, ConvergenceReason, LinearOperator,
     LinearOperatorOrientation, LinearOperatorProperties, LinearProblem, LinearSolution,
-    LinearSolveRequest, LinearSolver, LinearSolverBackend, PreconditionerPolicy, ReductionPolicy,
-    ReplicatedLinearExecution, SolverCapabilities, SolverPlan, SolverProvider,
-    TransposeLinearOperator, accept_linear_solution_with_execution,
+    LinearSolveRequest, LinearSolver, LinearSolverBackend, OrientedLinearOperator,
+    PreconditionerPolicy, ReductionPolicy, ReplicatedLinearExecution, SolverCapabilities,
+    SolverPlan, SolverProvider, accept_linear_solution_with_execution,
 };
 use eqiora::{Id, entity::kinds};
 use eqiora_backend_faer::FaerLinearSolver;
@@ -371,6 +371,8 @@ struct ReportedTransposeNormalAction<'a> {
 }
 
 impl LinearOperator for ReportedTransposeNormalAction<'_> {
+    type Scalar = f64;
+
     fn rows(&self) -> usize {
         self.source.rows()
     }
@@ -638,7 +640,13 @@ fn transposed_residual_squared(
     right_hand_side: &[f64],
 ) -> f64 {
     let mut applied = vec![0.0; right_hand_side.len()];
-    operator.apply_transpose(values, &mut applied).unwrap();
+    operator
+        .apply_oriented(
+            eqiora_solver::LinearOperatorOrientation::Transposed,
+            values,
+            &mut applied,
+        )
+        .unwrap();
     applied
         .iter()
         .zip(right_hand_side)

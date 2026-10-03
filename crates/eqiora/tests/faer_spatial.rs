@@ -16,8 +16,8 @@ use eqiora::sem::KernelProgram;
 use eqiora::solver::{
     CanonicalCsrSystemView, CompleteCsrStorage, ConvergenceReason, DiagonalAvailability,
     LinearOperator, LinearOperatorProperties, LinearProblem, LinearSolver, LinearSolverBackend,
-    PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SERIAL_EXECUTION_PROVIDER,
-    SolverCapabilities, SolverCapability, SolverPlan, Transposed,
+    Oriented, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
+    SERIAL_EXECUTION_PROVIDER, SolverCapabilities, SolverCapability, SolverPlan,
 };
 use eqiora_backend_faer::{
     FAER_ADAPTER_VERSION, FAER_SOLVER_PROVIDER, FAER_VERSION, FaerLinearSolver,
@@ -431,7 +431,11 @@ fn faer_sparse_lu_matches_the_precommitted_exact_rational_oracle() {
         eqiora::diagnostic::codes::INVALID_REALIZATION
     );
 
-    let transposed_operator = Transposed::new(&system);
+    let transposed_operator = Oriented::new(
+        &system,
+        eqiora_solver::LinearOperatorOrientation::Transposed,
+    )
+    .unwrap();
     let transposed = LinearProblem::new(
         &transposed_operator,
         system.right_hand_side(),
@@ -471,6 +475,8 @@ struct DenseOperator {
 }
 
 impl LinearOperator for DenseOperator {
+    type Scalar = f64;
+
     fn rows(&self) -> usize {
         2
     }
