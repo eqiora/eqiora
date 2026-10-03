@@ -201,3 +201,49 @@ fn check_energy_and_flux(source: &str) {
             .is_err()
     );
 }
+
+#[test]
+fn gradient_energy_and_its_state_direction_use_the_ordinary_result() {
+    let source = HEAT
+        .replace(
+            "parameter capacity: J / (K * m) = 3;",
+            "parameter stiffness: J*m/K^2 = 2;",
+        )
+        .replace(
+            "capacity * (temperature - 300[K])",
+            "stiffness*contract(grad(temperature),grad(temperature),axes=((0,0),))/2",
+        );
+    let (model, plan, result) = heat(&source);
+    let energy_dimension = DimExponents::from_integers([1, 2, -2, 0, 0, 0, 0]).unwrap();
+    let energy = plan
+        .observation_program()
+        .nodes()
+        .find_map(|node| match node {
+            KernelNode::Observable(value) if value.value_type().dimension() == energy_dimension => {
+                Some(value.id())
+            }
+            _ => None,
+        })
+        .unwrap();
+    let quadrature = QuadratureRule::gauss_legendre(2).unwrap();
+    let value = result.observe(&model, energy, Some(&quadrature)).unwrap();
+    // Q1 nodal T=300+6*x*(1-x) gives slopes 4.5,1.5,-1.5,-4.5 K/m.
+    // For k=2 J*m/K^2, integral(k*T_x^2/2)=45/4 J.
+    assert!((value.value().real_scalar_value().unwrap().value() - 45.0 / 4.0).abs() < 1e-9);
+    let (temperature, ty) = plan.fields().next().unwrap();
+    // eta=x*(1-x) K has zero endpoint traces and eta_x=T_x/6.
+    // Independently, delta E=integral(k*T_x*eta_x)=15/4 J.
+    let direction = result
+        .observable_state_tangent([(
+            temperature,
+            [0.0, 3.0 / 16.0, 1.0 / 4.0, 3.0 / 16.0, 0.0]
+                .map(|value| DynQuantity::new(value, ty.dimension()))
+                .to_vec(),
+        )])
+        .unwrap();
+    let derivative = result
+        .observe_state_jvp(&model, energy, &quadrature, &direction)
+        .unwrap();
+    assert_eq!(derivative.value_type().dimension(), energy_dimension);
+    assert!((derivative.real_scalar_value().unwrap().value() - 15.0 / 4.0).abs() < 1e-9);
+}

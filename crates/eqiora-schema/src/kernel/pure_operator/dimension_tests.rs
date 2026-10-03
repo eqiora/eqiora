@@ -196,11 +196,21 @@ fn scalar_composition_and_projection_keep_order_and_preflight_total_work() {
     // Three formal references reuse the existing nodes; all remaining body nodes append once.
     let exact_nodes = definition.nodes().len();
     assert!(
-        dag.project_scalar_operator(&instance, &ids, exact_nodes - 1)
-            .is_err()
+        dag.project_operator_component(
+            &instance,
+            &ids.iter().map(|id| [*id]).collect::<Vec<_>>(),
+            &[],
+            exact_nodes - 1
+        )
+        .is_err()
     );
     let root = dag
-        .project_scalar_operator(&instance, &ids, exact_nodes)
+        .project_operator_component(
+            &instance,
+            &ids.iter().map(|id| [*id]).collect::<Vec<_>>(),
+            &[],
+            exact_nodes,
+        )
         .unwrap();
     let dag = dag.finish([root]).unwrap();
     assert_eq!(dag.nodes().len(), exact_nodes);

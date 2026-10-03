@@ -488,7 +488,12 @@ fn evaluate_pure_operator(
         .iter()
         .map(|value| builder.constant((*value).clone()))
         .collect::<Result<Vec<_>, _>>()?;
-    let root = builder.project_scalar_operator(&instance, &arguments, 1_000_000)?;
+    let root = builder.project_operator_component(
+        &instance,
+        &arguments.iter().map(|id| [*id]).collect::<Vec<_>>(),
+        &[],
+        1_000_000,
+    )?;
     let dag = builder.finish([root])?;
     let ir = ScalarOperatorIr::lower(&dag)?;
     ir.evaluate_typed(&[root], &mut |_| None)?

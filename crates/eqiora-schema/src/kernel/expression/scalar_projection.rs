@@ -4,29 +4,34 @@ use crate::kernel::pure_operator::{CalculusNode, PureOperatorInstantiation};
 use eqiora_core::DynQuantity;
 
 impl ExprDagBuilder {
-    /// Append an ordered scalar execution body from a checked pure instantiation.
+    /// Append one ordered scalar component of a checked pure instantiation.
+    /// Each argument supplies its complete row-major scalar coordinates.
     /// The canonical Model retains its original application and definition identity.
     /// `max_nodes` bounds the complete destination arena before expansion allocation.
-    pub fn project_scalar_operator<I>(
+    pub fn project_operator_component<I>(
         &mut self,
         instance: &PureOperatorInstantiation<'_, I>,
-        arguments: &[ExprId],
+        arguments: &[impl AsRef<[ExprId]>],
+        component: &[u32],
         max_nodes: usize,
     ) -> Result<ExprId, Diagnostic> {
         let definition = instance.definition();
-        if arguments.len() != definition.formals().len()
-            || !definition.result_rule().is_invariant_scalar()
-            || definition
-                .formals()
-                .iter()
-                .any(|formal| !formal.is_invariant_scalar())
-        {
+        component_offset(instance.result_type().shape(), component)?;
+        if arguments.len() != instance.arguments().len() {
             return Err(invalid_pure_operator(
-                "scalar projection requires exact scalar formal arity and result",
+                "component projection has incorrect formal arity",
             ));
         }
-        for argument in arguments {
-            self.validate_prior_operand(*argument)?;
+        for (argument, ty) in arguments.iter().zip(instance.arguments()) {
+            let argument = argument.as_ref();
+            if ty.shape().component_count() != Some(argument.len()) {
+                return Err(invalid_pure_operator(
+                    "component projection has incorrect argument shape",
+                ));
+            }
+            for value in argument {
+                self.validate_prior_operand(*value)?;
+            }
         }
         let additional = definition
             .nodes()
@@ -50,8 +55,28 @@ impl ExprDagBuilder {
                 })
             };
             let id = match node {
-                CalculusNode::FormalComponent { formal, axes } if axes.is_empty() => {
-                    arguments[usize::from(*formal)]
+                CalculusNode::FormalComponent { formal, axes } => {
+                    let formal = usize::from(*formal);
+                    let coordinates = axes
+                        .iter()
+                        .map(|axis| axis.resolve(component))
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(|error| invalid_pure_operator(error.to_string()))?;
+                    let offset =
+                        component_offset(instance.arguments()[formal].shape(), &coordinates)?;
+                    arguments[formal].as_ref()[offset]
+                }
+                CalculusNode::KroneckerDelta(left, right) => {
+                    let left = left
+                        .resolve(component)
+                        .map_err(|error| invalid_pure_operator(error.to_string()))?;
+                    let right = right
+                        .resolve(component)
+                        .map_err(|error| invalid_pure_operator(error.to_string()))?;
+                    self.constant(DynQuantity::new(
+                        if left == right { 1.0 } else { 0.0 },
+                        eqiora_core::DimExponents::DIMENSIONLESS,
+                    ))?
                 }
                 CalculusNode::Rational { value, dimension } => {
                     self.constant(DynQuantity::new(value.as_f64(), *dimension))?
@@ -84,11 +109,6 @@ impl ExprDagBuilder {
                 CalculusNode::Neg(value) => self.neg(mapped(*value)?)?,
                 CalculusNode::Add(left, right) => self.add(mapped(*left)?, mapped(*right)?)?,
                 CalculusNode::Mul(left, right) => self.mul(mapped(*left)?, mapped(*right)?)?,
-                _ => {
-                    return Err(invalid_pure_operator(
-                        "scalar projection cannot expand spatial component calculus",
-                    ));
-                }
             };
             ids.push(id);
         }
@@ -100,4 +120,30 @@ fn mapped_root(ids: &[ExprId], root: u32) -> Result<ExprId, Diagnostic> {
     ids.get(root as usize)
         .copied()
         .ok_or_else(|| invalid_pure_operator("scalar pure-operator projection root is unavailable"))
+}
+
+fn component_offset(
+    shape: &eqiora_core::ValueShape,
+    coordinates: &[u32],
+) -> Result<usize, Diagnostic> {
+    if shape.rank() != coordinates.len() {
+        return Err(invalid_pure_operator(
+            "component projection coordinate rank differs",
+        ));
+    }
+    shape
+        .extents()
+        .iter()
+        .zip(coordinates)
+        .try_fold(0usize, |offset, (extent, coordinate)| {
+            if *coordinate >= extent.get() {
+                return Err(invalid_pure_operator(
+                    "component projection coordinate is out of range",
+                ));
+            }
+            offset
+                .checked_mul(extent.get() as usize)
+                .and_then(|offset| offset.checked_add(*coordinate as usize))
+                .ok_or_else(|| invalid_pure_operator("component projection offset overflows"))
+        })
 }
