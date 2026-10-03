@@ -40,10 +40,8 @@ impl<I: Clone> OperatorExpansionExt<I> for PureOperatorInstantiation<'_, I> {
                     let coordinates = axes
                         .iter()
                         .map(|axis| {
-                            component
-                                .get(usize::from(axis.index()))
-                                .copied()
-                                .ok_or(CalculusError::ResultAxisOutOfRange)
+                            axis.resolve(component)
+                                .map_err(|_| CalculusError::ResultAxisOutOfRange)
                         })
                         .collect::<Result<Box<[_]>, _>>()?;
                     validate_component(argument.shape(), &coordinates)?;
@@ -53,12 +51,12 @@ impl<I: Clone> OperatorExpansionExt<I> for PureOperatorInstantiation<'_, I> {
                     })
                 }
                 CalculusNode::KroneckerDelta(left, right) => {
-                    let left = component
-                        .get(usize::from(left.index()))
-                        .ok_or(CalculusError::ResultAxisOutOfRange)?;
-                    let right = component
-                        .get(usize::from(right.index()))
-                        .ok_or(CalculusError::ResultAxisOutOfRange)?;
+                    let left = left
+                        .resolve(component)
+                        .map_err(|_| CalculusError::ResultAxisOutOfRange)?;
+                    let right = right
+                        .resolve(component)
+                        .map_err(|_| CalculusError::ResultAxisOutOfRange)?;
                     ScalarCalculusNode::Rational {
                         value: ExactRational::integer(i64::from(left == right)),
                         dimension: eqiora_core::DimExponents::DIMENSIONLESS,

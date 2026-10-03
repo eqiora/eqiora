@@ -101,8 +101,12 @@ pub(super) fn encode_expression(
                 encode_expression(encoder, unit, budget, next_depth(depth)?)
             })
         }
-        ExprKind::Array(elements) => {
-            encoder.u16(10)?;
+        ExprKind::Array(elements) | ExprKind::Tuple(elements) => {
+            encoder.u16(if matches!(expression.kind(), ExprKind::Tuple(_)) {
+                22
+            } else {
+                10
+            })?;
             let child_depth = next_depth(depth)?;
             let mut encoded = Vec::with_capacity(elements.len());
             for element in elements {
@@ -237,7 +241,14 @@ pub(super) fn encode_expression(
         ExprKind::Call { callee, arguments } => {
             let named = arguments.named();
             let tensor = callee.as_str() == "tensor_value" && named.is_some();
-            encoder.u16(if named.is_some() && !tensor { 16 } else { 8 })?;
+            let mixed = matches!(arguments, eqiora_lang::CallArguments::Mixed { .. });
+            encoder.u16(if mixed {
+                21
+            } else if named.is_some() && !tensor {
+                16
+            } else {
+                8
+            })?;
             encoder.field(1, |encoder| encode_type_path(encoder, callee, budget))?;
             let child_depth = next_depth(depth)?;
             let mut encoded = Vec::with_capacity(arguments.expressions().len());
@@ -263,6 +274,27 @@ pub(super) fn encode_expression(
                     })?;
                     encoded.push(argument_encoder.finish()?);
                 }
+            } else if mixed {
+                let (positional, named) = arguments.parts();
+                for argument in positional {
+                    let mut argument_encoder = Encoder::new(budget.limits.max_canonical_bytes);
+                    argument_encoder.u16(0)?;
+                    encode_expression(&mut argument_encoder, argument, budget, child_depth)?;
+                    encoded.push(argument_encoder.finish()?);
+                }
+                let mut options = Vec::new();
+                for binding in named {
+                    let mut argument_encoder = Encoder::new(budget.limits.max_canonical_bytes);
+                    argument_encoder.u16(1)?;
+                    argument_encoder
+                        .field(1, |encoder| encode_name(encoder, binding.name(), budget))?;
+                    argument_encoder.field(2, |encoder| {
+                        encode_expression(encoder, binding.value(), budget, child_depth)
+                    })?;
+                    options.push(argument_encoder.finish()?);
+                }
+                options.sort_unstable();
+                encoded.extend(options);
             } else if let Some(bindings) = named {
                 let bindings = if tensor {
                     ["frame", "components"]

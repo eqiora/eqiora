@@ -1,0 +1,21 @@
+model M() {
+        domain body=box(0,1,0,1);
+        parameter a:tensor<Pa,2,2>=tensor_value(frame=body,components=[[2,3],[5,7]]);
+        parameter delta:tensor<1,2,2>=tensor_value(frame=body,components=[[1,0],[0,1]]);
+        let symmetric=(a+transpose(a))/2;
+        let skew=(a-transpose(a))/2;
+        let deviator=a-(matrix_trace(a)/2)*delta;
+        let trace_map=outer(delta,delta);
+        let isotropic=contract(trace_map,a,axes=((2,0),(3,1)));
+        relation independent_reference {
+            component(symmetric,indices=(0,1))=4[Pa];
+            component(symmetric,indices=(1,0))=4[Pa];
+            component(skew,indices=(0,1))=-1[Pa];
+            component(skew,indices=(1,0))=1[Pa];
+            component(deviator,indices=(0,0))=-2.5[Pa];
+            matrix_trace(deviator)=0[Pa];
+            component(isotropic,indices=(0,0))=9[Pa];
+            component(isotropic,indices=(0,1))=0[Pa];
+            component(isotropic,indices=(1,1))=9[Pa];
+        }
+    }

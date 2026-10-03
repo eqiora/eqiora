@@ -181,6 +181,14 @@ pub(crate) fn expression(
             expression(scope, upper, visit);
         }
         ExprKind::Call { arguments, .. } => match arguments {
+            crate::CallArguments::Mixed { positional, named } => {
+                for value in positional {
+                    expression(scope, value, visit);
+                }
+                for binding in named {
+                    expression(scope, &mut binding.value, visit);
+                }
+            }
             crate::CallArguments::Positional(values) => {
                 for value in values {
                     expression(scope, value, visit);
@@ -192,7 +200,7 @@ pub(crate) fn expression(
                 }
             }
         },
-        ExprKind::Array(values) => {
+        ExprKind::Array(values) | ExprKind::Tuple(values) => {
             for value in values {
                 expression(scope, value, visit);
             }

@@ -83,13 +83,13 @@ pub(super) fn canonical_definition_bytes(definition: &PureOperatorDefinition) ->
                 push_u16(&mut bytes, *formal);
                 push_u32(&mut bytes, axes.len());
                 for axis in axes {
-                    push_u16(&mut bytes, axis.index());
+                    push_component_index(&mut bytes, *axis);
                 }
             }
             CalculusNode::KroneckerDelta(left, right) => {
                 bytes.push(2);
-                push_u16(&mut bytes, left.index());
-                push_u16(&mut bytes, right.index());
+                push_component_index(&mut bytes, *left);
+                push_component_index(&mut bytes, *right);
             }
             CalculusNode::Differentiated { value, source, wrt } => {
                 bytes.push(14);
@@ -127,6 +127,13 @@ fn push_value_class(bytes: &mut Vec<u8>, class: PureValueClass) {
         Some(rank) => {
             bytes.push(1);
             push_u16(bytes, rank);
+            match class.spatial_extent() {
+                None => bytes.push(0),
+                Some(extent) => {
+                    bytes.push(1);
+                    bytes.extend_from_slice(&extent.to_be_bytes());
+                }
+            }
         }
     }
     match class.scalar_domain() {
@@ -165,5 +172,18 @@ fn push_dimension(bytes: &mut Vec<u8>, dimension: DimExponents) {
     for (numerator, denominator) in dimension.exponents() {
         bytes.extend_from_slice(&numerator.to_be_bytes());
         bytes.extend_from_slice(&denominator.to_be_bytes());
+    }
+}
+
+fn push_component_index(bytes: &mut Vec<u8>, index: ComponentIndex) {
+    match index {
+        ComponentIndex::Result(axis) => {
+            bytes.push(0);
+            push_u16(bytes, axis);
+        }
+        ComponentIndex::Fixed(coordinate) => {
+            bytes.push(1);
+            bytes.extend_from_slice(&coordinate.to_be_bytes());
+        }
     }
 }

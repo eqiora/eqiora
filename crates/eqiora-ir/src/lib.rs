@@ -11,12 +11,12 @@ mod local_action;
 mod scalar;
 
 pub use calculus::{
-    CalculusBuilder, CalculusError, CalculusNode, CalculusNodeId, ExactRational,
+    CalculusBuilder, CalculusError, CalculusNode, CalculusNodeId, ComponentIndex, ExactRational,
     FormalDimensionMonomial, NormalizationProof, NormalizationRuleId, OperatorApplicationProof,
     OperatorDefinitionDigest, OperatorExpansionExt, PureOperatorApplicationProof,
     PureOperatorDefinition, PureOperatorError, PureOperatorInstantiation, PureValueClass,
-    ResultAxis, ScalarCalculus, ScalarCalculusAtom, ScalarCalculusNode, StandardPureOperator,
-    SupportMap, SupportMapIntent, SupportMapOrientation, SupportMapPairing, SupportMapViolation,
+    ScalarCalculus, ScalarCalculusAtom, ScalarCalculusNode, StandardPureOperator, SupportMap,
+    SupportMapIntent, SupportMapOrientation, SupportMapPairing, SupportMapViolation,
 };
 pub use component::{ComponentScalarRow, ComponentScalarization, ScalarSymbolCoordinate};
 pub use linearization::{

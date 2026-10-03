@@ -1,0 +1,20 @@
+id = "language.tensor-contractions"
+status = "implemented"
+scope = "bounded-full-coordinate-spatial-tensor-constitutive-evaluation"
+reference_kind = "independent-component-expansion-and-full-shear-energy"
+capabilities = ["explicit-spatial-tensor-contraction", "rank-four-constitutive-map", "full-coordinate-shear-energy", "complex-bilinear-contraction", "tensor-projection-compositions"]
+
+[claim_boundary]
+ordinary_source_to_model_evaluation = true
+full_tensor_coordinates = true
+maximum_spatial_rank = 4
+explicit_contraction_axes = true
+implicit_conjugation = false
+symmetric_compression = false
+material_positivity = false
+spatial_discretization_or_solve = false
+finite_strain = false
+
+[evidence]
+package = "eqiora"
+test = "tensor_contractions"

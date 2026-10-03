@@ -1,0 +1,21 @@
+model M() {
+        domain body=box(0,1,0,1);
+        parameter c:tensor<Pa,2,2,2,2>=tensor_value(frame=body,components=[
+            [[[10,0],[0,3]],[[0,4],[4,0]]],
+            [[[0,4],[4,0]],[[3,0],[0,20]]]
+        ]);
+        parameter shear:tensor<1,2,2>=tensor_value(frame=body,components=[[0,0.01],[0.01,0]]);
+        parameter normal:tensor<1,2,2>=tensor_value(frame=body,components=[[0.01,0],[0,0.02]]);
+        let stress=contract(c,shear,axes=((2,0),(3,1)));
+        let normal_stress=contract(c,normal,axes=((2,0),(3,1)));
+        relation independent_reference {
+            component(stress,indices=(0,0))=10[Pa]*component(shear,indices=(0,0))+3[Pa]*component(shear,indices=(1,1));
+            component(stress,indices=(0,1))=4[Pa]*component(shear,indices=(0,1))+4[Pa]*component(shear,indices=(1,0));
+            component(stress,indices=(0,1))=0.08[Pa];
+            component(stress,indices=(1,0))=0.08[Pa];
+            contract(shear,stress,axes=((0,0),(1,1)))/2=0.0008[Pa];
+            component(normal_stress,indices=(0,0))=0.16[Pa];
+            component(normal_stress,indices=(1,1))=0.43[Pa];
+            contract(normal,normal_stress,axes=((0,0),(1,1)))/2=0.0051[Pa];
+        }
+    }

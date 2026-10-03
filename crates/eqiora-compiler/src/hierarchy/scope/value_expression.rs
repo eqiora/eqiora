@@ -51,6 +51,23 @@ pub(in crate::hierarchy) fn rewrite_expression_with_boundary_member(
         }
     }
     let lowered = match expression.kind() {
+        ExprKind::Call { callee, arguments } if crate::math::tensor::named(callee.as_str()) => {
+            let (operation, operands) = crate::math::tensor::source(callee.as_str(), arguments)
+                .map_err(|message| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        expression.range(),
+                        message,
+                    )
+                })?;
+            let operands = operands
+                .into_iter()
+                .map(|value| rewrite_expression_with_boundary_member(file, value, scope, active))
+                .collect::<Result<Vec<_>, _>>()?;
+            LoweringExpression::tensor(operation, operands, expression.range())
+        }
+
         ExprKind::Call { callee, arguments } if callee.as_str() == "vjp" => {
             let expanded = crate::pure_operator::actions::expand_vjp(file, expression, arguments)?;
             rewrite_expression_with_boundary_member(file, &expanded, scope, active)?

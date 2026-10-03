@@ -47,10 +47,9 @@ operator composed(input x: m, input k: N / m, input c: N / m^3): N =
 }
 
 #[test]
-fn named_arguments_reject_duplicates_mixing_and_missing_parts() {
+fn named_arguments_reject_duplicates_positional_suffix_and_missing_parts() {
     for call in [
         "f(x=1,x=2)",
-        "f(1,x=2)",
         "f(x=1,2)",
         "f(x=)",
         "f(x=1,)",

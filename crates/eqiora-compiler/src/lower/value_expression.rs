@@ -108,6 +108,21 @@ impl LoweringExpression {
         }
     }
 
+    pub(crate) fn tensor(
+        operation: crate::math::tensor::Operation,
+        arguments: Vec<Self>,
+        range: TextRange,
+    ) -> Self {
+        Self {
+            node: Arc::new(LoweringExpressionNode::Tensor {
+                operation,
+                arguments,
+            }),
+            range,
+            structural_parameters: None,
+        }
+    }
+
     pub(crate) fn piecewise(name: String, arguments: Vec<Self>, range: TextRange) -> Self {
         Self {
             node: Arc::new(LoweringExpressionNode::Piecewise { name, arguments }),

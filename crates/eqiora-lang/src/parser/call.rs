@@ -1,4 +1,4 @@
-//! Homogeneous positional or named argument lists for shared calls.
+//! Positional operands may precede named options in shared calls.
 use super::*;
 impl Parser<'_> {
     pub(super) fn parse_call_arguments(
@@ -22,10 +22,6 @@ impl Parser<'_> {
                     .find(|token| !token.kind().is_trivia())
                     .is_some_and(|token| token.kind() == TokenKind::Equal);
             if is_named {
-                if !positional.is_empty() {
-                    self.error_here("cannot mix positional and named arguments");
-                    return None;
-                }
                 let name = self.bump();
                 if named
                     .iter()
@@ -63,7 +59,8 @@ impl Parser<'_> {
             }
         }
         if path.as_str() == "tensor_value"
-            && (named.len() != 2
+            && (!positional.is_empty()
+                || named.len() != 2
                 || !named.iter().any(|binding| binding.name() == "components")
                 || !named.iter().any(|binding| {
                     binding.name() == "frame"
@@ -79,8 +76,10 @@ impl Parser<'_> {
         Some((
             if named.is_empty() {
                 CallArguments::Positional(positional)
-            } else {
+            } else if positional.is_empty() {
                 CallArguments::Named(named)
+            } else {
+                CallArguments::Mixed { positional, named }
             },
             child_depth,
         ))

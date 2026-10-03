@@ -21,12 +21,14 @@ mod derivative_validation;
 mod dimensions;
 mod domains;
 mod encoding;
+mod instantiation;
 mod polynomial;
-use dimensions::{derive_symbolic_dimension, instantiate_dimension, validate_result_dimension};
+mod tensor;
+use dimensions::{derive_symbolic_dimension, validate_result_dimension};
 use encoding::canonical_definition_bytes;
 pub use polynomial::{ExactPolynomial, ExactPolynomialError};
 
-const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v5\0";
+const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v6\0";
 
 /// Maximum number of formal arguments in a definition.
 pub const MAX_FORMALS: usize = 64;
@@ -297,12 +299,13 @@ fn gcd(mut left: u128, mut right: u128) -> u128 {
 
 /// Canonical pointwise value class of a formal or result.
 ///
-/// Spatial tensors have exact rank but obtain each axis extent from the one
-/// common volume dimension at instantiation. A scalar is represented only by
+/// Spatial tensors have exact rank and may constrain their common axis extent.
+/// Otherwise the extent is inferred from framed arguments or their common volume. A scalar is represented only by
 /// `None`; spatial rank zero therefore has no duplicate representation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PureValueClass {
     spatial_rank: Option<std::num::NonZeroU16>,
+    spatial_extent: Option<std::num::NonZeroU32>,
     dimension: Option<DimExponents>,
     scalar_domain: Option<eqiora_core::ScalarDomain>,
 }
@@ -313,6 +316,7 @@ impl PureValueClass {
     pub const fn invariant_scalar() -> Self {
         Self {
             spatial_rank: None,
+            spatial_extent: None,
             dimension: None,
             scalar_domain: None,
         }
@@ -329,9 +333,29 @@ impl PureValueClass {
         }
         Ok(Self {
             spatial_rank: Some(rank),
+            spatial_extent: None,
             dimension: None,
             scalar_domain: None,
         })
+    }
+
+    /// Constrain every spatial axis to one positive extent.
+    pub fn with_spatial_extent(mut self, extent: u32) -> Result<Self, PureOperatorError> {
+        if self.spatial_rank.is_none() {
+            return Err(PureOperatorError::InvalidResultRule);
+        }
+        self.spatial_extent =
+            Some(std::num::NonZeroU32::new(extent).ok_or(PureOperatorError::InvalidResultRule)?);
+        Ok(self)
+    }
+
+    /// Exact spatial extent constraint, absent for a generic spatial class or scalar.
+    #[must_use]
+    pub const fn spatial_extent(self) -> Option<u32> {
+        match self.spatial_extent {
+            Some(extent) => Some(extent.get()),
+            None => None,
+        }
     }
 
     /// Constrain this scalar/tensor class to one exact physical dimension.
@@ -376,11 +400,13 @@ impl Ord for PureValueClass {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         (
             self.spatial_rank,
+            self.spatial_extent,
             self.scalar_domain,
             self.dimension.map(DimExponents::exponents),
         )
             .cmp(&(
                 other.spatial_rank,
+                other.spatial_extent,
                 other.scalar_domain,
                 other.dimension.map(DimExponents::exponents),
             ))
@@ -404,21 +430,32 @@ impl CalculusNodeId {
     }
 }
 
-/// One output-axis reference in a capture-free component definition.
+/// One coordinate in a capture-free tensor component definition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ResultAxis(u16);
+pub enum ComponentIndex {
+    /// Use the coordinate of this zero-based result axis.
+    Result(u16),
+    /// Select this fixed zero-based coordinate of an input axis.
+    Fixed(u32),
+}
 
-impl ResultAxis {
-    /// Reference one zero-based result axis.
-    #[must_use]
-    pub const fn new(axis: u16) -> Self {
-        Self(axis)
+impl ComponentIndex {
+    /// Resolve a coordinate after substituting the exact output component.
+    pub fn resolve(self, component: &[u32]) -> Result<u32, PureOperatorError> {
+        match self {
+            Self::Result(axis) => component
+                .get(usize::from(axis))
+                .copied()
+                .ok_or(PureOperatorError::ResultAxisOutOfRange),
+            Self::Fixed(coordinate) => Ok(coordinate),
+        }
     }
 
-    /// Zero-based result axis.
-    #[must_use]
-    pub const fn index(self) -> u16 {
-        self.0
+    fn valid_result_axis(self, rank: usize) -> bool {
+        match self {
+            Self::Result(axis) => usize::from(axis) < rank,
+            Self::Fixed(_) => true,
+        }
     }
 }
 
@@ -456,15 +493,15 @@ pub enum CalculusNode {
     },
     /// Checked real scalar mathematics; this profile admits only square root.
     UnaryMath(super::UnaryMathFunction, CalculusNodeId),
-    /// One formal component addressed only by result axes.
+    /// One formal component addressed by explicit result or fixed coordinates.
     FormalComponent {
         /// Zero-based formal slot.
         formal: u16,
         /// Component axis mapping, empty for a scalar formal.
-        axes: Box<[ResultAxis]>,
+        axes: Box<[ComponentIndex]>,
     },
-    /// Kronecker delta over two result axes.
-    KroneckerDelta(ResultAxis, ResultAxis),
+    /// Kronecker delta over two explicit coordinates.
+    KroneckerDelta(ComponentIndex, ComponentIndex),
     /// One local formal occurrence bound to a caller expression during composition.
     /// Distinct formals retain distinct identities even when their values alias.
     BoundInput(CalculusNodeId),
@@ -562,16 +599,19 @@ impl CalculusBuilder {
                 if axes.len() != rule.rank() {
                     return Err(PureOperatorError::FormalComponentRank);
                 }
-                if axes
-                    .iter()
-                    .any(|axis| usize::from(axis.index()) >= result_rank)
-                {
+                if axes.iter().any(|axis| !axis.valid_result_axis(result_rank)) {
                     return Err(PureOperatorError::ResultAxisOutOfRange);
+                }
+                if axes.iter().any(|axis| {
+                    matches!(axis, ComponentIndex::Fixed(coordinate)
+                    if rule.spatial_extent().is_some_and(|extent| *coordinate >= extent))
+                }) {
+                    return Err(PureOperatorError::FormalTypeMismatch);
                 }
             }
             CalculusNode::KroneckerDelta(left, right)
-                if usize::from(left.index()) >= result_rank
-                    || usize::from(right.index()) >= result_rank =>
+                if !left.valid_result_axis(result_rank)
+                    || !right.valid_result_axis(result_rank) =>
             {
                 return Err(PureOperatorError::ResultAxisOutOfRange);
             }
@@ -739,77 +779,17 @@ impl PureOperatorDefinition {
         self.root
     }
 
-    /// Derive and validate one typed application.
-    ///
-    /// Rational polynomial definitions embed real inputs into the common
-    /// real/complex scalar domain without changing dimension or component roles.
-    ///
-    /// # Errors
-    /// Rejects arity, shape, frame, support, and result-rule mismatches before
-    /// any lowered component expansion.
-    pub fn instantiate<'a, I: Clone + Eq>(
-        &'a self,
-        arguments: &[ExpressionType<I>],
-    ) -> Result<PureOperatorInstantiation<'a, I>, PureOperatorError> {
-        if arguments.len() != self.formals.len() {
-            return Err(PureOperatorError::ArityMismatch);
-        }
-        let mut common_volume = None;
-        let mut scalar_domain = eqiora_core::ScalarDomain::Real;
-        for (rule, argument) in self.formals.iter().zip(arguments) {
-            validate_argument_class(*rule, argument)?;
-            scalar_domain = scalar_domain
-                .common(argument.value_type.scalar_domain())
-                .ok_or(PureOperatorError::FormalTypeMismatch)?;
-            let Some(support) = argument.support.as_ref() else {
-                continue;
-            };
-            if !matches!(support, SpatialSupport::Volume { .. }) {
-                return Err(PureOperatorError::FormalTypeMismatch);
-            }
-            match &common_volume {
-                Some(expected) if expected != support => {
-                    return Err(PureOperatorError::CommonVolumeMismatch);
-                }
-                Some(_) => {}
-                None => common_volume = Some(support.clone()),
-            }
-        }
-        if self
-            .result
-            .scalar_domain()
-            .is_some_and(|expected| expected != scalar_domain)
-        {
-            return Err(PureOperatorError::FormalTypeMismatch);
-        }
-        let result_dimension = instantiate_dimension(&self.dimension, arguments)?;
-        if self
-            .result
-            .dimension()
-            .is_some_and(|expected| expected != result_dimension)
-        {
-            return Err(PureOperatorError::FormalTypeMismatch);
-        }
-        let result_type =
-            expression_type_for_class(self.result, scalar_domain, result_dimension, common_volume)?;
-        Ok(PureOperatorInstantiation {
-            definition: self,
-            arguments: arguments.to_vec(),
-            result_type,
-        })
-    }
-
     /// Standard symmetric-part definition `(A[i,j] + A[j,i]) / 2`.
     pub fn symmetric_part() -> Result<Self, PureOperatorError> {
         let tensor = PureValueClass::spatial_tensor(2)?;
         let mut builder = CalculusBuilder::new([tensor], tensor)?;
         let direct = builder.push(CalculusNode::FormalComponent {
             formal: 0,
-            axes: [ResultAxis::new(0), ResultAxis::new(1)].into(),
+            axes: [ComponentIndex::Result(0), ComponentIndex::Result(1)].into(),
         })?;
         let transposed = builder.push(CalculusNode::FormalComponent {
             formal: 0,
-            axes: [ResultAxis::new(1), ResultAxis::new(0)].into(),
+            axes: [ComponentIndex::Result(1), ComponentIndex::Result(0)].into(),
         })?;
         let sum = builder.push(CalculusNode::Add(direct, transposed))?;
         let half = builder.push(CalculusNode::Rational {
@@ -827,8 +807,8 @@ impl PureOperatorDefinition {
             PureValueClass::spatial_tensor(2)?,
         )?;
         let delta = builder.push(CalculusNode::KroneckerDelta(
-            ResultAxis::new(0),
-            ResultAxis::new(1),
+            ComponentIndex::Result(0),
+            ComponentIndex::Result(1),
         ))?;
         let scalar = builder.push(CalculusNode::FormalComponent {
             formal: 0,
@@ -845,91 +825,14 @@ impl PureOperatorDefinition {
             CalculusBuilder::new([vector, vector], PureValueClass::spatial_tensor(2)?)?;
         let left = builder.push(CalculusNode::FormalComponent {
             formal: 0,
-            axes: [ResultAxis::new(0)].into(),
+            axes: [ComponentIndex::Result(0)].into(),
         })?;
         let right = builder.push(CalculusNode::FormalComponent {
             formal: 1,
-            axes: [ResultAxis::new(1)].into(),
+            axes: [ComponentIndex::Result(1)].into(),
         })?;
         let body = builder.push(CalculusNode::Mul(left, right))?;
         builder.finish(body)
-    }
-}
-
-fn validate_argument_class<I>(
-    class: PureValueClass,
-    argument: &ExpressionType<I>,
-) -> Result<(), PureOperatorError> {
-    if class
-        .scalar_domain()
-        .is_some_and(|expected| expected != argument.value_type.scalar_domain())
-    {
-        return Err(PureOperatorError::FormalTypeMismatch);
-    }
-    if class
-        .dimension()
-        .is_some_and(|expected| expected != argument.dimension())
-    {
-        return Err(PureOperatorError::FormalTypeMismatch);
-    }
-    let dimensions = match argument.support.as_ref() {
-        Some(SpatialSupport::Volume { dimensions, .. }) => Some(*dimensions),
-        None => None,
-        _ => return Err(PureOperatorError::FormalTypeMismatch),
-    };
-    match class.spatial_rank() {
-        None if argument.shape().is_scalar() && argument.frame() == ValueFrame::Invariant => Ok(()),
-        Some(rank)
-            if argument.frame() == ValueFrame::SpatialCartesian
-                && argument.value_type.array_rank() == 0
-                && argument.shape().rank() == usize::from(rank)
-                && dimensions
-                    .and_then(|dimensions| u32::try_from(dimensions).ok())
-                    .is_some_and(|dimension| {
-                        dimension != 0
-                            && argument
-                                .shape()
-                                .extents()
-                                .iter()
-                                .all(|extent| extent.get() == dimension)
-                    }) =>
-        {
-            Ok(())
-        }
-        _ => Err(PureOperatorError::FormalTypeMismatch),
-    }
-}
-
-fn expression_type_for_class<I>(
-    class: PureValueClass,
-    scalar_domain: eqiora_core::ScalarDomain,
-    dimension: eqiora_core::DimExponents,
-    support: Option<SpatialSupport<I>>,
-) -> Result<ExpressionType<I>, PureOperatorError> {
-    match class.spatial_rank() {
-        None => Ok(ExpressionType::new(
-            eqiora_core::ValueType::scalar(scalar_domain, dimension)
-                .map_err(|_| PureOperatorError::FormalTypeMismatch)?,
-            support,
-        )),
-        Some(rank) => {
-            let support = support.ok_or(PureOperatorError::FormalTypeMismatch)?;
-            let extent = u32::try_from(support.dimensions())
-                .ok()
-                .filter(|extent| *extent != 0)
-                .ok_or(PureOperatorError::FormalTypeMismatch)?;
-            let shape =
-                eqiora_core::ValueShape::new(std::iter::repeat_n(extent, usize::from(rank)))
-                    .map_err(|_| PureOperatorError::FormalTypeMismatch)?;
-            eqiora_core::ValueType::shaped(
-                scalar_domain,
-                dimension,
-                shape,
-                ValueFrame::SpatialCartesian,
-            )
-            .map(|value_type| ExpressionType::new(value_type, Some(support)))
-            .map_err(|_| PureOperatorError::FormalTypeMismatch)
-        }
     }
 }
 

@@ -424,17 +424,45 @@ impl Parser<'_> {
     }
 
     fn parse_group(&mut self) -> Option<(Expr, usize)> {
-        let result = {
-            let start = self.bump().range().start();
-            let (mut expression, depth) = self.parse_expression_with_depth(0)?;
-            let end = self
-                .expect(TokenKind::RightParen, "`)` after expression")?
-                .range()
-                .end();
-            expression.range = TextRange::new(start, end);
-            (expression, depth)
-        };
-        Some(result)
+        let start = self.bump().range().start();
+        let mut values = Vec::new();
+        let mut depth = 0;
+        if !self.at(TokenKind::RightParen) {
+            let (value, child_depth) = self.parse_expression_with_depth(0)?;
+            values.push(value);
+            depth = child_depth;
+        }
+        let tuple = values.is_empty() || self.at(TokenKind::Comma);
+        while self.at(TokenKind::Comma) {
+            self.bump();
+            if self.at(TokenKind::RightParen) {
+                break;
+            }
+            let (value, child_depth) = self.parse_expression_with_depth(0)?;
+            values.push(value);
+            depth = depth.max(child_depth);
+        }
+        let end = self
+            .expect(TokenKind::RightParen, "`)` after expression")?
+            .range()
+            .end();
+        let range = TextRange::new(start, end);
+        if tuple {
+            let depth = self.parent_depth(depth)?;
+            Some((
+                Expr {
+                    resolved_enum: None,
+                    resolved_nominal: None,
+                    kind: ExprKind::Tuple(values),
+                    range,
+                },
+                depth,
+            ))
+        } else {
+            let mut value = values.pop()?;
+            value.range = range;
+            Some((value, depth))
+        }
     }
 
     fn at_boundary_selection(&mut self) -> bool {

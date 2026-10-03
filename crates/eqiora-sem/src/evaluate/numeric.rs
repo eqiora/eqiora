@@ -9,15 +9,22 @@ use num_complex::Complex64;
 
 fn ty(value: &ValueLiteral) -> Result<ExpressionType<()>, Diagnostic> {
     let ty = value.value_type();
+    let admitted_shape = match ty.frame() {
+        ValueFrame::Invariant => {
+            ty.array_rank() == ty.shape().rank() || ty.finite_bases().next().is_some()
+        }
+        ValueFrame::SpatialCartesian => {
+            ty.array_rank() == 0 && (1..=4).contains(&ty.shape().rank())
+        }
+    };
     if !matches!(
         ty.scalar_domain(),
         ScalarDomain::Real | ScalarDomain::Complex
-    ) || ty.frame() != ValueFrame::Invariant
-        || (ty.array_rank() != ty.shape().rank() && ty.finite_bases().next().is_none())
+    ) || !admitted_shape
     {
         return Err(Diagnostic::error(
             codes::NOT_IMPLEMENTED,
-            "numeric reference execution requires invariant real or complex channels",
+            "numeric reference execution requires real or complex channels, finite values, or bounded spatial tensors",
         ));
     }
     Ok(ExpressionType::new(ty.clone(), None))

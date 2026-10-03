@@ -1,5 +1,6 @@
 mod complex;
 mod finite;
+mod pure;
 
 use std::collections::HashMap;
 
@@ -333,14 +334,6 @@ struct ComponentDagLowering<'a, I> {
 }
 
 impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
-    fn lower(
-        &mut self,
-        value: ExprId,
-        component: &[u32],
-    ) -> Result<ScalarInputValueId, Diagnostic> {
-        self.lower_part(value, component, ScalarPart::Real)
-    }
-
     fn lower_part(
         &mut self,
         value: ExprId,
@@ -450,12 +443,14 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                 operand,
                 component,
                 node_type,
+                part,
             )?,
             ExprNode::IsotropicLift(operand) => self.lower_pure_operator(
                 StandardPureOperator::IsotropicLift,
                 operand,
                 component,
                 node_type,
+                part,
             )?,
             ExprNode::PureOperatorApplication(application) => {
                 let definition = self
@@ -472,6 +467,7 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                     application.arguments(),
                     component,
                     node_type,
+                    part,
                 )?
             }
             _ => {
@@ -481,105 +477,6 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
             }
         };
         self.remapped.insert(key, mapped);
-        Ok(mapped)
-    }
-
-    fn lower_pure_operator(
-        &mut self,
-        operator: StandardPureOperator,
-        operand: ExprId,
-        component: &[u32],
-        expected_result: &ExpressionType<I>,
-    ) -> Result<ScalarInputValueId, Diagnostic> {
-        let definition = match operator {
-            StandardPureOperator::SymmetricPart => PureOperatorDefinition::symmetric_part(),
-            StandardPureOperator::IsotropicLift => PureOperatorDefinition::isotropic_lift(),
-        }
-        .map_err(|error| invalid_component_ir(format!("invalid pure operator: {error}")))?;
-        self.lower_pure_definition(&definition, &[operand], component, expected_result)
-    }
-
-    fn lower_pure_definition(
-        &mut self,
-        definition: &PureOperatorDefinition,
-        arguments: &[ExprId],
-        component: &[u32],
-        expected_result: &ExpressionType<I>,
-    ) -> Result<ScalarInputValueId, Diagnostic> {
-        let argument_types = arguments
-            .iter()
-            .map(|argument| {
-                let index = node_index(*argument, self.expression.nodes().len())?;
-                self.node_types.get(index).cloned().ok_or_else(|| {
-                    invalid_component_ir("pure operator argument has no inferred type")
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let expansion = definition.instantiate(&argument_types).map_err(|error| {
-            invalid_component_ir(format!("pure operator typing failed: {error}"))
-        })?;
-        if expansion.result_type() != expected_result {
-            return Err(invalid_component_ir(
-                "pure operator expansion differs from the inferred Kernel type",
-            ));
-        }
-        let calculus = expansion.component(component).map_err(|error| {
-            invalid_component_ir(format!("pure operator component expansion failed: {error}"))
-        })?;
-        let mut remapped = vec![None; calculus.nodes().len()];
-        self.lower_calculus_component(&calculus, calculus.root(), arguments, &mut remapped)
-    }
-
-    fn lower_calculus_component(
-        &mut self,
-        calculus: &crate::ScalarCalculus<I>,
-        value: crate::CalculusNodeId,
-        arguments: &[ExprId],
-        remapped: &mut [Option<ScalarInputValueId>],
-    ) -> Result<ScalarInputValueId, Diagnostic> {
-        let index = usize::try_from(value.index())
-            .ok()
-            .filter(|index| *index < calculus.nodes().len())
-            .ok_or_else(|| {
-                invalid_component_ir("pure calculus contains an invalid value reference")
-            })?;
-        if let Some(mapped) = remapped[index] {
-            return Ok(mapped);
-        }
-        let node = calculus.nodes()[index].clone();
-        let mapped = match node {
-            ScalarCalculusNode::Rational { value, dimension } => self
-                .builder
-                .constant(DynQuantity::new(value.as_f64(), dimension))?,
-            ScalarCalculusNode::FormalComponent(atom) => {
-                let operand = arguments
-                    .get(usize::from(atom.formal()))
-                    .copied()
-                    .ok_or_else(|| {
-                        invalid_component_ir("pure calculus referenced an unexpected formal")
-                    })?;
-                self.lower(operand, atom.component())?
-            }
-            ScalarCalculusNode::BoundInput(value)
-            | ScalarCalculusNode::Differentiated { value, .. } => {
-                self.lower_calculus_component(calculus, value, arguments, remapped)?
-            }
-            ScalarCalculusNode::Neg(value) => {
-                let value = self.lower_calculus_component(calculus, value, arguments, remapped)?;
-                self.builder.neg(value)?
-            }
-            ScalarCalculusNode::Add(left, right) => {
-                let left = self.lower_calculus_component(calculus, left, arguments, remapped)?;
-                let right = self.lower_calculus_component(calculus, right, arguments, remapped)?;
-                self.builder.add(left, right)?
-            }
-            ScalarCalculusNode::Mul(left, right) => {
-                let left = self.lower_calculus_component(calculus, left, arguments, remapped)?;
-                let right = self.lower_calculus_component(calculus, right, arguments, remapped)?;
-                self.builder.mul(left, right)?
-            }
-        };
-        remapped[index] = Some(mapped);
         Ok(mapped)
     }
 

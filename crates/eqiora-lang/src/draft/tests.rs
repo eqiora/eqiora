@@ -700,7 +700,7 @@ fn expression_contains_call(expression: &Expr, expected: &str) -> bool {
                     .expressions()
                     .any(|argument| expression_contains_call(argument, expected))
         }
-        ExprKind::Array(values) => values
+        ExprKind::Array(values) | ExprKind::Tuple(values) => values
             .iter()
             .any(|value| expression_contains_call(value, expected)),
         ExprKind::Index { value, index } => {
