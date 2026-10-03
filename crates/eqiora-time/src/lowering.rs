@@ -128,6 +128,52 @@ impl ConstantDerivativeMatrixProof {
         self.exact_rank
     }
 
+    /// Require local index-one regularity of the constant-mass residual.
+    /// `state_jacobian` is the row-major Jacobian of the regular residuals
+    /// with respect to values, excluding initial equations and their tangents.
+    /// This checks one point; it performs no index reduction or state selection.
+    ///
+    /// # Errors
+    /// Returns `EQ0705` for an invalid Jacobian or a singular/high-index block.
+    pub fn require_index_one_regularity(&self, state_jacobian: &[f64]) -> Result<(), Diagnostic> {
+        let n = self.dimension;
+        if state_jacobian.len() != self.coefficients.len()
+            || state_jacobian
+                .iter()
+                .any(|coefficient| !coefficient.is_finite())
+        {
+            return Err(invalid_lowering(
+                "regularity requires one finite square state Jacobian",
+            ));
+        }
+        if self.exact_rank == n {
+            return Ok(());
+        }
+        let entries = self
+            .coefficients
+            .len()
+            .checked_mul(4)
+            .ok_or_else(|| invalid_lowering("regularity block size overflow"))?;
+        let mut block = vec![0.0; entries];
+        for row in 0..n {
+            let mass = &self.coefficients[row * n..(row + 1) * n];
+            block[row * 2 * n..row * 2 * n + n].copy_from_slice(mass);
+            let start = (n + row) * 2 * n;
+            block[start..start + n].copy_from_slice(&state_jacobian[row * n..(row + 1) * n]);
+            block[start + n..start + 2 * n].copy_from_slice(mass);
+        }
+        // B=[M 0; A M]. The expected kernel dimension is n-rank(M):
+        // Mu=0 and Au+Mv=0 must force u=0 without differentiating constraints.
+        let actual = Self::new(2 * n, block)?.exact_rank();
+        let expected = n + self.exact_rank;
+        if actual != expected {
+            return Err(invalid_lowering(format!(
+                "fresh constant-mass initialization has an unsupported high-index or singular constraint block: local regularity rank {actual}, required {expected}"
+            )));
+        }
+        Ok(())
+    }
+
     /// Derive the monomial row view used only for explicit-ODE normalization.
     ///
     /// Returns `None` unless every row has exactly one non-zero coefficient

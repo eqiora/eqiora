@@ -13,6 +13,7 @@ eqiora-geometry = { workspace = true }
 eqiora-graph = { workspace = true }
 eqiora-ir = { workspace = true }
 eqiora-schema = { workspace = true }
+eqiora-time = { workspace = true }
 
 [lints]
 workspace = true

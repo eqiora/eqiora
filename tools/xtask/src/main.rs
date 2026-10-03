@@ -201,6 +201,9 @@ fn same_layer_dependency_is_allowed(package: &str, dependency: &str) -> bool {
             // owner: one-way reuse of pure typed derivatives, never a backend
             // or a reverse IR-to-SEM dependency.
             | ("eqiora-sem", "eqiora-ir")
+            // #1002: common execution shares the pure DAE regularity proof;
+            // no time backend or integration policy enters SEM.
+            | ("eqiora-sem", "eqiora-time")
             // RFC 0080/#520: external Component lowering consumes the same
             // opaque canonical-geometry projection so no caller can forge a
             // digest, dimension, or entity-set fact at the compiler boundary.

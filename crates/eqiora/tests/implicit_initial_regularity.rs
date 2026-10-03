@@ -40,7 +40,9 @@ fn hidden_and_singular_constraints_reject_at_their_regularity_boundary() {
             assert_eq!(errors[0].code(), codes::NONLINEAR_SOLVE_FAILED);
             assert!(errors[0].message().contains("initial Jacobian"));
         } else {
-            common.unwrap();
+            let errors = common.unwrap_err();
+            assert_eq!(errors[0].code(), codes::NONLINEAR_SOLVE_FAILED);
+            assert!(errors[0].message().contains("local regularity"));
         }
         let cpu = CpuProgram::lower(model.program()).unwrap();
         let relation = model.aliases()["r"].downcast().unwrap();
@@ -50,7 +52,7 @@ fn hidden_and_singular_constraints_reject_at_their_regularity_boundary() {
             assert_eq!(error.code(), codes::NONLINEAR_SOLVE_FAILED);
             assert!(error.message().contains("initial Jacobian"));
         } else {
-            assert_eq!(error.code(), codes::INVALID_TIME_LOWERING);
+            assert_eq!(error.code(), codes::NONLINEAR_SOLVE_FAILED);
             assert!(error.message().contains(rank), "{error:?}");
             assert!(
                 error

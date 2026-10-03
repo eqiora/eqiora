@@ -3,7 +3,7 @@
 //! Matching is not index reduction, numerical rank, or a choice of solved variable.
 
 use super::*;
-mod incidence;
+pub(super) mod incidence;
 mod report;
 use eqiora_schema::kernel::{ExprDag, ExprId};
 pub use report::{EquationAnalysis, IncidenceMatching};

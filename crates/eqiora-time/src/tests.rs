@@ -339,3 +339,23 @@ fn assert_close(actual: f64, expected: f64) {
         "{actual} != {expected}"
     );
 }
+
+#[test]
+fn local_constant_mass_regularity_distinguishes_hidden_and_coupled_constraints() {
+    let hidden = ConstantDerivativeMatrixProof::new(2, vec![1.0, 0.0, 0.0, 0.0]).unwrap();
+    let error = hidden
+        .require_index_one_regularity(&[0.0, -1.0, 1.0, 0.0])
+        .unwrap_err();
+    assert!(error.message().contains("rank 2, required 3"));
+    for (mass, state) in [
+        (vec![1.0, 1.0, 0.0, 0.0], vec![2.0, 0.0, 1.0, -1.0]),
+        (vec![1.0, 1.0, 1.0, 1.0], vec![2.0, 0.0, 0.0, 2.0]),
+    ] {
+        ConstantDerivativeMatrixProof::new(2, mass)
+            .unwrap()
+            .require_index_one_regularity(&state)
+            .unwrap();
+    }
+    assert!(hidden.require_index_one_regularity(&[1.0]).is_err());
+    assert!(hidden.require_index_one_regularity(&[f64::NAN; 4]).is_err());
+}
