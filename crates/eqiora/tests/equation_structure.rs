@@ -207,3 +207,42 @@ fn deficient_blocks_exclude_an_independent_balanced_component() {
         );
     }
 }
+
+#[test]
+fn deficient_component_occurrence_cannot_borrow_a_balanced_instances_equation() {
+    // The broken instance has rank two for three unknowns. The independent
+    // balanced instance must not enter either deficient block after elaboration.
+    for equations in ["x = 0; x = 0; y + z = 0;", "y + z = 0; x = 0; x = 0;"] {
+        let model = compile_model(&format!(
+            "component Broken() {{ variable x:1; variable y:1; variable z:1; relation equations {{ {equations} }} }} component Balanced() {{ variable x:1; relation equations {{ x=1; }} }} model M() {{ instance broken:Broken(); instance balanced:Balanced(); }}"
+        ));
+        let errors = Interpreter::new()
+            .initialize(model.program(), ReferenceConfig::new(0.0, 0.1).unwrap())
+            .unwrap_err();
+        assert_eq!(errors[0].code(), codes::NONLINEAR_SOLVE_FAILED);
+        let message = errors[0].message();
+        let (over, under) = message.split_once("underdetermined block:").unwrap();
+        assert!(
+            over.contains(&model.aliases()["broken.x"].to_string()),
+            "{message}"
+        );
+        for name in ["broken.y", "broken.z"] {
+            assert!(
+                under.contains(&model.aliases()[name].to_string()),
+                "{message}"
+            );
+        }
+        assert!(
+            !message.contains(&model.aliases()["balanced.x"].to_string()),
+            "{message}"
+        );
+        assert!(
+            errors[0]
+                .graph_path()
+                .unwrap()
+                .to_string()
+                .contains(&model.aliases()["broken.equations"].to_string()),
+            "{errors:?}"
+        );
+    }
+}
