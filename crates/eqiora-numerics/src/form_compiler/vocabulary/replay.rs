@@ -10,6 +10,7 @@ impl PrimalGalerkinCorrespondence {
     pub(in crate::form_compiler) fn replay_authored_restriction(
         &self,
         authored: &eqiora_compiler::AuthoredFormulationProjection,
+        test_dimension: eqiora_core::DimExponents,
     ) -> Result<(), &'static str> {
         if authored.equations().len() != 1
             || authored.trial_ulids().len() != 1
@@ -40,12 +41,12 @@ impl PrimalGalerkinCorrespondence {
             .map(|id| id.ulid().to_string())
             .collect::<Vec<_>>();
         boundaries.sort();
+        if authored.test_restrictions()[0].3 != test_dimension.exponents() {
+            return Err("test dimension differs from the admitted direction");
+        }
         if authored
             .test_restrictions()
             .first()
-            .filter(|(_, _, _, dimension)| {
-                *dimension == eqiora_core::DimExponents::DIMENSIONLESS.exponents()
-            })
             .map(|(_, _, bounds, _)| bounds.as_slice())
             != Some(boundaries.as_slice())
         {

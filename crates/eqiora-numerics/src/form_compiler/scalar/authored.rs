@@ -12,6 +12,7 @@ pub(crate) fn admit(
     program: &KernelProgram,
     derived: &DerivedScalarGalerkinForm,
 ) -> Result<(), Diagnostic> {
+    let mut has_variation = false;
     for (_, left, right) in projection.equations() {
         for expression in [left, right] {
             if let AuthoredFormExpressionV1::Variation {
@@ -36,12 +37,25 @@ pub(crate) fn admit(
                     rejection_with(projection, "variation energy has invalid live types")
                 })?;
                 expression.check_functional_variation(functional, &typed)?;
+                has_variation = true;
             }
         }
     }
+    let test_dimension = if has_variation {
+        let Some(eqiora_schema::kernel::KernelNode::Field(field)) = program.node(derived.field)
+        else {
+            return Err(rejection_with(
+                projection,
+                "variation trial is not a live Field",
+            ));
+        };
+        field.dimension()
+    } else {
+        eqiora_core::DimExponents::DIMENSIONLESS
+    };
     derived
         .certificate
-        .replay_authored_restriction(projection)
+        .replay_authored_restriction(projection, test_dimension)
         .map_err(|message| rejection_with(projection, message))?;
     let expected_domain = derived.domain.ulid().to_string();
     let expected_trial = derived.field.ulid().to_string();
@@ -94,11 +108,7 @@ pub(crate) fn admit(
             ),
         }),
     };
-    let (_, authored_left, authored_right) = &projection.equations()[0];
-    if [authored_left, authored_right]
-        .iter()
-        .any(|value| matches!(value, AuthoredFormExpressionV1::Variation { .. }))
-    {
+    if has_variation {
         return polynomial::matches_variation(projection, derived.dimension, &left, &right)
             .then_some(())
             .ok_or_else(|| {

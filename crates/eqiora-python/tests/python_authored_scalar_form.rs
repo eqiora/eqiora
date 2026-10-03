@@ -93,6 +93,23 @@ check_analytic_coefficients(energy_model, energy_result)
 energy_value = energy_result.observe(energy_model.observable("definition.energy"), quadrature_points=2)
 # Independently: K=8/3, b=1/4, u=3/32, so F=u*K*u/2-b*u=-3/256.
 assert abs(energy_value.value + 3/256) <= 1e-10
+# The variation direction carries the Field unit; here both are m and F is J.
+physical_energy = energy_source.replace("potential: 1", "potential: m").replace("w: 1", "w: m")
+physical_energy = physical_energy.replace("diffusion: 1", "diffusion: J/m^2").replace("1 / m ^ 2", "J/m^3").replace("energy:1", "energy:J")
+physical_model = compile_energy(physical_energy)
+physical_plan = eqiora.resolve(physical_model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
+physical_plan = eqiora.Plan.from_bytes(physical_plan.to_bytes())
+physical_result = eqiora.run(physical_plan)
+check_analytic_coefficients(physical_model, physical_result)
+physical_value = physical_result.observe(physical_model.observable("definition.energy"), quadrature_points=2)
+assert abs(physical_value.value + 3/256) <= 1e-10
+assert physical_value.value_type == eqiora.ValueType.real(eqiora.Dimension(mass=1, length=2, time=-2))
+try:
+    compile_energy(physical_energy.replace("w: m", "w: 1"))
+except eqiora.ValidationError as error:
+    assert "Field identity and dimension" in str(error), str(error)
+else:
+    raise AssertionError("dimensionless direction of a length Field was accepted")
 for changed in (
     energy_source.replace("diffusion*contract", "2*diffusion*contract"),
     energy_source.replace("-source_scale*potential", "+source_scale*potential"),
