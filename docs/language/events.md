@@ -78,6 +78,66 @@ derived switches occur at 2, 6 and 10 seconds, with temperature 20 K and slope -
 12 seconds. This memory is authored state and reset behavior. A
 [conditional value](conditionals.md) alone creates no hysteresis or event.
 
+## Finite mode-controlled components
+
+The bounded mode profile uses an explicitly initialized enum State and ordinary events.
+Transitions change values in a fixed set of equations. A `case` selects a value; it does
+not add or remove an equation, change topology, or select a new solved-variable set.
+For example:
+
+```eqiora
+enum Mode { Heating, Cooling }
+model Thermostat() {
+  state mode: Mode;
+  state temperature: K;
+  initial { mode = Mode.Heating; temperature = 20[K]; }
+  relation flow {
+    derivative(temperature) = case mode {
+      Mode.Heating => 1[K/s], Mode.Cooling => -1[K/s]
+    };
+  }
+  event upper = crossing(temperature - 22[K], direction = rising);
+  event lower = crossing(temperature - 18[K], direction = falling);
+  relation cool at upper { next(mode) = Mode.Cooling; }
+  relation heat at lower { next(mode) = Mode.Heating; }
+}
+```
+
+The enum retains nominal declaration identity through state updates. It has no numeric
+encoding or continuous derivative. Missing initial mode assignments reject. Every `case`
+requires exactly one arm for each declared member; its arm order supplies no transition
+priority. Use `execution_session` to inspect enum values and accepted activation identities.
+
+An event owns its guard and simultaneous reset Relations. All `pre(mode)` and other `pre`
+reads in one microstep see the same accepted left state, even when the reset also changes
+the mode. There is no priority among distinct active owners: competing writes to one State
+reject the whole boundary. Reordering declarations cannot resolve that conflict. A failed
+reset or continuous consistency solve likewise leaves the old mode and other state intact.
+
+Hold and enable behavior are authored equations. A reset leaves untargeted state unchanged;
+a mode-dependent reset can explicitly use `pre(command)` to retain its command. Real command
+memory has its ordinary evolution equation, such as `derivative(command) = 0[K/s^2]`.
+A Fault mode can select zero plant rate while retaining that command, then explicitly reset
+the command on recovery. This does not suppress the event itself or implicitly freeze all
+outputs of a component. Signal outputs continue to follow their declared clock/presence rules.
+
+The [focused mode tests](../../crates/eqiora/tests/finite_mode_control.rs) exercise the same
+mechanism for this thermostat and a fault/thermal controller. The thermostat switches at
+2, 6 and 10 seconds. In the fault case, failure at 2.5 seconds retains temperature 21.5 K
+and command -1 K/s; recovery at 4 seconds changes the command to +1 K/s. Later switches
+occur at 4.5 and 8.5 seconds, giving 19.5 K at 10 seconds. These values follow by integrating
+the piecewise constant rates. In-process checkpoints after each transition preserve mode,
+command, reset memory and event arming without repeating a transition. This is product-test
+coverage, not promotion of the separate thermostat or fault-plant benchmark claims.
+
+Hierarchical states would additionally need ancestry and entry/exit ordering; parallel
+regions need explicit activation and conflicting-write rules; history states need an owned
+active-configuration restore contract. None is inferred from enum member names. Authored
+priority needs a separate explicit arbitration contract. Selecting different equation sets
+would additionally require per-mode balance, regularity and consistent reinitialization
+before commit. Those statechart and switched-equation capabilities, dynamic topology, and
+durable event checkpoint serialization are outside this fixed-equation mode profile.
+
 Python `Component.event(name, guard, *, direction=...)` returns a distinct `q.Event` handle.
 `relation(..., at=event)` and `let_alias(..., at=event)` retain that local owner; a Clock or
 foreign Event cannot substitute for it. Python authors the same source and adds no event
