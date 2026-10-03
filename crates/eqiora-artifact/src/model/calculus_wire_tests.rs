@@ -244,10 +244,10 @@ mod pure_constraint_tests {
             .with_dimension(length);
         assert_eq!(
             serde_json::to_value(WirePureValueClass::encode(rank_two)).unwrap(),
-            json!({"kind":"spatial-tensor","rank":2,"scalar_domain":null,"dimension":[[0,1],[1,1],[0,1],[0,1],[0,1],[0,1],[0,1]]})
+            json!({"kind":"spatial-tensor","rank":2,"extent":null,"scalar_domain":null,"dimension":[[0,1],[1,1],[0,1],[0,1],[0,1],[0,1],[0,1]]})
         );
         let invalid: WirePureValueClass = serde_json::from_value(
-            json!({"kind":"spatial-tensor","rank":0,"scalar_domain":null,"dimension":null}),
+            json!({"kind":"spatial-tensor","rank":0,"extent":null,"scalar_domain":null,"dimension":null}),
         )
         .unwrap();
         assert!(invalid.decode().is_err());
