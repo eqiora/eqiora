@@ -159,3 +159,82 @@ fn result_replay_rejects_a_fabricated_zero_update_record_before_digest_check() {
         CommonResult::from_bytes(&serde_json::to_vec(&payload).unwrap(), &resolved).unwrap_err();
     assert!(error.message().contains("zero-update"), "{error:?}");
 }
+
+#[test]
+fn accepted_finite_point_separates_residual_partials_and_reduced_output_actions() {
+    use eqiora::differentiation::{
+        AcceptedOutputLinearization, adjoint_output_gradient, forward_output_sensitivity,
+    };
+    use eqiora::ir::{LinearizedOutput, LinearizedRelation, RelationTangent};
+    use eqiora::solver::{LinearOperatorProperties, LinearSolveRequest};
+    let (document, plan) = fixture(4.0, 1e-8, "w*w=p");
+    let initial = plan.initial_state(&[seed(&document, &plan, 1.0)]).unwrap();
+    let parameter = document.aliases()["p"].downcast().unwrap();
+    let observable = document.aliases()["output"].downcast().unwrap();
+    for (p, w) in [(4.0, 2.0), (9.0, 3.0)] {
+        let point = plan
+            .differentiate(
+                &initial,
+                &[parameter],
+                Some(&[p]),
+                observable,
+                &FaerLinearSolver,
+            )
+            .unwrap();
+        assert!(point.receipt().is_none());
+        assert_eq!(point.nonlinear_initial_state().unwrap(), &initial);
+        assert!(point.nonlinear_iterations().unwrap() > 0);
+        assert!((point.output_values()[0] - (w + p)).abs() < 1e-12);
+        let mut partial = [0.0];
+        point
+            .relation()
+            .jvp(RelationTangent::Parameter(&[1.0]), &mut partial)
+            .unwrap();
+        assert_eq!(partial, [-1.0]);
+        LinearizedOutput::jvp(&point, &[0.0], &[1.0], &mut partial).unwrap();
+        assert_eq!(partial, [1.0]);
+        let accepted = AcceptedOutputLinearization::new_with_canonical_state_jacobian(
+            point.relation(),
+            &point,
+            point.relation().state_jacobian(),
+            point.residual_target(),
+        )
+        .unwrap();
+        let forward = forward_output_sensitivity(
+            &accepted,
+            &[1.0],
+            LinearOperatorProperties::General,
+            LinearSolveRequest::new(&FaerLinearSolver, plan.linear()),
+        )
+        .unwrap();
+        let (_, tangent) = forward.into_parts();
+        let reverse = adjoint_output_gradient(
+            &accepted,
+            &[1.0],
+            LinearOperatorProperties::General,
+            LinearSolveRequest::new(&FaerLinearSolver, plan.linear()),
+        )
+        .unwrap();
+        let (_, gradient) = reverse.into_parts();
+        // R_w=2w, R_p=-1 imply dw/dp=1/(2w); O=w+p adds the direct 1.
+        let expected = 1.0 + 1.0 / (2.0 * w);
+        assert!((tangent[0] - expected).abs() < 1e-12);
+        assert!((gradient[0] - expected).abs() < 1e-12);
+    }
+    let error = plan
+        .differentiate(
+            &initial,
+            &[parameter],
+            Some(&[0.0]),
+            observable,
+            &FaerLinearSolver,
+        )
+        .unwrap_err();
+    assert!(error.message().contains("inequality"), "{error:?}");
+    let exact = plan.initial_state(&[seed(&document, &plan, 2.0)]).unwrap();
+    let point = plan
+        .differentiate(&exact, &[parameter], None, observable, &FaerLinearSolver)
+        .unwrap();
+    assert_eq!(point.nonlinear_iterations(), Some(0));
+    assert!(point.receipt().is_none());
+}

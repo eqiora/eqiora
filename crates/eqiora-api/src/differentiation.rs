@@ -9,10 +9,7 @@ use eqiora_differentiation::{
 };
 use eqiora_execution::ExecutionReceipt;
 use eqiora_ir::{LinearizedOutput, LinearizedRelation};
-use eqiora_numerics::{
-    CommonScalarPlan, common::AssembledLinearizedRelation,
-    scalar::CartesianScalarFieldLinearization,
-};
+use eqiora_numerics::{CommonScalarDifferentiationPoint, CommonScalarPlan};
 use eqiora_solver::{
     CanonicalCsrAgreementFingerprintV1, LinearSolveRequest, REFERENCE_LINEAR_SOLVER, SolveReport,
     SolverPlan,
@@ -461,11 +458,9 @@ impl DifferentiableVjp {
 pub struct DifferentiableEvaluation {
     identity: DifferentiableProgramIdentity,
     point: DifferentiableParameterPoint,
-    relation: AssembledLinearizedRelation,
-    output: CartesianScalarFieldLinearization,
+    native: CommonScalarDifferentiationPoint,
     primal_residual_norm: f64,
     residual_tolerance: f64,
-    receipt: ExecutionReceipt,
 }
 
 /// Opaque immutable differentiable program over one fixed input coordinate set.
@@ -523,14 +518,16 @@ impl DifferentiableProgram {
             )));
         }
         let selected = inputs.iter().map(|input| input.id).collect::<Vec<_>>();
-        let (relation, field_output, receipt) = plan
-            .differentiate(&selected, None)
-            .map_err(single)?
-            .into_parts();
+        let native = plan.differentiate(&selected, None).map_err(single)?;
+        let relation = native.relation();
+        let field_output = &native;
+        let receipt = native
+            .receipt()
+            .expect("scalar Plan supplies a linear receipt");
 
         let residual_tolerance = receipt.report().residual_target();
         let accepted_linearization =
-            AcceptedOutputLinearization::new(&relation, &field_output, residual_tolerance)
+            AcceptedOutputLinearization::new(relation, field_output, residual_tolerance)
                 .map_err(single)?;
         if relation.state_jacobian().agreement_fingerprint() != receipt.operator() {
             return Err(single(invalid(
@@ -557,9 +554,7 @@ impl DifferentiableProgram {
         let default = DifferentiableEvaluation {
             identity: identity.clone(),
             point,
-            receipt,
-            relation,
-            output: field_output,
+            native,
             primal_residual_norm,
             residual_tolerance,
         };
@@ -612,11 +607,15 @@ impl DifferentiableProgram {
             return Ok(self.default.clone());
         }
 
-        let (relation, output, receipt) = self
+        let native = self
             .plan
             .differentiate(&self.identity.inputs, Some(parameters))
-            .map_err(single)?
-            .into_parts();
+            .map_err(single)?;
+        let relation = native.relation();
+        let output = &native;
+        let receipt = native
+            .receipt()
+            .expect("scalar Plan supplies a linear receipt");
         if relation.design_values().len() != parameters.len()
             || parameters
                 .iter()
@@ -633,7 +632,7 @@ impl DifferentiableProgram {
             )));
         }
         let residual_tolerance = receipt.report().residual_target();
-        let accepted = AcceptedOutputLinearization::new(&relation, &output, residual_tolerance)
+        let accepted = AcceptedOutputLinearization::new(relation, output, residual_tolerance)
             .map_err(single)?;
         if relation.state_jacobian().agreement_fingerprint() != receipt.operator() {
             return Err(single(invalid(
@@ -648,9 +647,7 @@ impl DifferentiableProgram {
             },
             primal_residual_norm: accepted.relation().primal_residual_norm(),
             residual_tolerance,
-            receipt,
-            relation,
-            output,
+            native,
         })
     }
 
@@ -695,7 +692,7 @@ impl DifferentiableEvaluation {
     #[must_use]
     pub fn primal(&self) -> DifferentiablePrimal {
         DifferentiablePrimal {
-            output: self.output.values().to_vec(),
+            output: self.native.output_values(),
             evidence: self.evidence(
                 DifferentiationMode::Primal,
                 None,
@@ -710,20 +707,20 @@ impl DifferentiableEvaluation {
     /// Preserves shape, non-finite input, relation, and solver diagnostics.
     pub fn jvp(&self, tangent: &[f64]) -> Result<DifferentiableJvp, Diagnostic> {
         let accepted = AcceptedOutputLinearization::new(
-            &self.relation,
-            &self.output,
+            self.native.relation(),
+            &self.native,
             self.residual_tolerance,
         )?;
         let sensitivity = forward_output_sensitivity(
             &accepted,
             tangent,
-            self.relation.state_jacobian().properties(),
+            self.native.relation().state_jacobian().properties(),
             LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, self.identity.solver),
         )?;
         let (state, tangent) = sensitivity.into_parts();
         let (_, solve) = state.into_parts();
         Ok(DifferentiableJvp {
-            output: self.output.values().to_vec(),
+            output: self.native.output_values(),
             tangent,
             evidence: self.evidence(
                 DifferentiationMode::Jvp,
@@ -740,20 +737,20 @@ impl DifferentiableEvaluation {
     /// solver diagnostics.
     pub fn vjp(&self, cotangent: &[f64]) -> Result<DifferentiableVjp, Diagnostic> {
         let accepted = AcceptedOutputLinearization::new(
-            &self.relation,
-            &self.output,
+            self.native.relation(),
+            &self.native,
             self.residual_tolerance,
         )?;
         let gradient = adjoint_output_gradient(
             &accepted,
             cotangent,
-            self.relation.state_jacobian().properties(),
+            self.native.relation().state_jacobian().properties(),
             LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, self.identity.solver),
         )?;
         let (adjoint, input_cotangent) = gradient.into_parts();
         let (_, solve) = adjoint.into_parts();
         Ok(DifferentiableVjp {
-            output: self.output.values().to_vec(),
+            output: self.native.output_values(),
             input_cotangent,
             evidence: self.evidence(
                 DifferentiationMode::Vjp,
@@ -777,7 +774,11 @@ impl DifferentiableEvaluation {
             linearization_state,
             primal_residual_norm: self.primal_residual_norm,
             residual_tolerance: self.residual_tolerance,
-            receipt: self.receipt.clone(),
+            receipt: self
+                .native
+                .receipt()
+                .expect("scalar Program owns a linear receipt")
+                .clone(),
             derivative_solve,
         }
     }

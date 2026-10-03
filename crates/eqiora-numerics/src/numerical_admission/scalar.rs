@@ -556,11 +556,9 @@ impl CommonScalarPlan {
                 "common Plan solve receipt differs from its differentiated state system",
             ));
         }
-        Ok(CommonScalarDifferentiationPoint {
-            relation,
-            output,
-            receipt,
-        })
+        Ok(CommonScalarDifferentiationPoint::from_linear(
+            relation, output, receipt,
+        ))
     }
 
     #[must_use]

@@ -5,7 +5,11 @@ use eqiora_solver::LinearSolverBackend;
 
 impl DifferentiableProgram {
     pub(crate) fn validate_map_provider(&self) -> Result<(), Diagnostic> {
-        let receipt = &self.default.receipt;
+        let receipt = self
+            .default
+            .native
+            .receipt()
+            .ok_or_else(|| invalid("bounded maps require an accepted linear point"))?;
         if receipt.solver_provider() != REFERENCE_LINEAR_SOLVER.provider()
             || receipt.report().execution() != eqiora_solver::ExecutionReport::host_serial()
             || receipt.report().verification() != eqiora_solver::ExecutionReport::host_serial()
@@ -23,7 +27,9 @@ impl DifferentiableProgram {
     pub(crate) fn map_binding_metadata_bytes(&self) -> Result<usize, Diagnostic> {
         Ok(self
             .default
-            .receipt
+            .native
+            .receipt()
+            .ok_or_else(|| invalid("bounded maps require an accepted linear point"))?
             .binding()
             .realization()
             .to_bytes()?
@@ -34,7 +40,9 @@ impl DifferentiableProgram {
         &self,
         mut member: DifferentiableEvaluation,
     ) -> Result<DifferentiableEvaluation, Diagnostic> {
-        member.receipt = member.receipt.with_shared_binding(&self.default.receipt)?;
+        member.native = member
+            .native
+            .with_shared_receipt_binding(&self.default.native)?;
         Ok(member)
     }
     pub(crate) fn validate_map_point(&self, values: &[f64]) -> Result<(), Diagnostic> {
@@ -58,7 +66,7 @@ impl DifferentiableProgram {
     }
 
     pub(crate) fn map_occurrence_bytes(&self) -> Result<usize, Diagnostic> {
-        let n = self.default.relation.unknown_dimension();
+        let n = self.default.native.relation().unknown_dimension();
         let p = self.identity.input_dimension();
         let o = self.identity.output_dimension();
         // A fixed Program retains its state/output dimensions. n*n bounds CSR
@@ -80,9 +88,10 @@ impl DifferentiableProgram {
         )?;
         [
             size_of::<DifferentiableEvaluation>(),
+            size_of::<ExecutionReceipt>(), // the accepted linear point's one boxed receipt
             size_of::<DifferentiableParameterPoint>(),
             size_of::<eqiora_solver::CanonicalCsrSystemView>(),
-            size_of_val(self.default.relation.design_coordinates()),
+            size_of_val(self.default.native.relation().design_coordinates()),
             self.identity.plan_identity.len(),
             64, // canonical Model digest
             csr_entries,
@@ -102,7 +111,9 @@ impl DifferentiableProgram {
 
 impl DifferentiableEvaluation {
     pub(crate) fn map_receipt(&self) -> &ExecutionReceipt {
-        &self.receipt
+        self.native
+            .receipt()
+            .expect("bounded map admission requires a linear point")
     }
 }
 

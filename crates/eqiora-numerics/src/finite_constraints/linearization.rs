@@ -4,14 +4,14 @@ use eqiora_core::ValueLiteral;
 use eqiora_ir::{DifferentiationRole, LinearizedRelation, RelationTangent, ScalarOperatorIr};
 use eqiora_schema::kernel::KernelNode;
 
-pub(super) struct ExpressionLinearization {
+pub(crate) struct ExpressionLinearization {
     pub values: Vec<f64>,
     pub unknown_jacobian: Vec<f64>,
     pub parameter_jacobian: Vec<f64>,
 }
 
 impl FiniteConstraintProblem {
-    pub(super) fn linearize_expression(
+    pub(crate) fn linearize_expression(
         &self,
         expression: &ExprDag,
         values: &[f64],

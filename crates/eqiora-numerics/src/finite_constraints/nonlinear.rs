@@ -19,6 +19,10 @@ pub(crate) struct FiniteNonlinearSolution {
 }
 
 impl FiniteConstraintProblem {
+    pub(crate) fn original_residual(&self, values: &[f64]) -> Result<Vec<f64>, Diagnostic> {
+        solve::assess_original(self, values, f64::MAX).map(|(_, residual)| residual)
+    }
+
     /// Bind one evaluation-local Parameter point without replacing the mathematical Model.
     pub(crate) fn at_parameters(
         &self,
@@ -89,7 +93,7 @@ impl FiniteConstraintProblem {
             .solve_at_point(initial, nonlinear, linear)
     }
 
-    fn solve_at_point(
+    pub(crate) fn solve_at_point(
         &self,
         initial: &[f64],
         nonlinear: NonlinearSolvePlan,
@@ -169,7 +173,7 @@ impl FiniteConstraintProblem {
         }
     }
 
-    pub(super) fn equality_jacobian(
+    pub(crate) fn equality_jacobian(
         &self,
         values: &[f64],
         selected: &[Id<kinds::Parameter>],

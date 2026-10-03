@@ -2,6 +2,7 @@
 
 use super::*;
 use eqiora_realization::NonlinearSolvePlan;
+mod differentiation;
 mod problem;
 use crate::finite_constraints::{ConstraintAssessment, FiniteConstraintEnforcement};
 use crate::physical_network::{

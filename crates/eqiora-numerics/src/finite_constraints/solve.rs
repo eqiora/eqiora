@@ -62,6 +62,14 @@ pub(super) fn original_assessment(
     values: &[f64],
     target: f64,
 ) -> Result<ConstraintAssessment, Diagnostic> {
+    assess_original(problem, values, target).map(|(assessment, _)| assessment)
+}
+
+pub(super) fn assess_original(
+    problem: &FiniteConstraintProblem,
+    values: &[f64],
+    target: f64,
+) -> Result<(ConstraintAssessment, Vec<f64>), Diagnostic> {
     if values.len() != problem.symbols.len()
         || values.iter().any(|value| !value.is_finite())
         || !target.is_finite()
@@ -179,12 +187,15 @@ pub(super) fn original_assessment(
             "original Model equality residual exceeds the explicit SolverPlan target",
         ));
     }
-    Ok(ConstraintAssessment {
-        measurements,
-        equality_residual_norm: norm,
-        residual_target: target,
-        active_set_mask: None,
-    })
+    Ok((
+        ConstraintAssessment {
+            measurements,
+            equality_residual_norm: norm,
+            residual_target: target,
+            active_set_mask: None,
+        },
+        residuals,
+    ))
 }
 
 fn branch_system(
