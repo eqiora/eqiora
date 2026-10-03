@@ -18,9 +18,7 @@ pub use calculus::{
     ResultAxis, ScalarCalculus, ScalarCalculusAtom, ScalarCalculusNode, StandardPureOperator,
     SupportMap, SupportMapIntent, SupportMapOrientation, SupportMapPairing, SupportMapViolation,
 };
-pub use component::{
-    ComponentScalarRow, ComponentScalarization, ScalarPart, ScalarSymbolCoordinate,
-};
+pub use component::{ComponentScalarRow, ComponentScalarization, ScalarSymbolCoordinate};
 pub use linearization::{
     DifferentiationRole, DiscreteStepLinearization, LinearizedOutput, LinearizedRelation,
     RelationCotangent, RelationTangent, ScalarObjectiveLinearization,

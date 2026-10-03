@@ -3,6 +3,53 @@
 use super::*;
 
 impl KernelProgram {
+    /// Evaluate the retained expression of one finite Observable in this exact Model.
+    /// Symbol values come from the caller's admitted numerical context; this performs
+    /// no spatial quadrature or solver acceptance.
+    ///
+    /// # Errors
+    /// Rejects foreign Observables, spatial reductions, unavailable symbols, invalid
+    /// arithmetic and a result that differs from the declared Observable type.
+    pub fn evaluate_finite_observable(
+        &self,
+        observable: Id<kinds::Observable>,
+        resolve: &mut dyn FnMut(SymbolRef) -> Option<eqiora_core::ValueLiteral>,
+    ) -> Result<eqiora_core::ValueLiteral, Diagnostic> {
+        let Some(KernelNode::Observable(definition)) = self.node(observable.erase()) else {
+            return Err(kernel_error(
+                observable.erase(),
+                "Observable is outside the selected Model",
+            ));
+        };
+        if !matches!(
+            definition.reduction(),
+            eqiora_schema::kernel::ObservableReduction::Value
+        ) {
+            return Err(kernel_error(
+                observable.erase(),
+                "finite evaluation cannot perform spatial quadrature",
+            ));
+        }
+        let values = crate::evaluate::evaluate_expression(
+            observable.erase(),
+            definition.expression(),
+            resolve,
+        )?;
+        let value = values.into_iter().next().ok_or_else(|| {
+            kernel_error(
+                observable.erase(),
+                "Observable expression has no evaluated root",
+            )
+        })?;
+        if value.value_type() != definition.value_type() {
+            return Err(kernel_error(
+                observable.erase(),
+                "evaluated Observable type differs from its admitted declaration",
+            ));
+        }
+        Ok(value)
+    }
+
     /// Infer an Observable's retained expression in this exact Model.
     /// # Errors
     /// Rejects foreign identities or incompatible expression/measure types.

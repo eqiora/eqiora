@@ -142,7 +142,7 @@ pub mod ir {
         ConstantSymbolJacobian, DifferentiationRole, DiscreteStepLinearization, LinearizedOutput,
         LinearizedRelation, LocalLinearActionIr, RelationCotangent, RelationTangent,
         ScalarInputOperatorIr, ScalarInputSlot, ScalarLinearization, ScalarObjectiveLinearization,
-        ScalarOperatorIr, ScalarPart, ScalarSymbolCoordinate, SymbolicLinearityFailure,
+        ScalarOperatorIr, ScalarSymbolCoordinate, SymbolicLinearityFailure,
     };
 }
 
@@ -306,8 +306,7 @@ pub mod runtime {
 /// Reference semantics: the interpreter that defines what programs mean.
 pub mod sem {
     pub use eqiora_sem::{
-        ComposedResidualSystem, ExecutionProgress, ExecutionSession, ExpressionBackend,
-        Interpreter, KernelProgram, PhysicalUnknown, ReferenceConfig, ReferenceExpressionBackend,
-        Sample, ScalarPhysicalSubsystemId, Trajectory,
+        ComposedResidualSystem, ExecutionProgress, ExecutionSession, Interpreter, KernelProgram,
+        PhysicalUnknown, ReferenceConfig, Sample, ScalarPhysicalSubsystemId, Trajectory,
     };
 }

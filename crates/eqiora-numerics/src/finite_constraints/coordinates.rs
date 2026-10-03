@@ -1,7 +1,7 @@
 //! Typed values and numerical coordinates retain one original Field identity.
 use super::*;
 use eqiora_core::{ScalarDomain, ValueLiteral};
-use eqiora_ir::{ScalarPart, ScalarSymbolCoordinate};
+use eqiora_ir::ScalarSymbolCoordinate;
 use eqiora_schema::kernel::{
     KernelNode,
     typing::{ExpressionType, RootContract, TypedResidual},
@@ -23,7 +23,7 @@ pub(super) fn component(
     let pair = value
         .component(flat)
         .ok_or_else(|| invalid("numeric component is unavailable"))?;
-    Ok(if coordinate.part() == ScalarPart::Real {
+    Ok(if !coordinate.is_imaginary() {
         pair.0
     } else {
         pair.1

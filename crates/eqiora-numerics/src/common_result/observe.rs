@@ -5,9 +5,8 @@ use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id, ValueLiteral};
 use eqiora_meshing::QuadratureRule;
 use eqiora_schema::kernel::{KernelNode, ObservableReduction, SymbolRef};
-use eqiora_sem::{ExpressionBackend, ReferenceExpressionBackend};
 
-use super::{CommonResult, invalid};
+use super::{CommonResult, CommonResultPayload, StaticObservation, invalid};
 
 mod spatial;
 mod tangent;
@@ -106,16 +105,7 @@ impl CommonResult {
                             ValueLiteral::from_real(ty, values[index]).ok()
                         }),
                 };
-                let values = ReferenceExpressionBackend.evaluate(
-                    observable.erase(),
-                    typed.expression(),
-                    typed.expression().roots(),
-                    &mut resolve,
-                )?;
-                values
-                    .into_iter()
-                    .next()
-                    .ok_or_else(|| invalid("Observable expression has no evaluated root"))?
+                program.evaluate_finite_observable(observable, &mut resolve)?
             }
             ObservableReduction::SpatialIntegral { domain, .. } => {
                 let rule = quadrature.ok_or_else(|| {
@@ -153,5 +143,69 @@ fn observation_program(
                 .next()
                 .expect("failed replay has diagnostic")
         })
+    }
+}
+
+impl CommonResult {
+    #[must_use]
+    #[allow(clippy::type_complexity)]
+    pub fn elasticity_observation(
+        &self,
+    ) -> Option<([f64; 2], [f64; 2], [usize; 2], [[f64; 2]; 2])> {
+        match &self.payload {
+            CommonResultPayload::Static(payload) => match &payload.observation {
+                StaticObservation::Elasticity(value) => Some((
+                    value.constrained_reaction,
+                    value.integrated_body_force,
+                    [
+                        payload.assembly.packet_count(),
+                        payload.assembly.target_count(),
+                    ],
+                    value.exact_bounds,
+                )),
+                StaticObservation::Scalar | StaticObservation::SteadyStokes(_) => None,
+            },
+            _ => None,
+        }
+    }
+    #[must_use]
+    pub fn steady_stokes_observation(&self) -> Option<([f64; 4], [[f64; 2]; 6])> {
+        match &self.payload {
+            CommonResultPayload::Static(payload) => match &payload.observation {
+                StaticObservation::SteadyStokes(value) => Some((value.scalars, value.vectors)),
+                StaticObservation::Scalar | StaticObservation::Elasticity(_) => None,
+            },
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn steady_stokes_boundary_reaction(&self, name: &str) -> Option<[f64; 2]> {
+        let CommonResultPayload::Static(payload) = &self.payload else {
+            return None;
+        };
+        let StaticObservation::SteadyStokes(value) = &payload.observation else {
+            return None;
+        };
+        value
+            .reactions
+            .iter()
+            .find(|(key, _)| key == name)
+            .map(|(_, value)| *value)
+    }
+
+    #[must_use]
+    pub fn steady_stokes_boundary_flux(&self, name: &str) -> Option<f64> {
+        let CommonResultPayload::Static(payload) = &self.payload else {
+            return None;
+        };
+        let StaticObservation::SteadyStokes(value) = &payload.observation else {
+            return None;
+        };
+        value
+            .fluxes
+            .iter()
+            .find(|(key, _)| key == name)
+            .map(|(_, value)| *value)
     }
 }

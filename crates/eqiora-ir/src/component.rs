@@ -16,7 +16,7 @@ use crate::{
 
 /// Real coordinate within a mathematical scalar, independent of storage precision.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ScalarPart {
+enum ScalarPart {
     /// Real component (the only coordinate of a real scalar).
     Real,
     /// Imaginary component of a complex scalar.
@@ -82,10 +82,11 @@ impl ScalarSymbolCoordinate {
         self.symbol
     }
 
-    /// Mathematical real/imaginary coordinate, separate from the channel index.
+    /// Whether this is the imaginary coordinate; false denotes the real coordinate.
+    /// This is separate from the channel index.
     #[must_use]
-    pub const fn part(&self) -> ScalarPart {
-        self.part
+    pub const fn is_imaginary(&self) -> bool {
+        matches!(self.part, ScalarPart::Imaginary)
     }
 
     /// Exact row-major component multi-index; empty for a scalar.
@@ -112,10 +113,10 @@ impl ComponentScalarRow {
         self.root_index
     }
 
-    /// Real or imaginary residual coordinate of the original root.
+    /// Whether this is the imaginary residual coordinate of the original root.
     #[must_use]
-    pub const fn part(&self) -> ScalarPart {
-        self.part
+    pub const fn is_imaginary(&self) -> bool {
+        matches!(self.part, ScalarPart::Imaginary)
     }
 
     /// Row-major component multi-index within the original shaped root.

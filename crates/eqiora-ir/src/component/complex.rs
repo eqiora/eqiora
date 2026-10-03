@@ -141,7 +141,7 @@ mod tests {
         let actual = lowering
             .evaluate(|coordinate| {
                 assert_eq!(coordinate.symbol(), field);
-                match (coordinate.component_index(), coordinate.part()) {
+                match (coordinate.component_index(), coordinate.part) {
                     ([0], ScalarPart::Real) => Some(3.),
                     ([0], ScalarPart::Imaginary) => Some(4.),
                     ([1], ScalarPart::Real) => Some(-2.),
@@ -156,8 +156,8 @@ mod tests {
         assert_eq!(lowering.rows()[0].component_index(), [0]);
         assert_eq!(lowering.rows()[1].component_index(), [0]);
         assert_eq!(lowering.rows()[2].component_index(), [1]);
-        assert_eq!(lowering.rows()[3].part(), ScalarPart::Imaginary);
-        assert_eq!(lowering.rows()[6].part(), ScalarPart::Real);
+        assert_eq!(lowering.rows()[3].part, ScalarPart::Imaginary);
+        assert_eq!(lowering.rows()[6].part, ScalarPart::Real);
         // Deliberately permute the requested columns: y_im, x_re, y_re, x_im.
         let selected = [
             (1, ScalarPart::Imaginary),
@@ -171,7 +171,7 @@ mod tests {
                 .iter()
                 .flat_map(|row| row.symbols())
                 .find(|coordinate| {
-                    coordinate.component_index() == [index] && coordinate.part() == part
+                    coordinate.component_index() == [index] && coordinate.part == part
                 })
                 .unwrap()
                 .clone()
@@ -256,7 +256,7 @@ mod tests {
         let lowering = ComponentScalarization::lower(&typed).unwrap();
         let residual = lowering
             .evaluate(|coordinate| {
-                Some(match coordinate.part() {
+                Some(match coordinate.part {
                     ScalarPart::Real => 3.,
                     ScalarPart::Imaginary => 4.,
                 })

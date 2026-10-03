@@ -71,10 +71,10 @@ fn scalarization_retains_exact_field_identity_for_both_complex_parts() {
                 let first = &result.rows()[0];
                 let second = &result.rows()[1];
                 assert_eq!(first.symbols()[0].symbol(), second.symbols()[0].symbol());
-                assert_eq!(first.part(), super::ScalarPart::Real);
-                assert_eq!(second.part(), super::ScalarPart::Imaginary);
-                assert_eq!(first.symbols()[0].part(), super::ScalarPart::Real);
-                assert_eq!(second.symbols()[0].part(), super::ScalarPart::Imaginary);
+                assert!(!first.is_imaginary());
+                assert!(second.is_imaginary());
+                assert!(!first.symbols()[0].is_imaginary());
+                assert!(second.symbols()[0].is_imaginary());
             }
         }
     }

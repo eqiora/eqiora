@@ -925,67 +925,6 @@ impl CommonResult {
         self.fsi_state(index)
             .map(|state| (state.assembly.packet_count(), state.assembly.target_count()))
     }
-    #[must_use]
-    #[allow(clippy::type_complexity)]
-    pub fn elasticity_observation(
-        &self,
-    ) -> Option<([f64; 2], [f64; 2], [usize; 2], [[f64; 2]; 2])> {
-        match &self.payload {
-            CommonResultPayload::Static(payload) => match &payload.observation {
-                StaticObservation::Elasticity(value) => Some((
-                    value.constrained_reaction,
-                    value.integrated_body_force,
-                    [
-                        payload.assembly.packet_count(),
-                        payload.assembly.target_count(),
-                    ],
-                    value.exact_bounds,
-                )),
-                StaticObservation::Scalar | StaticObservation::SteadyStokes(_) => None,
-            },
-            _ => None,
-        }
-    }
-    #[must_use]
-    pub fn steady_stokes_observation(&self) -> Option<([f64; 4], [[f64; 2]; 6])> {
-        match &self.payload {
-            CommonResultPayload::Static(payload) => match &payload.observation {
-                StaticObservation::SteadyStokes(value) => Some((value.scalars, value.vectors)),
-                StaticObservation::Scalar | StaticObservation::Elasticity(_) => None,
-            },
-            _ => None,
-        }
-    }
-
-    #[must_use]
-    pub fn steady_stokes_boundary_reaction(&self, name: &str) -> Option<[f64; 2]> {
-        let CommonResultPayload::Static(payload) = &self.payload else {
-            return None;
-        };
-        let StaticObservation::SteadyStokes(value) = &payload.observation else {
-            return None;
-        };
-        value
-            .reactions
-            .iter()
-            .find(|(key, _)| key == name)
-            .map(|(_, value)| *value)
-    }
-
-    #[must_use]
-    pub fn steady_stokes_boundary_flux(&self, name: &str) -> Option<f64> {
-        let CommonResultPayload::Static(payload) = &self.payload else {
-            return None;
-        };
-        let StaticObservation::SteadyStokes(value) = &payload.observation else {
-            return None;
-        };
-        value
-            .fluxes
-            .iter()
-            .find(|(key, _)| key == name)
-            .map(|(_, value)| *value)
-    }
 }
 
 fn require_elapsed(value: f64) -> Result<(), Diagnostic> {
