@@ -345,7 +345,11 @@ impl RealizationCapability {
                 "spatial realization capabilities currently require real scalar operators",
             ));
         }
-        if !solver.algorithm.accepts(solver.operator_properties) {
+        if !solver.algorithm.accepts(solver.operator_properties)
+            || !solver
+                .operator_properties
+                .supports_domain(solver.scalar_domain)
+        {
             return Err(invalid_realization(format!(
                 "realization capability has an incompatible solver/property pair: {solver:?}",
             )));

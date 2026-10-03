@@ -1,3 +1,5 @@
+mod properties;
+
 use eqiora_core::Scalar;
 use num_complex::ComplexFloat;
 
@@ -50,7 +52,9 @@ pub trait CompleteCsrStorage<S = f64> {
 /// carries no Semantic Model or Realization provenance. The v1 property tags
 /// are frozen as `General = 0`, `SymmetricPositiveDefinite = 1`, and
 /// `SymmetricIndefinite = 2`; adding the last tag preserved fingerprints
-/// produced with either earlier property. The scalar tags are binary64 real = 1
+/// produced with either earlier property. Additional tags are symmetric = 3,
+/// complex symmetric = 4, Hermitian = 5, and Hermitian positive definite = 6.
+/// The scalar tags are binary64 real = 1
 /// and binary64 complex = 2; complex entries bind real then imaginary bits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CanonicalCsrAgreementFingerprintV1([u8; 32]);
@@ -182,6 +186,7 @@ impl<S: Scalar + ComplexFloat<Real = f64> + Sync> CanonicalCsrSystemView<S> {
             &values,
             &right_hand_side,
         )?;
+        properties::validate_declared_symmetry(&row_offsets, &column_indices, &values, properties)?;
         let agreement_fingerprint = agreement_fingerprint(
             rows,
             columns,
@@ -578,6 +583,10 @@ const fn agreement_property_tag_v1(properties: LinearOperatorProperties) -> u8 {
         LinearOperatorProperties::General => 0,
         LinearOperatorProperties::SymmetricPositiveDefinite => 1,
         LinearOperatorProperties::SymmetricIndefinite => 2,
+        LinearOperatorProperties::Symmetric => 3,
+        LinearOperatorProperties::ComplexSymmetric => 4,
+        LinearOperatorProperties::Hermitian => 5,
+        LinearOperatorProperties::HermitianPositiveDefinite => 6,
     }
 }
 

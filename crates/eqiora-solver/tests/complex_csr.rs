@@ -195,3 +195,81 @@ fn scalar_domain_admission_is_independent_of_binary64_precision() {
     };
     assert!(CanonicalCsrSystemView::new(&storage, Properties::SymmetricPositiveDefinite).is_err());
 }
+
+#[test]
+fn complex_symmetric_and_hermitian_assertions_are_not_interchangeable() {
+    let symmetric = Storage {
+        values: [
+            C::new(4., 0.),
+            C::new(1., 1.),
+            C::new(1., 1.),
+            C::new(3., 0.),
+        ],
+        rhs: [C::new(0., 0.); 2],
+    };
+    CanonicalCsrSystemView::new(&symmetric, Properties::ComplexSymmetric).unwrap();
+    for property in [Properties::Hermitian, Properties::HermitianPositiveDefinite] {
+        let error = CanonicalCsrSystemView::new(&symmetric, property).unwrap_err();
+        assert!(error.message().contains("violate declared"));
+    }
+    let hermitian = Storage {
+        values: [
+            C::new(4., 0.),
+            C::new(1., 1.),
+            C::new(1., -1.),
+            C::new(3., 0.),
+        ],
+        rhs: [C::new(1., 7.), C::new(-3., 4.)],
+    };
+    let h = CanonicalCsrSystemView::new(&hermitian, Properties::Hermitian).unwrap();
+    // Leading principal minors 4 and 4*3 - |1+i|^2 = 10 prove positivity here.
+    let hpd =
+        CanonicalCsrSystemView::new(&hermitian, Properties::HermitianPositiveDefinite).unwrap();
+    assert_ne!(h.agreement_fingerprint(), hpd.agreement_fingerprint());
+    assert!(CanonicalCsrSystemView::new(&hermitian, Properties::ComplexSymmetric).is_err());
+    let imaginary_diagonal = Storage {
+        values: [
+            C::new(4., 1.),
+            C::new(1., 1.),
+            C::new(1., -1.),
+            C::new(3., 0.),
+        ],
+        rhs: hermitian.rhs,
+    };
+    assert!(CanonicalCsrSystemView::new(&imaginary_diagonal, Properties::Hermitian).is_err());
+}
+
+#[test]
+fn complex_property_admission_requires_the_exact_assertion_and_implemented_tuple() {
+    use eqiora_core::{ScalarDomain, ScalarType};
+    use eqiora_solver::{
+        LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverCapabilities, SolverCapability,
+    };
+
+    assert!(LinearSolver::ConjugateGradient.accepts(Properties::HermitianPositiveDefinite));
+    for property in [
+        Properties::Hermitian,
+        Properties::ComplexSymmetric,
+        Properties::General,
+    ] {
+        assert!(!LinearSolver::ConjugateGradient.accepts(property));
+    }
+    for domain in [ScalarDomain::Real, ScalarDomain::Complex] {
+        let tuple = SolverCapability {
+            scalar_domain: domain,
+            scalar_type: ScalarType::F64,
+            algorithm: LinearSolver::ConjugateGradient,
+            operator_properties: Properties::HermitianPositiveDefinite,
+            preconditioner: PreconditionerPolicy::Identity,
+            reduction: ReductionPolicy::Reproducible,
+        };
+        assert_eq!(
+            SolverCapabilities::exact([tuple]).is_ok(),
+            domain == ScalarDomain::Complex
+        );
+    }
+    // Mathematical eligibility does not advertise an unimplemented reference path.
+    assert!(
+        !SolverCapabilities::reference().supports_scalar(ScalarDomain::Complex, ScalarType::F64)
+    );
+}

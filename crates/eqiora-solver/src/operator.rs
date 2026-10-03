@@ -108,6 +108,14 @@ pub trait LinearOperator: Debug + Sync {
 pub enum LinearOperatorProperties {
     /// A square operator with no symmetry or definiteness assertion.
     General,
+    /// A real symmetric operator with no definiteness assertion.
+    Symmetric,
+    /// A complex symmetric operator: transpose equals itself, without conjugation.
+    ComplexSymmetric,
+    /// A complex Hermitian operator, with no definiteness assertion.
+    Hermitian,
+    /// A complex Hermitian positive-definite operator.
+    HermitianPositiveDefinite,
     /// A square symmetric positive-definite operator.
     SymmetricPositiveDefinite,
     /// A square symmetric operator known to be indefinite.
@@ -119,8 +127,20 @@ impl LinearOperatorProperties {
     #[must_use]
     pub const fn supports_domain(self, domain: eqiora_core::ScalarDomain) -> bool {
         match domain {
-            eqiora_core::ScalarDomain::Real => true,
-            eqiora_core::ScalarDomain::Complex => matches!(self, Self::General),
+            eqiora_core::ScalarDomain::Real => matches!(
+                self,
+                Self::General
+                    | Self::Symmetric
+                    | Self::SymmetricPositiveDefinite
+                    | Self::SymmetricIndefinite
+            ),
+            eqiora_core::ScalarDomain::Complex => matches!(
+                self,
+                Self::General
+                    | Self::ComplexSymmetric
+                    | Self::Hermitian
+                    | Self::HermitianPositiveDefinite
+            ),
             _ => false,
         }
     }

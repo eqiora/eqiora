@@ -170,11 +170,15 @@ impl LinearSolver {
             Self::ConjugateGradient => matches!(
                 properties,
                 crate::LinearOperatorProperties::SymmetricPositiveDefinite
+                    | crate::LinearOperatorProperties::HermitianPositiveDefinite
             ),
             Self::MinimumResidual => matches!(
                 properties,
                 crate::LinearOperatorProperties::SymmetricPositiveDefinite
                     | crate::LinearOperatorProperties::SymmetricIndefinite
+                    | crate::LinearOperatorProperties::Symmetric
+                    | crate::LinearOperatorProperties::Hermitian
+                    | crate::LinearOperatorProperties::HermitianPositiveDefinite
             ),
             Self::BiConjugateGradientStabilized => true,
             Self::SparseLu => true,

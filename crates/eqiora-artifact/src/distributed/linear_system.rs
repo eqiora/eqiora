@@ -230,8 +230,12 @@ impl TryFrom<LinearOperatorProperties> for WireOperatorProperties {
             LinearOperatorProperties::SymmetricPositiveDefinite => {
                 Ok(Self::SymmetricPositiveDefinite)
             }
-            LinearOperatorProperties::SymmetricIndefinite => Err(invalid_artifact(
-                "distributed linear-system artifact v1 cannot encode symmetric-indefinite properties",
+            LinearOperatorProperties::SymmetricIndefinite
+            | LinearOperatorProperties::Symmetric
+            | LinearOperatorProperties::ComplexSymmetric
+            | LinearOperatorProperties::Hermitian
+            | LinearOperatorProperties::HermitianPositiveDefinite => Err(invalid_artifact(
+                "distributed linear-system artifact v1 only admits general or real symmetric-positive-definite properties",
             )),
         }
     }
