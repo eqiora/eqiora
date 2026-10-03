@@ -722,6 +722,7 @@ pub(crate) struct CommonScalarRunOutput {
     )>,
     pub(crate) solve_report: eqiora_solver::SolveReport,
     pub(crate) assembly_report: eqiora_assembly::AssemblyReport,
+    pub(crate) nullspace: Option<crate::nullspace::NullspaceEvidence>,
 }
 
 mod differentiation;

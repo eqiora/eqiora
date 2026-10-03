@@ -14,6 +14,7 @@ use crate::{CommonScalarPlan, CommonTrajectory, ResolvedCommonPlan};
 
 mod artifact;
 mod evidence;
+mod nullspace;
 mod observe;
 pub use observe::CommonObservableStateTangent;
 
@@ -240,7 +241,7 @@ struct SteadyStokesResultObservation {
 
 #[derive(Debug, Clone, PartialEq)]
 enum StaticObservation {
-    Scalar,
+    Scalar(Option<crate::nullspace::NullspaceEvidence>),
     Elasticity(ElasticityResultObservation),
     SteadyStokes(SteadyStokesResultObservation),
 }
@@ -367,6 +368,7 @@ impl CommonResult {
                 "scalar output differs from the complete typed Plan Field inventory",
             ));
         }
+        plan.check_nullspace_evidence(&output.fields[0].2, output.nullspace.as_ref())?;
         let (association, space) = match plan.spatial() {
             crate::CommonSpatialPolicy::Q1 => {
                 (CommonFieldAssociation::Vertex, "continuous-lagrange-p1")
@@ -404,7 +406,7 @@ impl CommonResult {
             fields,
             CommonSolveEvidence::from_report(&output.solve_report),
             CommonAssemblyEvidence::from_report(&output.assembly_report),
-            StaticObservation::Scalar,
+            StaticObservation::Scalar(output.nullspace),
         )
     }
 

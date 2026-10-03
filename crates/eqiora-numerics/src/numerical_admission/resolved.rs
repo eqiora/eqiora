@@ -199,7 +199,7 @@ impl ResolvedCommonPlan {
             Self::Ode(_) => None,
             Self::Scalar(plan) => Some(match plan.admission.spatial {
                 super::NativeSpatialPolicy::ScalarQ1 => LinearOperatorProperties::General,
-                super::NativeSpatialPolicy::ScalarTpfa => {
+                super::NativeSpatialPolicy::ScalarTpfa(_) => {
                     LinearOperatorProperties::SymmetricPositiveDefinite
                 }
                 _ => unreachable!(),

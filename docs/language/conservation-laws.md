@@ -87,10 +87,21 @@ bound to the exact trial Field and parent support. Here the endpoint loads denot
 compatibility with the source integral using a plus sign. The numerical admission
 checker matches this condition to the original source and both natural boundary
 relations; a written condition alone does not establish that their values balance.
-The current declaration profile retains and renders these conditions but rejects
-ordinary Plan execution until its explicit numerical constraint is connected.
-The native P1 solver separately supports an explicit spatial mean and checks the
-actual matrix null vector, load compatibility and original equation residual.
+The ordinary fixed-1D TPFA path admits the explicit zero-integral reference with
+two natural endpoints. Plan resolution retains the existing `ZeroIntegral`
+constraint and requires a solver for the resulting symmetric-indefinite bordered
+system. Before solving, execution checks the constant vector against the actual
+original matrix and checks the assembled load balance without projection. Result
+acceptance and replay reassemble the original equations and reference, retaining
+separate original-equation, compatibility and gauge residuals and the numerical
+multiplier. The scalar Field contains no multiplier entry. Python exposes these
+as `scalar_original_residual_norm`, `scalar_compatibility_residual`,
+`scalar_gauge_residual` and `scalar_gauge_multiplier`; the solve report describes
+the bordered system. Constrained differentiation is not admitted.
+
+The native P1 and TPFA paths also support an explicit spatial mean. General
+nullspaces, automatic mode discovery and finite floating-network Formulations
+remain outside this interval profile.
 
 A bounded real steady 2D Stokes system may retain two weak equations in one form.
 `form weak for momentum, continuity` pairs each equation with its declared Relation;

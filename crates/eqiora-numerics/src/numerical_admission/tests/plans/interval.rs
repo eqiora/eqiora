@@ -210,3 +210,90 @@ fn gauge_compatibility_matches_actual_source_and_signed_boundary_loads() {
         assert!(admit(&mutant).is_err(), "{mutant}");
     }
 }
+
+#[test]
+fn authored_neumann_plan_binds_and_replays_zero_integral_tpfa_execution() {
+    let geometry = cartesian_interval();
+    let (model, authored) = neumann_model(&geometry, NEUMANN_INTERVAL);
+    let resolve = |solver, projection| {
+        resolve_common_plan(
+            &model,
+            cartesian_box_resources(&geometry, &[4]),
+            CommonSpatialPolicy::CellCenteredTpfa,
+            CommonSolvePolicy::Linear(exact_reference_linear(
+                solver,
+                1e-12,
+                1e-12,
+                NonZeroUsize::new(128).unwrap(),
+            )),
+            None,
+            None,
+            &ResolveOnlyBackend,
+            projection,
+        )
+    };
+    let plan = resolve(LinearSolver::MinimumResidual, Some(&authored)).unwrap();
+    let replayed = replay_plan(plan.clone(), &ResolveOnlyBackend);
+    assert_eq!(replayed, plan);
+    let scalar = replayed.as_scalar().unwrap();
+    assert!(matches!(
+        scalar.admission.spatial,
+        NativeSpatialPolicy::ScalarTpfa(Some(_))
+    ));
+    let output = scalar.run(&REFERENCE_LINEAR_SOLVER).unwrap();
+    let result = scalar.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+    assert!(result.scalar_original_residual_norm().unwrap() < 1e-10);
+    assert!(result.scalar_gauge_residual().unwrap().abs() < 1e-10);
+    let bytes = result.to_bytes().unwrap();
+    let restored = crate::CommonResult::from_bytes(&bytes, &replayed).unwrap();
+    assert_eq!(restored.to_bytes().unwrap(), bytes);
+    for mutation in 0..4 {
+        let mut forged: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let payload = &mut forged["content"]["payload"];
+        match mutation {
+            0 => payload["fields"][0]["blocks"][0]["values"][0] = serde_json::json!(0.5),
+            1 => {
+                for value in payload["fields"][0]["blocks"][0]["values"]
+                    .as_array_mut()
+                    .unwrap()
+                {
+                    *value = serde_json::json!(value.as_f64().unwrap() + 1.);
+                }
+            }
+            2 => payload["observation"]["nullspace"][1] = serde_json::json!(1.),
+            _ => payload["observation"]["nullspace"] = serde_json::Value::Null,
+        }
+        // Semantic replay occurs before the content digest check: each mutation
+        // must reach the actual equation/reference check, not merely fail hashing.
+        let error =
+            crate::CommonResult::from_bytes(&serde_json::to_vec(&forged).unwrap(), &replayed)
+                .unwrap_err();
+        assert!(
+            error.message().contains("constrained solution")
+                || error.message().contains("nullspace evidence"),
+            "{error:?}"
+        );
+    }
+
+    // x²-x+1/6+h²/12 at four midpoints, with exact zero cell integral.
+    for (actual, expected) in output.fields[0]
+        .2
+        .iter()
+        .zip([0.0625, -0.0625, -0.0625, 0.0625])
+    {
+        assert!((actual - expected).abs() < 1e-10);
+    }
+    let evidence = output.nullspace.unwrap();
+    assert_eq!(evidence.compatibility_residual, 0.);
+    assert!(evidence.original_residual_norm < 1e-10);
+    assert!(evidence.gauge_residual.abs() < 1e-10);
+    assert!(resolve(LinearSolver::ConjugateGradient, Some(&authored)).is_err());
+    let without_gauge = resolve(LinearSolver::ConjugateGradient, None).unwrap();
+    assert!(
+        without_gauge
+            .as_scalar()
+            .unwrap()
+            .run(&REFERENCE_LINEAR_SOLVER)
+            .is_err()
+    );
+}

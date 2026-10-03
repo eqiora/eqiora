@@ -86,6 +86,28 @@ pub(crate) fn solve_canonical_with_nullspace(
     system: &CanonicalCsrSystemView,
     constraint: &NullspaceConstraint,
 ) -> Result<NullspaceLinearSolution, Diagnostic> {
+    validate_operator_and_load(system, constraint)?;
+    let bordered = BorderedStorage::new(system, constraint);
+    let captured =
+        CanonicalCsrSystemView::new(&bordered, LinearOperatorProperties::SymmetricIndefinite)?;
+    let solved = request.solve(&captured.linear_problem()?)?;
+    let (mut values, report) = solved.into_parts();
+    let multiplier = values
+        .pop()
+        .ok_or_else(|| invalid("missing nullspace multiplier"))?;
+    let evidence =
+        assess_canonical_with_nullspace(system, constraint, &values, multiplier, request.plan())?;
+    Ok(NullspaceLinearSolution {
+        values,
+        report,
+        evidence,
+    })
+}
+
+fn validate_operator_and_load(
+    system: &CanonicalCsrSystemView,
+    constraint: &NullspaceConstraint,
+) -> Result<f64, Diagnostic> {
     if system.properties() != LinearOperatorProperties::Symmetric
         || constraint.basis.len() != system.rows()
     {
@@ -116,42 +138,53 @@ pub(crate) fn solve_canonical_with_nullspace(
             "load is incompatible with the supplied nullspace; no projection is permitted",
         ));
     }
-    let bordered = BorderedStorage::new(system, constraint);
-    let captured =
-        CanonicalCsrSystemView::new(&bordered, LinearOperatorProperties::SymmetricIndefinite)?;
-    let solved = request.solve(&captured.linear_problem()?)?;
-    let (mut values, report) = solved.into_parts();
-    let multiplier = values
-        .pop()
-        .ok_or_else(|| invalid("missing nullspace multiplier"))?;
-    let mut residual = vec![0.0; system.rows()];
-    system.apply(&values, &mut residual)?;
+    Ok(compatibility_residual)
+}
+
+/// Reevaluate a retained solution against the actual unmodified operator and reference.
+/// This does not invoke a solver or trust a serialized residual.
+pub(crate) fn assess_canonical_with_nullspace(
+    system: &CanonicalCsrSystemView,
+    constraint: &NullspaceConstraint,
+    values: &[f64],
+    multiplier: f64,
+    plan: eqiora_solver::SolverPlan,
+) -> Result<NullspaceEvidence, Diagnostic> {
+    let compatibility_residual = validate_operator_and_load(system, constraint)?;
+    if values.len() != system.rows()
+        || !multiplier.is_finite()
+        || values.iter().any(|x| !x.is_finite())
+    {
+        return Err(invalid("constrained Field or multiplier is invalid"));
+    }
+    let mut residual = vec![0.; system.rows()];
+    system.apply(values, &mut residual)?;
     for (value, rhs) in residual.iter_mut().zip(system.right_hand_side()) {
         *value -= rhs;
     }
     let original_residual_norm = norm(&residual)?;
-    let target = request
-        .plan()
-        .residual_target(norm(system.right_hand_side())?)?;
-    let (reference, _) = dot_roundoff(&constraint.weights, &values)?;
+    let load_norm = norm(system.right_hand_side())?;
+    let original_target = plan.residual_target(load_norm)?;
+    let bordered_target = plan.residual_target(load_norm.hypot(constraint.value))?;
+    let (reference, _) = dot_roundoff(&constraint.weights, values)?;
     let gauge_residual = reference - constraint.value;
+    for (value, weight) in residual.iter_mut().zip(&constraint.weights) {
+        *value += weight * multiplier;
+    }
+    residual.push(gauge_residual);
     if !gauge_residual.is_finite()
-        || original_residual_norm > target
-        || gauge_residual.abs() > report.residual_target()
+        || original_residual_norm > original_target
+        || norm(&residual)? > bordered_target
     {
         return Err(invalid(
             "constrained solution fails the original equation or explicit reference",
         ));
     }
-    Ok(NullspaceLinearSolution {
-        values,
-        report,
-        evidence: NullspaceEvidence {
-            multiplier,
-            compatibility_residual,
-            original_residual_norm,
-            gauge_residual,
-        },
+    Ok(NullspaceEvidence {
+        multiplier,
+        compatibility_residual,
+        original_residual_norm,
+        gauge_residual,
     })
 }
 

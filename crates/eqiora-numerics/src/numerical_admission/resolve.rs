@@ -23,7 +23,14 @@ pub fn resolve_common_plan(
     let (spatial, formulation) = method.into().split();
     match &recognized.recognized {
         RecognizedNativeModel::Scalar(equations) => {
-            let spatial = resolve_scalar(spatial)?;
+            let mut spatial = resolve_scalar(spatial)?;
+            if matches!(spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
+                let constraint = authored_formulation
+                    .map(|form| scalar::interval::admit_gauge(&recognized.program, equations, form))
+                    .transpose()?
+                    .flatten();
+                spatial = NativeSpatialPolicy::ScalarTpfa(constraint);
+            }
             let (formulation_selection, properties) = match spatial {
                 NativeSpatialPolicy::ScalarQ1 => (
                     Some(resolve_formulation_request(
@@ -33,7 +40,7 @@ pub fn resolve_common_plan(
                     )?),
                     LinearOperatorProperties::General,
                 ),
-                NativeSpatialPolicy::ScalarTpfa => {
+                NativeSpatialPolicy::ScalarTpfa(_) => {
                     if authored_formulation.is_some_and(|form| form.interval().is_none()) {
                         return Err(invalid(
                             "TPFA requires an integral-conservative authored form",
@@ -45,12 +52,12 @@ pub fn resolve_common_plan(
                             FormulationKind::IntegralConservative,
                             "scalar-elliptic TPFA",
                         )?),
-                        LinearOperatorProperties::SymmetricPositiveDefinite,
+                        scalar::scalar_operator_properties(spatial),
                     )
                 }
                 _ => unreachable!("scalar resolution returns only scalar spatial policies"),
             };
-            let structure = equations.algebraic_structure()?;
+            let structure = equations.algebraic_structure(spatial.scalar_constraint())?;
             let (linear, temporal) = resolve_linear_requirements(
                 solve,
                 scaling,

@@ -16,7 +16,7 @@ pub(super) fn resolve_scalar(
     };
     match spatial {
         CommonSpatialPolicy::Q1 => Ok(NativeSpatialPolicy::ScalarQ1),
-        CommonSpatialPolicy::CellCenteredTpfa => Ok(NativeSpatialPolicy::ScalarTpfa),
+        CommonSpatialPolicy::CellCenteredTpfa => Ok(NativeSpatialPolicy::ScalarTpfa(None)),
         CommonSpatialPolicy::MiniP1 => Err(invalid(
             "scalar-elliptic Model mathematics is incompatible with MINI/P1",
         )),
@@ -168,7 +168,7 @@ mod tests {
                 CommonSpatialPolicy::CellCenteredTpfa,
             ))
             .unwrap(),
-            NativeSpatialPolicy::ScalarTpfa
+            NativeSpatialPolicy::ScalarTpfa(None)
         );
         assert_eq!(
             resolve_elasticity(CommonSpatialRequest::Uniform(CommonSpatialPolicy::Q1)).unwrap(),

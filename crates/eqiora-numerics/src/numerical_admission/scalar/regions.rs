@@ -140,6 +140,7 @@ impl ExecutableScalarEquations {
     /// Semantic Field blocks supplied to the sole solver authority before selection.
     pub(in crate::numerical_admission) fn algebraic_structure(
         &self,
+        constraint: Option<eqiora_solver::AlgebraicConstraint>,
     ) -> Result<eqiora_solver::AlgebraicStructure, Diagnostic> {
         eqiora_solver::AlgebraicStructure::new(
             self.fields().into_iter().map(|(field, _)| {
@@ -147,7 +148,7 @@ impl ExecutableScalarEquations {
                     .downcast()
                     .expect("compiled scalar unknown is a Field")
             }),
-            [],
+            constraint,
         )
     }
     pub(in crate::numerical_admission) fn primal_form(
@@ -275,6 +276,7 @@ impl ExecutableScalarEquations {
     pub(in crate::numerical_admission) fn discretizations(
         &self,
         space: Space,
+        constraint: Option<eqiora_solver::AlgebraicConstraint>,
     ) -> Result<Vec<eqiora_realization::DomainFieldDiscretization>, Diagnostic> {
         self.regions
             .iter()
@@ -287,7 +289,7 @@ impl ExecutableScalarEquations {
                             space,
                         )
                     }),
-                    [],
+                    constraint,
                 )
             })
             .collect()

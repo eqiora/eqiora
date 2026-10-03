@@ -59,9 +59,9 @@ pub(super) fn admit(
         .map_err(|errors| invalid(format!("interval Model snapshot rejected: {errors:?}")))?;
     let geometry = admission.resources().geometry();
     if let Some(authored) = authored {
-        if admit_gauge(program, lowered, authored)?.is_some() {
+        if admit_gauge(program, lowered, authored)? != admission.spatial.scalar_constraint() {
             return Err(invalid(
-                "the interval Plan requires an executable gauge admission before a declared nullspace can run",
+                "authored gauge differs from the realized scalar constraint",
             ));
         }
         if authored.equations()[0].0.as_str() != law.ulid().to_string()
@@ -73,6 +73,11 @@ pub(super) fn admit(
         }
         authored.check_interval(&transaction, geometry)?;
     } else {
+        if admission.spatial.scalar_constraint().is_some() {
+            return Err(invalid(
+                "scalar constraint requires an explicit authored gauge",
+            ));
+        }
         if eqiora_compiler::check_derived_interval_conservation(&transaction, geometry, *law)?
             .is_none()
         {
