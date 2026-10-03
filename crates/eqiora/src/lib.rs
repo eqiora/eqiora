@@ -142,7 +142,7 @@ pub mod ir {
         ConstantSymbolJacobian, DifferentiationRole, DiscreteStepLinearization, LinearizedOutput,
         LinearizedRelation, LocalLinearActionIr, RelationCotangent, RelationTangent,
         ScalarInputOperatorIr, ScalarInputSlot, ScalarLinearization, ScalarObjectiveLinearization,
-        ScalarOperatorIr, ScalarSymbolCoordinate, SymbolicLinearityFailure,
+        ScalarOperatorIr, ScalarPart, ScalarSymbolCoordinate, SymbolicLinearityFailure,
     };
 }
 
