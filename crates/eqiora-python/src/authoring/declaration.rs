@@ -330,6 +330,7 @@ impl PyAstDeclaration {
         name: String,
         guard: &PyAstExpression,
         direction: &str,
+        priority: i64,
         ordinal: u32,
     ) -> PyResult<Self> {
         let direction = match direction {
@@ -340,8 +341,14 @@ impl PyAstDeclaration {
         };
         Ok(Self {
             value: Declaration::Item(ComponentItem::Event(
-                Ast::event(name, guard.value.clone(), direction, range(ordinal))
-                    .map_err(syntax_error)?,
+                Ast::event(
+                    name,
+                    guard.value.clone(),
+                    direction,
+                    priority,
+                    range(ordinal),
+                )
+                .map_err(syntax_error)?,
             )),
         })
     }

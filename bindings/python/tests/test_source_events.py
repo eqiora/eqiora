@@ -137,3 +137,20 @@ def test_event_alias_cannot_be_consumed_at_an_equal_guard_foreign_event():
         eqiora.compile(source=event_source(wrong_activation=True), entry="Impact")
     assert any("event" in diagnostic.message.lower() or "activation" in diagnostic.message.lower()
                for diagnostic in error.value.diagnostics)
+
+
+@pytest.mark.parametrize("priority", (-(1 << 63), -2, 0, 2, (1 << 63) - 1))
+def test_event_priority_has_exact_canonical_source(priority):
+    source = eqiora.Module("main")
+    owner = source.model("Events")
+    owner.event("selected", 1, direction="rising", priority=priority)
+    suffix = f", priority = {priority}" if priority else ""
+    assert f"crossing(1, direction = rising{suffix})" in source.to_eqi()
+
+
+@pytest.mark.parametrize("priority", (True, False, 1.0, "1", None, -(1 << 63) - 1, 1 << 63))
+def test_invalid_event_priority_does_not_reserve_a_name(priority):
+    owner = eqiora.Module("main").model("Events")
+    with pytest.raises(q.ModuleError, match="priority"):
+        owner.event("available", 1, direction="rising", priority=priority)
+    owner.let_alias("available", 1)

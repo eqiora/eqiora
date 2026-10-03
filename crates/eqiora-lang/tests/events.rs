@@ -38,6 +38,7 @@ fn model_and_component_events_keep_guards_direction_resets_aliases_and_comments(
         };
         assert_eq!(event.name(), "impact");
         assert_eq!(event.direction(), EventDirection::Falling);
+        assert_eq!(event.priority(), 0);
         assert!(matches!(
             event.guard().kind(),
             ExprKind::Binary {
@@ -76,7 +77,7 @@ fn explicit_directions_have_source_and_native_parity() {
         (EventDirection::Falling, "falling"),
     ] {
         let guard = F::expression(ExprKind::Name("height".into()), range).unwrap();
-        let event = F::event("impact", guard, direction, range).unwrap();
+        let event = F::event("impact", guard, direction, 0, range).unwrap();
         let component = F::component(
             VisibilitySyntax::Private,
             "Ball",
@@ -182,14 +183,77 @@ fn event_guard_syntax_retains_shared_bounds_and_defers_complete_type_admission()
     }
     let range = TextRange::new(0, 0);
     let guard = F::expression(ExprKind::Name("height".into()), range).unwrap();
-    assert!(F::event("bad.name", guard.clone(), EventDirection::Falling, range).is_err());
+    assert!(F::event("bad.name", guard.clone(), EventDirection::Falling, 0, range).is_err());
     assert!(
         F::event(
             "impact",
             guard,
             EventDirection::Falling,
+            0,
             TextRange::new(2, 1)
         )
         .is_err()
     );
+}
+
+#[test]
+fn event_priorities_preserve_exact_signed_literals_and_native_parity() {
+    let range = TextRange::new(0, 0);
+    for priority in [i64::MIN, -2, 0, 2, i64::MAX] {
+        let source = format!(
+            "component C() {{ event e = crossing(x, direction = rising, priority = {priority}); }}"
+        );
+        let document = parse("priority.eqi", &source).into_document().unwrap();
+        let ComponentItem::Event(event) = &document.components()[0].items()[0] else {
+            panic!("event")
+        };
+        assert_eq!(event.priority(), priority);
+        let native = F::event(
+            "e",
+            event.guard().clone(),
+            EventDirection::Rising,
+            priority,
+            range,
+        )
+        .unwrap();
+        let component = F::component(
+            VisibilitySyntax::Private,
+            "C",
+            vec![],
+            vec![ComponentItem::Event(native)],
+            range,
+        )
+        .unwrap();
+        let native = F::document(vec![], vec![], vec![component], vec![]).unwrap();
+        let formatted = format(&document);
+        assert_eq!(formatted, format(&native));
+        assert_eq!(formatted.contains("priority ="), priority != 0);
+        let again = parse("again.eqi", &formatted).into_document().unwrap();
+        let ComponentItem::Event(event) = &again.components()[0].items()[0] else {
+            panic!("event")
+        };
+        assert_eq!(event.priority(), priority);
+    }
+}
+
+#[test]
+fn event_priority_rejects_expressions_nonintegers_overflow_and_repeated_options() {
+    for priority in [
+        "true",
+        "p",
+        "1.0",
+        "1e2",
+        "1+2",
+        "-9223372036854775809",
+        "9223372036854775808",
+        "1, priority = 2",
+    ] {
+        let source = format!(
+            "model M() {{ event e = crossing(x, direction = rising, priority = {priority}); }}"
+        );
+        assert!(
+            parse("bad-priority.eqi", &source).into_document().is_err(),
+            "{source}"
+        );
+    }
 }

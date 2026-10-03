@@ -27,6 +27,33 @@ impl Parser<'_> {
                 return None;
             }
         };
+        let priority = if self.at(TokenKind::Comma) {
+            self.bump();
+            self.expect_keyword("priority")?;
+            self.expect(TokenKind::Equal, "`=` before event priority")?;
+            let negative = self.at(TokenKind::Minus);
+            if negative {
+                self.bump();
+            }
+            let token = self.expect(TokenKind::Number, "signed integer event priority")?;
+            let spelling = if negative {
+                format!("-{}", token.text())
+            } else {
+                token.text().to_owned()
+            };
+            match spelling.parse::<i64>() {
+                Ok(value) => value,
+                Err(_) => {
+                    self.error_token(
+                        &token,
+                        "event priority must be a signed 64-bit integer literal",
+                    );
+                    return None;
+                }
+            }
+        } else {
+            0
+        };
         self.expect(TokenKind::RightParen, "`)` after crossing direction")?;
         let end = self
             .expect(TokenKind::Semicolon, "`;` after event")?
@@ -37,6 +64,7 @@ impl Parser<'_> {
             name,
             guard,
             direction,
+            priority,
             range: TextRange::new(start, end),
         })
     }
