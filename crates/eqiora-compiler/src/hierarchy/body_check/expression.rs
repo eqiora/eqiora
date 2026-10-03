@@ -162,6 +162,12 @@ impl ExpressionChecker<'_, '_, '_> {
                 .expect("admitted numeric scalar type"),
                 None,
             )),
+            ExprKind::Call { callee, arguments } if callee.as_str() == "vjp" => {
+                self.vjp(expression, arguments)
+            }
+            ExprKind::Call { callee, arguments } if callee.as_str() == "jvp" => {
+                self.jvp(expression, arguments)
+            }
             ExprKind::Call { callee, .. } if callee.as_str() == "tensor_value" => {
                 let value = crate::hierarchy::parameters::frames::literal(
                     self.scope.file,

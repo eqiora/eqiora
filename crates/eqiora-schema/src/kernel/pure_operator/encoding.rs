@@ -91,6 +91,16 @@ pub(super) fn canonical_definition_bytes(definition: &PureOperatorDefinition) ->
                 push_u16(&mut bytes, left.index());
                 push_u16(&mut bytes, right.index());
             }
+            CalculusNode::Differentiated { value, source, wrt } => {
+                bytes.push(14);
+                bytes.extend_from_slice(&value.index().to_be_bytes());
+                bytes.extend_from_slice(&source.index().to_be_bytes());
+                bytes.extend_from_slice(&wrt.index().to_be_bytes());
+            }
+            CalculusNode::BoundInput(value) => {
+                bytes.push(15);
+                bytes.extend_from_slice(&value.index().to_be_bytes());
+            }
             CalculusNode::Neg(value) => {
                 bytes.push(3);
                 bytes.extend_from_slice(&value.index().to_be_bytes());

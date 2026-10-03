@@ -70,6 +70,14 @@ impl<I: Clone> ScalarCalculus<I> {
                     formal: atom.formal(),
                     axes: Box::new([]),
                 },
+                ScalarCalculusNode::Differentiated { value, source, wrt } => {
+                    CalculusNode::Differentiated {
+                        value: *value,
+                        source: *source,
+                        wrt: *wrt,
+                    }
+                }
+                ScalarCalculusNode::BoundInput(value) => CalculusNode::BoundInput(*value),
                 ScalarCalculusNode::Neg(value) => CalculusNode::Neg(*value),
                 ScalarCalculusNode::Add(left, right) => CalculusNode::Add(*left, *right),
                 ScalarCalculusNode::Mul(left, right) => CalculusNode::Mul(*left, *right),
@@ -95,6 +103,9 @@ impl<I: Clone> ScalarCalculus<I> {
                 )),
                 CalculusNode::FormalComponent { formal, .. } => {
                     plan.push(PartialNode::Argument(arguments[usize::from(*formal)]))
+                }
+                CalculusNode::BoundInput(value) | CalculusNode::Differentiated { value, .. } => {
+                    get(*value)
                 }
                 CalculusNode::Neg(value) => plan.push(PartialNode::Neg(get(*value))),
                 CalculusNode::Add(left, right) => {

@@ -685,6 +685,25 @@ def _expression(value: object) -> Expression:
     return Expression(_CREATE, _Ast.number(text), None)
 
 
+def jvp(value: object, *, wrt: Sequence[Expression], tangent: Sequence[object]) -> Expression:
+    """Apply a scalar Jacobian to ordered directions with the selected input units."""
+    if any(isinstance(items, (str, bytes)) or not isinstance(items, Sequence)
+           for items in (wrt, tangent)):
+        raise TypeError("jvp wrt and tangent require ordered sequences")
+    if not wrt or len(wrt) != len(tangent) or len(wrt) > 64:
+        raise ModuleError("jvp requires equally sized nonempty lists of at most 64 inputs")
+    if any(not isinstance(binding, Expression) for binding in wrt):
+        raise TypeError("jvp wrt requires declared expression bindings")
+    return _ternary("jvp", value, array(wrt), array(tangent))
+
+
+def vjp(value: object, *, wrt: Expression, cotangent: object) -> Expression:
+    """Pull back a scalar output cotangent to one selected input's dual block."""
+    if not isinstance(wrt, Expression):
+        raise TypeError("vjp wrt requires a declared expression binding")
+    return _ternary("vjp", value, wrt, cotangent)
+
+
 def partial(value: object, *, wrt: Expression, holding: Sequence[Expression] = ()) -> Expression:
     """Differentiate an explicit scalar expression at a declared independent binding."""
     value = _expression(value)
@@ -2683,6 +2702,8 @@ __all__ = [
     "normal",
     "ordinal",
     "partial",
+    "jvp",
+    "vjp",
     "derivative",
     "time",
     "pre",

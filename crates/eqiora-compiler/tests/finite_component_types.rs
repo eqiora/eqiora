@@ -374,13 +374,31 @@ model M(){
  relation r {xy=tensor_product(x,y); alias=xy; yx=permute_factors(xy,[1,0]);}
 }"#;
     let original = compile(source);
-    let fields = field_types(&original);
+    // Transaction order follows canonical IDs, not declaration order. Select
+    // the exact named fields so a source-identity epoch cannot swap the oracle.
+    let ordered_fields = |model: &CompiledModel| {
+        ["xy", "alias", "yx"].map(|name| {
+            let id = model.symbols().get(name).unwrap();
+            model
+                .transaction()
+                .ops()
+                .iter()
+                .find_map(|op| match op {
+                    Op::DefineKernelNode {
+                        node: KernelNode::Field(field),
+                    } if field.id().erase() == id => Some(field.value_type().clone()),
+                    _ => None,
+                })
+                .unwrap()
+        })
+    };
+    let fields = ordered_fields(&original);
     assert_eq!(fields[0], fields[1]);
     assert_ne!(fields[0], fields[2]);
     let reordered = source
         .replace("space AB=product(A,B);", "")
         .replace("model M()", "space AB=product(A,B); model M()");
-    assert_eq!(fields, field_types(&compile(&reordered)));
+    assert_eq!(fields, ordered_fields(&compile(&reordered)));
     let formatted = eqiora_lang::format(
         &eqiora_lang::parse("finite.eqi", source)
             .into_document()

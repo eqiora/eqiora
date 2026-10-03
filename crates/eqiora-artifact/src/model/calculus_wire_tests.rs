@@ -112,3 +112,67 @@ fn mixed_calculus_wire_rejects_invalid_types_units_references_and_identity() {
         assert!(rejected, "mutation {mutation}");
     }
 }
+
+#[test]
+fn ordered_partial_history_round_trips_even_when_both_mixed_values_are_zero() {
+    let class = PureValueClass::invariant_scalar()
+        .with_dimension(DimExponents::DIMENSIONLESS)
+        .with_scalar_domain(ScalarDomain::Real)
+        .unwrap();
+    let make = |order: [u16; 2]| {
+        let mut builder = CalculusBuilder::new([class, class], class).unwrap();
+        let x = builder
+            .push(CalculusNode::FormalComponent {
+                formal: 0,
+                axes: Box::new([]),
+            })
+            .unwrap();
+        let first = builder.partial(x, order[0]).unwrap();
+        let second = builder.partial(first, order[1]).unwrap();
+        builder.finish(second).unwrap()
+    };
+    let xy = make([0, 1]);
+    let yx = make([1, 0]);
+    assert_ne!(xy.digest(), yx.digest());
+    for definition in [xy, yx] {
+        let wire = WirePureOperatorDefinition::encode(&definition);
+        let json = serde_json::to_value(&wire).unwrap();
+        let replay: WirePureOperatorDefinition = serde_json::from_value(json.clone()).unwrap();
+        assert_eq!(replay.rebuild_and_validate_digest().unwrap(), definition);
+        let mut third = json;
+        let old_root = third["root"].as_u64().unwrap();
+        let nodes = third["nodes"].as_array_mut().unwrap();
+        let next = nodes.len();
+        nodes.push(json!({"op":"differentiated", "source":old_root, "value":old_root, "wrt":0}));
+        third["root"] = json!(next);
+        let invalid: WirePureOperatorDefinition = serde_json::from_value(third).unwrap();
+        let error = invalid.rebuild_and_validate_digest().unwrap_err();
+        assert!(error.message().contains("derivative order"), "{error:?}");
+    }
+}
+
+#[test]
+fn retained_derivative_wire_rejects_a_false_value_before_digest_comparison() {
+    let class = PureValueClass::invariant_scalar()
+        .with_dimension(DimExponents::DIMENSIONLESS)
+        .with_scalar_domain(ScalarDomain::Real)
+        .unwrap();
+    let mut builder = CalculusBuilder::new([class], class).unwrap();
+    let x = builder
+        .push(CalculusNode::FormalComponent {
+            formal: 0,
+            axes: Box::new([]),
+        })
+        .unwrap();
+    let derivative = builder.partial(x, 0).unwrap();
+    let definition = builder.finish(derivative).unwrap();
+    let mut wire = serde_json::to_value(WirePureOperatorDefinition::encode(&definition)).unwrap();
+    // d(x)/dx=1, independently; substitute x while keeping valid references and units.
+    wire["nodes"][derivative.index() as usize]["value"] = json!(x.index());
+    let invalid: WirePureOperatorDefinition = serde_json::from_value(wire).unwrap();
+    let error = invalid.rebuild_and_validate_digest().unwrap_err();
+    assert!(
+        error.message().contains("retained derivative value"),
+        "{error:?}"
+    );
+}

@@ -662,7 +662,9 @@ impl<'a> ProgramCompiler<'a> {
                     }
                     self.constant(value.as_f64(), provenance)?
                 }
-                CalculusNode::Require { .. }
+                CalculusNode::BoundInput(_)
+                | CalculusNode::Differentiated { .. }
+                | CalculusNode::Require { .. }
                 | CalculusNode::Boolean(_)
                 | CalculusNode::Compare(..)
                 | CalculusNode::Not(_)
@@ -925,7 +927,9 @@ fn definition_source_scale(
             | CalculusNode::Neg(_)
             | CalculusNode::Add(..)
             | CalculusNode::Mul(..) => {}
-            CalculusNode::Require { .. }
+            CalculusNode::BoundInput(_)
+            | CalculusNode::Differentiated { .. }
+            | CalculusNode::Require { .. }
             | CalculusNode::Boolean(_)
             | CalculusNode::Compare(..)
             | CalculusNode::Not(_)

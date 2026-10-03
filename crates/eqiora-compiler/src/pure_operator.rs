@@ -5,6 +5,7 @@
 //! source adapters from inventing a second interpretation of the bounded
 //! pure calculus.
 
+pub(crate) mod actions;
 pub(crate) mod property;
 use std::collections::BTreeMap;
 
@@ -38,6 +39,8 @@ pub(crate) fn is_builtin_operator(path: &eqiora_lang::NamePath) -> bool {
                     | "time"
                     | "derivative"
                     | "partial"
+                    | "jvp"
+                    | "vjp"
                     | "pre"
                     | "next"
                     | "sample"
@@ -122,6 +125,15 @@ fn compile_local(
         }
         match expression.kind() {
             ExprKind::Partial { value, .. } => pending.push((value, depth + 1)),
+            ExprKind::Call { callee, arguments } if callee.as_str() == "vjp" => {
+                let (value, _, cotangent) = actions::vjp_arguments(file, expression, arguments)?;
+                pending.extend([(value, depth + 1), (cotangent, depth + 1)]);
+            }
+            ExprKind::Call { callee, arguments } if callee.as_str() == "jvp" => {
+                let (value, _, directions) = actions::arguments(file, expression, arguments)?;
+                pending.push((value, depth + 1));
+                pending.extend(directions.iter().map(|value| (value, depth + 1)));
+            }
             ExprKind::Call { callee, arguments } => {
                 if declaration
                     .formals()
@@ -343,6 +355,53 @@ fn compile_expression(
                     format!("unsupported partial of explicit real scalar polynomial: {error}"),
                 )
             });
+        }
+        ExprKind::Call { callee, arguments } if callee.as_str() == "vjp" => {
+            let (value, selector, cotangent) = actions::vjp_arguments(file, expression, arguments)?;
+            let binding = actions::binding(file, selector)?;
+            let formal = *formals.get(binding.as_str()).ok_or_else(|| {
+                pure_error(
+                    file,
+                    selector.range(),
+                    "vjp selector is not an independent lexical formal",
+                )
+            })?;
+            let root = compile_expression(file, value, formals, sources, compiled, builder)?;
+            let seed = compile_expression(file, cotangent, formals, sources, compiled, builder)?;
+            return builder
+                .vjp(root, seed, &[formal])
+                .map(|blocks| blocks[0])
+                .map_err(|error| kernel_error(file, expression.range(), error));
+        }
+        ExprKind::Call { callee, arguments } if callee.as_str() == "jvp" => {
+            let (value, bindings, directions) = actions::arguments(file, expression, arguments)?;
+            let root = compile_expression(file, value, formals, sources, compiled, builder)?;
+            let directions = bindings
+                .iter()
+                .zip(directions)
+                .map(|(binding, direction)| {
+                    let ExprKind::Name(name) = binding.kind() else {
+                        return Err(pure_error(
+                            file,
+                            binding.range(),
+                            "jvp selectors must name independent lexical formals",
+                        ));
+                    };
+                    let formal = *formals.get(name.as_str()).ok_or_else(|| {
+                        pure_error(
+                            file,
+                            binding.range(),
+                            "jvp selector is not an independent lexical formal",
+                        )
+                    })?;
+                    let direction =
+                        compile_expression(file, direction, formals, sources, compiled, builder)?;
+                    Ok((formal, direction))
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?;
+            return builder
+                .jvp(root, &directions)
+                .map_err(|error| kernel_error(file, expression.range(), error));
         }
         ExprKind::Boolean(value) => CalculusNode::Boolean(*value),
         ExprKind::Quantity { value, unit } => {

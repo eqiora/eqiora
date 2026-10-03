@@ -70,6 +70,38 @@ the ordered binding list remains in the graph. For this smooth polynomial the He
 sorting derivative bindings. Heterogeneous input dimensions produce typed blocks rather than
 an implicitly homogeneous matrix. The initial profile rejects derivative orders above two.
 
+## Typed Jacobian actions
+
+For the admitted real scalar polynomial profile, `jvp(value, [x, y], [dx, dy])`
+applies the Jacobian to an ordered list of input directions. The two lists are structural
+arguments: they do not construct a homogeneous array. Each direction must have the exact
+scalar type and dimension of its selected independent binding. Repeated bindings, aliases
+used as independent inputs, and mismatched direction units are rejected. Other inputs are
+held fixed, and the result has the original output dimension.
+
+`vjp(value, x, seed)` returns the dual block for the selected input. This initial scalar
+output profile uses the real dimensionless dual pairing: `seed` has reciprocal output units,
+and the returned block has reciprocal `x` units. Separate input blocks retain separate types;
+a position block and a velocity block are not packed into one spatial vector. Python spells
+these operations `lang.jvp(value, wrt=(x, y), tangent=(dx, dy))` and
+`lang.vjp(value, wrt=x, cotangent=seed)`.
+
+A Hessian action is formed by applying `jvp` to a first partial. For
+`f=x*x*y+y*y*y`, its two blocks are
+`jvp(partial(f, wrt=x), [x,y], [dx,dy])` and
+`jvp(partial(f, wrt=y), [x,y], [dx,dy])`. This evaluates actions without requiring a dense
+Hessian. At `(x,y)=(3,5)` and `(dx,dy)=(2,-1)`, the blocks are `14` and `-18`.
+Applying another derivative is outside the order-two bound, including through aliases and
+operator composition. These explicit-expression actions do not differentiate implicit solves,
+unknown spatial fields, complex inputs, or nonsmooth branches.
+
+For an analytic Cartesian field, a differentiated polynomial operator can bind its
+length inputs to `coordinate(0)` and `coordinate(1)` inside a spatial Observable.
+The retained operator is expanded by the same calculus projection during ordinary
+Q1 Result quadrature. Differentiating the independent operator inputs precedes
+coordinate substitution; this does not introduce general coordinate-factor partials
+or derivatives of an unknown field representation.
+
 ## Continuous time and higher-order evolution
 
 `time()` is the time coordinate, with dimension `s`, of the enclosing continuous timeline.

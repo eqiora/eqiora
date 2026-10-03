@@ -64,6 +64,14 @@ impl<I: Clone> OperatorExpansionExt<I> for PureOperatorInstantiation<'_, I> {
                         dimension: eqiora_core::DimExponents::DIMENSIONLESS,
                     }
                 }
+                CalculusNode::Differentiated { value, source, wrt } => {
+                    ScalarCalculusNode::Differentiated {
+                        value: *value,
+                        source: *source,
+                        wrt: *wrt,
+                    }
+                }
+                CalculusNode::BoundInput(value) => ScalarCalculusNode::BoundInput(*value),
                 CalculusNode::Neg(value) => ScalarCalculusNode::Neg(*value),
                 CalculusNode::Add(left, right) => ScalarCalculusNode::Add(*left, *right),
                 CalculusNode::Mul(left, right) => ScalarCalculusNode::Mul(*left, *right),
@@ -126,6 +134,14 @@ pub enum ScalarCalculusNode {
     },
     /// One exact formal component.
     FormalComponent(ScalarCalculusAtom),
+    /// One retained local formal binding.
+    BoundInput(CalculusNodeId),
+    /// Retained differentiation history, with an already expanded value.
+    Differentiated {
+        value: CalculusNodeId,
+        source: CalculusNodeId,
+        wrt: CalculusNodeId,
+    },
     /// Ordered negation.
     Neg(CalculusNodeId),
     /// Ordered addition.

@@ -14,8 +14,10 @@ use sha2::{Digest, Sha256};
 
 use super::typing::{ExpressionType, SpatialSupport};
 use eqiora_core::{DimExponents, ValueFrame};
+mod actions;
 mod composition;
 mod derivative;
+mod derivative_validation;
 mod dimensions;
 mod domains;
 mod encoding;
@@ -24,7 +26,7 @@ use dimensions::{derive_symbolic_dimension, instantiate_dimension, validate_resu
 use encoding::canonical_definition_bytes;
 pub use polynomial::{ExactPolynomial, ExactPolynomialError};
 
-const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v4\0";
+const DEFINITION_DOMAIN: &[u8] = b"eqiora.pure-operator-definition/v5\0";
 
 /// Maximum number of formal arguments in a definition.
 pub const MAX_FORMALS: usize = 64;
@@ -50,6 +52,10 @@ pub enum PureOperatorError {
     NodeLimit,
     /// The dependency depth exceeded [`MAX_DEPTH`].
     DepthLimit,
+    /// Explicit differentiation exceeds the admitted order of two.
+    DerivativeOrder,
+    /// A retained derivative value disagrees with the shared ordered transform.
+    DerivativeMismatch,
     /// A formal slot was outside the definition's formal list.
     InvalidFormal(u16),
     /// A declared scalar/tensor value class was outside portable limits.
@@ -86,6 +92,9 @@ impl fmt::Display for PureOperatorError {
             }
             Self::NodeLimit => formatter.write_str("pure operator node count exceeds its limit"),
             Self::DepthLimit => formatter.write_str("pure operator depth exceeds its limit"),
+            Self::DerivativeMismatch => formatter
+                .write_str("retained derivative value differs from its source and selected input"),
+            Self::DerivativeOrder => formatter.write_str("explicit derivative order exceeds two"),
             Self::InvalidFormal(formal) => {
                 write!(formatter, "pure operator formal {formal} is invalid")
             }
@@ -456,6 +465,16 @@ pub enum CalculusNode {
     },
     /// Kronecker delta over two result axes.
     KroneckerDelta(ResultAxis, ResultAxis),
+    /// One local formal occurrence bound to a caller expression during composition.
+    /// Distinct formals retain distinct identities even when their values alias.
+    BoundInput(CalculusNodeId),
+    /// A differentiated value with its source and exact selected input retained.
+    /// Execution reads `value`; `source` and `wrt` preserve differentiation order.
+    Differentiated {
+        value: CalculusNodeId,
+        source: CalculusNodeId,
+        wrt: CalculusNodeId,
+    },
     /// Exact negation.
     Neg(CalculusNodeId),
     /// Exact addition.
@@ -468,9 +487,11 @@ impl CalculusNode {
     fn operands(&self) -> impl Iterator<Item = CalculusNodeId> {
         let operands = match *self {
             Self::Require { condition, value } => [Some(condition), Some(value), None],
-            Self::Neg(value) | Self::Not(value) | Self::UnaryMath(_, value) => {
-                [Some(value), None, None]
-            }
+            Self::Differentiated { value, source, wrt } => [Some(value), Some(source), Some(wrt)],
+            Self::BoundInput(value)
+            | Self::Neg(value)
+            | Self::Not(value)
+            | Self::UnaryMath(_, value) => [Some(value), None, None],
             Self::Add(left, right)
             | Self::Mul(left, right)
             | Self::Compare(_, left, right)
@@ -571,6 +592,9 @@ impl CalculusBuilder {
         }
         if depth > MAX_DEPTH {
             return Err(PureOperatorError::DepthLimit);
+        }
+        if let CalculusNode::Differentiated { source, wrt, value } = &node {
+            self.validate_differentiated(*source, *wrt, *value)?;
         }
         let id = CalculusNodeId(
             u32::try_from(self.nodes.len()).map_err(|_| PureOperatorError::NodeLimit)?,

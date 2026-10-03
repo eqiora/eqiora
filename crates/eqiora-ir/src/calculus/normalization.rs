@@ -43,6 +43,8 @@ impl ExactPolynomial {
             let polynomial = match node {
                 ScalarCalculusNode::Rational { value, .. } => Polynomial::constant(*value),
                 ScalarCalculusNode::FormalComponent(atom) => Polynomial::atom(atom.clone()),
+                ScalarCalculusNode::BoundInput(value)
+                | ScalarCalculusNode::Differentiated { value, .. } => get(*value)?.clone(),
                 ScalarCalculusNode::Neg(value) => get(*value)?.checked_neg()?,
                 ScalarCalculusNode::Add(left, right) => get(*left)?.checked_add(get(*right)?)?,
                 ScalarCalculusNode::Mul(left, right) => get(*left)?.checked_mul(get(*right)?)?,
@@ -198,6 +200,16 @@ fn canonical_component_bytes<I>(component: &ScalarCalculus<I>) -> Vec<u8> {
                 for coordinate in atom.component() {
                     bytes.extend_from_slice(&coordinate.to_be_bytes());
                 }
+            }
+            ScalarCalculusNode::Differentiated { value, source, wrt } => {
+                bytes.push(5);
+                for id in [value, source, wrt] {
+                    bytes.extend_from_slice(&id.index().to_be_bytes());
+                }
+            }
+            ScalarCalculusNode::BoundInput(value) => {
+                bytes.push(6);
+                bytes.extend_from_slice(&value.index().to_be_bytes());
             }
             ScalarCalculusNode::Neg(value) => {
                 bytes.push(2);

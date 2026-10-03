@@ -78,6 +78,9 @@ impl ExprDagBuilder {
                 CalculusNode::Require { condition, value } => {
                     self.require(mapped(*condition)?, mapped(*value)?)?
                 }
+                CalculusNode::BoundInput(value) | CalculusNode::Differentiated { value, .. } => {
+                    mapped(*value)?
+                }
                 CalculusNode::Neg(value) => self.neg(mapped(*value)?)?,
                 CalculusNode::Add(left, right) => self.add(mapped(*left)?, mapped(*right)?)?,
                 CalculusNode::Mul(left, right) => self.mul(mapped(*left)?, mapped(*right)?)?,

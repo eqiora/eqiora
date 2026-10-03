@@ -2,6 +2,22 @@
 use super::*;
 use eqiora_core::ScalarDomain;
 
+#[derive(Clone, Copy)]
+pub(super) enum Selection {
+    Formal(u16),
+    Occurrence(CalculusNodeId),
+}
+impl Selection {
+    fn matches(self, id: CalculusNodeId, node: &CalculusNode) -> bool {
+        match self {
+            Self::Formal(selected) => {
+                matches!(node, CalculusNode::FormalComponent { formal, axes } if *formal == selected && axes.is_empty())
+            }
+            Self::Occurrence(selected) => id == selected,
+        }
+    }
+}
+
 impl CalculusBuilder {
     /// Append the first partial of an explicit real scalar polynomial with
     /// respect to one declared formal. All other formals are held fixed.
@@ -20,6 +36,9 @@ impl CalculusBuilder {
         root: CalculusNodeId,
         formal: u16,
     ) -> Result<CalculusNodeId, PureOperatorError> {
+        if self.derivative_order(root)? >= 2 {
+            return Err(PureOperatorError::DerivativeOrder);
+        }
         let selected = self
             .formals
             .get(usize::from(formal))
@@ -39,6 +58,31 @@ impl CalculusBuilder {
             .dimension()
             .div(selected.dimension().unwrap())
             .ok_or(PureOperatorError::ResultDimensionOverflow)?;
+        let (mut staged, result) = self.raw_partial(
+            root,
+            Selection::Formal(formal),
+            selected.dimension().unwrap(),
+            dimension,
+        )?;
+        let wrt = staged.push(CalculusNode::FormalComponent {
+            formal,
+            axes: Box::new([]),
+        })?;
+        let result = staged.push(CalculusNode::Differentiated {
+            value: result,
+            source: root,
+            wrt,
+        })?;
+        *self = staged;
+        Ok(result)
+    }
+    pub(super) fn raw_partial(
+        &self,
+        root: CalculusNodeId,
+        selection: Selection,
+        input_dimension: DimExponents,
+        dimension: DimExponents,
+    ) -> Result<(Self, CalculusNodeId), PureOperatorError> {
         let root_index = definition_index(root, self.nodes.len())?;
         let mut reachable = vec![false; root_index + 1];
         let mut pending = vec![root];
@@ -47,9 +91,13 @@ impl CalculusBuilder {
             if std::mem::replace(&mut reachable[index], true) {
                 continue;
             }
+            if selection.matches(id, &self.nodes[index]) {
+                continue;
+            }
             // A validity predicate is retained verbatim, not differentiated.
             match &self.nodes[index] {
-                CalculusNode::Require { value, .. } => pending.push(*value),
+                CalculusNode::Require { value, .. }
+                | CalculusNode::Differentiated { value, .. } => pending.push(*value),
                 node => pending.extend(node.operands()),
             }
         }
@@ -65,8 +113,18 @@ impl CalculusBuilder {
                 continue;
             }
             let derivative = |id: CalculusNodeId| derivatives[id.index() as usize];
+            if selection.matches(CalculusNodeId(index as u32), node) {
+                derivatives[index] = Some(staged.push(CalculusNode::Rational {
+                    value: ExactRational::integer(1),
+                    dimension: DimExponents::DIMENSIONLESS,
+                })?);
+                continue;
+            }
             derivatives[index] = match node {
                 CalculusNode::Rational { .. } => None,
+                CalculusNode::Differentiated { value, .. } | CalculusNode::BoundInput(value) => {
+                    derivative(*value)
+                }
                 CalculusNode::Boolean(_)
                 | CalculusNode::Compare(..)
                 | CalculusNode::Not(_)
@@ -79,7 +137,7 @@ impl CalculusBuilder {
                             let dimension = self
                                 .value_type(*value)?
                                 .dimension()
-                                .div(selected.dimension().unwrap())
+                                .div(input_dimension)
                                 .ok_or(PureOperatorError::ResultDimensionOverflow)?;
                             staged.push(CalculusNode::Rational {
                                 value: ExactRational::integer(0),
@@ -92,19 +150,7 @@ impl CalculusBuilder {
                         value,
                     })?)
                 }
-                CalculusNode::FormalComponent {
-                    formal: input,
-                    axes,
-                } if axes.is_empty() => {
-                    if *input == formal {
-                        Some(staged.push(CalculusNode::Rational {
-                            value: ExactRational::integer(1),
-                            dimension: DimExponents::DIMENSIONLESS,
-                        })?)
-                    } else {
-                        None
-                    }
-                }
+                CalculusNode::FormalComponent { axes, .. } if axes.is_empty() => None,
                 CalculusNode::Neg(value) => derivative(*value)
                     .map(|value| staged.push(CalculusNode::Neg(value)))
                     .transpose()?,
@@ -130,8 +176,29 @@ impl CalculusBuilder {
                 dimension,
             })?,
         };
-        *self = staged;
-        Ok(result)
+        Ok((staged, result))
+    }
+}
+
+impl CalculusBuilder {
+    pub(super) fn derivative_order(&self, root: CalculusNodeId) -> Result<u8, PureOperatorError> {
+        let end = definition_index(root, self.nodes.len())?;
+        let mut orders: Vec<u8> = Vec::with_capacity(end + 1);
+        for node in self.nodes.iter().take(end + 1) {
+            let order = match node {
+                CalculusNode::Differentiated { source, .. } => orders[source.index() as usize] + 1,
+                _ => node
+                    .operands()
+                    .map(|id| orders[id.index() as usize])
+                    .max()
+                    .unwrap_or(0),
+            };
+            if order > 2 {
+                return Err(PureOperatorError::DerivativeOrder);
+            }
+            orders.push(order);
+        }
+        Ok(orders[end])
     }
 }
 
@@ -188,6 +255,15 @@ mod tests {
             .unwrap();
         for formal in [0, 1] {
             let derived = builder.partial(root, formal).unwrap();
+            let CalculusNode::Differentiated {
+                value: derived,
+                source,
+                ..
+            } = builder.nodes[derived.index() as usize]
+            else {
+                panic!("derivative history retained")
+            };
+            assert_eq!(source, root);
             let CalculusNode::Require { condition, value } =
                 builder.nodes[derived.index() as usize]
             else {
@@ -199,5 +275,48 @@ mod tests {
                 if value == ExactRational::integer(if formal == 0 { 1 } else { 0 }) && dimension == DimExponents::DIMENSIONLESS)
             );
         }
+    }
+    #[test]
+    fn ordered_history_survives_a_zero_result_and_rejects_third_order_atomically() {
+        let class = PureValueClass::invariant_scalar()
+            .with_dimension(DimExponents::DIMENSIONLESS)
+            .with_scalar_domain(ScalarDomain::Real)
+            .unwrap();
+        let mut builder = CalculusBuilder::new([class, class], class).unwrap();
+        let x = builder
+            .push(CalculusNode::FormalComponent {
+                formal: 0,
+                axes: Box::new([]),
+            })
+            .unwrap();
+        let first = builder.partial(x, 1).unwrap();
+        let second = builder.partial(first, 0).unwrap();
+        let CalculusNode::Differentiated { source, wrt, .. } =
+            builder.nodes[second.index() as usize]
+        else {
+            panic!("second history")
+        };
+        assert_eq!(source, first);
+        assert!(matches!(
+            builder.nodes[wrt.index() as usize],
+            CalculusNode::FormalComponent { formal: 0, .. }
+        ));
+        let CalculusNode::Differentiated { source, wrt, .. } =
+            builder.nodes[first.index() as usize]
+        else {
+            panic!("first history")
+        };
+        assert_eq!(source, x);
+        assert!(matches!(
+            builder.nodes[wrt.index() as usize],
+            CalculusNode::FormalComponent { formal: 1, .. }
+        ));
+        let before = builder.nodes.clone();
+        assert_eq!(
+            builder.partial(second, 0),
+            Err(PureOperatorError::DerivativeOrder)
+        );
+        assert_eq!(builder.nodes, before);
+        builder.finish(second).unwrap();
     }
 }

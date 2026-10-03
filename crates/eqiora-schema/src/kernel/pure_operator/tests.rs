@@ -117,7 +117,7 @@ fn definition_identity_excludes_names_but_includes_exact_body() {
     assert!(
         first
             .canonical_bytes()
-            .starts_with(b"eqiora.pure-operator-definition/v4\0")
+            .starts_with(b"eqiora.pure-operator-definition/v5\0")
     );
     assert_ne!(
         first.digest().to_string(),

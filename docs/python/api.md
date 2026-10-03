@@ -3564,6 +3564,26 @@ The compiler retains alias dependencies and checks binding identity and dimensio
 def partial(value: object, *, wrt: Expression, holding: Sequence[Expression]=()) -> Expression: ...
 ```
 
+<a id="api-eqiora-lang-jvp"></a>
+
+### `eqiora.lang.jvp`
+
+Apply a scalar Jacobian to ordered, independently typed input directions.
+
+```python
+def jvp(value: object, *, wrt: Sequence[Expression], tangent: Sequence[object]) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-vjp"></a>
+
+### `eqiora.lang.vjp`
+
+Pull back to one independently typed input block.
+
+```python
+def vjp(value: object, *, wrt: Expression, cotangent: object) -> Expression: ...
+```
+
 <a id="api-eqiora-lang-derivative"></a>
 
 ### `eqiora.lang.derivative`
