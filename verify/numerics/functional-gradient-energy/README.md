@@ -34,7 +34,9 @@ See [the derivation and tolerances](expected/README.md).
 Falsifiers change only the energy diffusion coefficient, load sign, or load
 Parameter identity while keeping the Law; all must fail the weak-residual
 correspondence check. A dimensionless direction for the length-valued Field is
-rejected. The target also checks that missing or incomplete essential restrictions
+rejected. Multiplying the energy by a numerically unit-valued but dimensional
+`1[J]` must fail the strong-law test-pairing dimension check even when its numerical
+polynomial coefficients match. The target also checks that missing or incomplete essential restrictions
 fail before execution. Positive solves and Plan replay precede these denials.
 
 This is a bounded scalar first-variation claim. It proves no natural-boundary

@@ -208,7 +208,7 @@ fn number(value: f64) -> Option<ExactRational> {
         (i128::from(mantissa), 1i64 << shift)
     };
     let numerator = if value.is_sign_negative() {
-        -numerator
+        numerator.checked_neg()?
     } else {
         numerator
     };
@@ -232,7 +232,13 @@ mod tests {
                 Some(ExactRational::new(numerator, denominator).unwrap())
             );
         }
-        for value in [f64::NAN, f64::INFINITY, f64::MIN_POSITIVE, f64::MAX] {
+        for value in [
+            f64::NAN,
+            f64::INFINITY,
+            f64::MIN_POSITIVE,
+            f64::MAX,
+            -2.0_f64.powi(127),
+        ] {
             assert!(number(value).is_none());
         }
     }

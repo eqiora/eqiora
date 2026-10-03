@@ -12,7 +12,7 @@ pub(crate) fn admit(
     program: &KernelProgram,
     derived: &DerivedScalarGalerkinForm,
 ) -> Result<(), Diagnostic> {
-    let mut has_variation = false;
+    let mut variation_dimensions = Vec::new();
     for (_, left, right) in projection.equations() {
         for expression in [left, right] {
             if let AuthoredFormExpressionV1::Variation {
@@ -37,10 +37,11 @@ pub(crate) fn admit(
                     rejection_with(projection, "variation energy has invalid live types")
                 })?;
                 expression.check_functional_variation(functional, &typed)?;
-                has_variation = true;
+                variation_dimensions.push(functional.value_type().dimension());
             }
         }
     }
+    let has_variation = !variation_dimensions.is_empty();
     let test_dimension = if has_variation {
         let Some(eqiora_schema::kernel::KernelNode::Field(field)) = program.node(derived.field)
         else {
@@ -61,6 +62,32 @@ pub(crate) fn admit(
     let expected_trial = derived.field.ulid().to_string();
     let typed = typed_relation(program, derived.volume_relation)?;
     let dag = typed.expression();
+    if has_variation {
+        let invalid_dimension = || {
+            rejection_with(
+                projection,
+                "variation dimension differs from the strong-law test pairing",
+            )
+        };
+        let spatial_dimension =
+            i32::try_from(derived.dimension).map_err(|_| invalid_dimension())?;
+        let measure =
+            eqiora_core::DimExponents::from_integers([0, spatial_dimension, 0, 0, 0, 0, 0])
+                .ok_or_else(invalid_dimension)?;
+        let paired_dimension = typed
+            .node_type(dag.roots()[0])
+            .ok_or_else(invalid_dimension)?
+            .dimension()
+            .mul(test_dimension)
+            .and_then(|dimension| dimension.mul(measure))
+            .ok_or_else(invalid_dimension)?;
+        if variation_dimensions
+            .iter()
+            .any(|dimension| *dimension != paired_dimension)
+        {
+            return Err(invalid_dimension());
+        }
+    }
     let test = AuthoredFormExpressionV1::Test {
         field_ulid: expected_trial,
     };

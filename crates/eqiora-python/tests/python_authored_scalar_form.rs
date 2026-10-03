@@ -110,6 +110,15 @@ except eqiora.ValidationError as error:
     assert "Field identity and dimension" in str(error), str(error)
 else:
     raise AssertionError("dimensionless direction of a length Field was accepted")
+# A numerically unit-valued dimensional multiplier is not an exact weak-law pairing.
+unit_scaled_energy = energy_source.replace("observable energy:1=integral(", "observable energy:J=integral(1[J]*(").replace(",measure(square));", "),measure(square));")
+unit_scaled_model = compile_energy(unit_scaled_energy)
+try:
+    eqiora.resolve(unit_scaled_model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
+except eqiora.ValidationError as error:
+    assert "variation dimension differs from the strong-law test pairing" in str(error), str(error)
+else:
+    raise AssertionError("dimensionally different energy was admitted by numerical coefficient equality")
 for changed in (
     energy_source.replace("diffusion*contract", "2*diffusion*contract"),
     energy_source.replace("-source_scale*potential", "+source_scale*potential"),
