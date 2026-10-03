@@ -1,3 +1,5 @@
+mod polynomial;
+
 use eqiora_compiler::{AuthoredFormExpressionV1, AuthoredFormulationProjection};
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
@@ -92,6 +94,20 @@ pub(crate) fn admit(
             ),
         }),
     };
+    let (_, authored_left, authored_right) = &projection.equations()[0];
+    if [authored_left, authored_right]
+        .iter()
+        .any(|value| matches!(value, AuthoredFormExpressionV1::Variation { .. }))
+    {
+        return polynomial::matches_variation(projection, derived.dimension, &left, &right)
+            .then_some(())
+            .ok_or_else(|| {
+                rejection_with(
+                    projection,
+                    "functional variation differs from the admitted strong-law weak residual",
+                )
+            });
+    }
     if !equivalent(&projection.equations()[0].1, &left) {
         return Err(rejection_with(
             projection,

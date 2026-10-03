@@ -80,6 +80,31 @@ def check_analytic_coefficients(model, accepted):
     assert all(abs(value) <= 1e-10 for value in values[:-1])
     assert abs(values[-1] - 3/32) <= 1e-10
 check_analytic_coefficients(model, result)
+# One retained energy supplies both the generated weak form and ordinary observation.
+energy_source = source.replace("  form weak for balance", "  observable energy:1=integral(diffusion*contract(grad(potential),grad(potential),axes=((0,0),))/2-source_scale*potential,measure(square));\n  form weak for balance")
+energy_source = energy_source.replace("integrate(square, dot(grad(w), diffusion * grad(potential)))\n      = integrate(square, w * source_scale)", "variation(energy,wrt=potential,direction=w,holding=(diffusion,source_scale))=0")
+def compile_energy(energy_source):
+    return eqiora.compile(source=energy_source, geometry=geometry, entry='AuthoredPoisson', bindings={'square': geometry.selection('square'), 'x_lower': (geometry.selection('x_lower'), geometry.selection('square')), 'x_upper': (geometry.selection('x_upper'), geometry.selection('square')), 'y_lower': (geometry.selection('y_lower'), geometry.selection('square')), 'y_upper': (geometry.selection('y_upper'), geometry.selection('square')), **parameters})
+energy_model = compile_energy(energy_source)
+energy_plan = eqiora.resolve(energy_model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
+energy_plan = eqiora.Plan.from_bytes(energy_plan.to_bytes())
+energy_result = eqiora.run(energy_plan)
+check_analytic_coefficients(energy_model, energy_result)
+energy_value = energy_result.observe(energy_model.observable("definition.energy"), quadrature_points=2)
+# Independently: K=8/3, b=1/4, u=3/32, so F=u*K*u/2-b*u=-3/256.
+assert abs(energy_value.value + 3/256) <= 1e-10
+for changed in (
+    energy_source.replace("diffusion*contract", "2*diffusion*contract"),
+    energy_source.replace("-source_scale*potential", "+source_scale*potential"),
+    energy_source.replace("-source_scale*potential", "-other_source*potential").replace("holding=(diffusion,source_scale)", "holding=(diffusion,other_source)"),
+):
+    changed_model = compile_energy(changed)
+    try:
+        eqiora.resolve(changed_model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
+    except eqiora.ValidationError as error:
+        assert "strong-law weak residual" in str(error), str(error)
+    else:
+        raise AssertionError("energy/strong-law mismatch was admitted")
 # Program-controlled and manual solver choices preserve the same exact scalar structure.
 planned = eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.Q1(),
     solve=eqiora.solve.Linear(objective=eqiora.solve.Robust,
