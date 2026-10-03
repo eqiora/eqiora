@@ -1,5 +1,6 @@
 //! Finite typed equalities with explicit numerical enforcement of real constraints.
 //! Model conditions remain unchanged; numerical acceptance never implies exact satisfaction.
+mod complex;
 mod configuration;
 mod coordinates;
 mod linearization;

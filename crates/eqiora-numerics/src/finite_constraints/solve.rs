@@ -206,7 +206,7 @@ pub(super) fn assess_original(
     ))
 }
 
-fn branch_system(
+pub(super) fn branch_system(
     problem: &FiniteConstraintProblem,
     mask: u32,
 ) -> Result<CanonicalCsrSystemView, Diagnostic> {

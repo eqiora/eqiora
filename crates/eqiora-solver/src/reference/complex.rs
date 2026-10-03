@@ -1,3 +1,4 @@
+mod bicgstab;
 mod hpd;
 
 use eqiora_core::Diagnostic;
@@ -48,32 +49,39 @@ impl LinearSolverBackend<Complex64> for ReferenceLinearSolver {
         if problem.properties() == LinearOperatorProperties::HermitianPositiveDefinite {
             hpd::require_positive_pivots(source)?;
         }
-        let storage = RealBlockStorage::new(source, problem)?;
-        let properties = match problem.properties() {
-            LinearOperatorProperties::HermitianPositiveDefinite => {
-                LinearOperatorProperties::SymmetricPositiveDefinite
+        let produced = if plan.algorithm() == crate::LinearSolver::BiConjugateGradientStabilized {
+            bicgstab::solve(problem, plan)?
+        } else {
+            let storage = RealBlockStorage::new(source, problem)?;
+            let block = CanonicalCsrSystemView::new(
+                &storage,
+                LinearOperatorProperties::SymmetricPositiveDefinite,
+            )?;
+            let mut block_problem = block.linear_problem()?;
+            let initial = problem.initial_guess().map(pack);
+            if let Some(initial) = &initial {
+                block_problem = block_problem.with_initial_guess(initial)?;
             }
-            _ => LinearOperatorProperties::General,
+            let real = <Self as LinearSolverBackend<f64>>::solve_with_execution(
+                self,
+                &block_problem,
+                plan,
+                execution,
+            )?;
+            bicgstab::Produced {
+                values: real
+                    .values()
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|pair| Complex64::new(pair[0], pair[1]))
+                    .collect(),
+                reason: real.report().reason(),
+                iterations: real.report().completed_iterations(),
+                residual: real.report().reported_residual_norm(),
+            }
         };
-        let block = CanonicalCsrSystemView::new(&storage, properties)?;
-        let mut block_problem = block.linear_problem()?;
-        let initial = problem.initial_guess().map(pack);
-        if let Some(initial) = &initial {
-            block_problem = block_problem.with_initial_guess(initial)?;
-        }
-        let produced = <Self as LinearSolverBackend<f64>>::solve_with_execution(
-            self,
-            &block_problem,
-            plan,
-            execution,
-        )?;
-        let values = produced
-            .values()
-            .as_chunks::<2>()
-            .0
-            .iter()
-            .map(|pair| Complex64::new(pair[0], pair[1]))
-            .collect::<Vec<_>>();
+        let values = produced.values;
         // Replay the original typed action, not the lowering used by production.
         let initial_values = problem.initial_guess().map_or_else(
             || vec![Complex64::new(0., 0.); source.columns()],
@@ -88,10 +96,10 @@ impl LinearSolverBackend<Complex64> for ReferenceLinearSolver {
             execution.report(),
             problem.operator().orientation(),
             plan,
-            produced.report().reason(),
-            produced.report().completed_iterations(),
+            produced.reason,
+            produced.iterations,
             initial_norm,
-            produced.report().reported_residual_norm(),
+            produced.residual,
             true_norm,
             plan.residual_target(rhs_norm)?,
         )?;
@@ -178,14 +186,13 @@ fn pack(values: &[Complex64]) -> Vec<f64> {
 }
 
 fn norm(values: &[Complex64]) -> Result<f64, Diagnostic> {
-    let value = values
-        .iter()
-        .fold(0.0_f64, |sum, value| sum.hypot(value.re).hypot(value.im));
-    if value.is_finite() {
-        Ok(value)
-    } else {
-        Err(solve_failed("complex residual norm overflowed"))
-    }
+    let coordinates = pack(values);
+    SERIAL_LINEAR_EXECUTION
+        .inner_product(crate::FixedOrderInnerProduct::new(
+            &coordinates,
+            &coordinates,
+        )?)
+        .map(f64::sqrt)
 }
 
 fn residual_norm(

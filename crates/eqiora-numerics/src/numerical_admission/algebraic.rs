@@ -19,6 +19,7 @@ pub struct CommonAlgebraicPlan {
     model: Arc<ModelEnvelope>,
     kernel: KernelProgram,
     problem: AlgebraicProblem,
+    complex_system: Option<eqiora_solver::CanonicalCsrSystemView<num_complex::Complex64>>,
     pub(super) linear: NativeLinearPolicy,
     nonlinear: Option<NonlinearSolvePlan>,
     symbols: Vec<SymbolRef>,
@@ -66,17 +67,41 @@ impl CommonAlgebraicPlan {
                 "finite algebraic Plan requires exact linear controls",
             ));
         }
-        let linear = solver_planning::resolve_linear(
-            request,
-            LinearOperatorProperties::General,
-            None,
-            None,
-            None,
-            backend,
-        )?;
-        if linear.solver.algorithm() != LinearSolver::SparseLu
-            || linear.solver.preconditioner() != PreconditionerPolicy::Identity
-            || linear.solver.reduction() != ReductionPolicy::Fast
+        let complex_system = if nonlinear.is_none() {
+            problem.complex_linear_system()?
+        } else {
+            None
+        };
+        let linear = if complex_system.is_some() {
+            let (plan, provider) = request
+                .exact_request()
+                .ok_or_else(|| invalid("complex finite Plan requires exact linear controls"))?;
+            if provider != REFERENCE_LINEAR_SOLVER.provider() {
+                return Err(invalid(
+                    "complex finite Plan requires the admitted reference provider",
+                ));
+            }
+            REFERENCE_LINEAR_SOLVER.capabilities().require_problem(
+                plan,
+                eqiora_core::ScalarDomain::Complex,
+                ScalarType::F64,
+                LinearOperatorProperties::General,
+            )?;
+            NativeLinearPolicy::exact(plan, &REFERENCE_LINEAR_SOLVER)?
+        } else {
+            solver_planning::resolve_linear(
+                request,
+                LinearOperatorProperties::General,
+                None,
+                None,
+                None,
+                backend,
+            )?
+        };
+        if complex_system.is_none()
+            && (linear.solver.algorithm() != LinearSolver::SparseLu
+                || linear.solver.preconditioner() != PreconditionerPolicy::Identity
+                || linear.solver.reduction() != ReductionPolicy::Fast)
         {
             return Err(invalid(
                 "finite algebraic Plan admits only exact SparseLU/Identity/Fast execution",
@@ -95,6 +120,7 @@ impl CommonAlgebraicPlan {
             model: Arc::new(model.clone()),
             kernel,
             problem,
+            complex_system,
             linear,
             nonlinear,
             symbols,
@@ -190,6 +216,30 @@ impl CommonAlgebraicPlan {
             ));
         }
         let checked = self.linear.checked_backend(backend, None)?;
+        if let Some(system) = &self.complex_system {
+            let initial = state
+                .values
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|pair| num_complex::Complex64::new(pair[0], pair[1]))
+                .collect::<Vec<_>>();
+            let problem = system.linear_problem()?.with_initial_guess(&initial)?;
+            let solution = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, self.linear.solver)
+                .solve(&problem)?;
+            let values = solution
+                .values()
+                .iter()
+                .flat_map(|value| [value.re, value.im])
+                .collect();
+            return crate::CommonResult::from_algebraic(
+                self,
+                state,
+                values,
+                solution.report().clone(),
+                None,
+            );
+        }
         if let Some(nonlinear) = self.nonlinear {
             let solution = self.problem.nonlinear()?.solve_nonlinear(
                 &state.values,

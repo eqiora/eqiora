@@ -78,6 +78,16 @@ impl AlgebraicProblem {
         Ok(Self::Conserving(problem))
     }
 
+    pub(super) fn complex_linear_system(
+        &self,
+    ) -> Result<Option<eqiora_solver::CanonicalCsrSystemView<num_complex::Complex64>>, Diagnostic>
+    {
+        match self {
+            Self::Conserving(_) => Ok(None),
+            Self::Constrained(problem) => problem.complex_linear_system(),
+        }
+    }
+
     pub(super) fn nonlinear(&self) -> Result<&FiniteConstraintProblem, Diagnostic> {
         match self {
             Self::Constrained(problem) if problem.is_strict_interior() => Ok(problem),

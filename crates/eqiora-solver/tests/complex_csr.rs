@@ -459,3 +459,36 @@ fn repeating_a_complex_request_uses_changed_coefficients_instead_of_stale_numeri
         }
     }
 }
+
+#[test]
+fn pure_imaginary_coefficient_does_not_create_an_artificial_real_pairing_breakdown() {
+    use eqiora_solver::{LinearSolveRequest, LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
+    // A = i I, x = [1+2i, -2+i], b = [-2+i, -1-2i].
+    let storage = Storage {
+        values: [
+            C::new(0., 1.),
+            C::new(0., 0.),
+            C::new(0., 0.),
+            C::new(0., 1.),
+        ],
+        rhs: [C::new(-2., 1.), C::new(-1., -2.)],
+    };
+    let system = CanonicalCsrSystemView::new(&storage, Properties::General).unwrap();
+    let plan = SolverPlan::new(
+        LinearSolver::BiConjugateGradientStabilized,
+        1e-12,
+        1e-12,
+        8.try_into().unwrap(),
+    )
+    .unwrap();
+    let solution = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan)
+        .solve(&system.linear_problem().unwrap())
+        .unwrap();
+    for (actual, expected) in solution
+        .values()
+        .iter()
+        .zip([C::new(1., 2.), C::new(-2., 1.)])
+    {
+        assert!((*actual - expected).norm() <= 1e-10);
+    }
+}

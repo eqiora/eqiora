@@ -3,9 +3,7 @@ use std::num::NonZeroUsize;
 use eqiora_core::{Id, entity::kinds};
 use eqiora_meshing::{CellId, MeshEntity, MeshQualityGate};
 use eqiora_realization::{AleGeometryQualityGate, ConformingTraceQuotient, TraceFieldEndpoint};
-use eqiora_solver::{
-    LinearSolverBackend, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverPlan,
-};
+use eqiora_solver::{PreconditionerPolicy, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverPlan};
 
 use super::*;
 use crate::simplicial_fsi::FixedReferenceFsiPartition;
