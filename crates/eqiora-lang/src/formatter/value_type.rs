@@ -22,8 +22,25 @@ pub(super) fn format_value_type(
 ) {
     match value.kind() {
         ValueTypeSyntaxKind::Named(name) => write!(output, "{name}").expect("String write"),
-        ValueTypeSyntaxKind::Coordinates(name) => {
-            write!(output, "coordinates<integer, {name}>").expect("String write");
+        ValueTypeSyntaxKind::Coordinates { scalar, basis } => {
+            output.push_str("coordinates<");
+            format_value_type(scalar, output);
+            output.push_str(", ");
+            format_basis(basis, output);
+            output.push('>');
+        }
+        ValueTypeSyntaxKind::LinearMap {
+            scalar,
+            source,
+            target,
+        } => {
+            output.push_str("map<");
+            format_value_type(scalar, output);
+            for basis in [source, target] {
+                output.push_str(", ");
+                format_basis(basis, output);
+            }
+            output.push('>');
         }
         ValueTypeSyntaxKind::Counts(name) => {
             write!(output, "counts<{name}>").expect("String write");
@@ -68,5 +85,13 @@ pub(super) fn format_value_type(
             super::expression::format_expression(extent, 9, output);
             output.push('>');
         }
+    }
+}
+
+fn format_basis(basis: &crate::FiniteBasisSyntax, output: &mut crate::formatter::comments::Output) {
+    if basis.dual {
+        write!(output, "dual<{}>", basis.name).expect("String write");
+    } else {
+        write!(output, "{}", basis.name).expect("String write");
     }
 }

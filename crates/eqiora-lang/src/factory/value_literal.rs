@@ -8,8 +8,8 @@ impl SourceAstFactory {
         framed: bool,
     ) -> Result<usize, AstConstructionError> {
         crate::ValueTypeSyntax::validate_checked(value.value_type())?;
-        let nominal =
-            value.value_type().finite_space().is_some() || value.value_type().index_set().is_some();
+        let nominal = value.value_type().finite_bases().next().is_some()
+            || value.value_type().index_set().is_some();
         if value.enum_tag().is_some()
             || value.as_bool().is_some()
             || (!framed && !nominal && value.is_zero() && !value.value_type().shape().is_scalar())
@@ -34,7 +34,17 @@ impl SourceAstFactory {
             scalar
         };
         let mut prefix = 1usize;
-        let mut nodes = if nominal { 2usize } else { 0 };
+        let mut nodes = if value.value_type().index_set().is_some() {
+            2usize
+        } else if nominal {
+            1 + value
+                .value_type()
+                .finite_bases()
+                .map(|basis| if basis.is_dual() { 2 } else { 1 })
+                .sum::<usize>()
+        } else {
+            0
+        };
         for (axis, extent) in value.value_type().shape().extents().iter().enumerate() {
             if framed && axis == value.value_type().array_rank() {
                 nodes = nodes.checked_add(2 * prefix).ok_or_else(|| {
@@ -123,9 +133,26 @@ impl SourceAstFactory {
             return Self::expression(ExprKind::Boolean(value), range);
         }
         let nominal = match syntax.kind() {
-            crate::ValueTypeSyntaxKind::Coordinates(name) => Some(("coordinates", name)),
-            crate::ValueTypeSyntaxKind::Counts(name) => Some(("counts", name)),
-            crate::ValueTypeSyntaxKind::Index(name) => Some(("index", name)),
+            crate::ValueTypeSyntaxKind::Coordinates { basis, .. } => {
+                Some(("coordinates", vec![basis.clone()]))
+            }
+            crate::ValueTypeSyntaxKind::LinearMap { source, target, .. } => {
+                Some(("map", vec![source.clone(), target.clone()]))
+            }
+            crate::ValueTypeSyntaxKind::Counts(name) => Some((
+                "counts",
+                vec![crate::FiniteBasisSyntax {
+                    name: name.clone(),
+                    dual: false,
+                }],
+            )),
+            crate::ValueTypeSyntaxKind::Index(name) => Some((
+                "index",
+                vec![crate::FiniteBasisSyntax {
+                    name: name.clone(),
+                    dual: false,
+                }],
+            )),
             _ => None,
         };
         if frame.is_none()
@@ -230,23 +257,24 @@ impl SourceAstFactory {
             }
         }
         let result = nested(value, 0, &mut 0, range, frame.as_ref());
-        if let Some((constructor, name)) = nominal {
+        if let Some((constructor, bases)) = nominal {
+            let mut arguments = bases
+                .iter()
+                .map(|basis| basis.to_expression(range))
+                .collect::<Result<Vec<_>, _>>()?;
+            arguments.push(result);
             let mut expression = Self::expression(
                 ExprKind::Call {
                     callee: NamePath::single(constructor.to_owned(), range),
-                    arguments: crate::CallArguments::Positional(vec![
-                        Expr {
-                            resolved_enum: None,
-                            resolved_nominal: None,
-                            kind: ExprKind::Path(name.clone()),
-                            range,
-                        },
-                        result,
-                    ]),
+                    arguments: crate::CallArguments::Positional(arguments),
                 },
                 range,
             )?;
-            Self::bind_nominal_expression(&mut expression, name, value.value_type().clone())?;
+            let names = bases
+                .into_iter()
+                .map(|basis| basis.name)
+                .collect::<Vec<_>>();
+            Self::bind_nominal_expression(&mut expression, &names, value.value_type().clone())?;
             return Ok(expression);
         }
         Self::expression(result.kind, range)

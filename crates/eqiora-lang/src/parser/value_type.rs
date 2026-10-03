@@ -16,31 +16,11 @@ impl Parser<'_> {
             return None;
         }
         let start = self.current().range().start();
-        if ["coordinates", "counts", "index"]
+        if ["coordinates", "map", "counts", "index"]
             .iter()
             .any(|name| self.at_keyword(name))
         {
-            let constructor = self.bump().text().to_owned();
-            self.expect(TokenKind::LeftAngle, "`<` before nominal type declaration")?;
-            if constructor == "coordinates" {
-                self.expect_keyword("integer")?;
-                self.expect(TokenKind::Comma, "`,` before finite space")?;
-            }
-            let declaration = self.parse_name_path("nominal type declaration")?;
-            let end = self
-                .expect(TokenKind::RightAngle, "`>` after nominal type")?
-                .range()
-                .end();
-            let kind = match constructor.as_str() {
-                "coordinates" => ValueTypeSyntaxKind::Coordinates(declaration),
-                "counts" => ValueTypeSyntaxKind::Counts(declaration),
-                _ => ValueTypeSyntaxKind::Index(declaration),
-            };
-            return Some(ValueTypeSyntax {
-                kind: Box::new(kind),
-                range: TextRange::new(start, end),
-                resolved_nominal: None,
-            });
+            return self.parse_nominal_value_type(depth, start);
         }
         if self.at_keyword("integer") || self.at_keyword("bool") {
             let token = self.bump();
@@ -166,6 +146,76 @@ impl Parser<'_> {
         }
     }
 
+    fn parse_nominal_value_type(&mut self, depth: usize, start: u32) -> Option<ValueTypeSyntax> {
+        let constructor = self.bump().text().to_owned();
+        self.expect(TokenKind::LeftAngle, "`<` before nominal type declaration")?;
+        let kind = if matches!(constructor.as_str(), "coordinates" | "map") {
+            if [
+                "coordinates",
+                "map",
+                "counts",
+                "index",
+                "array",
+                "vector",
+                "tensor",
+            ]
+            .iter()
+            .any(|name| self.at_keyword(name))
+            {
+                self.error_here("finite component types require a scalar component type");
+                return None;
+            }
+            let scalar = Box::new(self.parse_value_type_at_depth(depth + 1)?);
+            self.expect(TokenKind::Comma, "`,` before finite basis")?;
+            let source = self.parse_finite_basis()?;
+            if constructor == "map" {
+                self.expect(TokenKind::Comma, "`,` before output basis")?;
+                let target = self.parse_finite_basis()?;
+                ValueTypeSyntaxKind::LinearMap {
+                    scalar,
+                    source,
+                    target,
+                }
+            } else {
+                ValueTypeSyntaxKind::Coordinates {
+                    scalar,
+                    basis: source,
+                }
+            }
+        } else {
+            let name = self.parse_name_path("nominal type declaration")?;
+            if constructor == "counts" {
+                ValueTypeSyntaxKind::Counts(name)
+            } else {
+                ValueTypeSyntaxKind::Index(name)
+            }
+        };
+        let end = self
+            .expect(TokenKind::RightAngle, "`>` after nominal type")?
+            .range()
+            .end();
+        match crate::SourceAstFactory::value_type(kind, TextRange::new(start, end)) {
+            Ok(value) => Some(value),
+            Err(error) => {
+                self.error_previous(error.message());
+                None
+            }
+        }
+    }
+
+    fn parse_finite_basis(&mut self) -> Option<crate::FiniteBasisSyntax> {
+        let dual = self.at_keyword("dual");
+        if dual {
+            self.bump();
+            self.expect(TokenKind::LeftAngle, "`<` after dual")?;
+        }
+        let name = self.parse_name_path("finite space declaration")?;
+        if dual {
+            self.expect(TokenKind::RightAngle, "`>` after dual basis")?;
+        }
+        Some(crate::FiniteBasisSyntax { name, dual })
+    }
+
     fn parse_type_extent(&mut self) -> Option<u32> {
         let extent = self.parse_u64("positive integer type extent")?;
         let Some(extent) = u32::try_from(extent).ok().filter(|extent| *extent > 0) else {
@@ -190,6 +240,10 @@ mod tests {
             "tensor<Pa, 2, 2>",
             "array<array<V, 2>, 3>",
             "array<vector<complex<V>, 2>, 3>",
+            "coordinates<complex<1>, Spin>",
+            "coordinates<V, dual<Control>>",
+            "map<complex<1>, Spin, Spin>",
+            "map<1 / s, dual<Control>, dual<Spin>>",
         ] {
             let source = format!("model Types() {{ parameter value: {value_type} = 0; }}");
             let parsed = parse("types.eqi", &source);
@@ -240,6 +294,11 @@ mod tests {
             "tensor<V, 2, 2, 2, 2, 2>",
             "array<V, 65537>",
             "array<array<V, 256>, 257>",
+            "coordinates<array<1, 2>, Spin>",
+            "map<vector<1, 2>, Spin, Spin>",
+            "map<1, Spin>",
+            "coordinates<1, dual<dual<Spin>>>",
+            "array<coordinates<1, Spin>, 1>",
         ] {
             let source = format!("model M() {{ parameter invalid: {value_type} = 0; }}");
             assert!(

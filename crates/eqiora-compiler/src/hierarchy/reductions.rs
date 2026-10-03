@@ -516,21 +516,27 @@ fn substitute(
                 "nominal metadata requires a constructor call",
             ));
         };
-        let declaration = match arguments.first().map(Expr::kind) {
-            Some(ExprKind::Path(path)) => path.clone(),
-            Some(ExprKind::Name(name)) => {
-                NamePath::from_segments([name.as_str()], arguments[0].range())
-                    .map_err(|failure| error(file, expression, failure.to_string()))?
-            }
-            _ => {
-                return Err(error(
-                    file,
-                    expression,
-                    "nominal constructor requires its exact declaration name",
-                ));
-            }
+        let count = if value_type.map_bases().is_some() {
+            2
+        } else {
+            1
         };
-        SourceAstFactory::bind_nominal_expression(&mut result, &declaration, value_type.clone())
+        let declarations = arguments
+            .iter()
+            .take(count)
+            .map(|argument| {
+                eqiora_lang::FiniteBasisSyntax::from_expression(argument)
+                    .map(|basis| basis.name)
+                    .ok_or_else(|| {
+                        error(
+                            file,
+                            expression,
+                            "nominal constructor requires exact declaration arguments",
+                        )
+                    })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        SourceAstFactory::bind_nominal_expression(&mut result, &declarations, value_type.clone())
             .map_err(|failure| error(file, expression, failure.to_string()))?;
     }
     Ok(result)
@@ -777,7 +783,7 @@ mod tests {
         let declaration = NamePath::from_segments(["Stages"], constructor.range()).unwrap();
         SourceAstFactory::bind_nominal_expression(
             &mut constructor,
-            &declaration,
+            std::slice::from_ref(&declaration),
             exact_type.clone(),
         )
         .unwrap();

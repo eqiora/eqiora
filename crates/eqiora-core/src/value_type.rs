@@ -36,10 +36,7 @@ enum Meaning {
     },
     Coordinates(FiniteBasis),
     Counts(FiniteBasis),
-    LinearMap {
-        source: FiniteBasis,
-        target: FiniteBasis,
-    },
+    LinearMap(Box<(FiniteBasis, FiniteBasis)>),
     Index {
         set: Id<kinds::IndexSet>,
         extent: u32,

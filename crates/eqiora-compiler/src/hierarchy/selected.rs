@@ -889,6 +889,23 @@ fn record_nominal_path(
     if let ValueTypeSyntaxKind::Array { element, .. } = syntax.kind() {
         return record_nominal_path(element, id);
     }
+    if let ValueTypeSyntaxKind::Coordinates { basis, .. } = syntax.kind() {
+        return syntax
+            .resolved_nominal()?
+            .finite_space()
+            .filter(|space| space.erase() == id)
+            .map(|_| basis.name.clone());
+    }
+    if let ValueTypeSyntaxKind::LinearMap { source, target, .. } = syntax.kind() {
+        let (s, t) = syntax.resolved_nominal()?.map_bases()?;
+        return if s.space().erase() == id {
+            Some(source.name.clone())
+        } else if t.space().erase() == id {
+            Some(target.name.clone())
+        } else {
+            None
+        };
+    }
     let value = syntax.resolved_nominal()?;
     if value
         .enum_definition()
@@ -902,7 +919,6 @@ fn record_nominal_path(
     {
         match syntax.kind() {
             ValueTypeSyntaxKind::Named(name)
-            | ValueTypeSyntaxKind::Coordinates(name)
             | ValueTypeSyntaxKind::Counts(name)
             | ValueTypeSyntaxKind::Index(name) => Some(name.clone()),
             _ => None,

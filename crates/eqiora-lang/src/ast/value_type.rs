@@ -10,13 +10,76 @@ pub struct ValueTypeSyntax {
     pub(crate) resolved_nominal: Option<Box<eqiora_core::ValueType>>,
 }
 
+/// One declared finite basis or its algebraic dual in source syntax.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FiniteBasisSyntax {
+    /// Exact lexical declaration path.
+    pub name: super::NamePath,
+    /// Dual basis; this does not imply complex conjugation or a metric conversion.
+    pub dual: bool,
+}
+
+impl FiniteBasisSyntax {
+    /// Read an exact declaration name or explicit `dual(Name)` value argument.
+    pub fn from_expression(expression: &Expr) -> Option<Self> {
+        let (expression, dual) = match expression.kind() {
+            super::ExprKind::Call { callee, arguments } if callee.as_str() == "dual" => {
+                let [name] = arguments.positional()? else {
+                    return None;
+                };
+                (name, true)
+            }
+            _ => (expression, false),
+        };
+        let name = match expression.kind() {
+            super::ExprKind::Name(name) => {
+                super::NamePath::single(name.clone(), expression.range())
+            }
+            super::ExprKind::Path(name) => name.clone(),
+            _ => return None,
+        };
+        Some(Self { name, dual })
+    }
+
+    /// Project one exact basis argument without inferring a metric or conversion.
+    pub fn to_expression(&self, range: TextRange) -> Result<Expr, crate::AstConstructionError> {
+        let name =
+            crate::SourceAstFactory::expression(super::ExprKind::Path(self.name.clone()), range)?;
+        if self.dual {
+            crate::SourceAstFactory::expression(
+                super::ExprKind::Call {
+                    callee: super::NamePath::single("dual".into(), range),
+                    arguments: super::CallArguments::Positional(vec![name]),
+                },
+                range,
+            )
+        } else {
+            Ok(name)
+        }
+    }
+}
+
 /// Closed mathematical type constructors. Arrays retain their element type.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ValueTypeSyntaxKind {
     /// Unresolved type or dimension name, classified only by lexical resolution.
     Named(super::NamePath),
-    /// Integer coordinates in an exact declared atomic finite space.
-    Coordinates(super::NamePath),
+    /// Numeric coordinates in an exact declared finite basis.
+    Coordinates {
+        /// Scalar component domain and physical dimension.
+        scalar: Box<ValueTypeSyntax>,
+        /// Exact primal or dual basis.
+        basis: FiniteBasisSyntax,
+    },
+    /// Linear map retaining both ordered basis identities.
+    LinearMap {
+        /// Scalar component domain and physical dimension.
+        scalar: Box<ValueTypeSyntax>,
+        /// Input coordinate basis.
+        source: FiniteBasisSyntax,
+        /// Output coordinate basis.
+        target: FiniteBasisSyntax,
+    },
     /// Nonnegative exact counts indexed by an exact atomic finite space.
     Counts(super::NamePath),
     /// One bounded ordinal carrying its exact index-set identity.
@@ -78,11 +141,13 @@ impl ValueTypeSyntax {
     pub fn dimension(&self) -> Option<&Expr> {
         match self.kind.as_ref() {
             ValueTypeSyntaxKind::Named(_) => None,
-            ValueTypeSyntaxKind::Coordinates(_)
-            | ValueTypeSyntaxKind::Counts(_)
-            | ValueTypeSyntaxKind::Index(_) => Some(dimensionless_syntax()),
+            ValueTypeSyntaxKind::Counts(_) | ValueTypeSyntaxKind::Index(_) => {
+                Some(dimensionless_syntax())
+            }
             ValueTypeSyntaxKind::Scalar { dimension, .. } => Some(dimension),
-            ValueTypeSyntaxKind::Vector { scalar, .. }
+            ValueTypeSyntaxKind::Coordinates { scalar, .. }
+            | ValueTypeSyntaxKind::LinearMap { scalar, .. }
+            | ValueTypeSyntaxKind::Vector { scalar, .. }
             | ValueTypeSyntaxKind::Tensor { scalar, .. } => scalar.dimension(),
             ValueTypeSyntaxKind::Array { element, .. } => element.dimension(),
         }
@@ -93,11 +158,13 @@ impl ValueTypeSyntax {
     pub fn scalar_domain(&self) -> Option<ScalarDomain> {
         match self.kind.as_ref() {
             ValueTypeSyntaxKind::Named(_) => None,
-            ValueTypeSyntaxKind::Coordinates(_)
-            | ValueTypeSyntaxKind::Counts(_)
-            | ValueTypeSyntaxKind::Index(_) => Some(ScalarDomain::Integer),
+            ValueTypeSyntaxKind::Counts(_) | ValueTypeSyntaxKind::Index(_) => {
+                Some(ScalarDomain::Integer)
+            }
             ValueTypeSyntaxKind::Scalar { domain, .. } => Some(*domain),
-            ValueTypeSyntaxKind::Vector { scalar, .. }
+            ValueTypeSyntaxKind::Coordinates { scalar, .. }
+            | ValueTypeSyntaxKind::LinearMap { scalar, .. }
+            | ValueTypeSyntaxKind::Vector { scalar, .. }
             | ValueTypeSyntaxKind::Tensor { scalar, .. } => scalar.scalar_domain(),
             ValueTypeSyntaxKind::Array { element, .. } => element.scalar_domain(),
         }
@@ -150,12 +217,12 @@ impl ValueTypeSyntax {
                 }
             }
             ValueTypeSyntaxKind::Scalar { dimension, .. } => *dimension = rewrite(dimension),
-            ValueTypeSyntaxKind::Vector { scalar, .. }
+            ValueTypeSyntaxKind::Coordinates { scalar, .. }
+            | ValueTypeSyntaxKind::LinearMap { scalar, .. }
+            | ValueTypeSyntaxKind::Vector { scalar, .. }
             | ValueTypeSyntaxKind::Tensor { scalar, .. } => scalar.rewrite_dimension(rewrite),
             ValueTypeSyntaxKind::Array { element, .. } => element.rewrite_dimension(rewrite),
-            ValueTypeSyntaxKind::Coordinates(_)
-            | ValueTypeSyntaxKind::Counts(_)
-            | ValueTypeSyntaxKind::Index(_) => {}
+            ValueTypeSyntaxKind::Counts(_) | ValueTypeSyntaxKind::Index(_) => {}
         }
     }
 }

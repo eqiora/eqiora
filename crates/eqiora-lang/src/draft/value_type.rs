@@ -25,6 +25,15 @@ impl ValueTypeSyntax {
                     )
                 },
             )?))
+        } else if let Some((source, target)) = value.map_bases() {
+            let mut basis = |basis: eqiora_core::FiniteBasis| -> Result<crate::FiniteBasisSyntax, crate::AstConstructionError> {
+                Ok(crate::FiniteBasisSyntax { name: resolve(basis.space().erase()).ok_or_else(|| crate::AstConstructionError::new("map basis is absent from lexical scope"))?, dual: basis.is_dual() })
+            };
+            Some(ValueTypeSyntaxKind::LinearMap {
+                scalar: Box::new(component_scalar(value)?),
+                source: basis(source)?,
+                target: basis(target)?,
+            })
         } else if let Some(id) = value.finite_space() {
             let name = resolve(id.erase()).ok_or_else(|| {
                 crate::AstConstructionError::new(
@@ -34,7 +43,16 @@ impl ValueTypeSyntax {
             Some(if value.is_count() {
                 ValueTypeSyntaxKind::Counts(name)
             } else {
-                ValueTypeSyntaxKind::Coordinates(name)
+                ValueTypeSyntaxKind::Coordinates {
+                    scalar: Box::new(component_scalar(value)?),
+                    basis: crate::FiniteBasisSyntax {
+                        name,
+                        dual: value
+                            .coordinate_basis()
+                            .expect("coordinate basis")
+                            .is_dual(),
+                    },
+                }
             })
         } else if let Some(id) = value.index_set() {
             let name = resolve(id.erase()).ok_or_else(|| {
@@ -94,7 +112,7 @@ pub(super) fn project(
     resolve: &mut dyn FnMut(eqiora_core::RawId) -> Option<crate::NamePath>,
 ) -> ValueTypeSyntax {
     if value.enum_definition().is_some()
-        || value.finite_space().is_some()
+        || value.finite_bases().next().is_some()
         || value.index_set().is_some()
     {
         let mut syntax = ValueTypeSyntax::from_checked(value, resolve)
@@ -154,6 +172,12 @@ pub(super) fn project(
         };
     }
     syntax
+}
+
+fn component_scalar(value: &ValueType) -> Result<ValueTypeSyntax, crate::AstConstructionError> {
+    let scalar = ValueType::scalar(value.scalar_domain(), value.dimension())
+        .map_err(|error| crate::AstConstructionError::new(error.to_string()))?;
+    ValueTypeSyntax::from_checked(&scalar, |_| None)
 }
 
 #[cfg(test)]

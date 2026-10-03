@@ -10,6 +10,36 @@ pub(crate) fn closed_value(
     closed_value_with_frames(file, expression, target, &mut |_| None)
 }
 
+/// Infer a closed value through the ordinary static evaluator, without a nominal cast.
+pub(crate) fn infer_closed_value(
+    file: &str,
+    expression: &Expr,
+) -> Result<ValueLiteral, Diagnostic> {
+    let evaluated = expression_eval::evaluate_parameter_expression(
+        file,
+        expression,
+        ExpressionContext::Let,
+        &mut |name, range| {
+            Err(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                range,
+                format!("closed value cannot depend on `{name}`"),
+            ))
+        },
+        &mut |_| None,
+        &mut |_| None,
+    )?;
+    evaluated.value.ok_or_else(|| {
+        source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            expression.range(),
+            "closed value remained symbolic",
+        )
+    })
+}
+
 pub(in crate::hierarchy) fn closed_value_with_frames(
     file: &str,
     expression: &Expr,

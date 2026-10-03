@@ -114,9 +114,12 @@ impl SourceAstFactory {
         crate::ValueTypeSyntax::validate_checked(&value)?;
         let matches = match syntax.kind() {
             crate::ValueTypeSyntaxKind::Named(_) => value.enum_definition().is_some(),
-            crate::ValueTypeSyntaxKind::Coordinates(_) => {
-                value.finite_space().is_some() && !value.is_count()
-            }
+            crate::ValueTypeSyntaxKind::Coordinates { basis, .. } => value
+                .coordinate_basis()
+                .is_some_and(|value| value.is_dual() == basis.dual),
+            crate::ValueTypeSyntaxKind::LinearMap { source, target, .. } => value
+                .map_bases()
+                .is_some_and(|(s, t)| s.is_dual() == source.dual && t.is_dual() == target.dual),
             crate::ValueTypeSyntaxKind::Counts(_) => value.is_count(),
             crate::ValueTypeSyntaxKind::Index(_) => value.index_set().is_some(),
             _ => false,
@@ -200,7 +203,7 @@ impl SourceAstFactory {
     #[doc(hidden)]
     pub fn bind_nominal_expression(
         expression: &mut Expr,
-        declaration: &NamePath,
+        declarations: &[NamePath],
         value: eqiora_core::ValueType,
     ) -> Result<(), AstConstructionError> {
         validate_expression(expression)?;
@@ -213,23 +216,41 @@ impl SourceAstFactory {
         let arguments = arguments.positional().ok_or_else(|| {
             AstConstructionError::new("nominal constructor requires positional arguments")
         })?;
-        let role = match callee.as_str() {
-            "counts" => value.is_count(),
-            "coordinates" => value.finite_space().is_some() && !value.is_count(),
-            "index" => value.index_set().is_some(),
-            _ => false,
+        let duals: Vec<bool> = match callee.as_str() {
+            "counts" if value.is_count() => vec![false],
+            "coordinates" if value.coordinate_basis().is_some() => vec![
+                value
+                    .coordinate_basis()
+                    .expect("coordinate basis")
+                    .is_dual(),
+            ],
+            "map" if value.map_bases().is_some() => {
+                let (source, target) = value.map_bases().expect("map bases");
+                vec![source.is_dual(), target.is_dual()]
+            }
+            "index" if value.index_set().is_some() => vec![false],
+            _ => {
+                return Err(AstConstructionError::new(
+                    "nominal constructor has a different value role",
+                ));
+            }
         };
-        let name = arguments
-            .first()
-            .and_then(|argument| match argument.kind() {
-                crate::ExprKind::Name(name) => Some(name.as_str()),
-                crate::ExprKind::Path(name) => Some(name.as_str()),
-                _ => None,
-            });
-        if !role || arguments.len() != 2 || name != Some(declaration.as_str()) {
+        if declarations.len() != duals.len() || arguments.len() != duals.len() + 1 {
             return Err(AstConstructionError::new(
-                "nominal constructor binding requires its exact declaration name and role",
+                "nominal constructor has a different basis arity",
             ));
+        }
+        for ((argument, declaration), dual) in arguments.iter().zip(declarations).zip(duals) {
+            let basis = crate::FiniteBasisSyntax::from_expression(argument).ok_or_else(|| {
+                AstConstructionError::new(
+                    "nominal constructor requires exact declaration arguments",
+                )
+            })?;
+            if basis.name.as_str() != declaration.as_str() || basis.dual != dual {
+                return Err(AstConstructionError::new(
+                    "nominal constructor binding requires its exact declaration name and duality",
+                ));
+            }
         }
         if expression
             .resolved_nominal

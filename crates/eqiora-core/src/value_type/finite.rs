@@ -100,7 +100,7 @@ impl ValueType {
             shape,
             frame: ValueFrame::Invariant,
             array_rank: 0,
-            meaning: Meaning::LinearMap { source, target },
+            meaning: Meaning::LinearMap(Box::new((source, target))),
         })
     }
 
@@ -113,16 +113,16 @@ impl ValueType {
     }
     /// Ordered input and output bases of a linear map.
     pub const fn map_bases(&self) -> Option<(FiniteBasis, FiniteBasis)> {
-        match self.meaning {
-            Meaning::LinearMap { source, target } => Some((source, target)),
+        match &self.meaning {
+            Meaning::LinearMap(bases) => Some(**bases),
             _ => None,
         }
     }
     /// Every nominal finite basis referenced by this type, input before output for maps.
     pub fn finite_bases(&self) -> impl Iterator<Item = FiniteBasis> {
-        match self.meaning {
-            Meaning::Coordinates(basis) | Meaning::Counts(basis) => [Some(basis), None],
-            Meaning::LinearMap { source, target } => [Some(source), Some(target)],
+        match &self.meaning {
+            Meaning::Coordinates(basis) | Meaning::Counts(basis) => [Some(*basis), None],
+            Meaning::LinearMap(bases) => [Some(bases.0), Some(bases.1)],
             _ => [None, None],
         }
         .into_iter()

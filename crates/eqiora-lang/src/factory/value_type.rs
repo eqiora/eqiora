@@ -32,9 +32,7 @@ impl SourceAstFactory {
                     super::validate_name_path(name)?;
                     return Ok(result);
                 }
-                ValueTypeSyntaxKind::Coordinates(name)
-                | ValueTypeSyntaxKind::Counts(name)
-                | ValueTypeSyntaxKind::Index(name) => {
+                ValueTypeSyntaxKind::Counts(name) | ValueTypeSyntaxKind::Index(name) => {
                     super::validate_name_path(name)?;
                     if count != 1 {
                         return Err(AstConstructionError::new(
@@ -42,6 +40,33 @@ impl SourceAstFactory {
                         ));
                     }
                     return Ok(result);
+                }
+                ValueTypeSyntaxKind::Coordinates { scalar, basis } => {
+                    super::validate_name_path(&basis.name)?;
+                    if !std::ptr::eq(current, &result) {
+                        return Err(AstConstructionError::new(
+                            "finite coordinates cannot acquire implicit axes",
+                        ));
+                    }
+                    require_scalar(scalar)?;
+                    current = scalar;
+                    continue;
+                }
+                ValueTypeSyntaxKind::LinearMap {
+                    scalar,
+                    source,
+                    target,
+                } => {
+                    super::validate_name_path(&source.name)?;
+                    super::validate_name_path(&target.name)?;
+                    if !std::ptr::eq(current, &result) {
+                        return Err(AstConstructionError::new(
+                            "finite maps cannot acquire implicit axes",
+                        ));
+                    }
+                    require_scalar(scalar)?;
+                    current = scalar;
+                    continue;
                 }
                 ValueTypeSyntaxKind::Scalar { dimension, domain } => {
                     validate_expression(dimension)?;
