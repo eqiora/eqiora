@@ -242,6 +242,7 @@ pub(crate) enum WireActivationKind {
     Event {
         guard: WireExpression,
         direction: WireEventDirection,
+        priority: i64,
     },
     Guard {
         guard: WireExpression,
@@ -272,9 +273,14 @@ impl WireActivationKind {
         match value {
             ActivationKind::Continuous => Ok(Self::Continuous),
             ActivationKind::Periodic => Ok(Self::Periodic),
-            ActivationKind::Event { guard, direction } => Ok(Self::Event {
+            ActivationKind::Event {
+                guard,
+                direction,
+                priority,
+            } => Ok(Self::Event {
                 guard: WireExpression::encode(guard)?,
                 direction: WireEventDirection::encode(*direction),
+                priority: *priority,
             }),
             ActivationKind::Guard { guard } => Ok(Self::Guard {
                 guard: WireExpression::encode(guard)?,
@@ -289,9 +295,14 @@ impl WireActivationKind {
         Ok(match self {
             Self::Continuous => ActivationKind::Continuous,
             Self::Periodic => ActivationKind::Periodic,
-            Self::Event { guard, direction } => ActivationKind::Event {
+            Self::Event {
+                guard,
+                direction,
+                priority,
+            } => ActivationKind::Event {
                 guard: guard.decode()?,
                 direction: direction.decode(),
+                priority: *priority,
             },
             Self::Guard { guard } => ActivationKind::Guard {
                 guard: guard.decode()?,

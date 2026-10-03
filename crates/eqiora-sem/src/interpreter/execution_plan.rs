@@ -148,7 +148,9 @@ impl ExecutionPlan {
                         next: phase,
                     });
                 }
-                ActivationKind::Event { guard, direction } => {
+                ActivationKind::Event {
+                    guard, direction, ..
+                } => {
                     events.push(EventTask {
                         activation: activation_id,
                         relations,

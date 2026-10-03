@@ -16,6 +16,7 @@ fn declared_event_has_one_identity_shared_by_reset_relations() {
             } if matches!(
                 value.kind(),
                 ActivationKind::Event {
+                    priority: 0,
                     direction: EventDirection::Falling,
                     ..
                 }

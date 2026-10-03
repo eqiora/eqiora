@@ -36,6 +36,23 @@ Resetting onto the guard requires an accepted departure before a new crossing. L
 and nonlinear tolerances are execution settings, while the guard, direction and reset equations
 remain Model meaning.
 
+## Explicit reset priority
+
+An optional final `priority = SIGNED_INTEGER_LITERAL` argument to `crossing` assigns a static
+signed 64-bit event priority; omission means zero. Larger values win. At each simultaneous
+microstep, owners are processed by descending priority. An owner whose reset targets overlap
+an already accepted higher-priority owner is suppressed entirely, including its otherwise
+disjoint updates. Equal-priority surviving owners must have disjoint targets. Their equations
+execute together against the same left state. Declaration order never breaks ties.
+
+For example, owners A(priority 2, targets x), B(priority 1, targets x/y), and C(priority 0,
+target y) accept A and C: B loses its whole reset and cannot block C. A failed winning reset
+rolls back the boundary; it does not fall back to a losing owner. Suppressed guards are
+consumed at that crossing, survive checkpoint restart without replay, and can arm again
+after a later accepted departure. Activation sequences report only executed owners.
+Priority is persisted Model meaning and participates in source and structural identity.
+Canonical/Diffsol event lowering rejects nonzero priorities, including grouped members.
+
 ## Coincident activations
 
 An exact periodic clock supplies its nominal tick time. At that time, an armed guard whose
@@ -47,8 +64,9 @@ localization tolerance supplies no implicit precedence.
 
 The first microstep solves the admitted simultaneous event and tick Relations together. Every
 `pre` and coincident `sample` reads the same left state. Distinct active owners may update
-disjoint states. If distinct owners target the same `next` state, the boundary rejects and
-identifies the owners and state. Splitting one event's equations across several Relations
+disjoint states. Event/tick overlaps on a `next` state always reject, even if another
+event would suppress the overlapping event. Event/event overlaps use the explicit priority
+contract below; equal-priority surviving owners reject and identify the owners and state. Splitting one event's equations across several Relations
 retains one simultaneous owner. Declaration order and identity sorting supply no priority.
 
 After resets and continuous consistency, newly crossed guards execute in event-only
@@ -110,8 +128,8 @@ priority. Use `execution_session` to inspect enum values and accepted activation
 
 An event owns its guard and simultaneous reset Relations. All `pre(mode)` and other `pre`
 reads in one microstep see the same accepted left state, even when the reset also changes
-the mode. There is no priority among distinct active owners: competing writes to one State
-reject the whole boundary. Reordering declarations cannot resolve that conflict. A failed
+the mode. Competing writes by surviving owners at equal priority reject the whole boundary.
+Reordering declarations cannot resolve that conflict. A failed
 reset or continuous consistency solve likewise leaves the old mode and other state intact.
 
 Hold and enable behavior are authored equations. A reset leaves untargeted state unchanged;
@@ -132,18 +150,18 @@ coverage, not promotion of the separate thermostat or fault-plant benchmark clai
 
 Hierarchical states would additionally need ancestry and entry/exit ordering; parallel
 regions need explicit activation and conflicting-write rules; history states need an owned
-active-configuration restore contract. None is inferred from enum member names. Authored
-priority needs a separate explicit arbitration contract. Selecting different equation sets
+active-configuration restore contract. None is inferred from enum member names. Selecting
+different equation sets
 would additionally require per-mode balance, regularity and consistent reinitialization
 before commit. Those statechart and switched-equation capabilities, dynamic topology, and
 durable event checkpoint serialization are outside this fixed-equation mode profile.
 
-Python `Component.event(name, guard, *, direction=...)` returns a distinct `q.Event` handle.
+Python `Component.event(name, guard, *, direction=..., priority=0)` returns a distinct `q.Event` handle.
 `relation(..., at=event)` and `let_alias(..., at=event)` retain that local owner; a Clock or
 foreign Event cannot substitute for it. Python authors the same source and adds no event
 evaluator. The current authoring helpers do not establish a complete Python-authored ODE
 surface; ordinary source compilation and the admitted reference Run exercise crossing dynamics.
 
 This profile does not establish resting contact, arbitrary multiple roots inside one numerical
-step, authored priority between conflicting resets, a durable event checkpoint, the common
+step, a durable event checkpoint, the common
 Diffsol ODE event path, or a general hybrid solver.

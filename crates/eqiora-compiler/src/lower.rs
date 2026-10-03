@@ -357,6 +357,7 @@ pub(crate) enum LoweringItem {
         name: String,
         guard: LoweringExpression,
         direction: eqiora_schema::kernel::EventDirection,
+        priority: i64,
         range: TextRange,
     },
     Relation {
@@ -764,6 +765,7 @@ pub(crate) fn lower_typed_model(
                 name,
                 guard,
                 direction,
+                priority,
                 ..
             } => {
                 let Binding::Event(id) = bindings[name] else {
@@ -776,6 +778,7 @@ pub(crate) fn lower_typed_model(
                             eqiora_schema::kernel::ActivationKind::Event {
                                 guard: lowered.expression,
                                 direction: *direction,
+                                priority: *priority,
                             },
                         )?
                         .into(),
