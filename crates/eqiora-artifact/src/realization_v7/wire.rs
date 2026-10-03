@@ -548,6 +548,10 @@ pub(crate) enum WireOperatorProperties {
     General,
     SymmetricPositiveDefinite,
     SymmetricIndefinite,
+    Symmetric,
+    ComplexSymmetric,
+    Hermitian,
+    HermitianPositiveDefinite,
 }
 
 impl WireOperatorProperties {
@@ -556,6 +560,10 @@ impl WireOperatorProperties {
             LinearOperatorProperties::General => Self::General,
             LinearOperatorProperties::SymmetricPositiveDefinite => Self::SymmetricPositiveDefinite,
             LinearOperatorProperties::SymmetricIndefinite => Self::SymmetricIndefinite,
+            LinearOperatorProperties::Symmetric => Self::Symmetric,
+            LinearOperatorProperties::ComplexSymmetric => Self::ComplexSymmetric,
+            LinearOperatorProperties::Hermitian => Self::Hermitian,
+            LinearOperatorProperties::HermitianPositiveDefinite => Self::HermitianPositiveDefinite,
         }
     }
 
@@ -564,6 +572,10 @@ impl WireOperatorProperties {
             Self::General => LinearOperatorProperties::General,
             Self::SymmetricPositiveDefinite => LinearOperatorProperties::SymmetricPositiveDefinite,
             Self::SymmetricIndefinite => LinearOperatorProperties::SymmetricIndefinite,
+            Self::Symmetric => LinearOperatorProperties::Symmetric,
+            Self::ComplexSymmetric => LinearOperatorProperties::ComplexSymmetric,
+            Self::Hermitian => LinearOperatorProperties::Hermitian,
+            Self::HermitianPositiveDefinite => LinearOperatorProperties::HermitianPositiveDefinite,
         }
     }
 }

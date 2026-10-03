@@ -28,9 +28,12 @@ pub(super) fn resolve_linear(
     if let Some((plan, provider)) = request.exact_request() {
         let backend = exact_backend(provider, supplied_backend)?;
         profile.require_plan(plan)?;
-        backend
-            .capabilities()
-            .require_problem(plan, ScalarType::F64, properties)?;
+        backend.capabilities().require_problem(
+            plan,
+            eqiora_core::ScalarDomain::Real,
+            ScalarType::F64,
+            properties,
+        )?;
         let mut selected = NativeLinearPolicy::exact(plan, backend)?;
         selected.planning_profile = Some(profile);
         return Ok(selected);
@@ -84,6 +87,7 @@ mod tests {
         fn capabilities(&self) -> SolverCapabilities {
             SolverCapabilities::exact([
                 SolverCapability {
+                    scalar_domain: eqiora_core::ScalarDomain::Real,
                     algorithm: LinearSolver::SparseLu,
                     operator_properties: LinearOperatorProperties::SymmetricIndefinite,
                     preconditioner: PreconditionerPolicy::Identity,
@@ -91,6 +95,7 @@ mod tests {
                     scalar_type: ScalarType::F64,
                 },
                 SolverCapability {
+                    scalar_domain: eqiora_core::ScalarDomain::Real,
                     algorithm: LinearSolver::SparseLu,
                     operator_properties: LinearOperatorProperties::General,
                     preconditioner: PreconditionerPolicy::Identity,

@@ -1,8 +1,8 @@
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_solver::{
-    CompleteCsrStorage, DiagonalAvailability, LinearOperator, RowLinearAction,
-    TransposeLinearOperator,
+    CompleteCsrStorage, DiagonalAvailability, LinearOperator, OrientedLinearOperator,
+    RowLinearAction,
 };
 
 use crate::{AssemblyDelta, LocalContribution};
@@ -529,6 +529,8 @@ impl CsrMatrix {
 }
 
 impl LinearOperator for CsrMatrix {
+    type Scalar = f64;
+
     fn rows(&self) -> usize {
         self.rows
     }
@@ -541,7 +543,7 @@ impl LinearOperator for CsrMatrix {
         self.multiply_into(input, output)
     }
 
-    fn row_action(&self) -> Option<&dyn RowLinearAction> {
+    fn row_action(&self) -> Option<&dyn RowLinearAction<Scalar = f64>> {
         Some(self)
     }
 
@@ -562,6 +564,8 @@ impl LinearOperator for CsrMatrix {
 }
 
 impl RowLinearAction for CsrMatrix {
+    type Scalar = f64;
+
     fn apply_rows(
         &self,
         rows: std::ops::Range<usize>,
@@ -597,8 +601,20 @@ impl RowLinearAction for CsrMatrix {
     }
 }
 
-impl TransposeLinearOperator for CsrMatrix {
-    fn apply_transpose(&self, input: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
+impl OrientedLinearOperator for CsrMatrix {
+    fn supports_orientation(&self, _orientation: eqiora_solver::LinearOperatorOrientation) -> bool {
+        true
+    }
+
+    fn apply_oriented(
+        &self,
+        orientation: eqiora_solver::LinearOperatorOrientation,
+        input: &[f64],
+        output: &mut [f64],
+    ) -> Result<(), Diagnostic> {
+        if orientation == eqiora_solver::LinearOperatorOrientation::Normal {
+            return self.apply(input, output);
+        }
         if input.len() != self.rows || output.len() != self.columns {
             return Err(solve_failed(format!(
                 "transposed sparse matrix is {}x{} but input/output have {}/{} values",

@@ -245,6 +245,7 @@ fn realization_v1_rejects_newer_solver_algorithms_without_retagging() {
             )],
             [VectorLayoutKind::Replicated],
             SolverCapabilities::exact([SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
                 preconditioner: PreconditionerPolicy::Identity,
@@ -331,6 +332,7 @@ fn distributed_layout_artifacts_and_loopback_topology_are_explicit() {
 
 fn scalar_elliptic_solver_capabilities() -> SolverCapabilities {
     SolverCapabilities::exact([SolverCapability {
+        scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::ConjugateGradient,
         operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
         preconditioner: PreconditionerPolicy::Identity,

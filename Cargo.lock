@@ -1025,6 +1025,7 @@ dependencies = [
  "eqiora-solver",
  "eqiora-spatial-distribution",
  "eqiora-time",
+ "num-complex",
  "serde",
  "serde_json",
  "sha2",
@@ -1120,6 +1121,7 @@ name = "eqiora-solver"
 version = "0.1.2"
 dependencies = [
  "eqiora-core",
+ "num-complex",
  "sha2",
 ]
 

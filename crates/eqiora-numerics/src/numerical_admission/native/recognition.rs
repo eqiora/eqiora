@@ -288,7 +288,10 @@ pub(crate) fn require_policy_compatibility(
             "linear solver, preconditioner, reduction, or placement is unsupported",
         ));
     }
-    linear
-        .capabilities
-        .require_problem(linear.solver, ScalarType::F64, properties)
+    linear.capabilities.require_problem(
+        linear.solver,
+        eqiora_core::ScalarDomain::Real,
+        ScalarType::F64,
+        properties,
+    )
 }

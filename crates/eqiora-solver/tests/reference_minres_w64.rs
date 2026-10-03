@@ -81,6 +81,8 @@ const HADAMARD_CONDITIONING_INTEGERS: [u64; 64] = [
 struct HadamardConditionedSymmetricIndefinite;
 
 impl LinearOperator for HadamardConditionedSymmetricIndefinite {
+    type Scalar = f64;
+
     fn rows(&self) -> usize {
         HADAMARD_CONDITIONING_INTEGERS.len()
     }
@@ -167,7 +169,7 @@ impl ReplicatedLinearExecution for RecordingExecution {
 
     fn apply(
         &self,
-        operator: &dyn LinearOperator,
+        operator: &dyn LinearOperator<Scalar = f64>,
         input: &[f64],
         output: &mut [f64],
     ) -> Result<(), Diagnostic> {
@@ -284,6 +286,8 @@ fn reference_minres_deflates_an_invariant_krylov_space_without_early_exit() {
     struct GradeTwoIndefinite;
 
     impl LinearOperator for GradeTwoIndefinite {
+        type Scalar = f64;
+
         fn rows(&self) -> usize {
             3
         }

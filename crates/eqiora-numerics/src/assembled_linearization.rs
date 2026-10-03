@@ -8,7 +8,7 @@ use eqiora_core::diagnostic::codes;
 use eqiora_ir::{LinearizedRelation, RelationCotangent, RelationTangent};
 use eqiora_solver::{
     CanonicalCsrSystemView, CompleteCsrStorage, LinearOperator, LinearOperatorProperties,
-    TransposeLinearOperator,
+    OrientedLinearOperator,
 };
 
 use crate::spatial_design::SpatialDesignCoordinate;
@@ -328,15 +328,20 @@ impl LinearizedRelation<f64> for AssembledLinearizedRelation {
         cotangent: RelationCotangent<'_, f64>,
     ) -> Result<(), Diagnostic> {
         match cotangent {
-            RelationCotangent::Unknown(unknown) => self
-                .state_jacobian
-                .apply_transpose(residual_cotangent, unknown),
+            RelationCotangent::Unknown(unknown) => self.state_jacobian.apply_oriented(
+                eqiora_solver::LinearOperatorOrientation::Transposed,
+                residual_cotangent,
+                unknown,
+            ),
             RelationCotangent::Parameter(parameter) => {
                 self.apply_parameter_transpose(residual_cotangent, parameter)
             }
             RelationCotangent::Both { unknown, parameter } => {
-                self.state_jacobian
-                    .apply_transpose(residual_cotangent, unknown)?;
+                self.state_jacobian.apply_oriented(
+                    eqiora_solver::LinearOperatorOrientation::Transposed,
+                    residual_cotangent,
+                    unknown,
+                )?;
                 self.apply_parameter_transpose(residual_cotangent, parameter)
             }
         }

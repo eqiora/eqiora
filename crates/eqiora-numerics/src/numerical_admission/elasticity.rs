@@ -33,6 +33,7 @@ fn resolve_common_elasticity_portable(
     let solver = admission.linear.solver;
     admission.linear.capabilities.require_problem(
         solver,
+        eqiora_core::ScalarDomain::Real,
         ScalarType::F64,
         LinearOperatorProperties::SymmetricPositiveDefinite,
     )?;

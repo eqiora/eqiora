@@ -14,7 +14,7 @@ pub(super) fn solve_sparse_lu(
     plan: SolverPlan,
 ) -> Result<LinearSolution, Diagnostic> {
     let system = problem.canonical_csr_system().ok_or_else(|| {
-        if problem.operator().orientation() == LinearOperatorOrientation::Transposed {
+        if problem.operator().orientation() != LinearOperatorOrientation::Normal {
             invalid_realization(
                 "faer sparse LU requires a normal-orientation canonical CSR problem or an oriented request with an exact canonical source",
             )

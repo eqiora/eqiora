@@ -210,6 +210,7 @@ impl LinearSolverBackend for ResolveOnlyBackend {
     fn capabilities(&self) -> SolverCapabilities {
         SolverCapabilities::exact([
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::SparseLu,
                 operator_properties: LinearOperatorProperties::SymmetricIndefinite,
                 preconditioner: PreconditionerPolicy::Identity,
@@ -217,6 +218,7 @@ impl LinearSolverBackend for ResolveOnlyBackend {
                 scalar_type: ScalarType::F64,
             },
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::SparseLu,
                 operator_properties: LinearOperatorProperties::General,
                 preconditioner: PreconditionerPolicy::Identity,
@@ -224,6 +226,7 @@ impl LinearSolverBackend for ResolveOnlyBackend {
                 scalar_type: ScalarType::F64,
             },
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::BiConjugateGradientStabilized,
                 operator_properties: LinearOperatorProperties::General,
                 preconditioner: PreconditionerPolicy::Identity,
@@ -231,6 +234,7 @@ impl LinearSolverBackend for ResolveOnlyBackend {
                 scalar_type: ScalarType::F64,
             },
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::BiConjugateGradientStabilized,
                 operator_properties: LinearOperatorProperties::General,
                 preconditioner: PreconditionerPolicy::Identity,
@@ -266,6 +270,7 @@ impl LinearSolverBackend for PlanningFaerBackend {
     fn capabilities(&self) -> SolverCapabilities {
         SolverCapabilities::exact([
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::BiConjugateGradientStabilized,
                 operator_properties: LinearOperatorProperties::General,
                 preconditioner: PreconditionerPolicy::Jacobi,
@@ -273,6 +278,7 @@ impl LinearSolverBackend for PlanningFaerBackend {
                 scalar_type: ScalarType::F64,
             },
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::SparseLu,
                 operator_properties: LinearOperatorProperties::General,
                 preconditioner: PreconditionerPolicy::Identity,

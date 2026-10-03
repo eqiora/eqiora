@@ -264,6 +264,7 @@ fn imported_mesh_capability_identity_and_dimension_mismatches_fail_closed() {
 
 fn scalar_elliptic_solver_capabilities() -> SolverCapabilities {
     SolverCapabilities::exact([SolverCapability {
+        scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::ConjugateGradient,
         operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
         preconditioner: PreconditionerPolicy::Identity,

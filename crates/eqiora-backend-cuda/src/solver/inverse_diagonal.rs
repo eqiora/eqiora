@@ -89,7 +89,12 @@ mod tests {
         .unwrap()
         .with_reduction(ReductionPolicy::Fast);
         let error = CudaLinearSolver::capabilities()
-            .require_problem(plan, ScalarType::F64, LinearOperatorProperties::General)
+            .require_problem(
+                plan,
+                eqiora_core::ScalarDomain::Real,
+                ScalarType::F64,
+                LinearOperatorProperties::General,
+            )
             .unwrap_err();
 
         assert_eq!(error.code(), codes::INVALID_REALIZATION);

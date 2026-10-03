@@ -935,6 +935,7 @@ fn fsi_capabilities(vector_layout: VectorLayoutKind, target: Target) -> Realizat
 
 fn fsi_solver_capabilities(reduction: ReductionPolicy) -> SolverCapabilities {
     SolverCapabilities::exact([SolverCapability {
+        scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::MinimumResidual,
         operator_properties: LinearOperatorProperties::SymmetricIndefinite,
         preconditioner: PreconditionerPolicy::Identity,

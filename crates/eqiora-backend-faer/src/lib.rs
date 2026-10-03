@@ -58,6 +58,7 @@ impl LinearSolverBackend for FaerLinearSolver {
     fn capabilities(&self) -> SolverCapabilities {
         SolverCapabilities::exact([
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::ConjugateGradient,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
                 preconditioner: PreconditionerPolicy::Identity,
@@ -65,6 +66,7 @@ impl LinearSolverBackend for FaerLinearSolver {
                 scalar_type: ScalarType::F64,
             },
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::ConjugateGradient,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
                 preconditioner: PreconditionerPolicy::Jacobi,
@@ -72,6 +74,7 @@ impl LinearSolverBackend for FaerLinearSolver {
                 scalar_type: ScalarType::F64,
             },
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::BiConjugateGradientStabilized,
                 operator_properties: LinearOperatorProperties::General,
                 preconditioner: PreconditionerPolicy::Identity,
@@ -79,6 +82,7 @@ impl LinearSolverBackend for FaerLinearSolver {
                 scalar_type: ScalarType::F64,
             },
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::BiConjugateGradientStabilized,
                 operator_properties: LinearOperatorProperties::General,
                 preconditioner: PreconditionerPolicy::Jacobi,
@@ -86,6 +90,7 @@ impl LinearSolverBackend for FaerLinearSolver {
                 scalar_type: ScalarType::F64,
             },
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::SparseLu,
                 operator_properties: LinearOperatorProperties::General,
                 preconditioner: PreconditionerPolicy::Identity,
@@ -93,6 +98,7 @@ impl LinearSolverBackend for FaerLinearSolver {
                 scalar_type: ScalarType::F64,
             },
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::SparseLu,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
                 preconditioner: PreconditionerPolicy::Identity,
@@ -100,6 +106,7 @@ impl LinearSolverBackend for FaerLinearSolver {
                 scalar_type: ScalarType::F64,
             },
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::SparseLu,
                 operator_properties: LinearOperatorProperties::SymmetricIndefinite,
                 preconditioner: PreconditionerPolicy::Identity,
@@ -122,6 +129,7 @@ impl LinearSolverBackend for FaerLinearSolver {
         }
         self.capabilities().require_problem(
             plan,
+            eqiora_core::ScalarDomain::Real,
             ScalarType::F64,
             LinearOperatorProperties::General,
         )?;
@@ -147,8 +155,12 @@ impl LinearSolverBackend for FaerLinearSolver {
                 "the faer adapter currently admits only direct serial execution",
             ));
         }
-        self.capabilities()
-            .require_problem(plan, ScalarType::F64, problem.properties())?;
+        self.capabilities().require_problem(
+            plan,
+            problem.scalar_domain(),
+            problem.scalar_type(),
+            problem.properties(),
+        )?;
         let inverse_diagonal = inverse_diagonal(problem, plan)?;
         match plan.algorithm() {
             LinearSolver::ConjugateGradient => {
@@ -340,12 +352,12 @@ impl ApplyFailure {
 
 #[derive(Debug, Clone)]
 struct FaerOperator<'a> {
-    operator: &'a dyn LinearOperator,
+    operator: &'a dyn LinearOperator<Scalar = f64>,
     failure: ApplyFailure,
 }
 
 impl<'a> FaerOperator<'a> {
-    const fn new(operator: &'a dyn LinearOperator, failure: ApplyFailure) -> Self {
+    const fn new(operator: &'a dyn LinearOperator<Scalar = f64>, failure: ApplyFailure) -> Self {
         Self { operator, failure }
     }
 
@@ -507,6 +519,8 @@ mod tests {
     }
 
     impl LinearOperator for DenseOperator {
+        type Scalar = f64;
+
         fn rows(&self) -> usize {
             2
         }
@@ -654,6 +668,7 @@ mod tests {
             .capabilities()
             .require_problem(
                 unsupported,
+                eqiora_core::ScalarDomain::Real,
                 ScalarType::F64,
                 LinearOperatorProperties::SymmetricIndefinite,
             )
@@ -674,6 +689,7 @@ mod tests {
             .capabilities()
             .require_problem(
                 unsupported,
+                eqiora_core::ScalarDomain::Real,
                 ScalarType::F64,
                 LinearOperatorProperties::SymmetricPositiveDefinite,
             )
@@ -691,6 +707,8 @@ mod tests {
         struct FailingOperator;
 
         impl LinearOperator for FailingOperator {
+            type Scalar = f64;
+
             fn rows(&self) -> usize {
                 1
             }

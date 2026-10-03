@@ -781,9 +781,11 @@ fn minmod_realization_has_superlinear_convergence_and_bounded_face_fluxes() {
 }
 
 #[derive(Debug)]
-struct ReportedTranspose<'a>(&'a dyn LinearOperator);
+struct ReportedTranspose<'a>(&'a dyn LinearOperator<Scalar = f64>);
 
 impl LinearOperator for ReportedTranspose<'_> {
+    type Scalar = f64;
+
     fn rows(&self) -> usize {
         self.0.rows()
     }
@@ -833,7 +835,7 @@ impl ReplicatedLinearExecution for TwoWorkerExecution {
 
     fn apply(
         &self,
-        operator: &dyn LinearOperator,
+        operator: &dyn LinearOperator<Scalar = f64>,
         input: &[f64],
         output: &mut [f64],
     ) -> Result<(), Diagnostic> {

@@ -13,9 +13,8 @@ use eqiora_execution::{
 };
 use eqiora_solver::{
     BackendId, CanonicalCsrSystemView, ConvergenceReason, ExecutionId, ExecutionProvider,
-    ExecutionReport, LinearOperatorProperties, LinearSolution, LinearSolver, PreconditionerPolicy,
-    ProviderLibrary, ReductionPolicy, SERIAL_LINEAR_EXECUTION, SolverCapabilities,
-    SolverCapability, SolverPlan, SolverProvider, accept_linear_solution_with_verifier,
+    ExecutionReport, LinearSolution, LinearSolver, ProviderLibrary, SERIAL_LINEAR_EXECUTION,
+    SolverPlan, SolverProvider, accept_linear_solution_with_verifier,
 };
 
 use crate::blas::{BlasError, BlasHandle};
@@ -27,6 +26,7 @@ use crate::runtime::{
 };
 use crate::{CUDA_ADAPTER_VERSION, CUDA_BINDING_TOOLKIT, CUDARC_VERSION};
 
+mod capabilities;
 mod inverse_diagonal;
 
 use inverse_diagonal::inverse_diagonal;
@@ -323,35 +323,6 @@ impl CudaLinearSolver {
         Self { device_ordinal }
     }
 
-    /// Exact numerical policies admitted by the first CUDA solver slice.
-    #[must_use]
-    pub fn capabilities() -> SolverCapabilities {
-        SolverCapabilities::exact([
-            SolverCapability {
-                algorithm: LinearSolver::ConjugateGradient,
-                operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-                preconditioner: PreconditionerPolicy::Jacobi,
-                reduction: ReductionPolicy::Fast,
-                scalar_type: ScalarType::F64,
-            },
-            SolverCapability {
-                algorithm: LinearSolver::BiConjugateGradientStabilized,
-                operator_properties: LinearOperatorProperties::General,
-                preconditioner: PreconditionerPolicy::Identity,
-                reduction: ReductionPolicy::Fast,
-                scalar_type: ScalarType::F64,
-            },
-            SolverCapability {
-                algorithm: LinearSolver::MinimumResidual,
-                operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-                preconditioner: PreconditionerPolicy::Identity,
-                reduction: ReductionPolicy::Fast,
-                scalar_type: ScalarType::F64,
-            },
-        ])
-        .expect("CUDA solver exact capability set is nonempty")
-    }
-
     /// Admit one already discovered device for this solver slice without
     /// creating a context, queue, allocation, or vendor-library handle.
     ///
@@ -490,7 +461,12 @@ fn solve(
     plan: SolverPlan,
 ) -> Result<CudaLinearSolveResult, Diagnostic> {
     let total_started = Instant::now();
-    CudaLinearSolver::capabilities().require_problem(plan, ScalarType::F64, system.properties())?;
+    CudaLinearSolver::capabilities().require_problem(
+        plan,
+        eqiora_core::ScalarDomain::Real,
+        ScalarType::F64,
+        system.properties(),
+    )?;
     let mut problem = system.linear_problem()?;
     if let Some(initial_guess) = initial_guess {
         problem = problem.with_initial_guess(initial_guess)?;

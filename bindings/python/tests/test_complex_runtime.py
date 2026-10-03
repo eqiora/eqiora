@@ -8,9 +8,9 @@ import eqiora
 def linear():
     return eqiora.solve.Linear(
         relative_tolerance=1e-13, absolute_tolerance=1e-15, maximum_iterations=8,
-        algorithm=eqiora.solve.LinearSolver.SparseLu,
+        algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
         preconditioner=eqiora.solve.Preconditioner.Identity,
-        reduction=eqiora.solve.Reduction.Fast, provider=eqiora.solve.SolverProvider.faer(),
+        reduction=eqiora.solve.Reduction.Reproducible, provider=eqiora.solve.SolverProvider.reference(),
     )
 
 
@@ -90,3 +90,43 @@ def test_observable_domain_errors_do_not_silently_project_or_promote(expression)
     _, result = run(model)
     with pytest.raises(eqiora.ExecutionError, match="EQ0505"):
         result.observe(model.observable("output"))
+
+
+def test_two_by_two_complex_system_uses_reference_solver_through_plan_replay():
+    model = eqiora.compile(source="""model M(){
+        variable z:array<complex<1>,2>;
+        relation r{
+            math.complex(1,1)*z[0]+2*z[1]=math.complex(-5,5);
+            math.complex(0,3)*z[0]+math.complex(4,-1)*z[1]=math.complex(-13,9);
+        }
+        observable first:complex<1>=z[0];
+        observable second:complex<1>=z[1];
+    }""")
+    plan, result = run(model)
+    assert plan.solve.backend == eqiora.solve.SolverProvider.reference().id
+    assert result.observe(model.observable("first")).value == pytest.approx(1+2j, abs=1e-10)
+    assert result.observe(model.observable("second")).value == pytest.approx(-2+1j, abs=1e-10)
+
+
+def test_complex_linear_plan_rejects_real_only_provider_before_run():
+    model = eqiora.compile(source="""model M(){
+        variable z:complex<1>; relation r{z=math.complex(3,4);}
+    }""")
+    real_only = eqiora.solve.Linear(
+        relative_tolerance=1e-13, absolute_tolerance=1e-15, maximum_iterations=8,
+        algorithm=eqiora.solve.LinearSolver.SparseLu,
+        preconditioner=eqiora.solve.Preconditioner.Identity,
+        reduction=eqiora.solve.Reduction.Fast, provider=eqiora.solve.SolverProvider.faer(),
+    )
+    with pytest.raises(eqiora.ValidationError, match="complex finite Plan requires"):
+        eqiora.resolve(model, solve=real_only)
+
+
+def test_pure_imaginary_coefficient_solves_without_real_block_breakdown():
+    model = eqiora.compile(source="""model M(){
+        variable z:complex<1>;
+        relation r{math.complex(0,1)*z=math.complex(-2,1);}
+        observable output:complex<1>=z;
+    }""")
+    _, result = run(model)
+    assert result.observe(model.observable("output")).value == pytest.approx(1+2j, abs=1e-10)

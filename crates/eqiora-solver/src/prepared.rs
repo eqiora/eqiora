@@ -59,7 +59,7 @@ impl PreparedLinearStructureIdentity {
 }
 
 /// Provider-private state for repeated solves inside one prepared run.
-pub trait PreparedLinearSolver: std::fmt::Debug {
+pub trait PreparedLinearSolver<S = f64>: std::fmt::Debug {
     /// Solve one matrix candidate under its exact assembly structure identity.
     ///
     /// A provider must compare both the complete identity and actual canonical
@@ -70,8 +70,8 @@ pub trait PreparedLinearSolver: std::fmt::Debug {
     fn solve(
         &mut self,
         structure: &PreparedLinearStructureIdentity,
-        problem: &LinearProblem<'_>,
-    ) -> Result<LinearSolution, Diagnostic>;
+        problem: &LinearProblem<'_, S>,
+    ) -> Result<LinearSolution<S>, Diagnostic>;
 }
 
 fn invalid(message: impl Into<String>) -> Diagnostic {

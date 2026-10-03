@@ -177,6 +177,10 @@ const fn property_tag(properties: LinearOperatorProperties) -> u8 {
         LinearOperatorProperties::General => 0,
         LinearOperatorProperties::SymmetricPositiveDefinite => 1,
         LinearOperatorProperties::SymmetricIndefinite => 2,
+        LinearOperatorProperties::Symmetric => 3,
+        LinearOperatorProperties::ComplexSymmetric => 4,
+        LinearOperatorProperties::Hermitian => 5,
+        LinearOperatorProperties::HermitianPositiveDefinite => 6,
     }
 }
 

@@ -6,14 +6,16 @@ use eqiora_core::diagnostic::codes;
 
 use crate::{
     CanonicalCsrSystemView, LinearOperatorOrientation, LinearOperatorProperties, LinearProblem,
-    LinearSolution, LinearSolver, PreconditionerPolicy, PreparedLinearSolver, ReductionPolicy,
-    ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, ScalarType, SolverPlan, SolverProvider,
-    Transposed,
+    LinearSolution, LinearSolver, Oriented, PreconditionerPolicy, PreparedLinearSolver,
+    ReductionPolicy, ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, ScalarType, SolverPlan,
+    SolverProvider,
 };
 
 /// One exact numerical-policy tuple implemented by a solver adapter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SolverCapability {
+    /// Mathematical domain, independently of component precision.
+    pub scalar_domain: eqiora_core::ScalarDomain,
     /// Krylov or direct algorithm.
     pub algorithm: LinearSolver,
     /// Mathematical operator assertion accepted by that algorithm path.
@@ -60,6 +62,7 @@ impl SolverCapabilities {
     pub fn reference() -> Self {
         let mut combinations = vec![
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::ConjugateGradient,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
                 preconditioner: PreconditionerPolicy::Identity,
@@ -67,6 +70,7 @@ impl SolverCapabilities {
                 scalar_type: ScalarType::F64,
             },
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::ConjugateGradient,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
                 preconditioner: PreconditionerPolicy::Jacobi,
@@ -74,6 +78,7 @@ impl SolverCapabilities {
                 scalar_type: ScalarType::F64,
             },
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::MinimumResidual,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
                 preconditioner: PreconditionerPolicy::Identity,
@@ -81,6 +86,7 @@ impl SolverCapabilities {
                 scalar_type: ScalarType::F64,
             },
             SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::MinimumResidual,
                 operator_properties: LinearOperatorProperties::SymmetricIndefinite,
                 preconditioner: PreconditionerPolicy::Identity,
@@ -95,6 +101,7 @@ impl SolverCapabilities {
         ] {
             for preconditioner in [PreconditionerPolicy::Identity, PreconditionerPolicy::Jacobi] {
                 combinations.push(SolverCapability {
+                    scalar_domain: eqiora_core::ScalarDomain::Real,
                     algorithm: LinearSolver::BiConjugateGradientStabilized,
                     operator_properties,
                     preconditioner,
@@ -103,77 +110,68 @@ impl SolverCapabilities {
                 });
             }
         }
+        for (algorithm, operator_properties) in [
+            (
+                LinearSolver::BiConjugateGradientStabilized,
+                LinearOperatorProperties::General,
+            ),
+            (
+                LinearSolver::ConjugateGradient,
+                LinearOperatorProperties::HermitianPositiveDefinite,
+            ),
+        ] {
+            combinations.push(SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Complex,
+                algorithm,
+                operator_properties,
+                preconditioner: PreconditionerPolicy::Identity,
+                reduction: ReductionPolicy::Reproducible,
+                scalar_type: ScalarType::F64,
+            });
+        }
         Self::exact(combinations).expect("reference exact capability set is nonempty")
     }
 
-    /// Construct a nonempty capability set when every supplied axis forms a
-    /// genuinely implemented Cartesian product.
+    /// Declare the implemented Cartesian policy axes and explicit operator classes.
+    /// Only mathematically admissible algorithm/property pairs are retained.
     ///
     /// # Errors
-    /// Returns `EQ0807` if any capability axis is empty.
+    /// Rejects an empty set, unsupported mathematical domains or inconsistent properties.
     pub fn new(
         algorithms: impl IntoIterator<Item = LinearSolver>,
+        operator_properties: impl IntoIterator<Item = LinearOperatorProperties>,
         preconditioners: impl IntoIterator<Item = PreconditionerPolicy>,
         reductions: impl IntoIterator<Item = ReductionPolicy>,
+        scalar_domain: eqiora_core::ScalarDomain,
         scalar_types: impl IntoIterator<Item = ScalarType>,
     ) -> Result<Self, Diagnostic> {
-        let algorithms = algorithms.into_iter().collect::<BTreeSet<_>>();
-        let preconditioners = preconditioners.into_iter().collect::<BTreeSet<_>>();
-        let reductions = reductions.into_iter().collect::<BTreeSet<_>>();
-        let scalar_types = scalar_types.into_iter().collect::<BTreeSet<_>>();
-        if algorithms.is_empty()
-            || preconditioners.is_empty()
-            || reductions.is_empty()
-            || scalar_types.is_empty()
-        {
-            return Err(unsupported(
-                "solver capabilities require at least one value on every axis",
-            ));
-        }
-        let combinations = algorithms
-            .iter()
-            .flat_map(|algorithm| {
-                let properties: &[_] = match algorithm {
-                    LinearSolver::ConjugateGradient => {
-                        &[LinearOperatorProperties::SymmetricPositiveDefinite]
+        let properties: Vec<_> = operator_properties.into_iter().collect();
+        let preconditioners: Vec<_> = preconditioners.into_iter().collect();
+        let reductions: Vec<_> = reductions.into_iter().collect();
+        let scalar_types: Vec<_> = scalar_types.into_iter().collect();
+        let mut combinations = Vec::new();
+        for algorithm in algorithms {
+            for &operator_properties in &properties {
+                if !algorithm.accepts(operator_properties) {
+                    continue;
+                }
+                for &preconditioner in &preconditioners {
+                    for &reduction in &reductions {
+                        for &scalar_type in &scalar_types {
+                            combinations.push(SolverCapability {
+                                algorithm,
+                                operator_properties,
+                                preconditioner,
+                                reduction,
+                                scalar_domain,
+                                scalar_type,
+                            });
+                        }
                     }
-                    LinearSolver::MinimumResidual => &[
-                        LinearOperatorProperties::SymmetricPositiveDefinite,
-                        LinearOperatorProperties::SymmetricIndefinite,
-                    ],
-                    LinearSolver::BiConjugateGradientStabilized => &[
-                        LinearOperatorProperties::General,
-                        LinearOperatorProperties::SymmetricPositiveDefinite,
-                        LinearOperatorProperties::SymmetricIndefinite,
-                    ],
-                    LinearSolver::SparseLu => &[
-                        LinearOperatorProperties::General,
-                        LinearOperatorProperties::SymmetricPositiveDefinite,
-                        LinearOperatorProperties::SymmetricIndefinite,
-                    ],
-                };
-                properties.iter().flat_map(|operator_properties| {
-                    preconditioners.iter().flat_map(|preconditioner| {
-                        reductions.iter().flat_map(|reduction| {
-                            scalar_types.iter().map(|scalar_type| SolverCapability {
-                                algorithm: *algorithm,
-                                operator_properties: *operator_properties,
-                                preconditioner: *preconditioner,
-                                reduction: *reduction,
-                                scalar_type: *scalar_type,
-                            })
-                        })
-                    })
-                })
-            })
-            .collect();
-        Ok(Self {
-            combinations,
-            algorithms,
-            preconditioners,
-            reductions,
-            scalar_types,
-        })
+                }
+            }
+        }
+        Self::exact(combinations)
     }
 
     /// Construct a nonempty set of exact supported tuples without taking a
@@ -190,10 +188,12 @@ impl SolverCapabilities {
                 "solver capabilities require at least one exact policy tuple",
             ));
         }
-        if let Some(invalid) = combinations
-            .iter()
-            .find(|entry| !entry.algorithm.accepts(entry.operator_properties))
-        {
+        if let Some(invalid) = combinations.iter().find(|entry| {
+            !entry.algorithm.accepts(entry.operator_properties)
+                || !entry
+                    .operator_properties
+                    .supports_domain(entry.scalar_domain)
+        }) {
             return Err(unsupported(format!(
                 "solver capability has an incompatible algorithm/property pair: {invalid:?}"
             )));
@@ -242,23 +242,35 @@ impl SolverCapabilities {
 
     /// Whether a scalar representation is admitted.
     #[must_use]
-    pub fn supports_scalar(&self, scalar_type: ScalarType) -> bool {
-        self.scalar_types.contains(&scalar_type)
+    pub fn supports_scalar(
+        &self,
+        scalar_domain: eqiora_core::ScalarDomain,
+        scalar_type: ScalarType,
+    ) -> bool {
+        self.combinations
+            .iter()
+            .any(|entry| entry.scalar_domain == scalar_domain && entry.scalar_type == scalar_type)
     }
 
     /// Validate a plan and scalar representation without fallback.
     ///
     /// # Errors
     /// Returns `EQ0807` for any unsupported selection.
-    pub fn require(&self, plan: SolverPlan, scalar_type: ScalarType) -> Result<(), Diagnostic> {
+    pub fn require(
+        &self,
+        plan: SolverPlan,
+        scalar_domain: eqiora_core::ScalarDomain,
+        scalar_type: ScalarType,
+    ) -> Result<(), Diagnostic> {
         if !self.combinations.iter().any(|entry| {
             entry.algorithm == plan.algorithm()
                 && entry.preconditioner == plan.preconditioner()
                 && entry.reduction == plan.reduction()
                 && entry.scalar_type == scalar_type
+                && entry.scalar_domain == scalar_domain
         }) {
             return Err(unsupported(format!(
-                "solver backend does not support the exact {:?}/{:?}/{:?}/{scalar_type:?} policy tuple",
+                "solver backend does not support the exact {:?}/{:?}/{:?}/{scalar_domain:?}/{scalar_type:?} policy tuple",
                 plan.algorithm(),
                 plan.preconditioner(),
                 plan.reduction()
@@ -274,10 +286,12 @@ impl SolverCapabilities {
     pub fn require_problem(
         &self,
         plan: SolverPlan,
+        scalar_domain: eqiora_core::ScalarDomain,
         scalar_type: ScalarType,
         operator_properties: LinearOperatorProperties,
     ) -> Result<(), Diagnostic> {
         let requested = SolverCapability {
+            scalar_domain,
             algorithm: plan.algorithm(),
             operator_properties,
             preconditioner: plan.preconditioner(),
@@ -294,7 +308,7 @@ impl SolverCapabilities {
 }
 
 /// Backend-neutral solver execution boundary.
-pub trait LinearSolverBackend: Debug + Sync {
+pub trait LinearSolverBackend<S = f64>: Debug + Sync {
     /// Stable identity and declared release/dependency inventory of this provider.
     fn provider(&self) -> SolverProvider;
 
@@ -318,7 +332,7 @@ pub trait LinearSolverBackend: Debug + Sync {
     fn prepare_linear(
         &self,
         _plan: SolverPlan,
-    ) -> Result<Option<Box<dyn PreparedLinearSolver>>, Diagnostic> {
+    ) -> Result<Option<Box<dyn PreparedLinearSolver<S>>>, Diagnostic> {
         Ok(None)
     }
 
@@ -329,9 +343,9 @@ pub trait LinearSolverBackend: Debug + Sync {
     /// behavior, breakdown, non-convergence, or true-residual rejection.
     fn solve(
         &self,
-        problem: &LinearProblem<'_>,
+        problem: &LinearProblem<'_, S>,
         plan: SolverPlan,
-    ) -> Result<LinearSolution, Diagnostic> {
+    ) -> Result<LinearSolution<S>, Diagnostic> {
         self.solve_with_execution(problem, plan, &SERIAL_LINEAR_EXECUTION)
     }
 
@@ -346,23 +360,25 @@ pub trait LinearSolverBackend: Debug + Sync {
     /// true-residual rejection.
     fn solve_with_execution(
         &self,
-        problem: &LinearProblem<'_>,
+        problem: &LinearProblem<'_, S>,
         plan: SolverPlan,
         execution: &dyn ReplicatedLinearExecution,
-    ) -> Result<LinearSolution, Diagnostic>;
+    ) -> Result<LinearSolution<S>, Diagnostic>;
 }
 
 /// One resolved backend instance paired with the sole validated solver plan.
 #[derive(Debug, Clone, Copy)]
-pub struct LinearSolveRequest<'a> {
-    backend: &'a dyn LinearSolverBackend,
+pub struct LinearSolveRequest<'a, S = f64> {
+    backend: &'a dyn LinearSolverBackend<S>,
     plan: SolverPlan,
 }
 
-impl<'a> LinearSolveRequest<'a> {
+impl<'a, S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
+    LinearSolveRequest<'a, S>
+{
     /// Bind an executable adapter to a validated plan.
     #[must_use]
-    pub const fn new(backend: &'a dyn LinearSolverBackend, plan: SolverPlan) -> Self {
+    pub const fn new(backend: &'a dyn LinearSolverBackend<S>, plan: SolverPlan) -> Self {
         Self { backend, plan }
     }
 
@@ -370,7 +386,7 @@ impl<'a> LinearSolveRequest<'a> {
     ///
     /// # Errors
     /// Returns the backend's structured capability or numerical diagnostic.
-    pub fn solve(&self, problem: &LinearProblem<'_>) -> Result<LinearSolution, Diagnostic> {
+    pub fn solve(&self, problem: &LinearProblem<'_, S>) -> Result<LinearSolution<S>, Diagnostic> {
         self.backend.solve(problem, self.plan)
     }
 
@@ -385,10 +401,10 @@ impl<'a> LinearSolveRequest<'a> {
     /// problem validation or the selected backend.
     pub fn solve_canonical_oriented(
         &self,
-        state_jacobian: &CanonicalCsrSystemView,
-        right_hand_side: &[f64],
+        state_jacobian: &CanonicalCsrSystemView<S>,
+        right_hand_side: &[S],
         orientation: LinearOperatorOrientation,
-    ) -> Result<LinearSolution, Diagnostic> {
+    ) -> Result<LinearSolution<S>, Diagnostic> {
         match orientation {
             LinearOperatorOrientation::Normal => {
                 let problem = LinearProblem::from_oriented_canonical(
@@ -399,7 +415,20 @@ impl<'a> LinearSolveRequest<'a> {
                 self.solve(&problem)
             }
             LinearOperatorOrientation::Transposed => {
-                let transposed = Transposed::new(state_jacobian);
+                let transposed =
+                    Oriented::new(state_jacobian, crate::LinearOperatorOrientation::Transposed)?;
+                let problem = LinearProblem::from_oriented_canonical(
+                    &transposed,
+                    state_jacobian,
+                    right_hand_side,
+                )?;
+                self.solve(&problem)
+            }
+            LinearOperatorOrientation::ConjugateTransposed => {
+                let transposed = crate::Oriented::new(
+                    state_jacobian,
+                    LinearOperatorOrientation::ConjugateTransposed,
+                )?;
                 let problem = LinearProblem::from_oriented_canonical(
                     &transposed,
                     state_jacobian,
@@ -412,7 +441,7 @@ impl<'a> LinearSolveRequest<'a> {
 
     /// Resolved adapter.
     #[must_use]
-    pub const fn backend(self) -> &'a dyn LinearSolverBackend {
+    pub const fn backend(self) -> &'a dyn LinearSolverBackend<S> {
         self.backend
     }
 
@@ -444,6 +473,7 @@ mod tests {
             ),
         ] {
             let result = SolverCapabilities::exact([SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm,
                 operator_properties: properties,
                 preconditioner: PreconditionerPolicy::Identity,

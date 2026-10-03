@@ -116,6 +116,10 @@ impl PyResolvedLinear {
             LinearOperatorProperties::General => "general",
             LinearOperatorProperties::SymmetricPositiveDefinite => "symmetric-positive-definite",
             LinearOperatorProperties::SymmetricIndefinite => "symmetric-indefinite",
+            LinearOperatorProperties::Symmetric => "symmetric",
+            LinearOperatorProperties::ComplexSymmetric => "complex-symmetric",
+            LinearOperatorProperties::Hermitian => "hermitian",
+            LinearOperatorProperties::HermitianPositiveDefinite => "hermitian-positive-definite",
         }
     }
 

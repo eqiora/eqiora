@@ -1054,6 +1054,8 @@ fn planned_common_execution_reauthenticates_before_backend_or_operator_work() {
     #[derive(Debug)]
     struct Unexecuted;
     impl eqiora_solver::LinearOperator for Unexecuted {
+        type Scalar = f64;
+
         fn rows(&self) -> usize {
             1
         }

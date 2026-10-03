@@ -71,7 +71,7 @@ fn linear_system_v1_rejects_symmetric_indefinite_without_retagging() {
     assert_eq!(error.code(), codes::INVALID_ARTIFACT);
     assert_eq!(
         error.message(),
-        "distributed linear-system artifact v1 cannot encode symmetric-indefinite properties"
+        "distributed linear-system artifact v1 only admits general or real symmetric-positive-definite properties"
     );
 }
 

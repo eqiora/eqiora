@@ -494,6 +494,7 @@ impl NativeNumericalAdmission {
         let solver = self.linear.solver;
         let fieldwise = binding.mini_plan(mesh.artifact_reference()?, scales, solver)?;
         let selected_solver = SolverCapabilities::exact([SolverCapability {
+            scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: solver.algorithm(),
             operator_properties: LinearOperatorProperties::SymmetricIndefinite,
             preconditioner: solver.preconditioner(),

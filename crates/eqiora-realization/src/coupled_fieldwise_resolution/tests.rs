@@ -550,6 +550,7 @@ fn mixed_simplicial_capabilities(spatial_dimension: NonZeroUsize) -> Realization
         )],
         [VectorLayoutKind::Replicated],
         SolverCapabilities::exact([SolverCapability {
+            scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::MinimumResidual,
             operator_properties: LinearOperatorProperties::SymmetricIndefinite,
             preconditioner: PreconditionerPolicy::Identity,

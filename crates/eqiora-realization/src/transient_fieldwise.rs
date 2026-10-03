@@ -749,6 +749,7 @@ mod tests {
 
     fn general_capabilities() -> RealizationCapabilities {
         let solver = SolverCapabilities::exact([SolverCapability {
+            scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::BiConjugateGradientStabilized,
             operator_properties: LinearOperatorProperties::General,
             preconditioner: PreconditionerPolicy::Identity,

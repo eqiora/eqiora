@@ -12,8 +12,10 @@ use std::sync::Mutex;
 use eqiora_assembly::{
     AssemblyAccumulator, AssemblyBackend, AssemblyPlan, AssemblyResult, AssemblyWork,
 };
+use eqiora_core::Diagnostic;
+#[cfg(test)]
+use eqiora_core::ScalarType;
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, ScalarType};
 use eqiora_execution::DeploymentBinding;
 use eqiora_realization::{Target, TargetCapabilities};
 use eqiora_solver::{
@@ -268,8 +270,12 @@ impl LinearSolverBackend for ThreadedLinearSolver<'_> {
                 "a Rayon solver cannot be nested inside another replicated execution",
             ));
         }
-        self.capabilities()
-            .require_problem(plan, ScalarType::F64, problem.properties())?;
+        self.capabilities().require_problem(
+            plan,
+            problem.scalar_domain(),
+            problem.scalar_type(),
+            problem.properties(),
+        )?;
         let execution = RayonLinearExecution { pool: self.pool };
         self.backend.solve_with_execution(problem, plan, &execution)
     }
@@ -310,7 +316,7 @@ impl ReplicatedLinearExecution for RayonLinearExecution<'_> {
 
     fn apply(
         &self,
-        operator: &dyn LinearOperator,
+        operator: &dyn LinearOperator<Scalar = f64>,
         input: &[f64],
         output: &mut [f64],
     ) -> Result<(), Diagnostic> {
@@ -427,6 +433,8 @@ mod tests {
     }
 
     impl RowLinearAction for DenseRows {
+        type Scalar = f64;
+
         fn apply_rows(
             &self,
             rows: Range<usize>,
@@ -448,6 +456,8 @@ mod tests {
     }
 
     impl LinearOperator for DenseRows {
+        type Scalar = f64;
+
         fn rows(&self) -> usize {
             4
         }
@@ -460,7 +470,7 @@ mod tests {
             self.apply_rows(0..4, input, output)
         }
 
-        fn row_action(&self) -> Option<&dyn RowLinearAction> {
+        fn row_action(&self) -> Option<&dyn RowLinearAction<Scalar = f64>> {
             Some(self)
         }
 
@@ -479,6 +489,8 @@ mod tests {
     struct Unpartitioned;
 
     impl LinearOperator for Unpartitioned {
+        type Scalar = f64;
+
         fn rows(&self) -> usize {
             1
         }
@@ -508,8 +520,14 @@ mod tests {
         fn capabilities(&self) -> SolverCapabilities {
             SolverCapabilities::new(
                 [LinearSolver::ConjugateGradient],
+                [
+                    eqiora_solver::LinearOperatorProperties::General,
+                    eqiora_solver::LinearOperatorProperties::SymmetricPositiveDefinite,
+                    eqiora_solver::LinearOperatorProperties::SymmetricIndefinite,
+                ],
                 [PreconditionerPolicy::Identity],
                 [ReductionPolicy::Fast],
+                eqiora_core::ScalarDomain::Real,
                 [ScalarType::F64],
             )
             .unwrap()

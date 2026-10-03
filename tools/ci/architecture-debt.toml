@@ -96,7 +96,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-artifact/src/remesh_transfer.rs"
-ceiling = 2501
+ceiling = 2097
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -132,19 +132,13 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-backend-cuda/src/solver.rs"
-ceiling = 1769
-reason = "predates the predicate; not yet triaged"
-removal = "split by responsibility in the lane that next modifies it"
-
-[[file_lines]]
-path = "crates/eqiora-backend-mpi/src/protocol.rs"
-ceiling = 1466
+ceiling = 1745
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-backend-mpi/src/runtime.rs"
-ceiling = 2287
+ceiling = 2267
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -193,12 +187,6 @@ removal = "split by responsibility in the lane that next modifies it"
 [[file_lines]]
 path = "crates/eqiora-numerics/src/simplicial_ale_fsi/assembly.rs"
 ceiling = 1300
-reason = "predates the predicate; not yet triaged"
-removal = "split by responsibility in the lane that next modifies it"
-
-[[file_lines]]
-path = "crates/eqiora-numerics/src/simplicial_ale_fsi/motion.rs"
-ceiling = 1035
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 

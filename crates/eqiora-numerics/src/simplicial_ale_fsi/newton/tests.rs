@@ -579,6 +579,7 @@ impl LinearSolverBackend for DenseGeneralSolver {
 
     fn capabilities(&self) -> SolverCapabilities {
         SolverCapabilities::exact([SolverCapability {
+            scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::BiConjugateGradientStabilized,
             operator_properties: LinearOperatorProperties::General,
             preconditioner: PreconditionerPolicy::Identity,
@@ -594,8 +595,12 @@ impl LinearSolverBackend for DenseGeneralSolver {
         plan: SolverPlan,
         execution: &dyn ReplicatedLinearExecution,
     ) -> Result<LinearSolution, Diagnostic> {
-        self.capabilities()
-            .require_problem(plan, ScalarType::F64, problem.properties())?;
+        self.capabilities().require_problem(
+            plan,
+            eqiora_core::ScalarDomain::Real,
+            ScalarType::F64,
+            problem.properties(),
+        )?;
         if execution.report() != ExecutionReport::host_serial() {
             return Err(Diagnostic::error(
                 codes::INVALID_REALIZATION,

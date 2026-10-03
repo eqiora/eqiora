@@ -333,7 +333,7 @@ impl ReplicatedLinearExecution for ClaimedVerifier {
 
     fn apply(
         &self,
-        operator: &dyn LinearOperator,
+        operator: &dyn LinearOperator<Scalar = f64>,
         input: &[f64],
         output: &mut [f64],
     ) -> Result<(), Diagnostic> {
@@ -423,6 +423,7 @@ fn resolve_plan_with_placement(
         Target::CudaGpu { device } => TargetCapabilities::none().with_cuda_device(device),
     };
     let solver_capabilities = SolverCapabilities::exact([SolverCapability {
+        scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: solver.algorithm(),
         operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
         preconditioner: solver.preconditioner(),

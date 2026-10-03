@@ -49,6 +49,7 @@ fn realization_admission_rejects_unverified_axis_recombination() {
         )
     };
     let fem_solver = SolverCapability {
+        scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::ConjugateGradient,
         operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
         preconditioner: PreconditionerPolicy::Identity,
@@ -56,6 +57,7 @@ fn realization_admission_rejects_unverified_axis_recombination() {
         scalar_type: ScalarType::F64,
     };
     let fvm_solver = SolverCapability {
+        scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::BiConjugateGradientStabilized,
         operator_properties: LinearOperatorProperties::General,
         preconditioner: PreconditionerPolicy::Jacobi,
@@ -167,6 +169,7 @@ enum FieldwisePath {
 
 fn reference_spd_solver_capabilities() -> SolverCapabilities {
     SolverCapabilities::exact([SolverCapability {
+        scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::ConjugateGradient,
         operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
         preconditioner: PreconditionerPolicy::Identity,

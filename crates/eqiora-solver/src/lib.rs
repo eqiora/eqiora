@@ -1,6 +1,6 @@
 //! **eqiora-solver** — backend-neutral linear-solver contracts.
 //!
-//! This crate owns the single solver-plan vocabulary, host-local `f64`
+//! This crate owns the single solver-plan vocabulary, typed host-local
 //! operator seam, capability negotiation, convergence evidence, and a small
 //! deterministic reference oracle. Production library and device adapters
 //! live in dedicated L3 crates.
@@ -28,7 +28,7 @@ pub use execution::{
 };
 pub use operator::{
     DiagonalAvailability, LinearOperator, LinearOperatorOrientation, LinearOperatorProperties,
-    LinearProblem, RowLinearAction, TransposeLinearOperator, Transposed,
+    LinearProblem, Oriented, OrientedLinearOperator, RowLinearAction,
 };
 pub use plan::{LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverPlan};
 pub use planning::{

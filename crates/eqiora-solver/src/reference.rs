@@ -1,11 +1,12 @@
 mod bicgstab;
+mod complex;
 
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 
 use crate::{
     ConvergenceReason, DiagonalAvailability, FixedOrderInnerProduct, LinearProblem, LinearSolution,
-    LinearSolver, LinearSolverBackend, PreconditionerPolicy, ReplicatedLinearExecution, ScalarType,
+    LinearSolver, LinearSolverBackend, PreconditionerPolicy, ReplicatedLinearExecution,
     SolveReport, SolverCapabilities, SolverPlan, SolverProvider,
 };
 
@@ -23,13 +24,33 @@ pub const REFERENCE_SOLVER_PROVIDER: SolverProvider = SolverProvider::new(
     &[],
 );
 
-impl LinearSolverBackend for ReferenceLinearSolver {
-    fn provider(&self) -> SolverProvider {
+impl ReferenceLinearSolver {
+    /// Exact release identity shared by the admitted scalar specializations.
+    #[must_use]
+    pub const fn provider(&self) -> SolverProvider {
         REFERENCE_SOLVER_PROVIDER
     }
 
-    fn capabilities(&self) -> SolverCapabilities {
+    /// Stable reference adapter identity.
+    #[must_use]
+    pub const fn id(&self) -> crate::BackendId {
+        REFERENCE_SOLVER_PROVIDER.id()
+    }
+
+    /// Exact real and complex policies implemented by this adapter.
+    #[must_use]
+    pub fn capabilities(&self) -> SolverCapabilities {
         SolverCapabilities::reference()
+    }
+}
+
+impl LinearSolverBackend for ReferenceLinearSolver {
+    fn provider(&self) -> SolverProvider {
+        Self::provider(self)
+    }
+
+    fn capabilities(&self) -> SolverCapabilities {
+        Self::capabilities(self)
     }
 
     fn solve_with_execution(
@@ -38,8 +59,12 @@ impl LinearSolverBackend for ReferenceLinearSolver {
         plan: SolverPlan,
         execution: &dyn ReplicatedLinearExecution,
     ) -> Result<LinearSolution, Diagnostic> {
-        self.capabilities()
-            .require_problem(plan, ScalarType::F64, problem.properties())?;
+        self.capabilities().require_problem(
+            plan,
+            problem.scalar_domain(),
+            problem.scalar_type(),
+            problem.properties(),
+        )?;
         execution.require_reduction(plan.reduction())?;
         match plan.algorithm() {
             LinearSolver::ConjugateGradient => {
@@ -471,6 +496,8 @@ mod tests {
     struct DenseSpd;
 
     impl LinearOperator for DenseSpd {
+        type Scalar = f64;
+
         fn rows(&self) -> usize {
             2
         }
@@ -500,6 +527,8 @@ mod tests {
     }
 
     impl LinearOperator for DenseSymmetricIndefinite {
+        type Scalar = f64;
+
         fn rows(&self) -> usize {
             2
         }
@@ -522,6 +551,8 @@ mod tests {
     struct DenseGeneral;
 
     impl LinearOperator for DenseGeneral {
+        type Scalar = f64;
+
         fn rows(&self) -> usize {
             2
         }
@@ -549,6 +580,8 @@ mod tests {
     struct SingularGeneral;
 
     impl LinearOperator for SingularGeneral {
+        type Scalar = f64;
+
         fn rows(&self) -> usize {
             2
         }
@@ -568,6 +601,8 @@ mod tests {
     struct NonFiniteGeneral;
 
     impl LinearOperator for NonFiniteGeneral {
+        type Scalar = f64;
+
         fn rows(&self) -> usize {
             2
         }
@@ -744,7 +779,10 @@ mod tests {
             NonZeroUsize::new(20).unwrap(),
         )
         .unwrap();
-        for operator in [&SingularGeneral as &dyn LinearOperator, &NonFiniteGeneral] {
+        for operator in [
+            &SingularGeneral as &dyn LinearOperator<Scalar = f64>,
+            &NonFiniteGeneral,
+        ] {
             let problem =
                 LinearProblem::new(operator, &[1.0, 0.0], LinearOperatorProperties::General)
                     .unwrap();

@@ -68,6 +68,7 @@ impl PyLinearSolveSummary {
             orientation: match report.orientation() {
                 LinearOperatorOrientation::Normal => "normal",
                 LinearOperatorOrientation::Transposed => "transposed",
+                LinearOperatorOrientation::ConjugateTransposed => "conjugate-transposed",
             }
             .to_owned(),
             algorithm: match report.algorithm() {
@@ -110,6 +111,7 @@ impl PyLinearSolveSummary {
             orientation: match result.solve_orientation(fsi_state)? {
                 LinearOperatorOrientation::Normal => "normal",
                 LinearOperatorOrientation::Transposed => "transposed",
+                LinearOperatorOrientation::ConjugateTransposed => "conjugate-transposed",
             }
             .to_owned(),
             algorithm: match result.solve_algorithm(fsi_state)? {

@@ -601,6 +601,10 @@ fn catalog_ids(properties: LinearOperatorProperties) -> &'static [&'static str] 
         LinearOperatorProperties::SymmetricIndefinite => {
             &[REFERENCE_MINRES_ID, FAER_INDEFINITE_LU_ID]
         }
+        LinearOperatorProperties::Symmetric
+        | LinearOperatorProperties::ComplexSymmetric
+        | LinearOperatorProperties::Hermitian
+        | LinearOperatorProperties::HermitianPositiveDefinite => &[],
     }
 }
 
@@ -690,6 +694,10 @@ fn rejection_reason(
             LinearOperatorProperties::SymmetricIndefinite => {
                 "profile.symmetric-indefinite-required"
             }
+            LinearOperatorProperties::Symmetric => "profile.symmetric-required",
+            LinearOperatorProperties::ComplexSymmetric => "profile.complex-symmetric-required",
+            LinearOperatorProperties::Hermitian => "profile.hermitian-required",
+            LinearOperatorProperties::HermitianPositiveDefinite => "profile.hpd-required",
         });
     }
     if profile.facts.orientation != LinearOperatorOrientation::Normal {
@@ -702,6 +710,7 @@ fn rejection_reason(
         return Some(reason);
     }
     let required = SolverCapability {
+        scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: expected.algorithm,
         operator_properties: expected.properties,
         preconditioner: expected.preconditioner,

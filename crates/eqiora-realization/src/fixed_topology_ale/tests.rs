@@ -606,6 +606,7 @@ fn capabilities_for_dimension(
     spatial_dimension: NonZeroUsize,
 ) -> RealizationCapabilities {
     let mut solvers = vec![SolverCapability {
+        scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::BiConjugateGradientStabilized,
         operator_properties: LinearOperatorProperties::General,
         preconditioner: PreconditionerPolicy::Identity,
@@ -614,6 +615,7 @@ fn capabilities_for_dimension(
     }];
     if include_mesh_solver {
         solvers.push(SolverCapability {
+            scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::ConjugateGradient,
             operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
             preconditioner: PreconditionerPolicy::Identity,

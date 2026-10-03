@@ -1,3 +1,8 @@
+mod properties;
+
+use eqiora_core::Scalar;
+use num_complex::ComplexFloat;
+
 use std::ops::Range;
 #[cfg(test)]
 use std::sync::Arc;
@@ -9,8 +14,8 @@ use eqiora_core::diagnostic::codes;
 use sha2::{Digest, Sha256};
 
 use crate::{
-    DiagonalAvailability, LinearOperator, LinearOperatorProperties, LinearProblem, RowLinearAction,
-    TransposeLinearOperator,
+    DiagonalAvailability, LinearOperator, LinearOperatorProperties, LinearProblem,
+    OrientedLinearOperator, RowLinearAction,
 };
 
 const AGREEMENT_DOMAIN_V1: &[u8] = b"eqiora.canonical-csr-agreement/v1\0";
@@ -20,7 +25,7 @@ const AGREEMENT_DOMAIN_V1: &[u8] = b"eqiora.canonical-csr-agreement/v1\0";
 /// Implementors expose shape and immutable CSR/RHS storage only. In
 /// particular, this trait deliberately has no operator action or identity
 /// method: Eqiora captures and validates the data before defining either.
-pub trait CompleteCsrStorage {
+pub trait CompleteCsrStorage<S = f64> {
     /// Matrix row count.
     fn rows(&self) -> usize;
 
@@ -34,10 +39,10 @@ pub trait CompleteCsrStorage {
     fn column_indices(&self) -> &[usize];
 
     /// CSR nonzero values.
-    fn values(&self) -> &[f64];
+    fn values(&self) -> &[S];
 
     /// Complete right-hand side.
-    fn right_hand_side(&self) -> &[f64];
+    fn right_hand_side(&self) -> &[S];
 }
 
 /// Fixed-size L2 identity for exact canonical CSR algebraic agreement.
@@ -47,7 +52,10 @@ pub trait CompleteCsrStorage {
 /// carries no Semantic Model or Realization provenance. The v1 property tags
 /// are frozen as `General = 0`, `SymmetricPositiveDefinite = 1`, and
 /// `SymmetricIndefinite = 2`; adding the last tag preserved fingerprints
-/// produced with either earlier property.
+/// produced with either earlier property. Additional tags are symmetric = 3,
+/// complex symmetric = 4, Hermitian = 5, and Hermitian positive definite = 6.
+/// The scalar tags are binary64 real = 1
+/// and binary64 complex = 2; complex entries bind real then imaginary bits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CanonicalCsrAgreementFingerprintV1([u8; 32]);
 
@@ -66,13 +74,13 @@ impl CanonicalCsrAgreementFingerprintV1 {
 /// fingerprint from those owned bytes. A third-party storage implementation
 /// cannot substitute an unrelated virtual operator action.
 #[derive(Debug, Clone, PartialEq)]
-pub struct CanonicalCsrSystemView {
+pub struct CanonicalCsrSystemView<S = f64> {
     rows: usize,
     columns: usize,
     row_offsets: Vec<usize>,
     column_indices: Vec<usize>,
-    values: Vec<f64>,
-    right_hand_side: Vec<f64>,
+    values: Vec<S>,
+    right_hand_side: Vec<S>,
     properties: LinearOperatorProperties,
     agreement_fingerprint: CanonicalCsrAgreementFingerprintV1,
     #[cfg(test)]
@@ -147,22 +155,28 @@ impl PartialEq for TestOperatorCallInstrumentation {
     }
 }
 
-impl CanonicalCsrSystemView {
-    /// Capture and validate one complete square finite `f64` CSR system.
+impl<S: Scalar + ComplexFloat<Real = f64> + Sync> CanonicalCsrSystemView<S> {
+    /// Capture and validate one complete square finite binary64 real or complex CSR system.
     ///
     /// # Errors
     /// Returns `EQ0807` for an empty or non-square system, malformed CSR,
     /// non-finite values, an RHS mismatch, or a count outside portable `u64`.
     pub fn new(
-        storage: &dyn CompleteCsrStorage,
+        storage: &dyn CompleteCsrStorage<S>,
         properties: LinearOperatorProperties,
     ) -> Result<Self, Diagnostic> {
+        if !properties.supports_domain(S::DOMAIN) {
+            return Err(invalid_realization(
+                "canonical CSR property is incompatible with its scalar domain",
+            ));
+        }
         let rows = storage.rows();
         let columns = storage.columns();
         let row_offsets = try_copy_slice(storage.row_offsets(), "CSR row offsets")?;
         let column_indices = try_copy_slice(storage.column_indices(), "CSR column indices")?;
-        let values = try_copy_f64_slice(storage.values(), "CSR values")?;
-        let right_hand_side = try_copy_f64_slice(storage.right_hand_side(), "CSR right-hand side")?;
+        let values = try_copy_scalar_slice(storage.values(), "CSR values")?;
+        let right_hand_side =
+            try_copy_scalar_slice(storage.right_hand_side(), "CSR right-hand side")?;
 
         validate_complete_csr(
             rows,
@@ -172,6 +186,7 @@ impl CanonicalCsrSystemView {
             &values,
             &right_hand_side,
         )?;
+        properties::validate_declared_symmetry(&row_offsets, &column_indices, &values, properties)?;
         let agreement_fingerprint = agreement_fingerprint(
             rows,
             columns,
@@ -233,13 +248,13 @@ impl CanonicalCsrSystemView {
 
     /// CSR values captured at construction.
     #[must_use]
-    pub fn values(&self) -> &[f64] {
+    pub fn values(&self) -> &[S] {
         &self.values
     }
 
     /// Complete RHS captured at construction.
     #[must_use]
-    pub fn right_hand_side(&self) -> &[f64] {
+    pub fn right_hand_side(&self) -> &[S] {
         &self.right_hand_side
     }
 
@@ -260,7 +275,7 @@ impl CanonicalCsrSystemView {
     /// # Errors
     /// Returns `EQ0802` only if the internal fixed action contradicts the
     /// invariants already checked at construction.
-    pub fn linear_problem(&self) -> Result<LinearProblem<'_>, Diagnostic> {
+    pub fn linear_problem(&self) -> Result<LinearProblem<'_, S>, Diagnostic> {
         LinearProblem::from_canonical(self)
     }
 
@@ -275,16 +290,16 @@ impl CanonicalCsrSystemView {
     /// a non-finite value.
     pub fn linear_problem_with_right_hand_side<'a>(
         &'a self,
-        right_hand_side: &'a [f64],
-    ) -> Result<LinearProblem<'a>, Diagnostic> {
+        right_hand_side: &'a [S],
+    ) -> Result<LinearProblem<'a, S>, Diagnostic> {
         LinearProblem::from_oriented_canonical(self, self, right_hand_side)
     }
 
     fn apply_range(
         &self,
         rows: Range<usize>,
-        input: &[f64],
-        output: &mut [f64],
+        input: &[S],
+        output: &mut [S],
     ) -> Result<(), Diagnostic> {
         let row_count = rows
             .end
@@ -304,9 +319,9 @@ impl CanonicalCsrSystemView {
             return Err(solve_failed("canonical CSR input must be finite"));
         }
         for (row, result) in rows.zip(output) {
-            let mut sum = 0.0;
+            let mut sum = S::zero();
             for entry in self.row_offsets[row]..self.row_offsets[row + 1] {
-                sum += self.values[entry] * input[self.column_indices[entry]];
+                sum = sum + self.values[entry] * input[self.column_indices[entry]];
             }
             if !sum.is_finite() {
                 return Err(solve_failed(format!(
@@ -327,19 +342,20 @@ fn try_copy_slice<T: Copy>(source: &[T], name: &'static str) -> Result<Vec<T>, D
     Ok(copy)
 }
 
-fn try_copy_f64_slice(source: &[f64], name: &'static str) -> Result<Vec<f64>, Diagnostic> {
+fn try_copy_scalar_slice<S: Scalar + ComplexFloat<Real = f64>>(
+    source: &[S],
+    name: &'static str,
+) -> Result<Vec<S>, Diagnostic> {
     let mut copy = Vec::new();
     copy.try_reserve_exact(source.len())
         .map_err(|_| invalid_realization(format!("could not reserve captured {name}")))?;
-    copy.extend(
-        source
-            .iter()
-            .map(|value| if *value == 0.0 { 0.0 } else { *value }),
-    );
+    copy.extend(source.iter().map(|value| *value + S::zero()));
     Ok(copy)
 }
 
-impl LinearOperator for CanonicalCsrSystemView {
+impl<S: Scalar + ComplexFloat<Real = f64> + Sync> LinearOperator for CanonicalCsrSystemView<S> {
+    type Scalar = S;
+
     fn rows(&self) -> usize {
         self.rows
     }
@@ -348,17 +364,17 @@ impl LinearOperator for CanonicalCsrSystemView {
         self.columns
     }
 
-    fn apply(&self, input: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
+    fn apply(&self, input: &[S], output: &mut [S]) -> Result<(), Diagnostic> {
         #[cfg(test)]
         self.operator_call_instrumentation.record_apply();
         self.apply_range(0..self.rows, input, output)
     }
 
-    fn row_action(&self) -> Option<&dyn RowLinearAction> {
+    fn row_action(&self) -> Option<&dyn RowLinearAction<Scalar = S>> {
         Some(self)
     }
 
-    fn diagonal(&self, output: &mut [f64]) -> Result<DiagonalAvailability, Diagnostic> {
+    fn diagonal(&self, output: &mut [S]) -> Result<DiagonalAvailability, Diagnostic> {
         #[cfg(test)]
         self.operator_call_instrumentation.record_diagonal();
         if output.len() != self.rows {
@@ -383,19 +399,35 @@ impl LinearOperator for CanonicalCsrSystemView {
     }
 }
 
-impl RowLinearAction for CanonicalCsrSystemView {
+impl<S: Scalar + ComplexFloat<Real = f64> + Sync> RowLinearAction for CanonicalCsrSystemView<S> {
+    type Scalar = S;
+
     fn apply_rows(
         &self,
         rows: Range<usize>,
-        input: &[f64],
-        output: &mut [f64],
+        input: &[S],
+        output: &mut [S],
     ) -> Result<(), Diagnostic> {
         self.apply_range(rows, input, output)
     }
 }
 
-impl TransposeLinearOperator for CanonicalCsrSystemView {
-    fn apply_transpose(&self, input: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
+impl<S: Scalar + ComplexFloat<Real = f64> + Sync> OrientedLinearOperator
+    for CanonicalCsrSystemView<S>
+{
+    fn supports_orientation(&self, _orientation: crate::LinearOperatorOrientation) -> bool {
+        true
+    }
+
+    fn apply_oriented(
+        &self,
+        orientation: crate::LinearOperatorOrientation,
+        input: &[S],
+        output: &mut [S],
+    ) -> Result<(), Diagnostic> {
+        if orientation == crate::LinearOperatorOrientation::Normal {
+            return self.apply(input, output);
+        }
         if input.len() != self.rows || output.len() != self.columns {
             return Err(solve_failed(format!(
                 "transposed canonical CSR is {}x{} but input/output have {}/{} values",
@@ -410,10 +442,17 @@ impl TransposeLinearOperator for CanonicalCsrSystemView {
                 "transposed canonical CSR input must be finite",
             ));
         }
-        output.fill(0.0);
+        output.fill(S::zero());
         for (row, input_value) in input.iter().enumerate() {
             for entry in self.row_offsets[row]..self.row_offsets[row + 1] {
-                output[self.column_indices[entry]] += self.values[entry] * input_value;
+                let value = if orientation == crate::LinearOperatorOrientation::ConjugateTransposed
+                {
+                    self.values[entry].conj()
+                } else {
+                    self.values[entry]
+                };
+                let column = self.column_indices[entry];
+                output[column] = output[column] + value * *input_value;
             }
         }
         if output.iter().any(|value| !value.is_finite()) {
@@ -426,13 +465,13 @@ impl TransposeLinearOperator for CanonicalCsrSystemView {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn validate_complete_csr(
+fn validate_complete_csr<S: ComplexFloat<Real = f64>>(
     rows: usize,
     columns: usize,
     row_offsets: &[usize],
     column_indices: &[usize],
-    values: &[f64],
-    right_hand_side: &[f64],
+    values: &[S],
+    right_hand_side: &[S],
 ) -> Result<(), Diagnostic> {
     if rows == 0 || rows != columns {
         return Err(invalid_realization(
@@ -490,18 +529,22 @@ fn validate_complete_csr(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn agreement_fingerprint(
+fn agreement_fingerprint<S: Scalar + ComplexFloat<Real = f64>>(
     rows: usize,
     columns: usize,
     row_offsets: &[usize],
     column_indices: &[usize],
-    values: &[f64],
-    right_hand_side: &[f64],
+    values: &[S],
+    right_hand_side: &[S],
     properties: LinearOperatorProperties,
 ) -> Result<CanonicalCsrAgreementFingerprintV1, Diagnostic> {
     let mut hash = Sha256::new();
     hash.update(AGREEMENT_DOMAIN_V1);
-    hash.update([1]); // f64 scalar tag
+    hash.update([if S::DOMAIN == eqiora_core::ScalarDomain::Complex {
+        2
+    } else {
+        1
+    }]); // binary64 domain tag
     update_count(&mut hash, rows, "row count")?;
     update_count(&mut hash, columns, "column count")?;
     update_count(&mut hash, row_offsets.len(), "row-offset count")?;
@@ -514,11 +557,17 @@ fn agreement_fingerprint(
     }
     update_count(&mut hash, values.len(), "value count")?;
     for value in values {
-        hash.update(value.to_bits().to_be_bytes());
+        hash.update(value.re().to_bits().to_be_bytes());
+        if S::DOMAIN == eqiora_core::ScalarDomain::Complex {
+            hash.update(value.im().to_bits().to_be_bytes());
+        }
     }
     update_count(&mut hash, right_hand_side.len(), "right-hand-side count")?;
     for value in right_hand_side {
-        hash.update(value.to_bits().to_be_bytes());
+        hash.update(value.re().to_bits().to_be_bytes());
+        if S::DOMAIN == eqiora_core::ScalarDomain::Complex {
+            hash.update(value.im().to_bits().to_be_bytes());
+        }
     }
     hash.update([agreement_property_tag_v1(properties)]);
     Ok(CanonicalCsrAgreementFingerprintV1(hash.finalize().into()))
@@ -534,6 +583,10 @@ const fn agreement_property_tag_v1(properties: LinearOperatorProperties) -> u8 {
         LinearOperatorProperties::General => 0,
         LinearOperatorProperties::SymmetricPositiveDefinite => 1,
         LinearOperatorProperties::SymmetricIndefinite => 2,
+        LinearOperatorProperties::Symmetric => 3,
+        LinearOperatorProperties::ComplexSymmetric => 4,
+        LinearOperatorProperties::Hermitian => 5,
+        LinearOperatorProperties::HermitianPositiveDefinite => 6,
     }
 }
 
@@ -762,7 +815,12 @@ mod tests {
         let mut normal = [0.0; 2];
         let mut transposed = [0.0; 2];
         view.apply(&[5.0, 6.0], &mut normal).unwrap();
-        view.apply_transpose(&[5.0, 6.0], &mut transposed).unwrap();
+        view.apply_oriented(
+            crate::LinearOperatorOrientation::Transposed,
+            &[5.0, 6.0],
+            &mut transposed,
+        )
+        .unwrap();
 
         assert_eq!(normal, [17.0, 39.0]);
         assert_eq!(transposed, [23.0, 34.0]);
