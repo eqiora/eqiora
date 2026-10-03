@@ -286,7 +286,7 @@ fn common_finite_lifecycle_accepts_eight_volts_and_rejects_stale_state() {
         .unwrap(),
     );
     let plan = CommonAlgebraicPlan::resolve(&model, request, None, &FaerLinearSolver).unwrap();
-    let state = plan.initial_state().unwrap();
+    let state = plan.initial_state(&[]).unwrap();
     assert_eq!(
         CommonAlgebraicState::from_bytes(&state.to_bytes().unwrap(), &plan).unwrap(),
         state
@@ -426,10 +426,10 @@ fn finite_plan_and_state_bind_exact_provider_library_releases() {
     let first_plan = resolve(&first);
     let second_plan = resolve(&second);
     assert_ne!(first_plan.identity(), second_plan.identity());
-    let first_state = first_plan.initial_state().unwrap();
+    let first_state = first_plan.initial_state(&[]).unwrap();
     assert_ne!(
         first_state.identity(),
-        second_plan.initial_state().unwrap().identity()
+        second_plan.initial_state(&[]).unwrap().identity()
     );
     assert!(
         CommonAlgebraicState::from_bytes(&first_state.to_bytes().unwrap(), &second_plan).is_err()

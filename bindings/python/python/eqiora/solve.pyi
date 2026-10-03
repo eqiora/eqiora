@@ -218,6 +218,7 @@ class ResolvedNewton:
 __all__ = [
     "ConstraintTolerance",
     "ActiveSet",
+    "StrictInterior",
     "SolverPlanningObjective",
     "Robust",
     "Fast",
@@ -235,7 +236,7 @@ __all__ = [
 
 @final
 class AlgebraicPlanView:
-    """Resolved finite affine solve with its exact unknown inventory.
+    """Resolved finite algebraic solve with its exact unknown inventory.
 
     Authority: ``crates/eqiora-python/src/common_plan/algebraic.rs::PyAlgebraicPlanView``.
     """
@@ -279,3 +280,15 @@ class ActiveSet:
     def model_digest(self) -> str: ...
     @property
     def max_active_sets(self) -> int: ...
+
+@final
+class StrictInterior:
+    """Restrict a nonlinear solve to inequality slack above explicit positive margins.
+
+    Authority: ``crates/eqiora-python/src/common_plan/enforcement/strict_interior.rs::PyStrictInterior``.
+    """
+    def __new__(cls, *, margins: tuple[ConstraintTolerance, ...]) -> Self: ...
+    @property
+    def margins(self) -> tuple[ConstraintTolerance, ...]: ...
+    @property
+    def model_digest(self) -> str: ...

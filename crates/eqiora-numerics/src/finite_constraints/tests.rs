@@ -172,7 +172,7 @@ fn reopened_exact_model_accepts_both_contact_branches() {
             assert_eq!(&problem.kernel, kernel);
             let candidate = values(&problem, &fixture, gap, force_value);
             let assessment = problem.validate_values(&candidate, plan(), mask).unwrap();
-            assert_eq!(assessment.active_set_mask(), mask);
+            assert_eq!(assessment.active_set_mask(), Some(mask));
             assert_eq!(
                 assessment.residual_target(),
                 plan().residual_target(6.0).unwrap()

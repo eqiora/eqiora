@@ -27,6 +27,7 @@ use crate::trajectory::{PyBoundaryFlux, PyBoundaryForce, PyState, PyTrajectory};
 
 mod constraints;
 mod field_output;
+mod nonlinear;
 mod observe;
 mod time_observe;
 
@@ -113,7 +114,7 @@ enum StaticScientificEvidence {
 struct CommonFieldResultPayload {
     outputs: Vec<Py<PyFieldOutput>>,
     lookup: BTreeMap<String, usize>,
-    solve: Py<PyLinearSolveSummary>,
+    solve: Py<PyAny>,
     evidence: Option<StaticScientificEvidence>,
 }
 
@@ -397,12 +398,12 @@ impl PyRunResult {
     }
 
     #[getter]
-    fn solve(&self, py: Python<'_>) -> PyResult<Py<PyLinearSolveSummary>> {
+    fn solve(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match &self.payload {
             ResultPayload::Fields(payload) => Ok(payload.solve.clone_ref(py)),
             _ => Err(capability_error(
                 py,
-                "this Result occurrence has no linear solve summary",
+                "this Result occurrence has no algebraic solve summary",
             )),
         }
     }
@@ -848,9 +849,18 @@ fn materialize_common_result_unprofiled(
         lookup.insert(field_id, outputs.len());
         outputs.push(output);
     }
-    let solve = PyLinearSolveSummary::from_common_result(&result, None)
-        .ok_or_else(|| PyRuntimeError::new_err("static common Result omitted solve evidence"))?;
-    let solve = Py::new(py, solve)?;
+    let solve = if result.nonlinear_iterations().is_some() {
+        Py::new(
+            py,
+            nonlinear::PyNonlinearSolveSummary::from_result(&result)?,
+        )?
+        .into_any()
+    } else {
+        let solve = PyLinearSolveSummary::from_common_result(&result, None).ok_or_else(|| {
+            PyRuntimeError::new_err("static common Result omitted solve evidence")
+        })?;
+        Py::new(py, solve)?.into_any()
+    };
     let evidence = match result.family_name() {
         "algebraic" | "scalar" => None,
         "elasticity" => Some(StaticScientificEvidence::LinearElasticity(Py::new(
@@ -906,6 +916,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PySeries>()?;
     module.add_class::<PyFieldOutput>()?;
     module.add_class::<PyRunResult>()?;
+    module.add_class::<nonlinear::PyNonlinearSolveSummary>()?;
     module.add_class::<constraints::PyConstraintMeasurement>()?;
     Ok(())
 }

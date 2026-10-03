@@ -209,6 +209,7 @@ pub struct CommonInitialField {
     field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
     vertex: Option<CommonInitialValues>,
     cell: Option<CommonInitialValues>,
+    scalar: Option<f64>,
 }
 
 impl CommonInitialField {
@@ -241,7 +242,32 @@ impl CommonInitialField {
             field,
             vertex,
             cell,
+            scalar: None,
         })
+    }
+    /// One no-Mesh scalar assignment, in the exact Field's coherent-SI unit.
+    pub fn scalar(
+        model: eqiora_artifact::ArtifactDigest,
+        field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+        value: f64,
+    ) -> Result<Self, Diagnostic> {
+        if !value.is_finite() {
+            return Err(invalid(
+                "scalar InitialField requires a finite coherent-SI value",
+            ));
+        }
+        Ok(Self {
+            model,
+            field,
+            vertex: None,
+            cell: None,
+            scalar: Some(value),
+        })
+    }
+    /// No-Mesh scalar value; absent for spatial assignments.
+    #[must_use]
+    pub const fn scalar_value(&self) -> Option<f64> {
+        self.scalar
     }
     #[must_use]
     pub const fn model(&self) -> &eqiora_artifact::ArtifactDigest {

@@ -5,15 +5,16 @@ use eqiora_schema::kernel::typing::{ExpressionType, RootContract, TypedResidual}
 use eqiora_schema::kernel::{ActivationKind, ExprDagBuilder, ExprNode, FieldRole, KernelNode};
 use std::collections::BTreeSet;
 
-/// Admit one static finite affine Field problem with explicit exact constraint tolerances.
+/// Admit one static finite Field problem with exact constraint tolerances or margins.
 ///
 /// # Errors
-/// Rejects dynamic/spatial/discrete profiles, nonaffine operands, non-square branch systems,
+/// Rejects dynamic/spatial/discrete profiles, nonaffine active-set operands, non-square systems,
 /// missing/foreign/wrong-unit tolerance entries and excessive active-set enumeration.
 pub(crate) fn lower_finite_constraints(
     kernel: &KernelProgram,
     enforcement: &FiniteConstraintEnforcement,
 ) -> Result<FiniteConstraintProblem, Diagnostic> {
+    let max_active_sets = enforcement.max_active_sets();
     let mut symbols = Vec::new();
     let mut dimensions = Vec::new();
     let mut bindings = Vec::new();
@@ -27,14 +28,14 @@ pub(crate) fn lower_finite_constraints(
                     || value.frame() != ValueFrame::Invariant
                 {
                     return Err(invalid(
-                        "finite active-set execution requires invariant real scalar algebraic Fields",
+                        "finite constraint execution requires invariant real scalar algebraic Fields",
                     ));
                 }
                 symbols.push(SymbolRef::Field(field.id()));
                 dimensions.push(value.dimension());
                 if symbols.len() > 256 {
                     return Err(invalid(
-                        "finite active-set profile permits at most 256 scalar Fields",
+                        "finite constraint profile permits at most 256 scalar Fields",
                     ));
                 }
             }
@@ -42,7 +43,7 @@ pub(crate) fn lower_finite_constraints(
                 let value = parameter
                     .value()
                     .real_scalar_value()
-                    .ok_or_else(|| invalid("finite active-set Parameters must be real scalars"))?;
+                    .ok_or_else(|| invalid("finite constraint Parameters must be real scalars"))?;
                 bindings.push((SymbolRef::Parameter(parameter.id()), value.value()));
             }
             KernelNode::Relation(_) | KernelNode::Observable(_) => {}
@@ -50,14 +51,14 @@ pub(crate) fn lower_finite_constraints(
                 if matches!(activation.kind(), ActivationKind::Continuous) => {}
             _ => {
                 return Err(invalid(
-                    "finite active-set profile rejects clocks, events, spatial support, Ports and non-scalar semantic owners",
+                    "finite constraint profile rejects clocks, events, spatial support, Ports and non-scalar semantic owners",
                 ));
             }
         }
     }
     if symbols.is_empty() {
         return Err(invalid(
-            "finite active-set problem has no scalar Field unknowns",
+            "finite constraint problem has no scalar Field unknowns",
         ));
     }
     let mut relations = Vec::new();
@@ -70,7 +71,7 @@ pub(crate) fn lower_finite_constraints(
             continue;
         };
         let conditions = relation.conditions().ok_or_else(|| {
-            invalid("finite active-set execution does not reinterpret a conservation Law as a condition Relation")
+            invalid("finite constraint execution does not reinterpret a conservation Law as a condition Relation")
         })?;
         if relation.is_initial() {
             return Err(invalid(
@@ -82,7 +83,7 @@ pub(crate) fn lower_finite_constraints(
             .ok_or_else(|| invalid("finite expression budget overflow"))?;
         if expression_nodes > 65_536 {
             return Err(invalid(
-                "finite active-set profile permits at most 65536 expression nodes",
+                "finite constraint profile permits at most 65536 expression nodes",
             ));
         }
         if relation.expression().nodes().iter().any(|node| matches!(node, ExprNode::Symbol(symbol) if !matches!(symbol, SymbolRef::Field(_) | SymbolRef::Parameter(_)))) {
@@ -125,7 +126,7 @@ pub(crate) fn lower_finite_constraints(
                     || operand.frame() != ValueFrame::Invariant
                 {
                     return Err(invalid(
-                        "finite active-set conditions require nonspatial invariant real scalar operands",
+                        "finite constraints require nonspatial invariant real scalar operands",
                     ));
                 }
             }
@@ -148,6 +149,11 @@ pub(crate) fn lower_finite_constraints(
                         ));
                     }
                     if *kind == RelationConditionKind::Complementarity {
+                        if enforcement.is_strict_interior() {
+                            return Err(invalid(
+                                "strict-interior execution rejects complementarity",
+                            ));
+                        }
                         complementarity_count += 1;
                         if tolerance
                             .right()
@@ -167,13 +173,14 @@ pub(crate) fn lower_finite_constraints(
         }
         // Prove every original operand affine before considering any active branch.
         // A branch must never hide a nonlinear inactive operand.
-        ScalarOperatorIr::lower(relation.expression())?
-            .bind_affine(&symbols, &bindings)
-            .map_err(|error| {
+        let operator = ScalarOperatorIr::lower(relation.expression())?;
+        if !enforcement.is_strict_interior() {
+            operator.bind_affine(&symbols, &bindings).map_err(|error| {
                 invalid(format!(
                     "finite condition operands are not affine: {error:?}"
                 ))
             })?;
+        }
         relations.push(RelationOperands {
             id: relation.id(),
             expression: relation.expression().clone(),
@@ -186,7 +193,8 @@ pub(crate) fn lower_finite_constraints(
             "enforcement names a foreign or non-constraint Relation condition",
         ));
     }
-    if complementarity_count > 16 || (1u32 << complementarity_count) > enforcement.max_active_sets()
+    if complementarity_count > 16
+        || max_active_sets.is_some_and(|budget| (1u32 << complementarity_count) > budget)
     {
         return Err(invalid(
             "complete active-set enumeration exceeds its explicit bounded budget",

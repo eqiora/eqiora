@@ -260,6 +260,31 @@ impl PyState {
         self.time_s
     }
 
+    fn from_common_algebraic(
+        py: Python<'_>,
+        plan: &crate::common_plan::PyPlan,
+        state: eqiora_numerics::CommonAlgebraicState,
+    ) -> Self {
+        Self {
+            digest: state.identity().to_owned(),
+            model_digest: plan.native().model_digest().to_owned(),
+            step: 0,
+            time_s: 0.0,
+            fields: Vec::new(),
+            field_lookup: BTreeMap::new(),
+            model: Some(plan.model_handle(py)),
+            mesh: None,
+            native: None,
+            transient_plan: None,
+            ode_native: None,
+            plan_identity: Some(state.plan_identity().to_owned()),
+            algebraic_native: Some(state),
+            source_request_identity: None,
+            source_trajectory_identity: None,
+            source_kind: Some("initial"),
+        }
+    }
+
     fn from_artifact(
         py: Python<'_>,
         plan: &crate::common_plan::PyPlan,
@@ -267,9 +292,9 @@ impl PyState {
     ) -> PyResult<Self> {
         let mut state = match plan.native() {
             eqiora_numerics::ResolvedCommonPlan::Algebraic(native_plan) => {
-                eqiora_numerics::CommonAlgebraicState::from_bytes(data, native_plan)
+                let native = eqiora_numerics::CommonAlgebraicState::from_bytes(data, native_plan)
                     .map_err(|d| crate::error::validation_error(py, &[d]))?;
-                Self::initial(py, plan, None, None)?
+                Self::from_common_algebraic(py, plan, native)
             }
             eqiora_numerics::ResolvedCommonPlan::Ode(native_plan) => {
                 let native = eqiora_numerics::CommonOdeState::from_bytes(data, native_plan)
@@ -343,32 +368,29 @@ impl PyState {
         time_s: Option<f64>,
     ) -> PyResult<Self> {
         if let Some(native_plan) = plan.native().as_algebraic() {
-            if fields.is_some() || time_s.is_some() {
+            if time_s.is_some() {
                 return Err(PyValueError::new_err(
-                    "finite State.initial accepts Plan alone",
+                    "finite State.initial has no model time",
                 ));
             }
+            let fields = fields
+                .map(|fields| {
+                    fields
+                        .iter()
+                        .map(|field| {
+                            field
+                                .extract::<PyRef<'_, PyInitialField>>()
+                                .map(|field| field.native.clone())
+                                .map_err(PyErr::from)
+                        })
+                        .collect::<PyResult<Vec<_>>>()
+                })
+                .transpose()?
+                .unwrap_or_default();
             let state = native_plan
-                .initial_state()
+                .initial_state(&fields)
                 .map_err(|d| crate::error::validation_error(py, &[d]))?;
-            return Ok(Self {
-                digest: state.identity().to_owned(),
-                model_digest: native_plan.model_digest().to_owned(),
-                step: 0,
-                time_s: 0.0,
-                fields: Vec::new(),
-                field_lookup: BTreeMap::new(),
-                model: Some(plan.model_handle(py)),
-                mesh: None,
-                native: None,
-                transient_plan: None,
-                ode_native: None,
-                algebraic_native: Some(state),
-                plan_identity: Some(native_plan.identity().to_owned()),
-                source_request_identity: None,
-                source_trajectory_identity: None,
-                source_kind: Some("initial"),
-            });
+            return Ok(Self::from_common_algebraic(py, plan, state));
         }
         if let Some(scalar) = plan.scalar_native() {
             if fields.is_some() || time_s.is_some() {

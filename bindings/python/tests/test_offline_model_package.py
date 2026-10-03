@@ -115,6 +115,7 @@ EXPECTED_EQIORA_ALL = [
     "InitialField",
     "InternalError",
     "LinearSolveSummary",
+    "NonlinearSolveSummary",
     "LinearizationState",
     "MathReference",
     "MathRendering",

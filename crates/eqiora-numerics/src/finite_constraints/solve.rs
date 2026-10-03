@@ -17,6 +17,11 @@ pub(crate) fn solve_finite_constraints(
     problem: &FiniteConstraintProblem,
     solver: LinearSolveRequest<'_>,
 ) -> Result<FiniteConstraintSolution, Diagnostic> {
+    if problem.enforcement.is_strict_interior() {
+        return Err(invalid(
+            "strict-interior execution requires nonlinear controls",
+        ));
+    }
     let mut last_failure = None;
     for mask in 0..(1u32 << problem.complementarity_count) {
         let canonical = branch_system(problem, mask)?;
@@ -52,7 +57,7 @@ pub(crate) fn solve_finite_constraints(
         .unwrap_or_else(|| failed("bounded active-set enumeration found no feasible candidate")))
 }
 
-fn original_assessment(
+pub(super) fn original_assessment(
     problem: &FiniteConstraintProblem,
     values: &[f64],
     target: f64,
@@ -119,8 +124,16 @@ fn original_assessment(
                 .tolerance(reference)
                 .expect("lowering checked exact tolerance closure");
             let activity = if *kind == RelationConditionKind::Inequality {
-                if left.value() - right.value() < -tolerance.left().value() {
-                    return Err(failed("original ordered inequality is violated"));
+                let slack = left.value() - right.value();
+                let violates = if problem.enforcement.is_strict_interior() {
+                    !slack.is_finite() || slack <= tolerance.left().value()
+                } else {
+                    !slack.is_finite() || slack < -tolerance.left().value()
+                };
+                if violates {
+                    return Err(failed(
+                        "original ordered inequality violates its numerical enforcement",
+                    ));
                 }
                 ConstraintActivity::Inequality
             } else {
@@ -168,7 +181,7 @@ fn original_assessment(
         measurements,
         equality_residual_norm: norm,
         residual_target: target,
-        active_set_mask: 0,
+        active_set_mask: None,
     })
 }
 
@@ -229,6 +242,6 @@ pub(super) fn validate_values(
             "original selected active-set zero operands exceed independently derived SolverPlan target",
         ));
     }
-    assessment.active_set_mask = mask;
+    assessment.active_set_mask = Some(mask);
     Ok(assessment)
 }

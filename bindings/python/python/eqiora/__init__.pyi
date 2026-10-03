@@ -755,7 +755,7 @@ class DomainRef:
 class InitialField:
     """Immutable exact-Field-bound coherent-SI initial coefficients.
 
-    Authority: ``crates/eqiora-python/src/trajectory.rs::PyInitialField``.
+    Authority: ``crates/eqiora-python/src/trajectory/field.rs::PyInitialField``.
     """
     def __new__(
         cls,
@@ -764,6 +764,7 @@ class InitialField:
         *,
         vertex_values: object | None = None,
         cell_values: object | None = None,
+        scalar_value: float | None = None,
     ) -> InitialField: ...
     @property
     def field(self) -> FieldRef: ...
@@ -1096,7 +1097,7 @@ class Plan:
     Authority: ``crates/eqiora-python/src/common_plan.rs::PyPlan``.
     """
     @property
-    def enforcement(self) -> solve.ActiveSet | None: ...
+    def enforcement(self) -> solve.ActiveSet | solve.StrictInterior | None: ...
     @staticmethod
     def from_bytes(data: bytes) -> Plan: ...
     @staticmethod
@@ -1782,6 +1783,21 @@ class Profile:
     def summary(self) -> str: ...
 
 @final
+class NonlinearSolveSummary:
+    """Original residual acceptance of a bounded Newton solve.
+
+    Authority: ``crates/eqiora-python/src/result/nonlinear.rs::PyNonlinearSolveSummary``.
+    """
+    @property
+    def completed_iterations(self) -> int: ...
+    @property
+    def initial_residual_norm(self) -> float: ...
+    @property
+    def true_residual_norm(self) -> float: ...
+    @property
+    def residual_target(self) -> float: ...
+
+@final
 class Result:
     """Accepted execution occurrence with typed output relationships.
 
@@ -1815,7 +1831,7 @@ class Result:
     @property
     def fields(self) -> list[Series]: ...
     @property
-    def solve(self) -> LinearSolveSummary: ...
+    def solve(self) -> LinearSolveSummary | NonlinearSolveSummary: ...
     def observe_terminal(self, observable: ObservableRef) -> TrajectoryObservation: ...
     def observe_time_integral(self, observable: ObservableRef, *, quadrature: time.TimeFunctionalQuadrature) -> TrajectoryObservation: ...
     def observe_terminal_parameter_jvp(self, observable: ObservableRef, direction: dict[ParameterRef, tuple[Dimension, float]]) -> TrajectoryObservation: ...
@@ -2140,7 +2156,7 @@ def resolve(
     solve: solve.Linear | solve.Newton | None = None,
     scaling: fluid.IncompressibleScaling | None = None,
     temporal: time.BackwardEuler | time.Tsitouras45 | None = None,
-    enforcement: solve.ActiveSet | None = None,
+    enforcement: solve.ActiveSet | solve.StrictInterior | None = None,
 ) -> Plan:
     """Resolve an exact Model and typed numerical policies into a common Plan.
 
@@ -2266,6 +2282,7 @@ __all__ = [
     "InitialField",
     "InternalError",
     "LinearSolveSummary",
+    "NonlinearSolveSummary",
     "LinearizationState",
     "MathReference",
     "MathRendering",

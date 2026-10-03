@@ -324,8 +324,8 @@ fn solve_handles_from_native(
 impl PyPlan {
     /// Explicit finite mathematical enforcement, separate from the Model.
     #[getter]
-    fn enforcement(&self) -> Option<enforcement::PyActiveSet> {
-        enforcement::from_plan(self)
+    fn enforcement(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
+        enforcement::from_plan(py, self)
     }
 
     /// Canonical self-contained bytes of this complete resolved Plan.
@@ -681,7 +681,7 @@ fn resolve_plan(
     solve: Option<&Bound<'_, PyAny>>,
     scaling: Option<&Bound<'_, PyAny>>,
     temporal: Option<&Bound<'_, PyAny>>,
-    enforcement: Option<PyRef<'_, enforcement::PyActiveSet>>,
+    enforcement: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<PyPlan> {
     if enforcement.is_some() && (mesh.is_some() || spatial.is_some() || temporal.is_some()) {
         return Err(PyTypeError::new_err(
@@ -735,14 +735,7 @@ fn resolve_plan(
     }
 
     if mesh.is_none() && spatial.is_none() && temporal.is_none() {
-        return algebraic::resolve(
-            py,
-            model,
-            solve,
-            formulation,
-            scaling,
-            enforcement.as_deref(),
-        );
+        return algebraic::resolve(py, model, solve, formulation, scaling, enforcement);
     }
 
     let mesh = mesh.ok_or_else(|| PyTypeError::new_err("spatial resolve requires mesh=Mesh"))?;

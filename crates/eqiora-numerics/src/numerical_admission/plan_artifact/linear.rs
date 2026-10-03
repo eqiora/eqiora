@@ -136,13 +136,6 @@ impl From<WireSolverObjective> for SolverPlanningObjective {
     }
 }
 
-pub(in crate::numerical_admission) fn linear_intent_bytes(
-    request: CommonLinearRequest,
-) -> Result<Vec<u8>, Diagnostic> {
-    serde_json::to_vec(&WireLinearControls::from(request))
-        .map_err(|error| invalid(format!("cannot encode exact linear intent: {error}")))
-}
-
 impl From<CommonLinearRequest> for WireLinearControls {
     fn from(request: CommonLinearRequest) -> Self {
         let intent = match request.exact_request() {

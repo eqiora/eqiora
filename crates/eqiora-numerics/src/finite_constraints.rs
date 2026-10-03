@@ -1,6 +1,8 @@
 //! Explicit bounded active-set realization of finite affine real constraints.
 //! Model conditions remain unchanged; numerical acceptance never implies exact satisfaction.
 mod configuration;
+mod nonlinear;
+pub(crate) use nonlinear::FiniteNonlinearSolution;
 mod preparation;
 mod solve;
 #[cfg(test)]
@@ -116,7 +118,7 @@ pub(crate) struct ConstraintAssessment {
     measurements: Vec<ConstraintMeasurement>,
     equality_residual_norm: f64,
     residual_target: f64,
-    active_set_mask: u32,
+    active_set_mask: Option<u32>,
 }
 impl ConstraintAssessment {
     /// Target recomputed from the exact selected branch RHS and SolverPlan.
@@ -126,7 +128,7 @@ impl ConstraintAssessment {
     }
     /// Selected bounded active-set mask; its conditions are independently rechecked.
     #[must_use]
-    pub const fn active_set_mask(&self) -> u32 {
+    pub const fn active_set_mask(&self) -> Option<u32> {
         self.active_set_mask
     }
     /// Original constraints in canonical Relation/ordinal order.

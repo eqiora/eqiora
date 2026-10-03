@@ -75,6 +75,22 @@ class ActiveSet:
     def max_active_sets(self) -> int: ...
 ```
 
+<a id="api-eqiora-solve-StrictInterior"></a>
+
+## `StrictInterior`
+
+Restrict a nonlinear solve to inequality slack above explicit positive margins.
+
+```python
+@final
+class StrictInterior:
+    def __new__(cls, *, margins: tuple[ConstraintTolerance, ...]) -> Self: ...
+    @property
+    def margins(self) -> tuple[ConstraintTolerance, ...]: ...
+    @property
+    def model_digest(self) -> str: ...
+```
+
 <a id="api-eqiora-solve-SolverPlanningObjective"></a>
 
 ## `SolverPlanningObjective`
@@ -159,7 +175,7 @@ class Linear:
 
 ## `AlgebraicPlanView`
 
-Resolved finite affine solve with its exact unknown inventory.
+Resolved finite algebraic solve with its exact unknown inventory.
 
 ```python
 @final

@@ -169,3 +169,69 @@ def test_infeasible_inequality_is_not_dropped_or_relaxed():
     plan = eqiora.resolve(model, solve=linear, enforcement=enforcement)
     with pytest.raises(eqiora.ExecutionError, match="inequality"):
         eqiora.run(plan, state=eqiora.State.initial(plan))
+
+
+def nonlinear_root(p=4, margin=1e-8):
+    model = eqiora.compile(source=f"""
+model Root() {{
+  parameter p: 1 = {p};
+  variable w: 1;
+  relation root {{ w*w=p; inequality(p>=0); inequality(w>=0); }}
+  observable output: 1 = w+p;
+}}
+""", entry="Root")
+    margins = tuple(eqiora.solve.ConstraintTolerance.inequality(
+        model.constraint("root", ordinal), margin, eqiora.Dimension()) for ordinal in (1, 2))
+    enforcement = eqiora.solve.StrictInterior(margins=margins)
+    linear = eqiora.solve.Linear(relative_tolerance=1e-13, absolute_tolerance=1e-15,
+        maximum_iterations=8, algorithm=eqiora.solve.LinearSolver.SparseLu,
+        preconditioner=eqiora.solve.Preconditioner.Identity,
+        reduction=eqiora.solve.Reduction.Fast, provider=eqiora.solve.SolverProvider.faer())
+    plan = eqiora.resolve(model, solve=eqiora.solve.Newton(linear=linear,
+        relative_tolerance=0.0, absolute_tolerance=1e-12, maximum_iterations=32,
+        maximum_line_search_steps=16), enforcement=enforcement)
+    return model, plan
+
+
+def test_nonlinear_positive_branch_replays_plan_seed_result_and_observable():
+    model, plan = nonlinear_root()
+    assert plan.capability.kind == "finite-nonlinear"
+    assert isinstance(plan.enforcement, eqiora.solve.StrictInterior)
+    assert len(plan.enforcement.margins) == 2
+    restored = eqiora.Plan.from_bytes(plan.to_bytes())
+    state = eqiora.State.initial(restored, fields=(eqiora.InitialField(model.field("w"), scalar_value=1.0),))
+    state = eqiora.State.from_bytes(restored, state.to_bytes())
+    result = eqiora.run(restored, state=state)
+    # w²=4 with w>0 gives w=2, so O=6. The absolute residual target
+    # bounds |w−2| by 1e-12/(w+2), safely below the assertion tolerance.
+    assert result.observe(model.observable("output")).value == pytest.approx(6.0, abs=1e-12)
+    assert isinstance(result.solve, eqiora.NonlinearSolveSummary)
+    assert result.solve.completed_iterations > 0
+    assert result.solve.initial_residual_norm == 3.0
+    assert result.solve.true_residual_norm <= result.solve.residual_target == 1e-12
+    reopened = eqiora.Result.from_bytes(restored, result.to_bytes())
+    assert reopened.to_bytes() == result.to_bytes()
+    assert reopened.solve.completed_iterations == result.solve.completed_iterations
+    exact = eqiora.State.initial(restored, fields=(eqiora.InitialField(model.field("w"), scalar_value=2.0),))
+    assert eqiora.run(restored, state=exact).solve.completed_iterations == 0
+
+
+def test_nonlinear_seed_rejects_branch_departure_and_foreign_identity():
+    model, plan = nonlinear_root()
+    with pytest.raises(eqiora.ValidationError):
+        eqiora.State.initial(plan)
+    with pytest.raises(eqiora.ValidationError):
+        eqiora.State.initial(plan, fields=(eqiora.InitialField(model.field("w"), scalar_value=-2.0),))
+    with pytest.raises(ValueError, match="booleans"):
+        eqiora.InitialField(model.field("w"), scalar_value=True)
+    with pytest.raises(ValueError, match="spatial"):
+        eqiora.InitialField(model.field("w"), scalar_value=1.0, vertex_values=[1.0])
+    other, other_plan = nonlinear_root(p=9)
+    with pytest.raises(eqiora.ValidationError):
+        eqiora.State.initial(plan, fields=(eqiora.InitialField(other.field("w"), scalar_value=1.0),))
+    state = eqiora.State.initial(plan, fields=(eqiora.InitialField(model.field("w"), scalar_value=1.0),))
+    with pytest.raises(ValueError, match="different finite Plan"):
+        eqiora.run(other_plan, state=state)
+    zero, zero_plan = nonlinear_root(p=0)
+    with pytest.raises(eqiora.ValidationError):
+        eqiora.State.initial(zero_plan, fields=(eqiora.InitialField(zero.field("w"), scalar_value=1.0),))
