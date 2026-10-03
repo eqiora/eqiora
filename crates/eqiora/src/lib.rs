@@ -54,7 +54,7 @@ pub mod api {
         EvaluationMapVjp, LinearizationState, MathReference, MathRendering, MlDatasetArtifactsV1,
         MlDatasetBlockArrayV1, MlDatasetDerivationPlanV1, MlDatasetFieldSelectionV1,
         MlDatasetMaterializationLimitsV1, MlDatasetMaterializationV1, MlDatasetSampleArraysV1,
-        MlDatasetSampleSelectionV1, ModelDocument, ModelFieldRef, ModelParameterRef,
+        MlDatasetSampleSelectionV1, ModelDocument, ModelEntityRef,
         ParameterGeometryRegenerationPlan, ParameterGeometryRegenerationResult, ParameterSampler,
         RemeshingTrajectoryReplayInputV1, RunRequest, SampledParameterPoint, SamplingCoupling,
         SamplingGenerator, SamplingIdentity, SemanticFingerprintGeneration,

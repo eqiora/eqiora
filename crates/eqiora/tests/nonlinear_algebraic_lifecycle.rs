@@ -169,8 +169,8 @@ fn accepted_finite_point_separates_residual_partials_and_reduced_output_actions(
     use eqiora::solver::{LinearOperatorProperties, LinearSolveRequest};
     let (document, plan) = fixture(4.0, 1e-8, "w*w=p");
     let initial = plan.initial_state(&[seed(&document, &plan, 1.0)]).unwrap();
-    let parameter = document.aliases()["p"].downcast().unwrap();
-    let observable = document.aliases()["output"].downcast().unwrap();
+    let parameter = document.parameter_ref("p").unwrap().id();
+    let observable = document.observable_ref("output").unwrap().id();
     for (p, w) in [(4.0, 2.0), (9.0, 3.0)] {
         let point = plan
             .differentiate(

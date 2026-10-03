@@ -235,7 +235,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[public_surface]]
 crate = "eqiora"
-ceiling = 266
+ceiling = 265
 # MathReference/MathRendering re-export the same two presentation owners justified
 # by eqiora-api below. Python uses this facade, not a second renderer. Remove the
 # re-exports when those owners are removed or subsumed under the same conditions.
@@ -255,7 +255,7 @@ removal = "Fold regeneration only into an accepted edit result preserving exact 
 
 [[public_surface]]
 crate = "eqiora-api"
-ceiling = 119
+ceiling = 117
 # #900 ProjectUpdate gives native, CLI and Python consumers one frozen, validated
 # selection to inspect and commit through the existing stale-checked transaction.
 # Fold it only when an existing result retains the same authored requests, exact

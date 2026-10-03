@@ -2,7 +2,7 @@
 
 use eqiora_artifact::ModelArtifactReference;
 use eqiora_core::diagnostic::codes;
-use eqiora_core::entity::kinds;
+use eqiora_core::entity::{Entity, kinds};
 use eqiora_core::{Diagnostic, EntityKind, Id, RawId};
 use eqiora_differentiation::{
     AcceptedOutputLinearization, adjoint_output_gradient, forward_output_sensitivity,
@@ -19,65 +19,23 @@ use crate::ModelDocument;
 
 mod map_admission;
 
-/// Exact canonical Parameter selected from one immutable Model artifact.
+/// One nominally typed entity selected from an exact immutable Model artifact.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ModelParameterRef {
+pub struct ModelEntityRef<E: Entity> {
     model: ModelArtifactReference,
-    id: Id<kinds::Parameter>,
+    id: Id<E>,
 }
 
-impl ModelParameterRef {
-    /// Exact Model artifact owning this Parameter.
+impl<E: Entity> ModelEntityRef<E> {
+    /// Exact Model artifact owning this entity.
     #[must_use]
     pub const fn model(&self) -> &ModelArtifactReference {
         &self.model
     }
 
-    /// Stable canonical Parameter identity.
+    /// Canonical identity retaining its nominal entity kind.
     #[must_use]
-    pub const fn id(&self) -> Id<kinds::Parameter> {
-        self.id
-    }
-}
-
-/// Exact canonical Field selected from one immutable Model artifact.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ModelFieldRef {
-    model: ModelArtifactReference,
-    id: Id<kinds::Field>,
-}
-
-/// Exact canonical Domain selected from one immutable Model artifact.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ModelDomainRef {
-    model: ModelArtifactReference,
-    id: Id<kinds::Domain>,
-}
-
-impl ModelDomainRef {
-    /// Exact Model artifact owning this Domain.
-    #[must_use]
-    pub const fn model(&self) -> &ModelArtifactReference {
-        &self.model
-    }
-
-    /// Stable canonical Domain identity.
-    #[must_use]
-    pub const fn id(&self) -> Id<kinds::Domain> {
-        self.id
-    }
-}
-
-impl ModelFieldRef {
-    /// Exact Model artifact owning this Field.
-    #[must_use]
-    pub const fn model(&self) -> &ModelArtifactReference {
-        &self.model
-    }
-
-    /// Stable canonical Field identity.
-    #[must_use]
-    pub const fn id(&self) -> Id<kinds::Field> {
+    pub const fn id(&self) -> Id<E> {
         self.id
     }
 }
@@ -88,11 +46,14 @@ impl ModelDocument {
     /// # Errors
     /// Returns a structured lookup/kind diagnostic if the selection is absent
     /// or does not identify a Parameter in this exact Model.
-    pub fn parameter_ref(&self, selection: &str) -> Result<ModelParameterRef, Diagnostic> {
+    pub fn parameter_ref(
+        &self,
+        selection: &str,
+    ) -> Result<ModelEntityRef<kinds::Parameter>, Diagnostic> {
         let id = resolve_entity(self, selection, EntityKind::Parameter)?
             .downcast()
             .ok_or_else(|| wrong_kind(selection, "Parameter"))?;
-        Ok(ModelParameterRef {
+        Ok(ModelEntityRef {
             model: self.artifact_reference()?,
             id,
         })
@@ -103,22 +64,36 @@ impl ModelDocument {
     /// # Errors
     /// Returns a structured lookup/kind diagnostic if the selection is absent
     /// or does not identify a Field in this exact Model.
-    pub fn field_ref(&self, selection: &str) -> Result<ModelFieldRef, Diagnostic> {
+    pub fn field_ref(&self, selection: &str) -> Result<ModelEntityRef<kinds::Field>, Diagnostic> {
         let id = resolve_entity(self, selection, EntityKind::Field)?
             .downcast()
             .ok_or_else(|| wrong_kind(selection, "Field"))?;
-        Ok(ModelFieldRef {
+        Ok(ModelEntityRef {
+            model: self.artifact_reference()?,
+            id,
+        })
+    }
+
+    /// Resolve one exact instantaneous or spatial Observable in this Model.
+    pub fn observable_ref(
+        &self,
+        selection: &str,
+    ) -> Result<ModelEntityRef<kinds::Observable>, Diagnostic> {
+        let id = resolve_entity(self, selection, EntityKind::Observable)?
+            .downcast()
+            .ok_or_else(|| wrong_kind(selection, "Observable"))?;
+        Ok(ModelEntityRef {
             model: self.artifact_reference()?,
             id,
         })
     }
 
     /// Resolve a source alias or exact ULID once into a Model-bound Domain.
-    pub fn domain_ref(&self, selection: &str) -> Result<ModelDomainRef, Diagnostic> {
+    pub fn domain_ref(&self, selection: &str) -> Result<ModelEntityRef<kinds::Domain>, Diagnostic> {
         let id = resolve_entity(self, selection, EntityKind::Domain)?
             .downcast()
             .ok_or_else(|| wrong_kind(selection, "Domain"))?;
-        Ok(ModelDomainRef {
+        Ok(ModelEntityRef {
             model: self.artifact_reference()?,
             id,
         })
@@ -486,8 +461,8 @@ impl DifferentiableProgram {
     /// relation has been independently accepted.
     pub fn compile(
         plan: CommonScalarPlan,
-        inputs: &[ModelParameterRef],
-        output: &ModelFieldRef,
+        inputs: &[ModelEntityRef<kinds::Parameter>],
+        output: &ModelEntityRef<kinds::Field>,
     ) -> Result<Self, Vec<Diagnostic>> {
         if inputs.is_empty() {
             return Err(single(invalid(
