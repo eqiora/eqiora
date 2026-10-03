@@ -76,7 +76,14 @@ fn expression_type_cached(
     let inferred = match expression.node.as_ref() {
         LoweringExpressionNode::Partial { value, wrt } => {
             let value = infer(value)?;
-            let selected = infer(&LoweringExpression::name(wrt.clone(), expression.range()))?;
+            // Synthetic selectors die after this lookup. Do not retain their
+            // addresses in the source-occurrence cache shared by nested partials.
+            let selected = expression_type(
+                file,
+                &LoweringExpression::name(wrt.clone(), expression.range()),
+                bindings,
+                support,
+            )?;
             super::partial::result_type(&value, &selected).map_err(|message| {
                 source_error(
                     codes::LANGUAGE_TYPE_ERROR,

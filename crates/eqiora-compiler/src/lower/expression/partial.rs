@@ -55,6 +55,15 @@ impl ExpressionLowerer<'_> {
                         inputs.push(value.clone());
                     }
                 }
+                LoweringExpressionNode::Partial { value, wrt } => {
+                    if !names.contains_key(wrt) {
+                        let index = input_slot(inputs.len())
+                            .map_err(|message| error(self.file, expression, message))?;
+                        names.insert(wrt.clone(), index);
+                        inputs.push(LoweringExpression::name(wrt.clone(), expression.range()));
+                    }
+                    pending.push(value);
+                }
                 LoweringExpressionNode::Literal(_) => {
                     let key = Arc::as_ptr(&value.node) as usize;
                     if let std::collections::btree_map::Entry::Vacant(entry) = literals.entry(key) {
@@ -118,18 +127,17 @@ impl ExpressionLowerer<'_> {
             .map_err(|failure| error(self.file, expression, failure.to_string()))?;
         let arguments = inputs
             .iter()
-            .enumerate()
-            .map(|(index, value)| {
-                // The selector is synthetic: its Arc does not outlive this call.
-                // Never enter it in the source-occurrence pointer cache.
-                if index == 0 {
-                    if wrt == "time" {
+            .map(|value| {
+                // Selectors can be synthetic: their Arcs do not outlive this call.
+                // Never enter names in the source-occurrence pointer cache.
+                if let LoweringExpressionNode::Name(name) = value.node.as_ref() {
+                    if name == "time" {
                         return self
                             .builder
                             .symbol(SymbolRef::Time)
                             .map_err(|failure| self.builder_error(expression, failure));
                     }
-                    return self.lower_name(value, wrt).map(|value| value.id);
+                    return self.lower_name(value, name).map(|value| value.id);
                 }
                 self.lower(value).map(|value| value.id)
             })
@@ -173,6 +181,14 @@ fn scalar(
             formal: literals[&(Arc::as_ptr(&expression.node) as usize)],
             axes: Box::new([]),
         },
+        LoweringExpressionNode::Partial { value, wrt } => {
+            let root = scalar(file, value, names, literals, builder, cache)?;
+            let id = builder
+                .partial(root, names[wrt])
+                .map_err(|failure| error(file, expression, failure.to_string()))?;
+            cache.insert(key, id);
+            return Ok(id);
+        }
         LoweringExpressionNode::Neg(value) => {
             CalculusNode::Neg(scalar(file, value, names, literals, builder, cache)?)
         }

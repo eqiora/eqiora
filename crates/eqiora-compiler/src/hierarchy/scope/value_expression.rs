@@ -51,6 +51,14 @@ pub(in crate::hierarchy) fn rewrite_expression_with_boundary_member(
         }
     }
     let lowered = match expression.kind() {
+        ExprKind::Call { callee, arguments } if callee.as_str() == "vjp" => {
+            let expanded = crate::pure_operator::actions::expand_vjp(file, expression, arguments)?;
+            rewrite_expression_with_boundary_member(file, &expanded, scope, active)?
+        }
+        ExprKind::Call { callee, arguments } if callee.as_str() == "jvp" => {
+            let expanded = crate::pure_operator::actions::expand(file, expression, arguments)?;
+            rewrite_expression_with_boundary_member(file, &expanded, scope, active)?
+        }
         ExprKind::Partial {
             value,
             wrt,

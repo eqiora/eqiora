@@ -287,3 +287,71 @@ fn partial_rejects_invalid_unused_arguments_before_appending_even_for_zero() {
         );
     }
 }
+
+#[test]
+fn scalar_jacobian_actions_and_hessian_directions_match_independent_polynomial_values() {
+    let unit = DimExponents::DIMENSIONLESS;
+    let class = PureValueClass::invariant_scalar()
+        .with_dimension(unit)
+        .with_scalar_domain(ScalarDomain::Real)
+        .unwrap();
+    // At x=3,y=5, f=x²y+y³ has gradient (30,84), H=[[10,6],[6,30]].
+    // Direction (2,-1) gives Jv=-24 and Hv=(14,-18). Seed 7 gives
+    // Jᵀ7=(210,588), and both dual pairings equal -168.
+    let expected = [-24., 210., 588., 14., -18., -168., -168.];
+    let mut dag = ExprDagBuilder::new();
+    let arguments = [3., 5., 2., -1., 7.]
+        .into_iter()
+        .map(|x| dag.constant(DynQuantity::new(x, unit)).unwrap())
+        .collect::<Vec<_>>();
+    let mut roots = Vec::new();
+    for selection in 0..expected.len() {
+        let mut builder = CalculusBuilder::new([class; 5], class).unwrap();
+        let inputs = (0..5)
+            .map(|formal| {
+                builder
+                    .push(CalculusNode::FormalComponent {
+                        formal,
+                        axes: Box::new([]),
+                    })
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        let xx = builder
+            .push(CalculusNode::Mul(inputs[0], inputs[0]))
+            .unwrap();
+        let xxy = builder.push(CalculusNode::Mul(xx, inputs[1])).unwrap();
+        let yy = builder
+            .push(CalculusNode::Mul(inputs[1], inputs[1]))
+            .unwrap();
+        let yyy = builder.push(CalculusNode::Mul(yy, inputs[1])).unwrap();
+        let f = builder.push(CalculusNode::Add(xxy, yyy)).unwrap();
+        let directions = [(0, inputs[2]), (1, inputs[3])];
+        let jv = builder.jvp(f, &directions).unwrap();
+        let vjp = builder.vjp(f, inputs[4], &[0, 1]).unwrap();
+        let fx = builder.partial(f, 0).unwrap();
+        let fy = builder.partial(f, 1).unwrap();
+        let hx = builder.jvp(fx, &directions).unwrap();
+        let hy = builder.jvp(fy, &directions).unwrap();
+        let forward_pair = builder.push(CalculusNode::Mul(inputs[4], jv)).unwrap();
+        let reverse_x = builder.push(CalculusNode::Mul(vjp[0], inputs[2])).unwrap();
+        let reverse_y = builder.push(CalculusNode::Mul(vjp[1], inputs[3])).unwrap();
+        let reverse_pair = builder
+            .push(CalculusNode::Add(reverse_x, reverse_y))
+            .unwrap();
+        let root = [jv, vjp[0], vjp[1], hx, hy, forward_pair, reverse_pair][selection];
+        let definition = builder.finish(root).unwrap();
+        roots.push(dag.pure_operator(&definition, arguments.clone()).unwrap());
+    }
+    let dag = dag.finish(roots).unwrap();
+    assert_eq!(
+        ScalarOperatorIr::lower(&dag)
+            .unwrap()
+            .evaluate_typed(dag.roots(), &mut |_| None)
+            .unwrap()
+            .into_iter()
+            .map(|value| value.real_scalar_value().unwrap().value())
+            .collect::<Vec<_>>(),
+        expected
+    );
+}

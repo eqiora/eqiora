@@ -560,6 +560,10 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                     })?;
                 self.lower(operand, atom.component())?
             }
+            ScalarCalculusNode::BoundInput(value)
+            | ScalarCalculusNode::Differentiated { value, .. } => {
+                self.lower_calculus_component(calculus, value, arguments, remapped)?
+            }
             ScalarCalculusNode::Neg(value) => {
                 let value = self.lower_calculus_component(calculus, value, arguments, remapped)?;
                 self.builder.neg(value)?

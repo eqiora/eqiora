@@ -16,7 +16,8 @@ pub(super) fn validate_profile(
     if nodes.iter().any(|node| {
         matches!(
             node,
-            CalculusNode::Require { .. }
+            CalculusNode::Differentiated { .. }
+                | CalculusNode::Require { .. }
                 | CalculusNode::Boolean(_)
                 | CalculusNode::Compare(..)
                 | CalculusNode::Not(_)
@@ -121,6 +122,31 @@ fn prove(
                     dimension,
                 }
             }
+            CalculusNode::Differentiated { value, source, wrt } => {
+                let value = get(*value)?;
+                let source = get(*source)?;
+                let wrt = get(*wrt)?;
+                numeric(&value)?;
+                numeric(&source)?;
+                numeric(&wrt)?;
+                let mut quotient = source;
+                quotient.dimension.fixed_dimension = quotient
+                    .dimension
+                    .fixed_dimension
+                    .div(wrt.dimension.fixed_dimension)
+                    .ok_or(PureOperatorError::ResultDimensionOverflow)?;
+                for (exponent, divisor) in quotient
+                    .dimension
+                    .exponents
+                    .iter_mut()
+                    .zip(wrt.dimension.exponents.iter())
+                {
+                    *exponent = bounded(exponent.checked_add(divisor.checked_neg()?)?)?;
+                }
+                same_dimension(formals, &value, &quotient)?;
+                value
+            }
+            CalculusNode::BoundInput(value) => get(*value)?,
             CalculusNode::Neg(value) => {
                 let value = get(*value)?;
                 numeric(&value)?;

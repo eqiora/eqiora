@@ -916,6 +916,22 @@ def div(value: Expression) -> Expression:
 
     ...
 
+def jvp(value: object, *, wrt: Sequence[Expression], tangent: Sequence[object]) -> Expression:
+    """Apply a scalar Jacobian to ordered, independently typed input directions.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::jvp``.
+    """
+    ...
+
+
+def vjp(value: object, *, wrt: Expression, cotangent: object) -> Expression:
+    """Pull back to one independently typed input block.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::vjp``.
+    """
+    ...
+
+
 def partial(value: object, *, wrt: Expression, holding: Sequence[Expression] = ()) -> Expression:
     """Differentiate an explicit real scalar polynomial at an independent binding.
 
@@ -1058,6 +1074,8 @@ __all__ = [
     "normal",
     "ordinal",
     "partial",
+    "jvp",
+    "vjp",
     "derivative",
     "time",
     "pre",

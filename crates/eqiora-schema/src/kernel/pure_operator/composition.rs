@@ -26,6 +26,11 @@ impl CalculusBuilder {
             .iter()
             .filter(|node| !matches!(node, CalculusNode::FormalComponent { .. }))
             .count();
+        let retain_bindings = definition
+            .nodes
+            .iter()
+            .any(|node| matches!(node, CalculusNode::Differentiated { .. }));
+        let additional = additional + if retain_bindings { arguments.len() } else { 0 };
         self.nodes
             .len()
             .checked_add(additional)
@@ -49,6 +54,16 @@ impl CalculusBuilder {
             nodes: self.nodes.clone(),
             depths: self.depths.clone(),
         };
+        let arguments = arguments
+            .iter()
+            .map(|argument| {
+                if retain_bindings {
+                    staged.push(CalculusNode::BoundInput(*argument))
+                } else {
+                    Ok(*argument)
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         let mut ids = Vec::with_capacity(definition.nodes.len());
         for node in &definition.nodes {
             let mapped = |id| {
@@ -95,6 +110,16 @@ impl CalculusBuilder {
                         value: mapped(*value)?,
                     })?
                 }
+                CalculusNode::Differentiated { value, source, wrt } => {
+                    staged.push(CalculusNode::Differentiated {
+                        value: mapped(*value)?,
+                        source: mapped(*source)?,
+                        wrt: mapped(*wrt)?,
+                    })?
+                }
+                CalculusNode::BoundInput(value) => {
+                    staged.push(CalculusNode::BoundInput(mapped(*value)?))?
+                }
                 CalculusNode::Neg(value) => staged.push(CalculusNode::Neg(mapped(*value)?))?,
                 CalculusNode::Add(left, right) => {
                     staged.push(CalculusNode::Add(mapped(*left)?, mapped(*right)?))?
@@ -111,5 +136,62 @@ impl CalculusBuilder {
         derive_symbolic_dimension(&staged.formals, &staged.nodes, root)?;
         *self = staged;
         Ok(root)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use eqiora_core::ScalarDomain;
+
+    #[test]
+    fn differentiated_composition_retains_distinct_local_input_occurrences() {
+        let class = PureValueClass::invariant_scalar()
+            .with_dimension(DimExponents::DIMENSIONLESS)
+            .with_scalar_domain(ScalarDomain::Real)
+            .unwrap();
+        let mut original = CalculusBuilder::new([class, class], class).unwrap();
+        let x = original
+            .push(CalculusNode::FormalComponent {
+                formal: 0,
+                axes: Box::new([]),
+            })
+            .unwrap();
+        let y = original
+            .push(CalculusNode::FormalComponent {
+                formal: 1,
+                axes: Box::new([]),
+            })
+            .unwrap();
+        let product = original.push(CalculusNode::Mul(x, y)).unwrap();
+        let dx = original.partial(product, 0).unwrap();
+        let definition = original.finish(dx).unwrap();
+        let mut caller = CalculusBuilder::new([class], class).unwrap();
+        let p = caller
+            .push(CalculusNode::FormalComponent {
+                formal: 0,
+                axes: Box::new([]),
+            })
+            .unwrap();
+        let applied = caller.apply_scalar(&definition, &[p, p]).unwrap();
+        let CalculusNode::Differentiated { source, wrt, .. } =
+            caller.nodes[applied.index() as usize]
+        else {
+            panic!("retained derivative")
+        };
+        let CalculusNode::Mul(left, right) = caller.nodes[source.index() as usize] else {
+            panic!("retained source")
+        };
+        assert_ne!(left, right);
+        assert_eq!(wrt, left);
+        assert_eq!(
+            caller.nodes[left.index() as usize],
+            CalculusNode::BoundInput(p)
+        );
+        assert_eq!(
+            caller.nodes[right.index() as usize],
+            CalculusNode::BoundInput(p)
+        );
+        caller.finish(applied).unwrap();
     }
 }

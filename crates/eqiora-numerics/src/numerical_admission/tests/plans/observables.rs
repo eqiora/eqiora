@@ -56,7 +56,23 @@ fn heat(source: &str) -> (ModelEnvelope, crate::CommonScalarPlan, crate::CommonR
 
 #[test]
 fn ordinary_observables_integrate_energy_and_oriented_flux_with_state_jvp() {
-    let (model, plan, result) = heat(HEAT);
+    check_energy_and_flux(HEAT);
+}
+
+#[test]
+fn pure_operator_spatial_observable_preserves_field_state_jvp() {
+    let source = format!(
+        "operator stored(input c:J/(K*m),input t:K):J/m=c*(t-300[K]);\n{}",
+        HEAT.replace(
+            "capacity * (temperature - 300[K])",
+            "stored(c=capacity,t=temperature)"
+        )
+    );
+    check_energy_and_flux(&source);
+}
+
+fn check_energy_and_flux(source: &str) {
+    let (model, plan, result) = heat(source);
     assert_eq!(
         plan.fields().len(),
         1,

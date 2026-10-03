@@ -116,6 +116,32 @@ impl Projection<'_> {
                     DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("length dimension"),
                 ))?
             }
+            ExprNode::PureOperatorApplication(application) => {
+                let definition = self
+                    .typed
+                    .expression()
+                    .definition(application.definition())
+                    .ok_or_else(|| invalid("Observable pure operator definition is unavailable"))?;
+                let types = application
+                    .arguments()
+                    .iter()
+                    .map(|argument| {
+                        self.typed.node_type(*argument).cloned().ok_or_else(|| {
+                            invalid("Observable pure operator argument type is unavailable")
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let instance = definition
+                    .instantiate(&types)
+                    .map_err(|error| invalid(error.to_string()))?;
+                let arguments = application
+                    .arguments()
+                    .iter()
+                    .map(|argument| self.scalar(*argument, depth + 1))
+                    .collect::<Result<Vec<_>, _>>()?;
+                self.builder
+                    .project_scalar_operator(&instance, &arguments, 1_000_000)?
+            }
             ExprNode::Trace(value) => self.scalar(*value, depth + 1)?,
             ExprNode::NormalComponent(value) => self.normal_component(*value, depth + 1)?,
             ExprNode::Neg(value) => {

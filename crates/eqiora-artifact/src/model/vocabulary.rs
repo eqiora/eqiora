@@ -646,6 +646,14 @@ impl WirePureValueClass {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "kebab-case", deny_unknown_fields)]
 pub(crate) enum WirePureCalculusNode {
+    BoundInput {
+        value: u32,
+    },
+    Differentiated {
+        value: u32,
+        source: u32,
+        wrt: u32,
+    },
     Rational {
         numerator: i64,
         denominator: u64,
@@ -755,6 +763,14 @@ impl WirePureCalculusNode {
                 left_axis: left.index(),
                 right_axis: right.index(),
             },
+            CalculusNode::Differentiated { value, source, wrt } => Self::Differentiated {
+                value: value.index(),
+                source: source.index(),
+                wrt: wrt.index(),
+            },
+            CalculusNode::BoundInput(value) => Self::BoundInput {
+                value: value.index(),
+            },
             CalculusNode::Neg(value) => Self::Neg {
                 value: value.index(),
             },
@@ -835,6 +851,12 @@ impl WirePureCalculusNode {
                 ResultAxis::new(*left_axis),
                 ResultAxis::new(*right_axis),
             ),
+            Self::Differentiated { value, source, wrt } => CalculusNode::Differentiated {
+                value: calculus_operand(ids, *value)?,
+                source: calculus_operand(ids, *source)?,
+                wrt: calculus_operand(ids, *wrt)?,
+            },
+            Self::BoundInput { value } => CalculusNode::BoundInput(calculus_operand(ids, *value)?),
             Self::Neg { value } => CalculusNode::Neg(calculus_operand(ids, *value)?),
             Self::Add { left, right } => CalculusNode::Add(
                 calculus_operand(ids, *left)?,
