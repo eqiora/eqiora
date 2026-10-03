@@ -188,7 +188,7 @@ fn priority_is_required_persisted_meaning_and_source_identity() {
     );
     assert!(
         ModelDocument::replay(
-            text.replace("model-envelope/v28", "model-envelope/v27")
+            text.replace("model-envelope/v29", "model-envelope/v28")
                 .as_bytes()
         )
         .is_err()
