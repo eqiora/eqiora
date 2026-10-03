@@ -51,16 +51,32 @@ pub trait Scalar:
     + Neg<Output = Self>
     + sealed::Sealed
 {
+    /// Mathematical domain, independent of storage precision.
+    const DOMAIN: crate::ScalarDomain;
+    /// Representation of each real component.
+    const STORAGE: crate::ScalarType;
 }
 
 impl sealed::Sealed for f32 {}
-impl Scalar for f32 {}
+impl Scalar for f32 {
+    const DOMAIN: crate::ScalarDomain = crate::ScalarDomain::Real;
+    const STORAGE: crate::ScalarType = crate::ScalarType::F32;
+}
 impl sealed::Sealed for f64 {}
-impl Scalar for f64 {}
+impl Scalar for f64 {
+    const DOMAIN: crate::ScalarDomain = crate::ScalarDomain::Real;
+    const STORAGE: crate::ScalarType = crate::ScalarType::F64;
+}
 impl sealed::Sealed for num_complex::Complex<f32> {}
-impl Scalar for num_complex::Complex<f32> {}
+impl Scalar for num_complex::Complex<f32> {
+    const DOMAIN: crate::ScalarDomain = crate::ScalarDomain::Complex;
+    const STORAGE: crate::ScalarType = crate::ScalarType::F32;
+}
 impl sealed::Sealed for num_complex::Complex<f64> {}
-impl Scalar for num_complex::Complex<f64> {}
+impl Scalar for num_complex::Complex<f64> {
+    const DOMAIN: crate::ScalarDomain = crate::ScalarDomain::Complex;
+    const STORAGE: crate::ScalarType = crate::ScalarType::F64;
+}
 
 mod exponents;
 pub use exponents::DimExponents;

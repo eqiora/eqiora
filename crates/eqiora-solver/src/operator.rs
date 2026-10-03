@@ -116,23 +116,25 @@ pub enum LinearOperatorProperties {
 
 /// One validated host-local linear problem.
 #[derive(Debug)]
-pub struct LinearProblem<'a> {
-    operator: &'a dyn LinearOperator<Scalar = f64>,
-    right_hand_side: &'a [f64],
-    initial_guess: Option<&'a [f64]>,
+pub struct LinearProblem<'a, S = f64> {
+    operator: &'a dyn LinearOperator<Scalar = S>,
+    right_hand_side: &'a [S],
+    initial_guess: Option<&'a [S]>,
     properties: LinearOperatorProperties,
-    canonical_csr_system: Option<&'a CanonicalCsrSystemView>,
+    canonical_csr_system: Option<&'a CanonicalCsrSystemView<S>>,
 }
 
-impl<'a> LinearProblem<'a> {
+impl<'a, S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
+    LinearProblem<'a, S>
+{
     /// Construct a square problem with an implicit zero initial guess.
     ///
     /// # Errors
     /// Returns `EQ0802` for empty/non-square shape, right-hand-side mismatch,
     /// or non-finite data.
     pub fn new(
-        operator: &'a dyn LinearOperator<Scalar = f64>,
-        right_hand_side: &'a [f64],
+        operator: &'a dyn LinearOperator<Scalar = S>,
+        right_hand_side: &'a [S],
         properties: LinearOperatorProperties,
     ) -> Result<Self, Diagnostic> {
         if operator.rows() == 0 || operator.rows() != operator.columns() {
@@ -159,16 +161,18 @@ impl<'a> LinearProblem<'a> {
         })
     }
 
-    pub(crate) fn from_canonical(system: &'a CanonicalCsrSystemView) -> Result<Self, Diagnostic> {
+    pub(crate) fn from_canonical(
+        system: &'a CanonicalCsrSystemView<S>,
+    ) -> Result<Self, Diagnostic> {
         let mut problem = Self::new(system, system.right_hand_side(), system.properties())?;
         problem.canonical_csr_system = Some(system);
         Ok(problem)
     }
 
     pub(crate) fn from_oriented_canonical(
-        operator: &'a dyn LinearOperator<Scalar = f64>,
-        system: &'a CanonicalCsrSystemView,
-        right_hand_side: &'a [f64],
+        operator: &'a dyn LinearOperator<Scalar = S>,
+        system: &'a CanonicalCsrSystemView<S>,
+        right_hand_side: &'a [S],
     ) -> Result<Self, Diagnostic> {
         if operator.rows() != system.rows() || operator.columns() != system.columns() {
             return Err(solve_failed(
@@ -184,7 +188,7 @@ impl<'a> LinearProblem<'a> {
     ///
     /// # Errors
     /// Returns `EQ0802` for a shape mismatch or non-finite value.
-    pub fn with_initial_guess(mut self, initial_guess: &'a [f64]) -> Result<Self, Diagnostic> {
+    pub fn with_initial_guess(mut self, initial_guess: &'a [S]) -> Result<Self, Diagnostic> {
         if initial_guess.len() != self.operator.columns()
             || initial_guess.iter().any(|value| !value.is_finite())
         {
@@ -198,20 +202,32 @@ impl<'a> LinearProblem<'a> {
 
     /// Operator action.
     #[must_use]
-    pub const fn operator(&self) -> &'a dyn LinearOperator<Scalar = f64> {
+    pub const fn operator(&self) -> &'a dyn LinearOperator<Scalar = S> {
         self.operator
     }
 
     /// Right-hand-side values.
     #[must_use]
-    pub const fn right_hand_side(&self) -> &'a [f64] {
+    pub const fn right_hand_side(&self) -> &'a [S] {
         self.right_hand_side
     }
 
     /// Explicit initial guess, or `None` for the zero vector.
     #[must_use]
-    pub const fn initial_guess(&self) -> Option<&'a [f64]> {
+    pub const fn initial_guess(&self) -> Option<&'a [S]> {
         self.initial_guess
+    }
+
+    /// Mathematical scalar domain retained by the typed problem.
+    #[must_use]
+    pub const fn scalar_domain(&self) -> eqiora_core::ScalarDomain {
+        S::DOMAIN
+    }
+
+    /// Storage precision of each real component.
+    #[must_use]
+    pub const fn scalar_type(&self) -> eqiora_core::ScalarType {
+        S::STORAGE
     }
 
     /// Asserted mathematical properties.
@@ -227,7 +243,7 @@ impl<'a> LinearProblem<'a> {
     /// problems return `None`; a backend requiring materialized sparse storage
     /// must fail closed in that case.
     #[must_use]
-    pub const fn canonical_csr_system(&self) -> Option<&'a CanonicalCsrSystemView> {
+    pub const fn canonical_csr_system(&self) -> Option<&'a CanonicalCsrSystemView<S>> {
         self.canonical_csr_system
     }
 }
