@@ -248,7 +248,7 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
     let output = document.observable_ref("output").unwrap();
     let program = DifferentiableProgram::compile(
         ResolvedCommonPlan::Algebraic(Box::new(plan.clone())),
-        &[input.clone()],
+        std::slice::from_ref(&input),
         &output,
         Some(initial.clone()),
         &FaerLinearSolver,
@@ -307,7 +307,7 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
     assert!(
         DifferentiableProgram::compile(
             resolved.clone(),
-            &[input.clone()],
+            std::slice::from_ref(&input),
             &output,
             Some(foreign_initial),
             &FaerLinearSolver
@@ -327,7 +327,7 @@ fn common_program_separates_partial_and_reduced_actions_at_owned_nonlinear_point
     assert!(
         DifferentiableProgram::compile(
             resolved.clone(),
-            &[input.clone()],
+            std::slice::from_ref(&input),
             &foreign.observable_ref("output").unwrap(),
             Some(initial.clone()),
             &FaerLinearSolver
