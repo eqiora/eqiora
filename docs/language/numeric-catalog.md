@@ -37,8 +37,9 @@ The retained declaration and member identity survive Model replay.
 
 Enums can be Parameters, explicitly initialized State and clocked input/output values.
 Use the typed execution session for discrete values; the legacy scalar trajectory interface
-is not an enum transport. Transition priority, enabled modes and a statechart executor
-remain separate capabilities.
+is not an enum transport. [Finite event-driven modes](events.md#finite-mode-controlled-components)
+reuse these values with explicit reset and hold equations. Authored transition priority and
+hierarchical, parallel or history statecharts remain separate capabilities.
 
 ## Closed records and typed buses
 

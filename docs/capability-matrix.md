@@ -463,6 +463,7 @@ These records describe the current implementations and their practical limits.
 | Event iteration | ✅ | ✅ | 🟨 | ⬜ | Bounded zero-time iteration with possible-Zeno diagnostic |
 | Zeno detection and policy | 🟨 | 🟨 | 🟨 | ⬜ | Bound/diagnostic exists; general classification and continuation policy remain |
 | Mode topology change | ⬜ | ⬜ | ⬜ | ⬜ | Structural state-dependent equation sets and safe reinitialization remain |
+| Finite value-only mode control | ✅ | ✅ | ⬜ | ⬜ | Explicit enum State and existing event/reset owners execute a thermostat and a fault/thermal controller through reference typed sessions with fixed equations. Focused product tests independently derive event times and temperatures, check retained command and reset memory, resume after each transition, and reject competing mode writes and inconsistent resets atomically. Omitted reset targets retain state; inactive actions use explicit value cases. Events are not implicitly disabled, and signal presence rules are unchanged. Authored priority, hierarchical/parallel/history states, switched equation sets and durable event checkpoints remain absent. This does not promote the separate thermostat or fault-plant registered benchmarks. |
 | State machine execution | 🟨 | 🟨 | 🟨 | ⬜ | Basic event/reset ingredients exist; full statechart semantics remain |
 | Hierarchical states | ⬜ | ⬜ | ⬜ | ⬜ | Entry/exit, ancestry, and transition priority remain |
 | Parallel states | ⬜ | ⬜ | ⬜ | ⬜ | Deterministic orthogonal-region semantics remain |
@@ -508,7 +509,7 @@ These records describe the current implementations and their practical limits.
 | Physical-domain connector library | 🟨 | 🟨 | ⬜ | ⬜ | Reusable scalar electrical `Pin` and rotational connector declarations are verified through ordinary exact packages; translational, thermal, fluid, multibody, vector/tensor, and broad component catalogs remain; [`hybrid.packaged-dc-motor-controller`](../verify/hybrid/packaged-dc-motor-controller/README.md) |
 | Physical units at ports | ✅ | ✅ | ⬜ | ⬜ | Nominal scalar electrical and rotational domains, dimensioned Across/Through coordinates, compatibility rejection, and typed physical observations are verified; conversions and broader domain/value shapes remain; [`hybrid.packaged-dc-motor-controller`](../verify/hybrid/packaged-dc-motor-controller/README.md) |
 | Canonical DC motor plus controller | ✅ | ✅ | ⬜ | ⬜ | Exactly three packages, one scalar ideal linear motor, viscous lumped load, proportional controller, one exact clock, host-serial `f64`, dense Newton, and backward Euler; no general DAE, Simulink/Simscape/Stateflow, production, MPI/GPU, real-time, or dynamic-plugin claim; [`hybrid.packaged-dc-motor-controller`](../verify/hybrid/packaged-dc-motor-controller/README.md) |
-| Fault statechart plus thermal plant | 🟨 | ⬜ | ⬜ | ⬜ | Ingredients exist separately; canonical coupled case remains |
+| Fault statechart plus thermal plant | 🟨 | 🟨 | ⬜ | ⬜ | A focused fixed-equation enum/event controller test couples affine temperature evolution with fault hold, command retention, recovery and in-process restart. Full statechart semantics and the separate registered benchmark remain absent. |
 
 ## 9. Linear, nonlinear, eigen, and time solvers
 
