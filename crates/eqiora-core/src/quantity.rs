@@ -31,11 +31,18 @@ mod sealed {
     pub trait Sealed {}
 }
 
-/// Scalar types admitted into quantities.
+/// Arithmetic scalar types admitted into quantities.
+/// Ordering is a separate bound; complex quantities support equality only.
+///
+/// ```compile_fail
+/// use eqiora_core::quantity::{Quantity, dim};
+/// use num_complex::Complex64;
+/// let z = Quantity::<Complex64, dim::LengthDim>::from_scalar(Complex64::new(1., 2.));
+/// let _ = z < z;
+/// ```
 pub trait Scalar:
     Copy
     + PartialEq
-    + PartialOrd
     + fmt::Debug
     + Add<Output = Self>
     + Sub<Output = Self>
@@ -50,6 +57,10 @@ impl sealed::Sealed for f32 {}
 impl Scalar for f32 {}
 impl sealed::Sealed for f64 {}
 impl Scalar for f64 {}
+impl sealed::Sealed for num_complex::Complex<f32> {}
+impl Scalar for num_complex::Complex<f32> {}
+impl sealed::Sealed for num_complex::Complex<f64> {}
+impl Scalar for num_complex::Complex<f64> {}
 
 mod exponents;
 pub use exponents::DimExponents;
@@ -224,7 +235,7 @@ impl<S: Scalar, D: Dimension> PartialEq for Quantity<S, D> {
         self.value == other.value
     }
 }
-impl<S: Scalar, D: Dimension> PartialOrd for Quantity<S, D> {
+impl<S: Scalar + PartialOrd, D: Dimension> PartialOrd for Quantity<S, D> {
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         self.value.partial_cmp(&other.value)
     }

@@ -48,3 +48,18 @@ fn static_scaling_preserves_dimension() {
     let scaled = 0.5 * v * 2.0;
     assert_eq!(scaled.value(), 12.0);
 }
+
+#[test]
+fn complex_quantities_have_arithmetic_without_ordering() {
+    use eqiora_core::quantity::{Quantity, dim};
+    use num_complex::Complex64;
+
+    let value = Quantity::<Complex64, dim::LengthDim>::from_scalar(Complex64::new(3.0, 4.0));
+    let divisor = Complex64::new(1.0, -2.0);
+    // (3 + 4i) / (1 - 2i) = (-5 + 10i) / 5.
+    assert_eq!((value / divisor).value(), Complex64::new(-1.0, 2.0));
+    assert_eq!((value * divisor).value(), Complex64::new(11.0, -2.0));
+    assert_eq!((value + value).value(), Complex64::new(6.0, 8.0));
+    assert_eq!((-value).value(), Complex64::new(-3.0, -4.0));
+    assert_eq!(value, value);
+}

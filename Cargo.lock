@@ -860,6 +860,7 @@ dependencies = [
 name = "eqiora-core"
 version = "0.1.2"
 dependencies = [
+ "num-complex",
  "ulid",
 ]
 
@@ -1108,6 +1109,7 @@ dependencies = [
  "eqiora-ir",
  "eqiora-schema",
  "eqiora-time",
+ "num-complex",
  "num-rational",
  "num-traits",
 ]

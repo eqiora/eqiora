@@ -1,5 +1,7 @@
 //! Scalar expression-DAG evaluation for one explicit semantic context.
 
+mod numeric;
+
 use std::collections::BTreeMap;
 
 use eqiora_core::diagnostic::codes;
@@ -167,7 +169,8 @@ fn evaluate_selected(
                     | ExprNode::ToInteger(value)
                     | ExprNode::Ordinal(value)
                     | ExprNode::Not(value) => pending.push(Frame::Demand(*value)),
-                    ExprNode::Compare(_, a, b)
+                    ExprNode::Complex { real: a, imag: b }
+                    | ExprNode::Compare(_, a, b)
                     | ExprNode::Add(a, b)
                     | ExprNode::Sub(a, b)
                     | ExprNode::Mul(a, b)
@@ -319,50 +322,37 @@ fn evaluate_selected(
                 }
                 ExprNode::Neg(value) => {
                     let value = operand(&values, *value, owner)?;
-                    require_scalar_arithmetic(value)?;
                     if value.value_type().scalar_domain() == ScalarDomain::Integer {
+                        require_scalar_arithmetic(value)?;
                         value.checked_neg().map_err(discrete_error)?
                     } else {
-                        literal(-real(value)?)?
+                        numeric::unary(node, value)?
                     }
                 }
-                ExprNode::Add(left, right) => {
+                ExprNode::Add(left, right)
+                | ExprNode::Sub(left, right)
+                | ExprNode::Mul(left, right)
+                | ExprNode::Div(left, right)
+                | ExprNode::Complex {
+                    real: left,
+                    imag: right,
+                } => {
                     let left = operand(&values, *left, owner)?;
                     let right = operand(&values, *right, owner)?;
-                    require_scalar_arithmetic(left)?;
-                    require_scalar_arithmetic(right)?;
                     if left.value_type().scalar_domain() == ScalarDomain::Integer {
-                        left.checked_add(right).map_err(discrete_error)?
+                        require_scalar_arithmetic(left)?;
+                        require_scalar_arithmetic(right)?;
+                        match node {
+                            ExprNode::Add(..) => left.checked_add(right),
+                            ExprNode::Sub(..) => left.checked_sub(right),
+                            ExprNode::Mul(..) => left.checked_mul(right),
+                            _ => Err(eqiora_core::InvalidValueLiteral::ScalarDomain),
+                        }
+                        .map_err(discrete_error)?
                     } else {
-                        literal(real(left)?.try_add(real(right)?)?)?
+                        numeric::binary(node, left, right)?
                     }
                 }
-                ExprNode::Sub(left, right) => {
-                    let left = operand(&values, *left, owner)?;
-                    let right = operand(&values, *right, owner)?;
-                    require_scalar_arithmetic(left)?;
-                    require_scalar_arithmetic(right)?;
-                    if left.value_type().scalar_domain() == ScalarDomain::Integer {
-                        left.checked_sub(right).map_err(discrete_error)?
-                    } else {
-                        literal(real(left)?.try_sub(real(right)?)?)?
-                    }
-                }
-                ExprNode::Mul(left, right) => {
-                    let left = operand(&values, *left, owner)?;
-                    let right = operand(&values, *right, owner)?;
-                    require_scalar_arithmetic(left)?;
-                    require_scalar_arithmetic(right)?;
-                    if left.value_type().scalar_domain() == ScalarDomain::Integer {
-                        left.checked_mul(right).map_err(discrete_error)?
-                    } else {
-                        literal(real(left)?.try_mul(real(right)?)?)?
-                    }
-                }
-                ExprNode::Div(left, right) => literal(
-                    real(operand(&values, *left, owner)?)?
-                        .try_div(real(operand(&values, *right, owner)?)?)?,
-                )?,
                 ExprNode::Quotient(a, b) => operand(&values, *a, owner)?
                     .checked_quotient(operand(&values, *b, owner)?)
                     .map_err(discrete_error)?,
@@ -378,16 +368,7 @@ fn evaluate_selected(
                 ExprNode::ToInteger(value) => operand(&values, *value, owner)?
                     .to_integer()
                     .map_err(discrete_error)?,
-                ExprNode::PowI(base, exponent) => {
-                    let base = real(operand(&values, *base, owner)?)?;
-                    let dimension = base.dim().pow(*exponent, 1).ok_or_else(|| {
-                        Diagnostic::error(
-                            codes::DIMENSION_MISMATCH,
-                            "power dimension exceeds bounds",
-                        )
-                    })?;
-                    literal(DynQuantity::new(base.value().powi(*exponent), dimension))?
-                }
+                ExprNode::PowI(base, _) => numeric::unary(node, operand(&values, *base, owner)?)?,
                 _ => {
                     return Err(Diagnostic::error(
                         codes::NOT_IMPLEMENTED,
@@ -589,7 +570,7 @@ fn require_channels(value_type: &ValueType) -> Result<(), Diagnostic> {
     if value_type.frame() != eqiora_core::ValueFrame::Invariant
         || !matches!(
             value_type.scalar_domain(),
-            ScalarDomain::Real | ScalarDomain::Integer
+            ScalarDomain::Real | ScalarDomain::Complex | ScalarDomain::Integer
         )
         || value_type.array_rank() != value_type.shape().rank()
         || value_type.finite_space().is_some()
@@ -597,7 +578,7 @@ fn require_channels(value_type: &ValueType) -> Result<(), Diagnostic> {
     {
         return Err(Diagnostic::error(
             codes::NOT_IMPLEMENTED,
-            "channel execution requires invariant real or integer values",
+            "channel execution requires invariant real, complex or integer values",
         ));
     }
     Ok(())
@@ -664,6 +645,9 @@ fn evaluate_pure_operator(
             )
         })
 }
+
+#[cfg(test)]
+mod numeric_tests;
 
 #[cfg(test)]
 mod piecewise_tests;
