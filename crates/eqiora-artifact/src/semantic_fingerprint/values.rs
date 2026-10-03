@@ -111,11 +111,30 @@ pub(super) fn encode_value_type(
     } else if let Some(extent) = value_type.index_extent() {
         encoder.u8(3)?;
         encoder.u32(extent)
-    } else if value_type.finite_space().is_some() {
-        encoder.u8(if value_type.is_count() { 2 } else { 1 })
+    } else if let Some((source, target)) = value_type.map_bases() {
+        encoder.u8(5)?;
+        encode_basis_shape(encoder, source)?;
+        encode_basis_shape(encoder, target)
+    } else if let Some(basis) = value_type.coordinate_basis() {
+        encoder.u8(1)?;
+        encode_basis_shape(encoder, basis)
+    } else if value_type.is_count() {
+        encoder.u8(2)
     } else {
         encoder.u8(0)
     }
+}
+
+fn encode_basis_shape(
+    encoder: &mut Encoder,
+    basis: eqiora_core::FiniteBasis,
+) -> Result<(), Diagnostic> {
+    encoder.u8(u8::from(basis.is_dual()))?;
+    encoder.u8(if basis.factors().is_some() { 2 } else { 1 })?;
+    for atom in basis.atoms() {
+        encoder.u32(atom.extent())?;
+    }
+    Ok(())
 }
 
 pub(super) fn type_reference(
@@ -125,6 +144,25 @@ pub(super) fn type_reference(
     references: &mut Vec<Reference>,
     budget: &mut ConstructionBudget,
 ) -> Result<(), Diagnostic> {
+    if value_type.finite_bases().next().is_some() {
+        for (role, basis) in value_type.finite_bases().enumerate() {
+            for (factor, atom) in basis.atoms().enumerate() {
+                let mut role_label = label.clone();
+                role_label.extend([role as u8, factor as u8]);
+                push_reference(
+                    references,
+                    role_label,
+                    lookup(
+                        ids,
+                        atom.space().expect("atomic factor").erase(),
+                        "finite basis factor",
+                    )?,
+                    budget,
+                )?;
+            }
+        }
+        return Ok(());
+    }
     if let Some(id) = value_type
         .finite_space()
         .map(|id| id.erase())

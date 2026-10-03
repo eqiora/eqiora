@@ -220,10 +220,16 @@ removal = "split by responsibility in the lane that next modifies it"
 # budget. Amendment A5 additionally allows a public capability slice to add up
 # to 8 net items; that is a review judgement on a raised number, not something
 # this check can recognize on its own.
+# #915 uses six net items under A5, reviewed as one finite-algebra capability:
+# three FiniteBasis routes, one basis syntax owner and two closed operation enums.
+# Product aliases reuse FiniteSpaceDef; no product registry or evaluator is added.
 
 [[public_surface]]
 crate = "eqiora"
-ceiling = 265
+ceiling = 266
+# #915: one FiniteBasis re-export exposes the exact basis/dual/product owner to
+# native ValueType constructors; no facade-local basis or map type is introduced.
+# Withdraw this export if the facade no longer admits finite coordinates/maps.
 # MathReference/MathRendering re-export the same two presentation owners justified
 # by eqiora-api below. Python uses this facade, not a second renderer. Remove the
 # re-exports when those owners are removed or subsumed under the same conditions.
@@ -326,7 +332,11 @@ removal = "fold label key and role types only when an existing exact occurrence 
 
 [[public_surface]]
 crate = "eqiora-core"
-ceiling = 118
+ceiling = 120
+# #915: FiniteBasis and its root re-export own exact atomic identities, duality
+# and ordered two-factor products for ValueType, compiler, schema and replay.
+# Extent-only shapes cannot enforce nominal endpoints. Withdraw the two names
+# only if an existing shared value-type owner carries these exact basis values.
 reason = "#857 adds six checked-type definitions and their root re-exports: ValueType and ValueLiteral own complete mathematical type and finite literal validation; ScalarDomain and ValueFrame retain independent domain/frame meaning; InvalidValueType and InvalidValueLiteral expose fallible construction. Compiler, Kernel, Model replay, and Python share these owners. The AST count includes both definitions and re-exports."
 removal = "withdraw a construction error only if an existing shared error preserves its typed failure boundary; consolidate public module routes when core adopts one canonical import surface, then lower the measured count without removing checked type information"
 
@@ -415,7 +425,11 @@ ceiling = 45
 
 [[public_surface]]
 crate = "eqiora-lang"
-ceiling = 101
+ceiling = 102
+# #915: FiniteBasisSyntax retains a qualified basis name and its dual role for
+# the parser, native factory, formatter and lexical binder. One shared syntax
+# owner replaces client-specific parsing of coordinates and map endpoints.
+# Withdraw it when an existing checked source syntax owns both basis and duality.
 # Steady Law authoring: ConservationSyntax and RelationBody retain exact flux/source
 # syntax and distinguish it from ordinary Equations across parser, native factory,
 # compiler and Python. No storage/constraint placeholder is exported.
@@ -487,7 +501,11 @@ ceiling = 8
 
 [[public_surface]]
 crate = "eqiora-schema"
-ceiling = 109
+ceiling = 111
+# #915: FiniteUnaryOperation and FiniteBinaryOperation close the vocabulary used
+# by source lowering, typed admission, reference execution, scalar IR and wire
+# replay. Fold them only if a shared existing operation owner retains these
+# basis-sensitive rules without string dispatch or adapter-local opcodes.
 # ConservationTerms and RelationMeaning retain exact steady flux/source identities
 # separately from ordinary equations across semantic admission, numerical recognition,
 # Model replay and fingerprints. Withdraw only when existing owners preserve the same

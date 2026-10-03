@@ -274,6 +274,7 @@ fn compile_external_component_from_definition<'a>(
                         })
                 },
                 |id| elaborator.enum_definition(id),
+                |_| None,
             )
             .map_err(|error| vec![hierarchy_error(error.message())])?,
             range,
@@ -517,7 +518,7 @@ fn hierarchy_error(message: impl Into<String>) -> Diagnostic {
 #[cfg(test)]
 mod tests;
 
-pub(crate) use parameters::closed_value;
+pub(crate) use parameters::{closed_value, infer_closed_value};
 
 pub(crate) fn closed_index(expression: &eqiora_lang::Expr) -> Result<u32, Diagnostic> {
     parameters::static_index("", expression, &Default::default())

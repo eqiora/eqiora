@@ -296,6 +296,7 @@ impl DraftExpression {
                     range,
                     &mut *resolve,
                     &mut *resolve_enum,
+                    |_| None,
                 ) {
                     Ok(value) => *node = value,
                     Err(failure) => {

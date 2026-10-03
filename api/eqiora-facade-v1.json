@@ -11,6 +11,7 @@
       { "name": "DynQuantity", "from": "eqiora_core::quantity::DynQuantity" },
       { "name": "Entity", "from": "eqiora_core::entity::Entity" },
       { "name": "EntityKind", "from": "eqiora_core::entity::EntityKind" },
+      { "name": "FiniteBasis", "from": "eqiora_core::FiniteBasis" },
       { "name": "GraphClass", "from": "eqiora_core::entity::GraphClass" },
       { "name": "GraphKind", "from": "eqiora_core::entity::GraphKind" },
       { "name": "GraphPath", "from": "eqiora_core::diagnostic::GraphPath" },

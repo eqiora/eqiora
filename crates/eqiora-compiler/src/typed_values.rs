@@ -150,7 +150,7 @@ fn power(mut value: (f64, f64), exponent: i32) -> Result<(f64, f64), String> {
 }
 
 pub(crate) fn check_type(value_type: &ValueType) -> Result<(), String> {
-    eqiora_lang::ValueTypeSyntax::from_checked(value_type, |_| None)
+    eqiora_lang::ValueTypeSyntax::from_checked(value_type, |_| None, |_| None)
         .map(|_| ())
         .map_err(|error| error.to_string())
 }

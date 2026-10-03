@@ -193,6 +193,12 @@ fn expression_type_cached(
         LoweringExpressionNode::Require { condition, value } => {
             infer(condition)?.require(infer(value)?).map_err(violation)
         }
+        LoweringExpressionNode::Finite {
+            operation,
+            arguments,
+        } => operation
+            .result_type(&arguments.iter().map(infer).collect::<Result<Vec<_>, _>>()?)
+            .map_err(violation),
         LoweringExpressionNode::Piecewise { name, arguments } => {
             crate::math::piecewise::result_type(
                 name,

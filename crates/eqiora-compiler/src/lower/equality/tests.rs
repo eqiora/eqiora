@@ -68,6 +68,7 @@ fn explicit_complex_rhs_zero_keeps_its_type_in_the_equation_sides() {
         &ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
             .expect("admitted numeric scalar type"),
         |_| None,
+        |_| None,
     )
     .unwrap();
     let model = LoweringModel {

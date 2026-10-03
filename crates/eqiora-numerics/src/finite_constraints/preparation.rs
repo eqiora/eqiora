@@ -30,7 +30,8 @@ pub(crate) fn lower_finite_constraints(
                         ScalarDomain::Real | ScalarDomain::Complex
                     )
                     || value.frame() != ValueFrame::Invariant
-                    || value.array_rank() != value.shape().rank()
+                    || (value.array_rank() != value.shape().rank()
+                        && value.finite_bases().next().is_none())
                     || (strict_interior
                         && (value.scalar_domain() != ScalarDomain::Real
                             || !value.shape().is_scalar()))
@@ -68,7 +69,8 @@ pub(crate) fn lower_finite_constraints(
                     return Err(invalid("finite Newton Parameters must be real scalars"));
                 }
                 if value.value_type().frame() != ValueFrame::Invariant
-                    || value.value_type().array_rank() != value.value_type().shape().rank()
+                    || (value.value_type().array_rank() != value.value_type().shape().rank()
+                        && value.value_type().finite_bases().next().is_none())
                 {
                     return Err(invalid(
                         "finite Parameters require invariant numeric channels",
@@ -97,7 +99,7 @@ pub(crate) fn lower_finite_constraints(
                     bindings.push((coordinate, scalar));
                 }
             }
-            KernelNode::Relation(_) | KernelNode::Observable(_) => {}
+            KernelNode::Relation(_) | KernelNode::Observable(_) | KernelNode::FiniteSpace(_) => {}
             KernelNode::Activation(activation)
                 if matches!(activation.kind(), ActivationKind::Continuous) => {}
             _ => {
@@ -178,7 +180,8 @@ pub(crate) fn lower_finite_constraints(
                         ScalarDomain::Real | ScalarDomain::Complex
                     )
                     || operand.frame() != ValueFrame::Invariant
-                    || operand.value_type.array_rank() != operand.shape().rank()
+                    || (operand.value_type.array_rank() != operand.shape().rank()
+                        && operand.value_type.finite_bases().next().is_none())
                     || ((*kind != RelationConditionKind::Equality || strict_interior)
                         && (operand.value_type.scalar_domain() != ScalarDomain::Real
                             || !operand.shape().is_scalar()))

@@ -1,8 +1,13 @@
 # Finite component spaces and maps
 
 This section of the [target specification](core.md) chooses one source spelling for the
-finite-space owner. The [two-state specimen](finite-state.md) exercises it; these constructs
-are not yet compiler admission claims.
+finite-space owner. The [two-state specimen](finite-state.md) exercises the broader target.
+Current admission covers atomic orthonormal spaces, integer/real/complex coordinates,
+continuous maps, `apply`, `compose`, `pair`, `transpose`, and `adjoint` through the bounded
+finite affine lifecycle. Ordered products of two atomic factors also admit `tensor_product`
+and explicit `permute_factors(value, [1, 0])` (or the identity `[0, 1]`). Product maps permute
+both endpoints. Nested products, mixed primal/dual factors, selectors, identity-map construction
+and the broader specimen remain target language; see the [capability matrix](../capability-matrix.md).
 
 ## Declarations and types
 

@@ -59,6 +59,9 @@ impl LoweringExpression {
                 | LoweringExpressionNode::IntegerCall {
                     arguments: values, ..
                 }
+                | LoweringExpressionNode::Finite {
+                    arguments: values, ..
+                }
                 | LoweringExpressionNode::Piecewise {
                     arguments: values, ..
                 }

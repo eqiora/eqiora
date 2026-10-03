@@ -170,6 +170,16 @@ impl Resolver<'_> {
                     value: self.resolve(value, expected)?,
                 }
             }
+            LoweringExpressionNode::Finite {
+                operation,
+                arguments,
+            } => LoweringExpressionNode::Finite {
+                operation: *operation,
+                arguments: arguments
+                    .iter()
+                    .map(|value| self.resolve(value, None))
+                    .collect::<Result<Vec<_>, _>>()?,
+            },
             LoweringExpressionNode::Piecewise { name, arguments } => {
                 LoweringExpressionNode::Piecewise {
                     name: name.clone(),

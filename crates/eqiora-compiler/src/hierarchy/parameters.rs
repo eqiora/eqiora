@@ -852,8 +852,8 @@ mod tests;
 
 mod static_values;
 pub(crate) use expression_eval::exact_signed_literal;
-pub(crate) use static_values::closed_value;
 pub(in crate::hierarchy) use static_values::index_set_extent;
+pub(crate) use static_values::{closed_value, infer_closed_value};
 pub(in crate::hierarchy) use static_values::{
     static_index, static_slice, structural_extent, structural_index,
 };

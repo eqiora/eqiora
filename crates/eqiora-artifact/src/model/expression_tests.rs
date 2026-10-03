@@ -208,3 +208,98 @@ mod integer_operation_tests {
         );
     }
 }
+
+#[test]
+fn finite_operations_preserve_operand_roles_and_reject_forward_references() {
+    use eqiora_core::{DimExponents, FiniteBasis, Id, ScalarDomain, ValueLiteral, ValueType};
+    use eqiora_schema::kernel::{FiniteBinaryOperation as B, FiniteUnaryOperation as U};
+    let basis = FiniteBasis::new(Id::new(), 2).unwrap();
+    let mut builder = ExprDagBuilder::new();
+    let map = builder
+        .constant(
+            ValueLiteral::from_real(
+                ValueType::linear_map(
+                    basis,
+                    basis,
+                    ScalarDomain::Complex,
+                    DimExponents::DIMENSIONLESS,
+                )
+                .unwrap(),
+                0.0,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    let vector = builder
+        .constant(
+            ValueLiteral::from_real(
+                ValueType::coordinates(basis, ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+                    .unwrap(),
+                0.0,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    let transpose = builder.finite_unary(U::Transpose, map).unwrap();
+    let adjoint = builder.finite_unary(U::Adjoint, vector).unwrap();
+    let applied = builder.finite_binary(B::Apply, map, vector).unwrap();
+    let composed = builder.finite_binary(B::Compose, map, map).unwrap();
+    let paired = builder.finite_binary(B::Pair, adjoint, vector).unwrap();
+    let product = builder
+        .finite_binary(B::TensorProduct, vector, vector)
+        .unwrap();
+    let permutation = builder
+        .finite_unary(U::PermuteFactors([1, 0]), product)
+        .unwrap();
+    let expression = builder
+        .finish([transpose, applied, composed, paired, permutation])
+        .unwrap();
+    let wire = WireExpression::encode(&expression).unwrap();
+    let json = serde_json::to_value(&wire).unwrap();
+    assert_eq!(
+        json["nodes"][2],
+        serde_json::json!({"op":"finite-transpose","value":0})
+    );
+    assert_eq!(
+        json["nodes"][3],
+        serde_json::json!({"op":"finite-adjoint","value":1})
+    );
+    assert_eq!(
+        json["nodes"][4],
+        serde_json::json!({"op":"finite-apply","left":0,"right":1})
+    );
+    assert_eq!(
+        json["nodes"][5],
+        serde_json::json!({"op":"finite-compose","left":0,"right":0})
+    );
+    assert_eq!(
+        json["nodes"][6],
+        serde_json::json!({"op":"finite-pair","left":3,"right":1})
+    );
+    assert_eq!(
+        json["nodes"][7],
+        serde_json::json!({"op":"finite-tensor-product","left":1,"right":1})
+    );
+    assert_eq!(
+        json["nodes"][8],
+        serde_json::json!({"op":"finite-permutation","value":7,"order":[1,0]})
+    );
+    let restored: WireExpression = serde_json::from_value(json).unwrap();
+    assert_eq!(restored.decode().unwrap(), expression);
+    for invalid in [
+        WireExpressionNode::FiniteTranspose { value: 2 },
+        WireExpressionNode::FiniteAdjoint { value: 2 },
+        WireExpressionNode::FiniteApply { left: 0, right: 2 },
+        WireExpressionNode::FiniteCompose { left: 2, right: 0 },
+        WireExpressionNode::FinitePair { left: 0, right: 2 },
+        WireExpressionNode::FiniteTensorProduct { left: 0, right: 2 },
+        WireExpressionNode::FinitePermutation {
+            value: 2,
+            order: [1, 0],
+        },
+    ] {
+        let mut invalid_wire = wire.clone();
+        invalid_wire.nodes[2] = invalid;
+        assert!(invalid_wire.decode().is_err());
+    }
+}

@@ -333,12 +333,13 @@ class Component:
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.counts``.
         """
         ...
-    def coordinates(self, space: FiniteSpace, components: Sequence[Expression | int]) -> Expression:
+    def coordinates(self, space: FiniteSpace, components: Sequence[Expression | int | float | complex], *, dual: bool = False) -> Expression:
         """Construct signed coordinates in this Module's registered finite basis.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.coordinates``.
         """
         ...
+    def linear_map(self, source: FiniteSpace, target: FiniteSpace, rows: Sequence[Sequence[object]], *, source_dual: bool = False, target_dual: bool = False) -> Expression: ...
     def index(self, set: IndexSet, value: Expression | int) -> Expression:
         """Construct an ordinal in this Component's exact registered index set.
 
@@ -587,7 +588,7 @@ class Module:
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Module.enum``.
         """
         ...
-    def space(self, name: str, *, labels: Sequence[str], doc: str | None = None) -> FiniteSpace:
+    def space(self, name: str, *, labels: Sequence[str] | None = None, factors: Sequence[FiniteSpace] | None = None, doc: str | None = None) -> FiniteSpace:
         """Declare an exact ordered basis registered in this Module.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Module.space``.
@@ -649,6 +650,42 @@ class Module:
     ) -> MaterialComposition: ...
     def to_eqi(self) -> str: ...
     def write_eqi(self, path: str | PathLike[str]) -> None: ...
+
+def transpose(value: object) -> Expression:
+    """Algebraic dual or transpose without conjugation.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::transpose``.
+    """
+    ...
+
+def adjoint(value: object) -> Expression:
+    """Conjugate transpose in the declared orthonormal finite bases.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::adjoint``.
+    """
+    ...
+
+def apply(left: object, right: object) -> Expression:
+    """Apply a map to its exact input coordinates.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::apply``.
+    """
+    ...
+
+def compose(left: object, right: object) -> Expression:
+    """Compose left after right with matching nominal endpoints.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::compose``.
+    """
+    ...
+
+def pair(left: object, right: object) -> Expression:
+    """Bilinearly pair dual and primal coordinates in the same basis.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::pair``.
+    """
+    ...
+
 
 class _Math:
     pi: Final[Expression]
@@ -1116,5 +1153,18 @@ def tensor_value(*, frame: Support, components: Sequence[object] | Expression) -
     Channel axes remain explicit array constructions.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::tensor_value``.
+    """
+    ...
+
+def tensor_product(left: object, right: object) -> Expression:
+    """Ordered product of two atomic coordinate values or maps.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::tensor_product``.
+    """
+    ...
+def permute_factors(value: object, permutation: Sequence[int]) -> Expression:
+    """Explicitly reorder both factors; map permutations act on both endpoints.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::permute_factors``.
     """
     ...

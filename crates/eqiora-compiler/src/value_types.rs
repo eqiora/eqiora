@@ -61,7 +61,8 @@ pub(crate) fn lower_value_type<I>(
             )
             .map_err(|error| invalid(error.to_string()))
         }
-        ValueTypeSyntaxKind::Coordinates(_)
+        ValueTypeSyntaxKind::Coordinates { .. }
+        | ValueTypeSyntaxKind::LinearMap { .. }
         | ValueTypeSyntaxKind::Counts(_)
         | ValueTypeSyntaxKind::Index(_) => syntax.resolved_nominal().cloned().ok_or_else(|| {
             invalid("nominal value type requires its exact lexical declaration binding".into())

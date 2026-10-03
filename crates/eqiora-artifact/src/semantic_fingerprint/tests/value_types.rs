@@ -785,7 +785,11 @@ fn finite_basis_replay_preserves_order_and_shared_versus_distinct_nominal_identi
             if counts {
                 ValueType::counts(space, 2)
             } else {
-                ValueType::coordinates(space, 2)
+                ValueType::coordinates(
+                    eqiora_core::FiniteBasis::new(space, 2).unwrap(),
+                    eqiora_core::ScalarDomain::Integer,
+                    eqiora_core::DimExponents::DIMENSIONLESS,
+                )
             }
             .unwrap()
         };
@@ -1052,4 +1056,158 @@ fn comparison_opcode_and_authored_equation_sides_affect_fingerprint() {
         }
     }
     assert_eq!(fingerprints.len(), 12);
+}
+
+#[test]
+fn finite_map_replay_and_projection_preserve_source_target_and_duality() {
+    use eqiora_core::ValueLiteral;
+    use eqiora_schema::kernel::{FiniteSpaceDef, ParameterDef};
+    let build = |reverse: bool, dual: bool| {
+        let spin = FiniteSpaceDef::new(Id::new(), ["up".into(), "down".into()]).unwrap();
+        let control =
+            FiniteSpaceDef::new(Id::new(), ["position".into(), "velocity".into()]).unwrap();
+        let (source, target) = if reverse {
+            (control.basis(), spin.basis())
+        } else {
+            (spin.basis(), control.basis())
+        };
+        let (source, target) = if dual {
+            (source.dual(), target.dual())
+        } else {
+            (source, target)
+        };
+        let value_type = ValueType::linear_map(
+            source,
+            target,
+            ScalarDomain::Complex,
+            DimExponents::DIMENSIONLESS,
+        )
+        .unwrap();
+        nominal_program(
+            vec![
+                spin.into(),
+                control.into(),
+                ParameterDef::new(
+                    Id::new(),
+                    ValueLiteral::new(
+                        value_type,
+                        [(1.0, 0.0), (0.0, 1.0), (0.0, -1.0), (2.0, 0.0)],
+                    )
+                    .unwrap(),
+                )
+                .into(),
+            ],
+            vec![],
+        )
+        .unwrap()
+    };
+    let original = build(false, false);
+    let fingerprint = StructuralSemanticFingerprint::from_program(&original).unwrap();
+    assert_eq!(
+        fingerprint,
+        StructuralSemanticFingerprint::from_program(&build(false, false)).unwrap()
+    );
+    for changed in [build(true, false), build(false, true), build(true, true)] {
+        assert_ne!(
+            fingerprint,
+            StructuralSemanticFingerprint::from_program(&changed).unwrap()
+        );
+    }
+    let bytes = ModelEnvelope::from_program(&original)
+        .unwrap()
+        .canonical_json()
+        .unwrap();
+    let mut retired: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    retired["schema"] = serde_json::json!("eqiora.model-envelope/v28");
+    assert!(
+        ModelEnvelope::from_json(
+            &serde_json::to_vec(&retired).unwrap(),
+            ModelDecoderLimits::default()
+        )
+        .is_err()
+    );
+    let replay = ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default())
+        .unwrap()
+        .to_program()
+        .unwrap();
+    assert_eq!(original, replay);
+    assert_eq!(
+        fingerprint,
+        StructuralSemanticFingerprint::from_program(&replay).unwrap()
+    );
+}
+
+#[test]
+fn finite_operations_model_replay_and_fingerprint_keep_duality_and_operand_order() {
+    let source = r#"space Spin=orthonormal(up,down); model M() {
+ parameter a:map<complex<1>,Spin,Spin> = linear_map(Spin,Spin,[[1,math.complex(0,1)],[0,2]]);
+ parameter b:map<complex<1>,Spin,Spin> = linear_map(Spin,Spin,[[0,1],[1,0]]);
+ variable ket:coordinates<complex<1>,Spin>;
+ variable y:coordinates<complex<1>,Spin>;
+ variable norm:complex<1>;
+ relation r { y=apply(compose(a,b),ket); }
+ relation n { norm=pair(adjoint(ket),ket); }
+}"#;
+    let original = program(source);
+    let fingerprint = StructuralSemanticFingerprint::from_program(&original).unwrap();
+    let bytes = ModelEnvelope::from_program(&original)
+        .unwrap()
+        .canonical_json()
+        .unwrap();
+    let replay = ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default())
+        .unwrap()
+        .to_program()
+        .unwrap();
+    assert_eq!(original, replay);
+    assert_eq!(
+        fingerprint,
+        StructuralSemanticFingerprint::from_program(&replay).unwrap()
+    );
+    for altered in [
+        source.replace("adjoint(ket)", "transpose(ket)"),
+        source.replace("compose(a,b)", "compose(b,a)"),
+    ] {
+        assert_ne!(
+            fingerprint,
+            StructuralSemanticFingerprint::from_program(&program(&altered)).unwrap()
+        );
+    }
+}
+
+#[test]
+fn finite_product_fingerprints_bind_factor_order_duality_and_permutation() {
+    let source = "space A=orthonormal(a,b); space B=orthonormal(x,y); space AB=product(A,B); model M(){variable x:coordinates<complex<1>,AB>; relation r{x=x;} observable y:coordinates<complex<1>,AB>=permute_factors(x,[0,1]);}";
+    let original = program(source);
+    let encoded = ModelEnvelope::from_program(&original)
+        .unwrap()
+        .canonical_json()
+        .unwrap();
+    let replay = ModelEnvelope::from_json(&encoded, ModelDecoderLimits::default())
+        .unwrap()
+        .to_program()
+        .unwrap();
+    assert_eq!(original, replay);
+    let fingerprint = StructuralSemanticFingerprint::from_program(&original).unwrap();
+    assert_ne!(
+        fingerprint,
+        StructuralSemanticFingerprint::from_program(&program(
+            &source.replace("product(A,B)", "product(B,A)")
+        ))
+        .unwrap()
+    );
+    assert_ne!(
+        fingerprint,
+        StructuralSemanticFingerprint::from_program(&program(
+            &source.replace("complex<1>,AB", "complex<1>,dual<AB>")
+        ))
+        .unwrap()
+    );
+    // Repeated factor identities have the same type after swapping, but the
+    // permutation is still an observable component operation and must be bound.
+    let repeated = source.replace("product(A,B)", "product(A,A)");
+    assert_ne!(
+        StructuralSemanticFingerprint::from_program(&program(&repeated)).unwrap(),
+        StructuralSemanticFingerprint::from_program(&program(&repeated.replace("[0,1]", "[1,0]")))
+            .unwrap()
+    );
 }

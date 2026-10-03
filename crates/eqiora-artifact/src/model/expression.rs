@@ -11,7 +11,8 @@ use eqiora_core::Diagnostic;
 use eqiora_core::entity::kinds;
 use eqiora_schema::kernel::pure_operator::PureOperatorDefinition;
 use eqiora_schema::kernel::{
-    ComparisonOp, ExprDag, ExprDagBuilder, ExprId, ExprNode, SymbolRef, UnaryMathFunction,
+    ComparisonOp, ExprDag, ExprDagBuilder, ExprId, ExprNode, FiniteBinaryOperation,
+    FiniteUnaryOperation, SymbolRef, UnaryMathFunction,
 };
 use serde::{Deserialize, Serialize};
 
@@ -210,15 +211,18 @@ impl WireExpression {
     }
 
     pub(crate) fn semantic_references(&self) -> Vec<&WireId> {
-        self.nodes
-            .iter()
-            .filter_map(|node| match node {
-                WireExpressionNode::Symbol { symbol } => symbol.id(),
-                WireExpressionNode::Constant { value } => value.nominal_reference(),
-                WireExpressionNode::Sample { clock, .. } => Some(clock),
-                _ => None,
-            })
-            .collect()
+        let mut references = Vec::new();
+        for node in &self.nodes {
+            match node {
+                WireExpressionNode::Symbol { symbol } => references.extend(symbol.id()),
+                WireExpressionNode::Constant { value } => {
+                    references.extend(value.nominal_references())
+                }
+                WireExpressionNode::Sample { clock, .. } => references.push(clock),
+                _ => {}
+            }
+        }
+        references
     }
 }
 
@@ -420,6 +424,32 @@ pub(crate) enum WireExpressionNode {
         function: WireUnaryMath,
         value: u32,
     },
+    FinitePermutation {
+        value: u32,
+        order: [u8; 2],
+    },
+    FiniteTensorProduct {
+        left: u32,
+        right: u32,
+    },
+    FiniteTranspose {
+        value: u32,
+    },
+    FiniteAdjoint {
+        value: u32,
+    },
+    FiniteApply {
+        left: u32,
+        right: u32,
+    },
+    FiniteCompose {
+        left: u32,
+        right: u32,
+    },
+    FinitePair {
+        left: u32,
+        right: u32,
+    },
     Gradient {
         value: u32,
     },
@@ -545,6 +575,36 @@ impl WireExpressionNode {
                 function: WireUnaryMath::encode(*function)?,
                 value: value.index(),
             },
+            ExprNode::FiniteUnary(operation, value) => match operation {
+                FiniteUnaryOperation::PermuteFactors(order) => Self::FinitePermutation {
+                    value: value.index(),
+                    order: *order,
+                },
+                FiniteUnaryOperation::Transpose => Self::FiniteTranspose {
+                    value: value.index(),
+                },
+                FiniteUnaryOperation::Adjoint => Self::FiniteAdjoint {
+                    value: value.index(),
+                },
+            },
+            ExprNode::FiniteBinary(operation, left, right) => match operation {
+                FiniteBinaryOperation::TensorProduct => Self::FiniteTensorProduct {
+                    left: left.index(),
+                    right: right.index(),
+                },
+                FiniteBinaryOperation::Apply => Self::FiniteApply {
+                    left: left.index(),
+                    right: right.index(),
+                },
+                FiniteBinaryOperation::Compose => Self::FiniteCompose {
+                    left: left.index(),
+                    right: right.index(),
+                },
+                FiniteBinaryOperation::Pair => Self::FinitePair {
+                    left: left.index(),
+                    right: right.index(),
+                },
+            },
             ExprNode::Gradient(value) => Self::Gradient {
                 value: value.index(),
             },
@@ -645,6 +705,36 @@ impl WireExpressionNode {
             Self::UnaryMath { function, value } => {
                 builder.unary_math(function.decode(), operand(ids, *value)?)
             }
+            Self::FinitePermutation { value, order } => builder.finite_unary(
+                FiniteUnaryOperation::PermuteFactors(*order),
+                operand(ids, *value)?,
+            ),
+            Self::FiniteTensorProduct { left, right } => builder.finite_binary(
+                FiniteBinaryOperation::TensorProduct,
+                operand(ids, *left)?,
+                operand(ids, *right)?,
+            ),
+            Self::FiniteTranspose { value } => {
+                builder.finite_unary(FiniteUnaryOperation::Transpose, operand(ids, *value)?)
+            }
+            Self::FiniteAdjoint { value } => {
+                builder.finite_unary(FiniteUnaryOperation::Adjoint, operand(ids, *value)?)
+            }
+            Self::FiniteApply { left, right } => builder.finite_binary(
+                FiniteBinaryOperation::Apply,
+                operand(ids, *left)?,
+                operand(ids, *right)?,
+            ),
+            Self::FiniteCompose { left, right } => builder.finite_binary(
+                FiniteBinaryOperation::Compose,
+                operand(ids, *left)?,
+                operand(ids, *right)?,
+            ),
+            Self::FinitePair { left, right } => builder.finite_binary(
+                FiniteBinaryOperation::Pair,
+                operand(ids, *left)?,
+                operand(ids, *right)?,
+            ),
             Self::Gradient { value } => builder.gradient(operand(ids, *value)?),
             Self::Divergence { value } => builder.divergence(operand(ids, *value)?),
             Self::Trace { value } => builder.trace(operand(ids, *value)?),

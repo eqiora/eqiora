@@ -1,3 +1,6 @@
+mod finite;
+pub use finite::FiniteBasis;
+
 use crate::entity::kinds;
 use crate::{DimExponents, Id, ScalarDomain, ValueShape};
 
@@ -31,8 +34,9 @@ enum Meaning {
         definition: Id<kinds::Enum>,
         members: u32,
     },
-    Coordinates(Id<kinds::FiniteSpace>),
-    Counts(Id<kinds::FiniteSpace>),
+    Coordinates(Box<FiniteBasis>),
+    Counts(Box<FiniteBasis>),
+    LinearMap(Box<(FiniteBasis, FiniteBasis)>),
     Index {
         set: Id<kinds::IndexSet>,
         extent: u32,
@@ -111,55 +115,6 @@ impl ValueType {
         }
     }
 
-    /// Signed integer coordinates in one exact finite basis (not a channel array).
-    /// The semantic declaration owner validates the supplied extent against its labels.
-    pub fn coordinates(
-        space: Id<kinds::FiniteSpace>,
-        extent: u32,
-    ) -> Result<Self, InvalidValueType> {
-        Self::finite(space, extent, false)
-    }
-
-    /// Nonnegative exact counts in one finite basis, distinct from signed coordinates.
-    pub fn counts(space: Id<kinds::FiniteSpace>, extent: u32) -> Result<Self, InvalidValueType> {
-        Self::finite(space, extent, true)
-    }
-
-    /// Nominal finite basis identity, absent for ordinary scalars and channel arrays.
-    #[must_use]
-    pub const fn finite_space(&self) -> Option<Id<kinds::FiniteSpace>> {
-        match self.meaning {
-            Meaning::Ordinary | Meaning::Enum { .. } | Meaning::Index { .. } => None,
-            Meaning::Coordinates(id) | Meaning::Counts(id) => Some(id),
-        }
-    }
-
-    /// Whether this value carries the nonnegative count contract.
-    #[must_use]
-    pub const fn is_count(&self) -> bool {
-        matches!(self.meaning, Meaning::Counts(_))
-    }
-
-    fn finite(
-        space: Id<kinds::FiniteSpace>,
-        extent: u32,
-        counts: bool,
-    ) -> Result<Self, InvalidValueType> {
-        let shape = ValueShape::new([extent]).map_err(|_| InvalidValueType::ArrayExtent)?;
-        Ok(Self {
-            scalar_domain: ScalarDomain::Integer,
-            dimension: DimExponents::DIMENSIONLESS,
-            shape,
-            frame: ValueFrame::Invariant,
-            array_rank: 0,
-            meaning: if counts {
-                Meaning::Counts(space)
-            } else {
-                Meaning::Coordinates(space)
-            },
-        })
-    }
-
     /// Promote scalar components to the smallest common domain without changing their roles.
     #[must_use]
     pub fn with_common_scalar_domain(mut self, other: &Self) -> Option<Self> {
@@ -181,7 +136,7 @@ impl ValueType {
         if self.scalar_domain == ScalarDomain::Boolean {
             return Err(InvalidValueType::BooleanType);
         }
-        if self.finite_space().is_some() || self.index_set().is_some() {
+        if self.finite_bases().next().is_some() || self.index_set().is_some() {
             return Err(InvalidValueType::FiniteSpaceShape);
         }
         let shape = ValueShape::new(
@@ -303,6 +258,8 @@ pub enum InvalidValueType {
     BooleanType,
     /// Enums require an exact nonempty declaration and dimensionless invariant scalar shape.
     EnumType,
+    /// Finite coordinates or maps require a numeric domain and explicit basis axes.
+    FiniteSpaceType,
     /// Finite basis coordinates cannot acquire implicit channel axes.
     FiniteSpaceShape,
     /// An array axis must contain at least one element.
@@ -320,6 +277,7 @@ impl core::fmt::Display for InvalidValueType {
                 "enum values require a closed nominal dimensionless invariant scalar type"
             }
             Self::BooleanType => "Boolean values require dimensionless invariant scalar types",
+            Self::FiniteSpaceType => "finite coordinates and maps require admitted scalar domains and explicit basis axes",
             Self::FiniteSpaceShape => "finite basis coordinates are not channel arrays",
             Self::ArrayExtent => "array extent must be positive",
             Self::ComponentCountOverflow => "mathematical component count is not representable",

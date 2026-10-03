@@ -15,15 +15,31 @@ pub(super) fn encode_value_type(
             encoder.u8(7)?;
             encode_type_path(encoder, name, budget)
         }
-        ValueTypeSyntaxKind::Coordinates(name)
-        | ValueTypeSyntaxKind::Counts(name)
-        | ValueTypeSyntaxKind::Index(name) => {
-            encoder.u8(match value.kind() {
-                ValueTypeSyntaxKind::Coordinates(_) => 4,
-                ValueTypeSyntaxKind::Counts(_) => 5,
-                _ => 6,
+        ValueTypeSyntaxKind::Counts(name) | ValueTypeSyntaxKind::Index(name) => {
+            encoder.u8(if matches!(value.kind(), ValueTypeSyntaxKind::Counts(_)) {
+                5
+            } else {
+                6
             })?;
             encode_path(encoder, name, budget)
+        }
+        ValueTypeSyntaxKind::Coordinates { scalar, basis } => {
+            encoder.u8(4)?;
+            encoder.u8(u8::from(basis.dual))?;
+            encode_path(encoder, &basis.name, budget)?;
+            encode_value_type(encoder, scalar, budget, next_depth(depth)?)
+        }
+        ValueTypeSyntaxKind::LinearMap {
+            scalar,
+            source,
+            target,
+        } => {
+            encoder.u8(8)?;
+            for basis in [source, target] {
+                encoder.u8(u8::from(basis.dual))?;
+                encode_path(encoder, &basis.name, budget)?;
+            }
+            encode_value_type(encoder, scalar, budget, next_depth(depth)?)
         }
         ValueTypeSyntaxKind::Scalar { domain, dimension } => {
             encoder.u8(0)?;

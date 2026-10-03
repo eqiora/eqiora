@@ -147,6 +147,7 @@ pub(crate) fn operands(node: &ExprNode) -> Vec<ExprId> {
         | ExprNode::Neg(value)
         | ExprNode::PowI(value, _)
         | ExprNode::UnaryMath(_, value)
+        | ExprNode::FiniteUnary(_, value)
         | ExprNode::Gradient(value)
         | ExprNode::Divergence(value)
         | ExprNode::SymmetricPart(value)
@@ -154,6 +155,7 @@ pub(crate) fn operands(node: &ExprNode) -> Vec<ExprId> {
         | ExprNode::Trace(value)
         | ExprNode::NormalComponent(value) => vec![*value],
         ExprNode::Complex { real: a, imag: b }
+        | ExprNode::FiniteBinary(_, a, b)
         | ExprNode::Compare(_, a, b)
         | ExprNode::And(a, b)
         | ExprNode::Or(a, b)

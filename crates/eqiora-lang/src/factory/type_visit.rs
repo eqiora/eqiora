@@ -109,3 +109,58 @@ fn port(
         visit(scope, value_type);
     }
 }
+
+impl super::SourceAstFactory {
+    /// Visit values with their authored complete initializer type, without inferring context.
+    #[doc(hidden)]
+    pub fn visit_typed_initializers(
+        document: &mut Document,
+        mut visit: impl FnMut(&ValueTypeSyntax, &mut crate::Expr),
+    ) {
+        let signature =
+            |items: &mut [SignatureItem],
+             visit: &mut dyn FnMut(&ValueTypeSyntax, &mut crate::Expr)| {
+                for item in items {
+                    if let SignatureItem::Parameter(parameter) = item
+                        && let Some(value) = &mut parameter.default
+                    {
+                        visit(&parameter.value_type, value);
+                    }
+                }
+            };
+        for model in &mut document.models {
+            signature(&mut model.signature, &mut visit);
+            for item in &mut model.items {
+                match item {
+                    Item::Parameter(value) => visit(&value.value_type, &mut value.value),
+                    Item::Let(value) => {
+                        if let Some(ty) = &value.value_type {
+                            visit(ty, &mut value.value);
+                        }
+                    }
+                    Item::Observable(value) => visit(&value.value_type, &mut value.value),
+                    _ => {}
+                }
+            }
+        }
+        for component in &mut document.components {
+            signature(&mut component.signature, &mut visit);
+            for item in &mut component.items {
+                match item {
+                    ComponentItem::Parameter(value) => {
+                        if let Some(default) = &mut value.default {
+                            visit(&value.value_type, default);
+                        }
+                    }
+                    ComponentItem::Let(value) => {
+                        if let Some(ty) = &value.value_type {
+                            visit(ty, &mut value.value);
+                        }
+                    }
+                    ComponentItem::Observable(value) => visit(&value.value_type, &mut value.value),
+                    _ => {}
+                }
+            }
+        }
+    }
+}

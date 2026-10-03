@@ -41,7 +41,7 @@ fn native_nominal_projection_requires_registered_exact_declaration_identity() {
         ["A".to_owned(), "B".to_owned()],
     )
     .unwrap();
-    let value = ValueLiteral::integer(definition.counts(), [2, 9007199254740993]).unwrap();
+    let value = ValueLiteral::integer(definition.counts().unwrap(), [2, 9007199254740993]).unwrap();
     let parameter = DraftParameter::new("population", value.clone());
     assert!(Module::new("M", [parameter.clone().into()]).is_err());
     let draft = Module::new(
@@ -127,15 +127,96 @@ fn nominal_resolution_metadata_preserves_authored_expression_and_rejects_foreign
     SourceAstFactory::visit_expressions(&mut document, |_, expression| {
         if matches!(expression.kind(), eqiora_lang::ExprKind::Call { callee, .. } if callee.as_str() == "counts")
         {
-            SourceAstFactory::bind_nominal_expression(expression, &name, first.counts()).unwrap();
-            assert_eq!(expression.resolved_nominal(), Some(&first.counts()));
+            SourceAstFactory::bind_nominal_expression(
+                expression,
+                std::slice::from_ref(&name),
+                first.counts().unwrap(),
+            )
+            .unwrap();
+            assert_eq!(
+                expression.resolved_nominal(),
+                Some(&first.counts().unwrap())
+            );
             assert!(
-                SourceAstFactory::bind_nominal_expression(expression, &name, foreign.counts())
-                    .is_err()
+                SourceAstFactory::bind_nominal_expression(
+                    expression,
+                    std::slice::from_ref(&name),
+                    foreign.counts().unwrap()
+                )
+                .is_err()
             );
             bound += 1;
         }
     });
     assert_eq!(bound, 1);
     assert_eq!(format(&document), before);
+}
+
+#[test]
+fn native_finite_numeric_literals_project_complete_basis_and_scalar_types() {
+    use eqiora_core::{DimExponents, ScalarDomain, ValueType};
+    let spin = FiniteSpaceDef::new(Id::new(), ["up".into(), "down".into()]).unwrap();
+    let control = FiniteSpaceDef::new(Id::new(), ["u0".into(), "u1".into()]).unwrap();
+    for value_type in [
+        ValueType::coordinates(
+            spin.basis(),
+            ScalarDomain::Complex,
+            DimExponents::DIMENSIONLESS,
+        )
+        .unwrap(),
+        ValueType::coordinates(
+            spin.basis().dual(),
+            ScalarDomain::Complex,
+            DimExponents::DIMENSIONLESS,
+        )
+        .unwrap(),
+        ValueType::linear_map(
+            spin.basis(),
+            control.basis(),
+            ScalarDomain::Complex,
+            DimExponents::DIMENSIONLESS,
+        )
+        .unwrap(),
+        ValueType::linear_map(
+            control.basis().dual(),
+            spin.basis().dual(),
+            ScalarDomain::Complex,
+            DimExponents::DIMENSIONLESS,
+        )
+        .unwrap(),
+    ] {
+        let count = value_type.shape().component_count().unwrap();
+        let value = ValueLiteral::new(
+            value_type.clone(),
+            (0..count).map(|i| (i as f64, -(i as f64))),
+        )
+        .unwrap();
+        let draft = Module::new(
+            "M",
+            [
+                DraftDeclaration::FiniteSpace {
+                    name: "Spin".into(),
+                    definition: spin.clone(),
+                },
+                DraftDeclaration::FiniteSpace {
+                    name: "Control".into(),
+                    definition: control.clone(),
+                },
+                DraftParameter::new("value", value).into(),
+            ],
+        )
+        .unwrap();
+        let Item::Parameter(parameter) = &draft.model().items()[0] else {
+            panic!("parameter");
+        };
+        assert_eq!(parameter.value_type().resolved_nominal(), Some(&value_type));
+        assert_eq!(parameter.value().resolved_nominal(), Some(&value_type));
+        let rendered = format(draft.document());
+        let replay = parse("replay.eqi", &rendered).into_document().unwrap();
+        assert_eq!(format(&replay), rendered);
+        assert!(rendered.contains("math.complex"));
+        if value_type.finite_bases().any(|basis| basis.is_dual()) {
+            assert!(rendered.contains("dual("));
+        }
+    }
 }

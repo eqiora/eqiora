@@ -201,6 +201,7 @@ pub(crate) fn authored_model<const D: usize>(
                 eqiora_lang::TextRange::default(),
                 |_| None,
                 |_| None,
+                |_| None,
             )
             .unwrap(),
         )

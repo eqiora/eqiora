@@ -371,20 +371,10 @@ impl<'a> Elaborator<'a> {
                     .map(|values| (DefinitionNamespace::Resolved(unit.module.clone()), values))
                 })
                 .collect::<Result<_, _>>()?,
-            finite_spaces: analysis
-                .units
-                .iter()
-                .map(|unit| {
-                    let namespace = crate::enumeration::resolved_namespace(&unit.module)
-                        .map_err(|error| vec![error])?;
-                    crate::nominal::finite_spaces(&unit.file, &unit.document, &namespace, |name| {
-                        unit.native
-                            .as_ref()
-                            .and_then(|module| module.nominal_identity(name))
-                    })
-                    .map(|spaces| (DefinitionNamespace::Resolved(unit.module.clone()), spaces))
-                })
-                .collect::<Result<_, _>>()?,
+            finite_spaces: crate::nominal::resolved_spaces(&analysis.units, &analysis.aliases)?
+                .into_iter()
+                .map(|(module, values)| (DefinitionNamespace::Resolved(module), values))
+                .collect(),
             root_namespace,
             identity_namespace,
             connectors,

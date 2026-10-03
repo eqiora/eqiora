@@ -1,5 +1,6 @@
 //! Scalar expression-DAG evaluation for one explicit semantic context.
 
+mod finite;
 mod numeric;
 
 use std::collections::BTreeMap;
@@ -156,6 +157,7 @@ fn evaluate_selected(
                         pending.extend(elements.iter().rev().copied().map(Frame::Demand));
                     }
                     ExprNode::UnaryMath(_, value)
+                    | ExprNode::FiniteUnary(_, value)
                     | ExprNode::Index { value, .. }
                     | ExprNode::Sample { value, .. }
                     | ExprNode::Hold(value)
@@ -167,6 +169,7 @@ fn evaluate_selected(
                     | ExprNode::Not(value) => pending.push(Frame::Demand(*value)),
                     ExprNode::Complex { real: a, imag: b }
                     | ExprNode::Compare(_, a, b)
+                    | ExprNode::FiniteBinary(_, a, b)
                     | ExprNode::Add(a, b)
                     | ExprNode::Sub(a, b)
                     | ExprNode::Mul(a, b)
@@ -203,6 +206,15 @@ fn evaluate_selected(
                     function.evaluate(operand(&values, *value, owner)?)?
                 }
 
+                ExprNode::FiniteUnary(operation, value) => {
+                    finite::unary(*operation, operand(&values, *value, owner)?)?
+                }
+                ExprNode::FiniteBinary(operation, left, right) => finite::binary(
+                    *operation,
+                    operand(&values, *left, owner)?,
+                    operand(&values, *right, owner)?,
+                    &mut component_work,
+                )?,
                 ExprNode::PureOperatorApplication(application) => {
                     let definition = expression
                         .definition(application.definition())
@@ -616,6 +628,8 @@ fn evaluate_pure_operator(
         })
 }
 
+#[cfg(test)]
+mod finite_tests;
 #[cfg(test)]
 mod numeric_tests;
 

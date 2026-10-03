@@ -54,7 +54,8 @@ mod tests {
     fn native_nominal_definitions_keep_supplied_ids_and_fresh_model_occurrences() {
         let space = FiniteSpaceDef::new(Id::new(), ["A".to_owned(), "B".to_owned()]).unwrap();
         let rows = IndexSetDef::new(Id::new(), 3).unwrap();
-        let counts = ValueLiteral::integer(space.counts(), [2, 9_007_199_254_740_993]).unwrap();
+        let counts =
+            ValueLiteral::integer(space.counts().unwrap(), [2, 9_007_199_254_740_993]).unwrap();
         let selected = ValueLiteral::from_integer(rows.value_type(), 2).unwrap();
         let observed = DraftField::new(
             "observed",

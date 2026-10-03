@@ -138,7 +138,7 @@ model = eqiora.compile(source=module)
 assert model.parameter("population").value == (2, 9007199254740993)
 ```
 
-`ValueType.coordinates(species)` holds signed integer components in the same
+`ValueType.coordinates(ValueType.integer(), species)` holds signed integer components in the same
 ordered basis; `counts(species)` requires nonnegative components. Equal labels in
 another `FiniteSpace` do not establish the same type. `IndexSet("Rows", extent=3)`
 and `ValueType.index(rows)` similarly retain a distinct nominal identity and admit
@@ -153,6 +153,21 @@ constructors require handles from the owning Module or Component. The closed
 expressions use the shared compiler's explicit conversion and arithmetic rules.
 Products, dual spaces, general maps, and dynamic indexing remain
 unsupported for these discrete fields.
+
+Continuous coordinates use `ValueType.coordinates(ValueType.complex(), space)` or a
+real scalar type with physical dimensions. `dual=True` retains the coordinate dual;
+`ValueType.linear_map(scalar, source, target)` keeps ordered map endpoints, with explicit
+`source_dual` and `target_dual` flags. A Component constructs values with `coordinates`
+and `linear_map`; the latter takes target rows and source columns. The canonical source
+spelling is `linear_map(A, B, rows)`.
+
+`eqiora.lang.apply`, `compose`, `pair`, `transpose`, and `adjoint` author the same
+finite operations as source. `pair` is bilinear; pairing `adjoint(x)` with `x` conjugates
+the first vector. Map transpose dualizes endpoints without conjugation, while the
+orthonormal adjoint swaps endpoints and conjugates coefficients. Equal-sized foreign
+spaces, channel arrays, and spatial vectors are not interchangeable. The bounded finite
+affine Plan supports real and complex maps; tensor products and general finite derivatives
+remain unavailable.
 
 Finite scalar reductions bind one symbolic index through `Component.sum`, `Component.product`,
 `Component.min` or `Component.max`:
@@ -1419,7 +1434,7 @@ assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
-`eqiora.model-envelope/v28` schema, but callers do not select that suffix.
+`eqiora.model-envelope/v29` schema, but callers do not select that suffix.
 `.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
 Only the current schema is accepted; decoding never sniffs, retries, or silently
 migrates an older artifact.

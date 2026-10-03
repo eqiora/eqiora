@@ -283,9 +283,11 @@ fn checked_members_and_patterns_keep_exact_declaration_through_qualified_rewrite
     F::bind_nominal_value_type(&mut ty, definition.value_type()).unwrap();
     assert_eq!(ty.resolved_nominal(), Some(&definition.value_type()));
     assert!(F::bind_nominal_value_type(&mut ty, foreign.value_type()).is_err());
-    let projected = eqiora_lang::ValueTypeSyntax::from_checked(&definition.value_type(), |id| {
-        (id == definition.id().erase()).then(|| declaration.clone())
-    })
+    let projected = eqiora_lang::ValueTypeSyntax::from_checked(
+        &definition.value_type(),
+        |id| (id == definition.id().erase()).then(|| declaration.clone()),
+        |_| None,
+    )
     .unwrap();
     assert!(matches!(projected.kind(), ValueTypeSyntaxKind::Named(name) if name == &declaration));
     assert_eq!(projected.resolved_nominal(), Some(&definition.value_type()));
@@ -314,20 +316,32 @@ fn enum_literal_projection_uses_registered_labels_and_rejects_foreign_or_incompl
         range,
         |_| Some(name.clone()),
         |_| Some(&definition),
+        |_| None,
     )
     .unwrap();
     assert!(
         matches!(expression.kind(), ExprKind::Path(path) if path.as_str() == "Controls.Mode.Cooling")
     );
     assert_eq!(expression.resolved_enum(), Some(&literal));
-    assert!(F::value_literal(&literal, None, range, |_| Some(name.clone()), |_| None).is_err());
     assert!(
         F::value_literal(
             &literal,
             None,
             range,
             |_| Some(name.clone()),
-            |_| Some(&foreign)
+            |_| None,
+            |_| None
+        )
+        .is_err()
+    );
+    assert!(
+        F::value_literal(
+            &literal,
+            None,
+            range,
+            |_| Some(name.clone()),
+            |_| Some(&foreign),
+            |_| None
         )
         .is_err()
     );
@@ -339,7 +353,8 @@ fn enum_literal_projection_uses_registered_labels_and_rejects_foreign_or_incompl
             None,
             range,
             |_| Some(name.clone()),
-            |_| Some(&definition)
+            |_| Some(&definition),
+            |_| None
         )
         .is_err()
     );

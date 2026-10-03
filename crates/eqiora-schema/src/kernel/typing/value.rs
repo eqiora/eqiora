@@ -25,6 +25,7 @@ impl<I> ExpressionType<I> {
             |error| match error {
                 InvalidValueType::EnumType
                 | InvalidValueType::BooleanType
+                | InvalidValueType::FiniteSpaceType
                 | InvalidValueType::FiniteSpaceShape
                 | InvalidValueType::ScalarFrame => TypeViolation::IncompatibleFrame,
                 InvalidValueType::ComponentCountOverflow | InvalidValueType::ArrayExtent => {

@@ -136,6 +136,32 @@ pub(in crate::hierarchy) fn rewrite_expression_with_boundary_member(
         ExprKind::Call {
             callee,
             arguments: eqiora_lang::CallArguments::Positional(arguments),
+        } if crate::math::finite::Operation::named(callee.as_str()).is_some() => {
+            let (operation, arguments) =
+                crate::math::finite::Operation::source(callee.as_str(), arguments).map_err(
+                    |message| {
+                        source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            file,
+                            expression.range(),
+                            message,
+                        )
+                    },
+                )?;
+            LoweringExpression::finite(
+                operation,
+                arguments
+                    .iter()
+                    .map(|argument| {
+                        rewrite_expression_with_boundary_member(file, argument, scope, active)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+                expression.range(),
+            )
+        }
+        ExprKind::Call {
+            callee,
+            arguments: eqiora_lang::CallArguments::Positional(arguments),
         } if crate::math::piecewise::arity(callee.as_str()).is_some() => {
             LoweringExpression::piecewise(
                 callee.as_str().to_owned(),

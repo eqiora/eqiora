@@ -214,3 +214,66 @@ fn conjugate_dependence_retains_its_real_linear_profile() {
         .unwrap();
     assert_eq!(observation.value().component(0).unwrap(), (3., 4.));
 }
+
+#[test]
+fn finite_quantum_and_control_maps_share_plan_run_result_and_preserve_bases() {
+    // Pauli Y has Y²=I. Y*[1+i,2-i]=[-1-2i,-1+i], and the state norm is 7.
+    // The independent real control map [[2,1],[1,3]] maps [1,2] to [4,7].
+    for (source, complex, components, norm) in [
+        (
+            r#"space Spin=orthonormal(up,down); model M(){
+          parameter h:map<complex<1>,Spin,Spin>=linear_map(Spin,Spin,[[0,math.complex(0,-1)],[math.complex(0,1),0]]);
+          parameter rhs:coordinates<complex<1>,Spin>=coordinates(Spin,[math.complex(-1,-2),math.complex(-1,1)]);
+          variable state:coordinates<complex<1>,Spin>;
+          relation r{apply(h,state)=rhs;}
+          observable output:coordinates<complex<1>,Spin>=state;
+          observable norm:complex<1>=pair(adjoint(state),state);
+        }"#,
+            true,
+            [(1., 1.), (2., -1.)],
+            7.,
+        ),
+        (
+            r#"space Control=orthonormal(position,velocity); model M(){
+          parameter a:map<1,Control,Control>=linear_map(Control,Control,[[2,1],[1,3]]);
+          parameter rhs:coordinates<1,Control>=coordinates(Control,[4,7]);
+          variable state:coordinates<1,Control>;
+          relation r{apply(a,state)=rhs;}
+          observable output:coordinates<1,Control>=state;
+          observable norm:1=pair(transpose(state),state);
+        }"#,
+            false,
+            [(1., 0.), (2., 0.)],
+            5.,
+        ),
+    ] {
+        let (document, plan, result) = solve_with(source, complex);
+        let observation = result
+            .observe(
+                plan.model_artifact(),
+                document.aliases()["output"].downcast().unwrap(),
+                None,
+            )
+            .unwrap();
+        assert!(
+            observation
+                .value()
+                .value_type()
+                .coordinate_basis()
+                .is_some()
+        );
+        for (index, expected) in components.into_iter().enumerate() {
+            let actual = observation.value().component(index).unwrap();
+            assert!((actual.0 - expected.0).hypot(actual.1 - expected.1) < 1e-10);
+        }
+        let observation = result
+            .observe(
+                plan.model_artifact(),
+                document.aliases()["norm"].downcast().unwrap(),
+                None,
+            )
+            .unwrap();
+        let actual = observation.value().component(0).unwrap();
+        assert!((actual.0 - norm).hypot(actual.1) < 1e-10);
+    }
+}

@@ -16,6 +16,28 @@ impl Parser<'_> {
             .text()
             .to_owned();
         self.expect(TokenKind::Equal, "`=` before finite space definition")?;
+        if self.at_keyword("product") {
+            self.bump();
+            self.expect(TokenKind::LeftParen, "`(` before product factors")?;
+            let left = self.parse_expression(0)?;
+            self.expect(TokenKind::Comma, "`,` between product factors")?;
+            let right = self.parse_expression(0)?;
+            self.expect(TokenKind::RightParen, "`)` after product factors")?;
+            let end = self
+                .expect(TokenKind::Semicolon, "`;` after finite product")?
+                .range()
+                .end();
+            return Some(NamedDefinitionDecl::plain(
+                name,
+                crate::ast::nominal::definition_call(
+                    "product",
+                    vec![left, right],
+                    TextRange::new(start, end),
+                ),
+                TextRange::new(start, end),
+                visibility,
+            ));
+        }
         self.expect_keyword("orthonormal")?;
         self.expect(TokenKind::LeftParen, "`(` before finite space labels")?;
         let mut labels = Vec::new();

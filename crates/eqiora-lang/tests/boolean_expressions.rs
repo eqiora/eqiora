@@ -78,6 +78,7 @@ fn native_boolean_is_not_a_numeric_literal() {
         eqiora_lang::TextRange::new(0, 0),
         |_| None,
         |_| None,
+        |_| None,
     )
     .unwrap();
     assert!(matches!(source.kind(), ExprKind::Boolean(false)));

@@ -1,3 +1,4 @@
+pub(crate) mod finite;
 pub(crate) mod piecewise;
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
@@ -32,7 +33,9 @@ pub(crate) fn is_namespaced(path: &NamePath) -> bool {
 
 /// Whether a path names an admitted scalar mathematical function.
 pub(crate) fn is_function(path: &NamePath) -> bool {
-    unary_function(path.as_str()).is_some() || piecewise::arity(path.as_str()).is_some()
+    unary_function(path.as_str()).is_some()
+        || piecewise::arity(path.as_str()).is_some()
+        || finite::Operation::named(path.as_str()).is_some()
 }
 
 pub(crate) fn unary_function(name: &str) -> Option<eqiora_schema::kernel::UnaryMathFunction> {

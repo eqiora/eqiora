@@ -170,7 +170,12 @@ mod tests {
         let space = Id::new();
         for value_type in [
             ValueType::counts(space, 1).unwrap(),
-            ValueType::coordinates(space, 1).unwrap(),
+            ValueType::coordinates(
+                crate::FiniteBasis::new(space, 1).unwrap(),
+                crate::ScalarDomain::Integer,
+                crate::DimExponents::DIMENSIONLESS,
+            )
+            .unwrap(),
             ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS)
                 .expect("checked scalar type")
                 .array(1)

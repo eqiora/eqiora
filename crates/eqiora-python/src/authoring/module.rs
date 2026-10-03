@@ -1,7 +1,7 @@
 //! Explicit module values cross the existing resolved-source admission boundary.
 
 use eqiora::language::{
-    Module, PureValueClassSyntax, SignatureItem, SourceAstFactory as Ast, TextRange,
+    Module, NamePath, PureValueClassSyntax, SignatureItem, SourceAstFactory as Ast, TextRange,
     VisibilitySyntax,
 };
 use pyo3::prelude::*;
@@ -282,6 +282,28 @@ impl PyAstModule {
     fn with_space(&self, name: String, labels: Vec<String>, ordinal: u32) -> PyResult<Self> {
         let declaration = Ast::finite_space(VisibilitySyntax::Public, name, labels, range(ordinal))
             .map_err(syntax_error)?;
+        let document =
+            Ast::with_finite_space(self.document_for_edit()?, declaration).map_err(syntax_error)?;
+        Ok(Self {
+            value: Module::from_document(document),
+        })
+    }
+
+    fn with_product_space(
+        &self,
+        name: String,
+        factors: [String; 2],
+        ordinal: u32,
+    ) -> PyResult<Self> {
+        let factors = factors.map(|name| NamePath::from_segments(name.split('.'), range(ordinal)));
+        let [left, right] = factors;
+        let declaration = Ast::finite_product(
+            VisibilitySyntax::Public,
+            name,
+            [left.map_err(syntax_error)?, right.map_err(syntax_error)?],
+            range(ordinal),
+        )
+        .map_err(syntax_error)?;
         let document =
             Ast::with_finite_space(self.document_for_edit()?, declaration).map_err(syntax_error)?;
         Ok(Self {

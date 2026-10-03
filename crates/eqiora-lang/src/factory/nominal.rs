@@ -55,6 +55,36 @@ impl SourceAstFactory {
         ))
     }
 
+    /// Construct an alias for an ordered pair of primal atomic spaces.
+    ///
+    /// # Errors
+    /// Rejects malformed names and ranges; factor identity is checked during binding.
+    pub fn finite_product(
+        visibility: VisibilitySyntax,
+        name: impl Into<String>,
+        factors: [NamePath; 2],
+        range: TextRange,
+    ) -> Result<NamedDefinitionDecl, AstConstructionError> {
+        let arguments = factors
+            .into_iter()
+            .map(|path| {
+                validate_name_path(&path)?;
+                Ok(Expr {
+                    resolved_enum: None,
+                    resolved_nominal: None,
+                    kind: crate::ExprKind::Path(path),
+                    range,
+                })
+            })
+            .collect::<Result<Vec<_>, AstConstructionError>>()?;
+        Ok(NamedDefinitionDecl::plain(
+            checked_identifier(name, "finite product")?,
+            crate::ast::nominal::definition_call("product", arguments, checked_range(range)?),
+            checked_range(range)?,
+            visibility,
+        ))
+    }
+
     /// Construct an index-set declaration, preserving its exact extent expression.
     /// Integer type, positivity, and structural resource bounds are elaboration checks.
     ///
@@ -98,7 +128,11 @@ impl SourceAstFactory {
         mut document: crate::Document,
         declaration: NamedDefinitionDecl,
     ) -> Result<crate::Document, AstConstructionError> {
-        validate_definition(&declaration, "orthonormal")?;
+        let constructor = match declaration.value().kind() {
+            crate::ExprKind::Call { callee, .. } if callee.as_str() == "product" => "product",
+            _ => "orthonormal",
+        };
+        validate_definition(&declaration, constructor)?;
         document.finite_spaces.push(declaration);
         Ok(document)
     }
@@ -114,9 +148,12 @@ impl SourceAstFactory {
         crate::ValueTypeSyntax::validate_checked(&value)?;
         let matches = match syntax.kind() {
             crate::ValueTypeSyntaxKind::Named(_) => value.enum_definition().is_some(),
-            crate::ValueTypeSyntaxKind::Coordinates(_) => {
-                value.finite_space().is_some() && !value.is_count()
-            }
+            crate::ValueTypeSyntaxKind::Coordinates { basis, .. } => value
+                .coordinate_basis()
+                .is_some_and(|value| value.is_dual() == basis.dual),
+            crate::ValueTypeSyntaxKind::LinearMap { source, target, .. } => value
+                .map_bases()
+                .is_some_and(|(s, t)| s.is_dual() == source.dual && t.is_dual() == target.dual),
             crate::ValueTypeSyntaxKind::Counts(_) => value.is_count(),
             crate::ValueTypeSyntaxKind::Index(_) => value.index_set().is_some(),
             _ => false,
@@ -152,7 +189,9 @@ pub(super) fn validate_definition(
             "nominal definitions cannot carry let type, support or activation assertions",
         ));
     }
-    validate_expression(declaration.value())?;
+    if constructor != "product" {
+        validate_expression(declaration.value())?;
+    }
     let crate::ExprKind::Call { callee, arguments } = declaration.value().kind() else {
         return Err(AstConstructionError::new(
             "nominal definition requires its closed constructor",
@@ -163,6 +202,7 @@ pub(super) fn validate_definition(
     })?;
     if callee.as_str() != constructor
         || (constructor == "range" && arguments.len() != 1)
+        || (constructor == "product" && arguments.len() != 2)
         || arguments.is_empty()
     {
         return Err(AstConstructionError::new(
@@ -183,6 +223,16 @@ pub(super) fn validate_definition(
                 ));
             }
         }
+    } else if constructor == "product" {
+        for argument in arguments {
+            validate_expression(argument)?;
+            if !crate::FiniteBasisSyntax::from_expression(argument).is_some_and(|basis| !basis.dual)
+            {
+                return Err(AstConstructionError::new(
+                    "product factors require primal space names",
+                ));
+            }
+        }
     } else if declaration.visibility() != VisibilitySyntax::Private {
         return Err(AstConstructionError::new(
             "index sets are private body definitions",
@@ -200,7 +250,7 @@ impl SourceAstFactory {
     #[doc(hidden)]
     pub fn bind_nominal_expression(
         expression: &mut Expr,
-        declaration: &NamePath,
+        declarations: &[NamePath],
         value: eqiora_core::ValueType,
     ) -> Result<(), AstConstructionError> {
         validate_expression(expression)?;
@@ -213,23 +263,41 @@ impl SourceAstFactory {
         let arguments = arguments.positional().ok_or_else(|| {
             AstConstructionError::new("nominal constructor requires positional arguments")
         })?;
-        let role = match callee.as_str() {
-            "counts" => value.is_count(),
-            "coordinates" => value.finite_space().is_some() && !value.is_count(),
-            "index" => value.index_set().is_some(),
-            _ => false,
+        let duals: Vec<bool> = match callee.as_str() {
+            "counts" if value.is_count() => vec![false],
+            "coordinates" if value.coordinate_basis().is_some() => vec![
+                value
+                    .coordinate_basis()
+                    .expect("coordinate basis")
+                    .is_dual(),
+            ],
+            "linear_map" if value.map_bases().is_some() => {
+                let (source, target) = value.map_bases().expect("map bases");
+                vec![source.is_dual(), target.is_dual()]
+            }
+            "index" if value.index_set().is_some() => vec![false],
+            _ => {
+                return Err(AstConstructionError::new(
+                    "nominal constructor has a different value role",
+                ));
+            }
         };
-        let name = arguments
-            .first()
-            .and_then(|argument| match argument.kind() {
-                crate::ExprKind::Name(name) => Some(name.as_str()),
-                crate::ExprKind::Path(name) => Some(name.as_str()),
-                _ => None,
-            });
-        if !role || arguments.len() != 2 || name != Some(declaration.as_str()) {
+        if declarations.len() != duals.len() || arguments.len() != duals.len() + 1 {
             return Err(AstConstructionError::new(
-                "nominal constructor binding requires its exact declaration name and role",
+                "nominal constructor has a different basis arity",
             ));
+        }
+        for ((argument, declaration), dual) in arguments.iter().zip(declarations).zip(duals) {
+            let basis = crate::FiniteBasisSyntax::from_expression(argument).ok_or_else(|| {
+                AstConstructionError::new(
+                    "nominal constructor requires exact declaration arguments",
+                )
+            })?;
+            if basis.name.as_str() != declaration.as_str() || basis.dual != dual {
+                return Err(AstConstructionError::new(
+                    "nominal constructor binding requires its exact declaration name and duality",
+                ));
+            }
         }
         if expression
             .resolved_nominal

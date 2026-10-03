@@ -194,6 +194,11 @@ impl ModelDeclarations {
                 }
             }
             match declaration {
+                DraftDeclaration::FiniteSpace { name, definition } => {
+                    if let Err(error) = self.validate_space(name, definition) {
+                        diagnostics.push(native_diagnostic(&self.name, name, error.to_string()));
+                    }
+                }
                 DraftDeclaration::Field(field) => {
                     if let Err(error) = self.validate_enum_type(&field.value_type) {
                         diagnostics.push(native_diagnostic(
@@ -202,11 +207,12 @@ impl ModelDeclarations {
                             error.to_string(),
                         ));
                     }
-                    if let Err(message) =
-                        crate::ValueTypeSyntax::from_checked(&field.value_type, |id| {
-                            self.nominal_name(id)
-                        })
-                        .map_err(|error| error.to_string())
+                    if let Err(message) = crate::ValueTypeSyntax::from_checked(
+                        &field.value_type,
+                        |id| self.nominal_name(id),
+                        |basis| self.product_name(basis),
+                    )
+                    .map_err(|error| error.to_string())
                     {
                         diagnostics.push(native_diagnostic(&self.name, field.name(), message));
                     }
@@ -219,11 +225,11 @@ impl ModelDeclarations {
                             error.to_string(),
                         ));
                     }
-                    if let Err(error) =
-                        crate::ValueTypeSyntax::from_checked(&observable.value_type, |id| {
-                            self.nominal_name(id)
-                        })
-                    {
+                    if let Err(error) = crate::ValueTypeSyntax::from_checked(
+                        &observable.value_type,
+                        |id| self.nominal_name(id),
+                        |basis| self.product_name(basis),
+                    ) {
                         diagnostics.push(native_diagnostic(
                             &self.name,
                             observable.name(),
@@ -245,6 +251,7 @@ impl ModelDeclarations {
                         TextRange::new(0, 1),
                         |id| self.nominal_name(id),
                         |id| self.enum_definition(id),
+                        |basis| self.product_name(basis),
                     ) {
                         diagnostics.push(native_diagnostic(
                             &self.name,
@@ -434,6 +441,7 @@ impl ModelDeclarations {
                             TextRange::new(0, 0),
                             |id| self.nominal_name(id),
                             |id| self.enum_definition(id),
+                            |basis| self.product_name(basis),
                         ) {
                             diagnostics.push(native_diagnostic(
                                 &self.name,
@@ -935,6 +943,7 @@ impl DraftSymbolKind {
 mod ast_bridge;
 mod dimension;
 mod expression;
+mod finite;
 use expression::DraftExpressionReference;
 mod observable;
 mod parameter;

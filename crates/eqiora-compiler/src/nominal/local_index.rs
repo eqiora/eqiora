@@ -135,9 +135,11 @@ pub(crate) fn bind_local_index_types(
         };
         let path = eqiora_lang::NamePath::from_segments(name.split('.'), expression.range())
             .expect("authored nominal name");
-        if let Err(error) =
-            SourceAstFactory::bind_nominal_expression(expression, &path, definition.value_type())
-        {
+        if let Err(error) = SourceAstFactory::bind_nominal_expression(
+            expression,
+            std::slice::from_ref(&path),
+            definition.value_type(),
+        ) {
             errors.push(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 file,

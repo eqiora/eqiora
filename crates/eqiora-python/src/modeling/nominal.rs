@@ -33,6 +33,7 @@ fn qualified_name_path(name: &str) -> PyResult<NamePath> {
 pub(crate) struct PyFiniteSpace {
     pub(crate) name: String,
     pub(crate) value: FiniteSpaceDef,
+    factors: Option<[Box<PyFiniteSpace>; 2]>,
 }
 
 #[pymethods]
@@ -46,9 +47,47 @@ impl PyFiniteSpace {
         }
         let value = FiniteSpaceDef::new(eqiora::Id::new(), labels)
             .map_err(|error| PyValueError::new_err(error.to_string()))?;
-        ValueTypeSyntax::validate_checked(&value.coordinates())
-            .map_err(|error| PyValueError::new_err(error.to_string()))?;
-        Ok(Self { name, value })
+        ValueTypeSyntax::validate_checked(
+            &value
+                .coordinates(
+                    eqiora::ScalarDomain::Integer,
+                    eqiora::DimExponents::DIMENSIONLESS,
+                )
+                .expect("integer coordinates"),
+        )
+        .map_err(|error| PyValueError::new_err(error.to_string()))?;
+        Ok(Self {
+            name,
+            value,
+            factors: None,
+        })
+    }
+    #[staticmethod]
+    fn product(name: String, left: PyRef<'_, Self>, right: PyRef<'_, Self>) -> PyResult<Self> {
+        name_path(&name)?;
+        let value =
+            FiniteSpaceDef::product(eqiora::Id::new(), left.value.basis(), right.value.basis())
+                .map_err(|error| PyValueError::new_err(error.to_string()))?;
+        ValueTypeSyntax::validate_checked(
+            &value
+                .coordinates(
+                    eqiora::ScalarDomain::Real,
+                    eqiora::DimExponents::DIMENSIONLESS,
+                )
+                .map_err(|error| PyValueError::new_err(error.to_string()))?,
+        )
+        .map_err(|error| PyValueError::new_err(error.to_string()))?;
+        Ok(Self {
+            name,
+            value,
+            factors: Some([Box::new(left.clone()), Box::new(right.clone())]),
+        })
+    }
+    #[getter]
+    fn factors(&self) -> Option<(Self, Self)> {
+        self.factors
+            .as_ref()
+            .map(|[left, right]| ((**left).clone(), (**right).clone()))
     }
     #[getter]
     fn name(&self) -> &str {
@@ -59,8 +98,11 @@ impl PyFiniteSpace {
         self.value.id().to_string()
     }
     #[getter]
-    fn labels(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
-        Ok(PyTuple::new(py, self.value.labels())?.unbind())
+    fn labels(&self, py: Python<'_>) -> PyResult<Option<Py<PyTuple>>> {
+        self.value
+            .labels()
+            .map(|labels| PyTuple::new(py, labels).map(Bound::unbind))
+            .transpose()
     }
     fn __hash__(&self) -> u64 {
         let mut hasher = DefaultHasher::new();
@@ -141,7 +183,9 @@ pub(crate) fn _nominal_type(
     enums: Vec<(PyRef<'_, super::enumeration::PyEnum>, String)>,
 ) -> PyResult<crate::authoring::PyAstType> {
     let mut names = Vec::with_capacity(spaces.len() + sets.len() + enums.len());
+    let mut products = Vec::new();
     for (space, name) in spaces {
+        products.push((space.value.basis(), qualified_name_path(&name)?));
         names.push((space.value.id().erase(), qualified_name_path(&name)?));
     }
     for (set, name) in sets {
@@ -150,12 +194,21 @@ pub(crate) fn _nominal_type(
     for (definition, name) in enums {
         names.push((definition.value.id().erase(), qualified_name_path(&name)?));
     }
-    ValueTypeSyntax::from_checked(&value_type.value, |id| {
-        names
-            .iter()
-            .find(|(candidate, _)| *candidate == id)
-            .map(|(_, name)| name.clone())
-    })
+    ValueTypeSyntax::from_checked(
+        &value_type.value,
+        |id| {
+            names
+                .iter()
+                .find(|(candidate, _)| *candidate == id)
+                .map(|(_, name)| name.clone())
+        },
+        |basis| {
+            products
+                .iter()
+                .find(|(candidate, _)| *candidate == basis)
+                .map(|(_, name)| name.clone())
+        },
+    )
     // The handle resolves lexical ownership, not this module's canonical ID.
     .and_then(|value| {
         eqiora::language::SourceAstFactory::value_type(value.kind().clone(), value.range())
