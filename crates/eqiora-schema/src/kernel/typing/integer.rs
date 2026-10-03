@@ -127,11 +127,27 @@ mod nominal_tests {
         let species = Id::<kinds::FiniteSpace>::new();
         let counts: ExpressionType<()> =
             ExpressionType::new(ValueType::counts(species, 2).unwrap(), None);
-        let changes = ExpressionType::new(ValueType::coordinates(species, 2).unwrap(), None);
+        let changes = ExpressionType::new(
+            ValueType::coordinates(
+                eqiora_core::FiniteBasis::new(species, 2).unwrap(),
+                eqiora_core::ScalarDomain::Integer,
+                eqiora_core::DimExponents::DIMENSIONLESS,
+            )
+            .unwrap(),
+            None,
+        );
         assert_eq!(counts.clone().sum(changes.clone()).unwrap(), counts);
         assert!(counts.clone().sum(counts.clone()).is_err());
         assert!(changes.sum(counts.clone()).is_err());
-        let foreign = ExpressionType::new(ValueType::coordinates(Id::new(), 2).unwrap(), None);
+        let foreign = ExpressionType::new(
+            ValueType::coordinates(
+                eqiora_core::FiniteBasis::new(Id::new(), 2).unwrap(),
+                eqiora_core::ScalarDomain::Integer,
+                eqiora_core::DimExponents::DIMENSIONLESS,
+            )
+            .unwrap(),
+            None,
+        );
         assert!(counts.sum(foreign).is_err());
         let index: ExpressionType<()> =
             ExpressionType::new(ValueType::index(Id::new(), 2).unwrap(), None);

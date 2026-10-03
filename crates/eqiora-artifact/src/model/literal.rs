@@ -103,8 +103,8 @@ impl WireValueLiteral {
         result.map_err(|error| invalid_artifact(error.to_string()))
     }
 
-    pub(crate) fn nominal_reference(&self) -> Option<&super::primitive::WireId> {
-        self.value_type.nominal_reference()
+    pub(crate) fn nominal_references(&self) -> impl Iterator<Item = &super::primitive::WireId> {
+        self.value_type.nominal_references()
     }
 
     pub(crate) fn component_payload_count(&self) -> usize {

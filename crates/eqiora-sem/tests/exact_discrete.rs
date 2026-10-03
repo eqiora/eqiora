@@ -131,7 +131,16 @@ fn fixture(
 fn exact_species_transfer_is_atomic_and_resumes_after_second_tick() {
     let space = FiniteSpaceDef::new(Id::new(), ["A".into(), "B".into()]).unwrap();
     let initial = ValueLiteral::integer(space.counts(), [2, 9_007_199_254_740_993]).unwrap();
-    let change = ValueLiteral::integer(space.coordinates(), [-1, 1]).unwrap();
+    let change = ValueLiteral::integer(
+        space
+            .coordinates(
+                eqiora_core::ScalarDomain::Integer,
+                eqiora_core::DimExponents::DIMENSIONLESS,
+            )
+            .expect("integer coordinates"),
+        [-1, 1],
+    )
+    .unwrap();
     let (program, field, output, input, clock) =
         fixture(initial.clone(), change.clone(), Some(space.into()));
     let interpreter = Interpreter::new();

@@ -1,6 +1,8 @@
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, Id, ValueType};
+use eqiora_core::{
+    Diagnostic, DimExponents, FiniteBasis, Id, InvalidValueType, ScalarDomain, ValueType,
+};
 
 /// One nominal, nonempty ordered orthonormal basis of mathematical components.
 /// This is independent of a Realization graph discretization Space.
@@ -41,10 +43,18 @@ impl FiniteSpaceDef {
     pub fn labels(&self) -> &[String] {
         &self.labels
     }
-    /// Signed integer coordinate type using this declaration's exact cardinality.
+    /// Exact primal basis, preserving declaration identity and label order.
     #[must_use]
-    pub fn coordinates(&self) -> ValueType {
-        ValueType::coordinates(self.id, self.labels.len() as u32).expect("checked basis")
+    pub fn basis(&self) -> FiniteBasis {
+        FiniteBasis::new(self.id, self.labels.len() as u32).expect("checked basis")
+    }
+    /// Numeric coordinates using this declaration's exact cardinality.
+    pub fn coordinates(
+        &self,
+        domain: ScalarDomain,
+        dimension: DimExponents,
+    ) -> Result<ValueType, InvalidValueType> {
+        ValueType::coordinates(self.basis(), domain, dimension)
     }
     /// Nonnegative count type using this declaration's exact cardinality.
     #[must_use]
@@ -70,7 +80,14 @@ mod tests {
         let reversed = FiniteSpaceDef::new(id, ["B".into(), "A".into()]).unwrap();
         assert_ne!(a, reversed);
         assert_ne!(a.counts(), b.counts());
-        assert_ne!(a.counts(), a.coordinates());
+        assert_ne!(
+            a.counts(),
+            a.coordinates(
+                eqiora_core::ScalarDomain::Integer,
+                eqiora_core::DimExponents::DIMENSIONLESS
+            )
+            .expect("integer coordinates")
+        );
         assert_eq!(a.counts().shape().extents()[0].get(), 2);
         assert_eq!(a.counts().array_rank(), 0);
         assert!(FiniteSpaceDef::new(id, []).is_err());

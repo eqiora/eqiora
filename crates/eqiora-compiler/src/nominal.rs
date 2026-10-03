@@ -147,7 +147,13 @@ fn bind_type(
             Some(if matches!(syntax.kind(), ValueTypeSyntaxKind::Counts(_)) {
                 definition.definition.counts()
             } else {
-                definition.definition.coordinates()
+                definition
+                    .definition
+                    .coordinates(
+                        eqiora_core::ScalarDomain::Integer,
+                        eqiora_core::DimExponents::DIMENSIONLESS,
+                    )
+                    .expect("integer coordinates")
             })
         }
         _ => None,
@@ -208,7 +214,13 @@ pub(crate) fn bind_finite_expressions(
             let value_type = if is_count {
                 declaration.definition.counts()
             } else {
-                declaration.definition.coordinates()
+                declaration
+                    .definition
+                    .coordinates(
+                        eqiora_core::ScalarDomain::Integer,
+                        eqiora_core::DimExponents::DIMENSIONLESS,
+                    )
+                    .expect("integer coordinates")
             };
             let path = eqiora_lang::NamePath::from_segments(name.split('.'), expression.range())
                 .map_err(|error| invalid(error.message()))?;

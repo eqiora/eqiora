@@ -62,13 +62,11 @@ pub(super) fn check(
             "integer values require dimensionless invariant types",
         ));
     }
-    if let Some(space) = value.finite_space() {
-        let matches = matches!(nodes.get(&space.erase()), Some(KernelNode::FiniteSpace(definition)) if *value == if value.is_count() { definition.counts() } else { definition.coordinates() });
+    for basis in value.finite_bases() {
+        let matches = matches!(nodes.get(&basis.space().erase()), Some(KernelNode::FiniteSpace(definition)) if definition.basis().extent() == basis.extent());
         if !matches {
-            diagnostics.push(kernel_error(
-                owner,
-                "nominal value requires its exact selected FiniteSpace declaration and cardinality",
-            ));
+            diagnostics.push(kernel_error(owner,
+                "nominal value requires each exact selected FiniteSpace declaration and cardinality"));
         }
     }
     if let Some(index) = value.index_set() {
@@ -172,6 +170,56 @@ mod tests {
     }
 
     #[test]
+    fn maps_require_both_selected_declarations_and_exact_extents() {
+        let input = FiniteSpaceDef::new(Id::new(), ["q0".into(), "q1".into()]).unwrap();
+        let output = FiniteSpaceDef::new(Id::new(), ["u0".into(), "u1".into()]).unwrap();
+        let field = Id::<kinds::Field>::new();
+        for (source, target, expected) in [
+            (input.basis(), output.basis(), true),
+            (output.basis().dual(), input.basis().dual(), true),
+            (
+                eqiora_core::FiniteBasis::new(Id::new(), 2).unwrap(),
+                output.basis(),
+                false,
+            ),
+            (
+                input.basis(),
+                eqiora_core::FiniteBasis::new(Id::new(), 2).unwrap(),
+                false,
+            ),
+            (
+                eqiora_core::FiniteBasis::new(input.id(), 3).unwrap(),
+                output.basis(),
+                false,
+            ),
+            (
+                input.basis(),
+                eqiora_core::FiniteBasis::new(output.id(), 3).unwrap(),
+                false,
+            ),
+        ] {
+            let value = ValueType::linear_map(
+                source,
+                target,
+                ScalarDomain::Complex,
+                DimExponents::DIMENSIONLESS,
+            )
+            .unwrap();
+            let nodes = BTreeMap::from([
+                (input.id().erase(), input.clone().into()),
+                (output.id().erase(), output.clone().into()),
+                (
+                    field.erase(),
+                    FieldDef::new(field, value, FieldRole::Variable).into(),
+                ),
+            ]);
+            let mut errors = vec![];
+            validate(&nodes, &mut errors);
+            assert_eq!(errors.is_empty(), expected);
+        }
+    }
+
+    #[test]
     fn nominal_cardinality_and_selected_identity_are_both_required() {
         let space = FiniteSpaceDef::new(Id::new(), ["A".into(), "B".into()]).unwrap();
         let index = IndexSetDef::new(Id::new(), 3).unwrap();
@@ -225,7 +273,12 @@ mod tests {
             ValueType::boolean(),
             ordinary,
             space.counts(),
-            space.coordinates(),
+            space
+                .coordinates(
+                    eqiora_core::ScalarDomain::Integer,
+                    eqiora_core::DimExponents::DIMENSIONLESS,
+                )
+                .expect("integer coordinates"),
             index.value_type(),
         ] {
             cases.push((value.clone(), true));

@@ -35,4 +35,4 @@ pub use quantity::{DimExponents, Dimension, DynQuantity, Quantity, Scalar};
 pub use scalar::{ScalarDomain, ScalarType};
 pub use value_literal::{InvalidValueLiteral, ValueLiteral};
 pub use value_shape::{InvalidValueShape, ValueShape};
-pub use value_type::{InvalidValueType, ValueFrame, ValueType};
+pub use value_type::{FiniteBasis, InvalidValueType, ValueFrame, ValueType};

@@ -364,7 +364,7 @@ impl WireNode {
         match &self.definition {
             WireNodeDefinition::Record { members } => members
                 .iter()
-                .filter_map(|(_, ty)| ty.nominal_reference())
+                .flat_map(|(_, ty)| ty.nominal_references())
                 .collect(),
             WireNodeDefinition::RecordInstance {
                 definition,
@@ -374,11 +374,9 @@ impl WireNode {
                 .collect(),
             WireNodeDefinition::Field { value_type, .. }
             | WireNodeDefinition::SignalPort { value_type, .. } => {
-                value_type.nominal_reference().into_iter().collect()
+                value_type.nominal_references().collect()
             }
-            WireNodeDefinition::Parameter { value } => {
-                value.nominal_reference().into_iter().collect()
-            }
+            WireNodeDefinition::Parameter { value } => value.nominal_references().collect(),
             WireNodeDefinition::Domain {
                 domain:
                     WireDomainKind::ScalarPhysical {
@@ -386,9 +384,8 @@ impl WireNode {
                         through_type,
                     },
             } => across_type
-                .nominal_reference()
-                .into_iter()
-                .chain(through_type.nominal_reference())
+                .nominal_references()
+                .chain(through_type.nominal_references())
                 .collect(),
             WireNodeDefinition::Domain {
                 domain:
@@ -398,9 +395,8 @@ impl WireNode {
                         ..
                     },
             } => trace_type
-                .nominal_reference()
-                .into_iter()
-                .chain(flux_type.nominal_reference())
+                .nominal_references()
+                .chain(flux_type.nominal_references())
                 .collect(),
             WireNodeDefinition::ScalarPhysicalPort { domain } => vec![domain],
             WireNodeDefinition::BoundaryPhysicalPort {
@@ -413,7 +409,7 @@ impl WireNode {
                 reduction,
             } => {
                 let mut references = expression.semantic_references();
-                references.extend(value_type.nominal_reference());
+                references.extend(value_type.nominal_references());
                 references.extend(reduction.domain());
                 references
             }

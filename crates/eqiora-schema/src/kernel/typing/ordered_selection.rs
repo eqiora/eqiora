@@ -92,7 +92,12 @@ mod tests {
                 .expect("checked scalar type"),
             ValueType::index(Id::new(), 2).unwrap(),
             ValueType::counts(Id::new(), 2).unwrap(),
-            ValueType::coordinates(Id::new(), 2).unwrap(),
+            ValueType::coordinates(
+                eqiora_core::FiniteBasis::new(Id::new(), 2).unwrap(),
+                eqiora_core::ScalarDomain::Integer,
+                eqiora_core::DimExponents::DIMENSIONLESS,
+            )
+            .unwrap(),
             real.array(2).unwrap(),
             integer.clone().array(2).unwrap(),
             integer

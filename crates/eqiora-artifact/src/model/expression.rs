@@ -210,15 +210,18 @@ impl WireExpression {
     }
 
     pub(crate) fn semantic_references(&self) -> Vec<&WireId> {
-        self.nodes
-            .iter()
-            .filter_map(|node| match node {
-                WireExpressionNode::Symbol { symbol } => symbol.id(),
-                WireExpressionNode::Constant { value } => value.nominal_reference(),
-                WireExpressionNode::Sample { clock, .. } => Some(clock),
-                _ => None,
-            })
-            .collect()
+        let mut references = Vec::new();
+        for node in &self.nodes {
+            match node {
+                WireExpressionNode::Symbol { symbol } => references.extend(symbol.id()),
+                WireExpressionNode::Constant { value } => {
+                    references.extend(value.nominal_references())
+                }
+                WireExpressionNode::Sample { clock, .. } => references.push(clock),
+                _ => {}
+            }
+        }
+        references
     }
 }
 

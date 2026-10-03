@@ -101,7 +101,13 @@ impl PyValueType {
     #[staticmethod]
     fn coordinates(space: &super::nominal::PyFiniteSpace) -> Self {
         Self {
-            value: space.value.coordinates(),
+            value: space
+                .value
+                .coordinates(
+                    eqiora::ScalarDomain::Integer,
+                    eqiora::DimExponents::DIMENSIONLESS,
+                )
+                .expect("integer coordinates"),
         }
     }
 

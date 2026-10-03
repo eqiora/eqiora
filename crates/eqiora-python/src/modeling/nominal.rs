@@ -46,8 +46,15 @@ impl PyFiniteSpace {
         }
         let value = FiniteSpaceDef::new(eqiora::Id::new(), labels)
             .map_err(|error| PyValueError::new_err(error.to_string()))?;
-        ValueTypeSyntax::validate_checked(&value.coordinates())
-            .map_err(|error| PyValueError::new_err(error.to_string()))?;
+        ValueTypeSyntax::validate_checked(
+            &value
+                .coordinates(
+                    eqiora::ScalarDomain::Integer,
+                    eqiora::DimExponents::DIMENSIONLESS,
+                )
+                .expect("integer coordinates"),
+        )
+        .map_err(|error| PyValueError::new_err(error.to_string()))?;
         Ok(Self { name, value })
     }
     #[getter]

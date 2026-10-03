@@ -1,6 +1,6 @@
 use super::primitive::WireId;
 use eqiora_core::{Diagnostic, ScalarDomain, ValueShape, entity::kinds};
-use eqiora_core::{ValueFrame, ValueType};
+use eqiora_core::{FiniteBasis, ValueFrame, ValueType};
 
 use serde::{Deserialize, Serialize};
 
@@ -25,10 +25,44 @@ pub(crate) struct WireValueType {
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 enum WireValueBasis {
     Ordinary,
-    Enum { definition: WireId, count: u32 },
-    Coordinates { space: WireId },
-    Counts { space: WireId },
-    Index { set: WireId, extent: u32 },
+    Enum {
+        definition: WireId,
+        count: u32,
+    },
+    Coordinates {
+        basis: WireFiniteBasis,
+    },
+    LinearMap {
+        source: WireFiniteBasis,
+        target: WireFiniteBasis,
+    },
+    Counts {
+        space: WireId,
+    },
+    Index {
+        set: WireId,
+        extent: u32,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WireFiniteBasis {
+    space: WireId,
+    dual: bool,
+}
+impl WireFiniteBasis {
+    fn encode(basis: FiniteBasis) -> Self {
+        Self {
+            space: WireId::from_raw(basis.space().erase()),
+            dual: basis.is_dual(),
+        }
+    }
+    fn decode(&self, extent: u32) -> Result<FiniteBasis, Diagnostic> {
+        let basis = FiniteBasis::new(self.space.typed::<kinds::FiniteSpace>()?, extent)
+            .map_err(|error| invalid_artifact(error.to_string()))?;
+        Ok(if self.dual { basis.dual() } else { basis })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -75,15 +109,18 @@ impl WireValueType {
                 set: WireId::from_raw(set.erase()),
                 extent: value.index_extent().expect("checked index type"),
             }
+        } else if let Some((source, target)) = value.map_bases() {
+            WireValueBasis::LinearMap {
+                source: WireFiniteBasis::encode(source),
+                target: WireFiniteBasis::encode(target),
+            }
+        } else if let Some(basis) = value.coordinate_basis() {
+            WireValueBasis::Coordinates {
+                basis: WireFiniteBasis::encode(basis),
+            }
         } else if let Some(space) = value.finite_space() {
-            if value.is_count() {
-                WireValueBasis::Counts {
-                    space: WireId::from_raw(space.erase()),
-                }
-            } else {
-                WireValueBasis::Coordinates {
-                    space: WireId::from_raw(space.erase()),
-                }
+            WireValueBasis::Counts {
+                space: WireId::from_raw(space.erase()),
             }
         } else {
             WireValueBasis::Ordinary
@@ -148,7 +185,7 @@ impl WireValueType {
                 return ValueType::index(set.typed::<kinds::IndexSet>()?, *extent)
                     .map_err(|error| invalid_artifact(error.to_string()));
             }
-            WireValueBasis::Coordinates { space } | WireValueBasis::Counts { space } => {
+            WireValueBasis::Counts { space } => {
                 if self.domain != WireScalarDomain::Integer
                     || shape.rank() != 1
                     || rank != 0
@@ -156,16 +193,40 @@ impl WireValueType {
                     || self.dimension.decode() != eqiora_core::DimExponents::DIMENSIONLESS
                 {
                     return Err(invalid_artifact(
-                        "finite-space type requires a dimensionless invariant Integer basis",
+                        "counts require a dimensionless invariant Integer basis",
                     ));
                 }
-                let id = space.typed::<kinds::FiniteSpace>()?;
-                let extent = shape.extents()[0].get();
-                return if matches!(self.basis, WireValueBasis::Counts { .. }) {
-                    ValueType::counts(id, extent)
-                } else {
-                    ValueType::coordinates(id, extent)
+                return ValueType::counts(
+                    space.typed::<kinds::FiniteSpace>()?,
+                    shape.extents()[0].get(),
+                )
+                .map_err(|error| invalid_artifact(error.to_string()));
+            }
+            WireValueBasis::Coordinates { basis } => {
+                if shape.rank() != 1 || rank != 0 || self.frame.decode() != ValueFrame::Invariant {
+                    return Err(invalid_artifact(
+                        "coordinates require one explicit finite basis axis",
+                    ));
                 }
+                return ValueType::coordinates(
+                    basis.decode(shape.extents()[0].get())?,
+                    self.domain.decode(),
+                    self.dimension.decode(),
+                )
+                .map_err(|error| invalid_artifact(error.to_string()));
+            }
+            WireValueBasis::LinearMap { source, target } => {
+                if shape.rank() != 2 || rank != 0 || self.frame.decode() != ValueFrame::Invariant {
+                    return Err(invalid_artifact(
+                        "linear maps require output and input basis axes",
+                    ));
+                }
+                return ValueType::linear_map(
+                    source.decode(shape.extents()[1].get())?,
+                    target.decode(shape.extents()[0].get())?,
+                    self.domain.decode(),
+                    self.dimension.decode(),
+                )
                 .map_err(|error| invalid_artifact(error.to_string()));
             }
         }
@@ -186,13 +247,19 @@ impl WireValueType {
         Ok(value)
     }
 
-    pub(super) fn nominal_reference(&self) -> Option<&WireId> {
+    pub(super) fn nominal_references(&self) -> impl Iterator<Item = &WireId> {
         match &self.basis {
-            WireValueBasis::Ordinary => None,
-            WireValueBasis::Enum { definition, .. } => Some(definition),
-            WireValueBasis::Coordinates { space } | WireValueBasis::Counts { space } => Some(space),
-            WireValueBasis::Index { set, .. } => Some(set),
+            WireValueBasis::Ordinary => [None, None],
+            WireValueBasis::Enum { definition, .. } => [Some(definition), None],
+            WireValueBasis::Coordinates { basis } => [Some(&basis.space), None],
+            WireValueBasis::LinearMap { source, target } => {
+                [Some(&source.space), Some(&target.space)]
+            }
+            WireValueBasis::Counts { space } => [Some(space), None],
+            WireValueBasis::Index { set, .. } => [Some(set), None],
         }
+        .into_iter()
+        .flatten()
     }
 
     pub(super) fn ensure_limits(&self, limits: ModelDecoderLimits) -> Result<(), Diagnostic> {
@@ -206,6 +273,55 @@ mod tests {
     use crate::model::WireNode;
     use eqiora_core::{DimExponents, Id};
     use eqiora_schema::kernel::{FieldDef, KernelNode};
+
+    #[test]
+    fn finite_types_replay_both_basis_roles_and_reject_erased_meaning() {
+        let input = FiniteBasis::new(Id::new(), 2).unwrap();
+        let output = FiniteBasis::new(Id::new(), 3).unwrap();
+        let dimension = DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap();
+        let types = [
+            ValueType::coordinates(input, ScalarDomain::Real, dimension).unwrap(),
+            ValueType::coordinates(input.dual(), ScalarDomain::Complex, dimension).unwrap(),
+            ValueType::linear_map(input, output, ScalarDomain::Complex, dimension).unwrap(),
+            ValueType::linear_map(
+                output.dual(),
+                input.dual(),
+                ScalarDomain::Complex,
+                dimension,
+            )
+            .unwrap(),
+        ];
+        for value in types {
+            let wire = WireValueType::encode(&value).unwrap();
+            let bytes = serde_json::to_vec(&wire).unwrap();
+            let replayed: WireValueType = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(replayed.decode().unwrap(), value);
+            let references = replayed
+                .nominal_references()
+                .map(|id| id.typed::<kinds::FiniteSpace>().unwrap())
+                .collect::<Vec<_>>();
+            assert_eq!(
+                references,
+                value
+                    .finite_bases()
+                    .map(|basis| basis.space())
+                    .collect::<Vec<_>>()
+            );
+            let mut invalid = wire.clone();
+            invalid.array_rank = 1;
+            assert!(invalid.decode().is_err());
+            let mut invalid = wire.clone();
+            invalid.frame = WireValueFrame::SpatialCartesian;
+            assert!(invalid.decode().is_err());
+            let mut invalid = wire;
+            invalid.domain = WireScalarDomain::Boolean;
+            assert!(invalid.decode().is_err());
+        }
+        let map = ValueType::linear_map(input, output, ScalarDomain::Complex, dimension).unwrap();
+        let mut json = serde_json::to_value(WireValueType::encode(&map).unwrap()).unwrap();
+        json["basis"]["source"]["dual"] = serde_json::Value::Null;
+        assert!(serde_json::from_value::<WireValueType>(json).is_err());
+    }
 
     #[test]
     fn field_wire_preserves_role_and_rejects_displaced_initial_payload() {

@@ -255,7 +255,12 @@ fn nominal_counts_and_indexes_do_not_inherit_integer_coercions() {
     let species = Id::<kinds::FiniteSpace>::new();
     let foreign = Id::<kinds::FiniteSpace>::new();
     let counts_type = ValueType::counts(species, 2).unwrap();
-    let changes_type = ValueType::coordinates(species, 2).unwrap();
+    let changes_type = ValueType::coordinates(
+        crate::FiniteBasis::new(species, 2).unwrap(),
+        crate::ScalarDomain::Integer,
+        crate::DimExponents::DIMENSIONLESS,
+    )
+    .unwrap();
     let counts = ValueLiteral::integer(counts_type.clone(), [2, 9_007_199_254_740_993]).unwrap();
     let changes = ValueLiteral::integer(changes_type.clone(), [-1, 1]).unwrap();
     let updated = counts.checked_add(&changes).unwrap();
@@ -273,8 +278,16 @@ fn nominal_counts_and_indexes_do_not_inherit_integer_coercions() {
     assert!(
         counts
             .checked_add(
-                &ValueLiteral::integer(ValueType::coordinates(foreign, 2).unwrap(), [-1, 1])
-                    .unwrap()
+                &ValueLiteral::integer(
+                    ValueType::coordinates(
+                        crate::FiniteBasis::new(foreign, 2).unwrap(),
+                        crate::ScalarDomain::Integer,
+                        crate::DimExponents::DIMENSIONLESS
+                    )
+                    .unwrap(),
+                    [-1, 1]
+                )
+                .unwrap()
             )
             .is_err()
     );

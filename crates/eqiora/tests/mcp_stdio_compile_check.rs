@@ -902,7 +902,7 @@ fn assert_current_tool_schema(tool: &Value) {
     }
     assert_eq!(
         advertised["properties"]["structuralFingerprint"]["properties"]["generation"]["enum"],
-        json!([SemanticFingerprintGeneration::V23.as_str()])
+        json!([SemanticFingerprintGeneration::V24.as_str()])
     );
 }
 
@@ -1032,7 +1032,7 @@ fn accepted_and_rejected_calls_preserve_direct_operation_meaning() {
     let direct_fingerprint = direct.structural_fingerprint().unwrap();
     assert_eq!(
         direct_fingerprint.generation(),
-        SemanticFingerprintGeneration::V23
+        SemanticFingerprintGeneration::V24
     );
     let mut client = Client::spawn();
     client.send_value(&list_request(json!("parity-tool")));
