@@ -47,12 +47,5 @@ pub(super) fn resolve(
             }
         }
     }
-    if boundaries.is_empty() {
-        return Err(error(
-            file,
-            range,
-            "test requires a nonempty boundary restriction",
-        ));
-    }
     Ok(boundaries.into_iter().collect())
 }

@@ -326,18 +326,14 @@ fn compile_weak(
         let trial = resolve_symbol(file, range, trial, symbols)?
             .downcast::<kinds::Field>()
             .ok_or_else(|| error(file, range, "test trial is not a Field"))?;
-        let zero_on = if tests.len() > 1 && boundaries.is_empty() {
-            vec![]
-        } else {
-            restriction::resolve(
-                file,
-                (range, boundaries),
-                domain.erase(),
-                symbols,
-                index,
-                supports,
-            )?
-        };
+        let zero_on = restriction::resolve(
+            file,
+            (range, boundaries),
+            domain.erase(),
+            symbols,
+            index,
+            supports,
+        )?;
         restrictions.push((
             test.clone(),
             trial.ulid().to_string(),

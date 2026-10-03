@@ -428,12 +428,8 @@ impl AuthoredFormulationProjection {
                     {
                         return Err(rejection("test has repeated or foreign trial"));
                     }
-                    if (wire.trial_ulids.len() == 1 && zero_on.is_empty())
-                        || zero_on.windows(2).any(|p| p[0] >= p[1])
-                    {
-                        return Err(rejection(
-                            "test boundaries must be sorted and unique, and scalar test restriction nonempty",
-                        ));
+                    if zero_on.windows(2).any(|p| p[0] >= p[1]) {
+                        return Err(rejection("test boundaries must be sorted and unique"));
                     }
                     for boundary in zero_on {
                         if boundary

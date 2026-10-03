@@ -154,6 +154,7 @@ check_nonzero_temperature(python_model, eqiora.run(eqiora.Plan.from_bytes(python
 
 for changed, expected in (
     (source.replace("zero_on x_lower, x_upper, y_lower, y_upper", "zero_on x_lower"), "zero_on"),
+    (source.replace("zero_on x_lower, x_upper, y_lower, y_upper", ""), "zero_on"),
     (source.replace("diffusion * grad(potential)))", "other_diffusion * grad(potential)))"), "coefficient"),
     (source.replace("w * source_scale", "w * other_source"), "source"),
     (source.replace("w * source_scale", "-w * source_scale"), "source term"),

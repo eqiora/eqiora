@@ -73,6 +73,13 @@ public component Energy(
 }}
 "#
     );
+    compile_source(&source, geometry)
+}
+
+fn compile_source(
+    source: &str,
+    geometry: &CanonicalGeometryV1,
+) -> Result<CompiledModel, Vec<eqiora_core::Diagnostic>> {
     let body = geometry.entity_set("body").unwrap();
     let mut bindings = ["body", "left", "right"]
         .map(|name| {
@@ -100,7 +107,7 @@ public component Energy(
             ));
         }
     }
-    CompiledModel::compile_selected("variation.eqi", &source, "Energy", &bindings)
+    CompiledModel::compile_selected("variation.eqi", source, "Energy", &bindings)
 }
 
 #[test]
@@ -361,3 +368,6 @@ fn second_variation_rejects_different_direction_restrictions() {
         );
     }
 }
+
+#[path = "functional_variations/boundary.rs"]
+mod boundary;
