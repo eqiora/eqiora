@@ -8,6 +8,8 @@ use eqiora_numerics::finite_constraints::{ConstraintTolerance, FiniteConstraintE
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
+mod strict_interior;
+pub(super) use strict_interior::PyStrictInterior;
 
 /// Positive physical tolerances for one exact inequality or complementarity condition.
 #[pyclass(
@@ -123,7 +125,9 @@ impl PyActiveSet {
             "ActiveSet(model_digest={:?}, conditions={}, max_active_sets={})",
             self.model_digest,
             self.native.tolerances().len(),
-            self.native.max_active_sets()
+            self.native
+                .max_active_sets()
+                .expect("ActiveSet owns enumeration policy")
         )
     }
     #[new]
@@ -133,32 +137,9 @@ impl PyActiveSet {
         tolerances: &Bound<'_, PyTuple>,
         max_active_sets: u32,
     ) -> PyResult<Self> {
-        let entries = tolerances
-            .iter()
-            .map(|value| {
-                value
-                    .extract::<PyRef<'_, PyConstraintTolerance>>()
-                    .map(|value| value.clone())
-                    .map_err(PyErr::from)
-            })
-            .collect::<PyResult<Vec<_>>>()?;
-        let first = entries.first().ok_or_else(|| {
-            PyValueError::new_err("ActiveSet requires explicit condition tolerances")
-        })?;
-        let model_digest = first.reference.model_digest.clone();
-        if entries
-            .iter()
-            .any(|entry| entry.reference.model_digest != model_digest)
-        {
-            return Err(PyValueError::new_err(
-                "ActiveSet tolerances cross different exact Models",
-            ));
-        }
-        let native = FiniteConstraintEnforcement::active_set(
-            entries.into_iter().map(|entry| entry.native).collect(),
-            max_active_sets,
-        )
-        .map_err(|error| validation_error(py, &[error]))?;
+        let (model_digest, entries) = bound_tolerances(tolerances)?;
+        let native = FiniteConstraintEnforcement::active_set(entries, max_active_sets)
+            .map_err(|error| validation_error(py, &[error]))?;
         Ok(Self {
             model_digest,
             native,
@@ -166,25 +147,7 @@ impl PyActiveSet {
     }
     #[getter]
     fn tolerances(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
-        PyTuple::new(
-            py,
-            self.native
-                .tolerances()
-                .iter()
-                .map(|native| PyConstraintTolerance {
-                    reference: PyConstraintRef {
-                        model_digest: self.model_digest.clone(),
-                        native: native.reference(),
-                        kind: if native.right().is_some() {
-                            "complementarity"
-                        } else {
-                            "inequality"
-                        },
-                    },
-                    native: native.clone(),
-                }),
-        )
-        .map(|tuple| tuple.unbind())
+        project_tolerances(py, &self.native, &self.model_digest)
     }
     #[getter]
     fn model_digest(&self) -> &str {
@@ -192,14 +155,105 @@ impl PyActiveSet {
     }
     #[getter]
     fn max_active_sets(&self) -> u32 {
-        self.native.max_active_sets()
+        self.native
+            .max_active_sets()
+            .expect("ActiveSet owns enumeration policy")
     }
 }
 
-pub(super) fn from_plan(plan: &super::PyPlan) -> Option<PyActiveSet> {
-    let plan = plan.native.as_algebraic()?;
-    Some(PyActiveSet {
-        model_digest: plan.model_digest().to_owned(),
-        native: plan.enforcement()?.clone(),
-    })
+pub(super) fn from_plan(py: Python<'_>, plan: &super::PyPlan) -> PyResult<Option<Py<PyAny>>> {
+    let Some(plan) = plan.native.as_algebraic() else {
+        return Ok(None);
+    };
+    let Some(native) = plan.enforcement().cloned() else {
+        return Ok(None);
+    };
+    let model_digest = plan.model_digest().to_owned();
+    if native.is_strict_interior() {
+        Py::new(
+            py,
+            PyStrictInterior {
+                model_digest,
+                native,
+            },
+        )
+        .map(|value| Some(value.into_any()))
+    } else {
+        Py::new(
+            py,
+            PyActiveSet {
+                model_digest,
+                native,
+            },
+        )
+        .map(|value| Some(value.into_any()))
+    }
+}
+
+pub(super) fn extract(value: &Bound<'_, PyAny>) -> PyResult<(String, FiniteConstraintEnforcement)> {
+    if let Ok(value) = value.extract::<PyRef<'_, PyActiveSet>>() {
+        return Ok((value.model_digest.clone(), value.native.clone()));
+    }
+    if let Ok(value) = value.extract::<PyRef<'_, PyStrictInterior>>() {
+        return Ok((value.model_digest.clone(), value.native.clone()));
+    }
+    Err(PyTypeError::new_err(
+        "enforcement requires ActiveSet or StrictInterior",
+    ))
+}
+
+fn bound_tolerances(values: &Bound<'_, PyTuple>) -> PyResult<(String, Vec<ConstraintTolerance>)> {
+    let entries = values
+        .iter()
+        .map(|value| {
+            value
+                .extract::<PyRef<'_, PyConstraintTolerance>>()
+                .map(|value| value.clone())
+                .map_err(PyErr::from)
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    let model_digest = entries
+        .first()
+        .ok_or_else(|| PyValueError::new_err("enforcement requires explicit condition bounds"))?
+        .reference
+        .model_digest
+        .clone();
+    if entries
+        .iter()
+        .any(|entry| entry.reference.model_digest != model_digest)
+    {
+        return Err(PyValueError::new_err(
+            "enforcement bounds cross different exact Models",
+        ));
+    }
+    Ok((
+        model_digest,
+        entries.into_iter().map(|entry| entry.native).collect(),
+    ))
+}
+
+fn project_tolerances(
+    py: Python<'_>,
+    native: &FiniteConstraintEnforcement,
+    model_digest: &str,
+) -> PyResult<Py<PyTuple>> {
+    PyTuple::new(
+        py,
+        native
+            .tolerances()
+            .iter()
+            .map(|native| PyConstraintTolerance {
+                reference: PyConstraintRef {
+                    model_digest: model_digest.to_owned(),
+                    native: native.reference(),
+                    kind: if native.right().is_some() {
+                        "complementarity"
+                    } else {
+                        "inequality"
+                    },
+                },
+                native: native.clone(),
+            }),
+    )
+    .map(|tuple| tuple.unbind())
 }

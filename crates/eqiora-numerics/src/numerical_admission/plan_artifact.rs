@@ -21,13 +21,12 @@ mod enforcement;
 mod linear;
 use enforcement::WireEnforcement;
 use linear::WireLinearControls;
-pub(super) use linear::linear_intent_bytes;
 mod event_policy;
 mod forward_policy;
 use event_policy::WireEventPolicy;
 use forward_policy::WireForwardSensitivity;
 
-const SCHEMA: &str = "eqiora.resolved-common-plan/v5";
+const SCHEMA: &str = "eqiora.resolved-common-plan/v6";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 
@@ -137,7 +136,7 @@ enum WireTemporal {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireResolvedCommonPlanV5 {
+struct WireResolvedCommonPlanV6 {
     schema: String,
     encoding: String,
     family: WirePlanFamily,
@@ -252,11 +251,13 @@ impl ResolvedCommonPlan {
                 linear,
             },
             Self::Ode(_) => unreachable!("ODE Plan has no effective linear solver"),
-            Self::Algebraic(_)
-            | Self::Scalar(_)
-            | Self::Elasticity(_)
-            | Self::SteadyStokes(_)
-            | Self::Fsi(_) => CommonSolvePolicy::Linear(linear),
+            Self::Algebraic(plan) => match plan.nonlinear() {
+                Some(nonlinear) => CommonSolvePolicy::Newton { nonlinear, linear },
+                None => CommonSolvePolicy::Linear(linear),
+            },
+            Self::Scalar(_) | Self::Elasticity(_) | Self::SteadyStokes(_) | Self::Fsi(_) => {
+                CommonSolvePolicy::Linear(linear)
+            }
         })
     }
 
@@ -295,7 +296,7 @@ impl ResolvedCommonPlan {
 
     /// Encode this complete resolved Plan and its exact replay roots.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&WireResolvedCommonPlanV5::from_plan(self)?).map_err(|error| {
+        serde_json::to_vec(&WireResolvedCommonPlanV6::from_plan(self)?).map_err(|error| {
             invalid(format!(
                 "cannot encode resolved common Plan artifact: {error}"
             ))
@@ -317,7 +318,7 @@ impl ResolvedCommonPlan {
                 bytes.len()
             )));
         }
-        let wire: WireResolvedCommonPlanV5 = serde_json::from_slice(bytes)
+        let wire: WireResolvedCommonPlanV6 = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid resolved common Plan JSON: {error}")))?;
         wire.validate_header()?;
         let resolved = wire.resolve(linear_backend, time_backend)?;
@@ -330,7 +331,7 @@ impl ResolvedCommonPlan {
     }
 }
 
-impl WireResolvedCommonPlanV5 {
+impl WireResolvedCommonPlanV6 {
     fn from_plan(plan: &ResolvedCommonPlan) -> Result<Self, Diagnostic> {
         let model = plan_model_artifact(plan).canonical_json()?;
         let mesh = plan_authenticated_mesh(plan)
@@ -391,7 +392,7 @@ impl WireResolvedCommonPlanV5 {
                 || self.requested_formulation.is_some()
                 || self.effective_formulation.is_some()
                 || self.authored_formulation_base64.is_some()
-                || !matches!(self.solve, Some(WireSolve::Linear { .. }))
+                || self.solve.is_none()
             {
                 return Err(invalid(
                     "finite Plan has incompatible spatial or temporal roots",
@@ -442,17 +443,17 @@ impl WireResolvedCommonPlanV5 {
         let model_bytes = decode(&self.model_base64, "Model")?;
         let model = ModelEnvelope::from_json(&model_bytes, ModelDecoderLimits::default())?;
         if self.family == WirePlanFamily::Algebraic {
-            let Some(CommonSolvePolicy::Linear(request)) = self
+            let Some(request) = self
                 .solve
                 .as_ref()
                 .map(|solve| solve.to_native(linear_backend))
                 .transpose()?
             else {
-                return Err(invalid("finite Plan requires linear controls"));
+                return Err(invalid("finite Plan requires solve controls"));
             };
             return CommonAlgebraicPlan::resolve(
                 &model,
-                CommonSolvePolicy::Linear(request),
+                request,
                 self.enforcement
                     .as_ref()
                     .map(WireEnforcement::to_native)
@@ -754,7 +755,16 @@ fn spatial_request(plan: &ResolvedCommonPlan) -> Option<WireSpatialRequest> {
 }
 
 fn solve_request(plan: &ResolvedCommonPlan) -> Option<WireSolve> {
-    Some(match plan.canonical_solve_request()? {
+    plan.canonical_solve_request().map(wire_solve)
+}
+
+pub(super) fn solve_intent_bytes(request: CommonSolvePolicy) -> Result<Vec<u8>, Diagnostic> {
+    serde_json::to_vec(&wire_solve(request))
+        .map_err(|error| invalid(format!("cannot encode solve controls: {error}")))
+}
+
+fn wire_solve(request: CommonSolvePolicy) -> WireSolve {
+    match request {
         CommonSolvePolicy::Linear(request) => WireSolve::Linear {
             linear: request.into(),
         },
@@ -767,7 +777,7 @@ fn solve_request(plan: &ResolvedCommonPlan) -> Option<WireSolve> {
                 maximum_line_search_steps: nonlinear.maximum_line_search_steps(),
             },
         },
-    })
+    }
 }
 
 fn scaling_request(plan: &ResolvedCommonPlan) -> Option<WireScalingRequest> {

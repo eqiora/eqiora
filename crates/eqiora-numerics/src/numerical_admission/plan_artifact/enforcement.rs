@@ -6,6 +6,9 @@ use eqiora_core::DynQuantity;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "algorithm", rename_all = "kebab-case", deny_unknown_fields)]
 pub(super) enum WireEnforcement {
+    StrictInterior {
+        margins: Vec<WireTolerance>,
+    },
     ActiveSet {
         max_active_sets: u32,
         tolerances: Vec<WireTolerance>,
@@ -37,36 +40,42 @@ enum WireOperands {
 
 impl WireEnforcement {
     pub(super) fn from_native(value: &FiniteConstraintEnforcement) -> Self {
-        Self::ActiveSet {
-            max_active_sets: value.max_active_sets(),
-            tolerances: value
-                .tolerances()
-                .iter()
-                .map(|entry| WireTolerance {
-                    relation_ulid: entry.reference().relation().ulid().to_string(),
-                    ordinal: entry.reference().ordinal(),
-                    operands: match entry.right() {
-                        None => WireOperands::Inequality {
-                            value: entry.left().value(),
-                            dimension: entry.left().dim().exponents(),
-                        },
-                        Some(right) => WireOperands::Complementarity {
-                            left_value: entry.left().value(),
-                            left_dimension: entry.left().dim().exponents(),
-                            right_value: right.value(),
-                            right_dimension: right.dim().exponents(),
-                        },
+        let tolerances = value
+            .tolerances()
+            .iter()
+            .map(|entry| WireTolerance {
+                relation_ulid: entry.reference().relation().ulid().to_string(),
+                ordinal: entry.reference().ordinal(),
+                operands: match entry.right() {
+                    None => WireOperands::Inequality {
+                        value: entry.left().value(),
+                        dimension: entry.left().dim().exponents(),
                     },
-                })
-                .collect(),
+                    Some(right) => WireOperands::Complementarity {
+                        left_value: entry.left().value(),
+                        left_dimension: entry.left().dim().exponents(),
+                        right_value: right.value(),
+                        right_dimension: right.dim().exponents(),
+                    },
+                },
+            })
+            .collect();
+        match value.max_active_sets() {
+            Some(max_active_sets) => Self::ActiveSet {
+                max_active_sets,
+                tolerances,
+            },
+            None => Self::StrictInterior {
+                margins: tolerances,
+            },
         }
     }
 
     pub(super) fn to_native(&self) -> Result<FiniteConstraintEnforcement, Diagnostic> {
-        let Self::ActiveSet {
-            max_active_sets,
-            tolerances,
-        } = self;
+        let tolerances = match self {
+            Self::ActiveSet { tolerances, .. } => tolerances,
+            Self::StrictInterior { margins } => margins,
+        };
         let tolerances = tolerances
             .iter()
             .map(|entry| {
@@ -91,7 +100,12 @@ impl WireEnforcement {
                 }
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
-        FiniteConstraintEnforcement::active_set(tolerances, *max_active_sets)
+        match self {
+            Self::ActiveSet {
+                max_active_sets, ..
+            } => FiniteConstraintEnforcement::active_set(tolerances, *max_active_sets),
+            Self::StrictInterior { .. } => FiniteConstraintEnforcement::strict_interior(tolerances),
+        }
     }
 }
 

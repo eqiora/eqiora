@@ -242,3 +242,14 @@ fn topology(report: ExecutionReport) -> CommonExecutionTopology {
         ExecutionTopology::Cuda { device } => CommonExecutionTopology::Cuda { device },
     }
 }
+
+/// Distinct acceptance records for an affine solve and a nonlinear iteration.
+#[derive(Debug, Clone, PartialEq)]
+pub(super) enum AlgebraicSolveEvidence {
+    Linear(Box<CommonSolveEvidence>),
+    Newton {
+        initial_residual_norm: f64,
+        iterations: usize,
+        linear_solves: Vec<CommonSolveEvidence>,
+    },
+}

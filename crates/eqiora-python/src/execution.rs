@@ -853,11 +853,7 @@ pub(crate) fn submit_plan(
                 .algebraic_native
                 .as_ref()
                 .ok_or_else(|| PyValueError::new_err("State is not finite algebraic"))?;
-            if native_state
-                != &native_plan
-                    .initial_state()
-                    .map_err(|d| validation_error(py, &[d]))?
-            {
+            if native_state.plan_identity() != native_plan.identity() {
                 return Err(PyValueError::new_err(
                     "State belongs to a different finite Plan",
                 ));

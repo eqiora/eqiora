@@ -17,7 +17,8 @@ mod evidence;
 mod observe;
 pub use observe::CommonObservableStateTangent;
 
-use evidence::{CommonAssemblyEvidence, CommonSolveEvidence};
+use evidence::{AlgebraicSolveEvidence, CommonAssemblyEvidence, CommonSolveEvidence};
+mod algebraic;
 
 /// Stable family of one accepted common Result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -256,8 +257,8 @@ struct CommonStaticResultPayload {
 enum CommonResultPayload {
     Algebraic {
         values: Vec<f64>,
-        solve: Box<CommonSolveEvidence>,
-        state_identity: String,
+        solve: AlgebraicSolveEvidence,
+        initial_state: crate::CommonAlgebraicState,
         reference_residual_norm: f64,
         assessment: Option<crate::finite_constraints::ConstraintAssessment>,
     },
@@ -299,8 +300,8 @@ impl CommonResult {
             identity: String::new(),
             payload: CommonResultPayload::Algebraic {
                 values,
-                solve: Box::new(solve),
-                state_identity: state.identity().to_owned(),
+                solve: AlgebraicSolveEvidence::Linear(Box::new(solve)),
+                initial_state: state.clone(),
                 reference_residual_norm,
                 assessment,
             },
@@ -731,7 +732,13 @@ impl CommonResult {
 
     fn solve_evidence(&self, fsi_state: Option<usize>) -> Option<&CommonSolveEvidence> {
         match (&self.payload, fsi_state) {
-            (CommonResultPayload::Algebraic { solve, .. }, None) => Some(solve),
+            (
+                CommonResultPayload::Algebraic {
+                    solve: AlgebraicSolveEvidence::Linear(solve),
+                    ..
+                },
+                None,
+            ) => Some(solve),
             (CommonResultPayload::Static(payload), None) => Some(&payload.solve),
             (CommonResultPayload::Trajectory { fsi: Some(fsi), .. }, Some(index)) => {
                 fsi.states.get(index).map(|state| &state.solve)

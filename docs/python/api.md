@@ -1064,7 +1064,7 @@ Immutable exact-Field-bound coherent-SI initial coefficients.
 ```python
 @final
 class InitialField:
-    def __new__(cls, field: FieldRef, /, *, vertex_values: object | None=None, cell_values: object | None=None) -> InitialField: ...
+    def __new__(cls, field: FieldRef, /, *, vertex_values: object | None=None, cell_values: object | None=None, scalar_value: float | None=None) -> InitialField: ...
     @property
     def field(self) -> FieldRef: ...
 ```
@@ -1117,6 +1117,25 @@ class LinearSolveSummary:
     def initial_residual_norm(self) -> float: ...
     @property
     def reported_residual_norm(self) -> float: ...
+    @property
+    def true_residual_norm(self) -> float: ...
+    @property
+    def residual_target(self) -> float: ...
+```
+
+<a id="api-eqiora-NonlinearSolveSummary"></a>
+
+### `eqiora.NonlinearSolveSummary`
+
+Original residual acceptance of a bounded Newton solve.
+
+```python
+@final
+class NonlinearSolveSummary:
+    @property
+    def completed_iterations(self) -> int: ...
+    @property
+    def initial_residual_norm(self) -> float: ...
     @property
     def true_residual_norm(self) -> float: ...
     @property
@@ -1640,7 +1659,7 @@ capability-specific field roles and policies through one closed typed view;
 @final
 class Plan:
     @property
-    def enforcement(self) -> solve.ActiveSet | None: ...
+    def enforcement(self) -> solve.ActiveSet | solve.StrictInterior | None: ...
     @staticmethod
     def from_bytes(data: bytes) -> Plan: ...
     @staticmethod
@@ -1775,7 +1794,7 @@ class Result:
     @property
     def fields(self) -> list[Series]: ...
     @property
-    def solve(self) -> LinearSolveSummary: ...
+    def solve(self) -> LinearSolveSummary | NonlinearSolveSummary: ...
     def observe_terminal(self, observable: ObservableRef) -> TrajectoryObservation: ...
     def observe_time_integral(self, observable: ObservableRef, *, quadrature: time.TimeFunctionalQuadrature) -> TrajectoryObservation: ...
     def observe_terminal_parameter_jvp(self, observable: ObservableRef, direction: dict[ParameterRef, tuple[Dimension, float]]) -> TrajectoryObservation: ...
@@ -2255,7 +2274,7 @@ resource. Spatial paths retain their exact Mesh without regeneration;
 structural no-Mesh ODE paths reject spatial resources.
 
 ```python
-def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, formulation: FormulationKind | None=None, solve: solve.Linear | solve.Newton | None=None, scaling: fluid.IncompressibleScaling | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | None=None, enforcement: solve.ActiveSet | None=None) -> Plan: ...
+def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, formulation: FormulationKind | None=None, solve: solve.Linear | solve.Newton | None=None, scaling: fluid.IncompressibleScaling | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | None=None, enforcement: solve.ActiveSet | solve.StrictInterior | None=None) -> Plan: ...
 ```
 
 <a id="api-eqiora-ProjectUpdate"></a>
@@ -4301,6 +4320,22 @@ class ActiveSet:
     def max_active_sets(self) -> int: ...
 ```
 
+<a id="api-eqiora-solve-StrictInterior"></a>
+
+### `eqiora.solve.StrictInterior`
+
+Restrict a nonlinear solve to inequality slack above explicit positive margins.
+
+```python
+@final
+class StrictInterior:
+    def __new__(cls, *, margins: tuple[ConstraintTolerance, ...]) -> Self: ...
+    @property
+    def margins(self) -> tuple[ConstraintTolerance, ...]: ...
+    @property
+    def model_digest(self) -> str: ...
+```
+
 <a id="api-eqiora-solve-SolverPlanningObjective"></a>
 
 ### `eqiora.solve.SolverPlanningObjective`
@@ -4385,7 +4420,7 @@ class Linear:
 
 ### `eqiora.solve.AlgebraicPlanView`
 
-Resolved finite affine solve with its exact unknown inventory.
+Resolved finite algebraic solve with its exact unknown inventory.
 
 ```python
 @final

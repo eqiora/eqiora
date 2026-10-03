@@ -72,6 +72,18 @@ impl AlgebraicProblem {
         Ok(Self::Conserving(problem))
     }
 
+    pub(super) fn nonlinear(&self) -> Result<&FiniteConstraintProblem, Diagnostic> {
+        match self {
+            Self::Constrained(problem) if problem.enforcement().is_strict_interior() => Ok(problem),
+            _ => Err(invalid(
+                "nonlinear finite Plan requires strict-interior constraints",
+            )),
+        }
+    }
+    pub(super) fn validate_seed(&self, values: &[f64]) -> Result<(), Diagnostic> {
+        self.nonlinear()?.assess_seed(values).map(|_| ())
+    }
+
     pub(super) fn symbols(&self) -> Vec<SymbolRef> {
         match self {
             Self::Conserving(problem) => problem
@@ -125,7 +137,7 @@ impl AlgebraicProblem {
                 Ok(AlgebraicSolution {
                     values: solution.values().to_vec(),
                     report: solution.report().clone(),
-                    active_set_mask: Some(solution.assessment().active_set_mask()),
+                    active_set_mask: solution.assessment().active_set_mask(),
                 })
             }
         }

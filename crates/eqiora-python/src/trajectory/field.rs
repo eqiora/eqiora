@@ -20,12 +20,13 @@ pub(crate) struct PyInitialField {
 #[pymethods]
 impl PyInitialField {
     #[new]
-    #[pyo3(signature = (field, /, *, vertex_values=None, cell_values=None))]
+    #[pyo3(signature = (field, /, *, vertex_values=None, cell_values=None, scalar_value=None))]
     fn new(
         py: Python<'_>,
         field: Py<PyModelFieldRef>,
         vertex_values: Option<&Bound<'_, PyAny>>,
         cell_values: Option<&Bound<'_, PyAny>>,
+        scalar_value: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let field_ref = field.borrow(py);
         let model = ArtifactDigest::from_hex(field_ref.exact_model_digest().to_owned())
@@ -35,8 +36,28 @@ impl PyInitialField {
             .map_err(|_| PyValueError::new_err("FieldRef contains an invalid exact Field ULID"))?;
         let vertex = vertex_values.map(extract_initial_values).transpose()?;
         let cell = cell_values.map(extract_initial_values).transpose()?;
-        let native = CommonInitialField::new(model, id, vertex, cell)
-            .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
+        if scalar_value.is_some() && (vertex.is_some() || cell.is_some()) {
+            return Err(PyValueError::new_err(
+                "scalar InitialField cannot contain spatial associations",
+            ));
+        }
+        let scalar_value = scalar_value
+            .map(|value| {
+                if value.is_instance_of::<PyBool>() {
+                    return Err(PyValueError::new_err(
+                        "InitialField scalar value rejects booleans",
+                    ));
+                }
+                value.extract::<f64>().map_err(|_| {
+                    PyValueError::new_err("InitialField scalar value must be a finite real number")
+                })
+            })
+            .transpose()?;
+        let native = match scalar_value {
+            Some(value) => CommonInitialField::scalar(model, id, value),
+            None => CommonInitialField::new(model, id, vertex, cell),
+        }
+        .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
         drop(field_ref);
         Ok(Self { native, field })
     }
@@ -48,10 +69,11 @@ impl PyInitialField {
 
     fn __repr__(&self) -> String {
         format!(
-            "InitialField(field={:?}, vertex_values={}, cell_values={})",
+            "InitialField(field={:?}, vertex_values={}, cell_values={}, scalar_value={:?})",
             self.native.field().to_string(),
             self.native.vertex().is_some(),
             self.native.cell().is_some(),
+            self.native.scalar_value(),
         )
     }
 }

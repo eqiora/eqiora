@@ -12,6 +12,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyLinear>()?;
     module.add_class::<enforcement::PyConstraintTolerance>()?;
     module.add_class::<enforcement::PyActiveSet>()?;
+    module.add_class::<enforcement::PyStrictInterior>()?;
     module.add_class::<PyNewton>()?;
     module.add_class::<PyResolvedLinear>()?;
     module.add_class::<PyResolvedNewton>()?;

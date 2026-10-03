@@ -92,13 +92,21 @@ impl ConstraintTolerance {
     }
 }
 
-/// Bounded lexicographic active-set enumeration, without penalty or regularization.
-/// The first feasible branch is selected; uniqueness is not claimed.
+/// Explicit finite constraint policy, independent from mathematical Model meaning.
+/// Active-set enumeration makes no uniqueness claim. Strict interior restricts
+/// numerical execution to inequality slack strictly above each supplied margin.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FiniteConstraintEnforcement {
     tolerances: Vec<ConstraintTolerance>,
-    max_active_sets: u32,
+    mode: EnforcementMode,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EnforcementMode {
+    ActiveSet { max_active_sets: u32 },
+    StrictInterior,
+}
+
 impl FiniteConstraintEnforcement {
     /// Select explicit active-set enforcement and a finite enumeration budget.
     ///
@@ -120,18 +128,52 @@ impl FiniteConstraintEnforcement {
         tolerances.sort_by_key(|entry| entry.reference);
         Ok(Self {
             tolerances,
-            max_active_sets,
+            mode: EnforcementMode::ActiveSet { max_active_sets },
         })
     }
-    /// Canonical exact condition tolerances, independent from the Model.
+
+    /// Restrict every inequality to slack strictly greater than its positive margin.
+    ///
+    /// # Errors
+    /// Rejects empty, duplicate or complementarity entries. This mode never
+    /// promotes an inequality to an equality or selects an active set.
+    pub fn strict_interior(mut margins: Vec<ConstraintTolerance>) -> Result<Self, Diagnostic> {
+        if margins.is_empty() || margins.iter().any(|entry| entry.right.is_some()) {
+            return Err(invalid(
+                "strict-interior enforcement requires nonempty inequality margins",
+            ));
+        }
+        margins.sort_by_key(|entry| entry.reference);
+        if margins
+            .windows(2)
+            .any(|pair| pair[0].reference == pair[1].reference)
+        {
+            return Err(invalid("strict-interior margin references must be unique"));
+        }
+        Ok(Self {
+            tolerances: margins,
+            mode: EnforcementMode::StrictInterior,
+        })
+    }
+
+    /// Whether this policy requires strict inequality interior rather than active sets.
+    #[must_use]
+    pub const fn is_strict_interior(&self) -> bool {
+        matches!(self.mode, EnforcementMode::StrictInterior)
+    }
+
+    /// Canonical exact condition tolerances or strict-interior margins.
     #[must_use]
     pub fn tolerances(&self) -> &[ConstraintTolerance] {
         &self.tolerances
     }
     /// Complete enumeration budget; lowering rejects a larger required search.
     #[must_use]
-    pub const fn max_active_sets(&self) -> u32 {
-        self.max_active_sets
+    pub const fn max_active_sets(&self) -> Option<u32> {
+        match self.mode {
+            EnforcementMode::ActiveSet { max_active_sets } => Some(max_active_sets),
+            EnforcementMode::StrictInterior => None,
+        }
     }
     pub(super) fn tolerance(&self, reference: ConstraintRef) -> Option<&ConstraintTolerance> {
         self.tolerances

@@ -1,6 +1,7 @@
 //! Exact no-Mesh lifecycle for admitted finite algebraic mathematics.
 
 use super::*;
+use eqiora_realization::NonlinearSolvePlan;
 mod problem;
 use crate::finite_constraints::{ConstraintAssessment, FiniteConstraintEnforcement};
 use crate::physical_network::{
@@ -18,6 +19,7 @@ pub struct CommonAlgebraicPlan {
     kernel: KernelProgram,
     problem: AlgebraicProblem,
     pub(super) linear: NativeLinearPolicy,
+    nonlinear: Option<NonlinearSolvePlan>,
     symbols: Vec<SymbolRef>,
     dimensions: Vec<DimExponents>,
     identity: String,
@@ -26,45 +28,8 @@ pub struct CommonAlgebraicPlan {
     model_revision: u64,
 }
 
-/// Initial numerical values bound to one exact finite Plan.
-#[derive(Debug, Clone, PartialEq)]
-pub struct CommonAlgebraicState {
-    plan_identity: String,
-    identity: String,
-    values: Vec<f64>,
-}
-
-impl CommonAlgebraicState {
-    /// Canonical exact initial-State encoding.
-    pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&(
-            "eqiora.common-algebraic-state/v1",
-            &self.plan_identity,
-            &self.identity,
-            &self.values,
-        ))
-        .map_err(|e| invalid(format!("cannot encode finite State: {e}")))
-    }
-    /// Reauthenticate the complete initial State against its exact Plan.
-    pub fn from_bytes(bytes: &[u8], plan: &CommonAlgebraicPlan) -> Result<Self, Diagnostic> {
-        let expected = plan.initial_state()?;
-        if bytes != expected.to_bytes()? {
-            return Err(invalid(
-                "finite State bytes differ from exact Plan initial State",
-            ));
-        }
-        Ok(expected)
-    }
-
-    #[must_use]
-    pub fn identity(&self) -> &str {
-        &self.identity
-    }
-    #[must_use]
-    pub fn values(&self) -> &[f64] {
-        &self.values
-    }
-}
+mod state;
+pub use state::CommonAlgebraicState;
 
 impl CommonAlgebraicPlan {
     pub fn resolve(
@@ -73,9 +38,19 @@ impl CommonAlgebraicPlan {
         enforcement: Option<FiniteConstraintEnforcement>,
         backend: &dyn LinearSolverBackend,
     ) -> Result<Self, Diagnostic> {
-        let CommonSolvePolicy::Linear(request) = solve else {
-            return Err(invalid("finite affine Plan requires a linear solve policy"));
+        let (request, nonlinear) = match solve {
+            CommonSolvePolicy::Linear(request) => (request, None),
+            CommonSolvePolicy::Newton { linear, nonlinear } => (linear, Some(nonlinear)),
         };
+        if nonlinear.is_some()
+            != enforcement
+                .as_ref()
+                .is_some_and(FiniteConstraintEnforcement::is_strict_interior)
+        {
+            return Err(invalid(
+                "finite Newton requires strict-interior enforcement; active-set and conserving Plans require Linear",
+            ));
+        }
         let kernel = model.to_program().map_err(|errors| {
             errors
                 .into_iter()
@@ -86,7 +61,9 @@ impl CommonAlgebraicPlan {
         let symbols = problem.symbols();
         let dimensions = problem.dimensions();
         if request.objective().is_some() {
-            return Err(invalid("finite affine Plan requires exact linear controls"));
+            return Err(invalid(
+                "finite algebraic Plan requires exact linear controls",
+            ));
         }
         let linear = solver_planning::resolve_linear(
             request,
@@ -101,23 +78,24 @@ impl CommonAlgebraicPlan {
             || linear.solver.reduction() != ReductionPolicy::Fast
         {
             return Err(invalid(
-                "finite affine Plan admits only exact SparseLU/Identity/Fast execution",
+                "finite algebraic Plan admits only exact SparseLU/Identity/Fast execution",
             ));
         }
         let reference = model.artifact_reference()?;
         let model_digest = reference.artifact().to_string();
         let mut bytes = model_digest.as_bytes().to_vec();
-        push_framed(&mut bytes, &plan_artifact::linear_intent_bytes(request)?);
+        push_framed(&mut bytes, &plan_artifact::solve_intent_bytes(solve)?);
         push_framed(
             &mut bytes,
             &super::plan_artifact::finite_enforcement_bytes(problem.enforcement())?,
         );
-        let identity = finite_digest(b"eqiora.common-algebraic-plan/v3\0", &bytes);
+        let identity = finite_digest(b"eqiora.common-algebraic-plan/v4\0", &bytes);
         Ok(Self {
             model: Arc::new(model.clone()),
             kernel,
             problem,
             linear,
+            nonlinear,
             symbols,
             dimensions,
             identity,
@@ -166,33 +144,38 @@ impl CommonAlgebraicPlan {
     pub const fn linear(&self) -> SolverPlan {
         self.linear.solver
     }
+    /// Nonlinear residual/globalization controls, absent for affine execution.
+    #[must_use]
+    pub const fn nonlinear(&self) -> Option<NonlinearSolvePlan> {
+        self.nonlinear
+    }
+
     /// Explicit mathematical enforcement retained by this numerical Plan.
     #[must_use]
     pub fn enforcement(&self) -> Option<&FiniteConstraintEnforcement> {
         self.problem.enforcement()
-    }
-    pub fn initial_state(&self) -> Result<CommonAlgebraicState, Diagnostic> {
-        let values = vec![0.0; self.symbols.len()];
-        Ok(CommonAlgebraicState {
-            identity: finite_digest(
-                b"eqiora.common-algebraic-initial-state/v1\0",
-                self.identity.as_bytes(),
-            ),
-            plan_identity: self.identity.clone(),
-            values,
-        })
     }
     pub fn run_result(
         &self,
         state: &CommonAlgebraicState,
         backend: &dyn LinearSolverBackend,
     ) -> Result<crate::CommonResult, Diagnostic> {
-        if state != &self.initial_state()? || backend.provider() != self.linear.provider {
+        if state != &self.state_from_values(state.values.clone())?
+            || backend.provider() != self.linear.provider
+        {
             return Err(invalid(
                 "finite Run requires its exact Plan-bound State and admitted provider",
             ));
         }
         let checked = self.linear.checked_backend(backend, None)?;
+        if let Some(nonlinear) = self.nonlinear {
+            let solution = self.problem.nonlinear()?.solve_nonlinear(
+                &state.values,
+                nonlinear,
+                LinearSolveRequest::new(&checked, self.linear.solver),
+            )?;
+            return crate::CommonResult::from_nonlinear_algebraic(self, state, solution);
+        }
         let solution = self.problem.solve(
             &state.values,
             LinearSolveRequest::new(&checked, self.linear.solver),
@@ -203,6 +186,21 @@ impl CommonAlgebraicPlan {
             solution.values,
             solution.report,
             solution.active_set_mask,
+        )
+    }
+    pub(crate) fn validate_nonlinear_values(
+        &self,
+        state: &CommonAlgebraicState,
+        values: &[f64],
+    ) -> Result<(f64, ConstraintAssessment), Diagnostic> {
+        if state != &self.state_from_values(state.values.clone())? {
+            return Err(invalid("nonlinear Result has a foreign initial State"));
+        }
+        self.problem.nonlinear()?.validate_nonlinear_values(
+            state.values(),
+            values,
+            self.nonlinear
+                .ok_or_else(|| invalid("nonlinear Result requires a Newton Plan"))?,
         )
     }
     pub(crate) fn validate_values(
