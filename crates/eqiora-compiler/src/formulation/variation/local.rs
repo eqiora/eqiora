@@ -584,4 +584,86 @@ mod tests {
         }
         assert!(derive(&typed, field, 3).is_err());
     }
+
+    #[test]
+    fn quadratic_elastic_energy_retains_full_coordinate_shear_factors() {
+        let field = Id::<kinds::Field>::from_ulid("01ARZ3NDEKTSV4RRFFQ69G5FAX".parse().unwrap());
+        let domain =
+            Id::<kinds::Domain>::from_ulid("01ARZ3NDEKTSV4RRFFQ69G5FAW".parse().unwrap()).erase();
+        let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
+        let density = DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).unwrap();
+        let mut dag = ExprDagBuilder::new();
+        let u = dag.symbol(SymbolRef::Field(field)).unwrap();
+        let gradient = dag.gradient(u).unwrap();
+        let strain = dag.symmetric_part(gradient).unwrap();
+        let square = dag
+            .pure_operator(
+                &PureOperatorDefinition::contract(2, 2, 2, &[(0, 0), (1, 1)]).unwrap(),
+                [strain, strain],
+            )
+            .unwrap();
+        let mu = dag.constant(DynQuantity::new(3.0, density)).unwrap();
+        let energy = dag.mul(mu, square).unwrap();
+        let support = SpatialSupport::Volume {
+            domain,
+            dimensions: 2,
+        };
+        let typed = TypedResidual::infer(
+            dag.finish([energy]).unwrap(),
+            Some(support.clone()),
+            RootContract::Observable,
+            |symbol| {
+                if symbol != SymbolRef::Field(field) {
+                    return Err(());
+                }
+                Ok(ExpressionType::new(
+                    ValueType::shaped(
+                        ScalarDomain::Real,
+                        length,
+                        ValueShape::new([2]).unwrap(),
+                        eqiora_core::ValueFrame::SpatialCartesian,
+                    )
+                    .unwrap(),
+                    Some(support.clone()),
+                ))
+            },
+        )
+        .unwrap();
+        for order in [1, 2] {
+            let derived = derive(&typed, field, order).unwrap();
+            let slot = |input: Input| {
+                derived
+                    .inputs
+                    .iter()
+                    .position(|(candidate, _)| *candidate == input)
+                    .unwrap()
+            };
+            let g = [[0, 0], [0, 1], [1, 0], [1, 1]]
+                .map(|indices| slot(Input::Gradient(field, indices.to_vec())));
+            let eta = g.map(|input| slot(Input::Direction { input, order: 1 }));
+            let left = if order == 1 { g } else { eta };
+            let right = if order == 1 {
+                eta
+            } else {
+                g.map(|input| slot(Input::Direction { input, order: 2 }))
+            };
+            // Independently expand psi = 3*(u_x^2+v_y^2+(u_y+v_x)^2/2).
+            // d psi = 6*u_x*eta_u,x + 6*v_y*eta_v,y
+            //       + 3*(u_y+v_x)*(eta_u,y+eta_v,x).
+            // d2 replaces each original gradient by the other direction;
+            // both off-diagonal entries occur, with no engineering-shear rescaling.
+            let mut expected = product(6, left[0], right[0])
+                .checked_add(&product(6, left[3], right[3]))
+                .unwrap();
+            for i in [1, 2] {
+                for j in [1, 2] {
+                    expected = expected
+                        .checked_add(&product(3, left[i], right[j]))
+                        .unwrap();
+                }
+            }
+            assert_eq!(polynomial(&derived), expected);
+            assert_eq!(derived.definition.result_rule().dimension(), Some(density));
+        }
+    }
 }
