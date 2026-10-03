@@ -37,6 +37,7 @@ fn compile_profile(
         bulk_unit,
         gradient_unit,
         field_unit,
+        "",
     )
     .unwrap_or_else(|errors| panic!("{errors:?}"))
 }
@@ -48,6 +49,7 @@ fn try_compile_profile(
     bulk_unit: &str,
     gradient_unit: &str,
     test_unit: &str,
+    additional_tests: &str,
 ) -> Result<CompiledModel, Vec<eqiora_core::Diagnostic>> {
     let source = format!(
         r#"
@@ -65,6 +67,7 @@ public component Energy(
     observable energy:J=integral((bulk*c*c+gradient*contract(grad(c),grad(c),axes=((0,0),)))/2,measure(body));
     form stationary for stationarity {{
         test eta:{test_unit} for c zero_on left,right;
+        {additional_tests}
         {expression}=0;
     }}
 }}
@@ -168,7 +171,7 @@ fn variation_rejects_wrong_holding_and_direction_bindings() {
         ),
     ] {
         let errors =
-            try_compile_profile(expression, &geometry, "1", "J/m", "J*m", "1").unwrap_err();
+            try_compile_profile(expression, &geometry, "1", "J/m", "J*m", "1", "").unwrap_err();
         assert!(
             errors
                 .iter()
@@ -183,6 +186,7 @@ fn variation_rejects_wrong_holding_and_direction_bindings() {
         "J/m^3",
         "J/m",
         "1",
+        "",
     )
     .unwrap_err();
     assert!(
@@ -217,6 +221,77 @@ fn authored_variation_direction_retains_the_field_dimension() {
 }
 
 #[test]
+fn nested_variations_retain_independent_direction_order() {
+    let geometry = geometry();
+    let mut identities = Vec::new();
+    for (first, second) in [("eta", "zeta"), ("zeta", "eta")] {
+        let expression = format!(
+            "variation(variation(energy,wrt=c,direction={first},holding=(bulk,gradient)),wrt=c,direction={second},holding=(bulk,gradient))"
+        );
+        let compiled = try_compile_profile(
+            &expression,
+            &geometry,
+            "1",
+            "J/m",
+            "J*m",
+            "1",
+            "test zeta:1 for c zero_on left,right;",
+        )
+        .unwrap();
+        let form = compiled.authored_formulations().next().unwrap();
+        assert_eq!(form.trials().len(), 1);
+        assert_eq!(form.projection().test_restrictions().len(), 2);
+        let eqiora_compiler::AuthoredFormExpressionV1::Variation { directions, .. } =
+            &form.projection().equations()[0].1
+        else {
+            panic!("retained second variation");
+        };
+        assert_eq!(directions, &[first, second]);
+        assert_eq!(
+            eqiora_compiler::AuthoredFormulationProjection::decode(
+                form.projection().canonical_bytes()
+            )
+            .unwrap(),
+            *form.projection()
+        );
+        identities.push(form.source_identity().to_owned());
+    }
+    assert_ne!(identities[0], identities[1]);
+}
+
+#[test]
+fn nested_variations_reject_dependent_directions_and_changed_holding() {
+    let geometry = geometry();
+    let first = "variation(energy,wrt=c,direction=eta,holding=(bulk,gradient))";
+    for (expression, diagnostic) in [
+        (
+            format!("variation({first},wrt=c,direction=eta,holding=(bulk,gradient))"),
+            "independent named direction",
+        ),
+        (
+            format!("variation({first},wrt=c,direction=zeta,holding=(bulk,))"),
+            "holding must name exactly",
+        ),
+        (
+            format!(
+                "variation(variation({first},wrt=c,direction=zeta,holding=(bulk,gradient)),wrt=c,direction=theta,holding=(bulk,gradient))"
+            ),
+            "only first and second",
+        ),
+    ] {
+        let extra = "test zeta:1 for c zero_on left,right; test theta:1 for c zero_on left,right;";
+        let errors =
+            try_compile_profile(&expression, &geometry, "1", "J/m", "J*m", "1", extra).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message().contains(diagnostic)),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
 fn explicit_weak_direction_retains_its_physical_dimension() {
     let geometry = geometry();
     let compiled = compile_profile(
@@ -229,4 +304,60 @@ fn explicit_weak_direction_retains_its_physical_dimension() {
     let form = compiled.authored_formulations().next().unwrap();
     let expected = [(0, 1), (1, 1), (0, 1), (0, 1), (0, 1), (0, 1), (0, 1)];
     assert_eq!(form.projection().test_restrictions()[0].3, expected);
+}
+
+#[test]
+fn second_variation_rejects_different_direction_restrictions() {
+    let geometry = geometry();
+    let expression = "variation(variation(energy,wrt=c,direction=eta,holding=(bulk,gradient)),wrt=c,direction=zeta,holding=(bulk,gradient))";
+    let errors = try_compile_profile(
+        expression,
+        &geometry,
+        "1",
+        "J/m",
+        "J*m",
+        "1",
+        "test zeta:1 for c zero_on left;",
+    )
+    .unwrap_err();
+    assert!(
+        errors.iter().any(|error| error
+            .message()
+            .contains("identical dimension and boundary restrictions")),
+        "{errors:?}"
+    );
+
+    let compiled = try_compile_profile(
+        expression,
+        &geometry,
+        "1",
+        "J/m",
+        "J*m",
+        "1",
+        "test zeta:1 for c zero_on left,right;",
+    )
+    .unwrap();
+    let form = compiled.authored_formulations().next().unwrap();
+    let text = std::str::from_utf8(form.projection().canonical_bytes()).unwrap();
+    let second = &form.projection().test_restrictions()[1];
+    for dimension in [false, true] {
+        let mut mutated = second.clone();
+        if dimension {
+            mutated.3[1].0 = 1;
+        } else {
+            mutated.2.pop();
+        }
+        let bytes = text.replace(
+            &serde_json::to_string(second).unwrap(),
+            &serde_json::to_string(&mutated).unwrap(),
+        );
+        let error =
+            eqiora_compiler::AuthoredFormulationProjection::decode(bytes.as_bytes()).unwrap_err();
+        assert!(
+            error
+                .message()
+                .contains("identical dimension and boundary restrictions"),
+            "{error:?}"
+        );
+    }
 }

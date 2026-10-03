@@ -233,7 +233,13 @@ impl AuthoredFormulationProjection {
         tests: Vec<AuthoredTestRestriction>,
         equations: Vec<(String, AuthoredFormExpressionV1, AuthoredFormExpressionV1)>,
     ) -> Result<Self, Diagnostic> {
-        let assumptions = if tests.len() > 1 {
+        let mut trial_ulids = Vec::new();
+        for (_, trial, _, _) in &tests {
+            if !trial_ulids.contains(trial) {
+                trial_ulids.push(trial.clone());
+            }
+        }
+        let assumptions = if trial_ulids.len() > 1 {
             Self::mixed_assumptions()
         } else {
             Self::required_assumptions()
@@ -242,7 +248,7 @@ impl AuthoredFormulationProjection {
             schema: SCHEMA.into(),
             source_identity,
             domain_ulid: Some(ulid(domain)),
-            trial_ulids: tests.iter().map(|t| t.1.clone()).collect(),
+            trial_ulids,
             name,
             binding: WireBinding::WeakTests { tests },
             gauge: None,
@@ -352,7 +358,7 @@ impl AuthoredFormulationProjection {
                 .iter()
                 .map(String::as_str)
                 .eq(match wire.binding {
-                    WireBinding::WeakTests { ref tests } if tests.len() > 1 => {
+                    WireBinding::WeakTests { .. } if wire.trial_ulids.len() > 1 => {
                         Self::mixed_assumptions()
                     }
                     WireBinding::Finite { .. } => super::finite::ASSUMPTIONS,
@@ -390,8 +396,18 @@ impl AuthoredFormulationProjection {
                 }
             }
             WireBinding::WeakTests { tests } => {
-                if tests.len() != wire.trial_ulids.len() || tests.len() != wire.equations.len() {
+                let second_direction =
+                    second_direction_profile(tests, &wire.trial_ulids, &wire.equations);
+                if !second_direction
+                    && (tests.len() != wire.trial_ulids.len()
+                        || tests.len() != wire.equations.len())
+                {
                     return Err(rejection("equations and test/trial inventories differ"));
+                }
+                if second_direction && (tests[0].2 != tests[1].2 || tests[0].3 != tests[1].3) {
+                    return Err(rejection(
+                        "second variation directions require identical dimension and boundary restrictions",
+                    ));
                 }
                 let mut seen = std::collections::BTreeSet::new();
                 let mut test_names = std::collections::BTreeSet::new();
@@ -407,10 +423,12 @@ impl AuthoredFormulationProjection {
                     if !test_names.insert(test_name) {
                         return Err(rejection("test names must be unique"));
                     }
-                    if !seen.insert(trial) || !wire.trial_ulids.contains(trial) {
+                    if (!seen.insert(trial) && !second_direction)
+                        || !wire.trial_ulids.contains(trial)
+                    {
                         return Err(rejection("test has repeated or foreign trial"));
                     }
-                    if (tests.len() == 1 && zero_on.is_empty())
+                    if (wire.trial_ulids.len() == 1 && zero_on.is_empty())
                         || zero_on.windows(2).any(|p| p[0] >= p[1])
                     {
                         return Err(rejection(
@@ -645,6 +663,25 @@ pub(super) fn expression(value: &AuthoredFormExpression) -> AuthoredFormExpressi
 
 fn ulid(id: RawId) -> String {
     id.ulid().to_string()
+}
+
+fn second_direction_profile(
+    tests: &[AuthoredTestRestriction],
+    trials: &[String],
+    equations: &[(String, AuthoredFormExpressionV1, AuthoredFormExpressionV1)],
+) -> bool {
+    let ([first, second], [trial], [(_, left, right)]) = (tests, trials, equations) else {
+        return false;
+    };
+    if first.1 != *trial || second.1 != *trial || first.0 == second.0 {
+        return false;
+    }
+    [left, right].iter().any(|expression| {
+        matches!(expression,
+        AuthoredFormExpressionV1::Variation { wrt_ulid, directions, .. }
+        if wrt_ulid == trial && directions.len() == 2 && directions[0] != directions[1]
+            && directions.contains(&first.0) && directions.contains(&second.0))
+    })
 }
 
 pub(super) fn rejection(message: &str) -> Diagnostic {

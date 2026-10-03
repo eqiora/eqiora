@@ -272,14 +272,15 @@ fn compile_weak(
     supports: &[crate::external::ExternalGeometrySupportBinding],
 ) -> Result<CompiledAuthoredFormulation, Diagnostic> {
     if relation_names.len() != equations.len()
-        || tests.len() != equations.len()
+        || tests.is_empty()
+        || tests.len() > 8
         || equations.is_empty()
         || equations.len() > 8
     {
         return Err(error(
             file,
             range,
-            "form requires one explicit Relation and test per equation",
+            "form requires one Relation per equation and a bounded explicit test inventory",
         ));
     }
     let relations = relation_names
@@ -325,9 +326,6 @@ fn compile_weak(
         let trial = resolve_symbol(file, range, trial, symbols)?
             .downcast::<kinds::Field>()
             .ok_or_else(|| error(file, range, "test trial is not a Field"))?;
-        if trials.contains(&trial) {
-            return Err(error(file, range, "duplicate trial test"));
-        }
         let zero_on = if tests.len() > 1 && boundaries.is_empty() {
             vec![]
         } else {
@@ -346,7 +344,9 @@ fn compile_weak(
             zero_on,
             dimension.exponents(),
         ));
-        trials.push(trial);
+        if !trials.contains(&trial) {
+            trials.push(trial);
+        }
     }
     let mut context = ExpressionContext {
         file,

@@ -6,22 +6,24 @@ use eqiora_schema::kernel::pure_operator::{CalculusNode, CalculusNodeId, PureOpe
 use eqiora_schema::kernel::typing::{ExpressionType, RootContract, SpatialSupport, TypedResidual};
 use eqiora_schema::kernel::{ObservableMeasure, ObservableReduction, SymbolRef};
 
-impl ExpressionContext<'_> {
-    pub(super) fn compile_variation(
-        &mut self,
-        expression: &Expr,
-        arguments: &eqiora_lang::CallArguments,
-    ) -> Result<AuthoredFormExpression, Diagnostic> {
-        let fail = |message| error(self.file, expression.range(), message);
+struct Request<'a> {
+    wrt: &'a Expr,
+    direction: &'a Expr,
+    holding: &'a Expr,
+}
+
+fn requests(
+    mut arguments: &eqiora_lang::CallArguments,
+) -> Result<(&Expr, Vec<Request<'_>>), &'static str> {
+    let mut requests = Vec::new();
+    loop {
+        if requests.len() == 2 {
+            return Err("only first and second functional variations are admitted");
+        }
         let (positional, named) = arguments.parts();
         let [functional] = positional else {
-            return Err(fail("variation requires one exact Observable"));
+            return Err("variation requires one exact Observable");
         };
-        let name = |value: &Expr| match value.kind() {
-            ExprKind::Name(name) => Ok(name.clone()),
-            _ => Err(fail("variation binding must be one exact local name")),
-        };
-        let functional_name = name(functional)?;
         let options = named
             .iter()
             .map(|option| (option.name(), option.value()))
@@ -32,29 +34,77 @@ impl ExpressionContext<'_> {
                 .iter()
                 .all(|key| options.contains_key(key))
         {
-            return Err(fail(
-                "variation requires exactly wrt, direction and holding",
-            ));
+            return Err("variation requires exactly wrt, direction and holding");
         }
-        let wrt_name = name(options["wrt"])?;
-        let direction = name(options["direction"])?;
+        requests.push(Request {
+            wrt: options["wrt"],
+            direction: options["direction"],
+            holding: options["holding"],
+        });
+        if let ExprKind::Call {
+            callee,
+            arguments: inner,
+        } = functional.kind()
+            && callee.as_str() == "variation"
+        {
+            arguments = inner;
+        } else {
+            requests.reverse();
+            return Ok((functional, requests));
+        }
+    }
+}
+
+impl ExpressionContext<'_> {
+    pub(super) fn compile_variation(
+        &mut self,
+        expression: &Expr,
+        arguments: &eqiora_lang::CallArguments,
+    ) -> Result<AuthoredFormExpression, Diagnostic> {
+        let fail = |message| error(self.file, expression.range(), message);
+        let (functional, requests) = requests(arguments).map_err(fail)?;
+        let name = |value: &Expr| match value.kind() {
+            ExprKind::Name(name) => Ok(name.clone()),
+            _ => Err(fail("variation binding must be one exact local name")),
+        };
+        let functional_name = name(functional)?;
+        let wrt_name = name(requests[0].wrt)?;
         let wrt = resolve_symbol(self.file, expression.range(), &wrt_name, self.symbols)?
             .downcast::<kinds::Field>()
             .ok_or_else(|| fail("variation wrt must be a Field"))?;
         let Some(KernelNode::Field(field)) = self.index.nodes.get(&wrt.erase()).copied() else {
             return Err(fail("variation Field is unavailable"));
         };
-        let Some((trial, dimension)) = self.tests.get(direction.as_str()) else {
-            return Err(fail(
-                "variation direction must be an explicitly declared test",
-            ));
-        };
-        if resolve_symbol(self.file, expression.range(), trial, self.symbols)? != wrt.erase()
-            || *dimension != field.dimension()
-        {
-            return Err(fail(
-                "variation direction must have the selected Field identity and dimension",
-            ));
+        let mut directions = Vec::new();
+        for request in &requests {
+            if resolve_symbol(
+                self.file,
+                request.wrt.range(),
+                &name(request.wrt)?,
+                self.symbols,
+            )? != wrt.erase()
+            {
+                return Err(fail("ordered variations must select the same exact Field"));
+            }
+            let direction = name(request.direction)?;
+            let Some((trial, dimension)) = self.tests.get(direction.as_str()) else {
+                return Err(fail(
+                    "variation direction must be an explicitly declared test",
+                ));
+            };
+            if resolve_symbol(self.file, expression.range(), trial, self.symbols)? != wrt.erase()
+                || *dimension != field.dimension()
+            {
+                return Err(fail(
+                    "variation direction must have the selected Field identity and dimension",
+                ));
+            }
+            if directions.contains(&direction) {
+                return Err(fail(
+                    "second variation requires an independent named direction",
+                ));
+            }
+            directions.push(direction);
         }
         let functional_id = resolve_symbol(
             self.file,
@@ -83,18 +133,6 @@ impl ExpressionContext<'_> {
                 "functional, varied Field and Formulation must share the exact Domain",
             ));
         }
-        let ExprKind::Tuple(held) = options["holding"].kind() else {
-            return Err(fail(
-                "holding must be an explicit tuple of independent bindings",
-            ));
-        };
-        let mut holding = std::collections::BTreeSet::new();
-        for value in held {
-            let id = resolve_symbol(self.file, value.range(), &name(value)?, self.symbols)?;
-            if id == wrt.erase() || !holding.insert(id) {
-                return Err(fail("holding has a repeated or varied binding"));
-            }
-        }
         let mut required = std::collections::BTreeSet::new();
         for node in functional.expression().nodes() {
             let id = match node {
@@ -108,10 +146,24 @@ impl ExpressionContext<'_> {
                 required.insert(id);
             }
         }
-        if holding != required {
-            return Err(fail(
-                "holding must name exactly the other independent Field and Parameter bindings",
-            ));
+        for request in &requests {
+            let ExprKind::Tuple(held) = request.holding.kind() else {
+                return Err(fail(
+                    "holding must be an explicit tuple of independent bindings",
+                ));
+            };
+            let mut holding = std::collections::BTreeSet::new();
+            for value in held {
+                let id = resolve_symbol(self.file, value.range(), &name(value)?, self.symbols)?;
+                if id == wrt.erase() || !holding.insert(id) {
+                    return Err(fail("holding has a repeated or varied binding"));
+                }
+            }
+            if holding != required {
+                return Err(fail(
+                    "holding must name exactly the other independent Field and Parameter bindings",
+                ));
+            }
         }
         let support = SpatialSupport::Volume {
             domain: domain.erase(),
@@ -149,8 +201,7 @@ impl ExpressionContext<'_> {
                 .expect("typed root"),
             Some(&support),
         )?;
-        let derived = local::derive(&typed_density, wrt, 1)?;
-        let directions = vec![direction.clone()];
+        let derived = local::derive(&typed_density, wrt, requests.len() as u8)?;
         let inputs = derived
             .inputs
             .iter()
@@ -178,15 +229,15 @@ impl ExpressionContext<'_> {
             AuthoredFormExpressionKind::Variation {
                 functional: functional.id(),
                 wrt,
-                directions,
-                holding: holding.into_iter().collect(),
+                directions: directions.clone(),
+                holding: required.into_iter().collect(),
                 value: Box::new(value),
             },
             functional.value_type().dimension(),
             ValueShape::scalar(),
             None,
         );
-        self.used_tests.insert(direction);
+        self.used_tests.extend(directions);
         Ok(result)
     }
 

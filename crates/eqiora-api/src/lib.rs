@@ -303,7 +303,9 @@ impl ModelDocument {
         document.authored_formulations = authored_formulations;
         document.source_provenance = source_provenance;
         for form in &document.authored_formulations {
-            if form.projection().test_restrictions().len() > 1 {
+            if form.projection().test_restrictions().len() > 1
+                && form.projection().trial_ulids().len() > 1
+            {
                 eqiora_numerics::check_authored_mixed_formulation(
                     document.program(),
                     form.projection(),

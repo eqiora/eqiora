@@ -466,8 +466,23 @@ impl ExpressionContext<'_> {
         }
         let support = self.field_support(expression, raw)?;
         self.used_tests.insert(name.into());
+        let trial_count = self
+            .tests
+            .values()
+            .map(|(trial, _)| resolve_symbol(self.file, expression.range(), trial, self.symbols))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .filter(|trial| *trial == raw)
+            .count();
         Ok(typed(
-            AuthoredFormExpressionKind::Test(field.id()),
+            if trial_count > 1 {
+                AuthoredFormExpressionKind::Direction {
+                    name: name.into(),
+                    trial: field.id(),
+                }
+            } else {
+                AuthoredFormExpressionKind::Test(field.id())
+            },
             self.tests[name].1,
             field.shape().clone(),
             support,

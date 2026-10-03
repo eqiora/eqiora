@@ -1736,8 +1736,6 @@ class Component:
         test_type = ValueType.real(dimension)
         if not isinstance(for_, _Field) or for_._owner is not self._component_token:
             raise ModuleError("test trial must be a Field from this Component")
-        if any(trial == for_._name for _, trial, _, _ in self._test_restrictions):
-            raise ModuleError("a trial Field may have only one test declaration")
         if len(self._test_restrictions) >= 8:
             raise ModuleError("weak form exceeds the 8-test limit")
         if zero_on is None:
