@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -12,6 +13,27 @@ REPOSITORY_ROOT = CI_ROOT.parents[1]
 sys.path.insert(0, str(CI_ROOT))
 
 from check_docs import BENCHMARKS, benchmark_failures  # noqa: E402
+
+
+class PythonApiGeneratorTests(unittest.TestCase):
+    def test_isolated_startup_preserves_source_tree(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            names = ("generate_python_api.py", "python_api_examples.py")
+            for name in names:
+                shutil.copy2(REPOSITORY_ROOT / "tools/docs" / name, root / name)
+            before = {path.name: path.read_bytes() for path in root.iterdir()}
+            result = subprocess.run(
+                [sys.executable, "-I", str(root / names[0]), "--help"],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(set(path.name for path in root.iterdir()), set(before))
+            for name, payload in before.items():
+                self.assertEqual((root / name).read_bytes(), payload)
 
 
 class BenchmarkCitationTests(unittest.TestCase):
