@@ -309,7 +309,10 @@ class MaterialComposition:
 
 @final
 class Observable:
-    """Opaque authored output reference returned by Component.observable()."""
+    """Retain an authored derived-output reference without ordinary expression algebra.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::Observable``.
+    """
     def __init__(self, _token: Never, _component: object = ..., _name: str = "") -> None: ...
 
 @final
@@ -1192,5 +1195,15 @@ def permute_factors(value: object, permutation: Sequence[int]) -> Expression:
     """
     ...
 
-def variation(value: Observable | Expression, *, wrt: Expression, direction: Expression, holding: Sequence[Expression] = ()) -> Expression: ...
-def contract(left: object, right: object, *, axes: Sequence[tuple[int, int]]) -> Expression: ...
+def variation(value: Observable | Expression, *, wrt: Expression, direction: Expression, holding: Sequence[Expression] = ()) -> Expression:
+    """Author a directional variation with explicit selected and held bindings.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::variation``.
+    """
+    ...
+def contract(left: object, right: object, *, axes: Sequence[tuple[int, int]]) -> Expression:
+    """Contract explicitly paired full-coordinate tensor axes.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::contract``.
+    """
+    ...
