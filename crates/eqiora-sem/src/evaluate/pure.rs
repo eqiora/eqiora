@@ -39,7 +39,12 @@ pub(super) fn evaluate(
         .collect::<Result<Vec<_>, _>>()?;
     if !complex && types.iter().all(|ty| ty.shape().is_scalar()) && result_type.shape().is_scalar()
     {
-        let root = builder.project_scalar_operator(&instance, &arguments, 1_000_000)?;
+        let root = builder.project_operator_component(
+            &instance,
+            &arguments.iter().map(|id| [*id]).collect::<Vec<_>>(),
+            &[],
+            1_000_000,
+        )?;
         let dag = builder.finish([root])?;
         return evaluate_selected(owner, &dag, &[root], &mut |_| None)?
             .pop()

@@ -148,7 +148,12 @@ impl ScalarOperatorIr {
                     .iter()
                     .map(|id| projected[id.0 as usize])
                     .collect::<Vec<_>>();
-                builder.project_scalar_operator(&instance, &ids, 1_000_000)?
+                builder.project_operator_component(
+                    &instance,
+                    &ids.iter().map(|id| [*id]).collect::<Vec<_>>(),
+                    &[],
+                    1_000_000,
+                )?
             } else {
                 self.append_instruction(&mut builder, *instruction, |id| projected[id.0 as usize])?
             };

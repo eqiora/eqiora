@@ -125,7 +125,7 @@ fn square_root_uses_rational_formal_exponents_and_typed_literal_factors() {
         )
         .unwrap();
     let projected = dag
-        .project_scalar_operator(&instance, &[unused], 3)
+        .project_operator_component(&instance, &[[unused]], &[], 3)
         .unwrap();
     let dag = dag.finish([projected]).unwrap();
     assert!(
@@ -217,7 +217,7 @@ fn require_and_select_validate_all_static_operands_without_numeric_conditions() 
         )
         .unwrap();
     let root = dag
-        .project_scalar_operator(&instance, &[argument], 4)
+        .project_operator_component(&instance, &[[argument]], &[], 4)
         .unwrap();
     let dag = dag.finish([root]).unwrap();
     assert!(matches!(dag.nodes()[2], ExprNode::Require { .. }));

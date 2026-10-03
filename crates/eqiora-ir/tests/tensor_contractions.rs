@@ -133,3 +133,71 @@ fn complex_contraction_is_bilinear_without_implicit_conjugation() {
         vec![-2.0, 12.0]
     );
 }
+
+#[test]
+fn scalar_component_projection_preserves_axes_and_bounds() {
+    let map = tensor(&[2, 2], &[2.0, 3.0, 5.0, 7.0]);
+    let vector = tensor(&[2], &[11.0, 13.0]);
+    let types =
+        [&map, &vector].map(|value| ExpressionType::<()>::new(value.value_type().clone(), None));
+    let mut builder = ExprDagBuilder::new();
+    let mut arguments = Vec::new();
+    for value in [&map, &vector] {
+        arguments.push(
+            value
+                .components()
+                .unwrap()
+                .map(|(real, imaginary)| {
+                    assert_eq!(imaginary, 0.0);
+                    builder
+                        .constant(eqiora_core::DynQuantity::new(
+                            real,
+                            DimExponents::DIMENSIONLESS,
+                        ))
+                        .unwrap()
+                })
+                .collect::<Vec<_>>(),
+        );
+    }
+    let transpose = PureOperatorDefinition::permute_axes(2, &[1, 0]).unwrap();
+    let transposed = transpose.instantiate(&types[..1]).unwrap();
+    assert!(
+        builder
+            .project_operator_component(&transposed, &[&arguments[0][..3]], &[0, 1], 100)
+            .is_err()
+    );
+    assert!(
+        builder
+            .project_operator_component(&transposed, &arguments[..1], &[2, 0], 100)
+            .is_err()
+    );
+    assert!(
+        builder
+            .project_operator_component(&transposed, &arguments[..1], &[], 100)
+            .is_err()
+    );
+    assert!(
+        builder
+            .project_operator_component(&transposed, &arguments[..1], &[0, 1], 1)
+            .is_err()
+    );
+    let selected = builder
+        .project_operator_component(&transposed, &arguments[..1], &[0, 1], 100)
+        .unwrap();
+    let contraction = PureOperatorDefinition::contract(2, 2, 1, &[(1, 0)]).unwrap();
+    let contracted = contraction.instantiate(&types).unwrap();
+    let first = builder
+        .project_operator_component(&contracted, &arguments, &[0], 100)
+        .unwrap();
+    let second = builder
+        .project_operator_component(&contracted, &arguments, &[1], 100)
+        .unwrap();
+    let dag = builder.finish([selected, first, second]).unwrap();
+    assert_eq!(
+        eqiora_ir::ScalarOperatorIr::lower(&dag)
+            .unwrap()
+            .evaluate(&[])
+            .unwrap(),
+        vec![5.0, 61.0, 146.0]
+    );
+}
