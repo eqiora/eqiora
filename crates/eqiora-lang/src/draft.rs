@@ -195,7 +195,7 @@ impl ModelDeclarations {
             }
             match declaration {
                 DraftDeclaration::FiniteSpace { name, definition } => {
-                    if let Err(error) = self.validate_factors(definition) {
+                    if let Err(error) = self.validate_space(name, definition) {
                         diagnostics.push(native_diagnostic(&self.name, name, error.to_string()));
                     }
                 }

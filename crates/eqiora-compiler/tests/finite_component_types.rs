@@ -497,3 +497,22 @@ fn finite_three_channels_reject_spatial_vectors_and_implicit_reshape() {
         assert!(CompiledModel::compile_selected("bad.eqi", &invalid, "M", &[]).is_err());
     }
 }
+
+#[test]
+fn native_space_invalid_labels_reject_before_source_projection() {
+    use eqiora_lang::{DraftDeclaration, Module};
+    use eqiora_schema::kernel::FiniteSpaceDef;
+    for label in ["not a name", "a.b", "1"] {
+        let definition = FiniteSpaceDef::new(eqiora_core::Id::new(), [label.to_owned()]).unwrap();
+        assert!(
+            Module::new(
+                "M",
+                [DraftDeclaration::FiniteSpace {
+                    name: "A".into(),
+                    definition
+                }]
+            )
+            .is_err()
+        );
+    }
+}

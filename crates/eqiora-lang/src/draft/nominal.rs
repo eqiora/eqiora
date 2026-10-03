@@ -16,10 +16,19 @@ impl ModelDeclarations {
             })
     }
 
-    pub(super) fn validate_factors(
+    pub(super) fn validate_space(
         &self,
+        name: &str,
         definition: &eqiora_schema::kernel::FiniteSpaceDef,
     ) -> Result<(), crate::AstConstructionError> {
+        if let Some(labels) = definition.labels() {
+            crate::SourceAstFactory::finite_space(
+                crate::VisibilitySyntax::Private,
+                name,
+                labels.to_vec(),
+                TextRange::new(0, 0),
+            )?;
+        }
         if let Some(factors) = definition.factors() {
             for factor in factors {
                 if !self.declarations.iter().any(|declaration| matches!(declaration,
