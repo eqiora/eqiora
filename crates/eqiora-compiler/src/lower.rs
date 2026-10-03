@@ -1,3 +1,5 @@
+mod symbols;
+pub use symbols::ModelSymbols;
 mod predicates;
 pub(crate) use predicates::comparison_operator;
 mod identities;
@@ -65,29 +67,6 @@ use crate::dimensions::{dimension_overflow, length_dimension, time_dimension};
 use crate::formulation::CompiledAuthoredFormulation;
 use crate::projection::PhysicalExposureProjectionMap;
 use crate::provenance::ProvenanceMap;
-
-/// Source-name to Semantic Kernel ID map produced with one compiled model.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ModelSymbols {
-    symbols: BTreeMap<String, RawId>,
-}
-
-impl ModelSymbols {
-    /// Resolve one source declaration name.
-    #[must_use]
-    pub fn get(&self, name: &str) -> Option<RawId> {
-        self.symbols.get(name).copied()
-    }
-
-    /// Names and IDs in deterministic lexical order.
-    pub fn iter(&self) -> impl ExactSizeIterator<Item = (&str, RawId)> {
-        self.symbols.iter().map(|(name, id)| (name.as_str(), *id))
-    }
-
-    pub(crate) fn from_map(symbols: BTreeMap<String, RawId>) -> Self {
-        Self { symbols }
-    }
-}
 
 /// One typed model transaction ready for atomic Graph Federation commit.
 #[derive(Debug)]

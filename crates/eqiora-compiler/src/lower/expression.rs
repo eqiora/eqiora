@@ -487,21 +487,7 @@ impl ExpressionLowerer<'_> {
             LoweringExpressionNode::Tensor {
                 operation,
                 arguments,
-            } => {
-                let types = arguments
-                    .iter()
-                    .map(|argument| expression_type(self.file, argument, self.bindings, None))
-                    .collect::<Result<Vec<_>, _>>()?;
-                let definition = operation.definition(&types).map_err(|error| {
-                    source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        self.file,
-                        expression.range(),
-                        error.to_string(),
-                    )
-                })?;
-                self.lower_pure_operator(expression, &definition, arguments)
-            }
+            } => self.lower_tensor(expression, operation, arguments),
             LoweringExpressionNode::PureOperator {
                 definition,
                 arguments,
@@ -990,26 +976,4 @@ pub(super) fn lowering_integer_literal(expression: &LoweringExpression) -> Optio
     };
     (value.fract() == 0.0 && value >= f64::from(i32::MIN) && value <= f64::from(i32::MAX))
         .then_some(value as i32)
-}
-
-fn instantiate_pure_dimension(
-    definition: &PureOperatorDefinition,
-    arguments: &[TypedExpression],
-) -> Option<DimExponents> {
-    if arguments.len() != definition.formals().len() {
-        return None;
-    }
-    arguments
-        .iter()
-        .zip(definition.dimension_monomial().exponents())
-        .try_fold(
-            definition.dimension_monomial().fixed_dimension(),
-            |result, (argument, exponent)| {
-                let term = argument.dimension.pow(
-                    i32::try_from(exponent.numerator()).ok()?,
-                    i32::try_from(exponent.denominator()).ok()?,
-                )?;
-                result.mul(term)
-            },
-        )
 }
