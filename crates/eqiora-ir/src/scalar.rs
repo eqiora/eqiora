@@ -1,3 +1,4 @@
+mod additive_terms;
 mod affine_analysis;
 mod instruction;
 mod lower;

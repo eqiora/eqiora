@@ -960,6 +960,8 @@ version = "0.1.2"
 dependencies = [
  "eqiora-core",
  "eqiora-schema",
+ "num-rational",
+ "num-traits",
  "sha2",
 ]
 
@@ -1056,6 +1058,8 @@ dependencies = [
  "eqiora-ir",
  "eqiora-schema",
  "eqiora-time",
+ "num-rational",
+ "num-traits",
 ]
 
 [[package]]

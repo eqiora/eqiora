@@ -9,11 +9,12 @@ pub(super) fn validate(
     program: &KernelProgram,
     plan: &ExecutionPlan,
     state: &RuntimeState,
-    variables: &[Variable],
-    solution: &[f64],
+    point: (&[Variable], &[f64]),
     relations: &BTreeSet<RawId>,
     tangents: &[tangent::Tangent],
+    settings: solver::NonlinearSettings,
 ) -> Result<(), Diagnostic> {
+    let (variables, solution) = point;
     if variables.is_empty() {
         return Ok(());
     }
@@ -102,7 +103,7 @@ pub(super) fn validate(
             "initial Jacobian is singular at the accepted point (Operator IR automatic differentiation)")
             .with_graph_path(execution_path("initialization", 0.0))
     })?;
-    continuous::validate(program, plan, &context)
+    continuous::validate(program, plan, &context, settings)
 }
 
 fn coordinate(
@@ -199,6 +200,16 @@ fn differentiate(
     context: &EvalContext<'_>,
     root_count: usize,
 ) -> Result<Vec<Vec<f64>>, Diagnostic> {
+    differentiate_with_time(operator, variables, context, root_count, false)
+}
+
+fn differentiate_with_time(
+    operator: &ScalarOperatorIr,
+    variables: &[Variable],
+    context: &EvalContext<'_>,
+    root_count: usize,
+    time_column: bool,
+) -> Result<Vec<Vec<f64>>, Diagnostic> {
     let inputs = operator
         .symbols()
         .iter()
@@ -211,7 +222,13 @@ fn differentiate(
     let columns = operator
         .symbols()
         .iter()
-        .map(|&symbol| coordinate(symbol, variables, context))
+        .map(|&symbol| {
+            if time_column && symbol == SymbolRef::Time {
+                Some(variables.len())
+            } else {
+                coordinate(symbol, variables, context)
+            }
+        })
         .collect::<Vec<_>>();
     let roles = columns
         .iter()
@@ -224,8 +241,9 @@ fn differentiate(
         })
         .collect::<Vec<_>>();
     let linearization = operator.linearize_typed(&inputs, &roles)?;
-    let mut rows = vec![vec![0.0; variables.len()]; root_count];
-    for column in 0..variables.len() {
+    let width = variables.len() + usize::from(time_column);
+    let mut rows = vec![vec![0.0; width]; root_count];
+    for column in 0..width {
         let direction = columns
             .iter()
             .filter_map(|mapped| mapped.map(|mapped| if mapped == column { 1.0 } else { 0.0 }))
@@ -234,6 +252,39 @@ fn differentiate(
         linearization.jvp(RelationTangent::Unknown(&direction), &mut output)?;
         for (row, value) in rows.iter_mut().zip(output) {
             row[column] = value;
+        }
+    }
+    Ok(rows)
+}
+
+// Reuse the same typed AD for opaque terms, accumulating algebraic coefficients
+// exactly. Mass, free-rate columns, and Time terms must use one coefficient
+// interpretation, including under equivalent constant-scaled row presentations.
+fn exact_jacobian(
+    operator: &ScalarOperatorIr,
+    variables: &[Variable],
+    context: &EvalContext<'_>,
+    inputs: &[eqiora_core::ValueLiteral],
+) -> Result<Vec<Vec<num_rational::BigRational>>, Diagnostic> {
+    use num_rational::BigRational;
+    use num_traits::Zero;
+    let mut rows = vec![vec![BigRational::zero(); variables.len()]; operator.residual_count()];
+    for (slot, &symbol) in operator.symbols().iter().enumerate() {
+        let Some(column) = coordinate(symbol, variables, context) else {
+            continue;
+        };
+        for (atom, coefficients) in operator.additive_terms(inputs, symbol)? {
+            let linearization = atom.linearize_typed(
+                std::slice::from_ref(&inputs[slot]),
+                &[DifferentiationRole::Unknown],
+            )?;
+            let mut derivative = [0.0];
+            linearization.jvp(RelationTangent::Unknown(&[1.0]), &mut derivative)?;
+            let derivative =
+                BigRational::from_float(derivative[0]).expect("finite typed AD result");
+            for (row, coefficient) in rows.iter_mut().zip(coefficients) {
+                row[column] += coefficient * &derivative;
+            }
         }
     }
     Ok(rows)

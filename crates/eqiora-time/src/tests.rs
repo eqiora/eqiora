@@ -359,3 +359,115 @@ fn local_constant_mass_regularity_distinguishes_hidden_and_coupled_constraints()
     assert!(hidden.require_index_one_regularity(&[1.0]).is_err());
     assert!(hidden.require_index_one_regularity(&[f64::NAN; 4]).is_err());
 }
+
+fn exact_column(values: &[f64]) -> Vec<num_rational::BigRational> {
+    values
+        .iter()
+        .map(|value| num_rational::BigRational::from_float(*value).unwrap())
+        .collect()
+}
+
+#[test]
+fn compatibility_projection_is_row_invariant_and_avoids_a_bad_basic_witness() {
+    let epsilon = 2.0_f64.powi(-40);
+    let delta = 2.0_f64.powi(-30);
+    let mass = ConstantDerivativeMatrixProof::new(2, vec![epsilon, 0.0, 1.0, 0.0]).unwrap();
+    let rhs = exact_column(&[epsilon + delta, 1.0]);
+    let residual = mass.compatibility_residual(&[], &rhs).unwrap();
+    // Exact least-squares residual: [delta, -epsilon*delta]/(1+epsilon²).
+    assert_eq!(
+        residual,
+        vec![
+            delta / (1.0 + epsilon * epsilon),
+            -epsilon * delta / (1.0 + epsilon * epsilon)
+        ]
+    );
+    let permuted = ConstantDerivativeMatrixProof::new(2, vec![1.0, 0.0, epsilon, 0.0]).unwrap();
+    assert_eq!(
+        permuted
+            .compatibility_residual(&[], &exact_column(&[1.0, epsilon + delta]))
+            .unwrap(),
+        vec![residual[1], residual[0]]
+    );
+    assert_eq!(
+        mass.compatibility_residual(&[exact_column(&[1.0, 0.0])], &rhs)
+            .unwrap(),
+        vec![0.0, 0.0]
+    );
+}
+
+#[test]
+fn compatibility_projection_handles_zero_rank_and_rejects_invalid_inputs() {
+    let mass = ConstantDerivativeMatrixProof::new(2, vec![0.0; 4]).unwrap();
+    assert_eq!(
+        mass.compatibility_residual(&[], &exact_column(&[2.0, -3.0]))
+            .unwrap(),
+        vec![2.0, -3.0]
+    );
+    assert!(
+        mass.compatibility_residual(&[], &exact_column(&[1.0]))
+            .is_err()
+    );
+    assert!(
+        mass.compatibility_residual(&[exact_column(&[1.0])], &exact_column(&[1.0, 2.0]))
+            .is_err()
+    );
+    assert!(
+        mass.compatibility_residual(
+            &[vec![
+                num_rational::BigRational::new_raw(1.into(), 0.into());
+                2
+            ]],
+            &exact_column(&[1.0, 2.0])
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn exact_compatibility_does_not_confuse_underflow_with_column_membership() {
+    let epsilon = f64::MIN_POSITIVE;
+    let tiny = f64::from_bits(1);
+    let mass = ConstantDerivativeMatrixProof::new(2, vec![1.0, 0.0, epsilon, 0.0]).unwrap();
+    // Non-proportional columns: both exact residual components round to zero.
+    let column = exact_column(&[tiny, 0.0]);
+    assert!(!mass.is_compatible(&[], &column).unwrap());
+    assert_eq!(
+        mass.compatibility_residual(&[], &column).unwrap(),
+        vec![0.0, 0.0]
+    );
+    assert!(
+        mass.is_compatible(&[], &exact_column(&[1.0, epsilon]))
+            .unwrap()
+    );
+}
+
+#[test]
+fn exact_matrix_proof_preserves_products_and_rejects_invalid_raw_rationals() {
+    use num_rational::BigRational;
+    let tenth = BigRational::from_float(0.1).unwrap();
+    let scale = &tenth * &tenth;
+    let mass = ConstantDerivativeMatrixProof::from_exact(
+        2,
+        vec![
+            BigRational::from_integer(1.into()),
+            BigRational::from_integer(0.into()),
+            scale.clone(),
+            BigRational::from_integer(0.into()),
+        ],
+    )
+    .unwrap();
+    assert_eq!(mass.exact_rank(), 1);
+    assert!(
+        mass.is_compatible(&[], &[BigRational::from_integer(1.into()), scale])
+            .unwrap()
+    );
+    let invalid = BigRational::new_raw(1.into(), 0.into());
+    assert!(ConstantDerivativeMatrixProof::from_exact(1, vec![invalid.clone()]).is_err());
+    let full = ConstantDerivativeMatrixProof::new(1, vec![1.0]).unwrap();
+    assert!(
+        full.compatibility_residual(&[], std::slice::from_ref(&invalid))
+            .is_err()
+    );
+    assert!(full.is_compatible(&[], &[invalid]).is_err());
+}

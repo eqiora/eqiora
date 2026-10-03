@@ -5,7 +5,8 @@ use crate::problem::InitialConditionPolicy;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
 use num_rational::BigRational;
-use num_traits::Zero;
+use num_traits::{ToPrimitive, Zero};
+mod exact;
 use std::collections::HashSet;
 
 /// Structural rank promised by the lowering that produced a mass matrix.
@@ -56,11 +57,15 @@ impl MonomialDerivativeRow {
 /// number represented by its bits. Rank is then recomputed with arbitrary-
 /// precision rational elimination. The stored rank is therefore evidence
 /// about the lowered matrix itself, not a sample-state estimate or a
-/// backend-dependent floating-point classification.
+/// backend-dependent floating-point classification. The binary64 constructor
+/// retains binary64 coefficients for numerical time backends; `from_exact`
+/// retains rational coefficients for symbolic compatibility projection. Both
+/// representations share the same exact elimination and rank owner.
 #[derive(Debug, Clone, PartialEq)]
-pub struct ConstantDerivativeMatrixProof {
+pub struct ConstantDerivativeMatrixProof<C = f64> {
     dimension: usize,
-    coefficients: Vec<f64>,
+    coefficients: Vec<C>,
+    exact_coefficients: Vec<BigRational>,
     exact_rank: usize,
 }
 
@@ -94,14 +99,52 @@ impl ConstantDerivativeMatrixProof {
                 *coefficient = 0.0;
             }
         }
-        let exact_rank = exact_binary_rational_rank(dimension, &coefficients);
+        let exact_coefficients = coefficients
+            .iter()
+            .map(|value| BigRational::from_float(*value).expect("validated finite coefficient"))
+            .collect::<Vec<_>>();
+        let exact_rank = exact_matrix_rank(dimension, &exact_coefficients);
         Ok(Self {
             dimension,
             coefficients,
+            exact_coefficients,
             exact_rank,
         })
     }
+}
 
+impl ConstantDerivativeMatrixProof<BigRational> {
+    /// Construct a matrix from exact symbolic coefficients without first
+    /// rounding their sums or products to binary64.
+    ///
+    /// # Errors
+    /// Rejects empty/non-square matrices and raw rationals with zero denominators.
+    pub fn from_exact(
+        dimension: usize,
+        coefficients: Vec<BigRational>,
+    ) -> Result<Self, Diagnostic> {
+        if dimension == 0
+            || dimension.checked_mul(dimension) != Some(coefficients.len())
+            || coefficients.iter().any(|value| value.denom().is_zero())
+        {
+            return Err(invalid_lowering(
+                "exact derivative proof requires a non-empty square rational matrix",
+            ));
+        }
+        let coefficients = coefficients
+            .into_iter()
+            .map(|value| value.reduced())
+            .collect::<Vec<_>>();
+        Ok(Self {
+            dimension,
+            exact_rank: exact_matrix_rank(dimension, &coefficients),
+            exact_coefficients: coefficients.clone(),
+            coefficients,
+        })
+    }
+}
+
+impl<C> ConstantDerivativeMatrixProof<C> {
     /// Number of state coordinates and residual rows.
     #[must_use]
     pub const fn dimension(&self) -> usize {
@@ -110,13 +153,13 @@ impl ConstantDerivativeMatrixProof {
 
     /// Complete row-major coefficient storage.
     #[must_use]
-    pub fn coefficients(&self) -> &[f64] {
+    pub fn coefficients(&self) -> &[C] {
         &self.coefficients
     }
 
     /// One residual row in state-coordinate order.
     #[must_use]
-    pub fn row(&self, row: usize) -> Option<&[f64]> {
+    pub fn row(&self, row: usize) -> Option<&[C]> {
         let start = row.checked_mul(self.dimension)?;
         self.coefficients
             .get(start..start.checked_add(self.dimension)?)
@@ -126,6 +169,91 @@ impl ConstantDerivativeMatrixProof {
     #[must_use]
     pub const fn exact_rank(&self) -> usize {
         self.exact_rank
+    }
+
+    /// Orthogonal residual of `M a + C u = rhs` in the original row coordinates.
+    /// `additional_columns` supplies C column by column. Elimination and the
+    /// least-squares projection use exact binary rationals; only the returned
+    /// residual is rounded to binary64. The RHS is already exact so coefficient
+    /// accumulation cannot erase a constrained direction before projection.
+    /// Callers own residual scaling/tolerance.
+    /// This does not decide infinity-norm tolerance feasibility.
+    ///
+    /// # Errors
+    /// Returns `EQ0705` for invalid dimensions, nonfinite inputs, or a residual
+    /// that cannot be represented as a finite binary64 value.
+    pub fn compatibility_residual(
+        &self,
+        additional_columns: &[Vec<BigRational>],
+        rhs: &[BigRational],
+    ) -> Result<Vec<f64>, Diagnostic> {
+        self.exact_compatibility_residual(additional_columns, rhs)?
+            .iter()
+            .map(|value| {
+                value
+                    .to_f64()
+                    .filter(|value| value.is_finite())
+                    .ok_or_else(|| {
+                        invalid_lowering("compatibility residual is not finite binary64")
+                    })
+            })
+            .collect()
+    }
+
+    /// Whether a column belongs exactly to the span of M and the additional
+    /// columns, before rounding any residual. This is not a tolerance test.
+    ///
+    /// # Errors
+    /// Returns `EQ0705` for nonfinite inputs or mismatched row dimensions.
+    pub fn is_compatible(
+        &self,
+        additional_columns: &[Vec<BigRational>],
+        column: &[BigRational],
+    ) -> Result<bool, Diagnostic> {
+        if column.len() != self.dimension {
+            return Err(invalid_lowering(
+                "compatibility requires a finite matching column",
+            ));
+        }
+        Ok(self
+            .exact_compatibility_residual(additional_columns, column)?
+            .iter()
+            .all(BigRational::is_zero))
+    }
+
+    fn exact_compatibility_residual(
+        &self,
+        additional_columns: &[Vec<BigRational>],
+        rhs: &[BigRational],
+    ) -> Result<Vec<BigRational>, Diagnostic> {
+        let n = self.dimension;
+        if rhs.len() != n
+            || additional_columns.iter().any(|column| column.len() != n)
+            || additional_columns
+                .iter()
+                .flatten()
+                .any(|value| value.denom().is_zero())
+            || rhs.iter().any(|value| value.denom().is_zero())
+        {
+            return Err(invalid_lowering(
+                "compatibility requires finite matching rows",
+            ));
+        }
+        if self.exact_rank == n {
+            return Ok(vec![BigRational::zero(); n]);
+        }
+        let matrix = self
+            .exact_coefficients
+            .chunks_exact(n)
+            .enumerate()
+            .map(|(row, mass)| {
+                mass.iter()
+                    .cloned()
+                    .chain(additional_columns.iter().map(|column| column[row].clone()))
+                    .collect()
+            })
+            .collect::<Vec<Vec<_>>>();
+        Ok(exact::residual(&matrix, rhs))
     }
 
     /// Require local index-one regularity of the constant-mass residual.
@@ -154,17 +282,20 @@ impl ConstantDerivativeMatrixProof {
             .len()
             .checked_mul(4)
             .ok_or_else(|| invalid_lowering("regularity block size overflow"))?;
-        let mut block = vec![0.0; entries];
+        let mut block = vec![BigRational::zero(); entries];
         for row in 0..n {
-            let mass = &self.coefficients[row * n..(row + 1) * n];
-            block[row * 2 * n..row * 2 * n + n].copy_from_slice(mass);
+            let mass = &self.exact_coefficients[row * n..(row + 1) * n];
+            block[row * 2 * n..row * 2 * n + n].clone_from_slice(mass);
             let start = (n + row) * 2 * n;
-            block[start..start + n].copy_from_slice(&state_jacobian[row * n..(row + 1) * n]);
-            block[start + n..start + 2 * n].copy_from_slice(mass);
+            for column in 0..n {
+                block[start + column] = BigRational::from_float(state_jacobian[row * n + column])
+                    .expect("validated finite Jacobian");
+            }
+            block[start + n..start + 2 * n].clone_from_slice(mass);
         }
         // B=[M 0; A M]. The expected kernel dimension is n-rank(M):
         // Mu=0 and Au+Mv=0 must force u=0 without differentiating constraints.
-        let actual = Self::new(2 * n, block)?.exact_rank();
+        let actual = exact_matrix_rank(2 * n, &block);
         let expected = n + self.exact_rank;
         if actual != expected {
             return Err(invalid_lowering(format!(
@@ -173,7 +304,9 @@ impl ConstantDerivativeMatrixProof {
         }
         Ok(())
     }
+}
 
+impl ConstantDerivativeMatrixProof {
     /// Derive the monomial row view used only for explicit-ODE normalization.
     ///
     /// Returns `None` unless every row has exactly one non-zero coefficient
@@ -401,45 +534,10 @@ impl GeneralImplicitLoweringProof {
     }
 }
 
-fn exact_binary_rational_rank(dimension: usize, coefficients: &[f64]) -> usize {
+fn exact_matrix_rank(dimension: usize, coefficients: &[BigRational]) -> usize {
     let mut matrix = coefficients
-        .iter()
-        .map(|coefficient| {
-            BigRational::from_float(*coefficient)
-                .expect("constant derivative coefficients were validated as finite")
-        })
+        .chunks_exact(dimension)
+        .map(<[_]>::to_vec)
         .collect::<Vec<_>>();
-    let mut rank = 0usize;
-    for column in 0..dimension {
-        let Some(pivot_row) =
-            (rank..dimension).find(|row| !matrix[row * dimension + column].is_zero())
-        else {
-            continue;
-        };
-        if pivot_row != rank {
-            for trailing in 0..dimension {
-                matrix.swap(
-                    rank * dimension + trailing,
-                    pivot_row * dimension + trailing,
-                );
-            }
-        }
-        let pivot = matrix[rank * dimension + column].clone();
-        for row in (rank + 1)..dimension {
-            let entry = matrix[row * dimension + column].clone();
-            if entry.is_zero() {
-                continue;
-            }
-            let factor = entry / &pivot;
-            for trailing in column..dimension {
-                let correction = &factor * &matrix[rank * dimension + trailing];
-                matrix[row * dimension + trailing] -= correction;
-            }
-        }
-        rank += 1;
-        if rank == dimension {
-            break;
-        }
-    }
-    rank
+    exact::eliminate(&mut matrix, dimension).len()
 }
