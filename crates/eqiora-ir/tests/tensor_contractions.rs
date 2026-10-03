@@ -50,7 +50,7 @@ fn nonsymmetric_map_and_axis_permutation_execute_through_existing_scalar_ir() {
     assert_eq!(
         execute(
             &PureOperatorDefinition::permute_axes(2, &[1, 0]).unwrap(),
-            &[map.clone()]
+            std::slice::from_ref(&map)
         ),
         vec![2.0, 5.0, 3.0, 7.0]
     );
