@@ -103,7 +103,10 @@ fn product_sign(value: AuthoredFormExpressionV1) -> (AuthoredFormExpressionV1, b
     }
 }
 
-fn equivalent(left: &AuthoredFormExpressionV1, right: &AuthoredFormExpressionV1) -> bool {
+pub(crate) fn equivalent(
+    left: &AuthoredFormExpressionV1,
+    right: &AuthoredFormExpressionV1,
+) -> bool {
     use AuthoredFormExpressionV1 as Expression;
 
     match (left, right) {

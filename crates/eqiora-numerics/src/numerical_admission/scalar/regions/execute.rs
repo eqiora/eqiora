@@ -233,6 +233,7 @@ impl ExecutableScalarEquations {
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         Ok(CommonScalarRunOutput {
+            nullspace: None,
             fields,
             solve_report,
             assembly_report,

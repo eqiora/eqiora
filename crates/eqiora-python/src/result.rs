@@ -178,6 +178,23 @@ impl PyRunResult {
 
 #[pymethods]
 impl PyRunResult {
+    #[getter]
+    fn scalar_original_residual_norm(&self) -> Option<f64> {
+        self.native.scalar_original_residual_norm()
+    }
+    #[getter]
+    fn scalar_compatibility_residual(&self) -> Option<f64> {
+        self.native.scalar_compatibility_residual()
+    }
+    #[getter]
+    fn scalar_gauge_residual(&self) -> Option<f64> {
+        self.native.scalar_gauge_residual()
+    }
+    #[getter]
+    fn scalar_gauge_multiplier(&self) -> Option<f64> {
+        self.native.scalar_gauge_multiplier()
+    }
+
     /// Independently evaluated original mathematical conditions with operand units.
     #[getter]
     fn constraints(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyTuple>> {

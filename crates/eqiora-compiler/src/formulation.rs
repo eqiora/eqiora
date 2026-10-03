@@ -15,6 +15,7 @@ use crate::lower::ModelSymbols;
 use crate::source_identity::formulation::AuthoredFormSourceIdentity;
 
 mod expression;
+mod gauge;
 mod index;
 mod interval;
 use index::KernelIndex;
@@ -170,7 +171,7 @@ pub(crate) fn compile_component_formulations(
                         "interval requires exactly one Law and equation",
                     )]);
                 };
-                return interval::compile(
+                let mut form = interval::compile(
                     file,
                     (name, relation, left, right, range),
                     binding,
@@ -179,7 +180,21 @@ pub(crate) fn compile_component_formulations(
                     &index,
                     geometry,
                 )
-                .map_err(|e| vec![e]);
+                .map_err(|e| vec![e])?;
+                if let Some(declaration) = component.formulation_gauge(name) {
+                    let gauge =
+                        gauge::compile(file, range, declaration, &form, symbols, &index, geometry)
+                            .map_err(|e| vec![e])?;
+                    form.projection = form.projection.with_gauge(gauge).map_err(|e| vec![e])?;
+                }
+                return Ok(form);
+            }
+            if component.formulation_gauge(name).is_some() {
+                return Err(vec![error(
+                    file,
+                    range,
+                    "explicit gauges currently require an interval Formulation",
+                )]);
             }
             let eqiora_lang::FormulationBinding::WeakTests { tests } = binding else {
                 unreachable!()

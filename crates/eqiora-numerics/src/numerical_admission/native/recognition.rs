@@ -275,9 +275,10 @@ pub(crate) fn require_policy_compatibility(
         NativeSpatialPolicy::ScalarQ1
         | NativeSpatialPolicy::TransientMiniP1(_)
         | NativeSpatialPolicy::TransientCellCentered(_) => LinearOperatorProperties::General,
-        NativeSpatialPolicy::ScalarTpfa | NativeSpatialPolicy::ElasticityQ1 => {
-            LinearOperatorProperties::SymmetricPositiveDefinite
+        NativeSpatialPolicy::ScalarTpfa(_) => {
+            super::super::scalar::scalar_operator_properties(spatial)
         }
+        NativeSpatialPolicy::ElasticityQ1 => LinearOperatorProperties::SymmetricPositiveDefinite,
         NativeSpatialPolicy::StokesMiniP1(_) => LinearOperatorProperties::SymmetricIndefinite,
     };
     if !linear.planning_audit_is_coherent()

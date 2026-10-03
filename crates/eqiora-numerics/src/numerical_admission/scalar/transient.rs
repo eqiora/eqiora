@@ -125,7 +125,7 @@ impl CommonScalarPlan {
         let RecognizedNativeModel::Scalar(equations) = self.admission.recognized_model() else {
             return Err(invalid("missing scalar inventory"));
         };
-        let structure = equations.algebraic_structure()?;
+        let structure = equations.algebraic_structure(None)?;
         let checked = self
             .admission
             .linear

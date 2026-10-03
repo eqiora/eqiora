@@ -3,11 +3,20 @@ use super::*;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) enum NativeSpatialPolicy {
     ScalarQ1,
-    ScalarTpfa,
+    ScalarTpfa(Option<eqiora_solver::AlgebraicConstraint>),
     ElasticityQ1,
     StokesMiniP1(IncompressibleFlowScaleProfile2d),
     TransientMiniP1(IncompressibleFlowScaleProfile2d),
     TransientCellCentered(IncompressibleFlowScaleProfile2d),
+}
+
+impl NativeSpatialPolicy {
+    pub(super) const fn scalar_constraint(self) -> Option<eqiora_solver::AlgebraicConstraint> {
+        match self {
+            Self::ScalarTpfa(constraint) => constraint,
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -362,7 +371,7 @@ impl RecognizedNativeAdmission {
         self.recognized.require_spatial_realization(spatial)?;
         require_policy_compatibility(spatial, &linear)?;
         validate_resources(spatial, &self.resources)?;
-        if spatial == NativeSpatialPolicy::ScalarTpfa {
+        if matches!(spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
             let RecognizedNativeModel::Scalar(equations) = &self.recognized else {
                 return Err(invalid("TPFA requires scalar equations"));
             };
@@ -386,7 +395,7 @@ impl RecognizedNativeModel {
             (self, spatial),
             (
                 Self::Scalar(_),
-                NativeSpatialPolicy::ScalarQ1 | NativeSpatialPolicy::ScalarTpfa
+                NativeSpatialPolicy::ScalarQ1 | NativeSpatialPolicy::ScalarTpfa(_)
             ) | (Self::Elasticity(_), NativeSpatialPolicy::ElasticityQ1)
                 | (Self::Stokes(_), NativeSpatialPolicy::StokesMiniP1(_))
                 | (
@@ -577,77 +586,23 @@ impl NativeNumericalAdmission {
                 "native numerical admission does not own recognized scalar-elliptic meaning",
             ));
         };
-        let structure = lowered.algebraic_structure()?;
+        let structure = lowered.algebraic_structure(self.spatial.scalar_constraint())?;
         let checked_backend = self.linear.checked_backend(backend, Some(&structure))?;
         let backend: &dyn LinearSolverBackend = &checked_backend;
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
         if self.spatial == NativeSpatialPolicy::ScalarQ1 {
             return lowered.execute(self, solve, mesh.mesh(), complete);
         }
-        let descriptor = lowered.conservation_descriptor(self.program())?;
-        let region = descriptor
-            .regions()
-            .next()
-            .expect("one admitted TPFA region");
-        let source = |coordinates: &[f64]| {
-            region.source().map_or(0.0, |source| {
-                source
-                    .expression()
-                    .evaluate(coordinates)
-                    .unwrap_or(f64::NAN)
-            })
-        };
-        let coefficient = |coordinates: &[f64]| {
-            region
-                .flux()
-                .coefficient()
-                .evaluate(coordinates)
-                .unwrap_or(f64::NAN)
-        };
-        let boundary = |axis: usize, side: BoundarySide, coordinates: &[f64]| {
-            let law = region
-                .exterior_at(axis, side)
-                .expect("admitted scalar conservation owns every side")
-                .law();
-            match law {
-                ScalarExteriorLaw::PrescribedTrace { value, .. } => {
-                    CartesianBoundaryValue::Essential(
-                        value.evaluate(coordinates).unwrap_or(f64::NAN),
-                    )
-                }
-                ScalarExteriorLaw::PrescribedOutwardFlux { value, .. } => {
-                    CartesianBoundaryValue::Natural(value.evaluate(coordinates).unwrap_or(f64::NAN))
-                }
-                ScalarExteriorLaw::ZeroOutwardFlux { .. } => CartesianBoundaryValue::Natural(0.0),
-                ScalarExteriorLaw::Robin { .. } => {
-                    unreachable!("steady scalar admission rejects Robin boundaries")
-                }
-            }
-        };
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
         match self.spatial {
             NativeSpatialPolicy::ScalarQ1 => {
                 unreachable!("Q1 executed through linear block assembly")
             }
-            NativeSpatialPolicy::ScalarTpfa => {
-                let cell = QuadratureRule::tensor_product_gauss_legendre(mesh.dimension(), 1)?;
-                let facet = if mesh.dimension() == 1 {
-                    QuadratureRule::point()
-                } else {
-                    QuadratureRule::tensor_product_gauss_legendre(mesh.dimension() - 1, 1)?
-                };
-                let finalized = finalize_scalar_elliptic_cartesian_fvm(
-                    mesh.mesh(),
-                    &coefficient,
-                    &source,
-                    &boundary,
-                    &cell,
-                    &facet,
-                    &REFERENCE_ASSEMBLY_BACKEND,
-                )?;
-                let (system, state) = finalized.into_canonical()?;
-                let solved = solve.solve(&system.linear_problem()?)?;
-                let solution = state.finish(solved, system)?;
+            NativeSpatialPolicy::ScalarTpfa(_) => {
+                let finalized = self.assemble_scalar_tpfa()?;
+                let (system, state) =
+                    finalized.into_canonical(self.spatial.scalar_constraint().map(|_| 0.))?;
+                let solution = state.solve(solve, system)?;
                 let [(field, value_type)] = lowered.single()?.form.fields() else {
                     return Err(invalid("TPFA requires one admitted Field"));
                 };
@@ -657,6 +612,7 @@ impl NativeNumericalAdmission {
                         value_type.clone(),
                         solution.cell_values().to_vec(),
                     )],
+                    nullspace: solution.nullspace_evidence().cloned(),
                     solve_report: solution.solve_report().clone(),
                     assembly_report: solution.assembly_report().clone(),
                 })
@@ -711,6 +667,7 @@ impl NativeNumericalAdmission {
 mod identity;
 mod recognition;
 mod resources;
+mod scalar;
 
 pub(super) use identity::{
     domain_separated_identity, hex_bytes, invalid, policy_identity, push_framed, replay_program,

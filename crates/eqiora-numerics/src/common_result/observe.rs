@@ -163,7 +163,7 @@ impl CommonResult {
                     ],
                     value.exact_bounds,
                 )),
-                StaticObservation::Scalar | StaticObservation::SteadyStokes(_) => None,
+                StaticObservation::Scalar(_) | StaticObservation::SteadyStokes(_) => None,
             },
             _ => None,
         }
@@ -173,7 +173,7 @@ impl CommonResult {
         match &self.payload {
             CommonResultPayload::Static(payload) => match &payload.observation {
                 StaticObservation::SteadyStokes(value) => Some((value.scalars, value.vectors)),
-                StaticObservation::Scalar | StaticObservation::Elasticity(_) => None,
+                StaticObservation::Scalar(_) | StaticObservation::Elasticity(_) => None,
             },
             _ => None,
         }

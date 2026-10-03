@@ -391,3 +391,74 @@ fn equation_rendering_never_relabels_constraints_as_equalities() {
         }
     }
 }
+
+#[test]
+fn interval_rendering_retains_gauge_reference_and_compatibility() {
+    use eqiora_compiler::StaticBindingValue;
+    use eqiora_core::{DimExponents, ScalarDomain, ValueLiteral, ValueType};
+    let graph = eqiora_geometry::GeometryGraph::new();
+    let interval = graph.interval([0., 1.]).unwrap();
+    let geometry = graph
+        .build(
+            &interval,
+            &std::collections::BTreeMap::from([
+                ("body".into(), vec![interval.region().into()]),
+                ("left".into(), vec![interval.boundaries()[0].into()]),
+                ("right".into(), vec![interval.boundaries()[1].into()]),
+            ]),
+        )
+        .unwrap();
+    let dimension = DimExponents::from_integers([0, -2, 0, 0, 0, 0, 0]).unwrap();
+    let source_value = ValueLiteral::from_real(
+        ValueType::scalar(ScalarDomain::Real, dimension).unwrap(),
+        0.,
+    )
+    .unwrap();
+    let source = r#"public component M(
+        support body:volume(ambient_dimension=1), parameter source_value:1/m^2
+    ) {
+        variable potential:1 on body;
+        law balance on body { flux -grad(potential); source source_value; }
+        form conservative for balance {
+            interval segment(a,b) on body;
+            gauge potential {
+                reference integrate(body,potential)=0;
+                compatibility integrate(body,source_value)=0;
+            }
+            outward_flux(segment,a,-grad(potential))+outward_flux(segment,b,-grad(potential))=integrate(segment,source_value);
+        }
+    }"#;
+    let document = ModelDocument::compile_selected(
+        "gauge.eqi",
+        source,
+        "M",
+        &[
+            ("source_value", StaticBindingValue::Value(&source_value)),
+            (
+                "body",
+                StaticBindingValue::GeometrySupport {
+                    geometry: &geometry,
+                    selection: geometry.entity_set("body").unwrap(),
+                    parent: None,
+                },
+            ),
+        ],
+    )
+    .unwrap();
+    let projection = document
+        .authored_formulations()
+        .next()
+        .unwrap()
+        .projection();
+    for profile in PROFILES {
+        let rendered = document.render_formulations(profile).unwrap().remove(0);
+        for condition in ["with_constant_gauge", "reference", "compatibility"] {
+            assert!(rendered.plain().contains(condition), "{}", rendered.plain());
+        }
+        assert!(rendered.references().iter().any(|reference| {
+            reference.graph_id().is_some_and(|id| {
+                Some(id.ulid().to_string().as_str()) == projection.gauge_field_ulid()
+            })
+        }));
+    }
+}

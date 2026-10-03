@@ -76,7 +76,7 @@ impl FinalizedScalarEllipticCartesianProblem {
         target: Target,
         assembly: FinalizedCartesianFvmAssembly,
     ) -> Result<Self, Diagnostic> {
-        let (canonical_system, state) = assembly.into_canonical()?;
+        let (canonical_system, state) = assembly.into_canonical(None)?;
         Ok(Self {
             portable_realization,
             method: DiscretizationMethod::CellCenteredFiniteVolume,

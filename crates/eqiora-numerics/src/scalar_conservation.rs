@@ -47,6 +47,7 @@ pub(crate) struct ScalarExteriorLineage {
     relation: RawId,
     operator_expression: ExprId,
     datum_expression: Option<ExprId>,
+    datum_negative: bool,
     robin_coefficient_expression: Option<ExprId>,
     robin_trace_expression: Option<ExprId>,
 }
@@ -60,6 +61,10 @@ impl ScalarExteriorLineage {
     }
     pub(crate) const fn datum_expression(&self) -> Option<ExprId> {
         self.datum_expression
+    }
+    /// Sign of the retained datum in the admitted outward conormal value.
+    pub(crate) const fn datum_negative(&self) -> bool {
+        self.datum_negative
     }
     pub(crate) const fn robin_coefficient_expression(&self) -> Option<ExprId> {
         self.robin_coefficient_expression

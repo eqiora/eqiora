@@ -9,6 +9,7 @@ pub(crate) struct FormulationDecl {
     pub(crate) binding: FormulationBinding,
     pub(crate) relations: Vec<String>,
     pub(crate) equations: Vec<(Expr, Expr)>,
+    pub(crate) gauge: Option<(String, [(Expr, Expr); 2])>,
     pub(crate) range: TextRange,
 }
 
@@ -36,6 +37,18 @@ impl ComponentDecl {
             .iter()
             .find(|form| form.name == name)
             .map(|form| &form.binding)
+    }
+
+    /// An explicit constant scalar gauge: its Field, reference equality and
+    /// load-compatibility equality. This is mathematical Formulation meaning,
+    /// not a numerical basis or an implicit repair of the Model equations.
+    #[must_use]
+    pub fn formulation_gauge(&self, name: &str) -> Option<(&str, &[(Expr, Expr); 2])> {
+        self.formulations
+            .iter()
+            .find(|form| form.name == name)
+            .and_then(|form| form.gauge.as_ref())
+            .map(|(field, conditions)| (field.as_str(), conditions))
     }
 
     /// Full component declaration range, including a visibility modifier.

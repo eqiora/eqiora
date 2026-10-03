@@ -127,8 +127,12 @@ fn recognize_exterior_law_oriented(
         .iter()
         .filter(|leaf| !operator_ids.contains(&Some(leaf.value())))
         .collect::<Vec<_>>();
-    let (value, datum_expression) = match values.as_slice() {
-        [] => (ScalarSpatialExpression::constant(dimensions, 0.0), None),
+    let (value, datum_expression, datum_negative) = match values.as_slice() {
+        [] => (
+            ScalarSpatialExpression::constant(dimensions, 0.0),
+            None,
+            false,
+        ),
         [value] if value.sign() != operator_sign || reversed_conormal => {
             if contains_state_symbol(expression, value.value()) {
                 return Err(lowering_error(
@@ -153,6 +157,7 @@ fn recognize_exterior_law_oriented(
                     },
                 )),
                 Some(value.value()),
+                value.sign() == operator_sign,
             )
         }
         _ => return Err(view.mismatch("boundary data must be the sole term opposite its operator")),
@@ -164,6 +169,7 @@ fn recognize_exterior_law_oriented(
                 relation,
                 operator_expression: trace.value(),
                 datum_expression,
+                datum_negative,
                 robin_coefficient_expression: None,
                 robin_trace_expression: None,
             },
@@ -174,6 +180,7 @@ fn recognize_exterior_law_oriented(
                     relation,
                     operator_expression: normal.value(),
                     datum_expression: None,
+                    datum_negative: false,
                     robin_coefficient_expression: None,
                     robin_trace_expression: None,
                 },
@@ -185,6 +192,7 @@ fn recognize_exterior_law_oriented(
                 relation,
                 operator_expression: normal.value(),
                 datum_expression,
+                datum_negative,
                 robin_coefficient_expression: None,
                 robin_trace_expression: None,
             },
@@ -218,6 +226,7 @@ fn recognize_exterior_law_oriented(
                     relation,
                     operator_expression: normal.value(),
                     datum_expression,
+                    datum_negative,
                     robin_coefficient_expression: Some(coefficient_expression),
                     robin_trace_expression: Some(trace_expression),
                 },

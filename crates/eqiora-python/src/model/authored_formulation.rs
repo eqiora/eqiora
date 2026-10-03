@@ -21,6 +21,7 @@ pub(super) struct PyAuthoredFormulation {
     assumptions: Vec<String>,
     relation_ids: Vec<String>,
     domain_id: String,
+    gauge_field_id: Option<String>,
     trial_field_ids: Vec<String>,
     filename: String,
     range: (u32, u32),
@@ -57,6 +58,11 @@ impl PyAuthoredFormulation {
         } else {
             "primal"
         }
+    }
+
+    #[getter]
+    fn gauge_field_id(&self) -> Option<&str> {
+        self.gauge_field_id.as_deref()
     }
 
     #[getter]
@@ -123,6 +129,7 @@ pub(super) fn project(py: Python<'_>, document: Option<&ModelDocument>) -> PyRes
                 .map(|id| id.ulid().to_string())
                 .collect(),
             domain_id: form.domain().ulid().to_string(),
+            gauge_field_id: form.projection().gauge_field_ulid().map(str::to_owned),
             trial_field_ids: form
                 .trials()
                 .iter()

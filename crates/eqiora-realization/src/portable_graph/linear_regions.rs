@@ -34,11 +34,6 @@ impl PortableRealizationGraph {
         }
         let mut fields = Vec::new();
         for (index, region) in regions.iter().enumerate() {
-            if !region.constraints().is_empty() {
-                return Err(invalid_realization(
-                    "dimensional linear Region graphs require explicitly supported gauges",
-                ));
-            }
             for binding in region.field_spaces() {
                 discretization.validate_space(binding.space())?;
                 fields.push(FieldRepresentationNode {
@@ -75,9 +70,25 @@ impl PortableRealizationGraph {
         let transformation_references = (0..transformations.len())
             .map(TransformationId::new)
             .collect();
-        let blocks = (0..fields.len())
+        let mut blocks = (0..fields.len())
             .map(|index| SystemBlock::Field(FieldRepresentationId::new(index)))
-            .collect();
+            .collect::<Vec<_>>();
+        let constraints = regions
+            .iter()
+            .flat_map(|region| region.constraints().iter().copied())
+            .collect::<Vec<_>>();
+        if !constraints.is_empty()
+            && operator_properties != LinearOperatorProperties::SymmetricIndefinite
+        {
+            return Err(invalid_realization(
+                "zero-integral multipliers require an explicit symmetric-indefinite system",
+            ));
+        }
+        blocks.extend(
+            constraints
+                .into_iter()
+                .map(SystemBlock::ConstraintMultiplier),
+        );
         crate::execution::validate_target_schedule(target, schedule)?;
         let graph = Self {
             lineage,

@@ -146,3 +146,62 @@ spec.loader.exec_module(package)
         .expect("public package must load")
         .cast_into::<PyModule>()?)
 }
+
+#[test]
+fn python_explicit_neumann_gauge_runs_and_replays_original_equation_evidence() -> PyResult<()> {
+    Python::initialize();
+    Python::attach(|py| {
+        let locals = PyDict::new(py);
+        locals.set_item("eqiora", public_module(py)?)?;
+        py.run(c_str!(r#"
+graph = eqiora.geometry.GeometryGraph()
+interval = graph.interval(bounds=(0.0, 1.0))
+geometry = graph.build(interval, named_topology={"body": interval.region, "left": interval.boundaries[0], "right": interval.boundaries[1]})
+source = '''
+public component Neumann(support body:volume(ambient_dimension=1), support left:boundary(parent=body), support right:boundary(parent=body), parameter s:1/m^2, parameter lower_load:1/m, parameter upper_load:1/m) {
+ variable u:1 on body;
+ law balance on body { flux -grad(u); source s; }
+ relation lower on left { normal(grad(u))=lower_load; }
+ relation upper on right { normal(grad(u))=upper_load; }
+ form conservative for balance {
+  interval segment(a,b) on body;
+  gauge u {
+   reference integrate(body,u)=0;
+   compatibility integrate(body,s)+lower_load+upper_load=0;
+  }
+  outward_flux(segment,a,-grad(u))+outward_flux(segment,b,-grad(u))=integrate(segment,s);
+ }
+}
+'''
+bindings={"body":geometry.selection("body"),"left":(geometry.selection("left"),geometry.selection("body")),"right":(geometry.selection("right"),geometry.selection("body")),"s":-2.0,"lower_load":1.0,"upper_load":1.0}
+model=eqiora.compile(source=source,geometry=geometry,entry="Neumann",bindings=bindings)
+form,=model.authored_formulations
+assert form.gauge_field_id==form.trial_field_ids[0]
+mesh=eqiora.meshing.generate(eqiora.meshing.resolve(geometry,eqiora.meshing.CartesianMesher(cells=(4,))))
+linear=eqiora.solve.Linear(algorithm=eqiora.solve.LinearSolver.MinimumResidual,preconditioner=eqiora.solve.Preconditioner.Identity,reduction=eqiora.solve.Reduction.Reproducible,provider=eqiora.solve.SolverProvider.reference(),relative_tolerance=1e-12,absolute_tolerance=1e-12,maximum_iterations=128)
+plan=eqiora.resolve(model,mesh=mesh,spatial=eqiora.fvm.CellCenteredTpfa(),solve=linear)
+replayed=eqiora.Plan.from_bytes(plan.to_bytes())
+result=eqiora.run(replayed)
+restored=eqiora.Result.from_bytes(replayed,result.to_bytes())
+assert restored.to_bytes()==result.to_bytes()
+assert restored.scalar_compatibility_residual==0.0
+assert restored.scalar_original_residual_norm<1e-10
+assert abs(restored.scalar_gauge_residual)<1e-10
+assert abs(restored.scalar_gauge_multiplier)<1e-10
+values=restored.output(model.field(form.gauge_field_id)).values("cell").numpy().reshape(-1).tolist()
+# Midpoint samples of x²-x+1/6, corrected by +h²/12 for zero cell integral.
+assert all(abs(a-b)<1e-10 for a,b in zip(values,[0.0625,-0.0625,-0.0625,0.0625]))
+# The symbolic compatibility condition remains the same; incompatible numeric
+# source data must fail before returning a Result, with no load projection.
+bindings["s"]=-3.0
+bad=eqiora.compile(source=source,geometry=geometry,entry="Neumann",bindings=bindings)
+bad_plan=eqiora.resolve(bad,mesh=mesh,spatial=eqiora.fvm.CellCenteredTpfa(),solve=linear)
+try:
+ eqiora.run(bad_plan)
+except Exception as error:
+ assert "incompatible" in str(error), str(error)
+else:
+ raise AssertionError("incompatible source was silently repaired")
+"#),Some(&locals),Some(&locals))
+    })
+}

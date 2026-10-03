@@ -1,5 +1,7 @@
 //! Checked mathematical interval admission for the existing scalar TPFA executor.
 use super::*;
+mod gauge;
+pub(in crate::numerical_admission) use gauge::admit as admit_gauge;
 
 pub(super) fn admit(
     admission: &NativeNumericalAdmission,
@@ -57,6 +59,11 @@ pub(super) fn admit(
         .map_err(|errors| invalid(format!("interval Model snapshot rejected: {errors:?}")))?;
     let geometry = admission.resources().geometry();
     if let Some(authored) = authored {
+        if admit_gauge(program, lowered, authored)? != admission.spatial.scalar_constraint() {
+            return Err(invalid(
+                "authored gauge differs from the realized scalar constraint",
+            ));
+        }
         if authored.equations()[0].0.as_str() != law.ulid().to_string()
             || authored.trial_ulids()[0].as_str() != region.form.fields()[0].0.ulid().to_string()
         {
@@ -66,6 +73,11 @@ pub(super) fn admit(
         }
         authored.check_interval(&transaction, geometry)?;
     } else {
+        if admission.spatial.scalar_constraint().is_some() {
+            return Err(invalid(
+                "scalar constraint requires an explicit authored gauge",
+            ));
+        }
         if eqiora_compiler::check_derived_interval_conservation(&transaction, geometry, *law)?
             .is_none()
         {

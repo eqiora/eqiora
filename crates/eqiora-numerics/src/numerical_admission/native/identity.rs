@@ -37,7 +37,13 @@ pub(crate) fn policy_identity(
     let mut bytes = Vec::new();
     match spatial {
         NativeSpatialPolicy::ScalarQ1 => bytes.extend_from_slice(b"scalar-q1"),
-        NativeSpatialPolicy::ScalarTpfa => bytes.extend_from_slice(b"scalar-tpfa"),
+        NativeSpatialPolicy::ScalarTpfa(constraint) => {
+            bytes.extend_from_slice(b"scalar-tpfa");
+            if let Some(constraint) = constraint {
+                bytes.extend_from_slice(b"zero-integral");
+                bytes.extend_from_slice(&constraint.field().ulid().to_bytes());
+            }
+        }
         NativeSpatialPolicy::ElasticityQ1 => bytes.extend_from_slice(b"elasticity-q1"),
         NativeSpatialPolicy::StokesMiniP1(scales) => {
             bytes.extend_from_slice(b"stokes-mini-p1");

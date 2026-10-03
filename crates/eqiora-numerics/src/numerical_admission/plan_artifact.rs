@@ -186,7 +186,7 @@ impl ResolvedCommonPlan {
             Self::Algebraic(_) | Self::Ode(_) => return None,
             Self::Scalar(plan) => CommonMethodRequest::Uniform(match plan.admission.spatial {
                 NativeSpatialPolicy::ScalarQ1 => CommonSpatialPolicy::Q1,
-                NativeSpatialPolicy::ScalarTpfa => CommonSpatialPolicy::CellCenteredTpfa,
+                NativeSpatialPolicy::ScalarTpfa(_) => CommonSpatialPolicy::CellCenteredTpfa,
                 _ => unreachable!("scalar Plan retains a scalar spatial policy"),
             }),
             Self::Elasticity(_) => CommonMethodRequest::Uniform(CommonSpatialPolicy::Q1),
@@ -731,7 +731,7 @@ fn spatial_request(plan: &ResolvedCommonPlan) -> Option<WireSpatialRequest> {
         ResolvedCommonPlan::Algebraic(_) | ResolvedCommonPlan::Ode(_) => None,
         ResolvedCommonPlan::Scalar(plan) => Some(uniform(match plan.admission.spatial {
             NativeSpatialPolicy::ScalarQ1 => WireSpatialPolicy::Q1,
-            NativeSpatialPolicy::ScalarTpfa => WireSpatialPolicy::CellCenteredTpfa,
+            NativeSpatialPolicy::ScalarTpfa(_) => WireSpatialPolicy::CellCenteredTpfa,
             _ => unreachable!("scalar Plan retains a scalar spatial policy"),
         })),
         ResolvedCommonPlan::Elasticity(_) => Some(uniform(WireSpatialPolicy::Q1)),

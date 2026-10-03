@@ -6,7 +6,7 @@ pub(crate) fn validate_resources(
 ) -> Result<(), Diagnostic> {
     match (spatial, resources) {
         (
-            NativeSpatialPolicy::ScalarQ1 | NativeSpatialPolicy::ScalarTpfa,
+            NativeSpatialPolicy::ScalarQ1 | NativeSpatialPolicy::ScalarTpfa(_),
             resources @ NativeMeshResources::Cartesian { .. },
         ) => validate_cartesian_resources(resources),
         (NativeSpatialPolicy::ElasticityQ1, resources @ NativeMeshResources::Cartesian { .. }) => {

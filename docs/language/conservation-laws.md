@@ -63,7 +63,7 @@ a fixed one-dimensional domain and classical divergence and boundary traces;
 it does not establish these regularity assumptions or the reverse implication.
 
 Native AST construction, source formatting, Python inspection and mathematical
-rendering retain the interval. The projection uses one tagged v4 wire for plural Relation-owned equations,
+rendering retain the interval. The projection uses one tagged v5 wire for plural Relation-owned equations,
 weak-test inventories and interval binders; displaced projection decoders are removed. Forms
 remain outside Model identity. The ordinary single-region scalar TPFA path admits
 this form on a fixed 1D Geometry with the existing positive diffusion and supported boundary conditions.
@@ -71,6 +71,37 @@ Automatic and exact integral-conservative requests derive mathematical content
 and pass the same checker; only authored requests retain authored source identity.
 Plan and Result replay preserve this distinction and rerun admission. Storage,
 multidimensional, mixed and complex forms remain unavailable.
+
+An interval form can retain an explicit constant scalar gauge after its binder:
+
+```eqi
+gauge potential {
+  reference integrate(body, potential) = 0;
+  compatibility integrate(body, source_value) + lower_load + upper_load = 0;
+}
+```
+
+The reference and compatibility equalities are separately dimension-checked and
+bound to the exact trial Field and parent support. Here the endpoint loads denote
+`n k grad(potential)`, the negative of physical outward flux, so their sum enters
+compatibility with the source integral using a plus sign. The numerical admission
+checker matches this condition to the original source and both natural boundary
+relations; a written condition alone does not establish that their values balance.
+The ordinary fixed-1D TPFA path admits the explicit zero-integral reference with
+two natural endpoints. Plan resolution retains the existing `ZeroIntegral`
+constraint and requires a solver for the resulting symmetric-indefinite bordered
+system. Before solving, execution checks the constant vector against the actual
+original matrix and checks the assembled load balance without projection. Result
+acceptance and replay reassemble the original equations and reference, retaining
+separate original-equation, compatibility and gauge residuals and the numerical
+multiplier. The scalar Field contains no multiplier entry. Python exposes these
+as `scalar_original_residual_norm`, `scalar_compatibility_residual`,
+`scalar_gauge_residual` and `scalar_gauge_multiplier`; the solve report describes
+the bordered system. Constrained differentiation is not admitted.
+
+The native P1 and TPFA paths also support an explicit spatial mean. General
+nullspaces, automatic mode discovery and finite floating-network Formulations
+remain outside this interval profile.
 
 A bounded real steady 2D Stokes system may retain two weak equations in one form.
 `form weak for momentum, continuity` pairs each equation with its declared Relation;

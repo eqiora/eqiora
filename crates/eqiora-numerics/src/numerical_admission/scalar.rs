@@ -1,6 +1,6 @@
 use super::*;
 
-mod interval;
+pub(super) mod interval;
 mod regions;
 mod transient;
 pub(crate) use regions::ExecutableScalarEquations;
@@ -66,7 +66,7 @@ pub(super) fn resolve_common_scalar_portable(
                 points_per_axis: NonZeroUsize::new(2).expect("two is non-zero"),
             },
         ),
-        NativeSpatialPolicy::ScalarTpfa => (
+        NativeSpatialPolicy::ScalarTpfa(_) => (
             DiscretizationMethod::CellCenteredFiniteVolume,
             Space::cell_constant(),
             QuadraturePolicy::CellCentroid,
@@ -93,7 +93,7 @@ pub(super) fn resolve_common_scalar_portable(
             SemanticRevision::new(admission.program().revision().0),
             RealizationRevision::new(COMMON_SCALAR_REALIZATION_REVISION),
         ),
-        lowered.discretizations(space)?,
+        lowered.discretizations(space, admission.spatial.scalar_constraint())?,
         lowered.quotients()?,
         Discretization::new(method, mesh, quadrature),
         scalar_operator_properties(admission.spatial),
@@ -110,6 +110,34 @@ pub(super) fn resolve_common_scalar_portable(
 type ObservableSupport = (Vec<[f64; 2]>, Option<(usize, BoundarySide)>);
 
 impl CommonScalarPlan {
+    pub(crate) fn check_nullspace_evidence(
+        &self,
+        values: &[f64],
+        evidence: Option<&crate::nullspace::NullspaceEvidence>,
+    ) -> Result<(), Diagnostic> {
+        self.reauthenticate_portable_realization()?;
+        match (self.admission.spatial.scalar_constraint(), evidence) {
+            (None, None) => Ok(()),
+            (Some(_), Some(evidence)) => {
+                self.admission.revalidate()?;
+                let (system, state) = self
+                    .admission
+                    .assemble_scalar_tpfa()?
+                    .into_canonical(Some(0.))?;
+                let derived = state.assess(&system, values, evidence.multiplier, self.linear())?;
+                if &derived != evidence {
+                    return Err(invalid(
+                        "scalar nullspace evidence differs from original equations and reference",
+                    ));
+                }
+                Ok(())
+            }
+            _ => Err(invalid(
+                "scalar nullspace evidence differs from its exact Plan",
+            )),
+        }
+    }
+
     /// Exact linear solver provider selected by this Plan.
     #[must_use]
     pub const fn solver_provider(&self) -> eqiora_solver::SolverProvider {
@@ -127,7 +155,7 @@ impl CommonScalarPlan {
                 "common scalar Plan lost its recognized mathematical materialization",
             ));
         };
-        if self.admission.spatial == NativeSpatialPolicy::ScalarTpfa {
+        if matches!(self.admission.spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
             let requested = self
                 .formulation
                 .as_ref()
@@ -209,7 +237,7 @@ impl CommonScalarPlan {
             })
             .collect::<Vec<_>>()
             .into_boxed_slice();
-        let is_interval = admission.spatial == NativeSpatialPolicy::ScalarTpfa;
+        let is_interval = matches!(admission.spatial, NativeSpatialPolicy::ScalarTpfa(_));
         let derived_form = if formulation_selection.is_some() && !is_interval {
             lowered.primal_form(admission.program())?
         } else {
@@ -360,6 +388,12 @@ impl CommonScalarPlan {
         selected: &[eqiora_core::Id<eqiora_core::entity::kinds::Parameter>],
         values: Option<&[f64]>,
     ) -> Result<CommonScalarDifferentiationPoint, Diagnostic> {
+        if self.admission.spatial.scalar_constraint().is_some() {
+            return Err(invalid(
+                "constrained TPFA differentiation has no admitted linearization",
+            ));
+        }
+
         if self.fields.len() != 1 {
             return Err(invalid(
                 "selected-Parameter differentiation requires a single-field Plan",
@@ -454,7 +488,7 @@ impl CommonScalarPlan {
                     assembly,
                 )?
             }
-            NativeSpatialPolicy::ScalarTpfa => {
+            NativeSpatialPolicy::ScalarTpfa(_) => {
                 let cell = QuadratureRule::tensor_product_gauss_legendre(dimension, 1)?;
                 let facet = if dimension == 1 {
                     QuadratureRule::point()
@@ -641,7 +675,7 @@ impl CommonScalarPlan {
     pub fn spatial(&self) -> CommonSpatialPolicy {
         match self.admission.spatial {
             NativeSpatialPolicy::ScalarQ1 => CommonSpatialPolicy::Q1,
-            NativeSpatialPolicy::ScalarTpfa => CommonSpatialPolicy::CellCenteredTpfa,
+            NativeSpatialPolicy::ScalarTpfa(_) => CommonSpatialPolicy::CellCenteredTpfa,
             NativeSpatialPolicy::ElasticityQ1 => {
                 unreachable!("common scalar Plan cannot own elasticity policy")
             }
@@ -661,10 +695,13 @@ impl CommonScalarPlan {
     }
 }
 
-fn scalar_operator_properties(spatial: NativeSpatialPolicy) -> LinearOperatorProperties {
+pub(super) fn scalar_operator_properties(spatial: NativeSpatialPolicy) -> LinearOperatorProperties {
     match spatial {
         NativeSpatialPolicy::ScalarQ1 => LinearOperatorProperties::General,
-        NativeSpatialPolicy::ScalarTpfa => LinearOperatorProperties::SymmetricPositiveDefinite,
+        NativeSpatialPolicy::ScalarTpfa(None) => {
+            LinearOperatorProperties::SymmetricPositiveDefinite
+        }
+        NativeSpatialPolicy::ScalarTpfa(Some(_)) => LinearOperatorProperties::SymmetricIndefinite,
         _ => unreachable!("scalar Plan owns a scalar discretization"),
     }
 }
