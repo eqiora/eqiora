@@ -99,3 +99,30 @@ impl PyTrajectory {
         })
     }
 }
+
+impl PyState {
+    pub(super) fn from_common_algebraic(
+        py: Python<'_>,
+        plan: &crate::common_plan::PyPlan,
+        state: eqiora_numerics::CommonAlgebraicState,
+    ) -> Self {
+        Self {
+            digest: state.identity().to_owned(),
+            model_digest: plan.native().model_digest().to_owned(),
+            step: 0,
+            time_s: 0.0,
+            fields: Vec::new(),
+            field_lookup: BTreeMap::new(),
+            model: Some(plan.model_handle(py)),
+            mesh: None,
+            native: None,
+            transient_plan: None,
+            ode_native: None,
+            plan_identity: Some(state.plan_identity().to_owned()),
+            algebraic_native: Some(state),
+            source_request_identity: None,
+            source_trajectory_identity: None,
+            source_kind: Some("initial"),
+        }
+    }
+}
