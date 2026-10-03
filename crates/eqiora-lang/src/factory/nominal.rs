@@ -224,7 +224,7 @@ impl SourceAstFactory {
                     .expect("coordinate basis")
                     .is_dual(),
             ],
-            "map" if value.map_bases().is_some() => {
+            "linear_map" if value.map_bases().is_some() => {
                 let (source, target) = value.map_bases().expect("map bases");
                 vec![source.is_dual(), target.is_dual()]
             }

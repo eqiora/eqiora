@@ -30,7 +30,21 @@ pub(in crate::hierarchy::parameters) fn evaluate_initializer_mode(
     (label, evaluate_values): (&str, bool),
     (resolve_clock, resolve_frame): StaticContexts<'_>,
 ) -> Result<EvaluatedParameter, Diagnostic> {
-    let mut evaluated = if matches!(expression.kind(), ExprKind::Call { callee, .. } if callee.as_str() == "tensor_value")
+    let mut evaluated = if matches!(expression.kind(), ExprKind::Call { callee, .. } if matches!(callee.as_str(), "coordinates" | "linear_map"))
+        && target.finite_bases().next().is_some()
+        && matches!(
+            target.scalar_domain(),
+            ScalarDomain::Real | ScalarDomain::Complex
+        ) {
+        let value = crate::nominal::contextual_literal(file, expression, &target)?;
+        EvaluatedParameter {
+            value: evaluate_values.then(|| value.clone()),
+            value_type: EvaluatedType::Known(target.clone()),
+            bare_literal: false,
+            expression: Some(LoweringExpression::literal(value, expression.range())),
+            lineage: Some(ParameterLineage::Constant),
+        }
+    } else if matches!(expression.kind(), ExprKind::Call { callee, .. } if callee.as_str() == "tensor_value")
     {
         super::super::tensor_values::evaluate(
             file,

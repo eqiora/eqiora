@@ -55,6 +55,7 @@ pub(in crate::interpreter) fn variables(
             | ExprNode::Neg(value)
             | ExprNode::PowI(value, _)
             | ExprNode::UnaryMath(_, value)
+            | ExprNode::FiniteUnary(_, value)
             | ExprNode::Gradient(value)
             | ExprNode::Divergence(value)
             | ExprNode::SymmetricPart(value)
@@ -65,6 +66,7 @@ pub(in crate::interpreter) fn variables(
                 real: left,
                 imag: right,
             }
+            | ExprNode::FiniteBinary(_, left, right)
             | ExprNode::Compare(_, left, right)
             | ExprNode::And(left, right)
             | ExprNode::Or(left, right)

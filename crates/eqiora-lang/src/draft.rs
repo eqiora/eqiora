@@ -935,6 +935,7 @@ impl DraftSymbolKind {
 mod ast_bridge;
 mod dimension;
 mod expression;
+mod finite;
 use expression::DraftExpressionReference;
 mod observable;
 mod parameter;

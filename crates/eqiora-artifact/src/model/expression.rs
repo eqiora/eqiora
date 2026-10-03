@@ -11,7 +11,8 @@ use eqiora_core::Diagnostic;
 use eqiora_core::entity::kinds;
 use eqiora_schema::kernel::pure_operator::PureOperatorDefinition;
 use eqiora_schema::kernel::{
-    ComparisonOp, ExprDag, ExprDagBuilder, ExprId, ExprNode, SymbolRef, UnaryMathFunction,
+    ComparisonOp, ExprDag, ExprDagBuilder, ExprId, ExprNode, FiniteBinaryOperation,
+    FiniteUnaryOperation, SymbolRef, UnaryMathFunction,
 };
 use serde::{Deserialize, Serialize};
 
@@ -423,6 +424,24 @@ pub(crate) enum WireExpressionNode {
         function: WireUnaryMath,
         value: u32,
     },
+    FiniteTranspose {
+        value: u32,
+    },
+    FiniteAdjoint {
+        value: u32,
+    },
+    FiniteApply {
+        left: u32,
+        right: u32,
+    },
+    FiniteCompose {
+        left: u32,
+        right: u32,
+    },
+    FinitePair {
+        left: u32,
+        right: u32,
+    },
     Gradient {
         value: u32,
     },
@@ -548,6 +567,28 @@ impl WireExpressionNode {
                 function: WireUnaryMath::encode(*function)?,
                 value: value.index(),
             },
+            ExprNode::FiniteUnary(operation, value) => match operation {
+                FiniteUnaryOperation::Transpose => Self::FiniteTranspose {
+                    value: value.index(),
+                },
+                FiniteUnaryOperation::Adjoint => Self::FiniteAdjoint {
+                    value: value.index(),
+                },
+            },
+            ExprNode::FiniteBinary(operation, left, right) => match operation {
+                FiniteBinaryOperation::Apply => Self::FiniteApply {
+                    left: left.index(),
+                    right: right.index(),
+                },
+                FiniteBinaryOperation::Compose => Self::FiniteCompose {
+                    left: left.index(),
+                    right: right.index(),
+                },
+                FiniteBinaryOperation::Pair => Self::FinitePair {
+                    left: left.index(),
+                    right: right.index(),
+                },
+            },
             ExprNode::Gradient(value) => Self::Gradient {
                 value: value.index(),
             },
@@ -648,6 +689,27 @@ impl WireExpressionNode {
             Self::UnaryMath { function, value } => {
                 builder.unary_math(function.decode(), operand(ids, *value)?)
             }
+            Self::FiniteTranspose { value } => {
+                builder.finite_unary(FiniteUnaryOperation::Transpose, operand(ids, *value)?)
+            }
+            Self::FiniteAdjoint { value } => {
+                builder.finite_unary(FiniteUnaryOperation::Adjoint, operand(ids, *value)?)
+            }
+            Self::FiniteApply { left, right } => builder.finite_binary(
+                FiniteBinaryOperation::Apply,
+                operand(ids, *left)?,
+                operand(ids, *right)?,
+            ),
+            Self::FiniteCompose { left, right } => builder.finite_binary(
+                FiniteBinaryOperation::Compose,
+                operand(ids, *left)?,
+                operand(ids, *right)?,
+            ),
+            Self::FinitePair { left, right } => builder.finite_binary(
+                FiniteBinaryOperation::Pair,
+                operand(ids, *left)?,
+                operand(ids, *right)?,
+            ),
             Self::Gradient { value } => builder.gradient(operand(ids, *value)?),
             Self::Divergence { value } => builder.divergence(operand(ids, *value)?),
             Self::Trace { value } => builder.trace(operand(ids, *value)?),

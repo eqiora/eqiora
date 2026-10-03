@@ -14,6 +14,7 @@ pub(super) use observable::lower_observable;
 mod physical_accessors;
 mod time_derivative;
 pub(crate) use partial::result_type as partial_result_type;
+mod finite;
 mod piecewise;
 use super::*;
 pub(super) use event::lower_event_guard;
@@ -446,6 +447,10 @@ impl ExpressionLowerer<'_> {
                     })
                     .map_err(|diagnostic| self.builder_error(expression, diagnostic))
             }
+            LoweringExpressionNode::Finite {
+                operation,
+                arguments,
+            } => self.lower_finite(expression, *operation, arguments),
             LoweringExpressionNode::Piecewise { name, arguments } => {
                 self.lower_piecewise(expression, name, arguments)
             }

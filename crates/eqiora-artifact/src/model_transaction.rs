@@ -230,7 +230,7 @@ fn operation_edge_permitted(edge: EdgeKind, from: EntityKind, to: EntityKind) ->
 pub(crate) enum WireModelPrecondition {
     ValueEquals {
         target: WireId,
-        expected: WireValueLiteral,
+        expected: Box<WireValueLiteral>,
     },
     RevisionIs {
         revision: u64,
@@ -260,7 +260,7 @@ impl WireModelPrecondition {
                 require_semantic_id(*target, "ValueEquals target")?;
                 Ok(Self::ValueEquals {
                     target: WireId::from_raw(*target),
-                    expected: WireValueLiteral::encode(expected)?,
+                    expected: Box::new(WireValueLiteral::encode(expected)?),
                 })
             }
             Precondition::RevisionIs(revision) => Ok(Self::RevisionIs {

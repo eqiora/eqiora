@@ -93,6 +93,21 @@ impl LoweringExpression {
         }
     }
 
+    pub(crate) fn finite(
+        operation: crate::math::finite::Operation,
+        arguments: Vec<Self>,
+        range: TextRange,
+    ) -> Self {
+        Self {
+            node: Arc::new(LoweringExpressionNode::Finite {
+                operation,
+                arguments,
+            }),
+            range,
+            structural_parameters: None,
+        }
+    }
+
     pub(crate) fn piecewise(name: String, arguments: Vec<Self>, range: TextRange) -> Self {
         Self {
             node: Arc::new(LoweringExpressionNode::Piecewise { name, arguments }),

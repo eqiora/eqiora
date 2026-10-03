@@ -197,4 +197,4 @@ fn bind_type(
 }
 
 mod values;
-pub(crate) use values::{bind_finite_expressions, literal};
+pub(crate) use values::{bind_finite_expressions, contextual_literal, literal};

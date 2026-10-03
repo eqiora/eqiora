@@ -176,6 +176,18 @@ pub(super) fn infer_node<I: Clone + Eq, E>(
             };
             unary_math(*function, &value)
         }
+        ExprNode::FiniteUnary(operation, value) => {
+            let Some(value) = inferred_type(inferred, *value) else {
+                return NodeInference::Unavailable;
+            };
+            value.finite_unary(*operation)
+        }
+        ExprNode::FiniteBinary(operation, left, right) => {
+            let Some((left, right)) = inferred_binary(inferred, *left, *right) else {
+                return NodeInference::Unavailable;
+            };
+            left.finite_binary(*operation, right)
+        }
         ExprNode::Gradient(value) => {
             let Some(value) = inferred_type(inferred, *value) else {
                 return NodeInference::Unavailable;

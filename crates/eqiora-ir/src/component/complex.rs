@@ -11,6 +11,35 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
             == ScalarDomain::Complex
     }
 
+    pub(super) fn lower_product_parts(
+        &mut self,
+        left: ExprId,
+        left_component: &[u32],
+        right: ExprId,
+        right_component: &[u32],
+        part: ScalarPart,
+    ) -> Result<ScalarInputValueId, Diagnostic> {
+        use ScalarPart::{Imaginary, Real};
+        if !self.is_complex(left) && !self.is_complex(right) {
+            let a = self.lower_shaped_part(left, left_component, Real)?;
+            let b = self.lower_shaped_part(right, right_component, Real)?;
+            return self.builder.mul(a, b);
+        }
+        let ar = self.lower_shaped_part(left, left_component, Real)?;
+        let ai = self.lower_shaped_part(left, left_component, Imaginary)?;
+        let br = self.lower_shaped_part(right, right_component, Real)?;
+        let bi = self.lower_shaped_part(right, right_component, Imaginary)?;
+        if part == Real {
+            let real = self.builder.mul(ar, br)?;
+            let imaginary = self.builder.mul(ai, bi)?;
+            self.builder.sub(real, imaginary)
+        } else {
+            let first = self.builder.mul(ar, bi)?;
+            let second = self.builder.mul(ai, br)?;
+            self.builder.add(first, second)
+        }
+    }
+
     pub(super) fn lower_complex(
         &mut self,
         node: &ExprNode,
@@ -23,19 +52,7 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                 self.lower_shaped_part(if part == Real { real } else { imag }, component, Real)?
             }
             ExprNode::Mul(left, right) if self.is_complex(left) || self.is_complex(right) => {
-                let ar = self.lower_shaped_part(left, component, Real)?;
-                let ai = self.lower_shaped_part(left, component, Imaginary)?;
-                let br = self.lower_shaped_part(right, component, Real)?;
-                let bi = self.lower_shaped_part(right, component, Imaginary)?;
-                if part == Real {
-                    let real = self.builder.mul(ar, br)?;
-                    let imaginary = self.builder.mul(ai, bi)?;
-                    self.builder.sub(real, imaginary)?
-                } else {
-                    let first = self.builder.mul(ar, bi)?;
-                    let second = self.builder.mul(ai, br)?;
-                    self.builder.add(first, second)?
-                }
+                self.lower_product_parts(left, component, right, component, part)?
             }
             ExprNode::UnaryMath(function, operand) => match function {
                 UnaryMathFunction::Real | UnaryMathFunction::Imag => self.lower_shaped_part(

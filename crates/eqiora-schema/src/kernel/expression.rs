@@ -1,5 +1,8 @@
 //! Inspectable expression DAG.
 
+mod finite;
+pub use finite::{FiniteBinaryOperation, FiniteUnaryOperation};
+
 pub mod property;
 mod scalar_projection;
 mod time_derivative;
@@ -193,6 +196,10 @@ pub enum ExprNode {
     SpatialCoordinate(usize),
     /// Apply one dimension-aware unary mathematical function.
     UnaryMath(UnaryMathFunction, ExprId),
+    /// Coordinate dualization or orthonormal adjoint, preserving exact finite bases.
+    FiniteUnary(FiniteUnaryOperation, ExprId),
+    /// Typed finite application, composition, or dual pairing.
+    FiniteBinary(FiniteBinaryOperation, ExprId, ExprId),
     /// Physical-space gradient. The operand's continuous Domain determines
     /// the appended spatial axis.
     Gradient(ExprId),
@@ -242,6 +249,7 @@ impl ExprNode {
             | Self::Neg(value)
             | Self::PowI(value, _)
             | Self::UnaryMath(_, value)
+            | Self::FiniteUnary(_, value)
             | Self::Gradient(value)
             | Self::Divergence(value)
             | Self::SymmetricPart(value)
@@ -253,6 +261,7 @@ impl ExprNode {
                 imag: right,
             }
             | Self::Compare(_, left, right)
+            | Self::FiniteBinary(_, left, right)
             | Self::And(left, right)
             | Self::Or(left, right)
             | Self::Add(left, right)

@@ -26,7 +26,7 @@ def test_native_finite_space_values_preserve_identity_and_exact_components():
     assert len({space, foreign}) == 2
     assert space.labels == ("A", "B")
     counts = eqiora.ValueType.counts(space)
-    coordinates = eqiora.ValueType.coordinates(space)
+    coordinates = eqiora.ValueType.coordinates(eqiora.ValueType.integer(), space)
     assert counts != coordinates
     assert counts != eqiora.ValueType.counts(foreign)
     assert counts.shape == [2] and counts.array_rank == 0
@@ -94,7 +94,7 @@ def test_source_nominal_constructors_share_scope_and_file_meaning(tmp_path):
     other = owner.parameter("other", value_type=eqiora.ValueType.counts(alternate))
     added = owner.parameter("added", value_type=eqiora.ValueType.counts(species))
     selected = owner.parameter("selected", value_type=eqiora.ValueType.index(rows))
-    change = owner.parameter("change", value_type=eqiora.ValueType.coordinates(species))
+    change = owner.parameter("change", value_type=eqiora.ValueType.coordinates(eqiora.ValueType.integer(), species))
     ordinal = owner.parameter("ordinal", value_type=eqiora.ValueType.integer())
     owner.set_default(populations, owner.counts(species, (2**53 + 1, 2)))
     owner.set_default(other, owner.counts(alternate, (2**53 + 1, 2)))

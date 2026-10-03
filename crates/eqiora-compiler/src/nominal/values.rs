@@ -41,7 +41,7 @@ fn bind(
     let ExprKind::Call { callee, arguments } = expression.kind() else {
         return Ok(());
     };
-    if !matches!(callee.as_str(), "counts" | "coordinates" | "map") {
+    if !matches!(callee.as_str(), "counts" | "coordinates" | "linear_map") {
         return Ok(());
     }
     let invalid = |message: &str| {
@@ -55,7 +55,11 @@ fn bind(
     let arguments = arguments
         .positional()
         .ok_or_else(|| invalid("finite constructor requires positional arguments"))?;
-    let arity = if callee.as_str() == "map" { 2 } else { 1 };
+    let arity = if callee.as_str() == "linear_map" {
+        2
+    } else {
+        1
+    };
     if arguments.len() != arity + 1 {
         return Err(invalid(
             "finite constructor requires its basis arguments and one component array",
@@ -115,6 +119,55 @@ pub(crate) fn literal(file: &str, expression: &Expr) -> Result<ValueLiteral, Dia
     let value_type = expression
         .resolved_nominal()
         .ok_or_else(|| invalid("nominal constructor requires exact lexical resolution"))?;
+    literal_with_type(file, expression, value_type)
+}
+
+/// A constructor's scalar literals may take their Parameter signature's domain;
+/// its exact nominal endpoints are never converted or rebound.
+pub(crate) fn contextual_literal(
+    file: &str,
+    expression: &Expr,
+    target: &ValueType,
+) -> Result<ValueLiteral, Diagnostic> {
+    let declared = expression.resolved_nominal().ok_or_else(|| {
+        source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            expression.range(),
+            "finite constructor requires exact lexical resolution",
+        )
+    })?;
+    if declared.coordinate_basis() != target.coordinate_basis()
+        || declared.map_bases() != target.map_bases()
+        || declared.finite_bases().next().is_none()
+        || !matches!(
+            target.scalar_domain(),
+            ScalarDomain::Real | ScalarDomain::Complex
+        )
+    {
+        return Err(source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            expression.range(),
+            "finite constructor does not match the exact Parameter basis",
+        ));
+    }
+    literal_with_type(file, expression, target)
+}
+
+fn literal_with_type(
+    file: &str,
+    expression: &Expr,
+    value_type: &ValueType,
+) -> Result<ValueLiteral, Diagnostic> {
+    let invalid = |message: &str| {
+        source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            expression.range(),
+            message,
+        )
+    };
     let ExprKind::Call { arguments, .. } = expression.kind() else {
         return Err(invalid("nominal literal requires a constructor"));
     };

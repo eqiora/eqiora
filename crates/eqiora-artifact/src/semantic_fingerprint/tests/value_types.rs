@@ -1136,3 +1136,40 @@ fn finite_map_replay_and_projection_preserve_source_target_and_duality() {
         StructuralSemanticFingerprint::from_program(&replay).unwrap()
     );
 }
+
+#[test]
+fn finite_operations_model_replay_and_fingerprint_keep_duality_and_operand_order() {
+    let source = r#"space Spin=orthonormal(up,down); model M() {
+ parameter a:map<complex<1>,Spin,Spin> = linear_map(Spin,Spin,[[1,math.complex(0,1)],[0,2]]);
+ parameter b:map<complex<1>,Spin,Spin> = linear_map(Spin,Spin,[[0,1],[1,0]]);
+ variable ket:coordinates<complex<1>,Spin>;
+ variable y:coordinates<complex<1>,Spin>;
+ variable norm:complex<1>;
+ relation r { y=apply(compose(a,b),ket); }
+ relation n { norm=pair(adjoint(ket),ket); }
+}"#;
+    let original = program(source);
+    let fingerprint = StructuralSemanticFingerprint::from_program(&original).unwrap();
+    let bytes = ModelEnvelope::from_program(&original)
+        .unwrap()
+        .canonical_json()
+        .unwrap();
+    let replay = ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default())
+        .unwrap()
+        .to_program()
+        .unwrap();
+    assert_eq!(original, replay);
+    assert_eq!(
+        fingerprint,
+        StructuralSemanticFingerprint::from_program(&replay).unwrap()
+    );
+    for altered in [
+        source.replace("adjoint(ket)", "transpose(ket)"),
+        source.replace("compose(a,b)", "compose(b,a)"),
+    ] {
+        assert_ne!(
+            fingerprint,
+            StructuralSemanticFingerprint::from_program(&program(&altered)).unwrap()
+        );
+    }
+}

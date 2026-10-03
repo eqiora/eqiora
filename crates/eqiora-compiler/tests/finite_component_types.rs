@@ -99,8 +99,8 @@ fn finite_literals_use_the_existing_complex_and_dimensioned_scalar_evaluator() {
 model M() {
  parameter ket:coordinates<complex<1>,Spin> = coordinates(Spin,[math.complex(1,2),math.complex(3,-4)]);
  parameter bra:coordinates<complex<1>,dual<Spin>> = coordinates(dual(Spin),[math.complex(1,-2),math.complex(3,4)]);
- parameter h:map<complex<1>,Spin,Spin> = map(Spin,Spin,[[0,math.complex(0,-1)],[math.complex(0,1),0]]);
- parameter a:map<1/s,Control,Control> = map(Control,Control,[[-1[1/s],2[1/s]],[3[1/s],-4[1/s]]]);
+ parameter h:map<complex<1>,Spin,Spin> = linear_map(Spin,Spin,[[0,math.complex(0,-1)],[math.complex(0,1),0]]);
+ parameter a:map<1/s,Control,Control> = linear_map(Control,Control,[[-1[1/s],2[1/s]],[3[1/s],-4[1/s]]]);
  variable observed:coordinates<complex<1>,Spin>; relation r {observed=ket;}
 }"#;
     let model = compile(source);
@@ -141,7 +141,7 @@ model M() {
         [-1.0, 2.0, 3.0, -4.0]
     );
     for bad in [
-        source.replace("map(Spin,Spin,[[0,", "map(Control,Spin,[[0,"),
+        source.replace("linear_map(Spin,Spin,[[0,", "linear_map(Control,Spin,[[0,"),
         source.replace("coordinates(dual(Spin),", "coordinates(Spin),"),
         source.replace("[3[1/s],-4[1/s]]", "[3[s],-4[1/s]]"),
         source.replace(
@@ -219,7 +219,7 @@ fn imported_finite_map_aliases_share_exact_spaces_and_foreign_targets_reject() {
         analyze_resolved_hierarchy,
     };
     let library = "public space Input=orthonormal(q0,q1); public space Output=orthonormal(u0,u1); space Hidden=orthonormal(h0,h1); public component Sink(parameter matrix:map<complex<1>,Input,Output>) { relation retained {matrix=matrix;} }";
-    let source = "import org.example.finite.types as first; import org.example.finite.types as second; model Main(){ instance sink:first.Sink(matrix=map(second.Input,second.Output,[[math.complex(1,2),0],[0,math.complex(3,4)]])); }";
+    let source = "import org.example.finite.types as first; import org.example.finite.types as second; model Main(){ instance sink:first.Sink(matrix=linear_map(second.Input,second.Output,[[math.complex(1,2),0],[0,math.complex(3,4)]])); }";
     let compile_modules = |source: &str| {
         let owner =
             CompilationNamespaceId::new(["org.example.finite", "0.1.0", "finite-map-types"])
@@ -239,14 +239,123 @@ fn imported_finite_map_aliases_share_exact_spaces_and_foreign_targets_reject() {
     compile_modules(source).unwrap_or_else(|errors| panic!("{errors:?}"));
     for wrong in [
         source.replace(
-            "map(second.Input,second.Output",
-            "map(second.Input,second.Input",
+            "linear_map(second.Input,second.Output",
+            "linear_map(second.Input,second.Input",
         ),
         source.replace(
-            "map(second.Input,second.Output",
-            "map(second.Input,second.Hidden",
+            "linear_map(second.Input,second.Output",
+            "linear_map(second.Input,second.Hidden",
         ),
     ] {
         assert!(compile_modules(&wrong).is_err(), "{wrong}");
     }
+}
+
+#[test]
+fn finite_source_algebra_checks_exact_endpoints_and_retains_operations() {
+    let source = r#"space Spin=orthonormal(up,down); space Control=orthonormal(q,v);
+model M() {
+ parameter h:map<complex<1>,Spin,Spin> = linear_map(Spin,Spin,[[0,math.complex(0,-1)],[math.complex(0,1),0]]);
+ variable ket:coordinates<complex<1>,Spin>;
+ variable applied:coordinates<complex<1>,Spin>;
+ variable dual:coordinates<complex<1>,dual<Spin>>;
+ variable transposed:map<complex<1>,dual<Spin>,dual<Spin>>;
+ variable adjoint:map<complex<1>,Spin,Spin>;
+ variable squared:map<complex<1>,Spin,Spin>;
+ variable norm:complex<1>;
+ relation a { applied=apply(h,ket); }
+ relation b { dual=adjoint(ket); }
+ relation c { transposed=transpose(h); }
+ relation d { adjoint=adjoint(h); }
+ relation e { squared=compose(h,h); }
+ relation f { norm=pair(adjoint(ket),ket); }
+}"#;
+    let model = compile(source);
+    let formatted = eqiora_lang::format(
+        &eqiora_lang::parse("finite.eqi", source)
+            .into_document()
+            .unwrap(),
+    );
+    assert_eq!(
+        model.transaction().ops(),
+        compile(&formatted).transaction().ops()
+    );
+    for bad in [
+        source.replace(
+            "variable ket:coordinates<complex<1>,Spin>",
+            "variable ket:coordinates<complex<1>,Control>",
+        ),
+        source.replace("pair(adjoint(ket),ket)", "pair(ket,ket)"),
+        source.replace("apply(h,ket)", "apply(ket,h)"),
+        source.replace("compose(h,h)", "compose(h,transpose(h))"),
+        source.replace("adjoint(h)", "transpose(h)"),
+        source.replace("apply(h,ket)", "apply(h)"),
+        source.replace("adjoint(ket)", "adjoint(ket,ket)"),
+    ] {
+        assert!(
+            CompiledModel::compile_selected("bad.eqi", &bad, "M", &[]).is_err(),
+            "{bad}"
+        );
+    }
+}
+
+#[test]
+fn native_finite_algebra_retains_registered_parameter_references() {
+    use eqiora_core::{DimExponents, Id, ValueLiteral};
+    use eqiora_lang::{DraftDeclaration, DraftParameter, DraftRelation, Module};
+    use eqiora_schema::kernel::FiniteSpaceDef;
+    let space = FiniteSpaceDef::new(Id::new(), ["up".into(), "down".into()]).unwrap();
+    let basis = space.basis();
+    let matrix = DraftParameter::new(
+        "h",
+        ValueLiteral::new(
+            ValueType::linear_map(
+                basis,
+                basis,
+                ScalarDomain::Complex,
+                DimExponents::DIMENSIONLESS,
+            )
+            .unwrap(),
+            [(0., 0.), (0., -1.), (0., 1.), (0., 0.)],
+        )
+        .unwrap(),
+    );
+    let vector = DraftParameter::new(
+        "ket",
+        ValueLiteral::new(
+            ValueType::coordinates(basis, ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+                .unwrap(),
+            [(1., 1.), (2., -1.)],
+        )
+        .unwrap(),
+    );
+    let mapped = matrix
+        .expression()
+        .compose_map(matrix.expression())
+        .apply(vector.expression());
+    let norm = vector.expression().adjoint().pair(vector.expression());
+    let transpose = matrix.expression().transpose().transpose();
+    let relation = DraftRelation::continuous(
+        "retained",
+        [
+            (mapped, vector.expression()),
+            (norm.clone(), norm),
+            (transpose, matrix.expression()),
+        ],
+    );
+    let declarations: Vec<DraftDeclaration> = vec![
+        DraftDeclaration::FiniteSpace {
+            name: "Spin".into(),
+            definition: space,
+        },
+        matrix.into(),
+        vector.into(),
+        relation.into(),
+    ];
+    let draft = Module::new("M", declarations.clone()).unwrap();
+    eqiora_compiler::lower_module(&draft, None, &[]).unwrap_or_else(|errors| panic!("{errors:?}"));
+    compile(&eqiora_lang::format(draft.document()));
+    let mut omitted = declarations;
+    omitted.remove(1);
+    assert!(Module::new("M", omitted).is_err());
 }

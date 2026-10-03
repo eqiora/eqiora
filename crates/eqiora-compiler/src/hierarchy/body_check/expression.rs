@@ -484,6 +484,15 @@ impl ExpressionChecker<'_, '_, '_> {
                     )
                 });
         }
+        if let Some(operation) = crate::math::finite::Operation::named(callee_name) {
+            let operands = arguments
+                .iter()
+                .map(|value| self.check(value))
+                .collect::<Result<Vec<_>, _>>()?;
+            return operation
+                .result_type(&operands)
+                .map_err(|error| type_error(self.scope.file, expression, error));
+        }
         if crate::math::piecewise::arity(callee_name).is_some() {
             let operands = arguments
                 .iter()

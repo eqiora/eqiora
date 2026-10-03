@@ -54,7 +54,7 @@
     "functions": {
       "patterns": [{
         "name": "support.function.eqiora",
-        "match": "\\b(?:boundary|boundaries|box|complementarity|component|coordinate|coordinates|counts|crossing|derivative|dual|div|dot|grad|inclusion|inequality|integral|isotropic_lift|map|measure|normal|orthonormal|partial|product|range|sum|scalar_physical|symmetric_part|tensor_value|trace|volume)\\b(?=\\s*\\()"
+        "match": "\\b(?:adjoint|apply|boundary|boundaries|box|complementarity|compose|component|coordinate|coordinates|counts|crossing|derivative|dual|div|dot|grad|inclusion|inequality|integral|isotropic_lift|linear_map|measure|normal|orthonormal|pair|partial|product|range|sum|scalar_physical|symmetric_part|tensor_value|trace|transpose|volume)\\b(?=\\s*\\()"
       }]
     },
     "constants": {

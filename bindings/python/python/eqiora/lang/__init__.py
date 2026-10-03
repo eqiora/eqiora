@@ -392,6 +392,27 @@ class Operator:
                           _sources=frozenset((self._owner,)))
 
 
+def transpose(value: object) -> Expression:
+    """Algebraic dual or transpose without conjugation."""
+    return _unary("transpose", value)
+
+def adjoint(value: object) -> Expression:
+    """Conjugate transpose in the declared orthonormal finite bases."""
+    return _unary("adjoint", value)
+
+def apply(left: object, right: object) -> Expression:
+    """Apply a map to its exact input coordinates."""
+    return _binary_function("apply", left, right)
+
+def compose(left: object, right: object) -> Expression:
+    """Compose left after right with matching nominal endpoints."""
+    return _binary_function("compose", left, right)
+
+def pair(left: object, right: object) -> Expression:
+    """Bilinearly pair dual and primal coordinates in the same basis."""
+    return _binary_function("pair", left, right)
+
+
 class _Math:
     __slots__ = ()
     pi: Final = Expression(_CREATE, _Ast.name("math.pi"), None)
@@ -1177,11 +1198,34 @@ class Component:
             raise ModuleError("count space must belong to this Module")
         return self._nominal_value("counts", self._space_syntax(space), array(components))
 
-    def coordinates(self, space: FiniteSpace, components: Sequence[object]) -> Expression:
-        """Construct signed integer coordinates in this Module's exact finite basis."""
+    def coordinates(self, space: FiniteSpace, components: Sequence[object], *, dual: bool = False) -> Expression:
+        """Construct coordinates in an exact basis; the typed context selects the scalar domain."""
         if not isinstance(space, FiniteSpace):
             raise ModuleError("coordinate space must belong to this Module")
-        return self._nominal_value("coordinates", self._space_syntax(space), array(components))
+        if type(dual) is not bool:
+            raise TypeError("dual must be bool")
+        basis = _Ast.name(self._space_syntax(space))
+        if dual:
+            basis = _Ast.call("dual", [basis])
+        value = array(components)
+        if value._owner is not None and value._owner is not self._component_token:
+            raise ModuleError("nominal value components must belong to this Component")
+        return Expression(_CREATE, _Ast.call("coordinates", [basis, value._ast]), self._component_token, _binders=value._binders, _sources=value._sources)
+
+    def linear_map(self, source: FiniteSpace, target: FiniteSpace, rows: Sequence[Sequence[object]], *, source_dual: bool = False, target_dual: bool = False) -> Expression:
+        """Construct row-major finite coefficients with explicit source and target bases."""
+        if type(source_dual) is not bool or type(target_dual) is not bool:
+            raise TypeError("basis dual flags must be bool")
+        bases = []
+        for space, dual in ((source, source_dual), (target, target_dual)):
+            if not isinstance(space, FiniteSpace):
+                raise ModuleError("map spaces must belong to this Module")
+            basis = _Ast.name(self._space_syntax(space))
+            bases.append(_Ast.call("dual", [basis]) if dual else basis)
+        value = array([array(row) for row in rows])
+        if value._owner is not None and value._owner is not self._component_token:
+            raise ModuleError("nominal value components must belong to this Component")
+        return Expression(_CREATE, _Ast.call("linear_map", [*bases, value._ast]), self._component_token, _binders=value._binders, _sources=value._sources)
 
     def index(self, set: IndexSet, value: object) -> Expression:
         """Construct a checked ordinal in an index set registered by this Component."""
@@ -2552,6 +2596,7 @@ from ._constraints import Inequality, Complementarity, inequality, complementari
 
 
 __all__ = [
+    "transpose", "adjoint", "apply", "compose", "pair",
     "BoundarySet",
     "BoundaryMember",
     "BoundarySelectionSet",

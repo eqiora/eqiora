@@ -13,7 +13,7 @@ fn ty(value: &ValueLiteral) -> Result<ExpressionType<()>, Diagnostic> {
         ty.scalar_domain(),
         ScalarDomain::Real | ScalarDomain::Complex
     ) || ty.frame() != ValueFrame::Invariant
-        || ty.array_rank() != ty.shape().rank()
+        || (ty.array_rank() != ty.shape().rank() && ty.finite_bases().next().is_none())
     {
         return Err(Diagnostic::error(
             codes::NOT_IMPLEMENTED,

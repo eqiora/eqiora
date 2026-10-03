@@ -137,7 +137,7 @@ impl SourceAstFactory {
                 Some(("coordinates", vec![basis.clone()]))
             }
             crate::ValueTypeSyntaxKind::LinearMap { source, target, .. } => {
-                Some(("map", vec![source.clone(), target.clone()]))
+                Some(("linear_map", vec![source.clone(), target.clone()]))
             }
             crate::ValueTypeSyntaxKind::Counts(name) => Some((
                 "counts",

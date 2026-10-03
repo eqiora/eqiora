@@ -37,6 +37,18 @@ impl PyValueType {
         })
     }
 
+    fn finite_scalar(scalar: &Self) -> PyResult<()> {
+        if !scalar.value.shape().is_scalar()
+            || scalar.value.frame() != ValueFrame::Invariant
+            || scalar.value.array_rank() != 0
+        {
+            return Err(PyValueError::new_err(
+                "finite components require an invariant scalar type",
+            ));
+        }
+        Ok(())
+    }
+
     fn spatial(scalar: &Self, extents: Vec<u32>) -> PyResult<Self> {
         if !scalar.value.shape().is_scalar() {
             return Err(PyValueError::new_err(
@@ -98,17 +110,49 @@ impl PyValueType {
         Self::scalar(ScalarDomain::Complex, dimension)
     }
 
+    /// Coordinates retain their exact basis, scalar domain, units, and dual role.
     #[staticmethod]
-    fn coordinates(space: &super::nominal::PyFiniteSpace) -> Self {
-        Self {
-            value: space
-                .value
-                .coordinates(
-                    eqiora::ScalarDomain::Integer,
-                    eqiora::DimExponents::DIMENSIONLESS,
-                )
-                .expect("integer coordinates"),
-        }
+    #[pyo3(signature = (scalar, space, *, dual=false))]
+    fn coordinates(
+        scalar: &Self,
+        space: &super::nominal::PyFiniteSpace,
+        dual: bool,
+    ) -> PyResult<Self> {
+        Self::finite_scalar(scalar)?;
+        let basis = space.value.basis();
+        let basis = if dual { basis.dual() } else { basis };
+        Ok(Self {
+            value: ValueType::coordinates(
+                basis,
+                scalar.value.scalar_domain(),
+                scalar.value.dimension(),
+            )
+            .map_err(|error| PyValueError::new_err(error.to_string()))?,
+        })
+    }
+
+    /// A finite map has ordered input and output bases, independent of equal extents.
+    #[staticmethod]
+    #[pyo3(signature = (scalar, source, target, *, source_dual=false, target_dual=false))]
+    fn linear_map(
+        scalar: &Self,
+        source: &super::nominal::PyFiniteSpace,
+        target: &super::nominal::PyFiniteSpace,
+        source_dual: bool,
+        target_dual: bool,
+    ) -> PyResult<Self> {
+        Self::finite_scalar(scalar)?;
+        let source = source.value.basis();
+        let target = target.value.basis();
+        Ok(Self {
+            value: ValueType::linear_map(
+                if source_dual { source.dual() } else { source },
+                if target_dual { target.dual() } else { target },
+                scalar.value.scalar_domain(),
+                scalar.value.dimension(),
+            )
+            .map_err(|error| PyValueError::new_err(error.to_string()))?,
+        })
     }
 
     #[staticmethod]

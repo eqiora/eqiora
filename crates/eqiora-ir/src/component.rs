@@ -1,4 +1,5 @@
 mod complex;
+mod finite;
 
 use std::collections::HashMap;
 
@@ -205,6 +206,7 @@ impl ComponentScalarization {
         }
         let expression = residual.expression();
         let mut rows = Vec::new();
+        let mut finite_products = 0usize;
         for (root_index, root) in expression.roots().iter().copied().enumerate() {
             let root_node_index = node_index(root, expression.nodes().len())?;
             let root_shape = residual.node_types()[root_node_index].shape();
@@ -230,6 +232,7 @@ impl ComponentScalarization {
                         root,
                         &component_index,
                         part,
+                        &mut finite_products,
                     )?;
                     let aligned = ir.slots().iter().zip(&symbols).enumerate().all(
                         |(index, (slot, coordinate))| {
@@ -302,8 +305,10 @@ fn component_single_root<I: Clone + Eq>(
     root: ExprId,
     component_index: &[u32],
     part: ScalarPart,
+    finite_products: &mut usize,
 ) -> Result<(ScalarInputOperatorIr, Vec<ScalarSymbolCoordinate>), Diagnostic> {
     let mut lowering = ComponentDagLowering {
+        finite_products,
         expression,
         node_types,
         builder: ScalarInputIrBuilder::new(),
@@ -317,6 +322,7 @@ fn component_single_root<I: Clone + Eq>(
 }
 
 struct ComponentDagLowering<'a, I> {
+    finite_products: &'a mut usize,
     expression: &'a ExprDag,
     node_types: &'a [ExpressionType<I>],
     builder: ScalarInputIrBuilder,
@@ -367,6 +373,12 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
             return Ok(mapped);
         }
         let mapped = match node {
+            ExprNode::FiniteUnary(operation, operand) => {
+                self.lower_finite_unary(operation, operand, component, part)?
+            }
+            ExprNode::FiniteBinary(operation, left, right) => {
+                self.lower_finite_binary(operation, left, right, component, part)?
+            }
             ExprNode::Constant(constant) => {
                 let flat = constant
                     .value_type()
