@@ -724,27 +724,8 @@ pub(crate) struct CommonScalarRunOutput {
     pub(crate) assembly_report: eqiora_assembly::AssemblyReport,
 }
 
-/// One accepted scalar Parameter point produced through an exact common Plan.
-#[derive(Debug, Clone, PartialEq)]
-pub struct CommonScalarDifferentiationPoint {
-    relation: AssembledLinearizedRelation,
-    output: CartesianScalarFieldLinearization,
-    receipt: ExecutionReceipt,
-}
-
-impl CommonScalarDifferentiationPoint {
-    /// Consume the point into its relation, complete Field projection, and solve receipt.
-    #[must_use]
-    pub fn into_parts(
-        self,
-    ) -> (
-        AssembledLinearizedRelation,
-        CartesianScalarFieldLinearization,
-        ExecutionReceipt,
-    ) {
-        (self.relation, self.output, self.receipt)
-    }
-}
+mod differentiation;
+pub use differentiation::CommonScalarDifferentiationPoint;
 
 /// Opaque linear-elasticity Plan owning exact Model, Mesh, and policy state.
 #[derive(Debug, Clone, PartialEq)]

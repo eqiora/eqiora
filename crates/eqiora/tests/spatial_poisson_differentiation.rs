@@ -85,7 +85,16 @@ fn application_program_is_not_published_without_an_accepted_primal() {
     let output = document
         .field_ref(&plan.fields().next().unwrap().0.ulid().to_string())
         .unwrap();
-    assert!(DifferentiableProgram::compile(plan, &inputs, &output).is_err());
+    assert!(
+        DifferentiableProgram::compile(
+            eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(plan)),
+            &inputs,
+            &output,
+            None,
+            &eqiora_solver::REFERENCE_LINEAR_SOLVER
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -105,7 +114,14 @@ fn equal_primal_systems_do_not_alias_distinct_parameter_derivatives() {
     let output = document
         .field_ref(&plan.fields().next().unwrap().0.ulid().to_string())
         .unwrap();
-    let program = DifferentiableProgram::compile(plan, &[diffusion], &output).unwrap();
+    let program = DifferentiableProgram::compile(
+        eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(plan)),
+        &[diffusion],
+        &output,
+        None,
+        &eqiora_solver::REFERENCE_LINEAR_SOLVER,
+    )
+    .unwrap();
     let positive = program.evaluate(&[1.0]).unwrap();
     let negative = program.evaluate(&[-1.0]).unwrap();
     let positive_primal = positive.primal();
@@ -142,7 +158,14 @@ fn verify_application_program(method: CommonSpatialPolicy) {
         .field_ref(&plan.fields().next().unwrap().0.ulid().to_string())
         .unwrap();
     let inputs = [source_scale, diffusion, boundary];
-    let program = DifferentiableProgram::compile(plan.clone(), &inputs, &output).unwrap();
+    let program = DifferentiableProgram::compile(
+        eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(plan.clone())),
+        &inputs,
+        &output,
+        None,
+        &eqiora_solver::REFERENCE_LINEAR_SOLVER,
+    )
+    .unwrap();
     assert_eq!(program.identity().input_dimension(), 3);
     assert_eq!(
         program.identity().inputs(),
@@ -162,11 +185,11 @@ fn verify_application_program(method: CommonSpatialPolicy) {
     let primal = program.primal();
     assert_eq!(primal.output().len(), field_value_count);
     assert_eq!(
-        primal.evidence().primal_solve().orientation(),
+        primal.evidence().primal_solve().unwrap().orientation(),
         LinearOperatorOrientation::Normal
     );
     assert_eq!(
-        primal.evidence().receipt().operator(),
+        primal.evidence().receipt().unwrap().operator(),
         primal.evidence().state_system()
     );
     assert_eq!(
@@ -327,7 +350,14 @@ fn verify_application_program(method: CommonSpatialPolicy) {
 
     assert!(program.jvp(&[1.0, 2.0, 3.0, 4.0]).is_err());
     assert!(program.vjp(&cotangent[..cotangent.len() - 1]).is_err());
-    let recomputed = DifferentiableProgram::compile(plan, &inputs, &output).unwrap();
+    let recomputed = DifferentiableProgram::compile(
+        eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(plan)),
+        &inputs,
+        &output,
+        None,
+        &eqiora_solver::REFERENCE_LINEAR_SOLVER,
+    )
+    .unwrap();
     assert_eq!(recomputed.identity(), program.identity());
     assert_eq!(recomputed.primal().output(), primal.output());
     assert_eq!(
@@ -343,9 +373,27 @@ fn verify_application_program(method: CommonSpatialPolicy) {
             1,
         ),
     );
-    assert!(DifferentiableProgram::compile(foreign_plan.clone(), &inputs, &output).is_err());
+    assert!(
+        DifferentiableProgram::compile(
+            eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(foreign_plan.clone())),
+            &inputs,
+            &output,
+            None,
+            &eqiora_solver::REFERENCE_LINEAR_SOLVER
+        )
+        .is_err()
+    );
     let foreign_inputs = [foreign.parameter_ref("source_scale").unwrap()];
-    assert!(DifferentiableProgram::compile(foreign_plan, &foreign_inputs, &output).is_err());
+    assert!(
+        DifferentiableProgram::compile(
+            eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(foreign_plan)),
+            &foreign_inputs,
+            &output,
+            None,
+            &eqiora_solver::REFERENCE_LINEAR_SOLVER
+        )
+        .is_err()
+    );
 }
 
 fn verify_method(

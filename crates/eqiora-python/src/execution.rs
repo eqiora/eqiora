@@ -2,6 +2,7 @@
 
 mod evidence;
 mod worker;
+pub(crate) use worker::resolved_linear_backend;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};

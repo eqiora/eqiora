@@ -13,7 +13,7 @@ use eqiora_solver::{
 
 use crate::spatial_design::SpatialDesignCoordinate;
 
-/// One accepted-point relation `A w - b = 0` with dense design actions.
+/// One accepted-point residual and its sparse state and dense design actions.
 ///
 /// The state action remains sparse. Parameter columns are dense because the
 /// first spatial differentiation slices have few selected coordinates; changing
@@ -22,6 +22,7 @@ use crate::spatial_design::SpatialDesignCoordinate;
 pub struct AssembledLinearizedRelation {
     state_jacobian: Arc<CanonicalCsrSystemView>,
     accepted_unknowns: Vec<f64>,
+    primal_residual: Option<Vec<f64>>,
     design_coordinates: Vec<SpatialDesignCoordinate>,
     design_values: Vec<f64>,
     design_jacobian: Vec<f64>,
@@ -96,6 +97,52 @@ impl AssembledLinearizedRelation {
         design_values: Vec<f64>,
         design_jacobian: Vec<f64>,
     ) -> Result<Self, Diagnostic> {
+        Self::from_parts(
+            state_jacobian,
+            accepted_unknowns,
+            None,
+            design_coordinates,
+            design_values,
+            design_jacobian,
+        )
+    }
+
+    /// Retain an original nonlinear residual independently of its Jacobian action.
+    /// The canonical sparse view represents `R_w`; its zero stored RHS is not
+    /// interpreted as the original mathematical equation.
+    pub fn from_point(
+        state_jacobian: CsrMatrix,
+        accepted_unknowns: Vec<f64>,
+        primal_residual: Vec<f64>,
+        design_coordinates: Vec<SpatialDesignCoordinate>,
+        design_values: Vec<f64>,
+        design_jacobian: Vec<f64>,
+        properties: LinearOperatorProperties,
+    ) -> Result<Self, Diagnostic> {
+        let rhs = vec![0.0; accepted_unknowns.len()];
+        let storage = LinearizedStorage {
+            matrix: &state_jacobian,
+            right_hand_side: &rhs,
+        };
+        let action = CanonicalCsrSystemView::new(&storage, properties)?;
+        Self::from_parts(
+            Arc::new(action),
+            accepted_unknowns,
+            Some(primal_residual),
+            design_coordinates,
+            design_values,
+            design_jacobian,
+        )
+    }
+
+    fn from_parts(
+        state_jacobian: Arc<CanonicalCsrSystemView>,
+        accepted_unknowns: Vec<f64>,
+        primal_residual: Option<Vec<f64>>,
+        design_coordinates: Vec<SpatialDesignCoordinate>,
+        design_values: Vec<f64>,
+        design_jacobian: Vec<f64>,
+    ) -> Result<Self, Diagnostic> {
         let dimension = state_jacobian.rows();
         let design_dimension = design_coordinates.len();
         let expected_design_entries = dimension
@@ -135,9 +182,18 @@ impl AssembledLinearizedRelation {
                 "assembled linearization requires finite point and action data",
             ));
         }
+        if let Some(residual) = &primal_residual {
+            if residual.len() != dimension {
+                return Err(invalid(
+                    "original residual differs from its Jacobian row dimension",
+                ));
+            }
+            finite_output(residual, "assembled original residual")?;
+        }
         Ok(Self {
             state_jacobian,
             accepted_unknowns,
+            primal_residual,
             design_coordinates,
             design_values,
             design_jacobian,
@@ -154,12 +210,6 @@ impl AssembledLinearizedRelation {
     #[must_use]
     pub fn accepted_unknowns(&self) -> &[f64] {
         &self.accepted_unknowns
-    }
-
-    /// Accepted-point right-hand side `b` in `A w - b = 0`.
-    #[must_use]
-    pub fn right_hand_side(&self) -> &[f64] {
-        self.state_jacobian.right_hand_side()
     }
 
     /// Explicit spatial design coordinates in dense action order.
@@ -233,13 +283,17 @@ impl LinearizedRelation<f64> for AssembledLinearizedRelation {
         if residual.len() != self.residual_dimension() {
             return Err(invalid("assembled primal residual shape mismatch"));
         }
-        self.state_jacobian
-            .apply(&self.accepted_unknowns, residual)?;
-        for (residual, rhs) in residual
-            .iter_mut()
-            .zip(self.state_jacobian.right_hand_side())
-        {
-            *residual -= rhs;
+        if let Some(original) = &self.primal_residual {
+            residual.copy_from_slice(original);
+        } else {
+            self.state_jacobian
+                .apply(&self.accepted_unknowns, residual)?;
+            for (value, rhs) in residual
+                .iter_mut()
+                .zip(self.state_jacobian.right_hand_side())
+            {
+                *value -= rhs;
+            }
         }
         finite_output(residual, "assembled primal residual")
     }
@@ -330,4 +384,58 @@ fn finite_output(output: &[f64], operation: &str) -> Result<(), Diagnostic> {
 
 fn invalid(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_LINEARIZATION, message)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use eqiora_core::Id;
+
+    #[test]
+    fn nonlinear_original_residual_is_not_jacobian_times_state() {
+        // R=[w0²+p*w1−5, w0+w1²−5], at w=[1,2], p=2.
+        // R=0; R_w=[[2,2],[1,4]], R_p=[2,0]. R_w*w=[6,9] is not R.
+        let jacobian = CsrMatrix::from_sorted_csr(
+            2,
+            2,
+            vec![0, 2, 4],
+            vec![0, 1, 0, 1],
+            vec![2.0, 2.0, 1.0, 4.0],
+        )
+        .unwrap();
+        let relation = AssembledLinearizedRelation::from_point(
+            jacobian,
+            vec![1.0, 2.0],
+            vec![0.0, 0.0],
+            vec![SpatialDesignCoordinate::ModelParameter(Id::new())],
+            vec![2.0],
+            vec![2.0, 0.0],
+            LinearOperatorProperties::General,
+        )
+        .unwrap();
+        let mut output = [f64::NAN; 2];
+        relation.primal(&mut output).unwrap();
+        assert_eq!(output, [0.0, 0.0]);
+        relation
+            .jvp(RelationTangent::Unknown(&[1.0, -1.0]), &mut output)
+            .unwrap();
+        assert_eq!(output, [0.0, -3.0]);
+        relation
+            .jvp(RelationTangent::Parameter(&[3.0]), &mut output)
+            .unwrap();
+        assert_eq!(output, [6.0, 0.0]);
+        let mut unknown = [0.0; 2];
+        let mut parameter = [0.0];
+        relation
+            .vjp(
+                &[2.0, -1.0],
+                RelationCotangent::Both {
+                    unknown: &mut unknown,
+                    parameter: &mut parameter,
+                },
+            )
+            .unwrap();
+        assert_eq!(unknown, [3.0, 0.0]);
+        assert_eq!(parameter, [4.0]);
+    }
 }

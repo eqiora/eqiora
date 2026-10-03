@@ -23,6 +23,8 @@ from . import (
     FieldRef as FieldRef,
     LinearizationState as LinearizationState,
     Plan,
+    ObservableRef,
+    State,
     ParameterRef as ParameterRef,
 )
 
@@ -30,7 +32,8 @@ def compile(
     plan: Plan,
     *,
     inputs: Sequence[ParameterRef],
-    output: FieldRef,
+    output: FieldRef | ObservableRef,
+    state: State | None = None,
 ) -> DifferentiableProgram:
     """Compile a program over an ordered parameter-coordinate set.
 

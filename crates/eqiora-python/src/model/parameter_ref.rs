@@ -1,6 +1,6 @@
 //! Immutable selected Parameter identity and complete value projection.
 
-use eqiora::api::{ModelDocument, ModelParameterRef};
+use eqiora::api::{ModelDocument, ModelEntityRef};
 use pyo3::prelude::*;
 use std::hash::{Hash, Hasher};
 
@@ -15,7 +15,7 @@ use std::hash::{Hash, Hasher};
 )]
 #[derive(Debug, Clone)]
 pub(crate) struct PyModelParameterRef {
-    pub(crate) value: ModelParameterRef,
+    pub(crate) value: ModelEntityRef<eqiora::kinds::Parameter>,
     model_digest: String,
     id: String,
     literal: eqiora::ValueLiteral,

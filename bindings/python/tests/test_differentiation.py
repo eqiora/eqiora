@@ -368,9 +368,103 @@ def test_diff_input_admission_is_explicit_and_model_bound() -> None:
             output=plan.capability.fields[0],
         )
     elasticity_model, elasticity_plan = elasticity_model_and_plan()
-    with pytest.raises(eqiora.ValidationError, match="2D scalar"):
+    with pytest.raises(eqiora.ValidationError, match="does not admit implicit output differentiation"):
         eqiora.diff.compile(
             elasticity_plan,
             inputs=(elasticity_model.parameter("mu"),),
             output=elasticity_plan.capability.displacement,
         )
+
+
+def test_finite_program_preserves_partial_and_reduced_actions_and_seed_ownership():
+    from test_constraints import nonlinear_root
+
+    model, plan = nonlinear_root()
+    seed = eqiora.State.initial(plan, fields=(eqiora.InitialField(model.field("w"), scalar_value=2.0),))
+    program = eqiora.diff.compile(plan, inputs=(model.parameter("p"),),
+                                 output=model.observable("output"), state=seed)
+    one = np.array([1.0], dtype=np.float64)
+    zero = np.array([0.0], dtype=np.float64)
+    default = program.evaluate(np.array([4.0], dtype=np.float64))
+    assert isinstance(default.primal().evidence.primal_solve, eqiora.NonlinearSolveSummary)
+    assert default.primal().evidence.primal_solve.completed_iterations == 0
+    assert default.primal().evidence.derivative_solve is None
+    for p, w, reduced in ((4.0, 2.0, 1.25), (9.0, 3.0, 7.0 / 6.0)):
+        point = program.evaluate(np.array([p], dtype=np.float64))
+        np.testing.assert_allclose(point.accepted_unknowns.numpy(), [w], rtol=0, atol=1e-12)
+        np.testing.assert_allclose(point.primal().output.numpy(), [w+p], rtol=0, atol=1e-12)
+        np.testing.assert_array_equal(point.residual_jvp(zero, one).numpy(), [-1.0])
+        np.testing.assert_allclose(point.residual_jvp(one, zero).numpy(), [2*w], rtol=0, atol=2e-12)
+        rw, rp = point.residual_vjp(one)
+        np.testing.assert_allclose(rw.numpy(), [2*w], rtol=0, atol=2e-12)
+        np.testing.assert_array_equal(rp.numpy(), [-1.0])
+        np.testing.assert_array_equal(point.output_partial_jvp(zero, one).numpy(), [1.0])
+        ow, op = point.output_partial_vjp(one)
+        np.testing.assert_array_equal(ow.numpy(), [1.0])
+        np.testing.assert_array_equal(op.numpy(), [1.0])
+        np.testing.assert_allclose(point.jvp(one).tangent.numpy(), [reduced], rtol=0, atol=1e-12)
+        reverse = point.vjp(one)
+        np.testing.assert_allclose(reverse.input_cotangent.numpy(), [reduced], rtol=0, atol=1e-12)
+        assert reverse.evidence.implementation == eqiora.DerivativeImplementation.OperatorIr
+        assert reverse.evidence.initial_state_identity == seed.digest
+        assert reverse.evidence.derivative_solve.orientation == "transposed"
+        with pytest.raises(BufferError, match="shape"):
+            point.residual_jvp(np.array([], dtype=np.float64), one)
+    np.testing.assert_array_equal(default.vjp(one).input_cotangent.numpy(), [1.25])
+    with pytest.raises((eqiora.ValidationError, eqiora.ExecutionError)):
+        program.evaluate(zero)
+    with pytest.raises((eqiora.ValidationError, eqiora.ExecutionError)):
+        eqiora.diff.compile(plan, inputs=(model.parameter("p"),), output=model.observable("output"))
+    foreign, foreign_plan = nonlinear_root(p=9)
+    foreign_seed = eqiora.State.initial(foreign_plan, fields=(eqiora.InitialField(foreign.field("w"), scalar_value=2.0),))
+    for inputs, output, state in (
+        ((foreign.parameter("p"),), model.observable("output"), seed),
+        ((model.parameter("p"),), foreign.observable("output"), seed),
+        ((model.parameter("p"),), model.observable("output"), foreign_seed),
+    ):
+        with pytest.raises((eqiora.ValidationError, eqiora.ExecutionError)):
+            eqiora.diff.compile(plan, inputs=inputs, output=output, state=state)
+
+
+def test_finite_parameter_roles_do_not_alias_equal_values_or_frozen_coordinates():
+    from test_constraints import nonlinear_root
+
+    _, controls = nonlinear_root()
+
+    def compile_root(equality):
+        model = eqiora.compile(source=f"""
+model OrderedRoot() {{
+  parameter p: 1 = 4; parameter q: 1 = 4; variable w: 1;
+  relation root {{ {equality}; inequality(p>=0); inequality(w>=0); }}
+  observable output: 1 = w+p+2*q;
+}}
+""", entry="OrderedRoot")
+        margins = tuple(eqiora.solve.ConstraintTolerance.inequality(
+            model.constraint("root", ordinal), 1e-8, eqiora.Dimension()) for ordinal in (1, 2))
+        plan = eqiora.resolve(model, solve=controls.requested_solve,
+                              enforcement=eqiora.solve.StrictInterior(margins=margins))
+        state = eqiora.State.initial(plan, fields=(eqiora.InitialField(model.field("w"), scalar_value=2.0),))
+        return model, plan, state
+
+    model, plan, state = compile_root("w*w=p")
+    for names, values, expected_output, partial, total in (
+        (("p", "q"), [4.0, 4.0], 14.0, [1.0, 2.0], [1.25, 2.0]),
+        (("q", "p"), [4.0, 4.0], 14.0, [2.0, 1.0], [2.0, 1.25]),
+        (("q", "p"), [4.0, 9.0], 20.0, [2.0, 1.0], [2.0, 7.0/6.0]),
+        (("p",), [9.0], 20.0, [1.0], [7.0/6.0]),  # q stays at 4
+        (("q",), [9.0], 24.0, [2.0], [2.0]),  # p and w stay at 4 and 2
+    ):
+        inputs = tuple(model.parameter(name) for name in names)
+        program = eqiora.diff.compile(plan, inputs=inputs, output=model.observable("output"), state=state)
+        point = program.evaluate(np.array(values, dtype=np.float64))
+        assert program.input_ids == [reference.id for reference in inputs]
+        assert point.primal().evidence.input_ids == program.input_ids
+        np.testing.assert_allclose(point.primal().output.numpy(), [expected_output], rtol=0, atol=1e-12)
+        _, op = point.output_partial_vjp(np.ones(1, dtype=np.float64))
+        np.testing.assert_array_equal(op.numpy(), partial)
+        np.testing.assert_allclose(point.vjp(np.ones(1, dtype=np.float64)).input_cotangent.numpy(), total, rtol=0, atol=1e-12)
+    # The original equation is exactly satisfied, but R_w=2*(w-2)=0.
+    singular, singular_plan, singular_state = compile_root("(w-2)*(w-2)=p-4")
+    with pytest.raises((eqiora.ValidationError, eqiora.ExecutionError), match="regular|singular|rank"):
+        eqiora.diff.compile(singular_plan, inputs=(singular.parameter("p"),),
+                            output=singular.observable("output"), state=singular_state)

@@ -55,10 +55,10 @@ pub use numerical_admission::{
     CommonElasticityPlan, CommonFormulationDescription, CommonFsiConnectionInventory,
     CommonFsiDomainInventory, CommonFsiPlan, CommonFsiRunRequest, CommonInitialField,
     CommonInitialValues, CommonLinearRequest, CommonMethodRequest, CommonPressureGauge2d,
-    CommonScalarPlan, CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy,
-    CommonState, CommonSteadyStokesPlan, CommonTransientFlowPlan, CommonTransientRunRequest,
-    FormulationKind, FormulationSelectionMode, ResolvedCommonPlan, resolve_common_ode_plan,
-    resolve_common_plan,
+    CommonScalarDifferentiationPoint, CommonScalarPlan, CommonScopedSpatialPolicy,
+    CommonSolvePolicy, CommonSpatialPolicy, CommonState, CommonSteadyStokesPlan,
+    CommonTransientFlowPlan, CommonTransientRunRequest, FormulationKind, FormulationSelectionMode,
+    ResolvedCommonPlan, resolve_common_ode_plan, resolve_common_plan,
 };
 pub mod finite_constraints;
 mod linear_elasticity;

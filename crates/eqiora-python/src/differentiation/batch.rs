@@ -12,6 +12,8 @@ use pyo3::types::PyTuple;
 
 use super::*;
 use crate::array::{stage_f64_shaped_input, stage_f64_tensor_input};
+use crate::model::PyModelParameterRef;
+use pyo3::types::PySequence;
 
 mod products;
 mod results;

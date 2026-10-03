@@ -28,6 +28,7 @@ use crate::trajectory::{PyBoundaryFlux, PyBoundaryForce, PyState, PyTrajectory};
 mod constraints;
 mod field_output;
 mod nonlinear;
+pub(crate) use nonlinear::PyNonlinearSolveSummary;
 mod observe;
 mod time_observe;
 

@@ -1,6 +1,7 @@
 //! Explicit bounded active-set realization of finite affine real constraints.
 //! Model conditions remain unchanged; numerical acceptance never implies exact satisfaction.
 mod configuration;
+mod linearization;
 mod nonlinear;
 pub(crate) use nonlinear::FiniteNonlinearSolution;
 mod preparation;
@@ -24,6 +25,7 @@ pub(crate) struct FiniteConstraintProblem {
     symbols: Vec<SymbolRef>,
     dimensions: Vec<DimExponents>,
     bindings: Vec<(SymbolRef, f64)>,
+    parameter_candidates: Vec<(Id<kinds::Parameter>, eqiora_core::ValueLiteral)>,
     relations: Vec<RelationOperands>,
     enforcement: FiniteConstraintEnforcement,
     complementarity_count: usize,

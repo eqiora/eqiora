@@ -1,86 +1,43 @@
 //! Exact common-Plan-bound differentiable application programs.
 
-use eqiora_artifact::ModelArtifactReference;
+use eqiora_artifact::{CanonicalModelArtifact, ModelArtifactReference};
 use eqiora_core::diagnostic::codes;
-use eqiora_core::entity::kinds;
+use eqiora_core::entity::{Entity, kinds};
 use eqiora_core::{Diagnostic, EntityKind, Id, RawId};
 use eqiora_differentiation::{
     AcceptedOutputLinearization, adjoint_output_gradient, forward_output_sensitivity,
 };
 use eqiora_execution::ExecutionReceipt;
 use eqiora_ir::{LinearizedOutput, LinearizedRelation};
-use eqiora_numerics::{
-    CommonScalarPlan, common::AssembledLinearizedRelation,
-    scalar::CartesianScalarFieldLinearization,
-};
+use eqiora_numerics::{CommonAlgebraicState, CommonScalarDifferentiationPoint, ResolvedCommonPlan};
 use eqiora_solver::{
-    CanonicalCsrAgreementFingerprintV1, LinearSolveRequest, REFERENCE_LINEAR_SOLVER, SolveReport,
+    CanonicalCsrAgreementFingerprintV1, LinearSolveRequest, LinearSolverBackend, SolveReport,
     SolverPlan,
 };
 
 use crate::ModelDocument;
 
 mod map_admission;
+mod partials;
+mod program;
 
-/// Exact canonical Parameter selected from one immutable Model artifact.
+/// One nominally typed entity selected from an exact immutable Model artifact.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ModelParameterRef {
+pub struct ModelEntityRef<E: Entity> {
     model: ModelArtifactReference,
-    id: Id<kinds::Parameter>,
+    id: Id<E>,
 }
 
-impl ModelParameterRef {
-    /// Exact Model artifact owning this Parameter.
+impl<E: Entity> ModelEntityRef<E> {
+    /// Exact Model artifact owning this entity.
     #[must_use]
     pub const fn model(&self) -> &ModelArtifactReference {
         &self.model
     }
 
-    /// Stable canonical Parameter identity.
+    /// Canonical identity retaining its nominal entity kind.
     #[must_use]
-    pub const fn id(&self) -> Id<kinds::Parameter> {
-        self.id
-    }
-}
-
-/// Exact canonical Field selected from one immutable Model artifact.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ModelFieldRef {
-    model: ModelArtifactReference,
-    id: Id<kinds::Field>,
-}
-
-/// Exact canonical Domain selected from one immutable Model artifact.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ModelDomainRef {
-    model: ModelArtifactReference,
-    id: Id<kinds::Domain>,
-}
-
-impl ModelDomainRef {
-    /// Exact Model artifact owning this Domain.
-    #[must_use]
-    pub const fn model(&self) -> &ModelArtifactReference {
-        &self.model
-    }
-
-    /// Stable canonical Domain identity.
-    #[must_use]
-    pub const fn id(&self) -> Id<kinds::Domain> {
-        self.id
-    }
-}
-
-impl ModelFieldRef {
-    /// Exact Model artifact owning this Field.
-    #[must_use]
-    pub const fn model(&self) -> &ModelArtifactReference {
-        &self.model
-    }
-
-    /// Stable canonical Field identity.
-    #[must_use]
-    pub const fn id(&self) -> Id<kinds::Field> {
+    pub const fn id(&self) -> Id<E> {
         self.id
     }
 }
@@ -91,11 +48,14 @@ impl ModelDocument {
     /// # Errors
     /// Returns a structured lookup/kind diagnostic if the selection is absent
     /// or does not identify a Parameter in this exact Model.
-    pub fn parameter_ref(&self, selection: &str) -> Result<ModelParameterRef, Diagnostic> {
+    pub fn parameter_ref(
+        &self,
+        selection: &str,
+    ) -> Result<ModelEntityRef<kinds::Parameter>, Diagnostic> {
         let id = resolve_entity(self, selection, EntityKind::Parameter)?
             .downcast()
             .ok_or_else(|| wrong_kind(selection, "Parameter"))?;
-        Ok(ModelParameterRef {
+        Ok(ModelEntityRef {
             model: self.artifact_reference()?,
             id,
         })
@@ -106,22 +66,36 @@ impl ModelDocument {
     /// # Errors
     /// Returns a structured lookup/kind diagnostic if the selection is absent
     /// or does not identify a Field in this exact Model.
-    pub fn field_ref(&self, selection: &str) -> Result<ModelFieldRef, Diagnostic> {
+    pub fn field_ref(&self, selection: &str) -> Result<ModelEntityRef<kinds::Field>, Diagnostic> {
         let id = resolve_entity(self, selection, EntityKind::Field)?
             .downcast()
             .ok_or_else(|| wrong_kind(selection, "Field"))?;
-        Ok(ModelFieldRef {
+        Ok(ModelEntityRef {
+            model: self.artifact_reference()?,
+            id,
+        })
+    }
+
+    /// Resolve one exact instantaneous or spatial Observable in this Model.
+    pub fn observable_ref(
+        &self,
+        selection: &str,
+    ) -> Result<ModelEntityRef<kinds::Observable>, Diagnostic> {
+        let id = resolve_entity(self, selection, EntityKind::Observable)?
+            .downcast()
+            .ok_or_else(|| wrong_kind(selection, "Observable"))?;
+        Ok(ModelEntityRef {
             model: self.artifact_reference()?,
             id,
         })
     }
 
     /// Resolve a source alias or exact ULID once into a Model-bound Domain.
-    pub fn domain_ref(&self, selection: &str) -> Result<ModelDomainRef, Diagnostic> {
+    pub fn domain_ref(&self, selection: &str) -> Result<ModelEntityRef<kinds::Domain>, Diagnostic> {
         let id = resolve_entity(self, selection, EntityKind::Domain)?
             .downcast()
             .ok_or_else(|| wrong_kind(selection, "Domain"))?;
-        Ok(ModelDomainRef {
+        Ok(ModelEntityRef {
             model: self.artifact_reference()?,
             id,
         })
@@ -155,7 +129,8 @@ pub struct DifferentiableProgramIdentity {
     model: ModelArtifactReference,
     plan_identity: String,
     inputs: Vec<Id<kinds::Parameter>>,
-    output: Id<kinds::Field>,
+    output: RawId,
+    initial_state_identity: Option<String>,
     input_dimension: usize,
     output_dimension: usize,
     scalar_type: DifferentiableScalarType,
@@ -185,8 +160,14 @@ impl DifferentiableProgramIdentity {
 
     /// Selected canonical primary Field.
     #[must_use]
-    pub const fn output(&self) -> Id<kinds::Field> {
+    pub const fn output(&self) -> RawId {
         self.output
+    }
+
+    /// Exact finite seed bound by this Program; absent for spatial linear execution.
+    #[must_use]
+    pub fn initial_state_identity(&self) -> Option<&str> {
+        self.initial_state_identity.as_deref()
     }
 
     /// Flat tangent/gradient input dimension.
@@ -268,6 +249,8 @@ pub enum DifferentiationMode {
 pub enum DerivativeImplementation {
     /// Analytically assembled `R_w`, `R_p`, `O_w`, and `O_p` actions.
     AnalyticAssembled,
+    /// Exact original-expression Operator IR partial actions.
+    OperatorIr,
 }
 
 /// Whether an occurrence reused the evaluation's accepted linearization.
@@ -277,6 +260,17 @@ pub enum LinearizationState {
     Established,
     /// The derivative action reused the immutable state owned by the evaluation.
     Reused,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum PrimalEvidence {
+    Linear(Box<ExecutionReceipt>),
+    Nonlinear {
+        initial_state_identity: String,
+        iterations: usize,
+        initial_residual_norm: f64,
+        accepted_unknowns: Vec<f64>,
+    },
 }
 
 /// Typed in-memory provenance for one primal or derivative occurrence.
@@ -289,7 +283,8 @@ pub struct DifferentiationEvidence {
     linearization_state: LinearizationState,
     primal_residual_norm: f64,
     residual_tolerance: f64,
-    receipt: ExecutionReceipt,
+    state_system: CanonicalCsrAgreementFingerprintV1,
+    primal: PrimalEvidence,
     derivative_solve: Option<SolveReport>,
 }
 
@@ -327,7 +322,7 @@ impl DifferentiationEvidence {
     /// Exact algebraic state-system identity at the accepted point.
     #[must_use]
     pub const fn state_system(&self) -> CanonicalCsrAgreementFingerprintV1 {
-        self.receipt.operator()
+        self.state_system
     }
 
     /// Independently evaluated primal residual norm.
@@ -344,14 +339,61 @@ impl DifferentiationEvidence {
 
     /// Solve that established the accepted primal point.
     #[must_use]
-    pub const fn primal_solve(&self) -> &SolveReport {
-        self.receipt.report()
+    pub fn primal_solve(&self) -> Option<&SolveReport> {
+        self.receipt().map(ExecutionReceipt::report)
     }
 
     /// Exact deployment, operator, plan, output, and accepted-solve linkage.
     #[must_use]
-    pub const fn receipt(&self) -> &ExecutionReceipt {
-        &self.receipt
+    pub fn receipt(&self) -> Option<&ExecutionReceipt> {
+        match &self.primal {
+            PrimalEvidence::Linear(receipt) => Some(receipt),
+            PrimalEvidence::Nonlinear { .. } => None,
+        }
+    }
+
+    /// Exact nonlinear initial State, absent for a linear primal.
+    #[must_use]
+    pub fn nonlinear_initial_state_identity(&self) -> Option<&str> {
+        match &self.primal {
+            PrimalEvidence::Nonlinear {
+                initial_state_identity,
+                ..
+            } => Some(initial_state_identity),
+            PrimalEvidence::Linear(_) => None,
+        }
+    }
+
+    /// Accepted nonlinear update count, including zero-update acceptance.
+    #[must_use]
+    pub const fn nonlinear_iterations(&self) -> Option<usize> {
+        match &self.primal {
+            PrimalEvidence::Nonlinear { iterations, .. } => Some(*iterations),
+            PrimalEvidence::Linear(_) => None,
+        }
+    }
+
+    /// Original nonlinear residual norm at the bound seed and Parameter point.
+    #[must_use]
+    pub const fn nonlinear_initial_residual_norm(&self) -> Option<f64> {
+        match &self.primal {
+            PrimalEvidence::Nonlinear {
+                initial_residual_norm,
+                ..
+            } => Some(*initial_residual_norm),
+            PrimalEvidence::Linear(_) => None,
+        }
+    }
+
+    /// Accepted finite unknowns paired with the nonlinear Jacobian.
+    #[must_use]
+    pub fn nonlinear_accepted_unknowns(&self) -> Option<&[f64]> {
+        match &self.primal {
+            PrimalEvidence::Nonlinear {
+                accepted_unknowns, ..
+            } => Some(accepted_unknowns),
+            PrimalEvidence::Linear(_) => None,
+        }
     }
 
     /// Normal or transposed derivative solve, absent for primal publication.
@@ -461,221 +503,20 @@ impl DifferentiableVjp {
 pub struct DifferentiableEvaluation {
     identity: DifferentiableProgramIdentity,
     point: DifferentiableParameterPoint,
-    relation: AssembledLinearizedRelation,
-    output: CartesianScalarFieldLinearization,
+    native: CommonScalarDifferentiationPoint,
     primal_residual_norm: f64,
     residual_tolerance: f64,
-    receipt: ExecutionReceipt,
+    backend: &'static dyn LinearSolverBackend,
 }
 
 /// Opaque immutable differentiable program over one fixed input coordinate set.
 #[derive(Debug, Clone)]
 pub struct DifferentiableProgram {
     identity: DifferentiableProgramIdentity,
-    plan: CommonScalarPlan,
+    plan: ResolvedCommonPlan,
+    initial: Option<CommonAlgebraicState>,
+    backend: &'static dyn LinearSolverBackend,
     default: DifferentiableEvaluation,
-}
-
-impl DifferentiableProgram {
-    /// Compile one exact common-Plan program and accept its default point.
-    ///
-    /// The current bounded slice admits one supplied-Cartesian scalar
-    /// elliptic primary Field on host CPU `f64`. Selected Parameters become
-    /// the program's ordered numerical inputs; all unselected Parameters stay
-    /// frozen at their canonical Model values. Evaluating another point does
-    /// not mutate or replace the Model or Plan.
-    ///
-    /// # Errors
-    /// Returns structured identity, role, capability, primal-solve, output, or
-    /// linearization diagnostics. No program is published before its primal
-    /// relation has been independently accepted.
-    pub fn compile(
-        plan: CommonScalarPlan,
-        inputs: &[ModelParameterRef],
-        output: &ModelFieldRef,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        if inputs.is_empty() {
-            return Err(single(invalid(
-                "differentiable program requires at least one selected Parameter",
-            )));
-        }
-        let model_reference = plan.model_reference().map_err(single)?;
-        if output.model != model_reference
-            || inputs.iter().any(|input| input.model != model_reference)
-        {
-            return Err(single(invalid(
-                "differentiable inputs and output must belong to the exact compiled Model artifact",
-            )));
-        }
-        if inputs
-            .iter()
-            .enumerate()
-            .any(|(index, input)| inputs[..index].iter().any(|seen| seen.id == input.id))
-        {
-            return Err(single(invalid(
-                "differentiable program input selection contains a duplicate Parameter",
-            )));
-        }
-
-        if !plan.fields().any(|(field, _)| field == output.id) {
-            return Err(single(invalid(
-                "selected output is not a scalar Field of this Plan",
-            )));
-        }
-        let selected = inputs.iter().map(|input| input.id).collect::<Vec<_>>();
-        let (relation, field_output, receipt) = plan
-            .differentiate(&selected, None)
-            .map_err(single)?
-            .into_parts();
-
-        let residual_tolerance = receipt.report().residual_target();
-        let accepted_linearization =
-            AcceptedOutputLinearization::new(&relation, &field_output, residual_tolerance)
-                .map_err(single)?;
-        if relation.state_jacobian().agreement_fingerprint() != receipt.operator() {
-            return Err(single(invalid(
-                "accepted execution receipt differs from the paired linearized state system",
-            )));
-        }
-        let primal_residual_norm = accepted_linearization.relation().primal_residual_norm();
-        let identity = DifferentiableProgramIdentity {
-            model: model_reference,
-            plan_identity: plan.identity().to_owned(),
-            inputs: selected,
-            output: output.id,
-            input_dimension: relation.parameter_dimension(),
-            output_dimension: field_output.output_dimension(),
-            scalar_type: DifferentiableScalarType::F64,
-            device: DifferentiableDevice::HostCpu,
-            derivative: DerivativeContract::ImplicitFirstOrder,
-            solver: plan.linear(),
-        };
-        let point = DifferentiableParameterPoint {
-            inputs: identity.inputs.clone(),
-            values: relation.design_values().to_vec(),
-        };
-        let default = DifferentiableEvaluation {
-            identity: identity.clone(),
-            point,
-            receipt,
-            relation,
-            output: field_output,
-            primal_residual_norm,
-            residual_tolerance,
-        };
-        Ok(Self {
-            identity,
-            plan,
-            default,
-        })
-    }
-
-    /// Complete exact program identity.
-    #[must_use]
-    pub const fn identity(&self) -> &DifferentiableProgramIdentity {
-        &self.identity
-    }
-
-    /// Canonical Model values promoted into this program's input order.
-    #[must_use]
-    pub const fn default_point(&self) -> &DifferentiableParameterPoint {
-        &self.default.point
-    }
-
-    /// Evaluate one complete finite Parameter point without changing program identity.
-    ///
-    /// The returned value owns the accepted primal, linearized relation,
-    /// output projection, point values, and solve evidence. It is therefore
-    /// safe to retain for a paired reverse action while the same program is
-    /// evaluated concurrently at other points.
-    ///
-    /// # Errors
-    /// Returns structured shape, value, capability, solve, or linearization
-    /// diagnostics. An inadmissible point is rejected before publication.
-    pub fn evaluate(
-        &self,
-        parameters: &[f64],
-    ) -> Result<DifferentiableEvaluation, Vec<Diagnostic>> {
-        if parameters.len() != self.identity.input_dimension
-            || parameters.iter().any(|value| !value.is_finite())
-        {
-            return Err(single(invalid(format!(
-                "differentiable Parameter point must contain {} finite values",
-                self.identity.input_dimension
-            ))));
-        }
-        if parameters
-            .iter()
-            .zip(self.default.point.values())
-            .all(|(candidate, default)| candidate.to_bits() == default.to_bits())
-        {
-            return Ok(self.default.clone());
-        }
-
-        let (relation, output, receipt) = self
-            .plan
-            .differentiate(&self.identity.inputs, Some(parameters))
-            .map_err(single)?
-            .into_parts();
-        if relation.design_values().len() != parameters.len()
-            || parameters
-                .iter()
-                .zip(relation.design_values())
-                .any(|(requested, accepted)| requested.to_bits() != accepted.to_bits())
-        {
-            return Err(single(invalid(
-                "accepted linearized relation differs from the requested Parameter point",
-            )));
-        }
-        if output.output_dimension() != self.identity.output_dimension {
-            return Err(single(invalid(
-                "Parameter-point output shape differs from the static differentiable program",
-            )));
-        }
-        let residual_tolerance = receipt.report().residual_target();
-        let accepted = AcceptedOutputLinearization::new(&relation, &output, residual_tolerance)
-            .map_err(single)?;
-        if relation.state_jacobian().agreement_fingerprint() != receipt.operator() {
-            return Err(single(invalid(
-                "Parameter-point execution receipt differs from its linearized state system",
-            )));
-        }
-        Ok(DifferentiableEvaluation {
-            identity: self.identity.clone(),
-            point: DifferentiableParameterPoint {
-                inputs: self.identity.inputs.clone(),
-                values: relation.design_values().to_vec(),
-            },
-            primal_residual_norm: accepted.relation().primal_residual_norm(),
-            residual_tolerance,
-            receipt,
-            relation,
-            output,
-        })
-    }
-
-    /// Return the already accepted complete primary Field at the default point.
-    #[must_use]
-    pub fn primal(&self) -> DifferentiablePrimal {
-        self.default.primal()
-    }
-
-    /// Apply the default-point total output JVP in exact selected-input order.
-    ///
-    /// # Errors
-    /// Preserves shape, non-finite input, relation, and solver diagnostics.
-    pub fn jvp(&self, tangent: &[f64]) -> Result<DifferentiableJvp, Diagnostic> {
-        self.default.jvp(tangent)
-    }
-
-    /// Apply the default-point total output VJP in exact selected-input order.
-    ///
-    /// # Errors
-    /// Preserves shape, non-finite input, output, relation, and transposed
-    /// solver diagnostics.
-    pub fn vjp(&self, cotangent: &[f64]) -> Result<DifferentiableVjp, Diagnostic> {
-        self.default.vjp(cotangent)
-    }
 }
 
 impl DifferentiableEvaluation {
@@ -695,7 +536,7 @@ impl DifferentiableEvaluation {
     #[must_use]
     pub fn primal(&self) -> DifferentiablePrimal {
         DifferentiablePrimal {
-            output: self.output.values().to_vec(),
+            output: self.native.output_values(),
             evidence: self.evidence(
                 DifferentiationMode::Primal,
                 None,
@@ -709,21 +550,22 @@ impl DifferentiableEvaluation {
     /// # Errors
     /// Preserves shape, non-finite input, relation, and solver diagnostics.
     pub fn jvp(&self, tangent: &[f64]) -> Result<DifferentiableJvp, Diagnostic> {
-        let accepted = AcceptedOutputLinearization::new(
-            &self.relation,
-            &self.output,
+        let accepted = AcceptedOutputLinearization::new_with_canonical_state_jacobian(
+            self.native.relation(),
+            &self.native,
+            self.native.relation().state_jacobian(),
             self.residual_tolerance,
         )?;
         let sensitivity = forward_output_sensitivity(
             &accepted,
             tangent,
-            self.relation.state_jacobian().properties(),
-            LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, self.identity.solver),
+            self.native.relation().state_jacobian().properties(),
+            LinearSolveRequest::new(self.backend, self.identity.solver),
         )?;
         let (state, tangent) = sensitivity.into_parts();
         let (_, solve) = state.into_parts();
         Ok(DifferentiableJvp {
-            output: self.output.values().to_vec(),
+            output: self.native.output_values(),
             tangent,
             evidence: self.evidence(
                 DifferentiationMode::Jvp,
@@ -739,21 +581,22 @@ impl DifferentiableEvaluation {
     /// Preserves shape, non-finite input, output, relation, and transposed
     /// solver diagnostics.
     pub fn vjp(&self, cotangent: &[f64]) -> Result<DifferentiableVjp, Diagnostic> {
-        let accepted = AcceptedOutputLinearization::new(
-            &self.relation,
-            &self.output,
+        let accepted = AcceptedOutputLinearization::new_with_canonical_state_jacobian(
+            self.native.relation(),
+            &self.native,
+            self.native.relation().state_jacobian(),
             self.residual_tolerance,
         )?;
         let gradient = adjoint_output_gradient(
             &accepted,
             cotangent,
-            self.relation.state_jacobian().properties(),
-            LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, self.identity.solver),
+            self.native.relation().state_jacobian().properties(),
+            LinearSolveRequest::new(self.backend, self.identity.solver),
         )?;
         let (adjoint, input_cotangent) = gradient.into_parts();
         let (_, solve) = adjoint.into_parts();
         Ok(DifferentiableVjp {
-            output: self.output.values().to_vec(),
+            output: self.native.output_values(),
             input_cotangent,
             evidence: self.evidence(
                 DifferentiationMode::Vjp,
@@ -773,11 +616,39 @@ impl DifferentiableEvaluation {
             identity: self.identity.clone(),
             point: self.point.clone(),
             mode,
-            implementation: DerivativeImplementation::AnalyticAssembled,
+            implementation: if self.native.receipt().is_some() {
+                DerivativeImplementation::AnalyticAssembled
+            } else {
+                DerivativeImplementation::OperatorIr
+            },
             linearization_state,
             primal_residual_norm: self.primal_residual_norm,
             residual_tolerance: self.residual_tolerance,
-            receipt: self.receipt.clone(),
+            state_system: self
+                .native
+                .relation()
+                .state_jacobian()
+                .agreement_fingerprint(),
+            primal: match self.native.receipt() {
+                Some(receipt) => PrimalEvidence::Linear(Box::new(receipt.clone())),
+                None => PrimalEvidence::Nonlinear {
+                    initial_state_identity: self
+                        .native
+                        .nonlinear_initial_state()
+                        .expect("accepted nonlinear seed")
+                        .identity()
+                        .to_owned(),
+                    iterations: self
+                        .native
+                        .nonlinear_iterations()
+                        .expect("accepted nonlinear count"),
+                    initial_residual_norm: self
+                        .native
+                        .nonlinear_initial_residual_norm()
+                        .expect("accepted nonlinear initial residual"),
+                    accepted_unknowns: self.native.relation().accepted_unknowns().to_vec(),
+                },
+            },
             derivative_solve,
         }
     }

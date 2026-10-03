@@ -2,6 +2,7 @@
 
 use super::*;
 use eqiora_realization::NonlinearSolvePlan;
+mod differentiation;
 mod problem;
 use crate::finite_constraints::{ConstraintAssessment, FiniteConstraintEnforcement};
 use crate::physical_network::{
@@ -171,6 +172,8 @@ impl CommonAlgebraicPlan {
         if let Some(nonlinear) = self.nonlinear {
             let solution = self.problem.nonlinear()?.solve_nonlinear(
                 &state.values,
+                &[],
+                &[],
                 nonlinear,
                 LinearSolveRequest::new(&checked, self.linear.solver),
             )?;

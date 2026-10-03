@@ -37,7 +37,7 @@ pub use crate::elliptic::{
     solve_scalar_elliptic_linear_fem, solve_scalar_elliptic_linear_fem_with_assembly,
 };
 pub use crate::finalized_spatial::FinalizedScalarEllipticCartesianProblem;
-pub use crate::linearized_output::CartesianScalarFieldLinearization;
+pub(crate) use crate::linearized_output::CartesianScalarFieldLinearization;
 pub use crate::physical_network::{
     ScalarPhysicalAffineProblem, ScalarPhysicalAffineSolution, lower_scalar_physical_affine,
     solve_scalar_physical_affine,

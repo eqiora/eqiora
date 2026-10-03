@@ -54,7 +54,7 @@ fn bounded_public_policies_deliver_ordered_members_and_recompute_exact_receipts(
                 for (index, expected) in expected.iter().enumerate() {
                     assert_eq!(
                         complete.receipt(index),
-                        Some(expected.primal().evidence().receipt())
+                        expected.primal().evidence().receipt()
                     );
                     match retention {
                         EvaluationMapRetention::Retain => {
@@ -320,7 +320,14 @@ fn program_for(document: &ModelDocument, plan: CommonScalarPlan) -> Differentiab
     let output = document
         .field_ref(&plan.fields().next().unwrap().0.ulid().to_string())
         .unwrap();
-    DifferentiableProgram::compile(plan, &inputs, &output).unwrap()
+    DifferentiableProgram::compile(
+        eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(plan)),
+        &inputs,
+        &output,
+        None,
+        &eqiora_solver::REFERENCE_LINEAR_SOLVER,
+    )
+    .unwrap()
 }
 
 fn assert_complete_matches(
@@ -354,8 +361,8 @@ fn assert_evaluation_matches(
         expected_primal.evidence().state_system()
     );
     assert_eq!(
-        actual_primal.evidence().receipt().output(),
-        expected_primal.evidence().receipt().output()
+        actual_primal.evidence().receipt().unwrap().output(),
+        expected_primal.evidence().receipt().unwrap().output()
     );
     assert_eq!(
         actual_primal.evidence().primal_solve(),

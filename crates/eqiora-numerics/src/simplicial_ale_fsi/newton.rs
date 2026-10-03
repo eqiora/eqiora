@@ -440,7 +440,7 @@ fn solve_one_step_prepared<const D: usize>(
     for iteration in 1..=maximum_iterations {
         let linear_problem = LinearProblem::new(
             current.relation.state_jacobian(),
-            current.relation.right_hand_side(),
+            current.relation.state_jacobian().right_hand_side(),
             LinearOperatorProperties::General,
         )?
         .with_initial_guess(&point)?;

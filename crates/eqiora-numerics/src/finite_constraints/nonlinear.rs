@@ -1,8 +1,8 @@
 //! Strict-interior Newton execution over the original finite mathematical owner.
+use super::linearization::ExpressionLinearization;
 use super::*;
 use eqiora_assembly::{CsrMatrix, LinearSystem};
 use eqiora_core::ValueLiteral;
-use eqiora_ir::{DifferentiationRole, LinearizedRelation, RelationTangent, ScalarOperatorIr};
 use eqiora_realization::NonlinearSolvePlan;
 use eqiora_schema::kernel::KernelNode;
 use eqiora_solver::{CanonicalCsrSystemView, LinearOperatorProperties};
@@ -19,6 +19,43 @@ pub(crate) struct FiniteNonlinearSolution {
 }
 
 impl FiniteConstraintProblem {
+    pub(crate) fn original_residual(&self, values: &[f64]) -> Result<Vec<f64>, Diagnostic> {
+        solve::assess_original(self, values, f64::MAX).map(|(_, residual)| residual)
+    }
+
+    /// Bind one evaluation-local Parameter point without replacing the mathematical Model.
+    pub(crate) fn at_parameters(
+        &self,
+        selected: &[Id<kinds::Parameter>],
+        values: &[f64],
+    ) -> Result<Self, Diagnostic> {
+        if !self.enforcement.is_strict_interior() || selected.len() != values.len() {
+            return Err(invalid(
+                "finite nonlinear Parameter point has incompatible controls or shape",
+            ));
+        }
+        let mut point = self.clone();
+        point.parameter_candidates.clear();
+        for (index, (id, value)) in selected.iter().zip(values).enumerate() {
+            if selected[..index].contains(id) || !value.is_finite() {
+                return Err(invalid(
+                    "finite nonlinear Parameter point has duplicate identities or nonfinite values",
+                ));
+            }
+            let Some(KernelNode::Parameter(parameter)) = self.kernel.node(id.erase()) else {
+                return Err(invalid(
+                    "finite nonlinear Parameter is outside the exact Model",
+                ));
+            };
+            point.parameter_candidates.push((
+                *id,
+                ValueLiteral::from_real(parameter.value().value_type().clone(), *value)
+                    .map_err(|error| invalid(error.to_string()))?,
+            ));
+        }
+        Ok(point)
+    }
+
     pub(crate) fn assess_seed(&self, values: &[f64]) -> Result<ConstraintAssessment, Diagnostic> {
         if !self.enforcement.is_strict_interior() {
             return Err(invalid(
@@ -39,12 +76,24 @@ impl FiniteConstraintProblem {
             .absolute_tolerance()
             .max(nonlinear.relative_tolerance() * initial_norm);
         let assessment = solve::original_assessment(self, values, target)?;
-        let (_, _, coefficients) = self.equality_jacobian(values)?;
-        require_regular(values.len(), coefficients)?;
+        let (actions, _) = self.equality_jacobian(values, &[])?;
+        require_regular(values.len(), actions.unknown_jacobian)?;
         Ok((initial_norm, assessment))
     }
 
     pub(crate) fn solve_nonlinear(
+        &self,
+        initial: &[f64],
+        selected: &[Id<kinds::Parameter>],
+        parameters: &[f64],
+        nonlinear: NonlinearSolvePlan,
+        linear: LinearSolveRequest<'_>,
+    ) -> Result<FiniteNonlinearSolution, Diagnostic> {
+        self.at_parameters(selected, parameters)?
+            .solve_at_point(initial, nonlinear, linear)
+    }
+
+    pub(crate) fn solve_at_point(
         &self,
         initial: &[f64],
         nonlinear: NonlinearSolvePlan,
@@ -67,12 +116,12 @@ impl FiniteConstraintProblem {
         let mut linear_solves = Vec::new();
         let mut iterations = 0;
         loop {
-            let (residual, jacobian, coefficients) = self.equality_jacobian(&values)?;
+            let (actions, jacobian) = self.equality_jacobian(&values, &[])?;
             if norm <= target {
                 // Never infer regularity from a small residual or a zero update RHS.
                 // The existing exact rank owner classifies the binary64 AD matrix;
                 // this is a local accepted-point claim, not global branch uniqueness.
-                require_regular(values.len(), coefficients)?;
+                require_regular(values.len(), actions.unknown_jacobian)?;
                 let assessment = solve::original_assessment(self, &values, target)?;
                 return Ok(FiniteNonlinearSolution {
                     values,
@@ -85,7 +134,11 @@ impl FiniteConstraintProblem {
             if iterations >= nonlinear.maximum_iterations().get() {
                 return Err(failed("finite nonlinear iteration budget exhausted"));
             }
-            let rhs = residual.iter().map(|value| -value).collect::<Vec<_>>();
+            let rhs = actions
+                .values
+                .iter()
+                .map(|value| -value)
+                .collect::<Vec<_>>();
             let storage = LinearSystem::new(jacobian, rhs)?;
             let system = CanonicalCsrSystemView::new(&storage, LinearOperatorProperties::General)?;
             let update = linear.solve(&system.linear_problem()?)?;
@@ -120,10 +173,11 @@ impl FiniteConstraintProblem {
         }
     }
 
-    fn equality_jacobian(
+    pub(crate) fn equality_jacobian(
         &self,
         values: &[f64],
-    ) -> Result<(Vec<f64>, CsrMatrix, Vec<f64>), Diagnostic> {
+        selected: &[Id<kinds::Parameter>],
+    ) -> Result<(ExpressionLinearization, CsrMatrix), Diagnostic> {
         let n = self.symbols.len();
         if values.len() != n || values.iter().any(|value| !value.is_finite()) {
             return Err(invalid(
@@ -132,65 +186,15 @@ impl FiniteConstraintProblem {
         }
         let mut residuals = Vec::with_capacity(n);
         let mut coefficients = Vec::with_capacity(n * n);
+        let mut parameter_jacobian = Vec::with_capacity(n * selected.len());
         for relation in &self.relations {
             let Some(expression) = preparation::branch_expression(relation, 0, &mut 0)? else {
                 continue;
             };
-            let operator = ScalarOperatorIr::lower(&expression)?;
-            let mut inputs = Vec::new();
-            let mut roles = Vec::new();
-            let mut coordinates = Vec::new();
-            for symbol in operator.symbols() {
-                match symbol {
-                    SymbolRef::Field(id) => {
-                        let coordinate = self
-                            .symbols
-                            .iter()
-                            .position(|value| value == symbol)
-                            .ok_or_else(|| {
-                                invalid("nonlinear expression contains a foreign Field")
-                            })?;
-                        let Some(KernelNode::Field(field)) = self.kernel.node(id.erase()) else {
-                            return Err(invalid("nonlinear Field is absent from its Model"));
-                        };
-                        inputs.push(
-                            ValueLiteral::from_real(field.value_type().clone(), values[coordinate])
-                                .map_err(|error| invalid(error.to_string()))?,
-                        );
-                        roles.push(DifferentiationRole::Unknown);
-                        coordinates.push(coordinate);
-                    }
-                    SymbolRef::Parameter(id) => {
-                        let Some(KernelNode::Parameter(parameter)) = self.kernel.node(id.erase())
-                        else {
-                            return Err(invalid("nonlinear Parameter is absent from its Model"));
-                        };
-                        inputs.push(parameter.value().clone());
-                        roles.push(DifferentiationRole::Frozen);
-                    }
-                    _ => {
-                        return Err(invalid(
-                            "nonlinear finite expressions require static Field/Parameter coordinates",
-                        ));
-                    }
-                }
-            }
-            let linearized = operator.linearize_typed(&inputs, &roles)?;
-            let rows = expression.roots().len();
-            let mut primal = vec![0.0; rows];
-            linearized.primal(&mut primal)?;
-            residuals.extend(primal);
-            let offset = coefficients.len();
-            coefficients.resize(offset + rows * n, 0.0);
-            for (local, coordinate) in coordinates.iter().enumerate() {
-                let mut direction = vec![0.0; coordinates.len()];
-                direction[local] = 1.0;
-                let mut column = vec![0.0; rows];
-                linearized.jvp(RelationTangent::Unknown(&direction), &mut column)?;
-                for (row, value) in column.into_iter().enumerate() {
-                    coefficients[offset + row * n + coordinate] = value;
-                }
-            }
+            let actions = self.linearize_expression(&expression, values, selected)?;
+            residuals.extend(actions.values);
+            coefficients.extend(actions.unknown_jacobian);
+            parameter_jacobian.extend(actions.parameter_jacobian);
         }
         if residuals.len() != n {
             return Err(invalid("finite nonlinear equality Jacobian is not square"));
@@ -208,7 +212,14 @@ impl FiniteConstraintProblem {
             offsets.push(entries.len());
         }
         let matrix = CsrMatrix::from_sorted_csr(n, n, offsets, columns, entries)?;
-        Ok((residuals, matrix, coefficients))
+        Ok((
+            ExpressionLinearization {
+                values: residuals,
+                unknown_jacobian: coefficients,
+                parameter_jacobian,
+            },
+            matrix,
+        ))
     }
 }
 
@@ -230,7 +241,7 @@ mod tests {
 
     fn problem(p: f64, equality: &str) -> FiniteConstraintProblem {
         let source = format!(
-            "model Root(){{parameter p:1={p};variable w:1;relation root{{{equality};inequality(p>=0);inequality(w>=0);}}}}"
+            "model Root(){{parameter p:1={p};variable w:1;relation root{{{equality};inequality(p>=0);inequality(w>=0);}}observable output:1=w+p;}}"
         );
         let (transaction, model, symbols) = eqiora_compiler::compile("root.eqi", &source)
             .unwrap()
@@ -270,11 +281,148 @@ mod tests {
         )
         .unwrap()
         .with_reduction(ReductionPolicy::Reproducible);
-        problem.solve_nonlinear(
+        problem.solve_at_point(
             &[seed],
             nonlinear,
             LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, linear),
         )
+    }
+
+    #[test]
+    fn original_parameter_candidates_are_typed_exact_and_do_not_mutate_the_model() {
+        let problem = problem(4.0, "w*w=p");
+        let parameter = problem
+            .kernel
+            .nodes()
+            .find_map(|node| match node {
+                KernelNode::Parameter(parameter) => Some(parameter),
+                _ => None,
+            })
+            .unwrap();
+        let field = match problem.symbols[0] {
+            SymbolRef::Field(field) => field,
+            _ => unreachable!(),
+        };
+        let typed =
+            |value| ValueLiteral::from_real(parameter.value().value_type().clone(), value).unwrap();
+        let fields = [(field, typed(2.0))];
+        let relation = problem.relations[0].id;
+        let candidate = [(parameter.id(), typed(9.0))];
+        let evaluate = |parameters: &[(Id<kinds::Parameter>, ValueLiteral)]| {
+            problem
+                .kernel
+                .evaluate_relation_operands(relation, &fields, parameters)
+        };
+        // At fixed w=2, original operands are [w², p, p, 0, w, 0].
+        let values = evaluate(&candidate)
+            .unwrap()
+            .iter()
+            .map(|value| value.real_scalar_value().unwrap().value())
+            .collect::<Vec<_>>();
+        assert_eq!(values, [4.0, 9.0, 9.0, 0.0, 2.0, 0.0]);
+        assert_eq!(
+            evaluate(&[]).unwrap()[1]
+                .real_scalar_value()
+                .unwrap()
+                .value(),
+            4.0
+        );
+        let duplicate = [candidate[0].clone(), candidate[0].clone()];
+        assert!(
+            evaluate(&duplicate)
+                .unwrap_err()
+                .message()
+                .contains("repeat one exact Parameter")
+        );
+        assert!(
+            evaluate(&[(Id::new(), typed(9.0))])
+                .unwrap_err()
+                .message()
+                .contains("outside this Model")
+        );
+        let wrong_type = ValueLiteral::from_real(
+            eqiora_core::ValueType::scalar(
+                eqiora_core::ScalarDomain::Real,
+                DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
+            )
+            .unwrap(),
+            9.0,
+        )
+        .unwrap();
+        assert!(
+            evaluate(&[(parameter.id(), wrong_type)])
+                .unwrap_err()
+                .message()
+                .contains("exact Parameter type")
+        );
+    }
+
+    #[test]
+    fn nonlinear_points_share_parameter_values_between_original_acceptance_and_ad() {
+        let problem = problem(4.0, "w*w=p");
+        let parameter = problem
+            .kernel
+            .nodes()
+            .find_map(|node| match node {
+                KernelNode::Parameter(parameter) => Some(parameter.id()),
+                _ => None,
+            })
+            .unwrap();
+        let changed = problem.at_parameters(&[parameter], &[9.0]).unwrap();
+        assert!((solve(&changed, 1.0).unwrap().values[0] - 3.0).abs() < 1e-12);
+        assert!((solve(&problem, 1.0).unwrap().values[0] - 2.0).abs() < 1e-12);
+        let outside = problem.at_parameters(&[parameter], &[0.0]).unwrap();
+        assert!(
+            solve(&outside, 1.0)
+                .unwrap_err()
+                .message()
+                .contains("inequality")
+        );
+        assert!(
+            problem
+                .at_parameters(&[parameter, parameter], &[9.0, 9.0])
+                .is_err()
+        );
+        assert!(problem.at_parameters(&[Id::new()], &[9.0]).is_err());
+        assert!(problem.at_parameters(&[parameter], &[f64::NAN]).is_err());
+        assert!(problem.at_parameters(&[parameter], &[]).is_err());
+    }
+
+    #[test]
+    fn residual_and_output_partials_share_the_exact_parameter_point() {
+        let problem = problem(4.0, "w*w=p");
+        let parameter = problem
+            .kernel
+            .nodes()
+            .find_map(|node| match node {
+                KernelNode::Parameter(parameter) => Some(parameter.id()),
+                _ => None,
+            })
+            .unwrap();
+        let observable = problem
+            .kernel
+            .nodes()
+            .find_map(|node| match node {
+                KernelNode::Observable(observable) => Some(observable.expression()),
+                _ => None,
+            })
+            .unwrap();
+        for (p, w) in [(4.0, 2.0), (9.0, 3.0)] {
+            let point = problem.at_parameters(&[parameter], &[p]).unwrap();
+            let (residual, _) = point.equality_jacobian(&[w], &[parameter]).unwrap();
+            assert_eq!(residual.values, [0.0]);
+            assert_eq!(residual.unknown_jacobian, [2.0 * w]);
+            assert_eq!(residual.parameter_jacobian, [-1.0]);
+            let output = point
+                .linearize_expression(observable, &[w], &[parameter])
+                .unwrap();
+            assert_eq!(output.values, [w + p]);
+            assert_eq!(output.unknown_jacobian, [1.0]);
+            assert_eq!(output.parameter_jacobian, [1.0]);
+            let frozen = point.linearize_expression(observable, &[w], &[]).unwrap();
+            assert!(frozen.parameter_jacobian.is_empty());
+            assert_eq!(frozen.values, output.values);
+        }
     }
 
     #[test]

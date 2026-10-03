@@ -16,7 +16,11 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
-from python_api_examples import WORKFLOW, module_example
+# The distribution gate invokes this script with Python isolated mode (-I).
+# Load only the sibling helper without mutating retained source artifacts.
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from python_api_examples import WORKFLOW, module_example  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[2]
