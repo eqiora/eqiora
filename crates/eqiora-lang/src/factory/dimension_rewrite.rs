@@ -50,6 +50,13 @@ impl SourceAstFactory {
             rewrite_connector(&mut connector.syntax, &mut rewrite);
         }
         for component in &mut document.components {
+            for formulation in &mut component.formulations {
+                if let crate::FormulationBinding::WeakTests { tests } = &mut formulation.binding {
+                    for (_, _, _, dimension) in tests {
+                        *dimension = rewrite(dimension);
+                    }
+                }
+            }
             for item in &mut component.signature {
                 rewrite_signature(item, &mut rewrite);
             }

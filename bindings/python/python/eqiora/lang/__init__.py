@@ -1188,7 +1188,7 @@ class Component:
         self._laws: list[
             tuple[str, Support, Expression | None, Expression, Expression, tuple[str, ...]]
         ] = []
-        self._test_restrictions: list[tuple[str, str, tuple[str, ...]]] = []
+        self._test_restrictions: list[tuple[str, str, tuple[str, ...], ValueType]] = []
         self._formulations: list[
             tuple[str, tuple[Relation, ...], tuple[tuple[Expression, Expression], ...], tuple[str, ...]]
         ] = []
@@ -1729,13 +1729,14 @@ class Component:
         from ._law import declare
         return declare(self, name, on, flux, source, storage, doc)
 
-    def test(self, name: str, *, for_: Expression,
+    def test(self, name: str, *, for_: Expression, dimension: Dimension | None = None,
              zero_on: Support | BoundarySelectionSet | None = None) -> Expression:
         """Declare a test for an exact trial and an optional homogeneous boundary restriction."""
         self._source._ensure_open()
+        test_type = ValueType.real(dimension)
         if not isinstance(for_, _Field) or for_._owner is not self._component_token:
             raise ModuleError("test trial must be a Field from this Component")
-        if any(trial == for_._name for _, trial, _ in self._test_restrictions):
+        if any(trial == for_._name for _, trial, _, _ in self._test_restrictions):
             raise ModuleError("a trial Field may have only one test declaration")
         if len(self._test_restrictions) >= 8:
             raise ModuleError("weak form exceeds the 8-test limit")
@@ -1751,7 +1752,7 @@ class Component:
                 raise ModuleError("test restriction must be closed outside a boundary binder")
             boundaries = (zero_on._name,)
         admitted = self._add_name(name)
-        self._test_restrictions.append((admitted, for_._name, boundaries))
+        self._test_restrictions.append((admitted, for_._name, boundaries, test_type))
         return Expression(_CREATE, _Ast.name(admitted), self._component_token)
 
     def weak_form(

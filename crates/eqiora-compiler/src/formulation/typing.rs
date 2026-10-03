@@ -78,6 +78,9 @@ impl ExpressionContext<'_> {
             ExprKind::Binary { op, left, right } => {
                 self.compile_binary(expression, *op, left, right)
             }
+            ExprKind::Call { callee, arguments } if callee.as_str() == "variation" => {
+                self.compile_variation(expression, arguments)
+            }
             ExprKind::Call {
                 callee,
                 arguments: eqiora_lang::CallArguments::Positional(arguments),
@@ -441,7 +444,7 @@ impl ExpressionContext<'_> {
         let raw = resolve_symbol(
             self.file,
             expression.range(),
-            self.tests[name],
+            self.tests[name].0,
             self.symbols,
         )?;
         let Some(KernelNode::Field(field)) = self.index.nodes.get(&raw).copied() else {
@@ -465,7 +468,7 @@ impl ExpressionContext<'_> {
         self.used_tests.insert(name.into());
         Ok(typed(
             AuthoredFormExpressionKind::Test(field.id()),
-            DimExponents::DIMENSIONLESS,
+            self.tests[name].1,
             field.shape().clone(),
             support,
         ))

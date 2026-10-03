@@ -49,9 +49,11 @@ pub(super) fn format_formulation(
             writeln!(output, "finite {name}({});", trials.join(", ")).expect("String write");
         }
         FormulationBinding::WeakTests { tests } => {
-            for (name, trial, zero_on) in tests {
+            for (name, trial, zero_on, dimension) in tests {
                 write_indent(output, indent + 2);
-                write!(output, "test {name}: 1 for {trial}").expect("String write");
+                write!(output, "test {name}: ").expect("String write");
+                format_expression(dimension, 0, output);
+                write!(output, " for {trial}").expect("String write");
                 if !zero_on.is_empty() {
                     write!(output, " zero_on {}", zero_on.join(", ")).expect("String write");
                 }
@@ -131,6 +133,16 @@ mod tests {
     }
 
     #[test]
+    fn dimensional_direction_survives_formatting() {
+        let source = "component Elastic() { form virtual_work for balance { test eta:m for displacement zero_on fixed; integrate(body,eta*force)=0; } }";
+        let first = parse("elastic.eqi", source).into_document().unwrap();
+        let formatted = format(&first);
+        assert!(formatted.contains("test eta: m for displacement zero_on fixed;"));
+        let second = parse("elastic.eqi", &formatted).into_document().unwrap();
+        assert_eq!(format(&second), formatted);
+    }
+
+    #[test]
     fn primal_form_has_one_canonical_roundtrip() {
         let source = "component D(support region:volume(ambient_dimension=2)) {variable u: 1 on region;relation balance on region{-div(grad(u))=f;}form weak for balance { test w: 1 for u zero_on surface;integrate(region,dot(grad(w),grad(u)))=integrate(region,w*f);}}";
         let first = parse("form.eqi", source).into_document().unwrap();
@@ -157,14 +169,24 @@ mod tests {
         let (name, relations, equations, _) = component.formulations().next().unwrap();
         assert_eq!(relations, ["momentum", "incompressibility"]);
         assert_eq!(equations.len(), 2);
+        let Some(crate::FormulationBinding::WeakTests { tests }) =
+            component.formulation_binding(name)
+        else {
+            panic!("weak tests");
+        };
         assert_eq!(
-            component.formulation_binding(name),
-            Some(&crate::FormulationBinding::WeakTests {
-                tests: vec![
-                    ("v".into(), "velocity".into(), vec!["surface".into()]),
-                    ("q".into(), "pressure".into(), vec![])
-                ],
-            })
+            tests
+                .iter()
+                .map(|(name, trial, boundaries, _)| (
+                    name.as_str(),
+                    trial.as_str(),
+                    boundaries.clone()
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                ("v", "velocity", vec!["surface".into()]),
+                ("q", "pressure", vec![])
+            ]
         );
         assert!(formatted.contains("test q: 1 for pressure;"));
     }

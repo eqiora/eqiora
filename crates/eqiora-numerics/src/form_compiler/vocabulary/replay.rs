@@ -43,7 +43,10 @@ impl PrimalGalerkinCorrespondence {
         if authored
             .test_restrictions()
             .first()
-            .map(|(_, _, bounds)| bounds.as_slice())
+            .filter(|(_, _, _, dimension)| {
+                *dimension == eqiora_core::DimExponents::DIMENSIONLESS.exponents()
+            })
+            .map(|(_, _, bounds, _)| bounds.as_slice())
             != Some(boundaries.as_slice())
         {
             return Err("test zero_on restriction differs from the complete essential boundary");

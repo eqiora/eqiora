@@ -52,7 +52,7 @@ fn shape(kind: &PyValueType) -> PyResult<(ValueShapeSyntax, FrameSyntax)> {
     Ok((shape, frame))
 }
 
-fn dimension(kind: &PyValueType) -> PyResult<eqiora::language::Expr> {
+pub(super) fn dimension(kind: &PyValueType) -> PyResult<eqiora::language::Expr> {
     let scalar = eqiora::ValueType::scalar(eqiora::ScalarDomain::Real, kind.value.dimension())
         .map_err(syntax_error)?;
     let syntax =

@@ -29,7 +29,12 @@ pub(super) struct PyAstDefinition {
 type FormInput<'py> = (
     String,
     Vec<String>,
-    Vec<(String, String, Vec<String>)>,
+    Vec<(
+        String,
+        String,
+        Vec<String>,
+        PyRef<'py, crate::modeling::PyValueType>,
+    )>,
     Vec<(PyRef<'py, PyAstExpression>, PyRef<'py, PyAstExpression>)>,
     u32,
 );
@@ -78,7 +83,21 @@ impl PyAstDefinition {
                     (
                         form_name,
                         relations,
-                        eqiora::language::FormulationBinding::WeakTests { tests },
+                        eqiora::language::FormulationBinding::WeakTests {
+                            tests: tests
+                                .into_iter()
+                                .map(|(name, trial, zero_on, kind)| {
+                                    if !kind.value.shape().is_scalar()
+                                        || kind.value.scalar_domain() != eqiora::ScalarDomain::Real
+                                    {
+                                        return Err(syntax_error(
+                                            "test dimension requires a real scalar type",
+                                        ));
+                                    }
+                                    Ok((name, trial, zero_on, super::boundaries::dimension(&kind)?))
+                                })
+                                .collect::<PyResult<_>>()?,
+                        },
                     ),
                     (
                         equations
