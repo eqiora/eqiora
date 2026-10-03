@@ -513,7 +513,11 @@ fn format_event(
         eqiora_schema::kernel::EventDirection::Rising => "rising",
         eqiora_schema::kernel::EventDirection::Falling => "falling",
     };
-    writeln!(output, ", direction = {direction});").expect("String write");
+    write!(output, ", direction = {direction}").expect("String write");
+    if declaration.priority() != 0 {
+        write!(output, ", priority = {}", declaration.priority()).expect("String write");
+    }
+    writeln!(output, ");").expect("String write");
 }
 
 fn format_clock(

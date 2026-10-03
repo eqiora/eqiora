@@ -46,7 +46,7 @@ impl CanonicalEventProgram {
     /// is an Event Activation, every structurally identical activation is
     /// included, reset symbols are limited to `Pre`/`Next`/Parameter/time, and
     /// the combined implicit reset has one constant monomial `Next` equation
-    /// per flow state.
+    /// per flow state. Nonzero priority on any grouped event is unsupported.
     pub fn lower(
         program: &CpuProgram,
         flow: Id<kinds::Relation>,
@@ -61,7 +61,17 @@ impl CanonicalEventProgram {
         }
         let (guard_expression, direction) = match program.kernel().node(event.erase()) {
             Some(KernelNode::Activation(activation)) => match activation.kind() {
-                ActivationKind::Event { guard, direction } => (guard, *direction),
+                ActivationKind::Event {
+                    guard,
+                    direction,
+                    priority: 0,
+                } => (guard, *direction),
+                ActivationKind::Event { .. } => {
+                    return Err(invalid_event(
+                        event.erase(),
+                        "canonical event execution does not support event priority",
+                    ));
+                }
                 _ => {
                     return Err(invalid_event(
                         event.erase(),
@@ -85,6 +95,7 @@ impl CanonicalEventProgram {
                     ActivationKind::Event {
                         guard,
                         direction: candidate,
+                        ..
                     } if guard == guard_expression && *candidate == direction => {
                         Some(activation.id())
                     }
@@ -93,6 +104,16 @@ impl CanonicalEventProgram {
                 _ => None,
             })
             .collect::<Vec<_>>();
+        for activation in &activations {
+            if matches!(program.kernel().node(activation.erase()),
+                Some(KernelNode::Activation(value)) if matches!(value.kind(), ActivationKind::Event { priority, .. } if *priority != 0))
+            {
+                return Err(invalid_event(
+                    activation.erase(),
+                    "canonical event execution does not support event priority",
+                ));
+            }
+        }
         activations.sort_by_key(|activation| activation.erase());
 
         let activation_ids = activations

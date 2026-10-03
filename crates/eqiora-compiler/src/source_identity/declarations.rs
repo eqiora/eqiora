@@ -134,6 +134,9 @@ pub(super) fn encode_event(
             eqiora_schema::kernel::EventDirection::Rising => 1,
             eqiora_schema::kernel::EventDirection::Falling => 2,
         })
+    })?;
+    encoder.field(4, |encoder| {
+        encoder.raw(&declaration.priority().to_be_bytes())
     })
 }
 

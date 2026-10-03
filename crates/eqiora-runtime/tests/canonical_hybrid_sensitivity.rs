@@ -274,6 +274,7 @@ fn bouncing_ball(direction: EventDirection) -> BouncingBall {
             ActivationDef::new(
                 height_event,
                 ActivationKind::Event {
+                    priority: 0,
                     guard: guard(),
                     direction,
                 },
@@ -284,6 +285,7 @@ fn bouncing_ball(direction: EventDirection) -> BouncingBall {
             ActivationDef::new(
                 velocity_event,
                 ActivationKind::Event {
+                    priority: 0,
                     guard: guard(),
                     direction,
                 },

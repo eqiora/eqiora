@@ -460,6 +460,7 @@ fn physical_ports_reject_duplicate_membership_and_event_or_guard_activation() {
 
     for kind in [
         ActivationKind::Event {
+            priority: 0,
             guard: constant_guard(),
             direction: EventDirection::Any,
         },

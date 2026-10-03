@@ -1,4 +1,5 @@
 //! One accepted transaction for continuous progress, ticks and event microsteps.
+mod arbitration;
 use super::super::event_localization::evaluate_event_guard;
 use super::*;
 
@@ -174,6 +175,10 @@ impl ExecutionSession {
         let mut last_event_time = self.last_event_time;
         let mut zero_time_events = self.zero_time_events;
         loop {
+            // Keep every triggered owner for guard consumption, even when its
+            // whole reset loses event-priority arbitration.
+            let triggered = active.clone();
+            active = arbitration::resolve(&self.program, &triggered, target)?;
             if !active.is_empty() || (microstep == 0 && nominal.is_some()) {
                 if plan
                     .events
@@ -197,7 +202,6 @@ impl ExecutionSession {
                     }
                 }
                 let mut relations = relations_for(&self.program, &active);
-                reject_conflicts(&self.program, &active, target)?;
                 if microstep == 0
                     && let Some(instant) = nominal
                 {
@@ -227,7 +231,7 @@ impl ExecutionSession {
                 }
                 let mut next = BTreeSet::new();
                 for task in &plan.events {
-                    if active.contains(&task.activation) {
+                    if triggered.contains(&task.activation) {
                         continue;
                     }
                     let after_guard = evaluate_event_guard(
@@ -243,7 +247,7 @@ impl ExecutionSession {
                     }
                 }
                 for task in &plan.events {
-                    if active.contains(&task.activation) {
+                    if triggered.contains(&task.activation) {
                         arming.insert(task.activation, 0);
                     }
                     let value = evaluate_event_guard(
@@ -401,36 +405,6 @@ fn relations_for(program: &KernelProgram, active: &BTreeSet<RawId>) -> BTreeSet<
         .iter()
         .flat_map(|id| edge_targets(program, *id, eqiora_graph::EdgeKind::Activates))
         .collect()
-}
-fn reject_conflicts(
-    program: &KernelProgram,
-    active: &BTreeSet<RawId>,
-    time: f64,
-) -> Result<(), Diagnostic> {
-    let mut owners = BTreeMap::new();
-    for &activation in active {
-        let targets = relations_for(program, &BTreeSet::from([activation]))
-            .into_iter()
-            .map(|relation| relation_symbols(program, relation))
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .flatten()
-            .filter_map(|s| match s {
-                SymbolRef::Next(id) => Some(id.erase()),
-                _ => None,
-            })
-            .collect::<BTreeSet<_>>();
-        for state in targets {
-            if let Some(previous) = owners.insert(state, activation) {
-                return Err(activation_error(
-                    "conflicting activation ownership of next State",
-                    time,
-                    [previous, activation, state],
-                ));
-            }
-        }
-    }
-    Ok(())
 }
 fn activation_error(
     message: &str,

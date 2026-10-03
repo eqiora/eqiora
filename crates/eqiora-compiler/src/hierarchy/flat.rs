@@ -134,6 +134,7 @@ pub(super) enum FlatItemBlueprint {
         name: String,
         guard: crate::lower::LoweringExpression,
         direction: eqiora_schema::kernel::EventDirection,
+        priority: i64,
         range: TextRange,
         identity: EntityIdentity,
     },
@@ -511,12 +512,14 @@ impl ExpandedBlueprint {
                     name,
                     guard,
                     direction,
+                    priority,
                     range,
                     ..
                 } => LoweringItem::Event {
                     name: name.clone(),
                     guard: guard.clone(),
                     direction: *direction,
+                    priority: *priority,
                     range: *range,
                 },
                 FlatItemBlueprint::Clock {

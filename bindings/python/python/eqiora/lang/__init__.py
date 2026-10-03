@@ -1077,7 +1077,7 @@ class Component:
         self._notations: dict[str, Notation] = {}
         self._supports: list[tuple[Support, str, object, tuple[str, ...]]] = []
         self._clocks: list[tuple[Clock, Fraction | None, Fraction | None, tuple[str, ...]]] = []
-        self._events: list[tuple[Event, Expression, str, tuple[str, ...]]] = []
+        self._events: list[tuple[Event, Expression, str, int, tuple[str, ...]]] = []
         self._initials: list[tuple[tuple[tuple[Expression, Expression], ...], tuple[str, ...]]] = []
         self._index_sets: list[tuple[IndexSet, tuple[str, ...]]] = []
         self._parameters: list[tuple[_Parameter, str, tuple[str, ...]]] = []
@@ -1260,25 +1260,30 @@ class Component:
         return self._clock(activation)
 
     def event(self, name: str, guard: Expression | int | float, *,
-              direction: Literal["any", "rising", "falling"], doc: str | None = None) -> Event:
+              direction: Literal["any", "rising", "falling"], priority: int = 0,
+              doc: str | None = None) -> Event:
         """Declare a crossing event with an explicit direction and exact lexical guard.
 
         The compiler checks guard types and activation semantics. Events may
         activate relations and aliases; they are not periodic Clock requirements.
+        Priority is a static signed 64-bit integer and defaults to zero.
         """
         self._source._ensure_open()
         if not isinstance(direction, str) or direction not in ("any", "rising", "falling"):
             raise ModuleError("event direction must be any, rising, or falling")
+        if (isinstance(priority, bool) or not isinstance(priority, int)
+                or not -(1 << 63) <= priority < (1 << 63)):
+            raise ModuleError("event priority must be a signed 64-bit integer")
         expression = _expression(guard)
         self._closed_expression(expression)
         if expression._owner is not None and expression._owner is not self._component_token:
             raise ModuleError("event guard must belong to this Component and Module")
-        if sum(value._nodes for _, value, _, _ in self._events) + expression._nodes > _MAX_EXPRESSION_NODES:
+        if sum(value._nodes for _, value, _, _, _ in self._events) + expression._nodes > _MAX_EXPRESSION_NODES:
             raise ModuleError("event guards exceed the expression node limit")
         documentation = _doc(doc)
         admitted = self._add_name(name)
         event = Event(_CREATE, self._component_token, admitted)
-        self._events.append((event, expression, direction, documentation))
+        self._events.append((event, expression, direction, priority, documentation))
         return event
 
     def clock(
@@ -1842,9 +1847,9 @@ class Component:
                 None if clock is None else clock._name, value._ast, n))
         for name, value, kind, doc in self._observables:
             add(name, doc, lambda n: _AstDeclaration.observable(name, kind, value._ast, n))
-        for event, guard, direction, doc in self._events:
+        for event, guard, direction, priority, doc in self._events:
             add(event._name, doc, lambda n: _AstDeclaration.event(
-                event._name, guard._ast, direction, n))
+                event._name, guard._ast, direction, priority, n))
         for equations, doc in self._initials:
             add("", doc, lambda n: _AstDeclaration.initial(
                 [(left._ast, right._ast) for left, right in equations], n))

@@ -263,6 +263,7 @@ fn crossing_program(
             ActivationDef::new(
                 event,
                 ActivationKind::Event {
+                    priority: 0,
                     guard: b.finish([guard]).unwrap(),
                     direction: EventDirection::Falling,
                 },

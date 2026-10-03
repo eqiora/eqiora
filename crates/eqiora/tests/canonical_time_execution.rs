@@ -1147,6 +1147,7 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
             ActivationDef::new(
                 height_event,
                 ActivationKind::Event {
+                    priority: 0,
                     guard: guard(),
                     direction: EventDirection::Falling,
                 },
@@ -1157,6 +1158,7 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
             ActivationDef::new(
                 velocity_event,
                 ActivationKind::Event {
+                    priority: 0,
                     guard: guard(),
                     direction: EventDirection::Falling,
                 },

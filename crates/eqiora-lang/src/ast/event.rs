@@ -9,6 +9,7 @@ pub struct EventDecl {
     pub(crate) name: String,
     pub(crate) guard: Expr,
     pub(crate) direction: EventDirection,
+    pub(crate) priority: i64,
     pub(crate) range: TextRange,
 }
 
@@ -27,6 +28,11 @@ impl EventDecl {
     #[must_use]
     pub const fn direction(&self) -> EventDirection {
         self.direction
+    }
+    /// Static event priority; higher values win overlapping event resets.
+    #[must_use]
+    pub const fn priority(&self) -> i64 {
+        self.priority
     }
     /// Full declaration range, including the terminating semicolon.
     #[must_use]

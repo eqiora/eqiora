@@ -322,6 +322,9 @@ pub enum ActivationKind {
         guard: ExprDag,
         /// Crossing direction.
         direction: EventDirection,
+        /// Static reset arbitration priority; larger values win conflicts between
+        /// simultaneous event owners. Equal-priority conflicts reject.
+        priority: i64,
     },
     /// Relation is active while a scalar guard is positive.
     Guard {

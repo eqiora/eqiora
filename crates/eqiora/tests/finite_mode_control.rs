@@ -257,3 +257,52 @@ fn mode_initialization_never_chooses_an_implicit_first_member() {
         "{error:?}"
     );
 }
+
+#[test]
+fn fault_priority_suppresses_the_whole_coincident_thermostat_transition() {
+    let model = model(
+        "event failure=crossing(time()-2[s],direction=rising,priority=10);relation fail at failure{next(mode)=Mode.Fault;}",
+    );
+    let interpreter = Interpreter::new();
+    let mut session = interpreter
+        .execution_session(model.program(), config(3.0), [])
+        .unwrap();
+    let mut boundaries = 0;
+    while session.advance().unwrap() {
+        if !session.activation_sequence().is_empty() {
+            boundaries += 1;
+            assert_eq!(
+                session.activation_sequence(),
+                &[vec![model.aliases()["failure"]]]
+            );
+            session = interpreter
+                .resume_execution(model.program(), &session.checkpoint())
+                .unwrap();
+        }
+    }
+    // Temperature reaches22 at2s. The fault wins over upper, so the complete
+    // cooling reset (mode, command and cycles) loses. Fault then holds22 K.
+    assert_eq!(boundaries, 1);
+    assert_eq!(
+        session.field(model.aliases()["mode"]).unwrap().enum_tag(),
+        Some(2)
+    );
+    assert_eq!(
+        session
+            .field(model.aliases()["cycles"])
+            .unwrap()
+            .integer_scalar_value(),
+        Some(0)
+    );
+    for (name, expected) in [("temperature", 22.0), ("command", 1.0)] {
+        assert_eq!(
+            session
+                .field(model.aliases()[name])
+                .unwrap()
+                .real_scalar_value()
+                .unwrap()
+                .value(),
+            expected
+        );
+    }
+}

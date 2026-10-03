@@ -239,9 +239,19 @@ fn discover_root_registration(
         let KernelNode::Activation(activation) = node else {
             continue;
         };
-        let ActivationKind::Event { guard, direction } = activation.kind() else {
+        let ActivationKind::Event {
+            guard,
+            direction,
+            priority,
+        } = activation.kind()
+        else {
             continue;
         };
+        if *priority != 0 {
+            return Err(invalid_artifact(
+                "root registration does not support event priority",
+            ));
+        }
         let operator =
             ScalarOperatorIr::lower(guard).map_err(|error| invalid_artifact(error.message()))?;
         if operator.residual_count() != 1 {

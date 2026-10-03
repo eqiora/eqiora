@@ -222,6 +222,7 @@ impl RootExpansion<'_, '_> {
                             None,
                         )?,
                         direction: declaration.direction(),
+                        priority: declaration.priority(),
                         range: declaration.range(),
                         identity,
                     });

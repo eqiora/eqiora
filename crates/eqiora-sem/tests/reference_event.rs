@@ -298,6 +298,7 @@ fn bouncing_fixture(direction: EventDirection, reverse_nodes: bool) -> BouncingF
             ActivationDef::new(
                 height_event,
                 ActivationKind::Event {
+                    priority: 0,
                     guard: event_guard(),
                     direction,
                 },
@@ -308,6 +309,7 @@ fn bouncing_fixture(direction: EventDirection, reverse_nodes: bool) -> BouncingF
             ActivationDef::new(
                 velocity_event,
                 ActivationKind::Event {
+                    priority: 0,
                     guard: event_guard(),
                     direction,
                 },
@@ -387,6 +389,7 @@ fn chattering_program() -> KernelProgram {
     let event_definition = ActivationDef::new(
         event,
         ActivationKind::Event {
+            priority: 0,
             guard: guard.finish([guard_state]).unwrap(),
             direction: EventDirection::Falling,
         },
@@ -563,6 +566,7 @@ fn coincidence_fixture(reverse: bool, conflict: bool, root_shift: f64) -> Coinci
             ActivationDef::new(
                 activation,
                 ActivationKind::Event {
+                    priority: 0,
                     guard: guard.finish([residual]).unwrap(),
                     direction: EventDirection::Rising,
                 },

@@ -6,7 +6,7 @@ use crate::{EventDecl, Expr, TextRange};
 use eqiora_schema::kernel::EventDirection;
 
 impl SourceAstFactory {
-    /// Construct an event with inferred guard type and explicit crossing direction.
+    /// Construct an event with inferred guard type, crossing direction and static priority.
     ///
     /// # Errors
     /// Rejects invalid names, ranges, and unbounded or malformed guard syntax.
@@ -15,6 +15,7 @@ impl SourceAstFactory {
         name: impl Into<String>,
         guard: Expr,
         direction: EventDirection,
+        priority: i64,
         range: TextRange,
     ) -> Result<EventDecl, AstConstructionError> {
         validate_expression(&guard)?;
@@ -23,6 +24,7 @@ impl SourceAstFactory {
             name: checked_identifier(name, "event name")?,
             guard,
             direction,
+            priority,
             range: checked_range(range)?,
         })
     }

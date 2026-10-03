@@ -366,7 +366,8 @@ class Component:
         """
         ...
     def event(self, name: str, guard: Expression | int | float, *,
-              direction: Literal["any", "rising", "falling"], doc: str | None = None) -> Event:
+              direction: Literal["any", "rising", "falling"], priority: int = 0,
+              doc: str | None = None) -> Event:
         """Declare a crossing event with explicit direction; compiler checks the guard.
 
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.event``.

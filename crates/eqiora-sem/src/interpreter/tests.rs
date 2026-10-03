@@ -126,6 +126,7 @@ fn thermostat_thresholds_rearm_and_omitted_states_remain_continuous() {
             ActivationDef::new(
                 event,
                 ActivationKind::Event {
+                    priority: 0,
                     guard: b.finish([guard]).unwrap(),
                     direction,
                 },
@@ -244,6 +245,7 @@ fn grouped_reset_and_post_reset_consistency_failures_leave_accepted_state_unchan
             ActivationDef::new(
                 event,
                 ActivationKind::Event {
+                    priority: 0,
                     guard: b.finish([x]).unwrap(),
                     direction: EventDirection::Falling,
                 },
@@ -432,6 +434,7 @@ fn slow_crossing_keeps_arming_through_the_zero_band_and_checkpoint() {
         ActivationDef::new(
             event,
             ActivationKind::Event {
+                priority: 0,
                 guard: b.finish([x]).unwrap(),
                 direction: EventDirection::Rising,
             },
@@ -559,6 +562,7 @@ fn a_clock_only_group_does_not_consume_the_event_microstep_limit() {
             ActivationDef::new(
                 first,
                 ActivationKind::Event {
+                    priority: 0,
                     guard: b.finish([guard]).unwrap(),
                     direction: EventDirection::Rising,
                 },
@@ -587,6 +591,7 @@ fn a_clock_only_group_does_not_consume_the_event_microstep_limit() {
                 ActivationDef::new(
                     second,
                     ActivationKind::Event {
+                        priority: 0,
                         guard: b.finish([guard]).unwrap(),
                         direction: EventDirection::Rising,
                     },
@@ -722,6 +727,7 @@ fn enum_state_selects_live_numeric_flow_and_resets_without_numeric_storage() {
         ActivationDef::new(
             event,
             ActivationKind::Event {
+                priority: 0,
                 guard: b.finish([guard]).unwrap(),
                 direction: EventDirection::Rising,
             },
