@@ -68,4 +68,59 @@ public component Energy(
         panic!("retained variation");
     };
     assert_eq!(directions, &["eta", "zeta"]);
+    check_live_variation_lineage(&model);
+}
+
+fn check_live_variation_lineage(model: &ModelDocument) {
+    use eqiora_schema::kernel::KernelNode;
+    let functional = model
+        .program()
+        .nodes()
+        .find_map(|node| match node {
+            KernelNode::Observable(value) => Some(value),
+            _ => None,
+        })
+        .unwrap();
+    let density = model.program().typed_observable(functional.id()).unwrap();
+    let form = model.authored_formulations().next().unwrap();
+    let expression = &form.projection().equations()[0].1;
+    expression
+        .check_functional_variation(functional, &density)
+        .unwrap();
+    for probe in ["energy", "holding", "body", "direction"] {
+        let mut changed = expression.clone();
+        let AuthoredFormExpressionV1::Variation {
+            functional_ulid,
+            directions,
+            holding,
+            value,
+            ..
+        } = &mut changed
+        else {
+            panic!("variation");
+        };
+        let expected = match probe {
+            "energy" => {
+                *functional_ulid = "01ARZ3NDEKTSV4RRFFQ69G5FAX".into();
+                "exact live Observable"
+            }
+            "holding" => {
+                holding.clear();
+                "fixed bindings"
+            }
+            "body" => {
+                **value = AuthoredFormExpressionV1::Number { value: 0.0 };
+                "body differs"
+            }
+            "direction" => {
+                directions[1] = directions[0].clone();
+                "independent named directions"
+            }
+            _ => unreachable!(),
+        };
+        let error = changed
+            .check_functional_variation(functional, &density)
+            .unwrap_err();
+        assert!(error.message().contains(expected), "{probe}: {error:?}");
+    }
 }

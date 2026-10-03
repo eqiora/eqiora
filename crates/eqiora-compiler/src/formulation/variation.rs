@@ -1,5 +1,6 @@
 //! Functional derivation binds local jets to exact source and boundary identities.
 mod local;
+mod replay;
 
 use super::*;
 use eqiora_schema::kernel::pure_operator::{CalculusNode, CalculusNodeId, PureOperatorDefinition};
@@ -201,30 +202,13 @@ impl ExpressionContext<'_> {
                 .expect("typed root"),
             Some(&support),
         )?;
-        let derived = local::derive(&typed_density, wrt, requests.len() as u8)?;
-        let inputs = derived
-            .inputs
-            .iter()
-            .map(|(input, _)| {
-                self.variation_input(input, &derived.inputs, &directions, wrt, domain)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let integrand = render(
-            &derived.definition,
-            derived.definition.root(),
-            &inputs,
-            &mut 65536,
-            0,
-        )?;
-        let value = typed(
-            AuthoredFormExpressionKind::Integrate {
-                domain,
-                integrand: Box::new(integrand),
-            },
+        let value = derive_value(
+            &typed_density,
+            wrt,
+            &directions,
+            domain,
             functional.value_type().dimension(),
-            ValueShape::scalar(),
-            None,
-        );
+        )?;
         let result = typed(
             AuthoredFormExpressionKind::Variation {
                 functional: functional.id(),
@@ -240,106 +224,169 @@ impl ExpressionContext<'_> {
         self.used_tests.extend(directions);
         Ok(result)
     }
+}
 
-    fn variation_input(
-        &self,
-        input: &local::Input,
-        inputs: &[(local::Input, DimExponents)],
-        directions: &[String],
-        wrt: Id<kinds::Field>,
-        domain: Id<kinds::Domain>,
-    ) -> Result<AuthoredFormExpression, Diagnostic> {
-        let invalid = || wire::rejection("functional input binding is inconsistent");
-        let (source, direction) = match input {
-            local::Input::Direction { input, order } => (
-                &inputs.get(*input).ok_or_else(invalid)?.0,
-                Some(
-                    directions
-                        .get(usize::from(*order) - 1)
-                        .ok_or_else(invalid)?,
-                ),
-            ),
-            _ => (input, None),
-        };
-        let (mut value, indices) = match source {
-            local::Input::Value(SymbolRef::Field(id), indices)
-            | local::Input::Gradient(id, indices) => {
-                let Some(KernelNode::Field(field)) = self.index.nodes.get(&id.erase()).copied()
-                else {
-                    return Err(invalid());
-                };
-                if direction.is_some() && *id != wrt {
-                    return Err(invalid());
-                }
-                let kind = match direction {
-                    Some(name) => AuthoredFormExpressionKind::Direction {
-                        name: name.clone(),
-                        trial: *id,
-                    },
-                    None => AuthoredFormExpressionKind::Field(*id),
-                };
-                let mut value = typed(kind, field.dimension(), field.shape().clone(), Some(domain));
-                if matches!(source, local::Input::Gradient(..)) {
-                    let mut axes = field
-                        .shape()
-                        .extents()
-                        .iter()
-                        .map(|extent| extent.get())
-                        .collect::<Vec<_>>();
-                    axes.push(u32::try_from(self.ambient_dimension).map_err(|_| invalid())?);
-                    value = typed(
-                        AuthoredFormExpressionKind::Gradient(Box::new(value)),
-                        field
-                            .dimension()
-                            .div(length_dimension())
-                            .ok_or_else(invalid)?,
-                        ValueShape::new(axes).map_err(|_| invalid())?,
-                        Some(domain),
-                    );
-                }
-                (value, indices.as_slice())
-            }
-            local::Input::Value(SymbolRef::Parameter(id), indices) => {
-                let Some(KernelNode::Parameter(parameter)) =
-                    self.index.nodes.get(&id.erase()).copied()
-                else {
-                    return Err(invalid());
-                };
-                (
-                    typed(
-                        AuthoredFormExpressionKind::Parameter(*id),
-                        parameter.value_type().dimension(),
-                        parameter.value_type().shape().clone(),
-                        None,
-                    ),
-                    indices.as_slice(),
-                )
-            }
-            local::Input::Coordinate(axis) => {
-                return Ok(typed(
-                    AuthoredFormExpressionKind::Coordinate(*axis),
-                    length_dimension(),
-                    ValueShape::scalar(),
-                    Some(domain),
-                ));
-            }
-            _ => return Err(invalid()),
-        };
-        if !indices.is_empty() {
-            let dimension = value.dimension;
-            let support = value.support;
-            value = typed(
-                AuthoredFormExpressionKind::Component {
-                    value: Box::new(value),
-                    indices: indices.to_vec(),
-                },
-                dimension,
-                ValueShape::scalar(),
-                support,
-            );
-        }
-        Ok(value)
+fn symbol_type(
+    density: &TypedResidual<RawId>,
+    symbol: SymbolRef,
+) -> Result<&eqiora_core::ValueType, Diagnostic> {
+    let dag = density.expression();
+    let index = dag.nodes().iter().position(|node| matches!(node, eqiora_schema::kernel::ExprNode::Symbol(value) if *value == symbol))
+        .ok_or_else(|| wire::rejection("functional input is absent from its typed density"))?;
+    let ty = density
+        .node_type(dag.node_id(index as u32).expect("existing node"))
+        .ok_or_else(|| wire::rejection("functional input has no type"))?;
+    Ok(&ty.value_type)
+}
+
+fn volume_dimensions(
+    density: &TypedResidual<RawId>,
+    domain: Id<kinds::Domain>,
+) -> Result<usize, Diagnostic> {
+    let root = density
+        .node_type(density.expression().roots()[0])
+        .ok_or_else(|| wire::rejection("functional density has no typed root"))?;
+    match &root.support {
+        Some(SpatialSupport::Volume {
+            domain: actual,
+            dimensions,
+        }) if *actual == domain.erase() => Ok(*dimensions),
+        _ => Err(wire::rejection(
+            "functional density requires its exact fixed volume support",
+        )),
     }
+}
+
+fn derive_value(
+    density: &TypedResidual<RawId>,
+    wrt: Id<kinds::Field>,
+    directions: &[String],
+    domain: Id<kinds::Domain>,
+    dimension: DimExponents,
+) -> Result<AuthoredFormExpression, Diagnostic> {
+    volume_dimensions(density, domain)?;
+    let derived = local::derive(
+        density,
+        wrt,
+        u8::try_from(directions.len())
+            .map_err(|_| wire::rejection("too many variation directions"))?,
+    )?;
+    let inputs = derived
+        .inputs
+        .iter()
+        .map(|(input, _)| variation_input(density, input, &derived.inputs, directions, wrt, domain))
+        .collect::<Result<Vec<_>, _>>()?;
+    let integrand = render(
+        &derived.definition,
+        derived.definition.root(),
+        &inputs,
+        &mut 65536,
+        0,
+    )?;
+    Ok(typed(
+        AuthoredFormExpressionKind::Integrate {
+            domain,
+            integrand: Box::new(integrand),
+        },
+        dimension,
+        ValueShape::scalar(),
+        None,
+    ))
+}
+
+fn variation_input(
+    density: &TypedResidual<RawId>,
+    input: &local::Input,
+    inputs: &[(local::Input, DimExponents)],
+    directions: &[String],
+    wrt: Id<kinds::Field>,
+    domain: Id<kinds::Domain>,
+) -> Result<AuthoredFormExpression, Diagnostic> {
+    let invalid = || wire::rejection("functional input binding is inconsistent");
+    let (source, direction) = match input {
+        local::Input::Direction { input, order } => (
+            &inputs.get(*input).ok_or_else(invalid)?.0,
+            Some(
+                directions
+                    .get(usize::from(*order) - 1)
+                    .ok_or_else(invalid)?,
+            ),
+        ),
+        _ => (input, None),
+    };
+    let (mut value, indices) = match source {
+        local::Input::Value(SymbolRef::Field(id), indices)
+        | local::Input::Gradient(id, indices) => {
+            let field = symbol_type(density, SymbolRef::Field(*id))?;
+            if direction.is_some() && *id != wrt {
+                return Err(invalid());
+            }
+            let kind = match direction {
+                Some(name) => AuthoredFormExpressionKind::Direction {
+                    name: name.clone(),
+                    trial: *id,
+                },
+                None => AuthoredFormExpressionKind::Field(*id),
+            };
+            let mut value = typed(kind, field.dimension(), field.shape().clone(), Some(domain));
+            if matches!(source, local::Input::Gradient(..)) {
+                let mut axes = field
+                    .shape()
+                    .extents()
+                    .iter()
+                    .map(|extent| extent.get())
+                    .collect::<Vec<_>>();
+                axes.push(
+                    u32::try_from(volume_dimensions(density, domain)?).map_err(|_| invalid())?,
+                );
+                value = typed(
+                    AuthoredFormExpressionKind::Gradient(Box::new(value)),
+                    field
+                        .dimension()
+                        .div(length_dimension())
+                        .ok_or_else(invalid)?,
+                    ValueShape::new(axes).map_err(|_| invalid())?,
+                    Some(domain),
+                );
+            }
+            (value, indices.as_slice())
+        }
+        local::Input::Value(SymbolRef::Parameter(id), indices) => {
+            let parameter = symbol_type(density, SymbolRef::Parameter(*id))?;
+            (
+                typed(
+                    AuthoredFormExpressionKind::Parameter(*id),
+                    parameter.dimension(),
+                    parameter.shape().clone(),
+                    None,
+                ),
+                indices.as_slice(),
+            )
+        }
+        local::Input::Coordinate(axis) => {
+            return Ok(typed(
+                AuthoredFormExpressionKind::Coordinate(*axis),
+                length_dimension(),
+                ValueShape::scalar(),
+                Some(domain),
+            ));
+        }
+        _ => return Err(invalid()),
+    };
+    if !indices.is_empty() {
+        let dimension = value.dimension;
+        let support = value.support;
+        value = typed(
+            AuthoredFormExpressionKind::Component {
+                value: Box::new(value),
+                indices: indices.to_vec(),
+            },
+            dimension,
+            ValueShape::scalar(),
+            support,
+        );
+    }
+    Ok(value)
 }
 
 fn render(

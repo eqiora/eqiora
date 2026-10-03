@@ -10,6 +10,33 @@ pub(crate) fn admit(
     program: &KernelProgram,
     derived: &DerivedScalarGalerkinForm,
 ) -> Result<(), Diagnostic> {
+    for (_, left, right) in projection.equations() {
+        for expression in [left, right] {
+            if let AuthoredFormExpressionV1::Variation {
+                functional_ulid, ..
+            } = expression
+            {
+                let id = functional_ulid
+                    .parse::<ulid::Ulid>()
+                    .map(eqiora_core::Id::<eqiora_core::entity::kinds::Observable>::from_ulid)
+                    .map_err(|_| {
+                        rejection_with(projection, "variation Observable identity is invalid")
+                    })?;
+                let Some(eqiora_schema::kernel::KernelNode::Observable(functional)) =
+                    program.node(id.erase())
+                else {
+                    return Err(rejection_with(
+                        projection,
+                        "variation Observable is outside the live Model",
+                    ));
+                };
+                let typed = program.typed_observable(id).map_err(|_| {
+                    rejection_with(projection, "variation energy has invalid live types")
+                })?;
+                expression.check_functional_variation(functional, &typed)?;
+            }
+        }
+    }
     derived
         .certificate
         .replay_authored_restriction(projection)
