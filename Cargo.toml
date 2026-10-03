@@ -147,3 +147,8 @@ undocumented_unsafe_blocks = "deny"
 # artifact validation and numerical kernels at the normal hosted test profile.
 [profile.test.package.eqiora-compiler]
 opt-level = 0
+
+# Keep per-interpreter Python adapter code compact; numerical crates retain the
+# normal release optimization profile.
+[profile.release.package.eqiora-python]
+opt-level = "s"
