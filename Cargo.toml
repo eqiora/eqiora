@@ -152,3 +152,4 @@ opt-level = 0
 # normal release optimization profile.
 [profile.release.package.eqiora-python]
 opt-level = "s"
+codegen-units = 1
