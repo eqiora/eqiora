@@ -6,8 +6,12 @@ use eqiora_assembly::{
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_meshing::{CellId, LineMesh, QuadratureRule, ReferenceCell, SegmentGeometry1d};
-use eqiora_solver::{LinearOperatorProperties, LinearProblem, LinearSolveRequest, SolveReport};
+use eqiora_solver::{
+    CanonicalCsrSystemView, LinearOperatorProperties, LinearProblem, LinearSolveRequest,
+    SolveReport,
+};
 
+use crate::nullspace::{NullspaceConstraint, NullspaceEvidence, solve_canonical_with_nullspace};
 use crate::operator::LocalOperator;
 use crate::poisson::PiecewiseLinearField1d;
 
@@ -40,6 +44,7 @@ impl ScalarBoundaryCondition1d {
 pub struct ScalarBoundaryPair1d {
     lower: ScalarBoundaryCondition1d,
     upper: ScalarBoundaryCondition1d,
+    mean_reference: Option<f64>,
 }
 
 impl ScalarBoundaryPair1d {
@@ -62,7 +67,37 @@ impl ScalarBoundaryPair1d {
                 "pure-Neumann scalar elliptic problems require an explicit nullspace gauge",
             ));
         }
-        Ok(Self { lower, upper })
+        Ok(Self {
+            lower,
+            upper,
+            mean_reference: None,
+        })
+    }
+
+    /// Prescribe both outward fluxes and an explicit spatial mean of the field.
+    ///
+    /// For `-div(k grad u) = f`, compatibility is `integral(f) + lower + upper = 0`.
+    /// The assembled load is checked before solving; incompatible data are never repaired.
+    ///
+    /// # Errors
+    /// Returns `EQ0801` for non-finite fluxes or mean.
+    pub fn pure_neumann(lower: f64, upper: f64, mean: f64) -> Result<Self, Diagnostic> {
+        if !lower.is_finite() || !upper.is_finite() || !mean.is_finite() {
+            return Err(invalid_discretization(
+                "Neumann fluxes and mean reference must be finite",
+            ));
+        }
+        Ok(Self {
+            lower: ScalarBoundaryCondition1d::Natural(lower),
+            upper: ScalarBoundaryCondition1d::Natural(upper),
+            mean_reference: Some(mean),
+        })
+    }
+
+    /// Explicit mean reference for a pure-Neumann pair, absent for anchored data.
+    #[must_use]
+    pub const fn mean_reference(self) -> Option<f64> {
+        self.mean_reference
     }
 
     /// Lower-coordinate boundary condition.
@@ -86,6 +121,7 @@ pub struct ScalarEllipticSolution1d {
     endpoint_reactions: [Option<f64>; 2],
     assembly_report: AssemblyReport,
     solve_report: SolveReport,
+    nullspace_evidence: Option<NullspaceEvidence>,
 }
 
 impl ScalarEllipticSolution1d {
@@ -120,13 +156,41 @@ impl ScalarEllipticSolution1d {
         self.solve_report.completed_iterations()
     }
 
-    /// Final reduced-system residual norm.
+    /// Original equation residual norm (before bordering when a gauge is present).
     #[must_use]
     pub const fn residual_norm(&self) -> f64 {
-        self.solve_report.true_residual_norm()
+        match &self.nullspace_evidence {
+            Some(evidence) => evidence.original_residual_norm,
+            None => self.solve_report.true_residual_norm(),
+        }
     }
 
-    /// Complete solver/backend/execution evidence for the accepted system.
+    /// Signed source/flux compatibility residual; absent for anchored problems.
+    #[must_use]
+    pub fn compatibility_residual(&self) -> Option<f64> {
+        self.nullspace_evidence
+            .as_ref()
+            .map(|evidence| evidence.compatibility_residual)
+    }
+
+    /// Multiplier of the explicit mean constraint; absent for anchored problems.
+    #[must_use]
+    pub fn gauge_multiplier(&self) -> Option<f64> {
+        self.nullspace_evidence
+            .as_ref()
+            .map(|evidence| evidence.multiplier)
+    }
+
+    /// Signed physical integral residual of the requested mean constraint.
+    #[must_use]
+    pub fn gauge_residual(&self) -> Option<f64> {
+        self.nullspace_evidence
+            .as_ref()
+            .map(|evidence| evidence.gauge_residual)
+    }
+
+    /// Complete solver/backend/execution evidence. For a mean constraint this
+    /// describes the bordered system; `residual_norm()` checks the original equations.
     #[must_use]
     pub const fn solve_report(&self) -> &SolveReport {
         &self.solve_report
@@ -252,28 +316,49 @@ where
     debug_assert_eq!(systems.len(), 2);
     let full_system = systems.pop().expect("assembly plan has a full target");
     let reduced_system = systems.pop().expect("assembly plan has a reduced target");
-    let problem = LinearProblem::new(
-        reduced_system.matrix(),
-        reduced_system.rhs(),
-        LinearOperatorProperties::SymmetricPositiveDefinite,
-    )?;
-    let solved = solver.solve(&problem)?;
+    let (solved_values, solve_report, nullspace_evidence) =
+        if let Some(mean) = boundary.mean_reference() {
+            // Integrate each P1 shape exactly. These are physical measure weights,
+            // not an arithmetic nodal average or a silently pinned endpoint.
+            let mut weights = vec![0.0; vertex_count];
+            for cell in mesh.cells() {
+                let geometry = mesh.cell_geometry(cell).expect("valid mesh cell");
+                for vertex in mesh.cell_vertices(cell).expect("valid cell topology") {
+                    weights[vertex.index()] += 0.5 * geometry.measure();
+                }
+            }
+            let measure: f64 = weights.iter().sum();
+            let constraint =
+                NullspaceConstraint::new(vec![1.0; vertex_count], weights, mean * measure)?;
+            let system =
+                CanonicalCsrSystemView::new(&reduced_system, LinearOperatorProperties::Symmetric)?;
+            let solved = solve_canonical_with_nullspace(solver, &system, &constraint)?;
+            (solved.values, solved.report, Some(solved.evidence))
+        } else {
+            let problem = LinearProblem::new(
+                reduced_system.matrix(),
+                reduced_system.rhs(),
+                LinearOperatorProperties::SymmetricPositiveDefinite,
+            )?;
+            let (values, report) = solver.solve(&problem)?.into_parts();
+            (values, report, None)
+        };
     let mut values = vec![0.0; vertex_count];
     for (vertex, value) in values.iter_mut().enumerate() {
         *value = if vertex == 0 {
             essential[0].unwrap_or_else(|| {
-                solved.values()[free_indices[vertex]
+                solved_values[free_indices[vertex]
                     .expect("lower endpoint is free")
                     .index()]
             })
         } else if vertex + 1 == vertex_count {
             essential[1].unwrap_or_else(|| {
-                solved.values()[free_indices[vertex]
+                solved_values[free_indices[vertex]
                     .expect("upper endpoint is free")
                     .index()]
             })
         } else {
-            solved.values()[free_indices[vertex]
+            solved_values[free_indices[vertex]
                 .expect("interior vertex is free")
                 .index()]
         };
@@ -306,7 +391,8 @@ where
         cell_gradients,
         endpoint_reactions,
         assembly_report,
-        solve_report: solved.report().clone(),
+        solve_report,
+        nullspace_evidence,
     })
 }
 
@@ -559,3 +645,6 @@ mod tests {
         assert_eq!(solution.endpoint_reactions()[1], None);
     }
 }
+
+#[cfg(test)]
+mod neumann_tests;
