@@ -410,6 +410,20 @@ fn expression_type_cached(
                 )
             })
         }
+        LoweringExpressionNode::Tensor {
+            operation,
+            arguments,
+        } => {
+            let types = arguments.iter().map(infer).collect::<Result<Vec<_>, _>>()?;
+            operation
+                .definition(&types)
+                .and_then(|definition| {
+                    definition
+                        .instantiate(&types)
+                        .map(|instance| instance.result_type().clone())
+                })
+                .map_err(|error| spatial_type_error(file, expression, error))
+        }
         LoweringExpressionNode::PureOperator {
             definition,
             arguments,

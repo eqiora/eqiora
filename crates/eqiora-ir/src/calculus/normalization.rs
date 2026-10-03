@@ -239,8 +239,8 @@ mod tests {
 
     use super::*;
     use crate::calculus::{
-        CalculusBuilder, CalculusNode, OperatorExpansionExt, PureOperatorDefinition,
-        PureValueClass, ResultAxis,
+        CalculusBuilder, CalculusNode, ComponentIndex, OperatorExpansionExt,
+        PureOperatorDefinition, PureValueClass,
     };
 
     fn volume_tensor(domain: &str, dimension: DimExponents) -> ExpressionType<&str> {
@@ -310,13 +310,13 @@ mod tests {
         let direct = builder
             .push(CalculusNode::FormalComponent {
                 formal: 0,
-                axes: [ResultAxis::new(0), ResultAxis::new(1)].into(),
+                axes: [ComponentIndex::Result(0), ComponentIndex::Result(1)].into(),
             })
             .unwrap();
         let transposed = builder
             .push(CalculusNode::FormalComponent {
                 formal: 0,
-                axes: [ResultAxis::new(1), ResultAxis::new(0)].into(),
+                axes: [ComponentIndex::Result(1), ComponentIndex::Result(0)].into(),
             })
             .unwrap();
         let sum = builder.push(CalculusNode::Add(direct, transposed)).unwrap();

@@ -303,7 +303,7 @@ fn visit_children<'a>(
                 visit(argument)?;
             }
         }
-        ExprKind::Array(elements) => {
+        ExprKind::Array(elements) | ExprKind::Tuple(elements) => {
             for element in elements {
                 visit(element)?;
             }
@@ -461,6 +461,9 @@ fn substitute(
         ExprKind::Array(elements) => {
             ExprKind::Array(elements.iter().map(&mut child).collect::<Result<_, _>>()?)
         }
+        ExprKind::Tuple(elements) => {
+            ExprKind::Tuple(elements.iter().map(&mut child).collect::<Result<_, _>>()?)
+        }
         ExprKind::Index { value, index } => ExprKind::Index {
             value: Box::new(child(value)?),
             index: Box::new(child(index)?),
@@ -481,6 +484,25 @@ fn substitute(
         ExprKind::Call { callee, arguments } => ExprKind::Call {
             callee: callee.clone(),
             arguments: match arguments {
+                eqiora_lang::CallArguments::Mixed { positional, named } => {
+                    eqiora_lang::CallArguments::Mixed {
+                        positional: positional
+                            .iter()
+                            .map(&mut child)
+                            .collect::<Result<_, _>>()?,
+                        named: named
+                            .iter()
+                            .map(|binding| {
+                                SourceAstFactory::named_binding(
+                                    binding.name(),
+                                    child(binding.value())?,
+                                    binding.range(),
+                                )
+                                .map_err(|failure| error(file, expression, failure.to_string()))
+                            })
+                            .collect::<Result<_, _>>()?,
+                    }
+                }
                 eqiora_lang::CallArguments::Positional(values) => {
                     eqiora_lang::CallArguments::Positional(
                         values.iter().map(&mut child).collect::<Result<_, _>>()?,

@@ -323,6 +323,16 @@ impl Resolver<'_> {
                     .map(|value| self.resolve(value, None))
                     .collect::<Result<_, _>>()?,
             },
+            LoweringExpressionNode::Tensor {
+                operation,
+                arguments,
+            } => LoweringExpressionNode::Tensor {
+                operation: operation.clone(),
+                arguments: arguments
+                    .iter()
+                    .map(|value| self.resolve(value, None))
+                    .collect::<Result<_, _>>()?,
+            },
             _ => return Ok(expression.clone()),
         };
         Ok(LoweringExpression {

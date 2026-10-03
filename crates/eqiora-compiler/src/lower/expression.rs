@@ -484,6 +484,24 @@ impl ExpressionLowerer<'_> {
             LoweringExpressionNode::Property { release, arguments } => {
                 self.lower_property(expression, release, arguments)
             }
+            LoweringExpressionNode::Tensor {
+                operation,
+                arguments,
+            } => {
+                let types = arguments
+                    .iter()
+                    .map(|argument| expression_type(self.file, argument, self.bindings, None))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let definition = operation.definition(&types).map_err(|error| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.file,
+                        expression.range(),
+                        error.to_string(),
+                    )
+                })?;
+                self.lower_pure_operator(expression, &definition, arguments)
+            }
             LoweringExpressionNode::PureOperator {
                 definition,
                 arguments,

@@ -2,9 +2,9 @@ use eqiora_core::ValueFrame;
 use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, Id, ValueShape};
 use eqiora_ir::{
-    CalculusBuilder, CalculusError, CalculusNode, ComponentScalarization, ExactRational,
-    OperatorApplicationProof, OperatorExpansionExt, PureOperatorDefinition, PureValueClass,
-    ResultAxis, StandardPureOperator, SupportMap, SupportMapOrientation, SupportMapPairing,
+    CalculusBuilder, CalculusError, CalculusNode, ComponentIndex, ComponentScalarization,
+    ExactRational, OperatorApplicationProof, OperatorExpansionExt, PureOperatorDefinition,
+    PureValueClass, StandardPureOperator, SupportMap, SupportMapOrientation, SupportMapPairing,
 };
 use eqiora_schema::kernel::typing::{ExpressionType, RootContract, SpatialSupport, TypedResidual};
 use eqiora_schema::kernel::{ExprDagBuilder, SymbolRef};
@@ -46,13 +46,13 @@ fn equivalent_symmetry_definition(expanded: bool) -> PureOperatorDefinition {
     let direct = definition
         .push(CalculusNode::FormalComponent {
             formal: 0,
-            axes: [ResultAxis::new(0), ResultAxis::new(1)].into(),
+            axes: [ComponentIndex::Result(0), ComponentIndex::Result(1)].into(),
         })
         .expect("direct component");
     let transposed = definition
         .push(CalculusNode::FormalComponent {
             formal: 0,
-            axes: [ResultAxis::new(1), ResultAxis::new(0)].into(),
+            axes: [ComponentIndex::Result(1), ComponentIndex::Result(0)].into(),
         })
         .expect("transposed component");
     let sum = definition

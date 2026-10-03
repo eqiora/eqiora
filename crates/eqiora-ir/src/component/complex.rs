@@ -99,23 +99,6 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                     "complex powers are not admitted by component scalarization",
                 ));
             }
-            ExprNode::SymmetricPart(operand) | ExprNode::IsotropicLift(operand)
-                if self.is_complex(operand) =>
-            {
-                return Err(invalid_component_ir(
-                    "complex tensor calculus is not admitted by component scalarization",
-                ));
-            }
-            ExprNode::PureOperatorApplication(ref application)
-                if application
-                    .arguments()
-                    .iter()
-                    .any(|argument| self.is_complex(*argument)) =>
-            {
-                return Err(invalid_component_ir(
-                    "complex pure calculus is not admitted by component scalarization",
-                ));
-            }
             _ => return Ok(None),
         };
         Ok(Some(value))

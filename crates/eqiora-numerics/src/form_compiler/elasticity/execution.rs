@@ -649,6 +649,14 @@ impl<'a> ProgramCompiler<'a> {
         formal: FormalOperand,
         source_node: Option<ExprId>,
     ) -> Result<u16, Diagnostic> {
+        let coordinates = result_axes
+            .iter()
+            .map(|axis| {
+                u32::try_from(*axis).map_err(|_| {
+                    tape_error("pure-operator result coordinate exceeds the portable range")
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         let digest = definition.digest();
         let mut values = Vec::with_capacity(definition.nodes().len());
         for node in definition.nodes() {
@@ -680,10 +688,9 @@ impl<'a> ProgramCompiler<'a> {
                     let component = axes
                         .iter()
                         .map(|axis| {
-                            result_axes
-                                .get(usize::from(axis.index()))
-                                .copied()
-                                .ok_or_else(|| tape_error("pure-operator result axis is invalid"))
+                            axis.resolve(&coordinates)
+                                .map(|value| value as usize)
+                                .map_err(|_| tape_error("pure-operator result axis is invalid"))
                         })
                         .collect::<Result<Vec<_>, _>>()?;
                     self.emit_formal(formal, &component, digest)?
@@ -692,12 +699,12 @@ impl<'a> ProgramCompiler<'a> {
                     return Err(tape_error("pure-operator formal slot is outside the class"));
                 }
                 CalculusNode::KroneckerDelta(left, right) => {
-                    let left = result_axes
-                        .get(usize::from(left.index()))
-                        .ok_or_else(|| tape_error("pure-operator delta axis is invalid"))?;
-                    let right = result_axes
-                        .get(usize::from(right.index()))
-                        .ok_or_else(|| tape_error("pure-operator delta axis is invalid"))?;
+                    let left = left
+                        .resolve(&coordinates)
+                        .map_err(|_| tape_error("pure-operator delta axis is invalid"))?;
+                    let right = right
+                        .resolve(&coordinates)
+                        .map_err(|_| tape_error("pure-operator delta axis is invalid"))?;
                     self.constant(if left == right { 1.0 } else { 0.0 }, provenance)?
                 }
                 CalculusNode::Neg(value) => self.push(

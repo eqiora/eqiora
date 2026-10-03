@@ -7,8 +7,8 @@ use eqiora_core::ValueFrame;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id, ValueShape};
 use eqiora_schema::kernel::pure_operator::{
-    CalculusBuilder, CalculusNode, CalculusNodeId, ExactRational, PureOperatorDefinition,
-    PureValueClass, ResultAxis,
+    CalculusBuilder, CalculusNode, CalculusNodeId, ComponentIndex, ExactRational,
+    PureOperatorDefinition, PureValueClass,
 };
 use eqiora_schema::kernel::{
     ActivationKind, BoundaryPairing, BoundarySide, CartesianAxisDefinition,
@@ -589,6 +589,8 @@ pub(crate) enum WirePureValueClass {
     SpatialTensor {
         rank: u16,
         #[serde(deserialize_with = "Deserialize::deserialize")]
+        extent: Option<u32>,
+        #[serde(deserialize_with = "Deserialize::deserialize")]
         dimension: Option<WireDimension>,
         #[serde(deserialize_with = "Deserialize::deserialize")]
         scalar_domain: Option<WireScalarDomain>,
@@ -606,6 +608,7 @@ impl WirePureValueClass {
             },
             Some(rank) => Self::SpatialTensor {
                 rank,
+                extent: value.spatial_extent(),
                 dimension,
                 scalar_domain,
             },
@@ -620,15 +623,20 @@ impl WirePureValueClass {
             } => (PureValueClass::invariant_scalar(), dimension, scalar_domain),
             Self::SpatialTensor {
                 rank,
+                extent,
                 dimension,
                 scalar_domain,
-            } => (
-                PureValueClass::spatial_tensor(rank).map_err(|error| {
-                    invalid_artifact(format!("invalid pure value class: {error}"))
-                })?,
-                dimension,
-                scalar_domain,
-            ),
+            } => {
+                let class = PureValueClass::spatial_tensor(rank)
+                    .and_then(|class| match extent {
+                        Some(extent) => class.with_spatial_extent(extent),
+                        None => Ok(class),
+                    })
+                    .map_err(|error| {
+                        invalid_artifact(format!("invalid pure value class: {error}"))
+                    })?;
+                (class, dimension, scalar_domain)
+            }
         };
         let class = match scalar_domain {
             Some(domain) => class
@@ -640,6 +648,33 @@ impl WirePureValueClass {
             Some(dimension) => class.with_dimension(dimension.decode()),
             None => class,
         })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(
+    tag = "kind",
+    content = "index",
+    rename_all = "kebab-case",
+    deny_unknown_fields
+)]
+pub(crate) enum WireComponentIndex {
+    Result(u16),
+    Fixed(u32),
+}
+
+impl WireComponentIndex {
+    fn encode(index: ComponentIndex) -> Self {
+        match index {
+            ComponentIndex::Result(axis) => Self::Result(axis),
+            ComponentIndex::Fixed(coordinate) => Self::Fixed(coordinate),
+        }
+    }
+    fn decode(self) -> ComponentIndex {
+        match self {
+            Self::Result(axis) => ComponentIndex::Result(axis),
+            Self::Fixed(coordinate) => ComponentIndex::Fixed(coordinate),
+        }
     }
 }
 
@@ -693,11 +728,11 @@ pub(crate) enum WirePureCalculusNode {
     },
     FormalComponent {
         formal: u16,
-        axes: Vec<u16>,
+        axes: Vec<WireComponentIndex>,
     },
     KroneckerDelta {
-        left_axis: u16,
-        right_axis: u16,
+        left_axis: WireComponentIndex,
+        right_axis: WireComponentIndex,
     },
     Neg {
         value: u32,
@@ -757,11 +792,15 @@ impl WirePureCalculusNode {
             },
             CalculusNode::FormalComponent { formal, axes } => Self::FormalComponent {
                 formal: *formal,
-                axes: axes.iter().map(|axis| axis.index()).collect(),
+                axes: axes
+                    .iter()
+                    .copied()
+                    .map(WireComponentIndex::encode)
+                    .collect(),
             },
             CalculusNode::KroneckerDelta(left, right) => Self::KroneckerDelta {
-                left_axis: left.index(),
-                right_axis: right.index(),
+                left_axis: WireComponentIndex::encode(*left),
+                right_axis: WireComponentIndex::encode(*right),
             },
             CalculusNode::Differentiated { value, source, wrt } => Self::Differentiated {
                 value: value.index(),
@@ -841,16 +880,13 @@ impl WirePureCalculusNode {
                 axes: axes
                     .iter()
                     .copied()
-                    .map(ResultAxis::new)
+                    .map(WireComponentIndex::decode)
                     .collect::<Box<[_]>>(),
             },
             Self::KroneckerDelta {
                 left_axis,
                 right_axis,
-            } => CalculusNode::KroneckerDelta(
-                ResultAxis::new(*left_axis),
-                ResultAxis::new(*right_axis),
-            ),
+            } => CalculusNode::KroneckerDelta(left_axis.decode(), right_axis.decode()),
             Self::Differentiated { value, source, wrt } => CalculusNode::Differentiated {
                 value: calculus_operand(ids, *value)?,
                 source: calculus_operand(ids, *source)?,
@@ -899,75 +935,6 @@ pub(crate) fn validate_operator_digest(digest: &str) -> Result<(), Diagnostic> {
         ));
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod pure_constraint_tests {
-    use super::*;
-    use eqiora_core::DimExponents;
-    use serde_json::json;
-
-    #[test]
-    fn scalar_and_tensor_classes_preserve_exact_optional_dimensions() {
-        let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
-        for class in [
-            PureValueClass::invariant_scalar(),
-            PureValueClass::spatial_tensor(1).unwrap(),
-            PureValueClass::spatial_tensor(2).unwrap(),
-        ] {
-            for value in [
-                class,
-                class.with_dimension(length),
-                class
-                    .with_scalar_domain(eqiora_core::ScalarDomain::Real)
-                    .unwrap(),
-                class
-                    .with_scalar_domain(eqiora_core::ScalarDomain::Complex)
-                    .unwrap(),
-            ] {
-                let wire = WirePureValueClass::encode(value);
-                let bytes = serde_json::to_vec(&wire).unwrap();
-                let restored: WirePureValueClass = serde_json::from_slice(&bytes).unwrap();
-                assert_eq!(restored.decode().unwrap(), value);
-            }
-        }
-        let rank_two = PureValueClass::spatial_tensor(2)
-            .unwrap()
-            .with_dimension(length);
-        assert_eq!(
-            serde_json::to_value(WirePureValueClass::encode(rank_two)).unwrap(),
-            json!({"kind":"spatial-tensor","rank":2,"scalar_domain":null,"dimension":[[0,1],[1,1],[0,1],[0,1],[0,1],[0,1],[0,1]]})
-        );
-        let invalid: WirePureValueClass = serde_json::from_value(
-            json!({"kind":"spatial-tensor","rank":0,"scalar_domain":null,"dimension":null}),
-        )
-        .unwrap();
-        assert!(invalid.decode().is_err());
-    }
-
-    #[test]
-    fn result_constraint_proof_precedes_claimed_digest_acceptance() {
-        let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
-        let time = DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap();
-        let class = PureValueClass::invariant_scalar().with_dimension(length);
-        let mut builder = CalculusBuilder::new([class], class).unwrap();
-        let root = builder
-            .push(CalculusNode::FormalComponent {
-                formal: 0,
-                axes: Box::new([]),
-            })
-            .unwrap();
-        let mut wire = WirePureOperatorDefinition::encode(&builder.finish(root).unwrap());
-        assert!(wire.rebuild_and_validate_digest().is_ok());
-        wire.result =
-            WirePureValueClass::encode(PureValueClass::invariant_scalar().with_dimension(time));
-        let error = wire.rebuild_and_validate_digest().unwrap_err().to_string();
-        assert!(
-            error.contains("invalid pure-operator definition"),
-            "{error}"
-        );
-        assert!(!error.contains("digest mismatch"), "{error}");
-    }
 }
 
 #[cfg(test)]

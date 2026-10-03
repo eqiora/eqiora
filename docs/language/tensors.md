@@ -1,8 +1,11 @@
 # Tensor contractions and local maps
 
 These [target-language](core.md) rules specify bounded tensor and local-map operations.
-The source examples are specified,
-not current parser or runtime admission claims.
+The current spatial profile executes full-coordinate ranks one through four via
+`component`, `permute_axes`, `transpose`, `outer`, `contract`, `matrix_trace` and
+`componentwise_product`. Uniform real/complex source evaluation is independently
+checked by [the tensor contraction case](../../verify/language/tensor-contractions/README.md).
+The local inverse-map and Hermitian `inner` profiles below remain specified targets.
 
 ## Axes and construction
 
@@ -24,7 +27,8 @@ support. Native `DraftParameter.with_frame` and Python `Parameter(frame=...)`
 retain the same explicit support reference during source construction. Components
 must be closed scalar expressions; named model values, including Parameter aliases, reject.
 Arithmetic using already framed Parameters retains its ordinary expression graph. Arbitrary
-local frames and the contraction operations below remain separate capabilities.
+local frames remain a separate capability. Nested component arrays admit ranks one
+through four and must have the ambient extent on every axis.
 
 `component(T, indices = (i, j, ...))` returns the selected scalar. It requires one bounded
 integer per axis. `permute_axes(T, order = (...))` explicitly reorders axes and retains their

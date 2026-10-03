@@ -117,7 +117,7 @@ fn definition_identity_excludes_names_but_includes_exact_body() {
     assert!(
         first
             .canonical_bytes()
-            .starts_with(b"eqiora.pure-operator-definition/v5\0")
+            .starts_with(b"eqiora.pure-operator-definition/v6\0")
     );
     assert_ne!(
         first.digest().to_string(),
@@ -203,5 +203,51 @@ fn symbolic_dimension_monomials_are_bounded() {
     assert_eq!(
         builder.finish(overflow),
         Err(PureOperatorError::FormalExponentLimit)
+    );
+}
+
+#[test]
+fn uniform_spatial_coefficients_retain_shape_without_acquiring_support() {
+    let mut tensor = volume_tensor("body");
+    tensor.support = None;
+    let symmetric = PureOperatorDefinition::symmetric_part().unwrap();
+    assert_eq!(
+        symmetric
+            .instantiate(&[tensor.clone()])
+            .unwrap()
+            .result_type(),
+        &tensor
+    );
+    let mut uniform = volume_vector("body", DimExponents::DIMENSIONLESS);
+    uniform.support = None;
+    let field = volume_vector("body", DimExponents::DIMENSIONLESS);
+    let dyadic = PureOperatorDefinition::dyadic_product().unwrap();
+    assert_eq!(
+        dyadic
+            .instantiate(&[uniform.clone(), field])
+            .unwrap()
+            .result_type(),
+        &volume_tensor("body")
+    );
+    let foreign_extent = ExpressionType::shaped(
+        DimExponents::DIMENSIONLESS,
+        ValueShape::new([3]).unwrap(),
+        ValueFrame::SpatialCartesian,
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        dyadic.instantiate(&[uniform, foreign_extent]).unwrap_err(),
+        PureOperatorError::FormalTypeMismatch
+    );
+    // A dimensionless support-free scalar cannot invent a spatial extent.
+    assert!(
+        PureOperatorDefinition::isotropic_lift()
+            .unwrap()
+            .instantiate(&[ExpressionType::<()>::scalar(
+                DimExponents::DIMENSIONLESS,
+                None
+            )])
+            .is_err()
     );
 }

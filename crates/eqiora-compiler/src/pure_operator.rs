@@ -16,8 +16,8 @@ use eqiora_lang::{
     PureValueClassSyntax, TextRange, UnaryOp,
 };
 use eqiora_schema::kernel::pure_operator::{
-    CalculusBuilder, CalculusNode, CalculusNodeId, ExactRational, PureOperatorDefinition,
-    PureOperatorError, PureValueClass, ResultAxis,
+    CalculusBuilder, CalculusNode, CalculusNodeId, ComponentIndex, ExactRational,
+    PureOperatorDefinition, PureOperatorError, PureValueClass,
 };
 
 use crate::diagnostics::source_error;
@@ -26,6 +26,7 @@ use crate::diagnostics::source_error;
 /// than a package-resolved pure definition.
 pub(crate) fn is_builtin_operator(path: &eqiora_lang::NamePath) -> bool {
     crate::math::is_function(path)
+        || crate::math::tensor::named(path.as_str())
         || (!path.is_qualified()
             && matches!(
                 path.as_str(),
@@ -730,9 +731,9 @@ fn integer(file: &str, expression: &Expr) -> Result<i64, Diagnostic> {
     }
 }
 
-fn axis(file: &str, expression: &Expr) -> Result<ResultAxis, Diagnostic> {
+fn axis(file: &str, expression: &Expr) -> Result<ComponentIndex, Diagnostic> {
     u16::try_from(integer(file, expression)?)
-        .map(ResultAxis::new)
+        .map(ComponentIndex::Result)
         .map_err(|_| pure_error(file, expression.range(), "result axis exceeds u16"))
 }
 

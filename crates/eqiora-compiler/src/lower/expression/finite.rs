@@ -8,6 +8,27 @@ impl ExpressionLowerer<'_> {
         operation: crate::math::finite::Operation,
         arguments: &[LoweringExpression],
     ) -> Result<TypedExpression, Diagnostic> {
+        if operation
+            == crate::math::finite::Operation::Unary(
+                eqiora_schema::kernel::FiniteUnaryOperation::Transpose,
+            )
+        {
+            let types = arguments
+                .iter()
+                .map(|argument| expression_type(self.file, argument, self.bindings, None))
+                .collect::<Result<Vec<_>, _>>()?;
+            if let Some(definition) = operation.spatial_definition(&types) {
+                let definition = definition.map_err(|error| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.file,
+                        expression.range(),
+                        error.to_string(),
+                    )
+                })?;
+                return self.lower_pure_operator(expression, &definition, arguments);
+            }
+        }
         let operands = arguments
             .iter()
             .map(|value| self.lower(value))

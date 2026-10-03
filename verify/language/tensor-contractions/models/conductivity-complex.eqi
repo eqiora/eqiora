@@ -1,0 +1,17 @@
+model M() {
+        domain body=box(0,1,0,1);
+        parameter a:tensor<1,2,2>=tensor_value(frame=body,components=[[2,3],[5,7]]);
+        parameter b:vector<V,2>=tensor_value(frame=body,components=[11,13]);
+        parameter z:vector<complex<1>,2>=tensor_value(frame=body,components=[math.complex(1,2),math.complex(3,-1)]);
+        parameter w:vector<complex<1>,2>=tensor_value(frame=body,components=[math.complex(4,-3),math.complex(-2,5)]);
+        let mapped=contract(a,b,axes=((1,0),));
+        relation independent_reference {
+            component(mapped,indices=(0,))=61[V];
+            component(mapped,indices=(1,))=146[V];
+            component(transpose(a),indices=(0,1))=5;
+            matrix_trace(a)=9;
+            component(componentwise_product(a,a),indices=(0,1))=9;
+            component(outer(b,b),indices=(0,1))=143[V^2];
+            contract(z,w,axes=((0,0),))=math.complex(9,22);
+        }
+    }

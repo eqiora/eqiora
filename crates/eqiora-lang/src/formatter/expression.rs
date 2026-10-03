@@ -97,6 +97,19 @@ pub(super) fn format_expression(
             }
             output.push(']');
         }
+        ExprKind::Tuple(elements) => {
+            output.push('(');
+            for (index, element) in elements.iter().enumerate() {
+                if index != 0 {
+                    output.push_str(", ");
+                }
+                format_expression(element, 0, output);
+            }
+            if elements.len() == 1 {
+                output.push(',');
+            }
+            output.push(')');
+        }
         ExprKind::Index { value, index }
         | ExprKind::Slice {
             value,
@@ -172,8 +185,10 @@ pub(super) fn format_expression(
                 if index != 0 {
                     output.push_str(", ");
                 }
-                if let Some(bindings) = arguments.named() {
-                    write!(output, "{} = ", bindings[index].name()).expect("String write");
+                let (positional, named) = arguments.parts();
+                if index >= positional.len() {
+                    write!(output, "{} = ", named[index - positional.len()].name())
+                        .expect("String write");
                 }
                 format_expression(argument, 0, output);
             }
@@ -227,6 +242,7 @@ fn expression_precedence(expression: &Expr) -> u8 {
         | ExprKind::Partial { .. }
         | ExprKind::Reduction { .. }
         | ExprKind::Array(_)
+        | ExprKind::Tuple(_)
         | ExprKind::Index { .. }
         | ExprKind::Slice { .. } => 19,
     }

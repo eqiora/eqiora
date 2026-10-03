@@ -296,6 +296,13 @@ fn is_static_expression(expression: &eqiora_lang::Expr, values: &SymbolicParamet
                 pending.push(left);
                 pending.push(right);
             }
+            // Tensor algebra retains its shared typed calculus graph even for uniform inputs.
+            eqiora_lang::ExprKind::Call { callee, .. }
+                if crate::math::tensor::named(callee.as_str())
+                    || callee.as_str() == "transpose" =>
+            {
+                return false;
+            }
             eqiora_lang::ExprKind::Call { callee, .. } if callee.as_str() == "period" => {}
             eqiora_lang::ExprKind::Call { callee, arguments }
                 if callee.as_str() == "tensor_value" =>

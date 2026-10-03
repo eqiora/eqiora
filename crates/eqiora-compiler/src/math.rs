@@ -1,5 +1,6 @@
 pub(crate) mod finite;
 pub(crate) mod piecewise;
+pub(crate) mod tensor;
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_lang::{NamePath, TextRange};

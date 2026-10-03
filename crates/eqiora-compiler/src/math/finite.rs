@@ -72,6 +72,15 @@ impl Operation {
         self,
         operands: &[ExpressionType<I>],
     ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+        if let Some(definition) = self.spatial_definition(operands) {
+            return definition
+                .and_then(|definition| {
+                    definition
+                        .instantiate(operands)
+                        .map(|instance| instance.result_type().clone())
+                })
+                .map_err(|_| TypeViolation::FiniteBasisMismatch);
+        }
         if operands.len() != self.arity() {
             return Err(TypeViolation::FiniteBasisMismatch);
         }
@@ -80,6 +89,33 @@ impl Operation {
             (Self::Binary(op), [left, right]) => left.clone().finite_binary(op, right.clone()),
             _ => Err(TypeViolation::FiniteBasisMismatch),
         }
+    }
+
+    pub(crate) fn spatial_definition<I>(
+        self,
+        operands: &[ExpressionType<I>],
+    ) -> Option<
+        Result<
+            eqiora_schema::kernel::pure_operator::PureOperatorDefinition,
+            eqiora_schema::kernel::pure_operator::PureOperatorError,
+        >,
+    > {
+        let [value] = operands else {
+            return None;
+        };
+        if self != Self::Unary(FiniteUnaryOperation::Transpose)
+            || value.frame() != eqiora_core::ValueFrame::SpatialCartesian
+        {
+            return None;
+        }
+        Some(if value.shape().rank() == 2 {
+            eqiora_schema::kernel::pure_operator::PureOperatorDefinition::permute_axes(
+                value.shape().extents()[0].get(),
+                &[1, 0],
+            )
+        } else {
+            Err(eqiora_schema::kernel::pure_operator::PureOperatorError::FormalTypeMismatch)
+        })
     }
 
     pub(crate) fn emit(

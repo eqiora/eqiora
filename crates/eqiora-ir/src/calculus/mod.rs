@@ -20,9 +20,9 @@ pub use application::{
     OperatorApplicationProof, PureOperatorApplicationProof, StandardPureOperator,
 };
 pub use eqiora_schema::kernel::pure_operator::{
-    CalculusBuilder, CalculusNode, CalculusNodeId, ExactRational, FormalDimensionMonomial,
-    OperatorDefinitionDigest, PureOperatorDefinition, PureOperatorError, PureOperatorInstantiation,
-    PureValueClass, ResultAxis,
+    CalculusBuilder, CalculusNode, CalculusNodeId, ComponentIndex, ExactRational,
+    FormalDimensionMonomial, OperatorDefinitionDigest, PureOperatorDefinition, PureOperatorError,
+    PureOperatorInstantiation, PureValueClass,
 };
 pub use expansion::{OperatorExpansionExt, ScalarCalculus, ScalarCalculusAtom, ScalarCalculusNode};
 pub use normalization::{NormalizationProof, NormalizationRuleId};

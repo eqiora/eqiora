@@ -80,37 +80,7 @@ pub(super) fn evaluate(
         unreachable!()
     };
     let (_, components) = arguments(bindings).expect("validated tensor_value bindings");
-    let ExprKind::Array(elements) = components.kind() else {
-        return Err(error(
-            "tensor_value components must be an explicit rank-one or rank-two array",
-        ));
-    };
-    if elements.len() != dimensions || elements.is_empty() {
-        return Err(error(
-            "tensor_value axis extent must equal the frame ambient dimension",
-        ));
-    }
-    let matrix = matches!(elements[0].kind(), ExprKind::Array(_));
-    let mut leaves = Vec::new();
-    for element in elements {
-        match (matrix, element.kind()) {
-            (true, ExprKind::Array(row)) if row.len() == dimensions => {
-                if row
-                    .iter()
-                    .any(|value| matches!(value.kind(), ExprKind::Array(_)))
-                {
-                    return Err(error("tensor_value admits spatial rank one or two only"));
-                }
-                leaves.extend(row);
-            }
-            (false, ExprKind::Array(_)) | (true, _) => {
-                return Err(error(
-                    "tensor_value component arrays must be rectangular with matching ambient extents",
-                ));
-            }
-            (false, _) => leaves.push(element),
-        }
-    }
+    let (rank, leaves) = component_leaves(components, dimensions).map_err(error)?;
     let scalar_target = target
         .map(|value| ValueType::scalar(value.scalar_domain(), value.dimension()))
         .transpose()
@@ -166,12 +136,8 @@ pub(super) fn evaluate(
     }
     let extent = u32::try_from(dimensions)
         .map_err(|_| error("frame dimension is outside the portable shape range"))?;
-    let shape = ValueShape::new(if matrix {
-        vec![extent, extent]
-    } else {
-        vec![extent]
-    })
-    .map_err(|violation| error(&violation.to_string()))?;
+    let shape = ValueShape::new(std::iter::repeat_n(extent, rank))
+        .map_err(|violation| error(&violation.to_string()))?;
     let value_type = ValueType::shaped(
         common.value_type.scalar_domain(),
         common.dimension(),
@@ -249,6 +215,49 @@ fn has_named_component_reference(expression: &Expr) -> bool {
         }
     }
     false
+}
+
+fn component_leaves(expression: &Expr, extent: usize) -> Result<(usize, Vec<&Expr>), &'static str> {
+    let mut first = expression;
+    let mut rank = 0;
+    while let ExprKind::Array(values) = first.kind() {
+        rank += 1;
+        if rank > 4 {
+            return Err("tensor_value admits spatial ranks one through four");
+        }
+        first = values.first().ok_or("tensor_value axes must be nonempty")?;
+    }
+    if rank == 0 {
+        return Err("tensor_value components require an explicit nested array");
+    }
+    fn collect<'a>(
+        value: &'a Expr,
+        extent: usize,
+        rank: usize,
+        leaves: &mut Vec<&'a Expr>,
+    ) -> Result<(), &'static str> {
+        match (rank, value.kind()) {
+            (0, ExprKind::Array(_)) => Err(
+                "tensor_value component arrays must be rectangular with matching ambient extents",
+            ),
+            (0, _) => {
+                leaves.push(value);
+                Ok(())
+            }
+            (_, ExprKind::Array(values)) if values.len() == extent && extent != 0 => {
+                for value in values {
+                    collect(value, extent, rank - 1, leaves)?;
+                }
+                Ok(())
+            }
+            _ => Err(
+                "tensor_value component arrays must be rectangular with matching ambient extents",
+            ),
+        }
+    }
+    let mut leaves = Vec::new();
+    collect(expression, extent, rank, &mut leaves)?;
+    Ok((rank, leaves))
 }
 
 #[cfg(test)]
@@ -423,7 +432,6 @@ mod tests {
         for components in [
             "[1]",
             "[[1,2],[3]]",
-            "[[[1,2],[3,4]],[[1,2],[3,4]]]",
             "[true,false]",
             "[live,0]",
             "[math.complex(real = 1, imaginary = 2),0]",
@@ -434,6 +442,22 @@ mod tests {
                 "{components}"
             );
         }
+        let rank_three = construct("[[[1,2],[3,4]],[[5,6],[7,8]]]", None, false, true)
+            .unwrap()
+            .value
+            .unwrap();
+        assert_eq!(rank_three.value_type().shape().rank(), 3);
+        assert_eq!(rank_three.component(6), Some((7.0, 0.0)));
+        let mut rank_five = "1".to_owned();
+        for _ in 0..5 {
+            rank_five = format!("[{rank_five},{rank_five}]");
+        }
+        assert!(
+            construct(&rank_five, None, false, true)
+                .unwrap_err()
+                .message()
+                .contains("one through four")
+        );
         let skipped = construct("[1/0,2]", None, false, false).unwrap();
         assert!(skipped.value.is_none());
         assert!(skipped.expression.is_none());

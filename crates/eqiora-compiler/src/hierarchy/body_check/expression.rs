@@ -406,6 +406,37 @@ impl ExpressionChecker<'_, '_, '_> {
         arguments: &eqiora_lang::CallArguments,
     ) -> Result<ExpressionType<String>, Diagnostic> {
         let callee_name = callee.as_str();
+        if crate::math::tensor::named(callee_name) {
+            let (operation, operands) = crate::math::tensor::source(callee_name, arguments)
+                .map_err(|message| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.scope.file,
+                        expression.range(),
+                        message,
+                    )
+                })?;
+            let types = operands
+                .into_iter()
+                .map(|value| self.check(value))
+                .collect::<Result<Vec<_>, _>>()?;
+            return operation
+                .definition(&types)
+                .and_then(|definition| {
+                    definition
+                        .instantiate(&types)
+                        .map(|instance| instance.result_type().clone())
+                })
+                .map_err(|error| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.scope.file,
+                        expression.range(),
+                        error.to_string(),
+                    )
+                });
+        }
+
         if let Some(contract) = self.scope.properties.get(callee_name).cloned() {
             return super::property::application(
                 self.scope.file,

@@ -283,6 +283,10 @@ enum LoweringExpressionNode {
         value: LoweringExpression,
         clock: String,
     },
+    Tensor {
+        operation: crate::math::tensor::Operation,
+        arguments: Vec<LoweringExpression>,
+    },
     Finite {
         operation: crate::math::finite::Operation,
         arguments: Vec<LoweringExpression>,

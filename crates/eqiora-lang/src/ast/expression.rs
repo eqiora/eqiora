@@ -125,6 +125,12 @@ impl Expr {
                     .map(|element| element.rewrite_name_paths_with(rewrite))
                     .collect(),
             ),
+            ExprKind::Tuple(elements) => ExprKind::Tuple(
+                elements
+                    .iter()
+                    .map(|element| element.rewrite_name_paths_with(rewrite))
+                    .collect(),
+            ),
             ExprKind::Index { value, index } => ExprKind::Index {
                 value: Box::new(value.rewrite_name_paths_with(rewrite)),
                 index: Box::new(index.rewrite_name_paths_with(rewrite)),
@@ -193,6 +199,19 @@ impl Expr {
                     |replacement| replacement.with_range(callee.range()),
                 ),
                 arguments: match arguments {
+                    CallArguments::Mixed { positional, named } => CallArguments::Mixed {
+                        positional: positional
+                            .iter()
+                            .map(|value| value.rewrite_name_paths_with(rewrite))
+                            .collect(),
+                        named: named
+                            .iter()
+                            .map(|binding| NamedBindingDecl {
+                                value: binding.value.rewrite_name_paths_with(rewrite),
+                                ..binding.clone()
+                            })
+                            .collect(),
+                    },
                     CallArguments::Positional(values) => CallArguments::Positional(
                         values
                             .iter()
@@ -254,6 +273,8 @@ pub enum ExprKind {
     },
     /// Nonempty ordered channel-array elements; rectangularity is checked during lowering.
     Array(Vec<Expr>),
+    /// Compile-time structural tuple; never implicitly a value array or tensor.
+    Tuple(Vec<Expr>),
     /// Select one channel from a value; index legality is checked during lowering.
     Index {
         /// Value being indexed.
@@ -386,33 +407,49 @@ pub enum BinaryOp {
     Or,
 }
 
-/// One homogeneous, authored-order argument list for a shared expression call.
+/// One authored-order argument list for a shared expression call.
 #[derive(Debug, Clone, PartialEq)]
 pub enum CallArguments {
     /// Ordered arguments of a positional primitive.
     Positional(Vec<Expr>),
     /// Explicit bindings to the target signature, retaining authored order.
     Named(Vec<NamedBindingDecl>),
+    /// Positional operands followed by explicit named options.
+    Mixed {
+        /// Nonempty positional prefix.
+        positional: Vec<Expr>,
+        /// Nonempty named suffix.
+        named: Vec<NamedBindingDecl>,
+    },
 }
 
 impl CallArguments {
     /// Expression values in authored argument order, without erasing binding names.
     pub fn expressions(&self) -> impl ExactSizeIterator<Item = &Expr> {
-        let len = match self {
-            Self::Positional(values) => values.len(),
-            Self::Named(bindings) => bindings.len(),
-        };
-        (0..len).map(move |index| match self {
-            Self::Positional(values) => &values[index],
-            Self::Named(bindings) => bindings[index].value(),
+        let (positional, named) = self.parts();
+        (0..positional.len() + named.len()).map(move |index| {
+            if index < positional.len() {
+                &positional[index]
+            } else {
+                named[index - positional.len()].value()
+            }
         })
+    }
+    /// Positional prefix and named suffix, retaining authored order within each.
+    #[must_use]
+    pub fn parts(&self) -> (&[Expr], &[NamedBindingDecl]) {
+        match self {
+            Self::Positional(values) => (values, &[]),
+            Self::Named(bindings) => (&[], bindings),
+            Self::Mixed { positional, named } => (positional, named),
+        }
     }
     /// Positional values, only when this call uses positional syntax.
     #[must_use]
     pub fn positional(&self) -> Option<&[Expr]> {
         match self {
             Self::Positional(values) => Some(values),
-            Self::Named(_) => None,
+            Self::Named(_) | Self::Mixed { .. } => None,
         }
     }
     /// Named bindings, only when this call uses named syntax.
@@ -420,7 +457,7 @@ impl CallArguments {
     pub fn named(&self) -> Option<&[NamedBindingDecl]> {
         match self {
             Self::Named(bindings) => Some(bindings),
-            Self::Positional(_) => None,
+            Self::Positional(_) | Self::Mixed { .. } => None,
         }
     }
 }

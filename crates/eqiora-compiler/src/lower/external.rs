@@ -86,6 +86,16 @@ impl LoweringExpression {
                     .map(|value| value.clone_shared(cache))
                     .collect(),
             },
+            LoweringExpressionNode::Tensor {
+                operation,
+                arguments,
+            } => LoweringExpressionNode::Tensor {
+                operation: operation.clone(),
+                arguments: arguments
+                    .iter()
+                    .map(|value| value.clone_shared(cache))
+                    .collect(),
+            },
             LoweringExpressionNode::Piecewise { name, arguments } => {
                 LoweringExpressionNode::Piecewise {
                     name: name.clone(),

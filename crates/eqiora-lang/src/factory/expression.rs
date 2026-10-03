@@ -73,6 +73,12 @@ fn validate_expression_depth(expression: &Expr, depth: usize) -> Result<(), AstC
             validate_expression_depth(lower, depth + 1)?;
             validate_expression_depth(upper, depth + 1)
         }
+        ExprKind::Tuple(elements) => {
+            for element in elements {
+                validate_expression_depth(element, depth + 1)?;
+            }
+            Ok(())
+        }
         ExprKind::Array(elements) => {
             if elements.is_empty() {
                 return Err(AstConstructionError::new(
@@ -114,7 +120,15 @@ fn validate_expression_depth(expression: &Expr, depth: usize) -> Result<(), AstC
                     "sum/product/partial require structured compile-time bindings",
                 ));
             }
-            if let Some(bindings) = arguments.named() {
+            if let crate::CallArguments::Mixed { positional, named } = arguments
+                && (positional.is_empty() || named.is_empty())
+            {
+                return Err(AstConstructionError::new(
+                    "mixed arguments require both a positional prefix and named suffix",
+                ));
+            }
+            {
+                let bindings = arguments.parts().1;
                 let mut names = std::collections::HashSet::new();
                 for binding in bindings {
                     validate_identifier(binding.name(), "argument name")?;

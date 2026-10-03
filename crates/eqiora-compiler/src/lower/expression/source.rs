@@ -6,6 +6,19 @@ pub(in crate::lower) fn from_source(expression: &Expr) -> LoweringExpression {
         return LoweringExpression::literal(value.clone(), expression.range());
     }
     let kind = match expression.kind() {
+        ExprKind::Call { callee, arguments } if crate::math::tensor::named(callee.as_str()) => {
+            match crate::math::tensor::source(callee.as_str(), arguments) {
+                Ok((operation, arguments)) => LoweringExpressionNode::Tensor {
+                    operation,
+                    arguments: arguments
+                        .into_iter()
+                        .map(LoweringExpression::from_source)
+                        .collect(),
+                },
+                Err(message) => LoweringExpressionNode::InvalidValue(message),
+            }
+        }
+
         ExprKind::Array(elements) => LoweringExpressionNode::Array(
             elements
                 .iter()
