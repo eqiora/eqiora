@@ -195,7 +195,7 @@ fn expression_type_cached(
                     expression.range(),
                     value_type,
                     domain.as_deref(),
-                    reduction.as_deref(),
+                    reduction.as_ref(),
                     bindings,
                 )
             }

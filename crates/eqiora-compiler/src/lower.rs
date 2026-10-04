@@ -293,6 +293,12 @@ enum LoweringExpressionNode {
 }
 
 #[derive(Debug, Clone)]
+pub(crate) struct LoweringIntegral {
+    pub(crate) domain: String,
+    pub(crate) measure: Option<eqiora_schema::kernel::ObservableMeasure>,
+}
+
+#[derive(Debug, Clone)]
 pub(crate) enum LoweringItem {
     RecordInstance {
         id: Id<kinds::RecordInstance>,
@@ -341,7 +347,7 @@ pub(crate) enum LoweringItem {
         name: String,
         value_type: eqiora_lang::ValueTypeSyntax,
         value: LoweringExpression,
-        reduction: Option<String>,
+        reduction: Option<LoweringIntegral>,
         domain: Option<String>,
         range: TextRange,
     },

@@ -51,6 +51,9 @@ fn check_loaded_result(accepted: &Accepted) {
                     domain, measure, ..
                 } => {
                     let dimension = match measure {
+                        eqiora::kernel::ObservableMeasure::SphericalVolume => {
+                            panic!("Cartesian elastic fixture cannot contain spherical measure")
+                        }
                         eqiora::kernel::ObservableMeasure::Volume => 2,
                         eqiora::kernel::ObservableMeasure::Boundary => 1,
                     };

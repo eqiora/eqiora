@@ -59,9 +59,15 @@ pub(in crate::lower) fn expand<'a>(
                 },
             ));
         }
-        require_fixed_factors(file, value.range, measure, model).map_err(|error| vec![error])?;
-        let measure_support =
-            relation_support(file, value.range, measure, bindings).map_err(|error| vec![error])?;
+        if measure.measure.is_some() {
+            return Err(invalid(
+                "fixed integral partial requires the admitted Cartesian factor measure",
+            ));
+        }
+        require_fixed_factors(file, value.range, &measure.domain, model)
+            .map_err(|error| vec![error])?;
+        let measure_support = relation_support(file, value.range, &measure.domain, bindings)
+            .map_err(|error| vec![error])?;
         let density = contextual::typed_value(
             file,
             density,

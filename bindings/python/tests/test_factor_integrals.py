@@ -77,3 +77,32 @@ def test_factor_integrals_native_authoring_separates_output_and_integration_supp
     emitted = q.compile(source=text, entry="Readings", geometry=geometry, bindings={"body": geometry.selection("body")})
     assert native.to_bytes() == emitted.to_bytes()
     assert native.structural_fingerprint == emitted.structural_fingerprint
+
+
+def test_spherical_factor_measure_installed_result_replay():
+    import math
+    source = """model Particle(support radius:interval(m)) {
+      coordinate r:m on radius from radius[0];
+      variable anchor:1; relation value {anchor=1;}
+      observable total:1=integral(2[1/m^3]+3[1/m^5]*r^2,spherical_measure(radius));
+      observable volume:m^3=integral(1,spherical_measure(radius));
+      observable average:1/m^3=total/volume;
+    }"""
+    model = q.compile(source=source, entry="Particle", bindings={
+        "radius": q.CoordinateInterval(0, 2, dimension=LENGTH),
+    })
+    outputs = {name: model.observable(name) for name in ("total", "volume", "average")}
+    model = q.Model.from_bytes(model.to_bytes())
+    solve = q.solve.Linear(relative_tolerance=1e-12, absolute_tolerance=1e-14,
+                           maximum_iterations=8, algorithm=q.solve.LinearSolver.SparseLu,
+                           preconditioner=q.solve.Preconditioner.Identity,
+                           reduction=q.solve.Reduction.Fast, provider=q.solve.SolverProvider.faer())
+    plan = q.Plan.from_bytes(q.resolve(model, solve=solve).to_bytes())
+    result = q.run(plan, state=q.State.initial(plan))
+    result = q.Result.from_bytes(plan, result.to_bytes())
+    for name, expected, power in [("total", 1472*math.pi/15, 0),
+                                  ("volume", 32*math.pi/3, 3),
+                                  ("average", 46/5, -3)]:
+        observation = result.observe(outputs[name], quadrature_points=3)
+        assert observation.value == pytest.approx(expected, rel=0, abs=1e-11)
+        assert observation.value_type == q.ValueType.real(q.Dimension(length=power))

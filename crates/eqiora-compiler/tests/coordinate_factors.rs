@@ -148,3 +148,36 @@ fn abstract_factors_accept_scalar_operators_and_do_not_ambiguate_physical_frames
         .unwrap_or_else(|errors| panic!("{body}: {errors:?}"));
     }
 }
+
+#[test]
+fn spherical_measure_is_explicit_source_meaning_with_volume_units() {
+    use eqiora_schema::kernel::{ObservableMeasure, ObservableReduction};
+    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
+    let binding = [(
+        "radius",
+        StaticBindingValue::CoordinateInterval(
+            AxisBounds::new(DynQuantity::new(0.0, length), DynQuantity::new(2.0, length)).unwrap(),
+        ),
+    )];
+    for owner in ["model", "public component"] {
+        let source = format!(
+            "{owner} Particle(support radius:interval(m)) {{ variable anchor:1; relation value {{anchor=1;}} observable total:1=integral(2[1/m^3],spherical_measure(radius)); }}"
+        );
+        let compiled =
+            CompiledModel::compile_selected("sphere.eqi", &source, "Particle", &binding).unwrap();
+        assert!(compiled.into_parts().0.ops().iter().any(|op| matches!(op,
+            Op::DefineKernelNode { node: KernelNode::Observable(value) }
+                if matches!(value.reduction(), ObservableReduction::SpatialIntegral {measure: ObservableMeasure::SphericalVolume, ..}))));
+        let errors = CompiledModel::compile_selected(
+            "sphere.eqi",
+            &source.replace("spherical_measure", "measure"),
+            "Particle",
+            &binding,
+        )
+        .unwrap_err();
+        assert!(
+            errors.iter().any(|error| error.message().contains("type")),
+            "{errors:?}"
+        );
+    }
+}

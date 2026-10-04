@@ -8,8 +8,8 @@ The current implementation admits abstract dimensioned interval slots and owned 
 Model and Component source, including nested products, physical Cartesian region factors, and
 whole-product and selected-factor Observable measures.
 The source support owns factor identity; native `StaticBindingValue::CoordinateInterval` and
-Python `CoordinateInterval` supply checked finite bounds. Model/Transaction v35 and structural
-fingerprint v30 retain these factors. No ambient physical frame or numerical realization is
+Python `CoordinateInterval` supply checked finite bounds. Model/Transaction v36 and structural
+fingerprint v31 retain these factors. No ambient physical frame or numerical realization is
 inferred. Exact coordinate binders and real scalar polynomial partials execute through the
 shared calculus evaluator, including independently dimensioned position and velocity factors.
 First coordinate derivatives of continuous scalar Fields remain explicit Model nodes; the
@@ -19,7 +19,7 @@ rejection, and replay. Bounded real scalar factor integrals execute coordinate d
 finite Result amplitudes, exact selected measures and explicit remaining output support;
 [registered evidence](../../verify/language/factor-integrals/README.md) covers polynomial moments
 and finite Gaussian error bounds. Non-Cartesian product factors, product-domain Field/PDE
-realizations, spherical measures, integral solver coupling, general differentiation under integrals,
+realizations, radial diffusion Fields, integral solver coupling, general differentiation under integrals,
 higher unknown-Field partials and curved embedded-field extensions remain separate work. The complete examples below include target operations beyond this bounded implementation.
 
 ## Exact factors and coordinate bindings
@@ -165,9 +165,12 @@ still has intrinsic measure dimension `m`. Metric/Jacobian weights remain mathem
 quadrature points and numerical weights implement that data rather than define it.
 
 An integral is not a normalized average. Write a denominator explicitly, and reject a zero
-measure before division. For a radial spherical-symmetry profile the measure is `4*pi*r^2 dr`,
-not `dr`; a constant concentration `c` has total `c*4*pi*R^3/3` and average `c`. The profile
-must carry center regularity and the radial measure explicitly before it is admitted.
+measure before division. Use `spherical_measure(radius)` to declare the spherical-symmetry measure
+`4*pi*r^2 dr` on one length-valued coordinate interval `[0,R]`, with `R > 0`.
+A constant concentration `c` has total `c*4*pi*R^3/3` and explicit average `c`.
+The regular coordinate-density observation path supports this measure; a radial
+diffusion Field and its center regularity are not inferred or realized by this declaration.
+Spherical functional variations and integral partials remain unsupported.
 
 Finite sums have separate syntax `sum(expression, over = (i in index_set))`. The index is a
 fresh exact bounded binder scoped only over the integrand. It shadows no existing binding

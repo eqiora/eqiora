@@ -44,7 +44,7 @@ impl ExpressionLowerer<'_> {
                     expression.range(),
                     &value_type,
                     domain.as_deref(),
-                    reduction.as_deref(),
+                    reduction.as_ref(),
                     self.bindings,
                 )?;
                 (SymbolRef::Observable(id), id.erase(), ty.dimension())

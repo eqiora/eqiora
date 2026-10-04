@@ -181,6 +181,11 @@ impl ExpressionContext<'_> {
                 domain,
                 measure,
             } if input == domain => Some(match measure {
+                ObservableMeasure::SphericalVolume => {
+                    return Err(wire::rejection(
+                        "spherical functional variations require an admitted radial Field realization",
+                    ));
+                }
                 ObservableMeasure::Volume => SpatialSupport::Volume {
                     domain: domain.erase(),
                     dimensions: self.ambient_dimension,

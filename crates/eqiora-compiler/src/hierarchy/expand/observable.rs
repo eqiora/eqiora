@@ -1,7 +1,10 @@
 //! Spatial integrals are declaration reductions, not general expression operators.
 use super::*;
 
-type ObservableSource<'a> = (&'a eqiora_lang::Expr, Option<&'a str>);
+type ObservableSource<'a> = (
+    &'a eqiora_lang::Expr,
+    Option<(&'a str, Option<eqiora_schema::kernel::ObservableMeasure>)>,
+);
 
 pub(in crate::hierarchy) fn split<'a>(
     file: &str,
@@ -28,7 +31,7 @@ pub(in crate::hierarchy) fn split<'a>(
         };
         let Some([domain]) = arguments
             .positional()
-            .filter(|_| callee.as_str() == "measure")
+            .filter(|_| matches!(callee.as_str(), "measure" | "spherical_measure"))
         else {
             return Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
@@ -49,7 +52,14 @@ pub(in crate::hierarchy) fn split<'a>(
                 ));
             }
         };
-        Ok((integrand, Some(name)))
+        Ok((
+            integrand,
+            Some((
+                name,
+                (callee.as_str() == "spherical_measure")
+                    .then_some(eqiora_schema::kernel::ObservableMeasure::SphericalVolume),
+            )),
+        ))
     } else {
         Ok((expression, None))
     }
@@ -59,10 +69,16 @@ pub(super) fn rewrite(
     file: &str,
     expression: &eqiora_lang::Expr,
     scope: &Scope,
-) -> Result<(crate::lower::LoweringExpression, Option<String>), Diagnostic> {
+) -> Result<
+    (
+        crate::lower::LoweringExpression,
+        Option<crate::lower::LoweringIntegral>,
+    ),
+    Diagnostic,
+> {
     let (value, reduction) = split(file, expression)?;
     let reduction = reduction
-        .map(|name| {
+        .map(|(name, measure)| {
             let domain = resolve_local_kind(
                 file,
                 expression.range(),
@@ -71,7 +87,10 @@ pub(super) fn rewrite(
                 |kind| matches!(kind, SymbolKind::Domain),
                 "Observable integration Domain",
             )?;
-            Ok::<_, Diagnostic>(domain.internal_name.clone())
+            Ok::<_, Diagnostic>(crate::lower::LoweringIntegral {
+                domain: domain.internal_name.clone(),
+                measure,
+            })
         })
         .transpose()?;
     Ok((

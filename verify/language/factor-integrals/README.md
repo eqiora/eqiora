@@ -5,8 +5,8 @@ Model, Plan, State and Result owners. The amplitude is a solved finite Field; co
 have explicit finite bounds. Exact input support, selected measure and remaining output
 support survive Model replay. Quadrature belongs to the numerical observation, keyed by
 its exact measure Domain. This does not realize arbitrary phase-space Field data, solve a
-product-domain PDE, couple an integral into a solver equation, or provide spherical
-measures or State-direction products.
+product-domain PDE or radial diffusion Field, couple an integral into a solver equation,
+or provide State-direction products. Spherical coordinate-density observations are covered below.
 
 For `x` in `[0,2] m` and `v` in `[-2,4] m/s`, use
 `f=A*(1+x/(2 m))*(1+(v/(4 m/s))²)` with solved `A=3 s/m²`.
@@ -68,3 +68,29 @@ Geometry measures and shape derivatives remain outside this evidence.
 Spatial Field declarations alone do not establish differentiation-under-integral regularity.
 The fixed polynomial partial profile rejects spatial Field densities until that regularity
 is admitted; a valid undifferentiated spatial density reaches this specific rejection.
+
+## Spherical radial volume measure
+
+`spherical_measure(radius)` declares `4*pi*r^2 dr` on one exact length-valued
+coordinate factor with bounds `[0,R]`, `R > 0`. The coordinate has length units
+and the measure has volume units. This differs from `measure(radius)`, which
+retains the ordinary line measure. The current executable path uses real scalar
+coordinate densities and finite Result amplitudes, not a radial diffusion Field.
+No smoothness or center boundary condition for an unknown Field is inferred from
+this measure declaration; admitting that Field realization remains separate work.
+
+Independently, for `c(r)=2+3r^2` in coherent SI units,
+`total=4*pi*(2R^3/3+3R^5/5)` and `volume=4*pi*R^3/3`. At `R=2`, the total is
+`1472*pi/15`, the explicit average is `46/5`, and the ordinary line integral is
+`12`. A constant density of `2` has total `64*pi/3` and average `2`. Three-point
+Gauss integrates the weighted degree-four polynomial exactly in exact arithmetic;
+the absolute `1e-11` comparison allowance covers binary64 arithmetic at these
+fixed scales. The nonconstant average catches a missing radial weight, while the
+total catches a missing angular factor or affine Jacobian.
+
+The Rust test evaluates after Model replay; installed Python also replays Plan
+and Result. Shared typing rejects non-length factors, multiple radial axes,
+foreign factors and erased remaining support. Whole-Model admission accepts the
+positive `[0,2]` premise and rejects `[-1,2]` and `[0.5,2]` at the radial-bounds gate.
+Spherical Field-state products, functional variations and under-integral source
+partials remain unsupported until their regularity and realization are admitted.
