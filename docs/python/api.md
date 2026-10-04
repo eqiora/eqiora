@@ -3700,6 +3700,16 @@ The compiler retains alias dependencies and checks binding identity and dimensio
 def partial(value: object, *, wrt: Expression, holding: Sequence[Expression]=()) -> Expression: ...
 ```
 
+<a id="api-eqiora-lang-evaluate"></a>
+
+### `eqiora.lang.evaluate`
+
+Bind every coordinate of an exact support using its admitted point reconstruction.
+
+```python
+def evaluate(value: object, *, at: Sequence[tuple[Expression, object]], side: Literal['lower', 'upper'] | None=None) -> Expression: ...
+```
+
 <a id="api-eqiora-lang-jvp"></a>
 
 ### `eqiora.lang.jvp`
