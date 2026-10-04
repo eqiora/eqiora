@@ -3,10 +3,11 @@ use super::*;
 use crate::model::PyObservableRef;
 use crate::modeling::{PyDimension, PyValueType};
 use eqiora::graph::Op;
-use eqiora::kernel::{KernelNode, ObservableMeasure, ObservableReduction};
+use eqiora::kernel::{ExprNode, KernelNode, ObservableMeasure, ObservableReduction, SymbolRef};
 use eqiora::meshing::{MeshTopology, QuadratureRule};
 use eqiora::{DynQuantity, Id, ValueLiteral, kinds};
 use pyo3::types::PyDict;
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Typed Result-owned value with its effective numerical quadrature.
 #[pyclass(
@@ -24,9 +25,7 @@ pub(crate) struct PyObservation {
     #[pyo3(get)]
     evaluation_kind: &'static str,
     #[pyo3(get)]
-    quadrature_points: Option<usize>,
-    #[pyo3(get)]
-    quadrature_dimension: Option<usize>,
+    quadratures: BTreeMap<String, (&'static str, usize, usize)>,
 }
 
 #[pymethods]
@@ -47,16 +46,6 @@ impl PyObservation {
         PyValueType {
             value: self.value.value_type().clone(),
         }
-    }
-    #[getter]
-    fn quadrature(&self) -> Option<&'static str> {
-        self.quadrature_dimension.map(|dimension| {
-            if dimension == 0 {
-                "Point"
-            } else {
-                "GaussLegendre"
-            }
-        })
     }
 }
 
@@ -84,12 +73,12 @@ impl PyObservableStateTangent {
 }
 
 impl PyRunResult {
-    fn observation_rule(
+    fn observation_rules(
         &self,
         py: Python<'_>,
         observable: &PyObservableRef,
         points: Option<usize>,
-    ) -> PyResult<Option<QuadratureRule>> {
+    ) -> PyResult<HashMap<Id<kinds::Domain>, QuadratureRule>> {
         if observable.model_digest != self.identity.model_digest() {
             return Err(PyValueError::new_err(
                 "ObservableRef belongs to a different exact Model artifact",
@@ -101,24 +90,46 @@ impl PyRunResult {
             .model_artifact()
             .to_transaction()
             .map_err(|errors| diagnostic_error(py, &errors))?;
-        let definition = transaction
+        let definitions = transaction
             .ops()
             .iter()
-            .find_map(|operation| match operation {
+            .filter_map(|operation| match operation {
                 Op::DefineKernelNode {
                     node: KernelNode::Observable(definition),
-                } if definition.id() == observable.id => Some(definition),
+                } => Some((definition.id(), definition)),
                 _ => None,
             })
-            .ok_or_else(|| PyKeyError::new_err("Observable is outside this exact Result Model"))?;
+            .collect::<HashMap<_, _>>();
+        let mut pending = vec![observable.id];
+        let mut visited = HashSet::new();
+        let mut measures = HashMap::new();
+        while let Some(id) = pending.pop() {
+            if !visited.insert(id) {
+                continue;
+            }
+            let Some(definition) = definitions.get(&id) else {
+                return Err(PyKeyError::new_err(
+                    "Observable is outside this exact Result Model",
+                ));
+            };
+            if let ObservableReduction::SpatialIntegral { domain, measure } = definition.reduction()
+            {
+                measures.insert(domain, measure);
+            }
+            for node in definition.expression().nodes() {
+                if let ExprNode::Symbol(SymbolRef::Observable(dependency)) = node {
+                    pending.push(*dependency);
+                }
+            }
+        }
         let Some(points) = points else {
-            return Ok(None);
+            return Ok(HashMap::new());
         };
-        let ObservableReduction::SpatialIntegral { measure, .. } = definition.reduction() else {
+        if measures.is_empty() {
             return Err(PyValueError::new_err(
                 "finite Observable does not accept spatial quadrature",
             ));
-        };
+        }
         let owner = self.native.plan().authenticated_mesh().ok_or_else(|| {
             PyValueError::new_err("Observable requires an authenticated Result mesh")
         })?;
@@ -127,22 +138,33 @@ impl PyRunResult {
                 "Observable quadrature requires an admitted Cartesian Result mesh",
             )
         })?;
-        let dimension = mesh
-            .mesh()
-            .topological_dimension()
-            .checked_sub(usize::from(measure == ObservableMeasure::Boundary))
-            .ok_or_else(|| PyValueError::new_err("Observable boundary has no ambient dimension"))?;
-        if dimension == 0 {
-            if points != 1 {
-                return Err(PyValueError::new_err(
-                    "point measure requires quadrature_points=1",
-                ));
-            }
-            return Ok(Some(QuadratureRule::point()));
+        let mut rules = HashMap::new();
+        for (domain, measure) in &measures {
+            let dimension = mesh
+                .mesh()
+                .topological_dimension()
+                .checked_sub(usize::from(*measure == ObservableMeasure::Boundary))
+                .ok_or_else(|| {
+                    PyValueError::new_err("Observable boundary has no ambient dimension")
+                })?;
+            let rule = if dimension == 0 {
+                if points != 1
+                    && measures
+                        .values()
+                        .all(|measure| *measure == ObservableMeasure::Boundary)
+                {
+                    return Err(PyValueError::new_err(
+                        "point measure requires quadrature_points=1",
+                    ));
+                }
+                QuadratureRule::point()
+            } else {
+                QuadratureRule::tensor_product_gauss_legendre(dimension, points)
+                    .map_err(|error| diagnostic_error(py, &[error]))?
+            };
+            rules.insert(*domain, rule);
         }
-        QuadratureRule::tensor_product_gauss_legendre(dimension, points)
-            .map(Some)
-            .map_err(|error| diagnostic_error(py, &[error]))
+        Ok(rules)
     }
 
     pub(super) fn observe_value(
@@ -151,24 +173,17 @@ impl PyRunResult {
         observable: &PyObservableRef,
         points: Option<usize>,
     ) -> PyResult<PyObservation> {
-        let rule = self.observation_rule(py, observable, points)?;
+        let rules = self.observation_rules(py, observable, points)?;
         let value = self
             .native
-            .observe(
-                self.native.plan().model_artifact(),
-                observable.id,
-                rule.as_ref(),
-            )
+            .observe(self.native.plan().model_artifact(), observable.id, &rules)
             .map_err(|error| diagnostic_error(py, &[error]))?;
         Ok(PyObservation {
             value: value.value().clone(),
             result_identity: value.result_identity().to_owned(),
             observable_id: value.observable().ulid().to_string(),
             evaluation_kind: "value",
-            quadrature_points: points,
-            quadrature_dimension: value
-                .quadrature()
-                .map(|rule| rule.reference_cell().dimension()),
+            quadratures: quadrature_metadata(value.quadratures(), points.unwrap_or(0)),
         })
     }
 
@@ -217,15 +232,13 @@ impl PyRunResult {
         tangent: &PyObservableStateTangent,
         points: usize,
     ) -> PyResult<PyObservation> {
-        let rule = self
-            .observation_rule(py, observable, Some(points))?
-            .expect("explicit spatial quadrature");
+        let rules = self.observation_rules(py, observable, Some(points))?;
         let value = self
             .native
             .observe_state_jvp(
                 self.native.plan().model_artifact(),
                 observable.id,
-                &rule,
+                &rules,
                 &tangent.native,
             )
             .map_err(|error| diagnostic_error(py, &[error]))?;
@@ -234,8 +247,7 @@ impl PyRunResult {
             result_identity: self.native.identity().to_owned(),
             observable_id: observable.id.ulid().to_string(),
             evaluation_kind: "state-jvp",
-            quadrature_points: Some(points),
-            quadrature_dimension: Some(rule.reference_cell().dimension()),
+            quadratures: quadrature_metadata(&rules, points),
         })
     }
 }
@@ -244,4 +256,22 @@ pub(super) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyObservation>()?;
     module.add_class::<PyObservableStateTangent>()?;
     Ok(())
+}
+
+fn quadrature_metadata(
+    rules: &HashMap<Id<kinds::Domain>, QuadratureRule>,
+    points: usize,
+) -> BTreeMap<String, (&'static str, usize, usize)> {
+    rules
+        .iter()
+        .map(|(domain, rule)| {
+            let dimension = rule.reference_cell().dimension();
+            let (kind, points) = if dimension == 0 {
+                ("Point", 1)
+            } else {
+                ("GaussLegendre", points)
+            };
+            (domain.ulid().to_string(), (kind, dimension, points))
+        })
+        .collect()
 }

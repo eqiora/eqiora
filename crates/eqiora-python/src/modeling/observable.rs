@@ -52,6 +52,87 @@ impl PyObservable {
     fn expression(&self) -> PyExpression {
         PyExpression::new(self.value.expression().clone())
     }
+    fn __neg__(&self) -> PyExpression {
+        PyExpression::new(-DraftExpression::observable(&self.value))
+    }
+
+    fn __bool__(&self) -> PyResult<bool> {
+        Err(PyTypeError::new_err(
+            "symbolic Eqiora expressions have no truth value",
+        ))
+    }
+
+    fn __add__(&self, other: &Bound<'_, PyAny>) -> PyResult<PyExpression> {
+        binary(
+            DraftExpression::observable(&self.value),
+            other,
+            Binary::Add,
+            false,
+        )
+    }
+
+    fn __radd__(&self, other: &Bound<'_, PyAny>) -> PyResult<PyExpression> {
+        binary(
+            DraftExpression::observable(&self.value),
+            other,
+            Binary::Add,
+            true,
+        )
+    }
+
+    fn __sub__(&self, other: &Bound<'_, PyAny>) -> PyResult<PyExpression> {
+        binary(
+            DraftExpression::observable(&self.value),
+            other,
+            Binary::Subtract,
+            false,
+        )
+    }
+
+    fn __rsub__(&self, other: &Bound<'_, PyAny>) -> PyResult<PyExpression> {
+        binary(
+            DraftExpression::observable(&self.value),
+            other,
+            Binary::Subtract,
+            true,
+        )
+    }
+
+    fn __mul__(&self, other: &Bound<'_, PyAny>) -> PyResult<PyExpression> {
+        binary(
+            DraftExpression::observable(&self.value),
+            other,
+            Binary::Multiply,
+            false,
+        )
+    }
+
+    fn __rmul__(&self, other: &Bound<'_, PyAny>) -> PyResult<PyExpression> {
+        binary(
+            DraftExpression::observable(&self.value),
+            other,
+            Binary::Multiply,
+            true,
+        )
+    }
+
+    fn __truediv__(&self, other: &Bound<'_, PyAny>) -> PyResult<PyExpression> {
+        binary(
+            DraftExpression::observable(&self.value),
+            other,
+            Binary::Divide,
+            false,
+        )
+    }
+
+    fn __rtruediv__(&self, other: &Bound<'_, PyAny>) -> PyResult<PyExpression> {
+        binary(
+            DraftExpression::observable(&self.value),
+            other,
+            Binary::Divide,
+            true,
+        )
+    }
 }
 
 #[pyfunction]

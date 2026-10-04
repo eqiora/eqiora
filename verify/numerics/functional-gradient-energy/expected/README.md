@@ -69,3 +69,13 @@ With the volume load set to zero and the same prescribed right flux, the Q1
 solution is exactly u=x. Volume energy is 1/2 and surface energy is −1.
 The free load squared norm decreases to 3/8, so the same 1e−9 bounds cover
 this zero-volume-source path. Its solve and Plan replay are also exercised.
+
+The same volume and surface definitions are referenced by one reduced Observable,
+`total = energy + surface`. Its value is independently `11/32 - 3/2 = -37/32`.
+The two first-order energy error bounds sum to less than `8e-10`; the total uses
+`1e-9`. For the admissible direction `eta=x`, the bulk gradient pairing is `3/2`,
+the volume load pairing is `1/2`, and the boundary work pairing is `1`, so the
+State variation is zero. Only the gradient pairing depends on the solved
+coefficients; its error is bounded by the endpoint coefficient error, below
+`4e-10`. The test uses `1e-9`. Missing, reversed and misplaced surface terms
+are rejected through exact weak-law comparison before numerical execution.

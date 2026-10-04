@@ -111,18 +111,60 @@ fn check_energy_and_flux(source: &str) {
             }
         );
         let rule = if spatial { &quadrature } else { &face };
-        let observation = result.observe(&model, definition.id(), Some(rule)).unwrap();
+        let observation = result
+            .observe(
+                &model,
+                definition.id(),
+                &observation_rules(&model, definition.id(), rule),
+            )
+            .unwrap();
+        let domain = definition.reduction().domain().unwrap();
+        let foreign_domain = eqiora_core::Id::new();
+        assert!(
+            result
+                .observe(
+                    &model,
+                    definition.id(),
+                    &std::collections::HashMap::from([(foreign_domain, rule.clone())])
+                )
+                .is_err()
+        );
+        assert!(
+            result
+                .observe(
+                    &model,
+                    definition.id(),
+                    &std::collections::HashMap::from([
+                        (domain, rule.clone()),
+                        (foreign_domain, rule.clone())
+                    ])
+                )
+                .is_err()
+        );
         assert_eq!(observation.result_identity(), result.identity());
-        assert_eq!(observation.quadrature(), Some(rule));
+        assert_eq!(
+            observation.quadratures(),
+            &observation_rules(&model, definition.id(), rule)
+        );
         let value = observation.value().real_scalar_value().unwrap().value();
         let constant_jvp = result
-            .observe_state_jvp(&model, definition.id(), rule, &constant_direction)
+            .observe_state_jvp(
+                &model,
+                definition.id(),
+                &observation_rules(&model, definition.id(), rule),
+                &constant_direction,
+            )
             .unwrap()
             .real_scalar_value()
             .unwrap()
             .value();
         let affine_jvp = result
-            .observe_state_jvp(&model, definition.id(), rule, &affine_direction)
+            .observe_state_jvp(
+                &model,
+                definition.id(),
+                &observation_rules(&model, definition.id(), rule),
+                &affine_direction,
+            )
             .unwrap()
             .real_scalar_value()
             .unwrap()
@@ -151,11 +193,19 @@ fn check_energy_and_flux(source: &str) {
             };
             assert!((affine_jvp - expected).abs() < 1e-12);
         }
-        assert!(result.observe(&model, definition.id(), None).is_err());
+        assert!(
+            result
+                .observe(&model, definition.id(), &Default::default())
+                .is_err()
+        );
         let wrong = if spatial { &face } else { &quadrature };
         assert!(
             result
-                .observe(&model, definition.id(), Some(wrong))
+                .observe(
+                    &model,
+                    definition.id(),
+                    &observation_rules(&model, definition.id(), wrong)
+                )
                 .is_err()
         );
     }
@@ -191,13 +241,18 @@ fn check_energy_and_flux(source: &str) {
         .unwrap();
     assert!(
         result
-            .observe(&foreign.0, observable, Some(&quadrature))
+            .observe(&foreign.0, observable, &Default::default())
             .is_err()
     );
     let foreign_direction = foreign.2.observable_state_tangent([]).unwrap();
     assert!(
         result
-            .observe_state_jvp(&model, observable, &quadrature, &foreign_direction)
+            .observe_state_jvp(
+                &model,
+                observable,
+                &observation_rules(&model, observable, &quadrature),
+                &foreign_direction
+            )
             .is_err()
     );
 }
@@ -226,7 +281,13 @@ fn gradient_energy_and_its_state_direction_use_the_ordinary_result() {
         })
         .unwrap();
     let quadrature = QuadratureRule::gauss_legendre(2).unwrap();
-    let value = result.observe(&model, energy, Some(&quadrature)).unwrap();
+    let value = result
+        .observe(
+            &model,
+            energy,
+            &observation_rules(&model, energy, &quadrature),
+        )
+        .unwrap();
     // Q1 nodal T=300+6*x*(1-x) gives slopes 4.5,1.5,-1.5,-4.5 K/m.
     // For k=2 J*m/K^2, integral(k*T_x^2/2)=45/4 J.
     assert!((value.value().real_scalar_value().unwrap().value() - 45.0 / 4.0).abs() < 1e-9);
@@ -242,8 +303,35 @@ fn gradient_energy_and_its_state_direction_use_the_ordinary_result() {
         )])
         .unwrap();
     let derivative = result
-        .observe_state_jvp(&model, energy, &quadrature, &direction)
+        .observe_state_jvp(
+            &model,
+            energy,
+            &observation_rules(&model, energy, &quadrature),
+            &direction,
+        )
         .unwrap();
     assert_eq!(derivative.value_type().dimension(), energy_dimension);
     assert!((derivative.real_scalar_value().unwrap().value() - 15.0 / 4.0).abs() < 1e-9);
+}
+
+fn observation_rules(
+    model: &eqiora_artifact::ModelEnvelope,
+    observable: eqiora_core::Id<eqiora_core::entity::kinds::Observable>,
+    rule: &eqiora_meshing::QuadratureRule,
+) -> std::collections::HashMap<
+    eqiora_core::Id<eqiora_core::entity::kinds::Domain>,
+    eqiora_meshing::QuadratureRule,
+> {
+    let (transaction, _) = model.to_transaction().unwrap();
+    let domain = transaction
+        .ops()
+        .iter()
+        .find_map(|operation| match operation {
+            eqiora_graph::Op::DefineKernelNode {
+                node: eqiora_schema::kernel::KernelNode::Observable(definition),
+            } if definition.id() == observable => definition.reduction().domain(),
+            _ => None,
+        })
+        .unwrap();
+    std::collections::HashMap::from([(domain, rule.clone())])
 }

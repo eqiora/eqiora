@@ -297,7 +297,11 @@ fn elastic_energy_is_observed_from_the_accepted_displacement_gradient() {
     let quadrature = eqiora::meshing::QuadratureRule::tensor_product_gauss_legendre(2, 2).unwrap();
     let observed = accepted
         .result
-        .observe(&model, energy, Some(&quadrature))
+        .observe(
+            &model,
+            energy,
+            &observation_rules(&model, energy, &quadrature),
+        )
         .unwrap();
     // Independent Q1 solution: u_x interpolates x - x^2/2, u_y = 0.
     // Its cellwise derivative is 1 - x_mid. Midpoint summation gives
@@ -347,7 +351,12 @@ fn elastic_energy_is_observed_from_the_accepted_displacement_gradient() {
         .unwrap();
     let action = accepted
         .result
-        .observe_state_jvp(&model, energy, &quadrature, &direction)
+        .observe_state_jvp(
+            &model,
+            energy,
+            &observation_rules(&model, energy, &quadrature),
+            &direction,
+        )
         .unwrap();
     // eta=(x,y): 2*mu*epsilon(u):epsilon(eta) integrates to 6*integral(1-x)=3 N.
     // This State direction is unconstrained; it is not a claimed equilibrium variation.
@@ -375,27 +384,46 @@ fn elastic_energy_is_observed_from_the_accepted_displacement_gradient() {
     let face = eqiora::meshing::QuadratureRule::gauss_legendre(2).unwrap();
     let work = accepted
         .result
-        .observe(&model, boundary_work, Some(&face))
+        .observe(
+            &model,
+            boundary_work,
+            &observation_rules(&model, boundary_work, &face),
+        )
         .unwrap();
     // The Q1 recovered traction is 3h Pa, not the exactly zero natural Law datum.
     // With trace u_x=1/2 m, its boundary pairing is 3h/2 = 3/32 N.
     assert!((work.value().component(0).unwrap().0 - 3.0 / 32.0).abs() < 1e-8);
     let work_action = accepted
         .result
-        .observe_state_jvp(&model, boundary_work, &face, &direction)
+        .observe_state_jvp(
+            &model,
+            boundary_work,
+            &observation_rules(&model, boundary_work, &face),
+            &direction,
+        )
         .unwrap();
     // Delta traction=6 Pa and eta_x=1 m on this face: 6/2 + 3h = 51/16 N.
     assert!((work_action.component(0).unwrap().0 - 51.0 / 16.0).abs() < 1e-8);
     assert!(
         accepted
             .result
-            .observe(&model, boundary_work, Some(&quadrature))
+            .observe(
+                &model,
+                boundary_work,
+                &observation_rules(&model, boundary_work, &quadrature)
+            )
             .is_err()
     );
     let bytes = accepted.result.to_bytes().unwrap();
     let replayed = CommonResult::from_bytes(&bytes, accepted.result.plan()).unwrap();
     assert_eq!(
-        replayed.observe(&model, energy, Some(&quadrature)).unwrap(),
+        replayed
+            .observe(
+                &model,
+                energy,
+                &observation_rules(&model, energy, &quadrature)
+            )
+            .unwrap(),
         observed
     );
 }
@@ -600,7 +628,11 @@ fn authored_elastic_energy_first_variation_reaches_the_exact_q1_solve() {
     let quadrature = eqiora::meshing::QuadratureRule::tensor_product_gauss_legendre(2, 2).unwrap();
     let value = accepted
         .result
-        .observe(&model, energy, Some(&quadrature))
+        .observe(
+            &model,
+            energy,
+            &observation_rules(&model, energy, &quadrature),
+        )
         .unwrap();
     // At stationarity F=-b.u/2=-27/352 N, per unit out-of-plane thickness.
     assert!((value.value().component(0).unwrap().0 + 27.0 / 352.0).abs() < 1e-10);
@@ -636,7 +668,11 @@ fn authored_elastic_energy_first_variation_reaches_the_exact_q1_solve() {
     assert_eq!(replayed_result.field_block(0, 0).unwrap().1, values);
     assert_eq!(
         replayed_result
-            .observe(&model, energy, Some(&quadrature))
+            .observe(
+                &model,
+                energy,
+                &observation_rules(&model, energy, &quadrature)
+            )
             .unwrap()
             .value(),
         value.value()
@@ -671,7 +707,12 @@ fn authored_elastic_energy_first_variation_reaches_the_exact_q1_solve() {
             .unwrap();
         let action = accepted
             .result
-            .observe_state_jvp(&model, energy, &quadrature, &direction)
+            .observe_state_jvp(
+                &model,
+                energy,
+                &observation_rules(&model, energy, &quadrature),
+                &direction,
+            )
             .unwrap();
         // The central hat is admissible and stationary. A constant translation
         // violates the essential restrictions: its energy derivative is -integral f_x=-6.
@@ -758,7 +799,33 @@ fn authored_elastic_energy_first_variation_reaches_the_exact_q1_solve() {
     // Cell slopes 3/4 and 1/4 give internal 15/16 and external 30/16 N.
     let observed = natural
         .result
-        .observe(&natural_model, natural_energy, Some(&quadrature))
+        .observe(
+            &natural_model,
+            natural_energy,
+            &observation_rules(&natural_model, natural_energy, &quadrature),
+        )
         .unwrap();
     assert!((observed.value().component(0).unwrap().0 + 15.0 / 16.0).abs() < 1e-9);
+}
+
+fn observation_rules(
+    model: &eqiora::artifact::ModelEnvelope,
+    observable: eqiora::Id<eqiora::entity::kinds::Observable>,
+    rule: &eqiora::meshing::QuadratureRule,
+) -> std::collections::HashMap<
+    eqiora::Id<eqiora::entity::kinds::Domain>,
+    eqiora::meshing::QuadratureRule,
+> {
+    let (transaction, _) = model.to_transaction().unwrap();
+    let domain = transaction
+        .ops()
+        .iter()
+        .find_map(|operation| match operation {
+            eqiora::graph::Op::DefineKernelNode {
+                node: eqiora::kernel::KernelNode::Observable(definition),
+            } if definition.id() == observable => definition.reduction().domain(),
+            _ => None,
+        })
+        .unwrap();
+    std::collections::HashMap::from([(domain, rule.clone())])
 }

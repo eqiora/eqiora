@@ -11,7 +11,7 @@ use crate::{
     validate_text,
 };
 
-const TRANSACTION_SCHEMA: &str = "eqiora.model-transaction-envelope/v31";
+const TRANSACTION_SCHEMA: &str = "eqiora.model-transaction-envelope/v32";
 const TRANSACTION_LABEL: &str = "current Model transaction";
 const ENVELOPE_LABEL: &str = "current Model transaction envelope";
 

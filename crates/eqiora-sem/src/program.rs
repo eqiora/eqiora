@@ -713,6 +713,18 @@ fn validate_expression(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> BTreeSet<RawId> {
     for node in expression.nodes() {
+        if matches!(node, ExprNode::Symbol(SymbolRef::Observable(_)))
+            && !matches!(
+                environment.nodes.get(&owner),
+                Some(KernelNode::Observable(definition))
+                    if matches!(definition.reduction(), eqiora_schema::kernel::ObservableReduction::Value)
+            )
+        {
+            diagnostics.push(kernel_error(
+                owner,
+                "Observable references are only admitted after reduction in derived Observable expressions",
+            ));
+        }
         if let ExprNode::Constant(value) = node {
             nominal_values::check_literal(owner, value, environment.nodes, diagnostics);
         }
@@ -845,6 +857,7 @@ fn symbol_id(symbol: SymbolRef) -> Option<RawId> {
         | SymbolRef::Pre(id)
         | SymbolRef::Next(id) => Some(id.erase()),
         SymbolRef::Parameter(id) => Some(id.erase()),
+        SymbolRef::Observable(id) => Some(id.erase()),
         SymbolRef::Port(id)
         | SymbolRef::Across(id)
         | SymbolRef::Through(id)
@@ -890,6 +903,12 @@ fn symbol_type(
                 field_support(id.erase(), edges, spatial_supports),
             ))
             .map_err(SymbolTypeError::Typing),
+            _ => Err(SymbolTypeError::Missing),
+        },
+        SymbolRef::Observable(id) => match nodes.get(&id.erase()) {
+            Some(KernelNode::Observable(value)) => {
+                Ok(ExpressionType::new(value.value_type().clone(), None))
+            }
             _ => Err(SymbolTypeError::Missing),
         },
         SymbolRef::Parameter(id) => match nodes.get(&id.erase()) {

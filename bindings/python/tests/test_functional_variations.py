@@ -19,8 +19,10 @@ def test_installed_first_and_second_variation_authoring():
         balance = component.relation("balance", q.lang.equation(a*u, 0), on=body)
         energy = component.observable("energy", a*u*u/2, on=body,
                                       value_type=q.ValueType.real(q.Dimension(mass=1, length=2, time=-2)))
+        combined = component.observable("combined", energy+energy-energy,
+                                        value_type=q.ValueType.real(q.Dimension(mass=1, length=2, time=-2)))
         eta = component.test("eta", for_=u, dimension=q.Dimension(length=1))
-        value = q.lang.variation(energy, wrt=u, direction=eta, holding=(a,))
+        value = q.lang.variation(combined, wrt=u, direction=eta, holding=(a,))
         if order == 2:
             zeta = component.test("zeta", for_=u, dimension=q.Dimension(length=1))
             value = (q.lang.integrate(body, a*eta*zeta) if profile == "ordinary_duplicate"
@@ -37,7 +39,13 @@ def test_installed_first_and_second_variation_authoring():
             assert len(form.trial_field_ids) == 1
             assert [item[0] for item in form.test_restrictions] == ["eta", "zeta"][:order]
             assert all(not item[2] for item in form.test_restrictions)
-        with pytest.raises(TypeError):
-            q.lang.equation(energy, 0)
         with pytest.raises(AttributeError):
             energy._name = "changed"
+
+    invalid = q.Module("invalid")
+    component = invalid.model("Invalid")
+    x = component.field("x", role=q.FieldRole.Variable, value_type=q.ValueType.real())
+    derived = component.observable("out", x+x, value_type=q.ValueType.real())
+    component.relation("bad", q.lang.equation(x, derived))
+    with pytest.raises(q.ValidationError, match="not a scalar"):
+        q.compile(source=invalid, entry="Invalid")

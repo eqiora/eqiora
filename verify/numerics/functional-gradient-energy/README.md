@@ -54,8 +54,14 @@ natural sides, missing essential zero traces and nonzero natural loads omitted
 from the functional. The prescribed-flux fixture rejects missing, sign-reversed and misplaced surface
 work. Positive solves and Plan replay precede these denials.
 
-This is a bounded scalar first-variation claim. It proves no single composite
-volume-plus-surface Observable, elastic surface-load solve, executable second variation, moving-domain
+The same definitions also feed one `total=energy+surface` Observable. Its authored
+first variation reaches the same ordinary solve and exact Plan replay; observing
+`total` gives `-37/32`, and its State JVP in the admissible direction `eta=x` is
+zero. The result retains separate exact-Domain volume and boundary quadrature.
+Missing, reversed and misplaced work inside the composite fail correspondence.
+
+This is a bounded scalar first-variation claim. It proves no nonlinear composition
+of functionals for authored variation, elastic surface-load solve, executable second variation, moving-domain
 variation, continuum minimizer error estimate, stability, or energy decay.
 
 Run `cargo run -p eqiora-verify -- run --case numerics.functional-gradient-energy`.

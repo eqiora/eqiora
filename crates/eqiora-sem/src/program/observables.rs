@@ -91,6 +91,7 @@ pub(super) fn validate(
     spatial_supports: &BTreeMap<RawId, SpatialSupport<RawId>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    validate_dependency_order(nodes, diagnostics);
     for (&id, node) in nodes {
         let KernelNode::Observable(observable) = node else {
             continue;
@@ -146,5 +147,54 @@ pub(super) fn validate(
                 diagnostics.push(error);
             }
         }
+    }
+}
+
+// Acyclic reduced-value references do not create new solve unknowns or equations.
+// Count unique nominal dependencies rather than their occurrences in a density.
+fn validate_dependency_order(
+    nodes: &BTreeMap<RawId, KernelNode>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut counts = BTreeMap::new();
+    let mut dependents: BTreeMap<RawId, Vec<RawId>> = BTreeMap::new();
+    for (&id, node) in nodes {
+        let KernelNode::Observable(observable) = node else {
+            continue;
+        };
+        let dependencies = observable
+            .expression()
+            .nodes()
+            .iter()
+            .filter_map(|node| match node {
+                ExprNode::Symbol(SymbolRef::Observable(dependency)) => Some(dependency.erase()),
+                _ => None,
+            })
+            .collect::<BTreeSet<_>>();
+        counts.insert(id, dependencies.len());
+        for dependency in dependencies {
+            dependents.entry(dependency).or_default().push(id);
+        }
+    }
+    let mut ready = counts
+        .iter()
+        .filter_map(|(&id, &count)| (count == 0).then_some(id))
+        .collect::<Vec<_>>();
+    while let Some(id) = ready.pop() {
+        for dependent in dependents.get(&id).into_iter().flatten() {
+            let count = counts
+                .get_mut(dependent)
+                .expect("Observable dependent is registered");
+            *count -= 1;
+            if *count == 0 {
+                ready.push(*dependent);
+            }
+        }
+    }
+    if let Some((&id, _)) = counts.iter().find(|(_, count)| **count != 0) {
+        diagnostics.push(kernel_error(
+            id,
+            "Observable references must form an acyclic graph of live derived quantities",
+        ));
     }
 }

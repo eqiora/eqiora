@@ -62,6 +62,9 @@ pub(super) fn expression_from_python(value: &Bound<'_, PyAny>) -> PyResult<Draft
     if let Ok(expression) = value.extract::<PyRef<'_, PyExpression>>() {
         return Ok(expression.value.clone());
     }
+    if let Ok(observable) = value.extract::<PyRef<'_, observable::PyObservable>>() {
+        return Ok(DraftExpression::observable(&observable.value));
+    }
     if let Ok(field) = value.extract::<PyRef<'_, PyField>>() {
         return Ok(field.value.expression());
     }
@@ -113,7 +116,9 @@ pub(super) fn binary(
 }
 
 fn expression_type_error() -> PyErr {
-    PyTypeError::new_err("expected an Expression, Field, Parameter, or real/complex number")
+    PyTypeError::new_err(
+        "expected an Expression, Field, Parameter, Observable, or real/complex number",
+    )
 }
 
 pub(super) fn equation_pairs(

@@ -217,11 +217,20 @@ observable outward_heat: W = integral(normal(-conductivity * grad(temperature)),
 parent boundary. The output dimension includes that measure. Boundary Field
 values require `trace(field)`; oriented flux uses the existing outward `normal`
 operator. A same-sized foreign Domain does not substitute for the declared one.
-These reductions currently occur only at the root of an Observable expression.
+Each integral occurs at the root of its own Observable expression. Other Observables
+can combine those reduced values, for example `observable total:J=bulk+surface;`.
+References must be acyclic; equations and integral densities cannot read them.
+A sum or difference of fixed functionals on the same parent volume can supply one
+`variation(total, wrt=..., direction=..., holding=(...))`. The holding tuple names
+all other independent Fields and Parameters across its dependencies. Nonlinear
+compositions can be observed and differentiated with a State JVP, but do not yet
+supply authored functional variations.
 
 Native Python uses `eqiora.Observable(name, value_type=..., expression=...)`,
 `eqiora.integral(expression, eqiora.measure(domain))`. Include each declaration in its
-owning `Module`. The source graph checks both instantiated and unused Component
+owning `Module`. Native Observable objects and `eqiora.lang.Observable` handles
+can be combined with arithmetic operators to define another Observable; references
+retain their exact declaration or lexical owner. The source graph checks both instantiated and unused Component
 bodies. A private Component Observable remains inspectable by exact qualified
 identity and does not become an exported Port or a value symbol in equations.
 
@@ -236,7 +245,8 @@ fixed, and match `zero_on` exactly to the essential sides. The admitted fixed 2D
 isotropic profile compares the variation to the strong-law stress and load before
 solving. It supports essential and explicit zero-traction sides, preserves the
 authored identity through Plan replay, and evaluates the same total energy through
-Result. Nonzero surface work and numerical second variations remain unsupported.
+Result. Nonzero elastic surface work and numerical second variations remain unsupported.
+Scalar Q1 prescribed flux can contribute explicit surface work to a composite energy.
 Spatial evaluation requires an explicit numerical quadrature rule; it never uses
 rendered values or output cadence as an integration authority. Its State JVP uses
 the same basis and quadrature for Field and normal-gradient variations, holding
@@ -253,8 +263,11 @@ value = observation.value
 lineage = observation.result_identity
 ```
 
-`quadrature_points` selects Gauss–Legendre points per axis; a point boundary
-requires `1`. Finite values omit this argument. A State direction is created with
+`quadrature_points` selects Gauss–Legendre points per axis. Point boundaries use
+one point; an output containing only point integrals requires `1`. Mixed outputs
+apply the requested rule separately to each positive-dimensional measure.
+`observation.quadratures` maps exact Domain IDs to `(kind, dimension, points_per_axis)`
+tuples. Finite values omit this argument and have an empty map. A State direction is created with
 `result.observable_state_tangent({field: (dimension, coefficients)})` and applied
 with `result.observe_state_jvp(energy, direction, quadrature_points=2)`. Its
 `evaluation_kind` is `"state-jvp"`, and a different Result cannot reuse that direction.
@@ -1451,7 +1464,7 @@ assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
-`eqiora.model-envelope/v31` schema, but callers do not select that suffix.
+`eqiora.model-envelope/v32` schema, but callers do not select that suffix.
 `.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
 Only the current schema is accepted; decoding never sniffs, retries, or silently
 migrates an older artifact.

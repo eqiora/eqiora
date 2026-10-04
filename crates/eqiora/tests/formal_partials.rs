@@ -360,14 +360,40 @@ operator yx(input x:m,input y:m):m=partial(partial(x*x*y+y*y*y,wrt=y),wrt=x);
         let id = document.aliases()[&format!("definition.{name}")]
             .downcast()
             .unwrap();
-        let value = result.observe(&model, id, Some(&quadrature)).unwrap();
+        let value = result
+            .observe(&model, id, &observation_rules(&model, id, &quadrature))
+            .unwrap();
         assert!(
             (value.value().real_scalar_value().unwrap().value() - expected).abs() < 1e-12,
             "{name}"
         );
         assert_eq!(
             value,
-            result.observe(&replay, id, Some(&quadrature)).unwrap()
+            result
+                .observe(&replay, id, &observation_rules(&replay, id, &quadrature))
+                .unwrap()
         );
     }
+}
+
+fn observation_rules(
+    model: &eqiora::artifact::ModelEnvelope,
+    observable: eqiora::Id<eqiora::entity::kinds::Observable>,
+    rule: &eqiora::meshing::QuadratureRule,
+) -> std::collections::HashMap<
+    eqiora::Id<eqiora::entity::kinds::Domain>,
+    eqiora::meshing::QuadratureRule,
+> {
+    let (transaction, _) = model.to_transaction().unwrap();
+    let domain = transaction
+        .ops()
+        .iter()
+        .find_map(|operation| match operation {
+            eqiora::graph::Op::DefineKernelNode {
+                node: eqiora::kernel::KernelNode::Observable(definition),
+            } if definition.id() == observable => definition.reduction().domain(),
+            _ => None,
+        })
+        .unwrap();
+    std::collections::HashMap::from([(domain, rule.clone())])
 }

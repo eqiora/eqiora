@@ -789,6 +789,7 @@ pub(crate) enum WireSymbol {
     Pre { id: WireId },
     Next { id: WireId },
     Parameter { id: WireId },
+    Observable { id: WireId },
     Port { id: WireId },
     Across { id: WireId },
     Through { id: WireId },
@@ -810,6 +811,9 @@ impl WireSymbol {
                 id: WireId::from_raw(id.erase()),
             }),
             SymbolRef::Next(id) => Ok(Self::Next {
+                id: WireId::from_raw(id.erase()),
+            }),
+            SymbolRef::Observable(id) => Ok(Self::Observable {
                 id: WireId::from_raw(id.erase()),
             }),
             SymbolRef::Parameter(id) => Ok(Self::Parameter {
@@ -844,6 +848,7 @@ impl WireSymbol {
             Self::Pre { id } => SymbolRef::Pre(id.typed::<kinds::Field>()?),
             Self::Next { id } => SymbolRef::Next(id.typed::<kinds::Field>()?),
             Self::Parameter { id } => SymbolRef::Parameter(id.typed::<kinds::Parameter>()?),
+            Self::Observable { id } => SymbolRef::Observable(id.typed::<kinds::Observable>()?),
             Self::Port { id } => SymbolRef::Port(id.typed::<kinds::Port>()?),
             Self::Across { id } => SymbolRef::Across(id.typed::<kinds::Port>()?),
             Self::Through { id } => SymbolRef::Through(id.typed::<kinds::Port>()?),
@@ -860,6 +865,7 @@ impl WireSymbol {
             | Self::Pre { id }
             | Self::Next { id }
             | Self::Parameter { id }
+            | Self::Observable { id }
             | Self::Port { id }
             | Self::Across { id }
             | Self::Through { id }

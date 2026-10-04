@@ -109,11 +109,11 @@ def permute_factors(value: object, permutation: Sequence[int]) -> Expression: ..
 
 ## `Observable`
 
-Retain an authored derived-output reference without ordinary expression algebra.
+Reference one reduced output in its exact lexical Component.
 
 ```python
 @final
-class Observable:
+class Observable(Expression):
     def __init__(self, _token: Never, _component: object=..., _name: str='') -> None: ...
 ```
 

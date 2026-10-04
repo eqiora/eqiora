@@ -89,7 +89,7 @@ fn complex_equation_and_real_equation_share_plan_run_and_real_observables() {
             .observe(
                 plan.model_artifact(),
                 document.aliases()["output"].downcast().unwrap(),
-                None,
+                &Default::default(),
             )
             .unwrap();
         // (1-2i)(3+4i)=11-2i, hence |z|²=25. Binary64 solver
@@ -109,7 +109,7 @@ fn shaped_complex_field_preserves_channel_order_and_explicit_real_output() {
         .observe(
             plan.model_artifact(),
             document.aliases()["output"].downcast().unwrap(),
-            None,
+            &Default::default(),
         )
         .unwrap();
     assert!((observed.value().real_scalar_value().unwrap().value() - 9.).abs() < 1e-10);
@@ -142,7 +142,7 @@ fn contextual_zero_accepts_a_complete_complex_array_residual() {
         .observe(
             plan.model_artifact(),
             document.aliases()["output"].downcast().unwrap(),
-            None,
+            &Default::default(),
         )
         .unwrap();
     assert!((observed.value().real_scalar_value().unwrap().value() - 5.).abs() < 1e-10);
@@ -190,7 +190,7 @@ fn general_complex_two_by_two_system_uses_the_typed_reference_path_through_plan_
             .observe(
                 plan.model_artifact(),
                 document.aliases()[name].downcast().unwrap(),
-                None,
+                &Default::default(),
             )
             .unwrap();
         let actual = observation.value().component(0).unwrap();
@@ -209,7 +209,7 @@ fn conjugate_dependence_retains_its_real_linear_profile() {
         .observe(
             plan.model_artifact(),
             document.aliases()["output"].downcast().unwrap(),
-            None,
+            &Default::default(),
         )
         .unwrap();
     assert_eq!(observation.value().component(0).unwrap(), (3., 4.));
@@ -252,7 +252,7 @@ fn finite_quantum_and_control_maps_share_plan_run_result_and_preserve_bases() {
             .observe(
                 plan.model_artifact(),
                 document.aliases()["output"].downcast().unwrap(),
-                None,
+                &Default::default(),
             )
             .unwrap();
         assert!(
@@ -270,7 +270,7 @@ fn finite_quantum_and_control_maps_share_plan_run_result_and_preserve_bases() {
             .observe(
                 plan.model_artifact(),
                 document.aliases()["norm"].downcast().unwrap(),
-                None,
+                &Default::default(),
             )
             .unwrap();
         let actual = observation.value().component(0).unwrap();

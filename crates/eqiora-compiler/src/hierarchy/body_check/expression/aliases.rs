@@ -69,6 +69,7 @@ pub(in crate::hierarchy::body_check) fn validate_aliases<'a>(
             evolution: Vec::new(),
             contextual: Vec::new(),
             sampling: false,
+            allow_observables: false,
         };
         let inferred = match checker.check(declaration.value()).and_then(|inferred| {
             if let Some(domain) = declaration.domain() {

@@ -74,6 +74,7 @@ impl EdgeKind {
             Self::DependsOn => {
                 (matches!(from, K::Relation | K::Observable)
                     && matches!(to, K::Field | K::Parameter | K::Port | K::ClockDomain))
+                    || (matches!(from, K::Observable) && matches!(to, K::Observable))
                     || (matches!(from, K::Domain) && matches!(to, K::Parameter))
             }
             Self::StructurallyDependsOn => {

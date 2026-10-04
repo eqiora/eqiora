@@ -52,6 +52,7 @@ pub(in crate::lower) fn lower_observable(
         cache: HashMap::new(),
         sampling: false,
         allow_discrete_symbols: true,
+        allow_observables: matches!(reduction, ObservableReduction::Value),
         activation: &ActivationSyntax::Continuous,
         initial: false,
     };
@@ -65,4 +66,18 @@ pub(in crate::lower) fn lower_observable(
         .validate_type(&inferred, support.as_ref())
         .map_err(|error| source_error(codes::LANGUAGE_TYPE_ERROR, file, range, error.message()))?;
     Ok((definition, lowerer.dependencies))
+}
+
+/// References read the declared reduced value type, not its density type.
+pub(super) fn reference_type(
+    file: &str,
+    range: TextRange,
+    value_type: &eqiora_lang::ValueTypeSyntax,
+    reduction: Option<&str>,
+    bindings: &BTreeMap<String, Binding>,
+) -> Result<eqiora_core::ValueType, Diagnostic> {
+    let support = reduction
+        .map(|name| relation_support(file, range, name, bindings))
+        .transpose()?;
+    crate::value_types::lower_value_type(file, value_type, support.as_ref())
 }

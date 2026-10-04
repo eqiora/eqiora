@@ -807,3 +807,25 @@ fn observables_require_exact_references_without_introducing_unknowns() {
             .any(|error| error.message().contains("foreign or omitted Domain"))
     );
 }
+
+#[test]
+fn reduced_observable_native_references_require_the_exact_declaration() {
+    let ty =
+        ValueType::scalar(eqiora_core::ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap();
+    let constant = || DraftExpression::constant(crate::DecimalLiteral::parse("2").unwrap());
+    let first = DraftObservable::new("first", ty.clone(), constant());
+    let foreign = DraftObservable::new("first", ty.clone(), constant());
+    let total = DraftObservable::new(
+        "total",
+        ty.clone(),
+        DraftExpression::observable(&first) + DraftExpression::observable(&first),
+    );
+    assert!(Module::new("M", [first.clone().into(), total.into()]).is_ok());
+    let wrong = DraftObservable::new("total", ty, DraftExpression::observable(&foreign));
+    let errors = Module::new("M", [first.into(), wrong.into()]).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message().contains("foreign or omitted Observable"))
+    );
+}

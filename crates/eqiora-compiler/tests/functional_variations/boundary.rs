@@ -28,6 +28,7 @@ fn density(e: &E, c: f64, cx: f64, x: f64, bulk: &str, gradient: &str) -> f64 {
             E::Gradient { value } => match value.as_ref() {
                 E::Field { .. } => cx,
                 E::Direction { name, .. } if name == "eta" => 1.0,
+                E::Direction { name, .. } if name == "zeta" => -1.0,
                 _ => panic!("unexpected differentiated input"),
             },
             _ => panic!("unexpected component input"),
@@ -279,7 +280,15 @@ fn check_surface_replay(compiled: &eqiora_compiler::CompiledModel, variation: &E
     )
     .unwrap();
     variation
-        .check_functional_variation(functional, &typed)
+        .check_functional_variation(&mut |id| {
+            if id != functional.id() {
+                return Err(eqiora_core::Diagnostic::error(
+                    eqiora_core::diagnostic::codes::LANGUAGE_TYPE_ERROR,
+                    "variation energy differs from the exact live Observable",
+                ));
+            }
+            Ok((functional.clone(), typed.clone()))
+        })
         .unwrap();
     let mut wrong_boundary = variation.clone();
     let E::Variation { value, .. } = &mut wrong_boundary else {
@@ -291,7 +300,15 @@ fn check_surface_replay(compiled: &eqiora_compiler::CompiledModel, variation: &E
     *domain_ulid = compiled.symbols().get("left").unwrap().ulid().to_string();
     assert!(
         wrong_boundary
-            .check_functional_variation(functional, &typed)
+            .check_functional_variation(&mut |id| {
+                if id != functional.id() {
+                    return Err(eqiora_core::Diagnostic::error(
+                        eqiora_core::diagnostic::codes::LANGUAGE_TYPE_ERROR,
+                        "variation energy differs from the exact live Observable",
+                    ));
+                }
+                Ok((functional.clone(), typed.clone()))
+            })
             .is_err()
     );
     let mut missing_trace = serde_json::to_value(variation).unwrap();
@@ -310,7 +327,132 @@ fn check_surface_replay(compiled: &eqiora_compiler::CompiledModel, variation: &E
     let missing_trace: E = serde_json::from_value(missing_trace).unwrap();
     assert!(
         missing_trace
-            .check_functional_variation(functional, &typed)
+            .check_functional_variation(&mut |id| {
+                if id != functional.id() {
+                    return Err(eqiora_core::Diagnostic::error(
+                        eqiora_core::diagnostic::codes::LANGUAGE_TYPE_ERROR,
+                        "variation energy differs from the exact live Observable",
+                    ));
+                }
+                Ok((functional.clone(), typed.clone()))
+            })
             .is_err()
     );
+}
+
+#[test]
+fn composite_energy_retains_volume_surface_and_ordered_second_variation() {
+    let geometry = geometry();
+    for second in [false, true] {
+        let first = "variation(total,wrt=c,direction=eta,holding=(bulk,gradient))";
+        let expression = if second {
+            format!("variation({first},wrt=c,direction=zeta,holding=(bulk,gradient))")
+        } else {
+            first.to_owned()
+        };
+        let extra = if second { "test zeta:1 for c;" } else { "" };
+        let source = format!(
+            r#"
+public component Energy(
+    support body:volume(ambient_dimension=1),
+    support left:boundary(parent=body),
+    support right:boundary(parent=body),
+    parameter bulk:J/m, parameter gradient:J*m
+) {{
+    variable c:1 on body;
+    relation stationarity on body {{ bulk*c-div(gradient*grad(c))=0; }}
+    relation left_natural on left {{ normal(grad(c))=0; }}
+    relation right_natural on right {{ normal(grad(c))=0; }}
+    observable energy:J=integral((bulk*c*c+gradient*contract(grad(c),grad(c),axes=((0,0),)))/2,measure(body));
+    observable surface:J=integral(bulk*1[m]*trace(c)*trace(c)/2-gradient/1[m]*trace(c),measure(right));
+    observable total:J=energy+surface;
+    form stationary for stationarity {{
+        test eta:1 for c;
+        {extra}
+        {expression}=0;
+    }}
+}}
+"#
+        );
+        for combination in [
+            "energy+surface",
+            "energy-(-surface)",
+            "energy+surface+energy-energy",
+        ] {
+            let source = source.replace("energy+surface;", &format!("{combination};"));
+            let compiled = compile_source(&source, &geometry).unwrap();
+            let form = compiled.authored_formulations().next().unwrap();
+            let E::Variation {
+                functional_ulid,
+                value,
+                ..
+            } = &form.projection().equations()[0].1
+            else {
+                panic!("retained variation");
+            };
+            assert_eq!(
+                functional_ulid,
+                &compiled
+                    .symbols()
+                    .get("definition.total")
+                    .unwrap()
+                    .ulid()
+                    .to_string()
+            );
+            let volume = compiled.symbols().get("body").unwrap().ulid().to_string();
+            let boundary = compiled.symbols().get("right").unwrap().ulid().to_string();
+            let bulk = compiled.symbols().get("bulk").unwrap().ulid().to_string();
+            let gradient = compiled
+                .symbols()
+                .get("gradient")
+                .unwrap()
+                .ulid()
+                .to_string();
+            fn integral(e: &E, volume: &str, boundary: &str, bulk: &str, gradient: &str) -> f64 {
+                let eval = |e| integral(e, volume, boundary, bulk, gradient);
+                match e {
+                    E::Add { left, right } => eval(left) + eval(right),
+                    E::Sub { left, right } => eval(left) - eval(right),
+                    E::Neg { value } => -eval(value),
+                    E::Integrate {
+                        domain_ulid,
+                        integrand,
+                    } => {
+                        let at = |x: f64| density(integrand, x * x, 2.0 * x, x, bulk, gradient);
+                        if domain_ulid == volume {
+                            (at(0.0) + 4.0 * at(0.5) + at(1.0)) / 6.0
+                        } else {
+                            assert_eq!(domain_ulid, boundary);
+                            at(1.0)
+                        }
+                    }
+                    _ => panic!("unexpected composite variation term {e:?}"),
+                }
+            }
+            // c=x², eta=1+x, zeta=3-x; a=2, k=3 on [0,1].
+            // First bulk variation 25/6 and endpoint (2c-3)eta=-2 give 13/6.
+            // Second bulk integral 2*eta*zeta+3*eta_x*zeta_x=13/3,
+            // plus endpoint 2*eta*zeta=8, gives 37/3.
+            let expected = if second { 37.0 / 3.0 } else { 13.0 / 6.0 };
+            assert!(
+                (integral(value, &volume, &boundary, &bulk, &gradient) - expected).abs() < 1e-12
+            );
+        }
+        for (changed, message) in [
+            (
+                source.replace("holding=(bulk,gradient)", "holding=(bulk,)"),
+                "holding must name exactly",
+            ),
+            (
+                source.replace("energy+surface;", "energy*surface/1[J];"),
+                "sum or difference",
+            ),
+        ] {
+            let errors = compile_source(&changed, &geometry).unwrap_err();
+            assert!(
+                errors.iter().any(|error| error.message().contains(message)),
+                "{errors:?}"
+            );
+        }
+    }
 }

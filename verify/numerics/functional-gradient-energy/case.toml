@@ -2,7 +2,7 @@ id = "numerics.functional-gradient-energy"
 status = "implemented"
 scope = "first-variation-of-quadratic-scalar-gradient-energy-on-four-cartesian-q1-cells"
 reference_kind = "independent-q1-stiffness-load-and-energy-integrals"
-capabilities = ["retained-energy-first-variation", "exact-weak-law-correspondence", "physical-direction-units", "shared-energy-result-observation", "authored-plan-replay", "python-and-source-authoring", "energy-law-mismatch-falsifiers", "homogeneous-natural-boundary-discharge", "prescribed-scalar-surface-work", "exact-integration-measure-sums"]
+capabilities = ["retained-energy-first-variation", "exact-weak-law-correspondence", "physical-direction-units", "shared-energy-result-observation", "authored-plan-replay", "python-and-source-authoring", "energy-law-mismatch-falsifiers", "homogeneous-natural-boundary-discharge", "prescribed-scalar-surface-work", "exact-integration-measure-sums", "composite-energy-observable", "composite-energy-state-jvp"]
 
 [claim_boundary]
 spatial_dimension = 2
@@ -17,7 +17,7 @@ installed_wheel_required = false
 second_variation_numerical_admission = false
 natural_boundary_discharge = "exact-homogeneous-flux-or-explicit-prescribed-surface-work"
 nonzero_surface_work = true
-single_composite_energy_observable = false
+single_composite_energy_observable = true
 elasticity_execution = false
 nonlinear_stability = false
 moving_geometry = false

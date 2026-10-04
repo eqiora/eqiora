@@ -48,6 +48,7 @@ pub(super) fn validate_initial_expression(
         evolution: Vec::new(),
         contextual: Vec::new(),
         sampling: false,
+        allow_observables: false,
     };
     let errors: Vec<_> = declaration
         .equations()
@@ -78,6 +79,7 @@ pub(super) fn validate_event_guard(
         evolution: Vec::new(),
         contextual: Vec::new(),
         sampling: false,
+        allow_observables: false,
     };
     let inferred = checker.check(guard)?;
     if inferred.value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
@@ -108,6 +110,7 @@ struct ExpressionChecker<'a, 'e, 'd> {
     evolution: Vec<aliases::EvolutionRequirement>,
     contextual: Vec<Expr>,
     sampling: bool,
+    allow_observables: bool,
 }
 
 impl ExpressionChecker<'_, '_, '_> {
@@ -350,6 +353,9 @@ impl ExpressionChecker<'_, '_, '_> {
                 }
                 Ok(inferred)
             }
+            SymbolContract::Observable(declaration) if self.allow_observables => {
+                observable::reference_type(self.scope, &declaration)
+            }
             SymbolContract::Parameter(inferred) => Ok(inferred),
             SymbolContract::Alias(alias) => self.use_alias(alias),
             SymbolContract::Port(contract) => {
@@ -389,7 +395,7 @@ impl ExpressionChecker<'_, '_, '_> {
             | SymbolContract::CompleteExterior { .. }
             | SymbolContract::Clock
             | SymbolContract::Event
-            | SymbolContract::Observable
+            | SymbolContract::Observable(_)
             | SymbolContract::Relation => Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 self.scope.file,

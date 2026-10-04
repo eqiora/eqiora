@@ -49,10 +49,20 @@ impl PrimalGalerkinCorrespondence {
                             "variation Observable is outside the live Model",
                         ));
                     };
-                    let typed = program.typed_observable(id).map_err(|_| {
-                        rejection_with(projection, "variation energy has invalid live types")
+                    expression.check_functional_variation(&mut |id| {
+                        let Some(eqiora_schema::kernel::KernelNode::Observable(definition)) =
+                            program.node(id.erase())
+                        else {
+                            return Err(rejection_with(
+                                projection,
+                                "variation Observable is outside the live Model",
+                            ));
+                        };
+                        let typed = program.typed_observable(id).map_err(|_| {
+                            rejection_with(projection, "variation energy has invalid live types")
+                        })?;
+                        Ok((definition.clone(), typed))
                     })?;
-                    expression.check_functional_variation(functional, &typed)?;
                     variation_dimensions.push(functional.value_type().dimension());
                 }
             }

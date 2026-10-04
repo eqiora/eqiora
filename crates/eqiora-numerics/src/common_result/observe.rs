@@ -4,10 +4,11 @@ use eqiora_artifact::ModelEnvelope;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id, ValueLiteral};
 use eqiora_meshing::QuadratureRule;
-use eqiora_schema::kernel::{KernelNode, ObservableReduction, SymbolRef};
+use std::collections::HashMap;
 
 use super::{CommonResult, CommonResultPayload, StaticObservation, invalid};
 
+mod composite;
 mod spatial;
 mod tangent;
 pub use tangent::CommonObservableStateTangent;
@@ -18,7 +19,7 @@ pub struct CommonObservation {
     observable: Id<kinds::Observable>,
     result_identity: String,
     value: ValueLiteral,
-    quadrature: Option<QuadratureRule>,
+    quadratures: HashMap<Id<kinds::Domain>, QuadratureRule>,
 }
 
 impl CommonObservation {
@@ -37,10 +38,10 @@ impl CommonObservation {
     pub fn result_identity(&self) -> &str {
         &self.result_identity
     }
-    /// Effective spatial quadrature; absent for a finite instantaneous value.
+    /// Effective quadrature by exact integration Domain; empty for finite values.
     #[must_use]
-    pub const fn quadrature(&self) -> Option<&QuadratureRule> {
-        self.quadrature.as_ref()
+    pub const fn quadratures(&self) -> &HashMap<Id<kinds::Domain>, QuadratureRule> {
+        &self.quadratures
     }
 }
 
@@ -58,7 +59,7 @@ impl CommonResult {
         &self,
         model: &ModelEnvelope,
         observable: Id<kinds::Observable>,
-        quadrature: Option<&QuadratureRule>,
+        quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
     ) -> Result<CommonObservation, Diagnostic> {
         if model != self.plan().model_artifact() {
             return Err(invalid(
@@ -66,65 +67,12 @@ impl CommonResult {
             ));
         }
         let program = observation_program(self, model)?;
-        let typed = program.typed_observable(observable).map_err(|errors| {
-            errors
-                .into_iter()
-                .next()
-                .expect("typing failure has a diagnostic")
-        })?;
-        let Some(KernelNode::Observable(definition)) = program.node(observable.erase()) else {
-            return Err(invalid("Observable is outside the exact Result Model"));
-        };
-        let value = match definition.reduction() {
-            ObservableReduction::Value => {
-                if quadrature.is_some() {
-                    return Err(invalid(
-                        "finite Observable value does not accept a spatial quadrature rule",
-                    ));
-                }
-                let plan = self.plan().as_algebraic().ok_or_else(|| invalid("instantaneous Observable execution requires the admitted finite algebraic Result"))?;
-                let values = self
-                    .finite_values()
-                    .ok_or_else(|| invalid("finite Observable has no accepted algebraic values"))?;
-                let fields = plan.field_values(values)?;
-                let mut resolve = |symbol| match symbol {
-                    SymbolRef::Parameter(id) => program.typed_value(id.erase()).cloned(),
-                    SymbolRef::Field(id) => fields
-                        .iter()
-                        .find(|(field, _)| *field == id)
-                        .map(|(_, value)| value.clone()),
-                    _ => plan
-                        .symbols()
-                        .iter()
-                        .position(|candidate| *candidate == symbol)
-                        .and_then(|index| {
-                            let ty = eqiora_core::ValueType::scalar(
-                                eqiora_core::ScalarDomain::Real,
-                                plan.dimensions()[index],
-                            )
-                            .ok()?;
-                            ValueLiteral::from_real(ty, values[index]).ok()
-                        }),
-                };
-                program.evaluate_finite_observable(observable, &mut resolve)?
-            }
-            ObservableReduction::SpatialIntegral { domain, .. } => {
-                let rule = quadrature.ok_or_else(|| {
-                    invalid("spatial Observable requires an explicit quadrature rule")
-                })?;
-                spatial::integrate(self, &program, definition, &typed, domain, rule, None)?
-            }
-        };
-        if value.value_type() != definition.value_type() {
-            return Err(invalid(
-                "evaluated Observable type differs from its admitted declaration",
-            ));
-        }
+        let (value, _) = composite::evaluate(self, &program, observable, quadratures, None)?;
         Ok(CommonObservation {
             observable,
             result_identity: self.identity().to_owned(),
             value,
-            quadrature: quadrature.cloned(),
+            quadratures: quadratures.clone(),
         })
     }
 }

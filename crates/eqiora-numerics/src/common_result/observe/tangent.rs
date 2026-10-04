@@ -4,11 +4,10 @@ use eqiora_artifact::ModelEnvelope;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DynQuantity, Id, RawId, ValueLiteral};
 use eqiora_meshing::QuadratureRule;
-use eqiora_schema::kernel::{KernelNode, ObservableReduction};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use super::super::CommonResultPayload;
-use super::{CommonResult, invalid, spatial};
+use super::{CommonResult, invalid};
 
 /// A finite real Field direction bound to one exact accepted Result.
 #[derive(Debug, Clone, PartialEq)]
@@ -83,7 +82,7 @@ impl CommonResult {
         &self,
         model: &ModelEnvelope,
         observable: Id<kinds::Observable>,
-        quadrature: &QuadratureRule,
+        quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
         tangent: &CommonObservableStateTangent,
     ) -> Result<ValueLiteral, Diagnostic> {
         if tangent.result_identity != self.identity() || model != self.plan().model_artifact() {
@@ -92,28 +91,13 @@ impl CommonResult {
             ));
         }
         let program = super::observation_program(self, model)?;
-        let typed = program.typed_observable(observable).map_err(|errors| {
-            errors
-                .into_iter()
-                .next()
-                .expect("failed typing has diagnostic")
-        })?;
-        let Some(KernelNode::Observable(definition)) = program.node(observable.erase()) else {
-            return Err(invalid("Observable is missing from this Model"));
-        };
-        let ObservableReduction::SpatialIntegral { domain, .. } = definition.reduction() else {
-            return Err(invalid(
-                "Observable State JVP currently requires a spatial functional",
-            ));
-        };
-        spatial::integrate(
+        let (_, derivative) = super::composite::evaluate(
             self,
             &program,
-            definition,
-            &typed,
-            domain,
-            quadrature,
+            observable,
+            quadratures,
             Some(&tangent.fields),
-        )
+        )?;
+        derivative.ok_or_else(|| invalid("Observable State JVP has no derivative"))
     }
 }

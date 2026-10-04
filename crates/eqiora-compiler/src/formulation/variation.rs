@@ -1,4 +1,5 @@
 //! Functional derivation binds local jets to exact source and boundary identities.
+mod composite;
 mod local;
 mod replay;
 
@@ -118,40 +119,17 @@ impl ExpressionContext<'_> {
         else {
             return Err(fail("variation requires an authored Observable"));
         };
-        let ObservableReduction::SpatialIntegral { domain, measure } = functional.reduction()
-        else {
-            return Err(fail(
-                "functional variation requires a fixed spatial integral",
-            ));
-        };
-        let volume = match measure {
-            ObservableMeasure::Volume => domain.erase(),
-            ObservableMeasure::Boundary => *self
-                .index
-                .boundary_of
-                .get(&domain.erase())
-                .ok_or_else(|| fail("surface functional requires its exact parent volume"))?,
-        };
-        if self.relation_domain.map(Id::erase) != Some(volume)
-            || self.index.defined_on.get(&wrt.erase()) != Some(&volume)
+        let derived = composite::derive(functional.id(), wrt, &directions, &mut |id| {
+            self.typed_functional(id)
+        })?;
+        if self.relation_domain.map(Id::erase) != Some(derived.volume)
+            || self.index.defined_on.get(&wrt.erase()) != Some(&derived.volume)
         {
             return Err(fail(
                 "functional, varied Field and Formulation must share the exact parent volume",
             ));
         }
-        let mut required = std::collections::BTreeSet::new();
-        for node in functional.expression().nodes() {
-            let id = match node {
-                eqiora_schema::kernel::ExprNode::Symbol(SymbolRef::Field(id)) => Some(id.erase()),
-                eqiora_schema::kernel::ExprNode::Symbol(SymbolRef::Parameter(id)) => {
-                    Some(id.erase())
-                }
-                _ => None,
-            };
-            if let Some(id) = id.filter(|id| *id != wrt.erase()) {
-                required.insert(id);
-            }
-        }
+        let required = derived.holding;
         for request in &requests {
             let ExprKind::Tuple(held) = request.holding.kind() else {
                 return Err(fail(
@@ -171,57 +149,7 @@ impl ExpressionContext<'_> {
                 ));
             }
         }
-        let volume_support = SpatialSupport::Volume {
-            domain: volume,
-            dimensions: self.ambient_dimension,
-        };
-        let support = match measure {
-            ObservableMeasure::Volume => volume_support.clone(),
-            ObservableMeasure::Boundary => SpatialSupport::Boundary {
-                domain: domain.erase(),
-                parent: volume,
-                dimensions: self.ambient_dimension,
-            },
-        };
-        let typed_density = TypedResidual::infer(
-            functional.expression().clone(),
-            Some(support.clone()),
-            RootContract::Observable,
-            |symbol| match symbol {
-                SymbolRef::Field(id) => match self.index.nodes.get(&id.erase()).copied() {
-                    Some(KernelNode::Field(value))
-                        if self.index.defined_on.get(&id.erase()) == Some(&volume) =>
-                    {
-                        Ok(ExpressionType::new(
-                            value.value_type().clone(),
-                            Some(volume_support.clone()),
-                        ))
-                    }
-                    _ => Err(()),
-                },
-                SymbolRef::Parameter(id) => match self.index.nodes.get(&id.erase()).copied() {
-                    Some(KernelNode::Parameter(value)) => {
-                        Ok(ExpressionType::new(value.value_type().clone(), None))
-                    }
-                    _ => Err(()),
-                },
-                _ => Err(()),
-            },
-        )
-        .map_err(|_| fail("functional density has incompatible types or supports"))?;
-        functional.validate_type(
-            typed_density
-                .node_type(typed_density.expression().roots()[0])
-                .expect("typed root"),
-            Some(&support),
-        )?;
-        let value = derive_value(
-            &typed_density,
-            wrt,
-            &directions,
-            domain,
-            functional.value_type().dimension(),
-        )?;
+        let value = derived.value;
         let result = typed(
             AuthoredFormExpressionKind::Variation {
                 functional: functional.id(),
@@ -236,6 +164,74 @@ impl ExpressionContext<'_> {
         );
         self.used_tests.extend(directions);
         Ok(result)
+    }
+    fn typed_functional(
+        &self,
+        id: Id<kinds::Observable>,
+    ) -> Result<(eqiora_schema::kernel::ObservableDef, TypedResidual<RawId>), Diagnostic> {
+        let fail = || wire::rejection("functional density has incompatible types or supports");
+        let Some(KernelNode::Observable(functional)) = self.index.nodes.get(&id.erase()).copied()
+        else {
+            return Err(wire::rejection("variation requires an authored Observable"));
+        };
+        let support = match functional.reduction() {
+            ObservableReduction::Value => None,
+            ObservableReduction::SpatialIntegral { domain, measure } => Some(match measure {
+                ObservableMeasure::Volume => SpatialSupport::Volume {
+                    domain: domain.erase(),
+                    dimensions: self.ambient_dimension,
+                },
+                ObservableMeasure::Boundary => SpatialSupport::Boundary {
+                    domain: domain.erase(),
+                    parent: *self
+                        .index
+                        .boundary_of
+                        .get(&domain.erase())
+                        .ok_or_else(fail)?,
+                    dimensions: self.ambient_dimension,
+                },
+            }),
+        };
+        let volume = support
+            .as_ref()
+            .map(|support| support.parent().copied().unwrap_or(*support.domain()));
+        let typed = TypedResidual::infer(
+            functional.expression().clone(),
+            support,
+            RootContract::Observable,
+            |symbol| match symbol {
+                SymbolRef::Field(id) => match self.index.nodes.get(&id.erase()).copied() {
+                    Some(KernelNode::Field(value))
+                        if volume.is_some()
+                            && self.index.defined_on.get(&id.erase()).copied() == volume =>
+                    {
+                        Ok(ExpressionType::new(
+                            value.value_type().clone(),
+                            Some(SpatialSupport::Volume {
+                                domain: volume.expect("checked spatial volume"),
+                                dimensions: self.ambient_dimension,
+                            }),
+                        ))
+                    }
+                    _ => Err(()),
+                },
+                SymbolRef::Parameter(id) => match self.index.nodes.get(&id.erase()).copied() {
+                    Some(KernelNode::Parameter(value)) => {
+                        Ok(ExpressionType::new(value.value_type().clone(), None))
+                    }
+                    _ => Err(()),
+                },
+                SymbolRef::Observable(id) => match self.index.nodes.get(&id.erase()).copied() {
+                    Some(KernelNode::Observable(value)) => {
+                        Ok(ExpressionType::new(value.value_type().clone(), None))
+                    }
+                    _ => Err(()),
+                },
+                _ => Err(()),
+            },
+        )
+        .map_err(|_| fail())?;
+        Ok((functional.clone(), typed))
     }
 }
 
@@ -276,6 +272,7 @@ fn derive_value(
     directions: &[String],
     domain: Id<kinds::Domain>,
     dimension: DimExponents,
+    remaining: &mut usize,
 ) -> Result<AuthoredFormExpression, Diagnostic> {
     functional_support(density, domain)?;
     let derived = local::derive(
@@ -293,7 +290,7 @@ fn derive_value(
         &derived.definition,
         derived.definition.root(),
         &inputs,
-        &mut 65536,
+        remaining,
         0,
     )?;
     Ok(typed(

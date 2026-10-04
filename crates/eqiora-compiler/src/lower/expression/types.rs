@@ -136,6 +136,16 @@ fn expression_type_cached(
                     .transpose()?;
                 Ok(ExpressionType::new(value_type, support))
             }
+            Some(Binding::Observable(_, value_type, reduction)) => Ok(ExpressionType::new(
+                observable::reference_type(
+                    file,
+                    expression.range(),
+                    value_type,
+                    reduction.as_deref(),
+                    bindings,
+                )?,
+                None,
+            )),
             Some(Binding::Parameter(_, value_type)) => {
                 Ok(ExpressionType::new(value_type.clone(), None))
             }

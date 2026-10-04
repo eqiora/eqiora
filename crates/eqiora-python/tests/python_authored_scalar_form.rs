@@ -165,6 +165,36 @@ assert all(abs(value-(2*x-x*x/2)) <= 1e-9 for value,(x,y) in zip(loaded_values,m
 # relative residual bound gives coefficient error <4e-10 (test bound 1e-9).
 assert abs(loaded_result.observe(loaded_model.observable("definition.energy"), quadrature_points=2).value-11/32) <= 1e-9
 assert abs(loaded_result.observe(loaded_model.observable("definition.surface"), quadrature_points=2).value+3/2) <= 1e-9
+# One retained energy now owns both exact reductions and the admitted weak law.
+composite_source = loaded_source.replace("  form weak for balance",
+    "  observable total:1=energy+surface;\n  form weak for balance")
+composite_variation = "variation(total,wrt=potential,direction=w,holding=(diffusion,source_scale))"
+composite_source = composite_source.replace(f"{first}+{surface_variation}", composite_variation)
+composite_model = compile_energy(composite_source)
+composite_plan = eqiora.resolve(composite_model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
+composite_plan = eqiora.Plan.from_bytes(composite_plan.to_bytes())
+composite_result = eqiora.run(composite_plan)
+total = composite_model.observable("definition.total")
+# 11/32 - 3/2 = -37/32 independently; both linear energy errors sum to <8e-10.
+total_value = composite_result.observe(total, quadrature_points=2)
+assert abs(total_value.value+37/32) <= 1e-9
+assert sorted(total_value.quadratures.values()) == [("GaussLegendre", 1, 2), ("GaussLegendre", 2, 2)]
+composite_field = composite_model.field(composite_model.authored_formulations[0].trial_field_ids[0])
+direction = composite_result.observable_state_tangent({composite_field: (eqiora.Dimension(), [float(x) for x,y in mesh.coordinates])})
+# eta=x vanishes on the essential boundary. Integral u_x=3/2,
+# volume load pairing=1/2 and surface pairing=1 give zero first variation.
+assert abs(composite_result.observe_state_jvp(total, direction, quadrature_points=2).value) <= 1e-9
+for changed in (
+    composite_source.replace("total:1=energy+surface", "total:1=energy"),
+    composite_source.replace("total:1=energy+surface", "total:1=energy-surface"),
+    composite_source.replace("trace(potential),measure(x_upper)", "trace(potential),measure(y_upper)"),
+):
+    try:
+        eqiora.resolve(compile_energy(changed), mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
+    except eqiora.ValidationError as error:
+        assert "weak residual" in str(error), str(error)
+    else:
+        raise AssertionError("incorrect composite surface work was accepted")
 for mutant_source in (
     loaded_source.replace(f"+{surface_variation}", ""),
     loaded_source.replace("integral(-source_scale*coordinate(0)*trace(potential),measure(x_upper))", "integral(source_scale*coordinate(0)*trace(potential),measure(x_upper))"),
@@ -241,24 +271,30 @@ face = surface.member("face")
 component.relation("fixed", q.equation(q.trace(u), q.quantity(0, eqiora.units.m)), on=face)
 energy = component.observable("energy", k*q.contract(q.grad(u), q.grad(u), axes=((0,0),))/2-f*u,
                               value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=2, time=-2)), on=body)
+combined = component.observable("combined", energy+energy-energy, value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=2, time=-2)))
 w = component.test("w", for_=u, dimension=eqiora.Dimension(length=1), zero_on=surface)
-first = q.variation(energy, wrt=u, direction=w, holding=(k,f))
+first = q.variation(combined, wrt=u, direction=w, holding=(k,f))
 component.weak_form("stationary", [balance], equations=[(first,0)])
 emitted = energy_module.to_eqi()
-assert "variation(energy" in emitted and "measure(body)" in emitted
+assert "variation(combined" in emitted and "measure(body)" in emitted
 energy_bindings = {"body": geometry.selection("square"), "surface": (tuple(geometry.selection(name) for name in ("x_lower", "x_upper", "y_lower", "y_upper")), geometry.selection("square")), "k": 1.0, "f": 1.0}
 for authored in (energy_module, emitted):
     authored_model = eqiora.compile(source=authored, geometry=geometry, entry="Energy", bindings=energy_bindings)
     authored_plan = eqiora.resolve(authored_model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
     authored_result = eqiora.run(eqiora.Plan.from_bytes(authored_plan.to_bytes()))
     check_analytic_coefficients(authored_model, authored_result)
-    assert abs(authored_result.observe(authored_model.observable("definition.energy"), quadrature_points=2).value + 3/256) <= 1e-10
+    assert abs(authored_result.observe(authored_model.observable("definition.combined"), quadrature_points=2).value + 3/256) <= 1e-10
+invalid_module = eqiora.Module("invalid")
+invalid_component = invalid_module.model("Invalid")
+invalid_field = invalid_component.field("x", value_type=eqiora.ValueType.real(), role=eqiora.FieldRole.Variable)
+invalid_output = invalid_component.observable("out", invalid_field+invalid_field, value_type=eqiora.ValueType.real())
+invalid_component.relation("bad", q.equation(invalid_field, invalid_output))
 try:
-    q.equation(energy, 0)
-except TypeError:
-    pass
+    eqiora.compile(source=invalid_module, entry="Invalid")
+except eqiora.ValidationError as error:
+    assert "not a scalar" in str(error), str(error)
 else:
-    raise AssertionError("Observable entered ordinary expression algebra")
+    raise AssertionError("Observable entered a solve equation")
 foreign_module = eqiora.Module("foreign")
 foreign_component = foreign_module.component("Foreign")
 foreign = foreign_component.parameter("foreign", value_type=eqiora.ValueType.real())

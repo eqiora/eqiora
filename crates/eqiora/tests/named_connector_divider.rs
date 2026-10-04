@@ -299,16 +299,25 @@ fn common_finite_lifecycle_accepts_eight_volts_and_rejects_stale_state() {
         .unwrap()
         .downcast::<kinds::Observable>()
         .unwrap();
-    let observed = result.observe(&model, observable, None).unwrap();
+    let observed = result
+        .observe(&model, observable, &Default::default())
+        .unwrap();
     assert!((observed.value().real_scalar_value().unwrap().value() - 8.0).abs() < 1e-10);
     assert_eq!(observed.result_identity(), result.identity());
-    assert!(result.observe(&model, Id::new(), None).is_err());
+    assert!(
+        result
+            .observe(&model, Id::new(), &Default::default())
+            .is_err()
+    );
     assert!(
         result
             .observe(
                 &model,
                 observable,
-                Some(&eqiora::meshing::QuadratureRule::point())
+                &std::collections::HashMap::from([(
+                    Id::new(),
+                    eqiora::meshing::QuadratureRule::point()
+                )])
             )
             .is_err()
     );

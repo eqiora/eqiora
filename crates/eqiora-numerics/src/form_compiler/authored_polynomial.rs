@@ -112,9 +112,14 @@ struct Context<'a> {
 }
 impl Context<'_> {
     fn integral(&mut self, value: &E) -> Option<Polynomial> {
-        self.integral_at(value, 0)
+        self.integral_at(value, 0, true)
     }
-    fn integral_at(&mut self, value: &E, depth: usize) -> Option<Polynomial> {
+    fn integral_at(
+        &mut self,
+        value: &E,
+        depth: usize,
+        allow_variation: bool,
+    ) -> Option<Polynomial> {
         self.step(depth)?;
         match value {
             E::Number { value } if *value == 0.0 => {
@@ -128,26 +133,34 @@ impl Context<'_> {
                 .checked_mul(&Polynomial::atom(Atom::Measure(domain_ulid.clone())))
                 .ok(),
             E::Add { left, right } => self
-                .integral_at(left, depth + 1)?
-                .checked_add(&self.integral_at(right, depth + 1)?)
+                .integral_at(left, depth + 1, allow_variation)?
+                .checked_add(&self.integral_at(right, depth + 1, allow_variation)?)
                 .ok(),
             E::Sub { left, right } => self
-                .integral_at(left, depth + 1)?
-                .checked_add(&self.integral_at(right, depth + 1)?.checked_neg().ok()?)
+                .integral_at(left, depth + 1, allow_variation)?
+                .checked_add(
+                    &self
+                        .integral_at(right, depth + 1, allow_variation)?
+                        .checked_neg()
+                        .ok()?,
+                )
                 .ok(),
-            E::Neg { value } => self.integral_at(value, depth + 1)?.checked_neg().ok(),
+            E::Neg { value } => self
+                .integral_at(value, depth + 1, allow_variation)?
+                .checked_neg()
+                .ok(),
             E::Variation {
                 wrt_ulid,
                 directions,
                 value,
                 ..
-            } if wrt_ulid == self.field && directions.as_slice() == [self.name] => {
-                // Each first variation must retain one checked integral body.
-                // Products and nested wrappers cannot masquerade as integrals.
-                if !matches!(value.as_ref(), E::Integrate { .. }) {
-                    return None;
-                }
-                self.integral_at(value, depth + 1)
+            } if allow_variation
+                && wrt_ulid == self.field
+                && directions.as_slice() == [self.name] =>
+            {
+                // Replay authenticates the integral sum. Nested variation wrappers
+                // cannot masquerade as generated first-variation terms.
+                self.integral_at(value, depth + 1, false)
             }
             _ => None,
         }
