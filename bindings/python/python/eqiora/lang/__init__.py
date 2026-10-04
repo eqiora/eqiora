@@ -550,7 +550,7 @@ class Observable:
 
     __slots__ = ("_component", "_name")
 
-    def __init__(self, _token: object = _MISSING, _component: object = _MISSING, _name: str = "") -> None:
+    def __init__(self, _token: object, _component: object = _MISSING, _name: str = "") -> None:
         if _token is not _CREATE:
             raise TypeError("Observable handles are created by Component.observable()")
         object.__setattr__(self, "_component", _component)
