@@ -61,6 +61,7 @@ pub use numerical_admission::{
     CommonTransientFlowPlan, CommonTransientRunRequest, FormulationKind, FormulationSelectionMode,
     ResolvedCommonPlan, resolve_common_ode_plan, resolve_common_plan,
 };
+mod factor_measure;
 pub mod finite_constraints;
 mod linear_elasticity;
 mod operator;

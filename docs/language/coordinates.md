@@ -19,7 +19,7 @@ rejection, and replay. Bounded real scalar factor integrals execute coordinate d
 finite Result amplitudes, exact selected measures and explicit remaining output support;
 [registered evidence](../../verify/language/factor-integrals/README.md) covers polynomial moments
 and finite Gaussian error bounds. Non-Cartesian product factors, product-domain Field/PDE
-realizations, radial diffusion Fields, integral solver coupling, general differentiation under integrals,
+realizations, radial diffusion Fields, nonpolynomial integral solver coupling, general differentiation under integrals,
 higher unknown-Field partials and curved embedded-field extensions remain separate work. The complete examples below include target operations beyond this bounded implementation.
 
 ## Exact factors and coordinate bindings
@@ -171,6 +171,22 @@ A constant concentration `c` has total `c*4*pi*R^3/3` and explicit average `c`.
 The regular coordinate-density observation path supports this measure; a radial
 diffusion Field and its center regularity are not inferred or realized by this declaration.
 Spherical functional variations and integral partials remain unsupported.
+
+Continuous noninitial condition Relations can constrain a lumped Observable, for example
+`relation inventory { mass=45; }` where `mass` is a declared integral. Finite real scalar
+Plans admit polynomial coordinate densities with finite Field/Parameter coefficients,
+including nested integrals and explicit normalized ratios. The Model retains exact
+Observable references and measures. The Plan selects tensor-product Gauss rules with
+one to seven points per axis from a conservative polynomial degree; the spherical
+Jacobian adds degree two. Each integral has at most 4096 points and expansion is limited
+to 65536 expression operations and dependency depth 32. Coefficients can be nonlinear
+in finite unknowns when the existing Newton policy admits them. Original operand checks
+recompute integral values at the exact candidate Field/Parameter point.
+
+Coordinate-dependent denominators and nonpolynomial coordinate densities reject in this
+finite coupling profile, even when explicit Result quadrature can observe them. Spatial
+unknowns, remaining output coordinates, product-domain PDEs and discrete/initial or
+conservation-law coupling require their own numerical admission.
 
 Finite sums have separate syntax `sum(expression, over = (i in index_set))`. The index is a
 fresh exact bounded binder scoped only over the integrand. It shadows no existing binding

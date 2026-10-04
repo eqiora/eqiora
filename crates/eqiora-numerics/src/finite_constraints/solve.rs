@@ -83,10 +83,12 @@ pub(super) fn assess_original(
     let mut residuals = Vec::new();
     let mut measurements = Vec::new();
     for relation in &problem.relations {
+        let observables = super::observables::candidates(problem, relation.id, &field_values)?;
         let evaluated = problem.kernel.evaluate_relation_operands(
             relation.id,
             &field_values,
             &problem.parameter_candidates,
+            &observables,
         )?;
         for (ordinal, ((kind, pair), dimensions)) in relation
             .conditions

@@ -68,6 +68,7 @@ pub(in crate::hierarchy::body_check) fn validate_relation_expression(
             Err(diagnostics)
         };
     }
+    checker.allow_observables = !discrete;
     for equation in conditions.expect("condition body was distinguished from Law") {
         let inferred = match checker.check_equation(equation) {
             Ok(inferred) => inferred,
@@ -148,7 +149,7 @@ pub(in crate::hierarchy::body_check) fn validate_relation_family_expression(
         evolution: Vec::new(),
         contextual: Vec::new(),
         sampling: false,
-        allow_observables: false,
+        allow_observables: true,
     };
     for equation in conditions {
         let inferred = match checker.check_equation(equation) {

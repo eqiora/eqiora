@@ -220,7 +220,12 @@ operator. A same-sized foreign Domain does not substitute for the declared one.
 Each integral occurs at the root of its own Observable expression. Other Observables
 can combine those reduced values, for example `observable total:J=bulk+surface;`.
 References must be acyclic. Bounded coordinate-factor integral densities may read
-Observables; solver equations cannot read them.
+Observables. Continuous noninitial condition Relations may read lumped Observables,
+including bounded polynomial coordinate integrals in finite real scalar Plans. For example,
+`relation inventory { count=135/2; }` can determine a finite density amplitude from its
+integrated count. The Plan owns polynomial quadrature; Model/Plan/Result replay retains
+the same integral. Nonpolynomial integral coupling, spatial unknowns and discrete/initial
+Relations remain outside this profile.
 A sum or difference of fixed functionals on the same parent volume can supply one
 `variation(total, wrt=..., direction=..., holding=(...))`. The holding tuple names
 all other independent Fields and Parameters across its dependencies. Nonlinear
@@ -279,7 +284,7 @@ to evaluate the field-valued output at an ordered, unit-checked point. The retur
 A weighted mean is an explicit numerator/denominator expression, with zero denominators
 rejected. This profile supports regular real scalar coordinate densities and finite
 Result amplitudes; it does not realize arbitrary spatial phase or radial diffusion Fields,
-solver coupling, general differentiation under integrals, or State JVPs for factor integrals.
+nonpolynomial solver coupling, general differentiation under integrals, or State JVPs for factor integrals.
 Source `spherical_measure(radius)` uses `4*pi*r^2 dr` on a length-valued
 `CoordinateInterval(0, R, dimension=Dimension(length=1))`. It produces volume units
 and uses the same explicit quadrature and Result replay. A radial diffusion Field,

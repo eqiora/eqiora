@@ -91,7 +91,7 @@ pub(super) fn lower_relation(
         cache: HashMap::new(),
         sampling: false,
         allow_discrete_symbols: discrete || initial,
-        allow_observables: false,
+        allow_observables: !initial && !discrete,
         activation,
         initial,
     };

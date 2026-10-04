@@ -42,7 +42,7 @@ pub enum SymbolRef {
     Next(Id<kinds::Field>),
     /// Immutable or design Parameter value.
     Parameter(Id<kinds::Parameter>),
-    /// Value of a derived Observable, read only by another Observable.
+    /// Value of a derived Observable, read by another Observable or an admitted Relation.
     Observable(Id<kinds::Observable>),
     /// Value carried by a typed Port.
     Port(Id<kinds::Port>),

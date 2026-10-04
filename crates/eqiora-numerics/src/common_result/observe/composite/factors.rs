@@ -1,16 +1,14 @@
 //! Finite coordinate-product quadrature uses the shared scalar Operator IR.
 use std::collections::BTreeMap;
 
+use crate::factor_measure::{axes, mapped_sample};
 use eqiora_core::{DynQuantity, RawId, ScalarDomain};
 use eqiora_meshing::ReferenceCell;
 use eqiora_schema::kernel::typing::SpatialSupport;
-use eqiora_schema::kernel::{AxisBounds, DomainKind};
 
 use super::*;
 
 pub(super) type Point = BTreeMap<(RawId, usize), f64>;
-
-type Axis = ((RawId, usize), AxisBounds);
 
 impl Context<'_> {
     fn output_domain(&self, id: Id<kinds::Observable>) -> Option<Id<kinds::Domain>> {
@@ -131,18 +129,11 @@ impl Context<'_> {
                 let mut correction = 0.0;
                 for sample in rule.points() {
                     let mut local = point.clone();
-                    let mut weight = sample.weight;
-                    for ((axis, bounds), coordinate) in selected.iter().zip(&sample.coordinates) {
-                        let lower = bounds.lower().value();
-                        let half_width = (bounds.upper().value() - lower) * 0.5;
-                        let radius = lower + (coordinate + 1.0) * half_width;
-                        local.insert(*axis, radius);
-                        weight *= half_width;
-                        if measure == eqiora_schema::kernel::ObservableMeasure::SphericalVolume {
-                            weight *= 4.0 * std::f64::consts::PI * radius * radius;
-                        }
+                    let (coordinates, weight) = mapped_sample(&selected, sample, measure)?;
+                    for ((axis, _), coordinate) in selected.iter().zip(coordinates) {
+                        local.insert(*axis, coordinate.value());
                     }
-                    let term = weight * self.factor_point(&operator, &local, depth)?;
+                    let term = weight.value() * self.factor_point(&operator, &local, depth)?;
                     let corrected = term - correction;
                     let next = sum + corrected;
                     correction = (next - sum) - corrected;
@@ -237,38 +228,4 @@ impl Context<'_> {
             .copied()
             .ok_or_else(|| invalid("factor density has no scalar root"))
     }
-}
-
-fn axes(program: &KernelProgram, domain: Id<kinds::Domain>) -> Result<Vec<Axis>, Diagnostic> {
-    let support = program
-        .spatial_support(domain)
-        .ok_or_else(|| invalid("factor integral support is outside the Model"))?;
-    let factors = match support {
-        SpatialSupport::Coordinates { factors, .. } => {
-            factors.iter().map(|(id, _, _)| *id).collect()
-        }
-        SpatialSupport::Volume { domain, .. } => vec![*domain],
-        _ => {
-            return Err(invalid(
-                "factor quadrature requires bounded Cartesian factors",
-            ));
-        }
-    };
-    let mut axes = Vec::new();
-    for factor in factors {
-        let Some(KernelNode::Domain(definition)) = program.node(factor) else {
-            return Err(invalid("coordinate factor Domain is unavailable"));
-        };
-        let bounds = match definition.kind() {
-            DomainKind::CoordinateInterval { bounds } => std::slice::from_ref(bounds),
-            _ => program.resolved_cartesian_bounds(definition.id())?,
-        };
-        axes.extend(
-            bounds
-                .iter()
-                .enumerate()
-                .map(|(axis, bounds)| ((factor, axis), *bounds)),
-        );
-    }
-    Ok(axes)
 }

@@ -14,7 +14,7 @@ fn check_relations(source: &str, tolerance: f64) {
     for node in program.nodes() {
         if let KernelNode::Relation(relation) = node {
             let values = program
-                .evaluate_relation_operands(relation.id(), &[], &[])
+                .evaluate_relation_operands(relation.id(), &[], &[], &[])
                 .unwrap();
             assert_eq!(values.len() % 2, 0);
             for pair in values.as_chunks::<2>().0 {

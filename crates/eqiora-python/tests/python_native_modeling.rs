@@ -662,12 +662,12 @@ except eqiora.ValidationError as error:
     assert "foreign or omitted Observable" in str(error), str(error)
 else:
     raise AssertionError("same-name foreign Observable reference was accepted")
-try:
-    eqiora.compile(source=eqiora.Module("Wrong", x, output, eqiora.Relation("law", equations=[(x,output)])))
-except eqiora.ValidationError as error:
-    assert "not a scalar" in str(error), str(error)
-else:
-    raise AssertionError("Observable entered a solve equation")
+coupled_model = eqiora.compile(source=eqiora.Module("Coupled", x, output, eqiora.Relation("law", equations=[(x,output)])))
+coupled_plan = eqiora.resolve(coupled_model, solve=linear)
+coupled_result = eqiora.run(coupled_plan, state=eqiora.State.initial(coupled_plan))
+# x=2x fixes x=0; this checks native references through actual solve acceptance.
+assert abs(coupled_result.observe(coupled_model.observable("double")).value) < 1e-12
+
 
 "#
             ),
