@@ -8,6 +8,7 @@ mod coordinates;
 mod linearization;
 mod nonlinear;
 pub(crate) use nonlinear::FiniteNonlinearSolution;
+mod observables;
 mod preparation;
 mod solve;
 #[cfg(test)]

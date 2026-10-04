@@ -54,8 +54,16 @@ fn model(source: &str, velocity_bounds: [f64; 2]) -> (ModelEnvelope, ModelSymbol
 
 fn solve(source: &str, velocity_bounds: [f64; 2]) -> (ModelEnvelope, ModelSymbols, CommonResult) {
     let (model, symbols) = model(source, velocity_bounds);
-    let plan = CommonAlgebraicPlan::resolve(
-        &model,
+    let plan = resolve(&model).unwrap();
+    let result = plan
+        .run_result(&plan.initial_state(&[]).unwrap(), &FaerLinearSolver)
+        .unwrap();
+    (model, symbols, result)
+}
+
+fn resolve(model: &ModelEnvelope) -> Result<CommonAlgebraicPlan, eqiora_core::Diagnostic> {
+    CommonAlgebraicPlan::resolve(
+        model,
         CommonSolvePolicy::Linear(
             CommonLinearRequest::exact(
                 SolverPlan::new(
@@ -74,11 +82,6 @@ fn solve(source: &str, velocity_bounds: [f64; 2]) -> (ModelEnvelope, ModelSymbol
         None,
         &FaerLinearSolver,
     )
-    .unwrap();
-    let result = plan
-        .run_result(&plan.initial_state(&[]).unwrap(), &FaerLinearSolver)
-        .unwrap();
-    (model, symbols, result)
 }
 
 #[test]
@@ -652,3 +655,6 @@ fn spherical_density_integrals_replay_the_declared_radial_measure() {
         );
     }
 }
+
+#[path = "support/factor_integral_coupling.rs"]
+mod model_coupling;

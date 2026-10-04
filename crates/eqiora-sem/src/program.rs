@@ -720,16 +720,26 @@ fn validate_expression(
     root_contract: RootContract,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> BTreeSet<RawId> {
-    for node in expression.nodes() {
-        if matches!(node, ExprNode::Symbol(SymbolRef::Observable(_)))
-            && !matches!(
-                environment.nodes.get(&owner),
-                Some(KernelNode::Observable(_))
-            )
+    let observable_references = match environment.nodes.get(&owner) {
+        Some(KernelNode::Observable(_)) => true,
+        Some(KernelNode::Relation(relation))
+            if !relation.is_initial() && relation.conditions().is_some() =>
         {
+            environment.edges.iter().any(|edge| {
+                edge.to() == owner
+                    && edge.kind() == EdgeKind::Activates
+                    && matches!(environment.nodes.get(&edge.from()),
+                        Some(KernelNode::Activation(activation))
+                        if matches!(activation.kind(), ActivationKind::Continuous))
+            })
+        }
+        _ => false,
+    };
+    for node in expression.nodes() {
+        if matches!(node, ExprNode::Symbol(SymbolRef::Observable(_))) && !observable_references {
             diagnostics.push(kernel_error(
                 owner,
-                "Observable references are only admitted after reduction in derived Observable expressions",
+                "Observable references require a derived Observable or a continuous noninitial condition Relation",
             ));
         }
         if let ExprNode::Constant(value) = node {

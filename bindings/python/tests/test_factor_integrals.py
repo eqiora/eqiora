@@ -20,8 +20,10 @@ LENGTH = q.Dimension(length=1)
 SPEED = q.Dimension(length=1, time=-1)
 
 
-def test_factor_integrals_installed_replay_and_dimensioned_output_points():
-    model = q.compile(source=SOURCE, entry="Distribution", bindings={
+@pytest.mark.parametrize("coupled", [False, True])
+def test_factor_integrals_installed_replay_and_dimensioned_output_points(coupled):
+    source = SOURCE.replace("amplitude=3[s/m^2]", "count=135/2") if coupled else SOURCE
+    model = q.compile(source=source, entry="Distribution", bindings={
         "position": q.CoordinateInterval(0, 2, dimension=LENGTH),
         "velocity": q.CoordinateInterval(-2, 4, dimension=SPEED),
     })

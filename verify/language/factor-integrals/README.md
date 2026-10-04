@@ -5,8 +5,9 @@ Model, Plan, State and Result owners. The amplitude is a solved finite Field; co
 have explicit finite bounds. Exact input support, selected measure and remaining output
 support survive Model replay. Quadrature belongs to the numerical observation, keyed by
 its exact measure Domain. This does not realize arbitrary phase-space Field data, solve a
-product-domain PDE or radial diffusion Field, couple an integral into a solver equation,
-or provide State-direction products. Spherical coordinate-density observations are covered below.
+product-domain PDE or radial diffusion Field, or provide State-direction products.
+Bounded polynomial integral constraints and spherical coordinate-density observations
+are covered below.
 
 For `x` in `[0,2] m` and `v` in `[-2,4] m/s`, use
 `f=A*(1+x/(2 m))*(1+(v/(4 m/s))²)` with solved `A=3 s/m²`.
@@ -94,3 +95,38 @@ foreign factors and erased remaining support. Whole-Model admission accepts the
 positive `[0,2]` premise and rejects `[-1,2]` and `[0.5,2]` at the radial-bounds gate.
 Spherical Field-state products, functional variations and under-integral source
 partials remain unsupported until their regularity and realization are admitted.
+
+## Finite integral constraints
+
+A continuous noninitial condition Relation can retain a lumped Observable reference.
+The finite real scalar Plan expands polynomial coordinate integrals using bounded
+Gauss quadrature, sharing exact factor mapping and measure weights with Result
+observation. The Model itself retains the original reference and integral. Canonical
+original-operand evaluation accepts only exact typed lumped Observable candidates
+computed at the same numerical Field/Parameter point; it does not perform quadrature.
+
+For the distribution above, the independent total is `(45/2)A`. Totals 45 and 90
+therefore determine amplitudes 2 and 4, and the independently observed density at
+`x=1` is `(45/4)A`. A nested velocity-then-position constraint produces the same
+amplitude and survives Model, Plan and Result replay and re-execution. For spherical
+`a*(2+3r²)` on `[0,2]`, the average target `46/5` determines `a=1`; this catches
+an omitted radial Jacobian even when a normalized ratio cancels the angular factor.
+The total still checks that angular factor. These affine comparisons retain `1e-11`.
+
+A nonlinear density with amplitude coefficient `A²` has residual `(45/2)A²-90`.
+The ordinary strict-positive Newton lifecycle accepts `A=2`, rechecks the original
+integral and replays its Result. The `1e-12` residual bound implies less than `1e-12`
+root error near this regular root, where the residual derivative is 90.
+Focused numerical-owner tests additionally derive `R=2kw²-2p`, `R_w=4kw`,
+`R_p=-2`, and `R_k=2w²` at `(p,k,w)=(4,1,2)` and `(9,4,1.5)` and return to the
+first point; they check that candidate acceptance and partial AD share changing
+Parameter values. Those focused checks are additional product tests, not a separate
+registered derivative claim.
+
+Negative probes reach numerical admission after a valid Model: Gaussian coordinate
+densities, coordinate-dependent denominators and polynomial degrees exceeding the
+one-to-seven-point Gauss profile reject. A shared Observable dependency chain that
+would expand exponentially rejects at the 65536-operation work bound. Foreign,
+duplicate, wrong-type and spatial-output Observable candidates reject at the
+canonical evaluation boundary. General spatial Fields, nonpolynomial integral
+constraints and arbitrary nonlocal solver kernels are not claimed.

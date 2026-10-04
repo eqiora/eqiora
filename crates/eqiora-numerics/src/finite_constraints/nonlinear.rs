@@ -311,7 +311,7 @@ mod tests {
         let evaluate = |parameters: &[(Id<kinds::Parameter>, ValueLiteral)]| {
             problem
                 .kernel
-                .evaluate_relation_operands(relation, &fields, parameters)
+                .evaluate_relation_operands(relation, &fields, parameters, &[])
         };
         // At fixed w=2, original operands are [w², p, p, 0, w, 0].
         let values = evaluate(&candidate)

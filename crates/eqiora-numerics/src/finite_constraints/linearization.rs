@@ -32,7 +32,8 @@ impl FiniteConstraintProblem {
                 ));
             }
         }
-        let operator = ScalarOperatorIr::lower(expression)?;
+        let expression = super::observables::expand(&self.kernel, expression)?;
+        let operator = ScalarOperatorIr::lower(&expression)?;
         let mut inputs = Vec::new();
         let mut roles = Vec::new();
         let mut unknown_coordinates = Vec::new();

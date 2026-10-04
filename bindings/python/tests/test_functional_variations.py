@@ -42,10 +42,20 @@ def test_installed_first_and_second_variation_authoring():
         with pytest.raises(AttributeError):
             energy._name = "changed"
 
-    invalid = q.Module("invalid")
-    component = invalid.model("Invalid")
+    coupled = q.Module("coupled")
+    component = coupled.model("Coupled")
     x = component.field("x", role=q.FieldRole.Variable, value_type=q.ValueType.real())
     derived = component.observable("out", x+x, value_type=q.ValueType.real())
-    component.relation("bad", q.lang.equation(x, derived))
-    with pytest.raises(q.ValidationError, match="not a scalar"):
-        q.compile(source=invalid, entry="Invalid")
+    component.relation("balance", q.lang.equation(x, derived))
+    model = q.compile(source=coupled, entry="Coupled")
+    output = model.observable("out")
+    model = q.Model.from_bytes(model.to_bytes())
+    solve = q.solve.Linear(relative_tolerance=1e-12, absolute_tolerance=1e-14,
+                           maximum_iterations=8, algorithm=q.solve.LinearSolver.SparseLu,
+                           preconditioner=q.solve.Preconditioner.Identity,
+                           reduction=q.solve.Reduction.Fast, provider=q.solve.SolverProvider.faer())
+    plan = q.Plan.from_bytes(q.resolve(model, solve=solve).to_bytes())
+    result = q.run(plan, state=q.State.initial(plan))
+    result = q.Result.from_bytes(plan, result.to_bytes())
+    # The authored equation x=2x fixes x=0, hence the derived output is zero.
+    assert result.observe(output).value == pytest.approx(0.0, rel=0, abs=1e-12)

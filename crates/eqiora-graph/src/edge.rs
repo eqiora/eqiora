@@ -77,7 +77,7 @@ impl EdgeKind {
                         to,
                         K::Field | K::Parameter | K::Port | K::ClockDomain | K::Domain
                     ))
-                    || (matches!(from, K::Observable) && matches!(to, K::Observable))
+                    || (matches!(from, K::Relation | K::Observable) && matches!(to, K::Observable))
                     || (matches!(from, K::Domain) && matches!(to, K::Parameter | K::Domain))
             }
             Self::StructurallyDependsOn => {

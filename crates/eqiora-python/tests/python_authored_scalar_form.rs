@@ -296,17 +296,17 @@ for authored in (energy_module, emitted):
     authored_result = eqiora.run(eqiora.Plan.from_bytes(authored_plan.to_bytes()))
     check_analytic_coefficients(authored_model, authored_result)
     assert abs(authored_result.observe(authored_model.observable("definition.combined"), quadrature_points=2).value + 3/256) <= 1e-10
-invalid_module = eqiora.Module("invalid")
-invalid_component = invalid_module.model("Invalid")
-invalid_field = invalid_component.field("x", value_type=eqiora.ValueType.real(), role=eqiora.FieldRole.Variable)
-invalid_output = invalid_component.observable("out", invalid_field+invalid_field, value_type=eqiora.ValueType.real())
-invalid_component.relation("bad", q.equation(invalid_field, invalid_output))
-try:
-    eqiora.compile(source=invalid_module, entry="Invalid")
-except eqiora.ValidationError as error:
-    assert "not a scalar" in str(error), str(error)
-else:
-    raise AssertionError("Observable entered a solve equation")
+coupled_module = eqiora.Module("coupled")
+coupled_component = coupled_module.model("Coupled")
+coupled_field = coupled_component.field("x", value_type=eqiora.ValueType.real(), role=eqiora.FieldRole.Variable)
+coupled_output = coupled_component.observable("out", coupled_field+coupled_field, value_type=eqiora.ValueType.real())
+coupled_component.relation("balance", q.equation(coupled_field, coupled_output))
+coupled_model = eqiora.compile(source=coupled_module, entry="Coupled")
+coupled_linear = eqiora.solve.Linear(algorithm=eqiora.solve.LinearSolver.SparseLu, preconditioner=eqiora.solve.Preconditioner.Identity, reduction=eqiora.solve.Reduction.Fast, provider=eqiora.solve.SolverProvider.faer(), relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=100)
+coupled_plan = eqiora.resolve(coupled_model, solve=coupled_linear)
+coupled_result = eqiora.run(coupled_plan, state=eqiora.State.initial(coupled_plan))
+# x=2x fixes x=0, independently of the spatial functional fixture above.
+assert abs(coupled_result.observe(coupled_model.observable("out")).value) < 1e-12
 foreign_module = eqiora.Module("foreign")
 foreign_component = foreign_module.component("Foreign")
 foreign = foreign_component.parameter("foreign", value_type=eqiora.ValueType.real())

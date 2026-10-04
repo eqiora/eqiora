@@ -228,16 +228,36 @@ fn composite_observable_references_are_typed_and_replayable() {
     assert!(
         ModelEnvelope::from_json(prior_schema.as_bytes(), ModelDecoderLimits::default()).is_err()
     );
+    let coupled = ModelDocument::compile(
+        "coupled.eqi",
+        &source.replace("balance{x=a;}", "balance{x=total;}"),
+    )
+    .unwrap();
+    let retained = ModelEnvelope::from_program(coupled.program()).unwrap();
+    let replay = ModelEnvelope::from_json(
+        &retained.canonical_json().unwrap(),
+        ModelDecoderLimits::default(),
+    )
+    .unwrap()
+    .to_program()
+    .unwrap();
+    let Some(KernelNode::Relation(relation)) = replay.node(coupled.aliases()["balance"]) else {
+        panic!("Relation")
+    };
+    assert!(
+        relation
+            .expression()
+            .nodes()
+            .iter()
+            .any(|node| matches!(node,
+        ExprNode::Symbol(SymbolRef::Observable(id)) if id.erase() == coupled.aliases()["total"]))
+    );
     for (invalid, expected) in [
         (source.replace("total:1=", "total:m="), "declared type"),
         (source.replace("first:1=x*x/2", "first:1=total"), "acyclic"),
         (
             source.replace("total:1=first+first", "total:1=total"),
             "acyclic",
-        ),
-        (
-            source.replace("balance{x=a;}", "balance{x=total;}"),
-            "not a scalar",
         ),
     ] {
         let errors = ModelDocument::compile("invalid-composite.eqi", &invalid).unwrap_err();

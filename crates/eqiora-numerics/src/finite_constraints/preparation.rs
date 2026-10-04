@@ -153,19 +153,20 @@ pub(crate) fn lower_finite_constraints(
                 "finite static constraints do not admit initialization-only Relations",
             ));
         }
+        let expression = super::observables::expand(kernel, relation.expression())?;
         expression_nodes = expression_nodes
-            .checked_add(relation.expression().nodes().len())
+            .checked_add(expression.nodes().len())
             .ok_or_else(|| invalid("finite expression budget overflow"))?;
         if expression_nodes > 65_536 {
             return Err(invalid(
                 "finite constraint profile permits at most 65536 expression nodes",
             ));
         }
-        if relation.expression().nodes().iter().any(|node| matches!(node, ExprNode::Symbol(symbol) if !matches!(symbol, SymbolRef::Field(_) | SymbolRef::Parameter(_)))) {
+        if expression.nodes().iter().any(|node| matches!(node, ExprNode::Symbol(symbol) if !matches!(symbol, SymbolRef::Field(_) | SymbolRef::Parameter(_)))) {
             return Err(invalid("finite static constraints reject time, derivatives and activation history"));
         }
         let typed = TypedResidual::<eqiora_core::RawId>::infer(
-            relation.expression().clone(),
+            expression.clone(),
             None,
             RootContract::RelationOperands,
             |symbol| {
@@ -189,8 +190,17 @@ pub(crate) fn lower_finite_constraints(
         )
         .map_err(|errors| invalid(format!("finite original operand typing failed: {errors:?}")))?;
         let mut operand_dimensions = Vec::new();
-        for (ordinal, (kind, (left, right))) in
-            conditions.iter().zip(relation.equation_sides()).enumerate()
+        for (ordinal, (kind, (left, right))) in conditions
+            .iter()
+            .zip(
+                expression
+                    .roots()
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|sides| (sides[0], sides[1])),
+            )
+            .enumerate()
         {
             let left = typed.node_type(left).expect("admitted root type");
             let right = typed.node_type(right).expect("admitted root type");
@@ -310,8 +320,7 @@ pub(crate) fn lower_finite_constraints(
                 1
             };
             affine_node_work = affine_node_work.saturating_add(
-                relation
-                    .expression()
+                expression
                     .nodes()
                     .len()
                     .saturating_mul(operand_coordinates)
@@ -326,7 +335,7 @@ pub(crate) fn lower_finite_constraints(
         // Prove every original operand affine before considering any active branch.
         // A branch must never hide a nonlinear inactive operand.
         if strict_interior {
-            ScalarOperatorIr::lower(relation.expression())?;
+            ScalarOperatorIr::lower(&expression)?;
         } else {
             for row in ComponentScalarization::lower(&typed)?.rows() {
                 row.bind_affine(&coordinates, &bindings).map_err(|error| {
@@ -339,7 +348,7 @@ pub(crate) fn lower_finite_constraints(
         }
         relations.push(RelationOperands {
             id: relation.id(),
-            expression: relation.expression().clone(),
+            expression,
             conditions: conditions.to_vec(),
             dimensions: operand_dimensions,
         });
