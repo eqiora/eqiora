@@ -109,9 +109,9 @@ impl Context<'_> {
             ObservableReduction::SpatialIntegral {
                 domain, measure, ..
             } => {
-                if measure != eqiora_schema::kernel::ObservableMeasure::Volume {
+                if measure == eqiora_schema::kernel::ObservableMeasure::Boundary {
                     return Err(invalid(
-                        "coordinate product requires its declared Cartesian factor measure",
+                        "coordinate product requires a declared factor volume measure",
                     ));
                 }
                 self.require_regular_density(&operator, depth)?;
@@ -135,8 +135,12 @@ impl Context<'_> {
                     for ((axis, bounds), coordinate) in selected.iter().zip(&sample.coordinates) {
                         let lower = bounds.lower().value();
                         let half_width = (bounds.upper().value() - lower) * 0.5;
-                        local.insert(*axis, lower + (coordinate + 1.0) * half_width);
+                        let radius = lower + (coordinate + 1.0) * half_width;
+                        local.insert(*axis, radius);
                         weight *= half_width;
+                        if measure == eqiora_schema::kernel::ObservableMeasure::SphericalVolume {
+                            weight *= 4.0 * std::f64::consts::PI * radius * radius;
+                        }
                     }
                     let term = weight * self.factor_point(&operator, &local, depth)?;
                     let corrected = term - correction;

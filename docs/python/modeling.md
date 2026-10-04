@@ -278,8 +278,12 @@ to evaluate the field-valued output at an ordered, unit-checked point. The retur
 `observe` result has `point=None`. Integrating another Observable composes reductions.
 A weighted mean is an explicit numerator/denominator expression, with zero denominators
 rejected. This profile supports regular real scalar coordinate densities and finite
-Result amplitudes; it does not realize arbitrary spatial phase Fields, spherical measures,
+Result amplitudes; it does not realize arbitrary spatial phase or radial diffusion Fields,
 solver coupling, general differentiation under integrals, or State JVPs for factor integrals.
+Source `spherical_measure(radius)` uses `4*pi*r^2 dr` on a length-valued
+`CoordinateInterval(0, R, dimension=Dimension(length=1))`. It produces volume units
+and uses the same explicit quadrature and Result replay. A radial diffusion Field,
+its center condition and spherical functional derivatives remain separate capabilities.
 A declaration-root first `partial` of one named polynomial integral over fixed coordinate
 intervals is admitted for an independent Parameter or a coordinate declared on its remaining
 output support. It reuses the same Result quadrature and `observe_at` operation.
@@ -1496,7 +1500,7 @@ assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
-`eqiora.model-envelope/v35` schema, but callers do not select that suffix.
+`eqiora.model-envelope/v36` schema, but callers do not select that suffix.
 `.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
 Only the current schema is accepted; decoding never sniffs, retries, or silently
 migrates an older artifact.

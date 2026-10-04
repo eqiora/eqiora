@@ -574,3 +574,81 @@ fn fixed_integral_partial_keeps_shared_literal_multipliers_and_divisors_distinct
         "{errors:?}"
     );
 }
+
+#[test]
+fn spherical_density_integrals_replay_the_declared_radial_measure() {
+    let source =
+        "model Distribution(support position:interval(m), support velocity:interval(m/s)) {
+        coordinate r:m on position from position[0];
+        variable anchor:1; relation value {anchor=1;}
+        let c:1/m^3=2[1/m^3]+3[1/m^5]*r^2;
+        observable total:1=integral(c,spherical_measure(position));
+        observable volume:m^3=integral(1,spherical_measure(position));
+        observable average:1/m^3=total/volume;
+        observable constant_total:1=integral(2[1/m^3],spherical_measure(position));
+        observable constant_average:1/m^3=constant_total/volume;
+        observable line:1/m^2=integral(c,measure(position));
+    }";
+    let (original, symbols, result) = solve(source, [-2.0, 4.0]);
+    let bytes = original.canonical_json().unwrap();
+    assert!(
+        std::str::from_utf8(&bytes)
+            .unwrap()
+            .contains("spherical-volume-integral")
+    );
+    let text = std::str::from_utf8(&bytes).unwrap();
+    assert!(
+        ModelEnvelope::from_json(
+            text.replace("eqiora.model-envelope/v36", "eqiora.model-envelope/v35")
+                .as_bytes(),
+            Default::default(),
+        )
+        .is_err()
+    );
+    let dropped = text.replace("spherical-volume-integral", "volume-integral");
+    let errors = match ModelEnvelope::from_json(dropped.as_bytes(), Default::default()) {
+        Ok(model) => model.to_program().unwrap_err(),
+        Err(error) => vec![error],
+    };
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message().contains("type") || error.message().contains("measure")),
+        "{errors:?}"
+    );
+    let model = ModelEnvelope::from_json(&bytes, Default::default()).unwrap();
+    let rules = std::collections::HashMap::from([(
+        symbols.get("position").unwrap().downcast().unwrap(),
+        QuadratureRule::gauss_legendre(3).unwrap(),
+    )]);
+    // Independently integrate (2+3r²)*4πr² on [0,2]:
+    // total = 4π(2R³/3 + 3R⁵/5), volume = 4πR³/3.
+    // Three-point Gauss is exact for the degree-four weighted polynomial.
+    // The unweighted line result is 2R + R³, so omitting r² is observable.
+    for (name, expected, length_power) in [
+        ("total", 1472.0 * std::f64::consts::PI / 15.0, 0),
+        ("volume", 32.0 * std::f64::consts::PI / 3.0, 3),
+        ("average", 46.0 / 5.0, -3),
+        ("constant_total", 64.0 * std::f64::consts::PI / 3.0, 0),
+        ("constant_average", 2.0, -3),
+        ("line", 12.0, -2),
+    ] {
+        let observed = result
+            .observe(
+                &model,
+                symbols.get(name).unwrap().downcast().unwrap(),
+                &rules,
+            )
+            .unwrap();
+        let value = observed.value().real_scalar_value().unwrap();
+        assert_eq!(
+            value.dim(),
+            DimExponents::from_integers([0, length_power, 0, 0, 0, 0, 0]).unwrap()
+        );
+        assert!(
+            (value.value() - expected).abs() <= 1e-11,
+            "{name}: {} expected {expected}",
+            value.value()
+        );
+    }
+}

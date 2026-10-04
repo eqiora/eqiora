@@ -13,7 +13,7 @@ pub(super) enum Binding {
         Id<kinds::Observable>,
         eqiora_lang::ValueTypeSyntax,
         Option<String>,
-        Option<String>,
+        Option<LoweringIntegral>,
     ),
     Relation {
         relation: Id<kinds::Relation>,

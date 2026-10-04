@@ -126,7 +126,7 @@ pub(super) enum FlatItemBlueprint {
         name: String,
         value_type: eqiora_lang::ValueTypeSyntax,
         value: crate::lower::LoweringExpression,
-        reduction: Option<String>,
+        reduction: Option<crate::lower::LoweringIntegral>,
         domain: Option<String>,
         range: TextRange,
         identity: EntityIdentity,

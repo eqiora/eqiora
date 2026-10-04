@@ -8,6 +8,10 @@ pub enum ObservableMeasure {
     Volume,
     /// Exterior surface measure; orientation belongs to the exact boundary normal.
     Boundary,
+    /// Spherical-symmetry volume measure `4*pi*r^2 dr` on one exact radial
+    /// coordinate factor. Its coordinate has length units; its measure has
+    /// volume units. Domain admission separately requires bounds `[0, R]`.
+    SphericalVolume,
 }
 
 impl ObservableMeasure {
@@ -45,6 +49,11 @@ impl ObservableMeasure {
                 .ok_or_else(|| {
                     invalid("coordinate product measure dimension exceeds its exact representation")
                 })?,
+            (ObservableMeasure::SphericalVolume, SpatialSupport::Coordinates { factors, .. })
+                if matches!(factors.as_slice(), [(_, dimension, 1)] if *dimension == length_measure(1)?) =>
+            {
+                length_measure(3)?
+            }
             (ObservableMeasure::Volume, SpatialSupport::Volume { dimensions, .. }) => {
                 length_measure(*dimensions)?
             }
@@ -148,6 +157,52 @@ mod tests {
         factors: Vec<(&'static str, DimExponents, usize)>,
     ) -> SpatialSupport<&'static str> {
         SpatialSupport::Coordinates { domain, factors }
+    }
+
+    #[test]
+    fn spherical_measure_has_volume_units_and_removes_only_the_exact_radial_factor() {
+        let r = ("radius", unit(1, 0), 1);
+        let x = ("position", unit(1, 0), 1);
+        let radial = coordinates("radius", vec![r]);
+        let position = coordinates("position", vec![x]);
+        let phase = coordinates("position_radius", vec![x, r]);
+        let concentration = ExpressionType::scalar(unit(-3, 0), Some(phase.clone()));
+        let total = ObservableMeasure::SphericalVolume
+            .output_type(&concentration, &phase, &radial, Some(&position))
+            .unwrap();
+        assert_eq!(total.dimension(), DimExponents::DIMENSIONLESS);
+        assert_eq!(total.support, Some(position.clone()));
+        let cartesian = ObservableMeasure::Volume
+            .output_type(&concentration, &phase, &radial, Some(&position))
+            .unwrap();
+        assert_eq!(cartesian.dimension(), unit(-2, 0));
+        for wrong in [
+            coordinates("speed", vec![("speed", unit(1, -1), 1)]),
+            coordinates("two_axes", vec![("two_axes", unit(1, 0), 2)]),
+            coordinates("two_factors", vec![x, r]),
+            SpatialSupport::Volume {
+                domain: "box",
+                dimensions: 1,
+            },
+        ] {
+            let density = ExpressionType::scalar(unit(-3, 0), Some(wrong.clone()));
+            assert!(
+                ObservableMeasure::SphericalVolume
+                    .output_type(&density, &wrong, &wrong, None)
+                    .is_err()
+            );
+        }
+        let foreign = coordinates("foreign", vec![("foreign", unit(1, 0), 1)]);
+        assert!(
+            ObservableMeasure::SphericalVolume
+                .output_type(&concentration, &phase, &foreign, Some(&position))
+                .is_err()
+        );
+        assert!(
+            ObservableMeasure::SphericalVolume
+                .output_type(&concentration, &phase, &radial, None)
+                .is_err()
+        );
     }
 
     #[test]

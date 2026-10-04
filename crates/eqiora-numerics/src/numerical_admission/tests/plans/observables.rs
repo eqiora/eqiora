@@ -380,6 +380,9 @@ fn ordered_second_variation_reuses_live_volume_and_surface_calculus() {
                     rules.insert(
                         domain,
                         match measure {
+                            eqiora_schema::kernel::ObservableMeasure::SphericalVolume => {
+                                panic!("Cartesian fixture cannot contain spherical measure")
+                            }
                             eqiora_schema::kernel::ObservableMeasure::Volume => {
                                 QuadratureRule::gauss_legendre(2).unwrap()
                             }

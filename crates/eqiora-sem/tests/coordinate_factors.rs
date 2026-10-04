@@ -238,3 +238,82 @@ fn interval_units_do_not_weaken_physical_cartesian_bounds() {
         );
     }
 }
+
+#[test]
+fn spherical_measure_requires_a_radial_interval_starting_at_the_center() {
+    use eqiora_schema::kernel::{ObservableDef, ObservableReduction};
+    for lower in [0.0, -1.0, 0.5] {
+        let radial = Id::<kinds::Domain>::new();
+        let total = Id::<kinds::Observable>::new();
+        let model = OntologyId::<Model>::new();
+        let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
+        let concentration = DimExponents::from_integers([0, -3, 0, 0, 0, 0, 0]).unwrap();
+        let mut dag = ExprDagBuilder::new();
+        let density = dag.constant(DynQuantity::new(2.0, concentration)).unwrap();
+        let relation = Id::<kinds::Relation>::new();
+        let activation = Id::<kinds::Activation>::new();
+        let mut anchor = ExprDagBuilder::new();
+        let zero = anchor
+            .constant(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
+            .unwrap();
+        let nodes = vec![
+            KernelNode::from(
+                RelationDef::new(relation, anchor.finish([zero, zero]).unwrap()).unwrap(),
+            ),
+            ActivationDef::continuous(activation).into(),
+            KernelNode::from(DomainDef::coordinate_interval(
+                radial,
+                AxisBounds::new(
+                    DynQuantity::new(lower, length),
+                    DynQuantity::new(2.0, length),
+                )
+                .unwrap(),
+            )),
+            ObservableDef::new(
+                total,
+                ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap(),
+                dag.finish([density]).unwrap(),
+                ObservableReduction::SpatialIntegral {
+                    input: radial,
+                    domain: radial,
+                    measure: ObservableMeasure::SphericalVolume,
+                },
+            )
+            .unwrap()
+            .into(),
+        ];
+        let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
+        let mut transaction = Transaction::new("spherical measure admission");
+        for node in nodes {
+            transaction.push(Op::DefineKernelNode { node });
+        }
+        transaction.push(Op::Connect {
+            from: total.erase(),
+            to: radial.erase(),
+            edge: EdgeKind::AppliesOn,
+        });
+        transaction.push(Op::Connect {
+            from: activation.erase(),
+            to: relation.erase(),
+            edge: EdgeKind::Activates,
+        });
+        transaction.push(Op::DefineOntologyView {
+            view: ModelView::new(model, members, []).unwrap().into(),
+        });
+        let mut store = InMemoryGraphStore::new();
+        store.commit(transaction).unwrap();
+        let admitted = KernelProgram::from_snapshot(&store.snapshot(), model);
+        if lower == 0.0 {
+            let program = admitted.unwrap();
+            program.typed_observable(total).unwrap();
+        } else {
+            let errors = admitted.unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.message().contains("from zero to a positive radius")),
+                "{errors:?}"
+            );
+        }
+    }
+}

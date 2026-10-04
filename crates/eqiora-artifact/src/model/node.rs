@@ -783,6 +783,7 @@ pub(crate) enum WireObservableReduction {
     Value,
     VolumeIntegral { input: WireId, domain: WireId },
     BoundaryIntegral { input: WireId, domain: WireId },
+    SphericalVolumeIntegral { input: WireId, domain: WireId },
 }
 
 impl WireObservableReduction {
@@ -805,6 +806,14 @@ impl WireObservableReduction {
                 input: WireId::from_raw(input.erase()),
                 domain: WireId::from_raw(domain.erase()),
             },
+            ObservableReduction::SpatialIntegral {
+                input,
+                domain,
+                measure: ObservableMeasure::SphericalVolume,
+            } => Self::SphericalVolumeIntegral {
+                input: WireId::from_raw(input.erase()),
+                domain: WireId::from_raw(domain.erase()),
+            },
         }
     }
     fn decode(&self) -> Result<ObservableReduction, Diagnostic> {
@@ -820,12 +829,21 @@ impl WireObservableReduction {
                 domain: domain.typed()?,
                 measure: ObservableMeasure::Boundary,
             },
+            Self::SphericalVolumeIntegral { input, domain } => {
+                ObservableReduction::SpatialIntegral {
+                    input: input.typed()?,
+                    domain: domain.typed()?,
+                    measure: ObservableMeasure::SphericalVolume,
+                }
+            }
         })
     }
     fn semantic_references(&self) -> Vec<&WireId> {
         match self {
             Self::Value => Vec::new(),
-            Self::VolumeIntegral { input, domain } | Self::BoundaryIntegral { input, domain } => {
+            Self::VolumeIntegral { input, domain }
+            | Self::BoundaryIntegral { input, domain }
+            | Self::SphericalVolumeIntegral { input, domain } => {
                 vec![input, domain]
             }
         }

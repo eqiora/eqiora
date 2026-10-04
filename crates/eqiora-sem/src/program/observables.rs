@@ -138,6 +138,26 @@ pub(super) fn validate(
         let KernelNode::Observable(observable) = node else {
             continue;
         };
+        if let eqiora_schema::kernel::ObservableReduction::SpatialIntegral {
+            domain,
+            measure: eqiora_schema::kernel::ObservableMeasure::SphericalVolume,
+            ..
+        } = observable.reduction()
+        {
+            let radial = match spatial_supports.get(&domain.erase()) {
+                Some(SpatialSupport::Coordinates { factors, .. }) if factors.len() == 1 => {
+                    nodes.get(&factors[0].0)
+                }
+                _ => None,
+            };
+            if !matches!(radial, Some(KernelNode::Domain(definition))
+                if matches!(definition.kind(), eqiora_schema::kernel::DomainKind::CoordinateInterval { bounds }
+                    if bounds.lower().value() == 0.0))
+            {
+                diagnostics.push(kernel_error(id,
+                    "spherical volume measure requires one radial coordinate interval from zero to a positive radius"));
+            }
+        }
         let output_domains = edge_targets(edges, id, EdgeKind::DefinedOn);
         let output = field_support(id, edges, spatial_supports);
         if (!output_domains.is_empty() && output.is_none())

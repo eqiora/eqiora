@@ -7,13 +7,13 @@ pub(in crate::lower) fn lower_observable(
     id: Id<kinds::Observable>,
     value_type: &eqiora_lang::ValueTypeSyntax,
     value: &LoweringExpression,
-    reduction: Option<&String>,
+    reduction: Option<&LoweringIntegral>,
     domain: Option<&str>,
     bindings: &BTreeMap<String, Binding>,
 ) -> Result<(ObservableDef, BTreeSet<RawId>), Diagnostic> {
     let range = value.range;
     let support = reduction
-        .map(|name| relation_support(file, range, name, bindings))
+        .map(|reduction| relation_support(file, range, &reduction.domain, bindings))
         .transpose()?;
     let output = domain
         .map(|name| relation_support(file, range, name, bindings))
@@ -36,7 +36,8 @@ pub(in crate::lower) fn lower_observable(
         .cloned();
     let reduction = match reduction {
         None => ObservableReduction::Value,
-        Some(name) => {
+        Some(reduction) => {
+            let name = &reduction.domain;
             let Some(Binding::Domain(domain, _)) = bindings.get(name) else {
                 return Err(unresolved(file, range, name, "Observable Domain"));
             };
@@ -48,11 +49,13 @@ pub(in crate::lower) fn lower_observable(
                     .downcast()
                     .expect("admitted Domain"),
                 domain: *domain,
-                measure: if matches!(support.as_ref(), Some(SpatialSupport::Boundary { .. })) {
-                    ObservableMeasure::Boundary
-                } else {
-                    ObservableMeasure::Volume
-                },
+                measure: reduction.measure.unwrap_or({
+                    if matches!(support.as_ref(), Some(SpatialSupport::Boundary { .. })) {
+                        ObservableMeasure::Boundary
+                    } else {
+                        ObservableMeasure::Volume
+                    }
+                }),
             }
         }
     };
@@ -88,14 +91,14 @@ pub(super) fn reference_type(
     range: TextRange,
     value_type: &eqiora_lang::ValueTypeSyntax,
     domain: Option<&str>,
-    reduction: Option<&str>,
+    reduction: Option<&LoweringIntegral>,
     bindings: &BTreeMap<String, Binding>,
 ) -> Result<ExpressionType<RawId>, Diagnostic> {
     let support = domain
         .map(|name| relation_support(file, range, name, bindings))
         .transpose()?;
     let measure_support = reduction
-        .map(|name| relation_support(file, range, name, bindings))
+        .map(|reduction| relation_support(file, range, &reduction.domain, bindings))
         .transpose()?;
     let value_type = crate::value_types::lower_value_type(
         file,
