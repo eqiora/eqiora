@@ -356,7 +356,9 @@ impl ExpressionChecker<'_, '_, '_> {
             SymbolContract::Observable(declaration) if self.allow_observables => {
                 observable::reference_type(self.scope, &declaration)
             }
-            SymbolContract::Parameter(inferred) => Ok(inferred),
+            SymbolContract::Parameter(inferred) | SymbolContract::Coordinate(inferred) => {
+                Ok(inferred)
+            }
             SymbolContract::Alias(alias) => self.use_alias(alias),
             SymbolContract::Port(contract) => {
                 if let PortContract::Signal { activation, .. } = &contract {
@@ -651,8 +653,23 @@ impl ExpressionChecker<'_, '_, '_> {
                         "coordinate(...) requires a non-negative integer literal axis",
                     )
                 })?;
-            return typing::coordinate(axis, self.relation_support.as_ref())
-                .map_err(|error| type_error(self.scope.file, expression, error));
+            let support = self
+                .relation_support
+                .as_ref()
+                .filter(|support| support.ambient_dimensions().is_some())
+                .ok_or_else(|| {
+                    type_error(
+                        self.scope.file,
+                        expression,
+                        typing::TypeViolation::<String>::CoordinateRequiresSpatialScope,
+                    )
+                })?;
+            return typing::coordinate(
+                support.parent().unwrap_or(support.domain()),
+                axis,
+                Some(support),
+            )
+            .map_err(|error| type_error(self.scope.file, expression, error));
         }
         if let Some(function) = crate::math::unary_function(callee_name) {
             return typing::unary_math(function, &self.check(argument)?)

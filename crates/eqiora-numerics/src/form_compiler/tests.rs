@@ -86,3 +86,45 @@ fn compile_program(name: &str, source: &str) -> KernelProgram {
     store.commit(transaction).expect("transaction commits");
     KernelProgram::from_snapshot(&store.snapshot(), model).expect("kernel program projects")
 }
+
+#[test]
+fn boundary_flux_compares_exact_parent_coordinate_restrictions() {
+    let coefficient = "(1 + wave_number * coordinate(0))";
+    let boundary = format!("normal({coefficient} * grad(potential)) = wave_number;");
+    let source = POISSON
+        .replace(
+            "-div(grad(potential))",
+            &format!("-div({coefficient} * grad(potential))"),
+        )
+        .replace(
+            "relation y_upper_value on y_upper { trace(potential) = 0; }",
+            &format!("relation y_upper_value on y_upper {{ {boundary} }}"),
+        );
+    for (source, admitted) in [
+        (source.clone(), true),
+        (
+            source.replace(
+                &boundary,
+                &boundary.replace("coordinate(0)", "coordinate(1)"),
+            ),
+            false,
+        ),
+    ] {
+        let program = compile_program("coordinate-flux.eqi", &source);
+        let domain = program
+            .nodes()
+            .find_map(|node| match node {
+                KernelNode::Domain(domain)
+                    if matches!(domain.kind(), DomainKind::CartesianBox { .. }) =>
+                {
+                    Some(domain.id().erase())
+                }
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(
+            derive_candidate(&program, domain).unwrap().is_some(),
+            admitted
+        );
+    }
+}

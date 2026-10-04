@@ -669,7 +669,7 @@ pub(super) fn enforce_parameter_term_limit(elaborator: &Elaborator<'_>) -> Resul
     for (_, definition) in elaborator.components() {
         for item in definition.declaration.items() {
             match item {
-                ComponentItem::Let(declaration) => {
+                ComponentItem::Coordinate(declaration) | ComponentItem::Let(declaration) => {
                     count_expression_terms(declaration.value(), &mut terms, elaborator)?;
                 }
                 ComponentItem::Parameter(parameter) => {
@@ -690,7 +690,7 @@ pub(super) fn enforce_parameter_term_limit(elaborator: &Elaborator<'_>) -> Resul
     for (_, definition) in elaborator.models() {
         for item in definition.declaration.items() {
             match item {
-                Item::Let(declaration) => {
+                Item::Coordinate(declaration) | Item::Let(declaration) => {
                     count_expression_terms(declaration.value(), &mut terms, elaborator)?;
                 }
                 Item::Instance(instance) => {

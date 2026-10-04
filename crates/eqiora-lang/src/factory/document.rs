@@ -29,6 +29,9 @@ impl SourceAstFactory {
     ) -> Result<ModelDecl, AstConstructionError> {
         super::signature::validate_signature(&signature)?;
         for item in &items {
+            if let Item::Coordinate(declaration) = item {
+                super::compile_time::validate_coordinate(declaration)?;
+            }
             if let Item::IndexSet(declaration) = item {
                 super::nominal::validate_definition(declaration, "range")?;
             }

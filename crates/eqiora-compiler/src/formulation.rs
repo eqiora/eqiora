@@ -66,8 +66,12 @@ pub(crate) enum AuthoredFormExpressionKind {
     Field(Id<kinds::Field>),
     /// Scalar Parameter value.
     Parameter(Id<kinds::Parameter>),
-    /// One physical Cartesian coordinate in the Relation Domain.
-    Coordinate(usize),
+    /// One exact coordinate projection in the Relation Domain.
+    Coordinate {
+        support: Id<kinds::Domain>,
+        factor: Id<kinds::Domain>,
+        axis: usize,
+    },
     /// Scalar test function associated with one trial Field.
     Test(Id<kinds::Field>),
     /// Arithmetic negation.

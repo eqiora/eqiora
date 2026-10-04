@@ -251,6 +251,8 @@ impl Parser<'_> {
             self.parse_observable().map(Item::Observable)
         } else if self.at_keyword("indexset") {
             self.parse_index_set().map(Item::IndexSet)
+        } else if self.at_keyword("coordinate") {
+            self.parse_coordinate().map(Item::Coordinate)
         } else if self.at_keyword("let") {
             self.parse_let().map(Item::Let)
         } else if self.at_keyword("port") {

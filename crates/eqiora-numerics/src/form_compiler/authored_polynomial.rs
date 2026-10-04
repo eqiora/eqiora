@@ -13,7 +13,7 @@ enum Atom {
     TraceTest(Vec<usize>),
     Field(String, Vec<usize>),
     Parameter(String, Vec<usize>),
-    Coordinate(usize),
+    Coordinate(String, String, usize),
     Test(Vec<usize>),
     FieldGradient(String, Vec<usize>),
     TestGradient(Vec<usize>),
@@ -222,9 +222,15 @@ impl Context<'_> {
             E::Field { ulid } => Polynomial::atom(Atom::Field(ulid.clone(), vec![])),
             E::Trace { value } => self.trace(value, vec![])?,
             E::Parameter { ulid } => Polynomial::atom(Atom::Parameter(ulid.clone(), vec![])),
-            E::Coordinate { axis } if *axis < self.dimensions => {
-                Polynomial::atom(Atom::Coordinate(*axis))
-            }
+            E::Coordinate {
+                support_ulid,
+                factor_ulid,
+                axis,
+            } if *axis < self.dimensions => Polynomial::atom(Atom::Coordinate(
+                support_ulid.clone(),
+                factor_ulid.clone(),
+                *axis,
+            )),
             E::Test { field_ulid } if field_ulid == self.field => {
                 Polynomial::atom(Atom::Test(vec![]))
             }

@@ -17,7 +17,7 @@ impl LoweringExpression {
         let node = match self.node.as_ref() {
             LoweringExpressionNode::Partial { value, wrt } => LoweringExpressionNode::Partial {
                 value: value.clone_shared(cache),
-                wrt: wrt.clone(),
+                wrt: wrt.clone_shared(cache),
             },
             LoweringExpressionNode::Number(value) => LoweringExpressionNode::Number(value.clone()),
             LoweringExpressionNode::Literal(value) => {
@@ -46,6 +46,15 @@ impl LoweringExpression {
             LoweringExpressionNode::Complex { real, imag } => LoweringExpressionNode::Complex {
                 real: real.clone_shared(cache),
                 imag: imag.clone_shared(cache),
+            },
+            LoweringExpressionNode::Coordinate {
+                support,
+                factor,
+                axis,
+            } => LoweringExpressionNode::Coordinate {
+                support: support.clone(),
+                factor: factor.clone(),
+                axis: *axis,
             },
             LoweringExpressionNode::Name(name) => LoweringExpressionNode::Name(name.clone()),
             LoweringExpressionNode::Not(value) => {

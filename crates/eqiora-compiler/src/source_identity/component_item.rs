@@ -16,6 +16,10 @@ pub(super) fn encode_component_item(
             encoder.u16(18)?;
             encode_let(&mut encoder, declaration, budget)?;
         }
+        ComponentItem::Coordinate(declaration) => {
+            encoder.u16(40)?;
+            encode_let(&mut encoder, declaration, budget)?;
+        }
         ComponentItem::Let(declaration) => {
             encoder.u16(17)?;
             encode_let(&mut encoder, declaration, budget)?;

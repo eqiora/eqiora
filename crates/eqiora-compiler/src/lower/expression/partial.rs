@@ -20,7 +20,29 @@ pub(crate) fn result_type<I: Clone + PartialEq>(
         .dimension()
         .div(selected.dimension())
         .ok_or("partial result dimension exceeds exact exponent bounds")?;
-    Ok(ExpressionType::scalar(dimension, value.support.clone()))
+    // Even an independent zero is requested on the selected coordinate support.
+    // This agrees with the retained operator's coordinate argument and native typing.
+    Ok(ExpressionType::scalar(
+        dimension,
+        value.support.clone().or_else(|| selected.support.clone()),
+    ))
+}
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum Input {
+    Name(String),
+    Coordinate(String, String, usize),
+}
+fn input(value: &LoweringExpression) -> Option<Input> {
+    match value.node.as_ref() {
+        LoweringExpressionNode::Name(name) => Some(Input::Name(name.clone())),
+        LoweringExpressionNode::Coordinate {
+            support,
+            factor,
+            axis,
+        } => Some(Input::Coordinate(support.clone(), factor.clone(), *axis)),
+        _ => None,
+    }
 }
 
 impl ExpressionLowerer<'_> {
@@ -28,16 +50,41 @@ impl ExpressionLowerer<'_> {
         &mut self,
         expression: &LoweringExpression,
         value: &LoweringExpression,
-        wrt: &str,
+        selected: &LoweringExpression,
     ) -> Result<TypedExpression, Diagnostic> {
-        let selected = LoweringExpression::name(wrt.to_owned(), expression.range());
         let value_type = types::expression_type(self.file, value, self.bindings, None)?;
-        let input_type = types::expression_type(self.file, &selected, self.bindings, None)?;
+        let input_type = types::expression_type(self.file, selected, self.bindings, None)?;
         let result = result_type(&value_type, &input_type)
             .map_err(|message| error(self.file, expression, message))?;
-        let mut inputs = vec![selected];
-        let mut names = BTreeMap::from([(wrt.to_owned(), 0u16)]);
+        if matches!(input(selected), Some(Input::Coordinate(..)))
+            && let LoweringExpressionNode::Name(name) = value.node.as_ref()
+            && matches!(self.bindings.get(name), Some(Binding::Field(_, contract)) if contract.domain.is_some() && matches!(contract.activation, ActivationSyntax::Continuous))
+        {
+            let value = self.lower_name(value, name)?;
+            let wrt = self.lower(selected)?;
+            let id = self
+                .builder
+                .coordinate_partial(value.id, wrt.id)
+                .map_err(|failure| self.builder_error(expression, failure))?;
+            return Ok(TypedExpression {
+                id,
+                dimension: result.dimension(),
+            });
+        }
+        let mut inputs = vec![selected.clone()];
+        let mut names = BTreeMap::from([(
+            input(selected).ok_or_else(|| {
+                error(
+                    self.file,
+                    expression,
+                    "partial selector is not an independent input",
+                )
+            })?,
+            0u16,
+        )]);
         let mut pending = vec![value];
+        let mut coordinate_derivative = matches!(input(selected), Some(Input::Coordinate(..)));
+        let mut nested_partial = false;
         let mut literals = BTreeMap::new();
         // The borrowed root keeps every source Arc alive throughout this call.
         // Both pointer-keyed maps are local to this formalization and its scope.
@@ -47,22 +94,19 @@ impl ExpressionLowerer<'_> {
                 continue;
             }
             match value.node.as_ref() {
-                LoweringExpressionNode::Name(name) => {
-                    if !names.contains_key(name) {
+                LoweringExpressionNode::Name(_) | LoweringExpressionNode::Coordinate { .. } => {
+                    let key = input(value).expect("matched independent input");
+                    if let std::collections::btree_map::Entry::Vacant(entry) = names.entry(key) {
                         let index = input_slot(inputs.len())
                             .map_err(|message| error(self.file, expression, message))?;
-                        names.insert(name.clone(), index);
+                        entry.insert(index);
                         inputs.push(value.clone());
                     }
                 }
                 LoweringExpressionNode::Partial { value, wrt } => {
-                    if !names.contains_key(wrt) {
-                        let index = input_slot(inputs.len())
-                            .map_err(|message| error(self.file, expression, message))?;
-                        names.insert(wrt.clone(), index);
-                        inputs.push(LoweringExpression::name(wrt.clone(), expression.range()));
-                    }
-                    pending.push(value);
+                    nested_partial = true;
+                    coordinate_derivative |= matches!(input(wrt), Some(Input::Coordinate(..)));
+                    pending.extend([value, wrt]);
                 }
                 LoweringExpressionNode::Literal(_) => {
                     let key = Arc::as_ptr(&value.node) as usize;
@@ -87,6 +131,26 @@ impl ExpressionLowerer<'_> {
                 }
             }
         }
+        let mut field_directions = Vec::new();
+        if coordinate_derivative {
+            for (index, value) in inputs.iter().enumerate() {
+                if let LoweringExpressionNode::Name(name) = value.node.as_ref()
+                    && let Some(Binding::Field(_, contract)) = self.bindings.get(name)
+                    && contract.domain.is_some()
+                {
+                    if nested_partial
+                        || !matches!(contract.activation, ActivationSyntax::Continuous)
+                    {
+                        return Err(error(
+                            self.file,
+                            expression,
+                            "coordinate Field derivatives require a continuous Field and the admitted first-order profile",
+                        ));
+                    }
+                    field_directions.push(index);
+                }
+            }
+        }
         let formal_types = inputs
             .iter()
             .map(|value| types::expression_type(self.file, value, self.bindings, None))
@@ -96,7 +160,7 @@ impl ExpressionLowerer<'_> {
                 .with_dimension(dimension)
                 .with_scalar_domain(eqiora_core::ScalarDomain::Real)
         };
-        let formals = formal_types
+        let mut formals = formal_types
             .iter()
             .map(|ty| {
                 result_type(ty, &input_type)
@@ -105,6 +169,15 @@ impl ExpressionLowerer<'_> {
                     .map_err(|failure| error(self.file, expression, failure.to_string()))
             })
             .collect::<Result<Vec<_>, _>>()?;
+        for index in &field_directions {
+            input_slot(formals.len()).map_err(|message| error(self.file, expression, message))?;
+            let ty = result_type(&formal_types[*index], &input_type)
+                .map_err(|message| error(self.file, expression, message))?;
+            formals.push(
+                class(ty.dimension())
+                    .map_err(|failure| error(self.file, expression, failure.to_string()))?,
+            );
+        }
         let mut calculus = CalculusBuilder::new(
             formals,
             class(result.dimension())
@@ -119,13 +192,32 @@ impl ExpressionLowerer<'_> {
             &mut calculus,
             &mut BTreeMap::new(),
         )?;
-        let derivative = calculus
+        let mut derivative = calculus
             .partial(root, 0)
             .map_err(|failure| error(self.file, expression, failure.to_string()))?;
+        // Chain the common exact polynomial derivative with each retained Field
+        // coordinate derivative. Numerical basis choice remains outside calculus.
+        for (direction, index) in field_directions.iter().enumerate() {
+            let coefficient = calculus
+                .partial(root, *index as u16)
+                .map_err(|failure| error(self.file, expression, failure.to_string()))?;
+            let value = calculus
+                .push(CalculusNode::FormalComponent {
+                    formal: (inputs.len() + direction) as u16,
+                    axes: Box::new([]),
+                })
+                .map_err(|failure| error(self.file, expression, failure.to_string()))?;
+            let term = calculus
+                .push(CalculusNode::Mul(coefficient, value))
+                .map_err(|failure| error(self.file, expression, failure.to_string()))?;
+            derivative = calculus
+                .push(CalculusNode::Add(derivative, term))
+                .map_err(|failure| error(self.file, expression, failure.to_string()))?;
+        }
         let definition = calculus
             .finish(derivative)
             .map_err(|failure| error(self.file, expression, failure.to_string()))?;
-        let arguments = inputs
+        let mut arguments = inputs
             .iter()
             .map(|value| {
                 // Selectors can be synthetic: their Arcs do not outlive this call.
@@ -142,6 +234,13 @@ impl ExpressionLowerer<'_> {
                 self.lower(value).map(|value| value.id)
             })
             .collect::<Result<Vec<_>, _>>()?;
+        for index in field_directions {
+            let direction = self
+                .builder
+                .coordinate_partial(arguments[index], arguments[0])
+                .map_err(|failure| self.builder_error(expression, failure))?;
+            arguments.push(direction);
+        }
         let id = self
             .builder
             .pure_operator(&definition, arguments)
@@ -163,7 +262,7 @@ fn input_slot(count: usize) -> Result<u16, &'static str> {
 fn scalar(
     file: &str,
     expression: &LoweringExpression,
-    names: &BTreeMap<String, u16>,
+    names: &BTreeMap<Input, u16>,
     literals: &BTreeMap<usize, u16>,
     builder: &mut CalculusBuilder,
     cache: &mut BTreeMap<usize, CalculusNodeId>,
@@ -173,10 +272,12 @@ fn scalar(
         return Ok(*value);
     }
     let node = match expression.node.as_ref() {
-        LoweringExpressionNode::Name(name) => CalculusNode::FormalComponent {
-            formal: names[name],
-            axes: Box::new([]),
-        },
+        LoweringExpressionNode::Name(_) | LoweringExpressionNode::Coordinate { .. } => {
+            CalculusNode::FormalComponent {
+                formal: names[&input(expression).expect("matched independent input")],
+                axes: Box::new([]),
+            }
+        }
         LoweringExpressionNode::Literal(_) => CalculusNode::FormalComponent {
             formal: literals[&(Arc::as_ptr(&expression.node) as usize)],
             axes: Box::new([]),
@@ -184,7 +285,7 @@ fn scalar(
         LoweringExpressionNode::Partial { value, wrt } => {
             let root = scalar(file, value, names, literals, builder, cache)?;
             let id = builder
-                .partial(root, names[wrt])
+                .partial(root, names[&input(wrt).expect("validated partial input")])
                 .map_err(|failure| error(file, expression, failure.to_string()))?;
             cache.insert(key, id);
             return Ok(id);

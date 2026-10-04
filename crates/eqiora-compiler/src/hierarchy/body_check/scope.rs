@@ -1,4 +1,5 @@
 mod connections;
+mod coordinates;
 mod symbols;
 mod value_shape;
 use value_shape::resolve_frame;
@@ -238,6 +239,7 @@ pub(super) enum SymbolContract {
         eqiora_lang::ActivationSyntax,
     ),
     Parameter(ExpressionType<String>),
+    Coordinate(ExpressionType<String>),
     Alias(std::sync::Arc<super::expression::AliasContract>),
     Port(PortContract),
     PortFamily(BoundaryPortFamilyContract),

@@ -8,6 +8,7 @@ use crate::hierarchy::parameters::{
 
 #[derive(Debug, Clone)]
 pub(super) enum ScopedValue {
+    Coordinate(LoweringExpression),
     Static(ResolvedParameter),
     Runtime {
         expression: LoweringExpression,
@@ -16,6 +17,28 @@ pub(super) enum ScopedValue {
 }
 
 impl Scope {
+    pub(in crate::hierarchy) fn coordinate(&self, name: &str) -> Option<&LoweringExpression> {
+        match self.values.get(name)? {
+            ScopedValue::Coordinate(value) => Some(value),
+            _ => None,
+        }
+    }
+    pub(in crate::hierarchy) fn insert_coordinate(
+        &mut self,
+        name: String,
+        expression: LoweringExpression,
+    ) -> Result<(), &'static str> {
+        if self
+            .values
+            .insert(name, ScopedValue::Coordinate(expression))
+            .is_some()
+        {
+            Err("coordinate collides with a scoped value")
+        } else {
+            Ok(())
+        }
+    }
+
     pub(in crate::hierarchy) fn insert_parameter(
         &mut self,
         name: String,
@@ -25,7 +48,7 @@ impl Scope {
             .insert(name, ScopedValue::Static(parameter))
             .and_then(|value| match value {
                 ScopedValue::Static(value) => Some(value),
-                ScopedValue::Runtime { .. } => None,
+                ScopedValue::Runtime { .. } | ScopedValue::Coordinate(_) => None,
             })
     }
 
@@ -59,7 +82,9 @@ impl Scope {
     pub(in crate::hierarchy) fn value_expression(&self, name: &str) -> Option<LoweringExpression> {
         match self.values.get(name)? {
             ScopedValue::Static(_) => Some(self.parameter_expression(name)),
-            ScopedValue::Runtime { expression, .. } => Some(expression.clone()),
+            ScopedValue::Runtime { expression, .. } | ScopedValue::Coordinate(expression) => {
+                Some(expression.clone())
+            }
         }
     }
 
@@ -70,6 +95,7 @@ impl Scope {
         self.values.get(name).map(|value| match value {
             ScopedValue::Static(_) => DependencyActivation::Static,
             ScopedValue::Runtime { activation, .. } => activation.clone(),
+            ScopedValue::Coordinate(_) => DependencyActivation::Static,
         })
     }
 

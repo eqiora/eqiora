@@ -44,6 +44,37 @@ impl Parser<'_> {
         })
     }
 
+    pub(super) fn parse_coordinate(&mut self) -> Option<NamedDefinitionDecl> {
+        let start = self.expect_keyword("coordinate")?.range().start();
+        let name = self.declaration_name("coordinate name")?.text().to_owned();
+        self.expect(TokenKind::Colon, "`:` before coordinate dimension")?;
+        let value_type = self.parse_value_type()?;
+        self.expect_keyword("on")?;
+        let domain = self
+            .expect_identifier("coordinate support")?
+            .text()
+            .to_owned();
+        self.expect_keyword("from")?;
+        let factor = self.parse_expression(0)?;
+        let end = self
+            .expect(TokenKind::Semicolon, "`;` after coordinate declaration")?
+            .range()
+            .end();
+        match crate::SourceAstFactory::coordinate(
+            name,
+            value_type,
+            domain,
+            factor,
+            TextRange::new(start, end),
+        ) {
+            Ok(value) => Some(value),
+            Err(error) => {
+                self.error_previous(error.to_string());
+                None
+            }
+        }
+    }
+
     pub(super) fn parse_let(&mut self) -> Option<NamedDefinitionDecl> {
         let start = self.expect_keyword("let")?.range().start();
         let name = self.declaration_name("alias name")?.text().to_owned();
@@ -94,6 +125,44 @@ impl Parser<'_> {
 mod tests {
     use crate::ast::Item;
     use crate::{format, parse};
+
+    #[test]
+    fn coordinate_declarations_round_trip_in_models_and_components() {
+        for owner in ["model", "component"] {
+            let source = format!(
+                "{owner} M() {{ coordinate x:m on phase from position[0]; coordinate v:m/s on phase from velocity; }}"
+            );
+            let document = parse("coordinates.eqi", &source).into_document().unwrap();
+            let formatted = format(&document);
+            assert!(formatted.contains("coordinate x: m on phase from position[0];"));
+            assert!(formatted.contains("coordinate v: m / s on phase from velocity;"));
+            assert_eq!(
+                format(&parse("again.eqi", &formatted).into_document().unwrap()),
+                formatted
+            );
+        }
+    }
+
+    #[test]
+    fn coordinate_declarations_require_exact_selectors_without_initializers_or_activation() {
+        for declaration in [
+            "coordinate x on phase from position;",
+            "coordinate x:m from position;",
+            "coordinate x:m on phase from position at continuous;",
+            "coordinate x:m on phase from position=1[m];",
+            "coordinate x:m on phase from position+velocity;",
+            "coordinate x:m on phase from position[-1];",
+            "coordinate x:m on phase from position[0.5];",
+        ] {
+            let source = format!("model M() {{ {declaration} }}");
+            assert!(
+                parse("invalid-coordinate.eqi", &source)
+                    .into_document()
+                    .is_err(),
+                "{declaration}"
+            );
+        }
+    }
 
     #[test]
     fn complete_let_type_annotations_round_trip() {

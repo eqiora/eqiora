@@ -141,3 +141,54 @@ impl RootExpansion<'_, '_> {
         Ok(())
     }
 }
+
+impl RootExpansion<'_, '_> {
+    pub(super) fn allocate_model_expression_bindings(
+        &self,
+        scope: &mut Scope,
+        model: &super::ModelDefinition<'_>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        crate::hierarchy::coordinates::allocate(
+            scope,
+            model.file,
+            model.owned_items().filter_map(|item| match item {
+                Item::Coordinate(value) => Some(value),
+                _ => None,
+            }),
+        )
+        .map_err(|error| vec![error])?;
+        self.allocate_runtime_lets(
+            scope,
+            model.file,
+            model.owned_items().filter_map(|item| match item {
+                Item::Let(d) => Some(d),
+                _ => None,
+            }),
+        )?;
+        Ok(())
+    }
+    pub(super) fn allocate_component_expression_bindings(
+        &self,
+        scope: &mut Scope,
+        component: &super::ComponentDefinition<'_>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        crate::hierarchy::coordinates::allocate(
+            scope,
+            component.file,
+            component.owned_items().filter_map(|item| match item {
+                eqiora_lang::ComponentItem::Coordinate(value) => Some(value),
+                _ => None,
+            }),
+        )
+        .map_err(|error| vec![error])?;
+        self.allocate_runtime_lets(
+            scope,
+            component.file,
+            component.owned_items().filter_map(|item| match item {
+                eqiora_lang::ComponentItem::Let(d) => Some(d),
+                _ => None,
+            }),
+        )?;
+        Ok(())
+    }
+}

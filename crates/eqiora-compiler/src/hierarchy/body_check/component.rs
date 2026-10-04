@@ -158,6 +158,13 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
     fn validate(&mut self) {
         self.bind_declaration_scope();
         self.bind_child_instances();
+        for item in self.definition.declaration.items() {
+            if let ComponentItem::Coordinate(declaration) = item
+                && let Err(error) = self.scope.bind_coordinate(declaration)
+            {
+                self.diagnostics.push(error);
+            }
+        }
         if let Err(errors) = super::expression::validate_aliases(
             &mut self.scope,
             self.definition
@@ -277,6 +284,7 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
     fn bind_owned_interfaces(&mut self) {
         for item in self.definition.owned_items() {
             match item {
+                ComponentItem::Coordinate(_) => {}
                 ComponentItem::Let(declaration) => {
                     if let Some(value) = self.compile_time_values.get(declaration.name()) {
                         self.scope.symbols.insert(
@@ -524,6 +532,7 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                     }
                 }
                 ComponentItem::IndexSet(_)
+                | ComponentItem::Coordinate(_)
                 | ComponentItem::Let(_)
                 | ComponentItem::Parameter(_)
                 | ComponentItem::Port(_)

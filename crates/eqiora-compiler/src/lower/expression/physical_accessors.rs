@@ -89,8 +89,8 @@ impl LoweringExpression {
                     }
                     pending.push(argument);
                 }
-                LoweringExpressionNode::Partial { value, .. }
-                | LoweringExpressionNode::Neg(value)
+                LoweringExpressionNode::Partial { value, wrt } => pending.extend([value, wrt]),
+                LoweringExpressionNode::Neg(value)
                 | LoweringExpressionNode::Not(value)
                 | LoweringExpressionNode::Index { value, .. }
                 | LoweringExpressionNode::Sample { value, .. } => pending.push(value),
@@ -119,7 +119,8 @@ impl LoweringExpression {
                 | LoweringExpressionNode::Tensor { arguments, .. }
                 | LoweringExpressionNode::Finite { arguments, .. }
                 | LoweringExpressionNode::Piecewise { arguments, .. } => pending.extend(arguments),
-                LoweringExpressionNode::Number(_)
+                LoweringExpressionNode::Coordinate { .. }
+                | LoweringExpressionNode::Number(_)
                 | LoweringExpressionNode::Literal(_)
                 | LoweringExpressionNode::Name(_) => {}
                 _ => return false,

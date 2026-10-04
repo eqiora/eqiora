@@ -212,11 +212,11 @@ struct RawTestId;
 #[test]
 fn coordinate_and_boundary_rules_use_relation_support() {
     assert!(matches!(
-        coordinate::<&str>(0, None),
+        coordinate::<&str>(&"body", 0, None),
         Err(TypeViolation::CoordinateRequiresSpatialScope)
     ));
     assert!(matches!(
-        coordinate(2, Some(&volume("body"))),
+        coordinate(&"body", 2, Some(&volume("body"))),
         Err(TypeViolation::CoordinateAxisOutOfRange { .. })
     ));
 
@@ -236,7 +236,7 @@ fn coordinate_and_boundary_rules_use_relation_support() {
     );
     assert!(normal(&body, Some(&boundary)).is_err());
 
-    let boundary_coordinate = coordinate(0, Some(&boundary)).unwrap();
+    let boundary_coordinate = coordinate(&"body", 0, Some(&boundary)).unwrap();
     let boundary_scalar =
         ExpressionType::scalar(DimExponents::DIMENSIONLESS, Some(boundary.clone()));
     assert!(matches!(
@@ -375,3 +375,90 @@ fn generic_pure_application_rejects_argument_type_and_support_mismatches() {
     ));
 }
 mod arrays;
+
+#[test]
+fn coordinate_factor_projection_keeps_units_identity_and_block_axes() {
+    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
+    let speed = DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).unwrap();
+    let phase = SpatialSupport::Coordinates {
+        domain: "phase",
+        factors: vec![("position", length, 2), ("velocity", speed, 1)],
+    };
+    assert_eq!(
+        coordinate(&"position", 1, Some(&phase)).unwrap(),
+        ExpressionType::scalar(length, Some(phase.clone()))
+    );
+    assert_eq!(
+        coordinate(&"velocity", 0, Some(&phase)).unwrap(),
+        ExpressionType::scalar(speed, Some(phase.clone()))
+    );
+    assert!(matches!(
+        coordinate(&"velocity", 1, Some(&phase)),
+        Err(TypeViolation::CoordinateAxisOutOfRange { .. })
+    ));
+    assert!(matches!(
+        coordinate(&"foreign", 0, Some(&phase)),
+        Err(TypeViolation::CoordinateFactorMismatch)
+    ));
+    assert!(matches!(
+        coordinate(&"phase", 0, Some(&phase)),
+        Err(TypeViolation::CoordinateFactorMismatch)
+    ));
+}
+
+#[test]
+fn coordinate_partial_requires_exact_selector_and_divides_by_its_unit() {
+    let field = Id::<kinds::Field>::new();
+    let domain = Id::<kinds::Domain>::new();
+    let parameter = Id::<kinds::Parameter>::new();
+    let mass = DimExponents::from_integers([1, 0, 0, 0, 0, 0, 0]).unwrap();
+    let speed = DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).unwrap();
+    let phase = SpatialSupport::Coordinates {
+        domain: "phase",
+        factors: vec![("velocity", speed, 1)],
+    };
+    let infer = |exact_selector: bool, foreign_field: bool| {
+        let mut builder = super::super::ExprDagBuilder::new();
+        let value = builder.symbol(SymbolRef::Field(field)).unwrap();
+        let selected = if exact_selector {
+            builder.coordinate(domain, domain, 0).unwrap()
+        } else {
+            builder.symbol(SymbolRef::Parameter(parameter)).unwrap()
+        };
+        let root = builder.coordinate_partial(value, selected).unwrap();
+        let expression = builder.finish([root]).unwrap();
+        (
+            root,
+            TypedResidual::infer(
+                expression,
+                Some(phase.clone()),
+                RootContract::ComponentwiseResidual,
+                |symbol| {
+                    Ok::<_, ()>(match symbol {
+                        SymbolRef::Field(_) => ExpressionType::scalar(
+                            mass,
+                            Some(if foreign_field {
+                                SpatialSupport::Coordinates {
+                                    domain: "foreign",
+                                    factors: vec![("velocity", speed, 1)],
+                                }
+                            } else {
+                                phase.clone()
+                            }),
+                        ),
+                        _ => ExpressionType::scalar(speed, Some(phase.clone())),
+                    })
+                },
+            ),
+        )
+    };
+    let (root, positive) = infer(true, false);
+    assert_eq!(
+        positive.unwrap().node_type(root).unwrap().dimension(),
+        DimExponents::from_integers([1, -1, 1, 0, 0, 0, 0]).unwrap()
+    );
+    let (root, wrong_selector) = infer(false, false);
+    assert!(wrong_selector.unwrap_err().iter().any(|error| matches!(error,TypedResidualError::Type {node_index,error:TypeViolation::CoordinatePartialRequiresCoordinate} if *node_index==root.index())));
+    let (root, foreign) = infer(true, true);
+    assert!(foreign.unwrap_err().iter().any(|error| matches!(error,TypedResidualError::Type {node_index,error:TypeViolation::IncompatibleSupport { .. }} if *node_index==root.index())));
+}

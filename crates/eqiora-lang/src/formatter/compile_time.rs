@@ -85,3 +85,32 @@ pub(super) fn format_let(
     format_expression(&declaration.value, 0, output);
     output.push_str(";\n");
 }
+
+pub(super) fn format_coordinate(
+    declaration: &NamedDefinitionDecl,
+    indent: usize,
+    output: &mut crate::formatter::comments::Output,
+) {
+    write_indent(output, indent);
+    write!(
+        output,
+        "coordinate {}: ",
+        declaration.comments.named(&declaration.name)
+    )
+    .expect("String write");
+    super::value_type::format_value_type(
+        declaration
+            .value_type
+            .as_ref()
+            .expect("coordinate dimension"),
+        output,
+    );
+    write!(
+        output,
+        " on {} from ",
+        declaration.domain.as_ref().expect("coordinate support")
+    )
+    .expect("String write");
+    format_expression(&declaration.value, 0, output);
+    output.push_str(";\n");
+}

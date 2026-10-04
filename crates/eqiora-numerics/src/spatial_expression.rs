@@ -6,6 +6,33 @@ use eqiora_core::{Diagnostic, GraphPath, Id, RawId};
 use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef, UnaryMathFunction};
 use eqiora_sem::KernelProgram;
 
+// Physical point samplers cannot interpret an abstract product factor's axis
+// as an axis of their ambient point, even when the units happen to agree.
+pub(crate) fn physical_coordinate(
+    program: &KernelProgram,
+    support: Id<kinds::Domain>,
+    factor: Id<kinds::Domain>,
+) -> bool {
+    use eqiora_graph::EdgeKind;
+    use eqiora_schema::kernel::{DomainKind, KernelNode};
+    match program.node(support.erase()) {
+        Some(KernelNode::Domain(domain)) => match domain.kind() {
+            DomainKind::CartesianBox { .. } | DomainKind::GeometryRegion { .. } => {
+                support == factor
+            }
+            DomainKind::CartesianBoundary { .. } | DomainKind::GeometryBoundary { .. } => {
+                program.edges().iter().any(|edge| {
+                    edge.from() == support.erase()
+                        && edge.kind() == EdgeKind::BoundaryOf
+                        && edge.to() == factor.erase()
+                })
+            }
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
 /// Inspectable scalar expression over one physical coordinate space.
 ///
 /// This is a lowered semantic object, not a Rust callback: distinct numerical
@@ -605,15 +632,21 @@ pub(crate) fn lower(
                     });
                 Instruction::Parameter(parameter)
             }
-            ExprNode::SpatialCoordinate(axis) if *axis < coordinate_dimension => {
+            ExprNode::Symbol(SymbolRef::Coordinate {
+                support,
+                factor,
+                axis,
+            }) if *axis < coordinate_dimension
+                && physical_coordinate(program, *support, *factor) =>
+            {
                 coordinate_dependent = true;
                 Instruction::Coordinate(*axis)
             }
-            ExprNode::SpatialCoordinate(axis) => {
+            ExprNode::Symbol(SymbolRef::Coordinate { axis, .. }) => {
                 return Err(invalid(
                     owner,
                     format!(
-                        "coordinate axis {axis} is outside spatial dimension {coordinate_dimension}"
+                        "coordinate axis {axis} is unavailable in this physical spatial dimension {coordinate_dimension}"
                     ),
                 ));
             }

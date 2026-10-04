@@ -17,7 +17,6 @@ use num_traits::ToPrimitive;
 pub(super) enum Input {
     Value(SymbolRef, Vec<u32>),
     Gradient(Id<kinds::Field>, Vec<u32>),
-    Coordinate(usize),
     Direction { input: usize, order: u8 },
 }
 
@@ -115,7 +114,11 @@ pub(super) fn derive(
             return Err(reject("density requires real full-coordinate values"));
         }
         match node {
-            ExprNode::Symbol(symbol @ (SymbolRef::Field(_) | SymbolRef::Parameter(_))) => {
+            ExprNode::Symbol(
+                symbol @ (SymbolRef::Field(_)
+                | SymbolRef::Parameter(_)
+                | SymbolRef::Coordinate { .. }),
+            ) => {
                 for coordinate in coordinates(ty.shape())? {
                     add_input(
                         &mut inputs,
@@ -147,9 +150,6 @@ pub(super) fn derive(
                         ty.dimension(),
                     )?;
                 }
-            }
-            ExprNode::SpatialCoordinate(axis) => {
-                add_input(&mut inputs, Input::Coordinate(*axis), ty.dimension())?;
             }
             _ => {}
         }
@@ -305,7 +305,6 @@ impl Projection<'_> {
                 }
                 sum
             }
-            ExprNode::SpatialCoordinate(axis) => self.input(&Input::Coordinate(*axis))?,
             ExprNode::Constant(value) => {
                 let offset = coordinate
                     .iter()

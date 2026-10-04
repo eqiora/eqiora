@@ -6,7 +6,7 @@ use ulid::Ulid;
 
 use super::{AuthoredFormExpression, AuthoredFormExpressionKind};
 
-const SCHEMA: &str = "eqiora.authored-form/v8";
+const SCHEMA: &str = "eqiora.authored-form/v9";
 const MAX_BYTES: usize = 1024 * 1024;
 
 /// Ordered test name, trial Field, zero-trace boundaries and canonical SI dimension.
@@ -112,6 +112,8 @@ pub enum AuthoredFormExpressionV1 {
         ulid: String,
     },
     Coordinate {
+        support_ulid: String,
+        factor_ulid: String,
         axis: usize,
     },
     Test {
@@ -142,6 +144,10 @@ pub enum AuthoredFormExpressionV1 {
     },
     Trace {
         value: Box<Self>,
+    },
+    CoordinatePartial {
+        value: Box<Self>,
+        wrt: Box<Self>,
     },
     Gradient {
         value: Box<Self>,
@@ -601,9 +607,15 @@ pub(super) fn expression(value: &AuthoredFormExpression) -> AuthoredFormExpressi
         AuthoredFormExpressionKind::Parameter(id) => AuthoredFormExpressionV1::Parameter {
             ulid: ulid(id.erase()),
         },
-        AuthoredFormExpressionKind::Coordinate(axis) => {
-            AuthoredFormExpressionV1::Coordinate { axis: *axis }
-        }
+        AuthoredFormExpressionKind::Coordinate {
+            support,
+            factor,
+            axis,
+        } => AuthoredFormExpressionV1::Coordinate {
+            support_ulid: ulid(support.erase()),
+            factor_ulid: ulid(factor.erase()),
+            axis: *axis,
+        },
         AuthoredFormExpressionKind::Test(id) => AuthoredFormExpressionV1::Test {
             field_ulid: ulid(id.erase()),
         },
@@ -802,7 +814,7 @@ mod tests {
         let bytes = projection().canonical_bytes().to_vec();
         let old = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.authored-form/v8", "eqiora.authored-scalar-form/v3");
+            .replace("eqiora.authored-form/v9", "eqiora.authored-scalar-form/v3");
         assert!(AuthoredFormulationProjection::decode(old.as_bytes()).is_err());
     }
 

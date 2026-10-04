@@ -131,16 +131,12 @@ fn expression_type_cached(
     let mut infer = |operand| expression_type_cached(file, operand, bindings, support, cache);
     let violation = |error| spatial_type_error(file, expression, error);
     let inferred = match expression.node.as_ref() {
+        LoweringExpressionNode::Coordinate { .. } => {
+            declared_coordinate_type(file, expression, bindings)
+        }
         LoweringExpressionNode::Partial { value, wrt } => {
             let value = infer(value)?;
-            // Synthetic selectors die after this lookup. Do not retain their
-            // addresses in the source-occurrence cache shared by nested partials.
-            let selected = expression_type(
-                file,
-                &LoweringExpression::name(wrt.clone(), expression.range()),
-                bindings,
-                support,
-            )?;
+            let selected = infer(wrt)?;
             super::partial::result_type(&value, &selected).map_err(|message| {
                 source_error(
                     codes::LANGUAGE_TYPE_ERROR,
@@ -343,7 +339,16 @@ fn expression_type_cached(
                             "coordinate(...) requires a non-negative integer literal axis",
                         )
                     })?;
-                return typing::coordinate(axis, support).map_err(violation);
+                let support = support
+                    .filter(|support| support.ambient_dimensions().is_some())
+                    .ok_or(typing::TypeViolation::CoordinateRequiresSpatialScope)
+                    .map_err(violation)?;
+                return typing::coordinate(
+                    support.parent().unwrap_or(support.domain()),
+                    axis,
+                    Some(support),
+                )
+                .map_err(violation);
             }
             let mut boundary_name = None;
             let port_contract = if let LoweringExpressionNode::Name(name) = argument.node.as_ref() {
@@ -522,4 +527,31 @@ fn expression_type_cached(
     }?;
     cache.insert(key, inferred.clone());
     Ok(inferred)
+}
+
+// Keep declaration lookup out of every recursive operand-typing frame.
+fn declared_coordinate_type(
+    file: &str,
+    expression: &LoweringExpression,
+    bindings: &BTreeMap<String, Binding>,
+) -> Result<ExpressionType<RawId>, Diagnostic> {
+    let LoweringExpressionNode::Coordinate {
+        support,
+        factor,
+        axis,
+    } = expression.node.as_ref()
+    else {
+        unreachable!("coordinate dispatch")
+    };
+    let support = relation_support(file, expression.range(), support, bindings)?;
+    let Some(Binding::Domain(factor, _)) = bindings.get(factor) else {
+        return Err(source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            expression.range(),
+            "coordinate factor is not a Domain",
+        ));
+    };
+    typing::coordinate(&factor.erase(), *axis, Some(&support))
+        .map_err(|error| spatial_type_error(file, expression, error))
 }

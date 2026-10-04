@@ -36,7 +36,9 @@ impl super::SourceAstFactory {
                             expression(scope, value, &mut visit);
                         }
                     }
-                    ComponentItem::Let(value) | ComponentItem::IndexSet(value) => {
+                    ComponentItem::Let(value)
+                    | ComponentItem::Coordinate(value)
+                    | ComponentItem::IndexSet(value) => {
                         expression(scope, &mut value.value, &mut visit)
                     }
                     ComponentItem::Event(value) => expression(scope, &mut value.guard, &mut visit),
@@ -70,7 +72,7 @@ impl super::SourceAstFactory {
             for item in &mut model.items {
                 match item {
                     Item::Parameter(value) => expression(scope, &mut value.value, &mut visit),
-                    Item::Let(value) | Item::IndexSet(value) => {
+                    Item::Let(value) | Item::Coordinate(value) | Item::IndexSet(value) => {
                         expression(scope, &mut value.value, &mut visit)
                     }
                     Item::Event(value) => expression(scope, &mut value.guard, &mut visit),

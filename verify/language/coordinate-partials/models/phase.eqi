@@ -1,0 +1,10 @@
+model Phase(support position:interval(m),support velocity:interval(m/s)) {
+        support phase:product(position,velocity);
+        coordinate x:m on phase from position;
+        coordinate v:m/s on phase from velocity;
+        let f=6 [kg]*(x*0.5 [1/m])*(v*0.25 [s/m]);
+        relation derivatives on phase {
+            partial(f,wrt=x)=0 [kg/m];
+            partial(f,wrt=v)=0 [kg*s/m];
+        }
+    }

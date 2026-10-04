@@ -82,7 +82,9 @@ pub(crate) const fn symbol_kind(kind: EditorSymbolKind) -> SymbolKind {
         EditorSymbolKind::Component | EditorSymbolKind::Model => SymbolKind::CLASS,
         EditorSymbolKind::Operator => SymbolKind::FUNCTION,
         EditorSymbolKind::Domain | EditorSymbolKind::Support => SymbolKind::NAMESPACE,
-        EditorSymbolKind::Let | EditorSymbolKind::Formal => SymbolKind::CONSTANT,
+        EditorSymbolKind::Let | EditorSymbolKind::Formal | EditorSymbolKind::Coordinate => {
+            SymbolKind::CONSTANT
+        }
         EditorSymbolKind::Field => SymbolKind::FIELD,
         EditorSymbolKind::Port => SymbolKind::INTERFACE,
         EditorSymbolKind::Clock | EditorSymbolKind::Event => SymbolKind::EVENT,
@@ -111,6 +113,7 @@ pub(crate) const fn symbol_label(kind: EditorSymbolKind) -> &'static str {
         EditorSymbolKind::Domain => "Domain",
         EditorSymbolKind::Parameter => "Parameter",
         EditorSymbolKind::Let => "Let",
+        EditorSymbolKind::Coordinate => "Coordinate",
         EditorSymbolKind::Formal => "Formal",
         EditorSymbolKind::Support => "Support",
         EditorSymbolKind::Field => "Field",

@@ -115,10 +115,6 @@ pub(super) fn encode_expression(
                 encoder.u32(canonical_expr_id(*value, &canonical_index)?)?;
                 encoder.i32(*exponent)?;
             }
-            ExprNode::SpatialCoordinate(axis) => {
-                encoder.u8(9)?;
-                encoder.usize(*axis)?;
-            }
             ExprNode::UnaryMath(function, value) => {
                 encoder.u8(10)?;
                 match function {
@@ -159,6 +155,9 @@ pub(super) fn encode_expression(
                     FiniteBinaryOperation::TensorProduct => 41,
                 };
                 binary_expr(encoder, tag, *left, *right, &canonical_index)?;
+            }
+            ExprNode::CoordinatePartial { value, wrt } => {
+                binary_expr(encoder, 43, *value, *wrt, &canonical_index)?
             }
             ExprNode::Gradient(value) => unary_expr(encoder, 11, *value, &canonical_index)?,
             ExprNode::Divergence(value) => unary_expr(encoder, 12, *value, &canonical_index)?,
@@ -201,6 +200,30 @@ fn encode_symbol(
     references: &mut Vec<Reference>,
     budget: &mut ConstructionBudget,
 ) -> Result<(), Diagnostic> {
+    if let SymbolRef::Coordinate {
+        support,
+        factor,
+        axis,
+    } = symbol
+    {
+        encoder.u8(13)?;
+        encoder.usize(axis)?;
+        for (role, target) in [(0, support.erase()), (1, factor.erase())] {
+            let mut label = Encoder::new(32);
+            label.u8(3)?;
+            label.u8(scope)?;
+            label.u32(expression_index)?;
+            label.u8(13)?;
+            label.u8(role)?;
+            push_reference(
+                references,
+                label.finish()?,
+                lookup(ids, target, "coordinate projection")?,
+                budget,
+            )?;
+        }
+        return Ok(());
+    }
     let (tag, target) = match symbol {
         SymbolRef::Field(id) => (1, Some(id.erase())),
         SymbolRef::Derivative(id) => (2, Some(id.erase())),
@@ -312,6 +335,7 @@ fn expression_operands(node: &ExprNode) -> Vec<eqiora_schema::kernel::ExprId> {
     match node {
         ExprNode::Array { elements } => elements.clone(),
         ExprNode::Complex { real, imag } => vec![*real, *imag],
+        ExprNode::CoordinatePartial { value, wrt } => vec![*value, *wrt],
         ExprNode::Sample { value, .. }
         | ExprNode::Not(value)
         | ExprNode::Ordinal(value)
@@ -346,7 +370,7 @@ fn expression_operands(node: &ExprNode) -> Vec<eqiora_schema::kernel::ExprId> {
         } => vec![*condition, *then_value, *else_value],
         ExprNode::Require { condition, value } => vec![*condition, *value],
         ExprNode::PureOperatorApplication(application) => application.arguments().to_vec(),
-        ExprNode::Constant(_) | ExprNode::Symbol(_) | ExprNode::SpatialCoordinate(_) => Vec::new(),
+        ExprNode::Constant(_) | ExprNode::Symbol(_) => Vec::new(),
         _ => Vec::new(),
     }
 }

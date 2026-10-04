@@ -25,7 +25,7 @@ def test_coordinate_factor_source_and_replay_without_geometry():
     model = eqiora.compile(source=SOURCE, entry="Distribution", bindings=inputs)
     assert eqiora.Model.from_bytes(model.to_bytes()).digest == model.digest
     wire = json.loads(model.to_bytes())
-    assert wire["schema"] == "eqiora.model-envelope/v33"
+    assert wire["schema"] == "eqiora.model-envelope/v34"
     domains = {node["id"]["ulid"]: node["definition"]["domain"]
                for node in wire["nodes"] if node["definition"]["kind"] == "domain"}
     product = next(value for value in domains.values() if value["kind"] == "coordinate-product")

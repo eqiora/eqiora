@@ -226,7 +226,7 @@ impl Context<'_> {
         Ok(match self.dag.node(id) {
             Some(
                 ExprNode::Constant(_)
-                | ExprNode::SpatialCoordinate(_)
+                | ExprNode::Symbol(SymbolRef::Coordinate { .. })
                 | ExprNode::Symbol(SymbolRef::Parameter(_)),
             ) => Data(Arc::new(Node::Tape(spatial_expression::lower(
                 self.program,

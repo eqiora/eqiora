@@ -174,3 +174,49 @@ fn nonlinear_stored_quantity_runs_through_the_common_implicit_lifecycle() {
     }
     assert_eq!(trajectories[0], trajectories[1]);
 }
+
+#[test]
+fn fixed_coordinates_do_not_become_evolving_state_inputs() {
+    let source = r#"model M() {
+        domain body=box(0,4);
+        coordinate x:m on body from body;
+        state u:1 on body;
+        relation r on body {
+            derivative(x*u)=10[m/s];
+            derivative(x*x)=0[m^2/s];
+        }
+    }"#;
+    let models = compile("fixed-coordinates.eqi", source).unwrap();
+    let mut checked = 0;
+    for operation in models[0].transaction().ops() {
+        let Op::DefineKernelNode {
+            node: KernelNode::Relation(relation),
+        } = operation
+        else {
+            continue;
+        };
+        let dag = relation.expression();
+        let values = ScalarOperatorIr::lower(dag)
+            .unwrap()
+            .evaluate_typed(dag.roots(), &mut |symbol| {
+                let (value, exponents) = match symbol {
+                    SymbolRef::Coordinate { axis: 0, .. } => (2., [0, 1, 0, 0, 0, 0, 0]),
+                    SymbolRef::Field(_) => (3., [0, 0, 0, 0, 0, 0, 0]),
+                    SymbolRef::Derivative(_) => (5., [0, 0, -1, 0, 0, 0, 0]),
+                    SymbolRef::Time => (7., [0, 0, 1, 0, 0, 0, 0]),
+                    _ => return None,
+                };
+                ValueLiteral::try_from(DynQuantity::new(
+                    value,
+                    eqiora::DimExponents::from_integers(exponents).unwrap(),
+                ))
+                .ok()
+            })
+            .unwrap();
+        for pair in values.as_chunks::<2>().0 {
+            assert_eq!(pair[0], pair[1]);
+            checked += 1;
+        }
+    }
+    assert_eq!(checked, 2);
+}

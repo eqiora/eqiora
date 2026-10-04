@@ -145,6 +145,7 @@ impl RootExpansion<'_, '_> {
                 | Item::Initial(_)
                 | Item::Connection(_)
                 | Item::BoundaryConnection(_)
+                | Item::Coordinate(_)
                 | Item::Let(_)
                 | Item::Instance(_) => continue,
                 _ => {

@@ -3,7 +3,24 @@
 use super::*;
 
 impl LoweringExpression {
-    pub(crate) fn partial(value: Self, wrt: String, range: TextRange) -> Self {
+    pub(crate) fn coordinate(
+        support: String,
+        factor: String,
+        axis: usize,
+        range: TextRange,
+    ) -> Self {
+        Self {
+            node: Arc::new(LoweringExpressionNode::Coordinate {
+                support,
+                factor,
+                axis,
+            }),
+            range,
+            structural_parameters: None,
+        }
+    }
+
+    pub(crate) fn partial(value: Self, wrt: Self, range: TextRange) -> Self {
         Self {
             node: Arc::new(LoweringExpressionNode::Partial { value, wrt }),
             range,

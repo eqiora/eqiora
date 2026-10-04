@@ -72,6 +72,29 @@ impl SourceAstFactory {
         })
     }
 
+    /// Construct an exact coordinate projection on a declared support.
+    /// The selector is a factor name, optionally indexed by a literal axis.
+    /// # Errors
+    /// Rejects malformed names, ranges, or selectors that are not coordinate projections.
+    pub fn coordinate(
+        name: impl Into<String>,
+        value_type: crate::ValueTypeSyntax,
+        domain: impl Into<String>,
+        factor: Expr,
+        range: TextRange,
+    ) -> Result<NamedDefinitionDecl, AstConstructionError> {
+        let declaration = Self::let_alias(
+            name,
+            Some(value_type),
+            Some(domain.into()),
+            None,
+            factor,
+            range,
+        )?;
+        validate_coordinate(&declaration)?;
+        Ok(declaration)
+    }
+
     /// Construct a reusable immutable local expression alias.
     ///
     /// # Errors
@@ -101,6 +124,33 @@ impl SourceAstFactory {
             range: checked_range(range)?,
         })
     }
+}
+
+pub(super) fn validate_coordinate(value: &NamedDefinitionDecl) -> Result<(), AstConstructionError> {
+    let factor = match value.value().kind() {
+        crate::ExprKind::Name(name) => Some(name),
+        crate::ExprKind::Index { value, index } => match (value.kind(), index.kind()) {
+            (crate::ExprKind::Name(name), crate::ExprKind::Number(axis))
+                if axis.to_i64().is_ok_and(|axis| axis >= 0) =>
+            {
+                Some(name)
+            }
+            _ => None,
+        },
+        _ => None,
+    };
+    let Some(factor) = factor else {
+        return Err(AstConstructionError::new(
+            "coordinate requires one factor name with an optional nonnegative literal axis",
+        ));
+    };
+    validate_identifier(factor, "coordinate factor")?;
+    if value.value_type().is_none() || value.domain().is_none() || value.activation().is_some() {
+        return Err(AstConstructionError::new(
+            "coordinate requires a dimension and support, without temporal activation",
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(test)]

@@ -1169,6 +1169,7 @@ class Component:
 
     __slots__ = (
         "_aliases",
+        "_coordinates",
         "_kind",
         "_requirements",
         "_defaults",
@@ -1232,6 +1233,7 @@ class Component:
         self._initials: list[tuple[tuple[tuple[Expression, Expression], ...], tuple[str, ...]]] = []
         self._index_sets: list[tuple[IndexSet, tuple[str, ...]]] = []
         self._parameters: list[tuple[_Parameter, str, tuple[str, ...]]] = []
+        self._coordinates: list[tuple[str, object, Support, object, tuple[str, ...]]] = []
         self._aliases: list[tuple[str, Expression, str | None, Support | None, Clock | Event | None, tuple[str, ...]]] = []
         self._properties: list[
             tuple[PropertyRequirement, PropertyContract, tuple[str, ...]]
@@ -1598,6 +1600,30 @@ class Component:
         field = self.field(name, on=on, value_type=value_type, role=role, at=at, doc=doc)
         self._requirements.add(field)
         return field
+
+    def coordinate(
+        self, name: str, *, value_type: ValueType, on: Support, factor: Support,
+        axis: int | None = None, doc: str | None = None,
+    ) -> Expression:
+        """Declare an exact factor coordinate, with a zero-based within-factor axis.
+
+        A multi-axis factor requires ``axis``. This projection creates no unknown;
+        the compiler checks factor identity and coordinate units against ``on``.
+        """
+        if not isinstance(value_type, ValueType):
+            raise TypeError("coordinate value_type must be an eqiora.ValueType")
+        self._support(on)
+        self._support(factor)
+        if axis is not None and (type(axis) is not int or axis < 0):
+            raise TypeError("coordinate axis must be a nonnegative integer or None")
+        selector = _Ast.name(factor._name)
+        if axis is not None:
+            selector = selector.index(_Ast.number(str(axis)))
+        syntax = self._type_syntax(value_type)
+        doc_lines = _doc(doc)
+        admitted = self._add_name(name)
+        self._coordinates.append((admitted, syntax, on, selector, doc_lines))
+        return Expression(_CREATE, _Ast.name(admitted), self._component_token)
 
     def let_alias(
         self,
@@ -2019,6 +2045,8 @@ class Component:
                 field._name, kind, "state" if role == FieldRole.State else "variable",
                 None if support is None else support._name,
                 None if clock is None else clock._name, position, n))
+        for name, kind, support, factor, doc in self._coordinates:
+            add(name, doc, lambda n: _AstDeclaration.coordinate(name, kind, support._name, factor, n))
         for name, value, kind, support, clock, doc in self._aliases:
             add(name, doc, lambda n: _AstDeclaration.alias(
                 name, kind, None if support is None else support._name,

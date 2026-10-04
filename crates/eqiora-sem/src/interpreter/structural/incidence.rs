@@ -37,7 +37,7 @@ pub(in crate::interpreter) fn variables(
                     coordinates.insert(variable);
                 }
             }
-            ExprNode::Constant(_) | ExprNode::SpatialCoordinate(_) => {}
+            ExprNode::Constant(_) => {}
             ExprNode::Require { condition, value } => pending.extend([*condition, *value]),
             ExprNode::Select {
                 condition,
@@ -62,7 +62,11 @@ pub(in crate::interpreter) fn variables(
             | ExprNode::IsotropicLift(value)
             | ExprNode::Trace(value)
             | ExprNode::NormalComponent(value) => pending.push(*value),
-            ExprNode::Complex {
+            ExprNode::CoordinatePartial {
+                value: left,
+                wrt: right,
+            }
+            | ExprNode::Complex {
                 real: left,
                 imag: right,
             }

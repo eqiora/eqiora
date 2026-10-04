@@ -55,9 +55,15 @@ fn from_dag(
             ExprNode::Symbol(SymbolRef::Parameter(id)) => AuthoredFormExpressionV1::Parameter {
                 ulid: id.ulid().to_string(),
             },
-            ExprNode::SpatialCoordinate(axis) => {
-                AuthoredFormExpressionV1::Coordinate { axis: *axis }
-            }
+            ExprNode::Symbol(SymbolRef::Coordinate {
+                support,
+                factor,
+                axis,
+            }) => AuthoredFormExpressionV1::Coordinate {
+                support_ulid: support.ulid().to_string(),
+                factor_ulid: factor.ulid().to_string(),
+                axis: *axis,
+            },
             ExprNode::Neg(value) => AuthoredFormExpressionV1::Neg {
                 value: convert(*value)?,
             },
@@ -81,6 +87,12 @@ fn from_dag(
                 base: convert(*base)?,
                 exponent: *exponent,
             },
+            ExprNode::CoordinatePartial { value, wrt } => {
+                AuthoredFormExpressionV1::CoordinatePartial {
+                    value: convert(*value)?,
+                    wrt: convert(*wrt)?,
+                }
+            }
             ExprNode::Gradient(value) => AuthoredFormExpressionV1::Gradient {
                 value: convert(*value)?,
             },

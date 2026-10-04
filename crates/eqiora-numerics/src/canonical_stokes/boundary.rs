@@ -605,7 +605,7 @@ fn exact_complete_potential_source(expression: &ExprDag, source: ExprId) -> Opti
             match (expression.node(parameter), expression.node(coordinate)) {
                 (
                     Some(ExprNode::Symbol(SymbolRef::Parameter(parameter))),
-                    Some(ExprNode::SpatialCoordinate(0)),
+                    Some(ExprNode::Symbol(SymbolRef::Coordinate { axis: 0, .. })),
                 ) => Some(parameter.erase()),
                 _ => None,
             }

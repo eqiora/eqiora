@@ -12,6 +12,8 @@ pub enum ComponentItem {
     IndexSet(NamedDefinitionDecl),
     /// Private immutable static expression, expanded without a Kernel entity.
     Let(NamedDefinitionDecl),
+    /// Exact coordinate projection; the definition value selects a factor and optional axis.
+    Coordinate(NamedDefinitionDecl),
     /// Scalar compile-time Parameter.
     Parameter(ComponentParameterDecl),
     /// Private inspectable derived value.
@@ -58,6 +60,8 @@ pub enum Item {
     Observable(ObservableDecl),
     /// Typed compile-time expression alias expanded before Kernel lowering.
     Let(NamedDefinitionDecl),
+    /// Exact coordinate projection; the definition value selects a factor and optional axis.
+    Coordinate(NamedDefinitionDecl),
     /// Causal or conserving interface.
     Port(PortDecl),
     /// Exact periodic clock.

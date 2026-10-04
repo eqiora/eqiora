@@ -163,7 +163,7 @@ pub(super) fn component_local_footprint(
                     );
                 }
             }
-            ComponentItem::Let(_) => {}
+            ComponentItem::Coordinate(_) | ComponentItem::Let(_) => {}
             ComponentItem::Instance(instance) => {
                 let count = input_binding_count(
                     elaborator,
@@ -205,7 +205,7 @@ pub(super) fn component_local_footprint(
             ComponentItem::Observable(value) => {
                 families.expressions([value.value()], 1, &mut expression_nodes, diagnostics)
             }
-            ComponentItem::Let(value) => {
+            ComponentItem::Coordinate(value) | ComponentItem::Let(value) => {
                 families.expressions([value.value()], 1, &mut expression_nodes, diagnostics)
             }
             ComponentItem::RelationFamily(family) => {
@@ -456,7 +456,7 @@ pub(super) fn model_local_footprint(
                 "Connection",
                 diagnostics,
             ),
-            Item::Let(_) => {}
+            Item::Coordinate(_) | Item::Let(_) => {}
             Item::Instance(instance) => {
                 let count = input_binding_count(
                     elaborator,
@@ -531,7 +531,7 @@ pub(super) fn model_local_footprint(
                 &mut footprint.expression_nodes,
                 diagnostics,
             ),
-            Item::Let(value) => families.expressions(
+            Item::Coordinate(value) | Item::Let(value) => families.expressions(
                 [value.value()],
                 1,
                 &mut footprint.expression_nodes,

@@ -94,7 +94,7 @@ fn rewrite_connector(syntax: &mut ConnectorSyntax, rewrite: &mut impl FnMut(&Exp
 
 fn rewrite_component_item(item: &mut ComponentItem, rewrite: &mut impl FnMut(&Expr) -> Expr) {
     match item {
-        ComponentItem::Let(declaration) => {
+        ComponentItem::Let(declaration) | ComponentItem::Coordinate(declaration) => {
             if let Some(value_type) = &mut declaration.value_type {
                 value_type.rewrite_dimension(rewrite);
             }
@@ -147,7 +147,7 @@ fn rewrite_item(item: &mut Item, rewrite: &mut impl FnMut(&Expr) -> Expr) {
         Item::Parameter(declaration) => {
             declaration.value_type.rewrite_dimension(rewrite);
         }
-        Item::Let(declaration) => {
+        Item::Let(declaration) | Item::Coordinate(declaration) => {
             if let Some(value_type) = &mut declaration.value_type {
                 value_type.rewrite_dimension(rewrite);
             }

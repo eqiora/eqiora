@@ -164,11 +164,24 @@ impl Context<'_> {
                     QuantityRole::Value,
                 )?],
             ),
-            Form::Coordinate { axis } => {
-                Math::Function("coordinate".into(), vec![Math::Number(axis.to_string())])
-            }
+            Form::Coordinate {
+                factor_ulid, axis, ..
+            } => Math::Function(
+                "coordinate".into(),
+                vec![
+                    self.quantity(
+                        self.exact(factor_ulid, EntityKind::Domain)?,
+                        QuantityRole::Value,
+                    )?,
+                    Math::Number(axis.to_string()),
+                ],
+            ),
             Form::Neg { value } => Math::Negative(Box::new(self.form(value, next)?)),
             Form::Trace { value } => Math::Function("trace".into(), vec![self.form(value, next)?]),
+            Form::CoordinatePartial { value, wrt } => Math::Function(
+                "partial".into(),
+                vec![self.form(value, next)?, self.form(wrt, next)?],
+            ),
             Form::Gradient { value } => Math::Gradient(Box::new(self.form(value, next)?)),
             Form::Divergence { value } => {
                 Math::Function("div".into(), vec![self.form(value, next)?])

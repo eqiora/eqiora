@@ -96,6 +96,13 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
         self.bind_non_boundary_interfaces();
         self.bind_boundaries();
         self.bind_fields_and_ports();
+        for item in self.definition.declaration.items() {
+            if let Item::Coordinate(declaration) = item
+                && let Err(error) = self.scope.bind_coordinate(declaration)
+            {
+                self.diagnostics.push(error);
+            }
+        }
         if let Err(errors) = super::expression::validate_aliases(
             &mut self.scope,
             self.definition
@@ -338,6 +345,7 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                         ))
                     })
                 }
+                Item::Coordinate(_) => Ok(None),
                 Item::Let(declaration) => {
                     Ok(self
                         .compile_time_values
@@ -513,7 +521,11 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                 }
                 Item::Domain(declaration) => self.validate_domain(declaration),
                 Item::Field(declaration) => self.validate_field(declaration),
-                Item::IndexSet(_) | Item::Parameter(_) | Item::Let(_) | Item::Port(_) => {}
+                Item::IndexSet(_)
+                | Item::Parameter(_)
+                | Item::Coordinate(_)
+                | Item::Let(_)
+                | Item::Port(_) => {}
                 Item::Instance(instance) => {
                     if let Err(error) = super::scope::validate_input_bindings(
                         &self.scope,

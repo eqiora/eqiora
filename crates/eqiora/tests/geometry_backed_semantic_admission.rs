@@ -1355,7 +1355,7 @@ fn admitted_geometry_boundary_support_accepts_relation_scope_only() {
     let activation = Id::new();
     let mut expression = ExprDagBuilder::new();
     let x = expression
-        .spatial_coordinate(0)
+        .coordinate(region, region, 0)
         .expect("region coordinate residual");
     let (region_store, region_model) = committed_model(
         "geometry region Relation without a Field",
@@ -1395,6 +1395,7 @@ fn admitted_geometry_boundary_support_accepts_relation_scope_only() {
         ],
         [
             (relation.erase(), region.erase(), EdgeKind::AppliesOn),
+            (relation.erase(), region.erase(), EdgeKind::DependsOn),
             (activation.erase(), relation.erase(), EdgeKind::Activates),
         ],
     );

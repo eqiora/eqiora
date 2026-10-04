@@ -37,7 +37,7 @@ impl super::SourceAstFactory {
             for item in &mut component.items {
                 match item {
                     ComponentItem::Parameter(value) => visit(scope, &mut value.value_type),
-                    ComponentItem::Let(value) => {
+                    ComponentItem::Let(value) | ComponentItem::Coordinate(value) => {
                         if let Some(value_type) = &mut value.value_type {
                             visit(scope, value_type);
                         }
@@ -60,7 +60,7 @@ impl super::SourceAstFactory {
             for item in &mut model.items {
                 match item {
                     Item::Parameter(value) => visit(scope, &mut value.value_type),
-                    Item::Let(value) => {
+                    Item::Let(value) | Item::Coordinate(value) => {
                         if let Some(value_type) = &mut value.value_type {
                             visit(scope, value_type);
                         }
@@ -133,7 +133,7 @@ impl super::SourceAstFactory {
             for item in &mut model.items {
                 match item {
                     Item::Parameter(value) => visit(&value.value_type, &mut value.value),
-                    Item::Let(value) => {
+                    Item::Let(value) | Item::Coordinate(value) => {
                         if let Some(ty) = &value.value_type {
                             visit(ty, &mut value.value);
                         }
@@ -152,7 +152,7 @@ impl super::SourceAstFactory {
                             visit(&value.value_type, default);
                         }
                     }
-                    ComponentItem::Let(value) => {
+                    ComponentItem::Let(value) | ComponentItem::Coordinate(value) => {
                         if let Some(ty) = &value.value_type {
                             visit(ty, &mut value.value);
                         }

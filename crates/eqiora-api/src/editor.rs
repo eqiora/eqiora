@@ -89,6 +89,8 @@ pub enum EditorSymbolKind {
     Parameter,
     /// Compile-time expression alias.
     Let,
+    /// Exact coordinate projection of a declared support factor.
+    Coordinate,
     /// Pure-operator formal argument.
     Formal,
     /// Spatial support.
@@ -661,6 +663,9 @@ fn signature_item_symbol(item: &SignatureItem) -> Option<EditorSymbol> {
 
 fn component_item_symbol(item: &ComponentItem) -> Option<EditorSymbol> {
     let symbol = match item {
+        ComponentItem::Coordinate(value) => {
+            EditorSymbol::leaf(EditorSymbolKind::Coordinate, value.name(), value.range())
+        }
         ComponentItem::Let(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Let, value.name(), value.range())
         }
@@ -718,6 +723,9 @@ fn model_item_symbol(item: &Item) -> Option<EditorSymbol> {
         }
         Item::Parameter(value) => {
             EditorSymbol::leaf(EditorSymbolKind::Parameter, value.name(), value.range())
+        }
+        Item::Coordinate(value) => {
+            EditorSymbol::leaf(EditorSymbolKind::Coordinate, value.name(), value.range())
         }
         Item::Let(value) => EditorSymbol::leaf(EditorSymbolKind::Let, value.name(), value.range()),
         Item::Port(value) => {

@@ -209,9 +209,14 @@ impl PartialEq for LoweringExpression {
 
 #[derive(Debug, PartialEq)]
 enum LoweringExpressionNode {
+    Coordinate {
+        support: String,
+        factor: String,
+        axis: usize,
+    },
     Partial {
         value: LoweringExpression,
-        wrt: String,
+        wrt: LoweringExpression,
     },
     Number(eqiora_lang::DecimalLiteral),
     Literal(eqiora_core::ValueLiteral),
