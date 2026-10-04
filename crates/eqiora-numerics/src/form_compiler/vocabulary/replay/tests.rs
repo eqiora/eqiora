@@ -17,12 +17,14 @@ fn scalar_replay_rejects_foreign_resources_missing_terms_and_wrong_roles() {
         BoundarySource {
             domain: Id::<kinds::Domain>::new().erase(),
             relation: relation(),
-            trace_node: node,
+            discharge: BoundaryDischarge::ZeroTestTrace,
+            operator_node: node,
         },
         BoundarySource {
             domain: Id::<kinds::Domain>::new().erase(),
             relation: relation(),
-            trace_node: divergence,
+            discharge: BoundaryDischarge::ZeroTestTrace,
+            operator_node: divergence,
         },
     ];
     let source = PrimalGalerkinSource {
@@ -35,6 +37,22 @@ fn scalar_replay_rejects_foreign_resources_missing_terms_and_wrong_roles() {
         source: node,
         boundaries: &boundaries,
     };
+    let mut mixed_boundaries = boundaries;
+    mixed_boundaries[1].discharge = BoundaryDischarge::ZeroFlux;
+    let mixed_source = PrimalGalerkinSource {
+        boundaries: &mixed_boundaries,
+        ..source
+    };
+    let mixed = PrimalGalerkinCorrespondence::derive(mixed_source);
+    mixed.replay(mixed_source).unwrap();
+    assert_eq!(mixed.formulation.zero_on, [boundaries[0].domain]);
+    let mut forged = mixed.clone();
+    forged.formulation.zero_on.push(boundaries[1].domain);
+    assert!(forged.replay(mixed_source).is_err());
+    let mut forged = mixed.clone();
+    forged.entries[3].rule_id = ZERO_TEST_TRACE_DISCHARGE;
+    assert!(forged.replay(mixed_source).is_err());
+    assert!(mixed.replay(source).is_err());
     let valid = PrimalGalerkinCorrespondence::derive(source);
     valid.replay(source).unwrap();
     let reject = |mutate: fn(&mut PrimalGalerkinCorrespondence)| {

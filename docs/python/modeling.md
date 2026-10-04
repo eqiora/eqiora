@@ -578,10 +578,15 @@ form weak_heat for heat_balance {
 `surface` is a caller-bound complete-exterior support. A comma-separated list of
 individual boundary support names is also accepted. The compiler resolves exact
 Model boundary identities and rejects foreign parents and duplicate members.
-Resolution requires this restriction to equal the admitted complete homogeneous
-essential boundary; an incomplete list does not silently gain missing boundaries.
-The current execution profile is steady scalar diffusion with Cartesian Q1 and zero
-essential Field values. Nonzero prescribed values, storage, arbitrary weak forms,
+Resolution requires this restriction to equal the admitted homogeneous essential
+boundary inventory; missing essential sides or extra natural sides are rejected.
+Other sides may carry explicit homogeneous natural flux laws such as
+`normal(conductivity * grad(temperature)) = 0`. Their exact constitutive flux
+discharges the boundary term without imposing a zero test trace.
+The current execution profile is steady scalar diffusion with Cartesian Q1. Tests
+vanish on essential sides even when the prescribed Field trace is nonzero.
+Nonzero natural loads require surface work and remain outside this authored profile,
+as do storage, arbitrary weak forms,
 authored integral-conservative and mixed forms remain unsupported.
 
 Python uses `w = component.test("w", for_=temperature, zero_on=surface)` followed by

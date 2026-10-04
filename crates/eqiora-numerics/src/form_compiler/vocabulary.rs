@@ -68,6 +68,7 @@ pub(super) enum FormulationRule {
     TestPairing,
     DivergenceByParts,
     ZeroTestTraceDischarge,
+    TraceOrZeroFluxDischarge,
     SourcePairing,
 }
 
@@ -77,6 +78,7 @@ impl FormulationRule {
             Self::TestPairing => TEST_PAIRING,
             Self::DivergenceByParts => DIVERGENCE_BY_PARTS,
             Self::ZeroTestTraceDischarge => ZERO_TEST_TRACE_DISCHARGE,
+            Self::TraceOrZeroFluxDischarge => "fem.derive.v1.boundary-discharge.trace-or-zero-flux",
             Self::SourcePairing => SOURCE_PAIRING,
         }
     }
@@ -110,11 +112,27 @@ pub(super) struct CertificateEntry {
     pub(super) sign: WeakSign,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum BoundaryDischarge {
+    ZeroTestTrace,
+    ZeroFlux,
+}
+
+impl BoundaryDischarge {
+    pub(super) const fn rule_id(self) -> &'static str {
+        match self {
+            Self::ZeroTestTrace => ZERO_TEST_TRACE_DISCHARGE,
+            Self::ZeroFlux => "fem.derive.v1.boundary-discharge.zero-flux-law",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(super) struct BoundarySource {
     pub(super) domain: RawId,
     pub(super) relation: RawId,
-    pub(super) trace_node: ExprId,
+    pub(super) operator_node: ExprId,
+    pub(super) discharge: BoundaryDischarge,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -138,10 +156,18 @@ pub(super) struct PrimalGalerkinCorrespondence {
 
 impl PrimalGalerkinCorrespondence {
     pub(super) fn derive(source: PrimalGalerkinSource<'_>) -> Self {
+        let has_natural = source
+            .boundaries
+            .iter()
+            .any(|b| b.discharge == BoundaryDischarge::ZeroFlux);
         let rules = [
             FormulationRule::TestPairing,
             FormulationRule::DivergenceByParts,
-            FormulationRule::ZeroTestTraceDischarge,
+            if has_natural {
+                FormulationRule::TraceOrZeroFluxDischarge
+            } else {
+                FormulationRule::ZeroTestTraceDischarge
+            },
             FormulationRule::SourcePairing,
         ];
         let mut relations = Vec::with_capacity(source.boundaries.len() + 1);
@@ -169,9 +195,9 @@ impl PrimalGalerkinCorrespondence {
             sign: source.divergence_sign,
         });
         entries.extend(source.boundaries.iter().map(|boundary| CertificateEntry {
-            rule_id: rules[2].id(),
+            rule_id: boundary.discharge.rule_id(),
             relation: boundary.relation,
-            source_node: boundary.trace_node,
+            source_node: boundary.operator_node,
             slot: WeakTermSlot::Boundary {
                 test: MatrixSlot::Test,
             },
@@ -200,10 +226,15 @@ impl PrimalGalerkinCorrespondence {
                 kind: FormulationKind::PrimalGalerkin,
                 trial: source.unknown,
                 test: source.unknown,
-                boundary_treatment: BoundaryTreatment::CompleteEssential,
+                boundary_treatment: if has_natural {
+                    BoundaryTreatment::ExplicitTraceFluxLaws
+                } else {
+                    BoundaryTreatment::CompleteEssential
+                },
                 zero_on: source
                     .boundaries
                     .iter()
+                    .filter(|boundary| boundary.discharge == BoundaryDischarge::ZeroTestTrace)
                     .map(|boundary| boundary.domain)
                     .collect(),
                 direction: DirectionalProof::StrongImpliesWeak,

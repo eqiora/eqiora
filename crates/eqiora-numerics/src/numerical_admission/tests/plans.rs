@@ -1023,7 +1023,7 @@ pub(super) fn mathematical_resolution_ignores_names_and_rejects_changed_operator
         "PoissonInterval",
         &["left", "right"],
     );
-    let error = resolve_common_plan(
+    let plan = resolve_common_plan(
         &flux_model,
         cartesian_box_resources(&geometry, &[3]),
         CommonMethodRequest::Exact {
@@ -1041,11 +1041,10 @@ pub(super) fn mathematical_resolution_ignores_names_and_rejects_changed_operator
         &ResolveOnlyBackend,
         None,
     )
-    .unwrap_err();
-    assert!(
-        error
-            .message()
-            .contains("complete essential boundary class")
+    .unwrap();
+    assert_eq!(
+        plan.formulation().unwrap().boundary_treatment(),
+        "explicit-trace-flux-laws"
     );
 }
 

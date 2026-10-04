@@ -93,6 +93,42 @@ check_analytic_coefficients(energy_model, energy_result)
 energy_value = energy_result.observe(energy_model.observable("definition.energy"), quadrature_points=2)
 # Independently: K=8/3, b=1/4, u=3/32, so F=u*K*u/2-b*u=-3/256.
 assert abs(energy_value.value + 3/256) <= 1e-10
+# The right and horizontal sides carry natural flux laws; the direction is
+# constrained only on the essential left side. No extra zero trace is invented.
+natural_source = energy_source.replace("zero_on x_lower, x_upper, y_lower, y_upper", "zero_on x_lower")
+for name in ("x_upper", "y_lower", "y_upper"):
+    natural_source = natural_source.replace(
+        f"relation {name}_value on {name} {{ trace(potential) = 0; }}",
+        f"relation {name}_value on {name} {{ normal(diffusion * grad(potential)) = 0; }}",
+    )
+natural_model = compile_energy(natural_source)
+natural_plan = eqiora.resolve(natural_model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
+natural_plan = eqiora.Plan.from_bytes(natural_plan.to_bytes())
+natural_result = eqiora.run(natural_plan)
+natural_field = natural_model.field(natural_model.authored_formulations[0].trial_field_ids[0])
+values = natural_result.output(natural_field).values("vertex").numpy().reshape(-1)
+# The exact nodal Q1 solution interpolates x-x*x/2, constant in y.
+assert len(values) == 9
+assert all(abs(value - (x-x*x/2)) <= 1e-9 for value,(x,y) in zip(values, mesh.coordinates))
+# Slopes 3/4 and 1/4 give internal energy 5/32 and load pairing 5/16.
+assert abs(natural_result.observe(natural_model.observable("definition.energy"), quadrature_points=2).value + 5/32) <= 1e-9
+# Extra zero traces on natural sides and missing essential traces are both false claims.
+for restriction in ("zero_on x_lower, x_upper", "zero_on y_lower"):
+    mutant = compile_energy(natural_source.replace("zero_on x_lower", restriction))
+    try:
+        eqiora.resolve(mutant, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
+    except eqiora.ValidationError as error:
+        assert "zero_on restriction" in str(error), str(error)
+    else:
+        raise AssertionError("incorrect essential/natural direction restriction was accepted")
+# A surface load needs its own functional term; it cannot be discarded as zero flux.
+loaded = compile_energy(natural_source.replace("normal(diffusion * grad(potential)) = 0", "normal(diffusion * grad(potential)) = 1[1/m]"))
+try:
+    eqiora.resolve(loaded, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
+except eqiora.ValidationError as error:
+    assert "homogeneous natural boundaries" in str(error), str(error)
+else:
+    raise AssertionError("nonzero natural work was silently discharged")
 # The variation direction carries the Field unit; here both are m and F is J.
 physical_energy = energy_source.replace("potential: 1", "potential: m").replace("w: 1", "w: m")
 physical_energy = physical_energy.replace("diffusion: 1", "diffusion: J/m^2").replace("1 / m ^ 2", "J/m^3").replace("energy:1", "energy:J")

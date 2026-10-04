@@ -18,7 +18,8 @@ use eqiora_sem::KernelProgram;
 use crate::canonical::{boundary_parent, lowering_error, relations_on};
 use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
 use crate::form_compiler::vocabulary::{
-    BoundarySource, FormulationKind, PrimalGalerkinCorrespondence, PrimalGalerkinSource,
+    BoundaryDischarge, BoundarySource, FormulationKind, PrimalGalerkinCorrespondence,
+    PrimalGalerkinSource,
 };
 
 mod authored;
@@ -49,7 +50,8 @@ struct BoundaryRole {
     relation: RawId,
     axis: usize,
     side: BoundarySide,
-    trace_node: ExprId,
+    operator_node: ExprId,
+    discharge: BoundaryDischarge,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -151,7 +153,7 @@ impl DerivedScalarGalerkinForm {
             return Err(certificate_error(
                 self.volume_relation,
                 format!(
-                    "complete {}D essential-boundary discharge requires {boundary_count} boundaries",
+                    "complete {}D boundary discharge requires {boundary_count} boundaries",
                     self.dimension
                 ),
             ));
@@ -162,7 +164,8 @@ impl DerivedScalarGalerkinForm {
             .map(|boundary| BoundarySource {
                 domain: boundary.domain,
                 relation: boundary.relation,
-                trace_node: boundary.trace_node,
+                operator_node: boundary.operator_node,
+                discharge: boundary.discharge,
             })
             .collect::<Vec<_>>();
         self.certificate
@@ -318,11 +321,11 @@ pub(crate) fn derive_candidate_with_dimension(
         ));
     }
     let (volume_relation, field) = principal[0];
-    let boundaries = boundary_inventory(program, domain, field, dimension)?;
+    let typed = typed_relation(program, volume_relation)?;
+    let boundaries = boundary_inventory(program, domain, field, dimension, &typed)?;
     let Some(boundary_roles) = boundaries else {
         return Ok(None);
     };
-    let typed = typed_relation(program, volume_relation)?;
     validate_expression(&typed, volume_relation, field)?;
     let volume = recognize_volume(typed.expression(), volume_relation, field)?;
     validate_source_expression(typed.expression(), volume.source, volume_relation)?;
@@ -395,6 +398,7 @@ fn boundary_inventory(
     parent: RawId,
     field: RawId,
     dimension: usize,
+    volume: &TypedResidual<RawId>,
 ) -> Result<Option<Vec<BoundaryRole>>, Diagnostic> {
     let mut by_side = BTreeMap::new();
     let geometry_backed = matches!(
@@ -438,16 +442,22 @@ fn boundary_inventory(
         }
         let relation = relations[0];
         let typed = typed_relation(program, relation)?;
-        let Some(nodes) = recognize_essential_trace(typed.expression(), relation, field)? else {
-            return Ok(None);
-        };
+        let (operator_node, discharge) =
+            if let Some(nodes) = recognize_essential_trace(typed.expression(), relation, field)? {
+                (nodes.trace, BoundaryDischarge::ZeroTestTrace)
+            } else if let Some(node) = recognition::recognize_zero_flux(&typed, relation, volume)? {
+                (node, BoundaryDischarge::ZeroFlux)
+            } else {
+                return Ok(None);
+            };
         validate_expression(&typed, relation, field)?;
         let role = BoundaryRole {
             domain: domain.id().erase(),
             relation,
             axis,
             side,
-            trace_node: nodes.trace,
+            operator_node,
+            discharge,
         };
         if by_side.insert((axis, side), role).is_some() {
             return Err(role_error(
@@ -462,7 +472,9 @@ fn boundary_inventory(
     if by_side.len() != expected.len() || expected.iter().any(|side| !by_side.contains_key(side)) {
         return Err(role_error(
             parent,
-            format!("compiled Q1 requires one essential Relation on every {dimension}D box side"),
+            format!(
+                "compiled Q1 requires one trace or zero-flux Relation on every {dimension}D box side"
+            ),
         ));
     }
     Ok(Some(expected.iter().map(|side| by_side[side]).collect()))
@@ -495,7 +507,8 @@ fn validate_expression(
             | ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Sin, _)
             | ExprNode::Gradient(_)
             | ExprNode::Divergence(_)
-            | ExprNode::Trace(_) => true,
+            | ExprNode::Trace(_)
+            | ExprNode::NormalComponent(_) => true,
             ExprNode::Symbol(SymbolRef::Field(id)) => id.erase() == field,
             ExprNode::Symbol(SymbolRef::Parameter(_)) => true,
             _ => false,
@@ -785,7 +798,8 @@ fn build_certificate(
         .map(|boundary| BoundarySource {
             domain: boundary.domain,
             relation: boundary.relation,
-            trace_node: boundary.trace_node,
+            operator_node: boundary.operator_node,
+            discharge: boundary.discharge,
         })
         .collect::<Vec<_>>();
     Ok(PrimalGalerkinCorrespondence::derive(PrimalGalerkinSource {
