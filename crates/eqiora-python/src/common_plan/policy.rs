@@ -277,19 +277,10 @@ impl PyCellCentered {
         "cell-centered"
     }
 
+    /// Generic trial space; quadrature and Field roles are selected by the resolved Plan.
     #[getter]
-    const fn velocity_space(&self) -> &'static str {
+    const fn space(&self) -> &'static str {
         "cell-constant"
-    }
-
-    #[getter]
-    const fn pressure_space(&self) -> &'static str {
-        "cell-constant"
-    }
-
-    #[getter]
-    const fn quadrature(&self) -> &'static str {
-        "cell-centroid/facet-midpoint"
     }
 
     fn __repr__(&self) -> &'static str {

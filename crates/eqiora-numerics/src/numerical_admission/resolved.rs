@@ -74,12 +74,12 @@ impl ResolvedCommonPlan {
         }
     }
 
-    /// Exact Geometry digest for a spatial Plan.
+    /// Exact physical Geometry digest, absent for coordinate-factor spatial Plans.
     #[must_use]
     pub fn geometry_digest(&self) -> Option<&str> {
         match self {
             Self::Algebraic(_) | Self::Ode(_) => None,
-            Self::Scalar(plan) => Some(plan.geometry_digest()),
+            Self::Scalar(plan) => plan.geometry_digest(),
             Self::Elasticity(plan) => Some(plan.geometry_digest()),
             Self::SteadyStokes(plan) => Some(plan.geometry_digest()),
             Self::TransientFlow(plan) => Some(plan.geometry_digest()),
@@ -105,7 +105,7 @@ impl ResolvedCommonPlan {
     pub fn correspondence_digest(&self) -> Option<&str> {
         match self {
             Self::Algebraic(_) | Self::Ode(_) => None,
-            Self::Scalar(plan) => Some(plan.correspondence_digest()),
+            Self::Scalar(plan) => plan.correspondence_digest(),
             Self::Elasticity(plan) => Some(plan.correspondence_digest()),
             Self::SteadyStokes(plan) => Some(plan.correspondence_digest()),
             Self::TransientFlow(plan) => Some(plan.correspondence_digest()),
@@ -118,7 +118,7 @@ impl ResolvedCommonPlan {
     pub fn production_digest(&self) -> Option<&str> {
         match self {
             Self::Algebraic(_) | Self::Ode(_) => None,
-            Self::Scalar(plan) => Some(plan.production_digest()),
+            Self::Scalar(plan) => plan.production_digest(),
             Self::Elasticity(plan) => Some(plan.production_digest()),
             Self::SteadyStokes(plan) => Some(plan.production_digest()),
             Self::TransientFlow(plan) => Some(plan.production_digest()),
@@ -199,7 +199,8 @@ impl ResolvedCommonPlan {
             Self::Ode(_) => None,
             Self::Scalar(plan) => Some(match plan.admission.spatial {
                 super::NativeSpatialPolicy::ScalarQ1 => LinearOperatorProperties::General,
-                super::NativeSpatialPolicy::ScalarTpfa(_) => {
+                super::NativeSpatialPolicy::CoordinateCellConstant
+                | super::NativeSpatialPolicy::ScalarTpfa(_) => {
                     LinearOperatorProperties::SymmetricPositiveDefinite
                 }
                 _ => unreachable!(),

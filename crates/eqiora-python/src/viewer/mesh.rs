@@ -41,6 +41,10 @@ pub(super) fn add_mesh(py: Python<'_>, builder: &mut SceneBuilder, mesh: &PyMesh
             )],
         ));
     }
+    let correspondence_digest = mesh.correspondence_digest_value().ok_or_else(|| {
+        diagnostic_error(py, &[Diagnostic::error(codes::NOT_IMPLEMENTED,
+            "physical Mesh viewer requires Geometry correspondence; coordinate-factor plots are not yet supported")])
+    })?;
     let mesh_digest = mesh.exact_mesh_digest().to_owned();
     let layer_id = format!("mesh:{mesh_digest}");
     let coordinates = builder
@@ -62,7 +66,7 @@ pub(super) fn add_mesh(py: Python<'_>, builder: &mut SceneBuilder, mesh: &PyMesh
             id: layer_id.clone(),
             owner_digest: mesh_digest.clone(),
             source_digest: mesh.source_digest_value().to_owned(),
-            correspondence_digest: mesh.correspondence_digest_value().to_owned(),
+            correspondence_digest: correspondence_digest.to_owned(),
             dimension,
             cell_kind: cell_kind.to_owned(),
             presentation_policy: presentation_policy.to_owned(),
@@ -91,7 +95,7 @@ pub(super) fn add_mesh(py: Python<'_>, builder: &mut SceneBuilder, mesh: &PyMesh
                     id: selection_id,
                     target_layer: layer_id.clone(),
                     owner_digest: mesh_digest.clone(),
-                    correspondence_digest: Some(mesh.correspondence_digest_value().to_owned()),
+                    correspondence_digest: Some(correspondence_digest.to_owned()),
                     name: name.to_owned(),
                     dimension: expected_dimension,
                     available: false,
@@ -175,7 +179,7 @@ pub(super) fn add_mesh(py: Python<'_>, builder: &mut SceneBuilder, mesh: &PyMesh
                 id: selection_id,
                 target_layer: layer_id.clone(),
                 owner_digest: mesh_digest.clone(),
-                correspondence_digest: Some(mesh.correspondence_digest_value().to_owned()),
+                correspondence_digest: Some(correspondence_digest.to_owned()),
                 name: name.to_owned(),
                 dimension: expected_dimension,
                 available: true,

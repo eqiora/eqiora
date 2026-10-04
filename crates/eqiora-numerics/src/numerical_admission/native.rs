@@ -2,6 +2,7 @@ use super::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) enum NativeSpatialPolicy {
+    CoordinateCellConstant,
     ScalarQ1,
     ScalarTpfa(Option<eqiora_solver::AlgebraicConstraint>),
     ElasticityQ1,
@@ -194,6 +195,7 @@ impl eqiora_solver::PreparedLinearSolver for ProfileCheckedPreparedLinear {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum NativeMeshResources {
+    Coordinates(super::coordinate_grid::CoordinateGrid),
     Cartesian {
         geometry: CanonicalGeometryV1,
         mesh: CartesianMeshEnvelopeV1,
@@ -229,6 +231,23 @@ pub struct AuthenticatedCommonMesh {
 }
 
 impl AuthenticatedCommonMesh {
+    /// Bind a tensor grid to exact Model coordinate intervals, retaining each factor's units.
+    /// This does not supply an ambient physical Geometry or a Field approximation.
+    pub fn coordinate_factors(
+        model: &ModelEnvelope,
+        domain: eqiora_core::Id<eqiora_core::entity::kinds::Domain>,
+        cells_per_factor: &[usize],
+    ) -> Result<Self, Diagnostic> {
+        let program = model
+            .to_program()
+            .map_err(|errors| errors.into_iter().next().expect("invalid Model"))?;
+        Ok(Self {
+            resources: NativeMeshResources::Coordinates(
+                super::coordinate_grid::CoordinateGrid::new(&program, domain, cells_per_factor)?,
+            ),
+        })
+    }
+
     /// Authenticate and own one structured-Cartesian rectangle occurrence.
     pub fn structured_cartesian(
         geometry: CanonicalGeometryV1,
@@ -292,12 +311,13 @@ impl AuthenticatedCommonMesh {
 }
 
 impl NativeMeshResources {
-    pub(super) fn geometry(&self) -> &CanonicalGeometryV1 {
+    pub(super) fn geometry(&self) -> Result<&CanonicalGeometryV1, Diagnostic> {
         match self {
+            Self::Coordinates(_) => Err(invalid("coordinate-factor grid has no physical Geometry")),
             Self::Cartesian { geometry, .. }
             | Self::AffineTriangleSimplicial { geometry, .. }
             | Self::AdjacentPartitionSimplicial { geometry, .. }
-            | Self::GmshSimplicial { geometry, .. } => geometry,
+            | Self::GmshSimplicial { geometry, .. } => Ok(geometry),
         }
     }
 }
@@ -314,6 +334,7 @@ pub(super) struct NativeNumericalAdmission {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum RecognizedNativeModel {
+    Coordinates(Box<super::coordinate_grid::CellProjection>),
     Scalar(Box<ExecutableScalarEquations>),
     Elasticity(Box<IsotropicElasticityContinuum<2>>),
     Stokes(Box<SteadyStokesGeometryBinding2d>),
@@ -337,20 +358,34 @@ impl RecognizedNativeAdmission {
         owner: AuthenticatedCommonMesh,
     ) -> Result<Self, Diagnostic> {
         let resources = owner.resources;
-        let program = replay_program(model, resources.geometry())?;
-        let transient = lower_transient_incompressible_navier_stokes_cartesian_2d(&program);
-        let transient_geometry =
-            recognize_transient_incompressible_navier_stokes_geometry_mathematics(&program);
-        let fsi = lower_fixed_reference_fsi_geometry_2d(&program, resources.geometry());
-        let scalar = lower_scalar_candidate(&program, &resources);
-        let recognized = recognize_exact_model(
-            &program,
-            &resources,
-            scalar,
-            transient,
-            transient_geometry,
-            fsi,
-        )?;
+        let program = if let NativeMeshResources::Coordinates(grid) = &resources {
+            let program = model
+                .to_program()
+                .map_err(|errors| errors.into_iter().next().expect("invalid Model"))?;
+            grid.source.require_program(&program)?;
+            program
+        } else {
+            replay_program(model, resources.geometry()?)?
+        };
+        let recognized = if let NativeMeshResources::Coordinates(grid) = &resources {
+            RecognizedNativeModel::Coordinates(Box::new(
+                super::coordinate_grid::CellProjection::lower(&program, grid)?,
+            ))
+        } else {
+            let transient = lower_transient_incompressible_navier_stokes_cartesian_2d(&program);
+            let transient_geometry =
+                recognize_transient_incompressible_navier_stokes_geometry_mathematics(&program);
+            let fsi = lower_fixed_reference_fsi_geometry_2d(&program, resources.geometry()?);
+            let scalar = lower_scalar_candidate(&program, &resources);
+            recognize_exact_model(
+                &program,
+                &resources,
+                scalar,
+                transient,
+                transient_geometry,
+                fsi,
+            )?
+        };
         let model_digest = model.digest()?.to_string();
         Ok(Self {
             model: model.clone(),
@@ -394,6 +429,9 @@ impl RecognizedNativeModel {
         let admitted = matches!(
             (self, spatial),
             (
+                Self::Coordinates(_),
+                NativeSpatialPolicy::CoordinateCellConstant
+            ) | (
                 Self::Scalar(_),
                 NativeSpatialPolicy::ScalarQ1 | NativeSpatialPolicy::ScalarTpfa(_)
             ) | (Self::Elasticity(_), NativeSpatialPolicy::ElasticityQ1)
@@ -576,6 +614,9 @@ impl NativeNumericalAdmission {
                 "scalar execution backend differs from admitted provider or capabilities",
             ));
         }
+        if let RecognizedNativeModel::Coordinates(projection) = self.recognized_model() {
+            return super::coordinate_grid::execute(self, projection, backend);
+        }
         let NativeMeshResources::Cartesian { mesh, .. } = self.resources() else {
             return Err(invalid(
                 "scalar elliptic execution requires Cartesian resources",
@@ -595,6 +636,9 @@ impl NativeNumericalAdmission {
         }
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
         match self.spatial {
+            NativeSpatialPolicy::CoordinateCellConstant => {
+                unreachable!("coordinate cells executed above")
+            }
             NativeSpatialPolicy::ScalarQ1 => {
                 unreachable!("Q1 executed through linear block assembly")
             }

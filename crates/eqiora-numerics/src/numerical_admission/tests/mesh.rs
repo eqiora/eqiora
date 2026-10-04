@@ -26,7 +26,7 @@ fn authenticated_common_mesh_round_trips_canonically_and_rejects_aliases() {
 
     let bytes = resources(&rectangle).to_bytes().unwrap();
     let mut wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    wire["kind"] = serde_json::Value::String("gmsh4152".to_owned());
+    wire["resources"]["mesh"]["kind"] = serde_json::Value::String("gmsh4152".to_owned());
     assert!(
         AuthenticatedCommonMesh::from_bytes(&serde_json::to_vec(&wire).unwrap()).is_err(),
         "a resource-family cross-wire must fail before publication"
@@ -111,10 +111,10 @@ fn registered_interval_cartesian_common_mesh_evidence() {
     let replayed = AuthenticatedCommonMesh::from_bytes(&bytes).unwrap();
     assert_eq!(replayed, owner);
     assert_eq!(replayed.to_bytes().unwrap(), bytes);
-    assert_eq!(replayed.geometry(), &geometry);
+    assert_eq!(replayed.geometry(), Some(&geometry));
     assert_eq!(replayed.cartesian_mesh(), Some(&mesh));
-    assert_eq!(replayed.correspondence(), &correspondence);
-    assert_eq!(replayed.production(), &production);
+    assert_eq!(replayed.correspondence(), Some(&correspondence));
+    assert_eq!(replayed.production(), Some(&production));
 
     assert!(CartesianMeshCellsV2::new(Vec::<usize>::new()).is_err());
     assert!(CartesianMeshCellsV2::new([0]).is_err());

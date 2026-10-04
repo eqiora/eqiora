@@ -1,13 +1,13 @@
 # Bounded coordinate-factor integrals
 
 This case proves real scalar observations of a bounded coordinate density through ordinary
-Model, Plan, State and Result owners. The amplitude is a solved finite Field; coordinates
+Model, Plan, State and Result owners. The finite-amplitude profile uses a solved finite Field; coordinates
 have explicit finite bounds. Exact input support, selected measure and remaining output
 support survive Model replay. Quadrature belongs to the numerical observation, keyed by
 its exact measure Domain. This does not realize arbitrary phase-space Field data, solve a
 product-domain PDE or radial diffusion Field, or provide State-direction products.
-Bounded polynomial integral constraints and spherical coordinate-density observations
-are covered below.
+Bounded polynomial integral constraints, spherical coordinate-density observations and
+a prescribed polynomial cell Field profile are covered below.
 
 For `x` in `[0,2] m` and `v` in `[-2,4] m/s`, use
 `f=A*(1+x/(2 m))*(1+(v/(4 m/s))²)` with solved `A=3 s/m²`.
@@ -130,3 +130,56 @@ would expand exponentially rejects at the 65536-operation work bound. Foreign,
 duplicate, wrong-type and spatial-output Observable candidates reject at the
 canonical evaluation boundary. General spatial Fields, nonpolynomial integral
 constraints and arbitrary nonlocal solver kernels are not claimed.
+
+
+## Prescribed polynomial coordinate Field
+
+A separate positive path declares `f` as a spatial variable on the exact position–velocity
+product and retains the equality `f=3*(1+x/2)*(1+v²/16)` in the Model. A dimensioned-factor
+Mesh binds only the exact factor IDs, order, units and bounds. It carries no physical
+Geometry, Geometry correspondence or physical mesh-provider receipt. The common scalar
+Plan uses a cell-constant trial space and two-point tensor Gauss quadrature to integrate
+each cell equality, normalized by its positive cell measure. The ordinary assembly and
+linear-solver owners solve the resulting diagonal system. This is a weak cell balance;
+the represented Field need not satisfy the authored pointwise equality away from its
+cell average. Model, Mesh, Plan and Result replay all precede observation in the test.
+
+Admission bounds this profile to one invariant real scalar variable, one continuous
+noninitial equality with the Field alone on one side, and a prescribed polynomial of
+degree at most three per factor. Numerical execution supports one to three bounded
+interval factors; this registered claim verifies the 1x1v example only. Density admission
+is limited to 4096 expression nodes, and cell projection to 1048576 scalar expression
+operations. Generic nonlocal Field constraints, Gaussian Field projection, transport,
+product PDEs, time evolution and Field differentiation are outside this profile.
+
+For two uniform position cells and `N` uniform velocity cells, let `h=6/N`, and let `x_i`
+and `c_j` denote cell centers. Independent antiderivatives give the cell coefficient
+`3*(1+x_i/2)*(1+(c_j²+h²/12)/16)`. The `h²/12` term distinguishes integration from a
+midpoint sample. Integrating the represented constant Field against `1`, `v`, and `v²`
+gives, after dividing by `3*(1+x_i/2)`, respectively:
+
+- `15/2`;
+- `39/4 - 9/(4N²)`;
+- `186/5 - 18/N² + 54/(5N⁴)`.
+
+These are projection errors relative to the continuous density, not quadrature errors.
+Within one velocity cell, the missing first-moment covariance is `h³*c_j/96`.
+For the second moment, the missing term is
+`h*(c_j²*h²/3+h⁴/180)/16`. Summing with `sum(c_j)=N` and
+`sum(c_j²)=N*(4-3/N²)` yields the expressions above. The test uses `N=1,3,6`.
+Full and nested integrals both preserve the exact mass `135/2`; explicit moment ratios
+use the represented density. A fixed absolute `1e-10` allowance covers binary64 solver
+and quadrature arithmetic at these scales, separately from the stated projection error.
+
+Result quadrature splits at every retained cell face. Interior faces belong to the
+upper cell and the final endpoint belongs to the last cell; unit-checked point observations
+exercise those choices. A spherical integral over the position factor additionally has
+value `54*pi*(1+(c_j²+h²/12)/16)`: its two radial cell weights are `4*pi/3` and `28*pi/3`,
+paired with position factors `5/4` and `7/4`. This proves weighted observation of the
+represented Field, not a radial diffusion solve or center-regularity condition.
+
+Negative probes use valid Models and canonical Mesh artifacts before reaching the intended
+gate: Q1 cannot substitute for the admitted cell method; a velocity-only grid cannot erase
+the Field's phase support; changing velocity units while retaining exactly the same mesh
+coordinates changes the source identity and fails exact Model-factor admission. Installed
+Python product tests exercise the same factory, solve, replay and moment refinement path.

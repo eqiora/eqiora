@@ -542,20 +542,20 @@ impl CommonSpatialPlanLineage {
         self.model_revision
     }
 
-    fn geometry_digest(&self) -> &str {
-        &self.resource_digests.geometry
+    fn geometry_digest(&self) -> Option<&str> {
+        self.resource_digests.geometry()
     }
 
     fn mesh_digest(&self) -> &str {
-        &self.resource_digests.mesh
+        self.resource_digests.mesh()
     }
 
-    fn correspondence_digest(&self) -> &str {
-        &self.resource_digests.correspondence
+    fn correspondence_digest(&self) -> Option<&str> {
+        self.resource_digests.correspondence()
     }
 
-    fn production_digest(&self) -> &str {
-        &self.resource_digests.production
+    fn production_digest(&self) -> Option<&str> {
+        self.resource_digests.production()
     }
 
     fn realization_digest(&self) -> &str {
@@ -891,6 +891,7 @@ mod elasticity;
 mod formulation;
 mod fsi;
 pub use fsi::{CommonFsiConnectionInventory, CommonFsiDomainInventory};
+mod coordinate_grid;
 mod mesh_artifact;
 mod native;
 mod plan_artifact;

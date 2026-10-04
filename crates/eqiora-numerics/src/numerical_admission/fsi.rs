@@ -275,10 +275,10 @@ impl CommonFsiPlan {
         let scaling_provenance_digest = scaling_receipt.provenance_digest().to_string();
         for value in [
             model_digest,
-            &digests.geometry,
-            &digests.mesh,
-            &digests.correspondence,
-            &digests.production,
+            digests.geometry().expect("physical Plan lineage"),
+            digests.mesh(),
+            digests.correspondence().expect("physical Plan lineage"),
+            digests.production().expect("physical Plan lineage"),
             &realization_digest,
             &scaling_provenance_digest,
             solver_provider.id().as_str(),
@@ -355,10 +355,16 @@ impl CommonFsiPlan {
         for value in [
             "fixed-reference-fsi/f64/replicated/mini-p1-fluid+p1-solid/shared-trace-quotient/gauge-free-pressure/backward-euler-velocity-displacement-history/v1",
             self.model_digest(),
-            self.lineage.geometry_digest(),
+            self.lineage
+                .geometry_digest()
+                .expect("physical Plan lineage"),
             self.lineage.mesh_digest(),
-            self.lineage.correspondence_digest(),
-            self.lineage.production_digest(),
+            self.lineage
+                .correspondence_digest()
+                .expect("physical Plan lineage"),
+            self.lineage
+                .production_digest()
+                .expect("physical Plan lineage"),
         ] {
             push_framed(&mut bytes, value.as_bytes());
         }
@@ -600,7 +606,9 @@ impl CommonFsiPlan {
     }
     #[must_use]
     pub fn geometry_digest(&self) -> &str {
-        self.lineage.geometry_digest()
+        self.lineage
+            .geometry_digest()
+            .expect("physical Plan lineage")
     }
     #[must_use]
     pub fn mesh_digest(&self) -> &str {
@@ -608,11 +616,15 @@ impl CommonFsiPlan {
     }
     #[must_use]
     pub fn correspondence_digest(&self) -> &str {
-        self.lineage.correspondence_digest()
+        self.lineage
+            .correspondence_digest()
+            .expect("physical Plan lineage")
     }
     #[must_use]
     pub fn production_digest(&self) -> &str {
-        self.lineage.production_digest()
+        self.lineage
+            .production_digest()
+            .expect("physical Plan lineage")
     }
     #[must_use]
     pub fn realization_digest(&self) -> &str {

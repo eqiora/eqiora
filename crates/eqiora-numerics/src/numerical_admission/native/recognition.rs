@@ -1,11 +1,62 @@
 use super::*;
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct ResourceDigests {
-    pub(crate) geometry: String,
-    pub(crate) mesh: String,
-    pub(crate) correspondence: String,
-    pub(crate) production: String,
+pub(crate) enum ResourceDigests {
+    Physical {
+        geometry: String,
+        mesh: String,
+        correspondence: String,
+        production: String,
+    },
+    Coordinates {
+        source: String,
+        mesh: String,
+    },
+}
+
+impl ResourceDigests {
+    pub(crate) fn geometry(&self) -> Option<&str> {
+        match self {
+            Self::Physical { geometry, .. } => Some(geometry),
+            Self::Coordinates { .. } => None,
+        }
+    }
+    pub(crate) fn mesh(&self) -> &str {
+        match self {
+            Self::Physical { mesh, .. } | Self::Coordinates { mesh, .. } => mesh,
+        }
+    }
+    pub(crate) fn correspondence(&self) -> Option<&str> {
+        match self {
+            Self::Physical { correspondence, .. } => Some(correspondence),
+            Self::Coordinates { .. } => None,
+        }
+    }
+    pub(crate) fn production(&self) -> Option<&str> {
+        match self {
+            Self::Physical { production, .. } => Some(production),
+            Self::Coordinates { .. } => None,
+        }
+    }
+    pub(crate) fn bind(&self, bytes: &mut Vec<u8>) {
+        match self {
+            Self::Physical {
+                geometry,
+                mesh,
+                correspondence,
+                production,
+            } => {
+                for digest in [geometry, mesh, correspondence, production] {
+                    push_framed(bytes, digest.as_bytes());
+                }
+            }
+            Self::Coordinates { source, mesh } => {
+                for value in ["coordinate-factors/v1", source, mesh] {
+                    push_framed(bytes, value.as_bytes());
+                }
+            }
+        }
+    }
 }
 
 struct DigestedResources<'a> {
@@ -18,8 +69,14 @@ struct DigestedResources<'a> {
 pub(crate) fn resource_digests(
     resources: &NativeMeshResources,
 ) -> Result<ResourceDigests, Diagnostic> {
+    if let NativeMeshResources::Coordinates(grid) = resources {
+        return Ok(ResourceDigests::Coordinates {
+            source: grid.source.digest()?.to_string(),
+            mesh: grid.mesh.digest()?.to_string(),
+        });
+    }
     let digests = digest_resources(resources)?;
-    Ok(ResourceDigests {
+    Ok(ResourceDigests::Physical {
         geometry: hex_bytes(&digests.geometry.digest_bytes()),
         mesh: digests.mesh.to_string(),
         correspondence: digests.correspondence.to_string(),
@@ -29,6 +86,11 @@ pub(crate) fn resource_digests(
 
 fn digest_resources(resources: &NativeMeshResources) -> Result<DigestedResources<'_>, Diagnostic> {
     let (geometry, mesh, correspondence, production) = match resources {
+        NativeMeshResources::Coordinates(_) => {
+            return Err(invalid(
+                "physical resource digests require Geometry-owned Mesh lineage",
+            ));
+        }
         NativeMeshResources::Cartesian {
             geometry,
             mesh,
@@ -179,7 +241,7 @@ pub(crate) fn recognize_exact_model(
         }
         let transient = transient?;
         let exact_bounds = resources
-            .geometry()
+            .geometry()?
             .planar_rectangle_bounds()
             .ok_or_else(|| {
                 invalid("transient storage realization requires an exact planar rectangle Geometry")
@@ -275,7 +337,7 @@ pub(crate) fn require_policy_compatibility(
         NativeSpatialPolicy::ScalarQ1
         | NativeSpatialPolicy::TransientMiniP1(_)
         | NativeSpatialPolicy::TransientCellCentered(_) => LinearOperatorProperties::General,
-        NativeSpatialPolicy::ScalarTpfa(_) => {
+        NativeSpatialPolicy::CoordinateCellConstant | NativeSpatialPolicy::ScalarTpfa(_) => {
             super::super::scalar::scalar_operator_properties(spatial)
         }
         NativeSpatialPolicy::ElasticityQ1 => LinearOperatorProperties::SymmetricPositiveDefinite,

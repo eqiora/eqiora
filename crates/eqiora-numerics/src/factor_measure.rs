@@ -63,10 +63,10 @@ pub(crate) fn mapped_sample(
         ));
     }
     if measure == ObservableMeasure::SphericalVolume
-        && (axes.len() != 1 || axes[0].1.lower().value() != 0.0)
+        && (axes.len() != 1 || axes[0].1.lower().value() < 0.0)
     {
         return Err(invalid(
-            "spherical volume quadrature requires a radial interval from zero",
+            "spherical volume quadrature requires a nonnegative radial segment",
         ));
     }
     let mut coordinates = Vec::with_capacity(axes.len());

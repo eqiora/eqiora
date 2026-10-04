@@ -236,7 +236,7 @@ impl Discretization {
                 | MeshPolicy::SuppliedCartesian { .. }
                 | MeshPolicy::SuppliedCartesian1d { .. }
                 | MeshPolicy::SuppliedCartesian3d { .. },
-                QuadraturePolicy::CellCentroid,
+                QuadraturePolicy::CellCentroid | QuadraturePolicy::GaussLegendre { .. },
             ) => Ok(()),
             (
                 DiscretizationMethod::ContinuousGalerkin,
@@ -248,7 +248,7 @@ impl Discretization {
                 "continuous Galerkin requires generated or supplied Cartesian/Gauss-Legendre or imported affine-simplex/P1-centroid contracts in v0",
             )),
             (DiscretizationMethod::CellCenteredFiniteVolume, _, _, _) => Err(invalid_realization(
-                "cell-centered finite volume requires a generated or supplied Cartesian mesh, cell-constant space, and centroid quadrature in v0",
+                "cell-centered finite volume requires a generated or supplied Cartesian mesh, cell-constant space, and centroid or Gauss-Legendre quadrature",
             )),
         }
     }

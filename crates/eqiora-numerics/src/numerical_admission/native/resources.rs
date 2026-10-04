@@ -5,6 +5,9 @@ pub(crate) fn validate_resources(
     resources: &NativeMeshResources,
 ) -> Result<(), Diagnostic> {
     match (spatial, resources) {
+        (NativeSpatialPolicy::CoordinateCellConstant, NativeMeshResources::Coordinates(_)) => {
+            Ok(())
+        }
         (
             NativeSpatialPolicy::ScalarQ1 | NativeSpatialPolicy::ScalarTpfa(_),
             resources @ NativeMeshResources::Cartesian { .. },
@@ -135,7 +138,7 @@ pub(crate) fn validate_simplicial_resources(
                 ));
             }
         }
-        NativeMeshResources::Cartesian { .. } => {
+        NativeMeshResources::Coordinates(_) | NativeMeshResources::Cartesian { .. } => {
             return Err(invalid("authenticated owner is not simplicial"));
         }
     }
@@ -143,7 +146,9 @@ pub(crate) fn validate_simplicial_resources(
         NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
         | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. }
         | NativeMeshResources::GmshSimplicial { mesh, .. } => mesh,
-        NativeMeshResources::Cartesian { .. } => unreachable!("rejected above"),
+        NativeMeshResources::Coordinates(_) | NativeMeshResources::Cartesian { .. } => {
+            unreachable!("rejected above")
+        }
     };
     if mesh.dimension() != 2 {
         return Err(invalid("simplicial common Mesh must be two-dimensional"));

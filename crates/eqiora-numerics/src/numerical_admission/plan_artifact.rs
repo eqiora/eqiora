@@ -184,11 +184,7 @@ impl ResolvedCommonPlan {
     pub fn canonical_method_request(&self) -> Option<CommonMethodRequest> {
         let mut request = match self {
             Self::Algebraic(_) | Self::Ode(_) => return None,
-            Self::Scalar(plan) => CommonMethodRequest::Uniform(match plan.admission.spatial {
-                NativeSpatialPolicy::ScalarQ1 => CommonSpatialPolicy::Q1,
-                NativeSpatialPolicy::ScalarTpfa(_) => CommonSpatialPolicy::CellCenteredTpfa,
-                _ => unreachable!("scalar Plan retains a scalar spatial policy"),
-            }),
+            Self::Scalar(plan) => CommonMethodRequest::Uniform(plan.spatial()),
             Self::Elasticity(_) => CommonMethodRequest::Uniform(CommonSpatialPolicy::Q1),
             Self::SteadyStokes(_) => CommonMethodRequest::Uniform(CommonSpatialPolicy::MiniP1),
             Self::TransientFlow(plan) => {
@@ -749,11 +745,7 @@ fn spatial_request(plan: &ResolvedCommonPlan) -> Option<WireSpatialRequest> {
     let uniform = |policy| WireSpatialRequest::Uniform { policy };
     match plan {
         ResolvedCommonPlan::Algebraic(_) | ResolvedCommonPlan::Ode(_) => None,
-        ResolvedCommonPlan::Scalar(plan) => Some(uniform(match plan.admission.spatial {
-            NativeSpatialPolicy::ScalarQ1 => WireSpatialPolicy::Q1,
-            NativeSpatialPolicy::ScalarTpfa(_) => WireSpatialPolicy::CellCenteredTpfa,
-            _ => unreachable!("scalar Plan retains a scalar spatial policy"),
-        })),
+        ResolvedCommonPlan::Scalar(plan) => Some(uniform(plan.spatial().into())),
         ResolvedCommonPlan::Elasticity(_) => Some(uniform(WireSpatialPolicy::Q1)),
         ResolvedCommonPlan::SteadyStokes(_) => Some(uniform(WireSpatialPolicy::MiniP1)),
         ResolvedCommonPlan::TransientFlow(plan) => Some(uniform(match plan.admission.spatial {

@@ -13,7 +13,7 @@ use sha2::{Digest, Sha256};
 
 use super::{AuthenticatedCommonMesh, Diagnostic, NativeMeshResources, invalid};
 
-const SCHEMA: &str = "eqiora.authenticated-common-mesh/v1";
+const SCHEMA: &str = "eqiora.authenticated-common-mesh/v2";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 128 * 1024 * 1024;
 
@@ -28,9 +28,7 @@ enum WireMeshKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireAuthenticatedCommonMeshV1 {
-    schema: String,
-    encoding: String,
+struct WirePhysicalMesh {
     kind: WireMeshKind,
     geometry_base64: String,
     mesh_base64: String,
@@ -40,10 +38,81 @@ struct WireAuthenticatedCommonMeshV1 {
     provider_output_base64: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WireAuthenticatedMesh {
+    schema: String,
+    encoding: String,
+    resources: WireResources,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "source", rename_all = "kebab-case", deny_unknown_fields)]
+enum WireResources {
+    PhysicalGeometry {
+        mesh: WirePhysicalMesh,
+    },
+    CoordinateFactors {
+        factors: super::coordinate_grid::CoordinateSource,
+        mesh_base64: String,
+    },
+}
+
+impl WireAuthenticatedMesh {
+    fn from_resources(resources: &NativeMeshResources) -> Result<Self, Diagnostic> {
+        let resources = match resources {
+            NativeMeshResources::Coordinates(grid) => WireResources::CoordinateFactors {
+                factors: grid.source.clone(),
+                mesh_base64: encode(&grid.mesh.canonical_json()?),
+            },
+            _ => WireResources::PhysicalGeometry {
+                mesh: WirePhysicalMesh::from_resources(resources)?,
+            },
+        };
+        Ok(Self {
+            schema: SCHEMA.to_owned(),
+            encoding: ENCODING.to_owned(),
+            resources,
+        })
+    }
+
+    fn validate_header(&self) -> Result<(), Diagnostic> {
+        if self.schema != SCHEMA || self.encoding != ENCODING {
+            return Err(invalid(
+                "authenticated common Mesh has an unknown schema or encoding",
+            ));
+        }
+        if let WireResources::PhysicalGeometry { mesh } = &self.resources {
+            mesh.validate()?;
+        }
+        Ok(())
+    }
+
+    fn decode(&self) -> Result<AuthenticatedCommonMesh, Diagnostic> {
+        match &self.resources {
+            WireResources::PhysicalGeometry { mesh } => mesh.decode(),
+            WireResources::CoordinateFactors {
+                factors,
+                mesh_base64,
+            } => {
+                let mesh = CartesianMeshEnvelopeV1::from_json(
+                    &decode(mesh_base64, "mesh")?,
+                    MeshDecoderLimits::default(),
+                )?;
+                let grid =
+                    super::coordinate_grid::CoordinateGrid::from_parts(factors.clone(), mesh)?;
+                Ok(AuthenticatedCommonMesh {
+                    resources: NativeMeshResources::Coordinates(grid),
+                })
+            }
+        }
+    }
+}
+
 impl AuthenticatedCommonMesh {
     /// Encode this exact authenticated occurrence as bounded canonical bytes.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        let wire = WireAuthenticatedCommonMeshV1::from_resources(&self.resources)?;
+        let wire = WireAuthenticatedMesh::from_resources(&self.resources)?;
         serde_json::to_vec(&wire)
             .map_err(|error| invalid(format!("cannot encode authenticated common Mesh: {error}")))
     }
@@ -56,7 +125,7 @@ impl AuthenticatedCommonMesh {
                 bytes.len()
             )));
         }
-        let wire: WireAuthenticatedCommonMeshV1 = serde_json::from_slice(bytes)
+        let wire: WireAuthenticatedMesh = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid authenticated common Mesh JSON: {error}")))?;
         wire.validate_header()?;
         let decoded = wire.decode()?;
@@ -77,10 +146,20 @@ impl AuthenticatedCommonMesh {
         Ok(ArtifactDigest::from_sha256(hasher.finalize().into()))
     }
 
-    /// Geometry root authenticated by this occurrence.
+    /// Identity of the exact Geometry or dimensioned factor projection supplying this Mesh.
+    pub fn source_digest(&self) -> Result<ArtifactDigest, Diagnostic> {
+        match &self.resources {
+            NativeMeshResources::Coordinates(grid) => grid.source.digest(),
+            _ => Ok(ArtifactDigest::from_sha256(
+                self.resources.geometry()?.digest_bytes(),
+            )),
+        }
+    }
+
+    /// Physical Geometry root, absent for coordinate-factor grids.
     #[must_use]
-    pub fn geometry(&self) -> &CanonicalGeometryV1 {
-        self.resources.geometry()
+    pub fn geometry(&self) -> Option<&CanonicalGeometryV1> {
+        self.resources.geometry().ok()
     }
 
     /// Structured Cartesian Mesh root, when this is a Cartesian occurrence.
@@ -88,6 +167,7 @@ impl AuthenticatedCommonMesh {
     pub fn cartesian_mesh(&self) -> Option<&CartesianMeshEnvelopeV1> {
         match &self.resources {
             NativeMeshResources::Cartesian { mesh, .. } => Some(mesh),
+            NativeMeshResources::Coordinates(grid) => Some(&grid.mesh),
             NativeMeshResources::AffineTriangleSimplicial { .. }
             | NativeMeshResources::AdjacentPartitionSimplicial { .. }
             | NativeMeshResources::GmshSimplicial { .. } => None,
@@ -98,7 +178,7 @@ impl AuthenticatedCommonMesh {
     #[must_use]
     pub fn simplicial_mesh(&self) -> Option<&SimplicialMeshEnvelopeV1> {
         match &self.resources {
-            NativeMeshResources::Cartesian { .. } => None,
+            NativeMeshResources::Cartesian { .. } | NativeMeshResources::Coordinates(_) => None,
             NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
             | NativeMeshResources::AdjacentPartitionSimplicial { mesh, .. }
             | NativeMeshResources::GmshSimplicial { mesh, .. } => Some(mesh),
@@ -107,23 +187,25 @@ impl AuthenticatedCommonMesh {
 
     /// Geometry-to-Mesh correspondence authenticated by this occurrence.
     #[must_use]
-    pub fn correspondence(&self) -> &GeometryMeshCorrespondenceEnvelopeV1 {
+    pub fn correspondence(&self) -> Option<&GeometryMeshCorrespondenceEnvelopeV1> {
         match &self.resources {
             NativeMeshResources::Cartesian { correspondence, .. }
             | NativeMeshResources::AffineTriangleSimplicial { correspondence, .. }
             | NativeMeshResources::AdjacentPartitionSimplicial { correspondence, .. }
-            | NativeMeshResources::GmshSimplicial { correspondence, .. } => correspondence,
+            | NativeMeshResources::GmshSimplicial { correspondence, .. } => Some(correspondence),
+            NativeMeshResources::Coordinates(_) => None,
         }
     }
 
     /// Mesh-production lineage authenticated by this occurrence.
     #[must_use]
-    pub fn production(&self) -> &MeshProductionLineageEnvelopeV1 {
+    pub fn production(&self) -> Option<&MeshProductionLineageEnvelopeV1> {
         match &self.resources {
             NativeMeshResources::Cartesian { production, .. }
             | NativeMeshResources::AffineTriangleSimplicial { production, .. }
             | NativeMeshResources::AdjacentPartitionSimplicial { production, .. }
-            | NativeMeshResources::GmshSimplicial { production, .. } => production,
+            | NativeMeshResources::GmshSimplicial { production, .. } => Some(production),
+            NativeMeshResources::Coordinates(_) => None,
         }
     }
 
@@ -134,16 +216,20 @@ impl AuthenticatedCommonMesh {
             NativeMeshResources::GmshSimplicial {
                 provider_output, ..
             } => Some(provider_output),
-            NativeMeshResources::Cartesian { .. }
+            NativeMeshResources::Coordinates(_)
+            | NativeMeshResources::Cartesian { .. }
             | NativeMeshResources::AffineTriangleSimplicial { .. }
             | NativeMeshResources::AdjacentPartitionSimplicial { .. } => None,
         }
     }
 }
 
-impl WireAuthenticatedCommonMeshV1 {
+impl WirePhysicalMesh {
     fn from_resources(resources: &NativeMeshResources) -> Result<Self, Diagnostic> {
         let (kind, geometry, mesh, correspondence, production, provider_output) = match resources {
+            NativeMeshResources::Coordinates(_) => {
+                return Err(invalid("coordinate grid has no physical mesh lineage"));
+            }
             NativeMeshResources::Cartesian {
                 geometry,
                 mesh,
@@ -200,8 +286,6 @@ impl WireAuthenticatedCommonMeshV1 {
             ),
         };
         Ok(Self {
-            schema: SCHEMA.to_owned(),
-            encoding: ENCODING.to_owned(),
             kind,
             geometry_base64: encode(geometry),
             mesh_base64: encode(&mesh),
@@ -211,12 +295,7 @@ impl WireAuthenticatedCommonMeshV1 {
         })
     }
 
-    fn validate_header(&self) -> Result<(), Diagnostic> {
-        if self.schema != SCHEMA || self.encoding != ENCODING {
-            return Err(invalid(
-                "authenticated common Mesh has an unknown schema or encoding",
-            ));
-        }
+    fn validate(&self) -> Result<(), Diagnostic> {
         if matches!(self.kind, WireMeshKind::Gmsh4152) != self.provider_output_base64.is_some() {
             return Err(invalid(
                 "only a Gmsh authenticated common Mesh carries provider output",

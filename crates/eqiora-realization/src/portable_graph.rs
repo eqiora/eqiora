@@ -80,16 +80,17 @@ graph_id!(
 /// How coordinates enter one portable spatial discretization.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CoordinateTreatment {
-    /// Coordinates are consumed in the Model's declared reference values.
+    /// Coordinates are consumed in each exact Model axis's declared reference values.
+    /// Abstract factors may have different dimensions; no common length scale is implied.
     Physical,
     /// Coordinates are normalized by one positive coherent-SI length.
     Scaled(PositivePhysicalScale),
 }
 
-/// Physical configuration in which one Domain-local weak action is evaluated.
+/// Coordinate configuration in which one Domain-local weak action is evaluated.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DomainConfiguration {
-    /// Existing fixed-geometry projection with no moving-configuration role.
+    /// Fixed declared Domain coordinates, with no moving-configuration role.
     FixedGeometry,
     /// Immutable material/reference configuration.
     ReferenceConfiguration,

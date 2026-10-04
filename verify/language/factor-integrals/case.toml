@@ -1,8 +1,8 @@
 id = "language.factor-integrals"
 status = "implemented"
-scope = "bounded-coordinate-factor-real-scalar-observations-and-finite-constraints"
+scope = "bounded-coordinate-factor-observations-finite-constraints-and-polynomial-cell-fields"
 reference_kind = "independent-monomial-antiderivatives-and-truncated-gaussian-error-bounds"
-capabilities = ["exact-factor-measure", "remaining-output-support", "density-and-velocity-moments", "explicit-normalization", "nested-integrals", "model-replay", "regular-density-admission", "fixed-polynomial-integral-partials", "spherical-radial-volume-measure", "finite-polynomial-integral-constraints"]
+capabilities = ["exact-factor-measure", "remaining-output-support", "density-and-velocity-moments", "explicit-normalization", "nested-integrals", "model-replay", "regular-density-admission", "fixed-polynomial-integral-partials", "spherical-radial-volume-measure", "finite-polynomial-integral-constraints", "prescribed-polynomial-cell-field"]
 
 [claim_boundary]
 bounded_affine_coordinate_factors = true
@@ -11,7 +11,8 @@ real_scalar_polynomial_and_exponential_density = true
 explicit_domain_quadrature = true
 unit_checked_output_point = true
 separate_gaussian_truncation_and_quadrature_errors = true
-spatial_phase_field_realization = false
+prescribed_polynomial_phase_cell_field = true
+arbitrary_spatial_phase_field_realization = false
 product_domain_pde = false
 spherical_measure = true
 radial_diffusion_field_realization = false

@@ -256,10 +256,10 @@ impl CommonTransientFlowPlan {
         for value in [
             admission.model_digest(),
             model_id.as_str(),
-            digests.geometry.as_str(),
-            digests.mesh.as_str(),
-            digests.correspondence.as_str(),
-            digests.production.as_str(),
+            digests.geometry().expect("physical Plan lineage"),
+            digests.mesh(),
+            digests.correspondence().expect("physical Plan lineage"),
+            digests.production().expect("physical Plan lineage"),
             admission.policy_identity(),
             receipt_digest.as_str(),
             velocity_field_id.as_str(),
@@ -299,7 +299,8 @@ impl CommonTransientFlowPlan {
                     identity_bytes.extend_from_slice(&count.to_be_bytes());
                 }
             }
-            NativeMeshResources::AdjacentPartitionSimplicial { .. } => {
+            NativeMeshResources::Coordinates(_)
+            | NativeMeshResources::AdjacentPartitionSimplicial { .. } => {
                 return Err(invalid(
                     "transient common Plan requires the exact caller affine-triangle or supplied-Cartesian envelope",
                 ));
@@ -371,7 +372,9 @@ impl CommonTransientFlowPlan {
     }
     #[must_use]
     pub fn geometry_digest(&self) -> &str {
-        self.lineage.geometry_digest()
+        self.lineage
+            .geometry_digest()
+            .expect("physical Plan lineage")
     }
     #[must_use]
     pub fn mesh_digest(&self) -> &str {
@@ -379,11 +382,15 @@ impl CommonTransientFlowPlan {
     }
     #[must_use]
     pub fn correspondence_digest(&self) -> &str {
-        self.lineage.correspondence_digest()
+        self.lineage
+            .correspondence_digest()
+            .expect("physical Plan lineage")
     }
     #[must_use]
     pub fn production_digest(&self) -> &str {
-        self.lineage.production_digest()
+        self.lineage
+            .production_digest()
+            .expect("physical Plan lineage")
     }
     #[must_use]
     pub fn realization_digest(&self) -> &str {

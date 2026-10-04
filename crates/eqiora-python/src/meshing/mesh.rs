@@ -14,6 +14,8 @@ use pyo3::exceptions::{PyOverflowError, PyRuntimeError, PyTypeError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyBytes, PyTuple};
 
+mod coordinates;
+
 use super::plan::{MeshProviderPolicy, PlannedMesh, PyMeshPlan};
 use super::request_error;
 use crate::error::{diagnostic_error, validation_error};
@@ -38,6 +40,9 @@ pub(crate) struct PyMesh {
 }
 
 enum AcceptedMeshSource {
+    CoordinateFactors {
+        owner: Box<AuthenticatedCommonMesh>,
+    },
     SourceOwned {
         geometry: Box<CanonicalGeometryV1>,
         mesh: Box<SimplicialMeshEnvelopeV1>,
@@ -76,9 +81,9 @@ pub(crate) struct AuthenticatedAffineTriangleResources<'a> {
 
 struct MeshLineage {
     source_digest: String,
-    realized_geometry_digest: String,
+    realized_geometry_digest: Option<String>,
     mesh_digest: String,
-    correspondence_digest: String,
+    correspondence_digest: Option<String>,
     dimension: usize,
     vertex_count: usize,
     cell_count: usize,
@@ -101,20 +106,32 @@ impl PyMesh {
         &self.lineage.source_digest
     }
 
-    pub(crate) fn correspondence_digest_value(&self) -> &str {
-        &self.lineage.correspondence_digest
+    pub(crate) fn correspondence_digest_value(&self) -> Option<&str> {
+        self.lineage.correspondence_digest.as_deref()
     }
     pub(crate) fn from_authenticated(
         py: Python<'_>,
         owner: AuthenticatedCommonMesh,
     ) -> PyResult<Self> {
+        if owner.geometry().is_none() {
+            return Self::from_coordinate_factors(py, owner);
+        }
+        let geometry = owner.geometry().ok_or_else(|| {
+            PyRuntimeError::new_err("coordinate-factor grids require coordinate Field admission")
+        })?;
+        let correspondence = owner.correspondence().ok_or_else(|| {
+            PyRuntimeError::new_err("physical Mesh omitted Geometry correspondence")
+        })?;
+        let production = owner
+            .production()
+            .ok_or_else(|| PyRuntimeError::new_err("physical Mesh omitted production lineage"))?;
         if let Some(mesh) = owner.cartesian_mesh() {
             return Self::from_source_owned_cartesian(
                 py,
-                owner.geometry(),
+                geometry,
                 mesh,
-                owner.correspondence(),
-                owner.production(),
+                correspondence,
+                production,
             );
         }
         let mesh = owner.simplicial_mesh().ok_or_else(|| {
@@ -123,28 +140,33 @@ impl PyMesh {
         if let Some(provider_output) = owner.gmsh_provider_output() {
             Self::from_source_parts(
                 py,
-                owner.geometry(),
+                geometry,
                 mesh,
-                owner.correspondence(),
-                owner.production(),
+                correspondence,
+                production,
                 SourceOwnedProviderObservation::Gmsh4152 {
                     output: provider_output.to_vec().into_boxed_slice(),
                 },
             )
         } else {
-            Self::from_source_owned_affine_triangle(
-                py,
-                owner.geometry(),
-                mesh,
-                owner.correspondence(),
-                owner.production(),
-            )
+            Self::from_source_owned_affine_triangle(py, geometry, mesh, correspondence, production)
         }
     }
 }
 
 #[pymethods]
 impl PyMesh {
+    /// Build a grid on exact dimensioned coordinate factors retained by this Model.
+    #[staticmethod]
+    fn coordinate_factors(
+        py: Python<'_>,
+        model: &crate::model::PyModel,
+        domain: &crate::model::PyModelDomainRef,
+        cells_per_factor: Vec<usize>,
+    ) -> PyResult<Self> {
+        Self::from_coordinate_domain(py, model, domain, cells_per_factor)
+    }
+
     /// Exact Geometry identity retained by the source binding.
     #[getter]
     fn source_digest(&self) -> &str {
@@ -153,8 +175,8 @@ impl PyMesh {
 
     /// Identity of the realized straight-edged geometry artifact.
     #[getter]
-    fn realized_geometry_digest(&self) -> &str {
-        &self.lineage.realized_geometry_digest
+    fn realized_geometry_digest(&self) -> Option<&str> {
+        self.lineage.realized_geometry_digest.as_deref()
     }
 
     /// Identity of the accepted common mesh artifact.
@@ -165,8 +187,8 @@ impl PyMesh {
 
     /// Identity of the exact Geometry-to-Mesh correspondence artifact.
     #[getter]
-    fn correspondence_digest(&self) -> &str {
-        &self.lineage.correspondence_digest
+    fn correspondence_digest(&self) -> Option<&str> {
+        self.lineage.correspondence_digest.as_deref()
     }
 
     /// Canonical provider occurrence that produced this common Mesh.
@@ -258,7 +280,8 @@ impl PyMesh {
             AcceptedMeshSource::SourceOwned { mesh, .. } => {
                 Ok(mesh.mesh().quality_report().minimum_mean_ratio())
             }
-            AcceptedMeshSource::SourceOwnedCartesian { .. } => Err(capability_error(
+            AcceptedMeshSource::CoordinateFactors { .. }
+            | AcceptedMeshSource::SourceOwnedCartesian { .. } => Err(capability_error(
                 py,
                 "minimum_mean_ratio is not defined for this Cartesian Mesh",
             )),
@@ -268,6 +291,7 @@ impl PyMesh {
     #[getter]
     fn selection_names(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         let names = match &self.source {
+            AcceptedMeshSource::CoordinateFactors { .. } => Vec::new(),
             AcceptedMeshSource::SourceOwned { geometry, .. } => geometry
                 .entity_sets()
                 .iter()
@@ -306,6 +330,10 @@ impl PyMesh {
             ));
         };
         match &self.source {
+            AcceptedMeshSource::CoordinateFactors { .. } => Err(capability_error(
+                py,
+                "coordinate-factor grids have no Geometry selections",
+            )),
             AcceptedMeshSource::SourceOwned {
                 geometry,
                 correspondence,
@@ -439,9 +467,9 @@ impl PyMesh {
             },
             lineage: MeshLineage {
                 source_digest: source_digest.clone(),
-                realized_geometry_digest: source_digest,
+                realized_geometry_digest: Some(source_digest),
                 mesh_digest,
-                correspondence_digest,
+                correspondence_digest: Some(correspondence_digest),
                 dimension,
                 vertex_count,
                 cell_count,
@@ -517,9 +545,9 @@ impl PyMesh {
             },
             lineage: MeshLineage {
                 source_digest: source_digest.clone(),
-                realized_geometry_digest: source_digest,
+                realized_geometry_digest: Some(source_digest),
                 mesh_digest,
-                correspondence_digest,
+                correspondence_digest: Some(correspondence_digest),
                 dimension,
                 vertex_count,
                 cell_count,
@@ -553,6 +581,7 @@ impl PyMesh {
 
     fn production_lineage(&self) -> Option<&MeshProductionLineageEnvelopeV1> {
         match &self.source {
+            AcceptedMeshSource::CoordinateFactors { .. } => None,
             AcceptedMeshSource::SourceOwned { production, .. } => Some(production),
             AcceptedMeshSource::SourceOwnedCartesian { production, .. } => Some(production),
         }
@@ -664,6 +693,7 @@ impl PyMesh {
         &self,
     ) -> Result<Option<AuthenticatedCommonMesh>, Diagnostic> {
         match &self.source {
+            AcceptedMeshSource::CoordinateFactors { owner } => Ok(Some((**owner).clone())),
             AcceptedMeshSource::SourceOwnedCartesian {
                 geometry,
                 mesh,
