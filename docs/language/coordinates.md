@@ -5,12 +5,13 @@ foundation audit's position/velocity derivative specimen. It specifies mathemati
 their current numerical admission is not established by the examples.
 
 The current implementation admits abstract dimensioned interval slots and owned products in
-Model and Component source, including nested products and whole-product Observable measures.
+Model and Component source, including nested products, physical Cartesian region factors, and
+whole-product Observable measures.
 The source support owns factor identity; native `StaticBindingValue::CoordinateInterval` and
 Python `CoordinateInterval` supply checked finite bounds. Model/Transaction v33 and structural
 fingerprint v28 retain these factors. No ambient physical frame or numerical realization is
-inferred. Physical Geometry factors, coordinate binders/partials, factor-wise integration and
-curved embedded-field extensions remain separate work.
+inferred. Coordinate binders/partials, factor-wise integration, non-Cartesian product factors,
+and curved embedded-field extensions remain separate work.
 
 ## Exact factors and coordinate bindings
 
@@ -31,6 +32,33 @@ factor, which must occur uniquely in the declared support. A repeated factor req
 explicit factor-occurrence selector before this projection can be admitted; matching by name
 or unit is not a fallback. `coordinate` permits notation after the name, requires `on` and
 `from`, and does not accept `at` or an initializer.
+
+## Products containing physical position
+
+A physical factor may be a source `domain position = box(...)` or an exact Geometry selection
+bound to `support position: volume(ambient_dimension=2)`. Geometry products currently admit
+canonical boxes and individual axis-aligned rectangular faces, including straight subdivided
+sides. The selected region must itself be Cartesian; its bounding box alone is insufficient.
+
+```eqiora
+model Distribution(support velocity: interval(m/s)) {
+  domain position = box(0, 2, 0, 3);
+  support phase: product(position, velocity);
+  variable f: s/m^3 on phase;
+  relation retain on phase { f = 0[s/m^3]; }
+  observable count: 1 = integral(f, measure(phase));
+}
+```
+
+Here `position` is one exact factor with two axes, and `velocity` has one axis. The product has
+intrinsic dimension 3 and measure units `m² × (m/s)`, but no ambient three-dimensional physical
+frame. A spatial `vector<...,3>` or physical `grad` on the product therefore does not follow
+from that intrinsic dimension. The existing physical Domain retains its own ambient frame.
+Model replay retains factor identity/order and requires the exact Geometry artifact for semantic
+admission of Geometry factors. No mesh or numerical quadrature is manufactured.
+
+Boundary, curved, nonrectangular, and grouped Geometry factors remain unsupported. This path
+establishes typing and measure semantics, not coordinate partials or a product-space solver.
 
 ## Complete analytic derivative specimen
 

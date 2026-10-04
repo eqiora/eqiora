@@ -13,6 +13,7 @@ use eqiora_schema::kernel::{
 use super::{edge_targets, kernel_error};
 
 mod coordinates;
+pub(super) use coordinates::admit as admit_coordinate_supports;
 
 pub(super) fn resolve_cartesian_bounds(
     nodes: &BTreeMap<RawId, KernelNode>,
@@ -196,9 +197,6 @@ pub(super) fn validate_domains(
                         id,
                         "coordinate product factors differ from exact DependsOn targets",
                     ));
-                }
-                if let Err(error) = coordinates::factors(nodes, id) {
-                    diagnostics.push(error);
                 }
             }
             DomainKind::Abstract
@@ -541,11 +539,6 @@ pub(super) fn declared_spatial_supports(
             continue;
         };
         match definition.kind() {
-            DomainKind::CoordinateInterval { .. } | DomainKind::CoordinateProduct { .. } => {
-                if let Ok(factors) = coordinates::factors(nodes, domain) {
-                    supports.insert(domain, SpatialSupport::Coordinates { domain, factors });
-                }
-            }
             DomainKind::CartesianBox { .. } => {
                 if let Some(bounds) = cartesian_bounds.get(&domain) {
                     supports.insert(

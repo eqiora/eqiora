@@ -66,24 +66,34 @@ pub(super) fn project_products(
         let domain = symbol.full_identity;
         let mut projected = Vec::new();
         let mut seen = BTreeSet::new();
-        for (factor, unit) in factors {
-            let Some(SpatialSupport::Coordinates { factors, .. }) = scope.spatial_support(factor)
-            else {
-                return Err(hierarchy_error(
-                    "coordinate product has no exact bound interval",
-                ));
+        for (factor, unit, axes) in factors {
+            let bound = match scope.spatial_support(factor) {
+                Some(SpatialSupport::Coordinates { factors, .. }) if factors.len() == 1 => {
+                    factors[0]
+                }
+                Some(SpatialSupport::Volume { domain, dimensions }) => (
+                    *domain,
+                    eqiora_core::DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0])
+                        .expect("length dimension"),
+                    *dimensions,
+                ),
+                _ => {
+                    return Err(hierarchy_error(
+                        "coordinate product has no exact bound factor",
+                    ));
+                }
             };
-            if factors.len() != 1 || factors[0].1 != *unit {
+            if bound.1 != *unit || bound.2 != *axes {
                 return Err(hierarchy_error(
-                    "coordinate product factor differs from its checked interval contract",
+                    "coordinate product factor differs from its checked coordinate contract",
                 ));
             }
-            if !seen.insert(factors[0].0) {
+            if !seen.insert(bound.0) {
                 return Err(hierarchy_error(
                     "coordinate product repeats an exact bound factor",
                 ));
             }
-            projected.push(factors[0]);
+            projected.push(bound);
         }
         scope.insert_spatial_support(
             name.clone(),

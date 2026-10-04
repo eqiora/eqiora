@@ -119,16 +119,23 @@ pub(in crate::hierarchy) fn resolve_coordinate_products(
             let mut leaves = Vec::new();
             let mut seen = BTreeSet::new();
             for factor in factors {
-                let SpatialSupport::Coordinates { factors, .. } = &supports[factor] else {
-                    diagnostics.push(source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        file,
-                        declaration.range(),
-                        "coordinate product requires interval or coordinate-product factors",
-                    ));
-                    return false;
+                let factors = match &supports[factor] {
+                    SpatialSupport::Coordinates { factors, .. } => factors.clone(),
+                    SpatialSupport::Volume { domain, dimensions } => vec![(
+                        domain.clone(),
+                        eqiora_core::DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0])
+                            .expect("length dimension"),
+                        *dimensions,
+                    )],
+                    _ => {
+                        diagnostics.push(source_error(
+                            codes::LANGUAGE_TYPE_ERROR, file, declaration.range(),
+                            "coordinate product requires intervals, Cartesian volumes, or coordinate products",
+                        ));
+                        return false;
+                    }
                 };
-                for (id, unit) in factors {
+                for (id, unit, axes) in factors {
                     if !seen.insert(id.clone()) {
                         diagnostics.push(source_error(
                             codes::LANGUAGE_TYPE_ERROR,
@@ -138,7 +145,7 @@ pub(in crate::hierarchy) fn resolve_coordinate_products(
                         ));
                         return false;
                     }
-                    leaves.push((id.clone(), *unit));
+                    leaves.push((id, unit, axes));
                 }
             }
             supports.insert(

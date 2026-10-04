@@ -12,8 +12,8 @@ use super::geometry_admission::{
     admit_entity_sets, admit_geometry_boundary_junctions, index_closed_bundle,
 };
 use super::spatial_domains::{
-    declared_spatial_supports, resolve_cartesian_bounds, validate_domains, validate_fields,
-    validate_geometry_support_uses,
+    admit_coordinate_supports, declared_spatial_supports, resolve_cartesian_bounds,
+    validate_domains, validate_fields, validate_geometry_support_uses,
 };
 use super::{
     KernelProgram, kernel_error, kernel_path, model_path, validate_activations,
@@ -123,6 +123,7 @@ impl KernelProgram {
         let invalid_domains = validate_domains(&nodes, &edges, &cartesian_bounds, &mut diagnostics);
         let mut spatial_supports = declared_spatial_supports(&nodes, &edges, &cartesian_bounds);
         let artifacts_admitted = geometry.is_some();
+        let mut cartesian_geometry_regions = std::collections::BTreeSet::new();
         let mut geometry_boundary_embeddings = BTreeMap::new();
         let mut geometry_boundary_junctions = BTreeMap::new();
         let mut admitted_geometry_ports = std::collections::BTreeSet::new();
@@ -138,6 +139,7 @@ impl KernelProgram {
             let admission = admit_entity_sets(&nodes, &edges, &invalid_domains, &artifacts);
             diagnostics.extend(admission.diagnostics);
             spatial_supports.extend(admission.supports);
+            cartesian_geometry_regions = admission.cartesian_regions;
             geometry_boundary_embeddings = admission.boundary_embeddings;
             affine_geometry_boundaries = admission.affine_boundaries;
             let (junctions, ports, junction_diagnostics) = admit_geometry_boundary_junctions(
@@ -150,6 +152,12 @@ impl KernelProgram {
             admitted_geometry_ports = ports;
             diagnostics.extend(junction_diagnostics);
         }
+        admit_coordinate_supports(
+            &nodes,
+            &mut spatial_supports,
+            &cartesian_geometry_regions,
+            &mut diagnostics,
+        );
         validate_geometry_support_uses(
             &nodes,
             &edges,

@@ -118,7 +118,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                 slot.clone(),
                 SpatialSupport::Coordinates {
                     domain: identity.full,
-                    factors: vec![(identity.full, bounds.lower().dim())],
+                    factors: vec![(identity.full, bounds.lower().dim(), 1)],
                 },
             );
             self.items.push(FlatItemBlueprint::Domain {

@@ -150,7 +150,7 @@ pub(super) fn signature_support_interface(
                             visibility: declaration.visibility(),
                             support: SpatialSupport::Coordinates {
                                 domain: name.clone(),
-                                factors: vec![(name.clone(), unit)],
+                                factors: vec![(name.clone(), unit, 1)],
                             },
                         },
                     );
@@ -595,7 +595,8 @@ fn validate_singular_support_shapes<I: Eq>(
             ) if expected.len() == 1
                 && factors.len() == 1
                 && &factors[0].0 == domain
-                && expected[0].1 == factors[0].1 => {}
+                && expected[0].1 == factors[0].1
+                && factors[0].2 == 1 => {}
             (SpatialSupport::Coordinates { .. }, _) | (_, SpatialSupport::Coordinates { .. }) => {
                 diagnostics.push(source_error(codes::LANGUAGE_TYPE_ERROR, binding_file, *range,
                     format!("support slot `{name}` requires its declared factor kind and coordinate units")));

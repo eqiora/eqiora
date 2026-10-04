@@ -22,7 +22,11 @@ pub(super) fn lower_domain(
                     Some(Binding::Domain(
                         id,
                         DomainContract::CoordinateInterval(_)
-                        | DomainContract::CoordinateProduct(_),
+                        | DomainContract::CoordinateProduct(_)
+                        | DomainContract::Spatial {
+                            dimensions: Some(_),
+                            parent: None,
+                        },
                     )) => Ok(*id),
                     _ => Err(unresolved(file, range, name, "coordinate factor Domain")),
                 })

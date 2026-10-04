@@ -28,7 +28,17 @@ pub(in crate::lower) fn relation_support(
                 }
                 match contract {
                     DomainContract::CoordinateInterval(unit) => {
-                        factors.push((factor.erase(), *unit))
+                        factors.push((factor.erase(), *unit, 1))
+                    }
+                    DomainContract::Spatial {
+                        dimensions: Some(axes),
+                        parent: None,
+                    } => {
+                        factors.push((
+                            factor.erase(),
+                            crate::dimensions::length_dimension(),
+                            *axes,
+                        ));
                     }
                     DomainContract::CoordinateProduct(children) => {
                         remaining = remaining.checked_sub(children.len()).ok_or_else(|| {
@@ -53,7 +63,7 @@ pub(in crate::lower) fn relation_support(
         Some(Binding::Domain(id, DomainContract::CoordinateInterval(unit))) => {
             Ok(SpatialSupport::Coordinates {
                 domain: id.erase(),
-                factors: vec![(id.erase(), *unit)],
+                factors: vec![(id.erase(), *unit, 1)],
             })
         }
         Some(Binding::Domain(
