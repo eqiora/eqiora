@@ -10,7 +10,7 @@ const SCHEMA: &str = "eqiora.authored-form/v7";
 const MAX_BYTES: usize = 1024 * 1024;
 
 /// Ordered test name, trial Field, zero-trace boundaries and canonical SI dimension.
-pub type AuthoredTestRestriction = (String, String, Vec<String>, [(i32, i32); 7]);
+type AuthoredTestRestriction = (String, String, Vec<String>, [(i32, i32); 7]);
 
 /// Exact compiler-owned projection of one authored Formulation.
 ///
@@ -498,7 +498,8 @@ impl AuthoredFormulationProjection {
     }
     /// Named tests with their exact trial Field and zero-trace supports.
     #[must_use]
-    pub fn test_restrictions(&self) -> &[AuthoredTestRestriction] {
+    #[allow(clippy::type_complexity)]
+    pub fn test_restrictions(&self) -> &[(String, String, Vec<String>, [(i32, i32); 7])] {
         match &self.wire.binding {
             WireBinding::WeakTests { tests } => tests,
             _ => &[],
