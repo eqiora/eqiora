@@ -16,6 +16,23 @@ pub struct CommonObservableStateTangent {
     fields: BTreeMap<RawId, Vec<f64>>,
 }
 
+pub(super) enum StateDerivative<'a> {
+    First(&'a BTreeMap<RawId, Vec<f64>>),
+    Second {
+        wrt: Id<kinds::Field>,
+        directions: [&'a BTreeMap<RawId, Vec<f64>>; 2],
+    },
+}
+
+impl StateDerivative<'_> {
+    pub(super) fn directions(&self) -> [Option<&BTreeMap<RawId, Vec<f64>>>; 2] {
+        match self {
+            Self::First(direction) => [Some(direction), None],
+            Self::Second { directions, .. } => [Some(directions[0]), Some(directions[1])],
+        }
+    }
+}
+
 impl CommonResult {
     /// Bind a dimensioned coefficient direction to this Result's real Fields.
     ///
@@ -96,8 +113,57 @@ impl CommonResult {
             &program,
             observable,
             quadratures,
-            Some(&tangent.fields),
+            Some(&StateDerivative::First(&tangent.fields)),
         )?;
         derivative.ok_or_else(|| invalid("Observable State JVP has no derivative"))
+    }
+}
+
+impl CommonResult {
+    /// Evaluate the ordered second variation of a fixed polynomial functional.
+    ///
+    /// Both coefficient directions belong to this exact Result and vary only
+    /// `wrt`; all other Fields, Parameters and Geometry stay fixed. The source
+    /// compiler owns the local first/second derivation. This explicit State
+    /// product is not a Hessian through the solve or a stability certificate.
+    /// Directions need not satisfy essential restrictions; callers distinguish
+    /// arbitrary State products from admissible stationarity perturbations.
+    /// # Errors
+    /// Rejects foreign lineage, other varied Fields, unsupported local calculus,
+    /// nonlinear reduced compositions, and missing or incompatible quadrature.
+    pub fn observe_state_second_variation(
+        &self,
+        model: &ModelEnvelope,
+        observable: Id<kinds::Observable>,
+        quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
+        wrt: Id<kinds::Field>,
+        directions: [&CommonObservableStateTangent; 2],
+    ) -> Result<ValueLiteral, Diagnostic> {
+        if model != self.plan().model_artifact()
+            || directions
+                .iter()
+                .any(|direction| direction.result_identity != self.identity())
+        {
+            return Err(invalid(
+                "second variation belongs to a foreign or stale Result/Model",
+            ));
+        }
+        if directions.iter().any(|direction| {
+            direction.fields.iter().any(|(field, values)| {
+                *field != wrt.erase() && values.iter().any(|value| *value != 0.0)
+            })
+        }) {
+            return Err(invalid(
+                "second variation directions must hold all other Fields fixed",
+            ));
+        }
+        let program = super::observation_program(self, model)?;
+        let derivative = StateDerivative::Second {
+            wrt,
+            directions: [&directions[0].fields, &directions[1].fields],
+        };
+        let (_, value) =
+            super::composite::evaluate(self, &program, observable, quadratures, Some(&derivative))?;
+        value.ok_or_else(|| invalid("second variation has no derived value"))
     }
 }

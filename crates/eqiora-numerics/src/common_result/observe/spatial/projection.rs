@@ -144,7 +144,7 @@ impl Projection<'_> {
                 let value = self
                     .builder
                     .constant(DynQuantity::new(real, ty.dimension()))?;
-                self.samples.push((value, sample.tangent[component]));
+                self.samples.push((value, sample.tangent[0][component]));
                 value
             }
             ExprNode::Gradient(field) => {
@@ -163,7 +163,7 @@ impl Projection<'_> {
                 let value = self
                     .builder
                     .constant(DynQuantity::new(sample.gradient[axis], ty.dimension()))?;
-                self.samples.push((value, sample.gradient_tangent[axis]));
+                self.samples.push((value, sample.gradient_tangent[0][axis]));
                 value
             }
             ExprNode::Divergence(value) => {
@@ -193,7 +193,7 @@ impl Projection<'_> {
                 let mut tangent = 0.0;
                 for axis in 0..dimension {
                     divergence += sample.gradient[axis * dimension + axis];
-                    tangent += sample.gradient_tangent[axis * dimension + axis];
+                    tangent += sample.gradient_tangent[0][axis * dimension + axis];
                 }
                 let value = self
                     .builder

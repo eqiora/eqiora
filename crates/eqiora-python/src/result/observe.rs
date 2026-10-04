@@ -250,6 +250,43 @@ impl PyRunResult {
             quadratures: quadrature_metadata(&rules, points),
         })
     }
+    pub(super) fn observe_second_variation(
+        &self,
+        py: Python<'_>,
+        observable: &PyObservableRef,
+        directions: [&PyObservableStateTangent; 2],
+        wrt: &PyModelFieldRef,
+        points: usize,
+    ) -> PyResult<PyObservation> {
+        if wrt.exact_model_digest() != self.identity.model_digest() {
+            return Err(PyValueError::new_err(
+                "FieldRef belongs to a different exact Model artifact",
+            ));
+        }
+        let field = Id::<kinds::Field>::from_ulid(
+            wrt.exact_id()
+                .parse()
+                .map_err(|_| PyValueError::new_err("FieldRef has an invalid exact ID"))?,
+        );
+        let rules = self.observation_rules(py, observable, Some(points))?;
+        let value = self
+            .native
+            .observe_state_second_variation(
+                self.native.plan().model_artifact(),
+                observable.id,
+                &rules,
+                field,
+                [&directions[0].native, &directions[1].native],
+            )
+            .map_err(|error| diagnostic_error(py, &[error]))?;
+        Ok(PyObservation {
+            value,
+            result_identity: self.native.identity().to_owned(),
+            observable_id: observable.id.ulid().to_string(),
+            evaluation_kind: "state-second-variation",
+            quadratures: quadrature_metadata(&rules, points),
+        })
+    }
 }
 
 pub(super) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

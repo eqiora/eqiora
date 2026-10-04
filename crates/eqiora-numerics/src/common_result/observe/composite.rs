@@ -1,14 +1,14 @@
 //! Evaluate each live reduced quantity once before combining its value or tangent.
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, Id, RawId, ValueLiteral};
+use eqiora_core::{Diagnostic, Id, ValueLiteral};
 use eqiora_ir::{DifferentiationRole, LinearizedRelation, RelationTangent, ScalarOperatorIr};
 use eqiora_meshing::QuadratureRule;
 use eqiora_schema::kernel::{ExprNode, KernelNode, ObservableDef, ObservableReduction, SymbolRef};
 use eqiora_sem::KernelProgram;
 
-use super::{CommonResult, invalid, spatial};
+use super::{CommonResult, invalid, spatial, tangent::StateDerivative};
 
 type Evaluation = (ValueLiteral, Option<ValueLiteral>);
 
@@ -17,7 +17,7 @@ pub(super) fn evaluate(
     program: &KernelProgram,
     observable: Id<kinds::Observable>,
     quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
-    tangent: Option<&BTreeMap<RawId, Vec<f64>>>,
+    tangent: Option<&StateDerivative<'_>>,
 ) -> Result<Evaluation, Diagnostic> {
     let finite_fields = match (result.plan().as_algebraic(), result.finite_values()) {
         (Some(plan), Some(values)) => plan.field_values(values)?.into_iter().collect(),
@@ -46,7 +46,7 @@ struct Context<'a> {
     result: &'a CommonResult,
     program: &'a KernelProgram,
     quadratures: &'a HashMap<Id<kinds::Domain>, QuadratureRule>,
-    tangent: Option<&'a BTreeMap<RawId, Vec<f64>>>,
+    tangent: Option<&'a StateDerivative<'a>>,
     finite_fields: HashMap<Id<kinds::Field>, ValueLiteral>,
     accepted: HashMap<Id<kinds::Observable>, Evaluation>,
     used_rules: HashSet<Id<kinds::Domain>>,
@@ -159,6 +159,21 @@ impl Context<'_> {
     }
 
     fn finite_derivative(&self, definition: &ObservableDef) -> Result<ValueLiteral, Diagnostic> {
+        if matches!(self.tangent, Some(StateDerivative::Second { .. }))
+            && definition.expression().nodes().iter().any(|node| {
+                !matches!(
+                    node,
+                    ExprNode::Symbol(SymbolRef::Observable(_))
+                        | ExprNode::Add(..)
+                        | ExprNode::Sub(..)
+                        | ExprNode::Neg(_)
+                )
+            })
+        {
+            return Err(invalid(
+                "second variation requires sums or differences of fixed spatial Observables",
+            ));
+        }
         if definition.value_type().scalar_domain() != eqiora_core::ScalarDomain::Real
             || !definition.value_type().shape().is_scalar()
             || definition.value_type().array_rank() != 0

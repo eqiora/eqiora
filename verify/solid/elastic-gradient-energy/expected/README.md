@@ -57,3 +57,15 @@ coefficient error below 1.1e−9 m; assertions use 2e−9 m, reserving the remai
 for assembly and solve rounding. The 1e−9 N energy tolerance covers the
 quadratic stationary error and quadrature arithmetic. These bounds are derived
 from the independent Q1 integrals, not measured solver output.
+
+The same complete-essential functional has ordered second variation
+`D²F[eta,zeta] = integral (2*mu*epsilon(eta):epsilon(zeta)
++ lambda*div(eta)*div(zeta)) dA`. The fixed conservative load drops out.
+The central x-component hat paired with itself therefore gives `44/3 N`,
+and paired with the central y-component hat gives `0`, using the independent
+stiffness entries above. A constant translation has zero strain and yields zero
+with either direction. Two-point Gauss exactly integrates these Q1 products;
+the second action is independent of solved coefficients. The `1e-10 N`
+tolerance reserves quadrature and binary64 arithmetic error on this four-cell
+fixture. This checks consistency with the independently assembled stiffness;
+it does not differentiate the implicit solve or infer nonlinear stability.

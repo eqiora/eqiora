@@ -717,6 +717,47 @@ fn authored_elastic_energy_first_variation_reaches_the_exact_q1_solve() {
         // The central hat is admissible and stationary. A constant translation
         // violates the essential restrictions: its energy derivative is -integral f_x=-6.
         assert!((action.real_scalar_value().unwrap().value() - expected).abs() < 1e-9);
+        let second = accepted
+            .result
+            .observe_state_second_variation(
+                &model,
+                energy,
+                &observation_rules(&model, energy, &quadrature),
+                displacement.id(),
+                [&direction, &direction],
+            )
+            .unwrap();
+        // The same independent Q1 stiffness above gives the central-hat
+        // second product 44/3 N. A translation has zero strain and gives zero.
+        // This compares the energy's derivative to the independently derived
+        // assembled stiffness, not a Hessian through the implicit solve.
+        let expected_second = if constrained { 44.0 / 3.0 } else { 0.0 };
+        assert!((second.real_scalar_value().unwrap().value() - expected_second).abs() < 1e-10);
+        let transverse = accepted
+            .result
+            .observable_state_tangent([(
+                displacement.id(),
+                (0..18)
+                    .map(|i| {
+                        eqiora::DynQuantity::new(
+                            if i == 9 { 1.0 } else { 0.0 },
+                            displacement.dimension(),
+                        )
+                    })
+                    .collect(),
+            )])
+            .unwrap();
+        let mixed = accepted
+            .result
+            .observe_state_second_variation(
+                &model,
+                energy,
+                &observation_rules(&model, energy, &quadrature),
+                displacement.id(),
+                [&direction, &transverse],
+            )
+            .unwrap();
+        assert!(mixed.real_scalar_value().unwrap().value().abs() < 1e-10);
     }
     for (mutant, lambda, reason) in [
         (

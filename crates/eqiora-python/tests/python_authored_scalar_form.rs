@@ -184,6 +184,18 @@ direction = composite_result.observable_state_tangent({composite_field: (eqiora.
 # eta=x vanishes on the essential boundary. Integral u_x=3/2,
 # volume load pairing=1/2 and surface pairing=1 give zero first variation.
 assert abs(composite_result.observe_state_jvp(total, direction, quadrature_points=2).value) <= 1e-9
+# D2 F[eta,zeta] = integral grad(eta).grad(zeta); both loads are linear.
+# eta=x and zeta=x*y vanish at the essential side. Their products are
+# integral 1=1 and integral y=1/2, exactly represented by Q1 and Gauss(2).
+cross_direction = composite_result.observable_state_tangent({composite_field: (eqiora.Dimension(), [float(x*y) for x,y in mesh.coordinates])})
+for second_direction, expected in ((direction, 1.0), (cross_direction, 0.5)):
+    second = composite_result.observe_state_second_variation(total, direction, second_direction, wrt=composite_field, quadrature_points=2)
+    assert abs(second.value-expected) <= 1e-12
+    assert second.value_type == total_value.value_type
+    assert second.quadratures == total_value.quadratures
+    assert second.evaluation_kind == "state-second-variation"
+    replay = eqiora.Result.from_bytes(composite_plan, composite_result.to_bytes())
+    assert replay.observe_state_second_variation(total, direction, second_direction, wrt=composite_field, quadrature_points=2).value == second.value
 for changed in (
     composite_source.replace("total:1=energy+surface", "total:1=energy"),
     composite_source.replace("total:1=energy+surface", "total:1=energy-surface"),
