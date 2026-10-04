@@ -79,3 +79,13 @@ State variation is zero. Only the gradient pairing depends on the solved
 coefficients; its error is bounded by the endpoint coefficient error, below
 `4e-10`. The test uses `1e-9`. Missing, reversed and misplaced surface terms
 are rejected through exact weak-law comparison before numerical execution.
+
+The ordered second State variation of the same composite is
+`D²F[eta,zeta] = integral grad(eta).grad(zeta) dA`: the body and surface loads
+are linear and contribute zero. With `eta=x`, the choices `zeta=x` and `zeta=x*y`
+give `1` and `1/2` respectively on the unit square. Both directions are exactly
+Q1-representable and vanish on the essential side. Two-point Gauss is exact;
+these quadratic-energy products do not depend on the solved coefficients.
+The `1e-12` tolerance covers the bounded basis, quadrature and arithmetic
+operations. Exact Result replay retains the value and both Domain-specific rules.
+This is an explicit State product, not a Hessian through the implicit solve.

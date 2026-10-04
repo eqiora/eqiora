@@ -68,6 +68,8 @@ public component Heat(support body: volume(ambient_dimension=1), support left: b
   observable squared: J=total*total/1[J];
   observable repeated: J=total+total-total;
   observable scaled: J=capacity/(3[J/(K*m)])*total;
+  observable quartic:J=integral(capacity*(temperature-300[K])^4/(4[K^3]),measure(body));
+  observable quartic_total:J=quartic+surface;
 }
 """
 model = eqiora.compile(source=source, geometry=geometry, entry="Heat", bindings={"body": geometry.selection("body"), "left": (geometry.selection("left"), geometry.selection("body")), "right": (geometry.selection("right"), geometry.selection("body"))})
@@ -104,6 +106,31 @@ for name, expected, derivative in (("total", total_expected, 2),
     assert delta.quadratures == observed.quadratures
     replay = eqiora.Result.from_bytes(plan, result.to_bytes())
     assert replay.observe(ref, quadrature_points=2).value == observed.value
+# Independent four-cell Q1 polynomial integration: theta=T-300 has slopes
+# 9/2,3/2,-3/2,-9/2. For eta=1+x and zeta=3-x,
+# D2 int(3*theta^4/4) = 9 int(theta^2*(3+2x-x^2)) = 73845/2048.
+# Three-point Gauss integrates each degree-four cell polynomial exactly.
+# The interior K inverse infinity norm is 1/2 and ||b||2<1702;
+# rtol=1e-12 bounds coefficient error by 8.6e-10. The variation's
+# sensitivity is bounded by 108, so 1e-7 includes that error and roundoff.
+eta = result.observable_state_tangent({field: (eqiora.Dimension(temperature=1), [1+i/4 for i in range(5)])})
+zeta = result.observable_state_tangent({field: (eqiora.Dimension(temperature=1), [3-i/4 for i in range(5)])})
+for name in ("quartic", "quartic_total"):
+    ref = model.observable("definition."+name)
+    second = result.observe_state_second_variation(ref, eta, zeta, wrt=field, quadrature_points=3)
+    assert math.isclose(second.value, 73845/2048, rel_tol=0, abs_tol=1e-7)
+    assert second.evaluation_kind == "state-second-variation"
+    assert second.value_type == value.value_type
+    assert second.result_identity == eta.result_identity == zeta.result_identity
+    assert ("GaussLegendre", 1, 3) in second.quadratures.values()
+    replay = eqiora.Result.from_bytes(plan, result.to_bytes())
+    assert replay.observe_state_second_variation(ref, eta, zeta, wrt=field, quadrature_points=3).value == second.value
+try:
+    result.observe_state_second_variation(model.observable("definition.squared"), eta, zeta, wrt=field, quadrature_points=3)
+except eqiora.ValidationError as error:
+    assert "sums or differences" in str(error)
+else:
+    raise AssertionError("nonlinear reduced functional variation was admitted")
 for invalid in (lambda: result.observe(energy), lambda: result.observe(endpoint, quadrature_points=2),
                 lambda: result.observable_state_tangent({field: (eqiora.Dimension(), [2.0]*5)}),
                 lambda: result.observable_state_tangent({field: (eqiora.Dimension(temperature=1), [2.0]*4)}),
@@ -116,6 +143,12 @@ for invalid in (lambda: result.observe(energy), lambda: result.observe(endpoint,
         raise AssertionError("invalid spatial observation policy or tangent was admitted")
 other_plan = eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=eqiora.solve.Linear(algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized, preconditioner=eqiora.solve.Preconditioner.Identity, reduction=eqiora.solve.Reduction.Reproducible, provider=eqiora.solve.SolverProvider.reference(), relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=100))
 other_result = eqiora.run(other_plan)
+try:
+    other_result.observe_state_second_variation(model.observable("definition.quartic"), eta, zeta, wrt=field, quadrature_points=3)
+except eqiora.ValidationError as error:
+    assert "foreign or stale" in str(error)
+else:
+    raise AssertionError("stale second-variation direction was admitted")
 try:
     other_result.observe_state_jvp(energy, tangent, quadrature_points=2)
 except eqiora.ValidationError:

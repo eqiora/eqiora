@@ -60,8 +60,13 @@ first variation reaches the same ordinary solve and exact Plan replay; observing
 zero. The result retains separate exact-Domain volume and boundary quadrature.
 Missing, reversed and misplaced work inside the composite fail correspondence.
 
-This is a bounded scalar first-variation claim. It proves no nonlinear composition
-of functionals for authored variation, elastic surface-load solve, executable second variation, moving-domain
+The same compiled density produces ordered second State variations. Independent
+Q1 directions `eta=x`, `zeta=x` and `zeta=x*y` give `1` and `1/2`; exact Result
+replay retains those products and both integration rules.
+
+This is a bounded first-variation solve and explicit second-State-product claim.
+It proves no nonlinear composition of functionals for authored variation, elastic
+surface-load solve, implicit-solve Hessian, moving-domain
 variation, continuum minimizer error estimate, stability, or energy decay.
 
 Run `cargo run -p eqiora-verify -- run --case numerics.functional-gradient-energy`.

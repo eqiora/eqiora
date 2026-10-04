@@ -335,3 +335,106 @@ fn observation_rules(
         .unwrap();
     std::collections::HashMap::from([(domain, rule.clone())])
 }
+
+#[test]
+fn ordered_second_variation_reuses_live_volume_and_surface_calculus() {
+    // eta=1+x and zeta=3-x, with physical K directions. For the volume
+    // density 3/(2 K) * ((T-300 K)^2 + 1 m^2 |grad T|^2),
+    // D2 F = 3 integral((1+x)(3-x)-1) dx = 8 J.
+    // Left endpoint energy contributes -3*eta(0)*zeta(0) = -9 J.
+    // Thus the composite's ordered second product is -1 J, independently
+    // of the accepted temperature coefficients. Two-point Gauss is exact.
+    let source = format!(
+        r#"{}
+  observable energy:J=integral(capacity*((temperature-300[K])^2+1[m^2]*contract(grad(temperature),grad(temperature),axes=((0,0),)))/(2[K]),measure(body));
+  observable surface:J=integral(-capacity*1[m]*(trace(temperature)-300[K])^2/(2[K]),measure(left));
+  observable total:J=energy+surface;
+}}
+"#,
+        HEAT.split("  observable energy:").next().unwrap()
+    );
+    let (model, plan, result) = heat(&source);
+    let field = plan.fields().next().unwrap().0;
+    let dimension = plan.fields().next().unwrap().1.dimension();
+    let direction = |sign: f64, offset: f64| {
+        result
+            .observable_state_tangent([(
+                field,
+                (0..5)
+                    .map(|i| DynQuantity::new(offset + sign * f64::from(i) / 4.0, dimension))
+                    .collect(),
+            )])
+            .unwrap()
+    };
+    let eta = direction(1.0, 1.0);
+    let zeta = direction(-1.0, 3.0);
+    let mut rules = std::collections::HashMap::new();
+    let mut total = None;
+    for node in plan.observation_program().nodes() {
+        if let KernelNode::Observable(definition) = node {
+            match definition.reduction() {
+                ObservableReduction::Value => total = Some(definition.id()),
+                ObservableReduction::SpatialIntegral { domain, measure } => {
+                    rules.insert(
+                        domain,
+                        match measure {
+                            eqiora_schema::kernel::ObservableMeasure::Volume => {
+                                QuadratureRule::gauss_legendre(2).unwrap()
+                            }
+                            eqiora_schema::kernel::ObservableMeasure::Boundary => {
+                                QuadratureRule::point()
+                            }
+                        },
+                    );
+                }
+            }
+        }
+    }
+    let total = total.unwrap();
+    for directions in [[&eta, &zeta], [&zeta, &eta]] {
+        let value = result
+            .observe_state_second_variation(&model, total, &rules, field, directions)
+            .unwrap();
+        assert_eq!(
+            value.value_type().dimension(),
+            DimExponents::from_integers([1, 2, -2, 0, 0, 0, 0]).unwrap()
+        );
+        assert!((value.real_scalar_value().unwrap().value() + 1.0).abs() < 1e-12);
+    }
+    assert!(
+        result
+            .observe_state_second_variation(
+                &model,
+                total,
+                &Default::default(),
+                field,
+                [&eta, &zeta]
+            )
+            .is_err()
+    );
+    assert!(
+        result
+            .observe_state_second_variation(
+                &model,
+                total,
+                &rules,
+                eqiora_core::Id::new(),
+                [&eta, &zeta]
+            )
+            .is_err()
+    );
+    let (_, other_plan, other_result) = heat(&source.replace("= 3;", "= 4;"));
+    let foreign = other_result
+        .observable_state_tangent([(
+            other_plan.fields().next().unwrap().0,
+            vec![DynQuantity::new(1.0, dimension); 5],
+        )])
+        .unwrap();
+    assert!(
+        result
+            .observe_state_second_variation(&model, total, &rules, field, [&eta, &foreign])
+            .unwrap_err()
+            .message()
+            .contains("foreign or stale")
+    );
+}

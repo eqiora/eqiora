@@ -245,7 +245,7 @@ fixed, and match `zero_on` exactly to the essential sides. The admitted fixed 2D
 isotropic profile compares the variation to the strong-law stress and load before
 solving. It supports essential and explicit zero-traction sides, preserves the
 authored identity through Plan replay, and evaluates the same total energy through
-Result. Nonzero elastic surface work and numerical second variations remain unsupported.
+Result. Nonzero elastic surface-work admission remains unsupported.
 Scalar Q1 prescribed flux can contribute explicit surface work to a composite energy.
 Spatial evaluation requires an explicit numerical quadrature rule; it never uses
 rendered values or output cadence as an integration authority. Its State JVP uses
@@ -271,6 +271,17 @@ tuples. Finite values omit this argument and have an empty map. A State directio
 `result.observable_state_tangent({field: (dimension, coefficients)})` and applied
 with `result.observe_state_jvp(energy, direction, quadrature_points=2)`. Its
 `evaluation_kind` is `"state-jvp"`, and a different Result cannot reuse that direction.
+For a fixed polynomial functional, apply two ordered directions with
+`result.observe_state_second_variation(energy, first, second, wrt=field, quadrature_points=2)`.
+Its `evaluation_kind` is `"state-second-variation"`. Both directions must belong to
+this Result and hold every other Field fixed. The compiler derives the same
+Formulation density used by authored variations; numerical sampling uses the
+accepted Q1 basis and exact integration Domain. Sums and differences of spatial
+Observables are supported; nonlinear combinations of reduced values are not.
+Choose enough quadrature points for the derived polynomial (for example, three
+for a degree-four cell integrand). This is an explicit State product, not a
+Hessian through the solve, a stability certificate or a moving-domain derivative.
+
 Vector coefficient directions use the accepted vertex order, with components
 contiguous at each vertex. A State JVP need not obey equilibrium boundary
 restrictions and does not by itself certify an authored stationarity equation.

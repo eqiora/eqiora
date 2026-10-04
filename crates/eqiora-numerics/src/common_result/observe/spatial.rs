@@ -15,12 +15,14 @@ use crate::affine_fem::physical_gradient;
 use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
 
 mod projection;
+mod variation;
+use super::tangent::StateDerivative;
 
 pub(super) struct PointField {
     value: ValueLiteral,
     gradient: Vec<f64>,
-    tangent: Vec<f64>,
-    gradient_tangent: Vec<f64>,
+    tangent: [Vec<f64>; 2],
+    gradient_tangent: [Vec<f64>; 2],
 }
 
 pub(super) fn integrate(
@@ -30,7 +32,7 @@ pub(super) fn integrate(
     typed: &TypedResidual<RawId>,
     domain: Id<kinds::Domain>,
     quadrature: &QuadratureRule,
-    tangent: Option<&BTreeMap<RawId, Vec<f64>>>,
+    tangent: Option<&StateDerivative<'_>>,
 ) -> Result<ValueLiteral, Diagnostic> {
     let CommonResultPayload::Static(payload) = &result.payload else {
         return Err(invalid(
@@ -123,6 +125,18 @@ pub(super) fn integrate(
         typed.expression().nodes().iter().any(|node| matches!(node,
             eqiora_schema::kernel::ExprNode::Symbol(eqiora_schema::kernel::SymbolRef::Field(id)) if id.erase() == continuum.load_potential()))
     });
+    let local_variation = match tangent {
+        Some(StateDerivative::Second { wrt, .. }) => Some(
+            eqiora_compiler::AuthoredFormExpressionV1::derive_spatial_variation(
+                observable,
+                typed,
+                *wrt,
+                &["first".into(), "second".into()],
+            )?,
+        ),
+        _ => None,
+    };
+    let directions = tangent.map_or([None, None], StateDerivative::directions);
     let space = HypercubeQ1Space::new(dimension)?;
     let mut total = 0.0;
     for cell_index in 0..mesh
@@ -204,8 +218,11 @@ pub(super) fn integrate(
                     ));
                 }
                 let mut value = vec![0.0; components];
-                let mut direction = vec![0.0; components];
-                let mut gradient_tangent = vec![0.0; components * dimension];
+                let mut direction = [vec![0.0; components], vec![0.0; components]];
+                let mut gradient_tangent = [
+                    vec![0.0; components * dimension],
+                    vec![0.0; components * dimension],
+                ];
                 let mut gradient = vec![0.0; components * dimension];
                 for (local, vertex) in vertices.iter().enumerate() {
                     let owned_index = owned
@@ -219,15 +236,19 @@ pub(super) fn integrate(
                     for component in 0..components {
                         let index = owned_index * components + component;
                         let coefficient = block.values[index];
-                        let delta = tangent
-                            .and_then(|fields| fields.get(&id.erase()))
-                            .map_or(0.0, |values| values[index]);
-                        direction[component] += delta * basis.values()[local];
                         value[component] += coefficient * basis.values()[local];
                         for (axis, derivative) in derivative.iter().enumerate() {
-                            let index = component * dimension + axis;
-                            gradient[index] += coefficient * derivative;
-                            gradient_tangent[index] += delta * derivative;
+                            gradient[component * dimension + axis] += coefficient * derivative;
+                        }
+                        for (order, fields) in directions.iter().enumerate() {
+                            let delta = fields
+                                .and_then(|fields| fields.get(&id.erase()))
+                                .map_or(0.0, |values| values[index]);
+                            direction[order][component] += delta * basis.values()[local];
+                            for (axis, derivative) in derivative.iter().enumerate() {
+                                gradient_tangent[order][component * dimension + axis] +=
+                                    delta * derivative;
+                            }
                         }
                     }
                 }
@@ -264,20 +285,24 @@ pub(super) fn integrate(
                         )
                         .map_err(|error| invalid(error.to_string()))?,
                         gradient: continuum.conservative_body_force(&coordinates)?.to_vec(),
-                        tangent: vec![0.0],
-                        gradient_tangent: vec![0.0; dimension],
+                        tangent: [vec![0.0], vec![0.0]],
+                        gradient_tangent: [vec![0.0; dimension], vec![0.0; dimension]],
                     },
                 );
             }
-            let value = projection::evaluate(
-                program,
-                observable,
-                typed,
-                &coordinates,
-                normal,
-                &fields,
-                tangent.is_some(),
-            )?;
+            let value = if let Some(local) = &local_variation {
+                variation::evaluate(local, program, &coordinates, &fields)?
+            } else {
+                projection::evaluate(
+                    program,
+                    observable,
+                    typed,
+                    &coordinates,
+                    normal,
+                    &fields,
+                    tangent.is_some(),
+                )?
+            };
             total += point.weight * measure * value;
         }
     }

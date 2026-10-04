@@ -48,7 +48,12 @@ and observes total energy −15/16 N. It does not invent zero test traces on the
 natural sides. The exact conservative-load definition is evaluated from its
 admitted expression and remains fixed under State directions.
 
-This case makes no claim about nonzero surface work, Hessian providers, minimization,
+The compiler-generated second density is also sampled through ordinary Result.
+The central hat pairs with itself to give `44/3 N` and with the transverse central
+hat to give zero, matching the independent stiffness above. A constant translation
+has zero second product. Parameters, Geometry and the conservative load remain fixed.
+
+This case makes no claim about nonzero surface work, implicit-solve Hessians, minimization,
 reduced-solve sensitivities, arbitrary meshes, or moving Geometry.
 
 Run `cargo run -p eqiora-verify -- run --case solid.elastic-gradient-energy`.

@@ -275,6 +275,20 @@ impl PyRunResult {
         self.observe_jvp(py, observable, tangent, quadrature_points)
     }
 
+    /// Apply two ordered directions to the same fixed polynomial energy.
+    #[pyo3(signature = (observable, first, second, *, wrt, quadrature_points))]
+    fn observe_state_second_variation(
+        &self,
+        py: Python<'_>,
+        observable: &crate::model::PyObservableRef,
+        first: &observe::PyObservableStateTangent,
+        second: &observe::PyObservableStateTangent,
+        wrt: &PyModelFieldRef,
+        quadrature_points: usize,
+    ) -> PyResult<observe::PyObservation> {
+        self.observe_second_variation(py, observable, [first, second], wrt, quadrature_points)
+    }
+
     #[getter]
     fn model_id(&self) -> &str {
         self.identity.model_id()
