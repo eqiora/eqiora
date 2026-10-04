@@ -244,7 +244,16 @@ fn stdio_session_syncs_diagnostics_and_serves_editor_requests() {
         .filter(|message| message["method"] == "textDocument/publishDiagnostics")
         .map(|message| &message["params"])
         .collect::<Vec<_>>();
-    assert_eq!(diagnostics.len(), 3);
+    let revisions = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic["version"].as_i64())
+        .collect::<Vec<_>>();
+    // Revision 0 may finish before didClose is received. In-flight cancellation
+    // is checked deterministically by the protocol tests, not stdio scheduling.
+    assert!(
+        revisions == [Some(-3), Some(-1), None] || revisions == [Some(-3), Some(-1), Some(0), None],
+        "unexpected diagnostic revisions: {revisions:?}"
+    );
     assert_eq!(diagnostics[0]["version"], -3);
     assert_eq!(diagnostics[0]["diagnostics"], json!([]));
     assert_eq!(diagnostics[1]["version"], -1);
@@ -254,12 +263,14 @@ fn stdio_session_syncs_diagnostics_and_serves_editor_requests() {
             .expect("malformed diagnostics")
             .is_empty()
     );
-    assert!(diagnostics[2]["version"].is_null());
-    assert_eq!(diagnostics[2]["diagnostics"], json!([]));
+    for diagnostic in &diagnostics[2..] {
+        assert_eq!(diagnostic["diagnostics"], json!([]));
+    }
+    assert!(diagnostics.last().unwrap()["version"].is_null());
     assert!(
         messages
             .iter()
-            .all(|message| !matches!(message["params"]["version"].as_i64(), Some(-2 | 0)))
+            .all(|message| message["params"]["version"].as_i64() != Some(-2))
     );
     assert!(response(&messages, 7)["result"].is_null());
     assert_eq!(response(&messages, 8)["error"]["code"], -32602);
