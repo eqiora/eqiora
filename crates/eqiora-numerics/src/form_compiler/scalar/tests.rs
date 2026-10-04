@@ -224,14 +224,40 @@ fn runtime_dimensional_1d_and_3d_elements_match_the_frozen_oracles() {
 }
 
 #[test]
-fn ineligible_natural_boundary_has_no_semantic_derivation() {
+fn zero_natural_boundary_has_its_own_discharge_without_zero_test_trace() {
     let source = SOURCE.replace(
         "relation x_lower_value on x_lower { trace(potential) = 0; }",
         "relation x_lower_value on x_lower { normal(grad(potential)) = 0; }",
     );
     let program = compile_program(&source);
     let domain = box_domain(&program);
-    assert!(derive_candidate(&program, domain).unwrap().is_none());
+    let form = derive_candidate(&program, domain).unwrap().unwrap();
+    form.validate_certificate().unwrap();
+    assert_eq!(form.formulation_description().1, "explicit-trace-flux-laws");
+    assert_eq!(form.certificate.formulation.zero_on.len(), 3);
+    let natural = form
+        .boundary_roles
+        .iter()
+        .find(|b| b.discharge == BoundaryDischarge::ZeroFlux)
+        .unwrap();
+    assert!(
+        !form
+            .certificate
+            .formulation
+            .zero_on
+            .contains(&natural.domain)
+    );
+    for flux in [
+        "normal(2 * grad(potential)) = 0",
+        "normal(grad(potential)) = 1[1/m]",
+    ] {
+        let mutant = compile_program(&source.replace("normal(grad(potential)) = 0", flux));
+        assert!(
+            derive_candidate(&mutant, box_domain(&mutant))
+                .unwrap()
+                .is_none()
+        );
+    }
     crate::canonical::lower_scalar_elliptic_cartesian(&program).unwrap();
 }
 

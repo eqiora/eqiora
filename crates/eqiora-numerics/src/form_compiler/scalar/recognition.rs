@@ -269,3 +269,51 @@ pub(super) fn recognize_essential_trace(
     }
     Ok(Some(BoundaryNodes { trace: trace_node }))
 }
+
+/// A zero flux law discharges the boundary term without restricting the test.
+/// Bind the complete constitutive expression, including Field/Parameter identities,
+/// before ignoring its overall sign (only a literal zero datum permits that).
+pub(super) fn recognize_zero_flux(
+    boundary: &eqiora_schema::kernel::typing::TypedResidual<RawId>,
+    owner: RawId,
+    volume: &eqiora_schema::kernel::typing::TypedResidual<RawId>,
+) -> Result<Option<ExprId>, Diagnostic> {
+    use eqiora_compiler::AuthoredFormExpressionV1 as Expression;
+    let dag = boundary.expression();
+    let [root] = dag.roots() else {
+        return Ok(None);
+    };
+    let view = crate::additive_residual::AdditiveResidualView::derive(dag, *root, owner)?;
+    let [leaf] = view.leaves() else {
+        return Ok(None);
+    };
+    let Some(ExprNode::NormalComponent(flux)) = dag.node(leaf.value()) else {
+        return Ok(None);
+    };
+    let divergences = volume
+        .expression()
+        .nodes()
+        .iter()
+        .filter_map(|node| match node {
+            ExprNode::Divergence(flux) => Some(*flux),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [volume_flux] = divergences.as_slice() else {
+        return Ok(None);
+    };
+    if boundary.node_type(*flux).map(|t| &t.value_type)
+        != volume.node_type(*volume_flux).map(|t| &t.value_type)
+    {
+        return Ok(None);
+    }
+    let Some(actual) = Expression::from_expression(dag, *flux)? else {
+        return Ok(None);
+    };
+    let Some(expected) = Expression::from_expression(volume.expression(), *volume_flux)? else {
+        return Ok(None);
+    };
+    let (actual, _) = super::authored::product_sign(actual);
+    let (expected, _) = super::authored::product_sign(expected);
+    Ok(super::authored::equivalent(&actual, &expected).then_some(leaf.value()))
+}

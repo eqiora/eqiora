@@ -50,7 +50,7 @@ impl PrimalGalerkinCorrespondence {
             .map(|(_, _, bounds, _)| bounds.as_slice())
             != Some(boundaries.as_slice())
         {
-            return Err("test zero_on restriction differs from the complete essential boundary");
+            return Err("test zero_on restriction differs from the essential boundary inventory");
         }
         if authored.implication() != "strong-implies-weak"
             || !authored.assumptions().iter().map(String::as_str).eq(self
@@ -83,33 +83,43 @@ impl PrimalGalerkinCorrespondence {
         {
             return Err("scalar Law identity or ordered boundary resources are stale");
         }
+        let has_natural = source
+            .boundaries
+            .iter()
+            .any(|b| b.discharge == BoundaryDischarge::ZeroFlux);
         if self.formulation.direction != DirectionalProof::StrongImpliesWeak
             || self.formulation.assumptions
                 != eqiora_compiler::AuthoredFormulationProjection::required_assumptions()
-            || !self
-                .formulation
-                .zero_on
+            || !self.formulation.zero_on.iter().copied().eq(source
+                .boundaries
                 .iter()
-                .copied()
-                .eq(source.boundaries.iter().map(|boundary| boundary.domain))
+                .filter(|boundary| boundary.discharge == BoundaryDischarge::ZeroTestTrace)
+                .map(|boundary| boundary.domain))
             || self.formulation.kind != FormulationKind::PrimalGalerkin
             || self.formulation.trial != source.unknown
             || self.formulation.test != source.unknown
-            || self.formulation.boundary_treatment != BoundaryTreatment::CompleteEssential
-            || !matches!(
-                self.formulation.rules,
-                [
+            || self.formulation.boundary_treatment
+                != if has_natural {
+                    BoundaryTreatment::ExplicitTraceFluxLaws
+                } else {
+                    BoundaryTreatment::CompleteEssential
+                }
+            || self.formulation.rules
+                != [
                     FormulationRule::TestPairing,
                     FormulationRule::DivergenceByParts,
-                    FormulationRule::ZeroTestTraceDischarge,
+                    if has_natural {
+                        FormulationRule::TraceOrZeroFluxDischarge
+                    } else {
+                        FormulationRule::ZeroTestTraceDischarge
+                    },
                     FormulationRule::SourcePairing,
                 ]
-            )
         {
             return Err("scalar effective Formulation or closed rule inventory is stale");
         }
 
-        // The retained order is test introduction, parts, every essential trace,
+        // The retained order is test introduction, parts, every boundary discharge,
         // then source pairing. Requiring exhaustion rejects extra/missing terms.
         let mut entries = self.entries.iter();
         check_entry(
@@ -136,9 +146,9 @@ impl PrimalGalerkinCorrespondence {
         for boundary in source.boundaries {
             check_entry(
                 entries.next(),
-                ZERO_TEST_TRACE_DISCHARGE,
+                boundary.discharge.rule_id(),
                 boundary.relation,
-                boundary.trace_node,
+                boundary.operator_node,
                 WeakTermSlot::Boundary {
                     test: MatrixSlot::Test,
                 },

@@ -161,7 +161,7 @@ pub(crate) fn admit(
 }
 
 // Exact unary-sign movement through multiplication; no coefficient substitution or sampling.
-fn product_sign(value: AuthoredFormExpressionV1) -> (AuthoredFormExpressionV1, bool) {
+pub(super) fn product_sign(value: AuthoredFormExpressionV1) -> (AuthoredFormExpressionV1, bool) {
     use AuthoredFormExpressionV1 as E;
     match value {
         E::Neg { value } => {

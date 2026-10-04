@@ -855,7 +855,8 @@ fn boundary_sources(boundaries: &[BoundaryRole]) -> Vec<BoundarySource> {
         .map(|boundary| BoundarySource {
             domain: boundary.domain,
             relation: boundary.relation,
-            trace_node: boundary.trace_node,
+            operator_node: boundary.trace_node,
+            discharge: super::vocabulary::BoundaryDischarge::ZeroTestTrace,
         })
         .collect()
 }
