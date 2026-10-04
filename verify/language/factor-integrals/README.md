@@ -5,8 +5,8 @@ Model, Plan, State and Result owners. The amplitude is a solved finite Field; co
 have explicit finite bounds. Exact input support, selected measure and remaining output
 support survive Model replay. Quadrature belongs to the numerical observation, keyed by
 its exact measure Domain. This does not realize arbitrary phase-space Field data, solve a
-product-domain PDE, couple an integral into a solver equation, differentiate under an
-integral, or provide spherical measures or State-direction products.
+product-domain PDE, couple an integral into a solver equation, or provide spherical
+measures or State-direction products.
 
 For `x` in `[0,2] m` and `v` in `[-2,4] m/s`, use
 `f=A*(1+x/(2 m))*(1+(v/(4 m/s))²)` with solved `A=3 s/m²`.
@@ -37,8 +37,34 @@ Falsifiers cover wrong factors, units and remaining support, implicit normalizat
 zero denominators, wrong or unused quadrature, out-of-bounds output points, alpha-renaming,
 and tampered input support. A pole missed by quadrature samples still rejects through
 conservative regular-density admission. Spatial unknowns and equation support reject in
-the finite Plan, and differentiating a derived Observable rejects instead of silently
+the finite Plan, and unsupported derived Observable partials reject instead of silently
 returning zero. Installed Python ingress is additionally covered by its focused product
 tests; the registered numerical evidence owner is the Rust target below.
 
 Run `cargo run -p eqiora-verify -- run --case language.factor-integrals`.
+
+## Fixed polynomial integral partials
+
+A first partial of a named polynomial integral over fixed bounded coordinate intervals
+reuses its exact measure and output support. A coordinate selector belongs to the remaining
+output support and identifies the same exact factor/axis in the integrand; integrated
+coordinates are bound and reject as free selectors. Independent Parameter selectors are
+also admitted. The ordinary polynomial calculus differentiates the density before the
+ordinary Result integral evaluates it. Nonzero signed real literal divisors retain inverse
+physical units; a shared literal used elsewhere as a multiplier keeps its original meaning.
+
+Independently, `n(x,A)=A*(15/2)*(1+x/2)` gives `n_x=15*A/4 1/m²` and
+`n_A=(15/2)*(1+x/2) m/s` with coherent SI values; at `A=3`, the first is `45/4`.
+The Parameter derivative of the full integral is `45/2 m²/s`. The existing `1e-11`
+absolute bound covers the same finite arithmetic and exact polynomial quadrature.
+A shared scale of `2 m` in `x/scale+scale*x/(1 m²)` gives `225/4` for the density
+coordinate derivative; scale `-2 m` gives `-225/4`. Zero divisors, varying poles,
+Parameter-dependent integration bounds and bound-coordinate selectors reject.
+Declaration reordering and alpha-renaming preserve the structural fingerprint; Model replay
+preserves the derived observation. This profile is a declaration-root first partial of one
+named integral. Higher/composite integral derivatives, nonpolynomial densities, Cartesian
+Geometry measures and shape derivatives remain outside this evidence.
+
+Spatial Field declarations alone do not establish differentiation-under-integral regularity.
+The fixed polynomial partial profile rejects spatial Field densities until that regularity
+is admitted; a valid undifferentiated spatial density reaches this specific rejection.

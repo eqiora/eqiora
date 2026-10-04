@@ -10,6 +10,8 @@ mod event;
 mod law;
 mod names;
 mod observable;
+mod observable_partials;
+pub(super) use observable_partials::expand as expand_observable_partials;
 mod partial;
 pub(super) use observable::lower_observable;
 mod physical_accessors;

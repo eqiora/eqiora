@@ -2,7 +2,7 @@ id = "language.factor-integrals"
 status = "implemented"
 scope = "bounded-coordinate-factor-real-scalar-result-observations"
 reference_kind = "independent-monomial-antiderivatives-and-truncated-gaussian-error-bounds"
-capabilities = ["exact-factor-measure", "remaining-output-support", "density-and-velocity-moments", "explicit-normalization", "nested-integrals", "model-replay", "regular-density-admission"]
+capabilities = ["exact-factor-measure", "remaining-output-support", "density-and-velocity-moments", "explicit-normalization", "nested-integrals", "model-replay", "regular-density-admission", "fixed-polynomial-integral-partials"]
 
 [claim_boundary]
 bounded_affine_coordinate_factors = true
@@ -15,7 +15,10 @@ spatial_phase_field_realization = false
 product_domain_pde = false
 spherical_measure = false
 model_solver_coupling = false
-differentiation_under_integral = false
+fixed_polynomial_integral_first_partials = true
+higher_integral_partials = false
+moving_bounds_and_shape_derivatives = false
+nonpolynomial_integral_partials = false
 state_direction_products = false
 unbounded_quadrature = false
 
