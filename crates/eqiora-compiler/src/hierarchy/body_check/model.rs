@@ -336,9 +336,10 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                         }))
                 }
                 Item::Clock(declaration) => Ok(Some((declaration.name(), SymbolContract::Clock))),
-                Item::Observable(declaration) => {
-                    Ok(Some((declaration.name(), SymbolContract::Observable)))
-                }
+                Item::Observable(declaration) => Ok(Some((
+                    declaration.name(),
+                    SymbolContract::Observable(declaration.clone()),
+                ))),
                 Item::Event(declaration) => Ok(Some((declaration.name(), SymbolContract::Event))),
                 Item::RelationFamily(family) => {
                     Ok(Some((family.relation().name(), SymbolContract::Relation)))

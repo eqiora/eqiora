@@ -56,6 +56,7 @@ pub(in crate::hierarchy::body_check) fn validate_relation_expression(
         evolution: Vec::new(),
         contextual: Vec::new(),
         sampling: false,
+        allow_observables: false,
     };
     if let eqiora_lang::RelationBody::Conservation(terms) = declaration.body() {
         if let Err(error) = checker.check_law(terms) {
@@ -147,6 +148,7 @@ pub(in crate::hierarchy::body_check) fn validate_relation_family_expression(
         evolution: Vec::new(),
         contextual: Vec::new(),
         sampling: false,
+        allow_observables: false,
     };
     for equation in conditions {
         let inferred = match checker.check_equation(equation) {

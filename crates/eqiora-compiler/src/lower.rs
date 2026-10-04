@@ -500,11 +500,21 @@ pub(crate) fn lower_typed_model(
                 ),
                 Err(error) => diagnostics.push(error),
             },
-            LoweringItem::Observable { name, range, .. } => insert_binding(
+            LoweringItem::Observable {
+                name,
+                range,
+                value_type,
+                reduction,
+                ..
+            } => insert_binding(
                 file,
                 &mut bindings,
                 name,
-                Binding::Observable(identities.observable(name)),
+                Binding::Observable(
+                    identities.observable(name),
+                    value_type.clone(),
+                    reduction.clone(),
+                ),
                 *range,
                 &mut diagnostics,
             ),
@@ -725,7 +735,7 @@ pub(crate) fn lower_typed_model(
                 reduction,
                 range,
             } => {
-                let Binding::Observable(id) = bindings[name] else {
+                let Binding::Observable(id, ..) = bindings[name] else {
                     unreachable!("Observable binding")
                 };
                 expression::lower_observable(

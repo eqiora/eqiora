@@ -30,6 +30,7 @@ pub(in crate::lower) fn lower_event_guard(
         cache: HashMap::new(),
         sampling: false,
         allow_discrete_symbols: false,
+        allow_observables: false,
         activation: &ActivationSyntax::Continuous,
         initial: false,
     };

@@ -34,12 +34,12 @@ fn rational_dimension_meaning_survives_canonical_model_replay() {
     assert!(model.structurally_equivalent(&replay).unwrap());
     let current_schema = String::from_utf8(bytes).unwrap();
     let old_schema =
-        current_schema.replace("eqiora.model-envelope/v31", "eqiora.model-envelope/v10");
+        current_schema.replace("eqiora.model-envelope/v32", "eqiora.model-envelope/v10");
     assert_ne!(old_schema, current_schema);
     assert!(ModelDocument::replay(old_schema.as_bytes()).is_err());
     assert_eq!(
         model.structural_fingerprint().unwrap().generation(),
-        SemanticFingerprintGeneration::V26
+        SemanticFingerprintGeneration::V27
     );
 }
 
@@ -100,7 +100,7 @@ fn current_generation_is_independent_of_coordinate_vocabulary() {
     for model in [&fixed, &referenced] {
         assert_eq!(
             model.structural_fingerprint().unwrap().generation(),
-            SemanticFingerprintGeneration::V26
+            SemanticFingerprintGeneration::V27
         );
     }
     // Equal endpoint values do not erase the nominal Parameter dependency.
@@ -130,7 +130,7 @@ fn source_native_codec_and_allocation_routes_share_only_structural_identity() {
         );
     }
     let fingerprint = source.structural_fingerprint().unwrap();
-    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V26);
+    assert_eq!(fingerprint.generation(), SemanticFingerprintGeneration::V27);
     assert_eq!(fingerprint.digest().len(), 64);
 
     let replay = eqiora::api::ModelDocument::replay(&source.canonical_json().unwrap()).unwrap();
@@ -557,4 +557,27 @@ fn manually_allocated_program(reverse_expression: bool, expose_port: bool) -> Ke
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
     KernelProgram::from_snapshot(&store.snapshot(), model).unwrap()
+}
+
+#[test]
+fn reduced_observable_references_retain_nominal_wiring() {
+    let source = "model M(){parameter a:1=2; variable x:1; relation r{x=a;} observable first:1=x*x/2; observable second:1=x*x/3; observable total:1=first+first;}";
+    let original = ModelDocument::compile("original.eqi", source).unwrap();
+    let renamed = ModelDocument::compile(
+        "renamed.eqi",
+        &source
+            .replace("first", "alpha")
+            .replace("second", "beta")
+            .replace("total", "combined"),
+    )
+    .unwrap();
+    assert!(original.structurally_equivalent(&renamed).unwrap());
+    let rewired = ModelDocument::compile(
+        "rewired.eqi",
+        &source.replace("total:1=first+first", "total:1=first+second"),
+    )
+    .unwrap();
+    assert!(!original.structurally_equivalent(&rewired).unwrap());
+    let replay = ModelDocument::replay(&original.canonical_json().unwrap()).unwrap();
+    assert!(original.structurally_equivalent(&replay).unwrap());
 }

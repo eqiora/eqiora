@@ -83,6 +83,7 @@ pub(super) fn lower_relation(
         cache: HashMap::new(),
         sampling: false,
         allow_discrete_symbols: discrete || initial,
+        allow_observables: false,
         activation,
         initial,
     };
@@ -254,6 +255,7 @@ struct ExpressionLowerer<'a> {
     cache: HashMap<(usize, bool), TypedExpression>,
     sampling: bool,
     allow_discrete_symbols: bool,
+    allow_observables: bool,
     activation: &'a ActivationSyntax,
     initial: bool,
 }
@@ -547,6 +549,16 @@ impl ExpressionLowerer<'_> {
                 }
                 (SymbolRef::Field(id), id.erase(), contract.dimension)
             }
+            Binding::Observable(id, value_type, reduction) if self.allow_observables => {
+                let ty = observable::reference_type(
+                    self.file,
+                    expression.range(),
+                    &value_type,
+                    reduction.as_deref(),
+                    self.bindings,
+                )?;
+                (SymbolRef::Observable(id), id.erase(), ty.dimension())
+            }
             Binding::Parameter(id, value_type) => {
                 (SymbolRef::Parameter(id), id.erase(), value_type.dimension())
             }
@@ -605,7 +617,7 @@ impl ExpressionLowerer<'_> {
             Binding::Domain(_, _)
             | Binding::Representation(_)
             | Binding::Clock(_, _)
-            | Binding::Observable(_)
+            | Binding::Observable(..)
             | Binding::Event(_)
             | Binding::Relation { .. } => {
                 return Err(source_error(

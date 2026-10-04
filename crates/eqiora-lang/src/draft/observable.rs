@@ -1,9 +1,10 @@
 //! Derived output declarations share the ordinary native expression graph.
 use super::*;
 
-/// Immutable typed derived output; it introduces no solve unknown or value symbol.
+/// Immutable typed derived output; it introduces no solve unknown.
 #[derive(Debug, Clone)]
 pub struct DraftObservable {
+    pub(super) symbol: DraftSymbol,
     pub(super) name: String,
     pub(super) value_type: ValueType,
     pub(super) expression: DraftExpression,
@@ -18,6 +19,7 @@ impl DraftObservable {
         expression: DraftExpression,
     ) -> Self {
         Self {
+            symbol: DraftSymbol::new(),
             name: name.into(),
             value_type,
             expression,
@@ -50,6 +52,16 @@ impl From<DraftObservable> for DraftDeclaration {
 }
 
 impl DraftExpression {
+    /// Reference one exact reduced Observable declared in the same native Module.
+    #[must_use]
+    pub fn observable(observable: &DraftObservable) -> Self {
+        Self::reference(
+            observable.symbol.clone(),
+            observable.name.clone(),
+            DraftSymbolKind::Observable,
+        )
+    }
+
     /// Integral expression with an explicit measure(domain) expression.
     #[must_use]
     pub fn integral(value: Self, measure: Self) -> Self {

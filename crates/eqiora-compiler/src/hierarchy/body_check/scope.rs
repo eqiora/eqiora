@@ -246,7 +246,7 @@ pub(super) enum SymbolContract {
     },
     Clock,
     Event,
-    Observable,
+    Observable(eqiora_lang::ObservableDecl),
     Relation,
 }
 

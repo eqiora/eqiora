@@ -390,9 +390,10 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                     }
                 }
                 ComponentItem::Observable(declaration) => {
-                    self.scope
-                        .symbols
-                        .insert(declaration.name().to_owned(), SymbolContract::Observable);
+                    self.scope.symbols.insert(
+                        declaration.name().to_owned(),
+                        SymbolContract::Observable(declaration.clone()),
+                    );
                 }
                 ComponentItem::Event(declaration) => {
                     self.scope

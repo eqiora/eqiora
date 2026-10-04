@@ -15,7 +15,7 @@ fn python_result_observations_retain_types_rules_and_exact_state_lineage() -> Py
         py.run(c_str!(r#"
 import math
 linear = eqiora.solve.Linear(algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized, preconditioner=eqiora.solve.Preconditioner.Identity, reduction=eqiora.solve.Reduction.Reproducible, provider=eqiora.solve.SolverProvider.reference(), relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=100)
-finite = eqiora.compile(source="model M() { domain P = scalar_physical(across voltage: 1, through current: 1); port a: P; port b: P; connect a, b; relation voltage { a.voltage=2; } relation ground { b.current=0; } observable twice: 1=a.voltage+a.voltage; }")
+finite = eqiora.compile(source="model M() { domain P = scalar_physical(across voltage: 1, through current: 1); port a: P; port b: P; connect a, b; relation voltage { a.voltage=2; } relation ground { b.current=0; } observable twice: 1=a.voltage+a.voltage; observable composed:1=twice*twice+twice; }")
 output = finite.observable("twice")
 assert isinstance(output, eqiora.ObservableRef)
 assert finite.observable(output.id) == output
@@ -30,7 +30,8 @@ assert math.isclose(observed.value, 4.0, abs_tol=1e-12)
 assert observed.value_type == eqiora.ValueType.real(eqiora.Dimension())
 assert observed.evaluation_kind == "value"
 assert observed.observable_id == output.id
-assert observed.quadrature is observed.quadrature_points is None
+assert observed.quadratures == {}
+assert math.isclose(result.observe(finite.observable("composed")).value, 20.0, abs_tol=1e-12)
 assert eqiora.Result.from_bytes(plan, result.to_bytes()).observe(output).result_identity == observed.result_identity
 for invalid in (lambda: finite.observable("a"), lambda: result.observe("twice"),
                 lambda: result.observe_terminal(output),
@@ -42,7 +43,7 @@ for invalid in (lambda: finite.observable("a"), lambda: result.observe("twice"),
         pass
     else:
         raise AssertionError("invalid Observable selection or rule was admitted")
-foreign = eqiora.compile(source="model M() { domain P = scalar_physical(across voltage: 1, through current: 1); port a: P; port b: P; connect a, b; relation voltage { a.voltage=3; } relation ground { b.current=0; } observable twice: 1=a.voltage+a.voltage; }")
+foreign = eqiora.compile(source="model M() { domain P = scalar_physical(across voltage: 1, through current: 1); port a: P; port b: P; connect a, b; relation voltage { a.voltage=3; } relation ground { b.current=0; } observable twice: 1=a.voltage+a.voltage; observable composed:1=twice*twice+twice; }")
 try:
     result.observe(foreign.observable("twice"))
 except ValueError:
@@ -62,6 +63,11 @@ public component Heat(support body: volume(ambient_dimension=1), support left: b
   relation right_value on right { trace(temperature)=300[K]; }
   observable energy: J=integral(capacity*(temperature-300[K]), measure(body));
   observable endpoint: K=integral(trace(temperature), measure(left));
+  observable surface: J=integral(-2[J/K]*trace(temperature), measure(left));
+  observable total: J=energy+surface;
+  observable squared: J=total*total/1[J];
+  observable repeated: J=total+total-total;
+  observable scaled: J=capacity/(3[J/(K*m)])*total;
 }
 """
 model = eqiora.compile(source=source, geometry=geometry, entry="Heat", bindings={"body": geometry.selection("body"), "left": (geometry.selection("left"), geometry.selection("body")), "right": (geometry.selection("right"), geometry.selection("body"))})
@@ -72,17 +78,32 @@ energy, endpoint = model.observable("definition.energy"), model.observable("defi
 value = result.observe(energy, quadrature_points=2)
 # Q1 hats integrate nodal T-300=(0,9/8,3/2,9/8,0) to 15/16; capacity is 3.
 assert math.isclose(value.value, 45/16, abs_tol=1e-9)
-assert value.quadrature == "GaussLegendre" and value.quadrature_dimension == 1
-assert value.quadrature_points == 2
+assert list(value.quadratures.values()) == [("GaussLegendre", 1, 2)]
 boundary = result.observe(endpoint, quadrature_points=1)
 assert math.isclose(boundary.value, 300, abs_tol=1e-10)
-assert boundary.quadrature == "Point" and boundary.quadrature_dimension == 0
+assert list(boundary.quadratures.values()) == [("Point", 0, 1)]
 field = model.field("definition.temperature")
 tangent = result.observable_state_tangent({field: (eqiora.Dimension(temperature=1), [2.0]*5)})
 jvp = result.observe_state_jvp(energy, tangent, quadrature_points=2)
 assert math.isclose(jvp.value, 6.0, abs_tol=1e-10)
 assert jvp.evaluation_kind == "state-jvp" and jvp.value_type == value.value_type
 assert jvp.result_identity == tangent.result_identity == value.result_identity
+# Independent sum: bulk 45/16 J plus endpoint -2*300 J.
+# For delta T=2 K, bulk variation is 6 J and endpoint variation is -4 J.
+total_expected = 45/16-600
+for name, expected, derivative in (("total", total_expected, 2),
+                                    ("repeated", total_expected, 2),
+                                    ("scaled", total_expected, 2),
+                                    ("squared", total_expected**2, 4*total_expected)):
+    ref = model.observable("definition."+name)
+    observed = result.observe(ref, quadrature_points=2)
+    assert math.isclose(observed.value, expected, rel_tol=0, abs_tol=1e-6)
+    assert sorted(observed.quadratures.values()) == [("GaussLegendre", 1, 2), ("Point", 0, 1)]
+    delta = result.observe_state_jvp(ref, tangent, quadrature_points=2)
+    assert math.isclose(delta.value, derivative, rel_tol=0, abs_tol=1e-9)
+    assert delta.quadratures == observed.quadratures
+    replay = eqiora.Result.from_bytes(plan, result.to_bytes())
+    assert replay.observe(ref, quadrature_points=2).value == observed.value
 for invalid in (lambda: result.observe(energy), lambda: result.observe(endpoint, quadrature_points=2),
                 lambda: result.observable_state_tangent({field: (eqiora.Dimension(), [2.0]*5)}),
                 lambda: result.observable_state_tangent({field: (eqiora.Dimension(temperature=1), [2.0]*4)}),

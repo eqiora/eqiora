@@ -170,8 +170,10 @@ impl ModelDeclarations {
                         diagnostics.push(native_diagnostic(&self.name, name, error.to_string()));
                     }
                 }
-                DraftDeclaration::Observable(_)
-                | DraftDeclaration::FiniteSpace { .. }
+                DraftDeclaration::Observable(value) => {
+                    value_symbols.insert(value.symbol.clone());
+                }
+                DraftDeclaration::FiniteSpace { .. }
                 | DraftDeclaration::IndexSet { .. }
                 | DraftDeclaration::Relation(_)
                 | DraftDeclaration::Initial(_)
@@ -927,6 +929,7 @@ struct DraftPortReference {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DraftSymbolKind {
+    Observable,
     Field,
     Parameter,
 }
@@ -934,6 +937,7 @@ enum DraftSymbolKind {
 impl DraftSymbolKind {
     const fn label(self) -> &'static str {
         match self {
+            Self::Observable => "Observable",
             Self::Field => "Field",
             Self::Parameter => "Parameter",
         }

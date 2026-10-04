@@ -308,8 +308,8 @@ class MaterialComposition:
     def __getitem__(self, name: str) -> PropertyRelease: ...
 
 @final
-class Observable:
-    """Retain an authored derived-output reference without ordinary expression algebra.
+class Observable(Expression):
+    """Reference one reduced output in its exact lexical Component.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::Observable``.
     """

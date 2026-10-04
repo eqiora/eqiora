@@ -545,14 +545,15 @@ class ImportedRecord(_ImportedRecord):
     __slots__ = ()
 
 
-class Observable:
-    """An opaque authored output reference, separate from ordinary expression algebra."""
+class Observable(Expression):
+    """An immutable reduced-output reference owned by its Component."""
 
     __slots__ = ("_component", "_name")
 
     def __init__(self, _token: object, _component: object = _MISSING, _name: str = "") -> None:
         if _token is not _CREATE:
             raise TypeError("Observable handles are created by Component.observable()")
+        super().__init__(_CREATE, _Ast.name(_name), _component)
         object.__setattr__(self, "_component", _component)
         object.__setattr__(self, "_name", _name)
 

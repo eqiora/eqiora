@@ -3,20 +3,22 @@ use super::*;
 use eqiora_schema::kernel::ObservableDef;
 
 impl AuthoredFormExpressionV1 {
-    /// Recompute a retained variation from the exact live energy density.
+    /// Recompute a retained variation from its exact live energy and dependencies.
     ///
     /// This binds functional identity, fixed bindings and the generated body. It does
     /// not establish a strong/weak correspondence, boundary discharge or numerical
-    /// compatibility. The caller must obtain the typed density from its live Model
-    /// and separately validate test restrictions and the claimed equation.
+    /// compatibility. The resolver must obtain each typed definition from the live
+    /// Model. The caller separately validates test restrictions and the equation.
     ///
     /// # Errors
     /// Rejects stale identities, expressions, fixed bindings or generated terms, and
     /// densities outside the bounded real polynomial fixed spatial measure profile.
     pub fn check_functional_variation(
         &self,
-        functional: &ObservableDef,
-        density: &TypedResidual<RawId>,
+        resolve: &mut dyn FnMut(
+            Id<kinds::Observable>,
+        )
+            -> Result<(ObservableDef, TypedResidual<RawId>), Diagnostic>,
     ) -> Result<(), Diagnostic> {
         let Self::Variation {
             functional_ulid,
@@ -28,13 +30,12 @@ impl AuthoredFormExpressionV1 {
         else {
             return Err(wire::rejection("expected a retained functional variation"));
         };
-        if functional.id().ulid().to_string() != *functional_ulid
-            || density.expression() != functional.expression()
-        {
-            return Err(wire::rejection(
-                "variation energy differs from the exact live Observable",
-            ));
-        }
+        let functional = functional_ulid
+            .parse::<ulid::Ulid>()
+            .ok()
+            .filter(|id| id.to_string() == *functional_ulid)
+            .map(Id::<kinds::Observable>::from_ulid)
+            .ok_or_else(|| wire::rejection("variation Observable identity is invalid"))?;
         let wrt = wrt_ulid
             .parse::<ulid::Ulid>()
             .ok()
@@ -49,42 +50,9 @@ impl AuthoredFormExpressionV1 {
                 "variation requires one or two independent named directions",
             ));
         }
-        let ObservableReduction::SpatialIntegral { domain, measure } = functional.reduction()
-        else {
-            return Err(wire::rejection(
-                "variation requires a fixed spatial Observable",
-            ));
-        };
-        let support = functional_support(density, domain)?;
-        if !matches!(
-            (measure, support),
-            (ObservableMeasure::Volume, SpatialSupport::Volume { .. })
-                | (ObservableMeasure::Boundary, SpatialSupport::Boundary { .. })
-        ) {
-            return Err(wire::rejection(
-                "variation measure differs from its live support",
-            ));
-        }
-        functional.validate_type(
-            density
-                .node_type(density.expression().roots()[0])
-                .expect("typed root"),
-            Some(support),
-        )?;
-        let required = functional
-            .expression()
-            .nodes()
-            .iter()
-            .filter_map(|node| match node {
-                eqiora_schema::kernel::ExprNode::Symbol(SymbolRef::Field(id)) if *id != wrt => {
-                    Some(id.erase())
-                }
-                eqiora_schema::kernel::ExprNode::Symbol(SymbolRef::Parameter(id)) => {
-                    Some(id.erase())
-                }
-                _ => None,
-            })
-            .collect::<std::collections::BTreeSet<_>>()
+        let derived = composite::derive(functional, wrt, directions, resolve)?;
+        let required = derived
+            .holding
             .into_iter()
             .map(|id| id.ulid().to_string())
             .collect::<Vec<_>>();
@@ -93,13 +61,7 @@ impl AuthoredFormExpressionV1 {
                 "variation fixed bindings differ from its live energy",
             ));
         }
-        let expected = derive_value(
-            density,
-            wrt,
-            directions,
-            domain,
-            functional.value_type().dimension(),
-        )?;
+        let expected = derived.value;
         if **value != wire::expression(&expected) {
             return Err(wire::rejection(
                 "variation body differs from the live energy derivative",

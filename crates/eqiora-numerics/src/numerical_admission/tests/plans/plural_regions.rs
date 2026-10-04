@@ -171,7 +171,11 @@ fn plural_chain_ordinary_run_recovers_every_owned_field_and_oriented_interface()
             ] {
                 let observable = ids[&format!("{prefix}{region}")].downcast().unwrap();
                 let actual = recovered
-                    .observe(&model, observable, Some(&quadrature))
+                    .observe(
+                        &model,
+                        observable,
+                        &observation_rules(&model, observable, &quadrature),
+                    )
                     .unwrap()
                     .value()
                     .real_scalar_value()
@@ -491,4 +495,26 @@ fn plural_solver_admits_and_rechecks_exact_fields_for_manual_and_planned_runs() 
             assert!(error.message().contains("structure"), "{error:?}");
         }
     }
+}
+
+fn observation_rules(
+    model: &eqiora_artifact::ModelEnvelope,
+    observable: eqiora_core::Id<eqiora_core::entity::kinds::Observable>,
+    rule: &eqiora_meshing::QuadratureRule,
+) -> std::collections::HashMap<
+    eqiora_core::Id<eqiora_core::entity::kinds::Domain>,
+    eqiora_meshing::QuadratureRule,
+> {
+    let (transaction, _) = model.to_transaction().unwrap();
+    let domain = transaction
+        .ops()
+        .iter()
+        .find_map(|operation| match operation {
+            eqiora_graph::Op::DefineKernelNode {
+                node: eqiora_schema::kernel::KernelNode::Observable(definition),
+            } if definition.id() == observable => definition.reduction().domain(),
+            _ => None,
+        })
+        .unwrap();
+    std::collections::HashMap::from([(domain, rule.clone())])
 }

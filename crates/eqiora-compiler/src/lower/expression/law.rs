@@ -70,6 +70,7 @@ pub(in crate::lower) fn lower_law(
         cache: HashMap::new(),
         sampling: false,
         allow_discrete_symbols: false,
+        allow_observables: false,
         activation: &activation,
         initial: false,
     };

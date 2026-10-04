@@ -128,7 +128,15 @@ fn check_live_variation_lineage(model: &ModelDocument) {
     let form = model.authored_formulations().next().unwrap();
     let expression = &form.projection().equations()[0].1;
     expression
-        .check_functional_variation(functional, &density)
+        .check_functional_variation(&mut |id| {
+            if id != functional.id() {
+                return Err(eqiora_core::Diagnostic::error(
+                    eqiora_core::diagnostic::codes::LANGUAGE_TYPE_ERROR,
+                    "variation energy differs from the exact live Observable",
+                ));
+            }
+            Ok((functional.clone(), density.clone()))
+        })
         .unwrap();
     for probe in ["energy", "holding", "body", "direction"] {
         let mut changed = expression.clone();
@@ -162,8 +170,82 @@ fn check_live_variation_lineage(model: &ModelDocument) {
             _ => unreachable!(),
         };
         let error = changed
-            .check_functional_variation(functional, &density)
+            .check_functional_variation(&mut |id| {
+                if id != functional.id() {
+                    return Err(eqiora_core::Diagnostic::error(
+                        eqiora_core::diagnostic::codes::LANGUAGE_TYPE_ERROR,
+                        "variation energy differs from the exact live Observable",
+                    ));
+                }
+                Ok((functional.clone(), density.clone()))
+            })
             .unwrap_err();
         assert!(error.message().contains(expected), "{probe}: {error:?}");
+    }
+}
+
+#[test]
+fn composite_observable_references_are_typed_and_replayable() {
+    use eqiora_artifact::{ModelDecoderLimits, ModelEnvelope};
+    use eqiora_schema::kernel::{ExprNode, KernelNode, SymbolRef};
+    let source = "model Energy(){parameter a:1=2; variable x:1; relation balance{x=a;} observable first:1=x*x/2; observable total:1=first+first;}";
+    let document = ModelDocument::compile("composite.eqi", source).unwrap();
+    let referenced = document
+        .program()
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Observable(value) => Some(value),
+            _ => None,
+        })
+        .find(|value| {
+            value
+                .expression()
+                .nodes()
+                .iter()
+                .any(|node| matches!(node, ExprNode::Symbol(SymbolRef::Observable(_))))
+        })
+        .unwrap();
+    document
+        .program()
+        .typed_observable(referenced.id())
+        .unwrap();
+    let artifact = ModelEnvelope::from_program(document.program()).unwrap();
+    let bytes = artifact.canonical_json().unwrap();
+    let decoded = ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default()).unwrap();
+    assert_eq!(decoded.canonical_json().unwrap(), bytes);
+    let replayed = decoded.to_program().unwrap();
+    assert_eq!(
+        replayed
+            .typed_observable(referenced.id())
+            .unwrap()
+            .expression(),
+        referenced.expression()
+    );
+    let prior_schema = String::from_utf8(bytes.clone())
+        .unwrap()
+        .replace("eqiora.model-envelope/v32", "eqiora.model-envelope/v31");
+    assert_ne!(prior_schema.as_bytes(), bytes);
+    assert!(
+        ModelEnvelope::from_json(prior_schema.as_bytes(), ModelDecoderLimits::default()).is_err()
+    );
+    for (invalid, expected) in [
+        (source.replace("total:1=", "total:m="), "declared type"),
+        (source.replace("first:1=x*x/2", "first:1=total"), "acyclic"),
+        (
+            source.replace("total:1=first+first", "total:1=total"),
+            "acyclic",
+        ),
+        (
+            source.replace("balance{x=a;}", "balance{x=total;}"),
+            "not a scalar",
+        ),
+    ] {
+        let errors = ModelDocument::compile("invalid-composite.eqi", &invalid).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message().contains(expected)),
+            "{errors:?}"
+        );
     }
 }

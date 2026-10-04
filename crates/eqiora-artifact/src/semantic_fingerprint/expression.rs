@@ -213,6 +213,7 @@ fn encode_symbol(
         SymbolRef::PortTrace(id) => (9, Some(id.erase())),
         SymbolRef::PortFlux(id) => (10, Some(id.erase())),
         SymbolRef::Time => (11, None),
+        SymbolRef::Observable(id) => (12, Some(id.erase())),
         _ => return Err(newer_vocabulary("expression symbol")),
     };
     encoder.u8(tag)?;

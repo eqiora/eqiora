@@ -648,12 +648,27 @@ except eqiora.ValidationError as error:
     assert "foreign or omitted Field" in str(error)
 else:
     raise AssertionError("accepted same-name foreign Field")
+combined = eqiora.Observable("combined", value_type=kind, expression=output*output+output)
+combined_model = eqiora.compile(source=eqiora.Module("Combined", x,
+    eqiora.Relation("law", equations=[(x,2)]), output, combined))
+linear = eqiora.solve.Linear(algorithm=eqiora.solve.LinearSolver.SparseLu, preconditioner=eqiora.solve.Preconditioner.Identity, reduction=eqiora.solve.Reduction.Fast, provider=eqiora.solve.SolverProvider.faer(), relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=100)
+plan = eqiora.resolve(combined_model, solve=linear)
+result = eqiora.run(plan, state=eqiora.State.initial(plan))
+assert abs(result.observe(combined_model.observable("combined")).value-20.0)<1e-12
+foreign_output = eqiora.Observable("double", value_type=kind, expression=x+x)
 try:
-    x + output
-except TypeError:
-    pass
+    eqiora.Module("Wrong", x, output, eqiora.Observable("combined", value_type=kind, expression=foreign_output+output))
+except eqiora.ValidationError as error:
+    assert "foreign or omitted Observable" in str(error), str(error)
 else:
-    raise AssertionError("Observable became an expression symbol")
+    raise AssertionError("same-name foreign Observable reference was accepted")
+try:
+    eqiora.compile(source=eqiora.Module("Wrong", x, output, eqiora.Relation("law", equations=[(x,output)])))
+except eqiora.ValidationError as error:
+    assert "not a scalar" in str(error), str(error)
+else:
+    raise AssertionError("Observable entered a solve equation")
+
 "#
             ),
             Some(&locals),

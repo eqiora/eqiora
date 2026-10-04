@@ -9,7 +9,11 @@ pub(super) enum Binding {
     Port(Id<kinds::Port>, PortContract),
     Clock(Id<kinds::ClockDomain>, eqiora_schema::kernel::RationalTime),
     Event(Id<kinds::Activation>),
-    Observable(Id<kinds::Observable>),
+    Observable(
+        Id<kinds::Observable>,
+        eqiora_lang::ValueTypeSyntax,
+        Option<String>,
+    ),
     Relation {
         relation: Id<kinds::Relation>,
         activation: Id<kinds::Activation>,
@@ -25,7 +29,7 @@ impl Binding {
             Self::Parameter(id, _) => id.erase(),
             Self::Port(id, _) => id.erase(),
             Self::Clock(id, _) => id.erase(),
-            Self::Observable(id) => id.erase(),
+            Self::Observable(id, ..) => id.erase(),
             Self::Event(id) => id.erase(),
             Self::Relation { relation, .. } => relation.erase(),
         }

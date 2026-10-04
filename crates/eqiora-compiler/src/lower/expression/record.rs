@@ -16,6 +16,7 @@ pub(in crate::lower) fn lower_record(
         cache: HashMap::new(),
         sampling: false,
         allow_discrete_symbols: true,
+        allow_observables: false,
         activation: &ActivationSyntax::Continuous,
         initial: true,
     };
