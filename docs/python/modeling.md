@@ -279,7 +279,10 @@ to evaluate the field-valued output at an ordered, unit-checked point. The retur
 A weighted mean is an explicit numerator/denominator expression, with zero denominators
 rejected. This profile supports regular real scalar coordinate densities and finite
 Result amplitudes; it does not realize arbitrary spatial phase Fields, spherical measures,
-solver coupling, differentiation under integrals, or State JVPs for factor integrals.
+solver coupling, general differentiation under integrals, or State JVPs for factor integrals.
+A declaration-root first `partial` of one named polynomial integral over fixed coordinate
+intervals is admitted for an independent Parameter or a coordinate declared on its remaining
+output support. It reuses the same Result quadrature and `observe_at` operation.
 
 `quadrature_points` selects Gauss–Legendre points per axis. Point boundaries use
 one point; an output containing only point integrals requires `1`. Mixed outputs

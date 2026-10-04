@@ -19,7 +19,7 @@ rejection, and replay. Bounded real scalar factor integrals execute coordinate d
 finite Result amplitudes, exact selected measures and explicit remaining output support;
 [registered evidence](../../verify/language/factor-integrals/README.md) covers polynomial moments
 and finite Gaussian error bounds. Non-Cartesian product factors, product-domain Field/PDE
-realizations, spherical measures, integral solver coupling, differentiation under integrals,
+realizations, spherical measures, integral solver coupling, general differentiation under integrals,
 higher unknown-Field partials and curved embedded-field extensions remain separate work. The complete examples below include target operations beyond this bounded implementation.
 
 ## Exact factors and coordinate bindings
@@ -148,6 +148,16 @@ The initial profile uses fixed finite integration limits. Parameterized bounds a
 the selected Model binding; time-varying endpoints and shape derivatives require their later
 owner. Differentiation under an integral requires the admitted regularity and fixed-domain
 conditions, not just a syntactically movable `partial` node.
+
+The current first-partial profile admits `partial(density, wrt=remaining_x)` as an
+Observable declaration root when `density` is one named polynomial integral over fixed
+bounded coordinate intervals. Declare `remaining_x` on the output support from the exact
+remaining factor; an integrated coordinate is bound and cannot be a free selector.
+An independent Parameter is also a valid selector. The compiler differentiates the density
+with the existing polynomial calculus and retains the same measure and output support.
+Signed nonzero real literal divisors are allowed; variable denominators, higher/composite
+integral derivatives, nonpolynomial densities and Cartesian Geometry measures are outside
+this initial derivative profile.
 
 Measures multiply dimensions. A velocity integral contributes `m/s`, a physical line integral
 `m`, a surface integral `m^2`, and a physical volume integral `m^3`. An embedded line in 2D

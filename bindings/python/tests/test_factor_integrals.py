@@ -6,10 +6,12 @@ SOURCE = """model Distribution(support position:interval(m), support velocity:in
   support phase:product(position,velocity);
   coordinate x:m on phase from position[0];
   coordinate v:m/s on phase from velocity[0];
+  coordinate remaining_x:m on position from position[0];
   variable amplitude:s/m^2;
   relation amplitude_value { amplitude=3[s/m^2]; }
   let f:s/m^2 on phase=amplitude*(1+x/2[m])*(1+(v/4[m/s])^2);
   observable density:1/m on position=integral(f,measure(velocity));
+  observable density_slope:1/m^2 on position=partial(density,wrt=remaining_x);
   observable current:1/s on position=integral(v*f,measure(velocity));
   observable mean:m/s on position=current/density;
   observable count:1=integral(density,measure(position));
@@ -23,7 +25,7 @@ def test_factor_integrals_installed_replay_and_dimensioned_output_points():
         "position": q.CoordinateInterval(0, 2, dimension=LENGTH),
         "velocity": q.CoordinateInterval(-2, 4, dimension=SPEED),
     })
-    outputs = {name: model.observable(name) for name in ("density", "current", "mean", "count")}
+    outputs = {name: model.observable(name) for name in ("density", "current", "mean", "count", "density_slope")}
     model = q.Model.from_bytes(model.to_bytes())
     solve = q.solve.Linear(relative_tolerance=1e-12, absolute_tolerance=1e-14,
                            maximum_iterations=8, algorithm=q.solve.LinearSolver.SparseLu,
@@ -37,6 +39,7 @@ def test_factor_integrals_installed_replay_and_dimensioned_output_points():
         ("density", 135/4, q.Dimension(length=-1)),
         ("current", 351/8, q.Dimension(time=-1)),
         ("mean", 13/10, SPEED),
+        ("density_slope", 45/4, q.Dimension(length=-2)),
     ]:
         observation = result.observe_at(outputs[name], [(1.0, LENGTH)], quadrature_points=3)
         assert observation.value == pytest.approx(expected, abs=1e-11)

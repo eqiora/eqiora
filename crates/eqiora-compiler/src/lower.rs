@@ -561,6 +561,8 @@ pub(crate) fn lower_typed_model(
         return Err(diagnostics);
     }
 
+    let expanded = expression::expand_observable_partials(file, model, &mut bindings)?;
+    let model = expanded.as_ref();
     let model_id = identities.model(&model.name);
     let mut nodes = Vec::new();
     let mut edges = Vec::new();

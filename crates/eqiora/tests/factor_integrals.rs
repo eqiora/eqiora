@@ -16,7 +16,10 @@ use std::num::NonZeroUsize;
 const SOURCE: &str =
     include_str!("../../../verify/language/factor-integrals/models/distribution.eqi");
 
-fn model(source: &str, velocity_bounds: [f64; 2]) -> (ModelEnvelope, ModelSymbols) {
+fn compile(
+    source: &str,
+    velocity_bounds: [f64; 2],
+) -> Result<CompiledModel, Vec<eqiora_core::Diagnostic>> {
     let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
     let speed = DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).unwrap();
     let interval = |lower, upper, unit| {
@@ -24,7 +27,7 @@ fn model(source: &str, velocity_bounds: [f64; 2]) -> (ModelEnvelope, ModelSymbol
             AxisBounds::new(DynQuantity::new(lower, unit), DynQuantity::new(upper, unit)).unwrap(),
         )
     };
-    let compiled = CompiledModel::compile_selected(
+    CompiledModel::compile_selected(
         "moments.eqi",
         source,
         "Distribution",
@@ -36,7 +39,10 @@ fn model(source: &str, velocity_bounds: [f64; 2]) -> (ModelEnvelope, ModelSymbol
             ),
         ],
     )
-    .unwrap();
+}
+
+fn model(source: &str, velocity_bounds: [f64; 2]) -> (ModelEnvelope, ModelSymbols) {
+    let compiled = compile(source, velocity_bounds).unwrap();
     let symbols = compiled.symbols().clone();
     let (transaction, model_id, _) = compiled.into_parts();
     let mut store = InMemoryGraphStore::new();
@@ -361,4 +367,210 @@ fn factor_integrals_retain_support_for_a_constant_declared_density() {
         )
         .unwrap();
     assert_eq!(value.value().real_scalar_value().unwrap().value(), 18.0);
+}
+
+#[test]
+fn fixed_integral_partials_follow_remaining_factor_and_independent_parameter() {
+    let source = SOURCE
+        .replace("variable amplitude:s/m^2;", "parameter amplitude:s/m^2=3; variable anchor:1;")
+        .replace("relation amplitude_value { amplitude=3[s/m^2]; }", "relation anchor_value { anchor=1; }")
+        .replace("observable density:1/m", "coordinate retained_x:m on position from position[0];\n    observable density:1/m")
+        .replace("observable mass:1=", "observable dx:1/m^2 on position=partial(density,wrt=retained_x);\n    observable da:m/s on position=partial(density,wrt=amplitude);\n    observable mass:1=");
+    let source = source.replace(
+        "observable composed:1=",
+        "observable dm:m^2/s=partial(mass,wrt=amplitude);\n    observable composed:1=",
+    );
+    let original = model(&source, [-2.0, 4.0]).0.to_program().unwrap();
+    let declaration = "observable density:1/m on position=integral(f,measure(velocity));";
+    let reordered = source.replace(declaration, "");
+    let (prefix, _) = reordered.rsplit_once('}').unwrap();
+    let reordered = format!("{prefix}{declaration} }}");
+    for equivalent in [
+        source
+            .replace("retained_x", "coordinate_alias")
+            .replace("density", "number_density"),
+        reordered,
+    ] {
+        let replay = model(&equivalent, [-2.0, 4.0]).0.to_program().unwrap();
+        assert_eq!(
+            eqiora_artifact::StructuralSemanticFingerprint::from_program(&original).unwrap(),
+            eqiora_artifact::StructuralSemanticFingerprint::from_program(&replay).unwrap()
+        );
+    }
+    let (model, symbols, result) = solve(&source, [-2.0, 4.0]);
+    let model =
+        ModelEnvelope::from_json(&model.canonical_json().unwrap(), Default::default()).unwrap();
+    let full_rules = std::collections::HashMap::from([(
+        symbols.get("phase").unwrap().downcast().unwrap(),
+        QuadratureRule::tensor_product_gauss_legendre(2, 3).unwrap(),
+    )]);
+    let mass_partial = result
+        .observe(
+            &model,
+            symbols.get("dm").unwrap().downcast().unwrap(),
+            &full_rules,
+        )
+        .unwrap();
+    // Integral over x in [0,2] of (15/2)*(1+x/2) is 45/2 m²/s.
+    let total = mass_partial.value().real_scalar_value().unwrap();
+    assert!((total.value() - 45.0 / 2.0).abs() <= 1e-11);
+    assert_eq!(
+        total.dim(),
+        DimExponents::from_integers([0, 2, -1, 0, 0, 0, 0]).unwrap()
+    );
+    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
+    let rules = std::collections::HashMap::from([(
+        symbols.get("velocity").unwrap().downcast().unwrap(),
+        QuadratureRule::gauss_legendre(3).unwrap(),
+    )]);
+    // Independently, n(x,A)=A*(15/2)*(1+x/2) in coherent SI coordinates.
+    // Therefore n_x=15A/4 and n_A=(15/2)*(1+x/2), at fixed velocity bounds.
+    for x in [0.0, 1.0, 2.0] {
+        for (name, expected, dimension) in [
+            (
+                "dx",
+                45.0 / 4.0,
+                DimExponents::from_integers([0, -2, 0, 0, 0, 0, 0]).unwrap(),
+            ),
+            (
+                "da",
+                (15.0 / 2.0) * (1.0 + x / 2.0),
+                DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).unwrap(),
+            ),
+        ] {
+            let observed = result
+                .observe_at(
+                    &model,
+                    symbols.get(name).unwrap().downcast().unwrap(),
+                    &[DynQuantity::new(x, length)],
+                    &rules,
+                )
+                .unwrap();
+            let value = observed.value().real_scalar_value().unwrap();
+            assert_eq!(value.dim(), dimension);
+            assert!(
+                (value.value() - expected).abs() <= 1e-11,
+                "{name} at {x}: {}",
+                value.value()
+            );
+        }
+    }
+}
+
+#[test]
+fn fixed_integral_partials_reject_moving_bounds_and_nonregular_density() {
+    let bounded = "model Moving() { parameter length:m=2; domain body=box(0,length); variable anchor:1; relation value {anchor=1;} observable total:m=integral(1,measure(body)); }";
+    eqiora_compiler::compile("moving.eqi", bounded).unwrap();
+    let changed = bounded.replace(
+        "observable total:m=",
+        "observable derivative:1=partial(total,wrt=length); observable total:m=",
+    );
+    let errors = eqiora_compiler::compile("moving.eqi", &changed).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message().contains("moving bounds")),
+        "{errors:?}"
+    );
+    let source = SOURCE
+        .replace(
+            "observable density:1/m",
+            "coordinate retained_x:m on position from position[0]; observable density:1/m",
+        )
+        .replace(
+            "observable mass:1=",
+            "observable dx:1/m^2 on position=partial(density,wrt=retained_x); observable mass:1=",
+        )
+        .replace(
+            "amplitude*(1+x/2[m])*(1+(v/4[m/s])^2)",
+            "amplitude*(1+x/2[m])*(1[m/s]/v)",
+        );
+    let errors = compile(&source, [-2.0, 4.0]).unwrap_err();
+    assert!(
+        errors.iter().any(|error| error
+            .message()
+            .contains("fixed nonzero real literal denominator")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn fixed_integral_partial_requires_spatial_field_regularity() {
+    let source = SOURCE
+        .replace(
+            "variable amplitude:s/m^2;",
+            "variable amplitude:s/m^2 on phase;",
+        )
+        .replace(
+            "relation amplitude_value {",
+            "relation amplitude_value on phase {",
+        );
+    compile(&source, [-2.0, 4.0]).unwrap();
+    let differentiated = source.replace(
+        "observable mass:1=",
+        "coordinate retained_x:m on position from position[0]; observable dx:1/m^2 on position=partial(density,wrt=retained_x); observable mass:1=",
+    );
+    let errors = compile(&differentiated, [-2.0, 4.0]).unwrap_err();
+    assert!(
+        errors.iter().any(|error| error
+            .message()
+            .contains("spatial Field requires admitted differentiation-under-integral regularity")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn fixed_integral_partial_rejects_an_integrated_coordinate_as_a_free_selector() {
+    let source = SOURCE.replace("observable mass:1=", "coordinate bounded_v:m/s on velocity from velocity[0]; observable forbidden:s/m on velocity=partial(mass,wrt=bounded_v); observable mass:1=");
+    let errors = compile(&source, [-2.0, 4.0]).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message().contains("integrated coordinates are bound")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn fixed_integral_partial_keeps_shared_literal_multipliers_and_divisors_distinct() {
+    let source = SOURCE
+        .replace(
+            "let f:s/m^2",
+            "let scale:m=2[m]; coordinate retained_x:m on position from position[0]; let f:s/m^2",
+        )
+        .replace("(1+x/2[m])", "(x/scale+scale*x/1[m^2])")
+        .replace(
+            "observable mass:1=",
+            "observable dx:1/m^2 on position=partial(density,wrt=retained_x); observable mass:1=",
+        );
+    for (scale, expected) in [(2, 225.0 / 4.0), (-2, -225.0 / 4.0)] {
+        let (model, symbols, result) = solve(
+            &source.replace("scale:m=2[m]", &format!("scale:m={scale}[m]")),
+            [-2.0, 4.0],
+        );
+        let rules = std::collections::HashMap::from([(
+            symbols.get("velocity").unwrap().downcast().unwrap(),
+            QuadratureRule::gauss_legendre(3).unwrap(),
+        )]);
+        let value = result
+            .observe_at(
+                &model,
+                symbols.get("dx").unwrap().downcast().unwrap(),
+                &[DynQuantity::new(
+                    1.0,
+                    DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
+                )],
+                &rules,
+            )
+            .unwrap();
+        // d/dx [3*(x/2+2*x)*(15/2)] = (45/2)*(1/2+2) = 225/4.
+        assert!((value.value().real_scalar_value().unwrap().value() - expected).abs() <= 1e-11);
+    }
+    let errors = compile(&source.replace("scale:m=2[m]", "scale:m=0[m]"), [-2.0, 4.0]).unwrap_err();
+    assert!(
+        errors.iter().any(|error| error
+            .message()
+            .contains("fixed nonzero real literal denominator")),
+        "{errors:?}"
+    );
 }
