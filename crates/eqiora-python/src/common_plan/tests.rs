@@ -753,7 +753,9 @@ assert q1_exact.formulation.effective is q1.formulation.effective
 assert q1_exact.identity != q1.identity
 assert q1_exact.realization_digest == q1.realization_digest
 assert tpfa.formulation is None
-assert variable_q1.formulation is None
+assert variable_q1.formulation.effective is package.formulation.PrimalGalerkin
+assert variable_q1.formulation.boundary_treatment == "explicit-trace-flux-laws"
+assert variable_q1.formulation.rule_ids[2] == "fem.derive.v1.boundary-pairing.trace-or-prescribed-flux"
 for label, wrong_spatial, wrong_formulation in (
     ("Q1 mixed", package.fem.Q1(), package.formulation.MixedGalerkin),
     ("TPFA primal", package.fvm.CellCenteredTpfa(), package.formulation.PrimalGalerkin),
@@ -767,15 +769,13 @@ for label, wrong_spatial, wrong_formulation in (
         pass
     else:
         raise AssertionError(f"incompatible scalar Formulation must reject: {label}")
-try:
-    package.resolve(
-        variable_model, mesh=mesh, spatial=package.fem.Q1(),
-        formulation=package.formulation.PrimalGalerkin, solve=linear,
-    )
-except package.ValidationError:
-    pass
-else:
-    raise AssertionError("exact primal Formulation must reject an unproved natural boundary")
+variable_exact = package.resolve(
+    variable_model, mesh=mesh, spatial=package.fem.Q1(),
+    formulation=package.formulation.PrimalGalerkin, solve=linear,
+)
+assert variable_exact.formulation.requested is package.FormulationSelectionMode.Exact
+assert variable_exact.formulation.effective is variable_q1.formulation.effective
+assert package.Plan.from_bytes(variable_exact.to_bytes()).to_bytes() == variable_exact.to_bytes()
 assert not hasattr(q1.capability, "scaling")
 assert q1.requested_solve is linear
 assert q1.solve.algorithm == "bicgstab"

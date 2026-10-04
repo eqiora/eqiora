@@ -12,7 +12,7 @@ impl AuthoredFormExpressionV1 {
     ///
     /// # Errors
     /// Rejects stale identities, expressions, fixed bindings or generated terms, and
-    /// densities outside the bounded real polynomial fixed-volume profile.
+    /// densities outside the bounded real polynomial fixed spatial measure profile.
     pub fn check_functional_variation(
         &self,
         functional: &ObservableDef,
@@ -49,25 +49,27 @@ impl AuthoredFormExpressionV1 {
                 "variation requires one or two independent named directions",
             ));
         }
-        let ObservableReduction::SpatialIntegral {
-            domain,
-            measure: ObservableMeasure::Volume,
-        } = functional.reduction()
+        let ObservableReduction::SpatialIntegral { domain, measure } = functional.reduction()
         else {
             return Err(wire::rejection(
-                "variation requires a fixed volume Observable",
+                "variation requires a fixed spatial Observable",
             ));
         };
-        let dimensions = volume_dimensions(density, domain)?;
-        let support = SpatialSupport::Volume {
-            domain: domain.erase(),
-            dimensions,
-        };
+        let support = functional_support(density, domain)?;
+        if !matches!(
+            (measure, support),
+            (ObservableMeasure::Volume, SpatialSupport::Volume { .. })
+                | (ObservableMeasure::Boundary, SpatialSupport::Boundary { .. })
+        ) {
+            return Err(wire::rejection(
+                "variation measure differs from its live support",
+            ));
+        }
         functional.validate_type(
             density
                 .node_type(density.expression().roots()[0])
                 .expect("typed root"),
-            Some(&support),
+            Some(support),
         )?;
         let required = functional
             .expression()

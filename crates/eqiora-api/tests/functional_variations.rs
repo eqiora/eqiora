@@ -6,6 +6,15 @@ use eqiora_geometry::GeometryGraph;
 
 #[test]
 fn two_directions_of_one_field_reach_the_public_model_document() {
+    check_two_directions(false);
+}
+
+#[test]
+fn surface_directions_replay_against_the_live_public_model() {
+    check_two_directions(true);
+}
+
+fn check_two_directions(surface: bool) {
     let graph = GeometryGraph::new();
     let interval = graph.interval([0.0, 1.0]).unwrap();
     let geometry = graph
@@ -57,7 +66,15 @@ public component Energy(
         })
         .to_vec();
     bindings.push(("a", StaticBindingValue::Expression(parameter.value())));
-    let module = eqiora_lang::Module::parse("energy.eqi", source).unwrap();
+    let source = if surface {
+        source.replace("parameter a:J/m", "parameter a:J").replace(
+            "a*c*c/2,measure(body)",
+            "a*trace(c)*trace(c)/2,measure(right)",
+        )
+    } else {
+        source.to_owned()
+    };
+    let module = eqiora_lang::Module::parse("energy.eqi", &source).unwrap();
     let model = ModelDocument::compile_module(&module, Some("Energy"), &bindings).unwrap();
     let form = model.authored_formulations().next().unwrap();
     assert_eq!(form.projection().trial_ulids().len(), 1);
@@ -69,6 +86,32 @@ public component Energy(
     };
     assert_eq!(directions, &["eta", "zeta"]);
     check_live_variation_lineage(&model);
+    if surface {
+        let manual_source = source.replace("test zeta:1 for c zero_on left,right;", "")
+            .replace("variation(variation(energy,wrt=c,direction=eta,holding=(a,)),wrt=c,direction=zeta,holding=(a,))", "integrate(right,a*trace(c)*trace(eta))");
+        let module = eqiora_lang::Module::parse("manual-surface.eqi", &manual_source).unwrap();
+        let manual = ModelDocument::compile_module(&module, Some("Energy"), &bindings).unwrap();
+        let form = manual.authored_formulations().next().unwrap();
+        let AuthoredFormExpressionV1::Integrate { domain_ulid, .. } =
+            &form.projection().equations()[0].1
+        else {
+            panic!("boundary integral");
+        };
+        for profile in [
+            eqiora_lang::NotationProfile::Plain,
+            eqiora_lang::NotationProfile::Latex,
+            eqiora_lang::NotationProfile::MathMl,
+            eqiora_lang::NotationProfile::Unicode,
+            eqiora_lang::NotationProfile::Speech,
+        ] {
+            let rendered = manual.render_formulations(profile).unwrap().remove(0);
+            assert!(rendered.plain().contains("trace"));
+            assert!(rendered.references().iter().any(|r| {
+                r.graph_id()
+                    .is_some_and(|id| id.ulid().to_string() == *domain_ulid)
+            }));
+        }
+    }
 }
 
 fn check_live_variation_lineage(model: &ModelDocument) {

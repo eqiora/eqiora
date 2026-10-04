@@ -83,6 +83,8 @@ pub(crate) enum AuthoredFormExpressionKind {
     },
     /// Integer power of a scalar.
     Pow(Box<AuthoredFormExpression>, i32),
+    /// Restrict a parent-volume Field or direction to the integration boundary.
+    Trace(Box<AuthoredFormExpression>),
     /// Spatial gradient.
     Gradient(Box<AuthoredFormExpression>),
     Divergence(Box<AuthoredFormExpression>),
@@ -92,7 +94,7 @@ pub(crate) enum AuthoredFormExpressionKind {
     Sin(Box<AuthoredFormExpression>),
     /// Euclidean inner product of equal vectors.
     Dot(Box<AuthoredFormExpression>, Box<AuthoredFormExpression>),
-    /// Volume integral over one exact Domain.
+    /// Spatial integral over one exact volume or boundary Domain.
     Integrate {
         /// Integration Domain.
         domain: Id<kinds::Domain>,
@@ -352,6 +354,7 @@ fn compile_weak(
         topological_dimension: geometry.topological_dimension(),
         relation_domain: Some(domain),
         tests: named_tests,
+        integration_domain: None,
         used_tests: std::collections::BTreeSet::new(),
     };
     let mut compiled = Vec::new();
@@ -403,6 +406,7 @@ struct ExpressionContext<'a> {
     topological_dimension: usize,
     relation_domain: Option<Id<kinds::Domain>>,
     tests: BTreeMap<&'a str, (&'a str, DimExponents)>,
+    integration_domain: Option<Id<kinds::Domain>>,
     used_tests: std::collections::BTreeSet<String>,
 }
 

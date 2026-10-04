@@ -8,6 +8,9 @@ mod source;
 type Polynomial = ExactPolynomial<Atom>;
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Atom {
+    Measure(String),
+    TraceField(String, Vec<usize>),
+    TraceTest(Vec<usize>),
     Field(String, Vec<usize>),
     Parameter(String),
     Coordinate(usize),
@@ -25,14 +28,13 @@ pub(super) fn matches_variation(
     let [(name, field, _, _)] = projection.test_restrictions() else {
         return false;
     };
-    let Some(domain) = projection.domain_ulid() else {
+    if projection.domain_ulid().is_none() {
         return false;
-    };
+    }
     let (_, authored_left, authored_right) = &projection.equations()[0];
     let mut context = Context {
         name,
         field,
-        domain,
         dimensions,
         remaining: 65536,
     };
@@ -69,7 +71,6 @@ pub(super) fn matches_elastic_variation(
     let mut context = Context {
         name,
         field,
-        domain,
         dimensions: 2,
         remaining: 65536,
     };
@@ -95,6 +96,9 @@ pub(super) fn matches_elastic_variation(
                 .ok()?;
             expected = expected.checked_add(&term.checked_neg().ok()?).ok()?;
         }
+        let expected = expected
+            .checked_mul(&Polynomial::atom(Atom::Measure(domain.into())))
+            .ok()?;
         Some(actual == expected)
     };
     compare().unwrap_or(false)
@@ -103,12 +107,15 @@ pub(super) fn matches_elastic_variation(
 struct Context<'a> {
     name: &'a str,
     field: &'a str,
-    domain: &'a str,
     dimensions: usize,
     remaining: usize,
 }
 impl Context<'_> {
     fn integral(&mut self, value: &E) -> Option<Polynomial> {
+        self.integral_at(value, 0)
+    }
+    fn integral_at(&mut self, value: &E, depth: usize) -> Option<Polynomial> {
+        self.step(depth)?;
         match value {
             E::Number { value } if *value == 0.0 => {
                 Some(Polynomial::constant(ExactRational::integer(0)))
@@ -116,27 +123,44 @@ impl Context<'_> {
             E::Integrate {
                 domain_ulid,
                 integrand,
-            } if domain_ulid == self.domain => self.scalar(integrand, 0),
+            } => self
+                .scalar(integrand, depth + 1)?
+                .checked_mul(&Polynomial::atom(Atom::Measure(domain_ulid.clone())))
+                .ok(),
+            E::Add { left, right } => self
+                .integral_at(left, depth + 1)?
+                .checked_add(&self.integral_at(right, depth + 1)?)
+                .ok(),
+            E::Sub { left, right } => self
+                .integral_at(left, depth + 1)?
+                .checked_add(&self.integral_at(right, depth + 1)?.checked_neg().ok()?)
+                .ok(),
+            E::Neg { value } => self.integral_at(value, depth + 1)?.checked_neg().ok(),
             E::Variation {
                 wrt_ulid,
                 directions,
                 value,
                 ..
             } if wrt_ulid == self.field && directions.as_slice() == [self.name] => {
-                // Only a root first variation is admitted; nested wrappers cannot
-                // masquerade as a checked body or as a stationarity equation.
-                let E::Integrate {
-                    domain_ulid,
-                    integrand,
-                } = value.as_ref()
-                else {
+                // Each first variation must retain one checked integral body.
+                // Products and nested wrappers cannot masquerade as integrals.
+                if !matches!(value.as_ref(), E::Integrate { .. }) {
                     return None;
-                };
-                (domain_ulid == self.domain).then_some(())?;
-                self.scalar(integrand, 0)
+                }
+                self.integral_at(value, depth + 1)
             }
             _ => None,
         }
+    }
+    fn trace(&self, value: &E, indices: Vec<usize>) -> Option<Polynomial> {
+        Some(Polynomial::atom(match value {
+            E::Field { ulid } => Atom::TraceField(ulid.clone(), indices),
+            E::Test { field_ulid } if field_ulid == self.field => Atom::TraceTest(indices),
+            E::Direction { name, field_ulid } if name == self.name && field_ulid == self.field => {
+                Atom::TraceTest(indices)
+            }
+            _ => return None,
+        }))
     }
     fn step(&mut self, depth: usize) -> Option<()> {
         if depth > 96 || self.remaining == 0 {
@@ -157,6 +181,7 @@ impl Context<'_> {
                 ExactRational::new(*numerator, i64::try_from(*denominator).ok()?).ok()?,
             ),
             E::Field { ulid } => Polynomial::atom(Atom::Field(ulid.clone(), vec![])),
+            E::Trace { value } => self.trace(value, vec![])?,
             E::Parameter { ulid } => Polynomial::atom(Atom::Parameter(ulid.clone())),
             E::Coordinate { axis } if *axis < self.dimensions => {
                 Polynomial::atom(Atom::Coordinate(*axis))
@@ -236,6 +261,7 @@ impl Context<'_> {
             return None;
         }
         match value {
+            E::Trace { value } => self.trace(value, vec![axis]),
             E::Field { ulid } => Some(Polynomial::atom(Atom::Field(ulid.clone(), vec![axis]))),
             E::Direction { name, field_ulid } if name == self.name && field_ulid == self.field => {
                 Some(Polynomial::atom(Atom::Test(vec![axis])))
@@ -313,6 +339,66 @@ fn number(value: f64) -> Option<ExactRational> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn integral_sums_keep_exact_measures_and_traces() {
+        let test = E::Test {
+            field_ulid: "u".into(),
+        };
+        let trace = E::Trace {
+            value: Box::new(test.clone()),
+        };
+        let integral = |domain: &str, value: E| E::Integrate {
+            domain_ulid: domain.into(),
+            integrand: Box::new(value),
+        };
+        let bulk = integral("body", test.clone());
+        let surface = integral("right", trace.clone());
+        let sum = E::Add {
+            left: Box::new(bulk.clone()),
+            right: Box::new(surface.clone()),
+        };
+        let mut context = Context {
+            name: "eta",
+            field: "u",
+            dimensions: 2,
+            remaining: 65536,
+        };
+        // Integration domains are independent formal measures, even for equal
+        // constant densities. A boundary restriction is a distinct input atom.
+        let expected = Polynomial::atom(Atom::Measure("body".into()))
+            .checked_mul(&Polynomial::atom(Atom::Test(vec![])))
+            .unwrap()
+            .checked_add(
+                &Polynomial::atom(Atom::Measure("right".into()))
+                    .checked_mul(&Polynomial::atom(Atom::TraceTest(vec![])))
+                    .unwrap(),
+            )
+            .unwrap();
+        assert_eq!(context.integral(&sum), Some(expected));
+        assert_ne!(context.integral(&bulk), context.integral(&sum));
+        assert_ne!(
+            context.integral(&surface),
+            context.integral(&integral("left", trace))
+        );
+        assert_ne!(
+            context.integral(&surface),
+            context.integral(&integral("right", test))
+        );
+        let opposite_sides = E::Sub {
+            left: Box::new(integral("left", E::Number { value: 1.0 })),
+            right: Box::new(integral("right", E::Number { value: 1.0 })),
+        };
+        assert_ne!(
+            context.integral(&opposite_sides),
+            context.integral(&E::Number { value: 0.0 })
+        );
+        let product = E::Mul {
+            left: Box::new(bulk),
+            right: Box::new(surface),
+        };
+        assert!(context.integral(&product).is_none());
+    }
+
     #[test]
     fn binary_coefficients_are_exact_and_fail_closed_outside_portable_bounds() {
         for (value, numerator, denominator) in [

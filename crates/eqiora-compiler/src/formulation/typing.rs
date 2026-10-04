@@ -305,6 +305,27 @@ impl ExpressionContext<'_> {
                     argument.support,
                 ))
             }
+            ("trace", [argument]) => {
+                let boundary = self.integration_domain.filter(|domain| {
+                    self.index.boundary_of.get(&domain.erase()).copied()
+                        == self.relation_domain.map(Id::erase)
+                }).ok_or_else(|| error(self.file, expression.range(),
+                    "trace requires integration on an exact boundary of the Relation Domain"))?;
+                let argument = self.compile(argument)?;
+                if argument.support != self.relation_domain {
+                    return Err(error(
+                        self.file,
+                        expression.range(),
+                        "trace requires an expression on the exact parent volume",
+                    ));
+                }
+                Ok(typed(
+                    AuthoredFormExpressionKind::Trace(Box::new(argument.clone())),
+                    argument.dimension,
+                    argument.shape,
+                    Some(boundary),
+                ))
+            }
             ("grad", [argument]) => {
                 let argument = self.compile(argument)?;
                 if argument.shape.rank() > 1 {
@@ -321,6 +342,13 @@ impl ExpressionContext<'_> {
                         "grad requires a spatially supported expression",
                     )
                 })?;
+                if Some(support) != self.relation_domain {
+                    return Err(error(
+                        self.file,
+                        expression.range(),
+                        "grad requires a parent-volume expression; boundary derivatives need an explicit tangential operator",
+                    ));
+                }
                 let dimension = argument.dimension.div(length_dimension()).ok_or_else(|| {
                     error(
                         self.file,
@@ -508,7 +536,7 @@ impl ExpressionContext<'_> {
             AuthoredFormExpressionKind::Coordinate(axis),
             length_dimension(),
             ValueShape::scalar(),
-            self.relation_domain,
+            self.integration_domain.or(self.relation_domain),
         ))
     }
 
@@ -533,17 +561,27 @@ impl ExpressionContext<'_> {
                 "integrate first argument is not a Domain",
             )
         })?;
-        if !matches!(self.index.nodes.get(&raw), Some(KernelNode::Domain(_)))
-            || Some(domain_id) != self.relation_domain
+        let boundary = self
+            .index
+            .boundary_of
+            .get(&raw)
+            .copied()
+            .is_some_and(|parent| Some(parent) == self.relation_domain.map(Id::erase));
+        if self.integration_domain.is_some()
+            || !matches!(self.index.nodes.get(&raw), Some(KernelNode::Domain(_)))
+            || (Some(domain_id) != self.relation_domain && !boundary)
         {
             return Err(error(
                 self.file,
                 domain.range(),
-                "integrate Domain must equal the Formulation Relation Domain",
+                "integrate requires the Relation Domain or its exact boundary, without nested integrals",
             ));
         }
         let integrand_range = integrand.range();
-        let integrand = self.compile(integrand)?;
+        self.integration_domain = Some(domain_id);
+        let compiled = self.compile(integrand);
+        self.integration_domain = None;
+        let integrand = compiled?;
         require_scalar(self.file, integrand_range, &integrand)?;
         if integrand
             .support
@@ -555,7 +593,17 @@ impl ExpressionContext<'_> {
                 "integrand support must equal its integration Domain",
             ));
         }
-        let topological_dimension = i32::try_from(self.topological_dimension).map_err(|_| {
+        let dimension = self
+            .topological_dimension
+            .checked_sub(usize::from(boundary))
+            .ok_or_else(|| {
+                error(
+                    self.file,
+                    expression.range(),
+                    "boundary measure requires a positive-dimensional parent",
+                )
+            })?;
+        let topological_dimension = i32::try_from(dimension).map_err(|_| {
             error(
                 self.file,
                 expression.range(),

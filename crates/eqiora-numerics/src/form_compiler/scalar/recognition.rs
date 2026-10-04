@@ -103,7 +103,25 @@ fn recognize_volume_top_roles(
         };
         Some((value, *flux))
     };
+    let zero_source = || {
+        expression
+            .nodes()
+            .iter()
+            .enumerate()
+            .find_map(|(index, node)| {
+                matches!(node, ExprNode::Constant(value) if value.is_zero())
+                    .then(|| expression.node_id(u32::try_from(index).ok()?))
+                    .flatten()
+            })
+    };
     match expression.node(root)? {
+        ExprNode::Neg(divergence)
+            if matches!(expression.node(*divergence), Some(ExprNode::Divergence(_))) =>
+        {
+            let (divergence, flux) = negative_divergence(root)?;
+            Some((divergence, flux, WeakSign::Positive, zero_source()?))
+        }
+        ExprNode::Divergence(flux) => Some((root, *flux, WeakSign::Negative, zero_source()?)),
         ExprNode::Sub(left, right) => {
             if let Some((divergence, flux)) = negative_divergence(*left) {
                 Some((divergence, flux, WeakSign::Positive, *right))
@@ -270,50 +288,73 @@ pub(super) fn recognize_essential_trace(
     Ok(Some(BoundaryNodes { trace: trace_node }))
 }
 
-/// A zero flux law discharges the boundary term without restricting the test.
-/// Bind the complete constitutive expression, including Field/Parameter identities,
-/// before ignoring its overall sign (only a literal zero datum permits that).
-pub(super) fn recognize_zero_flux(
+pub(super) struct BoundaryFlux {
+    pub(super) normal: ExprId,
+    pub(super) datum: Option<(ExprId, bool)>,
+}
+
+/// Bind the complete constitutive flux before retaining its prescribed datum.
+/// The returned sign pairs that datum with the positive weak bilinear flux;
+/// neither a whole-equation reversal nor a negated constitutive flux loses sign.
+pub(super) fn recognize_flux(
     boundary: &eqiora_schema::kernel::typing::TypedResidual<RawId>,
     owner: RawId,
     volume: &eqiora_schema::kernel::typing::TypedResidual<RawId>,
-) -> Result<Option<ExprId>, Diagnostic> {
+    volume_nodes: VolumeNodes,
+) -> Result<Option<BoundaryFlux>, Diagnostic> {
     use eqiora_compiler::AuthoredFormExpressionV1 as Expression;
     let dag = boundary.expression();
     let [root] = dag.roots() else {
         return Ok(None);
     };
     let view = crate::additive_residual::AdditiveResidualView::derive(dag, *root, owner)?;
-    let [leaf] = view.leaves() else {
+    if !(1..=2).contains(&view.leaves().len()) {
         return Ok(None);
-    };
-    let Some(ExprNode::NormalComponent(flux)) = dag.node(leaf.value()) else {
-        return Ok(None);
-    };
-    let divergences = volume
-        .expression()
-        .nodes()
+    }
+    let operators = view
+        .leaves()
         .iter()
-        .filter_map(|node| match node {
-            ExprNode::Divergence(flux) => Some(*flux),
+        .filter_map(|leaf| match dag.node(leaf.value()) {
+            Some(ExprNode::NormalComponent(flux)) => Some((leaf, *flux)),
             _ => None,
         })
         .collect::<Vec<_>>();
-    let [volume_flux] = divergences.as_slice() else {
+    let [(operator, flux)] = operators.as_slice() else {
         return Ok(None);
     };
+    let volume_flux = volume_nodes.bilinear_flux;
     if boundary.node_type(*flux).map(|t| &t.value_type)
-        != volume.node_type(*volume_flux).map(|t| &t.value_type)
+        != volume.node_type(volume_flux).map(|t| &t.value_type)
     {
         return Ok(None);
     }
     let Some(actual) = Expression::from_expression(dag, *flux)? else {
         return Ok(None);
     };
-    let Some(expected) = Expression::from_expression(volume.expression(), *volume_flux)? else {
+    let Some(expected) = Expression::from_expression(volume.expression(), volume_flux)? else {
         return Ok(None);
     };
-    let (actual, _) = super::authored::product_sign(actual);
-    let (expected, _) = super::authored::product_sign(expected);
-    Ok(super::authored::equivalent(&actual, &expected).then_some(leaf.value()))
+    let (actual, actual_negative) = super::authored::product_sign(actual);
+    let (expected, volume_negative) = super::authored::product_sign(expected);
+    if !super::authored::equivalent(&actual, &expected) {
+        return Ok(None);
+    }
+    let data = view
+        .leaves()
+        .iter()
+        .find(|leaf| leaf.value() != operator.value())
+        .map(|datum| {
+            validate_source_expression(dag, datum.value(), owner)?;
+            // a*n(F)+b*g=0 => n(F)=-(b/a)g. Convert F to the weak flux.
+            let negative = (datum.sign() == operator.sign())
+                ^ actual_negative
+                ^ volume_negative
+                ^ (volume_nodes.divergence_sign == WeakSign::Negative);
+            Ok((datum.value(), negative))
+        })
+        .transpose()?;
+    Ok(Some(BoundaryFlux {
+        normal: operator.value(),
+        datum: data,
+    }))
 }

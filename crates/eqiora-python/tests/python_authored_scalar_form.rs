@@ -93,6 +93,20 @@ check_analytic_coefficients(energy_model, energy_result)
 energy_value = energy_result.observe(energy_model.observable("definition.energy"), quadrature_points=2)
 # Independently: K=8/3, b=1/4, u=3/32, so F=u*K*u/2-b*u=-3/256.
 assert abs(energy_value.value + 3/256) <= 1e-10
+# Integral sums keep each retained functional lineage and the same exact weak law.
+first = "variation(energy,wrt=potential,direction=w,holding=(diffusion,source_scale))"
+summed_model = compile_energy(energy_source.replace(first, f"({first}+{first})-{first}"))
+summed_plan = eqiora.resolve(summed_model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
+summed_result = eqiora.run(eqiora.Plan.from_bytes(summed_plan.to_bytes()))
+check_analytic_coefficients(summed_model, summed_result)
+assert abs(summed_result.observe(summed_model.observable("definition.energy"), quadrature_points=2).value + 3/256) <= 1e-10
+try:
+    doubled_model = compile_energy(energy_source.replace(first, f"{first}+{first}"))
+    eqiora.resolve(doubled_model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
+except eqiora.ValidationError as error:
+    assert "weak residual" in str(error), str(error)
+else:
+    raise AssertionError("doubled functional derivative was accepted as the exact strong law")
 # The right and horizontal sides carry natural flux laws; the direction is
 # constrained only on the essential left side. No extra zero trace is invented.
 natural_source = energy_source.replace("zero_on x_lower, x_upper, y_lower, y_upper", "zero_on x_lower")
@@ -126,9 +140,55 @@ loaded = compile_energy(natural_source.replace("normal(diffusion * grad(potentia
 try:
     eqiora.resolve(loaded, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
 except eqiora.ValidationError as error:
-    assert "homogeneous natural boundaries" in str(error), str(error)
+    assert "weak residual" in str(error), str(error)
 else:
     raise AssertionError("nonzero natural work was silently discharged")
+# A prescribed right flux contributes actual surface work. For -u_xx=1,
+# u(0)=0, u_x(1)=1, the Q1 nodal values interpolate 2*x-x*x/2.
+loaded_source = natural_source.replace(
+    "relation x_upper_value on x_upper { normal(diffusion * grad(potential)) = 0; }",
+    "relation x_upper_value on x_upper { normal(diffusion * grad(potential)) = source_scale*coordinate(0); }",
+)
+loaded_source = loaded_source.replace("  form weak for balance",
+    "  observable surface:1=integral(-source_scale*coordinate(0)*trace(potential),measure(x_upper));\n  form weak for balance")
+surface_variation = "variation(surface,wrt=potential,direction=w,holding=(source_scale,))"
+loaded_source = loaded_source.replace(first, f"{first}+{surface_variation}")
+loaded_model = compile_energy(loaded_source)
+loaded_plan = eqiora.resolve(loaded_model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
+loaded_result = eqiora.run(eqiora.Plan.from_bytes(loaded_plan.to_bytes()))
+loaded_field = loaded_model.field(loaded_model.authored_formulations[0].trial_field_ids[0])
+loaded_values = loaded_result.output(loaded_field).values("vertex").numpy().reshape(-1)
+assert all(abs(value-(2*x-x*x/2)) <= 1e-9 for value,(x,y) in zip(loaded_values,mesh.coordinates))
+# Independently, element slopes 7/4 and 5/4 give internal energy 37/32,
+# volume load work 13/16, and right surface work 3/2. Independent rational
+# assembly gives ||K^-1||_inf=234/49 and ||b||_2²=87/128, so the stated
+# relative residual bound gives coefficient error <4e-10 (test bound 1e-9).
+assert abs(loaded_result.observe(loaded_model.observable("definition.energy"), quadrature_points=2).value-11/32) <= 1e-9
+assert abs(loaded_result.observe(loaded_model.observable("definition.surface"), quadrature_points=2).value+3/2) <= 1e-9
+for mutant_source in (
+    loaded_source.replace(f"+{surface_variation}", ""),
+    loaded_source.replace("integral(-source_scale*coordinate(0)*trace(potential),measure(x_upper))", "integral(source_scale*coordinate(0)*trace(potential),measure(x_upper))"),
+    loaded_source.replace("trace(potential),measure(x_upper)", "trace(potential),measure(y_upper)"),
+):
+    try:
+        eqiora.resolve(compile_energy(mutant_source), mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
+    except eqiora.ValidationError as error:
+        assert "weak residual" in str(error), str(error)
+    else:
+        raise AssertionError("missing, reversed or misplaced surface work was accepted")
+# With no volume load the same prescribed surface work gives u=x,
+# volume energy 1/2 and boundary energy -1. The zero source remains explicit.
+zero_volume_source = loaded_source.replace("source source_scale;", "source 0[1/m^2];")
+zero_volume_source = zero_volume_source.replace("/2-source_scale*potential", "/2")
+zero_volume_source = zero_volume_source.replace(first, "variation(energy,wrt=potential,direction=w,holding=(diffusion,))")
+zero_volume_model = compile_energy(zero_volume_source)
+zero_volume_plan = eqiora.resolve(zero_volume_model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
+zero_volume_result = eqiora.run(eqiora.Plan.from_bytes(zero_volume_plan.to_bytes()))
+zero_volume_field = zero_volume_model.field(zero_volume_model.authored_formulations[0].trial_field_ids[0])
+zero_volume_values = zero_volume_result.output(zero_volume_field).values("vertex").numpy().reshape(-1)
+assert all(abs(value-x) <= 1e-9 for value,(x,y) in zip(zero_volume_values,mesh.coordinates))
+assert abs(zero_volume_result.observe(zero_volume_model.observable("definition.energy"), quadrature_points=2).value-1/2) <= 1e-9
+assert abs(zero_volume_result.observe(zero_volume_model.observable("definition.surface"), quadrature_points=2).value+1) <= 1e-9
 # The variation direction carries the Field unit; here both are m and F is J.
 physical_energy = energy_source.replace("potential: 1", "potential: m").replace("w: 1", "w: m")
 physical_energy = physical_energy.replace("diffusion: 1", "diffusion: J/m^2").replace("1 / m ^ 2", "J/m^3").replace("energy:1", "energy:J")

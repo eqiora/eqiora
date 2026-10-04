@@ -282,6 +282,17 @@ impl Projection<'_> {
                 };
                 self.input(&Input::Gradient(*field, coordinate.to_vec()))?
             }
+            ExprNode::Trace(value) => {
+                if !matches!(
+                    self.typed.expression().node(*value),
+                    Some(ExprNode::Symbol(SymbolRef::Field(_)))
+                ) {
+                    return Err(reject(
+                        "surface energy currently requires a trace of an exact Field",
+                    ));
+                }
+                self.component(*value, coordinate, depth + 1)?
+            }
             ExprNode::Divergence(value) => {
                 let (field, extent) = vector_field(self.typed, *value)?;
                 let mut sum = self.push(CalculusNode::Rational {
