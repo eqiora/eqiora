@@ -122,3 +122,22 @@ fn empty_boundary_sets_reach_support_validation() {
         format(&parse("empty.eqi", &format(&doc)).into_document().unwrap())
     );
 }
+
+#[test]
+fn dimensioned_coordinate_factors_and_owned_products_round_trip() {
+    for container in ["model Distribution", "component Distribution"] {
+        let source = format!(
+            "{container}(support position:interval(m), support velocity:interval(m/s)) {{ support phase:product(position,velocity); variable density:s/m^2 on phase; }}"
+        );
+        let document = parse("coordinate-factors.eqi", &source)
+            .into_document()
+            .unwrap();
+        let formatted = format(&document);
+        assert!(formatted.contains("interval(m / s)"));
+        assert!(formatted.contains("product(position, velocity)"));
+        let reparsed = parse("coordinate-factors.eqi", &formatted)
+            .into_document()
+            .unwrap();
+        assert_eq!(format(&reparsed), formatted);
+    }
+}

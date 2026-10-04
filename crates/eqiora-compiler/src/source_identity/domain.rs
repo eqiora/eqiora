@@ -9,6 +9,14 @@ pub(super) fn encode_domain(
         encode_name(encoder, declaration.name(), budget)
     })?;
     encoder.field(2, |encoder| match declaration.syntax() {
+        DomainSyntax::Product { factors } => {
+            encoder.u16(5)?;
+            encoder.u32(as_u32(factors.len(), "coordinate factor count")?)?;
+            for factor in factors {
+                encode_name(encoder, factor, budget)?;
+            }
+            Ok(())
+        }
         DomainSyntax::CartesianBox(bounds) => {
             let parameter_backed = bounds.iter().any(|(lower, upper)| {
                 matches!(lower, CartesianCoordinateSyntax::Parameter { .. })

@@ -33,7 +33,8 @@ pub(super) fn component_local_footprint(
     let mut local_connectors = BTreeSet::new();
     for item in definition.owned_items() {
         match item {
-            ComponentItem::IndexSet(_)
+            ComponentItem::Domain(_)
+            | ComponentItem::IndexSet(_)
             | ComponentItem::Port(_)
             | ComponentItem::Initial(_)
             | ComponentItem::Clock(_)

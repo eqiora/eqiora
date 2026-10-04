@@ -12,6 +12,7 @@ use crate::clock::PyClockDomain;
 use crate::geometry::PyGeometrySelection;
 
 pub(crate) enum OwnedBinding<'g> {
+    CoordinateInterval(eqiora::kernel::AxisBounds),
     Expression(Expr),
     Value(eqiora::ValueLiteral),
     Clock(ClockDomainDef),
@@ -25,6 +26,7 @@ impl OwnedBinding<'_> {
         geometry: Option<&'a CanonicalGeometryV1>,
     ) -> StaticBindingValue<'a> {
         match self {
+            Self::CoordinateInterval(bounds) => StaticBindingValue::CoordinateInterval(*bounds),
             Self::Expression(expression) => StaticBindingValue::Expression(expression),
             Self::Value(value) => StaticBindingValue::Value(value),
             Self::Clock(clock) => StaticBindingValue::Clock(clock),
@@ -94,6 +96,10 @@ pub(crate) fn extract<'g>(
             value.extract::<PyRef<'_, crate::modeling::enumeration::PyEnumValue>>()
         {
             OwnedBinding::Value(value.value.clone())
+        } else if let Ok(interval) =
+            value.extract::<PyRef<'_, crate::coordinate_interval::PyCoordinateInterval>>()
+        {
+            OwnedBinding::CoordinateInterval(interval.bounds)
         } else if let Ok(clock) = value.extract::<PyRef<'_, PyClockDomain>>() {
             OwnedBinding::Clock(clock.value.clone())
         } else if value.is_instance_of::<PyGeometrySelection>() {

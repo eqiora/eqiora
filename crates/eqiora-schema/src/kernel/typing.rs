@@ -34,6 +34,13 @@ pub use value::ExpressionType;
 /// Exact spatial support carried by an expression value.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SpatialSupport<I> {
+    /// Exact ordered mathematical coordinate factors, independent of a physical frame.
+    Coordinates {
+        /// Nominal interval or product Domain.
+        domain: I,
+        /// Flattened factor identities and coordinate dimensions, in product order.
+        factors: Vec<(I, DimExponents)>,
+    },
     /// A Cartesian volume Domain.
     Volume {
         /// Nominal Domain identity.
@@ -68,18 +75,33 @@ impl<I> SpatialSupport<I> {
     #[must_use]
     pub const fn domain(&self) -> &I {
         match self {
-            Self::Volume { domain, .. } | Self::Boundary { domain, .. } => domain,
+            Self::Coordinates { domain, .. }
+            | Self::Volume { domain, .. }
+            | Self::Boundary { domain, .. } => domain,
             Self::Interface { connection, .. } => connection,
         }
     }
 
-    /// Ambient Cartesian dimension.
+    /// Ambient Cartesian dimension, absent for abstract mathematical coordinates.
     #[must_use]
-    pub const fn dimensions(&self) -> usize {
+    pub const fn ambient_dimensions(&self) -> Option<usize> {
         match self {
+            Self::Coordinates { .. } => None,
             Self::Volume { dimensions, .. }
             | Self::Boundary { dimensions, .. }
-            | Self::Interface { dimensions, .. } => *dimensions,
+            | Self::Interface { dimensions, .. } => Some(*dimensions),
+        }
+    }
+
+    /// Intrinsic dimension of the support, independent of embedding and value shape.
+    #[must_use]
+    pub fn intrinsic_dimensions(&self) -> usize {
+        match self {
+            Self::Coordinates { factors, .. } => factors.len(),
+            Self::Volume { dimensions, .. } => *dimensions,
+            Self::Boundary { dimensions, .. } | Self::Interface { dimensions, .. } => {
+                dimensions.saturating_sub(1)
+            }
         }
     }
 
@@ -87,7 +109,7 @@ impl<I> SpatialSupport<I> {
     #[must_use]
     pub const fn parent(&self) -> Option<&I> {
         match self {
-            Self::Volume { .. } | Self::Interface { .. } => None,
+            Self::Coordinates { .. } | Self::Volume { .. } | Self::Interface { .. } => None,
             Self::Boundary { parent, .. } => Some(parent),
         }
     }
@@ -691,11 +713,11 @@ pub fn coordinate<I: Clone>(
     relation: Option<&SpatialSupport<I>>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
     let support = relation.ok_or(TypeViolation::CoordinateRequiresSpatialScope)?;
-    if axis >= support.dimensions() {
-        return Err(TypeViolation::CoordinateAxisOutOfRange {
-            axis,
-            dimensions: support.dimensions(),
-        });
+    let dimensions = support
+        .ambient_dimensions()
+        .ok_or(TypeViolation::CoordinateRequiresSpatialScope)?;
+    if axis >= dimensions {
+        return Err(TypeViolation::CoordinateAxisOutOfRange { axis, dimensions });
     }
     Ok(ExpressionType::scalar(
         DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),

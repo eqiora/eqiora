@@ -12,6 +12,8 @@ use eqiora_schema::kernel::{
 
 use super::{edge_targets, kernel_error};
 
+mod coordinates;
+
 pub(super) fn resolve_cartesian_bounds(
     nodes: &BTreeMap<RawId, KernelNode>,
     values: &BTreeMap<RawId, eqiora_core::ValueLiteral>,
@@ -26,6 +28,9 @@ pub(super) fn resolve_cartesian_bounds(
         };
         let dependencies = edge_targets(edges, domain, EdgeKind::DependsOn);
         let DomainKind::CartesianBox { coordinates } = definition.kind() else {
+            if matches!(definition.kind(), DomainKind::CoordinateProduct { .. }) {
+                continue; // Exact factor dependencies are checked by Domain validation.
+            }
             if !dependencies.is_empty() {
                 diagnostics.push(kernel_error(
                     domain,
@@ -175,7 +180,29 @@ pub(super) fn validate_domains(
         let diagnostics_before = diagnostics.len();
         let parents = edge_targets(edges, id, EdgeKind::BoundaryOf);
         match domain.kind() {
+            DomainKind::CoordinateProduct { factors } => {
+                if !parents.is_empty() {
+                    diagnostics.push(kernel_error(
+                        id,
+                        "a coordinate product has no BoundaryOf parent",
+                    ));
+                }
+                let expected = factors
+                    .iter()
+                    .map(|factor| factor.erase())
+                    .collect::<BTreeSet<_>>();
+                if expected != edge_targets(edges, id, EdgeKind::DependsOn) {
+                    diagnostics.push(kernel_error(
+                        id,
+                        "coordinate product factors differ from exact DependsOn targets",
+                    ));
+                }
+                if let Err(error) = coordinates::factors(nodes, id) {
+                    diagnostics.push(error);
+                }
+            }
             DomainKind::Abstract
+            | DomainKind::CoordinateInterval { .. }
             | DomainKind::CartesianBox { .. }
             | DomainKind::GeometryRegion { .. }
             | DomainKind::ScalarPhysical { .. }
@@ -397,7 +424,7 @@ pub(super) fn validate_fields(
                     if matches!(domain.kind(), DomainKind::CartesianBox { .. })
             ) || matches!(
                 spatial_supports.get(domain),
-                Some(SpatialSupport::Volume { .. })
+                Some(SpatialSupport::Volume { .. } | SpatialSupport::Coordinates { .. })
             )
         }) || representations.iter().any(|representation| {
             matches!(
@@ -427,10 +454,20 @@ pub(super) fn validate_fields(
                 None
             }
         });
-        if admitted_volume.is_none() {
+        let coordinate_support = matches!(
+            spatial_supports.get(&domains[0]),
+            Some(SpatialSupport::Coordinates { .. })
+        );
+        if admitted_volume.is_none() && !coordinate_support {
             diagnostics.push(kernel_error(
                 id,
-                "v0 spatial Field Domain must be a Cartesian box",
+                "continuous Field requires an admitted volume or coordinate support",
+            ));
+        }
+        if coordinate_support && field.frame() == ValueFrame::SpatialCartesian {
+            diagnostics.push(kernel_error(
+                id,
+                "abstract coordinates do not supply a physical Cartesian component frame",
             ));
         }
         if let Some(dimensions) = admitted_volume
@@ -474,12 +511,17 @@ pub(super) fn field_support(
     let supports = edge_targets(edges, field, EdgeKind::DefinedOn)
         .into_iter()
         .filter_map(|target| spatial_supports.get(&target).cloned())
-        .filter(|support| matches!(support, SpatialSupport::Volume { .. }))
+        .filter(|support| {
+            matches!(
+                support,
+                SpatialSupport::Volume { .. } | SpatialSupport::Coordinates { .. }
+            )
+        })
         .collect::<Vec<_>>();
     (supports.len() == 1).then(|| supports[0].clone())
 }
 
-pub(super) fn cartesian_spatial_supports(
+pub(super) fn declared_spatial_supports(
     nodes: &BTreeMap<RawId, KernelNode>,
     edges: &[Edge],
     cartesian_bounds: &BTreeMap<RawId, Vec<AxisBounds>>,
@@ -490,6 +532,11 @@ pub(super) fn cartesian_spatial_supports(
             continue;
         };
         match definition.kind() {
+            DomainKind::CoordinateInterval { .. } | DomainKind::CoordinateProduct { .. } => {
+                if let Ok(factors) = coordinates::factors(nodes, domain) {
+                    supports.insert(domain, SpatialSupport::Coordinates { domain, factors });
+                }
+            }
             DomainKind::CartesianBox { .. } => {
                 if let Some(bounds) = cartesian_bounds.get(&domain) {
                     supports.insert(

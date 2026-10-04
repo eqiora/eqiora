@@ -432,9 +432,11 @@ impl SupportSlotDecl {
 }
 
 /// Source contract for one component spatial-support slot.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum SupportSlotSyntax {
+    /// One bounded coordinate factor with its declared physical unit.
+    Interval { dimension: Expr },
     /// A volume Domain with one exact ambient dimension.
     Volume {
         /// Required number of spatial coordinate axes.
@@ -581,6 +583,8 @@ impl DomainDecl {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum DomainSyntax {
+    /// Ordered product of exact enclosing coordinate-factor supports.
+    Product { factors: Vec<String> },
     /// Cartesian coordinate sources, one lower/upper pair per axis.
     CartesianBox(Vec<(CartesianCoordinateSyntax, CartesianCoordinateSyntax)>),
     /// One oriented side of a named parent Cartesian box.

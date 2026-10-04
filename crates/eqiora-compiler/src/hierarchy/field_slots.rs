@@ -151,15 +151,17 @@ fn field_slot_contract(
                 })
         })
         .transpose()?;
-    if support
-        .as_ref()
-        .is_some_and(|support| !matches!(support, SpatialSupport::Volume { .. }))
-    {
+    if support.as_ref().is_some_and(|support| {
+        !matches!(
+            support,
+            SpatialSupport::Volume { .. } | SpatialSupport::Coordinates { .. }
+        )
+    }) {
         return Err(source_error(
             codes::LANGUAGE_TYPE_ERROR,
             file,
             declaration.range(),
-            "source Field requirement requires a volume support",
+            "source Field requirement requires a volume or coordinate-factor support",
         ));
     }
     let syntax = super::parameters::specialize_type(file, declaration.value_type(), values)?;

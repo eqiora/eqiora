@@ -19,7 +19,14 @@ pub(in crate::hierarchy) fn component_spatial_supports(
     file: &str,
     component: &ComponentDecl,
 ) -> Result<BTreeMap<String, SpatialSupport<String>>, Vec<Diagnostic>> {
-    declared_spatial_supports(file, component.signature(), std::iter::empty())
+    declared_spatial_supports(
+        file,
+        component.signature(),
+        component.items().iter().filter_map(|item| match item {
+            eqiora_lang::ComponentItem::Domain(value) => Some(value),
+            _ => None,
+        }),
+    )
 }
 
 fn declared_spatial_supports<'a>(
@@ -33,6 +40,7 @@ fn declared_spatial_supports<'a>(
         .map(|(name, contract)| (name.to_owned(), contract.support().clone()))
         .collect::<BTreeMap<_, _>>();
     let mut boundaries = Vec::new();
+    let mut products = Vec::new();
     for declaration in domains {
         match declaration.syntax() {
             DomainSyntax::CartesianBox(bounds) if !bounds.is_empty() => {
@@ -45,11 +53,15 @@ fn declared_spatial_supports<'a>(
                 );
             }
             DomainSyntax::Boundary { parent, .. } => boundaries.push((declaration, parent)),
+            DomainSyntax::Product { .. } => products.push(declaration),
             _ => {}
         }
     }
 
     let mut diagnostics = Vec::new();
+    if let Err(mut errors) = resolve_coordinate_products(file, &mut supports, products) {
+        diagnostics.append(&mut errors);
+    }
     for (declaration, parent) in boundaries {
         match supports.get(parent) {
             Some(SpatialSupport::Volume { dimensions, .. }) => {
@@ -74,6 +86,10 @@ fn declared_spatial_supports<'a>(
                 declaration.range(),
                 "derived interface support cannot appear in source Domain resolution",
             )),
+            Some(SpatialSupport::Coordinates { .. }) => diagnostics.push(source_error(
+                codes::LANGUAGE_TYPE_ERROR, file, declaration.range(),
+                "physical boundary requires an ambient physical volume, not abstract coordinate factors",
+            )),
             None => {}
         }
     }
@@ -82,4 +98,74 @@ fn declared_spatial_supports<'a>(
     } else {
         Err(diagnostics)
     }
+}
+
+/// Resolve finite product declarations while preserving ordered nominal leaves.
+pub(in crate::hierarchy) fn resolve_coordinate_products(
+    file: &str,
+    supports: &mut BTreeMap<String, SpatialSupport<String>>,
+    mut pending: Vec<&eqiora_lang::DomainDecl>,
+) -> Result<(), Vec<Diagnostic>> {
+    while !pending.is_empty() {
+        let before = pending.len();
+        let mut diagnostics = Vec::new();
+        pending.retain(|declaration| {
+            let DomainSyntax::Product { factors } = declaration.syntax() else {
+                return false;
+            };
+            if factors.iter().any(|factor| !supports.contains_key(factor)) {
+                return true;
+            }
+            let mut leaves = Vec::new();
+            let mut seen = BTreeSet::new();
+            for factor in factors {
+                let SpatialSupport::Coordinates { factors, .. } = &supports[factor] else {
+                    diagnostics.push(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        declaration.range(),
+                        "coordinate product requires interval or coordinate-product factors",
+                    ));
+                    return false;
+                };
+                for (id, unit) in factors {
+                    if !seen.insert(id.clone()) {
+                        diagnostics.push(source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            file,
+                            declaration.range(),
+                            "coordinate product repeats an exact factor",
+                        ));
+                        return false;
+                    }
+                    leaves.push((id.clone(), *unit));
+                }
+            }
+            supports.insert(
+                declaration.name().to_owned(),
+                SpatialSupport::Coordinates {
+                    domain: declaration.name().to_owned(),
+                    factors: leaves,
+                },
+            );
+            false
+        });
+        if !diagnostics.is_empty() {
+            return Err(diagnostics);
+        }
+        if pending.len() == before {
+            return Err(pending
+                .iter()
+                .map(|declaration| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        declaration.range(),
+                        "coordinate product has an unknown factor or cyclic dependency",
+                    )
+                })
+                .collect());
+        }
+    }
+    Ok(())
 }

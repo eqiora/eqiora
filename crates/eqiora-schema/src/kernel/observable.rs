@@ -7,10 +7,10 @@ use eqiora_core::{Diagnostic, DimExponents, Id, RawId, ValueType};
 use super::typing::{ExpressionType, SpatialSupport};
 use super::{ExprDag, KernelNode};
 
-/// Physical measure used by a spatial integral.
+/// Integration measure on one exact continuous support.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ObservableMeasure {
-    /// Cartesian volume measure, with dimension length to the ambient dimension.
+    /// Cartesian product measure: physical volume or the product of abstract factor units.
     Volume,
     /// Exterior surface measure; orientation belongs to the exact boundary normal.
     Boundary,
@@ -35,12 +35,24 @@ impl ObservableMeasure {
         ) {
             return Err(invalid("Observable integral requires a numeric integrand"));
         }
-        let exponent = match (self, support) {
-            (ObservableMeasure::Volume, SpatialSupport::Volume { dimensions, .. }) => *dimensions,
+        let measure_dimension = match (self, support) {
+            (ObservableMeasure::Volume, SpatialSupport::Coordinates { factors, .. }) => factors
+                .iter()
+                .try_fold(DimExponents::DIMENSIONLESS, |product, (_, dimension)| {
+                    product.mul(*dimension)
+                })
+                .ok_or_else(|| {
+                    invalid("coordinate product measure dimension exceeds its exact representation")
+                })?,
+            (ObservableMeasure::Volume, SpatialSupport::Volume { dimensions, .. }) => {
+                length_measure(*dimensions)?
+            }
             (ObservableMeasure::Boundary, SpatialSupport::Boundary { dimensions, .. }) => {
-                dimensions
-                    .checked_sub(1)
-                    .ok_or_else(|| invalid("Observable boundary has no ambient dimension"))?
+                length_measure(
+                    dimensions
+                        .checked_sub(1)
+                        .ok_or_else(|| invalid("Observable boundary has no ambient dimension"))?,
+                )?
             }
             _ => return Err(invalid("Observable measure does not match its Domain kind")),
         };
@@ -53,13 +65,6 @@ impl ObservableMeasure {
                 "Observable integrand does not have the exact integration support; boundary traces must be explicit",
             ));
         }
-        let exponent = i32::try_from(exponent).map_err(|_| {
-            invalid("Observable measure dimension exceeds its exact representation")
-        })?;
-        let measure_dimension = DimExponents::from_integers([0, exponent, 0, 0, 0, 0, 0])
-            .ok_or_else(|| {
-                invalid("Observable measure dimension exceeds its exact representation")
-            })?;
         let dimension = root.dimension().mul(measure_dimension).ok_or_else(|| {
             invalid("Observable integral dimension exceeds its exact representation")
         })?;
@@ -197,6 +202,13 @@ impl From<ObservableDef> for KernelNode {
 
 fn invalid(message: &str) -> Diagnostic {
     Diagnostic::error(codes::INVALID_KERNEL_DEFINITION, message)
+}
+
+fn length_measure(dimensions: usize) -> Result<DimExponents, Diagnostic> {
+    let exponent = i32::try_from(dimensions)
+        .map_err(|_| invalid("Observable measure dimension exceeds its exact representation"))?;
+    DimExponents::from_integers([0, exponent, 0, 0, 0, 0, 0])
+        .ok_or_else(|| invalid("Observable measure dimension exceeds its exact representation"))
 }
 
 #[cfg(test)]

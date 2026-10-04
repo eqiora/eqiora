@@ -24,13 +24,15 @@ fn compile_model(
 use crate::compile;
 
 #[test]
-fn source_and_factory_retain_volume_only_field_support() {
+fn source_and_factory_reject_boundary_field_support() {
     use eqiora_lang::{Item, SourceAstFactory, VisibilitySyntax};
     let source = "model M() { domain body = box(0,1); domain wall = boundary(body, axis = 0, side = lower); state x: 1 on wall; initial { x = 0; } }";
     let is_support_error = |errors: Vec<eqiora_core::Diagnostic>| {
-        errors
-            .iter()
-            .any(|error| error.message().contains("requires a volume support"))
+        errors.iter().any(|error| {
+            error
+                .message()
+                .contains("requires a volume or coordinate-factor support")
+        })
     };
     assert!(is_support_error(
         compile("boundary.eqi", source).unwrap_err()

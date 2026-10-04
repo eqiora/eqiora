@@ -39,6 +39,9 @@ impl RootExpansion<'_, '_> {
                 Item::Domain(declaration) => {
                     let identity = identities.entities[declaration.name()].clone();
                     let syntax = match declaration.syntax() {
+                        DomainSyntax::Product { .. } => {
+                            super::coordinate_products::rewrite_product(declaration, scope)?
+                        }
                         DomainSyntax::CartesianBox(bounds) => DomainSyntax::CartesianBox(
                             super::cartesian::rewrite_coordinates(self.model.file, bounds, scope)?,
                         ),

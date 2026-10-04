@@ -237,6 +237,7 @@ fn format_component_item(
 ) {
     output.begin(item.source_comments());
     match item {
+        ComponentItem::Domain(declaration) => format_domain(declaration, indent, output),
         ComponentItem::Let(declaration) => format_let(declaration, indent, output),
         ComponentItem::Parameter(declaration) => {
             write_indent(output, indent);
@@ -294,54 +295,61 @@ fn format_component_item(
     output.end();
 }
 
+fn format_domain(declaration: &crate::DomainDecl, indent: usize, output: &mut comments::Output) {
+    write_indent(output, indent);
+    if matches!(declaration.syntax, DomainSyntax::Product { .. }) {
+        write!(
+            output,
+            "support {}: ",
+            declaration.comments.named(&declaration.name)
+        )
+        .expect("String write");
+    } else {
+        write!(
+            output,
+            "domain {} = ",
+            declaration.comments.named(&declaration.name)
+        )
+        .expect("String write");
+    }
+    match &declaration.syntax {
+        DomainSyntax::Product { factors } => {
+            write!(output, "product({})", factors.join(", ")).expect("String write");
+        }
+        DomainSyntax::CartesianBox(bounds) => {
+            output.push_str("box(");
+            for (index, (lower, upper)) in bounds.iter().enumerate() {
+                if index != 0 {
+                    output.push_str(", ");
+                }
+                format_cartesian_coordinate(lower, output);
+                output.push_str(", ");
+                format_cartesian_coordinate(upper, output);
+            }
+            output.push(')');
+        }
+        DomainSyntax::Boundary { parent, axis, side } => {
+            write!(output, "boundary({parent}, axis = {axis}, side = ").expect("String write");
+            output.push_str(match side {
+                BoundarySideSyntax::Lower => "lower",
+                BoundarySideSyntax::Upper => "upper",
+            });
+            output.push(')');
+        }
+        DomainSyntax::ScalarPhysical {
+            across_name,
+            across_type,
+            through_name,
+            through_type,
+        } => format_scalar_physical(across_name, across_type, through_name, through_type, output),
+    }
+    output.push_str(";\n");
+}
+
 fn format_item(item: &Item, indent: usize, output: &mut crate::formatter::comments::Output) {
     output.begin(item.source_comments());
     match item {
-        Item::Domain(declaration) => {
-            write_indent(output, indent);
-            write!(
-                output,
-                "domain {} = ",
-                declaration.comments.named(&declaration.name)
-            )
-            .expect("String write");
-            match &declaration.syntax {
-                DomainSyntax::CartesianBox(bounds) => {
-                    output.push_str("box(");
-                    for (index, (lower, upper)) in bounds.iter().enumerate() {
-                        if index != 0 {
-                            output.push_str(", ");
-                        }
-                        format_cartesian_coordinate(lower, output);
-                        output.push_str(", ");
-                        format_cartesian_coordinate(upper, output);
-                    }
-                    output.push(')');
-                }
-                DomainSyntax::Boundary { parent, axis, side } => {
-                    write!(output, "boundary({parent}, axis = {axis}, side = ")
-                        .expect("String write");
-                    output.push_str(match side {
-                        BoundarySideSyntax::Lower => "lower",
-                        BoundarySideSyntax::Upper => "upper",
-                    });
-                    output.push(')');
-                }
-                DomainSyntax::ScalarPhysical {
-                    across_name,
-                    across_type,
-                    through_name,
-                    through_type,
-                } => format_scalar_physical(
-                    across_name,
-                    across_type,
-                    through_name,
-                    through_type,
-                    output,
-                ),
-            }
-            output.push_str(";\n");
-        }
+        Item::Domain(declaration) => format_domain(declaration, indent, output),
         Item::Field(declaration) => format_field(declaration, indent, output),
         Item::Initial(declaration) => format_initial(declaration, indent, output),
         Item::Observable(declaration) => {

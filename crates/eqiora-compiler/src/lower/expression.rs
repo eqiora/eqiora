@@ -39,7 +39,12 @@ pub(super) fn lower_relation(
 ) -> Result<LoweredRelation, Diagnostic> {
     if let Some(domain) = domain {
         match bindings.get(domain) {
-            Some(Binding::Domain(_, DomainContract::Spatial { .. })) => {}
+            Some(Binding::Domain(
+                _,
+                DomainContract::Spatial { .. }
+                | DomainContract::CoordinateInterval(_)
+                | DomainContract::CoordinateProduct(_),
+            )) => {}
             Some(Binding::Domain(_, DomainContract::ScalarPhysical { .. })) => {
                 return Err(source_error(
                     codes::LANGUAGE_TYPE_ERROR,

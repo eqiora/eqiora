@@ -3,6 +3,41 @@ use crate::cartesian::CartesianCoordinateSyntax;
 use super::*;
 
 impl Parser<'_> {
+    pub(super) fn parse_product_support(&mut self) -> Option<DomainDecl> {
+        let start = self.expect_keyword("support")?.range().start();
+        let name = self
+            .declaration_name("product support name")?
+            .text()
+            .to_owned();
+        self.expect(TokenKind::Colon, "`:` before product support")?;
+        self.expect_keyword("product")?;
+        self.expect(TokenKind::LeftParen, "`(` before coordinate factors")?;
+        let mut factors = vec![
+            self.expect_identifier("coordinate factor support")?
+                .text()
+                .to_owned(),
+        ];
+        while self.at(TokenKind::Comma) {
+            self.bump();
+            factors.push(
+                self.expect_identifier("coordinate factor support")?
+                    .text()
+                    .to_owned(),
+            );
+        }
+        self.expect(TokenKind::RightParen, "`)` after coordinate factors")?;
+        let end = self
+            .expect(TokenKind::Semicolon, "`;` after product support")?
+            .range()
+            .end();
+        Some(DomainDecl {
+            comments: Default::default(),
+            name,
+            syntax: DomainSyntax::Product { factors },
+            range: TextRange::new(start, end),
+        })
+    }
+
     pub(super) fn parse_domain(&mut self) -> Option<DomainDecl> {
         let start = self.expect_keyword("domain")?.range().start();
         let name = self.declaration_name("Domain name")?.text().to_owned();

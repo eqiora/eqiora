@@ -28,10 +28,14 @@ pub fn gradient<I: Clone>(
     {
         return Err(TypeViolation::IncompatibleFrame);
     }
-    let extent = u32::try_from(support.dimensions())
-        .ok()
-        .filter(|extent| *extent > 0)
-        .ok_or(TypeViolation::SpatialExtentInvalid)?;
+    let extent = u32::try_from(
+        support
+            .ambient_dimensions()
+            .ok_or(TypeViolation::GradientRequiresVolume)?,
+    )
+    .ok()
+    .filter(|extent| *extent > 0)
+    .ok_or(TypeViolation::SpatialExtentInvalid)?;
     let shape = operand
         .shape()
         .appended(extent)
@@ -72,7 +76,7 @@ pub fn divergence<I: Clone>(
     if operand.frame() != ValueFrame::SpatialCartesian || operand.value_type.array_rank() != 0 {
         return Err(TypeViolation::IncompatibleFrame);
     }
-    if usize::try_from(last.get()).ok() != Some(support.dimensions()) {
+    if usize::try_from(last.get()).ok() != support.ambient_dimensions() {
         return Err(TypeViolation::DivergenceRequiresTensor);
     }
     let frame = if shape.is_scalar() {

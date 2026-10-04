@@ -336,6 +336,9 @@ impl WireNode {
                 }
                 Ok(())
             }
+            WireNodeDefinition::Domain {
+                domain: WireDomainKind::CoordinateProduct { factors },
+            } => require_decoder_count("coordinate factors", factors.len(), limits.max_nodes),
             WireNodeDefinition::Enum { members: labels }
             | WireNodeDefinition::FiniteSpace { labels } => require_decoder_count(
                 "nominal declaration members",
@@ -387,6 +390,9 @@ impl WireNode {
 
     pub(crate) fn semantic_references(&self) -> Vec<&WireId> {
         match &self.definition {
+            WireNodeDefinition::Domain {
+                domain: WireDomainKind::CoordinateProduct { factors },
+            } => factors.iter().collect(),
             WireNodeDefinition::FiniteProduct { factors } => {
                 factors.iter().map(|factor| &factor.space).collect()
             }
@@ -525,6 +531,13 @@ pub(crate) enum WireNodeDefinition {
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub(crate) enum WireDomainKind {
     Abstract,
+    CoordinateInterval {
+        lower: WireQuantity,
+        upper: WireQuantity,
+    },
+    CoordinateProduct {
+        factors: Vec<WireId>,
+    },
     CartesianBoxSources {
         coordinates: Vec<WireCartesianAxisDefinition>,
     },
@@ -554,6 +567,16 @@ impl WireDomainKind {
     pub(crate) fn encode(value: &DomainKind) -> Result<Self, Diagnostic> {
         Ok(match value {
             DomainKind::Abstract => Self::Abstract,
+            DomainKind::CoordinateInterval { bounds } => Self::CoordinateInterval {
+                lower: WireQuantity::encode(bounds.lower()),
+                upper: WireQuantity::encode(bounds.upper()),
+            },
+            DomainKind::CoordinateProduct { factors } => Self::CoordinateProduct {
+                factors: factors
+                    .iter()
+                    .map(|id| WireId::from_raw(id.erase()))
+                    .collect(),
+            },
             DomainKind::CartesianBox { coordinates } => Self::CartesianBoxSources {
                 coordinates: coordinates
                     .iter()
@@ -598,6 +621,20 @@ impl WireDomainKind {
     pub(crate) fn decode(&self, id: Id<kinds::Domain>) -> Result<DomainDef, Diagnostic> {
         match self {
             Self::Abstract => Ok(DomainDef::new(id)),
+            Self::CoordinateInterval { lower, upper } => {
+                let bounds =
+                    eqiora_schema::kernel::AxisBounds::new(lower.decode()?, upper.decode()?)
+                        .map_err(|error| invalid_artifact(error.message()))?;
+                Ok(DomainDef::coordinate_interval(id, bounds))
+            }
+            Self::CoordinateProduct { factors } => DomainDef::coordinate_product(
+                id,
+                factors
+                    .iter()
+                    .map(WireId::typed)
+                    .collect::<Result<Vec<_>, _>>()?,
+            )
+            .map_err(|error| invalid_artifact(error.message())),
             Self::CartesianBoxSources { coordinates } => DomainDef::cartesian_box_from_sources(
                 id,
                 coordinates

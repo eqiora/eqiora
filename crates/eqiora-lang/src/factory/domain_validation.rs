@@ -5,6 +5,17 @@ use super::{AstConstructionError, validate_finite, validate_identifier};
 
 pub(super) fn validate_domain_syntax(syntax: &DomainSyntax) -> Result<(), AstConstructionError> {
     match syntax {
+        DomainSyntax::Product { factors } => {
+            if factors.is_empty() {
+                return Err(AstConstructionError::new(
+                    "a coordinate product requires at least one factor",
+                ));
+            }
+            for factor in factors {
+                validate_identifier(factor, "coordinate factor support")?;
+            }
+            Ok(())
+        }
         DomainSyntax::CartesianBox(bounds) => {
             if bounds.is_empty() {
                 return Err(AstConstructionError::new(

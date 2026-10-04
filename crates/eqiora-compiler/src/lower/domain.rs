@@ -13,6 +13,37 @@ pub(super) fn lower_domain(
 ) -> Result<(DomainDef, Option<RawId>, Vec<RawId>), Diagnostic> {
     match (lowering_contract, contract) {
         (
+            LoweringDomainContract::Source(DomainSyntax::Product { factors }),
+            DomainContract::CoordinateProduct(_),
+        ) => {
+            let factors = factors
+                .iter()
+                .map(|name| match bindings.get(name) {
+                    Some(Binding::Domain(
+                        id,
+                        DomainContract::CoordinateInterval(_)
+                        | DomainContract::CoordinateProduct(_),
+                    )) => Ok(*id),
+                    _ => Err(unresolved(file, range, name, "coordinate factor Domain")),
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let dependencies = factors.iter().map(|id| id.erase()).collect();
+            Ok((
+                DomainDef::coordinate_product(id, factors)?,
+                None,
+                dependencies,
+            ))
+        }
+
+        (
+            LoweringDomainContract::CoordinateInterval(bounds),
+            DomainContract::CoordinateInterval(_),
+        ) => Ok((
+            DomainDef::coordinate_interval(id, *bounds),
+            None,
+            Vec::new(),
+        )),
+        (
             LoweringDomainContract::Source(DomainSyntax::CartesianBox(bounds)),
             DomainContract::Spatial { .. },
         ) => {

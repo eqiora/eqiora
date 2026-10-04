@@ -788,9 +788,15 @@ mod tests {
             codes::INVALID_KERNEL_DEFINITION
         );
         assert_eq!(
-            AxisBounds::new(
-                DynQuantity::new(0.0, DimExponents::DIMENSIONLESS),
-                DynQuantity::new(2.0, DimExponents::DIMENSIONLESS)
+            DomainDef::cartesian_box(
+                Id::new(),
+                vec![
+                    AxisBounds::new(
+                        DynQuantity::new(0.0, DimExponents::DIMENSIONLESS),
+                        DynQuantity::new(2.0, DimExponents::DIMENSIONLESS)
+                    )
+                    .expect("mathematical interval permits equal non-length units")
+                ]
             )
             .unwrap_err()
             .code(),

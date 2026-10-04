@@ -384,6 +384,23 @@ class BoundarySide:
     def __hash__(self) -> int: ...
 
 @final
+class CoordinateInterval:
+    """Finite, strictly increasing coherent-SI bounds for a dimensioned coordinate factor.
+
+    This input carries bounds and units; the source support owns nominal identity.
+    """
+    def __new__(cls, lower: float, upper: float, *, dimension: Dimension) -> Self: ...
+    @property
+    def lower(self) -> float: ...
+    @property
+    def upper(self) -> float: ...
+    @property
+    def dimension(self) -> Dimension: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __repr__(self) -> str: ...
+    def __hash__(self) -> int: ...
+
+@final
 class Domain:
     """Immutable draft-local Cartesian volume or oriented boundary.
 
@@ -1999,7 +2016,7 @@ def compile(
     source: str | Module | None = None,
     filename: str | None = None,
     geometry: geometry.Geometry | None = None,
-    bindings: dict[str, _TypedValue | ClockDomain | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection] | tuple[tuple[geometry.GeometrySelection, ...], geometry.GeometrySelection]] | None = None,
+    bindings: dict[str, _TypedValue | ClockDomain | CoordinateInterval | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection] | tuple[tuple[geometry.GeometrySelection, ...], geometry.GeometrySelection]] | None = None,
     entry: str | None = None,
 ) -> Model:
     """Compile one source and its optional exact Geometry closure.
@@ -2015,7 +2032,7 @@ def compile_package(
     *,
     entry: str,
     geometry: geometry.Geometry | None = None,
-    bindings: dict[str, _TypedValue | ClockDomain | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection] | tuple[tuple[geometry.GeometrySelection, ...], geometry.GeometrySelection]] | None = None,
+    bindings: dict[str, _TypedValue | ClockDomain | CoordinateInterval | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection] | tuple[tuple[geometry.GeometrySelection, ...], geometry.GeometrySelection]] | None = None,
 ) -> Model:
     """Compile one locked Model or one Component using the supplied Geometry.
 
@@ -2275,6 +2292,7 @@ __all__ = [
     "CompatibilityError",
     "Connection",
     "ClockDomain",
+    "CoordinateInterval",
     "ExecutionSession",
     "ExecutionCheckpoint",
     "ConservingPort",

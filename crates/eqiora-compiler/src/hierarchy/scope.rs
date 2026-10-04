@@ -295,9 +295,9 @@ impl Scope {
         self.spatial_supports
             .values()
             .find(|support| match support {
-                SpatialSupport::Volume { domain, .. } | SpatialSupport::Boundary { domain, .. } => {
-                    *domain == identity
-                }
+                SpatialSupport::Coordinates { domain, .. }
+                | SpatialSupport::Volume { domain, .. }
+                | SpatialSupport::Boundary { domain, .. } => *domain == identity,
                 SpatialSupport::Interface { .. } => false,
             })
     }
@@ -772,7 +772,9 @@ fn resolve_exact_boundary(
     };
     match support {
         SpatialSupport::Boundary { domain, .. } => Ok(*domain),
-        SpatialSupport::Volume { .. } | SpatialSupport::Interface { .. } => Err(source_error(
+        SpatialSupport::Coordinates { .. }
+        | SpatialSupport::Volume { .. }
+        | SpatialSupport::Interface { .. } => Err(source_error(
             codes::LANGUAGE_TYPE_ERROR,
             file,
             selector.range(),

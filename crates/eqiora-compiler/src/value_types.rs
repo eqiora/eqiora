@@ -111,8 +111,9 @@ fn spatial_type<I>(
     let support = support.ok_or_else(|| {
         invalid("spatial value type requires an exact support to determine its frame".into())
     })?;
-    let dimension = u32::try_from(support.dimensions())
-        .ok()
+    let dimension = support
+        .ambient_dimensions()
+        .and_then(|dimension| u32::try_from(dimension).ok())
         .filter(|n| *n > 0)
         .ok_or_else(|| invalid("support has no valid ambient spatial dimension".into()))?;
     if extents.iter().any(|extent| *extent != dimension) {

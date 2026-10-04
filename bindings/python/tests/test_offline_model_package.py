@@ -76,6 +76,7 @@ EXPECTED_EQIORA_ALL = [
     "CompatibilityError",
     "Connection",
     "ClockDomain",
+    "CoordinateInterval",
     "ExecutionSession",
     "ExecutionCheckpoint",
     "ConservingPort",

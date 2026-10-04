@@ -1,6 +1,6 @@
 //! Resolve authored test restrictions through already admitted exact support bindings.
 use super::*;
-use crate::external::ExternalGeometrySupportBinding;
+use crate::external::ExternalSupportBinding;
 use eqiora_schema::kernel::DomainKind;
 
 pub(super) fn resolve(
@@ -9,13 +9,13 @@ pub(super) fn resolve(
     parent: RawId,
     symbols: &ModelSymbols,
     index: &KernelIndex<'_>,
-    supports: &[ExternalGeometrySupportBinding],
+    supports: &[ExternalSupportBinding],
 ) -> Result<Vec<String>, Diagnostic> {
     let (range, names) = restriction;
     let mut boundaries = std::collections::BTreeSet::new();
     for name in names {
-        let ids = if let Some(ExternalGeometrySupportBinding::CompleteExterior { parent_slot, members, .. }) = supports.iter().find(|binding| {
-            matches!(binding, ExternalGeometrySupportBinding::CompleteExterior { slot, .. } if slot == name)
+        let ids = if let Some(ExternalSupportBinding::CompleteExterior { parent_slot, members, .. }) = supports.iter().find(|binding| {
+            matches!(binding, ExternalSupportBinding::CompleteExterior { slot, .. } if slot == name)
         }) {
             if symbols.get(parent_slot) != Some(parent) {
                 return Err(error(file, range, "test boundary set has a foreign parent"));

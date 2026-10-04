@@ -631,6 +631,7 @@ fn validate_connector_syntax(syntax: &ConnectorSyntax) -> Result<(), AstConstruc
 
 fn validate_support_slot_syntax(syntax: &SupportSlotSyntax) -> Result<(), AstConstructionError> {
     match syntax {
+        SupportSlotSyntax::Interval { dimension } => validate_expression(dimension),
         SupportSlotSyntax::Volume { .. } => Ok(()),
         SupportSlotSyntax::Boundary { parent } | SupportSlotSyntax::CompleteExterior { parent } => {
             validate_identifier(parent, "boundary parent support slot")

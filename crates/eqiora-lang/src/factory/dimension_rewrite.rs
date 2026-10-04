@@ -112,7 +112,8 @@ fn rewrite_component_item(item: &mut ComponentItem, rewrite: &mut impl FnMut(&Ex
         ComponentItem::Field(declaration) => {
             declaration.value_type.rewrite_dimension(rewrite);
         }
-        ComponentItem::IndexSet(_)
+        ComponentItem::Domain(_)
+        | ComponentItem::IndexSet(_)
         | ComponentItem::Instance(_)
         | ComponentItem::Initial(_)
         | ComponentItem::Event(_)
@@ -182,8 +183,11 @@ fn rewrite_signature(item: &mut crate::SignatureItem, rewrite: &mut impl FnMut(&
         }
         crate::SignatureItem::Port(value) => rewrite_port(&mut value.syntax, rewrite),
         crate::SignatureItem::PortFamily(value) => rewrite_port(&mut value.port.syntax, rewrite),
-        crate::SignatureItem::Support(_)
-        | crate::SignatureItem::Clock(_)
-        | crate::SignatureItem::Property(_) => {}
+        crate::SignatureItem::Support(value) => {
+            if let crate::SupportSlotSyntax::Interval { dimension } = &mut value.syntax {
+                *dimension = rewrite(dimension);
+            }
+        }
+        crate::SignatureItem::Clock(_) | crate::SignatureItem::Property(_) => {}
     }
 }

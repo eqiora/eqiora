@@ -24,6 +24,12 @@ pub(super) fn format_signature(items: &[SignatureItem], output: &mut comments::O
                 write!(output, "support {}: ", value.comments.named(&value.name))
                     .expect("String write");
                 match &value.syntax {
+                    SupportSlotSyntax::Interval { dimension } => {
+                        output.push_str("interval(");
+                        format_expression(dimension, 0, output);
+                        output.push(')');
+                        Ok(())
+                    }
                     SupportSlotSyntax::Volume { ambient_dimension } => {
                         write!(output, "volume(ambient_dimension = {ambient_dimension})")
                     }

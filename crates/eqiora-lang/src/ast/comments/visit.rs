@@ -76,6 +76,7 @@ macro_rules! owners {
             }
             for item in &$($mutable)? node.items {
                 match item {
+                    ComponentItem::Domain(value) => $visit(value.range, &$($mutable)? value.comments),
                     ComponentItem::IndexSet(value) => $visit(value.range, &$($mutable)? value.comments),
                     ComponentItem::Let(value) => $visit(value.range, &$($mutable)? value.comments),
                     ComponentItem::Parameter(value) => $visit(value.range, &$($mutable)? value.comments),
@@ -301,6 +302,7 @@ impl Item {
 impl ComponentItem {
     pub(crate) fn source_comments(&self) -> &SourceComments {
         match self {
+            Self::Domain(node) => &node.comments,
             Self::Let(node) => &node.comments,
             Self::Parameter(node) => &node.comments,
             Self::Port(node) => &node.comments,

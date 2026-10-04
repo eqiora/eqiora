@@ -81,7 +81,8 @@ impl CompiledRegionForm {
             require_closed_dag(typed.expression(), *relation)?;
             for node_type in typed.node_types() {
                 if let Some(support) = &node_type.support
-                    && (*support.domain() != domain || support.dimensions() != dimension)
+                    && (*support.domain() != domain
+                        || support.ambient_dimensions() != Some(dimension))
                 {
                     return Err(invalid("region equation has mismatched typed support"));
                 }

@@ -38,7 +38,9 @@ impl PureOperatorDefinition {
             };
             if !matches!(
                 support,
-                SpatialSupport::Volume { .. } | SpatialSupport::Boundary { .. }
+                SpatialSupport::Volume { .. }
+                    | SpatialSupport::Boundary { .. }
+                    | SpatialSupport::Coordinates { .. }
             ) {
                 return Err(PureOperatorError::FormalTypeMismatch);
             }
@@ -65,9 +67,11 @@ impl PureOperatorDefinition {
         {
             return Err(PureOperatorError::FormalTypeMismatch);
         }
-        if let Some(support) = &common_support {
-            let extent = u32::try_from(support.dimensions())
-                .map_err(|_| PureOperatorError::FormalTypeMismatch)?;
+        if let Some(support) = &common_support
+            && let Some(dimensions) = support.ambient_dimensions()
+        {
+            let extent =
+                u32::try_from(dimensions).map_err(|_| PureOperatorError::FormalTypeMismatch)?;
             if spatial_extent.is_some_and(|expected| expected != extent) {
                 return Err(PureOperatorError::FormalTypeMismatch);
             }
@@ -138,6 +142,7 @@ fn validate_argument_class<I>(
         Some(
             SpatialSupport::Volume { dimensions, .. } | SpatialSupport::Boundary { dimensions, .. },
         ) => Some(*dimensions),
+        Some(SpatialSupport::Coordinates { .. }) => None,
         None => argument
             .shape()
             .extents()

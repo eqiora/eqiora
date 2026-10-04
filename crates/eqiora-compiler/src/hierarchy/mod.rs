@@ -16,9 +16,7 @@ use eqiora_lang::{
 
 use crate::connection_sets::ConnectionSetLimits;
 use crate::diagnostics::source_error;
-use crate::external::{
-    ExternalComponentBinding, ExternalGeometrySupportBinding, ExternalParameterBinding,
-};
+use crate::external::{ExternalComponentBinding, ExternalParameterBinding, ExternalSupportBinding};
 use crate::identity::ElaborationIdentityLimits;
 use crate::lower::CompiledModel;
 use crate::provenance::ProvenanceLimits;
@@ -207,7 +205,7 @@ fn compile_external_component_from_definition<'a>(
         binding
             .supports()
             .iter()
-            .map(crate::external::ExternalGeometrySupportBinding::allocated_support_count)
+            .map(crate::external::ExternalSupportBinding::allocated_support_count)
             .sum::<usize>(),
         limits.max_declarations,
     )?;
@@ -217,7 +215,7 @@ fn compile_external_component_from_definition<'a>(
         binding
             .supports()
             .iter()
-            .map(crate::external::ExternalGeometrySupportBinding::allocated_support_count)
+            .map(crate::external::ExternalSupportBinding::allocated_support_count)
             .sum::<usize>(),
         limits.identity.max_staged_identities,
     )?;
@@ -227,7 +225,7 @@ fn compile_external_component_from_definition<'a>(
         binding
             .supports()
             .iter()
-            .map(crate::external::ExternalGeometrySupportBinding::allocated_support_count)
+            .map(crate::external::ExternalSupportBinding::allocated_support_count)
             .sum::<usize>(),
         limits.provenance.max_entries,
     )?;

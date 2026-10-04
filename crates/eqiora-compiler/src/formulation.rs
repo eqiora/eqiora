@@ -164,7 +164,7 @@ pub(crate) fn compile_component_formulations(
     symbols: &ModelSymbols,
     transaction: &Transaction,
     geometry: Option<&eqiora_geometry::CanonicalGeometryV1>,
-    supports: &[crate::external::ExternalGeometrySupportBinding],
+    supports: &[crate::external::ExternalSupportBinding],
 ) -> Result<Vec<CompiledAuthoredFormulation>, Vec<Diagnostic>> {
     if component.formulations().len() == 0 {
         return Ok(Vec::new());
@@ -271,7 +271,7 @@ fn compile_weak(
     symbols: &ModelSymbols,
     index: &KernelIndex<'_>,
     geometry: &eqiora_geometry::CanonicalGeometryV1,
-    supports: &[crate::external::ExternalGeometrySupportBinding],
+    supports: &[crate::external::ExternalSupportBinding],
 ) -> Result<CompiledAuthoredFormulation, Diagnostic> {
     if relation_names.len() != equations.len()
         || tests.is_empty()

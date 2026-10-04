@@ -14,6 +14,18 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         let mut initial_duplicates = BTreeMap::<String, usize>::new();
         for item in component.owned_items() {
             match item {
+                ComponentItem::Domain(declaration) => {
+                    let identity = identities.entities[declaration.name()].clone();
+                    self.items.push(FlatItemBlueprint::Domain {
+                        name: internal_name(identity.full),
+                        contract: LoweringDomainContract::Source(
+                            super::coordinate_products::rewrite_product(declaration, scope)?,
+                        ),
+                        range: declaration.range(),
+                        identity,
+                    });
+                }
+
                 ComponentItem::Initial(declaration) => {
                     let name = crate::source_identity::initial_declaration_name(declaration)?;
                     let duplicate = initial_duplicates.entry(name.clone()).or_default();

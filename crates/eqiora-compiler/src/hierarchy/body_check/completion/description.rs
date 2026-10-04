@@ -128,6 +128,10 @@ fn describe_activation(activation: &ActivationSyntax) -> String {
 fn describe_support(support: Option<&SpatialSupport<String>>) -> String {
     match support {
         None => "no spatial support".into(),
+        Some(SpatialSupport::Coordinates { domain, factors }) => format!(
+            "support coordinates {domain}; {} intrinsic factors; no ambient frame (definition-local identity)",
+            factors.len()
+        ),
         Some(SpatialSupport::Volume { domain, dimensions }) => {
             format!("support volume {domain}; axes {dimensions} (definition-local identity)")
         }

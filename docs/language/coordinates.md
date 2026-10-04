@@ -4,6 +4,14 @@ This section of the [target grammar](core.md) covers exact coordinate factors an
 foundation audit's position/velocity derivative specimen. It specifies mathematical nodes;
 their current numerical admission is not established by the examples.
 
+The current implementation admits abstract dimensioned interval slots and owned products in
+Model and Component source, including nested products and whole-product Observable measures.
+The source support owns factor identity; native `StaticBindingValue::CoordinateInterval` and
+Python `CoordinateInterval` supply checked finite bounds. Model/Transaction v33 and structural
+fingerprint v28 retain these factors. No ambient physical frame or numerical realization is
+inferred. Physical Geometry factors, coordinate binders/partials, factor-wise integration and
+the later embedded-field extensions below remain separate work.
+
 ## Exact factors and coordinate bindings
 
 `support position: interval(m)` requires a bounded one-dimensional position factor.

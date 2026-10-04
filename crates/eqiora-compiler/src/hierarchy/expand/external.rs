@@ -1,13 +1,13 @@
 //! External Geometry root allocation kept outside the expansion ceiling.
 
 use super::*;
-use crate::external::ExternalGeometrySupportBinding;
+use crate::external::ExternalSupportBinding;
 
 impl<'a, 'd> RootExpansion<'a, 'd> {
     pub(in crate::hierarchy) fn expand_external(
         mut self,
         component: ComponentDefinition<'d>,
-        supports: &[ExternalGeometrySupportBinding],
+        supports: &[ExternalSupportBinding],
         clocks: &[(String, eqiora_schema::kernel::ClockDomainDef)],
         properties: &BTreeMap<String, std::sync::Arc<eqiora_schema::kernel::PropertyRelease>>,
     ) -> Result<ExpandedBlueprint, Vec<Diagnostic>> {
@@ -77,12 +77,12 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
     pub(super) fn allocate_external_supports(
         &mut self,
         scope: &mut Scope,
-        supports: &[ExternalGeometrySupportBinding],
+        supports: &[ExternalSupportBinding],
     ) -> Result<(), Diagnostic> {
         let mut singular = Vec::new();
         let mut member_slots = BTreeSet::new();
         for support in supports {
-            if let ExternalGeometrySupportBinding::CompleteExterior {
+            if let ExternalSupportBinding::CompleteExterior {
                 slot,
                 geometry,
                 parent_slot,
@@ -93,7 +93,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     if !member_slots.insert(exterior_member_slot(slot, &member.entity_set)) {
                         continue;
                     }
-                    singular.push(ExternalGeometrySupportBinding::boundary(
+                    singular.push(ExternalSupportBinding::boundary(
                         exterior_member_slot(slot, &member.entity_set),
                         *geometry,
                         member.entity_set.clone(),
@@ -107,9 +107,30 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         }
         // Existing singular bindings allocate first so exact aliases keep their public identity.
         singular.sort_by_key(|support| support.slot().starts_with('@'));
+        for support in &singular {
+            let ExternalSupportBinding::CoordinateInterval { slot, bounds } = support else {
+                continue;
+            };
+            let identity = self.external_support_identity(slot)?;
+            let internal_name = internal_name(identity.full);
+            self.register_symbol(slot.clone(), slot, &identity, SymbolKind::Domain, scope)?;
+            scope.insert_spatial_support(
+                slot.clone(),
+                SpatialSupport::Coordinates {
+                    domain: identity.full,
+                    factors: vec![(identity.full, bounds.lower().dim())],
+                },
+            );
+            self.items.push(FlatItemBlueprint::Domain {
+                name: internal_name,
+                contract: LoweringDomainContract::CoordinateInterval(*bounds),
+                range: self.model.range(),
+                identity,
+            });
+        }
         let mut regions = BTreeMap::new();
         for support in &singular {
-            let ExternalGeometrySupportBinding::Region {
+            let ExternalSupportBinding::Region {
                 slot,
                 geometry,
                 entity_set,
@@ -156,7 +177,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         }
         let mut boundaries = BTreeMap::new();
         for support in &singular {
-            let ExternalGeometrySupportBinding::Boundary {
+            let ExternalSupportBinding::Boundary {
                 slot,
                 geometry,
                 entity_set,
@@ -233,7 +254,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             });
         }
         for support in supports {
-            let ExternalGeometrySupportBinding::CompleteExterior {
+            let ExternalSupportBinding::CompleteExterior {
                 slot,
                 parent_slot,
                 members,
