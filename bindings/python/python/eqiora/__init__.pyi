@@ -388,6 +388,8 @@ class CoordinateInterval:
     """Finite, strictly increasing coherent-SI bounds for a dimensioned coordinate factor.
 
     This input carries bounds and units; the source support owns nominal identity.
+
+    Authority: ``crates/eqiora-python/src/coordinate_interval.rs::PyCoordinateInterval``.
     """
     def __new__(cls, lower: float, upper: float, *, dimension: Dimension) -> Self: ...
     @property
