@@ -267,3 +267,59 @@ This profile excludes unknown Field densities, implicit-solve derivatives, movin
 solver constraints, partial product reductions, spherical weights, moving physical
 Geometry, nonpolynomial/singular differentiation and higher integral partials.
 No adaptive-quadrature derivative or universal symbolic antiderivative is claimed.
+
+## Bounded nonlocal actions
+
+The [interaction model](models/nonlocal-interaction.eqi) retains `K(x,y)` on the exact
+product of target and source intervals. The source measure binds `y`; the output retains
+`x` on the target. Both coordinates have length units, `K=x*y/(1 m³)` has inverse length
+units, and `u=A*y/(1 m)` is dimensionless. Integrating the product therefore returns a
+dimensionless action. These are finite, explicitly truncated supports, with no implicit
+extension beyond their endpoints. Nominal factor identity remains significant even when
+the coordinate units and numerical bounds coincide.
+
+Independently, on source `[0,b] m`, `integral(y² dy)=b³/3` in coherent SI. With `A=1`
+and `b=1`, the action is `x/3`, not the local substitution `x³`. With `b=2`, the action
+is `8*A*x/3`. Integrating it over target `[0,1] m` gives inventory `4*A/3 m`;
+constraining that inventory to `2 m` gives `A=3/2` and action `4*x`. Installed Python
+also checks the fixed-amplitude action at both source bounds, so missing measure weights
+cannot cancel between a solve and an observation. Two-point Gauss suffices for the
+polynomials in each coordinate. The absolute `1e-12` tolerance covers binary64 rounding
+at these fixed small scales; it is not an accuracy claim for arbitrary kernels.
+
+The finite differentiable-program path retains residual `R(A,p)=4*A/3-p` and weighted
+output `O(A)=integral_0^1 x*(8*A*x/3) dx=8*A/9`. At `p=2,4`, independently
+`A=3*p/4` and `O(p)=2*p/3`. Tests check residual JVP `(1,0) -> 4/3`, residual VJP
+`3 -> (4,-3)`, output partial JVP `(1,0) -> 8/9`, output partial VJP
+`9 -> (8,0)`, and total JVP/VJP with seed `3 -> 2`. The existing finite Newton owner
+requires an explicit seed and strict-interior enforcement of `p>=0`; neither changes
+these derivative formulas. This proves finite accepted-point differentiation of the
+integral-coupled relation, not distributed-field or coordinate-observation State tangents.
+
+For the nonsymmetric `K=(1+x+2*y)/(1 m)` with coherent SI coordinates on target `[0,1] m`
+and source `[0,2] m`, declare the ordinary real L2 pairings on each interval. With
+`u(y)=y` and `v(x)=x`, direct integration gives `Ku(x)=22/3+2*x` and
+`K* v(y)=5/6+y`. Each pairing is `13/3 m`. Here the adjoint integrates the same real
+kernel against the **target** measure and returns a source-supported value; it is not a
+transpose of coefficient coordinates under an unspecified pairing. Swapping `x` and `y`
+inside the retained kernel without swapping their exact bindings gives `7/6+y/2` and the
+wrong pairing `11/3 m`. The test observes both actions and both pairings after
+Model/Plan/Result replay. No generic function-space adjoint constructor or symmetry
+inference is claimed.
+
+A separate atomic specialization uses a nominal two-element IndexSet and the existing
+hygienic `sum`. Source locations `1,2 m`, masses `1,2 m` and samples `u=1,2` give
+`x*(1³+2³)=9*x`. These declared masses have measure units; this atomic measure is not
+asserted to approximate the continuous interval measure. Its unused interval argument
+places no membership constraint on atoms. A pure typed kernel application and
+`ordinal`/`to_real` execute through the existing typed Operator IR. Alpha-renaming the
+sum binder preserves structural meaning. This observation needs no spatial quadrature.
+
+Positive paths precede rejection probes. Wrong remaining support, wrong kernel units and
+foreign quadrature identity reject at their intended owners. `1 m/(x-y)²` rejects at the
+coordinate-dependent denominator gate; an excessive polynomial degree rejects when the
+Plan cannot select a supported Gauss rule. Four nested output dependencies execute and
+forty reject at the finite dependency-depth bound. Existing numerical expansion work,
+quadrature count and Result evaluation budgets remain active. No singular quadrature,
+unbounded history, general boundary-element solve, fast multipole method, arbitrary
+source Field solve or acceleration/performance claim follows from these reference actions.

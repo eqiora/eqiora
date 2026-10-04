@@ -2,7 +2,7 @@ id = "language.factor-integrals"
 status = "implemented"
 scope = "bounded-coordinate-factor-observations-finite-constraints-and-cell-fields"
 reference_kind = "independent-monomial-antiderivatives-and-truncated-gaussian-error-bounds"
-capabilities = ["exact-factor-measure", "remaining-output-support", "density-and-velocity-moments", "explicit-normalization", "nested-integrals", "model-replay", "regular-density-admission", "fixed-polynomial-integral-partials", "finite-polynomial-moving-endpoint-partials", "spherical-radial-volume-measure", "finite-polynomial-integral-constraints", "prescribed-polynomial-cell-field", "static-radial-diffusion-and-particle-average"]
+capabilities = ["exact-factor-measure", "remaining-output-support", "density-and-velocity-moments", "explicit-normalization", "nested-integrals", "model-replay", "regular-density-admission", "fixed-polynomial-integral-partials", "finite-polynomial-moving-endpoint-partials", "spherical-radial-volume-measure", "finite-polynomial-integral-constraints", "prescribed-polynomial-cell-field", "static-radial-diffusion-and-particle-average", "bounded-nonlocal-polynomial-and-atomic-actions", "nonlocal-finite-residual-jvp-vjp", "declared-nonlocal-pairing"]
 
 [claim_boundary]
 bounded_affine_coordinate_factors = true
@@ -29,6 +29,12 @@ moving_geometry_shape_derivatives = false
 nonpolynomial_integral_partials = false
 state_direction_products = false
 unbounded_quadrature = false
+nonlocal_polynomial_kernel_action = true
+finite_atomic_kernel_observation = true
+nonlocal_finite_residual_and_output_actions = true
+nonlocal_declared_pairing_identity = true
+arbitrary_nonlocal_field_solve = false
+singular_kernel_quadrature = false
 
 [evidence]
 package = "eqiora"

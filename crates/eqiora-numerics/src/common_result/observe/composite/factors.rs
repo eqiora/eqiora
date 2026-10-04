@@ -2,13 +2,47 @@
 use std::collections::BTreeMap;
 
 use crate::factor_measure::{axes, mapped_sample};
-use eqiora_core::{DynQuantity, RawId, ScalarDomain};
+use eqiora_core::{DynQuantity, RawId, ScalarDomain, ValueType};
 use eqiora_meshing::ReferenceCell;
-use eqiora_schema::kernel::typing::SpatialSupport;
+use eqiora_schema::kernel::ExprId;
+use eqiora_schema::kernel::typing::{SpatialSupport, TypedResidual};
 
 use super::*;
 
 pub(super) type Point = BTreeMap<(RawId, usize), f64>;
+
+// Keep source roots and exact discrete intermediates for the shared typed evaluator.
+// Numerical density admission uses a separate projection, never its remapped roots.
+struct FactorExpression {
+    operator: ScalarOperatorIr,
+    root: ExprId,
+    work: usize,
+    inputs: HashMap<SymbolRef, ValueType>,
+}
+
+impl FactorExpression {
+    fn new(typed: &TypedResidual<RawId>, projected: &ScalarOperatorIr) -> Result<Self, Diagnostic> {
+        let operator = ScalarOperatorIr::lower(typed.expression())?;
+        let work = operator
+            .instruction_count()
+            .max(projected.instruction_count());
+        Ok(Self {
+            operator,
+            work,
+            root: typed.expression().roots()[0],
+            inputs: typed
+                .expression()
+                .nodes()
+                .iter()
+                .zip(typed.node_types())
+                .filter_map(|(node, ty)| match node {
+                    ExprNode::Symbol(symbol) => Some((*symbol, ty.value_type.clone())),
+                    _ => None,
+                })
+                .collect(),
+        })
+    }
+}
 
 impl Context<'_> {
     fn output_domain(&self, id: Id<kinds::Observable>) -> Option<Id<kinds::Domain>> {
@@ -101,9 +135,10 @@ impl Context<'_> {
             .program
             .typed_observable(definition.id())
             .map_err(|errors| errors.into_iter().next().expect("failed typing"))?;
-        let operator = ScalarOperatorIr::lower_typed_scalar(&typed)?;
+        let projected = ScalarOperatorIr::lower_typed_scalar(&typed)?;
+        let expression = FactorExpression::new(&typed, &projected)?;
         let value = match definition.reduction() {
-            ObservableReduction::Value => self.factor_point(&operator, point, depth)?,
+            ObservableReduction::Value => self.factor_point(&expression, point, depth)?,
             ObservableReduction::SpatialIntegral {
                 domain, measure, ..
             } => {
@@ -112,7 +147,7 @@ impl Context<'_> {
                         "coordinate product requires a declared factor volume measure",
                     ));
                 }
-                self.require_regular_density(&operator, depth)?;
+                self.require_regular_density(&projected, depth)?;
                 let mut selected = axes(self.program, domain)?;
                 let program = self.program;
                 let limits = program
@@ -180,7 +215,8 @@ impl Context<'_> {
                         for ((axis, _), coordinate) in selected.iter().zip(coordinates) {
                             local.insert(*axis, coordinate.value());
                         }
-                        let term = weight.value() * self.factor_point(&operator, &local, depth)?;
+                        let term =
+                            weight.value() * self.factor_point(&expression, &local, depth)?;
                         let corrected = term - correction;
                         let next = sum + corrected;
                         correction = (next - sum) - corrected;
@@ -236,59 +272,75 @@ impl Context<'_> {
 
     fn factor_point(
         &mut self,
-        operator: &ScalarOperatorIr,
+        expression: &FactorExpression,
         point: &Point,
         depth: usize,
     ) -> Result<f64, Diagnostic> {
         self.remaining = self
             .remaining
-            .checked_sub(operator.instruction_count())
+            .checked_sub(expression.work)
             .ok_or_else(|| invalid("factor quadrature exceeds its expression work bound"))?;
-        let values = operator
-            .symbols()
-            .iter()
-            .map(|symbol| match symbol {
-                SymbolRef::Coordinate { factor, axis, .. } => {
-                    point.get(&(factor.erase(), *axis)).copied().ok_or_else(|| {
-                        invalid("coordinate factor is unbound at the integration point")
-                    })
-                }
-                SymbolRef::Observable(id) => self
-                    .evaluate(*id, point, None, depth + 1)?
-                    .0
-                    .real_scalar_value()
-                    .map(|value| value.value())
-                    .ok_or_else(|| {
-                        invalid("factor density requires real scalar Observable inputs")
-                    }),
-                SymbolRef::Field(id) if self.result.plan().as_scalar().is_some() => {
-                    let plan = self.result.plan().as_scalar().expect("matched scalar Plan");
-                    let index = plan
-                        .fields()
-                        .position(|(candidate, _)| candidate == *id)
-                        .ok_or_else(|| invalid("factor Field is outside the Result Plan"))?;
-                    let (association, values, _) = self
-                        .result
-                        .field_block(index, 0)
-                        .ok_or_else(|| invalid("factor Field has no retained coefficient block"))?;
-                    if association != "cell" {
-                        return Err(invalid("factor Field requires cell-constant coefficients"));
+        let mut failure = None;
+        let values = expression
+            .operator
+            .evaluate_typed(&[expression.root], &mut |symbol| {
+                let value = self.factor_input(symbol, &expression.inputs[&symbol], point, depth);
+                match value {
+                    Ok(value) => Some(value),
+                    Err(error) => {
+                        failure = Some(error);
+                        None
                     }
-                    plan.factor_field_value(*id, values, point)
                 }
-                _ => self
-                    .resolve(*symbol)
-                    .and_then(|value| value.real_scalar_value())
-                    .map(|value| value.value())
-                    .ok_or_else(|| {
-                        invalid("factor density Field or Parameter is unavailable in this Result")
-                    }),
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        operator
-            .evaluate(&values)?
+            });
+        if let Some(error) = failure {
+            return Err(error);
+        }
+        values?
             .first()
-            .copied()
-            .ok_or_else(|| invalid("factor density has no scalar root"))
+            .and_then(ValueLiteral::real_scalar_value)
+            .map(|value| value.value())
+            .ok_or_else(|| invalid("factor density has no real scalar root"))
+    }
+
+    fn factor_input(
+        &mut self,
+        symbol: SymbolRef,
+        ty: &ValueType,
+        point: &Point,
+        depth: usize,
+    ) -> Result<ValueLiteral, Diagnostic> {
+        let value = match symbol {
+            SymbolRef::Coordinate { factor, axis, .. } => *point
+                .get(&(factor.erase(), axis))
+                .ok_or_else(|| invalid("coordinate factor is unbound at the integration point"))?,
+            SymbolRef::Observable(id) => {
+                return self
+                    .evaluate(id, point, None, depth + 1)
+                    .map(|value| value.0);
+            }
+            SymbolRef::Field(id) if self.result.plan().as_scalar().is_some() => {
+                let plan = self.result.plan().as_scalar().expect("matched scalar Plan");
+                let index = plan
+                    .fields()
+                    .position(|(candidate, _)| candidate == id)
+                    .ok_or_else(|| invalid("factor Field is outside the Result Plan"))?;
+                let (association, values, _) = self
+                    .result
+                    .field_block(index, 0)
+                    .ok_or_else(|| invalid("factor Field has no retained coefficient block"))?;
+                if association != "cell" {
+                    return Err(invalid("factor Field requires cell-constant coefficients"));
+                }
+                plan.factor_field_value(id, values, point)?
+            }
+            _ => {
+                return self.resolve(symbol).ok_or_else(|| {
+                    invalid("factor density Field or Parameter is unavailable in this Result")
+                });
+            }
+        };
+        ValueLiteral::from_real(ty.clone(), value)
+            .map_err(|_| invalid("factor input differs from its declared real scalar type"))
     }
 }

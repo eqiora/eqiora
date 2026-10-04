@@ -1,0 +1,11 @@
+model Interaction(support target:interval(m), support source:interval(m)) {
+        support pair:product(target,source);
+        coordinate x:m on pair from target;
+        coordinate y:m on pair from source;
+        variable amplitude:1;
+        let u:1 on pair=amplitude*y/1[m];
+        let kernel:1/m on pair=x*y/1[m^3];
+        observable action:1 on target=integral(kernel*u,measure(source));
+        observable inventory:m=integral(action,measure(target));
+        relation prescribed_inventory {inventory=2[m];}
+    }

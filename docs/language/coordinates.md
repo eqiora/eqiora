@@ -292,3 +292,37 @@ parent incidence. Equal dimensions or coordinates do not substitute a foreign bo
 
 This is Model typing and replay. Curved/grouped boundary Fields, physical `grad`/`div` of
 boundary Fields, and numerical realization of these Fields remain unsupported.
+
+## Bounded nonlocal kernel actions
+
+The [executable interaction model](../../verify/language/factor-integrals/models/nonlocal-interaction.eqi)
+uses the existing product, integral and Observable owners:
+
+```eqiora
+support pair: product(target, source);
+coordinate x: m on pair from target;
+coordinate y: m on pair from source;
+let kernel: 1/m on pair = x*y/1[m^3];
+let u: 1 on pair = amplitude*y/1[m];
+observable action: 1 on target = integral(kernel*u, measure(source));
+observable inventory: m = integral(action, measure(target));
+relation prescribed_inventory { inventory = 2[m]; }
+```
+
+Supply bounded `interval(m)` bindings for both supports and a finite dimensionless variable
+`amplitude`. The source coordinate is integrated while the target remains an output
+coordinate. Changing the source bound changes the action; no outside-domain values or
+infinite-domain limit are implied. The Plan owns polynomial quadrature for the relation;
+Result observation requires explicit quadrature on the exact selected measure.
+
+A nominal `indexset` and explicit `sum` can instead declare a finite atomic action, with
+physical measure units carried by each mass. This is its own discrete measure, not an
+implicit continuous quadrature rule. Typed kernel applications and discrete ordinal
+intermediates retain their exact meaning during coordinate observations.
+
+Adjoints require declared pairings and both source and target measures. The
+[independent derivation](../../verify/language/factor-integrals/README.md#bounded-nonlocal-actions)
+checks a nonsymmetric example with unequal domain extents. It also derives the finite
+residual, output and total JVP/VJP products of an integral-coupled solve. This bounded path
+does not construct general function-space adjoints, solve arbitrary nonlocal Fields,
+admit singular kernels or supply coordinate-observation State tangents.

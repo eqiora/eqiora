@@ -666,3 +666,6 @@ mod radial_diffusion;
 
 #[path = "factor_integrals/moving_endpoints.rs"]
 mod moving_endpoints;
+
+#[path = "factor_integrals/nonlocal.rs"]
+mod nonlocal;
