@@ -451,7 +451,11 @@ fn constant_rate_coefficients_allow_nonlinear_values_but_not_nonlinear_rates() {
     use eqiora_schema::kernel::UnaryMathFunction;
     let field = Id::<kinds::Field>::new();
     let derivative = SymbolRef::Derivative(field);
-    for function in [UnaryMathFunction::Sin, UnaryMathFunction::Sqrt] {
+    for function in [
+        UnaryMathFunction::Sin,
+        UnaryMathFunction::Sqrt,
+        UnaryMathFunction::Exp,
+    ] {
         let mut builder = ExprDagBuilder::new();
         let rate = builder.symbol(derivative).unwrap();
         let value = builder.symbol(SymbolRef::Field(field)).unwrap();
@@ -695,4 +699,33 @@ fn additive_coefficients_do_not_expand_opaque_or_canceled_frozen_subtrees() {
         terms[0].1,
         [1, 0, 0].map(|value| num_rational::BigRational::from_integer(value.into()))
     );
+}
+
+#[test]
+fn exponential_uses_the_shared_value_and_forward_reverse_derivative_paths() {
+    use eqiora_core::ValueLiteral;
+    use eqiora_schema::kernel::UnaryMathFunction;
+    let symbol = SymbolRef::Field(Id::new());
+    let mut builder = ExprDagBuilder::new();
+    let x = builder.symbol(symbol).unwrap();
+    let two_x = builder.add(x, x).unwrap();
+    let root = builder.unary_math(UnaryMathFunction::Exp, two_x).unwrap();
+    let ir = ScalarOperatorIr::lower(&builder.finish([root]).unwrap()).unwrap();
+    assert_eq!(ir.evaluate(&[0.0]).unwrap(), [1.0]);
+    let point =
+        [ValueLiteral::try_from(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS)).unwrap()];
+    let linearization = ir
+        .linearize_typed(&point, &[DifferentiationRole::Unknown])
+        .unwrap();
+    let mut forward = [0.0];
+    linearization
+        .jvp(RelationTangent::Unknown(&[3.0]), &mut forward)
+        .unwrap();
+    assert_eq!(forward, [6.0]); // d exp(2x)/dx at zero is 2.
+    let mut reverse = [0.0];
+    linearization
+        .vjp(&[3.0], RelationCotangent::Unknown(&mut reverse))
+        .unwrap();
+    assert_eq!(reverse, forward);
+    assert!(ir.evaluate(&[1000.0]).is_err());
 }

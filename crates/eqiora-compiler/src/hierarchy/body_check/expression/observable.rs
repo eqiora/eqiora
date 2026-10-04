@@ -14,12 +14,24 @@ pub(in crate::hierarchy::body_check) fn validate_observable(
             })
         })
         .transpose()?;
+    let output = declaration
+        .domain()
+        .map(|name| {
+            scope.spatial_support(name).ok_or_else(|| {
+                scope.wrong_local_kind(declaration.range(), name, "Observable output Domain")
+            })
+        })
+        .transpose()?;
     let syntax = crate::hierarchy::parameters::specialize_type(
         scope.file,
         declaration.value_type(),
         &scope.static_values,
     )?;
-    let expected = crate::value_types::lower_value_type(scope.file, &syntax, support.as_ref())?;
+    let expected = crate::value_types::lower_value_type(
+        scope.file,
+        &syntax,
+        output.as_ref().or(support.as_ref()),
+    )?;
     let mut checker = ExpressionChecker {
         scope,
         relation_support: support.clone(),
@@ -33,7 +45,7 @@ pub(in crate::hierarchy::body_check) fn validate_observable(
         evolution: Vec::new(),
         contextual: Vec::new(),
         sampling: false,
-        allow_observables: reduction.is_none(),
+        allow_observables: true,
     };
     let inferred = checker.check_numeric_context(value, expected.scalar_domain())?;
     let inferred_type = if reduction.is_some() {
@@ -48,7 +60,13 @@ pub(in crate::hierarchy::body_check) fn validate_observable(
         measure
             .output_type(
                 &inferred,
+                inferred
+                    .support
+                    .as_ref()
+                    .or(support.as_ref())
+                    .expect("resolved input support"),
                 support.as_ref().expect("resolved integration support"),
+                output.as_ref(),
             )
             .map_err(|error| {
                 source_error(
@@ -58,13 +76,18 @@ pub(in crate::hierarchy::body_check) fn validate_observable(
                     error.message(),
                 )
             })?
+            .value_type
     } else {
-        if inferred.support.is_some() {
+        if inferred
+            .support
+            .as_ref()
+            .is_some_and(|support| Some(support) != output.as_ref())
+        {
             return Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 scope.file,
                 declaration.range(),
-                "Observable value requires no spatial support; use an explicit integral",
+                "Observable value differs from its declared output support",
             ));
         }
         inferred.value_type
@@ -84,12 +107,11 @@ pub(super) fn reference_type(
     scope: &DefinitionScope<'_, '_>,
     declaration: &eqiora_lang::ObservableDecl,
 ) -> Result<ExpressionType<String>, Diagnostic> {
-    let (_, reduction) =
-        crate::hierarchy::expand::observable::split(scope.file, declaration.value())?;
-    let support = reduction
+    let support = declaration
+        .domain()
         .map(|name| {
             scope.spatial_support(name).ok_or_else(|| {
-                scope.wrong_local_kind(declaration.range(), name, "Observable integration Domain")
+                scope.wrong_local_kind(declaration.range(), name, "Observable output Domain")
             })
         })
         .transpose()?;
@@ -98,6 +120,19 @@ pub(super) fn reference_type(
         declaration.value_type(),
         &scope.static_values,
     )?;
-    let value_type = crate::value_types::lower_value_type(scope.file, &syntax, support.as_ref())?;
-    Ok(ExpressionType::new(value_type, None))
+    let (_, reduction) =
+        crate::hierarchy::expand::observable::split(scope.file, declaration.value())?;
+    let measure_support = reduction
+        .map(|name| {
+            scope.spatial_support(name).ok_or_else(|| {
+                scope.wrong_local_kind(declaration.range(), name, "Observable integration Domain")
+            })
+        })
+        .transpose()?;
+    let value_type = crate::value_types::lower_value_type(
+        scope.file,
+        &syntax,
+        support.as_ref().or(measure_support.as_ref()),
+    )?;
+    Ok(ExpressionType::new(value_type, support))
 }

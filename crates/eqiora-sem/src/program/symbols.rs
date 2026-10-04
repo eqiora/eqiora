@@ -58,9 +58,10 @@ pub(super) fn symbol_type(
             _ => Err(SymbolTypeError::Missing),
         },
         SymbolRef::Observable(id) => match nodes.get(&id.erase()) {
-            Some(KernelNode::Observable(value)) => {
-                Ok(ExpressionType::new(value.value_type().clone(), None))
-            }
+            Some(KernelNode::Observable(value)) => Ok(ExpressionType::new(
+                value.value_type().clone(),
+                field_support(id.erase(), edges, spatial_supports),
+            )),
             _ => Err(SymbolTypeError::Missing),
         },
         SymbolRef::Parameter(id) => match nodes.get(&id.erase()) {

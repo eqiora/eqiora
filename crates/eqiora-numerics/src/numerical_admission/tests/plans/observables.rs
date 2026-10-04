@@ -374,7 +374,9 @@ fn ordered_second_variation_reuses_live_volume_and_surface_calculus() {
         if let KernelNode::Observable(definition) = node {
             match definition.reduction() {
                 ObservableReduction::Value => total = Some(definition.id()),
-                ObservableReduction::SpatialIntegral { domain, measure } => {
+                ObservableReduction::SpatialIntegral {
+                    domain, measure, ..
+                } => {
                     rules.insert(
                         domain,
                         match measure {

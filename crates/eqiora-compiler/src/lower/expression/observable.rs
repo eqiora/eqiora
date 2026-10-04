@@ -4,16 +4,36 @@ use eqiora_schema::kernel::{ObservableDef, ObservableMeasure, ObservableReductio
 
 pub(in crate::lower) fn lower_observable(
     file: &str,
-    range: TextRange,
     id: Id<kinds::Observable>,
     value_type: &eqiora_lang::ValueTypeSyntax,
     value: &LoweringExpression,
     reduction: Option<&String>,
+    domain: Option<&str>,
     bindings: &BTreeMap<String, Binding>,
 ) -> Result<(ObservableDef, BTreeSet<RawId>), Diagnostic> {
+    let range = value.range;
     let support = reduction
         .map(|name| relation_support(file, range, name, bindings))
         .transpose()?;
+    let output = domain
+        .map(|name| relation_support(file, range, name, bindings))
+        .transpose()?;
+    let value_type = crate::value_types::lower_value_type(
+        file,
+        value_type,
+        output.as_ref().or(support.as_ref()),
+    )?;
+    let value = contextual::typed_value(
+        file,
+        value,
+        bindings,
+        support.as_ref().or(output.as_ref()),
+        value_type.scalar_domain(),
+    )?;
+    let inferred = expression_type(file, &value, bindings, support.as_ref().or(output.as_ref()))?;
+    let input = reduction
+        .and(inferred.support.as_ref().or(support.as_ref()))
+        .cloned();
     let reduction = match reduction {
         None => ObservableReduction::Value,
         Some(name) => {
@@ -21,11 +41,14 @@ pub(in crate::lower) fn lower_observable(
                 return Err(unresolved(file, range, name, "Observable Domain"));
             };
             ObservableReduction::SpatialIntegral {
+                input: input
+                    .as_ref()
+                    .expect("integral input")
+                    .domain()
+                    .downcast()
+                    .expect("admitted Domain"),
                 domain: *domain,
-                measure: if matches!(
-                    support.as_ref(),
-                    Some(eqiora_schema::kernel::typing::SpatialSupport::Boundary { .. })
-                ) {
+                measure: if matches!(support.as_ref(), Some(SpatialSupport::Boundary { .. })) {
                     ObservableMeasure::Boundary
                 } else {
                     ObservableMeasure::Volume
@@ -33,26 +56,17 @@ pub(in crate::lower) fn lower_observable(
             }
         }
     };
-    let value_type = crate::value_types::lower_value_type(file, value_type, support.as_ref())?;
-    let value = contextual::typed_value(
-        file,
-        value,
-        bindings,
-        support.as_ref(),
-        value_type.scalar_domain(),
-    )?;
-    let inferred = expression_type(file, &value, bindings, support.as_ref())?;
     let mut lowerer = ExpressionLowerer {
         file,
         bindings,
-        support: support.clone(),
+        support: input.clone().or(output.clone()),
         builder: ExprDagBuilder::new(),
         dependencies: BTreeSet::new(),
         ports: BTreeSet::new(),
         cache: HashMap::new(),
         sampling: false,
         allow_discrete_symbols: true,
-        allow_observables: matches!(reduction, ObservableReduction::Value),
+        allow_observables: true,
         activation: &ActivationSyntax::Continuous,
         initial: false,
     };
@@ -63,7 +77,7 @@ pub(in crate::lower) fn lower_observable(
         .map_err(|error| source_error(codes::LANGUAGE_TYPE_ERROR, file, range, error.message()))?;
     let definition = ObservableDef::new(id, value_type, expression, reduction)?;
     definition
-        .validate_type(&inferred, support.as_ref())
+        .validate_type(&inferred, input.as_ref(), support.as_ref(), output.as_ref())
         .map_err(|error| source_error(codes::LANGUAGE_TYPE_ERROR, file, range, error.message()))?;
     Ok((definition, lowerer.dependencies))
 }
@@ -73,11 +87,20 @@ pub(super) fn reference_type(
     file: &str,
     range: TextRange,
     value_type: &eqiora_lang::ValueTypeSyntax,
+    domain: Option<&str>,
     reduction: Option<&str>,
     bindings: &BTreeMap<String, Binding>,
-) -> Result<eqiora_core::ValueType, Diagnostic> {
-    let support = reduction
+) -> Result<ExpressionType<RawId>, Diagnostic> {
+    let support = domain
         .map(|name| relation_support(file, range, name, bindings))
         .transpose()?;
-    crate::value_types::lower_value_type(file, value_type, support.as_ref())
+    let measure_support = reduction
+        .map(|name| relation_support(file, range, name, bindings))
+        .transpose()?;
+    let value_type = crate::value_types::lower_value_type(
+        file,
+        value_type,
+        support.as_ref().or(measure_support.as_ref()),
+    )?;
+    Ok(ExpressionType::new(value_type, support))
 }

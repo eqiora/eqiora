@@ -220,6 +220,16 @@ impl ModelDeclarations {
                     }
                 }
                 DraftDeclaration::Observable(observable) => {
+                    if let Some(domain) = &observable.domain
+                        && !spatial_domain_symbols.contains(domain.symbol())
+                    {
+                        diagnostics.push(native_diagnostic(
+                            &self.name,
+                            observable.name(),
+                            "Observable output support references a foreign or omitted Domain",
+                        ));
+                    }
+
                     if let Err(error) = self.validate_enum_type(&observable.value_type) {
                         diagnostics.push(native_diagnostic(
                             &self.name,

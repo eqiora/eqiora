@@ -85,6 +85,9 @@ pub(super) fn encode_observable(
     encoder.field(2, |encoder| {
         super::value_type::encode_value_type(encoder, declaration.value_type(), budget, 1)
     })?;
+    if let Some(domain) = declaration.domain() {
+        encoder.field(6, |encoder| encode_name(encoder, domain, budget))?;
+    }
     match declaration.value().kind() {
         ExprKind::Number(value) => encoder.field(3, |encoder| {
             super::expression::encode_decimal(encoder, value, false)

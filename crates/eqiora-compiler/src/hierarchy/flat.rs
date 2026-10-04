@@ -127,6 +127,7 @@ pub(super) enum FlatItemBlueprint {
         value_type: eqiora_lang::ValueTypeSyntax,
         value: crate::lower::LoweringExpression,
         reduction: Option<String>,
+        domain: Option<String>,
         range: TextRange,
         identity: EntityIdentity,
     },
@@ -499,6 +500,7 @@ impl ExpandedBlueprint {
                     value_type,
                     value,
                     reduction,
+                    domain,
                     range,
                     ..
                 } => LoweringItem::Observable {
@@ -506,6 +508,7 @@ impl ExpandedBlueprint {
                     value_type: value_type.clone(),
                     value: value.clone(),
                     reduction: reduction.clone(),
+                    domain: domain.clone(),
                     range: *range,
                 },
                 FlatItemBlueprint::Event {

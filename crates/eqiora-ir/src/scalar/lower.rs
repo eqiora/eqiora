@@ -138,6 +138,9 @@ impl ScalarOperatorIr {
                         else_value: ValueId(negative),
                     }
                 }
+                ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Exp, value) => {
+                    Instruction::Exp(value_id(*value, &values)?)
+                }
                 ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Sin, value) => {
                     Instruction::Sin(value_id(*value, &values)?)
                 }

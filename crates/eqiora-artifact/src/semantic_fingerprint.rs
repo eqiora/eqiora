@@ -34,9 +34,9 @@ use values::{
     encode_literal, encode_optional_literal, encode_quantity, encode_value_type, type_reference,
 };
 
-const FINGERPRINT_DOMAIN_V29: &[u8] = b"eqiora.structural-semantic-fingerprint/v29\0";
+const FINGERPRINT_DOMAIN_V30: &[u8] = b"eqiora.structural-semantic-fingerprint/v30\0";
 const PROJECTION_MAGIC: &[u8; 8] = b"EQIORASF";
-const GENERATION_V29: u16 = 29;
+const GENERATION_V30: u16 = 30;
 
 /// Current generation of the structural semantic projection.
 ///
@@ -56,8 +56,9 @@ pub enum SemanticFingerprintGeneration {
     /// ordered partial sources, selected local bindings and checked derivative values,
     /// spatial extent constraints with fixed or result-relative tensor coordinates,
     /// ordered dimensioned coordinate factors with exact bounds, and exact coordinate
-    /// selectors and retained Field coordinate derivatives.
-    V29,
+    /// selectors, retained Field coordinate derivatives, and exact integral input,
+    /// selected measure and remaining output support.
+    V30,
 }
 
 impl SemanticFingerprintGeneration {
@@ -65,19 +66,19 @@ impl SemanticFingerprintGeneration {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::V29 => "eqiora.structural-semantic-fingerprint/v29",
+            Self::V30 => "eqiora.structural-semantic-fingerprint/v30",
         }
     }
 
     const fn code(self) -> u16 {
         match self {
-            Self::V29 => GENERATION_V29,
+            Self::V30 => GENERATION_V30,
         }
     }
 
     const fn hash_domain(self) -> &'static [u8] {
         match self {
-            Self::V29 => FINGERPRINT_DOMAIN_V29,
+            Self::V30 => FINGERPRINT_DOMAIN_V30,
         }
     }
 }
@@ -220,7 +221,7 @@ impl ProjectionIdentity {
         limits: SemanticFingerprintLimits,
     ) -> Result<Self, Diagnostic> {
         validate_limits(limits)?;
-        let generation = SemanticFingerprintGeneration::V29;
+        let generation = SemanticFingerprintGeneration::V30;
         let graph = ProjectionGraph::from_program(program, limits)?;
         let canonical = Canonicalizer::new(&graph, limits).canonicalize()?;
         let mut hasher = Sha256::new();
@@ -286,11 +287,21 @@ fn encode_node(
             )?;
             match definition.reduction() {
                 eqiora_schema::kernel::ObservableReduction::Value => encoder.u8(0)?,
-                eqiora_schema::kernel::ObservableReduction::SpatialIntegral { domain, measure } => {
+                eqiora_schema::kernel::ObservableReduction::SpatialIntegral {
+                    input,
+                    domain,
+                    measure,
+                } => {
                     encoder.u8(match measure {
                         eqiora_schema::kernel::ObservableMeasure::Volume => 1,
                         eqiora_schema::kernel::ObservableMeasure::Boundary => 2,
                     })?;
+                    push_reference(
+                        references,
+                        nominal_label(17),
+                        lookup(ids, input.erase(), "Observable input Domain")?,
+                        budget,
+                    )?;
                     push_reference(
                         references,
                         nominal_label(16),
@@ -690,7 +701,7 @@ fn validate_limits(limits: SemanticFingerprintLimits) -> Result<(), Diagnostic> 
 
 fn newer_vocabulary(subject: &str) -> Diagnostic {
     fingerprint_error(format!(
-        "{subject} is newer than structural semantic fingerprint generation v29"
+        "{subject} is newer than structural semantic fingerprint generation v30"
     ))
 }
 

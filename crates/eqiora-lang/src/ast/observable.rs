@@ -6,6 +6,7 @@ pub struct ObservableDecl {
     pub(crate) comments: crate::ast::comments::SourceComments,
     pub(crate) name: String,
     pub(crate) value_type: ValueTypeSyntax,
+    pub(crate) domain: Option<String>,
     pub(crate) value: Expr,
     pub(crate) range: TextRange,
 }
@@ -27,6 +28,12 @@ impl ObservableDecl {
     #[must_use]
     pub const fn value_type(&self) -> &ValueTypeSyntax {
         &self.value_type
+    }
+
+    /// Exact declared output support, absent for a lumped value.
+    #[must_use]
+    pub fn domain(&self) -> Option<&str> {
+        self.domain.as_deref()
     }
 
     /// Returns the derived expression or explicit spatial integral.

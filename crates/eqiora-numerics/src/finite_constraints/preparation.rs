@@ -23,6 +23,14 @@ pub(crate) fn lower_finite_constraints(
     for node in kernel.nodes() {
         match node {
             KernelNode::Field(field) => {
+                if kernel.edges().iter().any(|edge| {
+                    edge.from() == field.id().erase()
+                        && edge.kind() == eqiora_graph::EdgeKind::DefinedOn
+                }) {
+                    return Err(invalid(
+                        "finite execution cannot erase a Field spatial support",
+                    ));
+                }
                 let value = field.value_type();
                 if field.role() != FieldRole::Variable
                     || !matches!(
@@ -99,6 +107,12 @@ pub(crate) fn lower_finite_constraints(
                     bindings.push((coordinate, scalar));
                 }
             }
+            KernelNode::Domain(domain)
+                if matches!(
+                    domain.kind(),
+                    eqiora_schema::kernel::DomainKind::CoordinateInterval { .. }
+                        | eqiora_schema::kernel::DomainKind::CoordinateProduct { .. }
+                ) => {}
             KernelNode::Relation(_) | KernelNode::Observable(_) | KernelNode::FiniteSpace(_) => {}
             KernelNode::Activation(activation)
                 if matches!(activation.kind(), ActivationKind::Continuous) => {}
@@ -124,6 +138,13 @@ pub(crate) fn lower_finite_constraints(
         let KernelNode::Relation(relation) = node else {
             continue;
         };
+        if kernel.edges().iter().any(|edge| {
+            edge.from() == relation.id().erase() && edge.kind() == eqiora_graph::EdgeKind::AppliesOn
+        }) {
+            return Err(invalid(
+                "finite execution cannot erase a Relation spatial support",
+            ));
+        }
         let conditions = relation.conditions().ok_or_else(|| {
             invalid("finite constraint execution does not reinterpret a conservation Law as a condition Relation")
         })?;

@@ -17,7 +17,7 @@ def test_installed_first_and_second_variation_authoring():
                             value_type=q.ValueType.real(q.Dimension(length=1)))
         a = component.parameter("a", value_type=q.ValueType.real(q.Dimension(mass=1, length=-2, time=-2)))
         balance = component.relation("balance", q.lang.equation(a*u, 0), on=body)
-        energy = component.observable("energy", a*u*u/2, on=body,
+        energy = component.observable("energy", a*u*u/2, integrate_over=body,
                                       value_type=q.ValueType.real(q.Dimension(mass=1, length=2, time=-2)))
         combined = component.observable("combined", energy+energy-energy,
                                         value_type=q.ValueType.real(q.Dimension(mass=1, length=2, time=-2)))

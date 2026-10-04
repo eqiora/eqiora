@@ -829,3 +829,31 @@ fn reduced_observable_native_references_require_the_exact_declaration() {
             .any(|error| error.message().contains("foreign or omitted Observable"))
     );
 }
+
+#[test]
+fn observable_output_support_retains_exact_native_domain_ownership() {
+    let domain = DraftSpatialDomain::cartesian_box("body", [(0.0, 1.0)]);
+    let foreign = DraftSpatialDomain::cartesian_box("body", [(0.0, 1.0)]);
+    let ty =
+        ValueType::scalar(eqiora_core::ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap();
+    let output = DraftObservable::new(
+        "sample",
+        ty,
+        DraftExpression::constant(crate::DecimalLiteral::parse("2").unwrap()),
+    );
+    let module = Module::new(
+        "M",
+        [domain.clone().into(), output.clone().on(&domain).into()],
+    )
+    .unwrap();
+    let Item::Observable(declaration) = &module.model().items()[1] else {
+        panic!("Observable");
+    };
+    assert_eq!(declaration.domain(), Some("body"));
+    let errors = Module::new("M", [domain.into(), output.on(&foreign).into()]).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message().contains("foreign or omitted Domain"))
+    );
+}

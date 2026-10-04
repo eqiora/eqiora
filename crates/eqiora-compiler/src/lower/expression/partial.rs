@@ -52,6 +52,17 @@ impl ExpressionLowerer<'_> {
         value: &LoweringExpression,
         selected: &LoweringExpression,
     ) -> Result<TypedExpression, Diagnostic> {
+        if value
+            .referenced_names()
+            .iter()
+            .any(|name| matches!(self.bindings.get(name), Some(Binding::Observable(..))))
+        {
+            return Err(error(
+                self.file,
+                expression,
+                "partial of an Observable requires differentiation through its retained definition",
+            ));
+        }
         let value_type = types::expression_type(self.file, value, self.bindings, None)?;
         let input_type = types::expression_type(self.file, selected, self.bindings, None)?;
         let result = result_type(&value_type, &input_type)

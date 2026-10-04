@@ -129,6 +129,12 @@ impl KernelProgram {
         &self.boundary
     }
 
+    /// Exact admitted continuous support, including ordered dimensioned factors.
+    #[must_use]
+    pub fn spatial_support(&self, domain: Id<kinds::Domain>) -> Option<&SpatialSupport<RawId>> {
+        self.spatial_supports.get(&domain.erase())
+    }
+
     /// Resolve the accepted Cartesian bounds for one Domain.
     ///
     /// This is the single metric projection of fixed and Parameter-backed
@@ -718,8 +724,7 @@ fn validate_expression(
         if matches!(node, ExprNode::Symbol(SymbolRef::Observable(_)))
             && !matches!(
                 environment.nodes.get(&owner),
-                Some(KernelNode::Observable(definition))
-                    if matches!(definition.reduction(), eqiora_schema::kernel::ObservableReduction::Value)
+                Some(KernelNode::Observable(_))
             )
         {
             diagnostics.push(kernel_error(

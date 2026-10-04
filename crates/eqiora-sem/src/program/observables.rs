@@ -3,6 +3,29 @@
 use super::*;
 
 impl KernelProgram {
+    /// Exact declared output support; a lumped Observable has none.
+    /// # Errors
+    /// Rejects an Observable outside this admitted Model.
+    pub fn observable_output_support(
+        &self,
+        observable: Id<kinds::Observable>,
+    ) -> Result<Option<&SpatialSupport<RawId>>, Diagnostic> {
+        if !matches!(
+            self.node(observable.erase()),
+            Some(KernelNode::Observable(_))
+        ) {
+            return Err(kernel_error(
+                observable.erase(),
+                "Observable is outside the selected Model",
+            ));
+        }
+        Ok(self.edges.iter().find_map(|edge| {
+            (edge.from() == observable.erase() && edge.kind() == EdgeKind::DefinedOn)
+                .then(|| self.spatial_supports.get(&edge.to()))
+                .flatten()
+        }))
+    }
+
     /// Evaluate the retained expression of one finite Observable in this exact Model.
     /// Symbol values come from the caller's admitted numerical context; this performs
     /// no spatial quadrature or solver acceptance.
@@ -21,6 +44,12 @@ impl KernelProgram {
                 "Observable is outside the selected Model",
             ));
         };
+        if !edge_targets(&self.edges, observable.erase(), EdgeKind::DefinedOn).is_empty() {
+            return Err(kernel_error(
+                observable.erase(),
+                "finite evaluation cannot erase an Observable output support",
+            ));
+        }
         if !matches!(
             definition.reduction(),
             eqiora_schema::kernel::ObservableReduction::Value
@@ -66,7 +95,15 @@ impl KernelProgram {
         let typed = self.type_derived_residual(
             definition.expression().clone(),
             observable.erase(),
-            definition.reduction().domain().map(Id::erase),
+            definition
+                .reduction()
+                .input_domain()
+                .map(Id::erase)
+                .or_else(|| {
+                    edge_targets(&self.edges, observable.erase(), EdgeKind::DefinedOn)
+                        .into_iter()
+                        .next()
+                }),
             RootContract::Observable,
         )?;
         let root = typed
@@ -77,8 +114,13 @@ impl KernelProgram {
                 root,
                 definition
                     .reduction()
+                    .input_domain()
+                    .and_then(|id| self.spatial_supports.get(&id.erase())),
+                definition
+                    .reduction()
                     .domain()
                     .and_then(|id| self.spatial_supports.get(&id.erase())),
+                field_support(observable.erase(), &self.edges, &self.spatial_supports).as_ref(),
             )
             .map_err(|error| vec![error])?;
         Ok(typed)
@@ -96,9 +138,33 @@ pub(super) fn validate(
         let KernelNode::Observable(observable) = node else {
             continue;
         };
-        let scope = observable.reduction().domain().map(Id::erase);
+        let output_domains = edge_targets(edges, id, EdgeKind::DefinedOn);
+        let output = field_support(id, edges, spatial_supports);
+        if (!output_domains.is_empty() && output.is_none())
+            || output_domains.len() > 1
+            || output_domains
+                .iter()
+                .any(|id| !spatial_supports.contains_key(id))
+        {
+            diagnostics.push(kernel_error(
+                id,
+                "Observable output requires at most one admitted Domain",
+            ));
+        }
+        let scope = observable
+            .reduction()
+            .input_domain()
+            .map(Id::erase)
+            .or_else(|| output.as_ref().map(|support| *support.domain()));
         let declared_scopes = edge_targets(edges, id, EdgeKind::AppliesOn);
-        if declared_scopes != scope.into_iter().collect() {
+        if declared_scopes
+            != observable
+                .reduction()
+                .domain()
+                .map(Id::erase)
+                .into_iter()
+                .collect()
+        {
             diagnostics.push(kernel_error(
                 id,
                 "Observable AppliesOn must name exactly its integration Domain",
@@ -143,7 +209,18 @@ pub(super) fn validate(
             let root = typed
                 .node_type(observable.expression().roots()[0])
                 .expect("typed root exists");
-            if let Err(error) = observable.validate_type(root, support) {
+            if let Err(error) = observable.validate_type(
+                root,
+                observable
+                    .reduction()
+                    .input_domain()
+                    .and_then(|id| spatial_supports.get(&id.erase())),
+                observable
+                    .reduction()
+                    .domain()
+                    .and_then(|id| spatial_supports.get(&id.erase())),
+                output.as_ref(),
+            ) {
                 diagnostics.push(error);
             }
         }

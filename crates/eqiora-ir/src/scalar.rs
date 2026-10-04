@@ -2,6 +2,7 @@ mod additive_terms;
 mod affine_analysis;
 mod instruction;
 mod lower;
+mod regularity;
 mod slot_affine;
 use instruction::{Instruction, ValueId};
 mod batch;
@@ -204,6 +205,7 @@ impl ScalarInputIrBuilder {
         value: ScalarInputValueId,
     ) -> Result<ScalarInputValueId, Diagnostic> {
         match function {
+            eqiora_schema::kernel::UnaryMathFunction::Exp => self.unary(value, Instruction::Exp),
             eqiora_schema::kernel::UnaryMathFunction::Sin => self.unary(value, Instruction::Sin),
             eqiora_schema::kernel::UnaryMathFunction::Sqrt => self.unary(value, Instruction::Sqrt),
             _ => Err(ir_builder_error(

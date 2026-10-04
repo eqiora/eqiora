@@ -176,7 +176,11 @@ impl ExpressionContext<'_> {
         };
         let support = match functional.reduction() {
             ObservableReduction::Value => None,
-            ObservableReduction::SpatialIntegral { domain, measure } => Some(match measure {
+            ObservableReduction::SpatialIntegral {
+                input,
+                domain,
+                measure,
+            } if input == domain => Some(match measure {
                 ObservableMeasure::Volume => SpatialSupport::Volume {
                     domain: domain.erase(),
                     dimensions: self.ambient_dimension,
@@ -191,6 +195,11 @@ impl ExpressionContext<'_> {
                     dimensions: self.ambient_dimension,
                 },
             }),
+            ObservableReduction::SpatialIntegral { .. } => {
+                return Err(wire::rejection(
+                    "local variation requires a full fixed-domain integral",
+                ));
+            }
         };
         let volume = support
             .as_ref()

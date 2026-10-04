@@ -185,3 +185,10 @@ fn unused_component_integral_types_use_the_shared_measure_contract() {
         assert!(crate::compile("unused.eqi", &invalid).is_err());
     }
 }
+
+#[test]
+fn full_vector_integral_reference_retains_its_frame_without_an_output_support() {
+    observables(
+        "model VectorIntegral() { domain body=box(0,1,0,1); variable f:vector<K,2> on body; relation r on body {f=f;} observable flux:vector<K*m^2,2>=integral(f,measure(body)); observable total:vector<K*m^4,2>=integral(flux,measure(body)); }",
+    );
+}

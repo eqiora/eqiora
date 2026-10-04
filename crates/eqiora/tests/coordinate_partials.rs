@@ -389,7 +389,7 @@ fn coordinate_partial_fingerprint_retains_axis_and_ignores_binder_spelling() {
     let bytes = model.canonical_json().unwrap();
     let old = String::from_utf8(bytes.clone())
         .unwrap()
-        .replace("eqiora.model-envelope/v34", "eqiora.model-envelope/v33");
+        .replace("eqiora.model-envelope/v35", "eqiora.model-envelope/v33");
     assert_ne!(old.as_bytes(), bytes);
     assert!(ModelDocument::replay(old.as_bytes()).is_err());
 }

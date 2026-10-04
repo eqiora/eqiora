@@ -65,7 +65,7 @@ impl EdgeKind {
         match self {
             Self::DefinedOn => {
                 (matches!(from, K::Field) && matches!(to, K::Domain | K::Representation))
-                    || (matches!(from, K::Port) && matches!(to, K::Domain))
+                    || (matches!(from, K::Port | K::Observable) && matches!(to, K::Domain))
             }
             Self::AppliesOn => {
                 matches!(from, K::Relation | K::Observable) && matches!(to, K::Domain)

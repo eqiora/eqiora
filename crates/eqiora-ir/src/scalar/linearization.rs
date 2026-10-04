@@ -77,6 +77,9 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
                     }
                     InputBinding::Frozen => 0.0,
                 },
+                Instruction::Exp(value) => {
+                    read(&tangents, value, index)? * read(&values, value, index)?.exp()
+                }
                 Instruction::Sin(value) => {
                     read(&tangents, value, index)? * read(&values, value, index)?.cos()
                 }
@@ -216,6 +219,14 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
                         &mut adjoints,
                         right,
                         -cotangent * read(&values, left, index)? / denominator.powi(2),
+                        index,
+                    )?;
+                }
+                Instruction::Exp(value) => {
+                    accumulate(
+                        &mut adjoints,
+                        value,
+                        cotangent * read(&values, value, index)?.exp(),
                         index,
                     )?;
                 }

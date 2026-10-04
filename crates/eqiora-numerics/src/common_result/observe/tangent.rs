@@ -107,13 +107,14 @@ impl CommonResult {
                 "Observable State tangent belongs to a foreign or stale Result/Model",
             ));
         }
-        let program = super::observation_program(self, model)?;
+        let program = self.observation_program()?;
         let (_, derivative) = super::composite::evaluate(
             self,
             &program,
             observable,
             quadratures,
             Some(&StateDerivative::First(&tangent.fields)),
+            None,
         )?;
         derivative.ok_or_else(|| invalid("Observable State JVP has no derivative"))
     }
@@ -157,13 +158,19 @@ impl CommonResult {
                 "second variation directions must hold all other Fields fixed",
             ));
         }
-        let program = super::observation_program(self, model)?;
+        let program = self.observation_program()?;
         let derivative = StateDerivative::Second {
             wrt,
             directions: [&directions[0].fields, &directions[1].fields],
         };
-        let (_, value) =
-            super::composite::evaluate(self, &program, observable, quadratures, Some(&derivative))?;
+        let (_, value) = super::composite::evaluate(
+            self,
+            &program,
+            observable,
+            quadratures,
+            Some(&derivative),
+            None,
+        )?;
         value.ok_or_else(|| invalid("second variation has no derived value"))
     }
 }

@@ -342,6 +342,7 @@ pub(crate) enum LoweringItem {
         value_type: eqiora_lang::ValueTypeSyntax,
         value: LoweringExpression,
         reduction: Option<String>,
+        domain: Option<String>,
         range: TextRange,
     },
     Event {
@@ -512,6 +513,7 @@ pub(crate) fn lower_typed_model(
                 name,
                 range,
                 value_type,
+                domain,
                 reduction,
                 ..
             } => insert_binding(
@@ -521,6 +523,7 @@ pub(crate) fn lower_typed_model(
                 Binding::Observable(
                     identities.observable(name),
                     value_type.clone(),
+                    domain.clone(),
                     reduction.clone(),
                 ),
                 *range,
@@ -741,18 +744,19 @@ pub(crate) fn lower_typed_model(
                 value_type,
                 value,
                 reduction,
-                range,
+                domain,
+                ..
             } => {
                 let Binding::Observable(id, ..) = bindings[name] else {
                     unreachable!("Observable binding")
                 };
                 expression::lower_observable(
                     file,
-                    *range,
                     id,
                     value_type,
                     value,
                     reduction.as_ref(),
+                    domain.as_deref(),
                     &bindings,
                 )
                 .map(|(definition, dependencies)| {
@@ -761,6 +765,11 @@ pub(crate) fn lower_typed_model(
                     }
                     if let Some(domain) = definition.reduction().domain() {
                         edges.push((id.erase(), domain.erase(), EdgeKind::AppliesOn));
+                    }
+                    if let Some(name) = domain
+                        && let Some(Binding::Domain(output, _)) = bindings.get(name)
+                    {
+                        edges.push((id.erase(), output.erase(), EdgeKind::DefinedOn));
                     }
                     nodes.push(definition.into());
                 })
@@ -960,39 +969,11 @@ pub(crate) fn lower_typed_model(
     }
     transaction.push(Op::DefineOntologyView { view: view.into() });
 
-    // Lowering bindings also own synthesized continuum representations and
-    // unnamed initial Relations. Export only authored declaration names; the
-    // synthesized nodes remain members of the unchanged Kernel transaction.
-    let symbols = model
-        .items
-        .iter()
-        .filter_map(|item| match item {
-            LoweringItem::Domain { name, .. }
-            | LoweringItem::Field { name, .. }
-            | LoweringItem::Parameter { name, .. }
-            | LoweringItem::Port { name, .. }
-            | LoweringItem::Clock { name, .. }
-            | LoweringItem::Observable { name, .. }
-            | LoweringItem::Event { name, .. }
-            | LoweringItem::Relation {
-                name,
-                initial: false,
-                ..
-            } => Some(name),
-            LoweringItem::RecordInstance { .. }
-            | LoweringItem::Nominal { .. }
-            | LoweringItem::Representation { .. }
-            | LoweringItem::Relation { initial: true, .. }
-            | LoweringItem::Connection { .. }
-            | LoweringItem::Boundary { .. } => None,
-        })
-        .map(|name| (name.clone(), bindings[name].primary_id()))
-        .collect();
     Ok(CompiledModel {
         notation: crate::ModelNotation::default(),
         model: model_id,
         transaction,
-        symbols: ModelSymbols::from_map(symbols),
+        symbols: binding::export_symbols(model, &bindings),
         provenance: None,
         physical_exposures: PhysicalExposureProjectionMap::default(),
         authored_formulations: Vec::new(),
