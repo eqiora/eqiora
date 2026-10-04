@@ -28,10 +28,11 @@ pub fn resolve_common_plan(
                 || authored_formulation.is_some()
             {
                 return Err(invalid(
-                    "coordinate polynomial projection requires automatic CellCentered realization without an authored Formulation",
+                    "coordinate conservation requires automatic CellCentered realization without an authored Formulation",
                 ));
             }
-            let structure = eqiora_solver::AlgebraicStructure::new([projection.field], [])?;
+            let structure =
+                eqiora_solver::AlgebraicStructure::new([projection.primary_field()], [])?;
             let (linear, temporal) = resolve_linear_requirements(
                 solve,
                 scaling,

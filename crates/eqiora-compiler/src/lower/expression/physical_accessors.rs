@@ -90,6 +90,13 @@ impl LoweringExpression {
                     pending.push(argument);
                 }
                 LoweringExpressionNode::Partial { value, wrt } => pending.extend([value, wrt]),
+                LoweringExpressionNode::Evaluate { value, at, .. } => {
+                    pending.push(value);
+                    pending.extend(
+                        at.iter()
+                            .flat_map(|(coordinate, point)| [coordinate, point]),
+                    );
+                }
                 LoweringExpressionNode::Neg(value)
                 | LoweringExpressionNode::Not(value)
                 | LoweringExpressionNode::Index { value, .. }

@@ -1,5 +1,5 @@
 use super::{Atom, Budget, ExactRational, Polynomial, TimeDerivativeProofError as Error};
-use crate::kernel::pure_operator::{CalculusNode, PureOperatorDefinition};
+use crate::kernel::pure_operator::PureOperatorDefinition;
 use crate::kernel::{ExprDag, ExprId, ExprNode, SymbolRef};
 
 pub(super) fn normalize(
@@ -96,85 +96,12 @@ fn pure_definition(
     arguments: &[&Polynomial],
     budget: &mut Budget,
 ) -> Result<Polynomial, Error> {
-    if definition.formals().len() != arguments.len()
-        || !definition.result_rule().is_invariant_scalar()
-        || definition
-            .formals()
-            .iter()
-            .any(|formal| !formal.is_invariant_scalar())
-    {
-        return Err(Error::UnsupportedExpression);
-    }
-    let mut values: Vec<Polynomial> = Vec::with_capacity(definition.nodes().len());
-    for node in definition.nodes() {
-        let get = |id: crate::kernel::pure_operator::CalculusNodeId| {
-            values
-                .get(id.index() as usize)
-                .ok_or(Error::InvalidExpression)
-        };
-        let value = match node {
-            CalculusNode::Rational { value, .. } => Polynomial::constant(*value),
-            CalculusNode::FormalComponent { formal, axes } if axes.is_empty() => (**arguments
-                .get(usize::from(*formal))
-                .ok_or(Error::InvalidExpression)?)
-            .clone(),
-            CalculusNode::BoundInput(value) | CalculusNode::Differentiated { value, .. } => {
-                get(*value)?.clone()
-            }
-            CalculusNode::Neg(value) => get(*value)?.checked_neg()?,
-            CalculusNode::Add(left, right) => get(*left)?.checked_add(get(*right)?)?,
-            CalculusNode::Mul(left, right) => get(*left)?.checked_mul(get(*right)?)?,
-            _ => return Err(Error::UnsupportedExpression),
-        };
-        budget.polynomial(&value)?;
-        values.push(value);
-    }
-    values
-        .get(definition.root().index() as usize)
-        .cloned()
-        .ok_or(Error::InvalidExpression)
+    Polynomial::substitute(definition, arguments, |value| budget.polynomial(value))?
+        .ok_or(Error::UnsupportedExpression)
 }
 
 fn exact_binary64(value: f64) -> Result<ExactRational, Error> {
-    if !value.is_finite() {
-        return Err(Error::NonExactConstant);
-    }
-    if value == 0.0 {
-        return Ok(ExactRational::integer(0));
-    }
-    let bits = value.to_bits();
-    let encoded_exponent = ((bits >> 52) & 0x7ff) as i32;
-    let fraction = bits & ((1_u64 << 52) - 1);
-    let (mut significand, mut exponent) = if encoded_exponent == 0 {
-        (fraction, -1074)
-    } else {
-        (fraction | (1_u64 << 52), encoded_exponent - 1023 - 52)
-    };
-    let shift = significand.trailing_zeros();
-    significand >>= shift;
-    exponent += shift as i32;
-    let signed = if bits >> 63 == 0 {
-        i128::from(significand)
-    } else {
-        -i128::from(significand)
-    };
-    let (numerator, denominator) = if exponent >= 0 {
-        let scale = 1_i128
-            .checked_shl(exponent as u32)
-            .filter(|scale| *scale > 0)
-            .ok_or(Error::NonExactConstant)?;
-        let numerator = signed.checked_mul(scale).ok_or(Error::NonExactConstant)?;
-        (
-            i64::try_from(numerator).map_err(|_| Error::NonExactConstant)?,
-            1,
-        )
-    } else {
-        let denominator = 1_u64
-            .checked_shl((-exponent) as u32)
-            .ok_or(Error::NonExactConstant)?;
-        (signed as i64, denominator)
-    };
-    ExactRational::from_canonical_parts(numerator, denominator).map_err(|_| Error::NonExactConstant)
+    ExactRational::from_binary64(value).ok_or(Error::NonExactConstant)
 }
 
 #[cfg(test)]

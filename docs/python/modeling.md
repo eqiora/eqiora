@@ -1702,7 +1702,7 @@ interior face belongs to the upper cell and the last endpoint belongs to the fin
 Geometry or Geometry correspondence; the corresponding digest properties are `None`.
 The generic `CellCentered` request exposes its cell-constant `space`; Field roles and
 numerical integration follow the resolved Plan. Physical Mesh viewing, general product
-PDEs, nonpolynomial Field projection, radial diffusion and Field derivatives remain outside
+PDEs, nonpolynomial Field projection, transient radial diffusion and Field derivatives remain outside
 this profile. The [registered derivation](../../verify/language/factor-integrals/README.md)
 separates moment projection error from quadrature error.
 
@@ -1738,3 +1738,13 @@ Geometry bindings use the existing `(boundary_selection, parent_selection)` pair
 from another exact Geometry revision rejects even if its name or coordinates match. This
 path provides Model typing and artifact reference replay; numerical boundary-Field solving,
 curved/grouped boundary Fields and physical `grad`/`div` on boundary Fields remain unsupported.
+
+
+Static radial diffusion uses the same coordinate-grid factory with `model.domain("radius")`
+and `eqiora.fvm.CellCentered()`. Bind the explicit equations and center/surface conditions in
+[the radial model](../../verify/language/factor-integrals/models/radial-diffusion.eqi), then
+observe its `average` through the ordinary Result. Two quadrature points integrate the
+represented cell concentration against the spherical weight exactly. The
+[registered derivation](../../verify/language/factor-integrals/README.md#static-radial-diffusion-and-particle-average)
+separates its discretization error from quadrature; time evolution and pointwise
+cell-constant reconstruction remain unsupported.

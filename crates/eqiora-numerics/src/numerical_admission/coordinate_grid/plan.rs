@@ -30,7 +30,7 @@ impl CommonScalarPlan {
             })
             .collect::<Vec<_>>()
             .into_boxed_slice();
-        let fields = vec![(projection.field, projection.value_type.clone())].into_boxed_slice();
+        let fields = projection.fields().into_boxed_slice();
         let portable = portable(&admission, &cells)?;
         let realization_digest = hex_bytes(&portable.digest()?);
         let (digests, bytes) = static_plan_identity_lineage(&admission, &realization_digest)?;
@@ -105,10 +105,10 @@ pub(in crate::numerical_admission) fn portable(
         ),
         [DomainFieldDiscretization::new(
             parse_domain(&grid.source.domain)?,
-            [FieldSpaceBinding::new(
-                projection.field,
-                Space::cell_constant(),
-            )],
+            projection
+                .fields()
+                .into_iter()
+                .map(|(id, _)| FieldSpaceBinding::new(id, Space::cell_constant())),
             [],
         )?],
         [],
@@ -132,11 +132,17 @@ pub(in crate::numerical_admission) fn portable(
 
 pub(in crate::numerical_admission) fn execute(
     admission: &NativeNumericalAdmission,
-    projection: &CellProjection,
+    projection: &CellEquations,
     backend: &dyn LinearSolverBackend,
 ) -> Result<CommonScalarRunOutput, Diagnostic> {
     let NativeMeshResources::Coordinates(grid) = admission.resources() else {
         return Err(invalid("coordinate cell execution requires its exact grid"));
+    };
+    let CellEquations::Projection(projection) = projection else {
+        let CellEquations::Diffusion(diffusion) = projection else {
+            unreachable!()
+        };
+        return super::diffusion_plan::execute(admission, grid, diffusion, backend);
     };
     let structure = eqiora_solver::AlgebraicStructure::new([projection.field], [])?;
     let backend = admission

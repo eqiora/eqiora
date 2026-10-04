@@ -334,7 +334,7 @@ pub(super) struct NativeNumericalAdmission {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum RecognizedNativeModel {
-    Coordinates(Box<super::coordinate_grid::CellProjection>),
+    Coordinates(Box<super::coordinate_grid::CellEquations>),
     Scalar(Box<ExecutableScalarEquations>),
     Elasticity(Box<IsotropicElasticityContinuum<2>>),
     Stokes(Box<SteadyStokesGeometryBinding2d>),
@@ -369,7 +369,7 @@ impl RecognizedNativeAdmission {
         };
         let recognized = if let NativeMeshResources::Coordinates(grid) = &resources {
             RecognizedNativeModel::Coordinates(Box::new(
-                super::coordinate_grid::CellProjection::lower(&program, grid)?,
+                super::coordinate_grid::CellEquations::lower(&program, grid)?,
             ))
         } else {
             let transient = lower_transient_incompressible_navier_stokes_cartesian_2d(&program);

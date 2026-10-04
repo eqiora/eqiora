@@ -171,3 +171,32 @@ def test_coordinate_field_grid_installed_solve_observe_and_replay(velocity_cells
     for cells in [[2], [2, 0]]:
         with pytest.raises(q.ValidationError):
             q.meshing.Mesh.coordinate_factors(model, phase, cells)
+
+
+@pytest.mark.parametrize("cells", [4, 8])
+def test_radial_diffusion_installed_result_and_spherical_average(cells):
+    from pathlib import Path
+    source = Path(__file__).resolve().parents[3] / "verify/language/factor-integrals/models/radial-diffusion.eqi"
+    model = q.compile(path=source, entry="Particle", bindings={
+        "radius": q.CoordinateInterval(0, 1, dimension=LENGTH),
+    })
+    output = model.observable("average")
+    radius = model.domain("radius")
+    model = q.Model.from_bytes(model.to_bytes())
+    mesh = q.meshing.Mesh.coordinate_factors(model, radius, [cells])
+    mesh = q.meshing.Mesh.from_bytes(mesh.to_bytes())
+    solve = q.solve.Linear(relative_tolerance=1e-12, absolute_tolerance=1e-14,
+                           maximum_iterations=100, algorithm=q.solve.LinearSolver.SparseLu,
+                           preconditioner=q.solve.Preconditioner.Identity,
+                           reduction=q.solve.Reduction.Fast, provider=q.solve.SolverProvider.faer())
+    plan = q.resolve(model, mesh=mesh, spatial=q.fvm.CellCentered(), solve=solve)
+    plan = q.Plan.from_bytes(plan.to_bytes())
+    result = q.Result.from_bytes(plan, q.run(plan).to_bytes())
+    # Independent spherical cell volumes applied to c_i=1-r_i²+h²/4.
+    h = 1/cells
+    expected = 2/5+2*h*h/3-h**4/15
+    observed = result.observe(output, quadrature_points=2)
+    assert observed.value == pytest.approx(expected, abs=1e-10, rel=0)
+    assert observed.value_type == q.ValueType.real(q.Dimension(length=-3))
+    with pytest.raises(q.ValidationError, match="CellCentered"):
+        q.resolve(model, mesh=mesh, spatial=q.fem.Q1(), solve=solve)

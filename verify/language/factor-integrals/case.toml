@@ -1,8 +1,8 @@
 id = "language.factor-integrals"
 status = "implemented"
-scope = "bounded-coordinate-factor-observations-finite-constraints-and-polynomial-cell-fields"
+scope = "bounded-coordinate-factor-observations-finite-constraints-and-cell-fields"
 reference_kind = "independent-monomial-antiderivatives-and-truncated-gaussian-error-bounds"
-capabilities = ["exact-factor-measure", "remaining-output-support", "density-and-velocity-moments", "explicit-normalization", "nested-integrals", "model-replay", "regular-density-admission", "fixed-polynomial-integral-partials", "spherical-radial-volume-measure", "finite-polynomial-integral-constraints", "prescribed-polynomial-cell-field"]
+capabilities = ["exact-factor-measure", "remaining-output-support", "density-and-velocity-moments", "explicit-normalization", "nested-integrals", "model-replay", "regular-density-admission", "fixed-polynomial-integral-partials", "spherical-radial-volume-measure", "finite-polynomial-integral-constraints", "prescribed-polynomial-cell-field", "static-radial-diffusion-and-particle-average"]
 
 [claim_boundary]
 bounded_affine_coordinate_factors = true
@@ -15,7 +15,10 @@ prescribed_polynomial_phase_cell_field = true
 arbitrary_spatial_phase_field_realization = false
 product_domain_pde = false
 spherical_measure = true
-radial_diffusion_field_realization = false
+radial_diffusion_field_realization = true
+static_constant_coefficient_radial_diffusion = true
+transient_radial_diffusion = false
+radial_pointwise_reconstruction = false
 model_solver_coupling = true
 finite_polynomial_integral_constraints = true
 nonpolynomial_integral_constraints = false

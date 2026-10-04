@@ -5,9 +5,9 @@ Model, Plan, State and Result owners. The finite-amplitude profile uses a solved
 have explicit finite bounds. Exact input support, selected measure and remaining output
 support survive Model replay. Quadrature belongs to the numerical observation, keyed by
 its exact measure Domain. This does not realize arbitrary phase-space Field data, solve a
-product-domain PDE or radial diffusion Field, or provide State-direction products.
+product-domain PDE or provide State-direction products.
 Bounded polynomial integral constraints, spherical coordinate-density observations and
-a prescribed polynomial cell Field profile are covered below.
+prescribed polynomial cell Fields and static radial diffusion are covered below.
 
 For `x` in `[0,2] m` and `v` in `[-2,4] m/s`, use
 `f=A*(1+x/(2 m))*(1+(v/(4 m/s))²)` with solved `A=3 s/m²`.
@@ -183,3 +183,61 @@ gate: Q1 cannot substitute for the admitted cell method; a velocity-only grid ca
 the Field's phase support; changing velocity units while retaining exactly the same mesh
 coordinates changes the source identity and fails exact Model-factor admission. Installed
 Python product tests exercise the same factory, solve, replay and moment refinement path.
+
+
+## Static radial diffusion and particle average
+
+The ordinary coordinate-grid Plan admits two fixed-coefficient equalities
+`partial(r*r*j,wrt=r)=q*r*r` and `j=-D*partial(c,wrt=r)` on an exact length interval
+`[0,R]`, with positive `D`, explicit zero inward center flux and an inward surface
+concentration. The shared exact polynomial classifier checks coefficients and exact
+Field/Coordinate identities; source names never select physics. Fixed scalar Parameters
+retain their binary64 values, including the tested `D=1e-14 m²/s` scale. This bounded
+profile does not admit time evolution, variable coefficients, nonlinear laws or shells
+with a positive inner radius.
+
+Cell-centered finite volumes retain face area `r²` and cell measure `(r_hi³-r_lo³)/3`.
+The common angular `4*pi` cancels from the balance but remains in spherical observations.
+The center has its declared zero face flux; the surface uses the center-to-boundary
+half-cell distance. Accepted cell concentration coefficients and flux projections use
+ordinary native assembly, linear acceptance and Result storage. These cell-constant
+outputs do not acquire a unique pointwise value or an admitted coordinate derivative.
+In particular, the zero center face flux is not a claim that the first stored cell flux
+is zero. Point evaluation of this space remains unsupported.
+
+Independently integrate `(r²*j)'=6r²` with regular `j(0)=0`: `j=2r`. With `D=1` and
+`c(1)=0`, the second equality gives `c=1-r²`. Its spherical mean is `2/5`, whereas its
+line mean is `2/3`. The ordinary Result test uses `N=1,2,4,8,16` uniform cells and runs
+after Model, Mesh, Plan and Result replay. With `h=1/N` and cell midpoint `r_i`, the
+specified finite-volume surface closure gives `c_i=1-r_i²+h²/4` and projected `j_i=2r_i`.
+Exact spherical cell weights then give
+`mean_h=2/5+2h²/3-h⁴/15`. Two-point Gauss is exact for the represented constant density
+times `r²`; the displayed error is discretization/reconstruction error, not quadrature.
+The fixed absolute tolerance `1e-10` covers binary64 assembly, solve and observation at
+these scales. Total amount and volume are checked separately, so normalization cannot
+hide an omitted angular factor.
+
+A constant surface concentration with zero production has exactly the same average.
+Renamed Fields and small physical coefficients exercise structural admission. Valid
+compiled negative Models remove `r²`, introduce nonzero center flux or an outward side,
+move the surface condition inside the interval, make `D` nonpositive, or add a nonlinear
+constitutive term. They reject at numerical admission. Installed Python binds the same
+checked-in `.eqi` model and verifies replay, refinement and Q1 substitution rejection.
+
+The radial execution also requires a positive finite representable cell measure.
+A radius of `1e-150 m` falsifies silent volume underflow: execution rejects the
+zero binary64 cell volume instead of accepting a zero-source result. A radius
+of `2 m` independently checks the expected quadratic scaling of concentration.
+Conductance underflow that empties an assembled row is rejected by the existing
+assembly nonzero-row gate.
+
+## Independent physical surface measure check
+
+The focused product test
+`eqiora-numerics::constant_surface_density_uses_each_exact_face_area_and_mass_unit`
+in `numerical_admission/tests/plans/observables.rs` separately checks the existing
+physical boundary observation path. On a `2 × 3 × 5 m` Cartesian box, a constant
+`7 kg/m²` density integrates to `105 kg` on either x face, `70 kg` on a y face,
+and `42 kg` on a z face. Two-dimensional quadrature, exact boundary identity,
+mass units and Result replay are checked. This ordinary product test complements
+the coordinate-factor registered case; it makes no boundary-Field solve claim.
