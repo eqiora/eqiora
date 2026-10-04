@@ -21,11 +21,14 @@ artifact defines that name; the mirrored boundary on the defining artifact is
 valid. Other falsifiers cover missing, unreferenced, duplicate, and permuted
 bundles; declaration-only references; reversed region/boundary dimensions;
 multiple regions sharing one digest; spatial extent mismatch; and the absence
-of a non-Cartesian boundary embedding contract for Fields and physical Ports.
+of an admitted affine embedding for boundary Fields or a Cartesian embedding for physical Ports.
 A continuous Relation may now consume the admitted boundary support; the sibling
 [`geometry-boundary-relation-scope`](../geometry-boundary-relation-scope/README.md)
 case owns that acceptance and its exact boundary. Boundary-physical Ports remain
-rejected, as do Fields defined directly on that boundary.
+rejected in this witness, as do Fields defined on its grouped hole or a curved boundary.
+Separate focused product tests admit Fields on exact Cartesian boundaries and individual
+straight planar edges, including oblique edges; they reject a segment belonging to a foreign
+face in the same artifact. This case does not claim their numerical realization.
 
 Run:
 

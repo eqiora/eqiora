@@ -297,6 +297,7 @@ pub(super) fn validate_geometry_support_uses(
     edges: &[Edge],
     artifacts_admitted: bool,
     admitted_geometry_ports: &BTreeSet<RawId>,
+    affine_geometry_boundaries: &BTreeSet<RawId>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for (&id, node) in nodes {
@@ -305,7 +306,12 @@ pub(super) fn validate_geometry_support_uses(
                 edge_targets(edges, id, EdgeKind::DefinedOn)
                     .into_iter()
                     .find(|target| {
-                        geometry_support_requires_admission(*target, nodes, artifacts_admitted)
+                        geometry_support_requires_admission(
+                            *target,
+                            nodes,
+                            artifacts_admitted,
+                            affine_geometry_boundaries,
+                        )
                     }),
                 "Field spatial support",
             ),
@@ -337,7 +343,7 @@ pub(super) fn validate_geometry_support_uses(
                     )
                 } else {
                     format!(
-                        "{subject} on a geometry boundary Domain requires a non-Cartesian boundary embedding contract"
+                        "{subject} on a geometry boundary Domain requires an admitted affine boundary embedding"
                     )
                 }
             } else {
@@ -360,12 +366,13 @@ fn geometry_support_requires_admission(
     domain: RawId,
     nodes: &BTreeMap<RawId, KernelNode>,
     artifacts_admitted: bool,
+    affine_geometry_boundaries: &BTreeSet<RawId>,
 ) -> bool {
     matches!(
         nodes.get(&domain),
         Some(KernelNode::Domain(domain))
             if if artifacts_admitted {
-                matches!(domain.kind(), DomainKind::GeometryBoundary { .. })
+                matches!(domain.kind(), DomainKind::GeometryBoundary { .. }) && !affine_geometry_boundaries.contains(&domain.id().erase())
             } else {
                 matches!(
                     domain.kind(),
@@ -424,7 +431,11 @@ pub(super) fn validate_fields(
                     if matches!(domain.kind(), DomainKind::CartesianBox { .. })
             ) || matches!(
                 spatial_supports.get(domain),
-                Some(SpatialSupport::Volume { .. } | SpatialSupport::Coordinates { .. })
+                Some(
+                    SpatialSupport::Volume { .. }
+                        | SpatialSupport::Boundary { .. }
+                        | SpatialSupport::Coordinates { .. }
+                )
             )
         }) || representations.iter().any(|representation| {
             matches!(
@@ -447,21 +458,17 @@ pub(super) fn validate_fields(
             ));
             continue;
         }
-        let admitted_volume = spatial_supports.get(&domains[0]).and_then(|support| {
-            if let SpatialSupport::Volume { dimensions, .. } = support {
-                Some(*dimensions)
-            } else {
-                None
-            }
-        });
+        let ambient_dimension = spatial_supports
+            .get(&domains[0])
+            .and_then(SpatialSupport::ambient_dimensions);
         let coordinate_support = matches!(
             spatial_supports.get(&domains[0]),
             Some(SpatialSupport::Coordinates { .. })
         );
-        if admitted_volume.is_none() && !coordinate_support {
+        if ambient_dimension.is_none() && !coordinate_support {
             diagnostics.push(kernel_error(
                 id,
-                "continuous Field requires an admitted volume or coordinate support",
+                "continuous Field requires an admitted volume, boundary, or coordinate support",
             ));
         }
         if coordinate_support && field.frame() == ValueFrame::SpatialCartesian {
@@ -470,7 +477,7 @@ pub(super) fn validate_fields(
                 "abstract coordinates do not supply a physical Cartesian component frame",
             ));
         }
-        if let Some(dimensions) = admitted_volume
+        if let Some(dimensions) = ambient_dimension
             && field.frame() == ValueFrame::SpatialCartesian
             && field
                 .shape()
@@ -514,7 +521,9 @@ pub(super) fn field_support(
         .filter(|support| {
             matches!(
                 support,
-                SpatialSupport::Volume { .. } | SpatialSupport::Coordinates { .. }
+                SpatialSupport::Volume { .. }
+                    | SpatialSupport::Boundary { .. }
+                    | SpatialSupport::Coordinates { .. }
             )
         })
         .collect::<Vec<_>>();

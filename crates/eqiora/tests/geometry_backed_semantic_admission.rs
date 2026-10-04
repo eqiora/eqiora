@@ -1579,12 +1579,12 @@ fn admitted_geometry_boundary_field_keeps_its_embedding_diagnostic() {
     );
     let diagnostics =
         KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[&geometry])
-            .expect_err("a Field still requires a non-Cartesian boundary embedding contract");
+            .expect_err("a curved Field still requires an admitted affine boundary embedding");
     let embedding = diagnostics
         .iter()
         .find(|diagnostic| {
             diagnostic.message()
-                == "Field spatial support on a geometry boundary Domain requires a non-Cartesian boundary embedding contract"
+                == "Field spatial support on a geometry boundary Domain requires an admitted affine boundary embedding"
         })
         .expect("the live Field branch keeps its exact diagnostic");
     assert_diagnostic_at(embedding, field.erase());

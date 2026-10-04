@@ -10,7 +10,7 @@ The source support owns factor identity; native `StaticBindingValue::CoordinateI
 Python `CoordinateInterval` supply checked finite bounds. Model/Transaction v33 and structural
 fingerprint v28 retain these factors. No ambient physical frame or numerical realization is
 inferred. Physical Geometry factors, coordinate binders/partials, factor-wise integration and
-the later embedded-field extensions below remain separate work.
+curved embedded-field extensions remain separate work.
 
 ## Exact factors and coordinate bindings
 
@@ -137,3 +137,27 @@ Point evaluation requires an admitted pointwise representation. A weak field wit
 point value, a discontinuous value with no selected side, foreign point/support data, and a
 stale Geometry binding reject before evaluation. No renderer interpolation substitutes for
 the requested mathematical observation.
+
+## Fields on affine physical boundaries
+
+A Field may live directly on a Cartesian boundary or on one edge of an exact straight-edged planar Geometry
+artifact. For example, a density in `kg/m` on a line in 2D has an integral in `kg`:
+
+```eqiora
+model LineDensity() {
+  domain body = box(0, 2, 0, 3);
+  domain wall = boundary(body, axis = 0, side = lower);
+  variable density: kg/m on wall;
+  relation retain on wall { density = 1[kg/m]; }
+  observable mass: kg = integral(density, measure(wall));
+}
+```
+
+The line has intrinsic dimension 1 and ambient dimension 2. A spatial Cartesian vector on
+it therefore has two components; its line measure contributes one power of length.
+Geometry-bound variants use the existing `volume` and `boundary(parent=...)` support slots,
+with exact caller Geometry selections. An oblique edge retains its actual geometry and
+parent incidence. Equal dimensions or coordinates do not substitute a foreign boundary.
+
+This is Model typing and replay. Curved/grouped boundary Fields, physical `grad`/`div` of
+boundary Fields, and numerical realization of these Fields remain unsupported.

@@ -1638,3 +1638,16 @@ The measure is `m * (m/s)`, so integrating a density in `s/m^2` is dimensionless
 Model replay retains exact factor order and units. Bounds are finite and strictly increasing;
 substituting position bounds for velocity bounds rejects. This path provides mathematical
 Model typing and replay, not a product-domain numerical solver or coordinate partials.
+
+## Fields on physical boundaries
+
+Source passed to `eqiora.compile` may declare a Field directly on a Cartesian boundary,
+or use a `boundary(parent=...)` support bound to an exact Geometry selection. A line density
+in `kg/m` has an integral in `kg`, even when the line is embedded in 2D. Spatial Cartesian
+vector components follow the ambient dimension, independently of that line measure.
+See the [source boundary Field example](../language/coordinates.md#fields-on-affine-physical-boundaries).
+
+Geometry bindings use the existing `(boundary_selection, parent_selection)` pair. A selection
+from another exact Geometry revision rejects even if its name or coordinates match. This
+path provides Model typing and artifact reference replay; numerical boundary-Field solving,
+curved/grouped boundary Fields and physical `grad`/`div` on boundary Fields remain unsupported.
