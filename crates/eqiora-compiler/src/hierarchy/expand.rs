@@ -4,6 +4,7 @@ mod coordinate_products;
 mod identities;
 use identities::{contextualize_diagnostic, contextualize_diagnostics, one_diagnostic};
 mod indexed_relations;
+mod integral_partials;
 mod model_scope;
 pub(super) mod observable;
 mod parameters;
@@ -81,7 +82,9 @@ use binding_locations::{
     compare_physical_connection_origins, field_forwarding_locations, instance_binding_locations,
     normalize_binding_locations, parameter_forwarding_locations,
 };
-use names::{boundary_family_display, child_instance_path, display_child, internal_name};
+use names::{
+    boundary_family_display, child_instance_path, definition_path, display_child, internal_name,
+};
 
 #[derive(Debug, Default)]
 struct ScopeIdentities {
@@ -160,6 +163,7 @@ pub(super) struct RootExpansion<'a, 'd> {
     model_key: ModelViewKey,
     model_full: FullElaborationIdentity,
     items: Vec<FlatItemBlueprint>,
+    declaration_count: usize,
     support_representations: BTreeMap<String, (EntityIdentity, bool)>,
     connector_domains: BTreeMap<ConnectorSpecializationKey, FlatSymbol>,
     display_symbols: BTreeMap<String, DisplayIdentity>,
@@ -221,6 +225,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             model_key,
             model_full,
             items,
+            declaration_count: declarations,
             structural_dependencies: BTreeMap::new(),
             structural_dependency_count: 0,
             support_representations: BTreeMap::new(),
@@ -305,6 +310,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         if let Err(error) = self.finalize_physical_connections() {
             return Err(vec![error]);
         }
+        self.expand_integral_partials().map_err(one_diagnostic)?;
         self.items.sort_by_key(FlatItemBlueprint::sort_key);
         Ok(ExpandedBlueprint::new(
             self.model.name().to_owned(),
@@ -1489,15 +1495,4 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
         });
         Ok(())
     }
-}
-
-fn definition_path(
-    namespace: &DefinitionNamespace,
-    family: &str,
-    definition: &str,
-    member: &str,
-) -> Vec<String> {
-    let mut path = namespace.declaration_prefix();
-    path.extend([family.to_owned(), definition.to_owned(), member.to_owned()]);
-    path
 }

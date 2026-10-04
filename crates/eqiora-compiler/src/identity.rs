@@ -198,6 +198,8 @@ pub enum GeneratedRole {
     RelationActivation,
     /// Continuum representation shared by fields on one exact support.
     SupportRepresentation,
+    /// Under-integral contribution owned by an authored first partial of an integral.
+    IntegralPartial,
 }
 
 impl GeneratedRole {
@@ -205,6 +207,7 @@ impl GeneratedRole {
         match self {
             Self::RelationActivation => EntityKind::Activation,
             Self::SupportRepresentation => EntityKind::Representation,
+            Self::IntegralPartial => EntityKind::Observable,
         }
     }
 
@@ -212,6 +215,7 @@ impl GeneratedRole {
         match self {
             Self::RelationActivation => RELATION_ACTIVATION_ROLE,
             Self::SupportRepresentation => 3,
+            Self::IntegralPartial => 4,
         }
     }
 }
@@ -272,6 +276,16 @@ impl ElaborationKey {
             self.instance_path.clone(),
             self.declaration_path.clone(),
             GeneratedRole::SupportRepresentation,
+            self.limits,
+        )
+    }
+
+    pub(crate) fn integral_partial(&self) -> Result<Self, Diagnostic> {
+        Self::generated_with_limits(
+            self.namespace.clone(),
+            self.instance_path.clone(),
+            self.declaration_path.clone(),
+            GeneratedRole::IntegralPartial,
             self.limits,
         )
     }

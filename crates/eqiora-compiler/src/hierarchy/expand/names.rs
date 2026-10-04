@@ -1,3 +1,4 @@
+use super::DefinitionNamespace;
 use eqiora_schema::kernel::BoundarySide;
 
 use crate::identity::{ElaborationIdentityLimits, FullElaborationIdentity, InstancePath};
@@ -41,4 +42,15 @@ pub(super) fn child_instance_path(
             .chain(core::iter::once(child)),
         limits,
     )
+}
+
+pub(super) fn definition_path(
+    namespace: &DefinitionNamespace,
+    family: &str,
+    definition: &str,
+    member: &str,
+) -> Vec<String> {
+    let mut path = namespace.declaration_prefix();
+    path.extend([family.to_owned(), definition.to_owned(), member.to_owned()]);
+    path
 }

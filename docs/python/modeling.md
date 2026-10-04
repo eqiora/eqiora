@@ -300,6 +300,32 @@ A declaration-root first `partial` of one named polynomial integral over fixed c
 intervals is admitted for an independent Parameter or a coordinate declared on its remaining
 output support. It reuses the same Result quadrature and `observe_at` operation.
 
+Finite explicit limits use the same source integral:
+
+```eqiora
+model Moving(support line: interval(m)) {
+  coordinate x: m on line from line;
+  parameter a: m = 1 [m];
+  variable anchor: 1;
+  relation fixed { anchor = 1; }
+  observable total: m^3 = integral(x*x, measure(line), lower=0[m], upper=a);
+  observable slope: m^2 = partial(total, wrt=a);
+}
+```
+
+Compile this source with `entry="Moving"` and
+`bindings={"line": eqiora.CoordinateInterval(-4, 4, dimension=eqiora.Dimension(length=1))}`.
+An ordinary finite Plan/Result observes `total=1 m³/3` and `slope=1 m²` with
+two Gauss points. Model, Plan and Result bytes retain this meaning. Endpoints must
+have the coordinate unit and remain inside the declared support; reversed limits
+negate the integral and equal limits give zero. The first Parameter partial includes
+the density partial and both signed endpoint contributions. The initial derivative
+profile requires a polynomial density and polynomial endpoint expressions, one complete
+Cartesian coordinate interval, and no unknown Field density. Moving Geometry, implicit
+solve derivatives, higher integral partials and explicit-limit solver constraints are not
+admitted. The structured Component builder has no abstract interval declaration yet;
+use the source ingress for this profile.
+
 `quadrature_points` selects Gauss–Legendre points per axis. Point boundaries use
 one point; an output containing only point integrals requires `1`. Mixed outputs
 apply the requested rule separately to each positive-dimensional measure.
@@ -1512,7 +1538,7 @@ assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
-`eqiora.model-envelope/v37` schema, but callers do not select that suffix.
+`eqiora.model-envelope/v38` schema, but callers do not select that suffix.
 `.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
 Only the current schema is accepted; decoding never sniffs, retries, or silently
 migrates an older artifact.

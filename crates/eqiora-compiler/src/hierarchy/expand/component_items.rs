@@ -145,6 +145,17 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         &internal_name(identity.full),
                         value.structural_parameters(),
                     )?;
+                    if let Some(limits) = reduction
+                        .as_ref()
+                        .and_then(|measure| measure.limits.as_ref())
+                    {
+                        for limit in limits {
+                            self.record_structural(
+                                &internal_name(identity.full),
+                                limit.structural_parameters(),
+                            )?;
+                        }
+                    }
                     self.items.push(FlatItemBlueprint::Observable {
                         name: internal_name(identity.full),
                         value_type: super::super::parameters::specialize_type(

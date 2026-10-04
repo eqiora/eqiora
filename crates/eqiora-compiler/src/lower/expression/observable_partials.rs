@@ -59,6 +59,11 @@ pub(in crate::lower) fn expand<'a>(
                 },
             ));
         }
+        if measure.limits.is_some() {
+            return Err(invalid(
+                "explicit-limit integral partials require admitted Leibniz endpoint contributions",
+            ));
+        }
         if measure.measure.is_some() {
             return Err(invalid(
                 "fixed integral partial requires the admitted Cartesian factor measure",

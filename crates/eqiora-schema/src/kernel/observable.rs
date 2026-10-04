@@ -5,8 +5,9 @@ use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id, RawId, ValueType};
 
 use super::typing::{ExpressionType, SpatialSupport};
-use super::{ExprDag, KernelNode};
+use super::{ExprDag, ExprId, KernelNode};
 
+mod limits;
 mod measure;
 pub use measure::ObservableMeasure;
 
@@ -23,10 +24,22 @@ pub enum ObservableReduction {
         domain: Id<kinds::Domain>,
         /// Measure must agree with the selected Domain kind.
         measure: ObservableMeasure,
+        /// Optional lower and upper mathematical limits, as nodes in the density DAG.
+        /// Absence selects the complete fixed Domain.
+        limits: Option<[ExprId; 2]>,
     },
 }
 
 impl ObservableReduction {
+    /// Lower and upper limit expressions in the retained Observable DAG, if explicit.
+    #[must_use]
+    pub const fn limits(self) -> Option<[ExprId; 2]> {
+        match self {
+            Self::Value => None,
+            Self::SpatialIntegral { limits, .. } => limits,
+        }
+    }
+
     /// Exact density input Domain, if this is an integral.
     #[must_use]
     pub const fn input_domain(self) -> Option<Id<kinds::Domain>> {
@@ -70,6 +83,14 @@ impl ObservableDef {
         if expression.roots().len() != 1 {
             return Err(invalid("Observable requires exactly one expression root"));
         }
+        if reduction
+            .limits()
+            .is_some_and(|limits| limits.iter().any(|id| expression.node(*id).is_none()))
+        {
+            return Err(invalid(
+                "Observable integral limit is outside its retained expression DAG",
+            ));
+        }
         Ok(Self {
             id,
             value_type,
@@ -108,10 +129,16 @@ impl ObservableDef {
     pub fn validate_type(
         &self,
         root: &ExpressionType<RawId>,
+        limit_types: Option<[&ExpressionType<RawId>; 2]>,
         input_support: Option<&SpatialSupport<RawId>>,
         integration_support: Option<&SpatialSupport<RawId>>,
         output_support: Option<&SpatialSupport<RawId>>,
     ) -> Result<(), Diagnostic> {
+        if self.reduction.limits().is_some() != limit_types.is_some() {
+            return Err(invalid(
+                "Observable limit types must match its retained mathematical limits",
+            ));
+        }
         let inferred = match self.reduction {
             ObservableReduction::Value => {
                 if input_support.is_some()
@@ -131,6 +158,7 @@ impl ObservableDef {
                 input,
                 domain,
                 measure,
+                ..
             } => {
                 let support = integration_support.ok_or_else(|| {
                     invalid("Observable integral requires an admitted spatial Domain")
@@ -142,6 +170,9 @@ impl ObservableDef {
                     return Err(invalid(
                         "Observable integral Domain differs from its exact support",
                     ));
+                }
+                if let Some(limits) = limit_types {
+                    measure.validate_limits(input_support, support, limits)?;
                 }
                 measure
                     .output_type(root, input_support, support, output_support)?
@@ -205,6 +236,7 @@ mod tests {
                 input: domain,
                 domain,
                 measure,
+                limits: None,
             },
         )
         .unwrap()
@@ -227,22 +259,22 @@ mod tests {
         let volume_integral = integral(domain, ObservableMeasure::Volume, 3);
         assert!(
             volume_integral
-                .validate_type(&constant, Some(&volume), Some(&volume), None)
+                .validate_type(&constant, None, Some(&volume), Some(&volume), None)
                 .is_ok()
         );
         assert!(
             volume_integral
-                .validate_type(&constant, Some(&boundary), Some(&boundary), None)
+                .validate_type(&constant, None, Some(&boundary), Some(&boundary), None)
                 .is_err()
         );
         assert!(
             integral(domain, ObservableMeasure::Boundary, 2)
-                .validate_type(&constant, Some(&boundary), Some(&boundary), None)
+                .validate_type(&constant, None, Some(&boundary), Some(&boundary), None)
                 .is_ok()
         );
         assert!(
             integral(domain, ObservableMeasure::Volume, 2)
-                .validate_type(&constant, Some(&volume), Some(&volume), None)
+                .validate_type(&constant, None, Some(&volume), Some(&volume), None)
                 .is_err()
         );
         let foreign = SpatialSupport::Volume {
@@ -251,13 +283,14 @@ mod tests {
         };
         assert!(
             volume_integral
-                .validate_type(&constant, Some(&foreign), Some(&foreign), None)
+                .validate_type(&constant, None, Some(&foreign), Some(&foreign), None)
                 .is_err()
         );
         assert!(
             volume_integral
                 .validate_type(
                     &ExpressionType::new(scalar(0), Some(foreign)),
+                    None,
                     Some(&volume),
                     Some(&volume),
                     None
@@ -273,6 +306,7 @@ mod tests {
             integral(domain, ObservableMeasure::Boundary, 2)
                 .validate_type(
                     &ExpressionType::new(scalar(0), Some(wrong_parent)),
+                    None,
                     Some(&boundary),
                     Some(&boundary),
                     None
@@ -311,7 +345,13 @@ mod tests {
         .unwrap();
         assert!(
             value
-                .validate_type(&ExpressionType::new(scalar(0), None), None, None, None)
+                .validate_type(
+                    &ExpressionType::new(scalar(0), None),
+                    None,
+                    None,
+                    None,
+                    None
+                )
                 .is_ok()
         );
         let support = SpatialSupport::Volume {
@@ -322,6 +362,7 @@ mod tests {
             value
                 .validate_type(
                     &ExpressionType::new(scalar(0), Some(support)),
+                    None,
                     None,
                     None,
                     None

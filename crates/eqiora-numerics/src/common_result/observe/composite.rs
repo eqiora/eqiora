@@ -158,7 +158,7 @@ impl Context<'_> {
         let evaluation = match definition.reduction() {
             ObservableReduction::Value => unreachable!("demanded values were evaluated above"),
             ObservableReduction::SpatialIntegral { input, domain, .. } => {
-                if input != domain {
+                if input != domain || definition.reduction().limits().is_some() {
                     return Err(invalid(
                         "this Result realization requires a full spatial integral",
                     ));

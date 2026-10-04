@@ -301,6 +301,7 @@ enum LoweringExpressionNode {
 pub(crate) struct LoweringIntegral {
     pub(crate) domain: String,
     pub(crate) measure: Option<eqiora_schema::kernel::ObservableMeasure>,
+    pub(crate) limits: Option<[LoweringExpression; 2]>,
 }
 
 #[derive(Debug, Clone)]

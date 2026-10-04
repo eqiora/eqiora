@@ -28,6 +28,7 @@ impl AuthoredFormExpressionV1 {
             ));
         }
         let ObservableReduction::SpatialIntegral {
+            limits: None,
             input,
             domain,
             measure,
@@ -55,7 +56,7 @@ impl AuthoredFormExpressionV1 {
         let root = density
             .node_type(density.expression().roots()[0])
             .ok_or_else(|| wire::rejection("variation density has no typed root"))?;
-        functional.validate_type(root, Some(support), Some(support), None)?;
+        functional.validate_type(root, None, Some(support), Some(support), None)?;
         let value = derive_value(
             density,
             wrt,

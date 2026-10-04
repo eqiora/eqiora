@@ -177,6 +177,7 @@ impl ExpressionContext<'_> {
         let support = match functional.reduction() {
             ObservableReduction::Value => None,
             ObservableReduction::SpatialIntegral {
+                limits: None,
                 input,
                 domain,
                 measure,

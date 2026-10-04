@@ -40,6 +40,13 @@ impl LoweringExpression {
             structural_parameters: None,
         }
     }
+    pub(crate) fn partial_operands(&self) -> Option<(&Self, &Self)> {
+        match self.node.as_ref() {
+            LoweringExpressionNode::Partial { value, wrt } => Some((value, wrt)),
+            _ => None,
+        }
+    }
+
     pub(crate) fn from_source(expression: &Expr) -> Self {
         expression::from_source(expression)
     }
@@ -284,7 +291,6 @@ impl LoweringExpression {
         self.range
     }
 
-    #[cfg(test)]
     pub(crate) fn name_value(&self) -> Option<&str> {
         match self.node.as_ref() {
             LoweringExpressionNode::Name(name) => Some(name),
