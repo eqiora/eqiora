@@ -52,10 +52,10 @@ pub(crate) fn admit(
             right: Box::new(flux),
         }),
     };
-    let right = AuthoredFormExpressionV1::Integrate {
+    let mut right = AuthoredFormExpressionV1::Integrate {
         domain_ulid: expected_domain,
         integrand: Box::new(AuthoredFormExpressionV1::Mul {
-            left: Box::new(test),
+            left: Box::new(test.clone()),
             right: Box::new(
                 AuthoredFormExpressionV1::from_expression(dag, derived.volume_nodes.source)?
                     .ok_or_else(|| {
@@ -67,6 +67,36 @@ pub(crate) fn admit(
             ),
         }),
     };
+    for boundary in &derived.boundary_roles {
+        let Some((datum, negative)) = boundary.flux_data else {
+            continue;
+        };
+        let typed = typed_relation(program, boundary.relation)?;
+        let mut value = AuthoredFormExpressionV1::from_expression(typed.expression(), datum)?
+            .ok_or_else(|| {
+                rejection_with(
+                    projection,
+                    "prescribed flux exceeds the scalar-primal inventory",
+                )
+            })?;
+        if negative {
+            value = AuthoredFormExpressionV1::Neg {
+                value: Box::new(value),
+            };
+        }
+        right = AuthoredFormExpressionV1::Add {
+            left: Box::new(right),
+            right: Box::new(AuthoredFormExpressionV1::Integrate {
+                domain_ulid: boundary.domain.ulid().to_string(),
+                integrand: Box::new(AuthoredFormExpressionV1::Mul {
+                    left: Box::new(AuthoredFormExpressionV1::Trace {
+                        value: Box::new(test.clone()),
+                    }),
+                    right: Box::new(value),
+                }),
+            }),
+        };
+    }
     if has_variation {
         return polynomial::matches_variation(projection, derived.dimension, &left, &right)
             .then_some(())
@@ -136,6 +166,7 @@ pub(crate) fn equivalent(
         (Expression::Coordinate { axis: a }, Expression::Coordinate { axis: b }) => a == b,
         (Expression::Test { field_ulid: a }, Expression::Test { field_ulid: b }) => a == b,
         (Expression::Neg { value: a }, Expression::Neg { value: b })
+        | (Expression::Trace { value: a }, Expression::Trace { value: b })
         | (Expression::Gradient { value: a }, Expression::Gradient { value: b })
         | (Expression::Sin { value: a }, Expression::Sin { value: b }) => equivalent(a, b),
         (

@@ -34,6 +34,7 @@ pub(super) fn compile(
         topological_dimension: geometry.topological_dimension(),
         relation_domain: form.domain,
         tests: BTreeMap::new(),
+        integration_domain: None,
         used_tests: std::collections::BTreeSet::new(),
     };
     let mut compile_equality = |(left, right): &(Expr, Expr)| {

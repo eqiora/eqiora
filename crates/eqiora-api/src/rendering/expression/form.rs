@@ -168,6 +168,7 @@ impl Context<'_> {
                 Math::Function("coordinate".into(), vec![Math::Number(axis.to_string())])
             }
             Form::Neg { value } => Math::Negative(Box::new(self.form(value, next)?)),
+            Form::Trace { value } => Math::Function("trace".into(), vec![self.form(value, next)?]),
             Form::Gradient { value } => Math::Gradient(Box::new(self.form(value, next)?)),
             Form::Divergence { value } => {
                 Math::Function("div".into(), vec![self.form(value, next)?])

@@ -249,13 +249,42 @@ fn zero_natural_boundary_has_its_own_discharge_without_zero_test_trace() {
     );
     for flux in [
         "normal(2 * grad(potential)) = 0",
-        "normal(grad(potential)) = 1[1/m]",
+        "normal(2 * grad(potential)) = 1[1/m]",
     ] {
         let mutant = compile_program(&source.replace("normal(grad(potential)) = 0", flux));
         assert!(
             derive_candidate(&mutant, box_domain(&mutant))
                 .unwrap()
                 .is_none()
+        );
+    }
+    for (flux, negative) in [
+        ("normal(grad(potential)) = 1[1/m]", false),
+        ("1[1/m] = normal(grad(potential))", false),
+        ("normal(-grad(potential)) = -1[1/m]", false),
+        ("normal(grad(potential)) = -1[1/m]", true),
+    ] {
+        let loaded = compile_program(&source.replace("normal(grad(potential)) = 0", flux));
+        let loaded_form = derive_candidate(&loaded, box_domain(&loaded))
+            .unwrap()
+            .unwrap();
+        loaded_form.validate_certificate().unwrap();
+        let boundary = loaded_form
+            .boundary_roles
+            .iter()
+            .find(|b| b.discharge == BoundaryDischarge::PrescribedFlux)
+            .unwrap();
+        assert_eq!(boundary.flux_data.unwrap().1, negative, "{flux}");
+        assert!(
+            !loaded_form
+                .certificate
+                .formulation
+                .zero_on
+                .contains(&boundary.domain)
+        );
+        assert_eq!(
+            loaded_form.certificate.formulation.rules[2],
+            super::super::vocabulary::FormulationRule::TraceOrPrescribedFlux
         );
     }
     crate::canonical::lower_scalar_elliptic_cartesian(&program).unwrap();

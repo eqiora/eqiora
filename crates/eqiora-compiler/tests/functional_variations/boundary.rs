@@ -11,13 +11,19 @@ fn density(e: &E, c: f64, cx: f64, x: f64, bulk: &str, gradient: &str) -> f64 {
             denominator,
             ..
         } => *numerator as f64 / *denominator as f64,
+        E::Number { value } => *value,
         E::Field { .. } => c,
         E::Parameter { ulid } if ulid == bulk => 2.0,
         E::Parameter { ulid } if ulid == gradient => 3.0,
         E::Direction { name, .. } if name == "eta" => 1.0 + x,
+        E::Direction { name, .. } if name == "zeta" => 3.0 - x,
+        E::Test { .. } => 1.0 + x,
+        E::Trace { value } => eval(value),
         E::Neg { value } => -eval(value),
         E::Add { left, right } => eval(left) + eval(right),
         E::Mul { left, right } => eval(left) * eval(right),
+        E::Sub { left, right } => eval(left) - eval(right),
+        E::Div { left, right } => eval(left) / eval(right),
         E::Component { value, indices } if indices == &[0] => match value.as_ref() {
             E::Gradient { value } => match value.as_ref() {
                 E::Field { .. } => cx,
@@ -87,5 +93,224 @@ public component Energy(
         eqiora_compiler::AuthoredFormulationProjection::decode(form.projection().canonical_bytes())
             .unwrap(),
         *form.projection()
+    );
+}
+
+#[test]
+fn surface_energy_retains_measure_trace_and_ordered_variations() {
+    let geometry = geometry();
+    for second in [false, true] {
+        let first = "variation(energy,wrt=c,direction=eta,holding=(bulk,gradient))";
+        let expression = if second {
+            format!("variation({first},wrt=c,direction=zeta,holding=(bulk,gradient))")
+        } else {
+            first.to_owned()
+        };
+        let extra = if second {
+            "test zeta:1 for c zero_on left;"
+        } else {
+            ""
+        };
+        let source = format!(
+            r#"
+public component Energy(
+    support body:volume(ambient_dimension=1),
+    support left:boundary(parent=body),
+    support right:boundary(parent=body),
+    parameter bulk:J, parameter gradient:J
+) {{
+    variable c:1 on body;
+    relation stationarity on body {{ bulk*c=0; }}
+    observable energy:J=integral(bulk*trace(c)*trace(c)/2-gradient*trace(c),measure(right));
+    form surface for stationarity {{
+        test eta:1 for c zero_on left;
+        {extra}
+        {expression}=0;
+    }}
+}}
+"#
+        );
+        let compiled = compile_source(&source, &geometry).unwrap();
+        let form = compiled.authored_formulations().next().unwrap();
+        let E::Variation {
+            value, directions, ..
+        } = &form.projection().equations()[0].1
+        else {
+            panic!("variation");
+        };
+        check_surface_replay(&compiled, &form.projection().equations()[0].1);
+        assert_eq!(directions.len(), if second { 2 } else { 1 });
+        let E::Integrate {
+            domain_ulid,
+            integrand,
+        } = value.as_ref()
+        else {
+            panic!("surface measure");
+        };
+        assert_eq!(
+            domain_ulid,
+            &compiled.symbols().get("right").unwrap().ulid().to_string()
+        );
+        let bulk = compiled.symbols().get("bulk").unwrap().ulid().to_string();
+        let gradient = compiled
+            .symbols()
+            .get("gradient")
+            .unwrap()
+            .ulid()
+            .to_string();
+        // The endpoint has unit zero-dimensional measure. Independently,
+        // F=c^2-3c gives delta F=(2c-3)eta and delta² F=2 eta zeta.
+        // c=4, eta=1+x, zeta=3-x, x=1 gives 10 and 8 respectively.
+        let actual = density(integrand, 4.0, 0.0, 1.0, &bulk, &gradient);
+        assert_eq!(actual, if second { 8.0 } else { 10.0 });
+        if !second {
+            let explicit = "integrate(right,(bulk*trace(c)-gradient)*trace(eta))";
+            let explicit_source = source.replace(&expression, explicit);
+            let explicit_form = compile_source(&explicit_source, &geometry).unwrap();
+            let explicit_projection = explicit_form
+                .authored_formulations()
+                .next()
+                .unwrap()
+                .projection();
+            let E::Integrate { integrand, .. } = &explicit_projection.equations()[0].1 else {
+                panic!("explicit boundary integral");
+            };
+            let explicit_bulk = explicit_form
+                .symbols()
+                .get("bulk")
+                .unwrap()
+                .ulid()
+                .to_string();
+            let explicit_gradient = explicit_form
+                .symbols()
+                .get("gradient")
+                .unwrap()
+                .ulid()
+                .to_string();
+            assert_eq!(
+                density(integrand, 4.0, 0.0, 1.0, &explicit_bulk, &explicit_gradient),
+                actual
+            );
+            for invalid in [
+                explicit_source.replace("trace(eta)", "eta"),
+                explicit_source.replace("integrate(right,", "integrate(body,"),
+                explicit_source.replace("trace(eta)", "trace(trace(eta))"),
+                explicit_source.replace("trace(eta)", "integrate(right,trace(eta))"),
+            ] {
+                assert!(compile_source(&invalid, &geometry).is_err());
+            }
+        }
+        let wire = std::str::from_utf8(form.projection().canonical_bytes()).unwrap();
+        assert!(
+            wire.contains("trace"),
+            "the boundary restriction must remain explicit"
+        );
+        assert_eq!(
+            eqiora_compiler::AuthoredFormulationProjection::decode(
+                form.projection().canonical_bytes()
+            )
+            .unwrap(),
+            *form.projection()
+        );
+        assert!(compile_source(&source.replace("trace(c)", "c"), &geometry).is_err());
+        assert!(
+            compile_source(
+                &source.replace("observable energy:J=", "observable energy:J/m="),
+                &geometry
+            )
+            .is_err()
+        );
+    }
+}
+
+// Infer the live density from the transaction, independently of the retained
+// derivative. A canonical decode alone cannot establish this correspondence.
+fn check_surface_replay(compiled: &eqiora_compiler::CompiledModel, variation: &E) {
+    use eqiora_graph::Op;
+    use eqiora_schema::kernel::typing::{
+        ExpressionType, RootContract, SpatialSupport, TypedResidual,
+    };
+    use eqiora_schema::kernel::{KernelNode, SymbolRef};
+    let nodes = compiled
+        .transaction()
+        .ops()
+        .iter()
+        .filter_map(|op| match op {
+            Op::DefineKernelNode { node, .. } => Some(node),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let functional = nodes
+        .iter()
+        .find_map(|node| match node {
+            KernelNode::Observable(value) => Some(value),
+            _ => None,
+        })
+        .unwrap();
+    let volume = SpatialSupport::Volume {
+        domain: compiled.symbols().get("body").unwrap(),
+        dimensions: 1,
+    };
+    let boundary = SpatialSupport::Boundary {
+        domain: compiled.symbols().get("right").unwrap(),
+        parent: compiled.symbols().get("body").unwrap(),
+        dimensions: 1,
+    };
+    let typed = TypedResidual::infer(
+        functional.expression().clone(),
+        Some(boundary),
+        RootContract::Observable,
+        |symbol| {
+            nodes
+                .iter()
+                .find_map(|node| match (symbol, node) {
+                    (SymbolRef::Field(id), KernelNode::Field(field)) if id == field.id() => Some(
+                        ExpressionType::new(field.value_type().clone(), Some(volume.clone())),
+                    ),
+                    (SymbolRef::Parameter(id), KernelNode::Parameter(parameter))
+                        if id == parameter.id() =>
+                    {
+                        Some(ExpressionType::new(parameter.value_type().clone(), None))
+                    }
+                    _ => None,
+                })
+                .ok_or(())
+        },
+    )
+    .unwrap();
+    variation
+        .check_functional_variation(functional, &typed)
+        .unwrap();
+    let mut wrong_boundary = variation.clone();
+    let E::Variation { value, .. } = &mut wrong_boundary else {
+        unreachable!()
+    };
+    let E::Integrate { domain_ulid, .. } = value.as_mut() else {
+        unreachable!()
+    };
+    *domain_ulid = compiled.symbols().get("left").unwrap().ulid().to_string();
+    assert!(
+        wrong_boundary
+            .check_functional_variation(functional, &typed)
+            .is_err()
+    );
+    let mut missing_trace = serde_json::to_value(variation).unwrap();
+    fn remove_trace(value: &mut serde_json::Value) -> bool {
+        if value.get("kind").and_then(serde_json::Value::as_str) == Some("trace") {
+            *value = value.get("value").unwrap().clone();
+            return true;
+        }
+        match value {
+            serde_json::Value::Object(fields) => fields.values_mut().any(remove_trace),
+            serde_json::Value::Array(items) => items.iter_mut().any(remove_trace),
+            _ => false,
+        }
+    }
+    assert!(remove_trace(&mut missing_trace));
+    let missing_trace: E = serde_json::from_value(missing_trace).unwrap();
+    assert!(
+        missing_trace
+            .check_functional_variation(functional, &typed)
+            .is_err()
     );
 }

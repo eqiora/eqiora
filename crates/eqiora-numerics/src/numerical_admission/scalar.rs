@@ -287,13 +287,13 @@ impl CommonScalarPlan {
                     }
                     None if authored_formulation.is_some() => {
                         return Err(invalid(
-                            "authored scalar Q1 primal Formulation requires admitted essential or homogeneous natural boundaries",
+                            "authored scalar Q1 primal Formulation requires an admitted scalar law with essential or prescribed-flux boundaries",
                         ));
                     }
                     None if selection == FormulationSelectionMode::Automatic => None,
                     None => {
                         return Err(invalid(
-                            "exact scalar Q1 primal Formulation requires admitted essential or homogeneous natural boundaries",
+                            "exact scalar Q1 primal Formulation requires an admitted scalar law with essential or prescribed-flux boundaries",
                         ));
                     }
                 },

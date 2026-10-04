@@ -45,3 +45,27 @@ to cover binary64 assembly and solve rounding. At stationarity energy error is
 one half of delta-u transposed times K times delta-u; the 1e−9 energy tolerance
 also covers the fixed quadrature arithmetic. These are bounds from the independent
 Q1 matrix and load, not measured solution errors.
+
+## Essential left side and prescribed right flux
+
+Keep the four-cell stiffness matrix and impose normal(grad(u))=x on x=1,
+with zero flux on the horizontal sides. The added right-edge load is
+(1/4,1/2,1/4) at y=0,1/2,1. In the same free-node order, the complete load is
+(1/8,5/16,1/4,5/8,1/8,5/16), whose squared two-norm is 87/128.
+The Q1 solution interpolates 2*x−x²/2, with values 0,7/8,3/2 and slopes
+7/4,5/4. Direct element integration gives internal energy 37/32 and volume
+load work 13/16, hence F=11/32. The boundary trace equals 3/2 along x=1,
+so the separate retained surface functional gives S=−3/2 and F+S=−37/32.
+
+The same exact inverse norm 234/49 gives the coefficient-error bound
+(234/49)*sqrt(87/128)*1e−10 < 4e−10. Assertions use 1e−9 for coefficients
+and both functional values. The surface load has one-norm 1, so its energy
+error is bounded by the coefficient infinity error. The volume functional
+has that same first-order bound at the loaded solution, plus the quadratic
+stiffness remainder. These values and bounds follow from the independent
+Q1 matrix, load and integrals; no solver output sets an expectation.
+
+With the volume load set to zero and the same prescribed right flux, the Q1
+solution is exactly u=x. Volume energy is 1/2 and surface energy is −1.
+The free load squared norm decreases to 3/8, so the same 1e−9 bounds cover
+this zero-volume-source path. Its solve and Plan replay are also exercised.

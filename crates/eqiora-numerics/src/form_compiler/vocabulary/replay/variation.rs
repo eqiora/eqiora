@@ -12,8 +12,25 @@ impl PrimalGalerkinCorrespondence {
         dimension: usize,
     ) -> Result<bool, Diagnostic> {
         let mut variation_dimensions = Vec::new();
+        let mut remaining = 65536usize;
         for (_, left, right) in projection.equations() {
-            for expression in [left, right] {
+            let mut pending = vec![left, right];
+            while let Some(expression) = pending.pop() {
+                remaining = remaining.checked_sub(1).ok_or_else(|| {
+                    rejection_with(
+                        projection,
+                        "variation sum exceeds the bounded replay inventory",
+                    )
+                })?;
+                match expression {
+                    AuthoredFormExpressionV1::Add { left, right }
+                    | AuthoredFormExpressionV1::Sub { left, right } => {
+                        pending.push(left);
+                        pending.push(right);
+                    }
+                    AuthoredFormExpressionV1::Neg { value } => pending.push(value),
+                    _ => {}
+                }
                 if let AuthoredFormExpressionV1::Variation {
                     functional_ulid, ..
                 } = expression

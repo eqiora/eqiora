@@ -108,6 +108,7 @@ pub(super) fn compile(
                 .ok_or_else(|| error(file, range, "interval parent is not a Domain"))?,
         ),
         tests: BTreeMap::new(),
+        integration_domain: None,
         used_tests: BTreeSet::new(),
     };
     let mut compile_term =

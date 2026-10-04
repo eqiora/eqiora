@@ -51,6 +51,7 @@ struct BoundaryRole {
     side: BoundarySide,
     operator_node: ExprId,
     discharge: BoundaryDischarge,
+    flux_data: Option<(ExprId, bool)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -319,12 +320,12 @@ pub(crate) fn derive_candidate_with_dimension(
     }
     let (volume_relation, field) = principal[0];
     let typed = typed_relation(program, volume_relation)?;
-    let boundaries = boundary_inventory(program, domain, field, dimension, &typed)?;
+    let volume = recognize_volume(typed.expression(), volume_relation, field)?;
+    let boundaries = boundary_inventory(program, domain, field, dimension, &typed, volume)?;
     let Some(boundary_roles) = boundaries else {
         return Ok(None);
     };
     validate_expression(&typed, volume_relation, field)?;
-    let volume = recognize_volume(typed.expression(), volume_relation, field)?;
     validate_source_expression(typed.expression(), volume.source, volume_relation)?;
     validate_static_bounds(typed.expression(), volume_relation, dimension)?;
     let parameters =
@@ -396,6 +397,7 @@ fn boundary_inventory(
     field: RawId,
     dimension: usize,
     volume: &TypedResidual<RawId>,
+    volume_nodes: VolumeNodes,
 ) -> Result<Option<Vec<BoundaryRole>>, Diagnostic> {
     let mut by_side = BTreeMap::new();
     let geometry_backed = matches!(
@@ -439,11 +441,21 @@ fn boundary_inventory(
         }
         let relation = relations[0];
         let typed = typed_relation(program, relation)?;
-        let (operator_node, discharge) =
+        let (operator_node, discharge, flux_data) =
             if let Some(nodes) = recognize_essential_trace(typed.expression(), relation, field)? {
-                (nodes.trace, BoundaryDischarge::ZeroTestTrace)
-            } else if let Some(node) = recognition::recognize_zero_flux(&typed, relation, volume)? {
-                (node, BoundaryDischarge::ZeroFlux)
+                (nodes.trace, BoundaryDischarge::ZeroTestTrace, None)
+            } else if let Some(flux) =
+                recognition::recognize_flux(&typed, relation, volume, volume_nodes)?
+            {
+                (
+                    flux.normal,
+                    if flux.datum.is_some() {
+                        BoundaryDischarge::PrescribedFlux
+                    } else {
+                        BoundaryDischarge::ZeroFlux
+                    },
+                    flux.datum,
+                )
             } else {
                 return Ok(None);
             };
@@ -455,6 +467,7 @@ fn boundary_inventory(
             side,
             operator_node,
             discharge,
+            flux_data,
         };
         if by_side.insert((axis, side), role).is_some() {
             return Err(role_error(
@@ -470,7 +483,7 @@ fn boundary_inventory(
         return Err(role_error(
             parent,
             format!(
-                "compiled Q1 requires one trace or zero-flux Relation on every {dimension}D box side"
+                "compiled Q1 requires one trace or prescribed-flux Relation on every {dimension}D box side"
             ),
         ));
     }

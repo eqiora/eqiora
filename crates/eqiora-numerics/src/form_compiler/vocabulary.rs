@@ -69,6 +69,7 @@ pub(super) enum FormulationRule {
     DivergenceByParts,
     ZeroTestTraceDischarge,
     TraceOrZeroFluxDischarge,
+    TraceOrPrescribedFlux,
     SourcePairing,
 }
 
@@ -79,6 +80,9 @@ impl FormulationRule {
             Self::DivergenceByParts => DIVERGENCE_BY_PARTS,
             Self::ZeroTestTraceDischarge => ZERO_TEST_TRACE_DISCHARGE,
             Self::TraceOrZeroFluxDischarge => "fem.derive.v1.boundary-discharge.trace-or-zero-flux",
+            Self::TraceOrPrescribedFlux => {
+                "fem.derive.v1.boundary-pairing.trace-or-prescribed-flux"
+            }
             Self::SourcePairing => SOURCE_PAIRING,
         }
     }
@@ -116,6 +120,7 @@ pub(super) struct CertificateEntry {
 pub(super) enum BoundaryDischarge {
     ZeroTestTrace,
     ZeroFlux,
+    PrescribedFlux,
 }
 
 impl BoundaryDischarge {
@@ -123,6 +128,7 @@ impl BoundaryDischarge {
         match self {
             Self::ZeroTestTrace => ZERO_TEST_TRACE_DISCHARGE,
             Self::ZeroFlux => "fem.derive.v1.boundary-discharge.zero-flux-law",
+            Self::PrescribedFlux => "fem.derive.v1.boundary-pairing.prescribed-flux-law",
         }
     }
 }
@@ -159,11 +165,17 @@ impl PrimalGalerkinCorrespondence {
         let has_natural = source
             .boundaries
             .iter()
-            .any(|b| b.discharge == BoundaryDischarge::ZeroFlux);
+            .any(|b| b.discharge != BoundaryDischarge::ZeroTestTrace);
+        let has_prescribed = source
+            .boundaries
+            .iter()
+            .any(|b| b.discharge == BoundaryDischarge::PrescribedFlux);
         let rules = [
             FormulationRule::TestPairing,
             FormulationRule::DivergenceByParts,
-            if has_natural {
+            if has_prescribed {
+                FormulationRule::TraceOrPrescribedFlux
+            } else if has_natural {
                 FormulationRule::TraceOrZeroFluxDischarge
             } else {
                 FormulationRule::ZeroTestTraceDischarge

@@ -87,7 +87,11 @@ impl PrimalGalerkinCorrespondence {
         let has_natural = source
             .boundaries
             .iter()
-            .any(|b| b.discharge == BoundaryDischarge::ZeroFlux);
+            .any(|b| b.discharge != BoundaryDischarge::ZeroTestTrace);
+        let has_prescribed = source
+            .boundaries
+            .iter()
+            .any(|b| b.discharge == BoundaryDischarge::PrescribedFlux);
         if self.formulation.direction != DirectionalProof::StrongImpliesWeak
             || self.formulation.assumptions
                 != eqiora_compiler::AuthoredFormulationProjection::required_assumptions()
@@ -109,7 +113,9 @@ impl PrimalGalerkinCorrespondence {
                 != [
                     FormulationRule::TestPairing,
                     FormulationRule::DivergenceByParts,
-                    if has_natural {
+                    if has_prescribed {
+                        FormulationRule::TraceOrPrescribedFlux
+                    } else if has_natural {
                         FormulationRule::TraceOrZeroFluxDischarge
                     } else {
                         FormulationRule::ZeroTestTraceDischarge

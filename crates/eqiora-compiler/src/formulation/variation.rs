@@ -118,20 +118,25 @@ impl ExpressionContext<'_> {
         else {
             return Err(fail("variation requires an authored Observable"));
         };
-        let ObservableReduction::SpatialIntegral {
-            domain,
-            measure: ObservableMeasure::Volume,
-        } = functional.reduction()
+        let ObservableReduction::SpatialIntegral { domain, measure } = functional.reduction()
         else {
             return Err(fail(
-                "initial functional variation requires a fixed volume integral",
+                "functional variation requires a fixed spatial integral",
             ));
         };
-        if Some(domain) != self.relation_domain
-            || self.index.defined_on.get(&wrt.erase()) != Some(&domain.erase())
+        let volume = match measure {
+            ObservableMeasure::Volume => domain.erase(),
+            ObservableMeasure::Boundary => *self
+                .index
+                .boundary_of
+                .get(&domain.erase())
+                .ok_or_else(|| fail("surface functional requires its exact parent volume"))?,
+        };
+        if self.relation_domain.map(Id::erase) != Some(volume)
+            || self.index.defined_on.get(&wrt.erase()) != Some(&volume)
         {
             return Err(fail(
-                "functional, varied Field and Formulation must share the exact Domain",
+                "functional, varied Field and Formulation must share the exact parent volume",
             ));
         }
         let mut required = std::collections::BTreeSet::new();
@@ -166,9 +171,17 @@ impl ExpressionContext<'_> {
                 ));
             }
         }
-        let support = SpatialSupport::Volume {
-            domain: domain.erase(),
+        let volume_support = SpatialSupport::Volume {
+            domain: volume,
             dimensions: self.ambient_dimension,
+        };
+        let support = match measure {
+            ObservableMeasure::Volume => volume_support.clone(),
+            ObservableMeasure::Boundary => SpatialSupport::Boundary {
+                domain: domain.erase(),
+                parent: volume,
+                dimensions: self.ambient_dimension,
+            },
         };
         let typed_density = TypedResidual::infer(
             functional.expression().clone(),
@@ -177,11 +190,11 @@ impl ExpressionContext<'_> {
             |symbol| match symbol {
                 SymbolRef::Field(id) => match self.index.nodes.get(&id.erase()).copied() {
                     Some(KernelNode::Field(value))
-                        if self.index.defined_on.get(&id.erase()) == Some(&domain.erase()) =>
+                        if self.index.defined_on.get(&id.erase()) == Some(&volume) =>
                     {
                         Ok(ExpressionType::new(
                             value.value_type().clone(),
-                            Some(support.clone()),
+                            Some(volume_support.clone()),
                         ))
                     }
                     _ => Err(()),
@@ -239,20 +252,20 @@ fn symbol_type(
     Ok(&ty.value_type)
 }
 
-fn volume_dimensions(
+fn functional_support(
     density: &TypedResidual<RawId>,
     domain: Id<kinds::Domain>,
-) -> Result<usize, Diagnostic> {
+) -> Result<&SpatialSupport<RawId>, Diagnostic> {
     let root = density
         .node_type(density.expression().roots()[0])
         .ok_or_else(|| wire::rejection("functional density has no typed root"))?;
     match &root.support {
-        Some(SpatialSupport::Volume {
-            domain: actual,
-            dimensions,
-        }) if *actual == domain.erase() => Ok(*dimensions),
+        Some(
+            support @ (SpatialSupport::Volume { domain: actual, .. }
+            | SpatialSupport::Boundary { domain: actual, .. }),
+        ) if *actual == domain.erase() => Ok(support),
         _ => Err(wire::rejection(
-            "functional density requires its exact fixed volume support",
+            "functional density requires its exact fixed integration support",
         )),
     }
 }
@@ -264,7 +277,7 @@ fn derive_value(
     domain: Id<kinds::Domain>,
     dimension: DimExponents,
 ) -> Result<AuthoredFormExpression, Diagnostic> {
-    volume_dimensions(density, domain)?;
+    functional_support(density, domain)?;
     let derived = local::derive(
         density,
         wrt,
@@ -328,7 +341,27 @@ fn variation_input(
                 },
                 None => AuthoredFormExpressionKind::Field(*id),
             };
-            let mut value = typed(kind, field.dimension(), field.shape().clone(), Some(domain));
+            let support = functional_support(density, domain)?;
+            let parent = support
+                .parent()
+                .copied()
+                .unwrap_or(domain.erase())
+                .downcast::<kinds::Domain>()
+                .ok_or_else(invalid)?;
+            let mut value = typed(kind, field.dimension(), field.shape().clone(), Some(parent));
+            if support.parent().is_some() {
+                if matches!(source, local::Input::Gradient(..)) {
+                    return Err(wire::rejection(
+                        "surface energy currently requires Field traces, not gradient traces",
+                    ));
+                }
+                value = typed(
+                    AuthoredFormExpressionKind::Trace(Box::new(value)),
+                    field.dimension(),
+                    field.shape().clone(),
+                    Some(domain),
+                );
+            }
             if matches!(source, local::Input::Gradient(..)) {
                 let mut axes = field
                     .shape()
@@ -337,7 +370,8 @@ fn variation_input(
                     .map(|extent| extent.get())
                     .collect::<Vec<_>>();
                 axes.push(
-                    u32::try_from(volume_dimensions(density, domain)?).map_err(|_| invalid())?,
+                    u32::try_from(functional_support(density, domain)?.dimensions())
+                        .map_err(|_| invalid())?,
                 );
                 value = typed(
                     AuthoredFormExpressionKind::Gradient(Box::new(value)),

@@ -72,6 +72,7 @@ pub(super) fn compile(
         topological_dimension: 0,
         relation_domain: None,
         tests: BTreeMap::new(),
+        integration_domain: None,
         used_tests: BTreeSet::new(),
     };
     let mut relations = Vec::new();
