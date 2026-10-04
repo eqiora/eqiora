@@ -76,8 +76,8 @@ pub enum PureOperatorError {
     ArityMismatch,
     /// An application argument violated its exact formal type rule.
     FormalTypeMismatch,
-    /// Application arguments did not share one exact volume support.
-    CommonVolumeMismatch,
+    /// Application arguments did not share one exact volume or boundary support.
+    CommonSupportMismatch,
     /// The symbolic body dimension overflowed portable SI exponents.
     ResultDimensionOverflow,
 }
@@ -124,9 +124,8 @@ impl fmt::Display for PureOperatorError {
             Self::FormalTypeMismatch => {
                 formatter.write_str("pure operator argument violates its exact type rule")
             }
-            Self::CommonVolumeMismatch => {
-                formatter.write_str("pure operator arguments do not share one exact volume")
-            }
+            Self::CommonSupportMismatch => formatter
+                .write_str("pure operator arguments do not share one exact spatial support"),
             Self::ResultDimensionOverflow => {
                 formatter.write_str("pure operator result SI dimension overflows")
             }
@@ -300,7 +299,7 @@ fn gcd(mut left: u128, mut right: u128) -> u128 {
 /// Canonical pointwise value class of a formal or result.
 ///
 /// Spatial tensors have exact rank and may constrain their common axis extent.
-/// Otherwise the extent is inferred from framed arguments or their common volume. A scalar is represented only by
+/// Otherwise the extent is inferred from framed arguments or their common support. A scalar is represented only by
 /// `None`; spatial rank zero therefore has no duplicate representation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PureValueClass {
@@ -311,7 +310,7 @@ pub struct PureValueClass {
 }
 
 impl PureValueClass {
-    /// Invariant scalar on the common volume.
+    /// Invariant scalar on the common support.
     #[must_use]
     pub const fn invariant_scalar() -> Self {
         Self {
@@ -322,7 +321,7 @@ impl PureValueClass {
         }
     }
 
-    /// Spatial Cartesian tensor of exact positive rank on the common volume.
+    /// Spatial Cartesian tensor of exact positive rank on the common support.
     ///
     /// # Errors
     /// Rejects rank zero and ranks above the internal `MAX_TENSOR_RANK` limit.

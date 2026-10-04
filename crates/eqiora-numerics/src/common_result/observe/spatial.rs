@@ -19,7 +19,7 @@ mod projection;
 pub(super) struct PointField {
     value: ValueLiteral,
     gradient: Vec<f64>,
-    tangent: f64,
+    tangent: Vec<f64>,
     gradient_tangent: Vec<f64>,
 }
 
@@ -32,38 +32,82 @@ pub(super) fn integrate(
     quadrature: &QuadratureRule,
     tangent: Option<&BTreeMap<RawId, Vec<f64>>>,
 ) -> Result<ValueLiteral, Diagnostic> {
-    let plan = result.plan().as_scalar().ok_or_else(|| {
-        invalid("spatial Observable requires an admitted scalar Cartesian Result")
-    })?;
-    if plan.spatial() != CommonSpatialPolicy::Q1 {
-        return Err(invalid(
-            "spatial Observable reconstruction currently requires the accepted Q1 field space",
-        ));
-    }
     let CommonResultPayload::Static(payload) = &result.payload else {
         return Err(invalid(
             "spatial Observable requires an instantaneous accepted State",
         ));
     };
-    let mesh = result
+    let owner = result
         .plan()
         .authenticated_mesh()
         .ok_or_else(|| invalid("spatial Observable Result has no authenticated mesh"))?;
-    let mesh = mesh
-        .cartesian_mesh()
-        .ok_or_else(|| invalid("spatial Observable requires the admitted Cartesian mesh profile"))?
-        .mesh();
+    let artifact = owner.cartesian_mesh().ok_or_else(|| {
+        invalid("spatial Observable requires the admitted Cartesian mesh profile")
+    })?;
+    let mesh = artifact.mesh();
     let dimension = mesh.topological_dimension();
-    let (bounds, boundary) = plan.observation_support(domain.erase())?;
+    let (bounds, boundary, field_types, support) = if let Some(plan) = result.plan().as_scalar() {
+        if plan.spatial() != CommonSpatialPolicy::Q1 {
+            return Err(invalid(
+                "spatial Observable reconstruction requires the accepted Q1 field space",
+            ));
+        }
+        let (bounds, boundary) = plan.observation_support(domain.erase())?;
+        let fields = plan
+            .fields()
+            .map(|(id, ty)| (id, ty.clone()))
+            .collect::<Vec<_>>();
+        let support = fields
+            .iter()
+            .map(|(id, _)| Ok((id.erase(), plan.field_support(id.erase())?.1)))
+            .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
+        (bounds, boundary, fields, support)
+    } else if let Some(plan) = result.plan().as_elasticity() {
+        let continuum = plan.observation_continuum();
+        let (volume, bounds, boundaries) = crate::canonical::geometry_rectangle_cartesian_support(
+            program,
+            owner.geometry(),
+            artifact,
+            owner.correspondence(),
+        )?;
+        if volume != continuum.domain() {
+            return Err(invalid(
+                "Observable support differs from the admitted elastic body",
+            ));
+        }
+        let boundary = if domain.erase() == volume {
+            None
+        } else {
+            Some(
+                boundaries
+                    .iter()
+                    .find_map(|(side, id)| (*id == domain.erase()).then_some(*side))
+                    .ok_or_else(|| {
+                        invalid("Observable Domain is outside the exact elastic body")
+                    })?,
+            )
+        };
+        let Some(eqiora_schema::kernel::KernelNode::Field(field)) =
+            program.node(continuum.displacement())
+        else {
+            return Err(invalid("Observable displacement is unavailable"));
+        };
+        let fields = vec![(field.id(), field.value_type().clone())];
+        let support = BTreeMap::from([(
+            field.id().erase(),
+            (0..mesh.entity_count(0).expect("vertices")).collect::<Vec<_>>(),
+        )]);
+        (bounds, boundary, fields, support)
+    } else {
+        return Err(invalid(
+            "spatial Observable requires an admitted Cartesian Q1 Result",
+        ));
+    };
     if bounds.len() != dimension {
         return Err(invalid(
             "Observable support dimension differs from Result mesh",
         ));
     }
-    let support = plan
-        .fields()
-        .map(|(id, _)| Ok((id.erase(), plan.field_support(id.erase())?.1)))
-        .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
     let measure_dimension = dimension - usize::from(boundary.is_some());
     let expected_cell = if measure_dimension == 0 {
         ReferenceCell::point()
@@ -122,7 +166,7 @@ pub(super) fn integrate(
             let mut coordinates = vec![0.0; dimension];
             geometry.map_point(&reference, &mut coordinates)?;
             let mut fields = BTreeMap::new();
-            for (id, value_type) in plan.fields() {
+            for (id, value_type) in &field_types {
                 let owned = &support[&id.erase()];
                 if !vertices
                     .iter()
@@ -142,46 +186,55 @@ pub(super) fn integrate(
                         "Observable requires exactly one Q1 coefficient block",
                     ));
                 };
+                let components = value_type
+                    .shape()
+                    .component_count()
+                    .ok_or_else(|| invalid("Observable Field component count is unavailable"))?;
                 if block.association != CommonFieldAssociation::Vertex
-                    || !accepted.value_shape.is_empty()
+                    || block.values.len() != owned.len() * components
+                    || value_type.array_rank() != 0
+                    || value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
                 {
                     return Err(invalid(
-                        "Observable Q1 reconstruction requires a real scalar vertex Field",
+                        "Observable Q1 reconstruction requires real vertex components",
                     ));
                 }
-                let mut value = 0.0;
-                let mut direction = 0.0;
-                let mut gradient_tangent = vec![0.0; dimension];
-                let mut gradient = vec![0.0; dimension];
+                let mut value = vec![0.0; components];
+                let mut direction = vec![0.0; components];
+                let mut gradient_tangent = vec![0.0; components * dimension];
+                let mut gradient = vec![0.0; components * dimension];
                 for (local, vertex) in vertices.iter().enumerate() {
                     let owned_index = owned
                         .binary_search(&vertex.index())
                         .expect("checked Field cell closure");
-                    let coefficient = block.values[owned_index];
-                    let delta = tangent
-                        .and_then(|fields| fields.get(&id.erase()))
-                        .map_or(0.0, |values| values[owned_index]);
-                    direction += delta * basis.values()[local];
-                    value += coefficient * basis.values()[local];
                     let derivative = physical_gradient(
                         basis.gradient(local).expect("Q1 basis gradient exists"),
                         &inverse,
                         dimension,
                     );
-                    for ((entry, tangent_entry), derivative) in gradient
-                        .iter_mut()
-                        .zip(&mut gradient_tangent)
-                        .zip(derivative)
-                    {
-                        *entry += coefficient * derivative;
-                        *tangent_entry += delta * derivative;
+                    for component in 0..components {
+                        let index = owned_index * components + component;
+                        let coefficient = block.values[index];
+                        let delta = tangent
+                            .and_then(|fields| fields.get(&id.erase()))
+                            .map_or(0.0, |values| values[index]);
+                        direction[component] += delta * basis.values()[local];
+                        value[component] += coefficient * basis.values()[local];
+                        for (axis, derivative) in derivative.iter().enumerate() {
+                            let index = component * dimension + axis;
+                            gradient[index] += coefficient * derivative;
+                            gradient_tangent[index] += delta * derivative;
+                        }
                     }
                 }
                 fields.insert(
                     id.erase(),
                     PointField {
-                        value: ValueLiteral::from_real(value_type.clone(), value)
-                            .map_err(|error| invalid(error.to_string()))?,
+                        value: ValueLiteral::new(
+                            value_type.clone(),
+                            value.into_iter().map(|value| (value, 0.0)),
+                        )
+                        .map_err(|error| invalid(error.to_string()))?,
                         gradient,
                         tangent: direction,
                         gradient_tangent,

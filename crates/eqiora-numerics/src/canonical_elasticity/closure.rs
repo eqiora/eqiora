@@ -96,7 +96,7 @@ pub(super) fn require_closed_elasticity_parts<const D: usize>(
         })
         .map(|edge| edge.from())
         .collect::<BTreeSet<_>>();
-    let expected_parameters = expected_relations
+    let mut expected_parameters = expected_relations
         .iter()
         .copied()
         .flat_map(|relation| match program.node(relation) {
@@ -108,6 +108,25 @@ pub(super) fn require_closed_elasticity_parts<const D: usize>(
             _ => None,
         })
         .collect::<BTreeSet<_>>();
+
+    // Observables are derived outputs, not extra equations or unknowns. Their
+    // typed dependencies remain in this exact Model; execution checks the Result.
+    for node in program.nodes() {
+        if let KernelNode::Observable(value) = node {
+            program.typed_observable(value.id()).map_err(|errors| {
+                errors
+                    .into_iter()
+                    .next()
+                    .expect("typing failure has diagnostic")
+            })?;
+            expected_parameters.extend(value.expression().nodes().iter().filter_map(|node| {
+                match node {
+                    ExprNode::Symbol(SymbolRef::Parameter(id)) => Some(id.erase()),
+                    _ => None,
+                }
+            }));
+        }
+    }
 
     for node in program.nodes() {
         let admitted = match node {
@@ -121,6 +140,7 @@ pub(super) fn require_closed_elasticity_parts<const D: usize>(
             KernelNode::Activation(value) => expected_activations.contains(&value.id().erase()),
             KernelNode::Port(value) => expected_ports.contains(&value.id().erase()),
             KernelNode::Connection(value) => expected_connections.contains(&value.id().erase()),
+            KernelNode::Observable(_) => true,
             KernelNode::ClockDomain(_) => false,
             _ => false,
         };

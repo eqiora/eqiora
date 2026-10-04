@@ -175,7 +175,7 @@ fn dyadic_product_requires_one_exact_volume_and_checked_si_dimension() {
             volume_vector("left", dimensionless),
             volume_vector("right", dimensionless),
         ]),
-        Err(PureOperatorError::CommonVolumeMismatch)
+        Err(PureOperatorError::CommonSupportMismatch)
     ));
 
     let large =
@@ -249,5 +249,69 @@ fn uniform_spatial_coefficients_retain_shape_without_acquiring_support() {
                 None
             )])
             .is_err()
+    );
+}
+
+#[test]
+fn boundary_contraction_retains_exact_parent_boundary_and_ambient_extent() {
+    let contraction = PureOperatorDefinition::contract(2, 1, 1, &[(0, 0)]).unwrap();
+    let mut left = volume_vector("body", DimExponents::DIMENSIONLESS);
+    left.support = Some(SpatialSupport::Boundary {
+        domain: "right",
+        parent: "body",
+        dimensions: 2,
+    });
+    let result = contraction
+        .instantiate(&[left.clone(), left.clone()])
+        .unwrap();
+    assert_eq!(result.result_type().support, left.support);
+    assert!(result.result_type().shape().is_scalar());
+    for support in [
+        SpatialSupport::Boundary {
+            domain: "left",
+            parent: "body",
+            dimensions: 2,
+        },
+        SpatialSupport::Boundary {
+            domain: "right",
+            parent: "other",
+            dimensions: 2,
+        },
+        SpatialSupport::Volume {
+            domain: "body",
+            dimensions: 2,
+        },
+    ] {
+        let mut foreign = left.clone();
+        foreign.support = Some(support);
+        assert_eq!(
+            contraction
+                .instantiate(&[left.clone(), foreign])
+                .unwrap_err(),
+            PureOperatorError::CommonSupportMismatch
+        );
+    }
+    let mut wrong_extent = left.clone();
+    wrong_extent.support = Some(SpatialSupport::Boundary {
+        domain: "right",
+        parent: "body",
+        dimensions: 3,
+    });
+    assert_eq!(
+        contraction
+            .instantiate(&[wrong_extent.clone(), wrong_extent])
+            .unwrap_err(),
+        PureOperatorError::FormalTypeMismatch
+    );
+    let mut interface = left.clone();
+    interface.support = Some(SpatialSupport::Interface {
+        connection: "port",
+        dimensions: 2,
+    });
+    assert_eq!(
+        contraction
+            .instantiate(&[interface.clone(), interface])
+            .unwrap_err(),
+        PureOperatorError::FormalTypeMismatch
     );
 }

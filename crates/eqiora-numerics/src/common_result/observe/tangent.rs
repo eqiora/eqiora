@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 use super::super::CommonResultPayload;
 use super::{CommonResult, invalid, spatial};
 
-/// A finite scalar Field direction bound to one exact accepted Result.
+/// A finite real Field direction bound to one exact accepted Result.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonObservableStateTangent {
     result_identity: String,
@@ -18,7 +18,7 @@ pub struct CommonObservableStateTangent {
 }
 
 impl CommonResult {
-    /// Bind a dimensioned coefficient direction to this Result's scalar Fields.
+    /// Bind a dimensioned coefficient direction to this Result's real Fields.
     ///
     /// Omitted Fields have zero variation. Supplied coefficients follow the
     /// accepted Field's canonical vertex order; duplicate or foreign Fields reject.
@@ -42,11 +42,10 @@ impl CommonResult {
                 .ok_or_else(|| invalid("Observable State tangent Field is outside this Result"))?;
             let [block] = field.blocks.as_slice() else {
                 return Err(invalid(
-                    "Observable State tangent requires one scalar coefficient block",
+                    "Observable State tangent requires one coefficient block",
                 ));
             };
-            if !field.value_shape.is_empty()
-                || block.values.len() != values.len()
+            if block.values.len() != values.len()
                 || values
                     .iter()
                     .any(|value| !value.value().is_finite() || value.dim() != field.dimension)

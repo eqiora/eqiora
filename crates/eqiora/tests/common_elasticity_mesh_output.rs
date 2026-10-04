@@ -64,6 +64,10 @@ struct Accepted {
 }
 
 fn accepted() -> Accepted {
+    accepted_source(SOURCE)
+}
+
+fn accepted_source(source: &str) -> Accepted {
     let graph = GeometryGraph::new();
     let rectangle = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
     let edges = rectangle.boundaries();
@@ -176,7 +180,7 @@ fn accepted() -> Accepted {
     }));
     let document = ModelDocument::compile_selected(
         "mixed-boundary-elasticity.eqi",
-        SOURCE,
+        source,
         "MixedBoundaryElasticity2d",
         &compile_bindings,
     )
@@ -243,6 +247,146 @@ fn accepted() -> Accepted {
         plan,
         result,
     }
+}
+
+#[test]
+fn elastic_energy_is_observed_from_the_accepted_displacement_gradient() {
+    let source = SOURCE.replace(
+        "  relation load on body {",
+        r#"  observable energy: N = integral(
+    mu * contract(symmetric_part(grad(displacement)),
+                  symmetric_part(grad(displacement)), axes = ((0, 0), (1, 1))),
+    measure(body));
+  observable boundary_work: N = integral(
+    contract(normal(2 * mu * symmetric_part(grad(displacement))),
+             trace(displacement), axes = ((0, 0),)), measure(x_upper));
+  relation load on body {"#,
+    );
+    let accepted = accepted_source(&source);
+    let model = ModelEnvelope::from_program(accepted.document.program()).unwrap();
+    let energy = accepted
+        .document
+        .program()
+        .nodes()
+        .find_map(|node| match node {
+            eqiora::kernel::KernelNode::Observable(value)
+                if matches!(
+                    value.reduction(),
+                    eqiora::kernel::ObservableReduction::SpatialIntegral {
+                        measure: eqiora::kernel::ObservableMeasure::Volume,
+                        ..
+                    }
+                ) =>
+            {
+                Some(value.id())
+            }
+            _ => None,
+        })
+        .unwrap();
+    let quadrature = eqiora::meshing::QuadratureRule::tensor_product_gauss_legendre(2, 2).unwrap();
+    let observed = accepted
+        .result
+        .observe(&model, energy, Some(&quadrature))
+        .unwrap();
+    // Independent Q1 solution: u_x interpolates x - x^2/2, u_y = 0.
+    // Its cellwise derivative is 1 - x_mid. Midpoint summation gives
+    // integral 3*(1-x_mid)^2 dx dy = 1 - h^2/4 = 1023/1024 N.
+    // This is energy per out-of-plane thickness, not three-dimensional energy.
+    let expected = 1.0 - 1.0 / (4.0 * (CELLS_PER_AXIS * CELLS_PER_AXIS) as f64);
+    assert!((observed.value().component(0).unwrap().0 - expected).abs() < 1.0e-8);
+    assert_eq!(
+        observed.value().value_type().dimension(),
+        eqiora::DimExponents::from_integers([1, 1, -2, 0, 0, 0, 0]).unwrap(),
+    );
+    let displacement = accepted
+        .document
+        .program()
+        .nodes()
+        .find_map(|node| match node {
+            eqiora::kernel::KernelNode::Field(value) if !value.value_type().shape().is_scalar() => {
+                Some(value)
+            }
+            _ => None,
+        })
+        .unwrap();
+    let (_, values, _) = accepted.result.field_block(0, 0).unwrap();
+    for (vertex, value) in values.as_chunks::<2>().0.iter().enumerate() {
+        let coordinates = accepted
+            .mesh
+            .mesh()
+            .vertex_coordinates(MeshEntity::new(0, vertex))
+            .unwrap();
+        let x = coordinates[0];
+        assert!((value[0] - (x - x * x / 2.0)).abs() < 2e-11);
+        assert!(value[1].abs() < 2e-11);
+    }
+    let coefficients = (0..VERTICES_PER_AXIS * VERTICES_PER_AXIS)
+        .flat_map(|vertex| {
+            accepted
+                .mesh
+                .mesh()
+                .vertex_coordinates(MeshEntity::new(0, vertex))
+                .unwrap()
+        })
+        .map(|value| eqiora::DynQuantity::new(value, displacement.dimension()))
+        .collect::<Vec<_>>();
+    let direction = accepted
+        .result
+        .observable_state_tangent([(displacement.id(), coefficients.clone())])
+        .unwrap();
+    let action = accepted
+        .result
+        .observe_state_jvp(&model, energy, &quadrature, &direction)
+        .unwrap();
+    // eta=(x,y): 2*mu*epsilon(u):epsilon(eta) integrates to 6*integral(1-x)=3 N.
+    // This State direction is unconstrained; it is not a claimed equilibrium variation.
+    assert!((action.real_scalar_value().unwrap().value() - 3.0).abs() < 1.0e-8);
+    assert!(
+        accepted
+            .result
+            .observable_state_tangent([(
+                displacement.id(),
+                coefficients[..coefficients.len() - 1].to_vec()
+            )])
+            .is_err()
+    );
+    let boundary_work = accepted
+        .document
+        .program()
+        .nodes()
+        .find_map(|node| match node {
+            eqiora::kernel::KernelNode::Observable(value) if value.id() != energy => {
+                Some(value.id())
+            }
+            _ => None,
+        })
+        .unwrap();
+    let face = eqiora::meshing::QuadratureRule::gauss_legendre(2).unwrap();
+    let work = accepted
+        .result
+        .observe(&model, boundary_work, Some(&face))
+        .unwrap();
+    // The Q1 recovered traction is 3h Pa, not the exactly zero natural Law datum.
+    // With trace u_x=1/2 m, its boundary pairing is 3h/2 = 3/32 N.
+    assert!((work.value().component(0).unwrap().0 - 3.0 / 32.0).abs() < 1e-8);
+    let work_action = accepted
+        .result
+        .observe_state_jvp(&model, boundary_work, &face, &direction)
+        .unwrap();
+    // Delta traction=6 Pa and eta_x=1 m on this face: 6/2 + 3h = 51/16 N.
+    assert!((work_action.component(0).unwrap().0 - 51.0 / 16.0).abs() < 1e-8);
+    assert!(
+        accepted
+            .result
+            .observe(&model, boundary_work, Some(&quadrature))
+            .is_err()
+    );
+    let bytes = accepted.result.to_bytes().unwrap();
+    let replayed = CommonResult::from_bytes(&bytes, accepted.result.plan()).unwrap();
+    assert_eq!(
+        replayed.observe(&model, energy, Some(&quadrature)).unwrap(),
+        observed
+    );
 }
 
 #[test]

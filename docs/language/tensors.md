@@ -139,3 +139,9 @@ Reject repeated/out-of-range contraction axes, mismatched frames, foreign same-s
 implicit symmetric compression, and unsupported rank or extent before allocation/evaluation.
 The initial bounded tensor profile supports ranks through four; its concrete element-count
 limits belong to the common resource profile, not a per-material exception.
+
+Pure tensor compositions preserve one exact Cartesian volume or boundary support.
+On a boundary, tensor extents use the parent ambient dimension, not the boundary's
+measure dimension. Operands on different boundaries, different parents, or a volume
+and its boundary do not become interchangeable; apply explicit trace or normal
+operations first. Conserving-interface supports remain outside this pure profile.

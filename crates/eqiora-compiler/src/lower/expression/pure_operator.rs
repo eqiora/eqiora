@@ -36,7 +36,9 @@ impl ExpressionLowerer<'_> {
     ) -> Result<TypedExpression, Diagnostic> {
         let types = arguments
             .iter()
-            .map(|argument| expression_type(self.file, argument, self.bindings, None))
+            .map(|argument| {
+                expression_type(self.file, argument, self.bindings, self.support.as_ref())
+            })
             .collect::<Result<Vec<_>, _>>()?;
         let definition = operation.definition(&types).map_err(|error| {
             source_error(

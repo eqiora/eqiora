@@ -129,13 +129,22 @@ impl Projection<'_> {
                     self.constant_component(value, coordinate)?
                 }
             }
-            ExprNode::Symbol(SymbolRef::Field(field)) if coordinate.is_empty() => {
+            ExprNode::Symbol(SymbolRef::Field(field)) => {
                 let sample = self
                     .fields
                     .get(&field.erase())
                     .ok_or_else(|| invalid("Observable Field sample is outside this Result"))?;
-                let value = self.builder.constant(sample.value.clone())?;
-                self.samples.push((value, sample.tangent));
+                let component =
+                    flat_component(sample.value.value_type().shape().extents(), coordinate);
+                let real = sample
+                    .value
+                    .component(component)
+                    .ok_or_else(|| invalid("Observable Field component is unavailable"))?
+                    .0;
+                let value = self
+                    .builder
+                    .constant(DynQuantity::new(real, ty.dimension()))?;
+                self.samples.push((value, sample.tangent[component]));
                 value
             }
             ExprNode::Gradient(field) => {
@@ -143,19 +152,14 @@ impl Projection<'_> {
                     self.typed.expression().node(*field).expect("typed operand")
                 else {
                     return Err(invalid(
-                        "Observable gradient requires an admitted scalar Field operand",
-                    ));
-                };
-                let [axis] = coordinate else {
-                    return Err(invalid(
-                        "Observable gradient requires one Cartesian coordinate",
+                        "Observable gradient requires an admitted Field operand",
                     ));
                 };
                 let sample = self
                     .fields
                     .get(&field.erase())
                     .ok_or_else(|| invalid("Observable gradient Field is outside this Result"))?;
-                let axis = *axis as usize;
+                let axis = flat_component(ty.shape().extents(), coordinate);
                 let value = self
                     .builder
                     .constant(DynQuantity::new(sample.gradient[axis], ty.dimension()))?;
@@ -176,52 +180,23 @@ impl Projection<'_> {
                     .expression()
                     .definition(application.definition())
                     .ok_or_else(|| invalid("Observable pure operator definition is unavailable"))?;
-                let types = application
-                    .arguments()
-                    .iter()
-                    .map(|argument| {
-                        self.typed.node_type(*argument).cloned().ok_or_else(|| {
-                            invalid("Observable pure operator argument type is unavailable")
-                        })
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                let instance = definition
-                    .instantiate(&types)
-                    .map_err(|error| invalid(error.to_string()))?;
-                let mut arguments = Vec::new();
-                for (argument, ty) in application.arguments().iter().zip(&types) {
-                    let count = ty
-                        .shape()
-                        .component_count()
-                        .filter(|count| *count <= self.remaining)
-                        .ok_or_else(|| {
-                            invalid("Observable component arguments exceed the work bound")
-                        })?;
-                    let mut values = Vec::with_capacity(count);
-                    for flat in 0..count {
-                        let mut rest = flat;
-                        let mut indices = vec![0; ty.shape().rank()];
-                        for (index, extent) in indices.iter_mut().zip(ty.shape().extents()).rev() {
-                            *index = (rest % extent.get() as usize) as u32;
-                            rest /= extent.get() as usize;
-                        }
-                        values.push(self.component(*argument, &indices, depth + 1)?);
-                    }
-                    arguments.push(values);
-                }
-                self.remaining = self
-                    .remaining
-                    .checked_sub(definition.nodes().len())
-                    .ok_or_else(|| invalid("Observable pure expansion exceeds the work bound"))?;
-                self.builder
-                    .project_operator_component(&instance, &arguments, coordinate, 1_000_000)?
+                self.pure(definition, application.arguments(), coordinate, depth)?
             }
+            ExprNode::SymmetricPart(value) => self.pure(
+                &eqiora_schema::kernel::pure_operator::PureOperatorDefinition::symmetric_part()
+                    .map_err(|error| invalid(error.to_string()))?,
+                &[*value],
+                coordinate,
+                depth,
+            )?,
             ExprNode::Trace(value) => self.component(*value, coordinate, depth + 1)?,
             ExprNode::NormalComponent(value) => {
                 let (axis, sign) = self
                     .normal
                     .ok_or_else(|| invalid("normal Observable requires an oriented boundary"))?;
-                let value = self.component(*value, &[axis as u32], depth + 1)?;
+                let mut indices = coordinate.to_vec();
+                indices.push(axis as u32);
+                let value = self.component(*value, &indices, depth + 1)?;
                 if sign < 0.0 {
                     self.builder.neg(value)?
                 } else {
@@ -278,6 +253,52 @@ impl Projection<'_> {
         Ok(value)
     }
 
+    fn pure(
+        &mut self,
+        definition: &eqiora_schema::kernel::pure_operator::PureOperatorDefinition,
+        operands: &[ExprId],
+        coordinate: &[u32],
+        depth: usize,
+    ) -> Result<ExprId, Diagnostic> {
+        let types = operands
+            .iter()
+            .map(|argument| {
+                self.typed
+                    .node_type(*argument)
+                    .cloned()
+                    .ok_or_else(|| invalid("Observable pure operator argument type is unavailable"))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let instance = definition
+            .instantiate(&types)
+            .map_err(|error| invalid(error.to_string()))?;
+        let mut arguments = Vec::new();
+        for (argument, ty) in operands.iter().zip(&types) {
+            let count = ty
+                .shape()
+                .component_count()
+                .filter(|count| *count <= self.remaining)
+                .ok_or_else(|| invalid("Observable component arguments exceed the work bound"))?;
+            let mut values = Vec::with_capacity(count);
+            for flat in 0..count {
+                let mut rest = flat;
+                let mut indices = vec![0; ty.shape().rank()];
+                for (index, extent) in indices.iter_mut().zip(ty.shape().extents()).rev() {
+                    *index = (rest % extent.get() as usize) as u32;
+                    rest /= extent.get() as usize;
+                }
+                values.push(self.component(*argument, &indices, depth + 1)?);
+            }
+            arguments.push(values);
+        }
+        self.remaining = self
+            .remaining
+            .checked_sub(definition.nodes().len())
+            .ok_or_else(|| invalid("Observable pure expansion exceeds the work bound"))?;
+        self.builder
+            .project_operator_component(&instance, &arguments, coordinate, 1_000_000)
+    }
+
     fn constant_component(
         &mut self,
         value: &eqiora_core::ValueLiteral,
@@ -306,4 +327,13 @@ impl Projection<'_> {
         self.builder
             .constant(DynQuantity::new(real, value.value_type().dimension()))
     }
+}
+
+fn flat_component(extents: &[std::num::NonZeroU32], coordinate: &[u32]) -> usize {
+    extents
+        .iter()
+        .zip(coordinate)
+        .fold(0, |offset, (extent, index)| {
+            offset * extent.get() as usize + *index as usize
+        })
 }

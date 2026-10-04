@@ -346,7 +346,7 @@ fn generic_pure_application_rejects_argument_type_and_support_mismatches() {
     assert!(matches!(
         support_errors.as_slice(),
         [TypedResidualError::Type {
-            error: TypeViolation::PureOperatorApplication(PureOperatorError::CommonVolumeMismatch),
+            error: TypeViolation::PureOperatorApplication(PureOperatorError::CommonSupportMismatch),
             ..
         }]
     ));

@@ -101,7 +101,7 @@ fn concrete_conductivity_dimensions_admit_scalar_calls_without_a_volume() {
     });
     assert_eq!(
         definition.instantiate(&supported).unwrap_err(),
-        PureOperatorError::CommonVolumeMismatch
+        PureOperatorError::CommonSupportMismatch
     );
 }
 

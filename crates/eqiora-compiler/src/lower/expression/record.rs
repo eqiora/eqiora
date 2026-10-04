@@ -9,6 +9,7 @@ pub(in crate::lower) fn lower_record(
     let mut lowerer = ExpressionLowerer {
         file,
         bindings,
+        support: None,
         builder: ExprDagBuilder::new(),
         dependencies: BTreeSet::new(),
         ports: BTreeSet::new(),
