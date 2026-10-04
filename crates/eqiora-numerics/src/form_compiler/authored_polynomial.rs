@@ -1,17 +1,19 @@
 //! Exact bounded comparison of a first variation with the independently derived weak Law.
-//! Live energy replay and complete essential-boundary checks precede this comparison.
+//! Live energy replay and exact boundary-discharge checks precede this comparison.
 use eqiora_compiler::{AuthoredFormExpressionV1 as E, AuthoredFormulationProjection};
 use eqiora_schema::kernel::pure_operator::{ExactPolynomial, ExactRational};
+
+mod source;
 
 type Polynomial = ExactPolynomial<Atom>;
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Atom {
-    Field(String),
+    Field(String, Vec<usize>),
     Parameter(String),
     Coordinate(usize),
-    Test,
-    FieldGradient(String, usize),
-    TestGradient(usize),
+    Test(Vec<usize>),
+    FieldGradient(String, Vec<usize>),
+    TestGradient(Vec<usize>),
 }
 
 pub(super) fn matches_variation(
@@ -46,6 +48,55 @@ pub(super) fn matches_variation(
         Some(actual == expected)
     };
     let mut compare = compare;
+    compare().unwrap_or(false)
+}
+
+pub(super) fn matches_elastic_variation(
+    projection: &AuthoredFormulationProjection,
+    typed: &eqiora_schema::kernel::typing::TypedResidual<eqiora_core::RawId>,
+    stress: eqiora_schema::kernel::ExprId,
+    load: eqiora_schema::kernel::ExprId,
+) -> bool {
+    let [(name, field, _, _)] = projection.test_restrictions() else {
+        return false;
+    };
+    let Some(domain) = projection.domain_ulid() else {
+        return false;
+    };
+    let [(_, left, right)] = projection.equations() else {
+        return false;
+    };
+    let mut context = Context {
+        name,
+        field,
+        domain,
+        dimensions: 2,
+        remaining: 65536,
+    };
+    let mut compare = || -> Option<bool> {
+        let actual = context
+            .integral(left)?
+            .checked_add(&context.integral(right)?.checked_neg().ok()?)
+            .ok()?;
+        let mut expected = Polynomial::constant(ExactRational::integer(0));
+        // Integration by parts of -div(stress)-load pairs stress_ij with w_i,j
+        // and load_i with w_i. Boundary discharge is authenticated separately.
+        for i in 0..2 {
+            for j in 0..2 {
+                let term = context
+                    .source(typed, stress, &[i, j], 0)?
+                    .checked_mul(&Polynomial::atom(Atom::TestGradient(vec![i, j])))
+                    .ok()?;
+                expected = expected.checked_add(&term).ok()?;
+            }
+            let term = context
+                .source(typed, load, &[i], 0)?
+                .checked_mul(&Polynomial::atom(Atom::Test(vec![i])))
+                .ok()?;
+            expected = expected.checked_add(&term.checked_neg().ok()?).ok()?;
+        }
+        Some(actual == expected)
+    };
     compare().unwrap_or(false)
 }
 
@@ -105,14 +156,16 @@ impl Context<'_> {
             } => Polynomial::constant(
                 ExactRational::new(*numerator, i64::try_from(*denominator).ok()?).ok()?,
             ),
-            E::Field { ulid } => Polynomial::atom(Atom::Field(ulid.clone())),
+            E::Field { ulid } => Polynomial::atom(Atom::Field(ulid.clone(), vec![])),
             E::Parameter { ulid } => Polynomial::atom(Atom::Parameter(ulid.clone())),
             E::Coordinate { axis } if *axis < self.dimensions => {
                 Polynomial::atom(Atom::Coordinate(*axis))
             }
-            E::Test { field_ulid } if field_ulid == self.field => Polynomial::atom(Atom::Test),
+            E::Test { field_ulid } if field_ulid == self.field => {
+                Polynomial::atom(Atom::Test(vec![]))
+            }
             E::Direction { name, field_ulid } if name == self.name && field_ulid == self.field => {
-                Polynomial::atom(Atom::Test)
+                Polynomial::atom(Atom::Test(vec![]))
             }
             E::Neg { value } => self.scalar(value, depth + 1)?.checked_neg().ok()?,
             E::Add { left, right } => self
@@ -130,6 +183,12 @@ impl Context<'_> {
             E::Component { value, indices } if indices.len() == 1 => {
                 self.vector(value, usize::try_from(indices[0]).ok()?, depth + 1)?
             }
+            E::Component { value, indices } if indices.len() == 2 => self.tensor(
+                value,
+                usize::try_from(indices[0]).ok()?,
+                usize::try_from(indices[1]).ok()?,
+                depth + 1,
+            )?,
             E::Dot { left, right } => {
                 let mut sum = Polynomial::constant(ExactRational::integer(0));
                 for axis in 0..self.dimensions {
@@ -144,19 +203,55 @@ impl Context<'_> {
             _ => return None,
         })
     }
+    fn tensor(
+        &mut self,
+        value: &E,
+        component: usize,
+        axis: usize,
+        depth: usize,
+    ) -> Option<Polynomial> {
+        self.step(depth)?;
+        if component >= self.dimensions || axis >= self.dimensions {
+            return None;
+        }
+        match value {
+            E::Gradient { value } => Some(Polynomial::atom(match value.as_ref() {
+                E::Field { ulid } => Atom::FieldGradient(ulid.clone(), vec![component, axis]),
+                E::Direction { name, field_ulid }
+                    if name == self.name && field_ulid == self.field =>
+                {
+                    Atom::TestGradient(vec![component, axis])
+                }
+                E::Test { field_ulid } if field_ulid == self.field => {
+                    Atom::TestGradient(vec![component, axis])
+                }
+                _ => return None,
+            })),
+            _ => None,
+        }
+    }
     fn vector(&mut self, value: &E, axis: usize, depth: usize) -> Option<Polynomial> {
         self.step(depth)?;
         if axis >= self.dimensions {
             return None;
         }
         match value {
+            E::Field { ulid } => Some(Polynomial::atom(Atom::Field(ulid.clone(), vec![axis]))),
+            E::Direction { name, field_ulid } if name == self.name && field_ulid == self.field => {
+                Some(Polynomial::atom(Atom::Test(vec![axis])))
+            }
+            E::Test { field_ulid } if field_ulid == self.field => {
+                Some(Polynomial::atom(Atom::Test(vec![axis])))
+            }
             E::Gradient { value } => Some(Polynomial::atom(match value.as_ref() {
-                E::Field { ulid } => Atom::FieldGradient(ulid.clone(), axis),
-                E::Test { field_ulid } if field_ulid == self.field => Atom::TestGradient(axis),
+                E::Field { ulid } => Atom::FieldGradient(ulid.clone(), vec![axis]),
+                E::Test { field_ulid } if field_ulid == self.field => {
+                    Atom::TestGradient(vec![axis])
+                }
                 E::Direction { name, field_ulid }
                     if name == self.name && field_ulid == self.field =>
                 {
-                    Atom::TestGradient(axis)
+                    Atom::TestGradient(vec![axis])
                 }
                 _ => return None,
             })),

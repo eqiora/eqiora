@@ -5,7 +5,7 @@ mod regions;
 mod transient;
 pub(crate) use regions::ExecutableScalarEquations;
 
-fn describe_primal(
+pub(super) fn describe_primal(
     kind: FormulationKind,
     boundary_treatment: &'static str,
     rule_ids: [&'static str; 4],

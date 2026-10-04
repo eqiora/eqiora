@@ -1028,6 +1028,8 @@ def quantity(value: int | float | Decimal, unit: Unit) -> Expression:
     ...
 
 __all__ = [
+    "transpose", "adjoint", "apply", "compose", "pair", "tensor_product", "permute_factors",
+    "Observable", "variation", "contract",
     "Inequality", "Complementarity", "inequality", "complementarity",
     "equal",
     "not_equal",

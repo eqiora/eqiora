@@ -81,12 +81,11 @@ pub fn resolve_common_plan(
             .map(|plan| ResolvedCommonPlan::Scalar(Box::new(plan)))
         }
         RecognizedNativeModel::Elasticity(continuum) => {
-            if authored_formulation.is_some() {
-                return Err(invalid(
-                    "authored scalar Formulation does not match the vector small-strain form",
-                ));
-            }
-            reject_unsupported_formulation_request(formulation, "isotropic small-strain form")?;
+            let selection = resolve_formulation_request(
+                formulation,
+                FormulationKind::PrimalGalerkin,
+                "isotropic small-strain form",
+            )?;
             let spatial = resolve_elasticity(spatial)?;
             let structure = super::elasticity::algebraic_structure(continuum)?;
             let (linear, temporal) = resolve_linear_requirements(
@@ -100,7 +99,7 @@ pub fn resolve_common_plan(
                 stokes_backend,
             )?;
             let admission = recognized.complete(spatial, linear, temporal, None)?;
-            CommonElasticityPlan::from_admission(model, admission)
+            CommonElasticityPlan::from_admission(model, admission, selection, authored_formulation)
                 .map(|plan| ResolvedCommonPlan::Elasticity(Box::new(plan)))
         }
         RecognizedNativeModel::Stokes(binding) => {

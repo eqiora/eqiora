@@ -1,6 +1,8 @@
 //! Closed scalar instruction tape for the private Cartesian Q1 elasticity form.
 
 mod evaluate;
+#[cfg(test)]
+mod tests;
 
 use evaluate::{closed_inputs, instruction_tangent, instruction_value, reverse};
 
@@ -337,6 +339,9 @@ fn contains_displacement(
             | Some(ExprNode::Mul(left, right)) => {
                 pending.push(*right);
                 pending.push(*left);
+            }
+            Some(ExprNode::PureOperatorApplication(application)) => {
+                pending.extend(application.arguments().iter().copied());
             }
             _ => {}
         }

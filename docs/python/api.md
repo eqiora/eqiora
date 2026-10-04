@@ -2819,6 +2819,108 @@ Author Eqiora Modules, Components, expressions, and equations in Python.
 
 [View source](../../bindings/python/python/eqiora/lang/__init__.pyi)
 
+<a id="api-eqiora-lang-transpose"></a>
+
+### `eqiora.lang.transpose`
+
+Algebraic dual or transpose without conjugation.
+
+```python
+def transpose(value: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-adjoint"></a>
+
+### `eqiora.lang.adjoint`
+
+Conjugate transpose in the declared orthonormal finite bases.
+
+```python
+def adjoint(value: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-apply"></a>
+
+### `eqiora.lang.apply`
+
+Apply a map to its exact input coordinates.
+
+```python
+def apply(left: object, right: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-compose"></a>
+
+### `eqiora.lang.compose`
+
+Compose left after right with matching nominal endpoints.
+
+```python
+def compose(left: object, right: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-pair"></a>
+
+### `eqiora.lang.pair`
+
+Bilinearly pair dual and primal coordinates in the same basis.
+
+```python
+def pair(left: object, right: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-tensor_product"></a>
+
+### `eqiora.lang.tensor_product`
+
+Ordered product of two atomic coordinate values or maps.
+
+```python
+def tensor_product(left: object, right: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-permute_factors"></a>
+
+### `eqiora.lang.permute_factors`
+
+Explicitly reorder both factors; map permutations act on both endpoints.
+
+```python
+def permute_factors(value: object, permutation: Sequence[int]) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-Observable"></a>
+
+### `eqiora.lang.Observable`
+
+Retain an authored derived-output reference without ordinary expression algebra.
+
+```python
+@final
+class Observable:
+    def __init__(self, _token: Never, _component: object=..., _name: str='') -> None: ...
+```
+
+<a id="api-eqiora-lang-variation"></a>
+
+### `eqiora.lang.variation`
+
+Author a directional variation with explicit selected and held bindings.
+
+```python
+def variation(value: Observable | Expression, *, wrt: Expression, direction: Expression, holding: Sequence[Expression]=()) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-contract"></a>
+
+### `eqiora.lang.contract`
+
+Contract explicitly paired full-coordinate tensor axes.
+
+```python
+def contract(left: object, right: object, *, axes: Sequence[tuple[int, int]]) -> Expression: ...
+```
+
 <a id="api-eqiora-lang-Inequality"></a>
 
 ### `eqiora.lang.Inequality`

@@ -18,7 +18,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 PYTHON_DEMO = REPOSITORY_ROOT / "examples" / "python" / "mixed_boundary_elasticity.py"
 
 
-def geometry_and_mesh() -> tuple[eqiora.geometry.Geometry, eqiora.meshing.Mesh]:
+def geometry_and_mesh(cells: int = 16) -> tuple[eqiora.geometry.Geometry, eqiora.meshing.Mesh]:
     graph = eqiora.geometry.GeometryGraph()
     rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
     geometry = graph.build(
@@ -31,7 +31,7 @@ def geometry_and_mesh() -> tuple[eqiora.geometry.Geometry, eqiora.meshing.Mesh]:
             "y_upper": rectangle.boundaries[3],
         },
     )
-    request = eqiora.meshing.CartesianMesher(cells=(16, 16))
+    request = eqiora.meshing.CartesianMesher(cells=(cells, cells))
     plan = eqiora.meshing.resolve(geometry, request)
     return geometry, eqiora.meshing.generate(plan)
 
@@ -179,3 +179,45 @@ def test_checked_in_python_demo_runs_with_packaged_component_resource() -> None:
     )
     assert "constrained reaction" in completed.stdout
     assert "integrated body force" in completed.stdout
+
+
+def test_authored_elastic_energy_variation_replays_and_observes_same_functional() -> None:
+    geometry, mesh = geometry_and_mesh(2)
+    source = files(eqiora).joinpath("examples", "mixed-boundary-elasticity.eqi").read_text()
+    source = source.replace(
+        "normal(2 * mu * symmetric_part(grad(displacement))\n      + lambda * isotropic_lift(div(displacement)))",
+        "trace(displacement)",
+    ).replace("  relation load on body {", """  observable energy: N = integral(
+    mu * contract(symmetric_part(grad(displacement)), symmetric_part(grad(displacement)), axes=((0,0),(1,1)))
+    + lambda * div(displacement) * div(displacement) / 2
+    - contract(grad(load_potential), displacement, axes=((0,0),)), measure(body));
+  relation load on body {""")
+    source = source.rstrip().removesuffix("}") + """
+  form stationary for balance {
+    test w: m for displacement zero_on x_lower, x_upper, y_lower, y_upper;
+    variation(energy,wrt=displacement,direction=w,holding=(mu,lambda,load_potential)) = 0;
+  }
+}"""
+    model = eqiora.compile(source=source, geometry=geometry, entry="MixedBoundaryElasticity2d", bindings={
+        **support_bindings(geometry, ["body"], [(side, "body") for side in ("x_lower", "x_upper", "y_lower", "y_upper")]),
+        "mu": 3.0, "lambda": 2.0, "length_scale": 1.0,
+    })
+    plan = eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=eqiora.solve.Linear(
+        algorithm=eqiora.solve.LinearSolver.ConjugateGradient,
+        preconditioner=eqiora.solve.Preconditioner.Identity,
+        reduction=eqiora.solve.Reduction.Reproducible,
+        provider=eqiora.solve.SolverProvider.reference(),
+        relative_tolerance=1e-10, absolute_tolerance=1e-12, maximum_iterations=1000,
+    ))
+    assert plan.formulation.requested == eqiora.FormulationSelectionMode.Authored
+    assert plan.formulation.requested_source_identity == model.authored_formulations[0].source_identity
+    replayed = eqiora.Plan.from_bytes(plan.to_bytes())
+    result = eqiora.run(replayed)
+    result = eqiora.Result.from_bytes(replayed, result.to_bytes())
+    values = result.output(replayed.capability.displacement).values("vertex").numpy().reshape(-1, 2)
+    # Four Q1 cells leave a central two-component hat: K=(44/3)I, b=(3/2,0), u=(9/88,0).
+    expected = np.zeros((9, 2))
+    expected[4, 0] = 9 / 88
+    np.testing.assert_allclose(values, expected, rtol=0, atol=1e-10)
+    energy = result.observe(model.observable("definition.energy"), quadrature_points=2)
+    assert abs(energy.value + 27 / 352) < 1e-10

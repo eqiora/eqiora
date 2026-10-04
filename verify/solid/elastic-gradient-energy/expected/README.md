@@ -26,3 +26,34 @@ below 97*delta+384*delta² and the work JVP error is at most 390*delta.
 All are below 8e-9 in coherent SI units. The fixed absolute 1e-8 checks reserve
 the remainder for binary64 projection and quadrature. These budgets are set
 from the shape-function bounds, not copied from measured output.
+
+## Authored first variation on four cells
+
+For the complete-essential profile, the only free Q1 basis is the central hat N
+in each displacement component. Its independent integrals are
+integral N=1/4, integral N_x²=integral N_y²=4/3 and integral N_x*N_y=0.
+Thus K_xx=K_yy=4*(lambda+3*mu)/3=44/3, K_xy=0, b=(6/4,0),
+u_center=(9/88,0) and F=−b.u/2=−27/352 N.
+The first variation is integral (2*mu*epsilon(u):epsilon(w) +
+lambda*div(u)*div(w) − grad(q).w) dA. For the central hat this is the free
+residual, bounded by 1.5e−10 from the requested solver tolerance. For the
+inadmissible constant translation w=(1,0), all its derivatives vanish and
+DF=−integral 6 dA=−6 N. The derivative assertions reserve 1e−9 for binary64
+rounding. The central coefficient residual bound divided by 44/3 is below
+1.1e−11 m; the coefficient and energy assertions use 1e−10 in SI units.
+At stationarity the energy error is quadratic, delta-u.K.delta-u/2.
+
+For the mixed-boundary profile, mu=3, lambda=0 and q=6x. With cell width h=1/2,
+the Q1 x slopes are 3/4 and 1/4: the internal energy is 15/16 N and load pairing
+is 30/16 N, giving F=−15/16 N. Nodal values interpolate x−x²/2.
+For local vertex bits (x_i,y_i), the derivative products A_ab(i,j)=integral
+N_i,a*N_j,b are sign(i,a)*sign(j,b)/4 if a!=b, and sign(i,a)*sign(j,a)
+times 1/3 or 1/6 according to whether the other vertex bit agrees when a=b.
+The elastic element matrix is mu*delta_ab*sum_k A_kk + mu*A_ba + lambda*A_ab.
+Assembling four cells and deleting the six left-edge component DOFs gives a
+12-by-12 matrix with exact inverse infinity norm 316103/59058. The free load
+has norm 6*sqrt(15/128). The relative residual request 1e−10 therefore bounds
+coefficient error below 1.1e−9 m; assertions use 2e−9 m, reserving the remainder
+for assembly and solve rounding. The 1e−9 N energy tolerance covers the
+quadratic stationary error and quadrature arithmetic. These bounds are derived
+from the independent Q1 integrals, not measured solver output.

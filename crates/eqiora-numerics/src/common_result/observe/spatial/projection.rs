@@ -166,6 +166,41 @@ impl Projection<'_> {
                 self.samples.push((value, sample.gradient_tangent[axis]));
                 value
             }
+            ExprNode::Divergence(value) => {
+                let Some(ExprNode::Symbol(SymbolRef::Field(field))) =
+                    self.typed.expression().node(*value)
+                else {
+                    return Err(invalid(
+                        "Observable divergence requires an admitted vector Field",
+                    ));
+                };
+                let sample = self
+                    .fields
+                    .get(&field.erase())
+                    .ok_or_else(|| invalid("Observable divergence Field is outside this Result"))?;
+                let [extent] = sample.value.value_type().shape().extents() else {
+                    return Err(invalid(
+                        "Observable first-gradient divergence requires a vector Field",
+                    ));
+                };
+                let dimension = self.coordinates.len();
+                if extent.get() as usize != dimension || !coordinate.is_empty() {
+                    return Err(invalid(
+                        "Observable divergence differs from its spatial component extent",
+                    ));
+                }
+                let mut divergence = 0.0;
+                let mut tangent = 0.0;
+                for axis in 0..dimension {
+                    divergence += sample.gradient[axis * dimension + axis];
+                    tangent += sample.gradient_tangent[axis * dimension + axis];
+                }
+                let value = self
+                    .builder
+                    .constant(DynQuantity::new(divergence, ty.dimension()))?;
+                self.samples.push((value, tangent));
+                value
+            }
             ExprNode::SpatialCoordinate(axis) => {
                 let value = self
                     .coordinates

@@ -482,7 +482,8 @@ impl ResolvedCommonPlan {
             Self::Scalar(plan) => plan.formulation(),
             Self::SteadyStokes(plan) => Some(plan.formulation()),
             Self::TransientFlow(plan) => Some(plan.formulation()),
-            Self::Algebraic(_) | Self::Ode(_) | Self::Elasticity(_) | Self::Fsi(_) => None,
+            Self::Elasticity(plan) => plan.formulation.clone(),
+            Self::Algebraic(_) | Self::Ode(_) | Self::Fsi(_) => None,
         }
     }
 }
@@ -732,6 +733,8 @@ pub use differentiation::CommonScalarDifferentiationPoint;
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonElasticityPlan {
     admission: NativeNumericalAdmission,
+    formulation: Option<CommonFormulationDescription>,
+    authored_formulation: Option<AuthoredFormulationProjection>,
     portable: PortableRealizationGraph,
     lineage: CommonSpatialPlanLineage,
     displacement_field_id: String,

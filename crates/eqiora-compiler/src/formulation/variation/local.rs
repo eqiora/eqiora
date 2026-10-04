@@ -75,6 +75,23 @@ fn add_input(
     Ok(())
 }
 
+fn vector_field(
+    typed: &TypedResidual<RawId>,
+    value: ExprId,
+) -> Result<(Id<kinds::Field>, u32), Diagnostic> {
+    let Some(ExprNode::Symbol(SymbolRef::Field(field))) = typed.expression().node(value) else {
+        return Err(reject("divergence must belong to an exact vector Field"));
+    };
+    let shape = typed
+        .node_type(value)
+        .ok_or_else(|| reject("untyped divergence operand"))?
+        .shape();
+    let [extent] = shape.extents() else {
+        return Err(reject("first-gradient divergence requires a vector Field"));
+    };
+    Ok((*field, extent.get()))
+}
+
 /// The caller owns the fixed measure, held-variable inventory and admissible directions.
 /// This transform preserves the density dimension for each ordered directional product.
 pub(super) fn derive(
@@ -117,6 +134,16 @@ pub(super) fn derive(
                     add_input(
                         &mut inputs,
                         Input::Gradient(*field, coordinate),
+                        ty.dimension(),
+                    )?;
+                }
+            }
+            ExprNode::Divergence(value) => {
+                let (field, extent) = vector_field(typed, *value)?;
+                for axis in 0..extent {
+                    add_input(
+                        &mut inputs,
+                        Input::Gradient(field, vec![axis, axis]),
                         ty.dimension(),
                     )?;
                 }
@@ -254,6 +281,18 @@ impl Projection<'_> {
                     return Err(reject("gradient does not bind a Field"));
                 };
                 self.input(&Input::Gradient(*field, coordinate.to_vec()))?
+            }
+            ExprNode::Divergence(value) => {
+                let (field, extent) = vector_field(self.typed, *value)?;
+                let mut sum = self.push(CalculusNode::Rational {
+                    value: ExactRational::integer(0),
+                    dimension: ty.dimension(),
+                })?;
+                for axis in 0..extent {
+                    let diagonal = self.input(&Input::Gradient(field, vec![axis, axis]))?;
+                    sum = self.push(CalculusNode::Add(sum, diagonal))?;
+                }
+                sum
             }
             ExprNode::SpatialCoordinate(axis) => self.input(&Input::Coordinate(*axis))?,
             ExprNode::Constant(value) => {
@@ -603,7 +642,12 @@ mod tests {
             )
             .unwrap();
         let mu = dag.constant(DynQuantity::new(3.0, density)).unwrap();
-        let energy = dag.mul(mu, square).unwrap();
+        let shear_energy = dag.mul(mu, square).unwrap();
+        let divergence = dag.divergence(u).unwrap();
+        let dilation_square = dag.mul(divergence, divergence).unwrap();
+        let half_lambda = dag.constant(DynQuantity::new(1.0, density)).unwrap();
+        let dilation_energy = dag.mul(half_lambda, dilation_square).unwrap();
+        let energy = dag.add(shear_energy, dilation_energy).unwrap();
         let support = SpatialSupport::Volume {
             domain,
             dimensions: 2,
@@ -659,6 +703,15 @@ mod tests {
                 for j in [1, 2] {
                     expected = expected
                         .checked_add(&product(3, left[i], right[j]))
+                        .unwrap();
+                }
+            }
+            // lambda=2 adds (u_x+v_y)^2 to psi: its first/second variation
+            // is 2*(left_u,x+left_v,y)*(right_u,x+right_v,y).
+            for i in [0, 3] {
+                for j in [0, 3] {
+                    expected = expected
+                        .checked_add(&product(2, left[i], right[j]))
                         .unwrap();
                 }
             }
