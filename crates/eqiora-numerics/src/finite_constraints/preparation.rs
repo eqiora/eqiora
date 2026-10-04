@@ -113,7 +113,12 @@ pub(crate) fn lower_finite_constraints(
                     eqiora_schema::kernel::DomainKind::CoordinateInterval { .. }
                         | eqiora_schema::kernel::DomainKind::CoordinateProduct { .. }
                 ) => {}
-            KernelNode::Relation(_) | KernelNode::Observable(_) | KernelNode::FiniteSpace(_) => {}
+            // Nominal finite sets retain the identity of already expanded sums and arrays;
+            // they add no solve coordinate. Field and operand admission stay independent.
+            KernelNode::Relation(_)
+            | KernelNode::Observable(_)
+            | KernelNode::FiniteSpace(_)
+            | KernelNode::IndexSet(_) => {}
             KernelNode::Activation(activation)
                 if matches!(activation.kind(), ActivationKind::Continuous) => {}
             _ => {
