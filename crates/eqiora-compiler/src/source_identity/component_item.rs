@@ -8,6 +8,10 @@ pub(super) fn encode_component_item(
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut encoder = Encoder::new(budget.limits.max_canonical_bytes);
     match item {
+        ComponentItem::Domain(declaration) => {
+            encoder.u16(31)?;
+            encode_domain(&mut encoder, declaration, budget)?;
+        }
         ComponentItem::IndexSet(declaration) => {
             encoder.u16(18)?;
             encode_let(&mut encoder, declaration, budget)?;

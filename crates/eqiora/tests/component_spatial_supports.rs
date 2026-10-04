@@ -348,7 +348,7 @@ model M() {
         (
             "private-support.eqi",
             "component C() { support body: volume(ambient_dimension = 2); } model M() {}",
-            "expected parameter, port, variable, state, initial, clock, relation, law, connect, or instance in component",
+            "expected `product`",
         ),
         (
             "zero-dimension-support.eqi",

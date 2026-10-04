@@ -186,13 +186,9 @@ fn priority_is_required_persisted_meaning_and_source_identity() {
         )
         .is_err()
     );
-    assert!(
-        ModelDocument::replay(
-            text.replace("model-envelope/v32", "model-envelope/v30")
-                .as_bytes()
-        )
-        .is_err()
-    );
+    let mut old_schema: serde_json::Value = serde_json::from_str(&text).unwrap();
+    old_schema["schema"] = serde_json::json!("eqiora.model-envelope/v30");
+    assert!(ModelDocument::replay(&serde_json::to_vec(&old_schema).unwrap()).is_err());
 }
 
 #[test]

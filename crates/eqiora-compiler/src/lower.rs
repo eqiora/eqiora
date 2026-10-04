@@ -383,6 +383,9 @@ pub(crate) fn lower_typed_model(
             } => {
                 let contract = match contract {
                     LoweringDomainContract::Source(syntax) => bind_domain(file, *range, syntax),
+                    LoweringDomainContract::CoordinateInterval(bounds) => {
+                        Ok(DomainContract::CoordinateInterval(bounds.lower().dim()))
+                    }
                     LoweringDomainContract::ExternalGeometryRegion { dimensions, .. } => {
                         Ok(DomainContract::Spatial {
                             dimensions: Some(*dimensions),
@@ -615,7 +618,7 @@ pub(crate) fn lower_typed_model(
                                     return Err(unresolved(file, *range, domain, "Field Domain"));
                                 };
                                 let domain = match domain_binding {
-                                    Binding::Domain(id, DomainContract::Spatial { .. }) => *id,
+                                    Binding::Domain(id, DomainContract::Spatial { .. } | DomainContract::CoordinateInterval(_) | DomainContract::CoordinateProduct(_)) => *id,
                                     Binding::Domain(
                                         _,
                                         DomainContract::ScalarPhysical { .. },

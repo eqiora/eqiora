@@ -409,7 +409,7 @@ fn compile(
             prepared
                 .supports()
                 .iter()
-                .map(ExternalGeometrySupportBinding::allocated_support_count)
+                .map(ExternalSupportBinding::allocated_support_count)
                 .sum::<usize>()
                 + prepared.clocks.len()
                 + prepared.parameters().len(),
@@ -578,6 +578,28 @@ fn prepare(
                 )
             })?;
         match (target, value) {
+            (SignatureItem::Support(slot), StaticBindingValue::CoordinateInterval(bounds)) => {
+                let eqiora_lang::SupportSlotSyntax::Interval { dimension } = slot.syntax() else {
+                    return Err(fail(
+                        slot.range(),
+                        "interval binding requires an interval support slot".to_owned(),
+                    ));
+                };
+                let expected = crate::dimensions::lower_dimension(file, dimension)
+                    .map_err(|error| vec![error])?;
+                if bounds.lower().dim() != expected {
+                    return Err(fail(
+                        slot.range(),
+                        "interval binding coordinate units differ from the exact support contract"
+                            .to_owned(),
+                    ));
+                }
+                supports.push(ExternalSupportBinding::CoordinateInterval {
+                    slot: name.to_owned(),
+                    bounds,
+                });
+            }
+
             (
                 SignatureItem::Parameter(_),
                 StaticBindingValue::Value(_) | StaticBindingValue::Expression(_),
@@ -629,7 +651,7 @@ fn prepare(
                         "complete-exterior binding has no members".to_owned(),
                     ));
                 }
-                supports.push(ExternalGeometrySupportBinding::CompleteExterior {
+                supports.push(ExternalSupportBinding::CompleteExterior {
                     slot: name.to_owned(),
                     geometry: eqiora_schema::kernel::GeometryDigest::new(geometry.digest_bytes()),
                     parent_slot: parent_slot.clone(),
@@ -685,14 +707,14 @@ fn prepare(
                     .1
                     .push((name, selection, parent_binding));
                 supports.push(match parent_binding {
-                    Some((parent_slot, parent)) => ExternalGeometrySupportBinding::boundary(
+                    Some((parent_slot, parent)) => ExternalSupportBinding::boundary(
                         name,
                         digest,
                         selection.name(),
                         parent_slot,
                         geometry.cartesian_boundary_embedding(selection, parent),
                     ),
-                    None => ExternalGeometrySupportBinding::region(
+                    None => ExternalSupportBinding::region(
                         name,
                         digest,
                         selection.name(),

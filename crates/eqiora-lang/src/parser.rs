@@ -237,7 +237,9 @@ impl Parser<'_> {
     }
 
     fn parse_item(&mut self) -> Option<Item> {
-        if self.at_keyword("domain") {
+        if self.at_keyword("support") {
+            self.parse_product_support().map(Item::Domain)
+        } else if self.at_keyword("domain") {
             self.parse_domain().map(Item::Domain)
         } else if self.at_keyword("variable") || self.at_keyword("state") {
             self.parse_field(true).map(Item::Field)
@@ -564,7 +566,13 @@ impl Parser<'_> {
             .text()
             .to_owned();
         self.expect(TokenKind::Colon, "`:` before support-slot contract")?;
-        let syntax = if self.at_keyword("volume") {
+        let syntax = if self.at_keyword("interval") {
+            self.bump();
+            self.expect(TokenKind::LeftParen, "`(` after `interval`")?;
+            let dimension = self.parse_expression(0)?;
+            self.expect(TokenKind::RightParen, "`)` after coordinate unit")?;
+            SupportSlotSyntax::Interval { dimension }
+        } else if self.at_keyword("volume") {
             self.bump();
             self.expect(TokenKind::LeftParen, "`(` after `volume`")?;
             self.expect_keyword("ambient_dimension")?;

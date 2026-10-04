@@ -134,6 +134,24 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
         }
         self.bind_borrowed_interfaces();
         self.bind_complete_exteriors();
+        match crate::hierarchy::supports::component_spatial_supports(
+            self.definition.file,
+            self.definition.declaration,
+        ) {
+            Ok(supports) => {
+                for item in self.definition.owned_items() {
+                    if let ComponentItem::Domain(declaration) = item
+                        && let Some(support) = supports.get(declaration.name())
+                    {
+                        self.scope.symbols.insert(
+                            declaration.name().to_owned(),
+                            SymbolContract::Support(support.clone()),
+                        );
+                    }
+                }
+            }
+            Err(errors) => self.diagnostics.extend(errors),
+        }
         self.bind_owned_interfaces();
     }
 
@@ -416,7 +434,9 @@ impl<'e, 'd> ComponentBodyChecker<'e, 'd> {
                         SymbolContract::Relation,
                     );
                 }
-                ComponentItem::IndexSet(_) | ComponentItem::Instance(_) => {}
+                ComponentItem::Domain(_)
+                | ComponentItem::IndexSet(_)
+                | ComponentItem::Instance(_) => {}
                 ComponentItem::Initial(_)
                 | ComponentItem::Connection(_)
                 | ComponentItem::BoundaryConnection(_) => {}

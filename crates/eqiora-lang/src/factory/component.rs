@@ -188,6 +188,15 @@ impl SourceAstFactory {
 
 fn validate_component_item(item: &ComponentItem) -> Result<(), AstConstructionError> {
     let range = match item {
+        ComponentItem::Domain(declaration) => {
+            if !matches!(declaration.syntax(), crate::DomainSyntax::Product { .. }) {
+                return Err(AstConstructionError::new(
+                    "a Component-owned support requires an exact coordinate product",
+                ));
+            }
+            super::domain_validation::validate_domain_syntax(declaration.syntax())?;
+            declaration.range()
+        }
         ComponentItem::Let(declaration) => declaration.range(),
         ComponentItem::Parameter(declaration) => {
             if declaration.visibility() == VisibilitySyntax::Public {

@@ -9,6 +9,53 @@ pub(in crate::lower) fn relation_support(
     bindings: &BTreeMap<String, Binding>,
 ) -> Result<SpatialSupport<RawId>, Diagnostic> {
     match bindings.get(name) {
+        Some(Binding::Domain(id, DomainContract::CoordinateProduct(_))) => {
+            let mut pending = vec![name];
+            let mut seen = BTreeSet::new();
+            let mut factors = Vec::new();
+            let mut remaining = bindings.len().saturating_sub(1);
+            while let Some(name) = pending.pop() {
+                let Some(Binding::Domain(factor, contract)) = bindings.get(name) else {
+                    return Err(unresolved(file, range, name, "coordinate factor Domain"));
+                };
+                if !seen.insert(factor.erase()) {
+                    return Err(source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        range,
+                        "coordinate product repeats an exact factor or contains a cycle",
+                    ));
+                }
+                match contract {
+                    DomainContract::CoordinateInterval(unit) => {
+                        factors.push((factor.erase(), *unit))
+                    }
+                    DomainContract::CoordinateProduct(children) => {
+                        remaining = remaining.checked_sub(children.len()).ok_or_else(|| {
+                            source_error(
+                                codes::LANGUAGE_TYPE_ERROR,
+                                file,
+                                range,
+                                "coordinate product exceeds unique factor closure",
+                            )
+                        })?;
+                        pending.extend(children.iter().rev().map(String::as_str));
+                    }
+                    _ => return Err(unresolved(file, range, name, "coordinate factor Domain")),
+                }
+            }
+            Ok(SpatialSupport::Coordinates {
+                domain: id.erase(),
+                factors,
+            })
+        }
+
+        Some(Binding::Domain(id, DomainContract::CoordinateInterval(unit))) => {
+            Ok(SpatialSupport::Coordinates {
+                domain: id.erase(),
+                factors: vec![(id.erase(), *unit)],
+            })
+        }
         Some(Binding::Domain(
             id,
             DomainContract::Spatial {

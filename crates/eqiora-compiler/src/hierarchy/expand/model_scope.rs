@@ -213,7 +213,9 @@ impl RootExpansion<'_, '_> {
                         },
                     );
                 }
-                DomainSyntax::Boundary { .. } | DomainSyntax::ScalarPhysical { .. } => {}
+                DomainSyntax::Product { .. }
+                | DomainSyntax::Boundary { .. }
+                | DomainSyntax::ScalarPhysical { .. } => {}
                 _ => {
                     return Err(source_error(
                         codes::LANGUAGE_LOWERING_ERROR,
@@ -224,6 +226,10 @@ impl RootExpansion<'_, '_> {
                 }
             }
         }
+        let products =
+            super::super::supports::model_spatial_supports(model.file, model.declaration)
+                .map_err(|errors| errors.into_iter().next().expect("product diagnostic"))?;
+        super::coordinate_products::project_products(scope, &products)?;
         self.allocate_cartesian_boundaries(scope, &identities)?;
         for item in model.owned_items() {
             let Item::Field(declaration) = item else {

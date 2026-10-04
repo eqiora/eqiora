@@ -6,6 +6,7 @@ use eqiora_schema::kernel::{BoundaryPhysicalConnector, GeometryDigest};
 #[derive(Debug, Clone)]
 pub(crate) enum LoweringDomainContract {
     Source(DomainSyntax),
+    CoordinateInterval(eqiora_schema::kernel::AxisBounds),
     ExternalGeometryRegion {
         geometry: GeometryDigest,
         entity_set: String,

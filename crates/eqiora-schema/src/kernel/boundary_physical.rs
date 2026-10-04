@@ -124,6 +124,14 @@ impl CartesianBoundaryEmbedding {
         normal_axis: usize,
         side: BoundarySide,
     ) -> Option<Self> {
+        let length = eqiora_core::DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0])
+            .expect("bounded dimension");
+        if parent_bounds
+            .iter()
+            .any(|bounds| bounds.lower().dim() != length)
+        {
+            return None;
+        }
         let normal = parent_bounds.get(normal_axis)?;
         let coordinate = match side {
             BoundarySide::Lower => normal.lower().value(),
@@ -380,6 +388,21 @@ mod tests {
             side,
         )
         .unwrap()
+    }
+
+    #[test]
+    fn physical_embedding_rejects_non_length_coordinate_axes() {
+        let length_axis = AxisBounds::new(length(0.0), length(1.0)).unwrap();
+        let speed = DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).unwrap();
+        let speed_axis =
+            AxisBounds::new(DynQuantity::new(0.0, speed), DynQuantity::new(1.0, speed)).unwrap();
+        assert!(
+            CartesianBoundaryEmbedding::derive(&[length_axis, length_axis], 0, BoundarySide::Lower)
+                .is_some()
+        );
+        for axes in [[speed_axis, length_axis], [length_axis, speed_axis]] {
+            assert!(CartesianBoundaryEmbedding::derive(&axes, 0, BoundarySide::Lower).is_none());
+        }
     }
 
     #[test]

@@ -56,7 +56,7 @@ pub(in crate::hierarchy) fn parameter_type(
     let frame = if let Some(frame) = explicit.first() {
         if explicit
             .iter()
-            .any(|other| other.dimensions() != frame.dimensions())
+            .any(|other| other.ambient_dimensions() != frame.ambient_dimensions())
         {
             return Err(invalid(
                 "explicit tensor frames have incompatible ambient dimensions",
@@ -66,7 +66,7 @@ pub(in crate::hierarchy) fn parameter_type(
     } else {
         let mut unique = Vec::new();
         for support in frames.values() {
-            if !unique.contains(&support) {
+            if support.ambient_dimensions().is_some() && !unique.contains(&support) {
                 unique.push(support);
             }
         }
@@ -114,6 +114,13 @@ pub(in crate::hierarchy) fn occurrence(
     support: &SpatialSupport<crate::identity::FullElaborationIdentity>,
 ) -> SpatialSupport<String> {
     match support {
+        SpatialSupport::Coordinates { domain, factors } => SpatialSupport::Coordinates {
+            domain: domain.to_string(),
+            factors: factors
+                .iter()
+                .map(|(id, unit)| (id.to_string(), *unit))
+                .collect(),
+        },
         SpatialSupport::Volume { domain, dimensions } => SpatialSupport::Volume {
             domain: domain.to_string(),
             dimensions: *dimensions,

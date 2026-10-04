@@ -1,6 +1,8 @@
 mod activations;
 mod connections;
+mod coordinate_products;
 mod identities;
+use identities::{contextualize_diagnostic, contextualize_diagnostics, one_diagnostic};
 mod indexed_relations;
 mod model_scope;
 pub(super) mod observable;
@@ -10,7 +12,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::ValueFrame;
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, EntityKind, GraphPath, ValueShape};
+use eqiora_core::{Diagnostic, EntityKind, ValueShape};
 use eqiora_lang::{
     BoundaryConnectionDecl, BoundaryPairingSyntax, ComponentItem, ComponentPortDecl,
     ComponentPortFamilyDecl, ConnectionDecl, ConnectionSyntax, ConnectorSyntax, DomainSyntax,
@@ -80,24 +82,6 @@ use binding_locations::{
     normalize_binding_locations, parameter_forwarding_locations,
 };
 use names::{boundary_family_display, child_instance_path, display_child, internal_name};
-
-fn one_diagnostic(error: Diagnostic) -> Vec<Diagnostic> {
-    vec![error]
-}
-
-fn contextualize_diagnostic(error: Diagnostic, instance_path: &InstancePath) -> Diagnostic {
-    error.with_graph_path(GraphPath::new(instance_path.segments().iter().cloned()))
-}
-
-fn contextualize_diagnostics(
-    errors: Vec<Diagnostic>,
-    instance_path: &InstancePath,
-) -> Vec<Diagnostic> {
-    errors
-        .into_iter()
-        .map(|error| contextualize_diagnostic(error, instance_path))
-        .collect()
-}
 
 #[derive(Debug, Default)]
 struct ScopeIdentities {
@@ -288,7 +272,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
 
     pub(super) fn expand_bound(
         mut self,
-        supports: &[crate::external::ExternalGeometrySupportBinding],
+        supports: &[crate::external::ExternalSupportBinding],
         clocks: &[(String, eqiora_schema::kernel::ClockDomainDef)],
         properties: &BTreeMap<String, std::sync::Arc<eqiora_schema::kernel::PropertyRelease>>,
     ) -> Result<ExpandedBlueprint, Vec<Diagnostic>> {
@@ -390,7 +374,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         side: *side,
                     })
                 }
-                SpatialSupport::Interface { .. } => None,
+                SpatialSupport::Coordinates { .. } | SpatialSupport::Interface { .. } => None,
             },
             |name| parent_scope.boundary_set(name).cloned(),
             membership_budget,
@@ -634,6 +618,19 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             &bindings,
         )
         .map_err(one_diagnostic)?;
+
+        self.allocate_component_products(
+            ComponentOccurrence {
+                definition: &component,
+                instance,
+                instance_file,
+                instance_path: &instance_path,
+                display_prefix: &display_prefix,
+            },
+            &bindings,
+            &mut scope,
+            &mut identities,
+        )?;
 
         for item in component
             .owned_items()
@@ -1030,7 +1027,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                             .insert((declaration.name().to_owned(), boundary), identity);
                     }
                 }
-                ComponentItem::Let(_)
+                ComponentItem::Domain(_)
+                | ComponentItem::Let(_)
                 | ComponentItem::Initial(_)
                 | ComponentItem::Connection(_)
                 | ComponentItem::BoundaryConnection(_)

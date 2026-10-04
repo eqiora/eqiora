@@ -8,6 +8,7 @@ mod authoring;
 mod cad_authored;
 mod clock;
 mod common_plan;
+mod coordinate_interval;
 mod differentiation;
 mod editor;
 mod elasticity;
@@ -207,6 +208,7 @@ pub fn _eqiora(module: &Bound<'_, PyModule>) -> PyResult<()> {
     error::register(module)?;
     model::register(module)?;
     module.add_class::<model::PyQuantityLabel>()?;
+    module.add_class::<coordinate_interval::PyCoordinateInterval>()?;
     module.add_class::<model::PyMathReference>()?;
     module.add_class::<model::PyMathRendering>()?;
     module.add_class::<execution_session::PyExecutionSession>()?;
@@ -285,7 +287,7 @@ model decay() {
     fn ordinary_python_authoring_and_replay_use_the_current_contract() {
         let document = ModelDocument::compile("decay.eqi", SOURCE).unwrap();
         let bytes = document.canonical_json().unwrap();
-        assert!(String::from_utf8_lossy(&bytes).contains("eqiora.model-envelope/v32"));
+        assert!(String::from_utf8_lossy(&bytes).contains("eqiora.model-envelope/v33"));
         let replayed = ModelDocument::replay(&bytes).unwrap();
         assert_eq!(replayed.canonical_json().unwrap(), bytes);
         assert_eq!(replayed.digest().unwrap(), document.digest().unwrap());

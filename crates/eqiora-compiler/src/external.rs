@@ -1,14 +1,19 @@
-//! Client-neutral inputs for one ephemeral external-spatial occurrence.
+//! Client-neutral static inputs for one selected occurrence.
 
 use eqiora_core::ValueLiteral;
 use eqiora_schema::kernel::GeometryDigest;
 
-/// One exact external Geometry support supplied to a Component occurrence.
+/// One checked mathematical interval or exact Geometry support for an occurrence.
 ///
-/// The L4 composition owner constructs these only after the common Geometry
-/// owner proves revision membership and parent topology.
+/// Geometry bindings retain revision membership and parent topology; mathematical
+/// factors retain finite dimensioned bounds through the ordinary Domain owner.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum ExternalGeometrySupportBinding {
+pub(crate) enum ExternalSupportBinding {
+    /// Dimensioned mathematical interval; no Geometry artifact is invented.
+    CoordinateInterval {
+        slot: String,
+        bounds: eqiora_schema::kernel::AxisBounds,
+    },
     /// An explicit finite exterior of one exactly bound parent region.
     CompleteExterior {
         slot: String,
@@ -48,7 +53,7 @@ pub(crate) struct ExternalGeometryBoundaryMember {
     pub(crate) embedding: Option<eqiora_schema::kernel::CartesianBoundaryEmbedding>,
 }
 
-impl ExternalGeometrySupportBinding {
+impl ExternalSupportBinding {
     /// Project one already validated full-dimensional selection.
     #[must_use]
     pub(crate) fn region(
@@ -87,7 +92,8 @@ impl ExternalGeometrySupportBinding {
     #[must_use]
     pub(crate) fn slot(&self) -> &str {
         match self {
-            Self::Region { slot, .. }
+            Self::CoordinateInterval { slot, .. }
+            | Self::Region { slot, .. }
             | Self::Boundary { slot, .. }
             | Self::CompleteExterior { slot, .. } => slot,
         }
@@ -136,7 +142,7 @@ impl ExternalParameterBinding {
 pub(crate) struct ExternalComponentBinding {
     model: String,
     component: String,
-    supports: Vec<ExternalGeometrySupportBinding>,
+    supports: Vec<ExternalSupportBinding>,
     parameters: Vec<ExternalParameterBinding>,
     pub(crate) clocks: Vec<(String, eqiora_schema::kernel::ClockDomainDef)>,
     pub(crate) properties:
@@ -149,7 +155,7 @@ impl ExternalComponentBinding {
     pub(crate) fn new(
         model: impl Into<String>,
         component: impl Into<String>,
-        supports: Vec<ExternalGeometrySupportBinding>,
+        supports: Vec<ExternalSupportBinding>,
         parameters: Vec<ExternalParameterBinding>,
     ) -> Self {
         Self {
@@ -177,9 +183,9 @@ impl ExternalComponentBinding {
         &self.component
     }
 
-    /// Exact external Geometry support bindings.
+    /// Exact checked support bindings.
     #[must_use]
-    pub(crate) fn supports(&self) -> &[ExternalGeometrySupportBinding] {
+    pub(crate) fn supports(&self) -> &[ExternalSupportBinding] {
         &self.supports
     }
 
@@ -193,6 +199,8 @@ impl ExternalComponentBinding {
 /// One named static argument, interpreted by the selected signature's category.
 #[derive(Clone, Copy, Debug)]
 pub enum StaticBindingValue<'a> {
+    /// A bounded dimensioned mathematical coordinate factor.
+    CoordinateInterval(eqiora_schema::kernel::AxisBounds),
     /// A closed typed initializer or an exact source property reference.
     Expression(&'a eqiora_lang::Expr),
     /// A checked value retaining its complete nominal type and exact payload.

@@ -1479,7 +1479,7 @@ assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
-`eqiora.model-envelope/v32` schema, but callers do not select that suffix.
+`eqiora.model-envelope/v33` schema, but callers do not select that suffix.
 `.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
 Only the current schema is accepted; decoding never sniffs, retries, or silently
 migrates an older artifact.
@@ -1612,3 +1612,29 @@ conserving Ports and Fields, spatial or dynamic enforcement, nonlinear contact,
 friction, inclusions and regularized penalties are unsupported. Missing or
 wrong-unit tolerances, omitted nonnegativity and reversed nonnegativity signs
 are errors. Equality-only mathematical rendering rejects constrained Relations.
+
+## Mathematical coordinate factors
+
+Bind a source interval with explicit coherent-SI bounds and coordinate dimensions. The source
+owns nominal identity and ordered product structure; these inputs require no Geometry or Mesh:
+
+```python
+model = eqiora.compile(
+    source="""model Distribution(support position: interval(m), support velocity: interval(m/s)) {
+      support phase: product(position, velocity);
+      variable f: s/m^2 on phase;
+      relation retain on phase { f = 0[s/m^2]; }
+      observable count: 1 = integral(f, measure(phase));
+    }""",
+    entry="Distribution",
+    bindings={
+        "position": eqiora.CoordinateInterval(0, 1, dimension=eqiora.Dimension(length=1)),
+        "velocity": eqiora.CoordinateInterval(-2, 2, dimension=eqiora.Dimension(length=1, time=-1)),
+    },
+)
+```
+
+The measure is `m * (m/s)`, so integrating a density in `s/m^2` is dimensionless.
+Model replay retains exact factor order and units. Bounds are finite and strictly increasing;
+substituting position bounds for velocity bounds rejects. This path provides mathematical
+Model typing and replay, not a product-domain numerical solver or coordinate partials.

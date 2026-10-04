@@ -16,7 +16,7 @@ pub enum EdgeKind {
     /// A lower-dimensional Domain is one oriented part of a parent boundary.
     BoundaryOf,
     /// A relation depends on a field, parameter, port, or sampled clock, or a Cartesian
-    /// Domain coordinate recipe depends on a Parameter.
+    /// Domain coordinate recipe depends on a Parameter or exact coordinate factor Domain.
     DependsOn,
     /// A declaration's fixed type, membership, or expression shape uses an exact Parameter.
     /// Changing that Parameter requires recompilation rather than a numerical value edit.
@@ -75,7 +75,7 @@ impl EdgeKind {
                 (matches!(from, K::Relation | K::Observable)
                     && matches!(to, K::Field | K::Parameter | K::Port | K::ClockDomain))
                     || (matches!(from, K::Observable) && matches!(to, K::Observable))
-                    || (matches!(from, K::Domain) && matches!(to, K::Parameter))
+                    || (matches!(from, K::Domain) && matches!(to, K::Parameter | K::Domain))
             }
             Self::StructurallyDependsOn => {
                 matches!(

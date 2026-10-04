@@ -12,7 +12,7 @@ use super::geometry_admission::{
     admit_entity_sets, admit_geometry_boundary_junctions, index_closed_bundle,
 };
 use super::spatial_domains::{
-    cartesian_spatial_supports, resolve_cartesian_bounds, validate_domains, validate_fields,
+    declared_spatial_supports, resolve_cartesian_bounds, validate_domains, validate_fields,
     validate_geometry_support_uses,
 };
 use super::{
@@ -121,7 +121,7 @@ impl KernelProgram {
         super::record_admission::validate(&nodes, &edges, &mut diagnostics);
         let cartesian_bounds = resolve_cartesian_bounds(&nodes, &values, &edges, &mut diagnostics);
         let invalid_domains = validate_domains(&nodes, &edges, &cartesian_bounds, &mut diagnostics);
-        let mut spatial_supports = cartesian_spatial_supports(&nodes, &edges, &cartesian_bounds);
+        let mut spatial_supports = declared_spatial_supports(&nodes, &edges, &cartesian_bounds);
         let artifacts_admitted = geometry.is_some();
         let mut geometry_boundary_embeddings = BTreeMap::new();
         let mut geometry_boundary_junctions = BTreeMap::new();

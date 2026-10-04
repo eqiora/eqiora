@@ -367,8 +367,12 @@ fn variation_input(
                     .map(|extent| extent.get())
                     .collect::<Vec<_>>();
                 axes.push(
-                    u32::try_from(functional_support(density, domain)?.dimensions())
-                        .map_err(|_| invalid())?,
+                    u32::try_from(
+                        functional_support(density, domain)?
+                            .ambient_dimensions()
+                            .ok_or_else(invalid)?,
+                    )
+                    .map_err(|_| invalid())?,
                 );
                 value = typed(
                     AuthoredFormExpressionKind::Gradient(Box::new(value)),

@@ -397,7 +397,7 @@ impl<'a> Elaborator<'a> {
     pub(super) fn bind_selected_model(
         &mut self,
         model: ModelDefinition<'a>,
-        supports: &[crate::external::ExternalGeometrySupportBinding],
+        supports: &[crate::external::ExternalSupportBinding],
     ) {
         let key = DefinitionKey {
             namespace: model.namespace.clone(),
@@ -405,7 +405,7 @@ impl<'a> Elaborator<'a> {
         };
         self.selected_models.insert(key.clone());
         for support in supports {
-            if let crate::external::ExternalGeometrySupportBinding::Boundary {
+            if let crate::external::ExternalSupportBinding::Boundary {
                 slot,
                 embedding: Some(embedding),
                 ..
@@ -769,6 +769,7 @@ impl<'a> Elaborator<'a> {
                     ComponentItem::Port(value) => Some((value.name(), value.range())),
                     ComponentItem::PortFamily(value) => Some((value.port().name(), value.range())),
                     ComponentItem::Observable(value) => Some((value.name(), value.range())),
+                    ComponentItem::Domain(value) => Some((value.name(), value.range())),
                     ComponentItem::Field(value) => Some((value.name(), value.range())),
                     ComponentItem::Clock(value) => Some((value.name(), value.range())),
                     ComponentItem::Event(value) => Some((value.name(), value.range())),

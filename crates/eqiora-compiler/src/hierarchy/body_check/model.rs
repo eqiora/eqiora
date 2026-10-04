@@ -113,6 +113,14 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
     }
 
     fn bind_non_boundary_interfaces(&mut self) {
+        let declared_supports = crate::hierarchy::supports::model_spatial_supports(
+            self.scope.file,
+            self.definition.declaration,
+        )
+        .unwrap_or_else(|errors| {
+            self.diagnostics.extend(errors);
+            Default::default()
+        });
         let signature = self.definition.declaration.signature();
         let supports =
             super::super::supports::signature_support_interface(self.scope.file, signature);
@@ -258,6 +266,15 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                             dimensions: bounds.len(),
                         })),
                     ))),
+                    DomainSyntax::Product { .. } => Ok(declared_supports
+                        .get(declaration.name())
+                        .cloned()
+                        .map(|support| {
+                            (
+                                declaration.name(),
+                                SymbolContract::Domain(DomainContract::Spatial(support)),
+                            )
+                        })),
                     DomainSyntax::Boundary { .. } => Ok(None),
                     DomainSyntax::ScalarPhysical {
                         across_name,

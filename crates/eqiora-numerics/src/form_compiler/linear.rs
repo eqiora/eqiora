@@ -75,7 +75,8 @@ impl CompiledLinearBlockForm {
             }
             for node_type in typed.node_types() {
                 if let Some(support) = &node_type.support
-                    && (*support.domain() != domain || support.dimensions() != dimension)
+                    && (*support.domain() != domain
+                        || support.ambient_dimensions() != Some(dimension))
                 {
                     return Err(invalid(
                         "linear equation support or coordinate dimension differs from its Domain",

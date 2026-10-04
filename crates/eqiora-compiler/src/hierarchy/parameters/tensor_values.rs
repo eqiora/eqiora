@@ -66,7 +66,7 @@ pub(super) fn evaluate(
         SpatialSupport::Volume { dimensions, .. } | SpatialSupport::Boundary { dimensions, .. } => {
             dimensions
         }
-        SpatialSupport::Interface { .. } => {
+        SpatialSupport::Coordinates { .. } | SpatialSupport::Interface { .. } => {
             return Err(error(
                 "tensor_value requires a declared volume or boundary frame",
             ));

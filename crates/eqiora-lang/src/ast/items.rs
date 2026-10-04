@@ -6,6 +6,8 @@ use super::*;
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ComponentItem {
+    /// Private mathematical support composed from bound coordinate factors.
+    Domain(DomainDecl),
     /// A private bounded nominal index set.
     IndexSet(NamedDefinitionDecl),
     /// Private immutable static expression, expanded without a Kernel entity.

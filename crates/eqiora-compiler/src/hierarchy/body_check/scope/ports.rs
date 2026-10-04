@@ -7,15 +7,17 @@ pub(in crate::hierarchy) fn field_expression_type<I>(
     support: Option<SpatialSupport<I>>,
     values: &crate::hierarchy::parameters::SymbolicParameterMap,
 ) -> Result<ExpressionType<I>, Diagnostic> {
-    if support
-        .as_ref()
-        .is_some_and(|support| !matches!(support, SpatialSupport::Volume { .. }))
-    {
+    if support.as_ref().is_some_and(|support| {
+        !matches!(
+            support,
+            SpatialSupport::Volume { .. } | SpatialSupport::Coordinates { .. }
+        )
+    }) {
         return Err(source_error(
             codes::LANGUAGE_TYPE_ERROR,
             file,
             declaration.range(),
-            "source Field requires a volume support",
+            "source Field requires a volume or coordinate-factor support",
         ));
     }
     let syntax =

@@ -294,6 +294,29 @@ class ClockDomain:
     def phase_s(self) -> Fraction: ...
 ```
 
+<a id="api-eqiora-CoordinateInterval"></a>
+
+## `CoordinateInterval`
+
+Finite, strictly increasing coherent-SI bounds for a dimensioned coordinate factor.
+
+This input carries bounds and units; the source support owns nominal identity.
+
+```python
+@final
+class CoordinateInterval:
+    def __new__(cls, lower: float, upper: float, *, dimension: Dimension) -> Self: ...
+    @property
+    def lower(self) -> float: ...
+    @property
+    def upper(self) -> float: ...
+    @property
+    def dimension(self) -> Dimension: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __repr__(self) -> str: ...
+    def __hash__(self) -> int: ...
+```
+
 <a id="api-eqiora-ExecutionSession"></a>
 
 ## `ExecutionSession`
@@ -2219,7 +2242,7 @@ def check_package_conformance(store_root: str | os.PathLike[str], resolution_byt
 Compile one source and its optional exact Geometry closure.
 
 ```python
-def compile(*, path: str | PathLike[str] | None=None, source: str | Module | None=None, filename: str | None=None, geometry: geometry.Geometry | None=None, bindings: dict[str, _TypedValue | ClockDomain | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection] | tuple[tuple[geometry.GeometrySelection, ...], geometry.GeometrySelection]] | None=None, entry: str | None=None) -> Model: ...
+def compile(*, path: str | PathLike[str] | None=None, source: str | Module | None=None, filename: str | None=None, geometry: geometry.Geometry | None=None, bindings: dict[str, _TypedValue | ClockDomain | CoordinateInterval | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection] | tuple[tuple[geometry.GeometrySelection, ...], geometry.GeometrySelection]] | None=None, entry: str | None=None) -> Model: ...
 ```
 
 <a id="api-eqiora-compile_package"></a>
@@ -2229,7 +2252,7 @@ def compile(*, path: str | PathLike[str] | None=None, source: str | Module | Non
 Compile one locked Model or one Component using the supplied Geometry.
 
 ```python
-def compile_package(store_root: str | PathLike[str], resolution: bytes, *, entry: str, geometry: geometry.Geometry | None=None, bindings: dict[str, _TypedValue | ClockDomain | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection] | tuple[tuple[geometry.GeometrySelection, ...], geometry.GeometrySelection]] | None=None) -> Model: ...
+def compile_package(store_root: str | PathLike[str], resolution: bytes, *, entry: str, geometry: geometry.Geometry | None=None, bindings: dict[str, _TypedValue | ClockDomain | CoordinateInterval | geometry.GeometrySelection | tuple[geometry.GeometrySelection, geometry.GeometrySelection] | tuple[tuple[geometry.GeometrySelection, ...], geometry.GeometrySelection]] | None=None) -> Model: ...
 ```
 
 <a id="api-eqiora-connect"></a>

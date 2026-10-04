@@ -141,6 +141,24 @@ pub(super) fn signature_support_interface(
             ));
             continue;
         }
+        if let SupportSlotSyntax::Interval { dimension } = declaration.syntax() {
+            match crate::dimensions::lower_dimension(file, dimension) {
+                Ok(unit) => {
+                    slots.insert(
+                        name.clone(),
+                        SupportSlotContract {
+                            visibility: declaration.visibility(),
+                            support: SpatialSupport::Coordinates {
+                                domain: name.clone(),
+                                factors: vec![(name.clone(), unit)],
+                            },
+                        },
+                    );
+                }
+                Err(error) => diagnostics.push(error),
+            }
+            continue;
+        }
         let SupportSlotSyntax::Volume { ambient_dimension } = declaration.syntax() else {
             continue;
         };
@@ -570,6 +588,19 @@ fn validate_singular_support_shapes<I: Eq>(
         };
         match (slot.support(), bound) {
             (
+                SpatialSupport::Coordinates {
+                    factors: expected, ..
+                },
+                SpatialSupport::Coordinates { domain, factors },
+            ) if expected.len() == 1
+                && factors.len() == 1
+                && &factors[0].0 == domain
+                && expected[0].1 == factors[0].1 => {}
+            (SpatialSupport::Coordinates { .. }, _) | (_, SpatialSupport::Coordinates { .. }) => {
+                diagnostics.push(source_error(codes::LANGUAGE_TYPE_ERROR, binding_file, *range,
+                    format!("support slot `{name}` requires its declared factor kind and coordinate units")));
+            }
+            (
                 SpatialSupport::Volume {
                     dimensions: expected,
                     ..
@@ -612,9 +643,9 @@ fn validate_singular_support_shapes<I: Eq>(
                         .get(parent_slot)
                         .and_then(|(support, _)| match support {
                             SpatialSupport::Volume { domain, .. } => Some(domain),
-                            SpatialSupport::Boundary { .. } | SpatialSupport::Interface { .. } => {
-                                None
-                            }
+                            SpatialSupport::Coordinates { .. }
+                            | SpatialSupport::Boundary { .. }
+                            | SpatialSupport::Interface { .. } => None,
                         });
                 if expected != actual_dimensions {
                     diagnostics.push(source_error(

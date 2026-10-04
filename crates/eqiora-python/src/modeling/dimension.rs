@@ -100,7 +100,7 @@ impl PyDimension {
         hasher.finish()
     }
 
-    fn __repr__(&self) -> String {
+    pub(crate) fn __repr__(&self) -> String {
         let arguments = [
             "mass",
             "length",

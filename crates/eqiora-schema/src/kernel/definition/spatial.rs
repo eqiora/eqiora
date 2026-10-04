@@ -1,8 +1,8 @@
 //! What a spatial Domain is: its extent, its boundaries, and how it names one.
 //!
-//! Continuous geometry is Model meaning. A Domain either describes a box
-//! outright or names an authored geometry by digest, and in both cases the
-//! shape is settled here rather than by whichever mesh happens to realize it.
+//! Continuous supports are Model meaning: dimensioned factors and ordered products,
+//! physical boxes, or exact authored Geometry selections. Their meaning is settled
+//! here rather than by whichever mesh happens to realize them.
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
@@ -10,7 +10,7 @@ use eqiora_core::{Diagnostic, DimExponents, DynQuantity, Id};
 
 use super::*;
 
-/// One finite Cartesian coordinate interval in coherent SI length units.
+/// One finite increasing coordinate interval with one exact physical dimension.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AxisBounds {
     lower: DynQuantity,
@@ -18,17 +18,16 @@ pub struct AxisBounds {
 }
 
 impl AxisBounds {
-    /// Construct finite, increasing length bounds.
+    /// Construct finite, increasing bounds with equal physical dimensions.
     ///
     /// # Errors
-    /// Returns `EQ0302` when either value is not a length, is non-finite, or
+    /// Returns `EQ0302` when dimensions differ, either value is non-finite, or
     /// does not form an increasing interval.
     pub fn new(lower: DynQuantity, upper: DynQuantity) -> Result<Self, Diagnostic> {
-        let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension");
-        if lower.dim() != length || upper.dim() != length {
+        if lower.dim() != upper.dim() {
             return Err(Diagnostic::error(
                 codes::INVALID_KERNEL_DEFINITION,
-                "Cartesian axis bounds must have physical dimension length",
+                "coordinate interval bounds must have equal physical dimensions",
             ));
         }
         if !lower.value().is_finite()
@@ -37,7 +36,7 @@ impl AxisBounds {
         {
             return Err(Diagnostic::error(
                 codes::INVALID_KERNEL_DEFINITION,
-                "Cartesian axis bounds must be finite and strictly increasing",
+                "coordinate interval bounds must be finite and strictly increasing",
             ));
         }
         Ok(Self { lower, upper })
@@ -116,7 +115,7 @@ impl CartesianAxisDefinition {
         Self { lower, upper }
     }
 
-    /// Convert one already validated fixed interval into its source recipe.
+    /// Convert a fixed interval into its source recipe; Domain admission checks length units.
     #[must_use]
     pub const fn fixed(bounds: AxisBounds) -> Self {
         Self {
@@ -174,6 +173,10 @@ impl GeometryDigest {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum DomainKind {
+    /// One abstract bounded coordinate factor with increasing-coordinate measure.
+    CoordinateInterval { bounds: AxisBounds },
+    /// Ordered product of exact coordinate-factor supports; no ambient space is implied.
+    CoordinateProduct { factors: Vec<Id<kinds::Domain>> },
     /// Identity-only domain retained for non-spatial and schema-defined uses.
     Abstract,
     /// Runtime-dimensional Cartesian box in physical space.
@@ -218,6 +221,35 @@ pub struct DomainDef {
 }
 
 impl DomainDef {
+    /// Bind an abstract coordinate interval without fabricating physical Geometry.
+    #[must_use]
+    pub const fn coordinate_interval(id: Id<kinds::Domain>, bounds: AxisBounds) -> Self {
+        Self {
+            id,
+            kind: DomainKind::CoordinateInterval { bounds },
+        }
+    }
+
+    /// Compose an ordered nonempty product of exact coordinate supports.
+    /// Whole-Model validation resolves factors, rejects cycles and repeated factors,
+    /// and derives units and intrinsic dimension independently of component frames.
+    pub fn coordinate_product(
+        id: Id<kinds::Domain>,
+        factors: Vec<Id<kinds::Domain>>,
+    ) -> Result<Self, Diagnostic> {
+        if factors.is_empty() {
+            return Err(Diagnostic::error(
+                codes::INVALID_KERNEL_DEFINITION,
+                "a coordinate product requires at least one factor",
+            )
+            .with_graph_path(kernel_path(id.erase())));
+        }
+        Ok(Self {
+            id,
+            kind: DomainKind::CoordinateProduct { factors },
+        })
+    }
+
     /// Construct an abstract domain for schema-defined or non-spatial use.
     #[must_use]
     pub const fn new(id: Id<kinds::Domain>) -> Self {

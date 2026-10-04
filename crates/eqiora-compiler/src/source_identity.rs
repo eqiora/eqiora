@@ -61,7 +61,7 @@ use property::{encode_material_composition, encode_property_contract, encode_pro
 use visibility::encode_visibility;
 
 const MAGIC: &[u8; 8] = b"EQIORASU";
-const CANONICAL_VERSION: u16 = 23;
+const CANONICAL_VERSION: u16 = 24;
 const COMPONENT_CONNECTION_ITEM_TAG: u16 = 6;
 const MODEL_CONNECTION_ITEM_TAG: u16 = 8;
 const COMPONENT_PORT_FAMILY_ITEM_TAG: u16 = 11;
@@ -568,6 +568,12 @@ fn encode_support_slot(
         encode_name(encoder, declaration.name(), budget)
     })?;
     encoder.field(3, |encoder| match declaration.syntax() {
+        SupportSlotSyntax::Interval { dimension } => {
+            encoder.u16(4)?;
+            encoder.field(1, |encoder| {
+                encode_expression(encoder, dimension, budget, 1)
+            })
+        }
         SupportSlotSyntax::Volume { ambient_dimension } => {
             encoder.u16(1)?;
             encoder.field(1, |encoder| {

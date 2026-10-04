@@ -38,6 +38,8 @@ impl Binding {
 
 #[derive(Debug, Clone)]
 pub(super) enum DomainContract {
+    CoordinateInterval(DimExponents),
+    CoordinateProduct(Vec<String>),
     Spatial {
         dimensions: Option<usize>,
         parent: Option<String>,
@@ -102,6 +104,7 @@ pub(super) fn bind_domain(
     syntax: &DomainSyntax,
 ) -> Result<DomainContract, Diagnostic> {
     match syntax {
+        DomainSyntax::Product { factors } => Ok(DomainContract::CoordinateProduct(factors.clone())),
         DomainSyntax::ScalarPhysical {
             across_type,
             through_type,
@@ -149,25 +152,14 @@ pub(super) fn resolve_field_contract(
             codes::LANGUAGE_TYPE_ERROR,
             file,
             range,
-            "source Field requires a volume support",
+            "source Field requires a volume or coordinate-factor support",
         ));
     }
-    let support = contract.domain.as_ref().and_then(|name| {
-        let Binding::Domain(
-            id,
-            DomainContract::Spatial {
-                dimensions: Some(dimensions),
-                ..
-            },
-        ) = bindings.get(name)?
-        else {
-            return None;
-        };
-        Some(eqiora_schema::kernel::typing::SpatialSupport::Volume {
-            domain: id.erase(),
-            dimensions: *dimensions,
-        })
-    });
+    let support = contract
+        .domain
+        .as_ref()
+        .map(|name| expression::relation_support(file, range, name, bindings))
+        .transpose()?;
     crate::value_types::lower_value_type(file, &contract.value_type, support.as_ref())
 }
 

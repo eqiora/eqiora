@@ -1,5 +1,27 @@
 //! Exact entity and relation identity construction for occurrence expansion.
 use super::*;
+use eqiora_core::GraphPath;
+
+pub(super) fn one_diagnostic(error: Diagnostic) -> Vec<Diagnostic> {
+    vec![error]
+}
+
+pub(super) fn contextualize_diagnostic(
+    error: Diagnostic,
+    instance_path: &InstancePath,
+) -> Diagnostic {
+    error.with_graph_path(GraphPath::new(instance_path.segments().iter().cloned()))
+}
+
+pub(super) fn contextualize_diagnostics(
+    errors: Vec<Diagnostic>,
+    instance_path: &InstancePath,
+) -> Vec<Diagnostic> {
+    errors
+        .into_iter()
+        .map(|error| contextualize_diagnostic(error, instance_path))
+        .collect()
+}
 
 impl RootExpansion<'_, '_> {
     pub(super) fn register_port_family_member(
