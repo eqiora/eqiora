@@ -24,22 +24,11 @@ fn compile_model(
 use crate::compile;
 
 #[test]
-fn source_and_factory_reject_boundary_field_support() {
+fn source_and_factory_admit_boundary_field_support() {
     use eqiora_lang::{Item, SourceAstFactory, VisibilitySyntax};
     let source = "model M() { domain body = box(0,1); domain wall = boundary(body, axis = 0, side = lower); state x: 1 on wall; initial { x = 0; } }";
-    let is_support_error = |errors: Vec<eqiora_core::Diagnostic>| {
-        errors.iter().any(|error| {
-            error
-                .message()
-                .contains("requires a volume or coordinate-factor support")
-        })
-    };
-    assert!(is_support_error(
-        compile("boundary.eqi", source).unwrap_err()
-    ));
-    assert!(is_support_error(
-        compile("boundary.eqi", &format!("component Marker() {{}} {source}")).unwrap_err()
-    ));
+    compile("boundary.eqi", source).unwrap();
+    compile("boundary.eqi", &format!("component Marker() {{}} {source}")).unwrap();
     let document = eqiora_lang::parse("boundary.eqi", source)
         .into_document()
         .unwrap();
@@ -70,10 +59,8 @@ fn source_and_factory_reject_boundary_field_support() {
         model.range(),
     )
     .unwrap();
-    assert!(is_support_error(
-        compile_model("factory.eqi", &rebuilt).unwrap_err()
-    ));
-    assert!(is_support_error(compile("required.eqi", "component C(support body: volume(ambient_dimension = 1), support wall: boundary(parent = body), state x: 1 on wall) {} model M() { variable y: 1; relation r { y = 0; } }").unwrap_err()));
+    compile_model("factory.eqi", &rebuilt).unwrap();
+    compile("required.eqi", "component C(support body: volume(ambient_dimension = 1), support wall: boundary(parent = body), state x: 1 on wall) {} model M() { variable y: 1; relation r { y = 0; } }").unwrap();
 }
 
 #[test]
