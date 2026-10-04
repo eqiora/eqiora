@@ -88,7 +88,7 @@ fn equal_extents_do_not_identify_foreign_supports_or_nominal_spaces() {
     assert!(
         errors
             .iter()
-            .any(|error| error.message().contains("exact volume")),
+            .any(|error| error.message().contains("exact spatial support")),
         "{errors:?}"
     );
     let source = r#"space A=orthonormal(a,b); space B=orthonormal(c,d);

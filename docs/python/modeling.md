@@ -228,6 +228,8 @@ identity and does not become an exported Port or a value symbol in equations.
 Evaluation belongs to an accepted Result with the exact Model meaning. The
 initial spatial execution profile covers real scalar Q1 Fields on an authenticated
 Cartesian mesh, explicit traces, scalar expressions and oriented normal gradients.
+The native Result path also reconstructs the two-component displacement of the
+Cartesian Q1 elasticity Plan for strain-energy observation and State JVPs.
 Spatial evaluation requires an explicit numerical quadrature rule; it never uses
 rendered values or output cadence as an integration authority. Its State JVP uses
 the same basis and quadrature for Field and normal-gradient variations, holding
@@ -249,6 +251,9 @@ requires `1`. Finite values omit this argument. A State direction is created wit
 `result.observable_state_tangent({field: (dimension, coefficients)})` and applied
 with `result.observe_state_jvp(energy, direction, quadrature_points=2)`. Its
 `evaluation_kind` is `"state-jvp"`, and a different Result cannot reuse that direction.
+Vector coefficient directions use the accepted vertex order, with components
+contiguous at each vertex. A State JVP need not obey equilibrium boundary
+restrictions and does not by itself certify an authored stationarity equation.
 
 ### ODE trajectory functionals and Parameter directions
 

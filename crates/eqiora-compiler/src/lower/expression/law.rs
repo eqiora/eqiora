@@ -63,6 +63,7 @@ pub(in crate::lower) fn lower_law(
     let mut lowerer = ExpressionLowerer {
         file,
         bindings,
+        support: Some(support.clone()),
         builder: ExprDagBuilder::new(),
         dependencies: BTreeSet::new(),
         ports: BTreeSet::new(),

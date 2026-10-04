@@ -23,6 +23,7 @@ pub(in crate::lower) fn lower_event_guard(
     let mut lowerer = ExpressionLowerer {
         file,
         bindings,
+        support: None,
         builder: ExprDagBuilder::new(),
         dependencies: BTreeSet::new(),
         ports: BTreeSet::new(),

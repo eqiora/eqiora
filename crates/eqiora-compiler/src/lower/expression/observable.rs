@@ -45,6 +45,7 @@ pub(in crate::lower) fn lower_observable(
     let mut lowerer = ExpressionLowerer {
         file,
         bindings,
+        support: support.clone(),
         builder: ExprDagBuilder::new(),
         dependencies: BTreeSet::new(),
         ports: BTreeSet::new(),

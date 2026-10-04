@@ -76,6 +76,7 @@ pub(super) fn lower_relation(
     let mut lowerer = ExpressionLowerer {
         file,
         bindings,
+        support: support.clone(),
         builder: ExprDagBuilder::new(),
         dependencies: BTreeSet::new(),
         ports: BTreeSet::new(),
@@ -246,6 +247,7 @@ fn spatial_type_error(
 struct ExpressionLowerer<'a> {
     file: &'a str,
     bindings: &'a BTreeMap<String, Binding>,
+    support: Option<SpatialSupport<RawId>>,
     builder: ExprDagBuilder,
     dependencies: BTreeSet<RawId>,
     ports: BTreeSet<RawId>,

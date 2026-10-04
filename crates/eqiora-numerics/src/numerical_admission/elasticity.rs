@@ -76,6 +76,17 @@ fn resolve_common_elasticity_portable(
 }
 
 impl CommonElasticityPlan {
+    pub(crate) fn observation_continuum(&self) -> &IsotropicElasticityContinuum<2> {
+        let RecognizedNativeModel::Elasticity(continuum) = self.admission.recognized_model() else {
+            unreachable!("elasticity Plan retains its admitted continuum")
+        };
+        continuum
+    }
+
+    pub(crate) fn observation_program(&self) -> &KernelProgram {
+        self.admission.program()
+    }
+
     fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
         let NativeMeshResources::Cartesian { mesh, .. } = self.admission.resources() else {
             return Err(invalid(

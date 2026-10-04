@@ -18,7 +18,7 @@ impl PureOperatorDefinition {
         if arguments.len() != self.formals.len() {
             return Err(PureOperatorError::ArityMismatch);
         }
-        let mut common_volume = None;
+        let mut common_support = None;
         let mut spatial_extent = None;
         let mut scalar_domain = eqiora_core::ScalarDomain::Real;
         for (rule, argument) in self.formals.iter().zip(arguments) {
@@ -36,15 +36,18 @@ impl PureOperatorDefinition {
             let Some(support) = argument.support.as_ref() else {
                 continue;
             };
-            if !matches!(support, SpatialSupport::Volume { .. }) {
+            if !matches!(
+                support,
+                SpatialSupport::Volume { .. } | SpatialSupport::Boundary { .. }
+            ) {
                 return Err(PureOperatorError::FormalTypeMismatch);
             }
-            match &common_volume {
+            match &common_support {
                 Some(expected) if expected != support => {
-                    return Err(PureOperatorError::CommonVolumeMismatch);
+                    return Err(PureOperatorError::CommonSupportMismatch);
                 }
                 Some(_) => {}
-                None => common_volume = Some(support.clone()),
+                None => common_support = Some(support.clone()),
             }
         }
         if self
@@ -62,7 +65,7 @@ impl PureOperatorDefinition {
         {
             return Err(PureOperatorError::FormalTypeMismatch);
         }
-        if let Some(support) = &common_volume {
+        if let Some(support) = &common_support {
             let extent = u32::try_from(support.dimensions())
                 .map_err(|_| PureOperatorError::FormalTypeMismatch)?;
             if spatial_extent.is_some_and(|expected| expected != extent) {
@@ -95,7 +98,7 @@ impl PureOperatorDefinition {
             self.result,
             scalar_domain,
             result_dimension,
-            common_volume,
+            common_support,
             spatial_extent,
         )?;
         Ok(PureOperatorInstantiation {
@@ -132,7 +135,9 @@ fn validate_argument_class<I>(
         return Err(PureOperatorError::FormalTypeMismatch);
     }
     let dimensions = match argument.support.as_ref() {
-        Some(SpatialSupport::Volume { dimensions, .. }) => Some(*dimensions),
+        Some(
+            SpatialSupport::Volume { dimensions, .. } | SpatialSupport::Boundary { dimensions, .. },
+        ) => Some(*dimensions),
         None => argument
             .shape()
             .extents()

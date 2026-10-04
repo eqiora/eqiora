@@ -48,8 +48,9 @@ impl CommonResult {
     /// Evaluate a typed Model Observable against this exact accepted Result.
     ///
     /// Spatial integrals require explicit quadrature on the measure's reference
-    /// cell. The initial profile admits real scalar Q1 fields on Cartesian meshes,
-    /// explicit traces and normal gradients; no output cadence controls this operation.
+    /// cell. The profile admits real scalar Q1 fields and the two-component
+    /// displacement of a Cartesian elasticity Result, including traces and normal
+    /// gradients. No output cadence controls this operation.
     /// # Errors
     /// Rejects foreign/stale Model meaning, unavailable fields, wrong measures,
     /// unsupported dependence and mismatched quadrature.
@@ -133,6 +134,8 @@ fn observation_program(
     model: &ModelEnvelope,
 ) -> Result<eqiora_sem::KernelProgram, Diagnostic> {
     if let Some(plan) = result.plan().as_scalar() {
+        Ok(plan.observation_program().clone())
+    } else if let Some(plan) = result.plan().as_elasticity() {
         Ok(plan.observation_program().clone())
     } else if let Some(plan) = result.plan().as_algebraic() {
         Ok(plan.kernel().clone())
