@@ -59,6 +59,10 @@ fn exact_authored_rectangle_embedding_ignores_names_and_author_order() {
             let parent = geometry
                 .entity_set(&format!("{prefix}-parent-{face}"))
                 .unwrap();
+            assert_eq!(
+                geometry.cartesian_region_bounds(parent),
+                Some(vec![[xmin, xmax], [-3.0, 7.0]])
+            );
             // Independent rectangle sides in the canonical counterclockwise loop.
             for (local, axis, side, coordinate, interval, normal) in [
                 (0, 1, Lower, -3.0, (xmin, xmax), [0.0, -1.0]),
@@ -94,6 +98,13 @@ fn exact_embedding_rejects_grouped_wrong_parent_and_foreign_selections() {
     let geometry = rectangles("a", false);
     let replay = rectangles("a", true);
     assert_eq!(geometry, replay);
+    for selection in [
+        replay.entity_set("a-parent-0").unwrap(),
+        geometry.entity_set("grouped-parents").unwrap(),
+        geometry.entity_set("a-edge-1").unwrap(),
+    ] {
+        assert!(geometry.cartesian_region_bounds(selection).is_none());
+    }
     let edge = geometry.entity_set("a-edge-1").unwrap();
     let parent = geometry.entity_set("a-parent-0").unwrap();
     for (boundary, parent) in [
@@ -169,6 +180,7 @@ fn diagonal_nonrectangular_and_holey_faces_have_no_rectangular_embedding() {
     ] {
         let geometry = authored(vertices, vec![PlanarFace::new(outer, holes)], "x");
         let parent = geometry.entity_set("x-parent-0").unwrap();
+        assert!(geometry.cartesian_region_bounds(parent).is_none());
         for edge in geometry
             .entity_sets()
             .iter()
@@ -192,6 +204,10 @@ fn proper_side_segments_reject_while_other_complete_sides_remain_exact() {
         "x",
     );
     let parent = geometry.entity_set("x-parent-0").unwrap();
+    assert_eq!(
+        geometry.cartesian_region_bounds(parent),
+        Some(vec![[0.0, 2.0], [0.0, 2.0]])
+    );
     for index in [0, 1] {
         let name = format!("x-edge-{index}");
         assert!(

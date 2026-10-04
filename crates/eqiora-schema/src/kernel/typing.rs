@@ -38,8 +38,9 @@ pub enum SpatialSupport<I> {
     Coordinates {
         /// Nominal interval or product Domain.
         domain: I,
-        /// Flattened factor identities and coordinate dimensions, in product order.
-        factors: Vec<(I, DimExponents)>,
+        /// Flattened factor identity, per-axis unit, and intrinsic dimension, in product order.
+        /// A physical Cartesian block retains one exact Domain identity for all its axes.
+        factors: Vec<(I, DimExponents, usize)>,
     },
     /// A Cartesian volume Domain.
     Volume {
@@ -97,7 +98,7 @@ impl<I> SpatialSupport<I> {
     #[must_use]
     pub fn intrinsic_dimensions(&self) -> usize {
         match self {
-            Self::Coordinates { factors, .. } => factors.len(),
+            Self::Coordinates { factors, .. } => factors.iter().map(|(_, _, axes)| axes).sum(),
             Self::Volume { dimensions, .. } => *dimensions,
             Self::Boundary { dimensions, .. } | Self::Interface { dimensions, .. } => {
                 dimensions.saturating_sub(1)

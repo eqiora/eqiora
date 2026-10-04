@@ -38,9 +38,12 @@ impl ObservableMeasure {
         let measure_dimension = match (self, support) {
             (ObservableMeasure::Volume, SpatialSupport::Coordinates { factors, .. }) => factors
                 .iter()
-                .try_fold(DimExponents::DIMENSIONLESS, |product, (_, dimension)| {
-                    product.mul(*dimension)
-                })
+                .try_fold(
+                    DimExponents::DIMENSIONLESS,
+                    |product, (_, dimension, axes)| {
+                        product.mul(dimension.pow(i32::try_from(*axes).ok()?, 1)?)
+                    },
+                )
                 .ok_or_else(|| {
                     invalid("coordinate product measure dimension exceeds its exact representation")
                 })?,

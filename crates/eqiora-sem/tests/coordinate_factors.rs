@@ -78,7 +78,7 @@ fn distribution_on_position_velocity_product_retains_exact_measure() {
     let root = typed.node_type(value).unwrap();
     let support = SpatialSupport::Coordinates {
         domain: phase.erase(),
-        factors: vec![(position.erase(), length), (velocity.erase(), speed)],
+        factors: vec![(position.erase(), length, 1), (velocity.erase(), speed, 1)],
     };
     assert_eq!(root.support.as_ref(), Some(&support));
     assert_eq!(support.ambient_dimensions(), None);
@@ -99,7 +99,7 @@ fn distribution_on_position_velocity_product_retains_exact_measure() {
     );
     let foreign = SpatialSupport::Coordinates {
         domain: Id::<kinds::Domain>::new().erase(),
-        factors: vec![(position.erase(), length), (velocity.erase(), speed)],
+        factors: vec![(position.erase(), length, 1), (velocity.erase(), speed, 1)],
     };
     assert!(
         ObservableMeasure::Volume
@@ -108,7 +108,7 @@ fn distribution_on_position_velocity_product_retains_exact_measure() {
     );
     let reversed = SpatialSupport::Coordinates {
         domain: phase.erase(),
-        factors: vec![(velocity.erase(), speed), (position.erase(), length)],
+        factors: vec![(velocity.erase(), speed, 1), (position.erase(), length, 1)],
     };
     assert!(
         ObservableMeasure::Volume
@@ -202,14 +202,13 @@ fn coordinate_product_requires_exact_unique_factor_closure() {
             .commit(transaction)
             .map(|_| ())
             .and_then(|()| KernelProgram::from_snapshot(&store.snapshot(), model).map(|_| ()));
-        if fault == "none" {
+        if matches!(fault, "none" | "physical factor") {
             result.unwrap();
         } else {
             let diagnostics = result.expect_err(fault);
             let expected = match fault {
                 "missing dependency" => "DependsOn",
                 "missing member" => "closure",
-                "physical factor" => "interval or coordinate product",
                 "repeated factor" => "repeats an exact factor",
                 "cycle" => "cycle",
                 _ => unreachable!(),

@@ -118,7 +118,7 @@ pub(in crate::hierarchy) fn occurrence(
             domain: domain.to_string(),
             factors: factors
                 .iter()
-                .map(|(id, unit)| (id.to_string(), *unit))
+                .map(|(id, unit, axes)| (id.to_string(), *unit, *axes))
                 .collect(),
         },
         SpatialSupport::Volume { domain, dimensions } => SpatialSupport::Volume {

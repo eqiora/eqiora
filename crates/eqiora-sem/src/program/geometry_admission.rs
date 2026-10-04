@@ -21,6 +21,7 @@ pub(super) struct GeometryAdmission {
     pub(super) supports: BTreeMap<RawId, SpatialSupport<RawId>>,
     pub(super) boundary_embeddings: BTreeMap<RawId, GeometryBoundaryEmbedding>,
     pub(super) affine_boundaries: BTreeSet<RawId>,
+    pub(super) cartesian_regions: BTreeSet<RawId>,
     pub(super) diagnostics: Vec<Diagnostic>,
 }
 
@@ -116,6 +117,7 @@ pub(super) fn admit_entity_sets(
     let mut supports = BTreeMap::new();
     let mut boundary_embeddings = BTreeMap::new();
     let mut affine_boundaries = BTreeSet::new();
+    let mut cartesian_regions = BTreeSet::new();
     let mut diagnostics = Vec::new();
 
     for (&id, node) in nodes {
@@ -159,6 +161,10 @@ pub(super) fn admit_entity_sets(
                         ),
                     )),
                     Some(_) => {
+                        if artifact.entity_set(entity_set)
+                            .and_then(|selection| artifact.cartesian_region_bounds(selection)).is_some() {
+                            cartesian_regions.insert(id);
+                        }
                         supports.insert(
                             id,
                             SpatialSupport::Volume {
@@ -253,6 +259,7 @@ pub(super) fn admit_entity_sets(
         supports,
         boundary_embeddings,
         affine_boundaries,
+        cartesian_regions,
         diagnostics,
     }
 }
