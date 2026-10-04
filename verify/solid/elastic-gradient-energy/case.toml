@@ -1,8 +1,8 @@
 id = "solid.elastic-gradient-energy"
 status = "implemented"
-scope = "cartesian-q1-elastic-energy-first-variation-and-ordered-second-state-products"
+scope = "cartesian-q1-elastic-volume-surface-energy-variations"
 reference_kind = "independent-q1-stiffness-energy-stationarity-and-boundary-pairing"
-capabilities = ["elastic-result-strain-energy", "vector-field-state-jvp", "recovered-traction-pairing", "elastic-energy-result-replay", "authored-elastic-first-variation", "elastic-strong-weak-correspondence", "elastic-authored-plan-replay", "elastic-energy-law-falsifiers", "elastic-second-state-variation", "energy-second-variation-matches-independent-stiffness"]
+capabilities = ["elastic-result-strain-energy", "vector-field-state-jvp", "recovered-traction-pairing", "elastic-energy-result-replay", "authored-elastic-first-variation", "elastic-strong-weak-correspondence", "elastic-authored-plan-replay", "elastic-energy-law-falsifiers", "elastic-second-state-variation", "energy-second-variation-matches-independent-stiffness", "prescribed-vector-traction-surface-work", "elastic-surface-work-correspondence-falsifiers"]
 
 [claim_boundary]
 spatial_dimension = 2
@@ -14,7 +14,9 @@ state_direction_holds_model_parameters_and_geometry = true
 boundary_law_is_not_recovered_discrete_traction = true
 authored_elastic_stationarity_admission = true
 complete_essential_and_homogeneous_natural_boundaries = true
-nonzero_surface_work = false
+nonzero_surface_work = true
+constant_real_vector_parameter_traction = true
+spatially_varying_traction = false
 second_variation_result_action = true
 implicit_solve_hessian = false
 reduced_solve_sensitivity = false

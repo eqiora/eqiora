@@ -313,6 +313,7 @@ pub(crate) fn lower_isotropic_elastodynamics_subdomain<const D: usize>(
         load_potential_expression,
         lowered_boundary.inventory.clone(),
         lowered_boundary.boundary_relations.clone(),
+        lowered_boundary.tractions.clone(),
     )
     .ok_or_else(|| {
         lowering_error(

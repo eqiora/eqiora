@@ -40,9 +40,10 @@ impl Context<'_> {
             ExprNode::Symbol(SymbolRef::Field(field)) => {
                 Polynomial::atom(Atom::Field(field.ulid().to_string(), coordinate.to_vec()))
             }
-            ExprNode::Symbol(SymbolRef::Parameter(parameter)) if coordinate.is_empty() => {
-                Polynomial::atom(Atom::Parameter(parameter.ulid().to_string()))
-            }
+            ExprNode::Symbol(SymbolRef::Parameter(parameter)) => Polynomial::atom(Atom::Parameter(
+                parameter.ulid().to_string(),
+                coordinate.to_vec(),
+            )),
             ExprNode::Gradient(value) => {
                 let ExprNode::Symbol(SymbolRef::Field(field)) = typed.expression().node(*value)?
                 else {

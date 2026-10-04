@@ -8,7 +8,8 @@ use eqiora_sem::KernelProgram;
 
 use crate::canonical_boundary::{
     BoundaryRelationBinding, CartesianBoundaryEntry, CartesianBoundaryInventory,
-    PhysicalBoundaryDisposition, exact_cartesian_boundaries, normalize_field_physical_interface,
+    PhysicalBoundaryDisposition, PhysicalBoundaryQuantity, PrescribedBoundaryLaw,
+    exact_cartesian_boundaries, normalize_field_physical_interface,
 };
 use crate::spatial_expression::ScalarSpatialExpression;
 
@@ -20,6 +21,7 @@ use super::{
 #[derive(Debug)]
 pub(crate) struct LoweredElasticityBoundary<const D: usize> {
     pub(crate) inventory: CartesianBoundaryInventory<D>,
+    pub(crate) tractions: BTreeMap<RawId, [f64; D]>,
     pub(crate) relations: BTreeSet<RawId>,
     pub(crate) boundary_relations: Vec<BoundaryRelationBinding>,
     pub(crate) ports: BTreeSet<RawId>,
@@ -99,6 +101,7 @@ pub(crate) fn lower_dimension_with_boundaries<const D: usize>(
     exact_boundaries: BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), RawId>,
 ) -> Result<LoweredElasticityBoundary<D>, Diagnostic> {
     let mut entries = BTreeMap::new();
+    let mut tractions = BTreeMap::new();
     let mut admitted_relations = BTreeSet::new();
     let mut boundary_relations = BTreeSet::new();
     let mut admitted_ports = BTreeSet::new();
@@ -114,7 +117,7 @@ pub(crate) fn lower_dimension_with_boundaries<const D: usize>(
 
         let mut direct = Vec::new();
         for relation in &relations {
-            if let Some(disposition) = direct_disposition(
+            if let Some(disposition) = direct_disposition::<D>(
                 program,
                 *relation,
                 trace_field,
@@ -150,6 +153,11 @@ pub(crate) fn lower_dimension_with_boundaries<const D: usize>(
             uninterpreted_live_relations.extend(normalized.uninterpreted_live_relations);
             (normalized.disposition, side_relations)
         };
+        if let PhysicalBoundaryDisposition::Prescribed(law) = disposition
+            && let Some((_, values)) = prescribed_traction::<D>(program, law.relation())?
+        {
+            tractions.insert(boundary, values);
+        }
         admitted_relations.extend(side_relations.iter().copied());
         boundary_relations.extend(
             side_relations
@@ -164,6 +172,7 @@ pub(crate) fn lower_dimension_with_boundaries<const D: usize>(
 
     Ok(LoweredElasticityBoundary {
         inventory: CartesianBoundaryInventory::new(entries),
+        tractions,
         relations: admitted_relations,
         boundary_relations: boundary_relations.into_iter().collect(),
         ports: admitted_ports,
@@ -173,7 +182,7 @@ pub(crate) fn lower_dimension_with_boundaries<const D: usize>(
     })
 }
 
-fn direct_disposition(
+fn direct_disposition<const D: usize>(
     program: &KernelProgram,
     relation: RawId,
     trace_field: RawId,
@@ -201,8 +210,88 @@ fn direct_disposition(
             )?;
             Ok(Some(PhysicalBoundaryDisposition::FluxZero))
         }
+        _ if trace_field == stress_displacement => {
+            let Some((stress, _)) = prescribed_traction::<D>(program, relation)? else {
+                return Ok(None);
+            };
+            require_matching_stress(
+                program,
+                expression,
+                stress,
+                stress_displacement,
+                relation,
+                volume_two_mu,
+                volume_lambda,
+            )?;
+            Ok(Some(PhysicalBoundaryDisposition::Prescribed(
+                PrescribedBoundaryLaw::new(PhysicalBoundaryQuantity::Flux, relation),
+            )))
+        }
         _ => Ok(None),
     }
+}
+
+// A constant real vector Parameter is the deliberately narrow admitted datum.
+// Signed additive leaves retain outward traction under either equation orientation.
+fn prescribed_traction<const D: usize>(
+    program: &KernelProgram,
+    relation: RawId,
+) -> Result<Option<(ExprId, [f64; D])>, Diagnostic> {
+    let expression = relation_expression(program, relation)?;
+    let [root] = expression.roots() else {
+        return Ok(None);
+    };
+    let view =
+        crate::additive_residual::AdditiveResidualView::derive(&expression, *root, relation)?;
+    let [first, second] = view.leaves() else {
+        return Ok(None);
+    };
+    let (normal, datum) = if matches!(
+        expression.node(first.value()),
+        Some(ExprNode::NormalComponent(_))
+    ) {
+        (first, second)
+    } else {
+        (second, first)
+    };
+    let (
+        Some(ExprNode::NormalComponent(stress)),
+        Some(ExprNode::Symbol(SymbolRef::Parameter(parameter))),
+    ) = (
+        expression.node(normal.value()),
+        expression.node(datum.value()),
+    )
+    else {
+        return Ok(None);
+    };
+    let value = program.typed_value(parameter.erase()).ok_or_else(|| {
+        lowering_error(
+            relation,
+            "prescribed traction Parameter has no revision-local value",
+        )
+    })?;
+    if value.value_type().scalar_domain() != eqiora_core::ScalarDomain::Real
+        || value.component_count() != D
+    {
+        return Err(lowering_error(
+            relation,
+            "prescribed traction requires a real spatial-vector Parameter",
+        ));
+    }
+    let sign = if normal.sign().is_opposite(datum.sign()) {
+        1.0
+    } else {
+        -1.0
+    };
+    Ok(Some((
+        *stress,
+        std::array::from_fn(|axis| {
+            sign * value
+                .component(axis)
+                .expect("validated vector cardinality")
+                .0
+        }),
+    )))
 }
 
 fn normalize_physical_interface(

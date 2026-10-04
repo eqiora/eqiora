@@ -12,7 +12,7 @@ enum Atom {
     TraceField(String, Vec<usize>),
     TraceTest(Vec<usize>),
     Field(String, Vec<usize>),
-    Parameter(String),
+    Parameter(String, Vec<usize>),
     Coordinate(usize),
     Test(Vec<usize>),
     FieldGradient(String, Vec<usize>),
@@ -53,11 +53,19 @@ pub(super) fn matches_variation(
     compare().unwrap_or(false)
 }
 
+pub(super) struct ElasticTractionTerm {
+    pub(super) boundary: eqiora_core::RawId,
+    pub(super) typed: eqiora_schema::kernel::typing::TypedResidual<eqiora_core::RawId>,
+    pub(super) datum: eqiora_schema::kernel::ExprId,
+    pub(super) negative: bool,
+}
+
 pub(super) fn matches_elastic_variation(
     projection: &AuthoredFormulationProjection,
     typed: &eqiora_schema::kernel::typing::TypedResidual<eqiora_core::RawId>,
     stress: eqiora_schema::kernel::ExprId,
     load: eqiora_schema::kernel::ExprId,
+    tractions: &[ElasticTractionTerm],
 ) -> bool {
     let [(name, field, _, _)] = projection.test_restrictions() else {
         return false;
@@ -96,9 +104,27 @@ pub(super) fn matches_elastic_variation(
                 .ok()?;
             expected = expected.checked_add(&term.checked_neg().ok()?).ok()?;
         }
-        let expected = expected
+        let mut expected = expected
             .checked_mul(&Polynomial::atom(Atom::Measure(domain.into())))
             .ok()?;
+        for traction in tractions {
+            for i in 0..2 {
+                let term = context
+                    .source(&traction.typed, traction.datum, &[i], 0)?
+                    .checked_mul(&Polynomial::atom(Atom::TraceTest(vec![i])))
+                    .ok()?
+                    .checked_mul(&Polynomial::atom(Atom::Measure(
+                        traction.boundary.ulid().to_string(),
+                    )))
+                    .ok()?;
+                let term = if traction.negative {
+                    term.checked_neg().ok()?
+                } else {
+                    term
+                };
+                expected = expected.checked_add(&term).ok()?;
+            }
+        }
         Some(actual == expected)
     };
     compare().unwrap_or(false)
@@ -195,7 +221,7 @@ impl Context<'_> {
             ),
             E::Field { ulid } => Polynomial::atom(Atom::Field(ulid.clone(), vec![])),
             E::Trace { value } => self.trace(value, vec![])?,
-            E::Parameter { ulid } => Polynomial::atom(Atom::Parameter(ulid.clone())),
+            E::Parameter { ulid } => Polynomial::atom(Atom::Parameter(ulid.clone(), vec![])),
             E::Coordinate { axis } if *axis < self.dimensions => {
                 Polynomial::atom(Atom::Coordinate(*axis))
             }
@@ -276,6 +302,9 @@ impl Context<'_> {
         match value {
             E::Trace { value } => self.trace(value, vec![axis]),
             E::Field { ulid } => Some(Polynomial::atom(Atom::Field(ulid.clone(), vec![axis]))),
+            E::Parameter { ulid } => {
+                Some(Polynomial::atom(Atom::Parameter(ulid.clone(), vec![axis])))
+            }
             E::Direction { name, field_ulid } if name == self.name && field_ulid == self.field => {
                 Some(Polynomial::atom(Atom::Test(vec![axis])))
             }

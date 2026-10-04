@@ -16,6 +16,7 @@ pub(crate) fn derive(
     let typed = typed_relation(program, relation)?;
     let volume = super::execution::recognize_volume(&typed, relation, model.displacement())?;
     let mut boundaries = Vec::new();
+    let mut tractions = Vec::new();
     for (_, entry) in model.boundary_inventory().entries() {
         let discharge = match entry.disposition() {
             PhysicalBoundaryDisposition::TraceZero => BoundaryDischarge::ZeroTestTrace,
@@ -24,6 +25,12 @@ pub(crate) fn derive(
                 if law.quantity() == crate::canonical_boundary::PhysicalBoundaryQuantity::Trace =>
             {
                 BoundaryDischarge::ZeroTestTrace
+            }
+            PhysicalBoundaryDisposition::Prescribed(law)
+                if law.quantity() == crate::canonical_boundary::PhysicalBoundaryQuantity::Flux
+                    && model.tractions().contains_key(&entry.boundary()) =>
+            {
+                BoundaryDischarge::PrescribedFlux
             }
             _ => return Ok(None),
         };
@@ -49,12 +56,28 @@ pub(crate) fn derive(
         }
         let operators = view.leaves().iter().filter(|leaf| match (discharge,dag.node(leaf.value())) {
             (BoundaryDischarge::ZeroTestTrace,Some(ExprNode::Trace(value))) => matches!(dag.node(*value),Some(ExprNode::Symbol(SymbolRef::Field(id))) if id.erase() == model.displacement()),
-            (BoundaryDischarge::ZeroFlux,Some(ExprNode::NormalComponent(_))) => true,
+            (BoundaryDischarge::ZeroFlux | BoundaryDischarge::PrescribedFlux,Some(ExprNode::NormalComponent(_))) => true,
             _ => false,
         }).collect::<Vec<_>>();
         let [operator] = operators.as_slice() else {
             return Ok(None);
         };
+        if discharge == BoundaryDischarge::PrescribedFlux {
+            let data = view
+                .leaves()
+                .iter()
+                .filter(|leaf| leaf.value() != operator.value())
+                .collect::<Vec<_>>();
+            let [datum] = data.as_slice() else {
+                return Ok(None);
+            };
+            tractions.push(authored_polynomial::ElasticTractionTerm {
+                boundary: entry.boundary(),
+                typed: boundary.clone(),
+                datum: datum.value(),
+                negative: operator.sign().is_opposite(datum.sign()),
+            });
+        }
         boundaries.push(BoundarySource {
             domain: entry.boundary(),
             relation: binding.relation(),
@@ -88,6 +111,7 @@ pub(crate) fn derive(
             &typed,
             volume.stress,
             volume.load_gradient,
+            &tractions,
         ) {
             return Err(reject(
                 relation,

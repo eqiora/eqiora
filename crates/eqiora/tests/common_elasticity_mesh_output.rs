@@ -80,6 +80,15 @@ fn try_accepted_source_on(
     lambda: f64,
     cells_per_axis: usize,
 ) -> Result<Accepted, eqiora::Diagnostic> {
+    try_accepted_source_on_with_traction(source, lambda, cells_per_axis, [6.0, 0.0])
+}
+
+fn try_accepted_source_on_with_traction(
+    source: &str,
+    lambda: f64,
+    cells_per_axis: usize,
+    traction_values: [f64; 2],
+) -> Result<Accepted, eqiora::Diagnostic> {
     let graph = GeometryGraph::new();
     let rectangle = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
     let edges = rectangle.boundaries();
@@ -190,6 +199,22 @@ fn try_accepted_source_on(
             eqiora::compiler::StaticBindingValue::Expression(value),
         )
     }));
+    let traction = eqiora::ValueLiteral::new(
+        eqiora::ValueType::shaped(
+            eqiora::ScalarDomain::Real,
+            eqiora::DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).unwrap(),
+            eqiora::ValueShape::new([2]).unwrap(),
+            eqiora::ValueFrame::SpatialCartesian,
+        )
+        .unwrap(),
+        traction_values.map(|value| (value, 0.0)),
+    )
+    .unwrap();
+    for name in ["traction", "other_traction"] {
+        if source.contains(&format!("parameter {name}:")) {
+            compile_bindings.push((name, eqiora::compiler::StaticBindingValue::Value(&traction)));
+        }
+    }
     let document = ModelDocument::compile_selected(
         "mixed-boundary-elasticity.eqi",
         source,
@@ -870,3 +895,6 @@ fn observation_rules(
         .unwrap();
     std::collections::HashMap::from([(domain, rule.clone())])
 }
+
+#[path = "support/elastic_surface_energy.rs"]
+mod elastic_surface_energy;
