@@ -166,6 +166,8 @@ pub enum TypeViolation<I> {
     CoordinateFactorMismatch,
     /// A partial selector is not an independent admitted coordinate.
     CoordinatePartialRequiresCoordinate,
+    /// Evaluation needs every exact coordinate once, scalar unit-compatible points, and a valid side.
+    PointEvaluationRequiresExactCoordinates,
     /// A coordinate axis is outside the ambient dimension.
     CoordinateAxisOutOfRange {
         /// Requested zero-based axis.
@@ -294,6 +296,7 @@ impl<I: fmt::Debug> fmt::Display for TypeViolation<I> {
                 formatter.write_str("mathematical function requires a dimensionless scalar operand")
             }
             Self::CoordinatePartialRequiresCoordinate => formatter.write_str("coordinate partial requires an exact independent coordinate on a volume or coordinate support"),
+            Self::PointEvaluationRequiresExactCoordinates => formatter.write_str("point evaluation requires every exact coordinate once, lumped real points with matching units, and a one-dimensional support for a side"),
             Self::CoordinateFactorMismatch => {
                 formatter.write_str("coordinate factor is outside its exact declared support")
             }

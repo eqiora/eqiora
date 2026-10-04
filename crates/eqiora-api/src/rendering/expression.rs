@@ -191,6 +191,24 @@ impl Context<'_> {
                 "partial",
                 vec![self.lower(dag, *value, next)?, self.lower(dag, *wrt, next)?],
             ),
+            ExprNode::Evaluate { value, at, side } => {
+                let mut arguments = vec![self.lower(dag, *value, next)?];
+                for (coordinate, point) in at {
+                    arguments.push(Math::Binary(
+                        "=",
+                        Box::new(self.lower(dag, *coordinate, next)?),
+                        Box::new(self.lower(dag, *point, next)?),
+                    ));
+                }
+                call(
+                    match side {
+                        None => "evaluate",
+                        Some(eqiora_schema::kernel::BoundarySide::Lower) => "evaluate_lower",
+                        Some(eqiora_schema::kernel::BoundarySide::Upper) => "evaluate_upper",
+                    },
+                    arguments,
+                )
+            }
             ExprNode::Gradient(value) => Math::Gradient(Box::new(self.lower(dag, *value, next)?)),
             ExprNode::Not(value)
             | ExprNode::Hold(value)

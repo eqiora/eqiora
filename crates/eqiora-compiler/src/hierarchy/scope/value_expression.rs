@@ -76,6 +76,37 @@ pub(in crate::hierarchy) fn rewrite_expression_with_boundary_member(
             let expanded = crate::pure_operator::actions::expand(file, expression, arguments)?;
             rewrite_expression_with_boundary_member(file, &expanded, scope, active)?
         }
+        ExprKind::Evaluate { value, at, side } => {
+            let value = rewrite_expression_with_boundary_member(file, value, scope, active)?;
+            let points =
+                at.iter()
+                    .map(|(coordinate, point)| {
+                        let coordinate = scope
+                            .coordinate(coordinate.as_str())
+                            .cloned()
+                            .ok_or_else(|| {
+                                source_error(
+                                    codes::LANGUAGE_TYPE_ERROR,
+                                    file,
+                                    coordinate.range(),
+                                    "evaluation binding must name an exact coordinate",
+                                )
+                            })?;
+                        let point =
+                            rewrite_expression_with_boundary_member(file, point, scope, active)?;
+                        Ok((coordinate, point))
+                    })
+                    .collect::<Result<Vec<_>, Diagnostic>>()?;
+            let side = side.map(|side| match side {
+                eqiora_lang::BoundarySideSyntax::Lower => {
+                    eqiora_schema::kernel::BoundarySide::Lower
+                }
+                eqiora_lang::BoundarySideSyntax::Upper => {
+                    eqiora_schema::kernel::BoundarySide::Upper
+                }
+            });
+            LoweringExpression::evaluate_at(value, points, side, expression.range())
+        }
         ExprKind::Partial {
             value,
             wrt,

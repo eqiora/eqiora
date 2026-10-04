@@ -216,7 +216,7 @@ impl Context<'_> {
                     })
                 }
                 SymbolRef::Observable(id) => self
-                    .evaluate(*id, point, depth + 1)?
+                    .evaluate(*id, point, None, depth + 1)?
                     .0
                     .real_scalar_value()
                     .map(|value| value.value())

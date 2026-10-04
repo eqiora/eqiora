@@ -945,6 +945,13 @@ def vjp(value: object, *, wrt: Expression, cotangent: object) -> Expression:
     ...
 
 
+def evaluate(value: object, *, at: Sequence[tuple[Expression, object]], side: Literal["lower", "upper"] | None = None) -> Expression:
+    """Bind every coordinate of an exact support using its admitted point reconstruction.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::evaluate``.
+    """
+    ...
+
 def partial(value: object, *, wrt: Expression, holding: Sequence[Expression] = ()) -> Expression:
     """Differentiate an explicit real scalar polynomial at an independent binding.
 
@@ -1089,6 +1096,7 @@ __all__ = [
     "normal",
     "ordinal",
     "partial",
+    "evaluate",
     "jvp",
     "vjp",
     "derivative",

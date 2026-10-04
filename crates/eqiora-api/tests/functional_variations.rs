@@ -223,7 +223,7 @@ fn composite_observable_references_are_typed_and_replayable() {
     );
     let prior_schema = String::from_utf8(bytes.clone())
         .unwrap()
-        .replace("eqiora.model-envelope/v36", "eqiora.model-envelope/v31");
+        .replace("eqiora.model-envelope/v37", "eqiora.model-envelope/v31");
     assert_ne!(prior_schema.as_bytes(), bytes);
     assert!(
         ModelEnvelope::from_json(prior_schema.as_bytes(), ModelDecoderLimits::default()).is_err()

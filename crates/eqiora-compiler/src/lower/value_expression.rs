@@ -3,6 +3,19 @@
 use super::*;
 
 impl LoweringExpression {
+    pub(crate) fn evaluate_at(
+        value: Self,
+        at: Vec<(Self, Self)>,
+        side: Option<eqiora_schema::kernel::BoundarySide>,
+        range: TextRange,
+    ) -> Self {
+        Self {
+            node: Arc::new(LoweringExpressionNode::Evaluate { value, at, side }),
+            range,
+            structural_parameters: None,
+        }
+    }
+
     pub(crate) fn coordinate(
         support: String,
         factor: String,

@@ -146,6 +146,15 @@ impl PureOperatorApplication {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ExprNode {
+    /// Evaluate at exact coordinate bindings. No interpolation or extrapolation is implied.
+    Evaluate {
+        /// Expression whose spatial coordinates are bound.
+        value: ExprId,
+        /// Coordinate-symbol nodes and dimension-compatible point-expression nodes.
+        at: Vec<(ExprId, ExprId)>,
+        /// One-sided reconstruction request on a one-dimensional support.
+        side: Option<super::BoundarySide>,
+    },
     /// Demand a Boolean domain condition; false rejects before demanding the value.
     Require { condition: ExprId, value: ExprId },
     /// Demand the Boolean condition, then only the selected value arm.
@@ -236,6 +245,14 @@ impl ExprNode {
         mut visit: impl FnMut(ExprId) -> Result<(), E>,
     ) -> Result<(), E> {
         match self {
+            Self::Evaluate { value, at, .. } => {
+                visit(*value)?;
+                for (coordinate, point) in at {
+                    visit(*coordinate)?;
+                    visit(*point)?;
+                }
+                Ok(())
+            }
             Self::Require { condition, value } => {
                 visit(*condition)?;
                 visit(*value)
@@ -613,6 +630,24 @@ impl ExprDagBuilder {
     /// Rejects operands outside this builder or expression arena limits.
     pub fn coordinate_partial(&mut self, value: ExprId, wrt: ExprId) -> Result<ExprId, Diagnostic> {
         self.push(ExprNode::CoordinatePartial { value, wrt })
+    }
+
+    /// Bind all exact coordinates without selecting a numerical representation.
+    /// # Errors
+    /// Rejects an empty or oversized point and operands outside the bounded expression arena.
+    pub fn evaluate_at(
+        &mut self,
+        value: ExprId,
+        at: Vec<(ExprId, ExprId)>,
+        side: Option<super::BoundarySide>,
+    ) -> Result<ExprId, Diagnostic> {
+        if at.is_empty() || at.len() > 64 {
+            return Err(Diagnostic::error(
+                codes::INVALID_EXPRESSION_DAG,
+                "point evaluation requires between one and 64 coordinate bindings",
+            ));
+        }
+        self.push(ExprNode::Evaluate { value, at, side })
     }
 
     /// Take the physical-space divergence.

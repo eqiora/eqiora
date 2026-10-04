@@ -161,6 +161,12 @@ pub(crate) fn expression(
             expression(scope, then_value, visit);
             expression(scope, else_value, visit);
         }
+        ExprKind::Evaluate { value, at, .. } => {
+            expression(scope, value, visit);
+            for (_, point) in at {
+                expression(scope, point, visit);
+            }
+        }
         ExprKind::Partial { value, .. }
         | ExprKind::Unary { value, .. }
         | ExprKind::Member { value, .. }

@@ -138,7 +138,7 @@ impl KernelProgram {
     /// Resolve the accepted Cartesian bounds for one Domain.
     ///
     /// This is the single metric projection of fixed and Parameter-backed
-    /// coordinate recipes. Callers must not interpret raw sources
+    /// coordinate recipes and exact admitted Geometry regions. Callers must not interpret raw sources
     /// independently.
     ///
     /// # Errors

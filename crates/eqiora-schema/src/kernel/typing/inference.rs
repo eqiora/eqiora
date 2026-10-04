@@ -17,6 +17,9 @@ pub(super) fn infer_node<I: Clone + Eq, E>(
     symbol_type: &mut impl FnMut(SymbolRef) -> Result<ExpressionType<I>, E>,
 ) -> NodeInference<I, E> {
     let typed = match node {
+        ExprNode::Evaluate { value, at, side } => {
+            return point_evaluation(expression, *value, at, side.is_some(), inferred);
+        }
         ExprNode::Require { condition, value } => {
             let Some((condition, value)) = inferred_binary(inferred, *condition, *value) else {
                 return NodeInference::Unavailable;
@@ -278,6 +281,61 @@ pub(super) fn infer_node<I: Clone + Eq, E>(
         Ok(value) => NodeInference::Typed(value),
         Err(error) => NodeInference::Type(error),
     }
+}
+
+fn point_evaluation<I: Clone + Eq, E>(
+    expression: &ExprDag,
+    value: ExprId,
+    at: &[(ExprId, ExprId)],
+    side: bool,
+    inferred: &[Option<ExpressionType<I>>],
+) -> NodeInference<I, E> {
+    let invalid = || NodeInference::Type(TypeViolation::PointEvaluationRequiresExactCoordinates);
+    let Some(value) = inferred_type(inferred, value) else {
+        return NodeInference::Unavailable;
+    };
+    if at.is_empty() || at.len() > 64 || (side && at.len() != 1) {
+        return invalid();
+    }
+    let mut support = None;
+    let mut axes = std::collections::BTreeSet::new();
+    for (coordinate, point) in at {
+        let Some(ExprNode::Symbol(SymbolRef::Coordinate { factor, axis, .. })) =
+            expression.node(*coordinate)
+        else {
+            return invalid();
+        };
+        if !axes.insert((factor.erase(), *axis)) {
+            return invalid();
+        }
+        let Some((coordinate, point)) = inferred_binary(inferred, *coordinate, *point) else {
+            return NodeInference::Unavailable;
+        };
+        let Some(selected @ (SpatialSupport::Coordinates { .. } | SpatialSupport::Volume { .. })) =
+            coordinate.support.as_ref()
+        else {
+            return invalid();
+        };
+        if selected.intrinsic_dimensions() != at.len()
+            || support
+                .as_ref()
+                .is_some_and(|expected| expected != selected)
+            || value
+                .support
+                .as_ref()
+                .is_some_and(|expected| expected != selected)
+            || point.support.is_some()
+            || point.dimension() != coordinate.dimension()
+            || !point.shape().is_scalar()
+            || point.value_type.array_rank() != 0
+            || point.value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
+            || point.value_type.frame() != eqiora_core::ValueFrame::Invariant
+        {
+            return invalid();
+        }
+        support = Some(selected.clone());
+    }
+    NodeInference::Typed(ExpressionType::new(value.value_type, None))
 }
 
 fn inferred_binary<I: Clone>(

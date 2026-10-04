@@ -720,6 +720,46 @@ def vjp(value: object, *, wrt: Expression, cotangent: object) -> Expression:
     return _ternary("vjp", value, wrt, cotangent)
 
 
+def evaluate(value: object, *, at: Sequence[tuple[Expression, object]],
+             side: Literal["lower", "upper"] | None = None) -> Expression:
+    """Bind every coordinate of one exact support to a dimensioned point.
+
+    ``side`` selects an approach from lower or higher coordinate values in 1D.
+    Evaluation uses the admitted Result reconstruction; it does not advance time.
+    """
+    value = _expression(value)
+    if isinstance(at, (str, bytes)) or not isinstance(at, Sequence):
+        raise TypeError("evaluate at requires a sequence of coordinate/value pairs")
+    if not 1 <= len(at) <= 64:
+        raise ModuleError("evaluate requires 1..64 exact coordinate bindings")
+    if side is not None and side not in ("lower", "upper"):
+        raise ModuleError("evaluate side must be lower, upper or None")
+    coordinates = []
+    points = []
+    inputs = [value]
+    for binding in at:
+        if not isinstance(binding, (tuple, list)) or len(binding) != 2:
+            raise TypeError("evaluate bindings require coordinate/value pairs")
+        coordinate, point = binding
+        if not isinstance(coordinate, Expression):
+            raise TypeError("evaluate coordinates require declared expression bindings")
+        point = _expression(point)
+        coordinates.append(coordinate)
+        points.append(point)
+        inputs.extend((coordinate, point))
+    owner = None
+    for item in inputs:
+        if owner is not None and item._owner is not None and owner is not item._owner:
+            raise ModuleError("evaluate bindings must belong to the same lexical owner")
+        if item._owner is not None:
+            owner = item._owner
+    return Expression(_CREATE,
+                      _Ast.evaluate(value._ast, [item._ast for item in coordinates],
+                                    [item._ast for item in points], side), owner,
+                      _binders=frozenset().union(*(item._binders for item in inputs)),
+                      _sources=frozenset().union(*(item._sources for item in inputs)))
+
+
 def partial(value: object, *, wrt: Expression, holding: Sequence[Expression] = ()) -> Expression:
     """Differentiate an explicit scalar expression at a declared independent binding."""
     value = _expression(value)
@@ -2798,6 +2838,7 @@ __all__ = [
     "normal",
     "ordinal",
     "partial",
+    "evaluate",
     "variation",
     "contract",
     "jvp",

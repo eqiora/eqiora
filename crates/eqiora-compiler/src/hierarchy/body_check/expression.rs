@@ -6,6 +6,7 @@ pub(super) use observable::validate_observable;
 mod channels;
 mod conditions;
 mod enumeration;
+mod evaluate;
 mod integer;
 mod law;
 mod partial;
@@ -125,6 +126,9 @@ impl ExpressionChecker<'_, '_, '_> {
             return self.check_physical_member(member, &port);
         }
         match expression.kind() {
+            ExprKind::Evaluate { value, at, side } => {
+                self.evaluate_point(expression, value, at, side.is_some())
+            }
             ExprKind::Partial {
                 value,
                 wrt,

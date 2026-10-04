@@ -8,8 +8,8 @@ The current implementation admits abstract dimensioned interval slots and owned 
 Model and Component source, including nested products, physical Cartesian region factors, and
 whole-product and selected-factor Observable measures.
 The source support owns factor identity; native `StaticBindingValue::CoordinateInterval` and
-Python `CoordinateInterval` supply checked finite bounds. Model/Transaction v36 and structural
-fingerprint v31 retain these factors. No ambient physical frame or numerical realization is
+Python `CoordinateInterval` supply checked finite bounds. Model/Transaction v37 and structural
+fingerprint v32 retain these factors. No ambient physical frame or numerical realization is
 inferred. Exact coordinate binders and real scalar polynomial partials execute through the
 shared calculus evaluator, including independently dimensioned position and velocity factors.
 First coordinate derivatives of continuous scalar Fields remain explicit Model nodes; the
@@ -201,6 +201,41 @@ point evaluation. Each named coordinate occurs once, has a dimension-compatible 
 its declared bounds, and belongs to the expression's support. Partial point evaluation removes
 only the bound factors; supplying every factor returns a lumped value. This `at` is a named
 argument of a structural operation, not a declaration's temporal activation clause.
+
+The implemented point profile requires **every** axis of one exact volume or coordinate
+support, each exactly once; partial binding remains a target operation. Bindings are
+simultaneous and produce a lumped value. The ordinary static Result evaluates analytic
+ramp/sinusoidal expressions and reconstructs scalar Cartesian Q1 Fields with the same basis
+used by its integral observations. In one dimension this is piecewise affine P1. The source
+Model retains the binding expression; the accepted Result/Plan retains mesh, coefficients,
+Geometry and reconstruction identity. No nearest vertex, display resolution or output frame
+chooses the value.
+
+```eqiora
+coordinate x: m on body from body[0];
+observable probe: K = evaluate(temperature, at=(x=0.125[m]));
+observable slope: K/m = evaluate(partial(temperature, wrt=x), at=(x=0.125[m]));
+observable left_slope: K/m =
+  evaluate(partial(temperature, wrt=x), at=(x=0.5[m]), side=lower);
+```
+
+`side=lower` and `side=upper` select approaches from lower and higher coordinate values,
+respectively. They currently require a one-dimensional point. An outward approach at a
+Domain endpoint rejects. Q1 values are continuous; Q1 derivatives at cell boundaries require
+an explicit side. Analytic piecewise/branch limits and piecewise-constant Field values are
+not admitted by this profile. A requested side never silently substitutes the value of a
+conditional at its branch boundary. Analytic polynomial coordinate/Parameter partials can
+be evaluated inside `evaluate`; differentiating the enclosing binding itself, moving points,
+State JVPs, transient time selection, reductions inside point bindings and arbitrary
+reconstruction spaces remain unsupported.
+Unsupported `time` or side syntax rejects rather than choosing an output frame.
+
+The Python constructor uses the same structured AST:
+`eqiora.lang.evaluate(value, at=((x, eqiora.lang.quantity(0.125, eqiora.units.m)),), side=None)`.
+Coordinates and expressions retain their lexical owners. Source emission, native compilation,
+and Model/Plan/Result replay share the same evaluation path. The registered
+[exact point case](../../verify/language/exact-point-evaluation/README.md) gives independent
+values, coordinate slopes, interface-side and admission falsifiers.
 
 `trace(expression)` inside a boundary relation uses that relation's exact boundary context.
 Outside such a context, spell `trace(expression, on = boundary)` explicitly. For an interface

@@ -159,6 +159,20 @@ pub(super) fn encode_expression(
             ExprNode::CoordinatePartial { value, wrt } => {
                 binary_expr(encoder, 43, *value, *wrt, &canonical_index)?
             }
+            ExprNode::Evaluate { value, at, side } => {
+                encoder.u8(44)?;
+                encoder.u32(canonical_expr_id(*value, &canonical_index)?)?;
+                encoder.len(at.len())?;
+                for (coordinate, point) in at {
+                    encoder.u32(canonical_expr_id(*coordinate, &canonical_index)?)?;
+                    encoder.u32(canonical_expr_id(*point, &canonical_index)?)?;
+                }
+                encoder.u8(match side {
+                    None => 0,
+                    Some(eqiora_schema::kernel::BoundarySide::Lower) => 1,
+                    Some(eqiora_schema::kernel::BoundarySide::Upper) => 2,
+                })?;
+            }
             ExprNode::Gradient(value) => unary_expr(encoder, 11, *value, &canonical_index)?,
             ExprNode::Divergence(value) => unary_expr(encoder, 12, *value, &canonical_index)?,
             ExprNode::SymmetricPart(value) => unary_expr(encoder, 13, *value, &canonical_index)?,
@@ -336,6 +350,12 @@ fn expression_operands(node: &ExprNode) -> Vec<eqiora_schema::kernel::ExprId> {
         ExprNode::Array { elements } => elements.clone(),
         ExprNode::Complex { real, imag } => vec![*real, *imag],
         ExprNode::CoordinatePartial { value, wrt } => vec![*value, *wrt],
+        ExprNode::Evaluate { value, at, .. } => std::iter::once(*value)
+            .chain(
+                at.iter()
+                    .flat_map(|(coordinate, point)| [*coordinate, *point]),
+            )
+            .collect(),
         ExprNode::Sample { value, .. }
         | ExprNode::Not(value)
         | ExprNode::Ordinal(value)

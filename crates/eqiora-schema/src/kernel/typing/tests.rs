@@ -1,6 +1,7 @@
 use super::*;
 use eqiora_core::Id;
 use eqiora_core::entity::kinds;
+mod point_evaluation;
 
 fn volume(name: &'static str) -> SpatialSupport<&'static str> {
     SpatialSupport::Volume {
