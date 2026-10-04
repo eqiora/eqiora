@@ -77,7 +77,12 @@ impl PyTrajectory {
             projected.push(Py::new(py, projected_state)?);
         }
         let geometry_digest = mesh_ref.source_digest_value().to_owned();
-        let correspondence_digest = mesh_ref.correspondence_digest_value().to_owned();
+        let correspondence_digest = mesh_ref
+            .correspondence_digest_value()
+            .ok_or_else(|| {
+                PyRuntimeError::new_err("spatial trajectory requires Geometry correspondence")
+            })?
+            .to_owned();
         let mesh_digest = mesh_ref.exact_mesh_digest().to_owned();
         drop(mesh_ref);
         Ok(Self {

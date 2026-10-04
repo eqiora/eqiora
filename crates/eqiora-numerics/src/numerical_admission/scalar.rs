@@ -71,7 +71,8 @@ pub(super) fn resolve_common_scalar_portable(
             Space::cell_constant(),
             QuadraturePolicy::CellCentroid,
         ),
-        NativeSpatialPolicy::ElasticityQ1
+        NativeSpatialPolicy::CoordinateCellConstant
+        | NativeSpatialPolicy::ElasticityQ1
         | NativeSpatialPolicy::StokesMiniP1(_)
         | NativeSpatialPolicy::TransientMiniP1(_)
         | NativeSpatialPolicy::TransientCellCentered(_) => {
@@ -145,6 +146,17 @@ impl CommonScalarPlan {
     }
 
     fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
+        if matches!(
+            self.admission.recognized_model(),
+            RecognizedNativeModel::Coordinates(_)
+        ) {
+            self.admission.revalidate()?;
+            return require_portable_realization(
+                &self.portable,
+                coordinate_grid::portable(&self.admission, &self.cells)?,
+            );
+        }
+
         let NativeMeshResources::Cartesian { mesh, .. } = self.admission.resources() else {
             return Err(invalid(
                 "common scalar Plan lost its exact Cartesian Mesh materialization",
@@ -512,7 +524,8 @@ impl CommonScalarPlan {
                     assembly,
                 )?
             }
-            NativeSpatialPolicy::ElasticityQ1
+            NativeSpatialPolicy::CoordinateCellConstant
+            | NativeSpatialPolicy::ElasticityQ1
             | NativeSpatialPolicy::StokesMiniP1(_)
             | NativeSpatialPolicy::TransientMiniP1(_)
             | NativeSpatialPolicy::TransientCellCentered(_) => {
@@ -622,7 +635,7 @@ impl CommonScalarPlan {
     }
 
     #[must_use]
-    pub fn geometry_digest(&self) -> &str {
+    pub fn geometry_digest(&self) -> Option<&str> {
         self.lineage.geometry_digest()
     }
 
@@ -632,12 +645,12 @@ impl CommonScalarPlan {
     }
 
     #[must_use]
-    pub fn correspondence_digest(&self) -> &str {
+    pub fn correspondence_digest(&self) -> Option<&str> {
         self.lineage.correspondence_digest()
     }
 
     #[must_use]
-    pub fn production_digest(&self) -> &str {
+    pub fn production_digest(&self) -> Option<&str> {
         self.lineage.production_digest()
     }
 
@@ -674,6 +687,7 @@ impl CommonScalarPlan {
     #[must_use]
     pub fn spatial(&self) -> CommonSpatialPolicy {
         match self.admission.spatial {
+            NativeSpatialPolicy::CoordinateCellConstant => CommonSpatialPolicy::CellCentered,
             NativeSpatialPolicy::ScalarQ1 => CommonSpatialPolicy::Q1,
             NativeSpatialPolicy::ScalarTpfa(_) => CommonSpatialPolicy::CellCenteredTpfa,
             NativeSpatialPolicy::ElasticityQ1 => {
@@ -698,7 +712,7 @@ impl CommonScalarPlan {
 pub(super) fn scalar_operator_properties(spatial: NativeSpatialPolicy) -> LinearOperatorProperties {
     match spatial {
         NativeSpatialPolicy::ScalarQ1 => LinearOperatorProperties::General,
-        NativeSpatialPolicy::ScalarTpfa(None) => {
+        NativeSpatialPolicy::CoordinateCellConstant | NativeSpatialPolicy::ScalarTpfa(None) => {
             LinearOperatorProperties::SymmetricPositiveDefinite
         }
         NativeSpatialPolicy::ScalarTpfa(Some(_)) => LinearOperatorProperties::SymmetricIndefinite,
@@ -743,6 +757,12 @@ impl CommonScalarPlan {
         &self,
         field: eqiora_core::RawId,
     ) -> Result<(Vec<usize>, Vec<usize>), Diagnostic> {
+        if let RecognizedNativeModel::Coordinates(projection) = self.admission.recognized_model() {
+            if projection.field.erase() != field {
+                return Err(invalid("Field is outside coordinate Plan"));
+            }
+            return Ok((self.cells.to_vec(), Vec::new()));
+        }
         let RecognizedNativeModel::Scalar(equations) = self.admission.recognized_model() else {
             return Err(invalid("missing scalar inventory"));
         };

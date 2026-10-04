@@ -1,4 +1,6 @@
 //! Independent monomial antiderivatives for a bounded 1x1v density on an accepted Result.
+#[path = "factor_integrals/coordinate_field.rs"]
+mod coordinate_field;
 #[path = "support/factor_integral_model.rs"]
 mod model_replay;
 

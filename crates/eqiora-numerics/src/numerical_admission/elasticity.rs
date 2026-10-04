@@ -198,7 +198,7 @@ impl CommonElasticityPlan {
         let bounds = self
             .admission
             .resources()
-            .geometry()
+            .geometry()?
             .planar_rectangle_bounds()
             .copied()
             .ok_or_else(|| {
@@ -271,7 +271,9 @@ impl CommonElasticityPlan {
     }
     #[must_use]
     pub fn geometry_digest(&self) -> &str {
-        self.lineage.geometry_digest()
+        self.lineage
+            .geometry_digest()
+            .expect("physical Plan lineage")
     }
     #[must_use]
     pub fn mesh_digest(&self) -> &str {
@@ -279,11 +281,15 @@ impl CommonElasticityPlan {
     }
     #[must_use]
     pub fn correspondence_digest(&self) -> &str {
-        self.lineage.correspondence_digest()
+        self.lineage
+            .correspondence_digest()
+            .expect("physical Plan lineage")
     }
     #[must_use]
     pub fn production_digest(&self) -> &str {
-        self.lineage.production_digest()
+        self.lineage
+            .production_digest()
+            .expect("physical Plan lineage")
     }
     #[must_use]
     pub fn realization_digest(&self) -> &str {

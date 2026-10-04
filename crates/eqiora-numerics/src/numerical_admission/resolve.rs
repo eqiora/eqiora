@@ -22,6 +22,36 @@ pub fn resolve_common_plan(
     let recognized = RecognizedNativeAdmission::recognize(model, owner)?;
     let (spatial, formulation) = method.into().split();
     match &recognized.recognized {
+        RecognizedNativeModel::Coordinates(projection) => {
+            if spatial != CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCentered)
+                || formulation.is_some()
+                || authored_formulation.is_some()
+            {
+                return Err(invalid(
+                    "coordinate polynomial projection requires automatic CellCentered realization without an authored Formulation",
+                ));
+            }
+            let structure = eqiora_solver::AlgebraicStructure::new([projection.field], [])?;
+            let (linear, temporal) = resolve_linear_requirements(
+                solve,
+                scaling,
+                temporal,
+                false,
+                "coordinate cell-integrated equality",
+                LinearOperatorProperties::SymmetricPositiveDefinite,
+                Some(structure),
+                stokes_backend,
+            )?;
+            let admission = recognized.complete(
+                NativeSpatialPolicy::CoordinateCellConstant,
+                linear,
+                temporal,
+                None,
+            )?;
+            CommonScalarPlan::from_coordinate_admission(model, admission)
+                .map(|plan| ResolvedCommonPlan::Scalar(Box::new(plan)))
+        }
+
         RecognizedNativeModel::Scalar(equations) => {
             let mut spatial = resolve_scalar(spatial)?;
             if matches!(spatial, NativeSpatialPolicy::ScalarTpfa(_)) {

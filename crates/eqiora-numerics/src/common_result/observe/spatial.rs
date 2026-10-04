@@ -68,9 +68,13 @@ pub(super) fn integrate(
         let continuum = plan.observation_continuum();
         let (volume, bounds, boundaries) = crate::canonical::geometry_rectangle_cartesian_support(
             program,
-            owner.geometry(),
+            owner
+                .geometry()
+                .ok_or_else(|| invalid("elastic observation requires physical Geometry"))?,
             artifact,
-            owner.correspondence(),
+            owner
+                .correspondence()
+                .ok_or_else(|| invalid("elastic observation requires Geometry correspondence"))?,
         )?;
         if volume != continuum.domain() {
             return Err(invalid(

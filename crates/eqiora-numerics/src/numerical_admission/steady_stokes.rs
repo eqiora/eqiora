@@ -148,7 +148,7 @@ impl CommonSteadyStokesPlan {
         let bounds = self
             .admission
             .resources()
-            .geometry()
+            .geometry()?
             .circular_hole_bounds()
             .copied()
             .ok_or_else(|| invalid("steady-Stokes observation requires circular-hole Geometry"))?;
@@ -246,7 +246,9 @@ impl CommonSteadyStokesPlan {
     }
     #[must_use]
     pub fn geometry_digest(&self) -> &str {
-        self.lineage.geometry_digest()
+        self.lineage
+            .geometry_digest()
+            .expect("physical Plan lineage")
     }
     #[must_use]
     pub fn mesh_digest(&self) -> &str {
@@ -254,11 +256,15 @@ impl CommonSteadyStokesPlan {
     }
     #[must_use]
     pub fn correspondence_digest(&self) -> &str {
-        self.lineage.correspondence_digest()
+        self.lineage
+            .correspondence_digest()
+            .expect("physical Plan lineage")
     }
     #[must_use]
     pub fn production_digest(&self) -> &str {
-        self.lineage.production_digest()
+        self.lineage
+            .production_digest()
+            .expect("physical Plan lineage")
     }
     pub fn realization_digest(&self) -> &str {
         self.lineage.realization_digest()

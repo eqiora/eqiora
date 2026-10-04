@@ -380,7 +380,8 @@ impl CommonResult {
             crate::CommonSpatialPolicy::Q1 => {
                 (CommonFieldAssociation::Vertex, "continuous-lagrange-p1")
             }
-            crate::CommonSpatialPolicy::CellCenteredTpfa => {
+            crate::CommonSpatialPolicy::CellCenteredTpfa
+            | crate::CommonSpatialPolicy::CellCentered => {
                 (CommonFieldAssociation::Cell, "cell-constant")
             }
             _ => {

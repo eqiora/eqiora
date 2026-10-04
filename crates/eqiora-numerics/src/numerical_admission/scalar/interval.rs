@@ -57,7 +57,7 @@ pub(super) fn admit(
         .model()
         .to_transaction()
         .map_err(|errors| invalid(format!("interval Model snapshot rejected: {errors:?}")))?;
-    let geometry = admission.resources().geometry();
+    let geometry = admission.resources().geometry()?;
     if let Some(authored) = authored {
         if admit_gauge(program, lowered, authored)? != admission.spatial.scalar_constraint() {
             return Err(invalid(

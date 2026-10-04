@@ -19,12 +19,12 @@ impl PyMesh {
     }
 
     pub(crate) fn viewer_selection_names(&self) -> impl Iterator<Item = (&str, usize)> {
-        let geometry = match &self.source {
+        let selections = match &self.source {
+            AcceptedMeshSource::CoordinateFactors { .. } => &[][..],
             AcceptedMeshSource::SourceOwned { geometry, .. }
-            | AcceptedMeshSource::SourceOwnedCartesian { geometry, .. } => geometry,
+            | AcceptedMeshSource::SourceOwnedCartesian { geometry, .. } => geometry.entity_sets(),
         };
-        geometry
-            .entity_sets()
+        selections
             .iter()
             .map(|selection| (selection.name(), selection.dimension()))
     }
@@ -34,6 +34,10 @@ impl PyMesh {
         name: &str,
     ) -> Result<Vec<MeshEntity>, Diagnostic> {
         match &self.source {
+            AcceptedMeshSource::CoordinateFactors { .. } => Err(Diagnostic::error(
+                codes::NOT_IMPLEMENTED,
+                "coordinate-factor grids have no Geometry selections",
+            )),
             AcceptedMeshSource::SourceOwned {
                 geometry,
                 correspondence,
@@ -64,6 +68,9 @@ impl PyMesh {
         entity: MeshEntity,
     ) -> Result<Vec<usize>, Diagnostic> {
         let vertices = match &self.source {
+            AcceptedMeshSource::CoordinateFactors { owner } => owner
+                .cartesian_mesh()
+                .and_then(|mesh| mesh.mesh().entity_vertices(entity)),
             AcceptedMeshSource::SourceOwned { mesh, .. } => mesh.mesh().entity_vertices(entity),
             AcceptedMeshSource::SourceOwnedCartesian { mesh, .. } => {
                 mesh.mesh().entity_vertices(entity)

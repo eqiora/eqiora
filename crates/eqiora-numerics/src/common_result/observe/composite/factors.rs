@@ -127,17 +127,27 @@ impl Context<'_> {
                 self.used_rules.insert(domain);
                 let mut sum = 0.0;
                 let mut correction = 0.0;
-                for sample in rule.points() {
-                    let mut local = point.clone();
-                    let (coordinates, weight) = mapped_sample(&selected, sample, measure)?;
-                    for ((axis, _), coordinate) in selected.iter().zip(coordinates) {
-                        local.insert(*axis, coordinate.value());
+                let cells = match self.result.plan().as_scalar() {
+                    Some(plan) => plan.factor_quadrature_cells(&selected, self.remaining)?,
+                    None => vec![selected.clone()],
+                };
+                self.remaining = self
+                    .remaining
+                    .checked_sub(cells.len())
+                    .ok_or_else(|| invalid("factor quadrature exceeds its cell work bound"))?;
+                for cell in cells {
+                    for sample in rule.points() {
+                        let mut local = point.clone();
+                        let (coordinates, weight) = mapped_sample(&cell, sample, measure)?;
+                        for ((axis, _), coordinate) in selected.iter().zip(coordinates) {
+                            local.insert(*axis, coordinate.value());
+                        }
+                        let term = weight.value() * self.factor_point(&operator, &local, depth)?;
+                        let corrected = term - correction;
+                        let next = sum + corrected;
+                        correction = (next - sum) - corrected;
+                        sum = next;
                     }
-                    let term = weight.value() * self.factor_point(&operator, &local, depth)?;
-                    let corrected = term - correction;
-                    let next = sum + corrected;
-                    correction = (next - sum) - corrected;
-                    sum = next;
                 }
                 sum
             }
@@ -213,6 +223,21 @@ impl Context<'_> {
                     .ok_or_else(|| {
                         invalid("factor density requires real scalar Observable inputs")
                     }),
+                SymbolRef::Field(id) if self.result.plan().as_scalar().is_some() => {
+                    let plan = self.result.plan().as_scalar().expect("matched scalar Plan");
+                    let index = plan
+                        .fields()
+                        .position(|(candidate, _)| candidate == *id)
+                        .ok_or_else(|| invalid("factor Field is outside the Result Plan"))?;
+                    let (association, values, _) = self
+                        .result
+                        .field_block(index, 0)
+                        .ok_or_else(|| invalid("factor Field has no retained coefficient block"))?;
+                    if association != "cell" {
+                        return Err(invalid("factor Field requires cell-constant coefficients"));
+                    }
+                    plan.factor_field_value(*id, values, point)
+                }
                 _ => self
                     .resolve(*symbol)
                     .and_then(|value| value.real_scalar_value())

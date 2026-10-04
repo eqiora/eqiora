@@ -21,7 +21,8 @@ pub(super) fn validate_fields(
                 crate::CommonSpatialPolicy::Q1 => {
                     ("continuous-lagrange-p1", CommonFieldAssociation::Vertex)
                 }
-                crate::CommonSpatialPolicy::CellCenteredTpfa => {
+                crate::CommonSpatialPolicy::CellCenteredTpfa
+                | crate::CommonSpatialPolicy::CellCentered => {
                     ("cell-constant", CommonFieldAssociation::Cell)
                 }
                 _ => {

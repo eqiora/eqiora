@@ -36,6 +36,9 @@ pub(crate) fn policy_identity(
 ) -> String {
     let mut bytes = Vec::new();
     match spatial {
+        NativeSpatialPolicy::CoordinateCellConstant => {
+            bytes.extend_from_slice(b"coordinate-cell-average-gauss2")
+        }
         NativeSpatialPolicy::ScalarQ1 => bytes.extend_from_slice(b"scalar-q1"),
         NativeSpatialPolicy::ScalarTpfa(constraint) => {
             bytes.extend_from_slice(b"scalar-tpfa");
@@ -165,15 +168,9 @@ pub(crate) fn static_plan_identity_lineage(
 ) -> Result<(ResourceDigests, Vec<u8>), Diagnostic> {
     let digests = resource_digests(admission.resources())?;
     let mut bytes = Vec::new();
-    for value in [
-        admission.model_digest(),
-        digests.geometry.as_str(),
-        digests.mesh.as_str(),
-        digests.correspondence.as_str(),
-        digests.production.as_str(),
-        realization_digest,
-        admission.policy_identity(),
-    ] {
+    push_framed(&mut bytes, admission.model_digest().as_bytes());
+    digests.bind(&mut bytes);
+    for value in [realization_digest, admission.policy_identity()] {
         push_framed(&mut bytes, value.as_bytes());
     }
     Ok((digests, bytes))

@@ -1662,8 +1662,42 @@ model = eqiora.compile(
 
 The measure is `m * (m/s)`, so integrating a density in `s/m^2` is dimensionless.
 Model replay retains exact factor order and units. Bounds are finite and strictly increasing;
-substituting position bounds for velocity bounds rejects. This path provides mathematical
-Model typing and replay; product-domain numerical solves remain unsupported.
+substituting position bounds for velocity bounds rejects. To realize one prescribed polynomial
+scalar Field, use the same exact Domain to construct a coordinate grid:
+
+```python
+mesh = eqiora.meshing.Mesh.coordinate_factors(model, model.domain("phase"), [2, 4])
+plan = eqiora.resolve(
+    model,
+    mesh=mesh,
+    spatial=eqiora.fvm.CellCentered(),
+    solve=eqiora.solve.Linear(
+        relative_tolerance=1e-12,
+        absolute_tolerance=1e-12,
+        maximum_iterations=20,
+        algorithm=eqiora.solve.LinearSolver.SparseLu,
+        preconditioner=eqiora.solve.Preconditioner.Identity,
+        reduction=eqiora.solve.Reduction.Fast,
+        provider=eqiora.solve.SolverProvider.faer(),
+    ),
+)
+result = eqiora.run(plan)
+count = result.observe(model.observable("count"), quadrature_points=2)
+assert abs(count.value) < 1e-12
+```
+
+The static profile admits one equality `f = prescribed_polynomial`, with degree at most
+three per exact factor and one to three bounded interval factors. It solves cell-integrated
+equalities using a constant Field basis and two-point tensor Gauss quadrature. Field values
+are cell averages, not point samples. Partial Result integrals split at grid faces; an
+interior face belongs to the upper cell and the last endpoint belongs to the final cell.
+`Mesh`, `Plan` and `Result` each support their ordinary byte replay. This Mesh has no physical
+Geometry or Geometry correspondence; the corresponding digest properties are `None`.
+The generic `CellCentered` request exposes its cell-constant `space`; Field roles and
+numerical integration follow the resolved Plan. Physical Mesh viewing, general product
+PDEs, nonpolynomial Field projection, radial diffusion and Field derivatives remain outside
+this profile. The [registered derivation](../../verify/language/factor-integrals/README.md)
+separates moment projection error from quadrature error.
 
 A Model or Component can name physical coordinates for `q.partial`:
 

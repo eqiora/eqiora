@@ -1,0 +1,16 @@
+model Distribution(support position:interval(m), support velocity:interval(m/s)) {
+  support phase:product(position,velocity);
+  coordinate x:m on phase from position;
+  coordinate v:m/s on phase from velocity;
+  variable f:s/m^2 on phase;
+  relation prescribed_density on phase {
+    f=3[s/m^2]*(1+x/2[m])*(1+v*v/16[m^2/s^2]);
+  }
+  observable density:1/m on position=integral(f,measure(velocity));
+  observable current:1/s on position=integral(v*f,measure(velocity));
+  observable second:m/s^2 on position=integral(v*v*f,measure(velocity));
+  observable mean:m/s on position=current/density;
+  observable mass:1=integral(f,measure(phase));
+  observable nested:1=integral(density,measure(position));
+  observable radial:s*m on velocity=integral(f,spherical_measure(position));
+}
