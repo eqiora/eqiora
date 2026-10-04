@@ -579,7 +579,7 @@ single current Model contract and accept no artifact-generation selector.
 Source-text callers use `compile`, client-neutral `Module` callers use `compile_module`,
 and persisted current bytes use `replay`; all three converge before artifact
 acceptance.
-Canonical bytes expose the persisted `eqiora.model-envelope/v33` schema as an
+Canonical bytes expose the persisted `eqiora.model-envelope/v34` schema as an
 output fact; the suffix is not a selectable authoring profile. Historical
 Model bytes reject, and replay never sniffs, retries, or migrates them.
 The bounded value-edit and scalar-elliptic application workflows retain exact
@@ -1557,7 +1557,7 @@ and protocol versions independently govern persisted bytes and external
 exchange.
 
 The unversioned public `ModelEnvelope` and `ModelTransactionEnvelope` own the
-single current runtime contract while retaining the persisted v8 schema
+single current runtime contract while retaining the persisted v9 schema
 identifiers and digest domains. They serialize the current Semantic Model
 through wire DTOs, then reconstruct through typed constructors, one graph
 transaction, and `KernelProgram` validation. Canonical JSON order and

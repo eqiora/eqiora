@@ -767,7 +767,7 @@ fn exact_load_parameter(
     if load.erase() != model.load_potential()
         || !matches!(
             expression.node(*coordinate),
-            Some(ExprNode::SpatialCoordinate(0))
+            Some(ExprNode::Symbol(SymbolRef::Coordinate { axis: 0, .. }))
         )
         || model.load_potential_expression().parameter_fields() != [*parameter]
     {

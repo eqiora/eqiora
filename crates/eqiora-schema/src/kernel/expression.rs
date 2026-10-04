@@ -54,6 +54,15 @@ pub enum SymbolRef {
     PortTrace(Id<kinds::Port>),
     /// Outward flux quantity of a field-valued boundary physical Port.
     PortFlux(Id<kinds::Port>),
+    /// One exact coordinate projection, independent of temporal activation.
+    Coordinate {
+        /// Domain on which this projection is defined.
+        support: Id<kinds::Domain>,
+        /// Exact factor Domain, or the physical parent for a boundary projection.
+        factor: Id<kinds::Domain>,
+        /// Axis within that factor, never a flattened ambient product axis.
+        axis: usize,
+    },
     /// Model time in seconds.
     Time,
 }
@@ -193,9 +202,6 @@ pub enum ExprNode {
     ToInteger(ExprId),
     /// Integer power.
     PowI(ExprId, i32),
-    /// One physical Cartesian coordinate selected by zero-based axis. The
-    /// owning Relation's Domain supplies support and validates the axis.
-    SpatialCoordinate(usize),
     /// Apply one dimension-aware unary mathematical function.
     UnaryMath(UnaryMathFunction, ExprId),
     /// Coordinate dualization or orthonormal adjoint, preserving exact finite bases.
@@ -205,6 +211,9 @@ pub enum ExprNode {
     /// Physical-space gradient. The operand's continuous Domain determines
     /// the appended spatial axis.
     Gradient(ExprId),
+    /// Coordinate partial retained until a numerical representation supplies it.
+    /// `wrt` must name an exact Coordinate symbol; no mesh or step is implied.
+    CoordinatePartial { value: ExprId, wrt: ExprId },
     /// Physical-space divergence, contracting the final spatial axis.
     Divergence(ExprId),
     /// Symmetric part of a square Cartesian rank-two tensor.
@@ -258,7 +267,11 @@ impl ExprNode {
             | Self::IsotropicLift(value)
             | Self::Trace(value)
             | Self::NormalComponent(value) => visit(*value),
-            Self::Complex {
+            Self::CoordinatePartial {
+                value: left,
+                wrt: right,
+            }
+            | Self::Complex {
                 real: left,
                 imag: right,
             }
@@ -278,7 +291,7 @@ impl ExprNode {
             Self::PureOperatorApplication(application) => {
                 application.arguments.iter().copied().try_for_each(visit)
             }
-            Self::Constant(_) | Self::Symbol(_) | Self::SpatialCoordinate(_) => Ok(()),
+            Self::Constant(_) | Self::Symbol(_) => Ok(()),
         }
     }
 }
@@ -566,10 +579,19 @@ impl ExprDagBuilder {
         self.push(ExprNode::PowI(base, exponent))
     }
 
-    /// Read one physical Cartesian coordinate from the owning Relation's
-    /// Domain.
-    pub fn spatial_coordinate(&mut self, axis: usize) -> Result<ExprId, Diagnostic> {
-        self.push(ExprNode::SpatialCoordinate(axis))
+    /// Read one exact coordinate factor axis on a declared support.
+    /// Whole-Model admission checks factor membership, axis bounds and units.
+    pub fn coordinate(
+        &mut self,
+        support: Id<kinds::Domain>,
+        factor: Id<kinds::Domain>,
+        axis: usize,
+    ) -> Result<ExprId, Diagnostic> {
+        self.symbol(SymbolRef::Coordinate {
+            support,
+            factor,
+            axis,
+        })
     }
 
     /// Apply a dimension-aware unary mathematical function.
@@ -584,6 +606,13 @@ impl ExprDagBuilder {
     /// Take the physical-space gradient.
     pub fn gradient(&mut self, value: ExprId) -> Result<ExprId, Diagnostic> {
         self.push(ExprNode::Gradient(value))
+    }
+
+    /// Retain an exact coordinate derivative for representation-specific admission.
+    /// # Errors
+    /// Rejects operands outside this builder or expression arena limits.
+    pub fn coordinate_partial(&mut self, value: ExprId, wrt: ExprId) -> Result<ExprId, Diagnostic> {
+        self.push(ExprNode::CoordinatePartial { value, wrt })
     }
 
     /// Take the physical-space divergence.

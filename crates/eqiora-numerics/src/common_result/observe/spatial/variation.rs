@@ -143,13 +143,33 @@ impl Projection<'_> {
                     .0;
                 DynQuantity::new(sample, value.value_type().dimension())
             }
-            E::Coordinate { axis } if scalar => DynQuantity::new(
-                *self
-                    .coordinates
-                    .get(*axis)
-                    .ok_or_else(|| invalid("variation coordinate is unavailable"))?,
-                length,
-            ),
+            E::Coordinate {
+                support_ulid,
+                factor_ulid,
+                axis,
+            } if scalar => {
+                let support =
+                    Id::<kinds::Domain>::from_ulid(support_ulid.parse().map_err(|_| {
+                        invalid("variation coordinate support identity is invalid")
+                    })?);
+                let factor = Id::<kinds::Domain>::from_ulid(
+                    factor_ulid
+                        .parse()
+                        .map_err(|_| invalid("variation coordinate factor identity is invalid"))?,
+                );
+                if !crate::spatial_expression::physical_coordinate(self.program, support, factor) {
+                    return Err(invalid(
+                        "variation coordinate is not an ambient physical coordinate",
+                    ));
+                }
+                DynQuantity::new(
+                    *self
+                        .coordinates
+                        .get(*axis)
+                        .ok_or_else(|| invalid("variation coordinate is unavailable"))?,
+                    length,
+                )
+            }
             E::Number { value } if scalar => DynQuantity::new(*value, DimExponents::DIMENSIONLESS),
             E::Rational {
                 numerator,

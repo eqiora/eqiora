@@ -27,6 +27,7 @@ pub(crate) use body_check::CompletionIndex;
 mod check;
 mod clocks;
 mod complete_exterior;
+mod coordinates;
 mod definition_graph;
 mod expand;
 mod exposure_cuts;

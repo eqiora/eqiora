@@ -109,6 +109,13 @@ impl Context<'_> {
         let next = depth + 1;
         let call = |name: &str, args| Math::Function(name.to_owned(), args);
         Ok(match node {
+            ExprNode::Symbol(SymbolRef::Coordinate { factor, axis, .. }) => call(
+                "coordinate",
+                vec![
+                    self.quantity(factor.erase(), QuantityRole::Value)?,
+                    Math::Number(axis.to_string()),
+                ],
+            ),
             ExprNode::Symbol(symbol) => match symbol {
                 SymbolRef::Field(id) => self.quantity((*id).into(), QuantityRole::Value)?,
                 SymbolRef::Parameter(id) => self.quantity((*id).into(), QuantityRole::Value)?,
@@ -180,6 +187,10 @@ impl Context<'_> {
                     .collect::<Result<_, _>>()?,
             ),
             ExprNode::Neg(value) => Math::Negative(Box::new(self.lower(dag, *value, next)?)),
+            ExprNode::CoordinatePartial { value, wrt } => call(
+                "partial",
+                vec![self.lower(dag, *value, next)?, self.lower(dag, *wrt, next)?],
+            ),
             ExprNode::Gradient(value) => Math::Gradient(Box::new(self.lower(dag, *value, next)?)),
             ExprNode::Not(value)
             | ExprNode::Hold(value)
@@ -255,9 +266,6 @@ impl Context<'_> {
                 },
                 vec![self.lower(dag, *a, next)?, self.lower(dag, *b, next)?],
             ),
-            ExprNode::SpatialCoordinate(axis) => {
-                call("coordinate", vec![Math::Number(axis.to_string())])
-            }
             ExprNode::Sample { value, clock } => {
                 self.reference(MathReference {
                     graph_id: Some((*clock).into()),

@@ -532,8 +532,36 @@ impl ExpressionContext<'_> {
                     "coordinate axis must be a nonnegative literal below the Geometry ambient dimension",
                 )
             })?;
+        let support = self
+            .integration_domain
+            .or(self.relation_domain)
+            .ok_or_else(|| {
+                error(
+                    self.file,
+                    expression.range(),
+                    "coordinate requires an exact support",
+                )
+            })?;
+        let factor = self
+            .index
+            .boundary_of
+            .get(&support.erase())
+            .copied()
+            .unwrap_or(support.erase())
+            .downcast::<kinds::Domain>()
+            .ok_or_else(|| {
+                error(
+                    self.file,
+                    expression.range(),
+                    "coordinate factor is not a Domain",
+                )
+            })?;
         Ok(typed(
-            AuthoredFormExpressionKind::Coordinate(axis),
+            AuthoredFormExpressionKind::Coordinate {
+                support,
+                factor,
+                axis,
+            },
             length_dimension(),
             ValueShape::scalar(),
             self.integration_domain.or(self.relation_domain),

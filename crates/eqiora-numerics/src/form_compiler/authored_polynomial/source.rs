@@ -73,7 +73,15 @@ impl Context<'_> {
                 }
                 sum
             }
-            ExprNode::SpatialCoordinate(axis) => Polynomial::atom(Atom::Coordinate(*axis)),
+            ExprNode::Symbol(SymbolRef::Coordinate {
+                support,
+                factor,
+                axis,
+            }) => Polynomial::atom(Atom::Coordinate(
+                support.ulid().to_string(),
+                factor.ulid().to_string(),
+                *axis,
+            )),
             ExprNode::Neg(value) => self
                 .source(typed, *value, coordinate, depth + 1)?
                 .checked_neg()

@@ -163,7 +163,18 @@ pub(crate) fn equivalent(
         }
         (Expression::Field { ulid: a }, Expression::Field { ulid: b })
         | (Expression::Parameter { ulid: a }, Expression::Parameter { ulid: b }) => a == b,
-        (Expression::Coordinate { axis: a }, Expression::Coordinate { axis: b }) => a == b,
+        (
+            Expression::Coordinate {
+                support_ulid: a_support,
+                factor_ulid: a_factor,
+                axis: a,
+            },
+            Expression::Coordinate {
+                support_ulid: b_support,
+                factor_ulid: b_factor,
+                axis: b,
+            },
+        ) => a == b && a_support == b_support && a_factor == b_factor,
         (Expression::Test { field_ulid: a }, Expression::Test { field_ulid: b }) => a == b,
         (Expression::Neg { value: a }, Expression::Neg { value: b })
         | (Expression::Trace { value: a }, Expression::Trace { value: b })

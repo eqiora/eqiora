@@ -81,14 +81,20 @@ pub(in crate::hierarchy) fn rewrite_expression_with_boundary_member(
             wrt,
             holding,
         } => {
-            let independent = |binding: &NamePath| -> Result<String, Diagnostic> {
+            let independent = |binding: &NamePath| -> Result<LoweringExpression, Diagnostic> {
+                if let Some(coordinate) = scope.coordinate(binding.as_str()) {
+                    return Ok(coordinate.clone());
+                }
                 // The definition checker already excludes let aliases. Component
                 // Parameter slots are terms, and a direct binding preserves the
                 // exact parent Parameter rather than allocating another entity.
                 if let Some(parameter) = scope.parameter(binding.as_str()) {
                     return match parameter.lineage {
                         super::super::parameters::ParameterLineage::Parameter(identity) => {
-                            Ok(super::super::expand::names::internal_name(identity))
+                            Ok(LoweringExpression::name(
+                                super::super::expand::names::internal_name(identity),
+                                binding.range(),
+                            ))
                         }
                         _ => Err(source_error(
                             codes::LANGUAGE_TYPE_ERROR,
@@ -104,15 +110,19 @@ pub(in crate::hierarchy) fn rewrite_expression_with_boundary_member(
                         codes::LANGUAGE_TYPE_ERROR,
                         file,
                         binding.range(),
-                        "partial binding must name a declared independent Parameter or continuous state Field",
+                        "partial binding must name a declared coordinate, independent Parameter or continuous state Field",
                     ));
                 }
-                Ok(symbol.internal_name.clone())
+                Ok(LoweringExpression::name(
+                    symbol.internal_name.clone(),
+                    binding.range(),
+                ))
             };
             let selected = independent(wrt)?;
-            let mut seen = std::collections::BTreeSet::from([selected.clone()]);
+            let mut seen = vec![selected.clone()];
             for binding in holding {
-                if !seen.insert(independent(binding)?) {
+                let value = independent(binding)?;
+                if seen.contains(&value) {
                     return Err(source_error(
                         codes::LANGUAGE_TYPE_ERROR,
                         file,
@@ -120,6 +130,7 @@ pub(in crate::hierarchy) fn rewrite_expression_with_boundary_member(
                         "partial holding requires distinct other independent bindings",
                     ));
                 }
+                seen.push(value);
             }
             LoweringExpression::partial(
                 rewrite_expression_with_boundary_member(file, value, scope, active)?,

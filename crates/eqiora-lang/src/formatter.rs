@@ -239,6 +239,9 @@ fn format_component_item(
     match item {
         ComponentItem::Domain(declaration) => format_domain(declaration, indent, output),
         ComponentItem::Let(declaration) => format_let(declaration, indent, output),
+        ComponentItem::Coordinate(declaration) => {
+            compile_time::format_coordinate(declaration, indent, output)
+        }
         ComponentItem::Parameter(declaration) => {
             write_indent(output, indent);
             if declaration.visibility == VisibilitySyntax::Public {
@@ -357,6 +360,9 @@ fn format_item(item: &Item, indent: usize, output: &mut crate::formatter::commen
         }
         Item::Parameter(declaration) => format_parameter(declaration, indent, output),
         Item::Let(declaration) => format_let(declaration, indent, output),
+        Item::Coordinate(declaration) => {
+            compile_time::format_coordinate(declaration, indent, output)
+        }
         Item::Port(declaration) => {
             write_indent(output, indent);
             write!(

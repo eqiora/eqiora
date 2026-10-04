@@ -198,6 +198,10 @@ fn validate_component_item(item: &ComponentItem) -> Result<(), AstConstructionEr
             declaration.range()
         }
         ComponentItem::Let(declaration) => declaration.range(),
+        ComponentItem::Coordinate(declaration) => {
+            super::compile_time::validate_coordinate(declaration)?;
+            declaration.range()
+        }
         ComponentItem::Parameter(declaration) => {
             if declaration.visibility() == VisibilitySyntax::Public {
                 return Err(AstConstructionError::new(

@@ -27,9 +27,10 @@ pub(super) fn at_name(snapshot: &EditorSnapshot, symbol: &EditorSymbol, offset: 
     // Undecorated typed declarations end their name with the first type colon
     // (or the first equals for a Clock). Later initializer tokens cannot match.
     let delimiter = match symbol.kind() {
-        EditorSymbolKind::Field | EditorSymbolKind::Parameter | EditorSymbolKind::Port => {
-            eqiora_lang::TokenKind::Colon
-        }
+        EditorSymbolKind::Field
+        | EditorSymbolKind::Parameter
+        | EditorSymbolKind::Port
+        | EditorSymbolKind::Coordinate => eqiora_lang::TokenKind::Colon,
         EditorSymbolKind::Clock | EditorSymbolKind::Event => eqiora_lang::TokenKind::Equal,
         _ => return false,
     };

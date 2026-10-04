@@ -122,6 +122,14 @@ pub(super) fn check(
         Some(support.clone()),
         RootContract::EquationSides,
         |symbol| match symbol {
+            SymbolRef::Coordinate {
+                support: declared,
+                factor,
+                axis,
+            } if declared.erase() == *domain => {
+                eqiora_schema::kernel::typing::coordinate(&factor.erase(), axis, Some(&support))
+                    .map_err(|_| ())
+            }
             SymbolRef::Field(id) if id.erase() == trial.0 => Ok(ExpressionType::new(
                 field.value_type().clone(),
                 Some(support.clone()),
@@ -199,7 +207,22 @@ fn matches_source(
         (F::Parameter { ulid }, Some(ExprNode::Symbol(SymbolRef::Parameter(id)))) => {
             *ulid == id.ulid().to_string()
         }
-        (F::Coordinate { axis }, Some(ExprNode::SpatialCoordinate(source))) => axis == source,
+        (
+            F::Coordinate {
+                support_ulid,
+                factor_ulid,
+                axis,
+            },
+            Some(ExprNode::Symbol(SymbolRef::Coordinate {
+                support,
+                factor,
+                axis: source,
+            })),
+        ) => {
+            axis == source
+                && *support_ulid == support.ulid().to_string()
+                && *factor_ulid == factor.ulid().to_string()
+        }
         (F::Neg { value }, Some(ExprNode::Neg(source)))
         | (F::Gradient { value }, Some(ExprNode::Gradient(source))) => recurse(value, *source),
         (F::Add { left, right }, Some(ExprNode::Add(a, b)))

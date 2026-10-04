@@ -295,14 +295,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
 
         self.expand_model_children(&model, &mut root_scope)?;
 
-        self.allocate_runtime_lets(
-            &mut root_scope,
-            self.model.file,
-            model.owned_items().filter_map(|item| match item {
-                Item::Let(d) => Some(d),
-                _ => None,
-            }),
-        )?;
+        self.allocate_model_expression_bindings(&mut root_scope, &model)?;
 
         if let Err(error) = self.materialize_model_items(&root_scope, &identities) {
             return Err(vec![error]);
@@ -1028,6 +1021,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     }
                 }
                 ComponentItem::Domain(_)
+                | ComponentItem::Coordinate(_)
                 | ComponentItem::Let(_)
                 | ComponentItem::Initial(_)
                 | ComponentItem::Connection(_)
@@ -1169,15 +1163,8 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             &mut scope,
         )?;
 
-        self.allocate_runtime_lets(
-            &mut scope,
-            component.file,
-            component.owned_items().filter_map(|item| match item {
-                ComponentItem::Let(d) => Some(d),
-                _ => None,
-            }),
-        )
-        .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
+        self.allocate_component_expression_bindings(&mut scope, &component)
+            .map_err(|errors| contextualize_diagnostics(errors, &instance_path))?;
 
         self.materialize_component_items(
             ComponentOccurrence {

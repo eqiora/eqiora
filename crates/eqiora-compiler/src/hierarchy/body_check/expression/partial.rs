@@ -69,7 +69,21 @@ impl ExpressionChecker<'_, '_, '_> {
         binding: &eqiora_lang::NamePath,
     ) -> Result<ExpressionType<String>, Diagnostic> {
         match self.scope.resolve_symbol(binding)? {
-            SymbolContract::Parameter(ty)
+            SymbolContract::Coordinate(ty)
+                if matches!(
+                    ty.support,
+                    Some(eqiora_schema::kernel::typing::SpatialSupport::Boundary { .. })
+                ) =>
+            {
+                Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.scope.file,
+                    binding.range(),
+                    "coordinate partials on boundaries require an admitted intrinsic chart",
+                ))
+            }
+            SymbolContract::Coordinate(ty)
+            | SymbolContract::Parameter(ty)
             | SymbolContract::Field(
                 ty,
                 eqiora_lang::FieldRoleSyntax::State,
@@ -79,7 +93,7 @@ impl ExpressionChecker<'_, '_, '_> {
                 codes::LANGUAGE_TYPE_ERROR,
                 self.scope.file,
                 binding.range(),
-                "partial binding must name a declared independent Parameter or continuous state Field; aliases and algebraic solutions are not independent",
+                "partial binding must name a declared coordinate, independent Parameter or continuous state Field; aliases and algebraic solutions are not independent",
             )),
         }
     }

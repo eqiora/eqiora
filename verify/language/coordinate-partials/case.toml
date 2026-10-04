@@ -1,0 +1,22 @@
+id = "language.coordinate-partials"
+status = "implemented"
+scope = "exact-coordinate-scalar-polynomial-and-cartesian-q1-first-field-partials"
+reference_kind = "independent-polynomial-derivatives-units-and-bilinear-q1-integrals"
+capabilities = ["exact-factor-axis-selectors", "position-velocity-quotient-units", "analytic-polynomial-partials", "retained-q1-field-partials", "field-polynomial-chain-rule", "cartesian-grad-order", "representation-and-foreign-support-falsifiers", "model-replay"]
+
+[claim_boundary]
+real_scalar_polynomial_arithmetic = true
+exact_support_factor_axis_identity = true
+independently_dimensioned_factors = true
+q1_field_first_derivative = true
+q1_classical_cell_interiors_and_weak_almost_everywhere = true
+model_and_form_expression_retention = true
+arbitrary_authored_weak_forms = false
+higher_unknown_field_derivatives = false
+intrinsic_boundary_charts = false
+piecewise_constant_classical_derivative = false
+product_domain_pde = false
+
+[evidence]
+package = "eqiora"
+test = "coordinate_partials"

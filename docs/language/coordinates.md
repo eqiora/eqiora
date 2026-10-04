@@ -8,10 +8,16 @@ The current implementation admits abstract dimensioned interval slots and owned 
 Model and Component source, including nested products, physical Cartesian region factors, and
 whole-product Observable measures.
 The source support owns factor identity; native `StaticBindingValue::CoordinateInterval` and
-Python `CoordinateInterval` supply checked finite bounds. Model/Transaction v33 and structural
-fingerprint v28 retain these factors. No ambient physical frame or numerical realization is
-inferred. Coordinate binders/partials, factor-wise integration, non-Cartesian product factors,
-and curved embedded-field extensions remain separate work.
+Python `CoordinateInterval` supply checked finite bounds. Model/Transaction v34 and structural
+fingerprint v29 retain these factors. No ambient physical frame or numerical realization is
+inferred. Exact coordinate binders and real scalar polynomial partials execute through the
+shared calculus evaluator, including independently dimensioned position and velocity factors.
+First coordinate derivatives of continuous scalar Fields remain explicit Model nodes; the
+Cartesian Q1 observation path evaluates their basis derivatives and polynomial chain rules.
+Focused tests cover a two-dimensional Q1 bilinear field, exact analytic values, factor/axis/unit
+rejection, and replay. Factor-wise integration, non-Cartesian product factors, product-domain PDE
+realizations, higher unknown-Field partials, and curved embedded-field extensions remain separate
+work. The complete examples below include target operations beyond this bounded implementation.
 
 ## Exact factors and coordinate bindings
 
@@ -31,7 +37,10 @@ on the product. It introduces no unknown or equation. The dimension must match t
 factor, which must occur uniquely in the declared support. A repeated factor requires an
 explicit factor-occurrence selector before this projection can be admitted; matching by name
 or unit is not a fallback. `coordinate` permits notation after the name, requires `on` and
-`from`, and does not accept `at` or an initializer.
+`from`, and does not accept `at` or an initializer. For a multi-axis physical factor, select an
+axis explicitly: `coordinate y: m on phase from position[1];`. Axes are zero-based within that
+factor and follow its declared Cartesian/Geometry order. Omitting the axis is admitted only for
+a scalar factor; it never flattens a product into an ambient coordinate frame.
 
 ## Products containing physical position
 
@@ -58,7 +67,8 @@ Model replay retains factor identity/order and requires the exact Geometry artif
 admission of Geometry factors. No mesh or numerical quadrature is manufactured.
 
 Boundary, curved, nonrectangular, and grouped Geometry factors remain unsupported. This path
-establishes typing and measure semantics, not coordinate partials or a product-space solver.
+establishes typing, measure semantics and analytic coordinate partials; a product-space solver
+remains separate work.
 
 ## Complete analytic derivative specimen
 
@@ -109,6 +119,13 @@ a field representation during execution. The compiler must not substitute the an
 above for an unknown distribution or claim a classical derivative from a piecewise-constant
 reconstruction. Cartesian `grad` uses the declared spatial coordinate/frame order; position
 and velocity partials cannot be assembled into one homogeneous spatial gradient vector.
+
+The current Q1 path supplies classical derivatives in cell interiors and the corresponding weak
+first derivative almost everywhere. It does not promise a continuous gradient across cells.
+Observation admission rejects a piecewise-constant/TPFA Result instead of treating its Field as
+coordinate-independent. Boundary embedding coordinates remain readable, but boundary partials
+require an intrinsic chart and are rejected. A physical scalar Field uses the same axis order for
+`grad` components and coordinate partials.
 
 ## Integral scope and output support
 

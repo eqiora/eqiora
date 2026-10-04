@@ -764,7 +764,9 @@ impl<'a> Elaborator<'a> {
             }
             for item in component.items() {
                 let named = match item {
-                    ComponentItem::Let(value) => Some((value.name(), value.range())),
+                    ComponentItem::Coordinate(value) | ComponentItem::Let(value) => {
+                        Some((value.name(), value.range()))
+                    }
                     ComponentItem::Parameter(value) => Some((value.name(), value.range())),
                     ComponentItem::Port(value) => Some((value.name(), value.range())),
                     ComponentItem::PortFamily(value) => Some((value.port().name(), value.range())),
@@ -861,7 +863,9 @@ impl<'a> Elaborator<'a> {
                     Item::Field(value) => Some((value.name(), value.range())),
                     Item::Observable(value) => Some((value.name(), value.range())),
                     Item::Parameter(value) => Some((value.name(), value.range())),
-                    Item::Let(value) => Some((value.name(), value.range())),
+                    Item::Coordinate(value) | Item::Let(value) => {
+                        Some((value.name(), value.range()))
+                    }
                     Item::Port(value) => Some((value.name(), value.range())),
                     Item::Clock(value) => Some((value.name(), value.range())),
                     Item::Event(value) => Some((value.name(), value.range())),

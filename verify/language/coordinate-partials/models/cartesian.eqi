@@ -1,0 +1,10 @@
+model Polynomial() {
+        domain body=box(0,8,0,8);
+        coordinate x:m on body from body[0];
+        coordinate y:m on body from body[1];
+        let u=8 [kg]*((x*0.5 [1/m])^2+3*(x*0.5 [1/m])*(y*0.5 [1/m]));
+        relation derivatives on body {
+            partial(u,wrt=x)=0 [kg/m];
+            partial(u,wrt=y)=0 [kg/m];
+        }
+    }

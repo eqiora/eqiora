@@ -122,6 +122,7 @@ impl PyAstDefinition {
 
 fn model_item(item: ComponentItem) -> PyResult<Item> {
     Ok(match item {
+        ComponentItem::Coordinate(value) => Item::Coordinate(value),
         ComponentItem::Let(value) => Item::Let(value),
         ComponentItem::Field(value) => Item::Field(value),
         ComponentItem::Initial(value) => Item::Initial(value),

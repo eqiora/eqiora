@@ -53,6 +53,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
 
                 ComponentItem::Parameter(_)
                 | ComponentItem::IndexSet(_)
+                | ComponentItem::Coordinate(_)
                 | ComponentItem::Let(_) => {}
                 ComponentItem::Port(declaration) => {
                     let identity = identities.entities[declaration.name()].clone();

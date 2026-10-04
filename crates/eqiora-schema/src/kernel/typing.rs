@@ -162,6 +162,10 @@ pub enum TypeViolation<I> {
     MathRequiresDimensionlessScalar,
     /// A coordinate was used without a spatial Relation scope.
     CoordinateRequiresSpatialScope,
+    /// The selected factor is not an exact coordinate of this support.
+    CoordinateFactorMismatch,
+    /// A partial selector is not an independent admitted coordinate.
+    CoordinatePartialRequiresCoordinate,
     /// A coordinate axis is outside the ambient dimension.
     CoordinateAxisOutOfRange {
         /// Requested zero-based axis.
@@ -288,6 +292,10 @@ impl<I: fmt::Debug> fmt::Display for TypeViolation<I> {
             }
             Self::MathRequiresDimensionlessScalar => {
                 formatter.write_str("mathematical function requires a dimensionless scalar operand")
+            }
+            Self::CoordinatePartialRequiresCoordinate => formatter.write_str("coordinate partial requires an exact independent coordinate on a volume or coordinate support"),
+            Self::CoordinateFactorMismatch => {
+                formatter.write_str("coordinate factor is outside its exact declared support")
             }
             Self::CoordinateRequiresSpatialScope => {
                 formatter.write_str("coordinate operator requires a Cartesian Relation scope")
@@ -708,22 +716,30 @@ pub fn power<I: Clone>(
     )
 }
 
-/// Type one Cartesian coordinate in the Relation scope.
-pub fn coordinate<I: Clone>(
+/// Type one exact factor axis, retaining the projection's declared support.
+pub fn coordinate<I: Clone + PartialEq>(
+    factor: &I,
     axis: usize,
     relation: Option<&SpatialSupport<I>>,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
     let support = relation.ok_or(TypeViolation::CoordinateRequiresSpatialScope)?;
-    let dimensions = support
-        .ambient_dimensions()
-        .ok_or(TypeViolation::CoordinateRequiresSpatialScope)?;
+    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("length dimension");
+    let (unit, dimensions) = match support {
+        SpatialSupport::Volume { domain, dimensions } if domain == factor => (length, *dimensions),
+        SpatialSupport::Boundary {
+            parent, dimensions, ..
+        } if parent == factor => (length, *dimensions),
+        SpatialSupport::Coordinates { factors, .. } => factors
+            .iter()
+            .find(|(id, _, _)| id == factor)
+            .map(|(_, unit, axes)| (*unit, *axes))
+            .ok_or(TypeViolation::CoordinateFactorMismatch)?,
+        _ => return Err(TypeViolation::CoordinateFactorMismatch),
+    };
     if axis >= dimensions {
         return Err(TypeViolation::CoordinateAxisOutOfRange { axis, dimensions });
     }
-    Ok(ExpressionType::scalar(
-        DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
-        Some(support.clone()),
-    ))
+    Ok(ExpressionType::scalar(unit, Some(support.clone())))
 }
 
 /// Type one supported unary mathematical application.

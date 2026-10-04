@@ -5,7 +5,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 mod property;
+mod symbol;
 use property::WireProperty;
+use symbol::WireSymbol;
 
 use eqiora_core::Diagnostic;
 use eqiora_core::entity::kinds;
@@ -214,7 +216,7 @@ impl WireExpression {
         let mut references = Vec::new();
         for node in &self.nodes {
             match node {
-                WireExpressionNode::Symbol { symbol } => references.extend(symbol.id()),
+                WireExpressionNode::Symbol { symbol } => references.extend(symbol.ids()),
                 WireExpressionNode::Constant { value } => {
                     references.extend(value.nominal_references())
                 }
@@ -417,9 +419,6 @@ pub(crate) enum WireExpressionNode {
         base: u32,
         exponent: i32,
     },
-    SpatialCoordinate {
-        axis: usize,
-    },
     UnaryMath {
         function: WireUnaryMath,
         value: u32,
@@ -449,6 +448,10 @@ pub(crate) enum WireExpressionNode {
     FinitePair {
         left: u32,
         right: u32,
+    },
+    CoordinatePartial {
+        value: u32,
+        wrt: u32,
     },
     Gradient {
         value: u32,
@@ -570,7 +573,6 @@ impl WireExpressionNode {
                 base: base.index(),
                 exponent: *exponent,
             },
-            ExprNode::SpatialCoordinate(axis) => Self::SpatialCoordinate { axis: *axis },
             ExprNode::UnaryMath(function, value) => Self::UnaryMath {
                 function: WireUnaryMath::encode(*function)?,
                 value: value.index(),
@@ -604,6 +606,10 @@ impl WireExpressionNode {
                     left: left.index(),
                     right: right.index(),
                 },
+            },
+            ExprNode::CoordinatePartial { value, wrt } => Self::CoordinatePartial {
+                value: value.index(),
+                wrt: wrt.index(),
             },
             ExprNode::Gradient(value) => Self::Gradient {
                 value: value.index(),
@@ -701,7 +707,6 @@ impl WireExpressionNode {
             Self::Mul { left, right } => builder.mul(operand(ids, *left)?, operand(ids, *right)?),
             Self::Div { left, right } => builder.div(operand(ids, *left)?, operand(ids, *right)?),
             Self::PowI { base, exponent } => builder.powi(operand(ids, *base)?, *exponent),
-            Self::SpatialCoordinate { axis } => builder.spatial_coordinate(*axis),
             Self::UnaryMath { function, value } => {
                 builder.unary_math(function.decode(), operand(ids, *value)?)
             }
@@ -735,6 +740,9 @@ impl WireExpressionNode {
                 operand(ids, *left)?,
                 operand(ids, *right)?,
             ),
+            Self::CoordinatePartial { value, wrt } => {
+                builder.coordinate_partial(operand(ids, *value)?, operand(ids, *wrt)?)
+            }
             Self::Gradient { value } => builder.gradient(operand(ids, *value)?),
             Self::Divergence { value } => builder.divergence(operand(ids, *value)?),
             Self::Trace { value } => builder.trace(operand(ids, *value)?),
@@ -779,101 +787,6 @@ pub(crate) fn operand(ids: &[ExprId], index: u32) -> Result<ExprId, Diagnostic> 
                 "wire expression operand {index} is not topologically prior"
             ))
         })
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
-pub(crate) enum WireSymbol {
-    Field { id: WireId },
-    Derivative { id: WireId },
-    Pre { id: WireId },
-    Next { id: WireId },
-    Parameter { id: WireId },
-    Observable { id: WireId },
-    Port { id: WireId },
-    Across { id: WireId },
-    Through { id: WireId },
-    PortTrace { id: WireId },
-    PortFlux { id: WireId },
-    Time,
-}
-
-impl WireSymbol {
-    pub(crate) fn encode(value: SymbolRef) -> Result<Self, Diagnostic> {
-        match value {
-            SymbolRef::Field(id) => Ok(Self::Field {
-                id: WireId::from_raw(id.erase()),
-            }),
-            SymbolRef::Derivative(id) => Ok(Self::Derivative {
-                id: WireId::from_raw(id.erase()),
-            }),
-            SymbolRef::Pre(id) => Ok(Self::Pre {
-                id: WireId::from_raw(id.erase()),
-            }),
-            SymbolRef::Next(id) => Ok(Self::Next {
-                id: WireId::from_raw(id.erase()),
-            }),
-            SymbolRef::Observable(id) => Ok(Self::Observable {
-                id: WireId::from_raw(id.erase()),
-            }),
-            SymbolRef::Parameter(id) => Ok(Self::Parameter {
-                id: WireId::from_raw(id.erase()),
-            }),
-            SymbolRef::Port(id) => Ok(Self::Port {
-                id: WireId::from_raw(id.erase()),
-            }),
-            SymbolRef::Across(id) => Ok(Self::Across {
-                id: WireId::from_raw(id.erase()),
-            }),
-            SymbolRef::Through(id) => Ok(Self::Through {
-                id: WireId::from_raw(id.erase()),
-            }),
-            SymbolRef::PortTrace(id) => Ok(Self::PortTrace {
-                id: WireId::from_raw(id.erase()),
-            }),
-            SymbolRef::PortFlux(id) => Ok(Self::PortFlux {
-                id: WireId::from_raw(id.erase()),
-            }),
-            SymbolRef::Time => Ok(Self::Time),
-            _ => Err(invalid_artifact(
-                "symbol kind is newer than the supported model wire vocabulary",
-            )),
-        }
-    }
-
-    pub(crate) fn decode(&self) -> Result<SymbolRef, Diagnostic> {
-        Ok(match self {
-            Self::Field { id } => SymbolRef::Field(id.typed::<kinds::Field>()?),
-            Self::Derivative { id } => SymbolRef::Derivative(id.typed::<kinds::Field>()?),
-            Self::Pre { id } => SymbolRef::Pre(id.typed::<kinds::Field>()?),
-            Self::Next { id } => SymbolRef::Next(id.typed::<kinds::Field>()?),
-            Self::Parameter { id } => SymbolRef::Parameter(id.typed::<kinds::Parameter>()?),
-            Self::Observable { id } => SymbolRef::Observable(id.typed::<kinds::Observable>()?),
-            Self::Port { id } => SymbolRef::Port(id.typed::<kinds::Port>()?),
-            Self::Across { id } => SymbolRef::Across(id.typed::<kinds::Port>()?),
-            Self::Through { id } => SymbolRef::Through(id.typed::<kinds::Port>()?),
-            Self::PortTrace { id } => SymbolRef::PortTrace(id.typed::<kinds::Port>()?),
-            Self::PortFlux { id } => SymbolRef::PortFlux(id.typed::<kinds::Port>()?),
-            Self::Time => SymbolRef::Time,
-        })
-    }
-
-    pub(crate) fn id(&self) -> Option<&WireId> {
-        match self {
-            Self::Field { id }
-            | Self::Derivative { id }
-            | Self::Pre { id }
-            | Self::Next { id }
-            | Self::Parameter { id }
-            | Self::Observable { id }
-            | Self::Port { id }
-            | Self::Across { id }
-            | Self::Through { id }
-            | Self::PortTrace { id }
-            | Self::PortFlux { id } => Some(id),
-            Self::Time => None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

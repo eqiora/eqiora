@@ -147,6 +147,48 @@ impl Projection<'_> {
                 self.samples.push((value, sample.tangent[0][component]));
                 value
             }
+            ExprNode::CoordinatePartial { value, wrt } => {
+                let Some(ExprNode::Symbol(SymbolRef::Field(field))) =
+                    self.typed.expression().node(*value)
+                else {
+                    return Err(invalid(
+                        "coordinate partial sampling requires an admitted scalar Field",
+                    ));
+                };
+                let Some(ExprNode::Symbol(SymbolRef::Coordinate {
+                    support,
+                    factor,
+                    axis,
+                })) = self.typed.expression().node(*wrt)
+                else {
+                    return Err(invalid("coordinate partial selector is unavailable"));
+                };
+                if !coordinate.is_empty()
+                    || !crate::spatial_expression::physical_coordinate(
+                        self.program,
+                        *support,
+                        *factor,
+                    )
+                {
+                    return Err(invalid(
+                        "coordinate partial is outside this physical scalar Field realization",
+                    ));
+                }
+                let sample = self
+                    .fields
+                    .get(&field.erase())
+                    .ok_or_else(|| invalid("coordinate partial Field is outside this Result"))?;
+                let gradient = sample
+                    .gradient
+                    .get(*axis)
+                    .ok_or_else(|| invalid("coordinate partial axis is unavailable"))?;
+                let value = self
+                    .builder
+                    .constant(DynQuantity::new(*gradient, ty.dimension()))?;
+                self.samples
+                    .push((value, sample.gradient_tangent[0][*axis]));
+                value
+            }
             ExprNode::Gradient(field) => {
                 let ExprNode::Symbol(SymbolRef::Field(field)) =
                     self.typed.expression().node(*field).expect("typed operand")
@@ -201,7 +243,17 @@ impl Projection<'_> {
                 self.samples.push((value, tangent));
                 value
             }
-            ExprNode::SpatialCoordinate(axis) => {
+            ExprNode::Symbol(SymbolRef::Coordinate {
+                support,
+                factor,
+                axis,
+            }) => {
+                if !crate::spatial_expression::physical_coordinate(self.program, *support, *factor)
+                {
+                    return Err(invalid(
+                        "Observable coordinate is not an ambient physical coordinate",
+                    ));
+                }
                 let value = self
                     .coordinates
                     .get(*axis)

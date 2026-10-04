@@ -578,9 +578,37 @@ fn explicit_gauge_retains_typed_reference_and_compatibility_separately_from_mode
     let text = std::str::from_utf8(form.canonical_bytes()).unwrap();
     assert!(
         AuthoredFormulationProjection::decode(
-            text.replace("eqiora.authored-form/v8", "eqiora.authored-form/v7")
+            text.replace("eqiora.authored-form/v9", "eqiora.authored-form/v7")
                 .as_bytes()
         )
         .is_err()
+    );
+}
+
+#[test]
+fn coordinate_weighted_interval_replays_exact_source_identity() {
+    let geometry = geometry();
+    let weighted = source(FORM)
+        .replace("parameter s:kg/m/s^3", "parameter s:kg/m^2/s^3")
+        .replace("source s;", "source s * coordinate(0);")
+        .replace(
+            "integrate(segment, s)",
+            "integrate(segment, s * coordinate(0))",
+        );
+    let model = compile(&weighted, &geometry).unwrap_or_else(|e| panic!("{e:?}"));
+    let projection = model.authored_formulations().next().unwrap().projection();
+    AuthoredFormulationProjection::decode(projection.canonical_bytes())
+        .unwrap()
+        .check_interval(model.transaction(), &geometry)
+        .unwrap();
+    let stale = weighted.replace(
+        "integrate(segment, s * coordinate(0))",
+        "integrate(segment, -s * coordinate(0))",
+    );
+    assert!(
+        compile(&stale, &geometry)
+            .unwrap_err()
+            .iter()
+            .any(|error| error.message().contains("interval"))
     );
 }

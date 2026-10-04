@@ -45,7 +45,7 @@ pub(super) fn coefficient_dependencies(dag: &ExprDag, root: ExprId) -> Option<BT
             }
             ExprNode::Constant(_)
             | ExprNode::Symbol(SymbolRef::Parameter(_))
-            | ExprNode::SpatialCoordinate(_) => {}
+            | ExprNode::Symbol(SymbolRef::Coordinate { .. }) => {}
             ExprNode::Neg(value) | ExprNode::PowI(value, _) | ExprNode::UnaryMath(_, value) => {
                 pending.push(*value)
             }
@@ -121,7 +121,7 @@ pub(super) fn principal(
             }
             ExprNode::Constant(_)
             | ExprNode::Symbol(SymbolRef::Field(_) | SymbolRef::Parameter(_))
-            | ExprNode::SpatialCoordinate(_) => {}
+            | ExprNode::Symbol(SymbolRef::Coordinate { .. }) => {}
             _ => {
                 return Err(Diagnostic::error(
                     eqiora_core::diagnostic::codes::INVALID_REALIZATION,

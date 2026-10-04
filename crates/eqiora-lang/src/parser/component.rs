@@ -40,6 +40,8 @@ impl Parser<'_> {
             self.parse_product_support().map(ComponentItem::Domain)
         } else if self.at_keyword("indexset") {
             self.parse_index_set().map(ComponentItem::IndexSet)
+        } else if self.at_keyword("coordinate") {
+            self.parse_coordinate().map(ComponentItem::Coordinate)
         } else if self.at_keyword("let") {
             self.parse_let().map(ComponentItem::Let)
         } else if self.at_keyword("observable") {

@@ -206,7 +206,7 @@ pub(super) fn validate_source_expression(
                 | ExprNode::Sub(_, _)
                 | ExprNode::Mul(_, _)
                 | ExprNode::PowI(_, _)
-                | ExprNode::SpatialCoordinate(_)
+                | ExprNode::Symbol(SymbolRef::Coordinate { .. })
                 | ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Sin, _)
         ) {
             return Err(certificate_error(
@@ -299,6 +299,8 @@ pub(super) struct BoundaryFlux {
 pub(super) fn recognize_flux(
     boundary: &eqiora_schema::kernel::typing::TypedResidual<RawId>,
     owner: RawId,
+    boundary_domain: RawId,
+    parent: RawId,
     volume: &eqiora_schema::kernel::typing::TypedResidual<RawId>,
     volume_nodes: VolumeNodes,
 ) -> Result<Option<BoundaryFlux>, Diagnostic> {
@@ -328,12 +330,19 @@ pub(super) fn recognize_flux(
     {
         return Ok(None);
     }
-    let Some(actual) = Expression::from_expression(dag, *flux)? else {
+    let Some(mut actual) = Expression::from_expression(dag, *flux)? else {
         return Ok(None);
     };
     let Some(expected) = Expression::from_expression(volume.expression(), volume_flux)? else {
         return Ok(None);
     };
+    // boundary_inventory has authenticated BoundaryOf(boundary_domain, parent).
+    // Compare the restriction in that parent's chart without discarding factor identity.
+    parent_coordinates(
+        &mut actual,
+        &boundary_domain.ulid().to_string(),
+        &parent.ulid().to_string(),
+    );
     let (actual, actual_negative) = super::authored::product_sign(actual);
     let (expected, volume_negative) = super::authored::product_sign(expected);
     if !super::authored::equivalent(&actual, &expected) {
@@ -357,4 +366,33 @@ pub(super) fn recognize_flux(
         normal: operator.value(),
         datum: data,
     }))
+}
+
+fn parent_coordinates(
+    value: &mut eqiora_compiler::AuthoredFormExpressionV1,
+    boundary: &str,
+    parent: &str,
+) {
+    use eqiora_compiler::AuthoredFormExpressionV1 as E;
+    match value {
+        E::Coordinate {
+            support_ulid,
+            factor_ulid,
+            ..
+        } if support_ulid == boundary && factor_ulid == parent => {
+            *support_ulid = parent.to_owned();
+        }
+        E::Neg { value } | E::Gradient { value } | E::Sin { value } => {
+            parent_coordinates(value, boundary, parent)
+        }
+        E::Add { left, right }
+        | E::Sub { left, right }
+        | E::Mul { left, right }
+        | E::Div { left, right } => {
+            parent_coordinates(left, boundary, parent);
+            parent_coordinates(right, boundary, parent);
+        }
+        E::Pow { base, .. } => parent_coordinates(base, boundary, parent),
+        _ => {}
+    }
 }

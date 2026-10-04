@@ -420,6 +420,10 @@ class Component:
         value_type: ValueType,
         doc: str | None = None,
     ) -> Expression: ...
+    def coordinate(
+        self, name: str, *, value_type: ValueType, on: Support, factor: Support,
+        axis: int | None = ..., doc: str | None = ...,
+    ) -> Expression: ...
     def let_alias(
         self,
         name: str,

@@ -22,7 +22,7 @@ impl ExpressionChecker<'_, '_, '_> {
             match value.kind() {
                 ExprKind::Name(name) if name == "time" => {}
                 ExprKind::Name(name) => match self.scope.symbols.get(name).cloned() {
-                    Some(SymbolContract::Parameter(_)) => {}
+                    Some(SymbolContract::Parameter(_) | SymbolContract::Coordinate(_)) => {}
                     Some(SymbolContract::Alias(alias)) => {
                         if aliases.insert(name.clone()) {
                             pending.push(alias.expression.clone());
@@ -62,7 +62,7 @@ impl ExpressionChecker<'_, '_, '_> {
             codes::LANGUAGE_TYPE_ERROR,
             self.scope.file,
             value.range(),
-            "time derivative admits explicit smooth scalar polynomial expressions of continuous states and fixed Parameters; discrete, algebraic, and unsupported derivative products reject",
+            "time derivative admits explicit smooth scalar polynomial expressions of continuous states, fixed Parameters and declared coordinates; discrete, algebraic, and unsupported derivative products reject",
         )
     }
 }

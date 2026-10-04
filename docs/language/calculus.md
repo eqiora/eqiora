@@ -100,7 +100,9 @@ length inputs to `coordinate(0)` and `coordinate(1)` inside a spatial Observable
 The retained operator is expanded by the same calculus projection during ordinary
 Q1 Result quadrature. Differentiating the independent operator inputs precedes
 coordinate substitution; this does not introduce general coordinate-factor partials
-or derivatives of an unknown field representation.
+or derivatives of an unknown field representation. Exact declared coordinate selectors and
+the separate Q1 first-Field derivative path are described in the
+[coordinate profile](coordinates.md).
 
 ## Continuous time and higher-order evolution
 

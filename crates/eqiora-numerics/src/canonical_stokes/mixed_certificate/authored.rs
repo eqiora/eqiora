@@ -216,7 +216,22 @@ fn matches_live(value: &F, dag: &ExprDag, id: ExprId, depth: usize) -> bool {
         (F::Parameter { ulid }, Some(ExprNode::Symbol(SymbolRef::Parameter(id)))) => {
             ulid == &id.ulid().to_string()
         }
-        (F::Coordinate { axis }, Some(ExprNode::SpatialCoordinate(a))) => axis == a,
+        (
+            F::Coordinate {
+                support_ulid,
+                factor_ulid,
+                axis,
+            },
+            Some(ExprNode::Symbol(SymbolRef::Coordinate {
+                support,
+                factor,
+                axis: a,
+            })),
+        ) => {
+            axis == a
+                && *support_ulid == support.ulid().to_string()
+                && *factor_ulid == factor.ulid().to_string()
+        }
         (F::Neg { value }, Some(ExprNode::Neg(v)))
         | (F::Gradient { value }, Some(ExprNode::Gradient(v)))
         | (F::Divergence { value }, Some(ExprNode::Divergence(v)))

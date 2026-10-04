@@ -444,9 +444,14 @@ fn boundary_inventory(
         let (operator_node, discharge, flux_data) =
             if let Some(nodes) = recognize_essential_trace(typed.expression(), relation, field)? {
                 (nodes.trace, BoundaryDischarge::ZeroTestTrace, None)
-            } else if let Some(flux) =
-                recognition::recognize_flux(&typed, relation, volume, volume_nodes)?
-            {
+            } else if let Some(flux) = recognition::recognize_flux(
+                &typed,
+                relation,
+                domain.id().erase(),
+                parent,
+                volume,
+                volume_nodes,
+            )? {
                 (
                     flux.normal,
                     if flux.datum.is_some() {
@@ -513,7 +518,7 @@ fn validate_expression(
             | ExprNode::Sub(_, _)
             | ExprNode::Mul(_, _)
             | ExprNode::PowI(_, _)
-            | ExprNode::SpatialCoordinate(_)
+            | ExprNode::Symbol(SymbolRef::Coordinate { .. })
             | ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Sin, _)
             | ExprNode::Gradient(_)
             | ExprNode::Divergence(_)
@@ -721,6 +726,7 @@ fn validate_relation_dependencies(
         .filter_map(|node| match node {
             ExprNode::Symbol(SymbolRef::Field(value)) => Some(value.erase()),
             ExprNode::Symbol(SymbolRef::Parameter(value)) => Some(value.erase()),
+            ExprNode::Symbol(SymbolRef::Coordinate { support, .. }) => Some(support.erase()),
             _ => None,
         })
         .collect::<BTreeSet<_>>();

@@ -156,3 +156,32 @@ fn index_sets_and_observables_keep_distinct_authored_symbols_without_value_navig
         }
     }
 }
+
+#[test]
+fn exact_coordinate_declarations_keep_their_outline_and_hover_identity() {
+    let source = "component C(support body:volume(ambient_dimension=2)){coordinate y:m on body from body[1];} model M(){domain body=box(0,1,0,1);coordinate x:m on body from body[0];}";
+    let workspace = EditorWorkspaceSnapshot::analyze_standalone(1, source);
+    assert!(
+        workspace.diagnostics().is_empty(),
+        "{:?}",
+        workspace.diagnostics()
+    );
+    let file = workspace.files().next().unwrap();
+    let snapshot = workspace.document(file).unwrap();
+    for (owner, name, axis) in [("C", "y", 1), ("M", "x", 0)] {
+        let symbol = snapshot
+            .symbols()
+            .iter()
+            .find(|s| s.name() == owner)
+            .unwrap()
+            .children()
+            .iter()
+            .find(|s| s.name() == name)
+            .unwrap();
+        assert_eq!(symbol.kind(), EditorSymbolKind::Coordinate);
+        let offset = source.find(&format!("{name}:m")).unwrap() as u32;
+        let hover = workspace.assistance(file, offset, name).unwrap();
+        assert_eq!(hover.kind(), EditorSymbolKind::Coordinate);
+        assert!(hover.detail().unwrap().contains(&format!("body[{axis}]")));
+    }
+}

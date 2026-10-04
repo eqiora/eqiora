@@ -22,7 +22,8 @@ impl ExpressionLowerer<'_> {
                 continue;
             }
             match self.bindings.get(&name) {
-                Some(Binding::Parameter(..)) => {}
+                // Coordinate support and factor dependencies are fixed domains.
+                Some(Binding::Parameter(..) | Binding::Domain(..)) => {}
                 Some(Binding::Field(_, contract))
                     if self.eligible_evolution("derivative", contract) =>
                 {
@@ -44,7 +45,11 @@ impl ExpressionLowerer<'_> {
         }
         let mut total: Option<TypedExpression> = None;
         for name in evolving {
-            let partial = self.lower_partial(expression, value, &name)?;
+            let partial = self.lower_partial(
+                expression,
+                value,
+                &LoweringExpression::name(name.clone(), expression.range()),
+            )?;
             let term = if name == "time" {
                 partial
             } else {

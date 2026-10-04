@@ -78,7 +78,7 @@ macro_rules! owners {
                 match item {
                     ComponentItem::Domain(value) => $visit(value.range, &$($mutable)? value.comments),
                     ComponentItem::IndexSet(value) => $visit(value.range, &$($mutable)? value.comments),
-                    ComponentItem::Let(value) => $visit(value.range, &$($mutable)? value.comments),
+                    ComponentItem::Let(value) | ComponentItem::Coordinate(value) => $visit(value.range, &$($mutable)? value.comments),
                     ComponentItem::Parameter(value) => $visit(value.range, &$($mutable)? value.comments),
                     ComponentItem::Port(value) => $visit(value.range, &$($mutable)? value.comments),
                     ComponentItem::PortFamily(value) => $visit(value.port.range, &$($mutable)? value.port.comments),
@@ -109,7 +109,7 @@ macro_rules! owners {
                     Item::Observable(value) => $visit(value.range, &$($mutable)? value.comments),
                     Item::Initial(value) => $visit(value.range, &$($mutable)? value.comments),
                     Item::Parameter(value) => $visit(value.range, &$($mutable)? value.comments),
-                    Item::Let(value) => $visit(value.range, &$($mutable)? value.comments),
+                    Item::Let(value) | Item::Coordinate(value) => $visit(value.range, &$($mutable)? value.comments),
                     Item::Port(value) => $visit(value.range, &$($mutable)? value.comments),
                     Item::Event(value) => $visit(value.range, &$($mutable)? value.comments),
                     Item::Clock(value) => $visit(value.range, &$($mutable)? value.comments),
@@ -285,7 +285,7 @@ impl Item {
             Self::Field(node) => &node.comments,
             Self::Initial(node) => &node.comments,
             Self::Parameter(node) => &node.comments,
-            Self::Let(node) => &node.comments,
+            Self::Let(node) | Self::Coordinate(node) => &node.comments,
             Self::Port(node) => &node.comments,
             Self::Event(node) => &node.comments,
             Self::Clock(node) => &node.comments,
@@ -303,7 +303,7 @@ impl ComponentItem {
     pub(crate) fn source_comments(&self) -> &SourceComments {
         match self {
             Self::Domain(node) => &node.comments,
-            Self::Let(node) => &node.comments,
+            Self::Let(node) | Self::Coordinate(node) => &node.comments,
             Self::Parameter(node) => &node.comments,
             Self::Port(node) => &node.comments,
             Self::PortFamily(node) => &node.port.comments,

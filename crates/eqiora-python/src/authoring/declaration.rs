@@ -243,6 +243,28 @@ impl PyAstDeclaration {
     }
 
     #[staticmethod]
+    fn coordinate(
+        name: String,
+        kind: &PyAstType,
+        support: String,
+        factor: &PyAstExpression,
+        ordinal: u32,
+    ) -> PyResult<Self> {
+        Ok(Self {
+            value: Declaration::Item(ComponentItem::Coordinate(
+                Ast::coordinate(
+                    name,
+                    kind.value.clone(),
+                    support,
+                    factor.value.clone(),
+                    range(ordinal),
+                )
+                .map_err(syntax_error)?,
+            )),
+        })
+    }
+
+    #[staticmethod]
     fn alias(
         name: String,
         kind: Option<&PyAstType>,

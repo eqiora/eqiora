@@ -259,6 +259,7 @@ impl EquationRoles {
                     Some(id.erase())
                 }
                 ExprNode::Symbol(SymbolRef::Parameter(id)) => Some(id.erase()),
+                ExprNode::Symbol(SymbolRef::Coordinate { support, .. }) => Some(support.erase()),
                 _ => None,
             })
             .collect::<BTreeSet<_>>();

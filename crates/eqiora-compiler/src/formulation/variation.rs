@@ -197,9 +197,31 @@ impl ExpressionContext<'_> {
             .map(|support| support.parent().copied().unwrap_or(*support.domain()));
         let typed = TypedResidual::infer(
             functional.expression().clone(),
-            support,
+            support.clone(),
             RootContract::Observable,
             |symbol| match symbol {
+                SymbolRef::Coordinate {
+                    support: declared,
+                    factor,
+                    axis,
+                } => {
+                    let coordinate_support = match support.as_ref() {
+                        Some(current) if *current.domain() == declared.erase() => current.clone(),
+                        Some(SpatialSupport::Boundary {
+                            parent, dimensions, ..
+                        }) if *parent == declared.erase() => SpatialSupport::Volume {
+                            domain: *parent,
+                            dimensions: *dimensions,
+                        },
+                        _ => return Err(()),
+                    };
+                    eqiora_schema::kernel::typing::coordinate(
+                        &factor.erase(),
+                        axis,
+                        Some(&coordinate_support),
+                    )
+                    .map_err(|_| ())
+                }
                 SymbolRef::Field(id) => match self.index.nodes.get(&id.erase()).copied() {
                     Some(KernelNode::Field(value))
                         if volume.is_some()
@@ -398,12 +420,23 @@ fn variation_input(
                 indices.as_slice(),
             )
         }
-        local::Input::Coordinate(axis) => {
+        local::Input::Value(
+            symbol @ SymbolRef::Coordinate {
+                support,
+                factor,
+                axis,
+            },
+            indices,
+        ) if indices.is_empty() => {
             return Ok(typed(
-                AuthoredFormExpressionKind::Coordinate(*axis),
-                length_dimension(),
+                AuthoredFormExpressionKind::Coordinate {
+                    support: *support,
+                    factor: *factor,
+                    axis: *axis,
+                },
+                symbol_type(density, *symbol)?.dimension(),
                 ValueShape::scalar(),
-                Some(domain),
+                Some(*support),
             ));
         }
         _ => return Err(invalid()),

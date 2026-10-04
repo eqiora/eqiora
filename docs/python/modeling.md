@@ -1479,7 +1479,7 @@ assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
-`eqiora.model-envelope/v33` schema, but callers do not select that suffix.
+`eqiora.model-envelope/v34` schema, but callers do not select that suffix.
 `.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
 Only the current schema is accepted; decoding never sniffs, retries, or silently
 migrates an older artifact.
@@ -1637,7 +1637,27 @@ model = eqiora.compile(
 The measure is `m * (m/s)`, so integrating a density in `s/m^2` is dimensionless.
 Model replay retains exact factor order and units. Bounds are finite and strictly increasing;
 substituting position bounds for velocity bounds rejects. This path provides mathematical
-Model typing and replay, not a product-domain numerical solver or coordinate partials.
+Model typing and replay; product-domain numerical solves remain unsupported.
+
+A Model or Component can name physical coordinates for `q.partial`:
+
+```python
+module = eqiora.Module("main")
+component = module.component("Derivatives")
+body = component.volume("body", dimensions=2)
+length = eqiora.ValueType.real(dimension=eqiora.Dimension(length=1))
+x = component.coordinate("x", value_type=length, on=body, factor=body, axis=0)
+y = component.coordinate("y", value_type=length, on=body, factor=body, axis=1)
+component.relation("slope", q.equation(q.partial(x*y, wrt=x), y), on=body)
+```
+
+Here `q` is `eqiora.lang`. The exact support and factor handles must belong to the same
+Component. Axes are zero-based within the factor; only a scalar factor permits omission.
+The compiler checks coordinate units and factor membership. Source also admits independently
+dimensioned position/velocity factors. Polynomial partials use the shared calculus evaluator;
+unknown continuous scalar Field partials retain their request until an admitted Cartesian Q1
+Result supplies basis derivatives. Higher unknown-Field partials, intrinsic boundary charts
+and TPFA derivative observations reject. See the [coordinate profile](../language/coordinates.md).
 
 ## Fields on physical boundaries
 

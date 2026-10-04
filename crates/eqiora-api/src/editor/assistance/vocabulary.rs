@@ -40,6 +40,11 @@ pub(super) fn entries() -> Vec<EditorSymbol> {
             "Declare a State governed by continuous evolution, clocked updates or an admitted event reset. Supply mathematical initial conditions in an initial block; a State has no declaration initializer.\n\nExample: `state temperature: K; initial { temperature = 300[K]; }`",
         ),
         (
+            "coordinate",
+            "coordinate name: Type on support from factor[axis];",
+            "Name an exact coordinate projection without adding an unknown. The type must match the factor coordinate unit. Axes are zero-based within that factor; omit the axis only for a scalar factor. Use partial(expression, wrt = name) within the admitted polynomial or Q1 first-derivative profile.",
+        ),
+        (
             "let",
             "let name [: Type] [on support] [at activation] = expression;",
             "Name a derived expression without adding a solve unknown or a new equation. An optional type, support or activation is an assertion about the inferred expression. Aliases do not introduce sampling or hold behavior.\n\nExample: `let area = width * height;`",
