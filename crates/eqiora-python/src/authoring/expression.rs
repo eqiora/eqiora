@@ -229,6 +229,55 @@ impl PyAstExpression {
         )
     }
 
+    #[staticmethod]
+    fn tuple(values: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let values = expressions(values)?;
+        Self::build(
+            &values.iter().map(|value| &**value).collect::<Vec<_>>(),
+            1,
+            || {
+                Ok(ExprKind::Tuple(
+                    values.iter().map(|value| value.value.clone()).collect(),
+                ))
+            },
+        )
+    }
+
+    #[staticmethod]
+    fn mixed_call(
+        name: &str,
+        positional: &Bound<'_, PyAny>,
+        names: Vec<String>,
+        named: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        let positional = expressions(positional)?;
+        let named = expressions(named)?;
+        if names.len() != named.len() {
+            return Err(syntax_error("named call arity mismatch"));
+        }
+        let children = positional
+            .iter()
+            .chain(&named)
+            .map(|value| &**value)
+            .collect::<Vec<_>>();
+        Self::build(&children, 1, || {
+            Ok(ExprKind::Call {
+                callee: path(name)?,
+                arguments: CallArguments::Mixed {
+                    positional: positional.iter().map(|value| value.value.clone()).collect(),
+                    named: names
+                        .into_iter()
+                        .zip(&named)
+                        .map(|(name, value)| {
+                            Ast::named_binding(name, value.value.clone(), RANGE)
+                                .map_err(syntax_error)
+                        })
+                        .collect::<PyResult<_>>()?,
+                },
+            })
+        })
+    }
+
     fn index(&self, index: &Self) -> PyResult<Self> {
         Self::build(&[self, index], 1, || {
             Ok(ExprKind::Index {

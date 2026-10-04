@@ -545,6 +545,21 @@ class ImportedRecord(_ImportedRecord):
     __slots__ = ()
 
 
+class Observable:
+    """An opaque authored output reference, separate from ordinary expression algebra."""
+
+    __slots__ = ("_component", "_name")
+
+    def __init__(self, _token: object = _MISSING, _component: object = _MISSING, _name: str = "") -> None:
+        if _token is not _CREATE:
+            raise TypeError("Observable handles are created by Component.observable()")
+        object.__setattr__(self, "_component", _component)
+        object.__setattr__(self, "_name", _name)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError("Observable handles are immutable")
+
+
 class Relation:
     """An opaque Module-owned relation declaration handle."""
 
@@ -727,6 +742,50 @@ def partial(value: object, *, wrt: Expression, holding: Sequence[Expression] = (
     return Expression(_CREATE, _Ast.partial(value._ast, wrt._ast, [item._ast for item in holding]), owner,
                       _binders=frozenset().union(*(item._binders for item in inputs)),
                       _sources=frozenset().union(*(item._sources for item in inputs)))
+
+
+def variation(value: Observable | Expression, *, wrt: Expression, direction: Expression,
+              holding: Sequence[Expression] = ()) -> Expression:
+    """Author a bounded directional variation of a retained energy functional."""
+    if isinstance(value, Observable):
+        value = Expression(_CREATE, _Ast.name(value._name), value._component)
+    if not all(isinstance(item, Expression) for item in (value, wrt, direction)):
+        raise TypeError("variation requires an Observable or nested variation and expression bindings")
+    if isinstance(holding, (str, bytes)) or not isinstance(holding, Sequence):
+        raise TypeError("variation holding requires a sequence of declared bindings")
+    if len(holding) > _MAX_EXPRESSION_NODES:
+        raise ModuleError("variation holding exceeds the expression node limit")
+    if any(not isinstance(item, Expression) for item in holding):
+        raise TypeError("variation holding requires declared expression bindings")
+    inputs = [value, wrt, direction, *holding]
+    owner = None
+    for item in inputs:
+        if owner is not None and item._owner is not None and owner is not item._owner:
+            raise ModuleError("variation bindings must belong to the same lexical owner")
+        if item._owner is not None:
+            owner = item._owner
+    return Expression(_CREATE, _Ast.mixed_call("variation", [value._ast],
+                      ["wrt", "direction", "holding"],
+                      [wrt._ast, direction._ast, _Ast.tuple([item._ast for item in holding])]), owner,
+                      _binders=frozenset().union(*(item._binders for item in inputs)),
+                      _sources=frozenset().union(*(item._sources for item in inputs)))
+
+
+def contract(left: object, right: object, *, axes: Sequence[tuple[int, int]]) -> Expression:
+    """Contract explicitly paired full-coordinate tensor axes."""
+    left, right = _expression(left), _expression(right)
+    if isinstance(axes, (str, bytes)) or not isinstance(axes, Sequence) or len(axes) > 4:
+        raise TypeError("contract axes requires at most four axis pairs")
+    pairs = []
+    for pair in axes:
+        if not isinstance(pair, (tuple, list)) or len(pair) != 2 or any(type(axis) is not int or not 0 <= axis < 4 for axis in pair):
+            raise TypeError("contract axes requires pairs of integer axes from 0 through 3")
+        pairs.append(_Ast.tuple([_Ast.number(str(axis)) for axis in pair]))
+    if left._owner is not None and right._owner is not None and left._owner is not right._owner:
+        raise ModuleError("contract operands must belong to the same lexical owner")
+    return Expression(_CREATE, _Ast.mixed_call("contract", [left._ast, right._ast], ["axes"], [_Ast.tuple(pairs)]),
+                      left._owner if left._owner is not None else right._owner,
+                      _binders=left._binders | right._binders, _sources=left._sources | right._sources)
 
 
 def tensor_value(*, frame: Support, components: Sequence[object] | Expression) -> Expression:
@@ -1188,7 +1247,7 @@ class Component:
         self._laws: list[
             tuple[str, Support, Expression | None, Expression, Expression, tuple[str, ...]]
         ] = []
-        self._test_restrictions: list[tuple[str, str, tuple[str, ...]]] = []
+        self._test_restrictions: list[tuple[str, str, tuple[str, ...], ValueType]] = []
         self._formulations: list[
             tuple[str, tuple[Relation, ...], tuple[tuple[Expression, Expression], ...], tuple[str, ...]]
         ] = []
@@ -1642,20 +1701,25 @@ class Component:
 
     def observable(
         self, name: str, expression: Expression | int | float | complex, *,
-        value_type: ValueType, doc: str | None = None,
-    ) -> None:
-        """Declare a typed derived output without creating an expression symbol."""
+        value_type: ValueType, on: Support | None = None, doc: str | None = None,
+    ) -> Observable:
+        """Declare a typed output, optionally integrating its density over a Support."""
         value = _expression(expression)
         self._closed_expression(value)
         if value._owner is not None and value._owner is not self._component_token:
             raise ModuleError("observable expression must belong to this Component")
         if not isinstance(value_type, ValueType):
             raise TypeError("value_type must be an eqiora.ValueType")
+        if on is not None:
+            self._support(on)
+            value = Expression(_CREATE, _Ast.call("integral", [value._ast, _Ast.call("measure", [_Ast.name(on._name)])]),
+                               self._component_token, _binders=value._binders, _sources=value._sources)
         syntax, doc_lines = self._type_syntax(value_type), _doc(doc)
         if sum(item[1]._nodes for item in self._observables) + value._nodes > _MAX_EXPRESSION_NODES:
             raise ModuleError(f"Component observable expressions exceed the {_MAX_EXPRESSION_NODES}-node limit")
         admitted = self._add_name(name)
         self._observables.append((admitted, value, syntax, doc_lines))
+        return Observable(_CREATE, self._component_token, admitted)
 
     def relation(
         self,
@@ -1729,14 +1793,13 @@ class Component:
         from ._law import declare
         return declare(self, name, on, flux, source, storage, doc)
 
-    def test(self, name: str, *, for_: Expression,
+    def test(self, name: str, *, for_: Expression, dimension: Dimension | None = None,
              zero_on: Support | BoundarySelectionSet | None = None) -> Expression:
         """Declare a test for an exact trial and an optional homogeneous boundary restriction."""
         self._source._ensure_open()
+        test_type = ValueType.real(dimension)
         if not isinstance(for_, _Field) or for_._owner is not self._component_token:
             raise ModuleError("test trial must be a Field from this Component")
-        if any(trial == for_._name for _, trial, _ in self._test_restrictions):
-            raise ModuleError("a trial Field may have only one test declaration")
         if len(self._test_restrictions) >= 8:
             raise ModuleError("weak form exceeds the 8-test limit")
         if zero_on is None:
@@ -1751,7 +1814,7 @@ class Component:
                 raise ModuleError("test restriction must be closed outside a boundary binder")
             boundaries = (zero_on._name,)
         admitted = self._add_name(name)
-        self._test_restrictions.append((admitted, for_._name, boundaries))
+        self._test_restrictions.append((admitted, for_._name, boundaries, test_type))
         return Expression(_CREATE, _Ast.name(admitted), self._component_token)
 
     def weak_form(
@@ -2686,6 +2749,7 @@ __all__ = [
     "PropertyRequirement",
     "PropertyRelease",
     "Relation",
+    "Observable",
     "Module",
     "ModuleError",
     "Support",
@@ -2702,6 +2766,8 @@ __all__ = [
     "normal",
     "ordinal",
     "partial",
+    "variation",
+    "contract",
     "jvp",
     "vjp",
     "derivative",

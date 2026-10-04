@@ -578,7 +578,7 @@ fn explicit_gauge_retains_typed_reference_and_compatibility_separately_from_mode
     let text = std::str::from_utf8(form.canonical_bytes()).unwrap();
     assert!(
         AuthoredFormulationProjection::decode(
-            text.replace("eqiora.authored-form/v6", "eqiora.authored-form/v5")
+            text.replace("eqiora.authored-form/v7", "eqiora.authored-form/v6")
                 .as_bytes()
         )
         .is_err()

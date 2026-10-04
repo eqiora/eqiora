@@ -1433,8 +1433,6 @@ def test_plural_weak_form_authoring_preserves_bindings_and_equation_order():
     continuity = component.relation("continuity", q.equation(pressure, 0), on=body)
     v = component.test("v", for_=velocity, zero_on=exterior)
     p = component.test("p", for_=pressure)
-    with pytest.raises(q.ModuleError, match="only one test"):
-        component.test("other", for_=velocity)
     with pytest.raises(q.ModuleError, match="distinct"):
         component.weak_form("invalid", [momentum, momentum], equations=[(v, p)])
     with pytest.raises(q.ModuleError, match="1 and 8 equations"):

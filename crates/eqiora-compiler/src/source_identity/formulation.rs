@@ -3,7 +3,7 @@
 use super::*;
 
 const MAGIC: &[u8; 8] = b"EQIORAFM";
-const CANONICAL_FORMULATION_VERSION: u16 = 6;
+const CANONICAL_FORMULATION_VERSION: u16 = 7;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct AuthoredFormSourceIdentity([u8; 32]);
@@ -59,7 +59,8 @@ impl AuthoredFormSourceIdentity {
                         encoder.field(6, |e| {
                             e.u16(1)?;
                             e.u32(as_u32(tests.len(), "Formulation tests")?)?;
-                            for (name, trial, zero_on) in tests {
+                            for (name, trial, zero_on, dimension) in tests {
+                                encode_expression(e, dimension, budget, 1)?;
                                 encode_name(e, name, budget)?;
                                 encode_name(e, trial, budget)?;
                                 budget.account_members(zero_on.len(), "test boundaries")?;

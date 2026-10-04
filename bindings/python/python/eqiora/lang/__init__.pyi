@@ -308,6 +308,14 @@ class MaterialComposition:
     def __getitem__(self, name: str) -> PropertyRelease: ...
 
 @final
+class Observable:
+    """Retain an authored derived-output reference without ordinary expression algebra.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::Observable``.
+    """
+    def __init__(self, _token: Never, _component: object = ..., _name: str = "") -> None: ...
+
+@final
 class Relation:
     """Identify one relation declaration in its exact Module.
 
@@ -445,8 +453,8 @@ class Component:
     ) -> Expression: ...
     def observable(
         self, name: str, expression: Expression | int | float | complex, *,
-        value_type: ValueType, doc: str | None = None,
-    ) -> None: ...
+        value_type: ValueType, on: Support | None = None, doc: str | None = None,
+    ) -> Observable: ...
     def relation(
         self,
         name: str,
@@ -468,7 +476,7 @@ class Component:
     ) -> Relation:
         ...
 
-    def test(self, name: str, *, for_: Expression, zero_on: Support | BoundarySelectionSet | None = None) -> Expression: ...
+    def test(self, name: str, *, for_: Expression, dimension: Dimension | None = None, zero_on: Support | BoundarySelectionSet | None = None) -> Expression: ...
     def weak_form(
         self,
         name: str,
@@ -1184,5 +1192,18 @@ def permute_factors(value: object, permutation: Sequence[int]) -> Expression:
     """Explicitly reorder both factors; map permutations act on both endpoints.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::permute_factors``.
+    """
+    ...
+
+def variation(value: Observable | Expression, *, wrt: Expression, direction: Expression, holding: Sequence[Expression] = ()) -> Expression:
+    """Author a directional variation with explicit selected and held bindings.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::variation``.
+    """
+    ...
+def contract(left: object, right: object, *, axes: Sequence[tuple[int, int]]) -> Expression:
+    """Contract explicitly paired full-coordinate tensor axes.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::contract``.
     """
     ...

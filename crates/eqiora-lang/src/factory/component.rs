@@ -139,7 +139,8 @@ impl SourceAstFactory {
                         "weak Formulation requires a test",
                     ));
                 }
-                for (name, trial, zero_on) in tests {
+                for (name, trial, zero_on, dimension) in tests {
+                    super::expression::validate_expression(dimension)?;
                     checked_identifier(name.clone(), "test function")?;
                     checked_identifier(trial.clone(), "trial Field")?;
                     for name in zero_on {

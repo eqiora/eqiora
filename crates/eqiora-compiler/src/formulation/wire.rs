@@ -6,8 +6,11 @@ use ulid::Ulid;
 
 use super::{AuthoredFormExpression, AuthoredFormExpressionKind};
 
-const SCHEMA: &str = "eqiora.authored-form/v6";
+const SCHEMA: &str = "eqiora.authored-form/v7";
 const MAX_BYTES: usize = 1024 * 1024;
+
+/// Ordered test name, trial Field, zero-trace boundaries and canonical SI dimension.
+type AuthoredTestRestriction = (String, String, Vec<String>, [(i32, i32); 7]);
 
 /// Exact compiler-owned projection of one authored Formulation.
 ///
@@ -53,7 +56,7 @@ pub(super) enum WireBinding {
         name: String,
     },
     WeakTests {
-        tests: Vec<(String, String, Vec<String>)>,
+        tests: Vec<AuthoredTestRestriction>,
     },
     Interval {
         name: String,
@@ -81,6 +84,26 @@ pub enum AuthoredFormExpressionV1 {
     },
     Number {
         value: f64,
+    },
+    Rational {
+        numerator: i64,
+        denominator: u64,
+        dimension: [(i32, i32); 7],
+    },
+    Direction {
+        name: String,
+        field_ulid: String,
+    },
+    Component {
+        value: Box<Self>,
+        indices: Vec<u32>,
+    },
+    Variation {
+        functional_ulid: String,
+        wrt_ulid: String,
+        directions: Vec<String>,
+        holding: Vec<String>,
+        value: Box<Self>,
     },
     Field {
         ulid: String,
@@ -207,10 +230,16 @@ impl AuthoredFormulationProjection {
         source_identity: String,
         name: String,
         domain: RawId,
-        tests: Vec<(String, String, Vec<String>)>,
+        tests: Vec<AuthoredTestRestriction>,
         equations: Vec<(String, AuthoredFormExpressionV1, AuthoredFormExpressionV1)>,
     ) -> Result<Self, Diagnostic> {
-        let assumptions = if tests.len() > 1 {
+        let mut trial_ulids = Vec::new();
+        for (_, trial, _, _) in &tests {
+            if !trial_ulids.contains(trial) {
+                trial_ulids.push(trial.clone());
+            }
+        }
+        let assumptions = if trial_ulids.len() > 1 {
             Self::mixed_assumptions()
         } else {
             Self::required_assumptions()
@@ -219,7 +248,7 @@ impl AuthoredFormulationProjection {
             schema: SCHEMA.into(),
             source_identity,
             domain_ulid: Some(ulid(domain)),
-            trial_ulids: tests.iter().map(|t| t.1.clone()).collect(),
+            trial_ulids,
             name,
             binding: WireBinding::WeakTests { tests },
             gauge: None,
@@ -266,7 +295,7 @@ impl AuthoredFormulationProjection {
             .map(|gauge| (&gauge.compatibility.0, &gauge.compatibility.1))
     }
 
-    /// Decode exactly one bounded canonical v6 projection.
+    /// Decode exactly one bounded canonical v7 projection.
     ///
     /// # Errors
     /// Returns a diagnostic for an oversized, malformed, noncanonical, or
@@ -329,7 +358,7 @@ impl AuthoredFormulationProjection {
                 .iter()
                 .map(String::as_str)
                 .eq(match wire.binding {
-                    WireBinding::WeakTests { ref tests } if tests.len() > 1 => {
+                    WireBinding::WeakTests { .. } if wire.trial_ulids.len() > 1 => {
                         Self::mixed_assumptions()
                     }
                     WireBinding::Finite { .. } => super::finite::ASSUMPTIONS,
@@ -367,25 +396,40 @@ impl AuthoredFormulationProjection {
                 }
             }
             WireBinding::WeakTests { tests } => {
-                if tests.len() != wire.trial_ulids.len() || tests.len() != wire.equations.len() {
+                let second_direction =
+                    second_direction_profile(tests, &wire.trial_ulids, &wire.equations);
+                if !second_direction
+                    && (tests.len() != wire.trial_ulids.len()
+                        || tests.len() != wire.equations.len())
+                {
                     return Err(rejection("equations and test/trial inventories differ"));
+                }
+                if second_direction && (tests[0].2 != tests[1].2 || tests[0].3 != tests[1].3) {
+                    return Err(rejection(
+                        "second variation directions require identical dimension and boundary restrictions",
+                    ));
                 }
                 let mut seen = std::collections::BTreeSet::new();
                 let mut test_names = std::collections::BTreeSet::new();
-                for (test_name, trial, zero_on) in tests {
+                for (test_name, trial, zero_on, dimension) in tests {
+                    if eqiora_core::DimExponents::from_rationals(*dimension)
+                        .is_none_or(|value| value.exponents() != *dimension)
+                    {
+                        return Err(rejection(
+                            "test dimension must be canonical rational SI exponents",
+                        ));
+                    }
                     names.push(test_name);
                     if !test_names.insert(test_name) {
                         return Err(rejection("test names must be unique"));
                     }
-                    if !seen.insert(trial) || !wire.trial_ulids.contains(trial) {
+                    if (!seen.insert(trial) && !second_direction)
+                        || !wire.trial_ulids.contains(trial)
+                    {
                         return Err(rejection("test has repeated or foreign trial"));
                     }
-                    if (tests.len() == 1 && zero_on.is_empty())
-                        || zero_on.windows(2).any(|p| p[0] >= p[1])
-                    {
-                        return Err(rejection(
-                            "test boundaries must be sorted and unique, and scalar test restriction nonempty",
-                        ));
+                    if zero_on.windows(2).any(|p| p[0] >= p[1]) {
+                        return Err(rejection("test boundaries must be sorted and unique"));
                     }
                     for boundary in zero_on {
                         if boundary
@@ -454,7 +498,8 @@ impl AuthoredFormulationProjection {
     }
     /// Named tests with their exact trial Field and zero-trace supports.
     #[must_use]
-    pub fn test_restrictions(&self) -> &[(String, String, Vec<String>)] {
+    #[allow(clippy::type_complexity)]
+    pub fn test_restrictions(&self) -> &[(String, String, Vec<String>, [(i32, i32); 7])] {
         match &self.wire.binding {
             WireBinding::WeakTests { tests } => tests,
             _ => &[],
@@ -514,6 +559,36 @@ impl AuthoredFormulationProjection {
 
 pub(super) fn expression(value: &AuthoredFormExpression) -> AuthoredFormExpressionV1 {
     match &value.kind {
+        AuthoredFormExpressionKind::Rational(rational) => AuthoredFormExpressionV1::Rational {
+            numerator: rational.numerator(),
+            denominator: rational.denominator(),
+            dimension: value.dimension.exponents(),
+        },
+        AuthoredFormExpressionKind::Direction { name, trial } => {
+            AuthoredFormExpressionV1::Direction {
+                name: name.clone(),
+                field_ulid: ulid(trial.erase()),
+            }
+        }
+        AuthoredFormExpressionKind::Component { value, indices } => {
+            AuthoredFormExpressionV1::Component {
+                value: Box::new(expression(value)),
+                indices: indices.clone(),
+            }
+        }
+        AuthoredFormExpressionKind::Variation {
+            functional,
+            wrt,
+            directions,
+            holding,
+            value,
+        } => AuthoredFormExpressionV1::Variation {
+            functional_ulid: ulid(functional.erase()),
+            wrt_ulid: ulid(wrt.erase()),
+            directions: directions.clone(),
+            holding: holding.iter().map(|id| ulid(*id)).collect(),
+            value: Box::new(expression(value)),
+        },
         AuthoredFormExpressionKind::Number(value) => {
             AuthoredFormExpressionV1::Number { value: *value }
         }
@@ -587,6 +662,25 @@ fn ulid(id: RawId) -> String {
     id.ulid().to_string()
 }
 
+fn second_direction_profile(
+    tests: &[AuthoredTestRestriction],
+    trials: &[String],
+    equations: &[(String, AuthoredFormExpressionV1, AuthoredFormExpressionV1)],
+) -> bool {
+    let ([first, second], [trial], [(_, left, right)]) = (tests, trials, equations) else {
+        return false;
+    };
+    if first.1 != *trial || second.1 != *trial || first.0 == second.0 {
+        return false;
+    }
+    [left, right].iter().any(|expression| {
+        matches!(expression,
+        AuthoredFormExpressionV1::Variation { wrt_ulid, directions, .. }
+        if wrt_ulid == trial && directions.len() == 2 && directions[0] != directions[1]
+            && directions.contains(&first.0) && directions.contains(&second.0))
+    })
+}
+
 pub(super) fn rejection(message: &str) -> Diagnostic {
     Diagnostic::error(
         codes::INVALID_DISCRETIZATION,
@@ -617,6 +711,7 @@ mod tests {
                 "w".into(),
                 "01ARZ3NDEKTSV4RRFFQ69G5FAX".into(),
                 vec!["01ARZ3NDEKTSV4RRFFQ69G5FAY".into()],
+                DimExponents::DIMENSIONLESS.exponents(),
             )],
             vec![(
                 "01ARZ3NDEKTSV4RRFFQ69G5FAV".into(),
@@ -625,6 +720,29 @@ mod tests {
             )],
         )
         .unwrap()
+    }
+
+    #[test]
+    fn test_dimension_round_trip_rejects_noncanonical_exponents() {
+        let mut wire = projection().wire;
+        let length = [(0, 1), (1, 1), (0, 1), (0, 1), (0, 1), (0, 1), (0, 1)];
+        if let WireBinding::WeakTests { tests } = &mut wire.binding {
+            tests[0].3 = length;
+        }
+        let admitted =
+            AuthoredFormulationProjection::decode(&serde_json::to_vec(&wire).unwrap()).unwrap();
+        assert_eq!(admitted.test_restrictions()[0].3, length);
+        for exponent in [(2, 2), (1, 0), (-1, -1)] {
+            if let WireBinding::WeakTests { tests } = &mut wire.binding {
+                tests[0].3[1] = exponent;
+            }
+            assert!(
+                AuthoredFormulationProjection::decode(&serde_json::to_vec(&wire).unwrap())
+                    .unwrap_err()
+                    .message()
+                    .contains("canonical rational SI")
+            );
+        }
     }
 
     #[test]
@@ -654,7 +772,12 @@ mod tests {
             AuthoredFormExpressionV1::Number { value: 0.0 },
         ));
         if let WireBinding::WeakTests { tests } = &mut wire.binding {
-            tests.push(("q".into(), "01ARZ3NDEKTSV4RRFFQ69G5FAZ".into(), vec![]));
+            tests.push((
+                "q".into(),
+                "01ARZ3NDEKTSV4RRFFQ69G5FAZ".into(),
+                vec![],
+                DimExponents::DIMENSIONLESS.exponents(),
+            ));
         }
         wire.assumptions = AuthoredFormulationProjection::mixed_assumptions()
             .iter()
@@ -673,7 +796,7 @@ mod tests {
         let bytes = projection().canonical_bytes().to_vec();
         let old = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.authored-form/v6", "eqiora.authored-scalar-form/v3");
+            .replace("eqiora.authored-form/v7", "eqiora.authored-scalar-form/v3");
         assert!(AuthoredFormulationProjection::decode(old.as_bytes()).is_err());
     }
 

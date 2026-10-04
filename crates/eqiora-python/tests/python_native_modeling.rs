@@ -637,7 +637,7 @@ authored = eqiora.Module("authored")
 component = authored.model("M")
 field = component.field("x", value_type=kind, role=eqiora.FieldRole.Variable)
 component.relation("law", eqiora.lang.equation(field, 2))
-assert component.observable("double", field + field, value_type=kind) is None
+assert isinstance(component.observable("double", field + field, value_type=kind), eqiora.lang.Observable)
 builder_model = eqiora.compile(source=authored, entry="M")
 model = eqiora.compile(source=eqiora.Module("M", x,
     eqiora.Relation("law", equations=[(x, 2)]), output))

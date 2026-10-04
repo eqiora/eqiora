@@ -4,6 +4,9 @@ use eqiora::api::ModelDocument;
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
+// Python tuple projection of the compiler-owned test inspection.
+type AuthoredTestRestriction = (String, String, Vec<String>, [(i32, i32); 7]);
+
 /// Immutable inspection of one fresh-compile authored mathematical form.
 #[pyclass(
     name = "AuthoredFormulation",
@@ -16,7 +19,7 @@ pub(super) struct PyAuthoredFormulation {
     source_identity: String,
     name: String,
     interval: Option<(String, String, String)>,
-    test_restrictions: Vec<(String, String, Vec<String>)>,
+    test_restrictions: Vec<AuthoredTestRestriction>,
     implication: String,
     assumptions: Vec<String>,
     relation_ids: Vec<String>,
@@ -42,7 +45,7 @@ impl PyAuthoredFormulation {
         &self.name
     }
     #[getter]
-    fn test_restrictions(&self) -> Vec<(String, String, Vec<String>)> {
+    fn test_restrictions(&self) -> Vec<AuthoredTestRestriction> {
         self.test_restrictions.clone()
     }
     #[getter]

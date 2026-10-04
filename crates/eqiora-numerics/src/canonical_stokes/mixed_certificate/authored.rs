@@ -61,14 +61,15 @@ pub(super) fn check_terms(
     }
     for trial in [source.velocity, source.pressure] {
         let id = trial.ulid().to_string();
-        let Some((_, _, bounds)) = form
+        let Some((_, _, bounds, dimension)) = form
             .test_restrictions()
             .iter()
-            .find(|(_, field, _)| field == &id)
+            .find(|(_, field, _, _)| field == &id)
         else {
             return Err(reject());
         };
-        if (trial == source.velocity && bounds != &boundary_ids)
+        if *dimension != eqiora_core::DimExponents::DIMENSIONLESS.exponents()
+            || (trial == source.velocity && bounds != &boundary_ids)
             || (trial == source.pressure && !bounds.is_empty())
         {
             return Err(reject());

@@ -135,14 +135,7 @@ impl Parser<'_> {
                     .text()
                     .to_owned();
                 self.expect(TokenKind::Colon, "`:` before test dimension")?;
-                let dimension = self.parse_expression(0)?;
-                if !matches!(dimension.kind(), crate::ast::ExprKind::Number(value) if value.to_i64().ok() == Some(1))
-                {
-                    self.error_here(
-                        "weak forms require an explicit dimensionless test (`test w: 1`)",
-                    );
-                    return None;
-                }
+                let dimension = self.parse_dimension_expression()?;
                 self.expect_keyword("for")?;
                 let trial = self
                     .expect_identifier("trial Field name")?
@@ -164,7 +157,7 @@ impl Parser<'_> {
                     }
                 }
                 self.expect(TokenKind::Semicolon, "`;` after test declaration")?;
-                tests.push((name, trial, zero_on));
+                tests.push((name, trial, zero_on, dimension));
                 if !self.at_keyword("test") {
                     break;
                 }
@@ -278,10 +271,15 @@ component Diffusion(
         }));
     }
     #[test]
-    fn dimensionless_test_is_explicit_and_old_implicit_syntax_rejects() {
+    fn test_dimension_is_explicit_and_uses_the_shared_dimension_grammar() {
+        let dimensional = "component C() { form weak for balance { test w: K for u zero_on surface; integrate(body,w)=integrate(body,w); } }";
+        assert!(
+            parse("temperature.eqi", dimensional)
+                .into_document()
+                .is_ok()
+        );
         for body in [
             "integrate(body, test(u)) = integrate(body, test(u));",
-            "test w: K for u zero_on surface; integrate(body, w)=integrate(body,w);",
             "test w: 1.00000000000000000001 for u zero_on surface; integrate(body, w)=integrate(body,w);",
         ] {
             let source = format!("component C() {{ form weak for balance {{ {body} }} }}");
