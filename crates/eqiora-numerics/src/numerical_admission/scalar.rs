@@ -758,7 +758,11 @@ impl CommonScalarPlan {
         field: eqiora_core::RawId,
     ) -> Result<(Vec<usize>, Vec<usize>), Diagnostic> {
         if let RecognizedNativeModel::Coordinates(projection) = self.admission.recognized_model() {
-            if projection.field.erase() != field {
+            if !projection
+                .fields()
+                .iter()
+                .any(|(id, _)| id.erase() == field)
+            {
                 return Err(invalid("Field is outside coordinate Plan"));
             }
             return Ok((self.cells.to_vec(), Vec::new()));

@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use super::{ExactRational, PureOperatorError};
+use super::{CalculusNode, ExactRational, PureOperatorDefinition, PureOperatorError};
 
 const MAX_TERMS: usize = 16_384;
 const MAX_FACTORS: usize = 65_536;
@@ -104,6 +104,49 @@ impl<A: Clone + Ord> ExactPolynomial<A> {
             }
         }
         Ok(result)
+    }
+
+    /// Substitute exact polynomials into a scalar polynomial operator definition.
+    /// `None` identifies a definition outside this classification profile. This does
+    /// not create executable reassociation or differentiate an unevaluated request.
+    /// The caller charges each intermediate projection against its cumulative budget.
+    ///
+    /// # Errors
+    /// Returns exact arithmetic or caller-supplied budget failures.
+    pub fn substitute<E: From<ExactPolynomialError>>(
+        definition: &PureOperatorDefinition,
+        arguments: &[&Self],
+        mut charge: impl FnMut(&Self) -> Result<(), E>,
+    ) -> Result<Option<Self>, E> {
+        if definition.formals().len() != arguments.len()
+            || !definition.result_rule().is_invariant_scalar()
+            || definition
+                .formals()
+                .iter()
+                .any(|formal| !formal.is_invariant_scalar())
+        {
+            return Ok(None);
+        }
+        let mut values: Vec<Self> = Vec::with_capacity(definition.nodes().len());
+        for node in definition.nodes() {
+            let get = |id: super::CalculusNodeId| &values[id.index() as usize];
+            let value = match node {
+                CalculusNode::Rational { value, .. } => Self::constant(*value),
+                CalculusNode::FormalComponent { formal, axes } if axes.is_empty() => {
+                    (*arguments[usize::from(*formal)]).clone()
+                }
+                CalculusNode::BoundInput(value) | CalculusNode::Differentiated { value, .. } => {
+                    get(*value).clone()
+                }
+                CalculusNode::Neg(value) => get(*value).checked_neg()?,
+                CalculusNode::Add(left, right) => get(*left).checked_add(get(*right))?,
+                CalculusNode::Mul(left, right) => get(*left).checked_mul(get(*right))?,
+                _ => return Ok(None),
+            };
+            charge(&value)?;
+            values.push(value);
+        }
+        Ok(values.get(definition.root().index() as usize).cloned())
     }
 
     pub(crate) fn factor_count(&self) -> usize {

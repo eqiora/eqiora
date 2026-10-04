@@ -19,7 +19,7 @@ rejection, and replay. Bounded real scalar factor integrals execute coordinate d
 finite Result amplitudes, exact selected measures and explicit remaining output support;
 [registered evidence](../../verify/language/factor-integrals/README.md) covers polynomial moments
 and finite Gaussian error bounds. Non-Cartesian product factors, product-domain Field/PDE
-realizations, radial diffusion Fields, nonpolynomial integral solver coupling, general differentiation under integrals,
+realizations, transient radial diffusion, nonpolynomial integral solver coupling, general differentiation under integrals,
 higher unknown-Field partials and curved embedded-field extensions remain separate work. The complete examples below include target operations beyond this bounded implementation.
 
 ## Exact factors and coordinate bindings
@@ -168,8 +168,15 @@ An integral is not a normalized average. Write a denominator explicitly, and rej
 measure before division. Use `spherical_measure(radius)` to declare the spherical-symmetry measure
 `4*pi*r^2 dr` on one length-valued coordinate interval `[0,R]`, with `R > 0`.
 A constant concentration `c` has total `c*4*pi*R^3/3` and explicit average `c`.
-The regular coordinate-density observation path supports this measure; a radial
-diffusion Field and its center regularity are not inferred or realized by this declaration.
+The measure alone does not define a radial PDE or center condition. Static radial diffusion
+now admits the explicit pair `partial(r*r*j,wrt=r)=q*r*r`, `j=-D*partial(c,wrt=r)` with
+fixed scalar Parameters, positive `D`, `evaluate(j,at=(r=0[m]),side=upper)=0` and an explicit
+surface concentration at `R` approached from below. Its cell-centered coordinate-grid Plan
+retains radial face areas and cell volumes; ordinary Result observations use this spherical
+measure. See the [executable model](../../verify/language/factor-integrals/models/radial-diffusion.eqi)
+and [independent refinement derivation](../../verify/language/factor-integrals/README.md#static-radial-diffusion-and-particle-average).
+The stored cell-constant fields have no admitted pointwise reconstruction. Time evolution,
+variable coefficients, nonlinear laws and shells with a positive inner radius remain unsupported.
 Spherical functional variations and integral partials remain unsupported.
 
 Continuous noninitial condition Relations can constrain a lumped Observable, for example

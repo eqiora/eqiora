@@ -15,6 +15,7 @@ use sha2::{Digest, Sha256};
 use super::typing::{ExpressionType, SpatialSupport};
 use eqiora_core::{DimExponents, ValueFrame};
 mod actions;
+mod binary64;
 mod composition;
 mod derivative;
 mod derivative_validation;

@@ -24,7 +24,7 @@ impl CommonScalarPlan {
                 "factor Field observation requires its coordinate grid realization",
             ));
         };
-        if field != projection.field
+        if !projection.fields().iter().any(|(id, _)| *id == field)
             || Some(values.len()) != grid.mesh.mesh().entity_count(grid.source.factors.len())
         {
             return Err(invalid(

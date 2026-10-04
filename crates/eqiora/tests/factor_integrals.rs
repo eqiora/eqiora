@@ -660,3 +660,6 @@ fn spherical_density_integrals_replay_the_declared_radial_measure() {
 
 #[path = "support/factor_integral_coupling.rs"]
 mod model_coupling;
+
+#[path = "factor_integrals/radial_diffusion.rs"]
+mod radial_diffusion;

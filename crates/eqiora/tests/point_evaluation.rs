@@ -197,3 +197,38 @@ fn point_fingerprint_retains_bindings_and_side_and_rejects_displaced_wire() {
     assert_ne!(displaced.as_bytes(), bytes);
     assert!(ModelDocument::replay(displaced.as_bytes()).is_err());
 }
+
+#[test]
+fn point_bindings_cannot_hide_physical_port_ownership() {
+    for probe in [
+        "evaluate(left.position,at=(x=0.5[m]))",
+        "evaluate(x,at=(x=left.position))",
+    ] {
+        let source = format!(
+            r#"
+model Pair() {{
+    domain line=box(0,1);
+    coordinate x:m on line from line[0];
+    domain mechanical=scalar_physical(across position:m,through flow:1);
+    port left:mechanical;
+    port right:mechanical;
+    relation left_owner {{ {probe}=0[m]; }}
+    relation right_owner {{ right.flow=0; }}
+    connect left,right;
+}}
+"#
+        );
+        eqiora::compiler::compile("point-port-owner.eqi", &source).unwrap();
+        let duplicate = source.replace(
+            "connect left,right;",
+            "relation extra { left.position=0[m]; } connect left,right;",
+        );
+        let errors = eqiora::compiler::compile("point-port-duplicate.eqi", &duplicate).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message().contains("more than one owning Relation")),
+            "{errors:?}"
+        );
+    }
+}

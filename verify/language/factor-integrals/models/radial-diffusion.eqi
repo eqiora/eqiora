@@ -1,0 +1,22 @@
+model Particle(support radius:interval(m)) {
+    coordinate r:m on radius from radius;
+    parameter diffusivity:m^2/s=1[m^2/s];
+    parameter production:1/m^3/s=6[1/m^3/s];
+    variable concentration:1/m^3 on radius;
+    variable flux:1/m^2/s on radius;
+    relation balance on radius {
+        partial(r*r*flux,wrt=r)=production*r*r;
+    }
+    relation constitutive on radius {
+        flux=-diffusivity*partial(concentration,wrt=r);
+    }
+    relation center {
+        evaluate(flux,at=(r=0[m]),side=upper)=0[1/m^2/s];
+    }
+    relation surface {
+        evaluate(concentration,at=(r=1[m]),side=lower)=0[1/m^3];
+    }
+    observable amount:1=integral(concentration,spherical_measure(radius));
+    observable volume:m^3=integral(1,spherical_measure(radius));
+    observable average:1/m^3=amount/volume;
+}

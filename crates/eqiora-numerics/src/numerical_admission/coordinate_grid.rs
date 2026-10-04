@@ -9,9 +9,14 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use ulid::Ulid;
 
+mod diffusion;
+mod diffusion_plan;
+mod equations;
 mod observe;
 mod plan;
+mod polynomial;
 mod projection;
+pub(super) use equations::CellEquations;
 pub(super) use plan::{execute, portable};
 pub(super) use projection::CellProjection;
 mod sampling;

@@ -443,3 +443,90 @@ fn ordered_second_variation_reuses_live_volume_and_surface_calculus() {
             .contains("foreign or stale")
     );
 }
+
+#[test]
+fn constant_surface_density_uses_each_exact_face_area_and_mass_unit() {
+    let original = cartesian_box_3d();
+    let bytes = std::str::from_utf8(original.canonical_bytes())
+        .unwrap()
+        .replace(
+            "[[0.0,1.0],[0.0,1.0],[0.0,1.0]]",
+            "[[0.0,2.0],[0.0,3.0],[0.0,5.0]]",
+        );
+    let geometry = CanonicalGeometryV1::decode_cartesian_box_v1_canonical(
+        bytes.as_bytes(),
+        eqiora_geometry::CanonicalGeometryLimits::default(),
+    )
+    .unwrap();
+    let source = POISSON_BOX.replace(
+        "  variable potential:",
+        "  parameter density:kg/m^2=7[kg/m^2];
+  observable face_x:kg=integral(density,measure(x_lower));
+  observable opposite_x:kg=integral(density,measure(x_upper));
+  observable face_y:kg=integral(density,measure(y_lower));
+  observable face_z:kg=integral(density,measure(z_lower));
+  variable potential:",
+    );
+    let model = scalar_box_model(
+        &geometry,
+        &source,
+        "PoissonBox",
+        &[
+            "x_lower", "x_upper", "y_lower", "y_upper", "z_lower", "z_upper",
+        ],
+    );
+    let plan = resolve_scalar_box(
+        &model,
+        cartesian_box_resources(&geometry, &[2, 2, 2]),
+        CommonSpatialPolicy::Q1,
+    );
+    let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
+    let result = crate::CommonResult::from_bytes(
+        &result.to_bytes().unwrap(),
+        &crate::ResolvedCommonPlan::Scalar(Box::new(plan.clone())),
+    )
+    .unwrap();
+    let rule = QuadratureRule::tensor_product_gauss_legendre(2, 2).unwrap();
+    let mass = DimExponents::from_integers([1, 0, 0, 0, 0, 0, 0]).unwrap();
+    let mut count = 0;
+    for definition in plan
+        .observation_program()
+        .nodes()
+        .filter_map(|node| match node {
+            KernelNode::Observable(value) => Some(value),
+            _ => None,
+        })
+    {
+        let value = result
+            .observe(
+                &model,
+                definition.id(),
+                &observation_rules(&model, definition.id(), &rule),
+            )
+            .unwrap();
+        let value = value.value().real_scalar_value().unwrap();
+        assert_eq!(value.dim(), mass);
+        let domain = definition.reduction().domain().unwrap();
+        let Some(KernelNode::Domain(domain)) = plan.observation_program().node(domain.erase())
+        else {
+            panic!("exact integral domain");
+        };
+        let eqiora_schema::kernel::DomainKind::GeometryBoundary { entity_set } = domain.kind()
+        else {
+            panic!("physical surface measure");
+        };
+        // Areas are yz=15, xz=10 and xy=6 m²; both x faces have area 15.
+        let expected = match entity_set.as_str() {
+            "x_lower" | "x_upper" => 105.0,
+            "y_lower" => 70.0,
+            "z_lower" => 42.0,
+            _ => panic!("unexpected face {entity_set}"),
+        };
+        assert!(
+            (value.value() - expected).abs() < 1e-10,
+            "{entity_set}: {value:?}"
+        );
+        count += 1;
+    }
+    assert_eq!(count, 4);
+}
