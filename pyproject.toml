@@ -79,6 +79,8 @@ exclude = [
     "**/*.pyo",
     "bindings/python/.venv/**",
     "bindings/python/dist/**",
+    # Repository README animation is not a source-build or installed-test input.
+    "docs/assets/**",
     "studio/node_modules/**",
     "studio/dist/**",
     "studio/test-results/**",
