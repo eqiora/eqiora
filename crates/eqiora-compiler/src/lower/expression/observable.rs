@@ -34,7 +34,26 @@ pub(in crate::lower) fn lower_observable(
     let input = reduction
         .and(inferred.support.as_ref().or(support.as_ref()))
         .cloned();
-    let reduction = match reduction {
+    let typed_limits = reduction
+        .and_then(|reduction| reduction.limits.as_ref())
+        .map(|limits| {
+            limits
+                .iter()
+                .map(|limit| {
+                    let value = contextual::typed_value(
+                        file,
+                        limit,
+                        bindings,
+                        support.as_ref(),
+                        eqiora_core::ScalarDomain::Real,
+                    )?;
+                    let ty = expression_type(file, &value, bindings, support.as_ref())?;
+                    Ok((value, ty))
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()
+        })
+        .transpose()?;
+    let mut reduction = match reduction {
         None => ObservableReduction::Value,
         Some(reduction) => {
             let name = &reduction.domain;
@@ -49,6 +68,7 @@ pub(in crate::lower) fn lower_observable(
                     .downcast()
                     .expect("admitted Domain"),
                 domain: *domain,
+                limits: None,
                 measure: reduction.measure.unwrap_or({
                     if matches!(support.as_ref(), Some(SpatialSupport::Boundary { .. })) {
                         ObservableMeasure::Boundary
@@ -74,13 +94,29 @@ pub(in crate::lower) fn lower_observable(
         initial: false,
     };
     let root = lowerer.lower(&value)?.id;
+    if let Some(values) = typed_limits.as_ref() {
+        let lower = lowerer.lower(&values[0].0)?.id;
+        let upper = lowerer.lower(&values[1].0)?.id;
+        let ObservableReduction::SpatialIntegral { limits, .. } = &mut reduction else {
+            unreachable!()
+        };
+        *limits = Some([lower, upper]);
+    }
     let expression = lowerer
         .builder
         .finish([root])
         .map_err(|error| source_error(codes::LANGUAGE_TYPE_ERROR, file, range, error.message()))?;
     let definition = ObservableDef::new(id, value_type, expression, reduction)?;
     definition
-        .validate_type(&inferred, input.as_ref(), support.as_ref(), output.as_ref())
+        .validate_type(
+            &inferred,
+            typed_limits
+                .as_ref()
+                .map(|values| [&values[0].1, &values[1].1]),
+            input.as_ref(),
+            support.as_ref(),
+            output.as_ref(),
+        )
         .map_err(|error| source_error(codes::LANGUAGE_TYPE_ERROR, file, range, error.message()))?;
     Ok((definition, lowerer.dependencies))
 }

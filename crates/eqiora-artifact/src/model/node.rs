@@ -137,13 +137,17 @@ impl WireNode {
                 value_type,
                 expression,
                 reduction,
-            } => ObservableDef::new(
-                self.id.typed::<kinds::Observable>()?,
-                value_type.decode()?,
-                expression.decode()?,
-                reduction.decode()?,
-            )
-            .map(Into::into),
+            } => {
+                let expression = expression.decode()?;
+                let reduction = reduction.decode(&expression)?;
+                ObservableDef::new(
+                    self.id.typed::<kinds::Observable>()?,
+                    value_type.decode()?,
+                    expression,
+                    reduction,
+                )
+                .map(Into::into)
+            }
             WireNodeDefinition::Enum { members } => {
                 EnumDef::new(self.id.typed::<kinds::Enum>()?, members.iter().cloned())
                     .map(Into::into)
@@ -781,9 +785,21 @@ mod equation_tests {
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub(crate) enum WireObservableReduction {
     Value,
-    VolumeIntegral { input: WireId, domain: WireId },
-    BoundaryIntegral { input: WireId, domain: WireId },
-    SphericalVolumeIntegral { input: WireId, domain: WireId },
+    VolumeIntegral {
+        input: WireId,
+        domain: WireId,
+        limits: Option<[u32; 2]>,
+    },
+    BoundaryIntegral {
+        input: WireId,
+        domain: WireId,
+        limits: Option<[u32; 2]>,
+    },
+    SphericalVolumeIntegral {
+        input: WireId,
+        domain: WireId,
+        limits: Option<[u32; 2]>,
+    },
 }
 
 impl WireObservableReduction {
@@ -794,7 +810,9 @@ impl WireObservableReduction {
                 input,
                 domain,
                 measure: ObservableMeasure::Volume,
+                limits,
             } => Self::VolumeIntegral {
+                limits: limits.map(|limits| limits.map(|id| id.index())),
                 input: WireId::from_raw(input.erase()),
                 domain: WireId::from_raw(domain.erase()),
             },
@@ -802,7 +820,9 @@ impl WireObservableReduction {
                 input,
                 domain,
                 measure: ObservableMeasure::Boundary,
+                limits,
             } => Self::BoundaryIntegral {
+                limits: limits.map(|limits| limits.map(|id| id.index())),
                 input: WireId::from_raw(input.erase()),
                 domain: WireId::from_raw(domain.erase()),
             },
@@ -810,40 +830,72 @@ impl WireObservableReduction {
                 input,
                 domain,
                 measure: ObservableMeasure::SphericalVolume,
+                limits,
             } => Self::SphericalVolumeIntegral {
+                limits: limits.map(|limits| limits.map(|id| id.index())),
                 input: WireId::from_raw(input.erase()),
                 domain: WireId::from_raw(domain.erase()),
             },
         }
     }
-    fn decode(&self) -> Result<ObservableReduction, Diagnostic> {
+    fn decode(
+        &self,
+        expression: &eqiora_schema::kernel::ExprDag,
+    ) -> Result<ObservableReduction, Diagnostic> {
+        let decode_limits = |limits: Option<[u32; 2]>| -> Result<_, Diagnostic> {
+            limits
+                .map(|[lower, upper]| {
+                    Ok([
+                        expression.node_id(lower).ok_or_else(|| {
+                            invalid_artifact("lower integral limit is outside its expression DAG")
+                        })?,
+                        expression.node_id(upper).ok_or_else(|| {
+                            invalid_artifact("upper integral limit is outside its expression DAG")
+                        })?,
+                    ])
+                })
+                .transpose()
+        };
         Ok(match self {
             Self::Value => ObservableReduction::Value,
-            Self::VolumeIntegral { input, domain } => ObservableReduction::SpatialIntegral {
+            Self::VolumeIntegral {
+                input,
+                domain,
+                limits,
+            } => ObservableReduction::SpatialIntegral {
                 input: input.typed()?,
                 domain: domain.typed()?,
                 measure: ObservableMeasure::Volume,
+                limits: decode_limits(*limits)?,
             },
-            Self::BoundaryIntegral { input, domain } => ObservableReduction::SpatialIntegral {
+            Self::BoundaryIntegral {
+                input,
+                domain,
+                limits,
+            } => ObservableReduction::SpatialIntegral {
                 input: input.typed()?,
                 domain: domain.typed()?,
                 measure: ObservableMeasure::Boundary,
+                limits: decode_limits(*limits)?,
             },
-            Self::SphericalVolumeIntegral { input, domain } => {
-                ObservableReduction::SpatialIntegral {
-                    input: input.typed()?,
-                    domain: domain.typed()?,
-                    measure: ObservableMeasure::SphericalVolume,
-                }
-            }
+            Self::SphericalVolumeIntegral {
+                input,
+                domain,
+                limits,
+            } => ObservableReduction::SpatialIntegral {
+                input: input.typed()?,
+                domain: domain.typed()?,
+                measure: ObservableMeasure::SphericalVolume,
+                limits: decode_limits(*limits)?,
+            },
         })
     }
     fn semantic_references(&self) -> Vec<&WireId> {
         match self {
             Self::Value => Vec::new(),
-            Self::VolumeIntegral { input, domain }
-            | Self::BoundaryIntegral { input, domain }
-            | Self::SphericalVolumeIntegral { input, domain } => {
+            Self::VolumeIntegral { input, domain, .. }
+            | Self::BoundaryIntegral { input, domain, .. }
+            | Self::SphericalVolumeIntegral { input, domain, .. } => {
                 vec![input, domain]
             }
         }

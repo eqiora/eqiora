@@ -79,6 +79,11 @@ impl Context<'_> {
         let Some(KernelNode::Observable(definition)) = self.kernel.node(id.erase()) else {
             return Err(invalid("polynomial degree references a foreign Observable"));
         };
+        if definition.reduction().limits().is_some() {
+            return Err(invalid(
+                "explicit integral limits require admitted numerical endpoint evaluation",
+            ));
+        }
         let definition = definition.clone();
         let mut degree = self.degree_expression(definition.expression(), depth)?;
         if let ObservableReduction::SpatialIntegral { domain, .. } = definition.reduction() {

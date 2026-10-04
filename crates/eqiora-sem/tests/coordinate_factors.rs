@@ -274,6 +274,7 @@ fn spherical_measure_requires_a_radial_interval_starting_at_the_center() {
                 ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap(),
                 dag.finish([density]).unwrap(),
                 ObservableReduction::SpatialIntegral {
+                    limits: None,
                     input: radial,
                     domain: radial,
                     measure: ObservableMeasure::SphericalVolume,

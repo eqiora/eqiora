@@ -67,16 +67,19 @@ impl Context<'_, '_> {
             .node_type(density.expression().roots()[0])
             .ok_or_else(|| wire::rejection("functional density has no typed root"))?;
         if matches!(functional.reduction(), ObservableReduction::Value) {
-            functional.validate_type(root, None, None, None)?;
+            functional.validate_type(root, None, None, None, None)?;
             return self.expression(&density, density.expression().roots()[0], depth + 1);
         }
         let ObservableReduction::SpatialIntegral {
+            limits: None,
             input,
             domain,
             measure,
         } = functional.reduction()
         else {
-            unreachable!("closed Observable reductions");
+            return Err(wire::rejection(
+                "local variation requires a full fixed-domain integral",
+            ));
         };
         if input != domain {
             return Err(wire::rejection(
@@ -93,7 +96,7 @@ impl Context<'_, '_> {
                 "variation measure differs from its live support",
             ));
         }
-        functional.validate_type(root, Some(support), Some(support), None)?;
+        functional.validate_type(root, None, Some(support), Some(support), None)?;
         let volume = support.parent().copied().unwrap_or(domain.erase());
         let holding = functional
             .expression()

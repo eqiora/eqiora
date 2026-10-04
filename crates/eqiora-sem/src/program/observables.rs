@@ -26,6 +26,53 @@ impl KernelProgram {
         }))
     }
 
+    /// Evaluate explicit lower/upper mathematical limits using the canonical expression evaluator.
+    /// This selects only the limit roots; it neither samples the density nor performs quadrature.
+    ///
+    /// # Errors
+    /// Rejects foreign Observables, unavailable inputs, non-finite arithmetic and wrong limit units.
+    pub fn evaluate_observable_limits(
+        &self,
+        observable: Id<kinds::Observable>,
+        resolve: &mut dyn FnMut(SymbolRef) -> Option<eqiora_core::ValueLiteral>,
+    ) -> Result<Option<[eqiora_core::DynQuantity; 2]>, Diagnostic> {
+        let Some(KernelNode::Observable(definition)) = self.node(observable.erase()) else {
+            return Err(kernel_error(
+                observable.erase(),
+                "integral limits require an exact retained Observable",
+            ));
+        };
+        let Some(limits) = definition.reduction().limits() else {
+            return Ok(None);
+        };
+        let typed = self
+            .typed_observable(observable)
+            .map_err(|errors| errors.into_iter().next().expect("failed typing"))?;
+        let values = crate::ExpressionBackend::evaluate(
+            &crate::evaluate::ReferenceExpressionBackend,
+            observable.erase(),
+            definition.expression(),
+            &limits,
+            resolve,
+        )?;
+        let mut checked = Vec::with_capacity(2);
+        for (value, limit) in values.into_iter().zip(limits) {
+            if value.value_type() != &typed.node_type(limit).expect("typed limit").value_type {
+                return Err(kernel_error(
+                    observable.erase(),
+                    "evaluated integral limit has the wrong coordinate unit or type",
+                ));
+            }
+            checked.push(value.real_scalar_value().ok_or_else(|| {
+                kernel_error(
+                    observable.erase(),
+                    "integral limit requires a finite real scalar",
+                )
+            })?);
+        }
+        Ok(Some(checked.try_into().expect("two selected limit roots")))
+    }
+
     /// Evaluate the retained expression of one finite Observable in this exact Model.
     /// Symbol values come from the caller's admitted numerical context; this performs
     /// no spatial quadrature or solver acceptance.
@@ -169,6 +216,9 @@ impl KernelProgram {
         definition
             .validate_type(
                 root,
+                definition.reduction().limits().map(|limits| {
+                    limits.map(|id| typed.node_type(id).expect("typed limit exists"))
+                }),
                 definition
                     .reduction()
                     .input_domain()
@@ -288,6 +338,9 @@ pub(super) fn validate(
                 .expect("typed root exists");
             if let Err(error) = observable.validate_type(
                 root,
+                observable.reduction().limits().map(|limits| {
+                    limits.map(|id| typed.node_type(id).expect("typed limit exists"))
+                }),
                 observable
                     .reduction()
                     .input_domain()

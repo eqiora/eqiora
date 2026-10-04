@@ -113,7 +113,42 @@ impl Context<'_> {
                     ));
                 }
                 self.require_regular_density(&operator, depth)?;
-                let selected = axes(self.program, domain)?;
+                let mut selected = axes(self.program, domain)?;
+                let program = self.program;
+                let limits = program
+                    .evaluate_observable_limits(definition.id(), &mut |symbol| {
+                        self.resolve(symbol)
+                    })?;
+                let mut orientation = 1.0;
+                if let Some([lower, upper]) = limits {
+                    let [(_, support)] = selected.as_slice() else {
+                        return Err(invalid(
+                            "explicit limits require one exact coordinate interval",
+                        ));
+                    };
+                    for limit in [lower, upper] {
+                        if !limit.value().is_finite()
+                            || limit.dim() != support.lower().dim()
+                            || limit.value() < support.lower().value()
+                            || limit.value() > support.upper().value()
+                        {
+                            return Err(invalid(
+                                "integral limit is outside its exact coordinate support or has wrong units",
+                            ));
+                        }
+                    }
+                    if lower.value() == upper.value() {
+                        orientation = 0.0;
+                    } else {
+                        let (lower, upper) = if lower.value() < upper.value() {
+                            (lower, upper)
+                        } else {
+                            orientation = -1.0;
+                            (upper, lower)
+                        };
+                        selected[0].1 = eqiora_schema::kernel::AxisBounds::new(lower, upper)?;
+                    }
+                }
                 let rule = self.quadratures.get(&domain).ok_or_else(|| {
                     invalid(
                         "factor integral requires explicit quadrature for its exact measure Domain",
@@ -127,9 +162,12 @@ impl Context<'_> {
                 self.used_rules.insert(domain);
                 let mut sum = 0.0;
                 let mut correction = 0.0;
-                let cells = match self.result.plan().as_scalar() {
-                    Some(plan) => plan.factor_quadrature_cells(&selected, self.remaining)?,
-                    None => vec![selected.clone()],
+                let cells = match (orientation == 0.0, self.result.plan().as_scalar()) {
+                    (true, _) => Vec::new(),
+                    (false, Some(plan)) => {
+                        plan.factor_quadrature_cells(&selected, self.remaining)?
+                    }
+                    (false, None) => vec![selected.clone()],
                 };
                 self.remaining = self
                     .remaining
@@ -149,7 +187,7 @@ impl Context<'_> {
                         sum = next;
                     }
                 }
-                sum
+                orientation * sum
             }
         };
         let value = ValueLiteral::from_real(ty.clone(), value)

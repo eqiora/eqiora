@@ -2,7 +2,7 @@ id = "language.factor-integrals"
 status = "implemented"
 scope = "bounded-coordinate-factor-observations-finite-constraints-and-cell-fields"
 reference_kind = "independent-monomial-antiderivatives-and-truncated-gaussian-error-bounds"
-capabilities = ["exact-factor-measure", "remaining-output-support", "density-and-velocity-moments", "explicit-normalization", "nested-integrals", "model-replay", "regular-density-admission", "fixed-polynomial-integral-partials", "spherical-radial-volume-measure", "finite-polynomial-integral-constraints", "prescribed-polynomial-cell-field", "static-radial-diffusion-and-particle-average"]
+capabilities = ["exact-factor-measure", "remaining-output-support", "density-and-velocity-moments", "explicit-normalization", "nested-integrals", "model-replay", "regular-density-admission", "fixed-polynomial-integral-partials", "finite-polynomial-moving-endpoint-partials", "spherical-radial-volume-measure", "finite-polynomial-integral-constraints", "prescribed-polynomial-cell-field", "static-radial-diffusion-and-particle-average"]
 
 [claim_boundary]
 bounded_affine_coordinate_factors = true
@@ -24,7 +24,8 @@ finite_polynomial_integral_constraints = true
 nonpolynomial_integral_constraints = false
 fixed_polynomial_integral_first_partials = true
 higher_integral_partials = false
-moving_bounds_and_shape_derivatives = false
+finite_polynomial_moving_endpoint_partials = true
+moving_geometry_shape_derivatives = false
 nonpolynomial_integral_partials = false
 state_direction_products = false
 unbounded_quadrature = false

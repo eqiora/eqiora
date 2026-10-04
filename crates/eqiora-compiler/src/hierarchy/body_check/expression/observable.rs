@@ -8,7 +8,8 @@ pub(in crate::hierarchy::body_check) fn validate_observable(
     let (value, reduction) =
         crate::hierarchy::expand::observable::split(scope.file, declaration.value())?;
     let support = reduction
-        .map(|(name, _)| {
+        .map(|reduction| {
+            let name = reduction.domain;
             scope.spatial_support(name).ok_or_else(|| {
                 scope.wrong_local_kind(declaration.range(), name, "Observable integration Domain")
             })
@@ -49,16 +50,42 @@ pub(in crate::hierarchy::body_check) fn validate_observable(
     };
     let inferred = checker.check_numeric_context(value, expected.scalar_domain())?;
     let inferred_type = if reduction.is_some() {
-        let measure = reduction.and_then(|(_, measure)| measure).unwrap_or({
-            if matches!(
-                support.as_ref(),
-                Some(eqiora_schema::kernel::typing::SpatialSupport::Boundary { .. })
-            ) {
-                eqiora_schema::kernel::ObservableMeasure::Boundary
-            } else {
-                eqiora_schema::kernel::ObservableMeasure::Volume
-            }
-        });
+        let measure = reduction
+            .and_then(|reduction| reduction.measure)
+            .unwrap_or({
+                if matches!(
+                    support.as_ref(),
+                    Some(eqiora_schema::kernel::typing::SpatialSupport::Boundary { .. })
+                ) {
+                    eqiora_schema::kernel::ObservableMeasure::Boundary
+                } else {
+                    eqiora_schema::kernel::ObservableMeasure::Volume
+                }
+            });
+        if let Some(limits) = reduction.and_then(|reduction| reduction.limits) {
+            let lower =
+                checker.check_numeric_context(limits[0], eqiora_core::ScalarDomain::Real)?;
+            let upper =
+                checker.check_numeric_context(limits[1], eqiora_core::ScalarDomain::Real)?;
+            measure
+                .validate_limits(
+                    inferred
+                        .support
+                        .as_ref()
+                        .or(support.as_ref())
+                        .expect("input support"),
+                    support.as_ref().expect("integration support"),
+                    [&lower, &upper],
+                )
+                .map_err(|error| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        scope.file,
+                        declaration.range(),
+                        error.message(),
+                    )
+                })?;
+        }
         measure
             .output_type(
                 &inferred,
@@ -125,7 +152,8 @@ pub(super) fn reference_type(
     let (_, reduction) =
         crate::hierarchy::expand::observable::split(scope.file, declaration.value())?;
     let measure_support = reduction
-        .map(|(name, _)| {
+        .map(|reduction| {
+            let name = reduction.domain;
             scope.spatial_support(name).ok_or_else(|| {
                 scope.wrong_local_kind(declaration.range(), name, "Observable integration Domain")
             })

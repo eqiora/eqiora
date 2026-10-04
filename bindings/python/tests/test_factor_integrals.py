@@ -200,3 +200,37 @@ def test_radial_diffusion_installed_result_and_spherical_average(cells):
     assert observed.value_type == q.ValueType.real(q.Dimension(length=-3))
     with pytest.raises(q.ValidationError, match="CellCentered"):
         q.resolve(model, mesh=mesh, spatial=q.fem.Q1(), solve=solve)
+
+
+@pytest.mark.parametrize("a", [-1.0, 0.0, 1.0, 2.0])
+@pytest.mark.parametrize("density,lower,upper,power,coefficient,derivative", [
+    ("x*x", "0[m]", "a", 3, 1/3, 1),
+    ("a*x", "a", "2*a", 3, 3/2, 9/2),
+    ("1", "a", "2*a", 1, 1, 1),
+])
+def test_moving_endpoint_leibniz_installed_lifecycle(a, density, lower, upper, power, coefficient, derivative):
+    source = f"""model Moving(support line:interval(m)) {{
+      coordinate x:m on line from line;
+      parameter a:m={a}[m];
+      variable anchor:1; relation fixed {{anchor=1;}}
+      observable total:m^{power}=integral({density},measure(line),lower={lower},upper={upper});
+      observable slope:m^{power-1}=partial(total,wrt=a);
+    }}"""
+    model = q.compile(source=source, entry="Moving", bindings={
+        "line": q.CoordinateInterval(-4, 4, dimension=LENGTH),
+    })
+    outputs = {name: model.observable(name) for name in ("total", "slope")}
+    model = q.Model.from_bytes(model.to_bytes())
+    solve = q.solve.Linear(relative_tolerance=1e-12, absolute_tolerance=1e-14,
+                           maximum_iterations=8, algorithm=q.solve.LinearSolver.SparseLu,
+                           preconditioner=q.solve.Preconditioner.Identity,
+                           reduction=q.solve.Reduction.Fast, provider=q.solve.SolverProvider.faer())
+    plan = q.Plan.from_bytes(q.resolve(model, solve=solve).to_bytes())
+    result = q.Result.from_bytes(plan, q.run(plan, state=q.State.initial(plan)).to_bytes())
+    for name, expected, dimension in [
+        ("total", coefficient*a**power, q.Dimension(length=power)),
+        ("slope", derivative*a**(power-1), q.Dimension(length=power-1)),
+    ]:
+        observed = result.observe(outputs[name], quadrature_points=2)
+        assert observed.value == pytest.approx(expected, abs=1e-12, rel=0)
+        assert observed.value_type == q.ValueType.real(dimension)

@@ -117,6 +117,11 @@ impl Context<'_> {
         let Some(KernelNode::Observable(definition)) = self.kernel.node(id.erase()) else {
             return Err(invalid("finite expression references a foreign Observable"));
         };
+        if definition.reduction().limits().is_some() {
+            return Err(invalid(
+                "explicit integral limits require admitted numerical endpoint evaluation",
+            ));
+        }
         if definition.value_type().scalar_domain() != eqiora_core::ScalarDomain::Real
             || !definition.value_type().shape().is_scalar()
             || definition.value_type().array_rank() != 0

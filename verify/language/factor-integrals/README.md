@@ -60,7 +60,7 @@ The Parameter derivative of the full integral is `45/2 m²/s`. The existing `1e-
 absolute bound covers the same finite arithmetic and exact polynomial quadrature.
 A shared scale of `2 m` in `x/scale+scale*x/(1 m²)` gives `225/4` for the density
 coordinate derivative; scale `-2 m` gives `-225/4`. Zero divisors, varying poles,
-Parameter-dependent integration bounds and bound-coordinate selectors reject.
+Parameter-dependent support geometry and bound-coordinate selectors reject.
 Declaration reordering and alpha-renaming preserve the structural fingerprint; Model replay
 preserves the derived observation. This profile is a declaration-root first partial of one
 named integral. Higher/composite integral derivatives, nonpolynomial densities, Cartesian
@@ -241,3 +241,29 @@ physical boundary observation path. On a `2 × 3 × 5 m` Cartesian box, a consta
 and `42 kg` on a z face. Two-dimensional quadrature, exact boundary identity,
 mass units and Result replay are checked. This ordinary product test complements
 the coordinate-factor registered case; it makes no boundary-Field solve claim.
+
+## Finite moving integral endpoints
+
+The same integral accepts `lower` and `upper` on one complete Cartesian coordinate
+interval. Endpoints are lumped real scalars in the coordinate unit and stay within the
+fixed declared support. Their order defines orientation; equal bounds give zero.
+A declaration-root first `partial` of a named integral with respect to an independent
+Parameter expands to the under-integral partial plus upper density times upper velocity,
+minus lower density times lower velocity. Existing polynomial calculus and exact point
+evaluation own those contributions. The density and endpoint derivatives must satisfy
+that polynomial admission; this does not differentiate a quadrature algorithm.
+
+Independently, the antiderivative of x² gives I(a)=a³/3 for limits 0,a and I'=a².
+For density a*x and limits a,2a, J(a)=3a³/2 and J'=9a²/2; the latter includes
+3a²/2 from the density partial, 4a² at the upper end and -a² at the lower end.
+For density 1 and limits a,2a, K=a and K'=1, including K(0)=0 and K'(0)=1.
+The Rust target checks a=-1,0,1,2 with two-point Gauss and an absolute 1e-12
+binary64 tolerance (the integrands have degree at most two), plus units, Model
+replay, alpha-renaming, declaration reordering and orientation fingerprint changes.
+Installed Python product tests separately replay Model, Plan and Result for all three.
+Captured coordinates, endpoint units, out-of-support limits and a pole at x=a reject.
+
+This profile excludes unknown Field densities, implicit-solve derivatives, moving-limit
+solver constraints, partial product reductions, spherical weights, moving physical
+Geometry, nonpolynomial/singular differentiation and higher integral partials.
+No adaptive-quadrature derivative or universal symbolic antiderivative is claimed.

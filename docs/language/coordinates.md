@@ -8,8 +8,8 @@ The current implementation admits abstract dimensioned interval slots and owned 
 Model and Component source, including nested products, physical Cartesian region factors, and
 whole-product and selected-factor Observable measures.
 The source support owns factor identity; native `StaticBindingValue::CoordinateInterval` and
-Python `CoordinateInterval` supply checked finite bounds. Model/Transaction v37 and structural
-fingerprint v32 retain these factors. No ambient physical frame or numerical realization is
+Python `CoordinateInterval` supply checked finite bounds. Model/Transaction v38 and structural
+fingerprint v33 retain these factors. No ambient physical frame or numerical realization is
 inferred. Exact coordinate binders and real scalar polynomial partials execute through the
 shared calculus evaluator, including independently dimensioned position and velocity factors.
 First coordinate derivatives of continuous scalar Fields remain explicit Model nodes; the
@@ -144,10 +144,22 @@ coordinate such as position stays free. Consistently renaming a declared coordin
 references preserves this mathematical projection. Replacing it with a foreign coordinate
 named identically does not.
 
-The initial profile uses fixed finite integration limits. Parameterized bounds are fixed for
-the selected Model binding; time-varying endpoints and shape derivatives require their later
-owner. Differentiation under an integral requires the admitted regularity and fixed-domain
-conditions, not just a syntactically movable `partial` node.
+Omitting endpoint options integrates the complete fixed support. Explicit finite limits use
+`integral(expression, measure(line), lower=lo, upper=hi)` on one complete Cartesian
+coordinate interval. Both endpoints are required, lumped real scalars with that exact
+coordinate unit; they cannot capture a bound coordinate. They must stay within the fixed
+support. Reversing endpoints negates the integral; equal endpoints yield zero. Numerical
+quadrature remains an explicit Result choice, separate from the mathematical limits.
+
+For a named polynomial integral, an independent Parameter partial uses the Leibniz rule:
+the integral of the density partial, plus the density evaluated at the upper endpoint times
+its partial, minus the analogous lower contribution. Existing polynomial calculus and exact
+point evaluation admit these terms. For example, `integral(x*x, measure(line), lower=0[m],
+upper=a)` has derivative `a*a` with respect to length Parameter `a`. Even at equal bounds,
+the derivative need not vanish: `integral(1, measure(line), lower=a, upper=2*a)` is `a`
+and has derivative 1 at a=0. This path rejects unknown Field densities, singular or
+nonpolynomial differentiation, partial products, weighted measures and moving Geometry.
+Explicit limits are observations, not an admitted integral solver constraint.
 
 The current first-partial profile admits `partial(density, wrt=remaining_x)` as an
 Observable declaration root when `density` is one named polynomial integral over fixed
