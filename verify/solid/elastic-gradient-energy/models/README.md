@@ -10,3 +10,10 @@ mesh. One sets lambda=2 and prescribes zero displacement on all four sides; anot
 keeps lambda=0 and the original mixed boundaries. The energy includes both Lamé
 terms and the work of the exact conservative-load definition. The direction is
 length-valued and names precisely the essential boundary inventory.
+
+The constant-traction profile and its sign, support and nominal-data falsifiers
+live in [elastic_surface_energy.rs](../../../../crates/eqiora/tests/support/elastic_surface_energy.rs).
+A selected component input binds a real spatial-vector Parameter, retaining its
+identity independently of its numerical value. The surface energy and boundary Law
+reference that same Parameter; a same-valued independent input does not substitute
+for it in correspondence.

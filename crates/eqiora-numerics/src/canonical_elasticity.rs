@@ -72,8 +72,9 @@ const PRESSURE: DimExponents =
 /// than source names. It admits exactly one Cartesian box, one spatial-vector
 /// displacement, one scalar load-potential definition, one balance Relation,
 /// and one exact direct or conserving-interface boundary law on every side.
-/// Closed zero trace/traction terminals normalize to method-neutral
-/// dispositions; live bindings remain explicit for a later Realization gate.
+/// Closed zero trace/traction terminals and direct constant real vector-Parameter
+/// tractions normalize to method-neutral dispositions. Live interface bindings
+/// remain explicit for a later Realization gate.
 ///
 /// # Errors
 /// Returns `EQ0703` when the admitted Model is ambiguous or differs from this
@@ -293,6 +294,7 @@ fn lower_isotropic_elasticity_subdomain_2d_with_boundaries(
             load_potential_expression,
             boundary_inventory.inventory.clone(),
             boundary_inventory.boundary_relations.clone(),
+            boundary_inventory.tractions.clone(),
         )
         .expect("the static lowerer admits only intrinsic two-dimensional elasticity"),
         boundary: boundary_inventory,
@@ -429,6 +431,21 @@ pub(crate) fn finalize_isotropic_elasticity_cartesian_q1_on_mesh(
             model.load_potential_expression(),
             &quadrature,
             essential_sides,
+            std::array::from_fn(|axis| {
+                std::array::from_fn(|side| {
+                    let side = [BoundarySide::Lower, BoundarySide::Upper][side];
+                    model
+                        .tractions()
+                        .get(
+                            &model
+                                .boundary_inventory()
+                                .boundary(axis, side)
+                                .expect("complete boundary inventory")
+                                .boundary(),
+                        )
+                        .copied()
+                })
+            }),
             assembly,
         )?,
     )
@@ -557,14 +574,20 @@ fn cartesian_essential_sides(
             .into_iter()
             .enumerate()
         {
-            axis_sides[side_index] = match model
+            let entry = model
                 .boundary_inventory()
                 .boundary(axis, side)
-                .expect("a lowered 2D inventory owns every Cartesian side")
-                .disposition()
-            {
+                .expect("a lowered 2D inventory owns every Cartesian side");
+            axis_sides[side_index] = match entry.disposition() {
                 PhysicalBoundaryDisposition::TraceZero => true,
                 PhysicalBoundaryDisposition::FluxZero => false,
+                PhysicalBoundaryDisposition::Prescribed(law)
+                    if law.quantity()
+                        == crate::canonical_boundary::PhysicalBoundaryQuantity::Flux
+                        && model.tractions().contains_key(&entry.boundary()) =>
+                {
+                    false
+                }
                 PhysicalBoundaryDisposition::Prescribed(law) => {
                     return Err(invalid_realization(format!(
                         "prescribed elasticity {:?} law {} on axis {axis} {side:?} requires an explicit boundary-data Realization",

@@ -46,6 +46,7 @@ pub struct IsotropicElasticityContinuum<const D: usize> {
     load_potential_expression: ScalarSpatialExpression,
     boundary_inventory: CartesianBoundaryInventory<D>,
     boundary_relations: Vec<BoundaryRelationBinding>,
+    tractions: std::collections::BTreeMap<RawId, [f64; D]>,
 }
 
 impl<const D: usize> IsotropicElasticityContinuum<D> {
@@ -63,6 +64,7 @@ impl<const D: usize> IsotropicElasticityContinuum<D> {
         load_potential_expression: ScalarSpatialExpression,
         boundary_inventory: CartesianBoundaryInventory<D>,
         boundary_relations: Vec<BoundaryRelationBinding>,
+        tractions: std::collections::BTreeMap<RawId, [f64; D]>,
     ) -> Option<Self> {
         let (reduction, integration_measure) = match D {
             2 => (
@@ -90,7 +92,12 @@ impl<const D: usize> IsotropicElasticityContinuum<D> {
             load_potential_expression,
             boundary_inventory,
             boundary_relations,
+            tractions,
         })
+    }
+
+    pub(crate) fn tractions(&self) -> &std::collections::BTreeMap<RawId, [f64; D]> {
+        &self.tractions
     }
 
     /// Canonical volume Domain.

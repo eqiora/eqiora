@@ -53,7 +53,21 @@ The central hat pairs with itself to give `44/3 N` and with the transverse centr
 hat to give zero, matching the independent stiffness above. A constant translation
 has zero second product. Parameters, Geometry and the conservative load remain fixed.
 
-This case makes no claim about nonzero surface work, implicit-solve Hessians, minimization,
+A fourth profile prescribes the constant real vector Parameter t=(6,0) Pa on x=1.
+The ordinary and authored paths assemble the same boundary load in both the reduced
+and full systems. The composite energy adds `-integral t.trace(u) ds` to the bulk
+energy. On four cells the nodal solution is u_x=2x-x²/2, u_y=0; bulk energy is
+33/16 N, surface energy is −9 N, and total energy is −111/16 N. The body-force
+integral remains (6,0) N and constrained reaction is (−12,0) N.
+The direction eta=(x,0) gives first variation zero and second product 6 N;
+arbitrary translation gives −12 N and zero. Plan and Result replay retain these
+inputs. Equation reversal, axis rotation and a lower-side prescribed load exercise
+signs and exact Cartesian supports. Missing, reversed, misplaced or equal-valued
+foreign-Parameter surface work fails strong/weak correspondence; a different
+boundary stress coefficient fails continuum admission.
+
+This case makes no claim about spatially varying traction, nonzero prescribed
+elastic displacement, implicit-solve Hessians, minimization,
 reduced-solve sensitivities, arbitrary meshes, or moving Geometry.
 
 Run `cargo run -p eqiora-verify -- run --case solid.elastic-gradient-energy`.

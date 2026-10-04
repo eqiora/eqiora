@@ -243,9 +243,13 @@ A retained elastic energy may also supply a first variation: declare a displacem
 direction with units m, hold the Lamé coefficients and conservative-load potential
 fixed, and match `zero_on` exactly to the essential sides. The admitted fixed 2D
 isotropic profile compares the variation to the strong-law stress and load before
-solving. It supports essential and explicit zero-traction sides, preserves the
-authored identity through Plan replay, and evaluates the same total energy through
-Result. Nonzero elastic surface-work admission remains unsupported.
+solving. It supports homogeneous essential sides, explicit zero traction, and
+constant real vector-Parameter traction. For nonzero traction `t`, include
+`-integral(contract(t, trace(displacement), axes=((0,0),)), measure(boundary))` with the exact boundary
+measure in the composite energy and hold `t` fixed. The authored identity survives
+Plan replay and Result evaluates the same bulk-plus-surface energy. Surface work
+must retain the boundary Law's sign and Parameter identity, even when another
+Parameter has equal values. Spatially varying traction remains unsupported.
 Scalar Q1 prescribed flux can contribute explicit surface work to a composite energy.
 Spatial evaluation requires an explicit numerical quadrature rule; it never uses
 rendered values or output cadence as an integration authority. Its State JVP uses

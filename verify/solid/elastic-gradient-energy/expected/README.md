@@ -69,3 +69,32 @@ the second action is independent of solved coefficients. The `1e-10 N`
 tolerance reserves quadrature and binary64 arithmetic error on this four-cell
 fixture. This checks consistency with the independently assembled stiffness;
 it does not differentiate the implicit solve or infer nonlinear stability.
+
+
+## Constant prescribed surface traction
+
+For mu=3, lambda=0, q=6x and t_right=(6,0), the exact continuum solution is
+u=(2x-x²/2,0). On the four Q1 cells the x nodal values are 0, 7/8, 3/2 and
+cell slopes are 7/4, 5/4. Direct integration gives internal energy 111/16 N,
+body work 39/8 N, bulk energy 33/16 N, surface energy −9 N and total −111/16 N.
+The essential reaction balances volume plus surface load: (−12,0) N, while
+the separately reported body-force integral remains (6,0) N.
+
+The stiffness and its inverse infinity norm 316103/59058 are unchanged from
+the mixed-boundary profile above. The free x loads are (3/4,3/2,3/4) on x=1/2
+and (15/8,15/4,15/8) on x=1; their squared Euclidean norm is 783/32.
+The requested relative residual 1e−10 bounds nodal error below 2.65e−9 m;
+the assertion reserves 3e−9 m. The total is stationary on free DOFs, so its
+error is quadratic; the existing 1e−9 N total-energy tolerance covers that
+error and quadrature rounding. Separate bulk and surface work, their first
+products and reaction use 1e−7 N to cover linear dependence on nodal error.
+The body integral uses 1e−12 N for exact constant quadrature arithmetic.
+
+For eta=(x,0), DF=integral 6*u_x,x − integral 6x − 6=9−3−6=0 N,
+and D²F[eta,eta]=integral 6=6 N. A constant x translation has zero strain,
+DF=−6−6=−12 N and D²F=0. The second products do not depend on solved
+coefficients; 1e−12 N covers exact two-point quadrature and binary64 arithmetic.
+Rotating x into y preserves the matrix and norm up to component permutation.
+With x=1 clamped and t_left=(−6,0), u_x=−(1−x)²/2; its load norm is smaller,
+so the same 3e−9 m nodal budget applies. The prescribed vector is already the
+outward traction; no extra normal sign is applied during assembly.

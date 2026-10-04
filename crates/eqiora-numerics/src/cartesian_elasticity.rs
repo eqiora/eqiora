@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use eqiora_assembly::{
     AssemblyBackend, AssemblyPacket, AssemblyPlan, AssemblyReport, AssemblyTarget,
-    IndexedAssemblyWork, REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
+    IndexedAssemblyWork, LocalContribution, REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
 };
 use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
@@ -50,9 +50,9 @@ pub(crate) use pair::{
 
 /// Realization-private selection of complete homogeneous essential sides.
 ///
-/// The Semantic Model owns boundary meaning. This compact value is the only
-/// boundary information admitted by the Cartesian Q1 assembler after
-/// canonical normalization and Realization validation have completed.
+/// The Semantic Model owns boundary meaning. The Cartesian Q1 assembler
+/// receives this essential selection and separately resolved constant tractions
+/// after canonical normalization and Realization validation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct CartesianEssentialSides2d {
     sides: [[bool; 2]; DIMENSION],
@@ -419,6 +419,7 @@ pub fn solve_cartesian_q1_linear_elasticity_2d_with_assembly(
         body_force_potential,
         quadrature,
         CartesianEssentialSides2d::complete_boundary(),
+        [[None; 2]; DIMENSION],
         assembly,
     )?;
     let (canonical_system, state) = assembled.into_canonical()?;
@@ -530,6 +531,7 @@ pub(crate) fn finalize_cartesian_q1_linear_elasticity_2d(
     body_force_potential: &ScalarSpatialExpression,
     quadrature: &QuadratureRule,
     essential_sides: CartesianEssentialSides2d,
+    tractions: [[Option<[f64; COMPONENTS]>; 2]; DIMENSION],
     assembly: &dyn AssemblyBackend,
 ) -> Result<FinalizedCartesianElasticity2dAssembly, Diagnostic> {
     require_two_dimensional_mesh(mesh)?;
@@ -569,6 +571,7 @@ pub(crate) fn finalize_cartesian_q1_linear_elasticity_2d(
     }
 
     let operator = compile_cartesian_q1_elasticity_form_2d(quadrature)?;
+    let faces = prescribed_traction_faces(mesh, &tractions)?;
     let plan = AssemblyPlan::new(vec![
         AssemblyTarget::new(constrained_dofs.free_count())?,
         AssemblyTarget::new(global_width)?,
@@ -582,7 +585,30 @@ pub(crate) fn finalize_cartesian_q1_linear_elasticity_2d(
     let cell_count = mesh
         .entity_count(DIMENSION)
         .expect("a two-dimensional mesh owns its cell stratum");
-    let work = IndexedAssemblyWork::new(cell_count, |cell_index| {
+    let work = IndexedAssemblyWork::new(cell_count + faces.len(), |cell_index: usize| {
+        if cell_index >= cell_count {
+            let PrescribedTractionFace {
+                vertices,
+                nodal_load,
+            } = &faces[cell_index - cell_count];
+            let global_dofs = local_global_dofs(vertices)?;
+            let width = global_dofs.len();
+            return AssemblyPacket::new(
+                LocalContribution::new(
+                    width,
+                    width,
+                    vec![0.0; width * width],
+                    vertices.iter().flat_map(|_| *nodal_load).collect(),
+                )?,
+                vec![
+                    TargetAssemblyMap::new(
+                        reduced_target,
+                        constrained_dofs.reduced_map(&global_dofs)?,
+                    ),
+                    TargetAssemblyMap::new(full_target, constrained_dofs.full_map(&global_dofs)?),
+                ],
+            );
+        }
         let cell = MeshEntity::new(DIMENSION, cell_index);
         let geometry = mesh
             .geometry_map(cell)
@@ -617,8 +643,29 @@ pub(crate) fn finalize_cartesian_q1_linear_elasticity_2d(
         .next()
         .expect("two-target elasticity assembly returns a full system");
     debug_assert!(systems.next().is_none());
-
-    let integrated_body_force = InterleavedDofValues::<COMPONENTS>::new(full_system.rhs())?.sum();
+    let integrated_body_force = if faces.is_empty() {
+        InterleavedDofValues::<COMPONENTS>::new(full_system.rhs())?.sum()
+    } else {
+        // Integrate only the conservative volume load with the same cell rule.
+        // Subtracting boundary loads from the combined RHS would lose small
+        // body forces through cancellation under large prescribed traction.
+        let mut force = [0.0; COMPONENTS];
+        for index in 0..cell_count {
+            let geometry = mesh
+                .geometry_map(MeshEntity::new(DIMENSION, index))
+                .unwrap();
+            for point in quadrature.points() {
+                let mut coordinates = [0.0; DIMENSION];
+                geometry.map_point(&point.coordinates, &mut coordinates)?;
+                let gradient =
+                    body_force_potential.evaluate_gradient::<COMPONENTS>(&coordinates)?;
+                for (sum, value) in force.iter_mut().zip(gradient) {
+                    *sum += value * point.weight * geometry.measure_scale();
+                }
+            }
+        }
+        force
+    };
     if integrated_body_force.iter().any(|value| !value.is_finite()) {
         return Err(invalid("integrated elasticity body force is non-finite"));
     }
@@ -631,6 +678,63 @@ pub(crate) fn finalize_cartesian_q1_linear_elasticity_2d(
         integrated_body_force,
         assembly_report,
     })
+}
+
+struct PrescribedTractionFace {
+    vertices: [MeshEntity; 2],
+    nodal_load: [f64; COMPONENTS],
+}
+
+// Exact Q1 integration of a constant outward traction on an affine edge:
+// each endpoint receives length * traction / 2, including constrained endpoints.
+fn prescribed_traction_faces(
+    mesh: &CartesianMesh,
+    tractions: &[[Option<[f64; COMPONENTS]>; 2]; DIMENSION],
+) -> Result<Vec<PrescribedTractionFace>, Diagnostic> {
+    let mut faces = Vec::new();
+    if tractions.iter().flatten().all(Option::is_none) {
+        return Ok(faces);
+    }
+    for index in 0..mesh.entity_count(1).expect("two-dimensional edge stratum") {
+        let edge = MeshEntity::new(1, index);
+        if mesh.is_boundary_entity(edge) != Some(true) {
+            continue;
+        }
+        let vertices = mesh.entity_vertices(edge).expect("edge endpoints");
+        for (axis, sides) in tractions.iter().enumerate() {
+            for (side, traction) in sides.iter().enumerate() {
+                let Some(traction) = traction else {
+                    continue;
+                };
+                let endpoint = if side == 0 {
+                    0
+                } else {
+                    mesh.axis_coordinates(axis).unwrap().len() - 1
+                };
+                if !vertices
+                    .iter()
+                    .all(|vertex| mesh.vertex_multi_index(*vertex).unwrap()[axis] == endpoint)
+                {
+                    continue;
+                }
+                let first = mesh.vertex_coordinates(vertices[0]).unwrap();
+                let second = mesh.vertex_coordinates(vertices[1]).unwrap();
+                let length = (second[1 - axis] - first[1 - axis]).abs();
+                let load = traction.map(|component| component * (length / 2.0));
+                if load.iter().any(|value| !value.is_finite()) {
+                    return Err(invalid("integrated prescribed traction is non-finite"));
+                }
+                faces.push(PrescribedTractionFace {
+                    vertices: vertices
+                        .as_slice()
+                        .try_into()
+                        .expect("Cartesian edge has two endpoints"),
+                    nodal_load: load,
+                });
+            }
+        }
+    }
+    Ok(faces)
 }
 
 fn physical_gradients(
