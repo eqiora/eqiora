@@ -1,8 +1,8 @@
 id = "solid.elastic-gradient-energy"
 status = "implemented"
-scope = "cartesian-q1-elastic-strain-energy-and-result-state-direction"
-reference_kind = "independent-piecewise-linear-displacement-gradient-and-boundary-pairing"
-capabilities = ["elastic-result-strain-energy", "vector-field-state-jvp", "recovered-traction-pairing", "elastic-energy-result-replay"]
+scope = "cartesian-q1-elastic-energy-first-variation-and-result-state-direction"
+reference_kind = "independent-q1-stiffness-energy-stationarity-and-boundary-pairing"
+capabilities = ["elastic-result-strain-energy", "vector-field-state-jvp", "recovered-traction-pairing", "elastic-energy-result-replay", "authored-elastic-first-variation", "elastic-strong-weak-correspondence", "elastic-authored-plan-replay", "elastic-energy-law-falsifiers"]
 
 [claim_boundary]
 spatial_dimension = 2
@@ -12,7 +12,9 @@ energy_per_unit_out_of_plane_thickness = true
 ordinary_result_observation = true
 state_direction_holds_model_parameters_and_geometry = true
 boundary_law_is_not_recovered_discrete_traction = true
-authored_elastic_stationarity_admission = false
+authored_elastic_stationarity_admission = true
+complete_essential_and_homogeneous_natural_boundaries = true
+nonzero_surface_work = false
 second_variation_provider_admission = false
 reduced_solve_sensitivity = false
 moving_geometry = false

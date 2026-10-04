@@ -356,6 +356,10 @@ impl WireResolvedCommonPlanV6 {
             effective_formulation: description.map(|description| description.effective().into()),
             authored_formulation_base64: match plan {
                 ResolvedCommonPlan::Scalar(plan) => plan.authored_formulation_bytes().map(encode),
+                ResolvedCommonPlan::Elasticity(plan) => plan
+                    .authored_formulation
+                    .as_ref()
+                    .map(|form| encode(form.canonical_bytes())),
                 ResolvedCommonPlan::Algebraic(plan) => {
                     plan.authored_formulation_bytes().map(encode)
                 }
@@ -423,7 +427,11 @@ impl WireResolvedCommonPlanV6 {
             ));
         }
         if self.authored_formulation_base64.is_some()
-            && (self.family != WirePlanFamily::Scalar
+            && (!matches!(
+                self.family,
+                WirePlanFamily::Scalar | WirePlanFamily::Elasticity
+            ) || (self.family == WirePlanFamily::Elasticity
+                && self.effective_formulation != Some(WireFormulation::PrimalGalerkin))
                 || self.requested_formulation.is_some()
                 || !matches!(
                     self.effective_formulation,
@@ -431,7 +439,7 @@ impl WireResolvedCommonPlanV6 {
                 ))
         {
             return Err(invalid(
-                "authored Formulation payload requires one scalar authored primal or interval Plan",
+                "authored Formulation payload requires one admitted authored primal or scalar interval Plan",
             ));
         }
         Ok(())

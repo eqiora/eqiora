@@ -68,6 +68,18 @@ fn accepted() -> Accepted {
 }
 
 fn accepted_source(source: &str) -> Accepted {
+    accepted_source_on(source, 0.0, CELLS_PER_AXIS)
+}
+
+fn accepted_source_on(source: &str, lambda: f64, cells_per_axis: usize) -> Accepted {
+    try_accepted_source_on(source, lambda, cells_per_axis).unwrap()
+}
+
+fn try_accepted_source_on(
+    source: &str,
+    lambda: f64,
+    cells_per_axis: usize,
+) -> Result<Accepted, eqiora::Diagnostic> {
     let graph = GeometryGraph::new();
     let rectangle = graph.rectangle([0.0, 1.0], [0.0, 1.0]).unwrap();
     let edges = rectangle.boundaries();
@@ -111,7 +123,7 @@ fn accepted_source(source: &str) -> Accepted {
             "lambda",
             eqiora::language::SourceAstFactory::expression(
                 eqiora::language::ExprKind::Number(
-                    eqiora::language::DecimalLiteral::from_f64(0.0)
+                    eqiora::language::DecimalLiteral::from_f64(lambda)
                         .expect("finite fixture literal"),
                 ),
                 eqiora::language::TextRange::new(0, 0),
@@ -185,7 +197,7 @@ fn accepted_source(source: &str) -> Accepted {
         &compile_bindings,
     )
     .unwrap();
-    let cells = CartesianMeshCellsV2::new([CELLS_PER_AXIS; 2]).unwrap();
+    let cells = CartesianMeshCellsV2::new([cells_per_axis; 2]).unwrap();
     let (mesh, correspondence) =
         GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_cartesian(
             &geometry,
@@ -230,23 +242,22 @@ fn accepted_source(source: &str) -> Accepted {
         None,
         None,
         &REFERENCE_LINEAR_SOLVER,
-        None,
-    )
-    .unwrap()
+        document.authored_formulation_projection().unwrap(),
+    )?
     .as_elasticity()
     .cloned()
     .expect("fixture retains its admitted elasticity Plan");
     let result = plan
         .run_result(&eqiora::solver::REFERENCE_LINEAR_SOLVER)
         .unwrap();
-    Accepted {
+    Ok(Accepted {
         document,
         geometry,
         mesh,
         correspondence,
         plan,
         result,
-    }
+    })
 }
 
 #[test]
@@ -539,4 +550,215 @@ fn assert_top_level_key_order(bytes: &[u8], keys: &[&str]) {
         .map(|key| text.find(&format!("\"{key}\"")).unwrap())
         .collect::<Vec<_>>();
     assert!(positions.windows(2).all(|pair| pair[0] < pair[1]));
+}
+
+#[test]
+fn authored_elastic_energy_first_variation_reaches_the_exact_q1_solve() {
+    let source = SOURCE.replace(
+        "normal(2 * mu * symmetric_part(grad(displacement))\n      + lambda * isotropic_lift(div(displacement)))",
+        "trace(displacement)",
+    ).replace(
+        "  relation load on body {",
+        r#"  observable energy: N = integral(
+    mu * contract(symmetric_part(grad(displacement)),
+                  symmetric_part(grad(displacement)), axes=((0,0),(1,1)))
+    + lambda * div(displacement) * div(displacement) / 2
+    - contract(grad(load_potential), displacement, axes=((0,0),)), measure(body));
+  relation load on body {"#,
+    );
+    let source = format!(
+        "{}\n{}\n}}",
+        source.strip_suffix('}').unwrap(),
+        r#"  form stationary for balance {
+    test w: m for displacement zero_on x_lower, x_upper, y_lower, y_upper;
+    variation(energy,wrt=displacement,direction=w,holding=(mu,lambda,load_potential)) = 0;
+  }
+"#
+    );
+    let accepted = accepted_source_on(&source, 2.0, 2);
+    assert_eq!(accepted.document.authored_formulations().len(), 1);
+    let (_, values, _) = accepted.result.field_block(0, 0).unwrap();
+    assert_eq!(values.len(), 18);
+    // Four Q1 cells leave only the central two-component hat. Independent
+    // integration gives K_xx=K_yy=4*(lambda+3*mu)/3=44/3 and K_xy=0.
+    // grad(q)=(6,0), b=(3/2,0), hence central displacement=(9/88,0).
+    for (vertex, value) in values.as_chunks::<2>().0.iter().enumerate() {
+        let expected = if vertex == 4 { 9.0 / 88.0 } else { 0.0 };
+        assert!((value[0] - expected).abs() < 1e-10);
+        assert!(value[1].abs() < 1e-10);
+    }
+    let energy = accepted
+        .document
+        .program()
+        .nodes()
+        .find_map(|node| match node {
+            eqiora::kernel::KernelNode::Observable(value) => Some(value.id()),
+            _ => None,
+        })
+        .unwrap();
+    let model = ModelEnvelope::from_program(accepted.document.program()).unwrap();
+    let quadrature = eqiora::meshing::QuadratureRule::tensor_product_gauss_legendre(2, 2).unwrap();
+    let value = accepted
+        .result
+        .observe(&model, energy, Some(&quadrature))
+        .unwrap();
+    // At stationarity F=-b.u/2=-27/352 N, per unit out-of-plane thickness.
+    assert!((value.value().component(0).unwrap().0 + 27.0 / 352.0).abs() < 1e-10);
+    let description = accepted.result.plan().formulation().unwrap();
+    assert_eq!(
+        description.requested(),
+        eqiora_numerics::FormulationSelectionMode::Authored
+    );
+    assert_eq!(
+        description.requested_source_identity(),
+        Some(
+            accepted
+                .document
+                .authored_formulation_projection()
+                .unwrap()
+                .unwrap()
+                .source_identity()
+        )
+    );
+    let bytes = accepted.result.plan().to_bytes().unwrap();
+    let replayed = eqiora_numerics::ResolvedCommonPlan::from_bytes(
+        &bytes,
+        &REFERENCE_LINEAR_SOLVER,
+        eqiora::time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+    )
+    .unwrap();
+    assert_eq!(replayed.to_bytes().unwrap(), bytes);
+    let replayed_result = replayed
+        .as_elasticity()
+        .unwrap()
+        .run_result(&REFERENCE_LINEAR_SOLVER)
+        .unwrap();
+    assert_eq!(replayed_result.field_block(0, 0).unwrap().1, values);
+    assert_eq!(
+        replayed_result
+            .observe(&model, energy, Some(&quadrature))
+            .unwrap()
+            .value(),
+        value.value()
+    );
+    let displacement = accepted
+        .document
+        .program()
+        .nodes()
+        .find_map(|node| match node {
+            eqiora::kernel::KernelNode::Field(field) if field.value_type().shape().rank() == 1 => {
+                Some(field)
+            }
+            _ => None,
+        })
+        .unwrap();
+    for (constrained, expected) in [(true, 0.0), (false, -6.0)] {
+        let coefficients = (0..18)
+            .map(|i| {
+                eqiora::DynQuantity::new(
+                    if i % 2 == 0 && (!constrained || i == 8) {
+                        1.0
+                    } else {
+                        0.0
+                    },
+                    displacement.dimension(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let direction = accepted
+            .result
+            .observable_state_tangent([(displacement.id(), coefficients)])
+            .unwrap();
+        let action = accepted
+            .result
+            .observe_state_jvp(&model, energy, &quadrature, &direction)
+            .unwrap();
+        // The central hat is admissible and stationary. A constant translation
+        // violates the essential restrictions: its energy derivative is -integral f_x=-6.
+        assert!((action.real_scalar_value().unwrap().value() - expected).abs() < 1e-9);
+    }
+    for (mutant, lambda, reason) in [
+        (
+            source.replace("+ lambda * div", "+ 2 * lambda * div"),
+            2.0,
+            "strong-law weak residual",
+        ),
+        (
+            source.replace(
+                "- contract(grad(load_potential)",
+                "+ contract(grad(load_potential)",
+            ),
+            2.0,
+            "strong-law weak residual",
+        ),
+        (
+            source
+                .replace(
+                    "mu * contract(symmetric_part",
+                    "lambda * contract(symmetric_part",
+                )
+                .replace(
+                    "holding=(mu,lambda,load_potential)",
+                    "holding=(lambda,load_potential)",
+                ),
+            3.0,
+            "strong-law weak residual",
+        ),
+        (
+            source.replace(
+                "zero_on x_lower, x_upper, y_lower, y_upper",
+                "zero_on x_lower, x_upper, y_lower",
+            ),
+            2.0,
+            "zero_on restriction",
+        ),
+    ] {
+        match try_accepted_source_on(&mutant, lambda, 2) {
+            Err(error) => assert!(error.message().contains(reason), "{error:?}"),
+            Ok(_) => panic!("incorrect elastic first variation reached execution"),
+        }
+    }
+    let mut natural = source.replace(
+        "zero_on x_lower, x_upper, y_lower, y_upper",
+        "zero_on x_lower",
+    );
+    for side in ["x_upper", "y_lower", "y_upper"] {
+        natural = natural.replace(&format!("relation {side}_free on {side} {{\n    trace(displacement) = 0;"),
+            &format!("relation {side}_free on {side} {{\n    normal(2 * mu * symmetric_part(grad(displacement)) + lambda * isotropic_lift(div(displacement))) = 0;"));
+    }
+    let natural = accepted_source_on(&natural, 0.0, 2);
+    for (vertex, value) in natural
+        .result
+        .field_block(0, 0)
+        .unwrap()
+        .1
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .enumerate()
+    {
+        let x = natural
+            .mesh
+            .mesh()
+            .vertex_coordinates(MeshEntity::new(0, vertex))
+            .unwrap()[0];
+        assert!((value[0] - (x - x * x / 2.0)).abs() < 2e-9);
+        assert!(value[1].abs() < 2e-9);
+    }
+    let natural_energy = natural
+        .document
+        .program()
+        .nodes()
+        .find_map(|node| match node {
+            eqiora::kernel::KernelNode::Observable(value) => Some(value.id()),
+            _ => None,
+        })
+        .unwrap();
+    let natural_model = ModelEnvelope::from_program(natural.document.program()).unwrap();
+    // Cell slopes 3/4 and 1/4 give internal 15/16 and external 30/16 N.
+    let observed = natural
+        .result
+        .observe(&natural_model, natural_energy, Some(&quadrature))
+        .unwrap();
+    assert!((observed.value().component(0).unwrap().0 + 15.0 / 16.0).abs() < 1e-9);
 }

@@ -18,8 +18,7 @@ use eqiora_sem::KernelProgram;
 use crate::canonical::{boundary_parent, lowering_error, relations_on};
 use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
 use crate::form_compiler::vocabulary::{
-    BoundaryDischarge, BoundarySource, FormulationKind, PrimalGalerkinCorrespondence,
-    PrimalGalerkinSource,
+    BoundaryDischarge, BoundarySource, PrimalGalerkinCorrespondence, PrimalGalerkinSource,
 };
 
 mod authored;
@@ -99,9 +98,7 @@ impl DerivedScalarGalerkinForm {
         &self.certificate
     }
 
-    pub(crate) fn formulation_description(
-        &self,
-    ) -> (FormulationKind, &'static str, [&'static str; 4]) {
+    pub(crate) fn formulation_description(&self) -> super::PrimalFormDescription {
         (
             self.certificate.formulation.kind,
             self.certificate.formulation.boundary_treatment.id(),

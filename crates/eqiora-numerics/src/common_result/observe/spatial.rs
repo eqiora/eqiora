@@ -119,6 +119,10 @@ pub(super) fn integrate(
             "Observable quadrature reference cell differs from its exact measure",
         ));
     }
+    let load_potential = result.plan().as_elasticity().map(|plan| plan.observation_continuum()).filter(|continuum| {
+        typed.expression().nodes().iter().any(|node| matches!(node,
+            eqiora_schema::kernel::ExprNode::Symbol(eqiora_schema::kernel::SymbolRef::Field(id)) if id.erase() == continuum.load_potential()))
+    });
     let space = HypercubeQ1Space::new(dimension)?;
     let mut total = 0.0;
     for cell_index in 0..mesh
@@ -238,6 +242,30 @@ pub(super) fn integrate(
                         gradient,
                         tangent: direction,
                         gradient_tangent,
+                    },
+                );
+            }
+            if let Some(continuum) = load_potential {
+                let Some(eqiora_schema::kernel::KernelNode::Field(field)) =
+                    program.node(continuum.load_potential())
+                else {
+                    return Err(invalid("Observable conservative-load Field is unavailable"));
+                };
+                // This Field is an exact admitted definition, not an extra State unknown.
+                // State directions hold its defining Parameters fixed.
+                fields.insert(
+                    field.id().erase(),
+                    PointField {
+                        value: ValueLiteral::from_real(
+                            field.value_type().clone(),
+                            continuum
+                                .load_potential_expression()
+                                .evaluate(&coordinates)?,
+                        )
+                        .map_err(|error| invalid(error.to_string()))?,
+                        gradient: continuum.conservative_body_force(&coordinates)?.to_vec(),
+                        tangent: vec![0.0],
+                        gradient_tangent: vec![0.0; dimension],
                     },
                 );
             }

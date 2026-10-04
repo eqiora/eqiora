@@ -1,5 +1,6 @@
 //! Private proof-carrying FEM derivations.
 
+mod authored_polynomial;
 mod bilinear;
 mod elasticity;
 pub(crate) mod equation_roles;
@@ -10,7 +11,12 @@ mod scalar;
 mod tests;
 pub(crate) mod vocabulary;
 
-pub(crate) use elasticity::compile_cartesian_q1_elasticity_form_2d;
+pub(crate) type PrimalFormDescription =
+    (vocabulary::FormulationKind, &'static str, [&'static str; 4]);
+
+pub(crate) use elasticity::{
+    compile_cartesian_q1_elasticity_form_2d, derive_elasticity_correspondence,
+};
 pub(crate) use scalar::{
     AdmittedScalarGalerkinForm, DerivedScalarGalerkinForm, admit_authored_scalar_primal_form,
     compile_cartesian_q1_form, derive_candidate_with_dimension, equivalent_authored_expression,

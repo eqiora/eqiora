@@ -230,6 +230,13 @@ initial spatial execution profile covers real scalar Q1 Fields on an authenticat
 Cartesian mesh, explicit traces, scalar expressions and oriented normal gradients.
 The native Result path also reconstructs the two-component displacement of the
 Cartesian Q1 elasticity Plan for strain-energy observation and State JVPs.
+A retained elastic energy may also supply a first variation: declare a displacement
+direction with units m, hold the Lamé coefficients and conservative-load potential
+fixed, and match `zero_on` exactly to the essential sides. The admitted fixed 2D
+isotropic profile compares the variation to the strong-law stress and load before
+solving. It supports essential and explicit zero-traction sides, preserves the
+authored identity through Plan replay, and evaluates the same total energy through
+Result. Nonzero surface work and numerical second variations remain unsupported.
 Spatial evaluation requires an explicit numerical quadrature rule; it never uses
 rendered values or output cadence as an integration authority. Its State JVP uses
 the same basis and quadrature for Field and normal-gradient variations, holding

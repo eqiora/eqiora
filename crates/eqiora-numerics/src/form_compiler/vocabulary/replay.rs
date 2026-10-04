@@ -5,6 +5,7 @@
 //! Replay scans the ordered resources once and allocates no replacement certificate.
 
 use super::*;
+mod variation;
 
 impl PrimalGalerkinCorrespondence {
     pub(in crate::form_compiler) fn replay_authored_restriction(

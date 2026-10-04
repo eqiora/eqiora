@@ -98,6 +98,19 @@ impl CommonElasticityPlan {
                 "common elasticity Plan lost its recognized mathematical materialization",
             ));
         };
+        let replayed = describe_formulation(
+            &self.admission,
+            lowered,
+            self.formulation
+                .as_ref()
+                .map_or(FormulationSelectionMode::Automatic, |form| form.requested),
+            self.authored_formulation.as_ref(),
+        )?;
+        if replayed != self.formulation {
+            return Err(invalid(
+                "elasticity Plan lost its exact mathematical correspondence",
+            ));
+        }
         require_portable_realization(
             &self.portable,
             resolve_common_elasticity_portable(&self.admission, lowered, mesh, self.cells)?,
@@ -107,6 +120,8 @@ impl CommonElasticityPlan {
     pub(super) fn from_admission(
         model: &ModelEnvelope,
         admission: NativeNumericalAdmission,
+        selection: FormulationSelectionMode,
+        authored: Option<&AuthoredFormulationProjection>,
     ) -> Result<Self, Diagnostic> {
         let model_reference = model.artifact_reference()?;
         let NativeMeshResources::Cartesian { mesh, .. } = admission.resources() else {
@@ -127,11 +142,23 @@ impl CommonElasticityPlan {
                 "common elasticity Plan omitted recognized elasticity meaning",
             ));
         };
+        let formulation = describe_formulation(&admission, lowered, selection, authored)?;
         let portable = resolve_common_elasticity_portable(&admission, lowered, mesh, cells)?;
         let realization_digest = hex_bytes(&portable.digest()?);
         let displacement_field_id = lowered.displacement().ulid().to_string();
-        let (digests, identity_bytes) =
+        let (digests, mut identity_bytes) =
             static_plan_identity_lineage(&admission, &realization_digest)?;
+        if let Some(form) = &formulation {
+            push_framed(&mut identity_bytes, form.requested.identity());
+            push_framed(&mut identity_bytes, form.boundary_treatment.as_bytes());
+            for rule in &form.rule_ids {
+                push_framed(&mut identity_bytes, rule.as_bytes());
+            }
+        }
+        if let Some(authored) = authored {
+            push_framed(&mut identity_bytes, authored.source_identity().as_bytes());
+            push_framed(&mut identity_bytes, authored.canonical_bytes());
+        }
         let identity = domain_separated_identity(
             b"eqiora.common-linear-elasticity-plan/v1\0",
             &identity_bytes,
@@ -145,6 +172,8 @@ impl CommonElasticityPlan {
         );
         Ok(Self {
             admission,
+            formulation,
+            authored_formulation: authored.cloned(),
             portable,
             lineage,
             displacement_field_id,
@@ -277,4 +306,37 @@ impl CommonElasticityPlan {
     pub const fn linear(&self) -> SolverPlan {
         self.admission.linear.solver
     }
+}
+
+fn describe_formulation(
+    admission: &NativeNumericalAdmission,
+    continuum: &IsotropicElasticityContinuum<2>,
+    selection: FormulationSelectionMode,
+    authored: Option<&AuthoredFormulationProjection>,
+) -> Result<Option<CommonFormulationDescription>, Diagnostic> {
+    let derived = crate::form_compiler::derive_elasticity_correspondence(
+        admission.program(),
+        continuum,
+        authored,
+    )?;
+    let Some((kind, boundary, rules)) = derived else {
+        if authored.is_some() || selection != FormulationSelectionMode::Automatic {
+            return Err(invalid(
+                "elastic primal Formulation requires admitted trace or homogeneous natural boundary laws",
+            ));
+        }
+        return Ok(None);
+    };
+    let mut description = super::scalar::describe_primal(
+        kind,
+        boundary,
+        rules,
+        if authored.is_some() {
+            FormulationSelectionMode::Authored
+        } else {
+            selection
+        },
+    );
+    description.requested_source_identity = authored.map(|form| form.source_identity().to_owned());
+    Ok(Some(description))
 }

@@ -1,6 +1,8 @@
 #![cfg_attr(not(test), allow(dead_code))]
 #![cfg_attr(test, allow(clippy::extra_unused_lifetimes, clippy::type_complexity))]
+mod authored;
 mod execution;
+pub(crate) use authored::derive as derive_elasticity_correspondence;
 #[cfg(test)]
 mod oracle;
 use std::borrow::Cow;
