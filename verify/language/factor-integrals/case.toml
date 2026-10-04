@@ -1,0 +1,24 @@
+id = "language.factor-integrals"
+status = "implemented"
+scope = "bounded-coordinate-factor-real-scalar-result-observations"
+reference_kind = "independent-monomial-antiderivatives-and-truncated-gaussian-error-bounds"
+capabilities = ["exact-factor-measure", "remaining-output-support", "density-and-velocity-moments", "explicit-normalization", "nested-integrals", "model-replay", "regular-density-admission"]
+
+[claim_boundary]
+bounded_affine_coordinate_factors = true
+finite_result_amplitude = true
+real_scalar_polynomial_and_exponential_density = true
+explicit_domain_quadrature = true
+unit_checked_output_point = true
+separate_gaussian_truncation_and_quadrature_errors = true
+spatial_phase_field_realization = false
+product_domain_pde = false
+spherical_measure = false
+model_solver_coupling = false
+differentiation_under_integral = false
+state_direction_products = false
+unbounded_quadrature = false
+
+[evidence]
+package = "eqiora"
+test = "factor_integrals"

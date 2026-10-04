@@ -6,18 +6,21 @@ their current numerical admission is not established by the examples.
 
 The current implementation admits abstract dimensioned interval slots and owned products in
 Model and Component source, including nested products, physical Cartesian region factors, and
-whole-product Observable measures.
+whole-product and selected-factor Observable measures.
 The source support owns factor identity; native `StaticBindingValue::CoordinateInterval` and
-Python `CoordinateInterval` supply checked finite bounds. Model/Transaction v34 and structural
-fingerprint v29 retain these factors. No ambient physical frame or numerical realization is
+Python `CoordinateInterval` supply checked finite bounds. Model/Transaction v35 and structural
+fingerprint v30 retain these factors. No ambient physical frame or numerical realization is
 inferred. Exact coordinate binders and real scalar polynomial partials execute through the
 shared calculus evaluator, including independently dimensioned position and velocity factors.
 First coordinate derivatives of continuous scalar Fields remain explicit Model nodes; the
 Cartesian Q1 observation path evaluates their basis derivatives and polynomial chain rules.
 Focused tests cover a two-dimensional Q1 bilinear field, exact analytic values, factor/axis/unit
-rejection, and replay. Factor-wise integration, non-Cartesian product factors, product-domain PDE
-realizations, higher unknown-Field partials, and curved embedded-field extensions remain separate
-work. The complete examples below include target operations beyond this bounded implementation.
+rejection, and replay. Bounded real scalar factor integrals execute coordinate densities with
+finite Result amplitudes, exact selected measures and explicit remaining output support;
+[registered evidence](../../verify/language/factor-integrals/README.md) covers polynomial moments
+and finite Gaussian error bounds. Non-Cartesian product factors, product-domain Field/PDE
+realizations, spherical measures, integral solver coupling, differentiation under integrals,
+higher unknown-Field partials and curved embedded-field extensions remain separate work. The complete examples below include target operations beyond this bounded implementation.
 
 ## Exact factors and coordinate bindings
 

@@ -2,7 +2,7 @@
 
 use eqiora_artifact::ModelEnvelope;
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, Id, ValueLiteral};
+use eqiora_core::{Diagnostic, DynQuantity, Id, ValueLiteral};
 use eqiora_meshing::QuadratureRule;
 use std::collections::HashMap;
 
@@ -19,6 +19,7 @@ pub struct CommonObservation {
     observable: Id<kinds::Observable>,
     result_identity: String,
     value: ValueLiteral,
+    point: Option<(Id<kinds::Domain>, Vec<DynQuantity>)>,
     quadratures: HashMap<Id<kinds::Domain>, QuadratureRule>,
 }
 
@@ -37,6 +38,13 @@ impl CommonObservation {
     #[must_use]
     pub fn result_identity(&self) -> &str {
         &self.result_identity
+    }
+    /// Exact support and dimensioned coordinates for a sampled field-valued output.
+    #[must_use]
+    pub fn point(&self) -> Option<(Id<kinds::Domain>, &[DynQuantity])> {
+        self.point
+            .as_ref()
+            .map(|(domain, coordinates)| (*domain, coordinates.as_slice()))
     }
     /// Effective quadrature by exact integration Domain; empty for finite values.
     #[must_use]
@@ -66,34 +74,76 @@ impl CommonResult {
                 "Observable Model differs from the exact accepted Result Model",
             ));
         }
-        let program = observation_program(self, model)?;
-        let (value, _) = composite::evaluate(self, &program, observable, quadratures, None)?;
+        let program = self.observation_program()?;
+        let (value, _) = composite::evaluate(self, &program, observable, quadratures, None, None)?;
         Ok(CommonObservation {
             observable,
             result_identity: self.identity().to_owned(),
             value,
+            point: None,
+            quadratures: quadratures.clone(),
+        })
+    }
+    /// Sample a field-valued Observable at dimensioned coordinates on its exact output support.
+    /// Quadrature integrates only the declared measure factors; the output coordinates remain fixed.
+    /// # Errors
+    /// Rejects missing or extra coordinates, wrong units, points outside the support,
+    /// stale Models and unavailable density realizations.
+    pub fn observe_at(
+        &self,
+        model: &ModelEnvelope,
+        observable: Id<kinds::Observable>,
+        coordinates: &[DynQuantity],
+        quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
+    ) -> Result<CommonObservation, Diagnostic> {
+        if model != self.plan().model_artifact() {
+            return Err(invalid(
+                "Observable Model differs from the exact accepted Result Model",
+            ));
+        }
+        let program = self.observation_program()?;
+        let support = program
+            .observable_output_support(observable)?
+            .ok_or_else(|| invalid("lumped Observable does not have output coordinates"))?;
+        let domain = support.domain().downcast().expect("admitted Domain");
+        let (value, _) = composite::evaluate(
+            self,
+            &program,
+            observable,
+            quadratures,
+            None,
+            Some(coordinates),
+        )?;
+        Ok(CommonObservation {
+            observable,
+            result_identity: self.identity().to_owned(),
+            value,
+            point: Some((domain, coordinates.to_vec())),
             quadratures: quadratures.clone(),
         })
     }
 }
 
-fn observation_program(
-    result: &CommonResult,
-    model: &ModelEnvelope,
-) -> Result<eqiora_sem::KernelProgram, Diagnostic> {
-    if let Some(plan) = result.plan().as_scalar() {
-        Ok(plan.observation_program().clone())
-    } else if let Some(plan) = result.plan().as_elasticity() {
-        Ok(plan.observation_program().clone())
-    } else if let Some(plan) = result.plan().as_algebraic() {
-        Ok(plan.kernel().clone())
-    } else {
-        model.to_program().map_err(|errors| {
-            errors
-                .into_iter()
-                .next()
-                .expect("failed replay has diagnostic")
-        })
+impl CommonResult {
+    /// Admitted Model program for this Result's observation context, including Geometry.
+    /// Numerical adapters use the same support authority as value and tangent evaluation.
+    /// # Errors
+    /// Rejects a Model that cannot be admitted in this Result's observation context.
+    pub fn observation_program(&self) -> Result<eqiora_sem::KernelProgram, Diagnostic> {
+        if let Some(plan) = self.plan().as_scalar() {
+            Ok(plan.observation_program().clone())
+        } else if let Some(plan) = self.plan().as_elasticity() {
+            Ok(plan.observation_program().clone())
+        } else if let Some(plan) = self.plan().as_algebraic() {
+            Ok(plan.kernel().clone())
+        } else {
+            self.plan().model_artifact().to_program().map_err(|errors| {
+                errors
+                    .into_iter()
+                    .next()
+                    .expect("failed replay has diagnostic")
+            })
+        }
     }
 }
 

@@ -13,6 +13,7 @@ pub(super) enum Binding {
         Id<kinds::Observable>,
         eqiora_lang::ValueTypeSyntax,
         Option<String>,
+        Option<String>,
     ),
     Relation {
         relation: Id<kinds::Relation>,
@@ -355,4 +356,40 @@ fn is_reserved(name: &str) -> bool {
             | "mol"
             | "cd"
     )
+}
+
+/// Export only authored declarations from the complete lowering bindings.
+pub(super) fn export_symbols(
+    model: &LoweringModel,
+    bindings: &BTreeMap<String, Binding>,
+) -> ModelSymbols {
+    // Lowering bindings also own synthesized continuum representations and
+    // unnamed initial Relations. Export only authored declaration names; the
+    // synthesized nodes remain members of the unchanged Kernel transaction.
+    let symbols = model
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            LoweringItem::Domain { name, .. }
+            | LoweringItem::Field { name, .. }
+            | LoweringItem::Parameter { name, .. }
+            | LoweringItem::Port { name, .. }
+            | LoweringItem::Clock { name, .. }
+            | LoweringItem::Observable { name, .. }
+            | LoweringItem::Event { name, .. }
+            | LoweringItem::Relation {
+                name,
+                initial: false,
+                ..
+            } => Some(name),
+            LoweringItem::RecordInstance { .. }
+            | LoweringItem::Nominal { .. }
+            | LoweringItem::Representation { .. }
+            | LoweringItem::Relation { initial: true, .. }
+            | LoweringItem::Connection { .. }
+            | LoweringItem::Boundary { .. } => None,
+        })
+        .map(|name| (name.clone(), bindings[name].primary_id()))
+        .collect();
+    ModelSymbols::from_map(symbols)
 }

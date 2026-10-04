@@ -154,6 +154,20 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                         )?,
                         value,
                         reduction,
+                        domain: declaration
+                            .domain()
+                            .map(|name| {
+                                resolve_local_kind(
+                                    component.file,
+                                    declaration.range(),
+                                    scope,
+                                    name,
+                                    |kind| matches!(kind, SymbolKind::Domain),
+                                    "Observable output Domain",
+                                )
+                                .map(|symbol| symbol.internal_name.clone())
+                            })
+                            .transpose()?,
                         range: declaration.range(),
                         identity,
                     });

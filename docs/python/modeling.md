@@ -219,7 +219,8 @@ values require `trace(field)`; oriented flux uses the existing outward `normal`
 operator. A same-sized foreign Domain does not substitute for the declared one.
 Each integral occurs at the root of its own Observable expression. Other Observables
 can combine those reduced values, for example `observable total:J=bulk+surface;`.
-References must be acyclic; equations and integral densities cannot read them.
+References must be acyclic. Bounded coordinate-factor integral densities may read
+Observables; solver equations cannot read them.
 A sum or difference of fixed functionals on the same parent volume can supply one
 `variation(total, wrt=..., direction=..., holding=(...))`. The holding tuple names
 all other independent Fields and Parameters across its dependencies. Nonlinear
@@ -266,6 +267,19 @@ observation = result.observe(energy, quadrature_points=2)
 value = observation.value
 lineage = observation.result_identity
 ```
+
+Bounded coordinate-factor integrals retain their remaining output support explicitly:
+`observable density:1/m on position=integral(f,measure(velocity));`.
+The Component builder uses `on=position` for output support and
+`integrate_over=velocity` for the selected measure. These have distinct meanings.
+Use `result.observe_at(density, [(1.0, eqiora.Dimension(length=1))], quadrature_points=3)`
+to evaluate the field-valued output at an ordered, unit-checked point. The returned
+`observation.point` contains the exact output Domain ID and coordinates; a lumped
+`observe` result has `point=None`. Integrating another Observable composes reductions.
+A weighted mean is an explicit numerator/denominator expression, with zero denominators
+rejected. This profile supports regular real scalar coordinate densities and finite
+Result amplitudes; it does not realize arbitrary spatial phase Fields, spherical measures,
+solver coupling, differentiation under integrals, or State JVPs for factor integrals.
 
 `quadrature_points` selects Gauss–Legendre points per axis. Point boundaries use
 one point; an output containing only point integrals requires `1`. Mixed outputs
@@ -1479,7 +1493,7 @@ assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
-`eqiora.model-envelope/v34` schema, but callers do not select that suffix.
+`eqiora.model-envelope/v35` schema, but callers do not select that suffix.
 `.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
 Only the current schema is accepted; decoding never sniffs, retries, or silently
 migrates an older artifact.

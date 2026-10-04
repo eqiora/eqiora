@@ -195,6 +195,7 @@ impl super::ModelDeclarations {
                             &mut |id| self.nominal_name(id),
                             &mut |basis| self.product_name(basis),
                         ),
+                        value.domain.as_ref().map(|domain| domain.name().to_owned()),
                         value
                             .expression()
                             .ast(

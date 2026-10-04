@@ -254,6 +254,18 @@ impl PyRunResult {
         self.observe_value(py, observable, quadrature_points)
     }
 
+    /// Sample a field-valued Observable on its exact output support.
+    #[pyo3(signature = (observable, coordinates, *, quadrature_points=None))]
+    fn observe_at(
+        &self,
+        py: Python<'_>,
+        observable: &crate::model::PyObservableRef,
+        coordinates: Vec<(Py<PyAny>, Py<crate::modeling::PyDimension>)>,
+        quadrature_points: Option<usize>,
+    ) -> PyResult<observe::PyObservation> {
+        self.observe_point(py, observable, coordinates, quadrature_points)
+    }
+
     /// Bind explicit SI dimensions and vertex coefficients to this exact Result.
     fn observable_state_tangent(
         &self,

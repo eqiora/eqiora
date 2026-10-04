@@ -137,6 +137,7 @@ impl ScalarOperatorIr {
                             pending.extend(operands.iter().rev().copied().map(Frame::Demand));
                         }
                         Instruction::Sin(a)
+                        | Instruction::Exp(a)
                         | Instruction::Sqrt(a)
                         | Instruction::Index(a, _)
                         | Instruction::Neg(a)
@@ -185,6 +186,18 @@ impl ScalarOperatorIr {
                         }
                         literal(DynQuantity::new(
                             value.value().sin(),
+                            eqiora_core::DimExponents::DIMENSIONLESS,
+                        ))?
+                    }
+                    Instruction::Exp(value) => {
+                        let value = real(read(value)?)?;
+                        if value.dim() != eqiora_core::DimExponents::DIMENSIONLESS {
+                            return Err(ir_builder_error(
+                                "exponential requires a dimensionless real scalar",
+                            ));
+                        }
+                        literal(DynQuantity::new(
+                            value.value().exp(),
                             eqiora_core::DimExponents::DIMENSIONLESS,
                         ))?
                     }

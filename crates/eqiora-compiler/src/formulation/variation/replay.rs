@@ -27,12 +27,21 @@ impl AuthoredFormExpressionV1 {
                 "variation requires the exact live density and independent named directions",
             ));
         }
-        let ObservableReduction::SpatialIntegral { domain, measure } = functional.reduction()
+        let ObservableReduction::SpatialIntegral {
+            input,
+            domain,
+            measure,
+        } = functional.reduction()
         else {
             return Err(wire::rejection(
                 "local variation requires a fixed spatial integral",
             ));
         };
+        if input != domain {
+            return Err(wire::rejection(
+                "local variation requires a full fixed-domain integral",
+            ));
+        }
         let support = functional_support(density, domain)?;
         if !matches!(
             (measure, support),
@@ -46,7 +55,7 @@ impl AuthoredFormExpressionV1 {
         let root = density
             .node_type(density.expression().roots()[0])
             .ok_or_else(|| wire::rejection("variation density has no typed root"))?;
-        functional.validate_type(root, Some(support))?;
+        functional.validate_type(root, Some(support), Some(support), None)?;
         let value = derive_value(
             density,
             wrt,

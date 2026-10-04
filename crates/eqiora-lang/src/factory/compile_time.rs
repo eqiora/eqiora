@@ -59,6 +59,7 @@ impl SourceAstFactory {
     pub fn observable(
         name: impl Into<String>,
         value_type: crate::ValueTypeSyntax,
+        domain: Option<String>,
         value: Expr,
         range: TextRange,
     ) -> Result<crate::ObservableDecl, AstConstructionError> {
@@ -67,6 +68,9 @@ impl SourceAstFactory {
             comments: Default::default(),
             name: checked_identifier(name, "Observable")?,
             value_type,
+            domain: domain
+                .map(|name| checked_identifier(name, "Observable output support"))
+                .transpose()?,
             value,
             range: checked_range(range)?,
         })

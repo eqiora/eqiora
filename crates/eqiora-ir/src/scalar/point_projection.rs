@@ -202,6 +202,7 @@ impl ScalarOperatorIr {
             Instruction::Mul(a, b) => builder.mul(at(a), at(b)),
             Instruction::Div(a, b) => builder.div(at(a), at(b)),
             Instruction::PowI(a, n) => builder.powi(at(a), n),
+            Instruction::Exp(a) => builder.unary_math(UnaryMathFunction::Exp, at(a)),
             Instruction::Sin(a) => builder.unary_math(UnaryMathFunction::Sin, at(a)),
             Instruction::Sqrt(a) => builder.unary_math(UnaryMathFunction::Sqrt, at(a)),
             Instruction::Compare(op, a, b) => builder.compare(op, at(a), at(b)),

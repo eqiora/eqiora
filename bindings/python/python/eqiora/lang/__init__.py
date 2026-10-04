@@ -1243,7 +1243,7 @@ class Component:
                 Expression, Support, str, FieldRole, Clock | None, tuple[str, ...]
             ]
         ] = []
-        self._observables: list[tuple[str, Expression, str, tuple[str, ...]]] = []
+        self._observables: list[tuple[str, Expression, str, Support | None, tuple[str, ...]]] = []
         self._relations: list[
             tuple[str, Support | None, tuple[tuple[str, Expression, Expression], ...], Clock | Event | None, tuple[str, ...]]
         ] = []
@@ -1728,9 +1728,10 @@ class Component:
 
     def observable(
         self, name: str, expression: Expression | int | float | complex, *,
-        value_type: ValueType, on: Support | None = None, doc: str | None = None,
+        value_type: ValueType, on: Support | None = None,
+        integrate_over: Support | None = None, doc: str | None = None,
     ) -> Observable:
-        """Declare a typed output, optionally integrating its density over a Support."""
+        """Declare output support and, optionally, the exact support to integrate away."""
         value = _expression(expression)
         self._closed_expression(value)
         if value._owner is not None and value._owner is not self._component_token:
@@ -1739,13 +1740,15 @@ class Component:
             raise TypeError("value_type must be an eqiora.ValueType")
         if on is not None:
             self._support(on)
-            value = Expression(_CREATE, _Ast.call("integral", [value._ast, _Ast.call("measure", [_Ast.name(on._name)])]),
+        if integrate_over is not None:
+            self._support(integrate_over)
+            value = Expression(_CREATE, _Ast.call("integral", [value._ast, _Ast.call("measure", [_Ast.name(integrate_over._name)])]),
                                self._component_token, _binders=value._binders, _sources=value._sources)
         syntax, doc_lines = self._type_syntax(value_type), _doc(doc)
         if sum(item[1]._nodes for item in self._observables) + value._nodes > _MAX_EXPRESSION_NODES:
             raise ModuleError(f"Component observable expressions exceed the {_MAX_EXPRESSION_NODES}-node limit")
         admitted = self._add_name(name)
-        self._observables.append((admitted, value, syntax, doc_lines))
+        self._observables.append((admitted, value, syntax, on, doc_lines))
         return Observable(_CREATE, self._component_token, admitted)
 
     def relation(
@@ -2051,8 +2054,8 @@ class Component:
             add(name, doc, lambda n: _AstDeclaration.alias(
                 name, kind, None if support is None else support._name,
                 None if clock is None else clock._name, value._ast, n))
-        for name, value, kind, doc in self._observables:
-            add(name, doc, lambda n: _AstDeclaration.observable(name, kind, value._ast, n))
+        for name, value, kind, support, doc in self._observables:
+            add(name, doc, lambda n: _AstDeclaration.observable(name, kind, None if support is None else support._name, value._ast, n))
         for event, guard, direction, priority, doc in self._events:
             add(event._name, doc, lambda n: _AstDeclaration.event(
                 event._name, guard._ast, direction, priority, n))

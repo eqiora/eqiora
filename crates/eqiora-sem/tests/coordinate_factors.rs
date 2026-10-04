@@ -88,13 +88,14 @@ fn distribution_on_position_velocity_product_retains_exact_measure() {
     // (s/m²) × m × (m/s) = 1, independently of a numerical quadrature.
     assert_eq!(
         ObservableMeasure::Volume
-            .output_type(root, &support)
-            .unwrap(),
+            .output_type(root, &support, &support, None)
+            .unwrap()
+            .value_type,
         ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap()
     );
     assert!(
         ObservableMeasure::Boundary
-            .output_type(root, &support)
+            .output_type(root, &support, &support, None)
             .is_err()
     );
     let foreign = SpatialSupport::Coordinates {
@@ -103,7 +104,7 @@ fn distribution_on_position_velocity_product_retains_exact_measure() {
     };
     assert!(
         ObservableMeasure::Volume
-            .output_type(root, &foreign)
+            .output_type(root, &foreign, &foreign, None)
             .is_err()
     );
     let reversed = SpatialSupport::Coordinates {
@@ -112,7 +113,7 @@ fn distribution_on_position_velocity_product_retains_exact_measure() {
     };
     assert!(
         ObservableMeasure::Volume
-            .output_type(root, &reversed)
+            .output_type(root, &reversed, &reversed, None)
             .is_err()
     );
 }

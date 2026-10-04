@@ -2,12 +2,13 @@
 use super::*;
 use crate::model::PyObservableRef;
 use crate::modeling::{PyDimension, PyValueType};
-use eqiora::graph::Op;
 use eqiora::kernel::{ExprNode, KernelNode, ObservableMeasure, ObservableReduction, SymbolRef};
-use eqiora::meshing::{MeshTopology, QuadratureRule};
+use eqiora::meshing::QuadratureRule;
 use eqiora::{DynQuantity, Id, ValueLiteral, kinds};
 use pyo3::types::PyDict;
 use std::collections::{BTreeMap, HashMap, HashSet};
+
+type ObservationPoint = (String, Vec<(f64, PyDimension)>);
 
 /// Typed Result-owned value with its effective numerical quadrature.
 #[pyclass(
@@ -18,6 +19,8 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 )]
 pub(crate) struct PyObservation {
     value: ValueLiteral,
+    #[pyo3(get)]
+    point: Option<ObservationPoint>,
     #[pyo3(get)]
     result_identity: String,
     #[pyo3(get)]
@@ -84,19 +87,14 @@ impl PyRunResult {
                 "ObservableRef belongs to a different exact Model artifact",
             ));
         }
-        let (transaction, _) = self
+        let program = self
             .native
-            .plan()
-            .model_artifact()
-            .to_transaction()
-            .map_err(|errors| diagnostic_error(py, &errors))?;
-        let definitions = transaction
-            .ops()
-            .iter()
-            .filter_map(|operation| match operation {
-                Op::DefineKernelNode {
-                    node: KernelNode::Observable(definition),
-                } => Some((definition.id(), definition)),
+            .observation_program()
+            .map_err(|error| diagnostic_error(py, &[error]))?;
+        let definitions = program
+            .nodes()
+            .filter_map(|node| match node {
+                KernelNode::Observable(definition) => Some((definition.id(), definition)),
                 _ => None,
             })
             .collect::<HashMap<_, _>>();
@@ -112,7 +110,9 @@ impl PyRunResult {
                     "Observable is outside this exact Result Model",
                 ));
             };
-            if let ObservableReduction::SpatialIntegral { domain, measure } = definition.reduction()
+            if let ObservableReduction::SpatialIntegral {
+                domain, measure, ..
+            } = definition.reduction()
             {
                 measures.insert(domain, measure);
             }
@@ -130,23 +130,12 @@ impl PyRunResult {
                 "finite Observable does not accept spatial quadrature",
             ));
         }
-        let owner = self.native.plan().authenticated_mesh().ok_or_else(|| {
-            PyValueError::new_err("Observable requires an authenticated Result mesh")
-        })?;
-        let mesh = owner.cartesian_mesh().ok_or_else(|| {
-            PyValueError::new_err(
-                "Observable quadrature requires an admitted Cartesian Result mesh",
-            )
-        })?;
         let mut rules = HashMap::new();
-        for (domain, measure) in &measures {
-            let dimension = mesh
-                .mesh()
-                .topological_dimension()
-                .checked_sub(usize::from(*measure == ObservableMeasure::Boundary))
-                .ok_or_else(|| {
-                    PyValueError::new_err("Observable boundary has no ambient dimension")
-                })?;
+        for domain in measures.keys() {
+            let dimension = program
+                .spatial_support(*domain)
+                .ok_or_else(|| PyValueError::new_err("Observable measure Domain is unavailable"))?
+                .intrinsic_dimensions();
             let rule = if dimension == 0 {
                 if points != 1
                     && measures
@@ -180,6 +169,64 @@ impl PyRunResult {
             .map_err(|error| diagnostic_error(py, &[error]))?;
         Ok(PyObservation {
             value: value.value().clone(),
+            point: None,
+            result_identity: value.result_identity().to_owned(),
+            observable_id: value.observable().ulid().to_string(),
+            evaluation_kind: "value",
+            quadratures: quadrature_metadata(value.quadratures(), points.unwrap_or(0)),
+        })
+    }
+
+    pub(super) fn observe_point(
+        &self,
+        py: Python<'_>,
+        observable: &PyObservableRef,
+        coordinates: Vec<(Py<PyAny>, Py<PyDimension>)>,
+        points: Option<usize>,
+    ) -> PyResult<PyObservation> {
+        let coordinates = coordinates
+            .into_iter()
+            .map(|(value, dimension)| {
+                if value.bind(py).is_instance_of::<pyo3::types::PyBool>() {
+                    return Err(pyo3::exceptions::PyTypeError::new_err(
+                        "Observable coordinates require real values, not booleans",
+                    ));
+                }
+                Ok(DynQuantity::new(
+                    value.extract::<f64>(py)?,
+                    dimension.borrow(py).value,
+                ))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let rules = self.observation_rules(py, observable, points)?;
+        let value = self
+            .native
+            .observe_at(
+                self.native.plan().model_artifact(),
+                observable.id,
+                &coordinates,
+                &rules,
+            )
+            .map_err(|error| diagnostic_error(py, &[error]))?;
+        let point = value.point().map(|(domain, coordinates)| {
+            (
+                domain.ulid().to_string(),
+                coordinates
+                    .iter()
+                    .map(|coordinate| {
+                        (
+                            coordinate.value(),
+                            PyDimension {
+                                value: coordinate.dim(),
+                            },
+                        )
+                    })
+                    .collect(),
+            )
+        });
+        Ok(PyObservation {
+            value: value.value().clone(),
+            point,
             result_identity: value.result_identity().to_owned(),
             observable_id: value.observable().ulid().to_string(),
             evaluation_kind: "value",
@@ -244,6 +291,7 @@ impl PyRunResult {
             .map_err(|error| diagnostic_error(py, &[error]))?;
         Ok(PyObservation {
             value,
+            point: None,
             result_identity: self.native.identity().to_owned(),
             observable_id: observable.id.ulid().to_string(),
             evaluation_kind: "state-jvp",
@@ -281,6 +329,7 @@ impl PyRunResult {
             .map_err(|error| diagnostic_error(py, &[error]))?;
         Ok(PyObservation {
             value,
+            point: None,
             result_identity: self.native.identity().to_owned(),
             observable_id: observable.id.ulid().to_string(),
             evaluation_kind: "state-second-variation",

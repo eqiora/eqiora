@@ -128,9 +128,11 @@ impl PyAstDeclaration {
     }
 
     #[staticmethod]
+    #[pyo3(signature = (name, kind, domain, value, ordinal))]
     fn observable(
         name: String,
         kind: &PyAstType,
+        domain: Option<String>,
         value: &PyAstExpression,
         ordinal: u32,
     ) -> PyResult<Self> {
@@ -139,6 +141,7 @@ impl PyAstDeclaration {
                 Ast::observable(
                     name,
                     kind.value.clone(),
+                    domain,
                     value.value.clone(),
                     range(ordinal),
                 )

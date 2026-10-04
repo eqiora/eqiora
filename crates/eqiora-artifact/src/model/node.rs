@@ -444,7 +444,7 @@ impl WireNode {
             } => {
                 let mut references = expression.semantic_references();
                 references.extend(value_type.nominal_references());
-                references.extend(reduction.domain());
+                references.extend(reduction.semantic_references());
                 references
             }
             WireNodeDefinition::Relation { expression, .. } => expression.semantic_references(),
@@ -781,8 +781,8 @@ mod equation_tests {
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub(crate) enum WireObservableReduction {
     Value,
-    VolumeIntegral { domain: WireId },
-    BoundaryIntegral { domain: WireId },
+    VolumeIntegral { input: WireId, domain: WireId },
+    BoundaryIntegral { input: WireId, domain: WireId },
 }
 
 impl WireObservableReduction {
@@ -790,15 +790,19 @@ impl WireObservableReduction {
         match value {
             ObservableReduction::Value => Self::Value,
             ObservableReduction::SpatialIntegral {
+                input,
                 domain,
                 measure: ObservableMeasure::Volume,
             } => Self::VolumeIntegral {
+                input: WireId::from_raw(input.erase()),
                 domain: WireId::from_raw(domain.erase()),
             },
             ObservableReduction::SpatialIntegral {
+                input,
                 domain,
                 measure: ObservableMeasure::Boundary,
             } => Self::BoundaryIntegral {
+                input: WireId::from_raw(input.erase()),
                 domain: WireId::from_raw(domain.erase()),
             },
         }
@@ -806,20 +810,24 @@ impl WireObservableReduction {
     fn decode(&self) -> Result<ObservableReduction, Diagnostic> {
         Ok(match self {
             Self::Value => ObservableReduction::Value,
-            Self::VolumeIntegral { domain } => ObservableReduction::SpatialIntegral {
+            Self::VolumeIntegral { input, domain } => ObservableReduction::SpatialIntegral {
+                input: input.typed()?,
                 domain: domain.typed()?,
                 measure: ObservableMeasure::Volume,
             },
-            Self::BoundaryIntegral { domain } => ObservableReduction::SpatialIntegral {
+            Self::BoundaryIntegral { input, domain } => ObservableReduction::SpatialIntegral {
+                input: input.typed()?,
                 domain: domain.typed()?,
                 measure: ObservableMeasure::Boundary,
             },
         })
     }
-    fn domain(&self) -> Option<&WireId> {
+    fn semantic_references(&self) -> Vec<&WireId> {
         match self {
-            Self::Value => None,
-            Self::VolumeIntegral { domain } | Self::BoundaryIntegral { domain } => Some(domain),
+            Self::Value => Vec::new(),
+            Self::VolumeIntegral { input, domain } | Self::BoundaryIntegral { input, domain } => {
+                vec![input, domain]
+            }
         }
     }
 }

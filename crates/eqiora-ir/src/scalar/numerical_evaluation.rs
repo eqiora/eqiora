@@ -40,6 +40,7 @@ pub(super) fn evaluate_instructions(
                         .with_graph_path(ir_path(index))
                     })?
             }
+            Instruction::Exp(value) => read(&values, value, index)?.exp(),
             Instruction::Sin(value) => read(&values, value, index)?.sin(),
             Instruction::Sqrt(value) => read(&values, value, index)?.sqrt(),
             Instruction::Neg(value) => -read(&values, value, index)?,

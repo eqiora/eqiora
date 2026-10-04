@@ -1,0 +1,14 @@
+model Distribution(support position:interval(m), support velocity:interval(m/s)) {
+    support phase:product(position,velocity);
+    coordinate x:m on phase from position[0];
+    coordinate v:m/s on phase from velocity[0];
+    variable amplitude:s/m^2;
+    relation amplitude_value { amplitude=3[s/m^2]; }
+    let f:s/m^2 on phase=amplitude*(1+x/2[m])*(1+(v/4[m/s])^2);
+    observable density:1/m on position=integral(f,measure(velocity));
+    observable current:1/s on position=integral(v*f,measure(velocity));
+    observable second:m/s^2 on position=integral(v*v*f,measure(velocity));
+    observable mean:m/s on position=current/density;
+    observable mass:1=integral(f,measure(phase));
+    observable composed:1=integral(density,measure(position));
+}

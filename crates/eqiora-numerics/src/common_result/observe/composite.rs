@@ -2,13 +2,16 @@
 use std::collections::{HashMap, HashSet};
 
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, Id, ValueLiteral};
+use eqiora_core::{Diagnostic, DynQuantity, Id, ValueLiteral};
 use eqiora_ir::{DifferentiationRole, LinearizedRelation, RelationTangent, ScalarOperatorIr};
 use eqiora_meshing::QuadratureRule;
 use eqiora_schema::kernel::{ExprNode, KernelNode, ObservableDef, ObservableReduction, SymbolRef};
 use eqiora_sem::KernelProgram;
 
 use super::{CommonResult, invalid, spatial, tangent::StateDerivative};
+
+mod factors;
+use factors::Point;
 
 type Evaluation = (ValueLiteral, Option<ValueLiteral>);
 
@@ -18,6 +21,7 @@ pub(super) fn evaluate(
     observable: Id<kinds::Observable>,
     quadratures: &HashMap<Id<kinds::Domain>, QuadratureRule>,
     tangent: Option<&StateDerivative<'_>>,
+    coordinates: Option<&[DynQuantity]>,
 ) -> Result<Evaluation, Diagnostic> {
     let finite_fields = match (result.plan().as_algebraic(), result.finite_values()) {
         (Some(plan), Some(values)) => plan.field_values(values)?.into_iter().collect(),
@@ -33,7 +37,8 @@ pub(super) fn evaluate(
         used_rules: HashSet::new(),
         remaining: 1_000_000,
     };
-    let value = context.evaluate(observable, 0)?;
+    let point = context.output_point(observable, coordinates)?;
+    let value = context.evaluate(observable, &point, 0)?;
     if context.used_rules.len() != quadratures.len() {
         return Err(invalid(
             "Observable quadrature contains an unused integration Domain",
@@ -57,6 +62,7 @@ impl Context<'_> {
     fn evaluate(
         &mut self,
         id: Id<kinds::Observable>,
+        point: &Point,
         depth: usize,
     ) -> Result<Evaluation, Diagnostic> {
         if let Some(value) = self.accepted.get(&id) {
@@ -74,9 +80,12 @@ impl Context<'_> {
             .remaining
             .checked_sub(definition.expression().nodes().len())
             .ok_or_else(|| invalid("Observable composition exceeds its expression work bound"))?;
+        if self.factor_supported(definition) {
+            return self.evaluate_factors(definition, point, depth);
+        }
         for node in definition.expression().nodes() {
             if let ExprNode::Symbol(SymbolRef::Observable(dependency)) = node {
-                self.evaluate(*dependency, depth + 1)?;
+                self.evaluate(*dependency, point, depth + 1)?;
             }
         }
         let evaluation = match definition.reduction() {
@@ -90,7 +99,12 @@ impl Context<'_> {
                     .transpose()?;
                 (value, derivative)
             }
-            ObservableReduction::SpatialIntegral { domain, .. } => {
+            ObservableReduction::SpatialIntegral { input, domain, .. } => {
+                if input != domain {
+                    return Err(invalid(
+                        "this Result realization requires a full spatial integral",
+                    ));
+                }
                 let rule = self.quadratures.get(&domain).ok_or_else(|| {
                     invalid("spatial Observable requires an explicit quadrature rule for its exact Domain")
                 })?;

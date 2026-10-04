@@ -282,7 +282,7 @@ balance = component.law("balance", on=body, flux=-k*q.grad(u), source=f)
 face = surface.member("face")
 component.relation("fixed", q.equation(q.trace(u), q.quantity(0, eqiora.units.m)), on=face)
 energy = component.observable("energy", k*q.contract(q.grad(u), q.grad(u), axes=((0,0),))/2-f*u,
-                              value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=2, time=-2)), on=body)
+                              value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=2, time=-2)), integrate_over=body)
 combined = component.observable("combined", energy+energy-energy, value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=2, time=-2)))
 w = component.test("w", for_=u, dimension=eqiora.Dimension(length=1), zero_on=surface)
 first = q.variation(combined, wrt=u, direction=w, holding=(k,f))

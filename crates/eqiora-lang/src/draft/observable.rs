@@ -7,6 +7,7 @@ pub struct DraftObservable {
     pub(super) symbol: DraftSymbol,
     pub(super) name: String,
     pub(super) value_type: ValueType,
+    pub(super) domain: Option<DraftSpatialDomain>,
     pub(super) expression: DraftExpression,
 }
 
@@ -22,8 +23,16 @@ impl DraftObservable {
             symbol: DraftSymbol::new(),
             name: name.into(),
             value_type,
+            domain: None,
             expression,
         }
+    }
+
+    /// Declare the exact support retained by this output.
+    #[must_use]
+    pub fn on(mut self, domain: &DraftSpatialDomain) -> Self {
+        self.domain = Some(domain.clone());
+        self
     }
 
     /// Declaration name.

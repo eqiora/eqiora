@@ -110,6 +110,20 @@ impl RootExpansion<'_, '_> {
                         )?,
                         value,
                         reduction,
+                        domain: declaration
+                            .domain()
+                            .map(|name| {
+                                resolve_local_kind(
+                                    self.model.file,
+                                    declaration.range(),
+                                    scope,
+                                    name,
+                                    |kind| matches!(kind, SymbolKind::Domain),
+                                    "Observable output Domain",
+                                )
+                                .map(|symbol| symbol.internal_name.clone())
+                            })
+                            .transpose()?,
                         range: declaration.range(),
                         identity,
                     });

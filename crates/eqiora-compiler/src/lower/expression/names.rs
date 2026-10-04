@@ -38,11 +38,12 @@ impl ExpressionLowerer<'_> {
                 }
                 (SymbolRef::Field(id), id.erase(), contract.dimension)
             }
-            Binding::Observable(id, value_type, reduction) if self.allow_observables => {
+            Binding::Observable(id, value_type, domain, reduction) if self.allow_observables => {
                 let ty = observable::reference_type(
                     self.file,
                     expression.range(),
                     &value_type,
+                    domain.as_deref(),
                     reduction.as_deref(),
                     self.bindings,
                 )?;

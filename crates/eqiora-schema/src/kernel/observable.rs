@@ -7,84 +7,18 @@ use eqiora_core::{Diagnostic, DimExponents, Id, RawId, ValueType};
 use super::typing::{ExpressionType, SpatialSupport};
 use super::{ExprDag, KernelNode};
 
-/// Integration measure on one exact continuous support.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ObservableMeasure {
-    /// Cartesian product measure: physical volume or the product of abstract factor units.
-    Volume,
-    /// Exterior surface measure; orientation belongs to the exact boundary normal.
-    Boundary,
-}
-
-impl ObservableMeasure {
-    /// Infer an integral's exact output type using identity-parametric support.
-    ///
-    /// Source checking and Semantic Model admission use this same rule.
-    /// # Errors
-    /// Rejects a wrong measure, foreign support or unrepresentable dimension.
-    pub fn output_type<I: PartialEq>(
-        self,
-        root: &ExpressionType<I>,
-        support: &SpatialSupport<I>,
-    ) -> Result<ValueType, Diagnostic> {
-        if !matches!(
-            root.value_type.scalar_domain(),
-            eqiora_core::ScalarDomain::Real
-                | eqiora_core::ScalarDomain::Complex
-                | eqiora_core::ScalarDomain::Integer
-        ) {
-            return Err(invalid("Observable integral requires a numeric integrand"));
-        }
-        let measure_dimension = match (self, support) {
-            (ObservableMeasure::Volume, SpatialSupport::Coordinates { factors, .. }) => factors
-                .iter()
-                .try_fold(
-                    DimExponents::DIMENSIONLESS,
-                    |product, (_, dimension, axes)| {
-                        product.mul(dimension.pow(i32::try_from(*axes).ok()?, 1)?)
-                    },
-                )
-                .ok_or_else(|| {
-                    invalid("coordinate product measure dimension exceeds its exact representation")
-                })?,
-            (ObservableMeasure::Volume, SpatialSupport::Volume { dimensions, .. }) => {
-                length_measure(*dimensions)?
-            }
-            (ObservableMeasure::Boundary, SpatialSupport::Boundary { dimensions, .. }) => {
-                length_measure(
-                    dimensions
-                        .checked_sub(1)
-                        .ok_or_else(|| invalid("Observable boundary has no ambient dimension"))?,
-                )?
-            }
-            _ => return Err(invalid("Observable measure does not match its Domain kind")),
-        };
-        if root
-            .support
-            .as_ref()
-            .is_some_and(|actual| actual != support)
-        {
-            return Err(invalid(
-                "Observable integrand does not have the exact integration support; boundary traces must be explicit",
-            ));
-        }
-        let dimension = root.dimension().mul(measure_dimension).ok_or_else(|| {
-            invalid("Observable integral dimension exceeds its exact representation")
-        })?;
-        root.value_type
-            .clone()
-            .with_dimension(dimension)
-            .map_err(|_| invalid("Observable integral requires a numeric result type"))
-    }
-}
+mod measure;
+pub use measure::ObservableMeasure;
 
 /// Reduction meaning, independent of mesh and quadrature policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ObservableReduction {
-    /// An instantaneous value with no spatial support.
+    /// An instantaneous value on its declared output support.
     Value,
     /// An integral over exactly one declared spatial Domain.
     SpatialIntegral {
+        /// Exact input support of the density, before removing selected factors.
+        input: Id<kinds::Domain>,
         /// Exact volume or boundary Domain, never a renderer selection.
         domain: Id<kinds::Domain>,
         /// Measure must agree with the selected Domain kind.
@@ -93,6 +27,15 @@ pub enum ObservableReduction {
 }
 
 impl ObservableReduction {
+    /// Exact density input Domain, if this is an integral.
+    #[must_use]
+    pub const fn input_domain(self) -> Option<Id<kinds::Domain>> {
+        match self {
+            Self::Value => None,
+            Self::SpatialIntegral { input, .. } => Some(input),
+        }
+    }
+
     /// Exact integration Domain, if present.
     #[must_use]
     pub const fn domain(self) -> Option<Id<kinds::Domain>> {
@@ -165,27 +108,44 @@ impl ObservableDef {
     pub fn validate_type(
         &self,
         root: &ExpressionType<RawId>,
+        input_support: Option<&SpatialSupport<RawId>>,
         integration_support: Option<&SpatialSupport<RawId>>,
+        output_support: Option<&SpatialSupport<RawId>>,
     ) -> Result<(), Diagnostic> {
         let inferred = match self.reduction {
             ObservableReduction::Value => {
-                if root.support.is_some() || integration_support.is_some() {
+                if input_support.is_some()
+                    || integration_support.is_some()
+                    || root
+                        .support
+                        .as_ref()
+                        .is_some_and(|support| Some(support) != output_support)
+                {
                     return Err(invalid(
-                        "Observable value requires no spatial support; use an explicit integral",
+                        "Observable value differs from its declared output support",
                     ));
                 }
                 root.value_type.clone()
             }
-            ObservableReduction::SpatialIntegral { domain, measure } => {
+            ObservableReduction::SpatialIntegral {
+                input,
+                domain,
+                measure,
+            } => {
                 let support = integration_support.ok_or_else(|| {
                     invalid("Observable integral requires an admitted spatial Domain")
                 })?;
-                if *support.domain() != domain.erase() {
+                let input_support = input_support.ok_or_else(|| {
+                    invalid("Observable integral requires an admitted input Domain")
+                })?;
+                if *input_support.domain() != input.erase() || *support.domain() != domain.erase() {
                     return Err(invalid(
                         "Observable integral Domain differs from its exact support",
                     ));
                 }
-                measure.output_type(root, support)?
+                measure
+                    .output_type(root, input_support, support, output_support)?
+                    .value_type
             }
         };
         if inferred != self.value_type {
@@ -241,7 +201,11 @@ mod tests {
             Id::new(),
             scalar(exponent),
             dag.finish([root]).unwrap(),
-            ObservableReduction::SpatialIntegral { domain, measure },
+            ObservableReduction::SpatialIntegral {
+                input: domain,
+                domain,
+                measure,
+            },
         )
         .unwrap()
     }
@@ -263,22 +227,22 @@ mod tests {
         let volume_integral = integral(domain, ObservableMeasure::Volume, 3);
         assert!(
             volume_integral
-                .validate_type(&constant, Some(&volume))
+                .validate_type(&constant, Some(&volume), Some(&volume), None)
                 .is_ok()
         );
         assert!(
             volume_integral
-                .validate_type(&constant, Some(&boundary))
+                .validate_type(&constant, Some(&boundary), Some(&boundary), None)
                 .is_err()
         );
         assert!(
             integral(domain, ObservableMeasure::Boundary, 2)
-                .validate_type(&constant, Some(&boundary))
+                .validate_type(&constant, Some(&boundary), Some(&boundary), None)
                 .is_ok()
         );
         assert!(
             integral(domain, ObservableMeasure::Volume, 2)
-                .validate_type(&constant, Some(&volume))
+                .validate_type(&constant, Some(&volume), Some(&volume), None)
                 .is_err()
         );
         let foreign = SpatialSupport::Volume {
@@ -287,14 +251,16 @@ mod tests {
         };
         assert!(
             volume_integral
-                .validate_type(&constant, Some(&foreign))
+                .validate_type(&constant, Some(&foreign), Some(&foreign), None)
                 .is_err()
         );
         assert!(
             volume_integral
                 .validate_type(
                     &ExpressionType::new(scalar(0), Some(foreign)),
-                    Some(&volume)
+                    Some(&volume),
+                    Some(&volume),
+                    None
                 )
                 .is_err()
         );
@@ -307,7 +273,9 @@ mod tests {
             integral(domain, ObservableMeasure::Boundary, 2)
                 .validate_type(
                     &ExpressionType::new(scalar(0), Some(wrong_parent)),
-                    Some(&boundary)
+                    Some(&boundary),
+                    Some(&boundary),
+                    None
                 )
                 .is_err()
         );
@@ -323,7 +291,7 @@ mod tests {
         let boolean = ExpressionType::new(ValueType::boolean(), None);
         assert!(
             ObservableMeasure::Boundary
-                .output_type(&boolean, &support)
+                .output_type(&boolean, &support, &support, None)
                 .is_err()
         );
     }
@@ -343,7 +311,7 @@ mod tests {
         .unwrap();
         assert!(
             value
-                .validate_type(&ExpressionType::new(scalar(0), None), None)
+                .validate_type(&ExpressionType::new(scalar(0), None), None, None, None)
                 .is_ok()
         );
         let support = SpatialSupport::Volume {
@@ -352,7 +320,12 @@ mod tests {
         };
         assert!(
             value
-                .validate_type(&ExpressionType::new(scalar(0), Some(support)), None)
+                .validate_type(
+                    &ExpressionType::new(scalar(0), Some(support)),
+                    None,
+                    None,
+                    None
+                )
                 .is_err()
         );
         assert!(matches!(KernelNode::from(value), KernelNode::Observable(_)));

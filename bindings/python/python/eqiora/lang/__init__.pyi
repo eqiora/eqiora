@@ -457,7 +457,8 @@ class Component:
     ) -> Expression: ...
     def observable(
         self, name: str, expression: Expression | int | float | complex, *,
-        value_type: ValueType, on: Support | None = None, doc: str | None = None,
+        value_type: ValueType, on: Support | None = None,
+        integrate_over: Support | None = None, doc: str | None = None,
     ) -> Observable: ...
     def relation(
         self,

@@ -35,13 +35,14 @@ pub(super) fn summarize(
     let mut summaries: Vec<AffineSummary> = Vec::with_capacity(instructions.len());
     for (index, instruction) in instructions.iter().copied().enumerate() {
         let summary = match instruction {
-            Instruction::Sin(value) | Instruction::Sqrt(value) => {
+            Instruction::Sin(value) | Instruction::Exp(value) | Instruction::Sqrt(value) => {
                 let argument = &summaries[summary_index(value, index)?];
                 if argument.depends_on_selected() {
                     return Err(SymbolicLinearityFailure::Nonlinear { instruction: index });
                 }
                 let constant = argument.constant.map(|value| match instruction {
                     Instruction::Sin(_) => value.sin(),
+                    Instruction::Exp(_) => value.exp(),
                     Instruction::Sqrt(_) => value.sqrt(),
                     _ => unreachable!(),
                 });
