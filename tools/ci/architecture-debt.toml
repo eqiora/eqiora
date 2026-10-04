@@ -546,9 +546,10 @@ removal = "withdraw GeometryDigest or the closed coordinate recipes when accepte
 
 [[public_surface]]
 crate = "eqiora-sem"
-ceiling = 19
-reason = "#867 adds InitialState for one accepted fresh solve before the first tick: exact occurrence-keyed Field values and only actual derivative unknowns. Both ordinary and implicit runtime adapters consume it. Trajectory is a post-activation observation surface; a solver's positional state/derivative pair would introduce solver coupling and semantic-layer padding for absent algebraic derivatives. No restart constructor or persisted State is added."
-removal = "withdraw InitialState and lower by one when an already-counted semantics-level result owns the same exact occurrence mapping, actual derivative set and before-first-tick acceptance boundary without conflating observations, numerical guesses or restart history"
+# #996 / A5: two current reconstruction-boundary owners, with native Result consumers.
+ceiling = 21
+reason = "#996 adds two typed owners at the existing evaluator/reconstruction boundary: EvaluationPoint validates exact support/factor/axis, units, bounds and side against the admitted Model; EvaluationInput distinguishes a value from a first coordinate-derivative request. The ordinary Result consumes both for shared Q1 reconstruction and point-local Observable composition. An untyped tuple or a derivative disguised as a symbol would move that invariant into numerical adapters. The registered language.exact-point-evaluation case independently verifies the bounded static path. No second evaluator, point registry or persisted observation protocol is added. #867 adds InitialState for one accepted fresh solve before the first tick: exact occurrence-keyed Field values and only actual derivative unknowns. Both ordinary and implicit runtime adapters consume it. Trajectory is a post-activation observation surface; a solver's positional state/derivative pair would introduce solver coupling and semantic-layer padding for absent algebraic derivatives. No restart constructor or persisted State is added."
+removal = "withdraw the two point-boundary owners and lower by two only when an existing shared typed owner preserves exact admitted coordinates/side and distinguishes value/derivative requests for semantic and numerical consumers without callback-side revalidation or invented symbols. Withdraw InitialState and lower by one when an already-counted semantics-level result owns the same exact occurrence mapping, actual derivative set and before-first-tick acceptance boundary without conflating observations, numerical guesses or restart history"
 
 [[public_surface]]
 crate = "eqiora-solver"

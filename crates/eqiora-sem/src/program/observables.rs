@@ -38,16 +38,71 @@ impl KernelProgram {
         observable: Id<kinds::Observable>,
         resolve: &mut dyn FnMut(SymbolRef) -> Option<eqiora_core::ValueLiteral>,
     ) -> Result<eqiora_core::ValueLiteral, Diagnostic> {
+        self.evaluate_observable_with_points(observable, None, &mut |input, point| {
+            let crate::EvaluationInput::Value(symbol) = input else {
+                return Err(kernel_error(
+                    observable.erase(),
+                    "coordinate partial requires an admitted point reconstruction",
+                ));
+            };
+            if point.is_some() {
+                let spatial = match symbol {
+                    SymbolRef::Field(id) | SymbolRef::Derivative(id) => {
+                        self.edges.iter().any(|edge| {
+                            edge.from() == id.erase()
+                                && edge.kind() == EdgeKind::DefinedOn
+                                && matches!(self.node(edge.to()), Some(KernelNode::Domain(_)))
+                        })
+                    }
+                    SymbolRef::Observable(id) => self.observable_output_support(id)?.is_some(),
+                    _ => false,
+                };
+                if spatial {
+                    return Err(kernel_error(
+                        observable.erase(),
+                        "point evaluation of a spatial Field requires an admitted reconstruction",
+                    ));
+                }
+            }
+            resolve(symbol).ok_or_else(|| {
+                kernel_error(
+                    observable.erase(),
+                    format!("Observable input is unavailable: {symbol:?}"),
+                )
+            })
+        })
+    }
+
+    /// Evaluate an Observable with exact point contexts for spatial reconstruction.
+    /// A supported output requires a point on precisely that output support.
+    /// Arithmetic and conditional demand remain with the canonical evaluator. The callback
+    /// supplies admitted numerical Field values; it must not advance state or infer a representation.
+    /// # Errors
+    /// Rejects foreign Observables, reductions, invalid coordinates/sides and callback failures.
+    pub fn evaluate_observable_with_points(
+        &self,
+        observable: Id<kinds::Observable>,
+        point: Option<&crate::EvaluationPoint>,
+        resolve: &mut impl FnMut(
+            crate::EvaluationInput,
+            Option<&crate::EvaluationPoint>,
+        ) -> Result<eqiora_core::ValueLiteral, Diagnostic>,
+    ) -> Result<eqiora_core::ValueLiteral, Diagnostic> {
         let Some(KernelNode::Observable(definition)) = self.node(observable.erase()) else {
             return Err(kernel_error(
                 observable.erase(),
                 "Observable is outside the selected Model",
             ));
         };
-        if !edge_targets(&self.edges, observable.erase(), EdgeKind::DefinedOn).is_empty() {
+        if let Some(point) = point {
+            point.validate(self)?;
+        }
+        if let Some(support) = self.observable_output_support(observable)?
+            && point.is_none_or(|point| point.domain().erase() != *support.domain())
+        {
             return Err(kernel_error(
                 observable.erase(),
-                "finite evaluation cannot erase an Observable output support",
+                "point evaluation requires the exact Observable output support",
             ));
         }
         if !matches!(
@@ -59,9 +114,11 @@ impl KernelProgram {
                 "finite evaluation cannot perform spatial quadrature",
             ));
         }
-        let values = crate::evaluate::evaluate_expression(
+        let values = crate::evaluate::evaluate_with_points(
+            self,
             observable.erase(),
             definition.expression(),
+            point,
             resolve,
         )?;
         let value = values.into_iter().next().ok_or_else(|| {

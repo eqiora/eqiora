@@ -17,6 +17,25 @@ fn validate_expression_depth(expression: &Expr, depth: usize) -> Result<(), AstC
     }
     checked_range(expression.range())?;
     match expression.kind() {
+        ExprKind::Evaluate { value, at, .. } => {
+            if at.is_empty() || at.len() > super::SourceAstFactory::MAX_EXPRESSION_NODES {
+                return Err(AstConstructionError::new(
+                    "evaluation coordinate count exceeds expression bounds",
+                ));
+            }
+            validate_expression_depth(value, depth + 1)?;
+            let mut names = std::collections::BTreeSet::new();
+            for (coordinate, point) in at {
+                validate_name_path(coordinate)?;
+                if !names.insert(coordinate.as_str()) {
+                    return Err(AstConstructionError::new(
+                        "point evaluation repeats a coordinate binding",
+                    ));
+                }
+                validate_expression_depth(point, depth + 1)?;
+            }
+            Ok(())
+        }
         ExprKind::Partial {
             value,
             wrt,
@@ -115,9 +134,9 @@ fn validate_expression_depth(expression: &Expr, depth: usize) -> Result<(), AstC
         }
         ExprKind::Call { callee, arguments } => {
             validate_name_path(callee)?;
-            if matches!(callee.as_str(), "sum" | "product" | "partial") {
+            if matches!(callee.as_str(), "sum" | "product" | "partial" | "evaluate") {
                 return Err(AstConstructionError::new(
-                    "sum/product/partial require structured compile-time bindings",
+                    "sum/product/partial/evaluate require structured bindings",
                 ));
             }
             if let crate::CallArguments::Mixed { positional, named } = arguments

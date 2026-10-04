@@ -8,6 +8,20 @@ pub(super) fn encode_expression(
 ) -> Result<(), Diagnostic> {
     budget.account_expression(depth)?;
     match expression.kind() {
+        ExprKind::Evaluate { value, at, side } => {
+            encoder.u16(21)?;
+            encode_expression(encoder, value, budget, next_depth(depth)?)?;
+            encoder.u32(as_u32(at.len(), "evaluation coordinates")?)?;
+            for (coordinate, point) in at {
+                encode_path(encoder, coordinate, budget)?;
+                encode_expression(encoder, point, budget, next_depth(depth)?)?;
+            }
+            encoder.u8(match side {
+                None => 0,
+                Some(eqiora_lang::BoundarySideSyntax::Lower) => 1,
+                Some(eqiora_lang::BoundarySideSyntax::Upper) => 2,
+            })
+        }
         ExprKind::Partial {
             value,
             wrt,

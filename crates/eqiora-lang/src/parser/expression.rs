@@ -359,6 +359,9 @@ impl Parser<'_> {
             } else {
                 NamePath::single(name, token.range())
             };
+            if self.at(TokenKind::LeftParen) && path.as_str() == "evaluate" {
+                return self.parse_evaluate(path);
+            }
             if self.at(TokenKind::LeftParen) && path.as_str() == "partial" {
                 return self.parse_partial(path);
             }

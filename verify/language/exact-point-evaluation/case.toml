@@ -1,0 +1,26 @@
+id = "language.exact-point-evaluation"
+status = "implemented"
+scope = "complete-exact-coordinate-bindings-and-static-scalar-cartesian-q1-observations"
+reference_kind = "independent-affine-bilinear-solutions-taylor-series-and-one-sided-q1-slopes"
+capabilities = ["exact-point-support-and-units", "analytic-ramp-and-sinusoid", "off-node-q1-values", "coordinate-slopes", "one-dimensional-interface-sides", "point-local-observable-composition", "model-and-result-replay", "unsupported-reconstruction-rejection"]
+
+[claim_boundary]
+complete_coordinate_binding = true
+static_scalar_cartesian_q1 = true
+one_dimensional_q1_is_piecewise_affine_p1 = true
+analytic_polynomial_partials_inside_evaluation = true
+renderer_independent = true
+partial_binding = false
+moving_point_derivative = false
+enclosing_evaluation_derivative = false
+state_direction_products = false
+transient_time_selection = false
+reductions_inside_point_bindings = false
+analytic_piecewise_limits = false
+piecewise_constant_point_values = false
+arbitrary_sobolev_spaces = false
+mesh_transfer = false
+
+[evidence]
+package = "eqiora"
+test = "point_evaluation"

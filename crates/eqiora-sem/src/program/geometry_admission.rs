@@ -5,14 +5,14 @@ use std::fmt::Write;
 
 use eqiora_core::ValueFrame;
 use eqiora_core::diagnostic::codes;
-use eqiora_core::{Diagnostic, RawId};
+use eqiora_core::{Diagnostic, DimExponents, DynQuantity, RawId};
 use eqiora_geometry::CanonicalGeometryV1;
 use eqiora_graph::{Edge, EdgeKind};
 use eqiora_schema::kernel::typing::SpatialSupport;
 use eqiora_schema::kernel::{
-    BoundaryPhysicalPortContract, BoundarySide, CartesianPeriodicBoundaryIdentification,
-    ConnectionSemantics, DomainKind, KernelNode, validate_boundary_physical_connection,
-    validate_spatial_periodic_boundary_connection,
+    AxisBounds, BoundaryPhysicalPortContract, BoundarySide,
+    CartesianPeriodicBoundaryIdentification, ConnectionSemantics, DomainKind, KernelNode,
+    validate_boundary_physical_connection, validate_spatial_periodic_boundary_connection,
 };
 
 use super::{edge_targets, kernel_error, kernel_path};
@@ -21,7 +21,7 @@ pub(super) struct GeometryAdmission {
     pub(super) supports: BTreeMap<RawId, SpatialSupport<RawId>>,
     pub(super) boundary_embeddings: BTreeMap<RawId, GeometryBoundaryEmbedding>,
     pub(super) affine_boundaries: BTreeSet<RawId>,
-    pub(super) cartesian_regions: BTreeSet<RawId>,
+    pub(super) cartesian_bounds: BTreeMap<RawId, Vec<AxisBounds>>,
     pub(super) diagnostics: Vec<Diagnostic>,
 }
 
@@ -117,7 +117,7 @@ pub(super) fn admit_entity_sets(
     let mut supports = BTreeMap::new();
     let mut boundary_embeddings = BTreeMap::new();
     let mut affine_boundaries = BTreeSet::new();
-    let mut cartesian_regions = BTreeSet::new();
+    let mut cartesian_bounds = BTreeMap::new();
     let mut diagnostics = Vec::new();
 
     for (&id, node) in nodes {
@@ -161,9 +161,14 @@ pub(super) fn admit_entity_sets(
                         ),
                     )),
                     Some(_) => {
-                        if artifact.entity_set(entity_set)
-                            .and_then(|selection| artifact.cartesian_region_bounds(selection)).is_some() {
-                            cartesian_regions.insert(id);
+                        if let Some(bounds) = artifact.entity_set(entity_set)
+                            .and_then(|selection| artifact.cartesian_region_bounds(selection)) {
+                            let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0])
+                                .expect("length dimension");
+                            cartesian_bounds.insert(id, bounds.into_iter().map(|ends| {
+                                AxisBounds::new(DynQuantity::new(ends[0], length), DynQuantity::new(ends[1], length))
+                                    .expect("canonical Cartesian region has ordered finite bounds")
+                            }).collect());
                         }
                         supports.insert(
                             id,
@@ -259,7 +264,7 @@ pub(super) fn admit_entity_sets(
         supports,
         boundary_embeddings,
         affine_boundaries,
-        cartesian_regions,
+        cartesian_bounds,
         diagnostics,
     }
 }

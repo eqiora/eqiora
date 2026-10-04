@@ -39,6 +39,13 @@ impl LoweringExpression {
                 continue;
             }
             match value.node.as_ref() {
+                LoweringExpressionNode::Evaluate { value, at, .. } => {
+                    pending.push(value);
+                    pending.extend(
+                        at.iter()
+                            .flat_map(|(coordinate, point)| [coordinate, point]),
+                    );
+                }
                 LoweringExpressionNode::Partial { value, wrt } => {
                     pending.extend([value, wrt]);
                 }

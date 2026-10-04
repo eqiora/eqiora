@@ -1,8 +1,8 @@
 //! Syntax construction only: all typing and evaluation stays in the compiler.
 
 use eqiora::language::{
-    BinaryOp, CallArguments, DecimalLiteral, Expr, ExprKind, NamePath, ReductionOp,
-    SourceAstFactory as Ast, TextRange, UnaryOp,
+    BinaryOp, BoundarySideSyntax, CallArguments, DecimalLiteral, Expr, ExprKind, NamePath,
+    ReductionOp, SourceAstFactory as Ast, TextRange, UnaryOp,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyTuple};
@@ -142,6 +142,54 @@ impl PyAstExpression {
                 value: Box::new(value.value.clone()),
                 wrt: selected,
                 holding: held,
+            })
+        })
+    }
+
+    #[staticmethod]
+    #[pyo3(signature = (value, coordinates, points, side=None))]
+    fn evaluate(
+        value: &Self,
+        coordinates: &Bound<'_, PyAny>,
+        points: &Bound<'_, PyAny>,
+        side: Option<&str>,
+    ) -> PyResult<Self> {
+        let coordinates = expressions(coordinates)?;
+        let points = expressions(points)?;
+        if coordinates.is_empty() || coordinates.len() > 64 || coordinates.len() != points.len() {
+            return Err(syntax_error(
+                "evaluate requires 1..64 exact coordinate bindings",
+            ));
+        }
+        let side = match side {
+            None => None,
+            Some("lower") => Some(BoundarySideSyntax::Lower),
+            Some("upper") => Some(BoundarySideSyntax::Upper),
+            _ => return Err(syntax_error("evaluate side must be lower, upper or None")),
+        };
+        let at = coordinates
+            .iter()
+            .zip(&points)
+            .map(|(coordinate, point)| {
+                let coordinate = match coordinate.value.kind() {
+                    ExprKind::Name(name) => path(name)?,
+                    ExprKind::Path(path) => path.clone(),
+                    _ => {
+                        return Err(syntax_error(
+                            "evaluate coordinates must be exact declared names",
+                        ));
+                    }
+                };
+                Ok((coordinate, point.value.clone()))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        let mut children = vec![value];
+        children.extend(points.iter().map(|point| &**point));
+        Self::build(&children, at.len() + 1, || {
+            Ok(ExprKind::Evaluate {
+                value: Box::new(value.value.clone()),
+                at,
+                side,
             })
         })
     }

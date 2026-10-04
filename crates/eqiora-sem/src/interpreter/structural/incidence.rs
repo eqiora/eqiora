@@ -38,6 +38,13 @@ pub(in crate::interpreter) fn variables(
                 }
             }
             ExprNode::Constant(_) => {}
+            ExprNode::Evaluate { value, at, .. } => {
+                pending.push(*value);
+                pending.extend(
+                    at.iter()
+                        .flat_map(|(coordinate, point)| [*coordinate, *point]),
+                );
+            }
             ExprNode::Require { condition, value } => pending.extend([*condition, *value]),
             ExprNode::Select {
                 condition,

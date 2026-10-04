@@ -67,6 +67,21 @@ impl Expr {
         rewrite: &mut dyn FnMut(&NamePath) -> Option<NamePath>,
     ) -> Self {
         let kind = match &self.kind {
+            ExprKind::Evaluate { value, at, side } => ExprKind::Evaluate {
+                value: Box::new(value.rewrite_name_paths_with(rewrite)),
+                at: at
+                    .iter()
+                    .map(|(coordinate, value)| {
+                        (
+                            rewrite(coordinate)
+                                .unwrap_or_else(|| coordinate.clone())
+                                .with_range(coordinate.range()),
+                            value.rewrite_name_paths_with(rewrite),
+                        )
+                    })
+                    .collect(),
+                side: *side,
+            },
             ExprKind::Partial {
                 value,
                 wrt,
@@ -251,6 +266,15 @@ fn expression_name(path: NamePath) -> ExprKind {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ExprKind {
+    /// Bind exact coordinate projections to dimensioned points, without choosing a reconstruction.
+    Evaluate {
+        /// Analytic expression or represented Field to evaluate.
+        value: Box<Expr>,
+        /// Exact coordinate bindings and their point expressions.
+        at: Vec<(NamePath, Expr)>,
+        /// Requested one-sided value for a one-dimensional discontinuous representation.
+        side: Option<BoundarySideSyntax>,
+    },
     /// An explicit first partial with compile-time independent-input bindings.
     Partial {
         /// Explicit expression; aliases retain their ordinary dependencies.

@@ -12,7 +12,9 @@ mod names;
 mod observable;
 mod observable_partials;
 pub(super) use observable_partials::expand as expand_observable_partials;
+mod evaluate;
 mod partial;
+pub(crate) use evaluate::result_type as point_result_type;
 pub(super) use observable::lower_observable;
 mod physical_accessors;
 mod time_derivative;
@@ -302,6 +304,9 @@ impl ExpressionLowerer<'_> {
                     id,
                     dimension: inferred.dimension(),
                 })
+            }
+            LoweringExpressionNode::Evaluate { value, at, side } => {
+                self.lower_evaluate(expression, value, at, *side)
             }
             LoweringExpressionNode::Partial { value, wrt } => {
                 self.lower_partial(expression, value, wrt)

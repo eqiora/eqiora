@@ -11,10 +11,11 @@ use eqiora_sem::KernelProgram;
 
 use super::super::{CommonFieldAssociation, CommonResult, CommonResultPayload, invalid};
 use crate::CommonSpatialPolicy;
-use crate::affine_fem::physical_gradient;
 use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
 
 mod projection;
+mod sampling;
+pub(super) use sampling::{sample, sample_partial};
 mod variation;
 use super::tangent::StateDerivative;
 
@@ -208,66 +209,21 @@ pub(super) fn integrate(
                         "Observable requires exactly one Q1 coefficient block",
                     ));
                 };
-                let components = value_type
-                    .shape()
-                    .component_count()
-                    .ok_or_else(|| invalid("Observable Field component count is unavailable"))?;
-                if block.association != CommonFieldAssociation::Vertex
-                    || block.values.len() != owned.len() * components
-                    || value_type.array_rank() != 0
-                    || value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
-                {
-                    return Err(invalid(
-                        "Observable Q1 reconstruction requires real vertex components",
-                    ));
-                }
-                let mut value = vec![0.0; components];
-                let mut direction = [vec![0.0; components], vec![0.0; components]];
-                let mut gradient_tangent = [
-                    vec![0.0; components * dimension],
-                    vec![0.0; components * dimension],
-                ];
-                let mut gradient = vec![0.0; components * dimension];
-                for (local, vertex) in vertices.iter().enumerate() {
-                    let owned_index = owned
-                        .binary_search(&vertex.index())
-                        .expect("checked Field cell closure");
-                    let derivative = physical_gradient(
-                        basis.gradient(local).expect("Q1 basis gradient exists"),
-                        &inverse,
-                        dimension,
-                    );
-                    for component in 0..components {
-                        let index = owned_index * components + component;
-                        let coefficient = block.values[index];
-                        value[component] += coefficient * basis.values()[local];
-                        for (axis, derivative) in derivative.iter().enumerate() {
-                            gradient[component * dimension + axis] += coefficient * derivative;
-                        }
-                        for (order, fields) in directions.iter().enumerate() {
-                            let delta = fields
-                                .and_then(|fields| fields.get(&id.erase()))
-                                .map_or(0.0, |values| values[index]);
-                            direction[order][component] += delta * basis.values()[local];
-                            for (axis, derivative) in derivative.iter().enumerate() {
-                                gradient_tangent[order][component * dimension + axis] +=
-                                    delta * derivative;
-                            }
-                        }
-                    }
-                }
                 fields.insert(
                     id.erase(),
-                    PointField {
-                        value: ValueLiteral::new(
-                            value_type.clone(),
-                            value.into_iter().map(|value| (value, 0.0)),
-                        )
-                        .map_err(|error| invalid(error.to_string()))?,
-                        gradient,
-                        tangent: direction,
-                        gradient_tangent,
-                    },
+                    sampling::q1_field(
+                        value_type,
+                        owned,
+                        block,
+                        &vertices,
+                        &basis,
+                        &inverse,
+                        directions.map(|fields| {
+                            fields
+                                .and_then(|fields| fields.get(&id.erase()))
+                                .map(Vec::as_slice)
+                        }),
+                    )?,
                 );
             }
             if let Some(continuum) = load_potential {

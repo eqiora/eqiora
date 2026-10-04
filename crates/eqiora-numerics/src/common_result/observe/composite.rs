@@ -38,7 +38,7 @@ pub(super) fn evaluate(
         remaining: 1_000_000,
     };
     let point = context.output_point(observable, coordinates)?;
-    let value = context.evaluate(observable, &point, 0)?;
+    let value = context.evaluate(observable, &point, None, 0)?;
     if context.used_rules.len() != quadratures.len() {
         return Err(invalid(
             "Observable quadrature contains an unused integration Domain",
@@ -63,6 +63,7 @@ impl Context<'_> {
         &mut self,
         id: Id<kinds::Observable>,
         point: &Point,
+        selected: Option<&eqiora_sem::EvaluationPoint>,
         depth: usize,
     ) -> Result<Evaluation, Diagnostic> {
         if let Some(value) = self.accepted.get(&id) {
@@ -80,25 +81,82 @@ impl Context<'_> {
             .remaining
             .checked_sub(definition.expression().nodes().len())
             .ok_or_else(|| invalid("Observable composition exceeds its expression work bound"))?;
-        if self.factor_supported(definition) {
+        if selected.is_none() && self.factor_supported(definition) {
             return self.evaluate_factors(definition, point, depth);
+        }
+        if definition.reduction() == ObservableReduction::Value {
+            let pointwise = selected.is_some()
+                || definition
+                    .expression()
+                    .nodes()
+                    .iter()
+                    .any(|node| matches!(node, ExprNode::Evaluate { .. }));
+            if pointwise && self.tangent.is_some() {
+                return Err(invalid(
+                    "point observation State tangents require an admitted reconstruction derivative",
+                ));
+            }
+            let program = self.program;
+            let value =
+                program.evaluate_observable_with_points(id, selected, &mut |input, selected| {
+                    let symbol = match input {
+                        eqiora_sem::EvaluationInput::Value(symbol) => symbol,
+                        eqiora_sem::EvaluationInput::CoordinatePartial {
+                            field,
+                            factor,
+                            axis,
+                        } => {
+                            let point = selected
+                                .ok_or_else(|| invalid("point partial has no exact point"))?;
+                            return spatial::sample_partial(
+                                self.result,
+                                field,
+                                factor,
+                                axis,
+                                point,
+                            );
+                        }
+                    };
+                    if let SymbolRef::Observable(dependency) = symbol {
+                        let coordinates = selected
+                            .map(|point| {
+                                point
+                                    .coordinates()
+                                    .map(|(axis, value)| (axis, value.value()))
+                                    .collect()
+                            })
+                            .unwrap_or_else(|| point.clone());
+                        return self
+                            .evaluate(dependency, &coordinates, selected, depth + 1)
+                            .map(|value| value.0);
+                    }
+                    if let Some(value) = self.resolve(symbol) {
+                        return Ok(value);
+                    }
+                    if let (SymbolRef::Field(field), Some(point)) = (symbol, selected) {
+                        return spatial::sample(self.result, field, point);
+                    }
+                    Err(invalid(
+                        "point observation input is unavailable in the accepted Result",
+                    ))
+                })?;
+            let derivative = self
+                .tangent
+                .map(|_| self.finite_derivative(definition))
+                .transpose()?;
+            let evaluation = (value, derivative);
+            if self.program.observable_output_support(id)?.is_none() {
+                self.accepted.insert(id, evaluation.clone());
+            }
+            return Ok(evaluation);
         }
         for node in definition.expression().nodes() {
             if let ExprNode::Symbol(SymbolRef::Observable(dependency)) = node {
-                self.evaluate(*dependency, point, depth + 1)?;
+                self.evaluate(*dependency, point, selected, depth + 1)?;
             }
         }
         let evaluation = match definition.reduction() {
-            ObservableReduction::Value => {
-                let value = self
-                    .program
-                    .evaluate_finite_observable(id, &mut |symbol| self.resolve(symbol))?;
-                let derivative = self
-                    .tangent
-                    .map(|_| self.finite_derivative(definition))
-                    .transpose()?;
-                (value, derivative)
-            }
+            ObservableReduction::Value => unreachable!("demanded values were evaluated above"),
             ObservableReduction::SpatialIntegral { input, domain, .. } => {
                 if input != domain {
                     return Err(invalid(

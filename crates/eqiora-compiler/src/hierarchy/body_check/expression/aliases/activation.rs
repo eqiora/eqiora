@@ -121,6 +121,11 @@ impl DependencyActivation {
                     pending.push(value);
                     Self::Static
                 }
+                ExprKind::Evaluate { value, at, .. } => {
+                    pending.push(value);
+                    pending.extend(at.iter().map(|(_, point)| point));
+                    Self::Static
+                }
                 ExprKind::Unary { value, .. } | ExprKind::Partial { value, .. } => {
                     pending.push(value);
                     Self::Static

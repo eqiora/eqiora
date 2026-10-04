@@ -453,6 +453,11 @@ pub(crate) enum WireExpressionNode {
         value: u32,
         wrt: u32,
     },
+    Evaluate {
+        value: u32,
+        at: Vec<(u32, u32)>,
+        side: Option<WireBoundarySide>,
+    },
     Gradient {
         value: u32,
     },
@@ -611,6 +616,14 @@ impl WireExpressionNode {
                 value: value.index(),
                 wrt: wrt.index(),
             },
+            ExprNode::Evaluate { value, at, side } => Self::Evaluate {
+                value: value.index(),
+                at: at
+                    .iter()
+                    .map(|(coordinate, point)| (coordinate.index(), point.index()))
+                    .collect(),
+                side: side.map(WireBoundarySide::encode),
+            },
             ExprNode::Gradient(value) => Self::Gradient {
                 value: value.index(),
             },
@@ -743,6 +756,15 @@ impl WireExpressionNode {
             Self::CoordinatePartial { value, wrt } => {
                 builder.coordinate_partial(operand(ids, *value)?, operand(ids, *wrt)?)
             }
+            Self::Evaluate { value, at, side } => builder.evaluate_at(
+                operand(ids, *value)?,
+                at.iter()
+                    .map(|(coordinate, point)| {
+                        Ok((operand(ids, *coordinate)?, operand(ids, *point)?))
+                    })
+                    .collect::<Result<_, Diagnostic>>()?,
+                side.map(WireBoundarySide::decode),
+            ),
             Self::Gradient { value } => builder.gradient(operand(ids, *value)?),
             Self::Divergence { value } => builder.divergence(operand(ids, *value)?),
             Self::Trace { value } => builder.trace(operand(ids, *value)?),

@@ -15,6 +15,26 @@ pub(super) fn format_expression(
         output.push('(');
     }
     match &expression.kind {
+        ExprKind::Evaluate { value, at, side } => {
+            output.push_str("evaluate(");
+            format_expression(value, 0, output);
+            output.push_str(", at = (");
+            for (index, (coordinate, point)) in at.iter().enumerate() {
+                if index > 0 {
+                    output.push_str(", ");
+                }
+                write!(output, "{coordinate} = ").expect("String write");
+                format_expression(point, 0, output);
+            }
+            output.push(')');
+            if let Some(side) = side {
+                output.push_str(match side {
+                    crate::BoundarySideSyntax::Lower => ", side = lower",
+                    crate::BoundarySideSyntax::Upper => ", side = upper",
+                });
+            }
+            output.push(')');
+        }
         ExprKind::Partial {
             value,
             wrt,
@@ -240,6 +260,7 @@ fn expression_precedence(expression: &Expr) -> u8 {
         | ExprKind::BoundaryPortSelection { .. }
         | ExprKind::Call { .. }
         | ExprKind::Partial { .. }
+        | ExprKind::Evaluate { .. }
         | ExprKind::Reduction { .. }
         | ExprKind::Array(_)
         | ExprKind::Tuple(_)

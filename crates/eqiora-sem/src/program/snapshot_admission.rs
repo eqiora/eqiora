@@ -119,7 +119,8 @@ impl KernelProgram {
         validate_closed_topology(snapshot, view.members(), &mut diagnostics);
         super::nominal_values::validate(&nodes, &mut diagnostics);
         super::record_admission::validate(&nodes, &edges, &mut diagnostics);
-        let cartesian_bounds = resolve_cartesian_bounds(&nodes, &values, &edges, &mut diagnostics);
+        let mut cartesian_bounds =
+            resolve_cartesian_bounds(&nodes, &values, &edges, &mut diagnostics);
         let invalid_domains = validate_domains(&nodes, &edges, &cartesian_bounds, &mut diagnostics);
         let mut spatial_supports = declared_spatial_supports(&nodes, &edges, &cartesian_bounds);
         let artifacts_admitted = geometry.is_some();
@@ -139,7 +140,8 @@ impl KernelProgram {
             let admission = admit_entity_sets(&nodes, &edges, &invalid_domains, &artifacts);
             diagnostics.extend(admission.diagnostics);
             spatial_supports.extend(admission.supports);
-            cartesian_geometry_regions = admission.cartesian_regions;
+            cartesian_geometry_regions = admission.cartesian_bounds.keys().copied().collect();
+            cartesian_bounds.extend(admission.cartesian_bounds);
             geometry_boundary_embeddings = admission.boundary_embeddings;
             affine_geometry_boundaries = admission.affine_boundaries;
             let (junctions, ports, junction_diagnostics) = admit_geometry_boundary_junctions(

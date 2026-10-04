@@ -15,6 +15,18 @@ impl LoweringExpression {
             return value.clone();
         }
         let node = match self.node.as_ref() {
+            LoweringExpressionNode::Evaluate { value, at, side } => {
+                LoweringExpressionNode::Evaluate {
+                    value: value.clone_shared(cache),
+                    at: at
+                        .iter()
+                        .map(|(coordinate, point)| {
+                            (coordinate.clone_shared(cache), point.clone_shared(cache))
+                        })
+                        .collect(),
+                    side: *side,
+                }
+            }
             LoweringExpressionNode::Partial { value, wrt } => LoweringExpressionNode::Partial {
                 value: value.clone_shared(cache),
                 wrt: wrt.clone_shared(cache),

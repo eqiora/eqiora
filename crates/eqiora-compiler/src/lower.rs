@@ -20,7 +20,7 @@ mod domain;
 mod domain_contract;
 use diagnostics::{normalize_zero, unresolved};
 mod expression;
-pub(crate) use expression::partial_result_type;
+pub(crate) use expression::{partial_result_type, point_result_type};
 mod external;
 mod integer;
 mod native;
@@ -209,6 +209,11 @@ impl PartialEq for LoweringExpression {
 
 #[derive(Debug, PartialEq)]
 enum LoweringExpressionNode {
+    Evaluate {
+        value: LoweringExpression,
+        at: Vec<(LoweringExpression, LoweringExpression)>,
+        side: Option<eqiora_schema::kernel::BoundarySide>,
+    },
     Coordinate {
         support: String,
         factor: String,

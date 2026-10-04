@@ -203,6 +203,13 @@ are frozen; validation and artifact creation happen atomically in Rust.
 
 ## Derived observables
 
+Exact static point observations use `lang.evaluate(value, at=((coordinate, quantity), ...), side=None)`.
+Supply every axis of one exact support once. Scalar Cartesian Q1 values and first coordinate
+partials use the accepted Result reconstruction. `side="lower"` or `"upper"` selects a
+one-dimensional approach; cell-boundary gradients require it. See
+[coordinates and point evaluation](../language/coordinates.md#point-evaluation-and-one-sided-traces)
+for the admitted profile and non-claims.
+
 An `observable` retains a typed expression in Model meaning without adding a
 Field unknown or solving equation. Finite values and spatial integrals use the
 same declaration:
@@ -1505,7 +1512,7 @@ assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
-`eqiora.model-envelope/v36` schema, but callers do not select that suffix.
+`eqiora.model-envelope/v37` schema, but callers do not select that suffix.
 `.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
 Only the current schema is accepted; decoding never sniffs, retries, or silently
 migrates an older artifact.
