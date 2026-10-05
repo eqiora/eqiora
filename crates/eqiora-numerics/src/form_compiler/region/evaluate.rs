@@ -85,7 +85,7 @@ impl BoundRegionForm {
         &self,
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution, Diagnostic> {
+    ) -> Result<LocalContribution<f64>, Diagnostic> {
         self.validate_geometry(geometry, quadrature)?;
         let fields = self
             .fields

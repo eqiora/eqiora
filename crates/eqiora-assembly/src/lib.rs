@@ -3,6 +3,12 @@
 //! Spatial realizations produce anonymous local contributions. Reference,
 //! threaded, distributed, and device assemblers consume this L2 vocabulary
 //! without acquiring model or physics semantics.
+//!
+//! Contributions, maps, sparse storage and ordered reference execution share
+//! a coefficient type for real or complex arithmetic. Fixed-value elimination
+//! uses ordinary multiplication; conjugation belongs to the authored local
+//! form or an explicitly requested conjugate-transpose action. Existing
+//! spatial execution adapters retain their explicitly admitted scalar types.
 
 mod action;
 mod execution;

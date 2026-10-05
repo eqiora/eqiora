@@ -3,7 +3,7 @@ use super::*;
 impl DiscreteBlockSystem {
     pub(crate) fn checked_backend<'a>(
         &'a self,
-        inner: &'a dyn AssemblyBackend,
+        inner: &'a dyn AssemblyBackend<f64>,
     ) -> super::CheckedBlockAssemblyBackend<'a> {
         super::CheckedBlockAssemblyBackend {
             system: self,
@@ -59,7 +59,7 @@ impl BlockMaterialization {
 /// Adapter proving assembly passed through the exact block packet/target shape.
 pub(crate) struct CheckedBlockAssemblyBackend<'a> {
     system: &'a DiscreteBlockSystem,
-    inner: &'a dyn AssemblyBackend,
+    inner: &'a dyn AssemblyBackend<f64>,
     validated_materializations: std::sync::atomic::AtomicUsize,
 }
 
@@ -80,12 +80,12 @@ impl fmt::Debug for CheckedBlockAssemblyBackend<'_> {
     }
 }
 
-impl AssemblyBackend for CheckedBlockAssemblyBackend<'_> {
+impl AssemblyBackend<f64> for CheckedBlockAssemblyBackend<'_> {
     fn assemble(
         &self,
         plan: &AssemblyPlan,
-        work: &dyn AssemblyWork,
-    ) -> Result<AssemblyResult, Diagnostic> {
+        work: &dyn AssemblyWork<f64>,
+    ) -> Result<AssemblyResult<f64>, Diagnostic> {
         if plan.target_count() != self.system.target_count
             || work.packet_count() != self.system.packet_count
         {
@@ -124,7 +124,7 @@ impl AssemblyBackend for CheckedBlockAssemblyBackend<'_> {
 
 struct CheckedBlockAssemblyWork<'a> {
     system: &'a DiscreteBlockSystem,
-    inner: &'a dyn AssemblyWork,
+    inner: &'a dyn AssemblyWork<f64>,
 }
 
 impl fmt::Debug for CheckedBlockAssemblyWork<'_> {
@@ -137,7 +137,7 @@ impl fmt::Debug for CheckedBlockAssemblyWork<'_> {
     }
 }
 
-impl AssemblyWork for CheckedBlockAssemblyWork<'_> {
+impl AssemblyWork<f64> for CheckedBlockAssemblyWork<'_> {
     fn packet_set_identity(&self) -> AssemblyPacketSetIdentityV1 {
         self.inner.packet_set_identity()
     }
@@ -146,7 +146,7 @@ impl AssemblyWork for CheckedBlockAssemblyWork<'_> {
         self.inner.packet_count()
     }
 
-    fn evaluate(&self, packet_index: usize) -> Result<AssemblyPacket, Diagnostic> {
+    fn evaluate(&self, packet_index: usize) -> Result<AssemblyPacket<f64>, Diagnostic> {
         let packet = self.inner.evaluate(packet_index)?;
         self.system.validate_packet(packet_index, &packet)?;
         Ok(packet)

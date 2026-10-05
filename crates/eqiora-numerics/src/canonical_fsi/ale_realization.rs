@@ -326,7 +326,7 @@ type AdvanceAleFsiWithAssembly<const D: usize> = fn(
     NonZeroStepCount,
     AleFsiStepPlan<D>,
     &QuadratureRule,
-    &dyn AssemblyBackend,
+    &dyn AssemblyBackend<f64>,
     &dyn LinearSolverBackend,
     &crate::simplicial_fsi::layout::FsiLayout<D>,
 ) -> Result<AleFsiTrajectory<D>, Diagnostic>;
@@ -334,7 +334,7 @@ type AdvanceAleFsiWithAssembly<const D: usize> = fn(
 fn solve_finalized_with_assembly<const D: usize>(
     finalized: FinalizedResolvedFixedTopologyAleFsi<D>,
     step_count: NonZeroStepCount,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     backend: &dyn LinearSolverBackend,
     advance: AdvanceAleFsiWithAssembly<D>,
 ) -> Result<AleFsiTrajectory<D>, Diagnostic> {
@@ -390,7 +390,7 @@ macro_rules! impl_finalized_solve {
             pub fn solve_with_assembly(
                 self,
                 step_count: NonZeroStepCount,
-                assembly: &dyn AssemblyBackend,
+                assembly: &dyn AssemblyBackend<f64>,
                 backend: &dyn LinearSolverBackend,
             ) -> Result<AleFsiTrajectory<$dimension>, Diagnostic> {
                 solve_finalized_with_assembly(self, step_count, assembly, backend, $advance)
@@ -881,7 +881,7 @@ pub fn solve_resolved_fixed_topology_ale_fsi_2d_with_assembly(
     initial: AleFsiInitialPhysicalState<2>,
     step_count: NonZeroStepCount,
     harmonic_backend: &dyn LinearSolverBackend,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     nonlinear_backend: &dyn LinearSolverBackend,
 ) -> Result<AleFsiTrajectory<2>, Diagnostic> {
     finalize_resolved_fixed_topology_ale_fsi_2d(
@@ -913,7 +913,7 @@ pub fn solve_resolved_fixed_topology_ale_fsi_3d_with_assembly(
     initial: AleFsiInitialPhysicalState<3>,
     step_count: NonZeroStepCount,
     harmonic_backend: &dyn LinearSolverBackend,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     nonlinear_backend: &dyn LinearSolverBackend,
 ) -> Result<AleFsiTrajectory<3>, Diagnostic> {
     finalize_resolved_fixed_topology_ale_fsi_3d(

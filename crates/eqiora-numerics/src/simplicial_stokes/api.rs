@@ -140,8 +140,8 @@ pub struct SimplicialMiniStokesSolution2d {
     pub(super) pressure_reference: SimplicialMiniStokesPressureReference2d,
     pub(super) algebraic_values: Vec<f64>,
     pub(super) canonical_system: Arc<CanonicalCsrSystemView>,
-    pub(super) full_system: LinearSystem,
-    pub(super) volume_only_system: LinearSystem,
+    pub(super) full_system: LinearSystem<f64>,
+    pub(super) volume_only_system: LinearSystem<f64>,
     pub(super) boundary_reaction: [f64; COMPONENTS],
     pub(super) named_boundary_reactions: Vec<(String, [f64; COMPONENTS])>,
     pub(super) integrated_body_force: [f64; COMPONENTS],
@@ -191,7 +191,7 @@ impl SimplicialMiniStokesSolution2d {
 
     /// Unconstrained loaded system retained for reactions and acceptance.
     #[must_use]
-    pub const fn full_system(&self) -> &LinearSystem {
+    pub const fn full_system(&self) -> &LinearSystem<f64> {
         &self.full_system
     }
 
@@ -200,7 +200,7 @@ impl SimplicialMiniStokesSolution2d {
     /// Its matrix is exactly the loaded full-system matrix. The right-hand-side
     /// difference is the independently assembled prescribed boundary action.
     #[must_use]
-    pub const fn volume_only_system(&self) -> &LinearSystem {
+    pub const fn volume_only_system(&self) -> &LinearSystem<f64> {
         &self.volume_only_system
     }
 

@@ -17,7 +17,7 @@ impl BoundRegionForm {
         facet: (&AffineGeometryMap, EntityIncidence, &[usize]),
         rule: &QuadratureRule,
         datum: impl Fn(&[f64], &[f64]) -> Result<Vec<f64>, Diagnostic>,
-    ) -> Result<LocalContribution, Diagnostic> {
+    ) -> Result<LocalContribution<f64>, Diagnostic> {
         let (facet, incidence, parent_vertices) = facet;
         let dimension = self.form.dimension;
         if cell.reference_cell() != self.reference

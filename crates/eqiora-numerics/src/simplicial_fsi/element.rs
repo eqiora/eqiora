@@ -19,7 +19,7 @@ pub(crate) fn fluid_local<const D: usize>(
     previous: &FixedReferenceFsiState<D>,
     cell: eqiora_meshing::CellId,
     field: Id<kinds::Field>,
-) -> Result<LocalContribution, Diagnostic> {
+) -> Result<LocalContribution<f64>, Diagnostic> {
     require_geometry::<D>(geometry, quadrature)?;
     let p1_count = p1_count::<D>();
     let values = previous.vector_entities(field, 0)?;
@@ -70,7 +70,7 @@ pub(crate) fn solid_local<const D: usize>(
     previous: &FixedReferenceFsiState<D>,
     velocity: Id<kinds::Field>,
     displacement: Id<kinds::Field>,
-) -> Result<LocalContribution, Diagnostic> {
+) -> Result<LocalContribution<f64>, Diagnostic> {
     require_geometry::<D>(geometry, quadrature)?;
     let p1_count = p1_count::<D>();
     let material = config.material();

@@ -105,7 +105,7 @@ pub fn finalize_resolved_scalar_transport_fvm_step_2d_with_assembly(
     program: &KernelProgram,
     resolved: &ResolvedTransientCellCenteredTransportRealization,
     previous: &ScalarTransportCellState2d,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
 ) -> Result<
     (
         ScalarTransportCartesianModel2d,
@@ -264,7 +264,7 @@ pub fn solve_resolved_scalar_transport_fvm_step_2d_with_assembly(
     program: &KernelProgram,
     resolved: &ResolvedTransientCellCenteredTransportRealization,
     previous: &ScalarTransportCellState2d,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     backend: &dyn LinearSolverBackend,
 ) -> Result<(ScalarTransportCartesianModel2d, ScalarTransportFvmStep2d), Diagnostic> {
     let (model, finalized) = finalize_resolved_scalar_transport_fvm_step_2d_with_assembly(

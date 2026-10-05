@@ -89,7 +89,7 @@ pub(crate) struct AdmittedCartesianQ1ElasticityForm2d<'form> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CartesianElasticityDifferentialActions2d {
-    contribution: LocalContribution,
+    contribution: LocalContribution<f64>,
     residual: [f64; LOCAL_DOFS],
     state_direction_action: [f64; LOCAL_DOFS],
     parameter_direction_action: [f64; LOCAL_DOFS],
@@ -246,7 +246,7 @@ impl<'form> AdmittedCartesianQ1ElasticityForm2d<'form> {
         shear_modulus: f64,
         first_lame_parameter: f64,
         body_force_potential: Option<&ScalarSpatialExpression>,
-    ) -> Result<LocalContribution, Diagnostic> {
+    ) -> Result<LocalContribution<f64>, Diagnostic> {
         if let Some(form) = self.form {
             let potential = body_force_potential.ok_or_else(|| {
                 tape_error("derived elasticity requires its certificate-owned load")
@@ -313,7 +313,7 @@ macro_rules! action_accessor {
 }
 
 impl CartesianElasticityDifferentialActions2d {
-    action_accessor!(contribution, contribution, LocalContribution);
+    action_accessor!(contribution, contribution, LocalContribution<f64>);
     action_accessor!(residual, residual, [f64; 8]);
     action_accessor!(state_direction_action, state_direction_action, [f64; 8]);
     action_accessor!(

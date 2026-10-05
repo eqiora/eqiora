@@ -332,8 +332,8 @@ impl ScalarEllipticCartesianFvmSolution {
 pub(crate) struct FinalizedCartesianFemAssembly {
     mesh: CartesianMesh,
     constrained_dofs: ConstrainedDofLayout,
-    linear_system: LinearSystem,
-    full_system: LinearSystem,
+    linear_system: LinearSystem<f64>,
+    full_system: LinearSystem<f64>,
     integrated_source: f64,
     assembly_report: AssemblyReport,
 }
@@ -371,7 +371,7 @@ impl FinalizedCartesianFemAssembly {
 pub(crate) struct FinalizedCartesianFemState {
     mesh: CartesianMesh,
     constrained_dofs: ConstrainedDofLayout,
-    full_system: LinearSystem,
+    full_system: LinearSystem<f64>,
     integrated_source: f64,
     assembly_report: AssemblyReport,
 }
@@ -516,7 +516,7 @@ pub fn solve_scalar_elliptic_cartesian_fem_with_assembly<K, S, B>(
     source: &S,
     boundary: &B,
     quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     solver: LinearSolveRequest<'_>,
 ) -> Result<ScalarEllipticCartesianFemSolution, Diagnostic>
 where
@@ -547,7 +547,7 @@ pub(crate) fn finalize_scalar_elliptic_cartesian_fem<K, S, B>(
     source: &S,
     boundary: &B,
     quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     form: Option<&DerivedScalarGalerkinForm>,
 ) -> Result<FinalizedCartesianFemAssembly, Diagnostic>
 where
@@ -676,7 +676,7 @@ pub fn solve_scalar_elliptic_cartesian_fvm_with_assembly<K, S, B>(
     boundary: &B,
     cell_quadrature: &QuadratureRule,
     facet_quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     solver: LinearSolveRequest<'_>,
 ) -> Result<ScalarEllipticCartesianFvmSolution, Diagnostic>
 where

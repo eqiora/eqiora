@@ -111,7 +111,7 @@ fn expected(reaction: &[Vec<f64>]) -> (Vec<f64>, Vec<f64>) {
     (matrix, rhs)
 }
 
-fn dense(system: &LinearSystem) -> Vec<f64> {
+fn dense(system: &LinearSystem<f64>) -> Vec<f64> {
     let matrix = system.matrix();
     let count = matrix.rows();
     let mut result = vec![0.0; count * count];

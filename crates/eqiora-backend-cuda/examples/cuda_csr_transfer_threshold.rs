@@ -232,7 +232,7 @@ fn run() -> Result<(), String> {
     )
 }
 
-fn poisson_five_point(refinement: usize) -> Result<CsrMatrix, String> {
+fn poisson_five_point(refinement: usize) -> Result<CsrMatrix<f64>, String> {
     let rows = refinement
         .checked_mul(refinement)
         .ok_or_else(|| "Poisson row count overflowed".to_owned())?;
@@ -289,7 +289,7 @@ fn deterministic_input(length: usize) -> Vec<f64> {
         .collect()
 }
 
-fn measure_cpu(matrix: &CsrMatrix, input: &[f64], output: &mut [f64]) -> Result<u128, String> {
+fn measure_cpu(matrix: &CsrMatrix<f64>, input: &[f64], output: &mut [f64]) -> Result<u128, String> {
     let started = Instant::now();
     matrix
         .multiply_into(input, output)
@@ -300,7 +300,7 @@ fn measure_cpu(matrix: &CsrMatrix, input: &[f64], output: &mut [f64]) -> Result<
 }
 
 fn measure_cuda(
-    matrix: &CsrMatrix,
+    matrix: &CsrMatrix<f64>,
     input: &[f64],
     reference: &[f64],
     tolerance: SparseActionTolerance,
@@ -382,7 +382,7 @@ fn observation(
     repetition: usize,
     order: &'static str,
     cpu_ns: u128,
-    matrix: &CsrMatrix,
+    matrix: &CsrMatrix<f64>,
     timed: &TimedCudaAction,
 ) -> Result<Observation, String> {
     let result = &timed.result;

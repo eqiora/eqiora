@@ -106,7 +106,7 @@ pub(crate) fn finalize_fixed_reference_fsi_step_with_packet_set<const D: usize>(
     config: FixedReferenceFsiStepConfig<D>,
     quadrature: &QuadratureRule,
     packet_set: AssemblyPacketSetIdentityV1,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     layout: &FsiLayout<D>,
 ) -> Result<FinalizedFixedReferenceFsiStep<D>, Diagnostic> {
     layout.require_boundary(boundary)?;
@@ -237,14 +237,14 @@ impl<'a, const D: usize> PreparedFixedReferenceFsiAssembly<'a, D> {
 
     pub(crate) fn reactions(
         &self,
-        work: &dyn AssemblyWork,
+        work: &dyn AssemblyWork<f64>,
     ) -> Result<InterfaceReactions, Diagnostic> {
         self.layout.reactions(work, self.target_roles.full())
     }
 
     pub(crate) fn finish(
         self,
-        result: AssemblyResult,
+        result: AssemblyResult<f64>,
         reactions: InterfaceReactions,
     ) -> Result<FinalizedFixedReferenceFsiStep<D>, Diagnostic> {
         let (systems, assembly_report) = result.into_parts();
@@ -255,7 +255,7 @@ impl<'a, const D: usize> PreparedFixedReferenceFsiAssembly<'a, D> {
                 "fixed-reference FSI assembly evidence differs from its prepared cell/target inventory",
             ));
         }
-        let systems: [LinearSystem; 2] = systems.try_into().map_err(|systems: Vec<_>| {
+        let systems: [LinearSystem<f64>; 2] = systems.try_into().map_err(|systems: Vec<_>| {
             invalid(format!(
                 "fixed-reference FSI assembly returned {} systems for its exact two-target plan",
                 systems.len()
@@ -290,7 +290,7 @@ impl<'a, const D: usize> PreparedFixedReferenceFsiAssembly<'a, D> {
     }
 }
 
-impl<const D: usize> AssemblyWork for PreparedFixedReferenceFsiAssembly<'_, D> {
+impl<const D: usize> AssemblyWork<f64> for PreparedFixedReferenceFsiAssembly<'_, D> {
     fn packet_set_identity(&self) -> AssemblyPacketSetIdentityV1 {
         self.packet_set
     }
@@ -299,7 +299,7 @@ impl<const D: usize> AssemblyWork for PreparedFixedReferenceFsiAssembly<'_, D> {
         self.cell_count
     }
 
-    fn evaluate(&self, packet_index: usize) -> Result<AssemblyPacket, Diagnostic> {
+    fn evaluate(&self, packet_index: usize) -> Result<AssemblyPacket<f64>, Diagnostic> {
         if packet_index >= self.cell_count {
             return Err(invalid(format!(
                 "fixed-reference FSI packet {packet_index} is outside cell count {}",
@@ -377,7 +377,7 @@ impl<const D: usize> AssemblyWork for PreparedFixedReferenceFsiAssembly<'_, D> {
 }
 
 fn require_system_shape(
-    system: &LinearSystem,
+    system: &LinearSystem<f64>,
     expected: usize,
     target: &'static str,
 ) -> Result<(), Diagnostic> {
@@ -400,7 +400,7 @@ struct FinalizedState<const D: usize> {
     config: FixedReferenceFsiStepConfig<D>,
     quadrature: QuadratureRule,
     layout: FsiLayout<D>,
-    full_system: LinearSystem,
+    full_system: LinearSystem<f64>,
     assembly_target_roles: FixedReferenceFsiAssemblyTargetRoles,
     pressure_constant_action_norm: f64,
     assembly_report: AssemblyReport,

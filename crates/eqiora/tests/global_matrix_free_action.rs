@@ -21,7 +21,7 @@ fn maximum_difference(left: &[f64], right: &[f64]) -> f64 {
         .fold(0.0_f64, f64::max)
 }
 
-fn apply_transpose(matrix: &CsrMatrix, input: &[f64]) -> Vec<f64> {
+fn apply_transpose(matrix: &CsrMatrix<f64>, input: &[f64]) -> Vec<f64> {
     let mut output = vec![0.0; matrix.columns()];
     matrix
         .apply_oriented(
@@ -152,7 +152,7 @@ fn packet_system_construction_rejects_incomplete_or_invalid_projection() {
     let target = plan.target_id(0).unwrap();
     let empty = IndexedAssemblyWork::new(
         0,
-        |_: usize| -> Result<AssemblyPacket, eqiora::Diagnostic> { unreachable!() },
+        |_: usize| -> Result<AssemblyPacket<f64>, eqiora::Diagnostic> { unreachable!() },
     );
     assert_eq!(
         PacketLinearSystem::from_work(&plan, target, &empty)

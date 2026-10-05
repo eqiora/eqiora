@@ -10,12 +10,12 @@ pub(crate) use interfaces::{InterfaceReactions, RecoveredInterfaceReactions};
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct DomainReactions {
     size: usize,
-    rows: BTreeMap<RawId, Vec<AssemblyRowDelta>>,
+    rows: BTreeMap<RawId, Vec<AssemblyRowDelta<f64>>>,
 }
 
 impl DomainReactions {
     pub(crate) fn prepare(
-        work: &dyn AssemblyWork,
+        work: &dyn AssemblyWork<f64>,
         source_target: AssemblyTargetId,
         size: usize,
         packet_domains: &[RawId],

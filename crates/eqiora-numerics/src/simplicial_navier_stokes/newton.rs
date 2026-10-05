@@ -74,7 +74,7 @@ pub fn advance_simplicial_mini_navier_stokes_2d_with_assembly<F, B>(
     plan: MiniNavierStokesStepPlan2d,
     cell_quadrature: &QuadratureRule,
     facet_quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     solver: &dyn LinearSolverBackend,
 ) -> Result<SimplicialMiniNavierStokesTrajectory2d, Diagnostic>
 where
@@ -114,7 +114,7 @@ pub(crate) fn advance_simplicial_mini_navier_stokes_2d_with_prepared_structure_a
     plan: MiniNavierStokesStepPlan2d,
     cell_quadrature: &QuadratureRule,
     facet_quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     solver: &dyn LinearSolverBackend,
     mut prepared_linear: Option<&mut (dyn eqiora_solver::PreparedLinearSolver + '_)>,
 ) -> Result<SimplicialMiniNavierStokesTrajectory2d, Diagnostic> {
@@ -150,7 +150,7 @@ fn solve_one_step(
     plan: MiniNavierStokesStepPlan2d,
     cell_quadrature: &QuadratureRule,
     facet_quadrature: &QuadratureRule,
-    assembly_backend: &dyn AssemblyBackend,
+    assembly_backend: &dyn AssemblyBackend<f64>,
     solver: &dyn LinearSolverBackend,
     prepared_linear: &mut Option<&mut (dyn eqiora_solver::PreparedLinearSolver + '_)>,
 ) -> Result<

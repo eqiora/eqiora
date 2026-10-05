@@ -51,7 +51,7 @@ pub(crate) struct PreparedResolvedFixedReferenceFsiRun2d<'a> {
     mesh_artifact: MeshArtifactReference,
     mesh: &'a SimplicialMesh,
     partition: &'a FixedReferenceFsiPartition<2>,
-    assembly: &'a dyn AssemblyBackend,
+    assembly: &'a dyn AssemblyBackend<f64>,
     config: FixedReferenceFsiStepConfig<2>,
     quadrature: QuadratureRule,
     realization_graph: eqiora_realization::PortableRealizationGraph,
@@ -527,7 +527,7 @@ fn prepare_resolved_fixed_reference_fsi_run_2d_with_assembly<'a>(
     mesh_artifact: MeshArtifactReference,
     mesh: &'a SimplicialMesh,
     partition: &'a FixedReferenceFsiPartition<2>,
-    assembly: &'a dyn AssemblyBackend,
+    assembly: &'a dyn AssemblyBackend<f64>,
 ) -> Result<PreparedResolvedFixedReferenceFsiRun2d<'a>, Diagnostic> {
     require_zero_load(model)?;
     require_boundary_meaning(model)?;
@@ -622,7 +622,7 @@ pub fn finalize_resolved_fixed_reference_fsi_step_2d_with_assembly(
     mesh: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<2>,
     previous: &FixedReferenceFsiState<2>,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
 ) -> Result<FinalizedResolvedFixedReferenceFsiStep2d, Diagnostic> {
     prepare_resolved_fixed_reference_fsi_run_2d_with_assembly(
         model,

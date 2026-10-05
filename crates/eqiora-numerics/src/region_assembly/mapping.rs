@@ -462,7 +462,7 @@ impl RegionDofMap {
         &self,
         keys: &[FieldDof],
         reduced: bool,
-    ) -> Result<AssemblyMap, Diagnostic> {
+    ) -> Result<AssemblyMap<f64>, Diagnostic> {
         let globals = keys
             .iter()
             .map(|key| {
@@ -511,7 +511,11 @@ impl RegionDofMap {
         Ok(keys)
     }
 
-    pub(crate) fn cell_map(&self, cell: usize, reduced: bool) -> Result<AssemblyMap, Diagnostic> {
+    pub(crate) fn cell_map(
+        &self,
+        cell: usize,
+        reduced: bool,
+    ) -> Result<AssemblyMap<f64>, Diagnostic> {
         let globals = self
             .cells
             .get(cell)

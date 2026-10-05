@@ -1,7 +1,7 @@
 use super::*;
 use crate::{DofId, LocalUnknown};
 
-fn target_map(target: AssemblyTargetId, dof: usize) -> TargetAssemblyMap {
+fn target_map(target: AssemblyTargetId, dof: usize) -> TargetAssemblyMap<f64> {
     let dof = DofId::new(dof);
     TargetAssemblyMap::new(
         target,
@@ -113,13 +113,13 @@ fn packet_and_projected_scatter_share_ordered_accumulation() {
     .unwrap();
     let projected = packet.project(&plan).unwrap();
 
-    let packet_result = AssemblyAccumulator::new(&plan)
+    let packet_result = AssemblyAccumulator::<f64>::new(&plan)
         .unwrap()
         .scatter_packet(0, &packet)
         .unwrap()
         .finish(ExecutionReport::host_serial())
         .unwrap();
-    let projected_result = AssemblyAccumulator::new(&plan)
+    let projected_result = AssemblyAccumulator::<f64>::new(&plan)
         .unwrap()
         .scatter_projected(0, &projected)
         .unwrap()
@@ -144,7 +144,7 @@ fn projected_scatter_still_rejects_out_of_order_packets() {
     )
     .unwrap();
 
-    let diagnostic = AssemblyAccumulator::new(&plan)
+    let diagnostic = AssemblyAccumulator::<f64>::new(&plan)
         .unwrap()
         .scatter_packet(1, &packet)
         .unwrap_err();
@@ -161,7 +161,7 @@ fn projected_scatter_still_rejects_out_of_order_packets() {
     )
     .unwrap();
     let valid_projected = valid_packet.project(&plan).unwrap();
-    let projected_diagnostic = AssemblyAccumulator::new(&plan)
+    let projected_diagnostic = AssemblyAccumulator::<f64>::new(&plan)
         .unwrap()
         .scatter_projected(1, &valid_projected)
         .unwrap_err();
@@ -175,7 +175,7 @@ fn projected_scatter_still_rejects_out_of_order_packets() {
 #[test]
 fn projected_scatter_rejects_empty_and_foreign_plan_deltas() {
     let plan = AssemblyPlan::new(vec![AssemblyTarget::new(1).unwrap()]).unwrap();
-    let empty_diagnostic = AssemblyAccumulator::new(&plan)
+    let empty_diagnostic = AssemblyAccumulator::<f64>::new(&plan)
         .unwrap()
         .scatter_projected(0, &[])
         .unwrap_err();
@@ -197,7 +197,7 @@ fn projected_scatter_rejects_empty_and_foreign_plan_deltas() {
     )
     .unwrap();
     let foreign_projected = foreign_packet.project(&foreign_plan).unwrap();
-    let foreign_diagnostic = AssemblyAccumulator::new(&plan)
+    let foreign_diagnostic = AssemblyAccumulator::<f64>::new(&plan)
         .unwrap()
         .scatter_projected(0, &foreign_projected)
         .unwrap_err();
@@ -211,7 +211,9 @@ fn projected_scatter_rejects_empty_and_foreign_plan_deltas() {
 #[test]
 fn empty_work_and_target_mismatch_fail_without_a_result() {
     let plan = AssemblyPlan::new(vec![AssemblyTarget::new(1).unwrap()]).unwrap();
-    let empty = IndexedAssemblyWork::new(0, |_| unreachable!());
+    let empty = IndexedAssemblyWork::new(0, |_| -> Result<AssemblyPacket<f64>, Diagnostic> {
+        unreachable!()
+    });
     assert_eq!(
         REFERENCE_ASSEMBLY_BACKEND
             .assemble(&plan, &empty)
@@ -241,7 +243,7 @@ fn empty_work_and_target_mismatch_fail_without_a_result() {
     );
 }
 
-fn diagonal_system(size: usize) -> LinearSystem {
+fn diagonal_system(size: usize) -> LinearSystem<f64> {
     LinearSystem::new(
         crate::CsrMatrix::from_sorted_csr(
             size,
@@ -297,7 +299,7 @@ fn complete_result_constructor_checks_packet_and_target_shape() {
 #[derive(Debug)]
 struct FailingWork;
 
-impl AssemblyWork for FailingWork {
+impl AssemblyWork<f64> for FailingWork {
     fn packet_set_identity(&self) -> AssemblyPacketSetIdentityV1 {
         AssemblyPacketSetIdentityV1::Unbound
     }
@@ -306,7 +308,7 @@ impl AssemblyWork for FailingWork {
         4
     }
 
-    fn evaluate(&self, packet_index: usize) -> Result<AssemblyPacket, Diagnostic> {
+    fn evaluate(&self, packet_index: usize) -> Result<AssemblyPacket<f64>, Diagnostic> {
         Err(assembly_failed(format!("packet {packet_index} failed")))
     }
 }

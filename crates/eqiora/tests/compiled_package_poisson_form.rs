@@ -317,8 +317,8 @@ fn assert_role_gate(result: Result<KernelProgram, Diagnostic>) {
 
 #[derive(Debug, Clone)]
 struct Capture {
-    locals: Vec<LocalContribution>,
-    systems: Vec<eqiora::assembly::LinearSystem>,
+    locals: Vec<LocalContribution<f64>>,
+    systems: Vec<eqiora::assembly::LinearSystem<f64>>,
 }
 
 #[derive(Debug, Default)]
@@ -332,12 +332,12 @@ impl RecordingBackend {
     }
 }
 
-impl AssemblyBackend for RecordingBackend {
+impl AssemblyBackend<f64> for RecordingBackend {
     fn assemble(
         &self,
         plan: &AssemblyPlan,
-        work: &dyn AssemblyWork,
-    ) -> Result<AssemblyResult, Diagnostic> {
+        work: &dyn AssemblyWork<f64>,
+    ) -> Result<AssemblyResult<f64>, Diagnostic> {
         let locals = Mutex::new(Vec::new());
         let recording = RecordingWork {
             inner: work,
@@ -354,8 +354,8 @@ impl AssemblyBackend for RecordingBackend {
 }
 
 struct RecordingWork<'a> {
-    inner: &'a dyn AssemblyWork,
-    locals: &'a Mutex<Vec<LocalContribution>>,
+    inner: &'a dyn AssemblyWork<f64>,
+    locals: &'a Mutex<Vec<LocalContribution<f64>>>,
 }
 
 impl fmt::Debug for RecordingWork<'_> {
@@ -364,7 +364,7 @@ impl fmt::Debug for RecordingWork<'_> {
     }
 }
 
-impl AssemblyWork for RecordingWork<'_> {
+impl AssemblyWork<f64> for RecordingWork<'_> {
     fn packet_set_identity(&self) -> AssemblyPacketSetIdentityV1 {
         self.inner.packet_set_identity()
     }
@@ -373,7 +373,7 @@ impl AssemblyWork for RecordingWork<'_> {
         self.inner.packet_count()
     }
 
-    fn evaluate(&self, packet_index: usize) -> Result<AssemblyPacket, Diagnostic> {
+    fn evaluate(&self, packet_index: usize) -> Result<AssemblyPacket<f64>, Diagnostic> {
         let packet = self.inner.evaluate(packet_index)?;
         self.locals.lock().unwrap().push(packet.local().clone());
         Ok(packet)
@@ -411,12 +411,12 @@ impl MutatingBackend {
     }
 }
 
-impl AssemblyBackend for MutatingBackend {
+impl AssemblyBackend<f64> for MutatingBackend {
     fn assemble(
         &self,
         plan: &AssemblyPlan,
-        work: &dyn AssemblyWork,
-    ) -> Result<AssemblyResult, Diagnostic> {
+        work: &dyn AssemblyWork<f64>,
+    ) -> Result<AssemblyResult<f64>, Diagnostic> {
         *self.original_source_sum.lock().unwrap() = 0.0;
         let locals = Mutex::new(Vec::new());
         let mutated = MutatingWork {
@@ -436,10 +436,10 @@ impl AssemblyBackend for MutatingBackend {
 }
 
 struct MutatingWork<'a> {
-    inner: &'a dyn AssemblyWork,
+    inner: &'a dyn AssemblyWork<f64>,
     mutation: Mutation,
     source_sum: &'a Mutex<f64>,
-    locals: &'a Mutex<Vec<LocalContribution>>,
+    locals: &'a Mutex<Vec<LocalContribution<f64>>>,
 }
 
 impl fmt::Debug for MutatingWork<'_> {
@@ -448,7 +448,7 @@ impl fmt::Debug for MutatingWork<'_> {
     }
 }
 
-impl AssemblyWork for MutatingWork<'_> {
+impl AssemblyWork<f64> for MutatingWork<'_> {
     fn packet_set_identity(&self) -> AssemblyPacketSetIdentityV1 {
         self.inner.packet_set_identity()
     }
@@ -457,7 +457,7 @@ impl AssemblyWork for MutatingWork<'_> {
         self.inner.packet_count()
     }
 
-    fn evaluate(&self, packet_index: usize) -> Result<AssemblyPacket, Diagnostic> {
+    fn evaluate(&self, packet_index: usize) -> Result<AssemblyPacket<f64>, Diagnostic> {
         let packet = self.inner.evaluate(packet_index)?;
         if matches!(self.mutation, Mutation::OmitSource) {
             *self.source_sum.lock().unwrap() += packet.local().rhs().iter().sum::<f64>();
@@ -482,10 +482,10 @@ impl AssemblyWork for MutatingWork<'_> {
 }
 
 fn mutate_mapping(
-    mapping: &TargetAssemblyMap,
+    mapping: &TargetAssemblyMap<f64>,
     mutation: Mutation,
     packet_index: usize,
-) -> Result<TargetAssemblyMap, Diagnostic> {
+) -> Result<TargetAssemblyMap<f64>, Diagnostic> {
     if !matches!(mutation, Mutation::ShiftDof) || packet_index != 0 || mapping.target().index() != 1
     {
         return Ok(mapping.clone());

@@ -573,7 +573,7 @@ impl CudaResidentCsrActionSession {
     /// live-discovery, allocation, transfer, descriptor, workspace, or fence
     /// failure. It never falls back to a host action.
     pub fn new(
-        matrix: &CsrMatrix,
+        matrix: &CsrMatrix<f64>,
         selected: &CudaDeviceObservation,
         queue: QueueSlot,
         policy: SparseActionPolicy,
@@ -952,7 +952,7 @@ pub(crate) fn discover_cuda_devices(count: i32) -> Result<Vec<CudaDeviceObservat
 /// unsupported shape/index conversion, transfer or cuSPARSE failure,
 /// non-finite data, or disagreement with the host oracle.
 pub fn verify_csr_action(
-    matrix: &CsrMatrix,
+    matrix: &CsrMatrix<f64>,
     input: &[f64],
     device_ordinal: u16,
     policy: SparseActionPolicy,
@@ -975,7 +975,7 @@ pub fn verify_csr_action(
 /// runtime/library/device, unsupported shape/index conversion, transfer or
 /// cuSPARSE failure, non-finite data, or disagreement with the reference.
 pub fn verify_csr_action_against(
-    matrix: &CsrMatrix,
+    matrix: &CsrMatrix<f64>,
     input: &[f64],
     reference: &[f64],
     device_ordinal: u16,
@@ -993,7 +993,7 @@ pub fn verify_csr_action_against(
     )
 }
 
-fn validate_reference(matrix: &CsrMatrix, reference: &[f64]) -> Result<(), Diagnostic> {
+fn validate_reference(matrix: &CsrMatrix<f64>, reference: &[f64]) -> Result<(), Diagnostic> {
     if reference.len() != matrix.rows() {
         return Err(solve_failed(format!(
             "CUDA CSR reference has {} values but the matrix has {} rows",
@@ -1008,7 +1008,7 @@ fn validate_reference(matrix: &CsrMatrix, reference: &[f64]) -> Result<(), Diagn
 }
 
 fn verify_csr_action_inner(
-    matrix: &CsrMatrix,
+    matrix: &CsrMatrix<f64>,
     input: &[f64],
     reference: Option<&[f64]>,
     device_ordinal: u16,
@@ -1226,7 +1226,7 @@ impl BufferDescriptors {
 }
 
 fn validate_resident_request(
-    matrix: &CsrMatrix,
+    matrix: &CsrMatrix<f64>,
     selected: &CudaDeviceObservation,
     queue: QueueSlot,
     policy: SparseActionPolicy,
@@ -1256,7 +1256,7 @@ fn validate_resident_request(
     ])
 }
 
-fn resident_payload_bytes(matrix: &CsrMatrix) -> Result<usize, Diagnostic> {
+fn resident_payload_bytes(matrix: &CsrMatrix<f64>) -> Result<usize, Diagnostic> {
     let row_offsets = checked_bytes::<i64>(matrix.row_offsets().len(), "CSR row offsets")?;
     let column_indices = checked_bytes::<i64>(matrix.column_indices().len(), "CSR column indices")?;
     let values = checked_bytes::<f64>(matrix.values().len(), "CSR values")?;
@@ -1476,7 +1476,7 @@ pub(crate) fn transfer_to_host<T: eqiora_device::DeviceElement>(
     TransferEvidence::new(plan, completion)
 }
 
-pub(crate) fn validate_action(matrix: &CsrMatrix, input: &[f64]) -> Result<(), Diagnostic> {
+pub(crate) fn validate_action(matrix: &CsrMatrix<f64>, input: &[f64]) -> Result<(), Diagnostic> {
     validate_matrix(matrix)?;
     if input.len() != matrix.columns() {
         return Err(solve_failed(format!(
@@ -1493,7 +1493,7 @@ pub(crate) fn validate_action(matrix: &CsrMatrix, input: &[f64]) -> Result<(), D
     Ok(())
 }
 
-fn validate_matrix(matrix: &CsrMatrix) -> Result<(), Diagnostic> {
+fn validate_matrix(matrix: &CsrMatrix<f64>) -> Result<(), Diagnostic> {
     if matrix.rows() == 0 || matrix.columns() == 0 || matrix.values().is_empty() {
         return Err(unsupported(
             "CUDA CSR action requires a nonempty matrix with at least one nonzero",
@@ -1599,7 +1599,7 @@ pub(crate) fn solve_failed(message: impl Into<String>) -> Diagnostic {
 mod tests {
     use super::*;
 
-    fn rectangular_matrix() -> CsrMatrix {
+    fn rectangular_matrix() -> CsrMatrix<f64> {
         CsrMatrix::from_sorted_csr(
             2,
             3,

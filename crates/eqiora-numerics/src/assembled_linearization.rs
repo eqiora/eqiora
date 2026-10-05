@@ -38,7 +38,7 @@ impl AssembledLinearizedRelation {
     /// Returns `EQ0704` for a nonsquare state action, shape mismatch,
     /// duplicate Parameter coordinate, or non-finite data.
     pub fn new(
-        state_jacobian: CsrMatrix,
+        state_jacobian: CsrMatrix<f64>,
         accepted_unknowns: Vec<f64>,
         right_hand_side: Vec<f64>,
         design_coordinates: Vec<SpatialDesignCoordinate>,
@@ -111,7 +111,7 @@ impl AssembledLinearizedRelation {
     /// The canonical sparse view represents `R_w`; its zero stored RHS is not
     /// interpreted as the original mathematical equation.
     pub fn from_point(
-        state_jacobian: CsrMatrix,
+        state_jacobian: CsrMatrix<f64>,
         accepted_unknowns: Vec<f64>,
         primal_residual: Vec<f64>,
         design_coordinates: Vec<SpatialDesignCoordinate>,
@@ -349,7 +349,7 @@ impl LinearizedRelation<f64> for AssembledLinearizedRelation {
 }
 
 struct LinearizedStorage<'a> {
-    matrix: &'a CsrMatrix,
+    matrix: &'a CsrMatrix<f64>,
     right_hand_side: &'a [f64],
 }
 

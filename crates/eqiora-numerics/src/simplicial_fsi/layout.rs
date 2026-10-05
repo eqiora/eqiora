@@ -131,7 +131,7 @@ impl<const D: usize> FsiLayout<D> {
     }
     pub(crate) fn reactions(
         &self,
-        work: &dyn eqiora_assembly::AssemblyWork,
+        work: &dyn eqiora_assembly::AssemblyWork<f64>,
         target: eqiora_assembly::AssemblyTargetId,
     ) -> Result<crate::region_assembly::InterfaceReactions, Diagnostic> {
         crate::region_assembly::InterfaceReactions::prepare(
@@ -283,7 +283,11 @@ impl<const D: usize> FsiLayout<D> {
         result.boundary = Arc::new(boundary.clone());
         Ok(result)
     }
-    pub(crate) fn cell_map(&self, cell: usize, reduced: bool) -> Result<AssemblyMap, Diagnostic> {
+    pub(crate) fn cell_map(
+        &self,
+        cell: usize,
+        reduced: bool,
+    ) -> Result<AssemblyMap<f64>, Diagnostic> {
         self.mapping.cell_map(cell, reduced)
     }
     pub(crate) fn fluid_map(
@@ -291,7 +295,7 @@ impl<const D: usize> FsiLayout<D> {
         cell: CellId,
         vertices: &[MeshEntity],
         reduced: bool,
-    ) -> Result<AssemblyMap, Diagnostic> {
+    ) -> Result<AssemblyMap<f64>, Diagnostic> {
         let domain = self.cell_domain(cell.index())?;
         let velocity = self.velocity_field(domain)?;
         let pressure = self
@@ -313,7 +317,7 @@ impl<const D: usize> FsiLayout<D> {
         cell: usize,
         vertices: &[MeshEntity],
         reduced: bool,
-    ) -> Result<AssemblyMap, Diagnostic> {
+    ) -> Result<AssemblyMap<f64>, Diagnostic> {
         let domain = self.cell_domain(cell)?;
         if self.state_field(domain).is_none() {
             return Err(invalid("cell has no exact eliminated-state witness"));

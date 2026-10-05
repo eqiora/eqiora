@@ -68,7 +68,7 @@ pub struct ScalarEllipticSimplicialFemSolution {
     field: SimplicialP1Field,
     free_vertices: Vec<usize>,
     algebraic_values: Vec<f64>,
-    linear_system: LinearSystem,
+    linear_system: LinearSystem<f64>,
     boundary_reaction_sum: f64,
     integrated_source: f64,
     assembly_report: AssemblyReport,
@@ -151,7 +151,7 @@ pub fn solve_scalar_elliptic_simplicial_fem_with_assembly(
     model: &ScalarEllipticCartesianModel,
     mesh: &SimplicialMesh,
     quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     solver: LinearSolveRequest<'_>,
 ) -> Result<ScalarEllipticSimplicialFemSolution, Diagnostic> {
     validate_problem(model, mesh, quadrature)?;
@@ -497,7 +497,7 @@ impl LocalOperator<AffineGeometryMap> for SimplicialEllipticCell<'_> {
         &self,
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution, Diagnostic> {
+    ) -> Result<LocalContribution<f64>, Diagnostic> {
         require_geometry_rule(geometry, quadrature)?;
         let dimension = geometry.reference_cell().dimension();
         let space = SimplexP1Space::new(dimension)?;

@@ -409,7 +409,7 @@ pub fn solve_cartesian_q1_linear_elasticity_2d_with_assembly(
     first_lame_parameter: f64,
     body_force_potential: &ScalarSpatialExpression,
     quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     solver: LinearSolveRequest<'_>,
 ) -> Result<CartesianLinearElasticity2dSolution, Diagnostic> {
     let material = admit_problem(mesh, shear_modulus, first_lame_parameter, quadrature)?;
@@ -431,8 +431,8 @@ pub fn solve_cartesian_q1_linear_elasticity_2d_with_assembly(
 pub(crate) struct FinalizedCartesianElasticity2dAssembly {
     mesh: CartesianMesh,
     constrained_dofs: ConstrainedDofLayout,
-    linear_system: eqiora_assembly::LinearSystem,
-    full_system: eqiora_assembly::LinearSystem,
+    linear_system: eqiora_assembly::LinearSystem<f64>,
+    full_system: eqiora_assembly::LinearSystem<f64>,
     integrated_body_force: [f64; COMPONENTS],
     assembly_report: AssemblyReport,
 }
@@ -476,7 +476,7 @@ impl FinalizedCartesianElasticity2dAssembly {
 pub(crate) struct FinalizedCartesianElasticity2dState {
     mesh: CartesianMesh,
     constrained_dofs: ConstrainedDofLayout,
-    full_system: eqiora_assembly::LinearSystem,
+    full_system: eqiora_assembly::LinearSystem<f64>,
     integrated_body_force: [f64; COMPONENTS],
     assembly_report: AssemblyReport,
 }
@@ -532,7 +532,7 @@ pub(crate) fn finalize_cartesian_q1_linear_elasticity_2d(
     quadrature: &QuadratureRule,
     essential_sides: CartesianEssentialSides2d,
     tractions: [[Option<[f64; COMPONENTS]>; 2]; DIMENSION],
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
 ) -> Result<FinalizedCartesianElasticity2dAssembly, Diagnostic> {
     require_two_dimensional_mesh(mesh)?;
     require_cell_rule(mesh, quadrature)?;

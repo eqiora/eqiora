@@ -99,7 +99,7 @@ impl StructuralJacobianPatternBuilder {
         &mut self,
         contribution: usize,
         expected_local_size: usize,
-        map: &AssemblyMap,
+        map: &AssemblyMap<f64>,
     ) -> Result<(), Diagnostic> {
         if contribution != self.next_contribution || contribution >= self.expected_contributions {
             return Err(invalid(
@@ -508,7 +508,7 @@ mod tests {
     use super::*;
     use eqiora_assembly::{AssemblyMap, DofId, LocalUnknown};
 
-    fn map(rows: &[usize], columns: &[usize]) -> AssemblyMap {
+    fn map(rows: &[usize], columns: &[usize]) -> AssemblyMap<f64> {
         let width = rows.len().max(columns.len());
         let mut equations = rows
             .iter()

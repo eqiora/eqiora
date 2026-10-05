@@ -33,7 +33,7 @@ impl RecoveredInterfaceReactions {
 
 impl InterfaceReactions {
     pub(crate) fn prepare(
-        work: &dyn AssemblyWork,
+        work: &dyn AssemblyWork<f64>,
         target: AssemblyTargetId,
         mapping: &RegionDofMap,
         packet_domains: &[RawId],

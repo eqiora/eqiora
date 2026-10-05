@@ -7,7 +7,7 @@ use super::*;
 pub(crate) struct FinalizedCartesianFvmAssembly {
     mesh: CartesianMesh,
     cell_centers: Vec<Vec<f64>>,
-    linear_system: LinearSystem,
+    linear_system: LinearSystem<f64>,
     reconstruction_mesh: CartesianMesh,
     reconstruction_boundary_values: Vec<Option<f64>>,
     facets: Vec<CartesianFacetPacket>,
@@ -214,7 +214,7 @@ pub(crate) fn finalize_scalar_elliptic_cartesian_fvm<K, S, B>(
     boundary: &B,
     cell_quadrature: &QuadratureRule,
     facet_quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
 ) -> Result<FinalizedCartesianFvmAssembly, Diagnostic>
 where
     K: Fn(&[f64]) -> f64 + Sync + ?Sized,

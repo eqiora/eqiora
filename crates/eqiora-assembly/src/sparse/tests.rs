@@ -1,6 +1,12 @@
 use super::*;
 
-fn scatter_scalar(assembler: &mut CooAssembler, row: usize, column: usize, value: f64, rhs: f64) {
+fn scatter_scalar(
+    assembler: &mut CooAssembler<f64>,
+    row: usize,
+    column: usize,
+    value: f64,
+    rhs: f64,
+) {
     let local = LocalContribution::new(1, 1, vec![value], vec![rhs]).unwrap();
     let map = AssemblyMap::new(
         vec![Some(DofId::new(row))],
@@ -12,7 +18,7 @@ fn scatter_scalar(assembler: &mut CooAssembler, row: usize, column: usize, value
 
 #[test]
 fn assembled_system_matches_recorded_csr_and_float_bits() {
-    let mut assembler = CooAssembler::new(3).unwrap();
+    let mut assembler = CooAssembler::<f64>::new(3).unwrap();
     let first = LocalContribution::new(2, 2, vec![1.5, -2.0, 3.25, 4.5], vec![8.0, -1.0]).unwrap();
     let first_map = AssemblyMap::new(
         vec![Some(DofId::new(2)), Some(DofId::new(0))],
@@ -74,7 +80,7 @@ fn assembled_system_matches_recorded_csr_and_float_bits() {
 
 #[test]
 fn duplicate_entries_preserve_scatter_summation_order() {
-    let mut assembler = CooAssembler::new(1).unwrap();
+    let mut assembler = CooAssembler::<f64>::new(1).unwrap();
     for value in [2_f64.powi(53), 1.0, -2_f64.powi(53), 4.0] {
         scatter_scalar(&mut assembler, 0, 0, value, 0.0);
     }
@@ -85,7 +91,7 @@ fn duplicate_entries_preserve_scatter_summation_order() {
 
 #[test]
 fn finish_eliminates_exact_zeros_and_reports_a_cancelled_row() {
-    let mut assembler = CooAssembler::new(2).unwrap();
+    let mut assembler = CooAssembler::<f64>::new(2).unwrap();
     let first = LocalContribution::new(2, 2, vec![3.0, 2.0, 0.0, 5.0], vec![0.0, 0.0]).unwrap();
     let second = LocalContribution::new(2, 2, vec![0.0, -2.0, 0.0, 0.0], vec![0.0, 0.0]).unwrap();
     let map = AssemblyMap::new(
@@ -112,7 +118,7 @@ fn finish_eliminates_exact_zeros_and_reports_a_cancelled_row() {
         vec![3.0_f64.to_bits(), 5.0_f64.to_bits()]
     );
 
-    let mut cancelled_row = CooAssembler::new(2).unwrap();
+    let mut cancelled_row = CooAssembler::<f64>::new(2).unwrap();
     scatter_scalar(&mut cancelled_row, 0, 0, 1.0, 0.0);
     scatter_scalar(&mut cancelled_row, 0, 0, -1.0, 0.0);
     scatter_scalar(&mut cancelled_row, 1, 1, 2.0, 0.0);
@@ -126,7 +132,7 @@ fn finish_eliminates_exact_zeros_and_reports_a_cancelled_row() {
 
 #[test]
 fn finish_orders_columns_ascending_within_each_row() {
-    let mut assembler = CooAssembler::new(4).unwrap();
+    let mut assembler = CooAssembler::<f64>::new(4).unwrap();
     for (column, value) in [(3, 4.0), (0, 1.0), (2, 3.0), (1, 2.0)] {
         scatter_scalar(&mut assembler, 0, column, value, 0.0);
     }
@@ -149,14 +155,14 @@ fn finish_orders_columns_ascending_within_each_row() {
 
 #[test]
 fn assembler_rejects_zero_size_and_round_trips_one_equation() {
-    let diagnostic = CooAssembler::new(0).unwrap_err();
+    let diagnostic = CooAssembler::<f64>::new(0).unwrap_err();
     assert_eq!(diagnostic.code(), codes::ASSEMBLY_FAILED);
     assert_eq!(
         diagnostic.message(),
         "assembled system requires at least one free equation"
     );
 
-    let mut assembler = CooAssembler::new(1).unwrap();
+    let mut assembler = CooAssembler::<f64>::new(1).unwrap();
     scatter_scalar(&mut assembler, 0, 0, -2.5, 7.25);
     let system = assembler.finish().unwrap();
     assert_eq!(system.matrix().row_offsets(), &[0, 1]);
@@ -173,7 +179,7 @@ fn scatter_eliminates_fixed_columns_and_skips_fixed_rows() {
         vec![LocalUnknown::Fixed(2.0), LocalUnknown::Free(DofId::new(0))],
     )
     .unwrap();
-    let mut assembler = CooAssembler::new(1).unwrap();
+    let mut assembler = CooAssembler::<f64>::new(1).unwrap();
     assembler.scatter(&map, &local).unwrap();
     let system = assembler.finish().unwrap();
     assert_eq!(system.matrix().entry(0, 0), Some(1.0));
@@ -188,7 +194,7 @@ fn scatter_rejects_shape_and_global_index_mismatch() {
         vec![LocalUnknown::Free(DofId::new(1))],
     )
     .unwrap();
-    let mut assembler = CooAssembler::new(1).unwrap();
+    let mut assembler = CooAssembler::<f64>::new(1).unwrap();
     assert_eq!(
         assembler.scatter(&map, &local).unwrap_err().code(),
         codes::ASSEMBLY_FAILED
@@ -203,7 +209,7 @@ fn failed_scatter_is_atomic() {
         vec![LocalUnknown::Free(DofId::new(0))],
     )
     .unwrap();
-    let mut assembler = CooAssembler::new(1).unwrap();
+    let mut assembler = CooAssembler::<f64>::new(1).unwrap();
     assembler.scatter(&map, &local).unwrap();
     let before = assembler.clone().finish().unwrap();
     assert_eq!(
@@ -221,7 +227,7 @@ fn mismatched_delta_is_rejected_atomically() {
         vec![LocalUnknown::Free(DofId::new(0))],
     )
     .unwrap();
-    let mut assembler = CooAssembler::new(1).unwrap();
+    let mut assembler = CooAssembler::<f64>::new(1).unwrap();
     assembler.scatter(&map, &local).unwrap();
     let before = assembler.clone().finish().unwrap();
     let foreign = AssemblyDelta::from_local(2, &map, &local).unwrap();

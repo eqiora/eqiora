@@ -22,7 +22,7 @@ pub(crate) use reactions::{InterfaceReactions, RecoveredInterfaceReactions};
 pub(crate) struct RegionAssemblyCell {
     pub(crate) index: usize,
     pub(crate) geometry: AffineGeometryMap,
-    pub(crate) mappings: Vec<TargetAssemblyMap>,
+    pub(crate) mappings: Vec<TargetAssemblyMap<f64>>,
     pub(crate) previous: BTreeMap<RawId, Vec<f64>>,
 }
 
@@ -31,7 +31,7 @@ pub(crate) struct PreparedRegionAssembly {
     packet_set: AssemblyPacketSetIdentityV1,
     prepared: Vec<PreparedRegionCell>,
     cells: Vec<RegionAssemblyCell>,
-    boundary_packets: Vec<AssemblyPacket>,
+    boundary_packets: Vec<AssemblyPacket<f64>>,
 }
 
 impl PreparedRegionAssembly {
@@ -43,7 +43,7 @@ impl PreparedRegionAssembly {
         forms: Vec<(BoundRegionForm, QuadratureRule)>,
         cell_domains: &[RawId],
         mut cells: Vec<RegionAssemblyCell>,
-        boundary_packets: Vec<AssemblyPacket>,
+        boundary_packets: Vec<AssemblyPacket<f64>>,
     ) -> Result<Self, Diagnostic> {
         if cell_domains.is_empty() || cells.len() != cell_domains.len() {
             return Err(invalid(
@@ -109,7 +109,7 @@ impl PreparedRegionAssembly {
     }
 }
 
-impl AssemblyWork for PreparedRegionAssembly {
+impl AssemblyWork<f64> for PreparedRegionAssembly {
     fn packet_set_identity(&self) -> AssemblyPacketSetIdentityV1 {
         self.packet_set
     }
@@ -118,7 +118,7 @@ impl AssemblyWork for PreparedRegionAssembly {
         self.cells.len() + self.boundary_packets.len()
     }
 
-    fn evaluate(&self, packet_index: usize) -> Result<AssemblyPacket, Diagnostic> {
+    fn evaluate(&self, packet_index: usize) -> Result<AssemblyPacket<f64>, Diagnostic> {
         if packet_index >= self.cells.len() {
             return self
                 .boundary_packets
@@ -140,7 +140,7 @@ impl AssemblyWork for PreparedRegionAssembly {
 fn validate_maps(
     plan: &AssemblyPlan,
     count: usize,
-    mappings: &[TargetAssemblyMap],
+    mappings: &[TargetAssemblyMap<f64>],
 ) -> Result<(), Diagnostic> {
     if mappings.is_empty() {
         return Err(invalid("prepared cell needs an assembly target map"));

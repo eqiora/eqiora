@@ -828,7 +828,7 @@ pub fn solve_resolved_scalar_elliptic_1d(
 pub fn solve_resolved_scalar_elliptic_1d_with_assembly(
     program: &KernelProgram,
     resolved: &ResolvedRealization,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     backend: &dyn LinearSolverBackend,
 ) -> Result<(ScalarEllipticModel1d, ResolvedScalarEllipticSolution1d), Diagnostic> {
     solve_resolved_scalar_elliptic_1d_impl(program, resolved, backend, Some(assembly))
@@ -928,7 +928,7 @@ fn solve_resolved_scalar_elliptic_1d_impl(
     program: &KernelProgram,
     resolved: &ResolvedRealization,
     backend: &dyn LinearSolverBackend,
-    assembly: Option<&dyn AssemblyBackend>,
+    assembly: Option<&dyn AssemblyBackend<f64>>,
 ) -> Result<(ScalarEllipticModel1d, ResolvedScalarEllipticSolution1d), Diagnostic> {
     if program.model() != resolved.model()
         || program.revision().0 != resolved.semantic_revision().get()
@@ -1107,7 +1107,7 @@ pub fn solve_resolved_scalar_elliptic_cartesian(
 pub fn solve_resolved_scalar_elliptic_cartesian_with_assembly(
     program: &KernelProgram,
     resolved: &ResolvedRealization,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     backend: &dyn LinearSolverBackend,
 ) -> Result<
     (
@@ -1163,7 +1163,7 @@ pub fn finalize_resolved_scalar_elliptic_cartesian(
 pub fn finalize_resolved_scalar_elliptic_cartesian_with_assembly(
     program: &KernelProgram,
     resolved: &ResolvedRealization,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
 ) -> Result<
     (
         ScalarEllipticCartesianModel,
@@ -1235,7 +1235,7 @@ pub fn finalize_scalar_elliptic_parameter_point(
 pub fn finalize_lowered_scalar_elliptic_cartesian_with_assembly(
     model: &ScalarEllipticCartesianModel,
     resolved: &ResolvedRealization,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
 ) -> Result<FinalizedScalarEllipticCartesianProblem, Diagnostic> {
     if model.semantic_model != resolved.model()
         || model.semantic_revision != resolved.semantic_revision().get()
@@ -1440,7 +1440,7 @@ pub fn solve_resolved_scalar_elliptic_simplicial_with_assembly(
     resolved: &ResolvedRealization,
     mesh_artifact: MeshArtifactReference,
     mesh: &SimplicialMesh,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     backend: &dyn LinearSolverBackend,
 ) -> Result<
     (
@@ -1568,7 +1568,7 @@ pub fn solve_and_linearize_resolved_scalar_elliptic_cartesian(
 pub fn solve_and_linearize_resolved_scalar_elliptic_cartesian_with_assembly(
     program: &KernelProgram,
     resolved: &ResolvedRealization,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     backend: &dyn LinearSolverBackend,
     selected_coordinates: &[crate::spatial_design::SpatialDesignCoordinate],
 ) -> Result<

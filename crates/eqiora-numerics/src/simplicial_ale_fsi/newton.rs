@@ -75,7 +75,7 @@ pub(crate) fn advance_simplicial_ale_fsi_2d_with_assembly(
     step_count: NonZeroStepCount,
     plan: AleFsiStepPlan<2>,
     quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     solver: &dyn LinearSolverBackend,
     base_layout: &FsiLayout<2>,
 ) -> Result<AleFsiTrajectory<2>, Diagnostic> {
@@ -145,7 +145,7 @@ pub(crate) fn advance_simplicial_ale_fsi_3d_with_assembly(
     step_count: NonZeroStepCount,
     plan: AleFsiStepPlan<3>,
     quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     solver: &dyn LinearSolverBackend,
     base_layout: &FsiLayout<3>,
 ) -> Result<AleFsiTrajectory<3>, Diagnostic> {
@@ -172,7 +172,7 @@ struct PreparedAleFsiRun<'a, const D: usize> {
     motion: &'a P1HarmonicMeshMotionAction<D>,
     plan: AleFsiStepPlan<D>,
     quadrature: &'a QuadratureRule,
-    assembly: &'a dyn AssemblyBackend,
+    assembly: &'a dyn AssemblyBackend<f64>,
     solver: &'a dyn LinearSolverBackend,
     #[cfg(test)]
     phases: AleFsiRunPhaseCounts,
@@ -200,7 +200,7 @@ impl<'a, const D: usize> PreparedAleFsiRun<'a, D> {
         initial: &AleFsiState<D>,
         plan: &AleFsiStepPlan<D>,
         quadrature: &'a QuadratureRule,
-        assembly: &'a dyn AssemblyBackend,
+        assembly: &'a dyn AssemblyBackend<f64>,
         solver: &'a dyn LinearSolverBackend,
         base_layout: &FsiLayout<D>,
     ) -> Result<Self, Diagnostic> {
@@ -286,7 +286,7 @@ fn advance_simplicial_ale_fsi_with_assembly<const D: usize>(
     step_count: NonZeroStepCount,
     plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     solver: &dyn LinearSolverBackend,
     base_layout: &FsiLayout<D>,
 ) -> Result<AleFsiTrajectory<D>, Diagnostic> {
@@ -346,7 +346,7 @@ pub(super) fn solve_one_step<const D: usize>(
     previous: &AleFsiState<D>,
     plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
-    assembly_backend: &dyn AssemblyBackend,
+    assembly_backend: &dyn AssemblyBackend<f64>,
     solver: &dyn LinearSolverBackend,
     base_layout: &FsiLayout<D>,
 ) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {
@@ -395,7 +395,7 @@ fn solve_one_step_prepared<const D: usize>(
     previous: &AleFsiState<D>,
     plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
-    assembly_backend: &dyn AssemblyBackend,
+    assembly_backend: &dyn AssemblyBackend<f64>,
     solver: &dyn LinearSolverBackend,
 ) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {
     let mut point = structure.initial_point(action, previous, plan)?;

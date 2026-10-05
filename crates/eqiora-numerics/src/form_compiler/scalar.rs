@@ -211,7 +211,7 @@ impl AdmittedScalarGalerkinForm<'_> {
         quadrature: &QuadratureRule,
         coefficient: &K,
         source: &S,
-    ) -> Result<LocalContribution, Diagnostic>
+    ) -> Result<LocalContribution<f64>, Diagnostic>
     where
         K: Fn(&[f64]) -> f64 + ?Sized,
         S: Fn(&[f64]) -> f64 + ?Sized,

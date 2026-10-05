@@ -201,7 +201,7 @@ fn assert_evidence(evidence: &DistributedAssemblyEvidence, partitions: NonZeroUs
     }
 }
 
-fn assert_system_bits(candidate: &LinearSystem, reference: &LinearSystem) {
+fn assert_system_bits(candidate: &LinearSystem<f64>, reference: &LinearSystem<f64>) {
     assert_eq!(candidate.matrix().rows(), reference.matrix().rows());
     assert_eq!(candidate.matrix().columns(), reference.matrix().columns());
     assert_eq!(
@@ -242,29 +242,29 @@ fn assert_system_bits(candidate: &LinearSystem, reference: &LinearSystem) {
 
 #[derive(Debug)]
 struct CapturingAssemblyBackend<'a> {
-    inner: &'a dyn AssemblyBackend,
-    accepted: Mutex<Option<AssemblyResult>>,
+    inner: &'a dyn AssemblyBackend<f64>,
+    accepted: Mutex<Option<AssemblyResult<f64>>>,
 }
 
 impl<'a> CapturingAssemblyBackend<'a> {
-    fn new(inner: &'a dyn AssemblyBackend) -> Self {
+    fn new(inner: &'a dyn AssemblyBackend<f64>) -> Self {
         Self {
             inner,
             accepted: Mutex::new(None),
         }
     }
 
-    fn take(&self) -> Option<AssemblyResult> {
+    fn take(&self) -> Option<AssemblyResult<f64>> {
         self.accepted.lock().expect("capture lock").take()
     }
 }
 
-impl AssemblyBackend for CapturingAssemblyBackend<'_> {
+impl AssemblyBackend<f64> for CapturingAssemblyBackend<'_> {
     fn assemble(
         &self,
         plan: &AssemblyPlan,
-        work: &dyn AssemblyWork,
-    ) -> Result<AssemblyResult, Diagnostic> {
+        work: &dyn AssemblyWork<f64>,
+    ) -> Result<AssemblyResult<f64>, Diagnostic> {
         let result = self.inner.assemble(plan, work)?;
         *self.accepted.lock().expect("capture lock") = Some(result.clone());
         Ok(result)

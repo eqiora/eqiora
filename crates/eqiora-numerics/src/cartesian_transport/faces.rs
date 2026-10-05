@@ -249,7 +249,7 @@ pub(super) fn face_packet(
     face: &TransportFace2d,
     matrix_scale: f64,
     row_scale: f64,
-) -> Result<(LocalContribution, AssemblyMap), Diagnostic> {
+) -> Result<(LocalContribution<f64>, AssemblyMap<f64>), Diagnostic> {
     match *face {
         TransportFace2d::Interior {
             lower,

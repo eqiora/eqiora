@@ -263,7 +263,7 @@ fn assert_evidence(evidence: &DistributedAssemblyEvidence, partitions: NonZeroUs
     }
 }
 
-fn assert_system_bits(candidate: &LinearSystem, reference: &LinearSystem) {
+fn assert_system_bits(candidate: &LinearSystem<f64>, reference: &LinearSystem<f64>) {
     assert_eq!(candidate.matrix().rows(), reference.matrix().rows());
     assert_eq!(candidate.matrix().columns(), reference.matrix().columns());
     assert_eq!(
@@ -323,29 +323,29 @@ fn assert_common_diagnostic(world: &impl CommunicatorCollectives, error: &Diagno
 
 #[derive(Debug)]
 struct CapturingAssemblyBackend<'a> {
-    inner: &'a dyn AssemblyBackend,
-    accepted: RefCell<Option<AssemblyResult>>,
+    inner: &'a dyn AssemblyBackend<f64>,
+    accepted: RefCell<Option<AssemblyResult<f64>>>,
 }
 
 impl<'a> CapturingAssemblyBackend<'a> {
-    fn new(inner: &'a dyn AssemblyBackend) -> Self {
+    fn new(inner: &'a dyn AssemblyBackend<f64>) -> Self {
         Self {
             inner,
             accepted: RefCell::new(None),
         }
     }
 
-    fn take(&self) -> Option<AssemblyResult> {
+    fn take(&self) -> Option<AssemblyResult<f64>> {
         self.accepted.borrow_mut().take()
     }
 }
 
-impl AssemblyBackend for CapturingAssemblyBackend<'_> {
+impl AssemblyBackend<f64> for CapturingAssemblyBackend<'_> {
     fn assemble(
         &self,
         plan: &AssemblyPlan,
-        work: &dyn AssemblyWork,
-    ) -> Result<AssemblyResult, Diagnostic> {
+        work: &dyn AssemblyWork<f64>,
+    ) -> Result<AssemblyResult<f64>, Diagnostic> {
         let result = self.inner.assemble(plan, work)?;
         *self.accepted.borrow_mut() = Some(result.clone());
         Ok(result)

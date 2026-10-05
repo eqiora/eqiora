@@ -10,7 +10,7 @@ use super::super::derive_cartesian_q1_elasticity_form_2d;
 pub(super) fn assemble_body_free_action(
     mesh: &CartesianMesh,
     action: &LocalLinearActionIr,
-) -> LinearSystem {
+) -> LinearSystem<f64> {
     let vertex_count = mesh.entity_count(0).unwrap();
     let mut assembler = CooAssembler::new(2 * vertex_count).unwrap();
     let entries_per_cell = action.rows() * action.columns();
@@ -35,7 +35,7 @@ pub(super) fn assemble_loaded_derived_form(
     model: &crate::canonical_elasticity::IsotropicElasticityContinuum<2>,
     mesh: &CartesianMesh,
     quadrature: &QuadratureRule,
-) -> LinearSystem {
+) -> LinearSystem<f64> {
     let form = derive_cartesian_q1_elasticity_form_2d(program).unwrap();
     let admitted = form.admit_quadrature(quadrature).unwrap();
     let vertex_count = mesh.entity_count(0).unwrap();
@@ -58,7 +58,7 @@ pub(super) fn assemble_loaded_derived_form(
     assembler.finish().unwrap()
 }
 
-fn full_patch_map(mesh: &CartesianMesh, cell_index: usize) -> AssemblyMap {
+fn full_patch_map(mesh: &CartesianMesh, cell_index: usize) -> AssemblyMap<f64> {
     let vertices = mesh
         .entity_vertices(MeshEntity::new(2, cell_index))
         .unwrap();

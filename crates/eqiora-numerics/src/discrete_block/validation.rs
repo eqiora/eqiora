@@ -630,7 +630,7 @@ impl DiscreteBlockSystem {
     pub(super) fn validate_packet(
         &self,
         packet_index: usize,
-        packet: &AssemblyPacket,
+        packet: &AssemblyPacket<f64>,
     ) -> Result<(), Diagnostic> {
         let batch = self
             .contributions

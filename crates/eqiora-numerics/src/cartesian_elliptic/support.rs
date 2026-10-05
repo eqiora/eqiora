@@ -1,9 +1,11 @@
 use super::*;
 
+type FacetContribution = (LocalContribution<f64>, Vec<MeshEntity>);
+
 pub(super) fn natural_fem_facets<B>(
     mesh: &CartesianMesh,
     boundary: &B,
-) -> Result<Vec<(LocalContribution, Vec<MeshEntity>)>, Diagnostic>
+) -> Result<Vec<FacetContribution>, Diagnostic>
 where
     B: Fn(usize, BoundarySide, &[f64]) -> CartesianBoundaryValue + ?Sized,
 {
@@ -173,7 +175,7 @@ where
         &self,
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution, Diagnostic> {
+    ) -> Result<LocalContribution<f64>, Diagnostic> {
         self.compiled
             .evaluate(geometry, quadrature, self.coefficient, self.source)
     }
@@ -191,7 +193,7 @@ where
         &self,
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution, Diagnostic> {
+    ) -> Result<LocalContribution<f64>, Diagnostic> {
         require_geometry_rule(geometry, quadrature)?;
         let mut physical = vec![0.0; geometry.physical_dimension()];
         let mut integral = 0.0;
@@ -240,7 +242,7 @@ impl LocalOperator<f64> for CartesianInteriorFlux {
         &self,
         transmissibility: &f64,
         _quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution, Diagnostic> {
+    ) -> Result<LocalContribution<f64>, Diagnostic> {
         LocalContribution::new(
             2,
             2,
@@ -262,7 +264,7 @@ impl LocalOperator<f64> for CartesianBoundaryFlux {
         &self,
         transmissibility: &f64,
         _quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution, Diagnostic> {
+    ) -> Result<LocalContribution<f64>, Diagnostic> {
         LocalContribution::new(1, 2, vec![*transmissibility, -*transmissibility], vec![0.0])
     }
 }
@@ -297,7 +299,7 @@ pub(super) fn natural_fem_facet_contribution<G>(
     geometry: &AffineGeometryMap,
     quadrature: &QuadratureRule,
     flux: &G,
-) -> Result<LocalContribution, Diagnostic>
+) -> Result<LocalContribution<f64>, Diagnostic>
 where
     G: Fn(&[f64]) -> f64 + ?Sized,
 {

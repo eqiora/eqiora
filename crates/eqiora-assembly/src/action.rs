@@ -1,19 +1,20 @@
 use std::collections::BTreeMap;
 use std::ops::Range;
 
-use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_core::{Diagnostic, Scalar};
 use eqiora_solver::{
     DiagonalAvailability, LinearOperator, OrientedLinearOperator, RowLinearAction,
 };
+use num_complex::ComplexFloat;
 
 use crate::{AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyTargetId, AssemblyWork, DofId};
 
 /// One projected packet row in canonical global-column order.
 #[derive(Debug)]
-struct PacketActionRow {
+struct PacketActionRow<S> {
     row: DofId,
-    entries: Vec<(DofId, f64)>,
+    entries: Vec<(DofId, S)>,
 }
 
 /// Matrix-free complete-vector action over projected local packets.
@@ -26,18 +27,18 @@ struct PacketActionRow {
 /// This is a host-local complete-vector contract. It contains no mesh,
 /// physics, runtime, partition, device, or durable artifact identity.
 #[derive(Debug)]
-pub struct PacketLinearOperator {
+pub struct PacketLinearOperator<S> {
     size: usize,
-    packets: Vec<Vec<PacketActionRow>>,
-    diagonal: Vec<f64>,
+    packets: Vec<Vec<PacketActionRow<S>>>,
+    diagonal: Vec<S>,
 }
 
-impl PacketLinearOperator {
+impl<S: Scalar + ComplexFloat + Sync> PacketLinearOperator<S> {
     fn apply_row_range(
         &self,
         rows: Range<usize>,
-        input: &[f64],
-        output: &mut [f64],
+        input: &[S],
+        output: &mut [S],
     ) -> Result<(), Diagnostic> {
         let row_count = rows
             .end
@@ -57,19 +58,19 @@ impl PacketLinearOperator {
             return Err(solve_failed("packet linear-action input must be finite"));
         }
 
-        output.fill(0.0);
+        output.fill(S::zero());
         for packet in &self.packets {
             for row in packet {
                 let global_row = row.row.index();
                 if global_row < rows.start || global_row >= rows.end {
                     continue;
                 }
-                let mut value = 0.0;
+                let mut value = S::zero();
                 for &(column, coefficient) in &row.entries {
-                    value += coefficient * input[column.index()];
+                    value = value + coefficient * input[column.index()];
                 }
                 let output_value = &mut output[global_row - rows.start];
-                *output_value += value;
+                *output_value = *output_value + value;
                 if !output_value.is_finite() {
                     return Err(solve_failed(format!(
                         "packet linear action became non-finite at global row {global_row}"
@@ -81,8 +82,8 @@ impl PacketLinearOperator {
     }
 }
 
-impl LinearOperator for PacketLinearOperator {
-    type Scalar = f64;
+impl<S: Scalar + ComplexFloat + Sync> LinearOperator for PacketLinearOperator<S> {
+    type Scalar = S;
 
     fn rows(&self) -> usize {
         self.size
@@ -92,15 +93,15 @@ impl LinearOperator for PacketLinearOperator {
         self.size
     }
 
-    fn apply(&self, input: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
+    fn apply(&self, input: &[S], output: &mut [S]) -> Result<(), Diagnostic> {
         self.apply_row_range(0..self.size, input, output)
     }
 
-    fn row_action(&self) -> Option<&dyn RowLinearAction<Scalar = f64>> {
+    fn row_action(&self) -> Option<&dyn RowLinearAction<Scalar = S>> {
         Some(self)
     }
 
-    fn diagonal(&self, output: &mut [f64]) -> Result<DiagonalAvailability, Diagnostic> {
+    fn diagonal(&self, output: &mut [S]) -> Result<DiagonalAvailability, Diagnostic> {
         if output.len() != self.size {
             return Err(solve_failed(format!(
                 "packet operator diagonal requires {} values, received {}",
@@ -113,20 +114,20 @@ impl LinearOperator for PacketLinearOperator {
     }
 }
 
-impl RowLinearAction for PacketLinearOperator {
-    type Scalar = f64;
+impl<S: Scalar + ComplexFloat + Sync> RowLinearAction for PacketLinearOperator<S> {
+    type Scalar = S;
 
     fn apply_rows(
         &self,
         rows: Range<usize>,
-        input: &[f64],
-        output: &mut [f64],
+        input: &[S],
+        output: &mut [S],
     ) -> Result<(), Diagnostic> {
         self.apply_row_range(rows, input, output)
     }
 }
 
-impl OrientedLinearOperator for PacketLinearOperator {
+impl<S: Scalar + ComplexFloat + Sync> OrientedLinearOperator for PacketLinearOperator<S> {
     fn supports_orientation(&self, _orientation: eqiora_solver::LinearOperatorOrientation) -> bool {
         true
     }
@@ -134,8 +135,8 @@ impl OrientedLinearOperator for PacketLinearOperator {
     fn apply_oriented(
         &self,
         orientation: eqiora_solver::LinearOperatorOrientation,
-        input: &[f64],
-        output: &mut [f64],
+        input: &[S],
+        output: &mut [S],
     ) -> Result<(), Diagnostic> {
         if orientation == eqiora_solver::LinearOperatorOrientation::Normal {
             return self.apply(input, output);
@@ -155,13 +156,20 @@ impl OrientedLinearOperator for PacketLinearOperator {
             ));
         }
 
-        output.fill(0.0);
+        output.fill(S::zero());
         for packet in &self.packets {
             for row in packet {
                 let input_value = input[row.row.index()];
                 for &(column, coefficient) in &row.entries {
                     let output_value = &mut output[column.index()];
-                    *output_value += coefficient * input_value;
+                    let coefficient = if orientation
+                        == eqiora_solver::LinearOperatorOrientation::ConjugateTransposed
+                    {
+                        coefficient.conj()
+                    } else {
+                        coefficient
+                    };
+                    *output_value = *output_value + coefficient * input_value;
                     if !output_value.is_finite() {
                         return Err(solve_failed(format!(
                             "transposed packet linear action became non-finite at global row {}",
@@ -183,13 +191,13 @@ impl OrientedLinearOperator for PacketLinearOperator {
 /// the homogeneous operator; fixed-column contributions are moved only to the
 /// right-hand side. No global CSR matrix is built or retained.
 #[derive(Debug)]
-pub struct PacketLinearSystem {
-    operator: PacketLinearOperator,
-    right_hand_side: Vec<f64>,
+pub struct PacketLinearSystem<S> {
+    operator: PacketLinearOperator<S>,
+    right_hand_side: Vec<S>,
     packet_set: AssemblyPacketSetIdentityV1,
 }
 
-impl PacketLinearSystem {
+impl<S: Scalar + ComplexFloat + Sync> PacketLinearSystem<S> {
     /// Project one target of pure indexed assembly work into a matrix-free
     /// host-local system.
     ///
@@ -201,7 +209,7 @@ impl PacketLinearSystem {
     pub fn from_work(
         plan: &AssemblyPlan,
         target: AssemblyTargetId,
-        work: &dyn AssemblyWork,
+        work: &dyn AssemblyWork<S>,
     ) -> Result<Self, Diagnostic> {
         let target_shape = plan.target(target).ok_or_else(|| {
             assembly_failed(format!(
@@ -212,6 +220,7 @@ impl PacketLinearSystem {
         })?;
         let size = target_shape.size();
         let packet_count = work.packet_count();
+        plan.require_packet_count(packet_count)?;
         if packet_count == 0 {
             return Err(assembly_failed(
                 "packet linear system requires at least one logical packet",
@@ -223,22 +232,23 @@ impl PacketLinearSystem {
         right_hand_side
             .try_reserve_exact(size)
             .map_err(|_| assembly_failed("packet system RHS exceeds allocation capacity"))?;
-        right_hand_side.resize(size, 0.0);
+        right_hand_side.resize(size, S::zero());
 
         let mut diagonal = Vec::new();
         diagonal
             .try_reserve_exact(size)
             .map_err(|_| assembly_failed("packet diagonal exceeds allocation capacity"))?;
-        diagonal.resize(size, 0.0);
+        diagonal.resize(size, S::zero());
 
         let mut packets = Vec::new();
         packets
             .try_reserve_exact(packet_count)
             .map_err(|_| assembly_failed("packet action exceeds allocation capacity"))?;
-        let mut structural_entries = BTreeMap::<(DofId, DofId), f64>::new();
+        let mut structural_entries = BTreeMap::<(DofId, DofId), S>::new();
 
         for packet_index in 0..packet_count {
             let packet = work.evaluate(packet_index)?;
+            plan.validate_packet(packet_index, &packet)?;
             let projected = packet.project(plan)?;
             let selected = projected.into_iter().find(|delta| delta.target() == target);
             let Some(selected) = selected else {
@@ -267,8 +277,10 @@ impl PacketLinearSystem {
                         assembly_failed("packet row entries exceed allocation capacity")
                     })?;
                 for &(column, coefficient) in row.entries() {
-                    let accumulated = structural_entries.entry((row.row(), column)).or_insert(0.0);
-                    *accumulated += coefficient;
+                    let accumulated = structural_entries
+                        .entry((row.row(), column))
+                        .or_insert(S::zero());
+                    *accumulated = *accumulated + coefficient;
                     if !accumulated.is_finite() {
                         return Err(assembly_failed(format!(
                             "packet structural accumulation became non-finite at global entry ({global_row}, {})",
@@ -276,7 +288,7 @@ impl PacketLinearSystem {
                         )));
                     }
                     if column == row.row() {
-                        diagonal[global_row] += coefficient;
+                        diagonal[global_row] = diagonal[global_row] + coefficient;
                         if !diagonal[global_row].is_finite() {
                             return Err(assembly_failed(format!(
                                 "packet diagonal became non-finite at global row {global_row}"
@@ -304,7 +316,7 @@ impl PacketLinearSystem {
             .map_err(|_| assembly_failed("packet row gate exceeds allocation capacity"))?;
         structurally_nonempty.resize(size, false);
         for ((row, _), value) in structural_entries {
-            if value != 0.0 {
+            if value != S::zero() {
                 structurally_nonempty[row.index()] = true;
             }
         }
@@ -327,13 +339,13 @@ impl PacketLinearSystem {
 
     /// Matrix-free complete-vector operator.
     #[must_use]
-    pub const fn operator(&self) -> &PacketLinearOperator {
+    pub const fn operator(&self) -> &PacketLinearOperator<S> {
         &self.operator
     }
 
     /// Constraint-aware projected right-hand side.
     #[must_use]
-    pub fn right_hand_side(&self) -> &[f64] {
+    pub fn right_hand_side(&self) -> &[S] {
         &self.right_hand_side
     }
 
@@ -366,7 +378,7 @@ mod tests {
         LocalContribution, LocalUnknown, REFERENCE_ASSEMBLY_BACKEND, TargetAssemblyMap,
     };
 
-    fn nonsymmetric_work(plan: &AssemblyPlan) -> (AssemblyTargetId, Vec<AssemblyPacket>) {
+    fn nonsymmetric_work(plan: &AssemblyPlan) -> (AssemblyTargetId, Vec<AssemblyPacket<f64>>) {
         let target = plan.target_id(0).expect("one-target plan");
         let first = AssemblyPacket::new(
             LocalContribution::new(
@@ -509,7 +521,7 @@ mod tests {
         let target = plan.target_id(0).unwrap();
         let empty = IndexedAssemblyWork::new(0, |_| unreachable!());
         assert_eq!(
-            PacketLinearSystem::from_work(&plan, target, &empty)
+            PacketLinearSystem::<f64>::from_work(&plan, target, &empty)
                 .unwrap_err()
                 .code(),
             codes::ASSEMBLY_FAILED

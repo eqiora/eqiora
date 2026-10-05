@@ -12,10 +12,15 @@
 //! assembly procedure.
 
 mod fields;
+mod residual;
 mod result;
 use fields::{
     fluid_local_size, fluid_row_scales, local_pressure_coefficients, local_velocity_coefficients,
     solid_local_size,
+};
+use residual::{
+    affine_rhs_from_residual, evaluate_affine_residual, finite_norm, require_same_residual,
+    scatter_residual, zeroed,
 };
 pub(super) use result::StepAssembly;
 
@@ -41,11 +46,18 @@ use crate::jacobian_audit::{StructuralJacobianPattern, StructuralJacobianPattern
 use crate::simplicial_fsi::{FixedReferenceFsiPartition, FixedReferenceFsiState};
 use crate::simplicial_fsi::{element::solid_local, layout::FsiLayout};
 
+type MappedCellResidual = (
+    Vec<f64>,
+    AssemblyMap<f64>,
+    AssemblyMap<f64>,
+    CellResidualSource,
+);
+
 struct PreparedAleFsiCell {
     vertices: Vec<MeshEntity>,
-    reduced_map: AssemblyMap,
-    full_map: AssemblyMap,
-    dense_map: AssemblyMap,
+    reduced_map: AssemblyMap<f64>,
+    full_map: AssemblyMap<f64>,
+    dense_map: AssemblyMap<f64>,
     bubble_cell: Option<CellId>,
 }
 
@@ -285,7 +297,7 @@ pub(super) fn assemble_step_linearization<const D: usize>(
     candidate: &[f64],
     plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     base_layout: &FsiLayout<D>,
 ) -> Result<StepAssembly<D>, Diagnostic> {
     let prepared_boundary = match PreparedAleFsiBoundaryStep::from_boundary(boundary) {
@@ -322,7 +334,7 @@ pub(super) fn assemble_step_linearization_prepared<const D: usize>(
     candidate: &[f64],
     plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     base_layout: &FsiLayout<D>,
 ) -> Result<StepAssembly<D>, Diagnostic> {
     let structure = prepare_ale_fsi_structure(
@@ -354,7 +366,7 @@ pub(super) fn assemble_step_linearization_with_structure<const D: usize>(
     candidate: &[f64],
     plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
 ) -> Result<StepAssembly<D>, Diagnostic> {
     let prepared = prepare_step(
         reference, partition, structure, action, motion, previous, plan, candidate,
@@ -398,7 +410,7 @@ pub(super) fn assemble_step_linearization_with_structure<const D: usize>(
         reference, partition, structure, action, previous, candidate, plan, quadrature, &prepared,
     )?;
 
-    let [linear_system]: [eqiora_assembly::LinearSystem; 1] =
+    let [linear_system]: [eqiora_assembly::LinearSystem<f64>; 1] =
         systems.try_into().map_err(|systems: Vec<_>| {
             invalid(format!(
                 "one-target ALE FSI assembly returned {} systems",
@@ -614,20 +626,20 @@ fn assemble_direct_residuals<const D: usize>(
 }
 
 struct EvaluatedCell {
-    packet: AssemblyPacket,
+    packet: AssemblyPacket<f64>,
 }
 
 struct EvaluatedCellResidual {
     residual: Vec<f64>,
-    reduced_map: AssemblyMap,
-    full_map: AssemblyMap,
+    reduced_map: AssemblyMap<f64>,
+    full_map: AssemblyMap<f64>,
     domain: RawId,
     source: CellResidualSource,
 }
 
 enum CellResidualSource {
     Fluid { bubble_cell: CellId },
-    Solid(LocalContribution),
+    Solid(LocalContribution<f64>),
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -844,7 +856,7 @@ fn evaluate_fluid_residual<const D: usize>(
     current: &AleFsiState<D>,
     geometry_action: &FixedTopologyGeometryAction<D>,
     plan: &AleFsiStepPlan<D>,
-) -> Result<(Vec<f64>, AssemblyMap, AssemblyMap, CellResidualSource), Diagnostic> {
+) -> Result<MappedCellResidual, Diagnostic> {
     let (bubble_cell, prepared) = prepare_fluid_cell(
         layout,
         cell_index,
@@ -989,7 +1001,7 @@ fn evaluate_solid_residual<const D: usize>(
     previous: &FixedReferenceFsiState<D>,
     plan: &AleFsiStepPlan<D>,
     candidate: &[f64],
-) -> Result<(Vec<f64>, AssemblyMap, AssemblyMap, CellResidualSource), Diagnostic> {
+) -> Result<MappedCellResidual, Diagnostic> {
     let geometry = reference.geometry_map(entity).ok_or_else(|| {
         invalid(format!(
             "ALE FSI solid cell {cell_index} has no reference affine geometry"
@@ -1024,8 +1036,8 @@ fn evaluate_solid_residual<const D: usize>(
 }
 
 fn embed_solid_jacobian(
-    local: &LocalContribution,
-    reduced_map: &AssemblyMap,
+    local: &LocalContribution<f64>,
+    reduced_map: &AssemblyMap<f64>,
     candidate_width: usize,
 ) -> Result<Vec<f64>, Diagnostic> {
     if reduced_map.unknowns().len() != local.columns() {
@@ -1139,7 +1151,7 @@ fn build_structural_jacobian_pattern<const D: usize>(
     pattern.finish()
 }
 
-fn local_point(map: &AssemblyMap, candidate: &[f64]) -> Result<Vec<f64>, Diagnostic> {
+fn local_point(map: &AssemblyMap<f64>, candidate: &[f64]) -> Result<Vec<f64>, Diagnostic> {
     map.unknowns()
         .iter()
         .map(|unknown| match unknown {
@@ -1166,134 +1178,6 @@ fn require_simplex_closure<const D: usize>(
         )));
     }
     Ok(())
-}
-
-fn evaluate_affine_residual(
-    local: &LocalContribution,
-    point: &[f64],
-) -> Result<Vec<f64>, Diagnostic> {
-    let entry_count = local
-        .rows()
-        .checked_mul(local.columns())
-        .ok_or_else(|| invalid("ALE FSI affine local matrix shape overflows usize"))?;
-    if local.columns() != point.len() || local.matrix().len() != entry_count {
-        return Err(invalid(
-            "ALE FSI affine residual point differs from its local matrix shape",
-        ));
-    }
-    let residual = local
-        .matrix()
-        .chunks_exact(local.columns())
-        .zip(local.rhs())
-        .map(|(row, rhs)| {
-            row.iter()
-                .zip(point)
-                .map(|(entry, value)| entry * value)
-                .sum::<f64>()
-                - rhs
-        })
-        .collect::<Vec<_>>();
-    if residual.len() != local.rows() || residual.iter().any(|value| !value.is_finite()) {
-        return Err(invalid(
-            "ALE FSI affine local residual is non-finite or differs from its row closure",
-        ));
-    }
-    Ok(residual)
-}
-
-fn affine_rhs_from_residual(
-    matrix: &[f64],
-    point: &[f64],
-    residual: &[f64],
-) -> Result<Vec<f64>, Diagnostic> {
-    let entry_count = residual
-        .len()
-        .checked_mul(point.len())
-        .ok_or_else(|| invalid("ALE FSI dense local matrix shape overflows usize"))?;
-    if matrix.len() != entry_count {
-        return Err(invalid(
-            "ALE FSI dense Jacobian differs from its residual and candidate shape",
-        ));
-    }
-    let rhs = matrix
-        .chunks_exact(point.len())
-        .zip(residual)
-        .map(|(row, residual)| {
-            row.iter()
-                .zip(point)
-                .map(|(entry, value)| entry * value)
-                .sum::<f64>()
-                - residual
-        })
-        .collect::<Vec<_>>();
-    if rhs.len() != residual.len() || rhs.iter().any(|value| !value.is_finite()) {
-        return Err(invalid(
-            "ALE FSI captured local right-hand side is non-finite or has the wrong row shape",
-        ));
-    }
-    Ok(rhs)
-}
-
-fn scatter_residual(
-    output: &mut [f64],
-    equations: &[Option<DofId>],
-    local: &[f64],
-) -> Result<(), Diagnostic> {
-    if equations.len() != local.len() {
-        return Err(invalid(
-            "ALE FSI direct residual shape differs from its equation map",
-        ));
-    }
-    for (equation, value) in equations.iter().zip(local) {
-        if let Some(equation) = equation {
-            let destination = output.get_mut(equation.index()).ok_or_else(|| {
-                invalid("ALE FSI residual equation is outside its assembly target")
-            })?;
-            *destination += value;
-        }
-    }
-    Ok(())
-}
-
-fn require_same_residual(direct: &[f64], reconstructed: &[f64]) -> Result<(), Diagnostic> {
-    if direct.len() != reconstructed.len() {
-        return Err(invalid(
-            "captured ALE FSI relation residual shape differs from direct assembly",
-        ));
-    }
-    let scale = direct
-        .iter()
-        .chain(reconstructed)
-        .fold(1.0_f64, |scale, value| scale.max(value.abs()));
-    let defect = direct
-        .iter()
-        .zip(reconstructed)
-        .fold(0.0_f64, |defect, (direct, reconstructed)| {
-            defect.max((direct - reconstructed).abs())
-        });
-    if defect > 65_536.0 * f64::EPSILON * scale {
-        return Err(invalid(
-            "captured ALE FSI relation does not reproduce its independently assembled residual",
-        ));
-    }
-    Ok(())
-}
-
-fn finite_norm(values: &[f64], name: &'static str) -> Result<f64, Diagnostic> {
-    let norm = values.iter().map(|value| value * value).sum::<f64>().sqrt();
-    if !norm.is_finite() {
-        return Err(invalid(format!("{name} norm is non-finite")));
-    }
-    Ok(norm)
-}
-
-fn zeroed(length: usize, name: &'static str) -> Result<Vec<f64>, Diagnostic> {
-    let mut values = Vec::new();
-    values
-        .try_reserve_exact(length)
-        .map_err(|_| invalid(format!("ALE FSI {name} allocation failed")))?;
-    values.resize(length, 0.0);
-    Ok(values)
 }
 
 #[cfg(test)]

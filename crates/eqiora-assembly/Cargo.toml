@@ -10,6 +10,8 @@ rust-version.workspace = true
 [dependencies]
 eqiora-core = { workspace = true }
 eqiora-solver = { workspace = true }
+num-complex = { workspace = true }
+num-traits = { workspace = true }
 
 [lints]
 workspace = true

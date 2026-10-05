@@ -26,13 +26,13 @@ mod cuda_runtime {
         PreconditionerPolicy, ReductionPolicy, SolverPlan,
     };
 
-    fn matrix() -> eqiora_assembly::CsrMatrix {
+    fn matrix() -> eqiora_assembly::CsrMatrix<f64> {
         system(vec![4.0, -1.0, -1.0, 3.0], vec![0.0, 0.0])
             .matrix()
             .clone()
     }
 
-    fn system(matrix: Vec<f64>, rhs: Vec<f64>) -> eqiora_assembly::LinearSystem {
+    fn system(matrix: Vec<f64>, rhs: Vec<f64>) -> eqiora_assembly::LinearSystem<f64> {
         let local = LocalContribution::new(2, 2, matrix, rhs).unwrap();
         let map = AssemblyMap::new(
             vec![Some(DofId::new(0)), Some(DofId::new(1))],

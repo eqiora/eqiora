@@ -23,8 +23,8 @@ pub(crate) struct CartesianLinearAssembly {
     pub(crate) fields: Vec<(RawId, ValueType)>,
     pub(crate) mesh: CartesianMesh,
     pub(crate) constraints: ConstrainedDofLayout,
-    pub(crate) system: LinearSystem,
-    pub(crate) full_system: LinearSystem,
+    pub(crate) system: LinearSystem<f64>,
+    pub(crate) full_system: LinearSystem<f64>,
     pub(crate) report: AssemblyReport,
     // Physical steady source only: transient RHS also contains history.
     source_integrals: Option<Vec<f64>>,
@@ -73,7 +73,7 @@ impl CartesianLinearAssembly {
         form: &CompiledLinearBlockForm,
         mesh: &CartesianMesh,
         quadrature: &QuadratureRule,
-        backend: &dyn AssemblyBackend,
+        backend: &dyn AssemblyBackend<f64>,
         boundaries: &BTreeMap<(usize, BoundarySide), RawId>,
     ) -> Result<Self, Diagnostic> {
         Self::assemble_inner(form, mesh, quadrature, backend, boundaries, None)
@@ -83,7 +83,7 @@ impl CartesianLinearAssembly {
         form: &CompiledLinearBlockForm,
         mesh: &CartesianMesh,
         quadrature: &QuadratureRule,
-        backend: &dyn AssemblyBackend,
+        backend: &dyn AssemblyBackend<f64>,
         boundaries: &BTreeMap<(usize, BoundarySide), RawId>,
         previous: &[f64],
     ) -> Result<Self, Diagnostic> {
@@ -99,7 +99,7 @@ impl CartesianLinearAssembly {
         form: &CompiledLinearBlockForm,
         mesh: &CartesianMesh,
         quadrature: &QuadratureRule,
-        backend: &dyn AssemblyBackend,
+        backend: &dyn AssemblyBackend<f64>,
         boundaries: &BTreeMap<(usize, BoundarySide), RawId>,
         previous: Option<&[f64]>,
     ) -> Result<Self, Diagnostic> {
@@ -236,7 +236,7 @@ impl CartesianLinearAssembly {
             AssemblyTarget::new(constraints.free_count())?,
             AssemblyTarget::new(count)?,
         ])?;
-        let maps = |globals: &[usize]| -> Result<Vec<TargetAssemblyMap>, Diagnostic> {
+        let maps = |globals: &[usize]| -> Result<Vec<TargetAssemblyMap<f64>>, Diagnostic> {
             Ok(vec![
                 TargetAssemblyMap::new(
                     plan.target_id(0).expect("reduced target"),

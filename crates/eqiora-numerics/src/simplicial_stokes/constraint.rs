@@ -15,7 +15,7 @@ impl LocalOperator<AffineGeometryMap> for MiniPressureMeanConstraintCell {
         &self,
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution, Diagnostic> {
+    ) -> Result<LocalContribution<f64>, Diagnostic> {
         let pressure_integrals = integrated_pressure_basis(geometry, quadrature)?;
         let mut matrix = vec![0.0; CONSTRAINT_LOCAL_DOF_COUNT * CONSTRAINT_LOCAL_DOF_COUNT];
         for (pressure, value) in pressure_integrals.into_iter().enumerate() {

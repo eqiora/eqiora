@@ -143,7 +143,7 @@ impl FiniteConstraintProblem {
         &self,
         values: &[f64],
         selected: &[Id<kinds::Parameter>],
-    ) -> Result<(ExpressionLinearization, CsrMatrix), Diagnostic> {
+    ) -> Result<(ExpressionLinearization, CsrMatrix<f64>), Diagnostic> {
         let n = self.coordinate_count();
         if values.len() != n || values.iter().any(|value| !value.is_finite()) {
             return Err(invalid(

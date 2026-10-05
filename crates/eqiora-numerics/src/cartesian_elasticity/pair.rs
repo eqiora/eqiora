@@ -219,9 +219,9 @@ pub(crate) struct FinalizedConformingCartesianElasticityPair2dAssembly {
     meshes: [CartesianMesh; 2],
     interface_map: ConformingCartesianInterfaceMap2d,
     constrained_dofs: ConstrainedDofLayout,
-    linear_system: eqiora_assembly::LinearSystem,
-    full_system: eqiora_assembly::LinearSystem,
-    subdomain_systems: [eqiora_assembly::LinearSystem; 2],
+    linear_system: eqiora_assembly::LinearSystem<f64>,
+    full_system: eqiora_assembly::LinearSystem<f64>,
+    subdomain_systems: [eqiora_assembly::LinearSystem<f64>; 2],
     integrated_body_force: [[f64; COMPONENTS]; 2],
     assembly_report: AssemblyReport,
 }
@@ -270,8 +270,8 @@ pub(crate) struct FinalizedConformingCartesianElasticityPair2dState {
     meshes: [CartesianMesh; 2],
     interface_map: ConformingCartesianInterfaceMap2d,
     constrained_dofs: ConstrainedDofLayout,
-    full_system: eqiora_assembly::LinearSystem,
-    subdomain_systems: [eqiora_assembly::LinearSystem; 2],
+    full_system: eqiora_assembly::LinearSystem<f64>,
+    subdomain_systems: [eqiora_assembly::LinearSystem<f64>; 2],
     integrated_body_force: [[f64; COMPONENTS]; 2],
     assembly_report: AssemblyReport,
 }
@@ -377,7 +377,7 @@ pub(crate) fn finalize_conforming_cartesian_q1_linear_elasticity_pair_2d(
     quadrature: &QuadratureRule,
     interface_axis: usize,
     essential_sides: [CartesianEssentialSides2d; 2],
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
 ) -> Result<FinalizedConformingCartesianElasticityPair2dAssembly, Diagnostic> {
     for subdomain in 0..2 {
         require_two_dimensional_mesh(&meshes[subdomain])?;
@@ -506,7 +506,7 @@ pub(crate) fn finalize_conforming_cartesian_q1_linear_elasticity_pair_2d(
         )
     });
     let (systems, assembly_report) = assembly.assemble(&plan, &work)?.into_parts();
-    let [linear_system, full_system, negative_system, positive_system]: [eqiora_assembly::LinearSystem; 4] =
+    let [linear_system, full_system, negative_system, positive_system]: [eqiora_assembly::LinearSystem<f64>; 4] =
         systems.try_into().map_err(|systems: Vec<_>| {
             invalid(format!(
                 "conforming elasticity assembly returned {} targets instead of four",
@@ -639,7 +639,7 @@ fn build_interface_map(
     })
 }
 
-fn identity_map(dofs: &[usize]) -> Result<AssemblyMap, Diagnostic> {
+fn identity_map(dofs: &[usize]) -> Result<AssemblyMap<f64>, Diagnostic> {
     AssemblyMap::new(
         dofs.iter().map(|dof| Some(DofId::new(*dof))).collect(),
         dofs.iter()

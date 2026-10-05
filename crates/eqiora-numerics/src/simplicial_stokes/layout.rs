@@ -102,7 +102,7 @@ impl MixedLayout {
         cell: usize,
         vertices: &[MeshEntity],
         fixed_velocity: &[Option<[f64; COMPONENTS]>],
-    ) -> Result<AssemblyMap, Diagnostic> {
+    ) -> Result<AssemblyMap<f64>, Diagnostic> {
         let mut equations = Vec::with_capacity(CELL_LOCAL_DOF_COUNT);
         let mut unknowns = Vec::with_capacity(CELL_LOCAL_DOF_COUNT);
         self.append_reduced_vertex_velocity(
@@ -128,7 +128,7 @@ impl MixedLayout {
         &self,
         cell: usize,
         vertices: &[MeshEntity],
-    ) -> Result<AssemblyMap, Diagnostic> {
+    ) -> Result<AssemblyMap<f64>, Diagnostic> {
         let mut dofs = Vec::with_capacity(CELL_LOCAL_DOF_COUNT);
         self.append_full_vertex_velocity(vertices, &mut dofs);
         for component in 0..COMPONENTS {
@@ -143,7 +143,7 @@ impl MixedLayout {
     pub(crate) fn reduced_constraint_map(
         &self,
         vertices: &[MeshEntity],
-    ) -> Result<AssemblyMap, Diagnostic> {
+    ) -> Result<AssemblyMap<f64>, Diagnostic> {
         let gauge = self
             .gauge
             .expect("constraint map exists only with a zero-integral gauge")
@@ -160,7 +160,7 @@ impl MixedLayout {
     pub(crate) fn full_constraint_map(
         &self,
         vertices: &[MeshEntity],
-    ) -> Result<AssemblyMap, Diagnostic> {
+    ) -> Result<AssemblyMap<f64>, Diagnostic> {
         let gauge = self
             .gauge
             .expect("constraint map exists only with a zero-integral gauge")
@@ -178,7 +178,7 @@ impl MixedLayout {
         &self,
         vertices: &[MeshEntity],
         fixed_velocity: &[Option<[f64; COMPONENTS]>],
-    ) -> Result<AssemblyMap, Diagnostic> {
+    ) -> Result<AssemblyMap<f64>, Diagnostic> {
         let mut equations = Vec::with_capacity(FACET_LOCAL_DOF_COUNT);
         let mut unknowns = Vec::with_capacity(FACET_LOCAL_DOF_COUNT);
         self.append_reduced_vertex_velocity(
@@ -193,7 +193,7 @@ impl MixedLayout {
     pub(crate) fn full_facet_map(
         &self,
         vertices: &[MeshEntity],
-    ) -> Result<AssemblyMap, Diagnostic> {
+    ) -> Result<AssemblyMap<f64>, Diagnostic> {
         let mut dofs = Vec::with_capacity(FACET_LOCAL_DOF_COUNT);
         self.append_full_vertex_velocity(vertices, &mut dofs);
         identity_map(&dofs)
@@ -204,7 +204,7 @@ impl MixedLayout {
         vertices: impl Iterator<Item = &'a MeshEntity>,
         fixed_velocity: &[Option<[f64; COMPONENTS]>],
         equations: &mut Vec<Option<DofId>>,
-        unknowns: &mut Vec<LocalUnknown>,
+        unknowns: &mut Vec<LocalUnknown<f64>>,
     ) {
         for vertex in vertices {
             let vertex = vertex.index();
@@ -371,7 +371,7 @@ type ReconstructedFields = (
     Option<f64>,
 );
 
-fn identity_map(dofs: &[usize]) -> Result<AssemblyMap, Diagnostic> {
+fn identity_map(dofs: &[usize]) -> Result<AssemblyMap<f64>, Diagnostic> {
     AssemblyMap::new(
         dofs.iter().map(|dof| Some(DofId::new(*dof))).collect(),
         dofs.iter()

@@ -51,7 +51,7 @@ pub(super) struct StepAssembly {
     pub(super) named_reaction_vertices: Arc<Vec<(String, Vec<usize>)>>,
     pub(super) assembly_report: AssemblyReport,
     evaluated_packets: Vec<EvaluatedStepPacket>,
-    full_maps: Arc<Vec<Arc<AssemblyMap>>>,
+    full_maps: Arc<Vec<Arc<AssemblyMap<f64>>>>,
 }
 
 impl StepAssembly {
@@ -119,7 +119,7 @@ impl StepAssembly {
 
 #[derive(Clone)]
 struct EvaluatedStepPacket {
-    assembly: AssemblyPacket,
+    assembly: AssemblyPacket<f64>,
     residual: Vec<f64>,
 }
 
@@ -132,13 +132,13 @@ pub(crate) struct PreparedStepStructure {
     boundary: PreparedBoundary2d,
     layout: Arc<MixedLayout>,
     named_reaction_vertices: Arc<Vec<(String, Vec<usize>)>>,
-    reduced_maps: Vec<Arc<AssemblyMap>>,
-    full_maps: Arc<Vec<Arc<AssemblyMap>>>,
+    reduced_maps: Vec<Arc<AssemblyMap<f64>>>,
+    full_maps: Arc<Vec<Arc<AssemblyMap<f64>>>>,
     local_sizes: Vec<usize>,
     reduced_assembly_plan: AssemblyPlan,
     cell_geometries: Vec<AffineGeometryMap>,
     cell_quadrature: QuadratureRule,
-    constraint_contributions: Vec<LocalContribution>,
+    constraint_contributions: Vec<LocalContribution<f64>>,
     facet_geometries: Vec<AffineGeometryMap>,
     facet_incidence: Vec<eqiora_meshing::EntityIncidence>,
     facet_parent_vertices: Vec<Vec<usize>>,
@@ -211,7 +211,7 @@ struct PreparedStepPoint<'a> {
 }
 
 impl PreparedStepPoint<'_> {
-    fn reduced_map(&self, packet: usize) -> Result<&AssemblyMap, Diagnostic> {
+    fn reduced_map(&self, packet: usize) -> Result<&AssemblyMap<f64>, Diagnostic> {
         self.structure
             .reduced_maps
             .get(packet)
@@ -602,7 +602,7 @@ pub(super) fn assemble_step_linearization<F, B>(
     plan: MiniNavierStokesStepPlan2d,
     cell_quadrature: &QuadratureRule,
     facet_quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
 ) -> Result<StepAssembly, Diagnostic>
 where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
@@ -626,7 +626,7 @@ pub(crate) fn assemble_step_linearization_prepared(
     previous: &SimplicialMiniNavierStokesState2d,
     candidate: &[f64],
     plan: MiniNavierStokesStepPlan2d,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
 ) -> Result<StepAssembly, Diagnostic> {
     let forms = prepared.cells(&plan)?;
     let step = prepare_step_point(mesh, prepared, previous, candidate)?;
@@ -753,7 +753,7 @@ pub(crate) fn assemble_step_linearization_prepared(
     let _finalization =
         eqiora_execution::telemetry_span!(backend("assembly_finalization", "fixed-domain-mini"))
             .entered();
-    let [linear_system]: [eqiora_assembly::LinearSystem; 1] =
+    let [linear_system]: [eqiora_assembly::LinearSystem<f64>; 1] =
         systems.try_into().map_err(|systems: Vec<_>| {
             invalid(format!(
                 "one-target transient MINI assembly returned {} systems",
@@ -804,8 +804,8 @@ pub(crate) fn assemble_step_linearization_prepared(
 }
 
 fn evaluate_linear_residual(
-    local: &LocalContribution,
-    map: &AssemblyMap,
+    local: &LocalContribution<f64>,
+    map: &AssemblyMap<f64>,
     global_point: &[f64],
 ) -> Result<Vec<f64>, Diagnostic> {
     let local_point = mapped_local_point(map, global_point)?;
@@ -813,7 +813,7 @@ fn evaluate_linear_residual(
 }
 
 fn evaluate_local_residual(
-    local: &LocalContribution,
+    local: &LocalContribution<f64>,
     local_point: &[f64],
 ) -> Result<Vec<f64>, Diagnostic> {
     if local_point.len() != local.columns() {
@@ -835,7 +835,10 @@ fn evaluate_local_residual(
         .collect())
 }
 
-fn mapped_local_point(map: &AssemblyMap, global_point: &[f64]) -> Result<Vec<f64>, Diagnostic> {
+fn mapped_local_point(
+    map: &AssemblyMap<f64>,
+    global_point: &[f64],
+) -> Result<Vec<f64>, Diagnostic> {
     map.unknowns()
         .iter()
         .map(|unknown| match unknown {
@@ -849,7 +852,7 @@ fn mapped_local_point(map: &AssemblyMap, global_point: &[f64]) -> Result<Vec<f64
 
 fn scatter_residual(
     output: &mut [f64],
-    map: &AssemblyMap,
+    map: &AssemblyMap<f64>,
     local_residual: &[f64],
 ) -> Result<(), Diagnostic> {
     if map.equations().len() != local_residual.len() {

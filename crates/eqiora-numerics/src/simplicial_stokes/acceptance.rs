@@ -99,7 +99,7 @@ pub(super) fn require_compatible_boundary_flux(
 }
 
 pub(crate) fn require_weak_incompressibility(
-    full_system: &LinearSystem,
+    full_system: &LinearSystem<f64>,
     residual: &[f64],
     layout: &MixedLayout,
     gauge_multiplier: Option<f64>,

@@ -21,7 +21,7 @@ pub(crate) fn p1_solid_backward_euler_velocity<const D: usize>(
     previous_vertex_displacement: &[[f64; D]],
     velocity_scale: f64,
     power_scale: f64,
-) -> Result<LocalContribution, Diagnostic> {
+) -> Result<LocalContribution<f64>, Diagnostic> {
     require_contract::<D>(geometry, quadrature, density)?;
     let space = SimplexP1Space::new(D)?;
     let basis_count = space.local_dofs().len();

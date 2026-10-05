@@ -30,12 +30,12 @@ struct FailFirstAssembly {
     calls: AtomicUsize,
 }
 
-impl AssemblyBackend for FailFirstAssembly {
+impl AssemblyBackend<f64> for FailFirstAssembly {
     fn assemble(
         &self,
         plan: &AssemblyPlan,
-        work: &dyn AssemblyWork,
-    ) -> Result<AssemblyResult, Diagnostic> {
+        work: &dyn AssemblyWork<f64>,
+    ) -> Result<AssemblyResult<f64>, Diagnostic> {
         if self.calls.fetch_add(1, Ordering::SeqCst) == 0 {
             return Err(Diagnostic::error(
                 codes::ASSEMBLY_FAILED,

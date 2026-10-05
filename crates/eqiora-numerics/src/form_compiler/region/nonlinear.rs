@@ -21,7 +21,10 @@ pub(crate) struct RegionLinearization {
 }
 
 impl RegionLinearization {
-    pub(crate) fn into_contribution(self, point: &[f64]) -> Result<LocalContribution, Diagnostic> {
+    pub(crate) fn into_contribution(
+        self,
+        point: &[f64],
+    ) -> Result<LocalContribution<f64>, Diagnostic> {
         let count = self.residual.len();
         if point.len() != count {
             return Err(invalid("region linearization point shape mismatch"));
@@ -46,7 +49,7 @@ impl BoundRegionForm {
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
         datum: impl Fn(&[f64]) -> Result<Vec<f64>, Diagnostic>,
-    ) -> Result<LocalContribution, Diagnostic> {
+    ) -> Result<LocalContribution<f64>, Diagnostic> {
         let row = self
             .fields
             .iter()

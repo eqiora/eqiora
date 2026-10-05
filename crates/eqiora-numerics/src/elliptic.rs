@@ -246,7 +246,7 @@ pub fn solve_scalar_elliptic_linear_fem_with_assembly<K, S>(
     source: &S,
     boundary: ScalarBoundaryPair1d,
     quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     solver: LinearSolveRequest<'_>,
 ) -> Result<ScalarEllipticSolution1d, Diagnostic>
 where
@@ -410,7 +410,7 @@ where
         &self,
         geometry: &SegmentGeometry1d,
         quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution, Diagnostic> {
+    ) -> Result<LocalContribution<f64>, Diagnostic> {
         require_segment_rule(quadrature)?;
         let derivatives = [-1.0 / geometry.measure(), 1.0 / geometry.measure()];
         let mut matrix = vec![0.0; 4];
@@ -467,7 +467,7 @@ impl<K: ?Sized, S: ?Sized> std::fmt::Debug for EllipticAssemblyWork<'_, K, S> {
     }
 }
 
-impl<K, S> AssemblyWork for EllipticAssemblyWork<'_, K, S>
+impl<K, S> AssemblyWork<f64> for EllipticAssemblyWork<'_, K, S>
 where
     K: Fn(f64) -> f64 + Sync + ?Sized,
     S: Fn(f64) -> f64 + Sync + ?Sized,
@@ -480,7 +480,7 @@ where
         self.mesh.cell_count() + self.natural_boundaries.len()
     }
 
-    fn evaluate(&self, packet_index: usize) -> Result<AssemblyPacket, Diagnostic> {
+    fn evaluate(&self, packet_index: usize) -> Result<AssemblyPacket<f64>, Diagnostic> {
         if packet_index < self.mesh.cell_count() {
             self.cell_packet(CellId::new(packet_index))
         } else {
@@ -504,7 +504,7 @@ where
     K: Fn(f64) -> f64 + ?Sized,
     S: Fn(f64) -> f64 + ?Sized,
 {
-    fn cell_packet(&self, cell: CellId) -> Result<AssemblyPacket, Diagnostic> {
+    fn cell_packet(&self, cell: CellId) -> Result<AssemblyPacket<f64>, Diagnostic> {
         let geometry = self
             .mesh
             .cell_geometry(cell)
@@ -540,7 +540,7 @@ where
     fn natural_packet(
         &self,
         boundary: NaturalBoundaryPacket,
-    ) -> Result<AssemblyPacket, Diagnostic> {
+    ) -> Result<AssemblyPacket<f64>, Diagnostic> {
         let free = boundary.free.ok_or_else(|| {
             assembly_failed("a natural endpoint must map to a free algebraic unknown")
         })?;
@@ -560,7 +560,7 @@ where
         )
     }
 
-    fn local_unknown(&self, vertex: usize) -> LocalUnknown {
+    fn local_unknown(&self, vertex: usize) -> LocalUnknown<f64> {
         let essential = if vertex == 0 {
             self.essential[0]
         } else if vertex + 1 == self.mesh.vertex_count() {

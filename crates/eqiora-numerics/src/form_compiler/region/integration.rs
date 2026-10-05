@@ -24,7 +24,7 @@ pub(super) fn integrate(
     geometry: &AffineGeometryMap,
     quadrature: &QuadratureRule,
     values: impl Fn(&[f64], &mut [f64], &mut [f64], &mut [f64]) -> Result<(), Diagnostic>,
-) -> Result<LocalContribution, Diagnostic> {
+) -> Result<LocalContribution<f64>, Diagnostic> {
     let dimension = reference.dimension();
     if fields.is_empty()
         || geometry.reference_cell() != reference
@@ -159,7 +159,7 @@ pub(in crate::form_compiler) fn integrate_scalar(
     geometry: &AffineGeometryMap,
     quadrature: &QuadratureRule,
     values: impl Fn(&[f64]) -> Result<(f64, f64), Diagnostic>,
-) -> Result<LocalContribution, Diagnostic> {
+) -> Result<LocalContribution<f64>, Diagnostic> {
     integrate(
         ReferenceCell::hypercube(dimension)?,
         &[(Space::continuous_lagrange(std::num::NonZeroU16::MIN), 1)],

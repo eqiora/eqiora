@@ -26,7 +26,7 @@ where
         &self,
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution, Diagnostic> {
+    ) -> Result<LocalContribution<f64>, Diagnostic> {
         require_local_geometry(geometry, quadrature)?;
         let inverse = geometry.inverse_jacobian()?;
         let spaces = MiniSpaces::new()?;
@@ -231,7 +231,7 @@ mod tests {
     }
 
     fn velocity_energy(
-        local: &LocalContribution,
+        local: &LocalContribution<f64>,
         coefficients: &[f64; LOCAL_VELOCITY_DOF_COUNT],
     ) -> f64 {
         coefficients

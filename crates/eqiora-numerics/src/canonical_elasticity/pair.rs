@@ -296,7 +296,7 @@ pub fn solve_resolved_conforming_isotropic_elasticity_cartesian_pair_2d(
 pub fn solve_resolved_conforming_isotropic_elasticity_cartesian_pair_2d_with_assembly(
     program: &KernelProgram,
     resolved: &ResolvedRealization,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     backend: &dyn LinearSolverBackend,
 ) -> Result<
     (
@@ -347,7 +347,7 @@ pub fn finalize_resolved_conforming_isotropic_elasticity_cartesian_pair_2d(
 pub fn finalize_resolved_conforming_isotropic_elasticity_cartesian_pair_2d_with_assembly(
     program: &KernelProgram,
     resolved: &ResolvedRealization,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
 ) -> Result<
     (
         ConformingIsotropicElasticityCartesianPair2d,

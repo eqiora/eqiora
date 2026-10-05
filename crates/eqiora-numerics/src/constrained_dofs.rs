@@ -68,10 +68,10 @@ impl ConstrainedDofLayout {
 
     pub(crate) fn assemble(
         &self,
-        backend: &dyn AssemblyBackend,
+        backend: &dyn AssemblyBackend<f64>,
         packet_count: usize,
-        contribution: impl Fn(usize) -> Result<(LocalContribution, Vec<usize>), Diagnostic> + Sync,
-    ) -> Result<(LinearSystem, LinearSystem, AssemblyReport), Diagnostic> {
+        contribution: impl Fn(usize) -> Result<(LocalContribution<f64>, Vec<usize>), Diagnostic> + Sync,
+    ) -> Result<(LinearSystem<f64>, LinearSystem<f64>, AssemblyReport), Diagnostic> {
         let plan = AssemblyPlan::new(vec![
             AssemblyTarget::new(self.free_count)?,
             AssemblyTarget::new(self.fixed_values.len())?,
@@ -113,7 +113,10 @@ impl ConstrainedDofLayout {
         globals
     }
 
-    pub(crate) fn reduced_map(&self, global_dofs: &[usize]) -> Result<AssemblyMap, Diagnostic> {
+    pub(crate) fn reduced_map(
+        &self,
+        global_dofs: &[usize],
+    ) -> Result<AssemblyMap<f64>, Diagnostic> {
         let mut equations = Vec::with_capacity(global_dofs.len());
         let mut unknowns = Vec::with_capacity(global_dofs.len());
         for &global in global_dofs {
@@ -133,7 +136,7 @@ impl ConstrainedDofLayout {
         AssemblyMap::new(equations, unknowns)
     }
 
-    pub(crate) fn full_map(&self, global_dofs: &[usize]) -> Result<AssemblyMap, Diagnostic> {
+    pub(crate) fn full_map(&self, global_dofs: &[usize]) -> Result<AssemblyMap<f64>, Diagnostic> {
         for &global in global_dofs {
             if global >= self.fixed_values.len() {
                 return Err(invalid(
@@ -222,7 +225,7 @@ impl ConstrainedDofLayout {
 
     pub(crate) fn full_residual(
         &self,
-        system: &LinearSystem,
+        system: &LinearSystem<f64>,
         values: &[f64],
     ) -> Result<Vec<f64>, Diagnostic> {
         if values.len() != self.fixed_values.len() {
