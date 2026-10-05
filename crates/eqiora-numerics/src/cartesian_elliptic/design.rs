@@ -41,7 +41,16 @@ pub(super) fn select_design_coordinates(
     let mut actions = Vec::with_capacity(selected.len());
     for coordinate in selected {
         match *coordinate {
-            SpatialDesignCoordinate::ModelParameter(field) => {
+            SpatialDesignCoordinate::ModelParameter {
+                parameter: field,
+                component,
+                imaginary,
+            } => {
+                if component != 0 || imaginary {
+                    return Err(invalid(
+                        "Cartesian scalar Parameter requires its real scalar coordinate",
+                    ));
+                }
                 let Some(index) = model
                     .parameter_fields()
                     .iter()

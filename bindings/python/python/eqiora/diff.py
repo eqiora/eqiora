@@ -51,10 +51,13 @@ def compile(plan, *, inputs, output, state=None):
     cotangents are exact CPU ``float64`` arrays. Finite nonlinear Plans require
     their initial ``state`` and an Observable output; spatial scalar Plans
     select a Field output. Finite affine Plans need no seed, and support real
-    Observable sensitivities to real scalar Parameters with real or complex
+    Observable sensitivities to typed real or complex Parameters with real or complex
     Field coordinates, including conjugate dependence. Complex actions use the
     real differential and pairing ``Re(sum(conj(a)*b))``; they do not assume
-    holomorphic dependence.
+    holomorphic dependence. Input arrays concatenate selected Parameters in
+    selection order, with row-major components and real then imaginary parts
+    for each complex component. ``input_ids`` lists Parameter identities;
+    ``input_shape`` counts their real numerical coordinates.
     """
 
     return _compile_differentiable(

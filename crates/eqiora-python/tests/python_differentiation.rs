@@ -59,6 +59,7 @@ sys.modules["eqiora._eqiora"] = native
 spec.loader.exec_module(eqiora)
 exec(complex_tests, globals())
 test_common_complex_sensitivity_uses_real_pairing_at_each_parameter_point()
+test_common_typed_parameter_coordinates_preserve_selected_order_and_complex_parts()
 
 graph = eqiora.geometry.GeometryGraph()
 rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))

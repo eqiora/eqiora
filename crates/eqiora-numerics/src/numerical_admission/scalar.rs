@@ -555,7 +555,7 @@ impl CommonScalarPlan {
         let coordinates = selected
             .iter()
             .copied()
-            .map(SpatialDesignCoordinate::ModelParameter)
+            .map(SpatialDesignCoordinate::from)
             .collect::<Vec<_>>();
         let (relation, output) = match &solution {
             ResolvedScalarEllipticCartesianSolution::FiniteElement(solution) => {

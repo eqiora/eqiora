@@ -212,7 +212,8 @@ impl DifferentiableProgramIdentity {
 /// The canonical Model stores the program's default values. A point binds
 /// only the Parameters promoted to program inputs; unselected Parameters stay
 /// frozen at their canonical values. Point values are coherent-SI `f64`
-/// scalars and never mutate the Model or Plan.
+/// scalars ordered by selected Parameter, row-major component, then real and
+/// imaginary parts of each complex component. They never mutate the Model or Plan.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DifferentiableParameterPoint {
     inputs: Vec<Id<kinds::Parameter>>,
@@ -226,7 +227,7 @@ impl DifferentiableParameterPoint {
         &self.inputs
     }
 
-    /// Complete finite values in exact input order.
+    /// Complete real coordinates in selected-Parameter, component, scalar-part order.
     #[must_use]
     pub fn values(&self) -> &[f64] {
         &self.values

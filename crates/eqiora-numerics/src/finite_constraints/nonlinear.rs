@@ -2,9 +2,7 @@
 use super::linearization::ExpressionLinearization;
 use super::*;
 use eqiora_assembly::{CsrMatrix, LinearSystem};
-use eqiora_core::ValueLiteral;
 use eqiora_realization::NonlinearSolvePlan;
-use eqiora_schema::kernel::KernelNode;
 use eqiora_solver::{CanonicalCsrSystemView, LinearOperatorProperties};
 use eqiora_time::ConstantDerivativeMatrixProof;
 
@@ -21,54 +19,6 @@ pub(crate) struct FiniteNonlinearSolution {
 impl FiniteConstraintProblem {
     pub(crate) fn original_residual(&self, values: &[f64]) -> Result<Vec<f64>, Diagnostic> {
         solve::assess_original(self, values, f64::MAX).map(|(_, residual)| residual)
-    }
-
-    /// Bind one evaluation-local Parameter point without replacing the mathematical Model.
-    pub(crate) fn at_parameters(
-        &self,
-        selected: &[Id<kinds::Parameter>],
-        values: &[f64],
-    ) -> Result<Self, Diagnostic> {
-        if selected.len() != values.len() {
-            return Err(invalid(
-                "finite Parameter point has incompatible controls or shape",
-            ));
-        }
-        let mut point = self.clone();
-        point.parameter_candidates.clear();
-        for (index, (id, value)) in selected.iter().zip(values).enumerate() {
-            if selected[..index].contains(id) || !value.is_finite() {
-                return Err(invalid(
-                    "finite Parameter point has duplicate identities or nonfinite values",
-                ));
-            }
-            let Some(KernelNode::Parameter(parameter)) = self.kernel.node(id.erase()) else {
-                return Err(invalid("finite Parameter is outside the exact Model"));
-            };
-            point.parameter_candidates.push((
-                *id,
-                ValueLiteral::from_real(parameter.value().value_type().clone(), *value)
-                    .map_err(|error| invalid(error.to_string()))?,
-            ));
-        }
-        // Affine assembly and original-operand evaluation must bind the same
-        // evaluation-local values. Rebind unselected coordinates from the Model
-        // as well, so evaluating a new point never retains a previous candidate.
-        for (coordinate, binding) in &mut point.bindings {
-            let SymbolRef::Parameter(id) = coordinate.symbol() else {
-                continue;
-            };
-            let Some(KernelNode::Parameter(parameter)) = self.kernel.node(id.erase()) else {
-                return Err(invalid("finite binding is outside the exact Model"));
-            };
-            let value = point
-                .parameter_candidates
-                .iter()
-                .find(|(candidate, _)| *candidate == id)
-                .map_or(parameter.value(), |(_, value)| value);
-            *binding = coordinates::component(value, coordinate)?;
-        }
-        Ok(point)
     }
 
     pub(crate) fn assess_seed(&self, values: &[f64]) -> Result<ConstraintAssessment, Diagnostic> {
@@ -201,7 +151,8 @@ impl FiniteConstraintProblem {
         }
         let mut residuals = Vec::with_capacity(n);
         let mut coefficients = Vec::with_capacity(n * n);
-        let mut parameter_jacobian = Vec::with_capacity(n * selected.len());
+        let mut parameter_jacobian =
+            Vec::with_capacity(n * self.parameter_coordinates(selected)?.len());
         for relation in &self.relations {
             let Some(expression) = preparation::branch_expression(relation, 0, &mut 0)? else {
                 continue;
@@ -251,7 +202,9 @@ impl FiniteConstraintProblem {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use eqiora_core::ValueLiteral;
     use eqiora_graph::{GraphStore, InMemoryGraphStore};
+    use eqiora_schema::kernel::KernelNode;
     use eqiora_solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, ReductionPolicy};
     use std::num::NonZeroUsize;
 
