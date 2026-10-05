@@ -29,9 +29,15 @@ fn result_inspection_transports_exact_observations_and_rejects_stale_or_unbound_
     let request = CommonSolvePolicy::Linear(
         CommonLinearRequest::exact(solver, REFERENCE_LINEAR_SOLVER.provider()).unwrap(),
     );
-    let plan =
-        CommonAlgebraicPlan::resolve(&envelope, request, None, None, &REFERENCE_LINEAR_SOLVER)
-            .unwrap();
+    let plan = CommonAlgebraicPlan::resolve(
+        &envelope,
+        request,
+        None,
+        &[],
+        None,
+        &REFERENCE_LINEAR_SOLVER,
+    )
+    .unwrap();
     let result = plan
         .run_result(&plan.initial_state(&[]).unwrap(), &REFERENCE_LINEAR_SOLVER)
         .unwrap();

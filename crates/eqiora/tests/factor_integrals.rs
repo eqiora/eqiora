@@ -81,6 +81,7 @@ fn resolve(model: &ModelEnvelope) -> Result<CommonAlgebraicPlan, eqiora_core::Di
             .unwrap(),
         ),
         None,
+        &[],
         None,
         &FaerLinearSolver,
     )
@@ -313,6 +314,7 @@ fn finite_plan_does_not_erase_spatial_unknowns_or_equation_support() {
             &model,
             CommonSolvePolicy::Linear(request),
             None,
+            &[],
             None,
             &FaerLinearSolver,
         )

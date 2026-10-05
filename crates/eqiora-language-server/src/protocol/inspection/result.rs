@@ -151,9 +151,15 @@ mod tests {
         let request = CommonSolvePolicy::Linear(
             CommonLinearRequest::exact(solver, REFERENCE_LINEAR_SOLVER.provider()).unwrap(),
         );
-        let plan =
-            CommonAlgebraicPlan::resolve(&model, request, None, None, &REFERENCE_LINEAR_SOLVER)
-                .unwrap();
+        let plan = CommonAlgebraicPlan::resolve(
+            &model,
+            request,
+            None,
+            &[],
+            None,
+            &REFERENCE_LINEAR_SOLVER,
+        )
+        .unwrap();
         let result = plan
             .run_result(&plan.initial_state(&[]).unwrap(), &REFERENCE_LINEAR_SOLVER)
             .unwrap();

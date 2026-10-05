@@ -49,7 +49,7 @@ fn integral_candidates_and_ad_share_the_exact_parameter_point() {
         .unwrap(),
     ])
     .unwrap();
-    let problem = lower_finite_constraints(&kernel, Some(&policy)).unwrap();
+    let problem = lower_finite_constraints(&kernel, Some(&policy), true).unwrap();
     let nonlinear =
         NonlinearSolvePlan::new(0.0, 1e-12, NonZeroUsize::new(32).unwrap(), 16).unwrap();
     let linear = SolverPlan::new(

@@ -168,8 +168,8 @@ fn six_component_constitutive_map_uses_native_authoring_and_exact_replay() {
         )
         .unwrap(),
     );
-    let plan =
-        CommonAlgebraicPlan::resolve(&artifact, policy, None, None, &FaerLinearSolver).unwrap();
+    let plan = CommonAlgebraicPlan::resolve(&artifact, policy, None, &[], None, &FaerLinearSolver)
+        .unwrap();
     let result = plan
         .run_result(&plan.initial_state(&[]).unwrap(), &FaerLinearSolver)
         .unwrap();

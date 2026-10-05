@@ -130,7 +130,7 @@ mod tests {
         let mut store = InMemoryGraphStore::new();
         store.commit(transaction).unwrap();
         let kernel = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-        let problem = lower_finite_constraints(&kernel, None).unwrap();
+        let problem = lower_finite_constraints(&kernel, None, false).unwrap();
         assert_eq!(problem.symbols().len(), 1);
         assert_eq!(problem.coordinate_count(), 2);
         let (actions, _) = problem.equality_jacobian(&[3., -3.], &[p]).unwrap();

@@ -1,10 +1,10 @@
 //! Exact no-Mesh lifecycle for admitted finite algebraic mathematics.
 
 use super::*;
-use eqiora_realization::NonlinearSolvePlan;
+use eqiora_realization::{NonlinearSolvePlan, PositivePhysicalScale};
 mod differentiation;
 mod problem;
-use crate::finite_constraints::{ConstraintAssessment, FiniteConstraintEnforcement};
+use crate::finite_constraints::{ConstraintAssessment, ConstraintRef, FiniteConstraintEnforcement};
 use crate::physical_network::{
     ScalarPhysicalAffineProblem, lower_scalar_physical_affine, solve_scalar_physical_affine,
 };
@@ -40,6 +40,7 @@ impl CommonAlgebraicPlan {
         model: &ModelEnvelope,
         solve: CommonSolvePolicy,
         enforcement: Option<FiniteConstraintEnforcement>,
+        residual_scales: &[(ConstraintRef, PositivePhysicalScale)],
         authored: Option<&eqiora_compiler::AuthoredFormulationProjection>,
         backend: &dyn LinearSolverBackend,
     ) -> Result<Self, Diagnostic> {
@@ -47,13 +48,12 @@ impl CommonAlgebraicPlan {
             CommonSolvePolicy::Linear(request) => (request, None),
             CommonSolvePolicy::Newton { linear, nonlinear } => (linear, Some(nonlinear)),
         };
-        if nonlinear.is_some()
-            != enforcement
-                .as_ref()
-                .is_some_and(FiniteConstraintEnforcement::is_strict_interior)
+        if enforcement
+            .as_ref()
+            .is_some_and(|policy| policy.is_strict_interior() != nonlinear.is_some())
         {
             return Err(invalid(
-                "finite Newton requires strict-interior enforcement; active-set and conserving Plans require Linear",
+                "finite Newton requires strict-interior inequalities; active-set Plans require Linear",
             ));
         }
         let kernel = model.to_program().map_err(|errors| {
@@ -62,7 +62,24 @@ impl CommonAlgebraicPlan {
                 .next()
                 .unwrap_or_else(|| invalid("finite Model replay failed"))
         })?;
-        let problem = AlgebraicProblem::admit(&kernel, enforcement)?;
+        let problem = AlgebraicProblem::admit(&kernel, enforcement, nonlinear.is_some())?;
+        let problem = match problem {
+            AlgebraicProblem::Constrained(problem) => {
+                AlgebraicProblem::Constrained(problem.with_residual_scales(residual_scales)?)
+            }
+            other if residual_scales.is_empty() => other,
+            _ => {
+                return Err(invalid(
+                    "residual scales require a finite Field Newton Plan",
+                ));
+            }
+        };
+        let effective_scales = match &problem {
+            AlgebraicProblem::Constrained(problem) if nonlinear.is_some() => {
+                problem.residual_scales()
+            }
+            _ => Vec::new(),
+        };
         let gauge = authored.map(|form| problem.gauge(form)).transpose()?;
         let symbols = problem.symbols();
         let dimensions = problem.dimensions();
@@ -127,7 +144,11 @@ impl CommonAlgebraicPlan {
             &mut bytes,
             authored.map_or(&[], |form| form.canonical_bytes()),
         );
-        let identity = finite_digest(b"eqiora.common-algebraic-plan/v5\0", &bytes);
+        push_framed(
+            &mut bytes,
+            &plan_artifact::residual_scaling_bytes(&effective_scales)?,
+        );
+        let identity = finite_digest(b"eqiora.common-algebraic-plan/v6\0", &bytes);
         Ok(Self {
             model: Arc::new(model.clone()),
             kernel,
@@ -144,6 +165,17 @@ impl CommonAlgebraicPlan {
             model_digest,
             model_revision: reference.semantic_revision().get(),
         })
+    }
+    /// Complete equality scales in canonical condition order. Each divides every
+    /// real/imaginary row of its original equality. Empty for linear Plans.
+    #[must_use]
+    pub fn residual_scales(&self) -> Vec<(ConstraintRef, PositivePhysicalScale)> {
+        match &self.problem {
+            AlgebraicProblem::Constrained(problem) if self.nonlinear.is_some() => {
+                problem.residual_scales()
+            }
+            _ => Vec::new(),
+        }
     }
     /// Exact authored finite reference retained for Plan replay.
     #[must_use]

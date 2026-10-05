@@ -1,5 +1,6 @@
 //! Thin finite algebraic policy projection.
 use super::*;
+mod scaling;
 
 #[pyclass(name = "AlgebraicPlanView", module = "eqiora._eqiora", frozen)]
 pub(super) struct PyAlgebraicPlanView {
@@ -24,7 +25,7 @@ pub(super) fn resolve(
     scaling: Option<&Bound<'_, PyAny>>,
     enforcement: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<PyPlan> {
-    if formulation.is_some_and(|v| !v.is_none()) || scaling.is_some_and(|v| !v.is_none()) {
+    if formulation.is_some_and(|v| !v.is_none()) {
         return Err(PyTypeError::new_err(
             "finite algebraic resolve accepts Model and solve controls",
         ));
@@ -57,10 +58,12 @@ pub(super) fn resolve(
             ));
         }
     }
+    let scales = scaling::extract(py, &model.borrow(py), scaling)?;
     let native = eqiora_numerics::CommonAlgebraicPlan::resolve(
         model.borrow(py).artifact(),
         request,
         enforcement.map(|(_, native)| native),
+        &scales,
         model
             .borrow(py)
             .authored_formulation_projection()

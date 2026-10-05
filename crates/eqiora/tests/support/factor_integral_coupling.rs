@@ -257,13 +257,20 @@ fn nonlinear_integral_constraint_accepts_the_positive_root_and_replays() {
         .unwrap(),
         linear: CommonLinearRequest::exact(linear, FaerLinearSolver.provider()).unwrap(),
     };
-    let plan =
-        CommonAlgebraicPlan::resolve(&model, policy, Some(enforcement), None, &FaerLinearSolver)
-            .unwrap();
-    let seed = CommonInitialField::scalar(
+    let plan = CommonAlgebraicPlan::resolve(
+        &model,
+        policy,
+        Some(enforcement),
+        &[],
+        None,
+        &FaerLinearSolver,
+    )
+    .unwrap();
+    let seed = CommonInitialField::finite(
         model.artifact_reference().unwrap().artifact().clone(),
         symbols.get("amplitude").unwrap().downcast().unwrap(),
-        1.0,
+        eqiora::ValueShape::scalar(),
+        vec![(1.0, 0.)],
     )
     .unwrap();
     let result = plan

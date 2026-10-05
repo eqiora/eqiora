@@ -77,6 +77,7 @@ fn analytic_ramp_and_sinusoid_execute_on_the_ordinary_result() {
         &model,
         CommonSolvePolicy::Linear(linear),
         None,
+        &[],
         None,
         &FaerLinearSolver,
     )

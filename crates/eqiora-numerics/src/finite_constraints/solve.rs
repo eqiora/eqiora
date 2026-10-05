@@ -17,10 +17,8 @@ pub(crate) fn solve_finite_constraints(
     problem: &FiniteConstraintProblem,
     solver: LinearSolveRequest<'_>,
 ) -> Result<FiniteConstraintSolution, Diagnostic> {
-    if problem.is_strict_interior() {
-        return Err(invalid(
-            "strict-interior execution requires nonlinear controls",
-        ));
+    if problem.is_nonlinear() {
+        return Err(invalid("Newton execution requires nonlinear controls"));
     }
     let mut last_failure = None;
     for mask in 0..(1u32 << problem.complementarity_count) {
@@ -106,6 +104,14 @@ pub(super) fn assess_original(
                         "original equality changed its physical dimension or shape",
                     ));
                 }
+                let scale = relation
+                    .equality_scales
+                    .iter()
+                    .find(|entry| entry.ordinal as usize == ordinal)
+                    .expect("admitted original equality scale")
+                    .scale
+                    .quantity()
+                    .value();
                 let complex = pair
                     .iter()
                     .any(|value| value.value_type().scalar_domain() == ScalarDomain::Complex);
@@ -116,9 +122,9 @@ pub(super) fn assess_original(
                     let right = pair[1]
                         .component(index)
                         .ok_or_else(|| invalid("equality operand is not numeric"))?;
-                    residuals.push(left.0 - right.0);
+                    residuals.push(scaling::normalize(left.0 - right.0, scale)?);
                     if complex {
-                        residuals.push(left.1 - right.1);
+                        residuals.push(scaling::normalize(left.1 - right.1, scale)?);
                     }
                 }
                 continue;
@@ -189,9 +195,17 @@ pub(super) fn assess_original(
             });
         }
     }
-    let norm = SERIAL_LINEAR_EXECUTION
-        .inner_product(FixedOrderInnerProduct::new(&residuals, &residuals)?)?
-        .sqrt();
+    let norm = if problem.is_nonlinear() {
+        // Finite normalized rows must not disappear or overflow merely because
+        // their squares are outside binary64. Fixed row order remains deterministic.
+        residuals
+            .iter()
+            .fold(0.0_f64, |norm, value| norm.hypot(*value))
+    } else {
+        SERIAL_LINEAR_EXECUTION
+            .inner_product(FixedOrderInnerProduct::new(&residuals, &residuals)?)?
+            .sqrt()
+    };
     if !norm.is_finite() || norm > target {
         return Err(failed(
             "original Model equality residual exceeds the explicit SolverPlan target",
