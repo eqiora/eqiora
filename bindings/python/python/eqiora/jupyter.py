@@ -84,7 +84,7 @@ def _complete_eqiora(context):
 
 def _identifier(value: str) -> str:
     name = unicodedata.normalize("NFKC", value)
-    if not name.isidentifier() or keyword.iskeyword(name):
+    if not name.isidentifier() or keyword.iskeyword(name) or name == "__debug__":
         raise UsageError(f"expected a Python variable name, got {value!r}")
     return name
 
