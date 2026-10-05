@@ -2,6 +2,8 @@ use super::*;
 use eqiora_schema::kernel::{ExprNode, FieldDef, RelationDef};
 use num_complex::Complex64;
 
+mod elimination;
+
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Embedding {
     pub map: ValueLiteral,
@@ -204,11 +206,14 @@ fn lower_step(
         .node_type(root)
         .ok_or_else(|| invalid("embedding root type is missing"))?
         .value_type;
-    if root_type.coordinate_basis() != Some(target_basis)
+    let equation_basis = root_type
+        .coordinate_basis()
+        .ok_or_else(|| invalid("embedding equality requires a finite coordinate basis"))?;
+    if equation_basis.extent() != target_basis.extent()
         || root_type.scalar_domain() != target_type.scalar_domain()
     {
         return Err(invalid(
-            "embedding equality must act in its target Field's exact basis",
+            "embedding target operator must be square and retain the scalar domain",
         ));
     }
     let mut selected =
@@ -236,12 +241,13 @@ fn lower_step(
         left.extend_from_slice(&affine.coefficients()[..output_size]);
         right.extend_from_slice(&affine.coefficients()[output_size..]);
     }
-    let ty = |basis, dimension| {
-        ValueType::linear_map(basis, target_basis, target_type.scalar_domain(), dimension)
+    let ty = |basis, range, dimension| {
+        ValueType::linear_map(basis, range, target_type.scalar_domain(), dimension)
             .map_err(|e| invalid(e.to_string()))
     };
     let left_type = ty(
         target_basis,
+        equation_basis,
         root_type
             .dimension()
             .div(target_type.dimension())
@@ -249,6 +255,7 @@ fn lower_step(
     )?;
     let right_type = ty(
         source_basis,
+        equation_basis,
         root_type
             .dimension()
             .div(coordinate_type.dimension())
@@ -256,26 +263,11 @@ fn lower_step(
     )?;
     let left = super::assemble(left_type, &left, output_size, 1.)?;
     let right = super::assemble(right_type, &right, input.len(), 1.)?;
-    let n = target_basis.extent() as usize;
-    let k = source_basis.extent() as usize;
-    let mut entries = Vec::new();
-    for i in 0..n {
-        let diagonal = coefficient(&left, i * n + i);
-        if diagonal == Complex64::new(0., 0.)
-            || (0..n).any(|j| i != j && coefficient(&left, i * n + j) != Complex64::new(0., 0.))
-        {
-            return Err(invalid(
-                "coordinate equality must explicitly define its target; coupled target elimination is not admitted",
-            ));
-        }
-        for j in 0..k {
-            let value = -coefficient(&right, i * k + j) / diagonal;
-            entries.push((value.re, value.im));
-        }
-    }
+    let entries = elimination::coordinates(&left, &right)?;
     let map = ValueLiteral::new(
         ty(
             source_basis,
+            target_basis,
             target_type
                 .dimension()
                 .div(coordinate_type.dimension())

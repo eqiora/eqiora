@@ -251,3 +251,154 @@ fn dimensionful_maps_and_excluded_indefinite_directions_preserve_the_source_prob
         assert!(residual < 1e-12 && normalization < 1e-12);
     }
 }
+
+#[test]
+fn coupled_target_elimination_pivots_and_replays_original_coordinate_equalities() {
+    // R=[[0,2],[3,1]], P=(1,-1) gives R P=(-2,2). R is nonsingular
+    // despite its zero first diagonal. The original shared-null pencil is unchanged.
+    let source = QUOTIENT
+        .replace("[[1],[-1]]", "[[-2],[2]]")
+        .replace(
+            " variable u:",
+            " parameter r:map<1,Full,Full>=linear_map(Full,Full,[[0,2],[3,1]]);\n variable u:",
+        )
+        .replace("u=apply(p,q)", "apply(r,u)=apply(p,q)");
+    let other_basis = source
+        .replace(
+            "space Reduced",
+            "space Equations=orthonormal(balance_a,balance_b);\nspace Reduced",
+        )
+        .replace(
+            "r:map<1,Full,Full>=linear_map(Full,Full,",
+            "r:map<1,Full,Equations>=linear_map(Full,Equations,",
+        )
+        .replace(
+            "p:map<1,Reduced,Full>=linear_map(Reduced,Full,",
+            "p:map<1,Reduced,Equations>=linear_map(Reduced,Equations,",
+        );
+    for source in [
+        source.clone(),
+        source.replace("apply(r,u)=apply(p,q)", "apply(p,q)=apply(r,u)"),
+        other_basis,
+        source
+            .replace("[[0,2],[3,1]]", "[[0,2e200],[3e-200,1e-200]]")
+            .replace("[[-2],[2]]", "[[-2e200],[2e-200]]"),
+    ] {
+        let document = ModelDocument::compile("coupled-target.eqi", &source).unwrap();
+        let model = ModelEnvelope::from_program(document.program()).unwrap();
+        let plan = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver).unwrap();
+        let map = plan.coordinate_embeddings().next().unwrap().3;
+        assert!((map.component(0).unwrap().0 - 1.).abs() < 1e-12);
+        assert!((map.component(1).unwrap().0 + 1.).abs() < 1e-12);
+        let result = plan.run_result(&FaerLinearSolver).unwrap();
+        assert_eq!(result.eigen_convergence(), Some("converged"));
+        let (lambda, mode, residual, normalization) = result.eigenpair(0).unwrap();
+        assert!((lambda.component(0).unwrap().0 - 1.).abs() < 1e-12);
+        assert!((mode.component(0).unwrap().0.abs() - 0.5).abs() < 1e-12);
+        assert!(residual < 1e-12 && normalization < 1e-12);
+        let replay =
+            eqiora_numerics::CommonResult::from_bytes(&result.to_bytes().unwrap(), result.plan())
+                .unwrap();
+        assert_eq!(replay, result);
+    }
+}
+
+#[test]
+fn complex_six_dimensional_coupled_target_retains_all_five_admitted_modes() {
+    fn matrix(n: usize, k: usize, entry: impl Fn(usize, usize) -> String) -> String {
+        format!(
+            "[{}]",
+            (0..n)
+                .map(|i| format!(
+                    "[{}]",
+                    (0..k).map(|j| entry(i, j)).collect::<Vec<_>>().join(",")
+                ))
+                .collect::<Vec<_>>()
+                .join(",")
+        )
+    }
+    // Let U=I+superdiagonal(1), S cyclically permute rows, R=i S U.
+    // U is triangular with determinant 1 and S is invertible. With P=i[e2..e6],
+    // R P=-S U[e2..e6]. These integer entries require no numerical oracle.
+    let r = matrix(6, 6, |i, j| {
+        let row = (i + 1) % 6;
+        if j == row || j == row + 1 {
+            "math.complex(0,1)".into()
+        } else {
+            "0".into()
+        }
+    });
+    let right = matrix(6, 5, |i, j| {
+        let row = (i + 1) % 6;
+        if j + 1 == row || j == row {
+            "-1".into()
+        } else {
+            "0".into()
+        }
+    });
+    let metric = matrix(6, 6, |i, j| {
+        if i == j {
+            (i * i).to_string()
+        } else {
+            "0".into()
+        }
+    });
+    let source = QUOTIENT
+        .replace("first,second", "a,b,c,d,e,f")
+        .replace("orthonormal(relative)", "orthonormal(a,b,c,d,e)")
+        .replace("[[1,-1],[-1,1]]", &metric)
+        .replace("[[1],[-1]]", &right)
+        .replace(
+            " variable u:",
+            &format!(" parameter r:map<1,Full,Full>=linear_map(Full,Full,{r});\n variable u:"),
+        )
+        .replace("u=apply(p,q)", "apply(r,u)=apply(p,q)")
+        .replace("map<1,", "map<complex<1>,")
+        .replace("coordinates<1,", "coordinates<complex<1>,");
+    let document = ModelDocument::compile("complex-coupled.eqi", &source).unwrap();
+    let model = ModelEnvelope::from_program(document.program()).unwrap();
+    let request = CommonEigenRequest::dense(NonZeroUsize::new(5).unwrap(), 1e-12, 1e-12).unwrap();
+    let plan = CommonEigenPlan::resolve(&model, request, &FaerLinearSolver).unwrap();
+    let map = plan.coordinate_embeddings().next().unwrap().3;
+    for i in 0..6 {
+        for j in 0..5 {
+            assert_eq!(
+                map.component(i * 5 + j),
+                Some((0., if i == j + 1 { 1. } else { 0. }))
+            );
+        }
+    }
+    let result = plan.run_result(&FaerLinearSolver).unwrap();
+    assert_eq!(result.eigen_convergence(), Some("converged"));
+    assert_eq!(result.eigenpair_count(), 5);
+    for i in 0..5 {
+        let (lambda, _, residual, normalization) = result.eigenpair(i).unwrap();
+        assert!((lambda.component(0).unwrap().0 - 1.).abs() < 1e-12);
+        assert!(residual < 1e-12 && normalization < 1e-12);
+    }
+}
+
+#[test]
+fn target_elimination_rejects_singular_and_numerically_unresolved_operators() {
+    // Equal rows are exactly singular. The second matrix has a nonzero
+    // determinant 2^-48 but its scaled pivot is below the declared 64*epsilon
+    // execution boundary; rejection must not assert mathematical singularity.
+    for matrix in ["[[1,1],[1,1]]", "[[1,1],[1,1.0000000000000036]]"] {
+        let source = QUOTIENT
+            .replace(
+                " variable u:",
+                &format!(
+                    " parameter r:map<1,Full,Full>=linear_map(Full,Full,{matrix});\n variable u:"
+                ),
+            )
+            .replace("u=apply(p,q)", "apply(r,u)=apply(p,q)");
+        let document = ModelDocument::compile("unresolved-target.eqi", &source).unwrap();
+        let model = ModelEnvelope::from_program(document.program()).unwrap();
+        let error = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver).unwrap_err();
+        assert!(
+            error
+                .message()
+                .contains("singular or numerically unresolved")
+        );
+    }
+}
