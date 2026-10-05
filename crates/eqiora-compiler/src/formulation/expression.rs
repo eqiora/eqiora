@@ -4,7 +4,7 @@ use super::*;
 use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef, UnaryMathFunction};
 
 impl AuthoredFormExpressionV1 {
-    /// Project a retained real scalar expression without changing its mathematical terms.
+    /// Project a retained scalar expression without changing its mathematical terms.
     /// # Errors
     /// Rejects malformed source expressions. Returns `None` outside the closed inventory.
     pub fn from_expression(dag: &ExprDag, id: ExprId) -> Result<Option<Self>, Diagnostic> {
@@ -43,11 +43,25 @@ fn from_dag(
             .node(id)
             .ok_or_else(|| rejection("missing source expression"))?
         {
+            ExprNode::Constant(value)
+                if value.value_type().shape().is_scalar()
+                    && value.value_type().scalar_domain() == ScalarDomain::Complex =>
+            {
+                let (real, imag) = value.component(0).ok_or(ProjectionFailure::Unsupported)?;
+                AuthoredFormExpressionV1::Complex {
+                    real: Box::new(AuthoredFormExpressionV1::Number { value: real }),
+                    imag: Box::new(AuthoredFormExpressionV1::Number { value: imag }),
+                }
+            }
             ExprNode::Constant(value) => AuthoredFormExpressionV1::Number {
                 value: value
                     .real_scalar_value()
                     .ok_or(ProjectionFailure::Unsupported)?
                     .value(),
+            },
+            ExprNode::Complex { real, imag } => AuthoredFormExpressionV1::Complex {
+                real: convert(*real)?,
+                imag: convert(*imag)?,
             },
             ExprNode::Symbol(SymbolRef::Field(id)) => AuthoredFormExpressionV1::Field {
                 ulid: id.ulid().to_string(),
