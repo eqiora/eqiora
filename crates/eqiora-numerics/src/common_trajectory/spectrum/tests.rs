@@ -101,8 +101,20 @@ fn typed_fixture(
         observable,
     )
 }
-fn grid(window: SpectrumWindow) -> UniformDft {
-    UniformDft::new(1., 0.5, 4, window).unwrap()
+fn grid(hann: bool) -> UniformDft {
+    if hann {
+        UniformDft::PeriodicHann {
+            start_s: 1.,
+            spacing_s: 0.5,
+            count: 4,
+        }
+    } else {
+        UniformDft::Rectangular {
+            start_s: 1.,
+            spacing_s: 0.5,
+            count: 4,
+        }
+    }
 }
 fn close(value: &ValueLiteral, re: f64, im: f64) {
     let (a, b) = value.component(0).unwrap();
@@ -125,7 +137,7 @@ fn accepted_complex_exponential_preserves_sign_units_phase_and_inverse() {
         vec![1., 1.5, 2., 2.5],
     );
     let spectrum = trajectory
-        .observe_spectrum(&model, id, grid(SpectrumWindow::Rectangular), 16)
+        .observe_spectrum(&model, id, grid(false), 16)
         .unwrap();
     assert_eq!(spectrum.trajectory_identity(), trajectory.identity());
     assert_eq!(spectrum.observable(), id);
@@ -169,7 +181,7 @@ fn real_sinusoid_one_sided_factors_and_discrete_parseval() {
         vec![1., 1.5, 2., 2.5],
     );
     let spectrum = trajectory
-        .observe_spectrum(&model, id, grid(SpectrumWindow::Rectangular), 16)
+        .observe_spectrum(&model, id, grid(false), 16)
         .unwrap();
     close(&spectrum.coefficients()[1], 0., 2.);
     close(&spectrum.coefficients()[3], 0., -2.);
@@ -194,7 +206,7 @@ fn real_sinusoid_one_sided_factors_and_discrete_parseval() {
         vec![1., 1.5, 2., 2.5],
     );
     let spectrum = trajectory
-        .observe_spectrum(&model, id, grid(SpectrumWindow::Rectangular), 16)
+        .observe_spectrum(&model, id, grid(false), 16)
         .unwrap();
     assert!((scalar(spectrum.one_sided_amplitude(0, 0).unwrap()) - 2.).abs() < 1e-12);
     assert!((scalar(spectrum.one_sided_amplitude(2, 0).unwrap()) - 3.).abs() < 1e-12);
@@ -209,7 +221,7 @@ fn off_bin_leakage_and_periodic_window_are_declared_not_corrected() {
         vec![1., 1.5, 2., 2.5],
     );
     let spectrum = trajectory
-        .observe_spectrum(&model, id, grid(SpectrumWindow::Rectangular), 16)
+        .observe_spectrum(&model, id, grid(false), 16)
         .unwrap();
     let a = std::f64::consts::FRAC_1_SQRT_2;
     for (k, im) in [
@@ -226,7 +238,7 @@ fn off_bin_leakage_and_periodic_window_are_declared_not_corrected() {
     assert!((0..4).all(|k| scalar(spectrum.power(k, 0).unwrap()) > 0.01));
     let (trajectory, model, id) = fixture("2[m]", false, vec![1., 1.5, 2., 2.5]);
     let windowed = trajectory
-        .observe_spectrum(&model, id, grid(SpectrumWindow::PeriodicHann), 16)
+        .observe_spectrum(&model, id, grid(true), 16)
         .unwrap();
     // Periodic Hann N=4 is [0,1/2,1,1/2], distinct from symmetric [0,3/4,3/4,0].
     for (n, v) in [0., 1., 2., 1.].into_iter().enumerate() {
@@ -239,25 +251,25 @@ fn off_bin_leakage_and_periodic_window_are_declared_not_corrected() {
 fn rejects_missing_irregular_foreign_forged_lineage_zero_phase_and_resource_exhaustion() {
     let (trajectory, model, id) = fixture("0[m]", false, vec![1., 1.5, 2., 2.5]);
     let spectrum = trajectory
-        .observe_spectrum(&model, id, grid(SpectrumWindow::Rectangular), 16)
+        .observe_spectrum(&model, id, grid(false), 16)
         .unwrap();
     assert!(spectrum.phase_rad(0, 0).is_err());
     assert!(spectrum.frequency_hz(4).is_err());
     assert!(spectrum.reconstruct_sample(4).is_err());
     assert!(
         trajectory
-            .observe_spectrum(&model, id, grid(SpectrumWindow::Rectangular), 15)
+            .observe_spectrum(&model, id, grid(false), 15)
             .is_err()
     );
     let (irregular, other, id2) = fixture("1[m]", false, vec![1., 1.5, 2., 2.6]);
     assert!(
         irregular
-            .observe_spectrum(&other, id2, grid(SpectrumWindow::Rectangular), 16)
+            .observe_spectrum(&other, id2, grid(false), 16)
             .is_err()
     );
     assert!(
         trajectory
-            .observe_spectrum(&other, id2, grid(SpectrumWindow::Rectangular), 16)
+            .observe_spectrum(&other, id2, grid(false), 16)
             .is_err()
     );
     let mut forged = trajectory.clone();
@@ -266,17 +278,41 @@ fn rejects_missing_irregular_foreign_forged_lineage_zero_phase_and_resource_exha
     }
     assert!(
         forged
-            .observe_spectrum(&model, id, grid(SpectrumWindow::Rectangular), 16)
+            .observe_spectrum(&model, id, grid(false), 16)
             .is_err()
     );
-    assert!(UniformDft::new(0., 0., 4, SpectrumWindow::Rectangular).is_err());
-    assert!(UniformDft::new(1e30, 1., 4, SpectrumWindow::Rectangular).is_err());
-    assert!(UniformDft::new(0., 1., 0, SpectrumWindow::Rectangular).is_err());
+    assert!(
+        UniformDft::Rectangular {
+            start_s: 0.,
+            spacing_s: 0.,
+            count: 4
+        }
+        .validate()
+        .is_err()
+    );
+    assert!(
+        UniformDft::Rectangular {
+            start_s: 1e30,
+            spacing_s: 1.,
+            count: 4
+        }
+        .validate()
+        .is_err()
+    );
+    assert!(
+        UniformDft::Rectangular {
+            start_s: 0.,
+            spacing_s: 1.,
+            count: 0
+        }
+        .validate()
+        .is_err()
+    );
     // Endpoint sample at 3 cannot replace the included 2.5 sample in [1,3).
     let (endpoint, model, id) = fixture("1[m]", false, vec![1., 1.5, 2., 3.]);
     assert!(
         endpoint
-            .observe_spectrum(&model, id, grid(SpectrumWindow::Rectangular), 16)
+            .observe_spectrum(&model, id, grid(false), 16)
             .is_err()
     );
 }
@@ -289,11 +325,11 @@ fn shaped_and_finite_basis_components_retain_roles_without_size_caps() {
         typed_fixture(values, "array<complex<m>,6>", "", vec![1., 1.5, 2., 2.5]);
     assert!(
         trajectory
-            .observe_spectrum(&model, id, grid(SpectrumWindow::Rectangular), 95)
+            .observe_spectrum(&model, id, grid(false), 95)
             .is_err()
     );
     let spectrum = trajectory
-        .observe_spectrum(&model, id, grid(SpectrumWindow::Rectangular), 96)
+        .observe_spectrum(&model, id, grid(false), 96)
         .unwrap();
     assert_eq!(spectrum.input_type().array_rank(), 1);
     assert_eq!(spectrum.coefficients()[1].component_count(), 6);
@@ -313,7 +349,7 @@ fn shaped_and_finite_basis_components_retain_roles_without_size_caps() {
         vec![1., 1.5, 2., 2.5],
     );
     let spectrum = trajectory
-        .observe_spectrum(&model, id, grid(SpectrumWindow::Rectangular), 80)
+        .observe_spectrum(&model, id, grid(false), 80)
         .unwrap();
     let ty = spectrum.coefficients()[0].value_type();
     assert_eq!(
@@ -345,7 +381,13 @@ fn initial_sample_and_odd_count_keep_half_open_discrete_meaning() {
         false,
         vec![1., 1.5, 2.],
     );
-    let odd = UniformDft::new(1., 0.5, 3, SpectrumWindow::Rectangular).unwrap();
+    let odd = UniformDft::Rectangular {
+        start_s: 1.,
+        spacing_s: 0.5,
+        count: 3,
+    }
+    .validate()
+    .unwrap();
     let spectrum = trajectory.observe_spectrum(&model, id, odd, 9).unwrap();
     for value in spectrum.coefficients() {
         close(value, 1. / 3., 0.);
@@ -353,7 +395,13 @@ fn initial_sample_and_odd_count_keep_half_open_discrete_meaning() {
     assert!((scalar(spectrum.one_sided_amplitude(1, 0).unwrap()) - 2. / 3.).abs() < 1e-12);
     assert!((spectrum.frequency_hz(2).unwrap() + 2. / 3.).abs() < 1e-12);
     let (trajectory, model, id) = fixture("2[m]", false, vec![0.5, 1., 1.5]);
-    let initial = UniformDft::new(0., 0.5, 4, SpectrumWindow::Rectangular).unwrap();
+    let initial = UniformDft::Rectangular {
+        start_s: 0.,
+        spacing_s: 0.5,
+        count: 4,
+    }
+    .validate()
+    .unwrap();
     let spectrum = trajectory
         .observe_spectrum(&model, id, initial, 16)
         .unwrap();

@@ -2,7 +2,7 @@
 use super::*;
 use crate::model::PyObservableRef;
 use crate::modeling::PyValueType;
-use eqiora_numerics::{FiniteSpectrum, SpectrumWindow, UniformDft};
+use eqiora_numerics::{FiniteSpectrum, UniformDft};
 
 /// Normalized sampled Fourier coefficients bound to exact trajectory and sampling semantics.
 #[pyclass(name = "FiniteSpectrum", module = "eqiora._eqiora", frozen)]
@@ -40,9 +40,9 @@ impl PyFiniteSpectrum {
     }
     #[getter]
     fn window(&self) -> &'static str {
-        match self.value.sampling().window() {
-            SpectrumWindow::Rectangular => "rectangular",
-            SpectrumWindow::PeriodicHann => "periodic-hann",
+        match self.value.sampling() {
+            UniformDft::Rectangular { .. } => "rectangular",
+            UniformDft::PeriodicHann { .. } => "periodic-hann",
         }
     }
     #[getter]
@@ -196,16 +196,23 @@ impl PyRunResult {
             ));
         }
         let window = match window {
-            "rectangular" => SpectrumWindow::Rectangular,
-            "periodic-hann" => SpectrumWindow::PeriodicHann,
+            "rectangular" => UniformDft::Rectangular {
+                start_s,
+                spacing_s,
+                count,
+            },
+            "periodic-hann" => UniformDft::PeriodicHann {
+                start_s,
+                spacing_s,
+                count,
+            },
             _ => {
                 return Err(PyValueError::new_err(
                     "window must be rectangular or periodic-hann",
                 ));
             }
         };
-        let grid = UniformDft::new(start_s, spacing_s, count, window)
-            .map_err(|e| diagnostic_error(py, &[e]))?;
+        let grid = window.validate().map_err(|e| diagnostic_error(py, &[e]))?;
         let trajectory = self.native.trajectory().ok_or_else(|| {
             PyValueError::new_err("finite spectrum requires an accepted Trajectory")
         })?;

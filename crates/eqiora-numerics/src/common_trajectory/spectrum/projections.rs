@@ -4,13 +4,13 @@ impl FiniteSpectrum {
     /// Bins above N/2 are negative frequencies, in standard unshifted DFT ordering.
     pub fn frequency_hz(&self, bin: usize) -> Result<f64, Diagnostic> {
         self.coefficient(bin, 0)?;
-        let n = self.sampling.count;
+        let n = self.sampling.count();
         let signed = if bin <= n / 2 {
             bin as f64
         } else {
             -((n - bin) as f64)
         };
-        finite(signed / (n as f64 * self.sampling.spacing_s))
+        finite(signed / (n as f64 * self.sampling.spacing_s()))
     }
     /// Signed angular frequency in rad/s, exactly the cyclic convention times 2*pi.
     pub fn angular_frequency_rad_s(&self, bin: usize) -> Result<f64, Diagnostic> {
@@ -65,8 +65,8 @@ impl FiniteSpectrum {
         let dimension = times_seconds(self.squared_dimension()?)?;
         self.real_projection(
             self.coefficient(bin, component)?.norm_sqr()
-                * self.sampling.count as f64
-                * self.sampling.spacing_s,
+                * self.sampling.count() as f64
+                * self.sampling.spacing_s(),
             dimension,
         )
     }
@@ -80,8 +80,8 @@ impl FiniteSpectrum {
         self.real_projection(
             self.one_sided_factor(bin)?
                 * self.coefficient(bin, component)?.norm_sqr()
-                * self.sampling.count as f64
-                * self.sampling.spacing_s,
+                * self.sampling.count() as f64
+                * self.sampling.spacing_s(),
             dimension,
         )
     }
@@ -93,7 +93,7 @@ impl FiniteSpectrum {
             .coefficients
             .get(bin)
             .ok_or_else(|| invalid("DFT bin is outside the finite frequency grid"))?;
-        let scale = self.sampling.count as f64 * self.sampling.spacing_s;
+        let scale = self.sampling.count() as f64 * self.sampling.spacing_s();
         let ty = coefficient
             .value_type()
             .clone()
@@ -111,7 +111,7 @@ impl FiniteSpectrum {
     /// Inverse finite series at one admitted sample index; returns the windowed
     /// complex sample. No interpolation, dewindowing or steady-state inference.
     pub fn reconstruct_sample(&self, sample: usize) -> Result<ValueLiteral, Diagnostic> {
-        if sample >= self.sampling.count {
+        if sample >= self.sampling.count() {
             return Err(invalid(
                 "inverse DFT sample is outside the admitted representation",
             ));
@@ -119,9 +119,9 @@ impl FiniteSpectrum {
         let mut components = Vec::new();
         for component in 0..self.coefficients[0].component_count() {
             let mut z = Complex64::new(0., 0.);
-            for k in 0..self.sampling.count {
-                let residue = (k as u128 * sample as u128) % self.sampling.count as u128;
-                let angle = -std::f64::consts::TAU * residue as f64 / self.sampling.count as f64;
+            for k in 0..self.sampling.count() {
+                let residue = (k as u128 * sample as u128) % self.sampling.count() as u128;
+                let angle = -std::f64::consts::TAU * residue as f64 / self.sampling.count() as f64;
                 z += self.coefficient(k, component)? * Complex64::from_polar(1., angle);
             }
             components.push((z.re, z.im));
@@ -140,13 +140,13 @@ impl FiniteSpectrum {
         Ok(Complex64::new(re, im))
     }
     fn one_sided_factor(&self, bin: usize) -> Result<f64, Diagnostic> {
-        let n = self.sampling.count;
+        let n = self.sampling.count();
         if self.input_type.scalar_domain() != ScalarDomain::Real || bin > n / 2 {
             return Err(invalid(
                 "one-sided projection requires a real signal and a nonnegative frequency bin",
             ));
         }
-        Ok(if bin == 0 || (n % 2 == 0 && bin == n / 2) {
+        Ok(if bin == 0 || (n.is_multiple_of(2) && bin == n / 2) {
             1.
         } else {
             2.

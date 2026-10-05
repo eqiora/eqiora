@@ -16,7 +16,7 @@ mod sensitivity;
 mod spectrum;
 pub use functional::TimeFunctionalQuadrature;
 pub(crate) use sensitivity::CommonTrajectoryParameterSensitivity;
-pub use spectrum::{FiniteSpectrum, SpectrumWindow, UniformDft};
+pub use spectrum::{FiniteSpectrum, UniformDft};
 
 /// Accepted output States bound to the complete immutable Run request.
 #[derive(Debug, Clone, PartialEq)]

@@ -51,7 +51,7 @@ pub use common_ode::{
 };
 pub use common_result::{CommonObservableStateTangent, CommonResult};
 pub use common_trajectory::{
-    CommonTrajectory, FiniteSpectrum, SpectrumWindow, TimeFunctionalQuadrature, UniformDft,
+    CommonTrajectory, FiniteSpectrum, TimeFunctionalQuadrature, UniformDft,
 };
 pub use numerical_admission::{
     AuthenticatedCommonMesh, CommonAlgebraicPlan, CommonAlgebraicState, CommonBackwardEuler,

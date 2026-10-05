@@ -35,6 +35,7 @@ assert math.isclose(result.observe(finite.observable("composed")).value, 20.0, a
 assert eqiora.Result.from_bytes(plan, result.to_bytes()).observe(output).result_identity == observed.result_identity
 for invalid in (lambda: finite.observable("a"), lambda: result.observe("twice"),
                 lambda: result.observe_terminal(output),
+                lambda: result.observe_spectrum(output, start_s=0., spacing_s=1., count=4, window='rectangular', max_products=16),
                 lambda: result.observe_time_integral(output, quadrature=eqiora.time.TimeFunctionalQuadrature.AcceptedStepSimpson),
                 lambda: result.observe(output, quadrature_points=2)):
     try:
