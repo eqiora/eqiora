@@ -7,7 +7,7 @@ use eqiora_schema::kernel::{KernelNode, SymbolRef};
 struct SourcePencil {
     rows: ComponentScalarization,
     mode: Vec<ScalarSymbolCoordinate>,
-    spectral: ScalarSymbolCoordinate,
+    spectral: Vec<ScalarSymbolCoordinate>,
     bindings: Vec<(ScalarSymbolCoordinate, f64)>,
 }
 
@@ -23,7 +23,7 @@ impl SourcePencil {
                 .unwrap()
         };
         let mode = coordinates(model.aliases()["u"]);
-        let spectral = coordinates(model.aliases()["lambda"]).remove(0);
+        let spectral = coordinates(model.aliases()["lambda"]);
         let relation = model.aliases()["r"].downcast().unwrap();
         let rows =
             ComponentScalarization::lower(&program.typed_relation_residual(relation).unwrap())
@@ -81,9 +81,16 @@ fn pencil_coefficients_follow_algebra_without_operator_subtraction() {
         ("math.sin(k)*u-lambda*u", 2_f64.sin(), -1.),
     ] {
         let source = SourcePencil::scalar(expression);
-        let (a, c) = source.rows.rows()[0]
-            .bind_affine_pencil(&source.mode, &source.spectral, &source.bindings)
+        let coefficients = source.rows.rows()[0]
+            .bind_polynomial_pencil(
+                &source.mode,
+                &source.spectral,
+                1,
+                1_000_000,
+                &source.bindings,
+            )
             .unwrap();
+        let (a, c) = (&coefficients[&vec![0]], &coefficients[&vec![1]]);
         assert_eq!(a.coefficients(), [expected_a]);
         assert_eq!(c.coefficients(), [expected_c]);
         assert_eq!(a.offsets(), [0.]);
@@ -104,7 +111,13 @@ fn pencil_admission_rejects_false_sampling_linearity_and_inhomogeneous_terms() {
         let source = SourcePencil::scalar(expression);
         assert!(
             source.rows.rows()[0]
-                .bind_affine_pencil(&source.mode, &source.spectral, &source.bindings)
+                .bind_polynomial_pencil(
+                    &source.mode,
+                    &source.spectral,
+                    1,
+                    1_000_000,
+                    &source.bindings
+                )
                 .is_err(),
             "{expression}"
         );
@@ -143,9 +156,16 @@ model M() {{
     assert_eq!(source.mode.len(), 12);
     assert_eq!(source.rows.rows().len(), 12);
     for (row_index, row) in source.rows.rows().iter().enumerate() {
-        let (a, c) = row
-            .bind_affine_pencil(&source.mode, &source.spectral, &source.bindings)
+        let coefficients = row
+            .bind_polynomial_pencil(
+                &source.mode,
+                &source.spectral,
+                1,
+                1_000_000,
+                &source.bindings,
+            )
             .unwrap();
+        let (a, c) = (&coefficients[&vec![0]], &coefficients[&vec![1]]);
         assert_eq!(a.selected_symbols(), source.mode);
         for col in 0..12 {
             assert_eq!(
@@ -160,6 +180,49 @@ model M() {{
                 c.coefficients()[col],
                 if col == row_index { -1. } else { 0. }
             );
+        }
+    }
+}
+
+#[test]
+fn complex_quadratic_source_retains_both_spectral_coordinates() {
+    let source = SourcePencil::compile(
+        "model M(){variable u:complex<1>;variable lambda:complex<1>;relation r{(1e30+3*lambda+2*lambda^2)*u=0;}}",
+    );
+    assert_eq!(source.spectral.len(), 2);
+    assert_eq!(source.mode.len(), 2);
+    // For λ=x+iy, P(λ)=1e30+3x+2x²-2y²+i(3y+4xy).
+    // Multiplication by u=a+ib has rows [Re P,-Im P] and [Im P,Re P].
+    for (row, coefficients) in source
+        .rows
+        .rows()
+        .iter()
+        .map(|row| {
+            row.bind_polynomial_pencil(
+                &source.mode,
+                &source.spectral,
+                2,
+                1_000_000,
+                &source.bindings,
+            )
+            .unwrap()
+        })
+        .enumerate()
+    {
+        for (powers, real, imaginary) in [
+            (vec![0, 0], 1e30, 0.),
+            (vec![1, 0], 3., 0.),
+            (vec![0, 1], 0., 3.),
+            (vec![2, 0], 2., 0.),
+            (vec![0, 2], -2., 0.),
+            (vec![1, 1], 0., 4.),
+        ] {
+            let expected = if row == 0 {
+                [real, -imaginary]
+            } else {
+                [imaginary, real]
+            };
+            assert_eq!(coefficients[&powers].coefficients(), expected);
         }
     }
 }

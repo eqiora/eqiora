@@ -187,27 +187,28 @@ impl ComponentScalarRow {
         self.ir.bind_affine(selected, bindings)
     }
 
-    /// Prove and bind a homogeneous affine pencil `(A + lambda C) u`.
+    /// Prove and bind a homogeneous polynomial pencil in real spectral coordinates.
     ///
-    /// Returns the two ordinary affine maps `(A u, C u)` in `selected` order.
-    /// Structural degree admission precedes all coefficient evaluation: neither
-    /// numerical sampling nor an assumed holomorphic rule proves linearity.
-    /// Coefficients of lambda use the existing affine extractor directly, never
-    /// subtraction of two evaluated operators. Physical units, complex-linearity
-    /// and the Hermitian/metric contract remain with the mathematical owner.
-    pub fn bind_affine_pencil(
+    /// Each key lists spectral powers in the supplied coordinate order; each
+    /// value is the corresponding homogeneous mode map. Missing keys are zero.
+    /// Structural degree admission precedes coefficient evaluation. Coefficients
+    /// are propagated algebraically, never inferred from sampled values. Complex
+    /// analyticity, physical dimensions and eigenproblem classes remain with the
+    /// mathematical owner. `term_budget` limits retained coefficient resources,
+    /// not the dimension or mathematical degree of admitted finite spaces.
+    pub fn bind_polynomial_pencil(
         &self,
         selected: &[ScalarSymbolCoordinate],
-        spectral: &ScalarSymbolCoordinate,
+        spectral: &[ScalarSymbolCoordinate],
+        maximum_degree: u32,
+        term_budget: usize,
         bindings: &[(ScalarSymbolCoordinate, f64)],
     ) -> Result<
-        (
-            crate::BoundAffineScalarIr<ScalarSymbolCoordinate>,
-            crate::BoundAffineScalarIr<ScalarSymbolCoordinate>,
-        ),
+        std::collections::BTreeMap<Vec<u32>, crate::BoundAffineScalarIr<ScalarSymbolCoordinate>>,
         Diagnostic,
     > {
-        self.ir.bind_affine_pencil(selected, spectral, bindings)
+        self.ir
+            .bind_polynomial_pencil(selected, spectral, maximum_degree, term_budget, bindings)
     }
 
     /// Bind first-order products in the exact real component-coordinate order.

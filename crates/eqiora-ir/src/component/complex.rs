@@ -1,5 +1,6 @@
 //! Real coordinate lowering keeps complex parts attached to the original symbol.
 use super::*;
+mod power;
 use eqiora_core::ScalarDomain;
 use eqiora_schema::kernel::UnaryMathFunction;
 
@@ -102,10 +103,8 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                 self.builder
                     .complex_div([ar, ai, br, bi], part == Imaginary)?
             }
-            ExprNode::PowI(base, _) if self.is_complex(base) => {
-                return Err(invalid_component_ir(
-                    "complex powers are not admitted by component scalarization",
-                ));
+            ExprNode::PowI(base, exponent) if self.is_complex(base) => {
+                self.lower_complex_power(base, exponent, component, part)?
             }
             _ => return Ok(None),
         };
