@@ -14,9 +14,7 @@ mod history;
 mod lowering;
 mod midpoint;
 mod plan;
-pub use midpoint::{
-    IMPLICIT_MIDPOINT_BACKEND, IMPLICIT_MIDPOINT_CAPABILITIES, ImplicitMidpointTimeBackend,
-};
+pub use midpoint::ImplicitMidpointTimeBackend;
 mod problem;
 mod reference_implicit;
 mod root_outcome;

@@ -8,21 +8,6 @@ use crate::{
 use eqiora_core::Diagnostic;
 
 const MAX_STEPS: usize = 1_000_000;
-/// Identity of the common host implicit-midpoint implementation.
-pub const IMPLICIT_MIDPOINT_BACKEND: TimeBackendIdentity =
-    TimeBackendIdentity::new("eqiora.time.implicit-midpoint", env!("CARGO_PKG_VERSION"));
-
-/// Domains and real-coordinate precision supported by this adapter.
-pub const IMPLICIT_MIDPOINT_CAPABILITIES: crate::TimeBackendCapabilities =
-    crate::TimeBackendCapabilities::new(
-        IMPLICIT_MIDPOINT_BACKEND,
-        &[
-            eqiora_core::ScalarDomain::Real,
-            eqiora_core::ScalarDomain::Complex,
-        ],
-        &[eqiora_core::ScalarType::F64],
-    );
-
 /// Fixed-step implicit midpoint over the ordinary RHS/JVP and mass actions.
 ///
 /// Complex values use their declared real coordinates; no norm projection or
@@ -31,6 +16,20 @@ pub const IMPLICIT_MIDPOINT_CAPABILITIES: crate::TimeBackendCapabilities =
 #[derive(Debug, Default, Clone, Copy)]
 pub struct ImplicitMidpointTimeBackend;
 impl ImplicitMidpointTimeBackend {
+    /// Identity of the common host implicit-midpoint implementation.
+    pub const IDENTITY: TimeBackendIdentity =
+        TimeBackendIdentity::new("eqiora.time.implicit-midpoint", env!("CARGO_PKG_VERSION"));
+
+    /// Domains and real-coordinate precision supported by this adapter.
+    pub const CAPABILITIES: crate::TimeBackendCapabilities = crate::TimeBackendCapabilities::new(
+        Self::IDENTITY,
+        &[
+            eqiora_core::ScalarDomain::Real,
+            eqiora_core::ScalarDomain::Complex,
+        ],
+        &[eqiora_core::ScalarType::F64],
+    );
+
     /// Construct the stateless host backend.
     #[must_use]
     pub const fn new() -> Self {
@@ -175,7 +174,7 @@ impl ImplicitMidpointTimeBackend {
             plan.output_times().to_vec(),
             values,
             TimeExecutionReport::new(
-                IMPLICIT_MIDPOINT_BACKEND,
+                ImplicitMidpointTimeBackend::IDENTITY,
                 TimeMethod::ImplicitMidpoint,
                 problem.equation_class(),
                 problem.initial_condition(),

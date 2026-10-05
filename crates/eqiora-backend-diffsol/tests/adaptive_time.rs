@@ -1,6 +1,6 @@
 #![cfg(feature = "diffsol-runtime")]
 
-use eqiora_backend_diffsol::{DIFFSOL_TIME_BACKEND, DiffsolTimeBackend};
+use eqiora_backend_diffsol::DiffsolTimeBackend;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
 use eqiora_time::{
@@ -357,7 +357,10 @@ fn tsitouras45_converges_on_smooth_nonstiff_ode() {
     .unwrap();
 
     let solution = DiffsolTimeBackend::new().solve(&problem, &plan).unwrap();
-    assert_eq!(solution.report().backend_identity(), DIFFSOL_TIME_BACKEND);
+    assert_eq!(
+        solution.report().backend_identity(),
+        DiffsolTimeBackend::IDENTITY
+    );
     assert_eq!(solution.report().method(), TimeMethod::Tsitouras45);
     for (sample, time) in output_times.into_iter().enumerate() {
         let expected = (-2.0_f64 * time).exp();

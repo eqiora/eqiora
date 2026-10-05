@@ -15,26 +15,26 @@ use eqiora_time::{
     TimeExecutionReport, TimeMethod, TimePlan, TimeProblem, TimeSolution, TimeSystem,
 };
 
-/// Stable adapter identity and exact Diffsol release represented by this build.
-pub const DIFFSOL_TIME_BACKEND: TimeBackendIdentity =
-    TimeBackendIdentity::new("eqiora.time.diffsol", "0.16.2");
-
-/// Domains and real-coordinate precision supported by this adapter.
-pub const DIFFSOL_TIME_CAPABILITIES: eqiora_time::TimeBackendCapabilities =
-    eqiora_time::TimeBackendCapabilities::new(
-        DIFFSOL_TIME_BACKEND,
-        &[
-            eqiora_core::ScalarDomain::Real,
-            eqiora_core::ScalarDomain::Complex,
-        ],
-        &[eqiora_core::ScalarType::F64],
-    );
-
 /// Stateless Diffsol adapter for admitted first-order time problems.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct DiffsolTimeBackend;
 
 impl DiffsolTimeBackend {
+    /// Stable adapter identity and exact Diffsol release represented by this build.
+    pub const IDENTITY: TimeBackendIdentity =
+        TimeBackendIdentity::new("eqiora.time.diffsol", "0.16.2");
+
+    /// Domains and real-coordinate precision supported by this adapter.
+    pub const CAPABILITIES: eqiora_time::TimeBackendCapabilities =
+        eqiora_time::TimeBackendCapabilities::new(
+            Self::IDENTITY,
+            &[
+                eqiora_core::ScalarDomain::Real,
+                eqiora_core::ScalarDomain::Complex,
+            ],
+            &[eqiora_core::ScalarType::F64],
+        );
+
     /// Construct the stateless adapter.
     #[must_use]
     pub const fn new() -> Self {

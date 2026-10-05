@@ -28,8 +28,10 @@ use enforcement::WireEnforcement;
 use linear::WireLinearControls;
 mod event_policy;
 mod forward_policy;
+mod temporal;
 use event_policy::WireEventPolicy;
 use forward_policy::WireForwardSensitivity;
+use temporal::{WireTemporal, WireTimeCoordinates, temporal_request};
 
 const SCHEMA: &str = "eqiora.resolved-common-plan/v10";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
@@ -116,63 +118,6 @@ struct WireScalingRequest {
     velocity_m_per_s: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pressure_pa: Option<f64>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireOdeTolerance {
-    field_ulid: String,
-    derivative_order: u32,
-    component: u64,
-    imaginary: bool,
-    value: f64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireOdeMethod {
-    Tsitouras45,
-    ImplicitMidpoint,
-}
-impl WireOdeMethod {
-    fn encode(method: eqiora_time::TimeMethod) -> Self {
-        match method {
-            eqiora_time::TimeMethod::Tsitouras45 => Self::Tsitouras45,
-            eqiora_time::TimeMethod::ImplicitMidpoint => Self::ImplicitMidpoint,
-            _ => unreachable!("validated common ODE policy"),
-        }
-    }
-    fn decode(self) -> eqiora_time::TimeMethod {
-        match self {
-            Self::Tsitouras45 => eqiora_time::TimeMethod::Tsitouras45,
-            Self::ImplicitMidpoint => eqiora_time::TimeMethod::ImplicitMidpoint,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-enum WireTimeCoordinates {
-    RealF64,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
-enum WireTemporal {
-    BackwardEuler {
-        step_s: f64,
-    },
-    Ode {
-        method: WireOdeMethod,
-        coordinates: WireTimeCoordinates,
-        initial_step_s: f64,
-        relative_tolerance: f64,
-        absolute_tolerances: Vec<WireOdeTolerance>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        events: Option<WireEventPolicy>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        forward_sensitivities: Option<WireForwardSensitivity>,
-    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -635,7 +580,7 @@ impl WireResolvedCommonPlanV10 {
                 ))
             })?;
             let backend = if temporal.method() == eqiora_time::TimeMethod::ImplicitMidpoint {
-                eqiora_time::IMPLICIT_MIDPOINT_CAPABILITIES
+                eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES
             } else {
                 time_backend
             };
@@ -949,51 +894,6 @@ fn scaling_request(plan: &ResolvedCommonPlan) -> Option<WireScalingRequest> {
         velocity_m_per_s: manual(ScalingComponent2d::Velocity),
         pressure_pa: manual(ScalingComponent2d::Pressure),
     })
-}
-
-fn temporal_request(plan: &ResolvedCommonPlan) -> Option<WireTemporal> {
-    match plan {
-        ResolvedCommonPlan::Ode(plan) => Some(WireTemporal::Ode {
-            method: WireOdeMethod::encode(plan.temporal().method()),
-            coordinates: WireTimeCoordinates::RealF64,
-            events: plan.event_policy().map(WireEventPolicy::from_native),
-            forward_sensitivities: plan
-                .temporal()
-                .forward_sensitivities()
-                .map(WireForwardSensitivity::from_native),
-            initial_step_s: plan.temporal().initial_step_s(),
-            relative_tolerance: plan.temporal().relative_tolerance(),
-            absolute_tolerances: plan
-                .temporal()
-                .absolute_tolerances()
-                .iter()
-                .map(|entry| WireOdeTolerance {
-                    field_ulid: entry.coordinate().field().ulid().to_string(),
-                    derivative_order: entry.coordinate().derivative_order(),
-                    component: entry.coordinate().component() as u64,
-                    imaginary: entry.coordinate().is_imaginary(),
-                    value: entry.value(),
-                })
-                .collect(),
-        }),
-        ResolvedCommonPlan::Scalar(plan) => {
-            plan.admission
-                .temporal
-                .map(|temporal| WireTemporal::BackwardEuler {
-                    step_s: temporal.step().value(),
-                })
-        }
-        ResolvedCommonPlan::TransientFlow(plan) => Some(WireTemporal::BackwardEuler {
-            step_s: plan.temporal().step().value(),
-        }),
-        ResolvedCommonPlan::Fsi(plan) => Some(WireTemporal::BackwardEuler {
-            step_s: plan.temporal().step().value(),
-        }),
-        ResolvedCommonPlan::Eigen(_)
-        | ResolvedCommonPlan::Algebraic(_)
-        | ResolvedCommonPlan::Elasticity(_)
-        | ResolvedCommonPlan::SteadyStokes(_) => None,
-    }
 }
 
 fn nonzero(value: usize, label: &str) -> Result<NonZeroUsize, Diagnostic> {

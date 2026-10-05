@@ -2,7 +2,7 @@
 use eqiora::api::ModelDocument;
 use eqiora::artifact::ModelEnvelope;
 use eqiora::runtime::FirstOrderProgram;
-use eqiora::time::{IMPLICIT_MIDPOINT_CAPABILITIES, ImplicitMidpointTimeBackend, TimeMethod};
+use eqiora::time::{ImplicitMidpointTimeBackend, TimeMethod};
 use eqiora_numerics::{
     CommonOdePlan, CommonOdePolicy, CommonOdeRunRequest, CommonOdeState, CommonTimeTolerance,
     CommonTrajectory, ResolvedCommonPlan,
@@ -55,7 +55,7 @@ fn resolve(document: &ModelDocument, step: f64) -> CommonOdePlan {
         &model,
         document.program(),
         temporal,
-        IMPLICIT_MIDPOINT_CAPABILITIES,
+        ImplicitMidpointTimeBackend::CAPABILITIES,
     )
     .unwrap()
 }
@@ -68,7 +68,7 @@ fn complex_and_real_oscillators_share_exact_plan_state_and_restart() {
     let replay = ResolvedCommonPlan::from_bytes(
         &bytes,
         &eqiora::solver::REFERENCE_LINEAR_SOLVER,
-        IMPLICIT_MIDPOINT_CAPABILITIES,
+        ImplicitMidpointTimeBackend::CAPABILITIES,
     )
     .unwrap();
     assert_eq!(replay, resolved);
@@ -242,7 +242,7 @@ fn stale_and_nonfinite_states_and_wrong_initial_domains_fail_closed() {
         &ModelEnvelope::from_program(document.program()).unwrap(),
         document.program(),
         bad_controls,
-        IMPLICIT_MIDPOINT_CAPABILITIES,
+        ImplicitMidpointTimeBackend::CAPABILITIES,
     )
     .unwrap_err();
     assert!(
@@ -371,19 +371,19 @@ fn complex_parameter_components_drive_the_same_time_program_and_jvp() {
 
 #[test]
 fn complex_payload_and_coordinate_precision_require_advertised_capabilities() {
-    use eqiora::time::{IMPLICIT_MIDPOINT_BACKEND, TimeBackendCapabilities};
+    use eqiora::time::TimeBackendCapabilities;
     use eqiora::{ScalarDomain, ScalarType};
     let document = ModelDocument::compile("capabilities.eqi", SOURCE).unwrap();
     let model = ModelEnvelope::from_program(document.program()).unwrap();
     let plan = resolve(&document, 0.05);
     for unsupported in [
         TimeBackendCapabilities::new(
-            IMPLICIT_MIDPOINT_BACKEND,
+            ImplicitMidpointTimeBackend::IDENTITY,
             &[ScalarDomain::Real],
             &[ScalarType::F64],
         ),
         TimeBackendCapabilities::new(
-            IMPLICIT_MIDPOINT_BACKEND,
+            ImplicitMidpointTimeBackend::IDENTITY,
             &[ScalarDomain::Real, ScalarDomain::Complex],
             &[ScalarType::F32],
         ),
@@ -406,7 +406,7 @@ fn complex_payload_and_coordinate_precision_require_advertised_capabilities() {
         ResolvedCommonPlan::from_bytes(
             &serde_json::to_vec(&wire).unwrap(),
             &eqiora::solver::REFERENCE_LINEAR_SOLVER,
-            IMPLICIT_MIDPOINT_CAPABILITIES
+            ImplicitMidpointTimeBackend::CAPABILITIES
         )
         .is_err()
     );

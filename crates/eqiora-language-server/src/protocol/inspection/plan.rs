@@ -1,7 +1,7 @@
 //! Thin, read-only projection of the existing canonical numerical Plan owner.
 use eqiora::{
     api::ModelDocument,
-    backends::{diffsol::DIFFSOL_TIME_CAPABILITIES, faer::FaerLinearSolver},
+    backends::{diffsol::DiffsolTimeBackend, faer::FaerLinearSolver},
 };
 use eqiora_numerics::ResolvedCommonPlan;
 use serde_json::{Value, json};
@@ -9,8 +9,9 @@ use serde_json::{Value, json};
 pub(super) fn project(bytes: &[u8], selected: &ModelDocument) -> Result<Value, String> {
     // Decoding re-resolves admission and checks exact canonical bytes and provider
     // versions. It never executes the Plan or accepts renderer-authored controls.
-    let plan = ResolvedCommonPlan::from_bytes(bytes, &FaerLinearSolver, DIFFSOL_TIME_CAPABILITIES)
-        .map_err(|error| format!("Cannot validate numerical Plan: {}", error.message()))?;
+    let plan =
+        ResolvedCommonPlan::from_bytes(bytes, &FaerLinearSolver, DiffsolTimeBackend::CAPABILITIES)
+            .map_err(|error| format!("Cannot validate numerical Plan: {}", error.message()))?;
     let selected_digest = selected
         .digest()
         .map_err(|error| error.message().to_owned())?;
@@ -75,7 +76,7 @@ mod tests {
                 ],
             )
             .unwrap(),
-            DIFFSOL_TIME_CAPABILITIES,
+            DiffsolTimeBackend::CAPABILITIES,
         )
         .unwrap()
         .to_bytes()
@@ -91,7 +92,7 @@ mod tests {
         assert_eq!(view["modelDigest"], selected.digest().unwrap());
         assert_eq!(
             view["solverBackend"],
-            DIFFSOL_TIME_CAPABILITIES.identity().id()
+            DiffsolTimeBackend::CAPABILITIES.identity().id()
         );
         assert_eq!(view["metadata"]["family"], "ode");
         assert_eq!(view["metadata"]["temporal"]["initial_step_s"], 0.01);

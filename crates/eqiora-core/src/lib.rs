@@ -22,7 +22,7 @@ pub mod entity;
 pub mod id;
 pub mod ontology;
 pub mod quantity;
-pub mod scalar;
+mod scalar;
 mod time_state_coordinate;
 pub use time_state_coordinate::TimeStateCoordinate;
 pub mod value_literal;

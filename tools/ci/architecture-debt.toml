@@ -226,7 +226,13 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[public_surface]]
 crate = "eqiora"
-ceiling = 266
+ceiling = 268
+# #922: ScalarType and TimeStateCoordinate re-export the existing shared owners.
+# Native capability requests and Python/LSP Plan admission need explicit storage
+# precision and full Field/order/component/imaginary coordinates. ScalarDomain
+# does not describe precision; Field IDs alone lose complex and shaped channels.
+# Withdraw these exports only when the common time/precision surface is removed
+# or an existing exported owner preserves these same invariants without aliases.
 # #915: one FiniteBasis re-export exposes the exact basis/dual/product owner to
 # native ValueType constructors; no facade-local basis or map type is introduced.
 # Withdraw this export if the facade no longer admits finite coordinates/maps.
@@ -297,7 +303,9 @@ ceiling = 27
 
 [[public_surface]]
 crate = "eqiora-backend-diffsol"
-ceiling = 2
+ceiling = 1
+# #922: identity and capability declarations are associated with the adapter;
+# no standalone constants or compatibility aliases duplicate this public route.
 
 [[public_surface]]
 crate = "eqiora-backend-faer"
@@ -332,7 +340,13 @@ removal = "fold label key and role types only when an existing exact occurrence 
 
 [[public_surface]]
 crate = "eqiora-core"
-ceiling = 120
+ceiling = 119
+# #922: TimeStateCoordinate owns the complete source coordinate shared by time
+# lowering, artifact reconstruction, initialization and tolerance authoring.
+# ScalarDomain/ScalarType now have only their root route (scalar is private),
+# removing two duplicate public routes while adding this one coordinate owner.
+# Remove the coordinate type only when an existing shared owner preserves all
+# four fields and their Model-bound validation without client-specific tuples.
 # #915: FiniteBasis and its root re-export own exact atomic identities, duality
 # and ordered two-factor products for ValueType, compiler, schema and replay.
 # Extent-only shapes cannot enforce nominal endpoints. Withdraw the two names
@@ -563,7 +577,15 @@ ceiling = 26
 
 [[public_surface]]
 crate = "eqiora-time"
-ceiling = 41
+ceiling = 43
+# #922: TimeBackendCapabilities separates negotiated domains/storage from report
+# identity; Plan admission and exact replay consume it for both real and complex
+# states. ImplicitMidpointTimeBackend executes the same TimeProblem/TimePlan as
+# other adapters and is used by native and Python common ODE execution. Its
+# identity/capabilities are associated constants, not extra top-level exports.
+# Remove capabilities only if an existing backend contract retains explicit
+# domain and precision rejection; fold midpoint into another backend only if
+# that owner preserves constant-mass actions and output-independent history.
 reason = "AcceptedTimeHistory and TimeHistoryStep own complete smooth native integration traces and midpoint stencils shared by the backend, common trajectory and artifact replay; output samples do not own quadrature history"
 removal = "withdraw only when accepted existing owners preserve the same typed history and stencil validation without duplicated backend or adapter rules"
 

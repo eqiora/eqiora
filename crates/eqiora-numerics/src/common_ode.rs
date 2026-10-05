@@ -178,7 +178,7 @@ impl CommonOdePlan {
     ) -> Result<Self, Diagnostic> {
         let backend = capabilities.identity();
         if temporal.method() == TimeMethod::ImplicitMidpoint
-            && backend != eqiora_time::IMPLICIT_MIDPOINT_BACKEND
+            && backend != eqiora_time::ImplicitMidpointTimeBackend::IDENTITY
         {
             return Err(invalid(
                 "implicit midpoint requires its available host backend identity",

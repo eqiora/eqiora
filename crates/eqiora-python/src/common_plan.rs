@@ -293,7 +293,7 @@ impl PyPlan {
         ResolvedCommonPlan::from_bytes(
             data,
             &FaerLinearSolver,
-            eqiora::backends::diffsol::DIFFSOL_TIME_CAPABILITIES,
+            eqiora::backends::diffsol::DiffsolTimeBackend::CAPABILITIES,
         )
         .map_err(|diagnostic| validation_error(py, &[diagnostic]))
         .and_then(|native| Self::from_native_artifact(py, native))
@@ -320,7 +320,7 @@ impl PyPlan {
                 ResolvedCommonPlan::from_bytes(
                     &bytes,
                     &FaerLinearSolver,
-                    eqiora::backends::diffsol::DIFFSOL_TIME_CAPABILITIES,
+                    eqiora::backends::diffsol::DiffsolTimeBackend::CAPABILITIES,
                 )
             })
             .map_err(|diagnostic| compatibility_error(py, &[diagnostic]))?;
@@ -737,9 +737,9 @@ fn resolve_plan(
             ));
         }
         let backend = if policy.method() == eqiora::time::TimeMethod::ImplicitMidpoint {
-            eqiora::time::IMPLICIT_MIDPOINT_CAPABILITIES
+            eqiora::time::ImplicitMidpointTimeBackend::CAPABILITIES
         } else {
-            eqiora::backends::diffsol::DIFFSOL_TIME_CAPABILITIES
+            eqiora::backends::diffsol::DiffsolTimeBackend::CAPABILITIES
         };
         let program = artifact
             .to_program()
