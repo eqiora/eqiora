@@ -711,8 +711,22 @@ projects those actions into matrix-free state/parameter Jacobians and composes
 them with the sole solver plan for forward and adjoint analysis. Transpose is a
 separate operator capability; an Eqiora-owned oriented view sends an actual
 VJP action through the same solver and independent true-residual acceptance
-path. The smooth implicit claim is currently static, host-local `f64`. A
-separate materialized direct-output reference binds an accepted relation/output
+path. The smooth implicit claim is currently static, host-local `f64` storage.
+`ComponentScalarization::linearize` retains each original symbol, component and
+real/imaginary coordinate while composing the same scalar derivative graph into
+one `LinearizedRelation`. Its pairing is the real Euclidean product, equivalent
+to `Re(sum(conj(a) * b))` on complex values. Thus `conj`, `real`, `imag` and `abs2`
+use real differentials without a holomorphic assumption; the gradient of `abs2`
+includes its factor of two. Transpose of this real representation is distinct
+from algebraic complex transpose, conjugate transpose and a space-metric adjoint.
+Focused source-to-implicit-solver tests compare a nonholomorphic complex linear
+problem's forward and adjoint objective derivatives with an analytic solution.
+This native derivative path does not extend the common Python Newton admission,
+complex trajectory derivatives, branch continuation or external constitutive
+providers. A provider must explicitly establish its mathematical scalar domain,
+real-coordinate correspondence and paired derivative products; an existing real
+kernel is insufficient. Unsupported component operations fail explicitly.
+A separate materialized direct-output reference binds an accepted relation/output
 pair to its exact canonical CSR coefficient source while keeping the primal
 source RHS distinct from derivative RHS values. The solver request applies a
 faer sparse-LU factorization of those coefficients in normal or transposed

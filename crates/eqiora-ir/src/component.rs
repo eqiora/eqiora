@@ -1,4 +1,6 @@
 mod complex;
+mod linearization;
+pub use linearization::ComponentLinearization;
 mod finite;
 mod pullback;
 mod pure;
@@ -159,6 +161,13 @@ impl ComponentScalarRow {
     }
 
     /// Bind first-order products in the exact real component-coordinate order.
+    /// Complex symbols retain two coordinates per component. The derivative is
+    /// real-linear: `conj`, `real`, `imag`, and `abs2` do not require holomorphy.
+    /// The VJP uses the Euclidean pairing on these real coordinates, equivalent
+    /// to `Re(sum(conj(a) * b))` on complex components and the ordinary product
+    /// on real components. An `abs2(z)` cotangent therefore includes the factor
+    /// two from its real differential; it is not a Wirtinger partial.
+    ///
     /// Numerical regularity checks are replayed by the shared primal/JVP/VJP evaluator.
     /// # Errors
     /// Rejects wrong cardinality, non-finite points and unsupported numerical instructions.

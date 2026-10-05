@@ -3,6 +3,9 @@ use super::*;
 use eqiora_core::ScalarDomain;
 use eqiora_schema::kernel::UnaryMathFunction;
 
+#[cfg(test)]
+mod differentiation_tests;
+
 impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
     fn is_complex(&self, value: ExprId) -> bool {
         self.node_types[value.index() as usize]
