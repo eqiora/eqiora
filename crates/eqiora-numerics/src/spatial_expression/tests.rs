@@ -374,3 +374,90 @@ model ComplexCoefficient() {
     assert_eq!(tape.parameter_fields().len(), 2);
     assert!(lower::<f64>(&program, &residuals, *root, relation.id().erase(), 1).is_err());
 }
+
+#[test]
+fn complex_coordinate_tangents_preserve_conjugate_dependence() {
+    use num_complex::Complex64 as C;
+    let tape = ScalarSpatialExpression {
+        coordinate_dimension: 1,
+        instructions: vec![
+            Instruction::Parameter(0),
+            Instruction::Conjugate(0),
+            Instruction::Mul(0, 1),
+            Instruction::Coordinate(0),
+            Instruction::PowI(3, 2),
+            Instruction::Mul(2, 4),
+        ],
+        root: 5,
+        coordinate_dependent: true,
+        parameter_fields: vec![Id::new()],
+        parameter_values: vec![C::new(1.0, 2.0)],
+    };
+    // f = |p|^2 x^2. At p=1+2i, x=3: f=45, df/dx=30.
+    // With dp=3-i, d|p|^2=2 Re(conj(p) dp)=2; dx=1/4 gives df=18+7.5.
+    assert_eq!(
+        tape.evaluate_gradient::<1>(&[3.0]).unwrap(),
+        [C::new(30.0, 0.0)]
+    );
+    assert_eq!(
+        tape.evaluate_tangent(&[3.0], &[0.25], &[C::new(3.0, -1.0)])
+            .unwrap(),
+        (C::new(45.0, 0.0), C::new(25.5, 0.0))
+    );
+    assert!(tape.evaluate_gradient::<2>(&[3.0]).is_err());
+    assert!(tape.evaluate_gradient::<0>(&[3.0]).is_err());
+    assert!(
+        tape.evaluate_tangent(&[3.0], &[0.0], &[C::new(0.0, f64::NAN)])
+            .is_err()
+    );
+}
+
+#[test]
+fn complex_root_tangents_reject_the_branch_cut_and_zero() {
+    use num_complex::Complex64 as C;
+    let tape = ScalarSpatialExpression {
+        coordinate_dimension: 1,
+        instructions: vec![Instruction::Parameter(0), Instruction::Sqrt(0)],
+        root: 1,
+        coordinate_dependent: false,
+        parameter_fields: vec![Id::new()],
+        parameter_values: vec![C::new(3.0, 4.0)],
+    };
+    let (value, tangent) = tape
+        .evaluate_tangent(&[0.0], &[0.0], &[C::new(5.0, 0.0)])
+        .unwrap();
+    assert_eq!(value, C::new(2.0, 1.0));
+    assert!((tangent - C::new(1.0, -0.5)).norm() < 1e-14);
+    for value in [C::new(-4.0, 0.0), C::new(0.0, 0.0)] {
+        let bound = tape
+            .bind_parameter_point(tape.parameter_fields(), &[value])
+            .unwrap();
+        assert!(bound.evaluate(&[0.0]).is_ok());
+        assert!(
+            bound
+                .evaluate_tangent(&[0.0], &[0.0], &[C::new(1.0, 0.0)])
+                .is_err()
+        );
+    }
+}
+
+#[test]
+fn derivative_keeps_the_minimum_integer_exponent_without_overflow() {
+    let tape = ScalarSpatialExpression {
+        coordinate_dimension: 1,
+        instructions: vec![Instruction::Parameter(0), Instruction::PowI(0, i32::MIN)],
+        root: 1,
+        coordinate_dependent: false,
+        parameter_fields: vec![Id::new()],
+        parameter_values: vec![1.0],
+    };
+    assert_eq!(tape.evaluate(&[0.0]).unwrap(), 1.0);
+    assert_eq!(
+        tape.evaluate_parameter_jvp(&[0.0], &[1.0]).unwrap(),
+        (1.0, f64::from(i32::MIN))
+    );
+    assert_eq!(
+        tape.evaluate_parameter_vjp(&[0.0], 1.0).unwrap(),
+        (1.0, vec![f64::from(i32::MIN)])
+    );
+}

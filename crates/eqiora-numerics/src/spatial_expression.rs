@@ -7,6 +7,7 @@ use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef, UnaryMathFunct
 use eqiora_sem::KernelProgram;
 
 mod lowering;
+mod tangent;
 pub(crate) use lowering::lower;
 use num_complex::ComplexFloat;
 
@@ -211,23 +212,6 @@ impl ScalarSpatialExpression<f64> {
         )
     }
 
-    /// Evaluate the physical-coordinate gradient while holding Parameters fixed.
-    pub(crate) fn evaluate_gradient<const D: usize>(
-        &self,
-        coordinates: &[f64],
-    ) -> Result<[f64; D], Diagnostic> {
-        let zero_parameters = vec![0.0; self.parameter_fields.len()];
-        let mut gradient = [0.0; D];
-        for axis in 0..D {
-            let mut direction = [0.0; D];
-            direction[axis] = 1.0;
-            gradient[axis] = self
-                .evaluate_jvp(coordinates, &direction, &zero_parameters)?
-                .1;
-        }
-        Ok(gradient)
-    }
-
     /// Evaluate the primal value and a combined coordinate/Parameter JVP.
     ///
     /// Coordinate tangents are physical mesh-motion velocities. Parameter
@@ -243,86 +227,7 @@ impl ScalarSpatialExpression<f64> {
         coordinate_tangent: &[f64],
         parameter_tangent: &[f64],
     ) -> Result<(f64, f64), Diagnostic> {
-        self.validate_coordinates(coordinates)?;
-        if coordinate_tangent.len() != self.coordinate_dimension
-            || parameter_tangent.len() != self.parameter_fields.len()
-        {
-            return Err(input_mismatch(format!(
-                "spatial expression expects {}/{} coordinate/Parameter tangents, received {}/{}",
-                self.coordinate_dimension,
-                self.parameter_fields.len(),
-                coordinate_tangent.len(),
-                parameter_tangent.len()
-            )));
-        }
-        if coordinate_tangent
-            .iter()
-            .chain(parameter_tangent)
-            .any(|value| !value.is_finite())
-        {
-            return Err(nonfinite(
-                "spatial coordinate or Parameter tangent is non-finite",
-            ));
-        }
-        let mut values: Vec<f64> = Vec::with_capacity(self.instructions.len());
-        let mut tangents: Vec<f64> = Vec::with_capacity(self.instructions.len());
-        for instruction in &self.instructions {
-            let (value, tangent) = match *instruction {
-                Instruction::Constant(value) => (value, 0.0),
-                Instruction::Parameter(parameter) => (
-                    self.parameter_values[parameter],
-                    parameter_tangent[parameter],
-                ),
-                Instruction::Coordinate(axis) => (coordinates[axis], coordinate_tangent[axis]),
-                Instruction::Neg(value) => (-values[value], -tangents[value]),
-                Instruction::Conjugate(value) => (values[value], tangents[value]),
-                Instruction::Add(left, right) => (
-                    values[left] + values[right],
-                    tangents[left] + tangents[right],
-                ),
-                Instruction::Sub(left, right) => (
-                    values[left] - values[right],
-                    tangents[left] - tangents[right],
-                ),
-                Instruction::Mul(left, right) => (
-                    values[left] * values[right],
-                    tangents[left] * values[right] + values[left] * tangents[right],
-                ),
-                Instruction::Div(left, right) => (
-                    values[left] / values[right],
-                    (tangents[left] * values[right] - values[left] * tangents[right])
-                        / values[right].powi(2),
-                ),
-                Instruction::PowI(base, exponent) => {
-                    let value = f64::powi(values[base], exponent);
-                    let tangent = if exponent == 0 {
-                        0.0
-                    } else {
-                        f64::from(exponent) * f64::powi(values[base], exponent - 1) * tangents[base]
-                    };
-                    (value, tangent)
-                }
-                Instruction::Sin(value) => (
-                    f64::sin(values[value]),
-                    f64::cos(values[value]) * tangents[value],
-                ),
-                Instruction::Sqrt(value) => {
-                    let root = real_sqrt(values[value])?;
-                    if root == 0.0 {
-                        return Err(nonfinite("square-root derivative is undefined at zero"));
-                    }
-                    (root, tangents[value] / (2.0 * root))
-                }
-            };
-            if !value.is_finite() || !tangent.is_finite() {
-                return Err(nonfinite(
-                    "scalar spatial expression produced a non-finite primal or tangent value",
-                ));
-            }
-            values.push(value);
-            tangents.push(tangent);
-        }
-        Ok((values[self.root], tangents[self.root]))
+        self.evaluate_tangent(coordinates, coordinate_tangent, parameter_tangent)
     }
 
     /// Evaluate the primal value and one Parameter VJP in a reverse tape pass.
@@ -399,8 +304,9 @@ impl ScalarSpatialExpression<f64> {
                     adjoints[right] -= adjoint * values[left] / values[right].powi(2);
                 }
                 Instruction::PowI(base, exponent) if exponent != 0 => {
-                    adjoints[base] +=
-                        adjoint * f64::from(exponent) * f64::powi(values[base], exponent - 1);
+                    adjoints[base] += adjoint
+                        * f64::from(exponent)
+                        * tangent::preceding_power(values[base], exponent);
                 }
                 Instruction::PowI(_, _) => {}
                 Instruction::Sin(value) => {
