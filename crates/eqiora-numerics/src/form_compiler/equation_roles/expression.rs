@@ -24,7 +24,9 @@ pub(super) fn kinematic(dag: &ExprDag, root: ExprId) -> Option<(RawId, RawId)> {
     [(*left, *right), (*right, *left)]
         .into_iter()
         .find_map(|(left, right)| {
-            let ExprNode::Symbol(SymbolRef::Derivative(state)) = dag.node(left)? else {
+            let ExprNode::Symbol(SymbolRef::Derivative(state, std::num::NonZeroU32::MIN)) =
+                dag.node(left)?
+            else {
                 return None;
             };
             Some((state.erase(), field(dag, right)?))
@@ -72,7 +74,7 @@ pub(super) fn principal(
             continue;
         }
         match dag.node(id).expect("validated residual DAG") {
-            ExprNode::Symbol(SymbolRef::Derivative(field)) => {
+            ExprNode::Symbol(SymbolRef::Derivative(field, std::num::NonZeroU32::MIN)) => {
                 trials.insert(field.erase());
             }
             ExprNode::Gradient(value) => {

@@ -261,8 +261,12 @@ fn constant_symbol_jacobian_proves_an_exact_derivative_identity() {
     let second = Id::<kinds::Field>::new();
     let parameter = Id::<kinds::Parameter>::new();
     let mut expression = ExprDagBuilder::new();
-    let d_first = expression.symbol(SymbolRef::Derivative(first)).unwrap();
-    let d_second = expression.symbol(SymbolRef::Derivative(second)).unwrap();
+    let d_first = expression
+        .symbol(SymbolRef::Derivative(first, std::num::NonZeroU32::MIN))
+        .unwrap();
+    let d_second = expression
+        .symbol(SymbolRef::Derivative(second, std::num::NonZeroU32::MIN))
+        .unwrap();
     let first_value = expression.symbol(SymbolRef::Field(first)).unwrap();
     let parameter_value = expression.symbol(SymbolRef::Parameter(parameter)).unwrap();
     let first_residual = expression.sub(d_first, first_value).unwrap();
@@ -272,7 +276,10 @@ fn constant_symbol_jacobian_proves_an_exact_derivative_identity() {
         .unwrap();
 
     let jacobian = ir
-        .constant_symbol_jacobian(&[SymbolRef::Derivative(first), SymbolRef::Derivative(second)])
+        .constant_symbol_jacobian(&[
+            SymbolRef::Derivative(first, std::num::NonZeroU32::MIN),
+            SymbolRef::Derivative(second, std::num::NonZeroU32::MIN),
+        ])
         .unwrap();
     assert_eq!(jacobian.row_count(), 2);
     assert_eq!(jacobian.column_count(), 2);
@@ -284,7 +291,7 @@ fn constant_symbol_jacobian_proves_an_exact_derivative_identity() {
 #[test]
 fn constant_symbol_jacobian_rejects_variable_and_nonlinear_coefficients() {
     let field = Id::<kinds::Field>::new();
-    let derivative = SymbolRef::Derivative(field);
+    let derivative = SymbolRef::Derivative(field, std::num::NonZeroU32::MIN);
 
     let mut expression = ExprDagBuilder::new();
     let rate = expression.symbol(derivative).unwrap();
@@ -450,7 +457,7 @@ fn scalar_transition_projection_reuses_values_and_remaps_subsequent_operands() {
 fn constant_rate_coefficients_allow_nonlinear_values_but_not_nonlinear_rates() {
     use eqiora_schema::kernel::UnaryMathFunction;
     let field = Id::<kinds::Field>::new();
-    let derivative = SymbolRef::Derivative(field);
+    let derivative = SymbolRef::Derivative(field, std::num::NonZeroU32::MIN);
     for function in [
         UnaryMathFunction::Sin,
         UnaryMathFunction::Sqrt,

@@ -36,7 +36,7 @@ fn temporal(kernel: &KernelProgram) -> CommonTsitouras45 {
             .nodes()
             .filter_map(|node| match node {
                 KernelNode::Field(field) => {
-                    Some(CommonTsitourasTolerance::new(field.id(), 1e-11).unwrap())
+                    Some(CommonTsitourasTolerance::new((field.id(), 0), 1e-11).unwrap())
                 }
                 _ => None,
             })
@@ -83,7 +83,7 @@ fn event_policy_authenticates_group_units_plan_bytes_and_closed_execution_entry(
         backend(),
     )
     .unwrap();
-    assert_eq!(plan.field_ids().len(), 2);
+    assert_eq!(plan.state_coordinates().len(), 2);
     let roots = plan.root_set().unwrap().unwrap();
     assert_eq!(roots.events().len(), 1);
     assert_eq!(roots.events()[0].activations().len(), 2);
@@ -112,9 +112,13 @@ fn event_policy_authenticates_group_units_plan_bytes_and_closed_execution_entry(
     .unwrap();
     assert_ne!(plan.identity(), changed.identity());
     assert_eq!(plan.state_space_identity(), changed.state_space_identity());
-    let request =
-        CommonOdeRunRequest::new(plan.clone(), plan.initial_state().unwrap(), 1.0, vec![1.0])
-            .unwrap();
+    let request = CommonOdeRunRequest::new(
+        plan.clone(),
+        plan.initial_state(0.0).unwrap(),
+        1.0,
+        vec![1.0],
+    )
+    .unwrap();
     assert!(
         request
             .problem()

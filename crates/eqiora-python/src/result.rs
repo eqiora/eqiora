@@ -47,6 +47,7 @@ const RESULT_FILE_SPEC: ArtifactFileSpec = ArtifactFileSpec {
 #[pyclass(name = "Series", module = "eqiora._eqiora", frozen)]
 pub(crate) struct PySeries {
     field: Option<Py<PyModelFieldRef>>,
+    derivative_order: u32,
     id: String,
     name: Option<String>,
     dimension: DimExponents,
@@ -59,6 +60,10 @@ impl PySeries {
     #[getter]
     fn field(&self, py: Python<'_>) -> Option<Py<PyModelFieldRef>> {
         self.field.as_ref().map(|field| field.clone_ref(py))
+    }
+    #[getter]
+    fn derivative_order(&self) -> u32 {
+        self.derivative_order
     }
     #[getter]
     fn id(&self) -> &str {
@@ -126,7 +131,7 @@ struct CommonTrajectoryResultPayload {
 
 struct CommonOdeResultPayload {
     fields: Vec<Py<PySeries>>,
-    lookup: BTreeMap<String, usize>,
+    lookup: BTreeMap<(String, u32), usize>,
     states: Vec<eqiora_numerics::CommonOdeState>,
 }
 
@@ -400,8 +405,13 @@ impl PyRunResult {
     }
 
     /// Select one no-Mesh scalar series by exact Model-bound Field identity.
-    #[pyo3(signature = (field, /))]
-    fn series(&self, py: Python<'_>, field: &PyModelFieldRef) -> PyResult<Py<PySeries>> {
+    #[pyo3(signature = (field, /, *, derivative_order=0))]
+    fn series(
+        &self,
+        py: Python<'_>,
+        field: &PyModelFieldRef,
+        derivative_order: u32,
+    ) -> PyResult<Py<PySeries>> {
         if field.exact_model_digest() != self.identity.model_digest() {
             return Err(PyValueError::new_err(
                 "FieldRef belongs to a different exact Model artifact",
@@ -412,7 +422,7 @@ impl PyRunResult {
         };
         let index = payload
             .lookup
-            .get(field.exact_id())
+            .get(&(field.exact_id().to_owned(), derivative_order))
             .copied()
             .ok_or_else(|| PyKeyError::new_err(field.exact_id().to_owned()))?;
         Ok(payload.fields[index].clone_ref(py))
@@ -755,9 +765,9 @@ fn materialize_common_ode_trajectory(
         .collect::<Vec<_>>();
     let mut fields = Vec::new();
     let mut lookup = BTreeMap::new();
-    for (column, (field, dimension)) in native
-        .field_ids()
-        .zip(native.field_dimensions())
+    for (column, ((field, order), dimension)) in native
+        .state_coordinates()
+        .zip(native.state_dimensions())
         .enumerate()
     {
         let id = field.to_string();
@@ -765,6 +775,7 @@ fn materialize_common_ode_trajectory(
         let series = Py::new(
             py,
             PySeries {
+                derivative_order: order,
                 field: Some(Py::new(
                     py,
                     PyModelFieldRef::from_exact(native.model_digest().to_owned(), id.clone()),
@@ -776,7 +787,7 @@ fn materialize_common_ode_trajectory(
                 values: PyArrayBuffer::from_owned_result(py, values)?,
             },
         )?;
-        lookup.insert(id, fields.len());
+        lookup.insert((id, order), fields.len());
         fields.push(series);
     }
     Ok(PyRunResult {

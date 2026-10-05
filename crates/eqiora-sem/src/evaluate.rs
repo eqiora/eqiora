@@ -44,7 +44,7 @@ pub(crate) struct EvalContext<'a> {
     pub(crate) time: f64,
     pub(crate) fields: &'a BTreeMap<RawId, f64>,
     pub(crate) field_candidates: &'a BTreeMap<RawId, f64>,
-    pub(crate) derivatives: &'a BTreeMap<RawId, f64>,
+    pub(crate) derivatives: &'a BTreeMap<(RawId, std::num::NonZeroU32), f64>,
     pub(crate) next_fields: &'a BTreeMap<RawId, f64>,
     pub(crate) ports: &'a BTreeMap<RawId, f64>,
     pub(crate) port_candidates: &'a BTreeMap<RawId, f64>,
@@ -85,7 +85,7 @@ pub(crate) fn resolve_symbol(symbol: SymbolRef, context: &EvalContext<'_>) -> Op
             .get(&id.erase())
             .or_else(|| context.fields.get(&id.erase()))
             .copied(),
-        SymbolRef::Derivative(id) => context.derivatives.get(&id.erase()).copied(),
+        SymbolRef::Derivative(id, order) => context.derivatives.get(&(id.erase(), order)).copied(),
         SymbolRef::Pre(id) => context.fields.get(&id.erase()).copied(),
         SymbolRef::Next(id) => context.next_fields.get(&id.erase()).copied(),
         SymbolRef::Parameter(id) => context.program.value(id.erase()).map(|value| value.value()),

@@ -12,18 +12,30 @@ pub(super) struct Tangent {
 }
 
 impl Tangent {
-    pub(super) fn residual(&self, derivatives: &BTreeMap<RawId, f64>) -> f64 {
+    pub(super) fn residual(
+        &self,
+        derivatives: &BTreeMap<(RawId, std::num::NonZeroU32), f64>,
+    ) -> f64 {
         self.constant
             + self
                 .coefficients
                 .iter()
-                .map(|(field, coefficient)| coefficient * derivatives[field])
+                .map(|(field, coefficient)| {
+                    coefficient * derivatives[&(*field, std::num::NonZeroU32::MIN)]
+                })
                 .sum::<f64>()
     }
 }
 
 pub(super) fn derive(program: &KernelProgram, plan: &ExecutionPlan) -> Vec<Tangent> {
-    let fields = plan.differential_fields.iter().copied().collect::<Vec<_>>();
+    if plan
+        .differential_orders
+        .values()
+        .any(|order| order.get() != 1)
+    {
+        return Vec::new();
+    }
+    let fields = plan.differential_orders.keys().copied().collect::<Vec<_>>();
     if fields.is_empty() || !plan.physical_systems.is_empty() || !plan.continuous_ports.is_empty() {
         return Vec::new();
     }
@@ -107,7 +119,7 @@ fn affine_rows(
             ExprNode::Symbol(SymbolRef::Parameter(parameter)) => {
                 row[0] = program.value(parameter.erase())?.value()
             }
-            ExprNode::Symbol(SymbolRef::Derivative(field)) => {
+            ExprNode::Symbol(SymbolRef::Derivative(field, std::num::NonZeroU32::MIN)) => {
                 row[1 + fields.iter().position(|id| *id == field.erase())?] = 1.0
             }
             ExprNode::Symbol(SymbolRef::Field(field)) => {

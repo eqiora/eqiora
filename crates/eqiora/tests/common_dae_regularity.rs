@@ -75,7 +75,11 @@ fn a_time_dependent_mass_is_not_made_constant_at_the_initial_point() {
     )
     .unwrap();
     let errors = Interpreter::new()
-        .initialize(model.program(), ReferenceConfig::new(0.0, 0.1).unwrap())
+        .initialize(
+            model.program(),
+            0.0,
+            ReferenceConfig::new(0.0, 0.1).unwrap(),
+        )
         .unwrap_err();
     assert!(errors[0].message().contains("regularity"));
 }
@@ -86,10 +90,17 @@ fn nonlinear_value_terms_preserve_a_regular_constant_mass_descriptor() {
     // At zero the constraint tangent is x'-y'=0; together with x'+y'=0
     // this determines both rates as zero. Nonlinearity is only in values.
     let initial = Interpreter::new()
-        .initialize(model.program(), ReferenceConfig::new(0.0, 0.1).unwrap())
+        .initialize(
+            model.program(),
+            0.0,
+            ReferenceConfig::new(0.0, 0.1).unwrap(),
+        )
         .unwrap();
     for alias in ["x", "y"] {
-        assert_eq!(initial.derivatives()[&model.aliases()[alias]], 0.0);
+        assert_eq!(
+            initial.derivatives()[&(model.aliases()[alias], std::num::NonZeroU32::MIN)],
+            0.0
+        );
     }
 }
 
@@ -98,10 +109,21 @@ fn an_independent_nonlinear_rate_does_not_change_descriptor_admission() {
     let model = ModelDocument::compile("separate.eqi", "model M(){parameter rate:1/s=1; state x:1; state y:1; state u:1; initial{x=1;derivative(x)=-rate;u=0;} relation r{derivative(x)+derivative(y)=-2*rate*x;x-y=0;derivative(u)+derivative(u)*derivative(u)*derivative(u)/(rate*rate)=0;}}").unwrap();
     // The independent monotone equation v+v^3=0 has unique rate v=0.
     let initial = Interpreter::new()
-        .initialize(model.program(), ReferenceConfig::new(0.0, 0.1).unwrap())
+        .initialize(
+            model.program(),
+            0.0,
+            ReferenceConfig::new(0.0, 0.1).unwrap(),
+        )
         .unwrap();
     for alias in ["x", "y"] {
-        assert!((initial.derivatives()[&model.aliases()[alias]] + 1.0).abs() < 1e-9);
+        assert!(
+            (initial.derivatives()[&(model.aliases()[alias], std::num::NonZeroU32::MIN)] + 1.0)
+                .abs()
+                < 1e-9
+        );
     }
-    assert_eq!(initial.derivatives()[&model.aliases()["u"]], 0.0);
+    assert_eq!(
+        initial.derivatives()[&(model.aliases()["u"], std::num::NonZeroU32::MIN)],
+        0.0
+    );
 }

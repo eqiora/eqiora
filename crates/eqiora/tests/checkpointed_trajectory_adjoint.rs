@@ -1,7 +1,7 @@
 use std::num::NonZeroUsize;
 
 use eqiora::artifact::{
-    GeneralImplicitTimeLoweringEnvelopeV1, ImplicitTimeCheckpointEnvelopeV1,
+    GeneralImplicitTimeLoweringEnvelopeV2, ImplicitTimeCheckpointEnvelopeV1,
     ImplicitTimeInitialDataEnvelopeV1, ImplicitTimeRestartManifestV1, ImplicitTimeRunManifestV1,
     ModelEnvelope,
 };
@@ -30,12 +30,12 @@ fn discrete_adjoint_crosses_one_validated_semantic_restart() {
     let cpu = CpuProgram::lower(&fixture.kernel).unwrap();
     let system = GeneralImplicitProgram::lower(&cpu, fixture.relation).unwrap();
     assert_eq!(
-        system.state_fields(),
-        [fixture.differential, fixture.algebraic]
+        system.state_coordinates(),
+        [(fixture.differential, 0), (fixture.algebraic, 0)]
     );
     assert_eq!(system.parameter_fields(), [fixture.rate]);
     let model = ModelEnvelope::from_program(&fixture.kernel).unwrap();
-    let lowering = GeneralImplicitTimeLoweringEnvelopeV1::from_proof(
+    let lowering = GeneralImplicitTimeLoweringEnvelopeV2::from_proof(
         &model,
         &fixture.kernel,
         system.lowering_proof(),

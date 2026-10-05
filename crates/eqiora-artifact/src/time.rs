@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::str::FromStr;
 
 use eqiora_core::entity::kinds;
@@ -20,8 +19,31 @@ use crate::{
     invalid_artifact, validate_text,
 };
 
-const TIME_LOWERING_SCHEMA: &str = "eqiora.time-lowering-envelope/v1";
+const TIME_LOWERING_SCHEMA: &str = "eqiora.time-lowering-envelope/v2";
 const TIME_RUN_SCHEMA: &str = "eqiora.time-run-manifest/v1";
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct WireTimeCoordinate {
+    field_ulid: String,
+    derivative_order: u32,
+}
+
+impl WireTimeCoordinate {
+    pub(crate) fn encode((field, derivative_order): (Id<kinds::Field>, u32)) -> Self {
+        Self {
+            field_ulid: field.ulid().to_string(),
+            derivative_order,
+        }
+    }
+
+    pub(crate) fn decode(&self) -> Result<(Id<kinds::Field>, u32), Diagnostic> {
+        Ok((
+            Id::from_ulid(parse_ulid(&self.field_ulid)?),
+            self.derivative_order,
+        ))
+    }
+}
 
 /// Semantic work budgets shared by residual-native time artifact generations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,11 +80,11 @@ impl Default for TimeDecoderLimits {
 /// and external linkage validation independently lower the referenced Relation
 /// to scalar Operator IR, compare every coefficient, and replay rank proof.
 #[derive(Debug, Clone, PartialEq)]
-pub struct TimeLoweringEnvelopeV1 {
-    wire: WireTimeLoweringEnvelopeV1,
+pub struct TimeLoweringEnvelopeV2 {
+    wire: WireTimeLoweringEnvelopeV2,
 }
 
-impl TimeLoweringEnvelopeV1 {
+impl TimeLoweringEnvelopeV2 {
     /// Bind a runtime-produced witness to one immutable model artifact and
     /// independently verify it against the canonical Relation.
     ///
@@ -78,17 +100,18 @@ impl TimeLoweringEnvelopeV1 {
     ) -> Result<Self, Diagnostic> {
         validate_model_program(model, program)?;
         validate_proof_program(proof, program)?;
-        let wire = WireTimeLoweringEnvelopeV1 {
+        let wire = WireTimeLoweringEnvelopeV2 {
             schema: TIME_LOWERING_SCHEMA.to_owned(),
             encoding: CANONICAL_ENCODING.to_owned(),
             model_sha256: model.digest()?.0,
             model_ulid: program.model().ulid().to_string(),
             semantic_revision: program.revision().0,
             relation_ulid: proof.relation().ulid().to_string(),
-            state_field_ulids: proof
-                .state_fields()
+            state_coordinates: proof
+                .state_coordinates()
                 .iter()
-                .map(|field| field.ulid().to_string())
+                .copied()
+                .map(WireTimeCoordinate::encode)
                 .collect(),
             equation_class: WireTimeEquationClass::encode(proof.equation_class())?,
             derivative_matrix: WireConstantDerivativeMatrixProof::encode(
@@ -114,7 +137,7 @@ impl TimeLoweringEnvelopeV1 {
             invalid_artifact(format!("invalid time lowering envelope JSON: {error}"))
         })?;
         let envelope = Self { wire };
-        if envelope.wire.state_field_ulids.len() > limits.max_exact_rank_dimension {
+        if envelope.wire.state_coordinates.len() > limits.max_exact_rank_dimension {
             return Err(invalid_artifact(format!(
                 "time lowering state dimension exceeds decoder limit {}",
                 limits.max_exact_rank_dimension
@@ -171,14 +194,17 @@ impl TimeLoweringEnvelopeV1 {
     /// Returns `EQ0901` only if validated internal state was corrupted.
     pub fn proof(&self) -> Result<TimeLoweringProof, Diagnostic> {
         let relation = Id::<kinds::Relation>::from_ulid(parse_ulid(&self.wire.relation_ulid)?);
-        let state_fields = self
+        let state_coordinates = self
             .wire
-            .state_field_ulids
+            .state_coordinates
             .iter()
-            .map(|value| parse_ulid(value).map(Id::<kinds::Field>::from_ulid))
+            .map(WireTimeCoordinate::decode)
             .collect::<Result<Vec<_>, _>>()?;
-        let derivative_matrix = self.wire.derivative_matrix.decode(state_fields.len())?;
-        TimeLoweringProof::new(relation, state_fields, derivative_matrix)
+        let derivative_matrix = self
+            .wire
+            .derivative_matrix
+            .decode(state_coordinates.len())?;
+        TimeLoweringProof::new(relation, state_coordinates, derivative_matrix)
             .map_err(|error| invalid_artifact(error.message()))
     }
 
@@ -213,8 +239,8 @@ impl TimeLoweringEnvelopeV1 {
         ArtifactDigest::from_hex(self.wire.model_sha256.clone())?;
         parse_ulid(&self.wire.model_ulid)?;
         parse_ulid(&self.wire.relation_ulid)?;
-        for field in &self.wire.state_field_ulids {
-            parse_ulid(field)?;
+        for field in &self.wire.state_coordinates {
+            field.decode()?;
         }
         let proof = self.proof()?;
         if WireTimeEquationClass::encode(proof.equation_class())? != self.wire.equation_class {
@@ -242,7 +268,7 @@ impl TimeRunManifestV1 {
     /// differs across plan/report/lowering, the plan selects a residual-native
     /// reference method, or the adapter-supplied backend version is invalid.
     pub fn new(
-        lowering: &TimeLoweringEnvelopeV1,
+        lowering: &TimeLoweringEnvelopeV2,
         plan: &TimePlan,
         report: TimeExecutionReport,
     ) -> Result<Self, Diagnostic> {
@@ -252,7 +278,7 @@ impl TimeRunManifestV1 {
         if report.method() != plan.method()
             || report.equation_class() != proof.equation_class()
             || report.initial_condition() != proof.initial_condition_policy()
-            || plan.absolute_tolerances().len() != proof.state_fields().len()
+            || plan.absolute_tolerances().len() != proof.state_coordinates().len()
         {
             return Err(invalid_artifact(
                 "time run plan/report contradicts the linked lowering witness",
@@ -382,7 +408,7 @@ impl TimeRunManifestV1 {
     /// # Errors
     /// Returns `EQ0901` for any linkage, method, equation-class, or
     /// initial-condition drift.
-    pub fn validate_against(&self, lowering: &TimeLoweringEnvelopeV1) -> Result<(), Diagnostic> {
+    pub fn validate_against(&self, lowering: &TimeLoweringEnvelopeV2) -> Result<(), Diagnostic> {
         let proof = lowering.proof()?;
         let plan = self.plan()?;
         if self.model() != lowering.model_artifact()
@@ -391,7 +417,7 @@ impl TimeRunManifestV1 {
             || self.wire.execution.equation_class.decode() != proof.equation_class()
             || self.wire.execution.initial_condition.decode() != proof.initial_condition_policy()
             || self.wire.execution.method.decode() != plan.method()
-            || plan.absolute_tolerances().len() != proof.state_fields().len()
+            || plan.absolute_tolerances().len() != proof.state_coordinates().len()
         {
             return Err(invalid_artifact(
                 "time run model/lowering/plan/execution linkage does not match",
@@ -454,17 +480,31 @@ fn validate_proof_program(
     proof: &TimeLoweringProof,
     program: &KernelProgram,
 ) -> Result<(), Diagnostic> {
-    let (operator, expected_fields) = canonical_time_operator(program, proof.relation())?;
-    if expected_fields != proof.state_fields() {
+    let (operator, expected_fields) =
+        canonical_time_operator(program, proof.relation(), proof.state_coordinates().len())?;
+    if expected_fields != proof.state_coordinates() {
         return Err(invalid_artifact(
             "time lowering proof state order differs from canonical symbol order",
         ));
     }
-    let derivatives = proof
-        .state_fields()
+    let coordinates = proof.state_coordinates();
+    let highest = coordinates
         .iter()
-        .copied()
-        .map(SymbolRef::Derivative)
+        .enumerate()
+        .filter(|(_, (field, order))| !coordinates.contains(&(*field, order + 1)))
+        .map(|(index, &(field, order))| {
+            (
+                index,
+                SymbolRef::Derivative(
+                    field,
+                    std::num::NonZeroU32::new(order + 1).expect("validated coordinate order"),
+                ),
+            )
+        })
+        .collect::<Vec<_>>();
+    let derivatives = highest
+        .iter()
+        .map(|(_, symbol)| *symbol)
         .collect::<Vec<_>>();
     let jacobian = operator
         .constant_symbol_jacobian(&derivatives)
@@ -474,24 +514,51 @@ fn validate_proof_program(
             ))
         })?;
     let witness = proof.derivative_matrix();
-    if jacobian.row_count() != witness.dimension() || jacobian.column_count() != witness.dimension()
-    {
+    let dimension = coordinates.len();
+    if jacobian.row_count() != highest.len() || witness.dimension() != dimension {
         return Err(invalid_artifact(
             "time lowering derivative matrix shape differs from Operator IR",
         ));
     }
-    if jacobian.coefficients() != witness.coefficients() {
-        return Err(invalid_artifact(
-            "time lowering derivative matrix differs from Operator IR",
-        ));
+    // Authored equations depend on highest rates. Lower rates belong to
+    // companion equations D(q_k) - q_(k+1) = 0, in coordinate order.
+    let companions = coordinates
+        .iter()
+        .enumerate()
+        .filter(|(_, (field, order))| coordinates.contains(&(*field, order + 1)))
+        .map(|(index, _)| index)
+        .collect::<Vec<_>>();
+    for row in 0..dimension {
+        for column in 0..dimension {
+            let expected = if row < highest.len() {
+                highest
+                    .iter()
+                    .position(|(index, _)| *index == column)
+                    .map_or(0.0, |source_column| {
+                        jacobian.coefficients()[row * highest.len() + source_column]
+                    })
+            } else if companions[row - highest.len()] == column {
+                1.0
+            } else {
+                0.0
+            };
+            if witness.coefficients()[row * dimension + column] != expected {
+                return Err(invalid_artifact(
+                    "time lowering derivative matrix differs from Operator IR or companion equations",
+                ));
+            }
+        }
     }
     Ok(())
 }
 
+type StateCoordinates = Vec<(Id<kinds::Field>, u32)>;
+
 pub(crate) fn canonical_time_operator(
     program: &KernelProgram,
     relation_id: Id<kinds::Relation>,
-) -> Result<(ScalarOperatorIr, Vec<Id<kinds::Field>>), Diagnostic> {
+    coordinate_count: usize,
+) -> Result<(ScalarOperatorIr, StateCoordinates), Diagnostic> {
     let relation = match program.node(relation_id.erase()) {
         Some(KernelNode::Relation(relation)) => relation,
         _ => {
@@ -522,17 +589,36 @@ pub(crate) fn canonical_time_operator(
     let operator = ScalarOperatorIr::lower_typed_scalar(&typed)
         .map_err(|error| invalid_artifact(error.message()))?;
     let mut expected_fields = Vec::new();
-    let mut seen = HashSet::new();
+    let mut orders = std::collections::HashMap::new();
     for symbol in operator.symbols() {
-        let field = match *symbol {
-            SymbolRef::Field(field) | SymbolRef::Derivative(field) => Some(field),
-            _ => None,
+        let (field, order) = match *symbol {
+            SymbolRef::Field(field) => (field, 1),
+            SymbolRef::Derivative(field, order) => (field, order.get()),
+            _ => continue,
         };
-        if let Some(field) = field.filter(|field| seen.insert(*field)) {
+        if !orders.contains_key(&field) {
             expected_fields.push(field);
         }
+        orders
+            .entry(field)
+            .and_modify(|previous: &mut u32| *previous = (*previous).max(order))
+            .or_insert(order);
     }
-    Ok((operator, expected_fields))
+    let count = orders
+        .values()
+        .try_fold(0_usize, |count, order| count.checked_add(*order as usize));
+    if count != Some(coordinate_count) || operator.residual_count() != expected_fields.len() {
+        return Err(invalid_artifact(
+            "time lowering coordinate count or authored residual count differs from its source derivatives",
+        ));
+    }
+    let mut coordinates = Vec::with_capacity(coordinate_count);
+    for field in expected_fields {
+        for order in 0..orders[&field] {
+            coordinates.push((field, order));
+        }
+    }
+    Ok((operator, coordinates))
 }
 
 pub(crate) fn parse_ulid(value: &str) -> Result<Ulid, Diagnostic> {
@@ -541,14 +627,14 @@ pub(crate) fn parse_ulid(value: &str) -> Result<Ulid, Diagnostic> {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireTimeLoweringEnvelopeV1 {
+struct WireTimeLoweringEnvelopeV2 {
     schema: String,
     encoding: String,
     model_sha256: String,
     model_ulid: String,
     semantic_revision: u64,
     relation_ulid: String,
-    state_field_ulids: Vec<String>,
+    state_coordinates: Vec<WireTimeCoordinate>,
     equation_class: WireTimeEquationClass,
     derivative_matrix: WireConstantDerivativeMatrixProof,
 }

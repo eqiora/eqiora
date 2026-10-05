@@ -18,7 +18,9 @@ pub(in crate::interpreter) fn variables(
             ExprNode::Symbol(symbol) => {
                 let variable = match symbol {
                     SymbolRef::Field(field) => Some(Variable::Field(field.erase())),
-                    SymbolRef::Derivative(field) => Some(Variable::Derivative(field.erase())),
+                    SymbolRef::Derivative(field, order) => {
+                        Some(Variable::Derivative(field.erase(), *order))
+                    }
                     SymbolRef::Port(port) => Some(Variable::Port(
                         signal_sources
                             .get(&port.erase())
@@ -127,13 +129,15 @@ mod tests {
         let field = Id::<kinds::Field>::new();
         let mut builder = ExprDagBuilder::new();
         let value = builder.symbol(SymbolRef::Field(field)).unwrap();
-        let derivative = builder.symbol(SymbolRef::Derivative(field)).unwrap();
+        let derivative = builder
+            .symbol(SymbolRef::Derivative(field, std::num::NonZeroU32::MIN))
+            .unwrap();
         let dag = builder.finish([value, derivative]).unwrap();
         assert_eq!(
             variables(&dag, dag.roots(), &BTreeMap::new()).unwrap(),
             BTreeSet::from([
                 Variable::Field(field.erase()),
-                Variable::Derivative(field.erase())
+                Variable::Derivative(field.erase(), std::num::NonZeroU32::MIN)
             ])
         );
     }

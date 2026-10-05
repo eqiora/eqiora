@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use eqiora_artifact::{CanonicalModelArtifact, ModelEnvelope, TimeLoweringEnvelopeV1};
+use eqiora_artifact::{CanonicalModelArtifact, ModelEnvelope, TimeLoweringEnvelopeV2};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id};
@@ -25,24 +25,24 @@ pub(crate) use events::{CommonEventPolicy, CommonGuardTolerance};
 mod sensitivity;
 mod state_artifact;
 
-/// One exact Field-bound absolute tolerance for Tsitouras 5(4).
+/// One exact (Field, derivative order)-bound absolute tolerance for Tsitouras 5(4).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CommonTsitourasTolerance {
-    field: Id<kinds::Field>,
+    coordinate: (Id<kinds::Field>, u32),
     value: f64,
 }
 
 impl CommonTsitourasTolerance {
     /// Construct one positive finite coherent-SI tolerance.
-    pub fn new(field: Id<kinds::Field>, value: f64) -> Result<Self, Diagnostic> {
+    pub fn new(coordinate: (Id<kinds::Field>, u32), value: f64) -> Result<Self, Diagnostic> {
         require_positive(value, "Tsitouras45 absolute tolerances")?;
-        Ok(Self { field, value })
+        Ok(Self { coordinate, value })
     }
 
-    /// Exact canonical Field receiving this tolerance.
+    /// Exact source Field and derivative order receiving this tolerance.
     #[must_use]
-    pub const fn field(self) -> Id<kinds::Field> {
-        self.field
+    pub const fn coordinate(self) -> (Id<kinds::Field>, u32) {
+        self.coordinate
     }
 
     /// Positive coherent-SI tolerance value.
@@ -76,13 +76,14 @@ impl CommonTsitouras45 {
                 "Tsitouras45 requires one exact Field-bound absolute tolerance per state",
             ));
         }
-        absolute_tolerances.sort_by_key(|entry| entry.field().ulid().to_string());
+        absolute_tolerances
+            .sort_by_key(|entry| (entry.coordinate().0.ulid(), entry.coordinate().1));
         if absolute_tolerances
             .windows(2)
-            .any(|pair| pair[0].field() == pair[1].field())
+            .any(|pair| pair[0].coordinate() == pair[1].coordinate())
         {
             return Err(invalid(
-                "Tsitouras45 absolute tolerances contain a duplicate exact Field",
+                "Tsitouras45 absolute tolerances contain a duplicate exact state coordinate",
             ));
         }
         Ok(Self {
@@ -106,7 +107,7 @@ impl CommonTsitouras45 {
         self.relative_tolerance
     }
 
-    /// Canonically Field-ordered absolute tolerances.
+    /// Canonically coordinate-ordered absolute tolerances.
     #[must_use]
     pub fn absolute_tolerances(&self) -> &[CommonTsitourasTolerance] {
         &self.absolute_tolerances
@@ -123,7 +124,7 @@ pub struct CommonOdePlan {
     ordered_guard_tolerances: Vec<eqiora_core::DynQuantity>,
     forward_sensitivity_plan: Option<eqiora_time::ForwardSensitivityPlan>,
     forward_parameter_ids: Option<Vec<Id<kinds::Parameter>>>,
-    field_dimensions: Vec<DimExponents>,
+    state_dimensions: Vec<DimExponents>,
     identity: String,
     lowering_digest: String,
     model_id: String,
@@ -134,6 +135,10 @@ pub struct CommonOdePlan {
 }
 
 impl CommonOdePlan {
+    pub(crate) fn system(&self) -> &FirstOrderProgram {
+        &self.program
+    }
+
     pub(crate) fn model_artifact(&self) -> &ModelEnvelope {
         &self.model
     }
@@ -180,39 +185,51 @@ impl CommonOdePlan {
                 "explicit-ODE resolution requires complete Model-owned initial values",
             ));
         }
-        let state_fields = program.state_fields();
+        let state_coordinates = program.state_coordinates();
         let requested = temporal.absolute_tolerances();
-        if requested.len() != state_fields.len()
+        if requested.len() != state_coordinates.len()
             || requested
                 .iter()
-                .any(|entry| !state_fields.contains(&entry.field()))
+                .any(|entry| !state_coordinates.contains(&entry.coordinate()))
         {
             return Err(invalid(
-                "Tsitouras45 absolute tolerances must cover exactly the admitted Model state Fields",
+                "Tsitouras45 absolute tolerances must cover exactly the admitted Model state coordinates",
             ));
         }
-        let ordered_absolute_tolerances = state_fields
+        let ordered_absolute_tolerances = state_coordinates
             .iter()
             .map(|field| {
                 requested
                     .iter()
-                    .find(|entry| entry.field() == *field)
+                    .find(|entry| entry.coordinate() == *field)
                     .map(|entry| entry.value())
-                    .ok_or_else(|| invalid("Tsitouras45 omitted one exact state Field"))
+                    .ok_or_else(|| invalid("Tsitouras45 omitted one exact state coordinate"))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let field_dimensions = state_fields
+        let state_dimensions = state_coordinates
             .iter()
-            .map(|field| match kernel.node(field.erase()) {
+            .map(|&(field, order)| match kernel.node(field.erase()) {
                 Some(KernelNode::Field(definition)) if definition.shape().is_scalar() => {
-                    Ok(definition.dimension())
+                    if let Some(order) = std::num::NonZeroU32::new(order) {
+                        eqiora_schema::kernel::typing::time_derivative(
+                            &eqiora_schema::kernel::typing::ExpressionType::<()>::scalar(
+                                definition.dimension(),
+                                None,
+                            ),
+                            order,
+                        )
+                        .map(|typed| typed.dimension())
+                        .map_err(|_| invalid("ODE state derivative dimension is not representable"))
+                    } else {
+                        Ok(definition.dimension())
+                    }
                 }
                 _ => Err(invalid(
                     "no-Mesh explicit-ODE State admits only exact scalar Model Fields",
                 )),
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let lowering = TimeLoweringEnvelopeV1::from_proof(model, kernel, program.lowering_proof())?;
+        let lowering = TimeLoweringEnvelopeV2::from_proof(model, kernel, program.lowering_proof())?;
         let lowering_digest = lowering.digest()?.to_string();
         let model_digest = reference.artifact().to_string();
         let model_id = reference.model().ulid().to_string();
@@ -223,12 +240,13 @@ impl CommonOdePlan {
         push(&mut state_space, model_digest.as_bytes());
         state_space.extend_from_slice(&model_revision.to_be_bytes());
         push(&mut state_space, lowering_digest.as_bytes());
-        for (field, dimension) in state_fields.iter().zip(&field_dimensions) {
+        for ((field, order), dimension) in state_coordinates.iter().zip(&state_dimensions) {
             push(&mut state_space, field.ulid().to_string().as_bytes());
+            state_space.extend_from_slice(&order.to_be_bytes());
             state_space.extend_from_slice(&dimension_bytes(*dimension));
         }
         push(&mut state_space, b"scalar-f64/no-method-history/v1");
-        let state_space_identity = digest(b"eqiora.common-ode-state-space/v2\0", &state_space);
+        let state_space_identity = digest(b"eqiora.common-ode-state-space/v3\0", &state_space);
 
         let mut identity = state_space;
         identity.extend_from_slice(&temporal.initial_step_s().to_bits().to_be_bytes());
@@ -256,7 +274,7 @@ impl CommonOdePlan {
             ordered_guard_tolerances,
             forward_sensitivity_plan: None,
             forward_parameter_ids: None,
-            field_dimensions,
+            state_dimensions,
             identity,
             lowering_digest,
             model_id,
@@ -300,13 +318,13 @@ impl CommonOdePlan {
         &self.temporal
     }
 
-    pub fn field_ids(&self) -> impl ExactSizeIterator<Item = Id<kinds::Field>> + '_ {
-        self.program.state_fields().iter().copied()
+    pub fn state_coordinates(&self) -> impl ExactSizeIterator<Item = (Id<kinds::Field>, u32)> + '_ {
+        self.program.state_coordinates().iter().copied()
     }
 
     #[must_use]
-    pub fn field_dimensions(&self) -> &[DimExponents] {
-        &self.field_dimensions
+    pub fn state_dimensions(&self) -> &[DimExponents] {
+        &self.state_dimensions
     }
 
     #[must_use]
@@ -320,14 +338,14 @@ impl CommonOdePlan {
         self.backend
     }
 
-    /// Construct the exact Model-owned initial state at model time zero.
-    pub fn initial_state(&self) -> Result<CommonOdeState, Diagnostic> {
+    /// Construct the exact Model-owned initial state at the explicit timeline coordinate.
+    pub fn initial_state(&self, time_s: f64) -> Result<CommonOdeState, Diagnostic> {
         self.model.artifact_reference()?;
         CommonOdeState::new(
             self,
-            0.0,
+            time_s,
             self.program
-                .initialize(eqiora_sem::ReferenceConfig::new(0.0, 1.0)?)?
+                .initialize(time_s, eqiora_sem::ReferenceConfig::new(0.0, 1.0)?)?
                 .state()
                 .to_vec(),
             "initial",
@@ -356,7 +374,7 @@ pub struct CommonOdeState {
     identity: String,
     model_digest: String,
     time_s: f64,
-    field_ids: Vec<Id<kinds::Field>>,
+    state_coordinates: Vec<(Id<kinds::Field>, u32)>,
     dimensions: Vec<DimExponents>,
     values: Vec<f64>,
     source_kind: &'static str,
@@ -372,7 +390,7 @@ impl CommonOdeState {
         if !time_s.is_finite()
             || time_s < 0.0
             || time_s.to_bits() == (-0.0_f64).to_bits()
-            || values.len() != plan.program.state_fields().len()
+            || values.len() != plan.program.state_coordinates().len()
             || values.iter().any(|value| !value.is_finite())
         {
             return Err(invalid(
@@ -391,8 +409,8 @@ impl CommonOdeState {
             identity,
             model_digest: plan.model_digest().to_owned(),
             time_s,
-            field_ids: plan.field_ids().collect(),
-            dimensions: plan.field_dimensions.clone(),
+            state_coordinates: plan.state_coordinates().collect(),
+            dimensions: plan.state_dimensions.clone(),
             values,
             source_kind,
         })
@@ -419,8 +437,8 @@ impl CommonOdeState {
     }
 
     #[must_use]
-    pub fn field_ids(&self) -> &[Id<kinds::Field>] {
-        &self.field_ids
+    pub fn state_coordinates(&self) -> &[(Id<kinds::Field>, u32)] {
+        &self.state_coordinates
     }
 
     #[must_use]
@@ -594,366 +612,6 @@ fn dimension_bytes(value: DimExponents) -> [u8; 56] {
 }
 
 #[cfg(test)]
-mod tests {
-    use eqiora_artifact::ModelEnvelope;
-    use eqiora_core::{DynQuantity, OntologyId};
-    use eqiora_graph::{EdgeKind, GraphStore, InMemoryGraphStore, Op, Transaction};
-    use eqiora_schema::kernel::{
-        ActivationDef, ExprDagBuilder, FieldDef, ParameterDef, RelationDef, SymbolRef,
-    };
-    use eqiora_schema::{Model, ModelView};
-    use eqiora_sem::KernelProgram;
-    use eqiora_solver::REFERENCE_LINEAR_SOLVER;
-    use eqiora_time::TimeBackendIdentity;
-
-    use super::*;
-
-    const DECAY: &str = r#"
-model decay() {
-  state x: 1;
-  initial { x = 1; }
-  parameter rate: 1 / s = 1;
-  relation flow {
-    derivative(x) + rate * x = 0;
-  }
-}
-"#;
-
-    fn fixture() -> (ModelEnvelope, KernelProgram) {
-        let compiled = eqiora_compiler::compile("decay.eqi", DECAY)
-            .unwrap()
-            .pop()
-            .unwrap();
-        let (transaction, model, _) = compiled.into_parts();
-        let mut store = InMemoryGraphStore::new();
-        store.commit(transaction).unwrap();
-        let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-        let envelope = ModelEnvelope::from_program(&program).unwrap();
-        (envelope, program)
-    }
-
-    fn two_state_fixture(
-        mass_matrix: bool,
-    ) -> (
-        ModelEnvelope,
-        KernelProgram,
-        Id<kinds::Field>,
-        Id<kinds::Field>,
-    ) {
-        let inverse_time =
-            DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).expect("bounded dimension");
-        let decay = Id::<kinds::Field>::new();
-        let integral = Id::<kinds::Field>::new();
-        let rate = Id::<kinds::Parameter>::new();
-        let relation = Id::<kinds::Relation>::new();
-        let continuous = Id::<kinds::Activation>::new();
-        let model = OntologyId::<Model>::new();
-
-        let mut expression = ExprDagBuilder::new();
-        let decay_derivative = expression.symbol(SymbolRef::Derivative(decay)).unwrap();
-        let integral_derivative = expression.symbol(SymbolRef::Derivative(integral)).unwrap();
-        let decay_value = expression.symbol(SymbolRef::Field(decay)).unwrap();
-        let rate_value = expression.symbol(SymbolRef::Parameter(rate)).unwrap();
-        let decay_rate = expression.mul(rate_value, decay_value).unwrap();
-        let integral_residual = expression.sub(integral_derivative, decay_rate).unwrap();
-        let decay_residual = expression.add(decay_derivative, decay_rate).unwrap();
-        let decay_residual = if mass_matrix {
-            expression.add(decay_residual, integral_derivative).unwrap()
-        } else {
-            decay_residual
-        };
-        let residuals = {
-            let equation_zero_0 = expression
-                .constant(
-                    eqiora_core::ValueLiteral::from_real(
-                        eqiora_core::ValueType::scalar(
-                            eqiora_core::ScalarDomain::Real,
-                            inverse_time,
-                        )
-                        .expect("numeric scalar type"),
-                        0.0,
-                    )
-                    .unwrap(),
-                )
-                .unwrap();
-            let equation_zero_1 = expression
-                .constant(
-                    eqiora_core::ValueLiteral::from_real(
-                        eqiora_core::ValueType::scalar(
-                            eqiora_core::ScalarDomain::Real,
-                            inverse_time,
-                        )
-                        .expect("numeric scalar type"),
-                        0.0,
-                    )
-                    .unwrap(),
-                )
-                .unwrap();
-            expression.finish([
-                decay_residual,
-                equation_zero_0,
-                integral_residual,
-                equation_zero_1,
-            ])
-        }
-        .unwrap();
-
-        let initial = Id::<kinds::Relation>::new();
-        let mut initial_expression = ExprDagBuilder::new();
-        let decay_initial = initial_expression.symbol(SymbolRef::Field(decay)).unwrap();
-        let decay_value = initial_expression
-            .constant(DynQuantity::new(1.0, DimExponents::DIMENSIONLESS))
-            .unwrap();
-        let integral_initial = initial_expression
-            .symbol(SymbolRef::Field(integral))
-            .unwrap();
-        let integral_value = initial_expression
-            .constant(DynQuantity::new(0.0, DimExponents::DIMENSIONLESS))
-            .unwrap();
-        let initial_equations = initial_expression
-            .finish([decay_initial, decay_value, integral_initial, integral_value])
-            .unwrap();
-        let nodes = [
-            KernelNode::from(RelationDef::initial(initial, initial_equations).unwrap()),
-            KernelNode::from(FieldDef::new(
-                decay,
-                eqiora_core::ValueType::scalar(
-                    eqiora_core::ScalarDomain::Real,
-                    DimExponents::DIMENSIONLESS,
-                )
-                .expect("numeric scalar type"),
-                eqiora_schema::kernel::FieldRole::State,
-            )),
-            KernelNode::from(FieldDef::new(
-                integral,
-                eqiora_core::ValueType::scalar(
-                    eqiora_core::ScalarDomain::Real,
-                    DimExponents::DIMENSIONLESS,
-                )
-                .expect("numeric scalar type"),
-                eqiora_schema::kernel::FieldRole::State,
-            )),
-            KernelNode::from(ParameterDef::new(
-                rate,
-                eqiora_core::ValueLiteral::from_real(
-                    eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, inverse_time)
-                        .expect("numeric scalar type"),
-                    1.0,
-                )
-                .unwrap(),
-            )),
-            KernelNode::from(RelationDef::new(relation, residuals).unwrap()),
-            KernelNode::from(ActivationDef::continuous(continuous)),
-        ];
-        let members = nodes.iter().map(KernelNode::id).collect::<Vec<_>>();
-        let mut transaction = Transaction::new("two-state explicit ODE");
-        for node in nodes {
-            transaction.push(Op::DefineKernelNode { node });
-        }
-        for dependency in [decay.erase(), integral.erase(), rate.erase()] {
-            transaction.push(Op::Connect {
-                from: initial.erase(),
-                to: decay.erase(),
-                edge: EdgeKind::DependsOn,
-            });
-            transaction.push(Op::Connect {
-                from: initial.erase(),
-                to: integral.erase(),
-                edge: EdgeKind::DependsOn,
-            });
-            transaction.push(Op::Connect {
-                from: relation.erase(),
-                to: dependency,
-                edge: EdgeKind::DependsOn,
-            });
-        }
-        transaction
-            .push(Op::Connect {
-                from: continuous.erase(),
-                to: relation.erase(),
-                edge: EdgeKind::Activates,
-            })
-            .push(Op::DefineOntologyView {
-                view: ModelView::new(model, members, []).unwrap().into(),
-            });
-        let mut store = InMemoryGraphStore::new();
-        store.commit(transaction).unwrap();
-        let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-        let envelope = ModelEnvelope::from_program(&program).unwrap();
-        (envelope, program, decay, integral)
-    }
-
-    #[test]
-    fn no_mesh_plan_owns_model_initial_state_and_run_only_horizon() {
-        let (model, program) = fixture();
-        let field = program
-            .nodes()
-            .find_map(|node| match node {
-                KernelNode::Field(field) => Some(field.id()),
-                _ => None,
-            })
-            .unwrap();
-        let temporal = CommonTsitouras45::new(
-            0.01,
-            1.0e-9,
-            vec![CommonTsitourasTolerance::new(field, 1.0e-11).unwrap()],
-        )
-        .unwrap();
-        let plan = CommonOdePlan::resolve(
-            &model,
-            &program,
-            temporal,
-            TimeBackendIdentity::new("eqiora.test.time", "1"),
-        )
-        .unwrap();
-        let resolved = crate::ResolvedCommonPlan::Ode(Box::new(plan.clone()));
-        let bytes = resolved.to_bytes().unwrap();
-        assert_eq!(
-            crate::ResolvedCommonPlan::from_bytes(
-                &bytes,
-                &REFERENCE_LINEAR_SOLVER,
-                TimeBackendIdentity::new("eqiora.test.time", "1"),
-            )
-            .unwrap(),
-            resolved
-        );
-        let state = plan.initial_state().unwrap();
-        assert_eq!(state.time_s(), 0.0);
-        assert_eq!(state.field_ids(), &[field]);
-        assert_eq!(state.values(), &[1.0]);
-        let state_bytes = state.to_bytes().unwrap();
-        assert_eq!(
-            CommonOdeState::from_bytes(&state_bytes, &plan).unwrap(),
-            state
-        );
-        let mut noncanonical_state = state_bytes;
-        noncanonical_state.push(b'\n');
-        assert!(CommonOdeState::from_bytes(&noncanonical_state, &plan).is_err());
-
-        let request =
-            CommonOdeRunRequest::new(plan.clone(), state.clone(), 0.2, vec![0.1]).unwrap();
-        assert_eq!(request.output_times_s(), &[0.1]);
-        assert_eq!(request.time_plan().output_times(), &[0.1, 0.2]);
-        assert_eq!(request.plan().identity(), plan.identity());
-        let output = CommonOdeState::new(&plan, 0.1, vec![0.9], "result").unwrap();
-        let history = eqiora_time::AcceptedTimeHistory::accepted(
-            1,
-            vec![
-                eqiora_time::TimeHistoryStep::accepted(0.0, 0.2, vec![1.0], vec![0.9], vec![0.8])
-                    .unwrap(),
-            ],
-            vec![],
-        )
-        .unwrap();
-        let trajectory =
-            crate::CommonTrajectory::accept_ode_states(request.clone(), vec![output], history)
-                .unwrap();
-        let trajectory_bytes = trajectory.to_bytes().unwrap();
-        assert_eq!(
-            crate::CommonTrajectory::from_bytes(&trajectory_bytes, &resolved).unwrap(),
-            trajectory
-        );
-        let result = crate::CommonResult::accept_trajectory(0.25, trajectory.clone()).unwrap();
-        let result_bytes = result.to_bytes().unwrap();
-        let replayed_result = crate::CommonResult::from_bytes(&result_bytes, &resolved).unwrap();
-        assert_eq!(replayed_result, result);
-        assert_eq!(replayed_result.to_bytes().unwrap(), result_bytes);
-        let mut forged_result: serde_json::Value = serde_json::from_slice(&result_bytes).unwrap();
-        forged_result["identity"] = serde_json::Value::String("0".repeat(64));
-        assert!(
-            crate::CommonResult::from_bytes(
-                &serde_json::to_vec(&forged_result).unwrap(),
-                &resolved,
-            )
-            .is_err()
-        );
-        let mut noncanonical_trajectory = trajectory_bytes;
-        noncanonical_trajectory.push(b'\n');
-        assert!(crate::CommonTrajectory::from_bytes(&noncanonical_trajectory, &resolved).is_err());
-        assert!(CommonOdeRunRequest::new(plan, state, 0.2, vec![0.0]).is_err());
-    }
-
-    #[test]
-    fn field_tolerances_are_exact_complete_and_positive() {
-        let (model, program) = fixture();
-        let field = program
-            .nodes()
-            .find_map(|node| match node {
-                KernelNode::Field(field) => Some(field.id()),
-                _ => None,
-            })
-            .unwrap();
-        assert!(CommonTsitourasTolerance::new(field, 0.0).is_err());
-        assert!(CommonTsitouras45::new(0.01, 1.0e-9, Vec::new()).is_err());
-        let foreign = Id::<kinds::Field>::new();
-        let temporal = CommonTsitouras45::new(
-            0.01,
-            1.0e-9,
-            vec![CommonTsitourasTolerance::new(foreign, 1.0e-11).unwrap()],
-        )
-        .unwrap();
-        assert!(
-            CommonOdePlan::resolve(
-                &model,
-                &program,
-                temporal,
-                TimeBackendIdentity::new("eqiora.test.time", "1"),
-            )
-            .is_err()
-        );
-    }
-
-    #[test]
-    fn field_tolerances_map_to_canonical_first_order_state_coordinates() {
-        let (model, program, decay, integral) = two_state_fixture(false);
-        let temporal = CommonTsitouras45::new(
-            0.01,
-            1.0e-9,
-            vec![
-                CommonTsitourasTolerance::new(integral, 2.0e-11).unwrap(),
-                CommonTsitourasTolerance::new(decay, 1.0e-11).unwrap(),
-            ],
-        )
-        .unwrap();
-        let plan = CommonOdePlan::resolve(
-            &model,
-            &program,
-            temporal,
-            TimeBackendIdentity::new("eqiora.test.time", "1"),
-        )
-        .unwrap();
-
-        assert_eq!(plan.field_ids().collect::<Vec<_>>(), [decay, integral]);
-        assert_eq!(plan.ordered_absolute_tolerances, [1.0e-11, 2.0e-11]);
-        assert_eq!(
-            plan.field_dimensions(),
-            [DimExponents::DIMENSIONLESS, DimExponents::DIMENSIONLESS]
-        );
-        let initial = plan.initial_state().unwrap();
-        assert_eq!(initial.field_ids(), [decay, integral]);
-        assert_eq!(initial.values(), [1.0, 0.0]);
-    }
-
-    #[test]
-    fn tsitouras_common_plan_rejects_a_structural_mass_matrix() {
-        let (model, program, decay, integral) = two_state_fixture(true);
-        let temporal = CommonTsitouras45::new(
-            0.01,
-            1.0e-9,
-            vec![
-                CommonTsitourasTolerance::new(decay, 1.0e-11).unwrap(),
-                CommonTsitourasTolerance::new(integral, 2.0e-11).unwrap(),
-            ],
-        )
-        .unwrap();
-        assert!(
-            CommonOdePlan::resolve(
-                &model,
-                &program,
-                temporal,
-                TimeBackendIdentity::new("eqiora.test.time", "1"),
-            )
-            .is_err()
-        );
-    }
-}
+mod higher_order_tests;
+#[cfg(test)]
+mod tests;

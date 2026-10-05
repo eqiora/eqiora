@@ -49,7 +49,7 @@ impl CommonTrajectory {
             || solution.report().backend_identity() != request.plan().backend()
             || solution.report().equation_class() != TimeEquationClass::ExplicitOde
             || solution.report().initial_condition() != InitialConditionPolicy::Provided
-            || solution.dimension() != request.plan().field_dimensions().len()
+            || solution.dimension() != request.plan().state_dimensions().len()
             || solution.times() != request.time_plan().output_times()
         {
             return Err(invalid(
@@ -103,7 +103,7 @@ impl CommonTrajectory {
         }
         let first = history.steps().first().expect("history is nonempty");
         let last = history.steps().last().expect("history is nonempty");
-        if history.dimension() != request.plan().field_dimensions().len()
+        if history.dimension() != request.plan().state_dimensions().len()
             || first.start_time().to_bits() != request.state().time_s().to_bits()
             || first.start_state() != request.state().values()
             || last.end_time().to_bits() != request.until_s().to_bits()

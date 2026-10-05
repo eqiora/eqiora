@@ -497,7 +497,7 @@ impl PyBackwardEuler {
 #[derive(Debug)]
 pub(crate) struct PyTsitouras45 {
     pub(super) native: CommonTsitouras45,
-    fields: Vec<Py<PyModelFieldRef>>,
+    coordinates: Vec<(Py<PyModelFieldRef>, u32)>,
     events: Option<super::event_policy::PyEventPolicy>,
     forward_sensitivities: Option<super::forward_policy::PyForwardSensitivity>,
 }
@@ -509,7 +509,7 @@ impl PyTsitouras45 {
         native: CommonTsitouras45,
         document: &eqiora::api::ModelDocument,
     ) -> PyResult<Self> {
-        let fields = native
+        let coordinates = native
             .absolute_tolerances()
             .iter()
             .map(|entry| {
@@ -517,9 +517,10 @@ impl PyTsitouras45 {
                     py,
                     PyModelFieldRef::from_exact(
                         model_digest.to_owned(),
-                        entry.field().ulid().to_string(),
+                        entry.coordinate().0.ulid().to_string(),
                     ),
                 )
+                .map(|field| (field, entry.coordinate().1))
             })
             .collect::<PyResult<Vec<_>>>()?;
         let events = native
@@ -549,14 +550,14 @@ impl PyTsitouras45 {
                     policy
                         .absolute_tolerances()
                         .iter()
-                        .map(|entry| (entry.field(), entry.parameter(), entry.quantity()))
+                        .map(|entry| (entry.coordinate(), entry.parameter(), entry.quantity()))
                         .collect(),
                 )
             })
             .transpose()?;
         Ok(Self {
             native,
-            fields,
+            coordinates,
             events,
             forward_sensitivities,
         })
@@ -571,9 +572,9 @@ impl PyTsitouras45 {
                 .as_ref()
                 .is_none_or(|events| events.model_digest == model_digest)
             && self
-                .fields
+                .coordinates
                 .iter()
-                .all(|field| field.borrow(py).exact_model_digest() == model_digest)
+                .all(|(field, _)| field.borrow(py).exact_model_digest() == model_digest)
     }
 }
 
@@ -590,11 +591,11 @@ impl PyTsitouras45 {
         forward_sensitivities: Option<&super::forward_policy::PyForwardSensitivity>,
     ) -> PyResult<Self> {
         let mut native = Vec::with_capacity(absolute_tolerances.len());
-        let mut fields = Vec::with_capacity(absolute_tolerances.len());
+        let mut coordinates = Vec::with_capacity(absolute_tolerances.len());
         for (field, value) in absolute_tolerances.iter() {
-            let field = field.extract::<Py<PyModelFieldRef>>().map_err(|_| {
+            let (field, order) = field.extract::<(Py<PyModelFieldRef>, u32)>().map_err(|_| {
                 PyTypeError::new_err(
-                    "absolute_tolerances keys must be exact eqiora.FieldRef values",
+                    "absolute_tolerances keys must be (exact eqiora.FieldRef, derivative order) pairs",
                 )
             })?;
             let value = exact_time_float(&value)?;
@@ -602,12 +603,12 @@ impl PyTsitouras45 {
                 PyTypeError::new_err("absolute_tolerances contains an invalid exact FieldRef")
             })?;
             native.push(
-                CommonTsitourasTolerance::new(Id::<kinds::Field>::from_ulid(id), value)
+                CommonTsitourasTolerance::new((Id::<kinds::Field>::from_ulid(id), order), value)
                     .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
             );
-            fields.push(field);
+            coordinates.push((field, order));
         }
-        fields.sort_by_key(|field| field.borrow(py).exact_id().to_owned());
+        coordinates.sort_by_key(|(field, order)| (field.borrow(py).exact_id().to_owned(), *order));
         let mut native = CommonTsitouras45::new(initial_step_s, relative_tolerance, native)
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
         if let Some(events) = events {
@@ -633,7 +634,11 @@ impl PyTsitouras45 {
                             let field = Ulid::from_string(entry.field.exact_id())
                                 .map(Id::<kinds::Field>::from_ulid)
                                 .expect("validated exact FieldRef");
-                            (field, entry.parameter.value.id(), entry.quantity)
+                            (
+                                (field, entry.derivative_order),
+                                entry.parameter.value.id(),
+                                entry.quantity,
+                            )
                         })
                         .collect(),
                 )
@@ -641,7 +646,7 @@ impl PyTsitouras45 {
         }
         Ok(Self {
             native,
-            fields,
+            coordinates,
             events: events.cloned(),
             forward_sensitivities: forward_sensitivities.cloned(),
         })
@@ -670,18 +675,22 @@ impl PyTsitouras45 {
     #[getter]
     fn absolute_tolerances(&self, py: Python<'_>) -> PyResult<Py<PyDict>> {
         let result = PyDict::new(py);
-        for (field, tolerance) in self.fields.iter().zip(self.native.absolute_tolerances()) {
-            result.set_item(field.clone_ref(py), tolerance.value())?;
+        for ((field, order), tolerance) in self
+            .coordinates
+            .iter()
+            .zip(self.native.absolute_tolerances())
+        {
+            result.set_item((field.clone_ref(py), *order), tolerance.value())?;
         }
         Ok(result.unbind())
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "Tsitouras45(initial_step_s={}, relative_tolerance={}, fields={})",
+            "Tsitouras45(initial_step_s={}, relative_tolerance={}, coordinates={})",
             self.initial_step_s(),
             self.relative_tolerance(),
-            self.fields.len()
+            self.coordinates.len()
         )
     }
 }

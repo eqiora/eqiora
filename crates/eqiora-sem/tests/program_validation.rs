@@ -416,7 +416,7 @@ fn derivative_dimension_overflow_is_not_misreported_as_missing_symbol() {
 
     let mut expression = ExprDagBuilder::new();
     let residual = expression
-        .symbol(SymbolRef::Derivative(field))
+        .symbol(SymbolRef::Derivative(field, std::num::NonZeroU32::MIN))
         .expect("derivative");
     let mut transaction = Transaction::new("derivative dimension overflow");
     for node in [
@@ -1142,7 +1142,7 @@ fn revision_values_preserve_complex_channels_without_scalar_execution_coercion()
     assert_eq!(current.typed_value(id.erase()), Some(&edited));
     assert_eq!(current.value(id.erase()), None);
     let errors = Interpreter::new()
-        .initialize(&current, ReferenceConfig::new(0.0, 0.1).unwrap())
+        .initialize(&current, 0.0, ReferenceConfig::new(0.0, 0.1).unwrap())
         .unwrap_err();
     assert_eq!(errors[0].code(), codes::NOT_IMPLEMENTED);
 }

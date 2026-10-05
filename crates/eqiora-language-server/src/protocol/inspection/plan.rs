@@ -65,7 +65,7 @@ mod tests {
             CommonTsitouras45::new(
                 0.01,
                 1e-6,
-                vec![CommonTsitourasTolerance::new(field, 1e-9).unwrap()],
+                vec![CommonTsitourasTolerance::new((field, 0), 1e-9).unwrap()],
             )
             .unwrap(),
             DIFFSOL_TIME_BACKEND,

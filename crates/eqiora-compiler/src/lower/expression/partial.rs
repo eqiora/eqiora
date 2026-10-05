@@ -29,14 +29,24 @@ pub(crate) fn result_type<I: Clone + PartialEq>(
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
-enum Input {
+pub(super) enum Input {
     Name(String),
+    TimeDerivative(String, std::num::NonZeroU32),
     Coordinate(String, String, usize),
     Pullback(usize),
 }
-fn input(value: &LoweringExpression) -> Option<Input> {
+pub(super) fn input(value: &LoweringExpression) -> Option<Input> {
     match value.node.as_ref() {
         LoweringExpressionNode::Name(name) => Some(Input::Name(name.clone())),
+        LoweringExpressionNode::Call { callee, argument } if callee == "derivative" => {
+            match input(argument)? {
+                Input::Name(name) => Some(Input::TimeDerivative(name, std::num::NonZeroU32::MIN)),
+                Input::TimeDerivative(name, order) => {
+                    Some(Input::TimeDerivative(name, order.checked_add(1)?))
+                }
+                _ => None,
+            }
+        }
         LoweringExpressionNode::Coordinate {
             support,
             factor,
@@ -158,9 +168,7 @@ impl ExpressionLowerer<'_> {
                 continue;
             }
             match value.node.as_ref() {
-                LoweringExpressionNode::Name(_)
-                | LoweringExpressionNode::Coordinate { .. }
-                | LoweringExpressionNode::Pullback { .. } => {
+                _ if input(value).is_some() => {
                     let key = input(value).expect("matched independent input");
                     if let std::collections::btree_map::Entry::Vacant(entry) = names.entry(key) {
                         let index = input_slot(inputs.len())
@@ -413,9 +421,7 @@ fn scalar(
         return Ok(*value);
     }
     let node = match expression.node.as_ref() {
-        LoweringExpressionNode::Name(_)
-        | LoweringExpressionNode::Coordinate { .. }
-        | LoweringExpressionNode::Pullback { .. } => CalculusNode::FormalComponent {
+        _ if input(expression).is_some() => CalculusNode::FormalComponent {
             formal: names[&input(expression).expect("matched independent input")],
             axes: Box::new([]),
         },

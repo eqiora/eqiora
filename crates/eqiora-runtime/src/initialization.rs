@@ -9,12 +9,13 @@ use crate::time::invalid_time;
 
 pub(crate) fn initialize(
     kernel: &KernelProgram,
-    fields: &[Id<kinds::Field>],
+    fields: &[(Id<kinds::Field>, u32)],
     relation: Id<kinds::Relation>,
+    initial_time: f64,
     config: ReferenceConfig,
 ) -> Result<ImplicitDaeInitialization, Diagnostic> {
     let initial = Interpreter::new()
-        .initialize(kernel, config)
+        .initialize(kernel, initial_time, config)
         .map_err(|diagnostics| {
             diagnostics.into_iter().next().unwrap_or_else(|| {
                 invalid_time(relation, "fresh initialization failed without a diagnostic")
@@ -22,30 +23,35 @@ pub(crate) fn initialize(
         })?;
     let state = fields
         .iter()
-        .map(|field| {
-            initial
-                .fields()
-                .get(&field.erase())
-                .and_then(eqiora_core::ValueLiteral::real_scalar_value)
-                .map(|value| value.value())
-                .ok_or_else(|| {
-                    invalid_time(
-                        relation,
-                        "fresh initialization omitted a required state coordinate",
-                    )
-                })
+        .map(|&(field, order)| {
+            let value = if let Some(order) = std::num::NonZeroU32::new(order) {
+                initial.derivatives().get(&(field.erase(), order)).copied()
+            } else {
+                initial
+                    .fields()
+                    .get(&field.erase())
+                    .and_then(eqiora_core::ValueLiteral::real_scalar_value)
+                    .map(|value| value.value())
+            };
+            value.ok_or_else(|| {
+                invalid_time(
+                    relation,
+                    "fresh initialization omitted a required state coordinate",
+                )
+            })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let derivative = fields.iter().map(|field| {
-        if let Some(value) = initial.derivatives().get(&field.erase()) {
+    let derivative = fields.iter().map(|&(field, order)| {
+        let order = order.checked_add(1).and_then(std::num::NonZeroU32::new)
+            .ok_or_else(|| invalid_time(relation, "state coordinate derivative order overflows"))?;
+        if let Some(value) = initial.derivatives().get(&(field.erase(), order)) {
             return Ok(*value);
         }
-        // Algebraic coordinates have no derivative unknown in this index-one
-        // partition. Zero is the residual-adapter convention for that absent
-        // coordinate, not an inferred initial condition or physical derivative.
+        // Only an algebraic coordinate with no authored time rate uses zero
+        // for its unused adapter rate. Missing differential data is an error.
         let has_derivative = kernel.nodes().any(|node| match node {
             KernelNode::Relation(definition) => definition.expression().nodes().iter().any(|node| {
-                matches!(node, ExprNode::Symbol(SymbolRef::Derivative(candidate)) if candidate == field)
+                matches!(node, ExprNode::Symbol(SymbolRef::Derivative(candidate, candidate_order)) if *candidate == field && *candidate_order >= order)
             }),
             _ => false,
         });
@@ -63,9 +69,10 @@ pub(crate) fn initialize(
 /// Free derivative directions are allowed only when they cannot change state.
 pub(crate) fn require_zero_parameter_tangent(
     kernel: &KernelProgram,
-    fields: &[Id<kinds::Field>],
+    fields: &[(Id<kinds::Field>, u32)],
     parameters: &[Id<kinds::Parameter>],
     relation: Id<kinds::Relation>,
+    initial_time: f64,
 ) -> Result<(), Diagnostic> {
     let unsupported = || {
         invalid_time(
@@ -73,10 +80,24 @@ pub(crate) fn require_zero_parameter_tangent(
             "initial constraints do not prove a unique zero initial-state Parameter tangent",
         )
     };
-    let initial = initialize(kernel, fields, relation, ReferenceConfig::new(0.0, 1.0)?)?;
+    let initial = initialize(
+        kernel,
+        fields,
+        relation,
+        initial_time,
+        ReferenceConfig::new(0.0, 1.0)?,
+    )?;
     let n = fields.len();
     let width = 2 * n + parameters.len();
-    let rows = linearized_constraints(kernel, fields, parameters, relation, &initial, true)?;
+    let rows = linearized_constraints(
+        kernel,
+        fields,
+        parameters,
+        relation,
+        initial_time,
+        &initial,
+        true,
+    )?;
     let derivative_rank = rank(&rows, n..2 * n)?;
     if rank(&rows, 0..2 * n)? != n + derivative_rank || rank(&rows, n..width)? != derivative_rank {
         return Err(unsupported());
@@ -89,8 +110,9 @@ pub(crate) fn require_zero_parameter_tangent(
 /// This neither differentiates a constraint nor certifies an entire trajectory.
 pub(crate) fn require_constant_mass_regularity(
     kernel: &KernelProgram,
-    fields: &[Id<kinds::Field>],
+    fields: &[(Id<kinds::Field>, u32)],
     relation: Id<kinds::Relation>,
+    initial_time: f64,
     initial: &ImplicitDaeInitialization,
     mass: &eqiora_time::ConstantDerivativeMatrixProof,
 ) -> Result<(), Diagnostic> {
@@ -98,7 +120,7 @@ pub(crate) fn require_constant_mass_regularity(
     if mass.exact_rank() == n {
         return Ok(());
     }
-    let rows = linearized_constraints(kernel, fields, &[], relation, initial, false)?;
+    let rows = linearized_constraints(kernel, fields, &[], relation, initial_time, initial, false)?;
     let state_jacobian = rows
         .iter()
         .flat_map(|row| row[..n].iter().copied())
@@ -111,13 +133,14 @@ pub(crate) fn require_constant_mass_regularity(
 /// rates and algebraic values with differential values held fixed.
 pub(crate) fn require_implicit_regularity(
     kernel: &KernelProgram,
-    fields: &[Id<kinds::Field>],
+    fields: &[(Id<kinds::Field>, u32)],
     relation: Id<kinds::Relation>,
+    initial_time: f64,
     initial: &ImplicitDaeInitialization,
     kinds: &[eqiora_time::DaeVariableKind],
 ) -> Result<(), Diagnostic> {
     let n = fields.len();
-    let rows = linearized_constraints(kernel, fields, &[], relation, initial, false)?;
+    let rows = linearized_constraints(kernel, fields, &[], relation, initial_time, initial, false)?;
     let selected = rows
         .iter()
         .map(|row| {
@@ -147,9 +170,10 @@ pub(crate) fn require_implicit_regularity(
 
 fn linearized_constraints(
     kernel: &KernelProgram,
-    fields: &[Id<kinds::Field>],
+    fields: &[(Id<kinds::Field>, u32)],
     parameters: &[Id<kinds::Parameter>],
     relation: Id<kinds::Relation>,
+    initial_time: f64,
     initial: &ImplicitDaeInitialization,
     include_initial: bool,
 ) -> Result<Vec<Vec<f64>>, Diagnostic> {
@@ -181,16 +205,23 @@ fn linearized_constraints(
                 SymbolRef::Field(field) => {
                     let index = fields
                         .iter()
-                        .position(|candidate| candidate == field)
+                        .position(|candidate| *candidate == (*field, 0))
                         .ok_or_else(unsupported)?;
                     (initial.state()[index], Some(index))
                 }
-                SymbolRef::Derivative(field) => {
-                    let index = fields
+                SymbolRef::Derivative(field, order) => {
+                    if let Some(index) = fields
                         .iter()
-                        .position(|candidate| candidate == field)
-                        .ok_or_else(unsupported)?;
-                    (initial.derivative()[index], Some(n + index))
+                        .position(|candidate| *candidate == (*field, order.get()))
+                    {
+                        (initial.state()[index], Some(index))
+                    } else {
+                        let index = fields
+                            .iter()
+                            .position(|candidate| *candidate == (*field, order.get() - 1))
+                            .ok_or_else(unsupported)?;
+                        (initial.derivative()[index], Some(n + index))
+                    }
                 }
                 SymbolRef::Parameter(parameter) => {
                     let value = kernel
@@ -203,7 +234,7 @@ fn linearized_constraints(
                         .map(|index| 2 * n + index);
                     (value, coordinate)
                 }
-                SymbolRef::Time => (0.0, None),
+                SymbolRef::Time => (initial_time, None),
                 _ => return Err(unsupported()),
             };
             inputs.push(value);
@@ -228,6 +259,17 @@ fn linearized_constraints(
             }
         }
         rows.extend(block);
+    }
+    for (coordinate, &(field, order)) in fields.iter().enumerate() {
+        if let Some(next) = fields
+            .iter()
+            .position(|candidate| *candidate == (field, order + 1))
+        {
+            let mut row = vec![0.; width];
+            row[n + coordinate] = 1.;
+            row[next] = -1.;
+            rows.push(row);
+        }
     }
     Ok(rows)
 }

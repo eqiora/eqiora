@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::implicit_time::validate_general_proof;
 use crate::time::canonical_time_operator;
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, GeneralImplicitTimeLoweringEnvelopeV1,
+    ArtifactDigest, CANONICAL_ENCODING, GeneralImplicitTimeLoweringEnvelopeV2,
     ImplicitTimeInitialDataEnvelopeV1, ImplicitTimeRunManifestV1, TimeDecoderLimits,
     check_json_limits, invalid_artifact,
 };
@@ -37,7 +37,7 @@ impl ImplicitTimeCheckpointEnvelopeV1 {
     /// Returns `EQ0901` for model/lowering drift, invalid point data, or a
     /// canonical residual infinity norm above `residual_tolerance`.
     pub fn from_accepted_pair(
-        lowering: &GeneralImplicitTimeLoweringEnvelopeV1,
+        lowering: &GeneralImplicitTimeLoweringEnvelopeV2,
         program: &KernelProgram,
         time: f64,
         mut state: Vec<f64>,
@@ -181,7 +181,7 @@ impl ImplicitTimeCheckpointEnvelopeV1 {
     /// or acceptance drift.
     pub fn validate_against(
         &self,
-        lowering: &GeneralImplicitTimeLoweringEnvelopeV1,
+        lowering: &GeneralImplicitTimeLoweringEnvelopeV2,
         program: &KernelProgram,
     ) -> Result<(), Diagnostic> {
         if self.model_artifact() != lowering.model_artifact()
@@ -263,7 +263,7 @@ impl ImplicitTimeRestartManifestV1 {
     /// Returns `EQ0901` for any canonical replay, digest, point, time, or run
     /// linkage contradiction.
     pub fn new(
-        lowering: &GeneralImplicitTimeLoweringEnvelopeV1,
+        lowering: &GeneralImplicitTimeLoweringEnvelopeV2,
         program: &KernelProgram,
         parent_run: &ImplicitTimeRunManifestV1,
         checkpoint: &ImplicitTimeCheckpointEnvelopeV1,
@@ -385,7 +385,7 @@ impl ImplicitTimeRestartManifestV1 {
     /// linkage.
     pub fn validate_against(
         &self,
-        lowering: &GeneralImplicitTimeLoweringEnvelopeV1,
+        lowering: &GeneralImplicitTimeLoweringEnvelopeV2,
         program: &KernelProgram,
         parent_run: &ImplicitTimeRunManifestV1,
         checkpoint: &ImplicitTimeCheckpointEnvelopeV1,
@@ -460,7 +460,7 @@ impl ImplicitTimeRestartManifestV1 {
 }
 
 fn replay_residual_norm(
-    lowering: &GeneralImplicitTimeLoweringEnvelopeV1,
+    lowering: &GeneralImplicitTimeLoweringEnvelopeV2,
     program: &KernelProgram,
     time: f64,
     state: &[f64],
@@ -474,9 +474,10 @@ fn replay_residual_norm(
     }
     let proof = lowering.proof()?;
     validate_general_proof(&proof, program)?;
-    let (operator, state_fields) = canonical_time_operator(program, proof.relation())?;
-    if state.len() != state_fields.len()
-        || derivative.len() != state_fields.len()
+    let (operator, state_coordinates) =
+        canonical_time_operator(program, proof.relation(), proof.state_coordinates().len())?;
+    if state.len() != state_coordinates.len()
+        || derivative.len() != state_coordinates.len()
         || !time.is_finite()
         || state
             .iter()
@@ -487,23 +488,28 @@ fn replay_residual_norm(
             "implicit time checkpoint point does not match canonical state shape",
         ));
     }
-    let coordinates = state_fields
+    let coordinates = state_coordinates
         .iter()
         .copied()
         .enumerate()
         .map(|(coordinate, field)| (field, coordinate))
-        .collect::<HashMap<Id<kinds::Field>, usize>>();
+        .collect::<HashMap<(Id<kinds::Field>, u32), usize>>();
     let inputs = operator
         .symbols()
         .iter()
         .map(|symbol| match *symbol {
             SymbolRef::Field(field) => coordinates
-                .get(&field)
+                .get(&(field, 0))
                 .map(|coordinate| state[*coordinate])
                 .ok_or_else(|| invalid_artifact("checkpoint Field is outside canonical state")),
-            SymbolRef::Derivative(field) => coordinates
-                .get(&field)
-                .map(|coordinate| derivative[*coordinate])
+            SymbolRef::Derivative(field, order) => coordinates
+                .get(&(field, order.get()))
+                .map(|coordinate| state[*coordinate])
+                .or_else(|| {
+                    coordinates
+                        .get(&(field, order.get() - 1))
+                        .map(|coordinate| derivative[*coordinate])
+                })
                 .ok_or_else(|| {
                     invalid_artifact("checkpoint Derivative is outside canonical state")
                 }),
@@ -523,7 +529,19 @@ fn replay_residual_norm(
     let residual = operator
         .evaluate(&inputs)
         .map_err(|error| invalid_artifact(format!("checkpoint residual replay failed: {error}")))?;
-    Ok(residual.into_iter().map(f64::abs).fold(0.0_f64, f64::max))
+    let mut norm = residual.into_iter().map(f64::abs).fold(0.0_f64, f64::max);
+    for (index, &(field, order)) in state_coordinates.iter().enumerate() {
+        if let Some(next) = coordinates.get(&(field, order + 1)) {
+            let residual = derivative[index] - state[*next];
+            if !residual.is_finite() {
+                return Err(invalid_artifact(
+                    "checkpoint companion residual is not finite",
+                ));
+            }
+            norm = norm.max(residual.abs());
+        }
+    }
+    Ok(norm)
 }
 
 fn normalize_zeros(values: &mut [f64]) {

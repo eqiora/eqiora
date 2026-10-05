@@ -40,8 +40,8 @@ fn canonical_bouncing_ball_produces_event_time_reset_and_saltation_derivatives()
     assert!(fixture.kernel.typed_event_guard(Id::new()).is_err());
     assert_eq!(event.activations().len(), 2);
     assert_eq!(
-        event.flow().state_fields(),
-        [fixture.height, fixture.velocity]
+        event.flow().state_coordinates(),
+        [(fixture.height, 0), (fixture.velocity, 0)]
     );
     assert_eq!(
         event.parameter_fields(),
@@ -140,12 +140,12 @@ fn bouncing_ball(direction: EventDirection) -> BouncingBall {
 
     let mut flow_expression = ExprDagBuilder::new();
     let height_rate = flow_expression
-        .symbol(SymbolRef::Derivative(height))
+        .symbol(SymbolRef::Derivative(height, std::num::NonZeroU32::MIN))
         .unwrap();
     let flow_velocity_value = flow_expression.symbol(SymbolRef::Field(velocity)).unwrap();
 
     let velocity_rate = flow_expression
-        .symbol(SymbolRef::Derivative(velocity))
+        .symbol(SymbolRef::Derivative(velocity, std::num::NonZeroU32::MIN))
         .unwrap();
     let gravity_value = flow_expression
         .symbol(SymbolRef::Parameter(gravity))

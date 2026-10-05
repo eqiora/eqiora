@@ -428,7 +428,15 @@ impl PyPlan {
     fn formulation(&self, py: Python<'_>) -> PyResult<Option<Py<PyFormulationView>>> {
         let description = self.native.formulation();
         description
-            .map(|description| Py::new(py, PyFormulationView::from_native(description)))
+            .map(|description| {
+                Py::new(
+                    py,
+                    PyFormulationView::from_native(
+                        description,
+                        self.native.model_digest().to_owned(),
+                    ),
+                )
+            })
             .transpose()
     }
     #[getter]
@@ -566,7 +574,8 @@ impl PyPlan {
                 })
                 .collect(),
             ResolvedCommonPlan::Ode(plan) => plan
-                .field_ids()
+                .state_coordinates()
+                .filter_map(|(field, order)| (order == 0).then_some(field))
                 .map(|field| PyModelFieldRef::from_exact(model_digest.clone(), field.to_string()))
                 .collect(),
             ResolvedCommonPlan::Scalar(plan) => plan

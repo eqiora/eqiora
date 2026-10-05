@@ -521,7 +521,7 @@ fn momentum_parts(
 fn is_derivative(expression: &ExprDag, value: ExprId, field: RawId) -> bool {
     matches!(
         expression.node(value),
-        Some(ExprNode::Symbol(SymbolRef::Derivative(id))) if id.erase() == field
+        Some(ExprNode::Symbol(SymbolRef::Derivative(id, std::num::NonZeroU32::MIN))) if id.erase() == field
     )
 }
 
@@ -530,7 +530,7 @@ fn inertia_density(expression: &ExprDag, value: ExprId, velocity: RawId) -> Opti
         return None;
     };
     for (derivative, density) in [(*left, *right), (*right, *left)] {
-        if matches!(expression.node(derivative), Some(ExprNode::Symbol(SymbolRef::Derivative(field))) if field.erase() == velocity)
+        if matches!(expression.node(derivative), Some(ExprNode::Symbol(SymbolRef::Derivative(field, std::num::NonZeroU32::MIN))) if field.erase() == velocity)
         {
             return Some(density);
         }

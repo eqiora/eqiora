@@ -23,7 +23,7 @@ import eqiora
 method = eqiora.time.Tsitouras45(
     initial_step_s=0.01,
     relative_tolerance=1e-9,
-    absolute_tolerances={x: 1e-11},
+    absolute_tolerances={(x, 0): 1e-11},
 )
 plan = eqiora.resolve(model, temporal=method)
 ```
@@ -72,18 +72,18 @@ class OdePlanView:
 
 ## `Tsitouras45`
 
-Adaptive explicit ODE integration with exact Field-bound SI tolerances.
+Adaptive explicit ODE integration with exact (Field, derivative order)-bound SI tolerances.
 
 ```python
 @final
 class Tsitouras45:
-    def __new__(cls, *, initial_step_s: float, relative_tolerance: float, absolute_tolerances: Mapping[FieldRef, float], events: EventPolicy | None=None, forward_sensitivities: ForwardSensitivity | None=None) -> Self: ...
+    def __new__(cls, *, initial_step_s: float, relative_tolerance: float, absolute_tolerances: Mapping[tuple[FieldRef, int], float], events: EventPolicy | None=None, forward_sensitivities: ForwardSensitivity | None=None) -> Self: ...
     @property
     def initial_step_s(self) -> float: ...
     @property
     def relative_tolerance(self) -> float: ...
     @property
-    def absolute_tolerances(self) -> dict[FieldRef, float]: ...
+    def absolute_tolerances(self) -> dict[tuple[FieldRef, int], float]: ...
     @property
     def events(self) -> EventPolicy | None: ...
     @property
@@ -170,9 +170,9 @@ Positive Field/Parameter derivative tolerance in quotient physical units.
 ```python
 @final
 class SensitivityTolerance:
-    def __new__(cls, field: FieldRef, parameter: ParameterRef, value: float, dimension: Dimension) -> Self: ...
+    def __new__(cls, coordinate: tuple[FieldRef, int], parameter: ParameterRef, value: float, dimension: Dimension) -> Self: ...
     @property
-    def field(self) -> FieldRef: ...
+    def coordinate(self) -> tuple[FieldRef, int]: ...
     @property
     def parameter(self) -> ParameterRef: ...
     @property

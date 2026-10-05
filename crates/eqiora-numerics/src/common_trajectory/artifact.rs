@@ -215,7 +215,7 @@ impl WireCommonTrajectoryV3 {
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 let history =
-                    AcceptedTimeHistory::accepted(plan.field_dimensions().len(), steps, events)?;
+                    AcceptedTimeHistory::accepted(plan.state_dimensions().len(), steps, events)?;
                 CommonTrajectory::accept_ode_states(request, states, history)?
             }
             (

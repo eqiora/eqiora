@@ -53,13 +53,19 @@ fn request() -> CommonOdeRunRequest {
         CommonTsitouras45::new(
             0.01,
             1e-9,
-            vec![CommonTsitourasTolerance::new(field, 1e-11).unwrap()],
+            vec![CommonTsitourasTolerance::new((field, 0), 1e-11).unwrap()],
         )
         .unwrap(),
         report().backend_identity(),
     )
     .unwrap();
-    CommonOdeRunRequest::new(plan.clone(), plan.initial_state().unwrap(), 1.0, vec![0.5]).unwrap()
+    CommonOdeRunRequest::new(
+        plan.clone(),
+        plan.initial_state(0.0).unwrap(),
+        1.0,
+        vec![0.5],
+    )
+    .unwrap()
 }
 #[test]
 fn forged_hidden_terminal_and_replayed_midpoint_samples_are_rejected() {

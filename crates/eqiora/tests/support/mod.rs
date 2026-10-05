@@ -77,7 +77,10 @@ pub(crate) fn canonical_state_dependent_mass_dae() -> CanonicalStateDependentMas
 
     let mut expression = ExprDagBuilder::new();
     let derivative = expression
-        .symbol(SymbolRef::Derivative(differential))
+        .symbol(SymbolRef::Derivative(
+            differential,
+            std::num::NonZeroU32::MIN,
+        ))
         .unwrap();
     let differential_value = expression.symbol(SymbolRef::Field(differential)).unwrap();
     let algebraic_value = expression.symbol(SymbolRef::Field(algebraic)).unwrap();

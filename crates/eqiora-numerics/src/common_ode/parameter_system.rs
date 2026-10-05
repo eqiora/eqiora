@@ -14,7 +14,7 @@ pub(crate) struct GlobalParameterSystem<'a> {
     parameter_ids: Vec<Id<kinds::Parameter>>,
     parameter_values: Vec<f64>,
     flow_columns: Vec<usize>,
-    initial_jacobian: Vec<f64>,
+    initial_jacobian: Option<Vec<f64>>,
 }
 
 impl<'a> GlobalParameterSystem<'a> {
@@ -63,19 +63,13 @@ impl<'a> GlobalParameterSystem<'a> {
                 .unwrap_or_else(|| invalid("initial Parameter Model replay failed"))
         })?;
         reject_unproven_initial_parameters(&kernel, &parameter_ids, flow.parameter_fields())?;
-        let mut initial_tangent = vec![0.0; flow.dimension()];
-        // The existing initialization owner proves a unique zero tangent in flow coordinates.
-        flow.initial_parameter_jvp(
-            0.0,
-            &vec![0.0; flow.parameter_dimension()],
-            &mut initial_tangent,
-        )?;
         let flow_columns = flow
             .parameter_fields()
             .iter()
             .map(|id| coordinates[id])
             .collect();
-        let initial_jacobian = vec![0.0; flow.dimension() * parameter_ids.len()];
+        // A fresh tangent is proved at the Run's actual initial time.
+        let initial_jacobian = None;
         Ok(Self {
             flow,
             parameter_ids,
@@ -102,7 +96,7 @@ impl<'a> GlobalParameterSystem<'a> {
             ));
         }
         let mut result = self.clone();
-        result.initial_jacobian = initial_jacobian;
+        result.initial_jacobian = Some(initial_jacobian);
         Ok(result)
     }
 
@@ -221,8 +215,16 @@ impl ParametricTimeSystem for GlobalParameterSystem<'_> {
                 "initial Parameter action has invalid time or state shape",
             ));
         }
+        let Some(initial_jacobian) = &self.initial_jacobian else {
+            let local = self
+                .flow_columns
+                .iter()
+                .map(|&column| direction[column])
+                .collect::<Vec<_>>();
+            return self.flow.initial_parameter_jvp(time, &local, output);
+        };
         for (row, value) in output.iter_mut().enumerate() {
-            *value = self.initial_jacobian
+            *value = initial_jacobian
                 [row * self.parameter_dimension()..(row + 1) * self.parameter_dimension()]
                 .iter()
                 .zip(direction)
@@ -328,7 +330,7 @@ model Ramp() {
             .nodes()
             .filter_map(|node| match node {
                 KernelNode::Field(field) => {
-                    Some(CommonTsitourasTolerance::new(field.id(), 1e-10).unwrap())
+                    Some(CommonTsitourasTolerance::new((field.id(), 0), 1e-10).unwrap())
                 }
                 _ => None,
             })
@@ -437,12 +439,40 @@ model Ramp() {
     }
 
     #[test]
+    fn fresh_parameter_tangent_uses_the_requested_initial_time() {
+        let plan = plan(&RAMP.replace("x = 0", "time()*x = 1[s]"));
+        let roots = plan.root_set().unwrap().unwrap();
+        let system = GlobalParameterSystem::new(&plan, &roots).unwrap();
+        let direction = vec![1.; system.parameter_dimension()];
+        let mut output = vec![f64::NAN; system.dimension()];
+        system
+            .initial_parameter_jvp(2., &direction, &mut output)
+            .unwrap();
+        assert_eq!(output, vec![0.; system.dimension()]);
+        assert!(
+            system
+                .initial_parameter_jvp(0., &direction, &mut output)
+                .is_err()
+        );
+    }
+
+    #[test]
     fn initial_parameter_dependence_and_foreign_event_layout_fail_closed() {
-        for initial in ["x = first", "x = speed * 1[s]"] {
-            let plan = plan(&RAMP.replace("x = 0", initial));
-            let roots = plan.root_set().unwrap().unwrap();
-            assert!(GlobalParameterSystem::new(&plan, &roots).is_err());
-        }
+        let guard_dependent = plan(&RAMP.replace("x = 0", "x = first"));
+        let roots = guard_dependent.root_set().unwrap().unwrap();
+        assert!(GlobalParameterSystem::new(&guard_dependent, &roots).is_err());
+        let flow_dependent = plan(&RAMP.replace("x = 0", "x = speed * 1[s]"));
+        let roots = flow_dependent.root_set().unwrap().unwrap();
+        let system = GlobalParameterSystem::new(&flow_dependent, &roots).unwrap();
+        assert!(
+            system
+                .initial_parameter_jvp(
+                    2.0,
+                    &vec![1.; system.parameter_dimension()],
+                    &mut vec![0.; system.dimension()]
+                )
+                .is_err()
+        );
         let first_plan = plan(RAMP);
         let foreign_plan = plan(&RAMP.replace("second: 1 = 3", "second: 1 = 4"));
         assert!(

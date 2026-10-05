@@ -125,7 +125,7 @@ fn native_storage_tampering_fails_despite_valid_balance_and_matching_dimensions(
 }
 
 #[test]
-fn native_canceled_storage_still_requires_continuous_state_fields() {
+fn native_canceled_storage_still_requires_continuous_state_coordinates() {
     use eqiora::kernel::{ExprDagBuilder, FieldDef, FieldRole, SymbolRef};
     let model = compile(
         "canceled.eqi",

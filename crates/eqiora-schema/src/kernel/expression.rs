@@ -45,8 +45,10 @@ impl ExprId {
 pub enum SymbolRef {
     /// Current value of a Field.
     Field(Id<kinds::Field>),
-    /// Time derivative of a Field.
-    Derivative(Id<kinds::Field>),
+    /// Time derivative of a Field at an exact positive order.
+    /// The source Field identity is retained through first-order formulation;
+    /// a numerical derivative coordinate is not a separately authored Field.
+    Derivative(Id<kinds::Field>, std::num::NonZeroU32),
     /// Value immediately before the current activation instant.
     Pre(Id<kinds::Field>),
     /// Value solved simultaneously for the next discrete state.

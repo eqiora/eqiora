@@ -47,11 +47,11 @@ model M() {
                     SymbolRef::Field(id) if id.erase() == y => {
                         (5., eqiora::DimExponents::DIMENSIONLESS)
                     }
-                    SymbolRef::Derivative(id) if id.erase() == q => (
+                    SymbolRef::Derivative(id, std::num::NonZeroU32::MIN) if id.erase() == q => (
                         2.,
                         eqiora::DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap(),
                     ),
-                    SymbolRef::Derivative(id) if id.erase() == y => (
+                    SymbolRef::Derivative(id, std::num::NonZeroU32::MIN) if id.erase() == y => (
                         3.,
                         eqiora::DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap(),
                     ),
@@ -122,7 +122,7 @@ fn nonlinear_stored_quantity_runs_through_the_common_implicit_lifecycle() {
         let replay_system =
             GeneralImplicitProgram::lower(&CpuProgram::lower(&replay).unwrap(), relation).unwrap();
         assert_eq!(system.lowering_proof(), replay_system.lowering_proof());
-        let lowering = eqiora::artifact::GeneralImplicitTimeLoweringEnvelopeV1::from_proof(
+        let lowering = eqiora::artifact::GeneralImplicitTimeLoweringEnvelopeV2::from_proof(
             &envelope,
             &kernel,
             system.lowering_proof(),
@@ -132,6 +132,7 @@ fn nonlinear_stored_quantity_runs_through_the_common_implicit_lifecycle() {
 
         let initial = system
             .initialize(
+                0.0,
                 eqiora::sem::ReferenceConfig::new(0., 1.)
                     .unwrap()
                     .with_initial_guess(2.)
@@ -202,7 +203,9 @@ fn fixed_coordinates_do_not_become_evolving_state_inputs() {
                 let (value, exponents) = match symbol {
                     SymbolRef::Coordinate { axis: 0, .. } => (2., [0, 1, 0, 0, 0, 0, 0]),
                     SymbolRef::Field(_) => (3., [0, 0, 0, 0, 0, 0, 0]),
-                    SymbolRef::Derivative(_) => (5., [0, 0, -1, 0, 0, 0, 0]),
+                    SymbolRef::Derivative(_, std::num::NonZeroU32::MIN) => {
+                        (5., [0, 0, -1, 0, 0, 0, 0])
+                    }
                     SymbolRef::Time => (7., [0, 0, 1, 0, 0, 0, 0]),
                     _ => return None,
                 };

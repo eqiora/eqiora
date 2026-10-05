@@ -140,7 +140,9 @@ mod tests {
         let mut builder = ExprDagBuilder::new();
         let field_id = Id::<kinds::Field>::new();
         let stored = builder.symbol(SymbolRef::Field(field_id)).unwrap();
-        let accumulation = builder.symbol(SymbolRef::Derivative(field_id)).unwrap();
+        let accumulation = builder
+            .symbol(SymbolRef::Derivative(field_id, std::num::NonZeroU32::MIN))
+            .unwrap();
         let gradient = builder.gradient(stored).unwrap();
         let flux = builder.neg(gradient).unwrap();
         let divergence = builder.divergence(flux).unwrap();

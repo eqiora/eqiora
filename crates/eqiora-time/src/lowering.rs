@@ -37,7 +37,7 @@ pub struct MonomialDerivativeRow {
 }
 
 impl MonomialDerivativeRow {
-    /// Coordinate in [`TimeLoweringProof::state_fields`].
+    /// Coordinate in [`TimeLoweringProof::state_coordinates`].
     #[must_use]
     pub const fn state_coordinate(self) -> usize {
         self.state_coordinate
@@ -343,7 +343,7 @@ impl ConstantDerivativeMatrixProof {
 #[derive(Debug, Clone, PartialEq)]
 pub struct TimeLoweringProof {
     relation: Id<kinds::Relation>,
-    state_fields: Vec<Id<kinds::Field>>,
+    state_coordinates: Vec<(Id<kinds::Field>, u32)>,
     derivative_matrix: ConstantDerivativeMatrixProof,
     equation_class: TimeEquationClass,
 }
@@ -356,20 +356,16 @@ impl TimeLoweringProof {
     /// or a system with an identically zero derivative matrix.
     pub fn new(
         relation: Id<kinds::Relation>,
-        state_fields: Vec<Id<kinds::Field>>,
+        state_coordinates: Vec<(Id<kinds::Field>, u32)>,
         derivative_matrix: ConstantDerivativeMatrixProof,
     ) -> Result<Self, Diagnostic> {
-        let dimension = state_fields.len();
+        let dimension = state_coordinates.len();
         if dimension == 0 || derivative_matrix.dimension() != dimension {
             return Err(invalid_lowering(
                 "time-lowering proof state order and derivative matrix dimensions must agree",
             ));
         }
-        if state_fields.iter().copied().collect::<HashSet<_>>().len() != dimension {
-            return Err(invalid_lowering(
-                "time-lowering proof state Fields must be unique",
-            ));
-        }
+        validate_state_coordinates(&state_coordinates)?;
 
         let exact_rank = derivative_matrix.exact_rank();
         let equation_class =
@@ -390,7 +386,7 @@ impl TimeLoweringProof {
             };
         Ok(Self {
             relation,
-            state_fields,
+            state_coordinates,
             derivative_matrix,
             equation_class,
         })
@@ -402,10 +398,12 @@ impl TimeLoweringProof {
         self.relation
     }
 
-    /// Deterministic state coordinate order.
+    /// Deterministic `(source Field, derivative order)` coordinates.
+    /// Order zero denotes the authored value; every higher coordinate retains
+    /// the same source identity and requires all lower orders.
     #[must_use]
-    pub fn state_fields(&self) -> &[Id<kinds::Field>] {
-        &self.state_fields
+    pub fn state_coordinates(&self) -> &[(Id<kinds::Field>, u32)] {
+        &self.state_coordinates
     }
 
     /// Residual-ordered constant derivative matrix witness.
@@ -463,7 +461,7 @@ pub enum DaeVariableKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GeneralImplicitLoweringProof {
     relation: Id<kinds::Relation>,
-    state_fields: Vec<Id<kinds::Field>>,
+    state_coordinates: Vec<(Id<kinds::Field>, u32)>,
     variable_kinds: Vec<DaeVariableKind>,
     reason: GeneralImplicitReason,
 }
@@ -476,20 +474,16 @@ impl GeneralImplicitLoweringProof {
     /// mismatch, or a system without a differential coordinate.
     pub fn new(
         relation: Id<kinds::Relation>,
-        state_fields: Vec<Id<kinds::Field>>,
+        state_coordinates: Vec<(Id<kinds::Field>, u32)>,
         variable_kinds: Vec<DaeVariableKind>,
         reason: GeneralImplicitReason,
     ) -> Result<Self, Diagnostic> {
-        if state_fields.is_empty() || state_fields.len() != variable_kinds.len() {
+        if state_coordinates.is_empty() || state_coordinates.len() != variable_kinds.len() {
             return Err(invalid_lowering(
                 "general-implicit proof requires a non-empty state order and matching variable partition",
             ));
         }
-        if state_fields.iter().copied().collect::<HashSet<_>>().len() != state_fields.len() {
-            return Err(invalid_lowering(
-                "general-implicit proof state Fields must be unique",
-            ));
-        }
+        validate_state_coordinates(&state_coordinates)?;
         if !variable_kinds.contains(&DaeVariableKind::Differential) {
             return Err(invalid_lowering(
                 "general-implicit time lowering requires at least one differential coordinate",
@@ -497,7 +491,7 @@ impl GeneralImplicitLoweringProof {
         }
         Ok(Self {
             relation,
-            state_fields,
+            state_coordinates,
             variable_kinds,
             reason,
         })
@@ -509,10 +503,12 @@ impl GeneralImplicitLoweringProof {
         self.relation
     }
 
-    /// Deterministic state coordinate order.
+    /// Deterministic `(source Field, derivative order)` coordinates.
+    /// Order zero denotes the authored value; every higher coordinate retains
+    /// the same source identity and requires all lower orders.
     #[must_use]
-    pub fn state_fields(&self) -> &[Id<kinds::Field>] {
-        &self.state_fields
+    pub fn state_coordinates(&self) -> &[(Id<kinds::Field>, u32)] {
+        &self.state_coordinates
     }
 
     /// Differential/algebraic role in state coordinate order.
@@ -540,4 +536,21 @@ fn exact_matrix_rank(dimension: usize, coefficients: &[BigRational]) -> usize {
         .map(<[_]>::to_vec)
         .collect::<Vec<_>>();
     exact::eliminate(&mut matrix, dimension).len()
+}
+
+fn validate_state_coordinates(coordinates: &[(Id<kinds::Field>, u32)]) -> Result<(), Diagnostic> {
+    let unique = coordinates.iter().copied().collect::<HashSet<_>>();
+    if unique.len() != coordinates.len() {
+        return Err(invalid_lowering(
+            "time-lowering state coordinates must be unique",
+        ));
+    }
+    if coordinates.iter().any(|&(field, order)| {
+        order == u32::MAX || (order > 0 && !unique.contains(&(field, order - 1)))
+    }) {
+        return Err(invalid_lowering(
+            "time-lowering coordinates require a representable rate and every lower derivative order",
+        ));
+    }
+    Ok(())
 }

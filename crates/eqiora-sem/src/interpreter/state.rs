@@ -7,7 +7,7 @@ pub(super) struct RuntimeState {
     pub(super) typed_ports: BTreeMap<RawId, eqiora_core::ValueLiteral>,
     pub(super) typed_next: BTreeMap<RawId, eqiora_core::ValueLiteral>,
     pub(super) fields: BTreeMap<RawId, f64>,
-    pub(super) derivatives: BTreeMap<RawId, f64>,
+    pub(super) derivatives: BTreeMap<(RawId, std::num::NonZeroU32), f64>,
     pub(super) ports: BTreeMap<RawId, f64>,
     pub(super) physical: BTreeMap<PhysicalUnknown, f64>,
 }

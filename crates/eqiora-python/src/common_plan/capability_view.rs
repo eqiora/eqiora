@@ -22,7 +22,8 @@ pub(super) fn space_name(space: Space) -> &'static str {
     }
 }
 
-/// Closed mathematical Formulation families accepted by exact override.
+/// Closed mathematical Formulation families exposed by resolved Plans.
+/// FirstOrderEvolution describes automatic time normalization.
 ///
 /// Authority: `crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationKind`.
 #[pyclass(
@@ -35,6 +36,7 @@ pub(super) fn space_name(space: Space) -> &'static str {
 )]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum PyFormulationKind {
+    FirstOrderEvolution,
     PrimalGalerkin,
     MixedGalerkin,
     IntegralConservative,
@@ -43,6 +45,7 @@ pub(crate) enum PyFormulationKind {
 impl From<FormulationKind> for PyFormulationKind {
     fn from(value: FormulationKind) -> Self {
         match value {
+            FormulationKind::FirstOrderEvolution => Self::FirstOrderEvolution,
             FormulationKind::PrimalGalerkin => Self::PrimalGalerkin,
             FormulationKind::MixedGalerkin => Self::MixedGalerkin,
             FormulationKind::IntegralConservative => Self::IntegralConservative,
@@ -53,6 +56,7 @@ impl From<FormulationKind> for PyFormulationKind {
 impl From<PyFormulationKind> for FormulationKind {
     fn from(value: PyFormulationKind) -> Self {
         match value {
+            PyFormulationKind::FirstOrderEvolution => Self::FirstOrderEvolution,
             PyFormulationKind::PrimalGalerkin => Self::PrimalGalerkin,
             PyFormulationKind::MixedGalerkin => Self::MixedGalerkin,
             PyFormulationKind::IntegralConservative => Self::IntegralConservative,
@@ -89,6 +93,9 @@ pub(crate) enum PyFormulationSelectionMode {
 )]
 #[derive(Debug)]
 pub(crate) struct PyFormulationView {
+    model_digest: String,
+    source_relation_id: Option<String>,
+    state_coordinates: Vec<(String, u32)>,
     requested: PyFormulationSelectionMode,
     effective: PyFormulationKind,
     boundary_treatment: &'static str,
@@ -98,7 +105,10 @@ pub(crate) struct PyFormulationView {
 }
 
 impl PyFormulationView {
-    pub(crate) fn from_native(description: CommonFormulationDescription) -> Self {
+    pub(crate) fn from_native(
+        description: CommonFormulationDescription,
+        model_digest: String,
+    ) -> Self {
         let requested = match description.requested() {
             FormulationSelectionMode::Automatic => PyFormulationSelectionMode::Automatic,
             FormulationSelectionMode::Exact => PyFormulationSelectionMode::Exact,
@@ -107,6 +117,15 @@ impl PyFormulationView {
         let effective = description.effective().into();
         let requested_source_identity = description.requested_source_identity().map(str::to_owned);
         Self {
+            model_digest,
+            source_relation_id: description
+                .source_relation()
+                .map(|relation| relation.ulid().to_string()),
+            state_coordinates: description
+                .state_coordinates()
+                .iter()
+                .map(|(field, order)| (field.ulid().to_string(), *order))
+                .collect(),
             requested,
             effective,
             boundary_treatment: description.boundary_treatment(),
@@ -119,6 +138,23 @@ impl PyFormulationView {
 
 #[pymethods]
 impl PyFormulationView {
+    #[getter]
+    fn source_relation_id(&self) -> Option<&str> {
+        self.source_relation_id.as_deref()
+    }
+    #[getter]
+    fn state_coordinates(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        PyTuple::new(
+            py,
+            self.state_coordinates.iter().map(|(field, order)| {
+                (
+                    PyModelFieldRef::from_exact(self.model_digest.clone(), field.clone()),
+                    *order,
+                )
+            }),
+        )
+        .map(Bound::unbind)
+    }
     #[getter]
     const fn requested(&self) -> PyFormulationSelectionMode {
         self.requested

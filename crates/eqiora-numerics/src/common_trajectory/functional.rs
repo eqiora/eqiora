@@ -6,6 +6,8 @@ use eqiora_core::{Diagnostic, DimExponents, Id, ValueLiteral, ValueType};
 use eqiora_ir::ScalarOperatorIr;
 use eqiora_schema::kernel::{KernelNode, ObservableReduction, SymbolRef};
 use eqiora_sem::KernelProgram;
+use eqiora_time::TimeSystem;
+use std::collections::HashMap;
 
 use super::{CommonTrajectory, invalid};
 use crate::CommonOdePlan;
@@ -169,6 +171,7 @@ struct OdeObservable<'a> {
     plan: &'a CommonOdePlan,
     program: KernelProgram,
     operator: ScalarOperatorIr,
+    input_types: HashMap<SymbolRef, ValueType>,
     root: eqiora_schema::kernel::ExprId,
     value_type: ValueType,
 }
@@ -213,30 +216,85 @@ impl<'a> OdeObservable<'a> {
         let value_type = definition.value_type().clone();
         let operator = ScalarOperatorIr::lower(typed.expression())?;
         let root = typed.expression().roots()[0];
+        let input_types = typed
+            .expression()
+            .nodes()
+            .iter()
+            .zip(typed.node_types())
+            .filter_map(|(node, ty)| {
+                if let eqiora_schema::kernel::ExprNode::Symbol(symbol) = node {
+                    Some((*symbol, ty.value_type.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect();
         Ok(Self {
             plan,
             program,
             operator,
+            input_types,
             root,
             value_type,
         })
     }
 
+    // The Model supplies derivative meaning; the accepted ODE supplies either
+    // a stored lower derivative or its highest rate at this exact point.
+    fn coordinate(&self, symbol: SymbolRef) -> Result<(usize, bool), Diagnostic> {
+        let (field, order) = match symbol {
+            SymbolRef::Field(field) => (field, 0),
+            SymbolRef::Derivative(field, order) => (field, order.get()),
+            _ => return Err(invalid("Observable input is not a time state coordinate")),
+        };
+        if let Some(index) = self
+            .plan
+            .state_coordinates()
+            .position(|coordinate| coordinate == (field, order))
+        {
+            return Ok((index, false));
+        }
+        if order > 0
+            && let Some(index) = self
+                .plan
+                .state_coordinates()
+                .position(|coordinate| coordinate == (field, order - 1))
+        {
+            return Ok((index, true));
+        }
+        Err(invalid(
+            "Observable derivative order is not supplied by the admitted ODE",
+        ))
+    }
+
+    fn rates(&self, time: f64, state: &[f64]) -> Result<Option<Vec<f64>>, Diagnostic> {
+        let mut required = false;
+        for symbol in self.operator.symbols() {
+            if matches!(symbol, SymbolRef::Field(_) | SymbolRef::Derivative(..)) {
+                required |= self.coordinate(*symbol)?.1;
+            }
+        }
+        if !required {
+            return Ok(None);
+        }
+        let mut rates = vec![0.; state.len()];
+        self.plan.system().rhs(time, state, &mut rates)?;
+        Ok(Some(rates))
+    }
+
     fn evaluate(&self, time: f64, state: &[f64]) -> Result<ValueLiteral, Diagnostic> {
+        let rates = self.rates(time, state)?;
         let mut resolve = |symbol| match symbol {
             SymbolRef::Parameter(id) => self.program.typed_value(id.erase()).cloned(),
-            SymbolRef::Field(id) => self
-                .plan
-                .field_ids()
-                .position(|field| field == id)
-                .and_then(|index| {
-                    let value_type = ValueType::scalar(
-                        eqiora_core::ScalarDomain::Real,
-                        self.plan.field_dimensions()[index],
-                    )
-                    .ok()?;
-                    ValueLiteral::from_real(value_type, *state.get(index)?).ok()
-                }),
+            SymbolRef::Field(_) | SymbolRef::Derivative(..) => {
+                let (index, rate) = self.coordinate(symbol).ok()?;
+                let value = if rate {
+                    rates.as_ref()?.get(index)?
+                } else {
+                    state.get(index)?
+                };
+                ValueLiteral::from_real(self.input_types.get(&symbol)?.clone(), *value).ok()
+            }
             SymbolRef::Time => {
                 let dimension = DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0])?;
                 ValueLiteral::from_real(

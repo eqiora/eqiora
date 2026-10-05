@@ -1,5 +1,11 @@
 use super::*;
 
+type SensitivityControl = (
+    (Id<kinds::Field>, u32),
+    Id<kinds::Parameter>,
+    eqiora_core::DynQuantity,
+);
+
 impl CommonTsitouras45 {
     /// Validate event controls before attaching them to an integration request.
     pub fn validate_event_controls(
@@ -16,11 +22,7 @@ impl CommonTsitouras45 {
     /// Validate forward controls before attaching them to an integration request.
     pub fn validate_forward_sensitivity_controls(
         relative_tolerance: f64,
-        absolute_tolerances: Vec<(
-            Id<kinds::Field>,
-            Id<kinds::Parameter>,
-            eqiora_core::DynQuantity,
-        )>,
+        absolute_tolerances: Vec<SensitivityControl>,
     ) -> Result<(), Diagnostic> {
         let absolute_tolerances = absolute_tolerances
             .into_iter()
@@ -60,11 +62,7 @@ impl CommonTsitouras45 {
     pub fn with_forward_sensitivities(
         mut self,
         relative_tolerance: f64,
-        absolute_tolerances: Vec<(
-            Id<kinds::Field>,
-            Id<kinds::Parameter>,
-            eqiora_core::DynQuantity,
-        )>,
+        absolute_tolerances: Vec<SensitivityControl>,
     ) -> Result<Self, Diagnostic> {
         let absolute_tolerances = absolute_tolerances
             .into_iter()

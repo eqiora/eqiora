@@ -33,7 +33,7 @@ fn fixture(mode: &str) -> Result<Fixture, Vec<eqiora_core::Diagnostic>> {
         .symbol(match mode {
             "pre" => SymbolRef::Pre(field),
             "next" => SymbolRef::Next(field),
-            "derivative" => SymbolRef::Derivative(field),
+            "derivative" => SymbolRef::Derivative(field, std::num::NonZeroU32::MIN),
             _ => SymbolRef::Field(field),
         })
         .unwrap();
@@ -161,7 +161,7 @@ fn clocked_variable_has_only_its_current_tick_value_and_restarts_without_initial
             .unwrap();
         assert!(
             !Interpreter::default()
-                .initialize(&f.program, config)
+                .initialize(&f.program, 0.0, config)
                 .unwrap()
                 .fields()
                 .contains_key(&f.field)

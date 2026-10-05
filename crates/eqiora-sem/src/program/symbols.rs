@@ -4,7 +4,7 @@ use super::*;
 pub(super) fn symbol_id(symbol: SymbolRef) -> Option<RawId> {
     match symbol {
         SymbolRef::Field(id)
-        | SymbolRef::Derivative(id)
+        | SymbolRef::Derivative(id, _)
         | SymbolRef::Pre(id)
         | SymbolRef::Next(id) => Some(id.erase()),
         SymbolRef::Parameter(id) => Some(id.erase()),
@@ -43,17 +43,20 @@ pub(super) fn symbol_type(
                 _ => Err(SymbolTypeError::Missing),
             }
         }
-        SymbolRef::Derivative(id) => match nodes.get(&id.erase()) {
+        SymbolRef::Derivative(id, order) => match nodes.get(&id.erase()) {
             Some(KernelNode::Field(field))
                 if field.role() != eqiora_schema::kernel::FieldRole::State
                     || !edge_targets(edges, id.erase(), EdgeKind::ClockedBy).is_empty() =>
             {
                 Err(SymbolTypeError::WrongFieldRole)
             }
-            Some(KernelNode::Field(field)) => typing::time_derivative(&ExpressionType::new(
-                field.value_type().clone(),
-                field_support(id.erase(), edges, spatial_supports),
-            ))
+            Some(KernelNode::Field(field)) => typing::time_derivative(
+                &ExpressionType::new(
+                    field.value_type().clone(),
+                    field_support(id.erase(), edges, spatial_supports),
+                ),
+                order,
+            )
             .map_err(SymbolTypeError::Typing),
             _ => Err(SymbolTypeError::Missing),
         },

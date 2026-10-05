@@ -211,7 +211,9 @@ fn crossing_program(
     let mut b = ExprDagBuilder::new();
     let x = b.symbol(SymbolRef::Field(state)).unwrap();
     let y = b.symbol(SymbolRef::Field(output)).unwrap();
-    let dx = b.symbol(SymbolRef::Derivative(state)).unwrap();
+    let dx = b
+        .symbol(SymbolRef::Derivative(state, std::num::NonZeroU32::MIN))
+        .unwrap();
     let rate = b
         .constant(real(
             DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap(),

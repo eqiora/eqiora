@@ -1,3 +1,4 @@
+use crate::time::WireTimeCoordinate;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id, OntologyId};
 use eqiora_ir::{ScalarOperatorIr, SymbolicLinearityFailure};
@@ -17,23 +18,23 @@ use crate::{
     invalid_artifact, validate_text,
 };
 
-const GENERAL_IMPLICIT_LOWERING_SCHEMA: &str = "eqiora.general-implicit-time-lowering-envelope/v1";
+const GENERAL_IMPLICIT_LOWERING_SCHEMA: &str = "eqiora.general-implicit-time-lowering-envelope/v2";
 const IMPLICIT_INITIAL_DATA_SCHEMA: &str = "eqiora.implicit-time-initial-data-envelope/v1";
 const IMPLICIT_RUN_SCHEMA: &str = "eqiora.implicit-time-run-manifest/v1";
 
 /// Content-addressed witness for canonical Relation → residual-native time
 /// lowering.
 ///
-/// The envelope is deliberately separate from [`crate::TimeLoweringEnvelopeV1`].
+/// The envelope is deliberately separate from [`crate::TimeLoweringEnvelopeV2`].
 /// It records the structural obstruction to a constant first-order projection
 /// and the effective differential/algebraic partition, not a fabricated mass
 /// matrix.
 #[derive(Debug, Clone, PartialEq)]
-pub struct GeneralImplicitTimeLoweringEnvelopeV1 {
-    wire: WireGeneralImplicitTimeLoweringEnvelopeV1,
+pub struct GeneralImplicitTimeLoweringEnvelopeV2 {
+    wire: WireGeneralImplicitTimeLoweringEnvelopeV2,
 }
 
-impl GeneralImplicitTimeLoweringEnvelopeV1 {
+impl GeneralImplicitTimeLoweringEnvelopeV2 {
     /// Bind a runtime-produced residual-native witness to one immutable model.
     ///
     /// # Errors
@@ -47,17 +48,18 @@ impl GeneralImplicitTimeLoweringEnvelopeV1 {
     ) -> Result<Self, Diagnostic> {
         validate_model_program(model, program)?;
         validate_general_proof(proof, program)?;
-        let wire = WireGeneralImplicitTimeLoweringEnvelopeV1 {
+        let wire = WireGeneralImplicitTimeLoweringEnvelopeV2 {
             schema: GENERAL_IMPLICIT_LOWERING_SCHEMA.to_owned(),
             encoding: CANONICAL_ENCODING.to_owned(),
             model_sha256: model.digest()?.0,
             model_ulid: program.model().ulid().to_string(),
             semantic_revision: program.revision().0,
             relation_ulid: proof.relation().ulid().to_string(),
-            state_field_ulids: proof
-                .state_fields()
+            state_coordinates: proof
+                .state_coordinates()
                 .iter()
-                .map(|field| field.ulid().to_string())
+                .copied()
+                .map(WireTimeCoordinate::encode)
                 .collect(),
             variable_kinds: proof
                 .variable_kinds()
@@ -85,7 +87,7 @@ impl GeneralImplicitTimeLoweringEnvelopeV1 {
             ))
         })?;
         let envelope = Self { wire };
-        if envelope.wire.state_field_ulids.len() > limits.max_time_state_dimension {
+        if envelope.wire.state_coordinates.len() > limits.max_time_state_dimension {
             return Err(invalid_artifact(format!(
                 "general implicit time state dimension exceeds decoder limit {}",
                 limits.max_time_state_dimension
@@ -144,11 +146,11 @@ impl GeneralImplicitTimeLoweringEnvelopeV1 {
     /// Returns `EQ0901` only if validated internal state was corrupted.
     pub fn proof(&self) -> Result<GeneralImplicitLoweringProof, Diagnostic> {
         let relation = Id::<kinds::Relation>::from_ulid(parse_ulid(&self.wire.relation_ulid)?);
-        let state_fields = self
+        let state_coordinates = self
             .wire
-            .state_field_ulids
+            .state_coordinates
             .iter()
-            .map(|value| parse_ulid(value).map(Id::<kinds::Field>::from_ulid))
+            .map(WireTimeCoordinate::decode)
             .collect::<Result<Vec<_>, _>>()?;
         let variable_kinds = self
             .wire
@@ -159,7 +161,7 @@ impl GeneralImplicitTimeLoweringEnvelopeV1 {
             .collect();
         GeneralImplicitLoweringProof::new(
             relation,
-            state_fields,
+            state_coordinates,
             variable_kinds,
             self.wire.reason.decode(),
         )
@@ -199,8 +201,8 @@ impl GeneralImplicitTimeLoweringEnvelopeV1 {
         ArtifactDigest::from_hex(self.wire.model_sha256.clone())?;
         parse_ulid(&self.wire.model_ulid)?;
         parse_ulid(&self.wire.relation_ulid)?;
-        for field in &self.wire.state_field_ulids {
-            parse_ulid(field)?;
+        for field in &self.wire.state_coordinates {
+            field.decode()?;
         }
         self.proof()?;
         Ok(())
@@ -226,7 +228,7 @@ impl ImplicitTimeInitialDataEnvelopeV1 {
     /// Returns `EQ0901` if dimension or variable partition differs from the
     /// linked lowering.
     pub fn from_problem(
-        lowering: &GeneralImplicitTimeLoweringEnvelopeV1,
+        lowering: &GeneralImplicitTimeLoweringEnvelopeV2,
         problem: &ImplicitDaeProblem<'_>,
     ) -> Result<Self, Diagnostic> {
         let proof = lowering.proof()?;
@@ -249,7 +251,7 @@ impl ImplicitTimeInitialDataEnvelopeV1 {
     /// Returns `EQ0901` if the accepted pair dimension differs from the linked
     /// lowering.
     pub fn from_initialization(
-        lowering: &GeneralImplicitTimeLoweringEnvelopeV1,
+        lowering: &GeneralImplicitTimeLoweringEnvelopeV2,
         initialization: &ImplicitDaeInitialization,
     ) -> Result<Self, Diagnostic> {
         Self::new(
@@ -267,7 +269,7 @@ impl ImplicitTimeInitialDataEnvelopeV1 {
     /// Returns `EQ0901` if checkpoint content or canonical Operator-IR linkage
     /// does not match the lowering/program pair.
     pub fn from_checkpoint(
-        lowering: &GeneralImplicitTimeLoweringEnvelopeV1,
+        lowering: &GeneralImplicitTimeLoweringEnvelopeV2,
         checkpoint: &crate::ImplicitTimeCheckpointEnvelopeV1,
         program: &KernelProgram,
     ) -> Result<Self, Diagnostic> {
@@ -281,7 +283,7 @@ impl ImplicitTimeInitialDataEnvelopeV1 {
     }
 
     fn new(
-        lowering: &GeneralImplicitTimeLoweringEnvelopeV1,
+        lowering: &GeneralImplicitTimeLoweringEnvelopeV2,
         initial_condition: InitialConditionPolicy,
         mut state: Vec<f64>,
         mut derivative: Vec<f64>,
@@ -392,14 +394,14 @@ impl ImplicitTimeInitialDataEnvelopeV1 {
     /// Returns `EQ0901` for any linkage or shape drift.
     pub fn validate_against(
         &self,
-        lowering: &GeneralImplicitTimeLoweringEnvelopeV1,
+        lowering: &GeneralImplicitTimeLoweringEnvelopeV2,
     ) -> Result<(), Diagnostic> {
         let proof = lowering.proof()?;
         if self.model_artifact() != lowering.model_artifact()
             || self.semantic_revision() != lowering.semantic_revision()
             || self.lowering() != lowering.digest()?
-            || self.wire.state.len() != proof.state_fields().len()
-            || self.wire.derivative.len() != proof.state_fields().len()
+            || self.wire.state.len() != proof.state_coordinates().len()
+            || self.wire.derivative.len() != proof.state_coordinates().len()
         {
             return Err(invalid_artifact(
                 "implicit time initial data does not match its lowering witness",
@@ -450,7 +452,7 @@ impl ImplicitTimeRunManifestV1 {
     /// Returns `EQ0901` for any linkage, dimension, method, equation-class,
     /// initial-condition, or adapter-supplied backend-version contradiction.
     pub fn new(
-        lowering: &GeneralImplicitTimeLoweringEnvelopeV1,
+        lowering: &GeneralImplicitTimeLoweringEnvelopeV2,
         input: &ImplicitTimeInitialDataEnvelopeV1,
         accepted: &ImplicitTimeInitialDataEnvelopeV1,
         plan: &TimePlan,
@@ -465,7 +467,7 @@ impl ImplicitTimeRunManifestV1 {
             || report.method() != plan.method()
             || report.equation_class() != TimeEquationClass::GeneralImplicitDae
             || report.initial_condition() != input.initial_condition()
-            || plan.absolute_tolerances().len() != proof.state_fields().len()
+            || plan.absolute_tolerances().len() != proof.state_coordinates().len()
         {
             return Err(invalid_artifact(
                 "implicit time run plan/report/initial data contradict their lowering witness",
@@ -618,7 +620,7 @@ impl ImplicitTimeRunManifestV1 {
     /// equation-class, or initial-condition drift.
     pub fn validate_against(
         &self,
-        lowering: &GeneralImplicitTimeLoweringEnvelopeV1,
+        lowering: &GeneralImplicitTimeLoweringEnvelopeV2,
         input: &ImplicitTimeInitialDataEnvelopeV1,
         accepted: &ImplicitTimeInitialDataEnvelopeV1,
     ) -> Result<(), Diagnostic> {
@@ -635,7 +637,7 @@ impl ImplicitTimeRunManifestV1 {
             || self.wire.execution.equation_class.decode() != TimeEquationClass::GeneralImplicitDae
             || self.wire.execution.initial_condition.decode() != input.initial_condition()
             || self.wire.execution.method.decode() != plan.method()
-            || plan.absolute_tolerances().len() != proof.state_fields().len()
+            || plan.absolute_tolerances().len() != proof.state_coordinates().len()
         {
             return Err(invalid_artifact(
                 "implicit time run linkage does not match its lowering and initial-data artifacts",
@@ -686,9 +688,9 @@ pub(crate) fn validate_general_proof(
     proof: &GeneralImplicitLoweringProof,
     program: &KernelProgram,
 ) -> Result<(), Diagnostic> {
-    let (operator, expected_fields) = canonical_time_operator(program, proof.relation())?;
-    if expected_fields != proof.state_fields() || operator.residual_count() != expected_fields.len()
-    {
+    let (operator, expected_fields) =
+        canonical_time_operator(program, proof.relation(), proof.state_coordinates().len())?;
+    if expected_fields != proof.state_coordinates() {
         return Err(invalid_artifact(
             "general implicit time state order or residual shape differs from canonical Operator IR",
         ));
@@ -696,7 +698,13 @@ pub(crate) fn validate_general_proof(
     let derivatives = expected_fields
         .iter()
         .copied()
-        .map(SymbolRef::Derivative)
+        .filter(|(field, order)| !expected_fields.contains(&(*field, order + 1)))
+        .map(|(field, order)| {
+            SymbolRef::Derivative(
+                field,
+                std::num::NonZeroU32::new(order + 1).expect("validated coordinate order"),
+            )
+        })
         .collect::<Vec<_>>();
     let reason = match operator.constant_symbol_jacobian(&derivatives) {
         Err(SymbolicLinearityFailure::VariableCoefficient { .. }) => {
@@ -719,7 +727,17 @@ pub(crate) fn validate_general_proof(
     let variable_kinds = expected_fields
         .iter()
         .copied()
-        .map(|field| effective_derivative_kind(&operator, field))
+        .map(|(field, order)| {
+            if expected_fields.contains(&(field, order + 1)) {
+                Ok(DaeVariableKind::Differential)
+            } else {
+                effective_derivative_kind(
+                    &operator,
+                    field,
+                    std::num::NonZeroU32::new(order + 1).expect("validated coordinate order"),
+                )
+            }
+        })
         .collect::<Result<Vec<_>, _>>()?;
     if reason != proof.reason() || variable_kinds != proof.variable_kinds() {
         return Err(invalid_artifact(
@@ -732,8 +750,9 @@ pub(crate) fn validate_general_proof(
 fn effective_derivative_kind(
     operator: &ScalarOperatorIr,
     field: Id<kinds::Field>,
+    order: std::num::NonZeroU32,
 ) -> Result<DaeVariableKind, Diagnostic> {
-    match operator.constant_symbol_jacobian(&[SymbolRef::Derivative(field)]) {
+    match operator.constant_symbol_jacobian(&[SymbolRef::Derivative(field, order)]) {
         Ok(jacobian) => Ok(
             if jacobian
                 .coefficients()
@@ -769,14 +788,14 @@ fn is_negative_zero(value: f64) -> bool {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireGeneralImplicitTimeLoweringEnvelopeV1 {
+struct WireGeneralImplicitTimeLoweringEnvelopeV2 {
     schema: String,
     encoding: String,
     model_sha256: String,
     model_ulid: String,
     semantic_revision: u64,
     relation_ulid: String,
-    state_field_ulids: Vec<String>,
+    state_coordinates: Vec<WireTimeCoordinate>,
     variable_kinds: Vec<WireDaeVariableKind>,
     reason: WireGeneralImplicitReason,
 }

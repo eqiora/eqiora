@@ -753,7 +753,7 @@ pub fn discrete_trajectory_adjoint<R: DiscreteStepLinearization + ?Sized>(
         .iter()
         .map(|step| AcceptedLinearization::new(*step, residual_tolerance))
         .collect::<Result<Vec<_>, _>>()?;
-    let state_dimension = steps[0].state_fields().len();
+    let state_dimension = steps[0].state_coordinates().len();
     let parameter_dimension = steps[0].model_parameter_fields().len();
     let mut state_cotangent = terminal_state_cotangent.to_vec();
     let mut parameter_gradient = direct_parameter_cotangent.to_vec();
@@ -800,10 +800,10 @@ fn validate_discrete_trajectory<R: DiscreteStepLinearization + ?Sized>(
             "discrete trajectory adjoint requires at least one step",
         ));
     };
-    let state_fields = first.state_fields();
+    let state_coordinates = first.state_coordinates();
     let parameter_fields = first.model_parameter_fields();
     let parameter_values = first.model_parameter_values();
-    let state_dimension = state_fields.len();
+    let state_dimension = state_coordinates.len();
     let parameter_dimension = parameter_fields.len();
     if state_dimension == 0
         || parameter_values.len() != parameter_dimension
@@ -819,7 +819,7 @@ fn validate_discrete_trajectory<R: DiscreteStepLinearization + ?Sized>(
         ));
     }
     for (index, step) in steps.iter().copied().enumerate() {
-        if step.state_fields() != state_fields
+        if step.state_coordinates() != state_coordinates
             || step.model_parameter_fields() != parameter_fields
             || step.model_parameter_values() != parameter_values
             || step.previous_state_parameter_dimension() != state_dimension

@@ -55,8 +55,6 @@ pub enum PureOperatorError {
     NodeLimit,
     /// The dependency depth exceeded [`MAX_DEPTH`].
     DepthLimit,
-    /// Explicit differentiation exceeds the admitted order of two.
-    DerivativeOrder,
     /// A retained derivative value disagrees with the shared ordered transform.
     DerivativeMismatch,
     /// A formal slot was outside the definition's formal list.
@@ -97,7 +95,6 @@ impl fmt::Display for PureOperatorError {
             Self::DepthLimit => formatter.write_str("pure operator depth exceeds its limit"),
             Self::DerivativeMismatch => formatter
                 .write_str("retained derivative value differs from its source and selected input"),
-            Self::DerivativeOrder => formatter.write_str("explicit derivative order exceeds two"),
             Self::InvalidFormal(formal) => {
                 write!(formatter, "pure operator formal {formal} is invalid")
             }

@@ -18,7 +18,7 @@ fn hidden_constraint_and_singular_algebraic_point_reject_at_their_regularity_bou
         // The hidden constraint has a full-rank joint initial Jacobian.
         // The squared algebraic constraint is singular already at that gate:
         // d(z²)/dz = 0 at z = 0, independently of residual convergence.
-        let common = Interpreter::new().initialize(model.program(), config);
+        let common = Interpreter::new().initialize(model.program(), 0.0, config);
         if equations.contains("z*z") {
             let errors = common.unwrap_err();
             assert_eq!(errors[0].code(), codes::NONLINEAR_SOLVE_FAILED);
@@ -31,7 +31,7 @@ fn hidden_constraint_and_singular_algebraic_point_reject_at_their_regularity_bou
         let cpu = CpuProgram::lower(model.program()).unwrap();
         let relation = model.aliases()["r"].downcast().unwrap();
         let system = FirstOrderProgram::lower(&cpu, relation).unwrap();
-        let error = system.initialize(config).unwrap_err();
+        let error = system.initialize(0.0, config).unwrap_err();
         if equations.contains("z*z") {
             assert_eq!(error.code(), codes::NONLINEAR_SOLVE_FAILED);
             assert!(error.message().contains("initial Jacobian"));
@@ -68,9 +68,10 @@ fn nonlinear_index_one_initial_point_is_regular_under_equation_permutation() {
         let system =
             FirstOrderProgram::lower(&cpu, model.aliases()["r"].downcast().unwrap()).unwrap();
         let initial = system
-            .initialize(ReferenceConfig::new(0.0, 1.0).unwrap())
+            .initialize(0.0, ReferenceConfig::new(0.0, 1.0).unwrap())
             .unwrap();
-        for (index, field) in system.state_fields().iter().enumerate() {
+        for (index, (field, order)) in system.state_coordinates().iter().enumerate() {
+            assert_eq!(*order, 0);
             assert!((initial.state()[index] - 1.0).abs() < 1e-9);
             let derivative = if field.erase() == model.aliases()["x"] {
                 -2.0

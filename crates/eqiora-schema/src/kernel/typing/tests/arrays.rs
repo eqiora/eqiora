@@ -42,7 +42,7 @@ fn arrays_of_vectors_are_not_spatial_tensors_with_the_same_extents() {
     ] {
         assert_eq!(result.value_type, array.value_type);
     }
-    let derivative = time_derivative(&array).unwrap();
+    let derivative = time_derivative(&array, std::num::NonZeroU32::MIN).unwrap();
     assert_eq!(derivative.value_type.array_rank(), 1);
     assert_eq!(derivative.shape(), array.shape());
     assert_eq!(derivative.value_type.scalar_domain(), ScalarDomain::Complex);

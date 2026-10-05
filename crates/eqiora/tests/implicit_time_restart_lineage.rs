@@ -1,5 +1,5 @@
 use eqiora::artifact::{
-    GeneralImplicitTimeLoweringEnvelopeV1, ImplicitTimeCheckpointEnvelopeV1,
+    GeneralImplicitTimeLoweringEnvelopeV2, ImplicitTimeCheckpointEnvelopeV1,
     ImplicitTimeInitialDataEnvelopeV1, ImplicitTimeRestartManifestV1, ImplicitTimeRunManifestV1,
     ModelEnvelope, TimeDecoderLimits,
 };
@@ -21,12 +21,12 @@ fn accepted_checkpoint_links_parent_and_restarted_implicit_runs_without_a_digest
     let cpu = CpuProgram::lower(&fixture.kernel).unwrap();
     let system = GeneralImplicitProgram::lower(&cpu, fixture.relation).unwrap();
     assert_eq!(
-        system.state_fields(),
-        [fixture.differential, fixture.algebraic]
+        system.state_coordinates(),
+        [(fixture.differential, 0), (fixture.algebraic, 0)]
     );
     assert_eq!(system.parameter_fields(), [fixture.rate]);
     let model = ModelEnvelope::from_program(&fixture.kernel).unwrap();
-    let lowering = GeneralImplicitTimeLoweringEnvelopeV1::from_proof(
+    let lowering = GeneralImplicitTimeLoweringEnvelopeV2::from_proof(
         &model,
         &fixture.kernel,
         system.lowering_proof(),

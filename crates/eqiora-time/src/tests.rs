@@ -110,10 +110,14 @@ fn lowering_proof_derives_equation_class_from_exact_matrix() {
     let differential = Id::<kinds::Field>::new();
     let algebraic = Id::<kinds::Field>::new();
     let matrix = ConstantDerivativeMatrixProof::new(2, vec![-2.0, 0.0, 0.0, 0.0]).unwrap();
-    let proof = TimeLoweringProof::new(relation, vec![differential, algebraic], matrix).unwrap();
+    let proof =
+        TimeLoweringProof::new(relation, vec![(differential, 0), (algebraic, 0)], matrix).unwrap();
 
     assert_eq!(proof.relation(), relation);
-    assert_eq!(proof.state_fields(), [differential, algebraic]);
+    assert_eq!(
+        proof.state_coordinates(),
+        [(differential, 0), (algebraic, 0)]
+    );
     assert_eq!(
         proof.equation_class(),
         TimeEquationClass::MassMatrix {
@@ -135,7 +139,7 @@ fn exact_rank_separates_ill_conditioned_full_and_singular_dense_matrices() {
         ConstantDerivativeMatrixProof::new(2, vec![1.0, 1.0, 1.0, 1.0 + f64::EPSILON]).unwrap();
     assert_eq!(full.exact_rank(), 2);
     assert_eq!(
-        TimeLoweringProof::new(relation, vec![first, second], full)
+        TimeLoweringProof::new(relation, vec![(first, 0), (second, 0)], full)
             .unwrap()
             .equation_class(),
         TimeEquationClass::MassMatrix {
@@ -146,7 +150,7 @@ fn exact_rank_separates_ill_conditioned_full_and_singular_dense_matrices() {
     let singular = ConstantDerivativeMatrixProof::new(2, vec![1.0, 1.0, 2.0, 2.0]).unwrap();
     assert_eq!(singular.exact_rank(), 1);
     assert_eq!(
-        TimeLoweringProof::new(relation, vec![first, second], singular)
+        TimeLoweringProof::new(relation, vec![(first, 0), (second, 0)], singular)
             .unwrap()
             .equation_class(),
         TimeEquationClass::MassMatrix {
@@ -156,7 +160,7 @@ fn exact_rank_separates_ill_conditioned_full_and_singular_dense_matrices() {
 
     let zero = ConstantDerivativeMatrixProof::new(2, vec![0.0; 4]).unwrap();
     assert_eq!(
-        TimeLoweringProof::new(relation, vec![first, second], zero)
+        TimeLoweringProof::new(relation, vec![(first, 0), (second, 0)], zero)
             .unwrap_err()
             .code(),
         codes::INVALID_TIME_LOWERING

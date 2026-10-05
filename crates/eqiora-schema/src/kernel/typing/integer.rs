@@ -109,7 +109,7 @@ mod tests {
         assert!(additive(&integer, &real).is_err());
         assert!(multiply(&real, &integer).is_err());
         assert!(divide(&integer, &integer).is_err());
-        assert!(time_derivative(&integer).is_err());
+        assert!(time_derivative(&integer, std::num::NonZeroU32::MIN).is_err());
         assert!(integer.clone().to_integer().is_err());
         assert_eq!(
             integer.clone().integer_quotient(integer.clone()).unwrap(),

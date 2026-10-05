@@ -121,7 +121,7 @@ pub(super) fn replay(
                 root_index,
                 roots.events().len(),
                 event.before_state.clone(),
-                plan.field_dimensions().len(),
+                plan.state_dimensions().len(),
                 event.report.replay(plan)?,
             )?;
             TimeEventDiscontinuity::accepted(proposal, event.after_state.clone())

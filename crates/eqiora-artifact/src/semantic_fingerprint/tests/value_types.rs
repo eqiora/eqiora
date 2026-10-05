@@ -37,6 +37,7 @@ fn typed_initial_equations_survive_source_and_model_replay() {
             let errors = eqiora_sem::Interpreter::new()
                 .initialize(
                     &original,
+                    0.0,
                     eqiora_sem::ReferenceConfig::new(0.0, 0.01).unwrap(),
                 )
                 .unwrap_err();

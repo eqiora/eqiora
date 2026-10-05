@@ -35,7 +35,7 @@ fn fixture(
     let mut temporal = CommonTsitouras45::new(
         0.001,
         1e-9,
-        vec![CommonTsitourasTolerance::new(field.id(), 1e-11).unwrap()],
+        vec![CommonTsitourasTolerance::new((field.id(), 0), 1e-11).unwrap()],
     )
     .unwrap();
     if events {
@@ -83,7 +83,7 @@ fn fixture(
                 )
                 .unwrap();
             CommonSensitivityTolerance::new(
-                field.id(),
+                (field.id(), 0),
                 parameter,
                 DynQuantity::new((index + 1) as f64 * 1e-11, dimension),
             )
@@ -151,7 +151,7 @@ fn controls_bind_units_global_event_coordinates_and_exact_plan_replay() {
         let mut changed = entries.clone();
         let entry = changed[0];
         changed[0] = CommonSensitivityTolerance::new(
-            entry.field(),
+            entry.coordinate(),
             entry.parameter(),
             DynQuantity::new(entry.quantity().value() * 2.0, entry.quantity().dim()),
         )
@@ -173,7 +173,7 @@ fn incomplete_foreign_duplicate_and_wrong_dimension_controls_fail_closed() {
     assert!(CommonForwardSensitivity::new(f64::NAN, entries.clone()).is_err());
     assert!(
         CommonSensitivityTolerance::new(
-            entry.field(),
+            entry.coordinate(),
             entry.parameter(),
             DynQuantity::new(0.0, entry.quantity().dim())
         )
@@ -181,7 +181,7 @@ fn incomplete_foreign_duplicate_and_wrong_dimension_controls_fail_closed() {
     );
     let mut wrong = entries.clone();
     wrong[0] = CommonSensitivityTolerance::new(
-        entry.field(),
+        entry.coordinate(),
         entry.parameter(),
         DynQuantity::new(
             1e-11,
@@ -192,6 +192,6 @@ fn incomplete_foreign_duplicate_and_wrong_dimension_controls_fail_closed() {
     assert!(resolve(&model, &kernel, temporal.clone(), wrong).is_err());
     let mut foreign = entries;
     foreign[0] =
-        CommonSensitivityTolerance::new(entry.field(), Id::new(), entry.quantity()).unwrap();
+        CommonSensitivityTolerance::new(entry.coordinate(), Id::new(), entry.quantity()).unwrap();
     assert!(resolve(&model, &kernel, temporal, foreign).is_err());
 }

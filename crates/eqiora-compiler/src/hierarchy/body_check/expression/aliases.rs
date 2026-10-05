@@ -368,7 +368,7 @@ impl ExpressionChecker<'_, '_, '_> {
             });
         }
         match callee_name {
-            "derivative" => typing::time_derivative(&inferred)
+            "derivative" => typing::time_derivative(&inferred, std::num::NonZeroU32::MIN)
                 .map_err(|error| type_error(self.scope.file, expression, error)),
             "pre" | "next" => Ok(inferred),
             _ => Err(source_error(

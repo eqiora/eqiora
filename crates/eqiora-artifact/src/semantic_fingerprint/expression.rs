@@ -388,7 +388,7 @@ fn encode_symbol(
     }
     let (tag, target) = match symbol {
         SymbolRef::Field(id) => (1, Some(id.erase())),
-        SymbolRef::Derivative(id) => (2, Some(id.erase())),
+        SymbolRef::Derivative(id, _) => (2, Some(id.erase())),
         SymbolRef::Pre(id) => (3, Some(id.erase())),
         SymbolRef::Next(id) => (4, Some(id.erase())),
         SymbolRef::Parameter(id) => (5, Some(id.erase())),
@@ -402,6 +402,9 @@ fn encode_symbol(
         _ => return Err(newer_vocabulary("expression symbol")),
     };
     encoder.u8(tag)?;
+    if let SymbolRef::Derivative(_, order) = symbol {
+        encoder.u32(order.get())?;
+    }
     if let Some(target) = target {
         let mut label = Encoder::new(32);
         label.u8(3)?;

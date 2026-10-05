@@ -19,7 +19,7 @@ fn native_kernel_admission_rejects_time_operators_outside_their_activation() {
         let mut expression = ExprDagBuilder::new();
         let root = expression
             .symbol(if periodic {
-                SymbolRef::Derivative(field)
+                SymbolRef::Derivative(field, std::num::NonZeroU32::MIN)
             } else {
                 SymbolRef::Pre(field)
             })

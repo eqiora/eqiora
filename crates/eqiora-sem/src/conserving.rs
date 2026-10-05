@@ -705,7 +705,7 @@ pub(crate) fn validate_scalar_physical_networks(
                         SymbolRef::Parameter(_)
                             | SymbolRef::Time
                             | SymbolRef::Field(_)
-                            | SymbolRef::Derivative(_)
+                            | SymbolRef::Derivative(_, std::num::NonZeroU32::MIN)
                             | SymbolRef::Port(_)
                             | SymbolRef::Across(_)
                             | SymbolRef::Through(_),

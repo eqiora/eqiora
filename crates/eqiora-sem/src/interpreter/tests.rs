@@ -31,7 +31,7 @@ fn program_with_edges(
                 .filter_map(|node| match node {
                     ExprNode::Symbol(
                         SymbolRef::Field(id)
-                        | SymbolRef::Derivative(id)
+                        | SymbolRef::Derivative(id, std::num::NonZeroU32::MIN)
                         | SymbolRef::Pre(id)
                         | SymbolRef::Next(id),
                     ) => Some(id.erase()),
@@ -84,9 +84,16 @@ fn thermostat_thresholds_rearm_and_omitted_states_remain_continuous() {
     let continuous = Id::<kinds::Activation>::new();
     let flow = Id::<kinds::Relation>::new();
     let mut b = ExprDagBuilder::new();
-    let dt = b.symbol(SymbolRef::Derivative(temperature)).unwrap();
+    let dt = b
+        .symbol(SymbolRef::Derivative(
+            temperature,
+            std::num::NonZeroU32::MIN,
+        ))
+        .unwrap();
     let r = b.symbol(SymbolRef::Field(rate)).unwrap();
-    let dr = b.symbol(SymbolRef::Derivative(rate)).unwrap();
+    let dr = b
+        .symbol(SymbolRef::Derivative(rate, std::num::NonZeroU32::MIN))
+        .unwrap();
     let zero = b
         .constant(DynQuantity::new(0., rate_dim.mul(per_second).unwrap()))
         .unwrap();
@@ -205,8 +212,12 @@ fn grouped_reset_and_post_reset_consistency_failures_leave_accepted_state_unchan
         let y = b.symbol(SymbolRef::Field(algebraic)).unwrap();
         let product = b.mul(x, y).unwrap();
         let one = b.constant(DynQuantity::new(1., d)).unwrap();
-        let dx = b.symbol(SymbolRef::Derivative(state)).unwrap();
-        let dc = b.symbol(SymbolRef::Derivative(companion)).unwrap();
+        let dx = b
+            .symbol(SymbolRef::Derivative(state, std::num::NonZeroU32::MIN))
+            .unwrap();
+        let dc = b
+            .symbol(SymbolRef::Derivative(companion, std::num::NonZeroU32::MIN))
+            .unwrap();
         let zero = b
             .constant(DynQuantity::new(
                 0.,
@@ -293,6 +304,7 @@ fn grouped_reset_and_post_reset_consistency_failures_leave_accepted_state_unchan
             &program,
             &plan,
             &mut accepted,
+            0.0,
             config,
             &ReferenceExpressionBackend,
         )
@@ -335,7 +347,9 @@ fn short_terminal_step_retains_the_solved_derivative_without_subtractive_cancell
     let d = DimExponents::DIMENSIONLESS;
     let per_second = DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap();
     let mut b = ExprDagBuilder::new();
-    let derivative = b.symbol(SymbolRef::Derivative(field)).unwrap();
+    let derivative = b
+        .symbol(SymbolRef::Derivative(field, std::num::NonZeroU32::MIN))
+        .unwrap();
     let one = b.constant(DynQuantity::new(1., per_second)).unwrap();
     let program = program(
         vec![
@@ -363,6 +377,7 @@ fn short_terminal_step_retains_the_solved_derivative_without_subtractive_cancell
         &program,
         &plan,
         &mut state,
+        0.0,
         config,
         &ReferenceExpressionBackend,
     )
@@ -382,7 +397,10 @@ fn short_terminal_step_retains_the_solved_derivative_without_subtractive_cancell
     )
     .unwrap();
     assert_eq!(state.fields[&field.erase()], 20. + (end - start));
-    assert_eq!(state.derivatives[&field.erase()], 1.);
+    assert_eq!(
+        state.derivatives[&(field.erase(), std::num::NonZeroU32::MIN)],
+        1.
+    );
 
     // Derived fields remain subject to finite-value admission even when the
     // authored flow reads only the derivative, not the candidate field.
@@ -413,7 +431,9 @@ fn slow_crossing_keeps_arming_through_the_zero_band_and_checkpoint() {
     let d = DimExponents::DIMENSIONLESS;
     let rate = DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap();
     let mut b = ExprDagBuilder::new();
-    let derivative = b.symbol(SymbolRef::Derivative(field)).unwrap();
+    let derivative = b
+        .symbol(SymbolRef::Derivative(field, std::num::NonZeroU32::MIN))
+        .unwrap();
     let one = b.constant(DynQuantity::new(1., rate)).unwrap();
     let mut nodes = vec![
         FieldDef::new(
@@ -543,7 +563,9 @@ fn a_clock_only_group_does_not_consume_the_event_microstep_limit() {
                 .into(),
         ];
         let mut b = ExprDagBuilder::new();
-        let derivative = b.symbol(SymbolRef::Derivative(state)).unwrap();
+        let derivative = b
+            .symbol(SymbolRef::Derivative(state, std::num::NonZeroU32::MIN))
+            .unwrap();
         let zero = b
             .constant(DynQuantity::new(
                 0.,
@@ -713,7 +735,9 @@ fn enum_state_selects_live_numeric_flow_and_resets_without_numeric_storage() {
     let one = b.constant(DynQuantity::new(1., rate)).unwrap();
     let two = b.constant(DynQuantity::new(2., rate)).unwrap();
     let selected = b.select(condition, one, two).unwrap();
-    let derivative = b.symbol(SymbolRef::Derivative(position)).unwrap();
+    let derivative = b
+        .symbol(SymbolRef::Derivative(position, std::num::NonZeroU32::MIN))
+        .unwrap();
     nodes.push(
         RelationDef::new(flow, b.finish([derivative, selected]).unwrap())
             .unwrap()

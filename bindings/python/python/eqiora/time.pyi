@@ -32,7 +32,7 @@ class BackwardEuler:
 
 @final
 class Tsitouras45:
-    """Adaptive explicit ODE integration with exact Field-bound SI tolerances.
+    """Adaptive explicit ODE integration with exact (Field, derivative order)-bound SI tolerances.
 
     Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyTsitouras45``.
     """
@@ -41,7 +41,7 @@ class Tsitouras45:
         *,
         initial_step_s: float,
         relative_tolerance: float,
-        absolute_tolerances: Mapping[FieldRef, float],
+        absolute_tolerances: Mapping[tuple[FieldRef, int], float],
         events: EventPolicy | None = None,
         forward_sensitivities: ForwardSensitivity | None = None,
     ) -> Self: ...
@@ -50,7 +50,7 @@ class Tsitouras45:
     @property
     def relative_tolerance(self) -> float: ...
     @property
-    def absolute_tolerances(self) -> dict[FieldRef, float]: ...
+    def absolute_tolerances(self) -> dict[tuple[FieldRef, int], float]: ...
     @property
     def events(self) -> EventPolicy | None: ...
     @property
@@ -105,9 +105,9 @@ class SensitivityTolerance:
 
     Authority: ``crates/eqiora-python/src/common_plan/forward_policy.rs::PySensitivityTolerance``.
     """
-    def __new__(cls, field: FieldRef, parameter: ParameterRef, value: float, dimension: Dimension) -> Self: ...
+    def __new__(cls, coordinate: tuple[FieldRef, int], parameter: ParameterRef, value: float, dimension: Dimension) -> Self: ...
     @property
-    def field(self) -> FieldRef: ...
+    def coordinate(self) -> tuple[FieldRef, int]: ...
     @property
     def parameter(self) -> ParameterRef: ...
     @property

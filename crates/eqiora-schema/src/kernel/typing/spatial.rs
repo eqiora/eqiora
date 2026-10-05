@@ -168,9 +168,10 @@ pub fn normal<I: Clone + Eq>(
     boundary_operator(operand, relation, true)
 }
 
-/// Divide a dimension by time for a Field derivative.
+/// Divide a dimension by the exact positive time power of a Field derivative.
 pub fn time_derivative<I: Clone>(
     operand: &ExpressionType<I>,
+    order: std::num::NonZeroU32,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
     if matches!(
         operand.value_type.scalar_domain(),
@@ -182,21 +183,23 @@ pub fn time_derivative<I: Clone>(
     if operand.value_type.scalar_domain() == eqiora_core::ScalarDomain::Integer {
         return Err(TypeViolation::ScalarDomainMismatch);
     }
+    let overflow = || TypeViolation::DimensionOverflow {
+        operation: "Field derivative",
+    };
+    let mut exponents = operand.dimension().exponents();
+    let (numerator, denominator) = exponents[2];
+    // Subtract before narrowing: the final exponent may be representable even
+    // when the intermediate time power is not. Subtracting an integer preserves
+    // the coprimality of the canonical numerator and denominator.
+    exponents[2].0 =
+        i32::try_from(i128::from(numerator) - i128::from(order.get()) * i128::from(denominator))
+            .map_err(|_| overflow())?;
+    let dimension = DimExponents::from_rationals(exponents).ok_or_else(overflow)?;
     Ok(ExpressionType::new(
         operand
             .value_type
             .clone()
-            .with_dimension(
-                operand
-                    .dimension()
-                    .div(
-                        DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0])
-                            .expect("bounded dimension"),
-                    )
-                    .ok_or(TypeViolation::DimensionOverflow {
-                        operation: "Field derivative",
-                    })?,
-            )
+            .with_dimension(dimension)
             .map_err(|_| TypeViolation::ScalarDomainMismatch)?,
         operand.support.clone(),
     ))

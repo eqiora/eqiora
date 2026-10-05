@@ -146,7 +146,7 @@ pub(super) fn validate_relations(
                 .expression()
                 .nodes()
                 .iter()
-                .any(|node| matches!(node, ExprNode::Symbol(SymbolRef::Derivative(_))))
+                .any(|node| matches!(node, ExprNode::Symbol(SymbolRef::Derivative(_, _))))
         {
             diagnostics.push(kernel_error(
                 id,

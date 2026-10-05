@@ -23,7 +23,7 @@ fn fixture(max_events: usize) -> CommonOdePlan {
         .nodes()
         .filter_map(|node| match node {
             KernelNode::Field(field) => {
-                Some(CommonTsitourasTolerance::new(field.id(), 1e-11).unwrap())
+                Some(CommonTsitourasTolerance::new((field.id(), 0), 1e-11).unwrap())
             }
             _ => None,
         })

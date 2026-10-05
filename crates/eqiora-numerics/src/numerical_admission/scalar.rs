@@ -28,6 +28,8 @@ pub(super) fn describe_primal(
             }
         }]),
         requested_source_identity: None,
+        source_relation: None,
+        state_coordinates: Box::new([]),
     }
 }
 

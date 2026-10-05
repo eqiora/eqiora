@@ -36,7 +36,7 @@ plan = eqiora.resolve(
     temporal=eqiora.time.Tsitouras45(
         initial_step_s=0.01,
         relative_tolerance=1.0e-9,
-        absolute_tolerances={field: 1.0e-11},
+        absolute_tolerances={(field, 0): 1.0e-11},
     ),
 )
 result = eqiora.run(
@@ -144,7 +144,7 @@ changed = eqiora.resolve(
     temporal=eqiora.time.Tsitouras45(
         initial_step_s=0.02,
         relative_tolerance=1.0e-8,
-        absolute_tolerances={field: 2.0e-11},
+        absolute_tolerances={(field, 0): 2.0e-11},
     ),
 )
 try:

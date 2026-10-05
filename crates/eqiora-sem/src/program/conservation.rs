@@ -105,7 +105,7 @@ fn validate_storage_fields(
         match expression.node(id) {
             Some(ExprNode::Symbol(SymbolRef::Field(field))) => {
                 if symbol_type(
-                    SymbolRef::Derivative(*field),
+                    SymbolRef::Derivative(*field, std::num::NonZeroU32::MIN),
                     environment.nodes,
                     environment.edges,
                     environment.spatial_supports,

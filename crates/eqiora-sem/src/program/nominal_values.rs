@@ -177,7 +177,15 @@ mod tests {
                 FieldDef::new(field, definition.value_type(), FieldRole::State).into(),
             ),
         ]);
-        assert!(symbol_type(SymbolRef::Derivative(field), &nodes, &[], &BTreeMap::new()).is_err());
+        assert!(
+            symbol_type(
+                SymbolRef::Derivative(field, std::num::NonZeroU32::MIN),
+                &nodes,
+                &[],
+                &BTreeMap::new()
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -268,7 +276,15 @@ mod tests {
             field.erase(),
             FieldDef::new(field, value, FieldRole::State).into(),
         )]);
-        assert!(symbol_type(SymbolRef::Derivative(field), &nodes, &[], &BTreeMap::new()).is_err());
+        assert!(
+            symbol_type(
+                SymbolRef::Derivative(field, std::num::NonZeroU32::MIN),
+                &nodes,
+                &[],
+                &BTreeMap::new()
+            )
+            .is_err()
+        );
     }
     #[test]
     fn field_and_port_integer_types_reject_units_and_spatial_frames_without_literals() {

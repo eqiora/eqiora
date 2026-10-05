@@ -673,7 +673,9 @@ fn matches_balance(
     let mut divergence = None;
     for leaf in view.leaves() {
         match expression.node(leaf.value()) {
-            Some(ExprNode::Symbol(SymbolRef::Derivative(field))) if field.erase() == state => {
+            Some(ExprNode::Symbol(SymbolRef::Derivative(field, std::num::NonZeroU32::MIN)))
+                if field.erase() == state =>
+            {
                 derivative = Some(leaf.value());
             }
             Some(ExprNode::Divergence(flux)) => divergence = Some(*flux),

@@ -34,7 +34,7 @@ fn hidden_and_singular_constraints_reject_at_their_regularity_boundary() {
         // Only the hidden constraint is regular as a joint initial solve.
         // Squared zero terms have exactly zero differential at this point.
         let singular_initial = equations.contains("z*z") || declarations.is_empty();
-        let common = Interpreter::new().initialize(model.program(), config);
+        let common = Interpreter::new().initialize(model.program(), 0.0, config);
         if singular_initial {
             let errors = common.unwrap_err();
             assert_eq!(errors[0].code(), codes::NONLINEAR_SOLVE_FAILED);
@@ -47,7 +47,7 @@ fn hidden_and_singular_constraints_reject_at_their_regularity_boundary() {
         let cpu = CpuProgram::lower(model.program()).unwrap();
         let relation = model.aliases()["r"].downcast().unwrap();
         let system = GeneralImplicitProgram::lower(&cpu, relation).unwrap();
-        let error = system.initialize(config).unwrap_err();
+        let error = system.initialize(0.0, config).unwrap_err();
         if singular_initial {
             assert_eq!(error.code(), codes::NONLINEAR_SOLVE_FAILED);
             assert!(error.message().contains("initial Jacobian"));
@@ -79,12 +79,12 @@ fn state_dependent_mass_index_one_path_preserves_equation_order_independence() {
         let system =
             GeneralImplicitProgram::lower(&cpu, model.aliases()["r"].downcast().unwrap()).unwrap();
         let initial = system
-            .initialize(ReferenceConfig::new(0.0, 1.0).unwrap())
+            .initialize(0.0, ReferenceConfig::new(0.0, 1.0).unwrap())
             .unwrap();
         let x = system
-            .state_fields()
+            .state_coordinates()
             .iter()
-            .position(|field| field.erase() == model.aliases()["x"])
+            .position(|(field, order)| field.erase() == model.aliases()["x"] && *order == 0)
             .unwrap();
         let z = 1 - x;
         assert!((initial.derivative()[x] + 0.5).abs() < 1e-9);

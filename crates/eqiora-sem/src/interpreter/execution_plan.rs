@@ -233,14 +233,19 @@ impl ExecutionPlan {
             }
         }
 
-        let mut differential_fields = BTreeSet::new();
+        let mut differential_orders = BTreeMap::new();
         let mut continuous_field_references = BTreeSet::new();
         let mut continuous_ports = BTreeSet::new();
         for &relation in &continuous_relations {
             for symbol in relation_symbols(program, relation)? {
                 match symbol {
-                    SymbolRef::Derivative(field) => {
-                        differential_fields.insert(field.erase());
+                    SymbolRef::Derivative(field, order) => {
+                        differential_orders
+                            .entry(field.erase())
+                            .and_modify(|previous: &mut std::num::NonZeroU32| {
+                                *previous = (*previous).max(order)
+                            })
+                            .or_insert(order);
                     }
                     SymbolRef::Field(field) => {
                         continuous_field_references.insert(field.erase());
@@ -277,7 +282,8 @@ impl ExecutionPlan {
             }
         }
         let algebraic_fields = continuous_field_references
-            .difference(&differential_fields)
+            .iter()
+            .filter(|field| !differential_orders.contains_key(field))
             .copied()
             .filter(|field| {
                 !typed_fields.contains(field)
@@ -306,7 +312,7 @@ impl ExecutionPlan {
             continuous_relations,
             periodic,
             events,
-            differential_fields,
+            differential_orders,
             algebraic_fields,
             continuous_ports,
             signal_sources,

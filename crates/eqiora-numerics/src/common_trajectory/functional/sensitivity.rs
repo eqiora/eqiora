@@ -159,25 +159,56 @@ impl OdeObservable<'_> {
         sensitivity: &CommonTrajectoryParameterSensitivity,
         direction: &[f64],
     ) -> Result<f64, Diagnostic> {
+        use eqiora_time::ParametricTimeSystem;
+        let rates = self.rates(time, state)?;
+        let state_delta = (0..state.len())
+            .map(|index| {
+                direction
+                    .iter()
+                    .enumerate()
+                    .map(|(parameter, value)| tangent[parameter * state.len() + index] * value)
+                    .sum()
+            })
+            .collect::<Vec<f64>>();
+        let rate_delta = if rates.is_some() {
+            let system = self.plan.system();
+            let mut delta = vec![0.; state.len()];
+            system.rhs_jvp(time, state, &state_delta, &mut delta)?;
+            let parameters = system
+                .parameter_fields()
+                .iter()
+                .map(|id| {
+                    sensitivity
+                        .parameters
+                        .iter()
+                        .position(|parameter| parameter == id)
+                        .map_or(0., |index| direction[index])
+                })
+                .collect::<Vec<_>>();
+            let mut direct = vec![0.; state.len()];
+            system.rhs_parameter_jvp(time, state, &parameters, &mut direct)?;
+            for (delta, direct) in delta.iter_mut().zip(direct) {
+                *delta += direct;
+            }
+            Some(delta)
+        } else {
+            None
+        };
         let mut values = Vec::new();
         let mut roles = Vec::new();
         let mut deltas = Vec::new();
         for symbol in self.operator.symbols() {
             let (value, delta) = match *symbol {
-                SymbolRef::Field(id) => {
-                    let index = self
-                        .plan
-                        .field_ids()
-                        .position(|candidate| candidate == id)
-                        .ok_or_else(|| {
-                            invalid("functional sensitivity Field is outside the ODE State")
-                        })?;
-                    let delta = direction
-                        .iter()
-                        .enumerate()
-                        .map(|(parameter, value)| tangent[parameter * state.len() + index] * value)
-                        .sum();
-                    (state[index], Some(delta))
+                SymbolRef::Field(_) | SymbolRef::Derivative(..) => {
+                    let (index, rate) = self.coordinate(*symbol)?;
+                    if rate {
+                        (
+                            rates.as_ref().expect("required rates")[index],
+                            Some(rate_delta.as_ref().expect("required rate tangent")[index]),
+                        )
+                    } else {
+                        (state[index], Some(state_delta[index]))
+                    }
                 }
                 SymbolRef::Parameter(id) => {
                     let value = self
@@ -202,7 +233,10 @@ impl OdeObservable<'_> {
                     ));
                 }
             };
-            values.push(value);
+            values.push(
+                ValueLiteral::from_real(self.input_types[symbol].clone(), value)
+                    .map_err(|error| invalid(error.to_string()))?,
+            );
             roles.push(if let Some(delta) = delta {
                 deltas.push(delta);
                 DifferentiationRole::Unknown
@@ -210,7 +244,7 @@ impl OdeObservable<'_> {
                 DifferentiationRole::Frozen
             });
         }
-        let linearized = self.operator.linearize(&values, &roles)?;
+        let linearized = self.operator.linearize_typed(&values, &roles)?;
         let mut result = [0.0];
         linearized.jvp(RelationTangent::Unknown(&deltas), &mut result)?;
         Ok(result[0])

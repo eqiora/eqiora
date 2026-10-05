@@ -94,7 +94,7 @@ impl KernelProgram {
             };
             if point.is_some() {
                 let spatial = match symbol {
-                    SymbolRef::Field(id) | SymbolRef::Derivative(id) => {
+                    SymbolRef::Field(id) | SymbolRef::Derivative(id, _) => {
                         self.edges.iter().any(|edge| {
                             edge.from() == id.erase()
                                 && edge.kind() == EdgeKind::DefinedOn
@@ -377,12 +377,12 @@ pub(super) fn validate(
         if observable.expression().nodes().iter().any(|node| {
             matches!(
                 node,
-                ExprNode::Symbol(SymbolRef::Derivative(_) | SymbolRef::Pre(_) | SymbolRef::Next(_))
+                ExprNode::Symbol(SymbolRef::Pre(_) | SymbolRef::Next(_))
             )
         }) {
             diagnostics.push(kernel_error(
                 id,
-                "instantaneous Observable cannot read temporal derivative or event-side symbols",
+                "instantaneous Observable cannot read event-side symbols",
             ));
         }
         let support = scope.and_then(|id| spatial_supports.get(&id));

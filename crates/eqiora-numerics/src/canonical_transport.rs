@@ -343,7 +343,9 @@ fn relation_derivative_field(program: &KernelProgram, relation: RawId) -> Option
         .nodes()
         .iter()
         .filter_map(|node| match node {
-            ExprNode::Symbol(SymbolRef::Derivative(field)) => Some(field.erase()),
+            ExprNode::Symbol(SymbolRef::Derivative(field, std::num::NonZeroU32::MIN)) => {
+                Some(field.erase())
+            }
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -442,7 +444,7 @@ fn gradient_field(expression: &ExprDag, value: ExprId) -> Option<RawId> {
 fn is_derivative(expression: &ExprDag, value: ExprId, field: RawId) -> bool {
     matches!(
         expression.node(value),
-        Some(ExprNode::Symbol(SymbolRef::Derivative(id))) if id.erase() == field
+        Some(ExprNode::Symbol(SymbolRef::Derivative(id, std::num::NonZeroU32::MIN))) if id.erase() == field
     )
 }
 
@@ -456,7 +458,7 @@ fn lower_potential_definition(
     if expression.nodes().iter().any(|node| {
         matches!(
             node,
-            ExprNode::Symbol(SymbolRef::Derivative(_) | SymbolRef::Field(_))
+            ExprNode::Symbol(SymbolRef::Derivative(_, _) | SymbolRef::Field(_))
         )
     }) && !expression.nodes().iter().any(
         |node| matches!(node, ExprNode::Symbol(SymbolRef::Field(id)) if id.erase() == potential),

@@ -14,6 +14,7 @@ fn nonlinear_descriptor_initial_rates_follow_the_constraint_tangent() {
             // hence x'=(c-4)/3; c is independently 0 or 1 here.
             let result = Interpreter::new().initialize(
                 model.program(),
+                0.0,
                 ReferenceConfig::new(0.0, 0.1)
                     .unwrap()
                     .with_initial_guess(1.0)
@@ -21,8 +22,8 @@ fn nonlinear_descriptor_initial_rates_follow_the_constraint_tangent() {
             );
             if accepted {
                 let initial = result.unwrap();
-                let dx = initial.derivatives()[&model.aliases()["x"]];
-                let dy = initial.derivatives()[&model.aliases()["y"]];
+                let dx = initial.derivatives()[&(model.aliases()["x"], std::num::NonZeroU32::MIN)];
+                let dy = initial.derivatives()[&(model.aliases()["y"], std::num::NonZeroU32::MIN)];
                 let c = if constraint.contains("time()") {
                     1.0
                 } else {
@@ -58,11 +59,15 @@ fn only_unprovided_algebraic_rates_are_free_in_tangent_compatibility() {
             .unwrap()
             .with_initial_guess(1.0)
             .unwrap();
-        let result = Interpreter::new().initialize(model.program(), config);
+        let result = Interpreter::new().initialize(model.program(), 0.0, config);
         if accepted {
             let initial = result.unwrap();
             if condition.is_empty() {
-                assert!(!initial.derivatives().contains_key(&model.aliases()["z"]));
+                assert!(
+                    !initial
+                        .derivatives()
+                        .contains_key(&(model.aliases()["z"], std::num::NonZeroU32::MIN))
+                );
             }
         } else {
             let errors = result.expect_err("authored algebraic rate must not be freed");
@@ -117,9 +122,16 @@ fn tangent_ad_does_not_require_finite_acceleration_in_unconstrained_rows() {
         // x=y; the final scaled form implies y=0.01*x. Their common forcing
         // cancels algebraically, including the non-binary-exact scale product.
         let initial = Interpreter::new()
-            .initialize(model.program(), ReferenceConfig::new(0.0, 0.1).unwrap())
+            .initialize(
+                model.program(),
+                0.0,
+                ReferenceConfig::new(0.0, 0.1).unwrap(),
+            )
             .unwrap();
-        assert_eq!(initial.derivatives()[&model.aliases()["x"]], 0.0);
+        assert_eq!(
+            initial.derivatives()[&(model.aliases()["x"], std::num::NonZeroU32::MIN)],
+            0.0
+        );
     }
 }
 
@@ -128,7 +140,11 @@ fn rounded_coefficient_cancellation_cannot_hide_a_required_singular_derivative()
     let model = ModelDocument::compile("rounded-term.eqi", "model M(){parameter tau:s=1;state z:1;initial{derivative(z)=0[1/s];}relation r{z=(9007199254740992.0*math.sqrt(time()/tau)+math.sqrt(time()/tau))-9007199254740992.0*math.sqrt(time()/tau);}}").unwrap();
     // The exact scalar coefficient is 2^53+1-2^53=1, never zero.
     let errors = Interpreter::new()
-        .initialize(model.program(), ReferenceConfig::new(0.0, 0.1).unwrap())
+        .initialize(
+            model.program(),
+            0.0,
+            ReferenceConfig::new(0.0, 0.1).unwrap(),
+        )
         .unwrap_err();
     assert!(
         errors

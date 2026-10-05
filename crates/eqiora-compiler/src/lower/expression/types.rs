@@ -466,7 +466,7 @@ fn expression_type_cached(
                 "isotropic_lift" => typing::isotropic_lift(&operand),
                 "trace" => typing::trace(&operand, support),
                 "normal" => typing::normal(&operand, support),
-                "derivative" => typing::time_derivative(&operand),
+                "derivative" => typing::time_derivative(&operand, std::num::NonZeroU32::MIN),
                 "pre" | "next" | "hold" => Ok(operand),
                 _ => {
                     return Err(source_error(

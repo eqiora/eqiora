@@ -37,7 +37,7 @@ pub(in crate::hierarchy::body_check) fn validate_observable(
         scope,
         relation_support: support.clone(),
         family_scope: None,
-        allow_discrete_symbols: true,
+        allow_discrete_symbols: false,
         initial: false,
         activation: &ActivationSyntax::Continuous,
         physical_endpoints: PhysicalEndpointSelections::new(),

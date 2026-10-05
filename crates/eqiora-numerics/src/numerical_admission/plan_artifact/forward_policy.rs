@@ -11,6 +11,7 @@ pub(super) struct WireForwardSensitivity {
 #[serde(deny_unknown_fields)]
 struct WireSensitivityTolerance {
     field_ulid: String,
+    derivative_order: u32,
     parameter_ulid: String,
     value: f64,
     dimension: [(i32, i32); 7],
@@ -23,7 +24,8 @@ impl WireForwardSensitivity {
                 .absolute_tolerances()
                 .iter()
                 .map(|entry| WireSensitivityTolerance {
-                    field_ulid: entry.field().ulid().to_string(),
+                    field_ulid: entry.coordinate().0.ulid().to_string(),
+                    derivative_order: entry.coordinate().1,
                     parameter_ulid: entry.parameter().ulid().to_string(),
                     value: entry.quantity().value(),
                     dimension: entry.quantity().dim().exponents(),
@@ -42,7 +44,10 @@ impl WireForwardSensitivity {
                             invalid("invalid sensitivity tolerance dimension exponents")
                         })?;
                     CommonSensitivityTolerance::new(
-                        parse_id::<kinds::Field>(&entry.field_ulid, "Field")?,
+                        (
+                            parse_id::<kinds::Field>(&entry.field_ulid, "Field")?,
+                            entry.derivative_order,
+                        ),
                         parse_id::<kinds::Parameter>(&entry.parameter_ulid, "Parameter")?,
                         DynQuantity::new(entry.value, dimension),
                     )

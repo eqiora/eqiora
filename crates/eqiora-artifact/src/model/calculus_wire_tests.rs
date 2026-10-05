@@ -119,7 +119,7 @@ fn ordered_partial_history_round_trips_even_when_both_mixed_values_are_zero() {
         .with_dimension(DimExponents::DIMENSIONLESS)
         .with_scalar_domain(ScalarDomain::Real)
         .unwrap();
-    let make = |order: [u16; 2]| {
+    let make = |order: &[u16]| {
         let mut builder = CalculusBuilder::new([class, class], class).unwrap();
         let x = builder
             .push(CalculusNode::FormalComponent {
@@ -127,14 +127,18 @@ fn ordered_partial_history_round_trips_even_when_both_mixed_values_are_zero() {
                 axes: Box::new([]),
             })
             .unwrap();
-        let first = builder.partial(x, order[0]).unwrap();
-        let second = builder.partial(first, order[1]).unwrap();
-        builder.finish(second).unwrap()
+        let mut root = x;
+        for &wrt in order {
+            root = builder.partial(root, wrt).unwrap();
+        }
+        builder.finish(root).unwrap()
     };
-    let xy = make([0, 1]);
-    let yx = make([1, 0]);
+    let xy = make(&[0, 1]);
+    let yx = make(&[1, 0]);
     assert_ne!(xy.digest(), yx.digest());
-    for definition in [xy, yx] {
+    // Every mixed derivative of x here is zero, but its ordered history survives,
+    // including valid third derivatives after removal of the separate order ceiling.
+    for definition in [xy, yx, make(&[0, 1, 0]), make(&[1, 0, 1])] {
         let wire = WirePureOperatorDefinition::encode(&definition);
         let json = serde_json::to_value(&wire).unwrap();
         let replay: WirePureOperatorDefinition = serde_json::from_value(json.clone()).unwrap();
@@ -147,7 +151,14 @@ fn ordered_partial_history_round_trips_even_when_both_mixed_values_are_zero() {
         third["root"] = json!(next);
         let invalid: WirePureOperatorDefinition = serde_json::from_value(third).unwrap();
         let error = invalid.rebuild_and_validate_digest().unwrap_err();
-        assert!(error.message().contains("derivative order"), "{error:?}");
+        // Reusing a retained derivative node as its own computed value is a forged
+        // provenance/value pair, even when both happen to evaluate to zero.
+        assert!(
+            error
+                .message()
+                .contains("retained derivative value differs"),
+            "{error:?}"
+        );
     }
 }
 

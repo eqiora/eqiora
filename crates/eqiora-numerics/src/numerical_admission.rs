@@ -483,7 +483,10 @@ impl ResolvedCommonPlan {
             Self::SteadyStokes(plan) => Some(plan.formulation()),
             Self::TransientFlow(plan) => Some(plan.formulation()),
             Self::Elasticity(plan) => plan.formulation.clone(),
-            Self::Algebraic(_) | Self::Ode(_) | Self::Fsi(_) => None,
+            Self::Ode(plan) => Some(CommonFormulationDescription::first_order(
+                plan.system().lowering_proof(),
+            )),
+            Self::Algebraic(_) | Self::Fsi(_) => None,
         }
     }
 }
@@ -616,6 +619,8 @@ impl FormulationSelectionMode {
 /// provider, and placement remain Realization concerns.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommonFormulationDescription {
+    source_relation: Option<eqiora_core::Id<eqiora_core::entity::kinds::Relation>>,
+    state_coordinates: Box<[(eqiora_core::Id<eqiora_core::entity::kinds::Field>, u32)]>,
     requested: FormulationSelectionMode,
     kind: FormulationKind,
     boundary_treatment: &'static str,
