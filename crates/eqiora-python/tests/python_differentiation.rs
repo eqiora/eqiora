@@ -40,6 +40,10 @@ fn python_differentiable_program_is_exact_paired_and_fail_closed() -> PyResult<(
         locals.set_item("native", native.bind(py))?;
         locals.set_item("package_directory", package_directory.to_string_lossy())?;
         locals.set_item("source", POISSON)?;
+        locals.set_item(
+            "complex_tests",
+            include_str!("../../../bindings/python/tests/test_complex_differentiation.py"),
+        )?;
 
         py.run(
             c_str!(
@@ -53,6 +57,8 @@ eqiora = importlib.util.module_from_spec(spec)
 sys.modules["eqiora"] = eqiora
 sys.modules["eqiora._eqiora"] = native
 spec.loader.exec_module(eqiora)
+exec(complex_tests, globals())
+test_common_complex_sensitivity_uses_real_pairing_at_each_parameter_point()
 
 graph = eqiora.geometry.GeometryGraph()
 rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))

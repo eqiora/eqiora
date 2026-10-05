@@ -264,6 +264,7 @@ pub enum LinearizationState {
 
 #[derive(Debug, Clone, PartialEq)]
 enum PrimalEvidence {
+    Affine(Box<SolveReport>),
     Linear(Box<ExecutionReceipt>),
     Nonlinear {
         initial_state_identity: String,
@@ -340,7 +341,10 @@ impl DifferentiationEvidence {
     /// Solve that established the accepted primal point.
     #[must_use]
     pub fn primal_solve(&self) -> Option<&SolveReport> {
-        self.receipt().map(ExecutionReceipt::report)
+        match &self.primal {
+            PrimalEvidence::Affine(report) => Some(report),
+            _ => self.receipt().map(ExecutionReceipt::report),
+        }
     }
 
     /// Exact deployment, operator, plan, output, and accepted-solve linkage.
@@ -348,7 +352,7 @@ impl DifferentiationEvidence {
     pub fn receipt(&self) -> Option<&ExecutionReceipt> {
         match &self.primal {
             PrimalEvidence::Linear(receipt) => Some(receipt),
-            PrimalEvidence::Nonlinear { .. } => None,
+            PrimalEvidence::Nonlinear { .. } | PrimalEvidence::Affine(_) => None,
         }
     }
 
@@ -360,7 +364,7 @@ impl DifferentiationEvidence {
                 initial_state_identity,
                 ..
             } => Some(initial_state_identity),
-            PrimalEvidence::Linear(_) => None,
+            PrimalEvidence::Linear(_) | PrimalEvidence::Affine(_) => None,
         }
     }
 
@@ -369,7 +373,7 @@ impl DifferentiationEvidence {
     pub const fn nonlinear_iterations(&self) -> Option<usize> {
         match &self.primal {
             PrimalEvidence::Nonlinear { iterations, .. } => Some(*iterations),
-            PrimalEvidence::Linear(_) => None,
+            PrimalEvidence::Linear(_) | PrimalEvidence::Affine(_) => None,
         }
     }
 
@@ -381,7 +385,7 @@ impl DifferentiationEvidence {
                 initial_residual_norm,
                 ..
             } => Some(*initial_residual_norm),
-            PrimalEvidence::Linear(_) => None,
+            PrimalEvidence::Linear(_) | PrimalEvidence::Affine(_) => None,
         }
     }
 
@@ -392,7 +396,7 @@ impl DifferentiationEvidence {
             PrimalEvidence::Nonlinear {
                 accepted_unknowns, ..
             } => Some(accepted_unknowns),
-            PrimalEvidence::Linear(_) => None,
+            PrimalEvidence::Linear(_) | PrimalEvidence::Affine(_) => None,
         }
     }
 
@@ -631,6 +635,12 @@ impl DifferentiableEvaluation {
                 .agreement_fingerprint(),
             primal: match self.native.receipt() {
                 Some(receipt) => PrimalEvidence::Linear(Box::new(receipt.clone())),
+                None if self.native.affine_solve().is_some() => PrimalEvidence::Affine(Box::new(
+                    self.native
+                        .affine_solve()
+                        .expect("accepted affine solve")
+                        .clone(),
+                )),
                 None => PrimalEvidence::Nonlinear {
                     initial_state_identity: self
                         .native

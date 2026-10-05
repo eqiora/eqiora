@@ -277,3 +277,94 @@ fn finite_quantum_and_control_maps_share_plan_run_result_and_preserve_bases() {
         assert!((actual.0 - norm).hypot(actual.1) < 1e-10);
     }
 }
+
+#[test]
+fn common_complex_differentiation_retains_real_pairing_and_parameter_points() {
+    use eqiora::api::DifferentiableProgram;
+    // Both pencils have z=p-ip. The conjugate pencil has real-linear, not
+    // holomorphic, action. In either case J=2p²+p and dJ/dp=4p+1.
+    for (equation, complex) in [
+        ("a*z+math.conj(z)=math.complex(4,2)*p", false),
+        ("a*z=math.complex(3,1)*p", true),
+    ] {
+        let source = format!(
+            "model M(){{parameter p:1=3;parameter a:complex<1>=math.complex(1,2);variable z:complex<1>;relation r{{{equation};}}observable output:1=math.abs2(z)+p;}}"
+        );
+        let (document, plan, _) = solve_with(&source, complex);
+        let backend: &'static dyn LinearSolverBackend = if complex {
+            &REFERENCE_LINEAR_SOLVER
+        } else {
+            &FaerLinearSolver
+        };
+        let program = DifferentiableProgram::compile(
+            ResolvedCommonPlan::Algebraic(Box::new(plan)),
+            &[document.parameter_ref("p").unwrap()],
+            &document.observable_ref("output").unwrap(),
+            None,
+            backend,
+        )
+        .unwrap();
+        for p in [3., 5.] {
+            let point = program.evaluate(&[p]).unwrap();
+            assert!((point.accepted_unknowns()[0] - p).abs() < 1e-10);
+            assert!((point.accepted_unknowns()[1] + p).abs() < 1e-10);
+            let primal = point.primal();
+            assert!((primal.output()[0] - (2. * p * p + p)).abs() < 1e-9);
+            assert!(primal.evidence().primal_solve().is_some());
+            assert!(primal.evidence().nonlinear_iterations().is_none());
+            assert!((point.jvp(&[2.]).unwrap().tangent()[0] - 2. * (4. * p + 1.)).abs() < 1e-9);
+            assert!((point.vjp(&[1.]).unwrap().input_cotangent()[0] - (4. * p + 1.)).abs() < 1e-9);
+        }
+        assert!((program.vjp(&[1.]).unwrap().input_cotangent()[0] - 13.).abs() < 1e-9);
+    }
+}
+
+#[test]
+fn complex_zero_residual_does_not_prove_differentiable_regularity() {
+    use eqiora::api::DifferentiableProgram;
+    // At p=0 every z satisfies p*z=0. A successful zero-residual primal
+    // cannot establish a locally unique differentiable solution map.
+    let (document, plan, _) = solve(
+        "model M(){parameter p:1=0;variable z:complex<1>;relation r{p*z=0;}observable output:1=math.abs2(z);}",
+    );
+    let error = DifferentiableProgram::compile(
+        ResolvedCommonPlan::Algebraic(Box::new(plan)),
+        &[document.parameter_ref("p").unwrap()],
+        &document.observable_ref("output").unwrap(),
+        None,
+        &REFERENCE_LINEAR_SOLVER,
+    )
+    .unwrap_err();
+    assert!(
+        error
+            .iter()
+            .any(|error| error.message().contains("Jacobian is singular")),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn common_sensitivity_keeps_mixed_real_and_shaped_complex_coordinates() {
+    use eqiora::api::DifferentiableProgram;
+    // z_k=k*p*(1-i), k=1..6, and w=2p. Thus
+    // J=sum|z_k|²+w²+p=(2*91+4)p²+p=186p²+p.
+    let source = "model M(){parameter p:1=3;parameter a:complex<1>=math.complex(1,2);variable z:array<complex<1>,6>;variable w:1;relation r{a*z[0]+math.conj(z[0])=math.complex(4,2)*p;a*z[1]+math.conj(z[1])=math.complex(8,4)*p;a*z[2]+math.conj(z[2])=math.complex(12,6)*p;a*z[3]+math.conj(z[3])=math.complex(16,8)*p;a*z[4]+math.conj(z[4])=math.complex(20,10)*p;a*z[5]+math.conj(z[5])=math.complex(24,12)*p;w=2*p;}observable output:1=math.abs2(z[0])+math.abs2(z[1])+math.abs2(z[2])+math.abs2(z[3])+math.abs2(z[4])+math.abs2(z[5])+w*w+p;}";
+    let (document, plan, _) = solve_with(source, false);
+    assert_eq!(plan.symbols().len(), 2);
+    assert_eq!(plan.coordinate_count(), 13);
+    let program = DifferentiableProgram::compile(
+        ResolvedCommonPlan::Algebraic(Box::new(plan)),
+        &[document.parameter_ref("p").unwrap()],
+        &document.observable_ref("output").unwrap(),
+        None,
+        &FaerLinearSolver,
+    )
+    .unwrap();
+    for p in [3., 5.] {
+        let point = program.evaluate(&[p]).unwrap();
+        assert_eq!(point.accepted_unknowns().len(), 13);
+        assert!((point.primal().output()[0] - (186. * p * p + p)).abs() < 1e-8);
+        assert!((point.jvp(&[2.]).unwrap().tangent()[0] - 2. * (372. * p + 1.)).abs() < 1e-8);
+        assert!((point.vjp(&[1.]).unwrap().input_cotangent()[0] - (372. * p + 1.)).abs() < 1e-8);
+    }
+}
