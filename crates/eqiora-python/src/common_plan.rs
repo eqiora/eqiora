@@ -506,6 +506,10 @@ impl PyPlan {
         let fields = match &self.native {
             ResolvedCommonPlan::Eigen(plan) => [plan.mode_field(), plan.eigenvalue_field()]
                 .into_iter()
+                .chain(
+                    plan.coordinate_embeddings()
+                        .map(|(_, _, coordinate, _)| coordinate),
+                )
                 .map(|field| {
                     PyModelFieldRef::from_exact(model_digest.clone(), field.ulid().to_string())
                 })

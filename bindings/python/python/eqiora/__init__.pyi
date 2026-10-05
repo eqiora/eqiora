@@ -1868,6 +1868,9 @@ class Eigenpair:
 
     Authority: ``crates/eqiora-python/src/result/eigen.rs::PyEigenpair``.
     """
+    def field(self, field: FieldRef) -> tuple[Any, ValueType]:
+        """Return a source Field's value and exact type for this selected mode."""
+        ...
     @property
     def eigenvalue(self) -> float: ...
     @property

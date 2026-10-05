@@ -4,11 +4,22 @@ use eqiora_ir::{ComponentScalarization, ScalarSymbolCoordinate};
 use eqiora_schema::kernel::{FieldRole, KernelNode, SymbolRef};
 use std::collections::HashMap;
 
+mod embedding;
+use embedding::Embedding;
+
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct SourcePencil {
     pub relation: Id<kinds::Relation>,
     pub mode: Id<kinds::Field>,
     pub eigenvalue: Id<kinds::Field>,
+    pub operator: ValueLiteral,
+    pub metric: ValueLiteral,
+    pub projected: Option<ProjectedPencil>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct ProjectedPencil {
+    pub embedding: Embedding,
     pub operator: ValueLiteral,
     pub metric: ValueLiteral,
 }
@@ -22,24 +33,21 @@ impl SourcePencil {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        if fields.len() != 2
-            || fields
-                .iter()
-                .any(|field| field.role() != FieldRole::Variable)
+        if fields
+            .iter()
+            .any(|field| field.role() != FieldRole::Variable)
         {
-            return Err(invalid(
-                "finite Hermitian source requires exactly a mode Field and a real eigenvalue Field",
-            ));
+            return Err(invalid("spectral Fields must have Variable roles"));
         }
-        let mode = fields
+        let scalar_fields = fields
             .iter()
-            .find(|field| field.value_type().coordinate_basis().is_some())
-            .ok_or_else(|| invalid("spectral mode requires an exact finite coordinate basis"))?;
-        let eigenvalue = fields
-            .iter()
-            .find(|field| field.id() != mode.id())
-            .ok_or_else(|| invalid("spectral roles must be distinct"))?;
-        let mode_type = mode.value_type();
+            .filter(|field| field.value_type().coordinate_basis().is_none())
+            .collect::<Vec<_>>();
+        let [eigenvalue] = scalar_fields.as_slice() else {
+            return Err(invalid(
+                "spectral source requires one real scalar eigenvalue Field",
+            ));
+        };
         let lambda_type = eigenvalue.value_type();
         if lambda_type
             != &ValueType::scalar(ScalarDomain::Real, lambda_type.dimension())
@@ -56,15 +64,41 @@ impl SourcePencil {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        if relations.len() != 1
-            || relations[0].is_initial()
-            || relations[0].has_constraints()
-            || relations[0].equation_sides().count() != 1
+        if relations
+            .iter()
+            .any(|r| r.is_initial() || r.has_constraints() || r.equation_sides().count() != 1)
         {
             return Err(invalid(
-                "finite Hermitian source requires one complete equality; additional constraints need an admitted constrained-space projection",
+                "spectral source requires complete global equalities",
             ));
         }
+        let pencils = relations
+            .iter()
+            .filter(|r| embedding::field_ids(r).contains(&eigenvalue.id()))
+            .collect::<Vec<_>>();
+        let [pencil] = pencils.as_slice() else {
+            return Err(invalid(
+                "spectral source requires one original eigenvalue-dependent equality",
+            ));
+        };
+        let mode_fields = fields
+            .iter()
+            .filter(|f| f.id() != eigenvalue.id() && embedding::field_ids(pencil).contains(&f.id()))
+            .collect::<Vec<_>>();
+        let [mode] = mode_fields.as_slice() else {
+            return Err(invalid(
+                "original spectral equality requires one finite mode Field",
+            ));
+        };
+        let mode_type = mode.value_type();
+        let embedding = Embedding::lower(
+            kernel,
+            &fields,
+            &relations,
+            pencil.id(),
+            mode.id(),
+            eigenvalue.id(),
+        )?;
         if kernel.nodes().any(|node| {
             matches!(
                 node,
@@ -78,7 +112,7 @@ impl SourcePencil {
                 "finite Hermitian admission does not omit spatial, port or clocked source meaning",
             ));
         }
-        let relation = relations[0].id();
+        let relation = pencil.id();
         let typed = kernel.typed_relation_residual(relation).map_err(|errors| {
             errors
                 .into_iter()
@@ -133,41 +167,7 @@ impl SourcePencil {
         if rows.rows().len() != selected.len() {
             return Err(invalid("spectral coordinate action must be square"));
         }
-        let mut bindings = HashMap::new();
-        for coordinate in rows.rows().iter().flat_map(|row| row.symbols()) {
-            match coordinate.symbol() {
-                SymbolRef::Field(id) if id == mode.id() || id == eigenvalue.id() => {}
-                SymbolRef::Parameter(id) => {
-                    let value = kernel
-                        .typed_value(id.erase())
-                        .ok_or_else(|| invalid("spectral Parameter value is missing"))?;
-                    let index = coordinate
-                        .component_index()
-                        .iter()
-                        .zip(value.value_type().shape().extents())
-                        .fold(0, |flat, (&index, extent)| {
-                            flat * extent.get() as usize + index as usize
-                        });
-                    let (real, imaginary) = value
-                        .component(index)
-                        .ok_or_else(|| invalid("spectral Parameter component is unavailable"))?;
-                    bindings.insert(
-                        coordinate.clone(),
-                        if coordinate.is_imaginary() {
-                            imaginary
-                        } else {
-                            real
-                        },
-                    );
-                }
-                _ => {
-                    return Err(invalid(
-                        "spectral source contains an unresolved or unsupported dependency",
-                    ));
-                }
-            }
-        }
-        let bindings = bindings.into_iter().collect::<Vec<_>>();
+        let bindings = bindings(kernel, &rows, &[mode.id(), eigenvalue.id()])?;
         let mut a = Vec::new();
         let mut c = Vec::new();
         for row in rows.rows() {
@@ -178,19 +178,46 @@ impl SourcePencil {
         }
         // An equality has no privileged left/right orientation. Choose the
         // representative (s A, -s C) whose metric can be positive definite.
-        // Every positive-definite metric has a strictly positive first diagonal;
-        // this fixes only the whole-equation sign, never individual rows or a
-        // regularizing shift. Full Hermitian and positive-pivot admission still
-        // follows in HermitianEigenproblem, including all remaining coordinates.
-        let orientation = if c[0] > 0. { -1. } else { 1. };
+        // Its first admitted coordinate has a strictly positive quadratic form.
+        // This fixes only the whole-equation sign, never individual rows or a
+        // regularizing shift. Full Hermitian input checks and positive pivots
+        // on every admitted coordinate still follow in HermitianEigenproblem.
+        let unoriented_c = assemble(b_type.clone(), &c, selected.len(), 1.)?;
+        let first = if let Some(embedding) = &embedding {
+            embedding.first_quadratic(&unoriented_c)?
+        } else {
+            c[0]
+        };
+        let orientation = if first > 0. { -1. } else { 1. };
         let operator = assemble(a_type, &a, selected.len(), orientation)?;
         let metric = assemble(b_type, &c, selected.len(), -orientation)?;
+        let projected = embedding
+            .map(|embedding| {
+                let (operator, metric) =
+                    HermitianEigenproblem::pullback(&operator, &metric, &embedding.map)?;
+                let (_, expected_coordinate) = operator
+                    .value_type()
+                    .hermitian_eigenpair_types(metric.value_type())
+                    .map_err(|e| invalid(e.to_string()))?;
+                if &expected_coordinate != embedding.coordinate_type() {
+                    return Err(invalid(
+                        "admitted coordinate Field has incorrect spectral normalization units",
+                    ));
+                }
+                Ok(ProjectedPencil {
+                    embedding,
+                    operator,
+                    metric,
+                })
+            })
+            .transpose()?;
         Ok(Self {
             relation,
             mode: mode.id(),
             eigenvalue: eigenvalue.id(),
             operator,
             metric,
+            projected,
         })
     }
 }
@@ -202,14 +229,12 @@ fn assemble(
     sign: f64,
 ) -> Result<ValueLiteral, Diagnostic> {
     let complex = ty.scalar_domain() == ScalarDomain::Complex;
-    let n = if complex {
-        real_dimension / 2
-    } else {
-        real_dimension
-    };
+    let (source, target) = ty.map_bases().expect("typed map");
+    let n = target.extent() as usize;
+    let columns = source.extent() as usize;
     let mut entries = Vec::new();
     for row in 0..n {
-        for column in 0..n {
+        for column in 0..columns {
             let (real, imaginary) = if complex {
                 let real = rows[(2 * row) * real_dimension + 2 * column];
                 let imaginary = rows[(2 * row + 1) * real_dimension + 2 * column];
@@ -228,4 +253,46 @@ fn assemble(
         }
     }
     ValueLiteral::new(ty, entries).map_err(|e| invalid(e.to_string()))
+}
+
+fn bindings(
+    kernel: &KernelProgram,
+    rows: &ComponentScalarization,
+    fields: &[Id<kinds::Field>],
+) -> Result<Vec<(ScalarSymbolCoordinate, f64)>, Diagnostic> {
+    let mut bindings = HashMap::new();
+    for coordinate in rows.rows().iter().flat_map(|row| row.symbols()) {
+        match coordinate.symbol() {
+            SymbolRef::Field(id) if fields.contains(&id) => {}
+            SymbolRef::Parameter(id) => {
+                let value = kernel
+                    .typed_value(id.erase())
+                    .ok_or_else(|| invalid("spectral Parameter value is missing"))?;
+                let index = coordinate
+                    .component_index()
+                    .iter()
+                    .zip(value.value_type().shape().extents())
+                    .fold(0, |flat, (&index, extent)| {
+                        flat * extent.get() as usize + index as usize
+                    });
+                let (real, imaginary) = value
+                    .component(index)
+                    .ok_or_else(|| invalid("spectral Parameter component is unavailable"))?;
+                bindings.insert(
+                    coordinate.clone(),
+                    if coordinate.is_imaginary() {
+                        imaginary
+                    } else {
+                        real
+                    },
+                );
+            }
+            _ => {
+                return Err(invalid(
+                    "spectral source contains an unresolved or unsupported dependency",
+                ));
+            }
+        }
+    }
+    Ok(bindings.into_iter().collect())
 }

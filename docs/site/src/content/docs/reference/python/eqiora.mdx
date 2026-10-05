@@ -1521,6 +1521,7 @@ Accepted typed eigenpair bound to exact source Fields and Result.
 ```python
 @final
 class Eigenpair:
+    def field(self, field: FieldRef) -> tuple[Any, ValueType]: ...
     @property
     def eigenvalue(self) -> float: ...
     @property

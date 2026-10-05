@@ -2,8 +2,8 @@
 
 Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyLinear``.
 """
-from . import ConstraintRef, Dimension, FieldRef
-from typing import ClassVar, Final, Self, final
+from . import ConstraintRef, Dimension, FieldRef, ValueType
+from typing import Any, ClassVar, Final, Self, final
 
 @final
 class HermitianEigen:
@@ -248,6 +248,7 @@ __all__ = [
     "Linear",
     "HermitianEigen",
     "EigenPlanView",
+    "EigenCoordinateMap",
     "AlgebraicPlanView",
     "LinearSolver",
     "Preconditioner",
@@ -321,7 +322,7 @@ class StrictInterior:
 
 @final
 class EigenPlanView:
-    """Source roles of one complete finite Hermitian pencil.
+    """Source roles and coordinate equalities of one finite Hermitian pencil.
 
     Authority: ``crates/eqiora-python/src/common_plan/eigen.rs::PyEigenPlanView``.
     """
@@ -329,3 +330,22 @@ class EigenPlanView:
     def mode_field(self) -> FieldRef: ...
     @property
     def eigenvalue_field(self) -> FieldRef: ...
+    @property
+    def coordinate_embeddings(self) -> tuple[EigenCoordinateMap, ...]: ...
+
+@final
+class EigenCoordinateMap:
+    """One exact source equality ``target = mapping * coordinate``.
+
+    Authority: ``crates/eqiora-python/src/common_plan/eigen.rs::PyEigenCoordinateMap``.
+    """
+    @property
+    def relation_id(self) -> str: ...
+    @property
+    def target_field(self) -> FieldRef: ...
+    @property
+    def coordinate_field(self) -> FieldRef: ...
+    @property
+    def mapping(self) -> Any: ...
+    @property
+    def mapping_type(self) -> ValueType: ...

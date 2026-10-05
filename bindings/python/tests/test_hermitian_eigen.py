@@ -1,6 +1,7 @@
 """Source-to-Result Hermitian execution in the installed Python package."""
 
 import eqiora
+import json
 
 
 def test_python_hermitian_plan_run_result_and_replay() -> None:
@@ -64,3 +65,72 @@ def test_python_hermitian_plan_run_result_and_replay() -> None:
             pass
         else:
             raise AssertionError("unsupported or inconsistent spectral request must reject")
+
+
+def test_python_source_coordinate_embedding_and_original_residual() -> None:
+    source = """
+    space Full=orthonormal(first,second);
+    space Reduced=orthonormal(relative);
+    model Floating() {
+     parameter a:map<1,Full,Full>=linear_map(Full,Full,[[1,-1],[-1,1]]);
+     parameter b:map<1,Full,Full>=linear_map(Full,Full,[[1,-1],[-1,1]]);
+     parameter p:map<1,Reduced,Full>=linear_map(Reduced,Full,[[1],[-1]]);
+     variable u:coordinates<1,Full>;
+     variable q:coordinates<1,Reduced>;
+     variable lambda:1;
+     relation pencil {apply(a,u)=lambda*apply(b,u);}
+     relation coordinates {u=apply(p,q);}
+    }
+    """
+    model = eqiora.compile(source=source)
+    solve = eqiora.solve.HermitianEigen(count=1, provider=eqiora.solve.SolverProvider.faer(), residual_tolerance=1e-12, normalization_tolerance=1e-12)
+    plan = eqiora.resolve(model, solve=solve)
+    assert plan.fields == (model.field("u"), model.field("lambda"), model.field("q"))
+    (embedding,) = plan.capability.coordinate_embeddings
+    assert isinstance(embedding, eqiora.solve.EigenCoordinateMap)
+    assert embedding.target_field == model.field("u")
+    assert embedding.coordinate_field == model.field("q")
+    assert embedding.mapping == ((1.,), (-1.,))
+    assert embedding.relation_id and "relation_id=" in repr(embedding)
+    restored = eqiora.Plan.from_bytes(plan.to_bytes())
+    assert restored.fields == plan.fields
+    (restored_embedding,) = restored.capability.coordinate_embeddings
+    assert restored_embedding.relation_id == embedding.relation_id
+    assert restored_embedding.mapping == embedding.mapping
+    assert restored_embedding.mapping_type == embedding.mapping_type
+    result = eqiora.run(restored)
+    assert result.eigen_convergence == "converged"
+    pair = result.eigenpair(0)
+    assert abs(pair.eigenvalue - 1.) < 1e-12
+    assert len(pair.mode) == 2
+    assert abs(abs(pair.mode[0]) - .5) < 1e-12
+    assert abs(pair.mode[0] + pair.mode[1]) < 1e-12
+    assert pair.mode_field == model.field("u")
+    q, q_type = pair.field(model.field("q"))
+    assert len(q) == 1 and abs(q[0] - pair.mode[0]) < 1e-12
+    assert pair.field(model.field("u")) == (pair.mode, pair.mode_type)
+    assert pair.field(model.field("lambda")) == (pair.eigenvalue, pair.eigenvalue_type)
+    foreign = eqiora.compile(source=source.replace("model Floating", "model Other"))
+    try:
+        pair.field(foreign.field("q"))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("coordinate values require exact Model ownership")
+    replay = eqiora.Result.from_bytes(restored, result.to_bytes())
+    assert replay.to_bytes() == result.to_bytes()
+    assert replay.eigenpair(0).mode == pair.mode
+    assert replay.eigenpair(0).field(model.field("q")) == (q, q_type)
+    wire = json.loads(result.to_bytes())
+    assert wire["schema"] == "eqiora.common-result/v11"
+    candidate = wire["content"]["payload"]["spectral"]["candidates"][0]
+    assert "mode" not in candidate
+    assert len(candidate["coordinates"]) == 1
+    # A forged original-space vector cannot masquerade as admitted coordinates.
+    candidate["coordinates"] = [[.5, 0.], [-.5, 0.]]
+    try:
+        eqiora.Result.from_bytes(restored, json.dumps(wire).encode())
+    except (eqiora.EqioraError, ValueError):
+        pass
+    else:
+        raise AssertionError("candidate must retain its exact admitted coordinate shape")

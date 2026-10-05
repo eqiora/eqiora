@@ -1527,6 +1527,7 @@ Accepted typed eigenpair bound to exact source Fields and Result.
 ```python
 @final
 class Eigenpair:
+    def field(self, field: FieldRef) -> tuple[Any, ValueType]: ...
     @property
     def eigenvalue(self) -> float: ...
     @property
@@ -4715,7 +4716,7 @@ class HermitianEigen:
 
 ### `eqiora.solve.EigenPlanView`
 
-Source roles of one complete finite Hermitian pencil.
+Source roles and coordinate equalities of one finite Hermitian pencil.
 
 ```python
 @final
@@ -4724,6 +4725,29 @@ class EigenPlanView:
     def mode_field(self) -> FieldRef: ...
     @property
     def eigenvalue_field(self) -> FieldRef: ...
+    @property
+    def coordinate_embeddings(self) -> tuple[EigenCoordinateMap, ...]: ...
+```
+
+<a id="api-eqiora-solve-EigenCoordinateMap"></a>
+
+### `eqiora.solve.EigenCoordinateMap`
+
+One exact source equality `target = mapping * coordinate`.
+
+```python
+@final
+class EigenCoordinateMap:
+    @property
+    def relation_id(self) -> str: ...
+    @property
+    def target_field(self) -> FieldRef: ...
+    @property
+    def coordinate_field(self) -> FieldRef: ...
+    @property
+    def mapping(self) -> Any: ...
+    @property
+    def mapping_type(self) -> ValueType: ...
 ```
 
 <a id="api-eqiora-solve-AlgebraicPlanView"></a>
