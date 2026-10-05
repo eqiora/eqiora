@@ -44,6 +44,30 @@ impl PyObservation {
     fn value(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         crate::modeling::value_literal::to_python(py, &self.value)
     }
+    /// Project one component through the native mathematical value owner.
+    #[pyo3(signature = (projection, index=0))]
+    fn project_component(
+        &self,
+        projection: &str,
+        index: usize,
+    ) -> PyResult<Option<(f64, PyDimension)>> {
+        let value = match projection {
+            "real" => self.value.component_real(index).map(Some),
+            "imaginary" => self.value.component_imaginary(index).map(Some),
+            "magnitude" => self.value.component_magnitude(index).map(Some),
+            "squared_magnitude" => self.value.component_squared_magnitude(index).map(Some),
+            "phase" => self.value.component_phase(index),
+            _ => {
+                return Err(PyValueError::new_err(
+                    "projection must be real, imaginary, magnitude, squared_magnitude or phase",
+                ));
+            }
+        };
+        value
+            .map(|value| value.map(|value| (value.value(), PyDimension { value: value.dim() })))
+            .map_err(|error| PyValueError::new_err(error.to_string()))
+    }
+
     #[getter]
     fn value_type(&self) -> PyValueType {
         PyValueType {

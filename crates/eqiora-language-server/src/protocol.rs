@@ -430,7 +430,9 @@ pub fn run(connection: Connection, version: &str) -> ServerResult<()> {
                 ..TextDocumentSyncOptions::default()
             },
         )),
-        experimental: Some(serde_json::json!({"eqioraInspection": 1, "eqioraPlanInspection": 1})),
+        experimental: Some(
+            serde_json::json!({"eqioraInspection": 1, "eqioraPlanInspection": 1, "eqioraResultInspection": 1}),
+        ),
         hover_provider: Some(HoverProviderCapability::Simple(true)),
         completion_provider: Some(lsp_types::CompletionOptions {
             trigger_characters: Some(vec![".".into()]),
