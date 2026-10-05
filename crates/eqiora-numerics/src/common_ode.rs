@@ -16,6 +16,9 @@ use eqiora_time::{
 use sha2::{Digest, Sha256};
 
 mod controls;
+mod hermitian;
+mod norm;
+pub(crate) use norm::ConservedNorm;
 mod events;
 mod forward_policy;
 pub(crate) use forward_policy::{CommonForwardSensitivity, CommonSensitivityTolerance};
@@ -64,6 +67,8 @@ pub struct CommonOdePolicy {
     absolute_tolerances: Vec<CommonTimeTolerance>,
     events: Option<CommonEventPolicy>,
     forward_sensitivities: Option<CommonForwardSensitivity>,
+    pub(crate) conserved_norms: Vec<ConservedNorm>,
+    pub(crate) hermitian_parameters: Vec<Id<kinds::Parameter>>,
 }
 
 impl CommonOdePolicy {
@@ -112,6 +117,8 @@ impl CommonOdePolicy {
             absolute_tolerances,
             events: None,
             forward_sensitivities: None,
+            conserved_norms: Vec::new(),
+            hermitian_parameters: Vec::new(),
         })
     }
 
@@ -318,7 +325,17 @@ impl CommonOdePlan {
             &mut state_space,
             b"real-coordinate-f64/no-method-history/v2",
         );
-        let state_space_identity = digest(b"eqiora.common-ode-state-space/v4\0", &state_space);
+        push(&mut state_space, b"declared-conserved-norms/v1");
+        state_space.extend_from_slice(&(temporal.conserved_norms.len() as u64).to_be_bytes());
+        for norm in &temporal.conserved_norms {
+            push(&mut state_space, &norm.identity_bytes());
+        }
+        push(&mut state_space, b"declared-hermitian-parameters/v1");
+        state_space.extend_from_slice(&(temporal.hermitian_parameters.len() as u64).to_be_bytes());
+        for parameter in &temporal.hermitian_parameters {
+            push(&mut state_space, parameter.ulid().to_string().as_bytes());
+        }
+        let state_space_identity = digest(b"eqiora.common-ode-state-space/v5\0", &state_space);
 
         let mut identity = state_space;
         identity.extend_from_slice(&temporal.initial_step_s().to_bits().to_be_bytes());
@@ -363,6 +380,8 @@ impl CommonOdePlan {
             backend,
         };
         plan.admit_forward_policy(kernel)?;
+        plan.admit_hermitian_parameters(kernel)?;
+        plan.admit_conserved_norms(kernel)?;
         Ok(plan)
     }
 
@@ -445,6 +464,7 @@ impl CommonOdePlan {
                 "State belongs to a different exact no-Mesh ODE state space",
             ));
         }
+        self.check_conserved_norms(&state.values)?;
         TimeProblem::new(
             &self.program,
             self.program.equation_class(),
@@ -484,6 +504,7 @@ impl CommonOdeState {
                 "no-Mesh ODE State requires finite time and one finite value per exact state Field",
             ));
         }
+        plan.check_conserved_norms(&values)?;
         let mut bytes = Vec::new();
         push(&mut bytes, plan.state_space_identity().as_bytes());
         bytes.extend_from_slice(&time_s.to_bits().to_be_bytes());

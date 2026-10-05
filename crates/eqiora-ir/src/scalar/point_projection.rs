@@ -202,9 +202,11 @@ impl ScalarOperatorIr {
             Instruction::ToReal(a) => builder.to_real(at(a)),
             Instruction::ToInteger(a) => builder.to_integer(at(a)),
             Instruction::Ordinal(a) => builder.ordinal(at(a)),
-            Instruction::MapInvariant { .. } => Err(ir_builder_error(
-                "numerical map admission cannot be projected into Semantic expressions",
-            )),
+            Instruction::MapInvariant { .. } | Instruction::ComplexDiv { .. } => {
+                Err(ir_builder_error(
+                    "numerical map admission cannot be projected into Semantic expressions",
+                ))
+            }
             Instruction::Neg(a) => builder.neg(at(a)),
             Instruction::Add(a, b) => builder.add(at(a), at(b)),
             Instruction::Sub(a, b) => builder.sub(at(a), at(b)),

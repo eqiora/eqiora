@@ -845,6 +845,7 @@ dependencies = [
  "eqiora-core",
  "eqiora-geometry",
  "eqiora-graph",
+ "eqiora-ir",
  "eqiora-lang",
  "eqiora-schema",
  "num-bigint 0.5.1",

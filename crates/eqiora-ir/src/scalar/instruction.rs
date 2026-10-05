@@ -45,6 +45,10 @@ pub(super) enum Instruction {
     Sub(ValueId, ValueId),
     Mul(ValueId, ValueId),
     Div(ValueId, ValueId),
+    ComplexDiv {
+        operands: [ValueId; 4],
+        imaginary: bool,
+    },
     PowI(ValueId, i32),
     // Contiguous row-major numerical operands; None selects the determinant.
     MapInvariant {
@@ -75,6 +79,13 @@ impl Instruction {
             Self::Sub(a, b) => Self::Sub(at(a), at(b)),
             Self::Mul(a, b) => Self::Mul(at(a), at(b)),
             Self::Div(a, b) => Self::Div(at(a), at(b)),
+            Self::ComplexDiv {
+                operands,
+                imaginary,
+            } => Self::ComplexDiv {
+                operands: operands.map(at),
+                imaginary,
+            },
             Self::MapInvariant { .. } => return None,
             Self::Quotient(a, b) => Self::Quotient(at(a), at(b)),
             Self::Remainder(a, b) => Self::Remainder(at(a), at(b)),

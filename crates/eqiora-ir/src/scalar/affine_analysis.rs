@@ -111,6 +111,22 @@ pub(super) fn summarize(
                 &summaries[summary_index(right, index)?],
                 index,
             )?,
+            Instruction::ComplexDiv {
+                operands,
+                imaginary,
+            } => {
+                let [a, b, c, d] = operands;
+                complex_quotient::affine(
+                    [
+                        &summaries[summary_index(a, index)?],
+                        &summaries[summary_index(b, index)?],
+                        &summaries[summary_index(c, index)?],
+                        &summaries[summary_index(d, index)?],
+                    ],
+                    imaginary,
+                    index,
+                )?
+            }
             Instruction::MapInvariant {
                 start,
                 extent,

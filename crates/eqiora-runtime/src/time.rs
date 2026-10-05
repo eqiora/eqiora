@@ -1,6 +1,7 @@
 mod operator;
 use operator::TimeOperator;
 mod coordinates;
+mod generator;
 pub(crate) use coordinates::state_order;
 
 use std::collections::HashMap;

@@ -255,7 +255,7 @@ fn different_physical_units_have_exact_plan_bound_residual_scales() {
         result
     );
     let mut wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(wire["schema"], "eqiora.resolved-common-plan/v10");
+    assert_eq!(wire["schema"], "eqiora.resolved-common-plan/v11");
     wire["residual_scales"][0]["value"] = serde_json::json!(0.);
     assert!(replay(&serde_json::to_vec(&wire).unwrap()).is_err());
 }

@@ -69,6 +69,10 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
                     ));
                 }
                 Instruction::Constant(_) => 0.0,
+                Instruction::ComplexDiv {
+                    operands,
+                    imaginary,
+                } => complex_quotient::jvp(operands, &values, &tangents, index, imaginary)?,
                 Instruction::MapInvariant {
                     start,
                     extent,
@@ -191,6 +195,16 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
                     ));
                 }
                 Instruction::Constant(_) => {}
+                Instruction::ComplexDiv {
+                    operands,
+                    imaginary,
+                } => {
+                    let contributions =
+                        complex_quotient::vjp(operands, &values, index, imaginary, cotangent)?;
+                    for (operand, contribution) in operands.into_iter().zip(contributions) {
+                        accumulate(&mut adjoints, operand, contribution, index)?;
+                    }
+                }
                 Instruction::MapInvariant {
                     start,
                     extent,

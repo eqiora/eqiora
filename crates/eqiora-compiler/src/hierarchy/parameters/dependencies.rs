@@ -78,6 +78,7 @@ pub(super) fn collect_expression_dependencies(
             ExprKind::Call { callee, arguments }
                 if callee.as_str() == "math.complex"
                     || crate::math::unary_function(callee.as_str()).is_some()
+                    || crate::math::finite::Operation::named(callee.as_str()).is_some()
                     || crate::math::piecewise::arity(callee.as_str()).is_some()
                     || crate::lower::IntegerBuiltin::named(callee.as_str()).is_some() =>
             {

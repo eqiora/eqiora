@@ -2,7 +2,7 @@
 
 Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyBackwardEuler``.
 """
-from typing import ClassVar, Mapping, Self, final
+from typing import ClassVar, Mapping, Sequence, Self, final
 from . import ActivationRef, Dimension, FieldRef, ParameterRef
 
 @final
@@ -41,6 +41,8 @@ class Tsitouras45:
 
     Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyTsitouras45``.
     """
+    def with_conserved_norm(self, fields: Sequence[FieldRef], *, target: float, tolerance: float, dimension: Dimension) -> Self: ...
+    def with_hermitian_parameter(self, parameter: ParameterRef) -> Self: ...
     def __new__(
         cls,
         *,
@@ -71,6 +73,8 @@ class ImplicitMidpoint:
 
     Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyImplicitMidpoint``.
     """
+    def with_conserved_norm(self, fields: Sequence[FieldRef], *, target: float, tolerance: float, dimension: Dimension) -> Self: ...
+    def with_hermitian_parameter(self, parameter: ParameterRef) -> Self: ...
     def __new__(cls, *, step_s: float, relative_tolerance: float, absolute_tolerances: Mapping[tuple[FieldRef, int, int, bool], float]) -> Self: ...
     @property
     def step_s(self) -> float: ...
