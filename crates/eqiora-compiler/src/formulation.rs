@@ -4,7 +4,9 @@ use std::collections::BTreeMap;
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, DimExponents, Id, RawId, ValueShape};
+use eqiora_core::{
+    Diagnostic, DimExponents, Id, RawId, ScalarDomain, ValueFrame, ValueShape, ValueType,
+};
 use eqiora_graph::{EdgeKind, Op, Transaction};
 use eqiora_lang::{BinaryOp, ComponentDecl, Expr, ExprKind, NamePath, TextRange, UnaryOp};
 use eqiora_schema::kernel::{KernelNode, ParameterDef};
@@ -32,8 +34,7 @@ pub use wire::{AuthoredFormExpressionV1, AuthoredFormulationProjection};
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct AuthoredFormExpression {
     kind: AuthoredFormExpressionKind,
-    dimension: DimExponents,
-    shape: ValueShape,
+    value_type: ValueType,
     support: Option<Id<kinds::Domain>>,
 }
 
@@ -367,8 +368,10 @@ fn compile_weak(
         let right = context.compile_root(right)?;
         let zero =
             |v: &AuthoredFormExpression| matches!(v.kind, AuthoredFormExpressionKind::Number(0.0));
-        if (left.dimension != right.dimension && !zero(&left) && !zero(&right))
-            || left.shape != right.shape
+        if (left.value_type.dimension() != right.value_type.dimension()
+            && !zero(&left)
+            && !zero(&right))
+            || left.value_type.shape() != right.value_type.shape()
         {
             return Err(error(
                 file,
@@ -417,22 +420,19 @@ struct ExpressionContext<'a> {
 fn parameter_expression(parameter: &ParameterDef) -> AuthoredFormExpression {
     typed(
         AuthoredFormExpressionKind::Parameter(parameter.id()),
-        parameter.value_type().dimension(),
-        ValueShape::scalar(),
+        parameter.value_type().clone(),
         None,
     )
 }
 
 fn typed(
     kind: AuthoredFormExpressionKind,
-    dimension: DimExponents,
-    shape: ValueShape,
+    value_type: ValueType,
     support: Option<Id<kinds::Domain>>,
 ) -> AuthoredFormExpression {
     AuthoredFormExpression {
         kind,
-        dimension,
-        shape,
+        value_type,
         support,
     }
 }
@@ -523,7 +523,7 @@ fn require_scalar(
     range: TextRange,
     value: &AuthoredFormExpression,
 ) -> Result<(), Diagnostic> {
-    if value.shape.is_scalar() {
+    if value.value_type.shape().is_scalar() {
         Ok(())
     } else {
         Err(error(file, range, "operator requires a scalar expression"))

@@ -571,7 +571,7 @@ pub(super) fn expression(value: &AuthoredFormExpression) -> AuthoredFormExpressi
         AuthoredFormExpressionKind::Rational(rational) => AuthoredFormExpressionV1::Rational {
             numerator: rational.numerator(),
             denominator: rational.denominator(),
-            dimension: value.dimension.exponents(),
+            dimension: value.value_type.dimension().exponents(),
         },
         AuthoredFormExpressionKind::Direction { name, trial } => {
             AuthoredFormExpressionV1::Direction {
@@ -709,7 +709,7 @@ pub(super) fn rejection(message: &str) -> Diagnostic {
 #[cfg(test)]
 mod tests {
     use eqiora_core::entity::kinds;
-    use eqiora_core::{DimExponents, Id, ValueShape};
+    use eqiora_core::{DimExponents, Id, ScalarDomain, ValueType};
 
     use super::*;
 
@@ -717,8 +717,7 @@ mod tests {
         let id = |value: &str| value.parse::<Ulid>().expect("fixed ULID");
         let expression = AuthoredFormExpression {
             kind: AuthoredFormExpressionKind::Number(1.0),
-            dimension: DimExponents::DIMENSIONLESS,
-            shape: ValueShape::scalar(),
+            value_type: ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap(),
             support: None,
         };
         AuthoredFormulationProjection::encode_weak(
