@@ -67,6 +67,50 @@ impl Expr {
         rewrite: &mut dyn FnMut(&NamePath) -> Option<NamePath>,
     ) -> Self {
         let kind = match &self.kind {
+            ExprKind::CoordinateMapFactor { factor, source, at } => ExprKind::CoordinateMapFactor {
+                factor: *factor,
+                source: source
+                    .iter()
+                    .map(|name| {
+                        rewrite(name)
+                            .unwrap_or_else(|| name.clone())
+                            .with_range(name.range())
+                    })
+                    .collect(),
+                at: at
+                    .iter()
+                    .map(|(name, value)| {
+                        (
+                            rewrite(name)
+                                .unwrap_or_else(|| name.clone())
+                                .with_range(name.range()),
+                            value.rewrite_name_paths_with(rewrite),
+                        )
+                    })
+                    .collect(),
+            },
+            ExprKind::Pullback { value, source, at } => ExprKind::Pullback {
+                value: Box::new(value.rewrite_name_paths_with(rewrite)),
+                source: source
+                    .iter()
+                    .map(|name| {
+                        rewrite(name)
+                            .unwrap_or_else(|| name.clone())
+                            .with_range(name.range())
+                    })
+                    .collect(),
+                at: at
+                    .iter()
+                    .map(|(name, value)| {
+                        (
+                            rewrite(name)
+                                .unwrap_or_else(|| name.clone())
+                                .with_range(name.range()),
+                            value.rewrite_name_paths_with(rewrite),
+                        )
+                    })
+                    .collect(),
+            },
             ExprKind::Evaluate { value, at, side } => ExprKind::Evaluate {
                 value: Box::new(value.rewrite_name_paths_with(rewrite)),
                 at: at
@@ -266,6 +310,24 @@ fn expression_name(path: NamePath) -> ExprKind {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ExprKind {
+    /// Differential factor of an explicit map between ordered coordinates.
+    CoordinateMapFactor {
+        /// Signed Jacobian, volume scale, or orientation.
+        factor: eqiora_schema::kernel::CoordinateMapFactor,
+        /// Complete source coordinate inventory.
+        source: Vec<NamePath>,
+        /// Complete target coordinate expressions.
+        at: Vec<(NamePath, Expr)>,
+    },
+    /// Pull an invariant scalar along a map between exact coordinate supports.
+    Pullback {
+        /// Expression on the target support.
+        value: Box<Expr>,
+        /// Complete source coordinate inventory.
+        source: Vec<NamePath>,
+        /// Target coordinates paired with expressions on the source support.
+        at: Vec<(NamePath, Expr)>,
+    },
     /// Bind exact coordinate projections to dimensioned points, without choosing a reconstruction.
     Evaluate {
         /// Analytic expression or represented Field to evaluate.

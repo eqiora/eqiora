@@ -191,6 +191,60 @@ impl Context<'_> {
                 "partial",
                 vec![self.lower(dag, *value, next)?, self.lower(dag, *wrt, next)?],
             ),
+            ExprNode::CoordinateMapFactor { factor, source, at } => {
+                let from = source
+                    .iter()
+                    .map(|id| self.lower(dag, *id, next))
+                    .collect::<Result<_, _>>()?;
+                let bindings = at
+                    .iter()
+                    .map(|(coordinate, mapped)| {
+                        Ok(Math::Binary(
+                            "=",
+                            Box::new(self.lower(dag, *coordinate, next)?),
+                            Box::new(self.lower(dag, *mapped, next)?),
+                        ))
+                    })
+                    .collect::<Result<_, Diagnostic>>()?;
+                call(
+                    match factor {
+                        eqiora_schema::kernel::CoordinateMapFactor::SignedJacobian => {
+                            "jacobian_determinant"
+                        }
+                        eqiora_schema::kernel::CoordinateMapFactor::VolumeScale => {
+                            "volume_jacobian"
+                        }
+                        eqiora_schema::kernel::CoordinateMapFactor::Orientation => {
+                            "map_orientation"
+                        }
+                    },
+                    vec![call("from", from), call("at", bindings)],
+                )
+            }
+            ExprNode::Pullback { value, source, at } => {
+                let from = source
+                    .iter()
+                    .map(|id| self.lower(dag, *id, next))
+                    .collect::<Result<_, _>>()?;
+                let bindings = at
+                    .iter()
+                    .map(|(coordinate, mapped)| {
+                        Ok(Math::Binary(
+                            "=",
+                            Box::new(self.lower(dag, *coordinate, next)?),
+                            Box::new(self.lower(dag, *mapped, next)?),
+                        ))
+                    })
+                    .collect::<Result<_, Diagnostic>>()?;
+                call(
+                    "pullback",
+                    vec![
+                        self.lower(dag, *value, next)?,
+                        call("from", from),
+                        call("at", bindings),
+                    ],
+                )
+            }
             ExprNode::Evaluate { value, at, side } => {
                 let mut arguments = vec![self.lower(dag, *value, next)?];
                 for (coordinate, point) in at {

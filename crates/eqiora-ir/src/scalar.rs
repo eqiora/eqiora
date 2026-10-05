@@ -1,7 +1,9 @@
 mod additive_terms;
 mod affine_analysis;
+mod affine_density;
 mod instruction;
 mod lower;
+mod pullback;
 mod regularity;
 mod slot_affine;
 use instruction::{Instruction, ValueId};

@@ -15,6 +15,36 @@ impl LoweringExpression {
             return value.clone();
         }
         let node = match self.node.as_ref() {
+            LoweringExpressionNode::CoordinateMapFactor { factor, source, at } => {
+                LoweringExpressionNode::CoordinateMapFactor {
+                    factor: *factor,
+                    source: source
+                        .iter()
+                        .map(|coordinate| coordinate.clone_shared(cache))
+                        .collect(),
+                    at: at
+                        .iter()
+                        .map(|(coordinate, mapped)| {
+                            (coordinate.clone_shared(cache), mapped.clone_shared(cache))
+                        })
+                        .collect(),
+                }
+            }
+            LoweringExpressionNode::Pullback { value, source, at } => {
+                LoweringExpressionNode::Pullback {
+                    value: value.clone_shared(cache),
+                    source: source
+                        .iter()
+                        .map(|coordinate| coordinate.clone_shared(cache))
+                        .collect(),
+                    at: at
+                        .iter()
+                        .map(|(coordinate, mapped)| {
+                            (coordinate.clone_shared(cache), mapped.clone_shared(cache))
+                        })
+                        .collect(),
+                }
+            }
             LoweringExpressionNode::Evaluate { value, at, side } => {
                 LoweringExpressionNode::Evaluate {
                     value: value.clone_shared(cache),

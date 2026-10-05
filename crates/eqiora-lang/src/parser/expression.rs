@@ -359,8 +359,17 @@ impl Parser<'_> {
             } else {
                 NamePath::single(name, token.range())
             };
-            if self.at(TokenKind::LeftParen) && path.as_str() == "evaluate" {
-                return self.parse_evaluate(path);
+            if self.at(TokenKind::LeftParen)
+                && matches!(
+                    path.as_str(),
+                    "evaluate"
+                        | "pullback"
+                        | "jacobian_determinant"
+                        | "volume_jacobian"
+                        | "map_orientation"
+                )
+            {
+                return self.parse_coordinate_binding(path);
             }
             if self.at(TokenKind::LeftParen) && path.as_str() == "partial" {
                 return self.parse_partial(path);

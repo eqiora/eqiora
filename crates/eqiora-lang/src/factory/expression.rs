@@ -17,13 +17,38 @@ fn validate_expression_depth(expression: &Expr, depth: usize) -> Result<(), AstC
     }
     checked_range(expression.range())?;
     match expression.kind() {
-        ExprKind::Evaluate { value, at, .. } => {
+        ExprKind::Evaluate { at, .. }
+        | ExprKind::Pullback { at, .. }
+        | ExprKind::CoordinateMapFactor { at, .. } => {
+            if let ExprKind::Pullback { source, .. }
+            | ExprKind::CoordinateMapFactor { source, .. } = expression.kind()
+            {
+                if source.is_empty() || source.len() > super::SourceAstFactory::MAX_EXPRESSION_NODES
+                {
+                    return Err(AstConstructionError::new(
+                        "pullback source inventory exceeds expression bounds",
+                    ));
+                }
+                let mut names = std::collections::BTreeSet::new();
+                for name in source {
+                    validate_name_path(name)?;
+                    if !names.insert(name.as_str()) {
+                        return Err(AstConstructionError::new(
+                            "pullback repeats a source coordinate",
+                        ));
+                    }
+                }
+            }
             if at.is_empty() || at.len() > super::SourceAstFactory::MAX_EXPRESSION_NODES {
                 return Err(AstConstructionError::new(
                     "evaluation coordinate count exceeds expression bounds",
                 ));
             }
-            validate_expression_depth(value, depth + 1)?;
+            if let ExprKind::Evaluate { value, .. } | ExprKind::Pullback { value, .. } =
+                expression.kind()
+            {
+                validate_expression_depth(value, depth + 1)?;
+            }
             let mut names = std::collections::BTreeSet::new();
             for (coordinate, point) in at {
                 validate_name_path(coordinate)?;

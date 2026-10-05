@@ -28,9 +28,12 @@ impl DefinitionScope<'_, '_> {
                 "coordinate from a multi-axis factor requires an explicit axis".into(),
             ));
         }
-        let inferred =
-            eqiora_schema::kernel::typing::coordinate(factor.domain(), axis, Some(&support))
-                .map_err(|error| invalid(error.to_string()))?;
+        let inferred = eqiora_schema::kernel::typing::ExpressionType::coordinate(
+            factor.domain(),
+            axis,
+            Some(&support),
+        )
+        .map_err(|error| invalid(error.to_string()))?;
         let declared = crate::value_types::lower_scalar_type(
             self.file,
             declaration

@@ -2,6 +2,35 @@
 //! Sizes come from typed operands; resource admission belongs to scalarization.
 use super::*;
 
+impl ScalarOperatorIr {
+    /// Evaluate a differential factor with the same factorization and conditioning
+    /// profile as finite-map determinants and inverses. Entries use coherent units;
+    /// the typed coordinate-map owner retains their individual dimensions.
+    /// # Errors
+    /// Rejects invalid shape, resource exhaustion, nonfinite arithmetic, and (for
+    /// volume/orientation) a singular or numerically unresolved differential.
+    pub fn coordinate_map_factor(
+        entries: &[f64],
+        extent: usize,
+        factor: eqiora_schema::kernel::CoordinateMapFactor,
+    ) -> Result<f64, Diagnostic> {
+        use eqiora_schema::kernel::CoordinateMapFactor;
+        let mut map = MapEvaluation::new(entries, extent)?;
+        if factor != CoordinateMapFactor::SignedJacobian {
+            map.inverse()?;
+        }
+        if factor == CoordinateMapFactor::Orientation {
+            return Ok((0..extent).fold(map.sign, |sign, k| sign * map.lu[k * extent + k].signum()));
+        }
+        let determinant = map.value(None)?;
+        Ok(match factor {
+            CoordinateMapFactor::SignedJacobian => determinant,
+            CoordinateMapFactor::VolumeScale => determinant.abs(),
+            CoordinateMapFactor::Orientation => determinant.signum(),
+        })
+    }
+}
+
 pub(super) fn operand_range(
     start: ValueId,
     extent: u32,
@@ -297,6 +326,28 @@ fn infinity_norm(entries: &[f64], n: usize) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn orientation_does_not_require_a_representable_volume_factor() {
+        use eqiora_schema::kernel::CoordinateMapFactor::{Orientation, VolumeScale};
+        for n in [2, 6, 9, 16] {
+            let mut entries = vec![0.0; n * n];
+            for i in 0..n {
+                entries[i * n + i] = 1e-200;
+            }
+            entries[0] = -1e-200;
+            assert_eq!(
+                ScalarOperatorIr::coordinate_map_factor(&entries, n, Orientation).unwrap(),
+                -1.0
+            );
+            assert!(
+                ScalarOperatorIr::coordinate_map_factor(&entries, n, VolumeScale)
+                    .unwrap_err()
+                    .message()
+                    .contains("underflows")
+            );
+        }
+    }
 
     #[test]
     fn normalization_cannot_turn_nonzero_coefficients_into_singular_success() {

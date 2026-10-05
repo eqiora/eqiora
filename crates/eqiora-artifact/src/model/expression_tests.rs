@@ -1,5 +1,60 @@
 use super::*;
 
+#[test]
+fn coordinate_factor_wire_retains_factor_kind_and_map_bindings() {
+    use eqiora_core::Id;
+    for factor in [
+        CoordinateMapFactor::SignedJacobian,
+        CoordinateMapFactor::VolumeScale,
+        CoordinateMapFactor::Orientation,
+    ] {
+        let source = Id::<kinds::Domain>::new();
+        let target = Id::<kinds::Domain>::new();
+        let mut builder = ExprDagBuilder::new();
+        let xi = builder.coordinate(source, source, 0).unwrap();
+        let x = builder.coordinate(target, target, 0).unwrap();
+        let root = builder
+            .coordinate_map_factor(factor, vec![xi], vec![(x, xi)])
+            .unwrap();
+        let expression = builder.finish([root]).unwrap();
+        let wire = WireExpression::encode(&expression).unwrap();
+        let bytes = serde_json::to_vec(&wire).unwrap();
+        let replay: WireExpression = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(replay.decode().unwrap(), expression);
+        let mut malformed = replay;
+        if let WireExpressionNode::CoordinateMapFactor { at, .. } = &mut malformed.nodes[2] {
+            at[0].1 = 2;
+        }
+        assert!(malformed.decode().is_err());
+    }
+}
+
+#[test]
+fn pullback_wire_rejects_forward_references_and_empty_inventories() {
+    use eqiora_core::Id;
+    let source = Id::<kinds::Domain>::new();
+    let target = Id::<kinds::Domain>::new();
+    let mut builder = ExprDagBuilder::new();
+    let xi = builder.coordinate(source, source, 0).unwrap();
+    let x = builder.coordinate(target, target, 0).unwrap();
+    let pulled = builder.pullback(x, vec![xi], vec![(x, xi)]).unwrap();
+    let expression = builder.finish([pulled]).unwrap();
+    let wire = WireExpression::encode(&expression).unwrap();
+    assert_eq!(wire.decode().unwrap(), expression);
+    for (value, source, at) in [
+        (2, vec![0], vec![(1, 0)]),
+        (1, vec![2], vec![(1, 0)]),
+        (1, vec![0], vec![(2, 0)]),
+        (1, vec![0], vec![(1, 2)]),
+        (1, vec![], vec![(1, 0)]),
+        (1, vec![0], vec![]),
+    ] {
+        let mut malformed = wire.clone();
+        malformed.nodes[2] = WireExpressionNode::Pullback { value, source, at };
+        assert!(malformed.decode().is_err());
+    }
+}
+
 #[cfg(test)]
 mod typed_operation_tests {
     use super::*;

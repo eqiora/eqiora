@@ -20,6 +20,17 @@ use super::pure_operator::{OperatorDefinitionDigest, PureOperatorDefinition};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ExprId(u32);
 
+/// Local differential factor of a map between ordered coordinate supports.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CoordinateMapFactor {
+    /// Signed determinant; zero is permitted for a singular differential.
+    SignedJacobian,
+    /// Absolute determinant for an admitted invertible volume transformation.
+    VolumeScale,
+    /// Dimensionless orientation, +1 or -1, of an invertible differential.
+    Orientation,
+}
+
 impl ExprId {
     /// Zero-based arena index, for diagnostics and wire adapters.
     #[must_use]
@@ -146,6 +157,25 @@ impl PureOperatorApplication {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ExprNode {
+    /// A local differential factor derived from the retained map expressions.
+    CoordinateMapFactor {
+        /// Signed determinant, invertible volume scale, or orientation.
+        factor: CoordinateMapFactor,
+        /// Complete ordered source coordinates.
+        source: Vec<ExprId>,
+        /// Ordered target coordinates and their source-supported expressions.
+        at: Vec<(ExprId, ExprId)>,
+    },
+    /// Pull an invariant scalar back along an exact coordinate map.
+    /// Source selectors and target bindings retain map meaning in this DAG.
+    Pullback {
+        /// Scalar expression on the target support.
+        value: ExprId,
+        /// Complete ordered source coordinate selectors.
+        source: Vec<ExprId>,
+        /// Complete target selectors paired with source-supported coordinate expressions.
+        at: Vec<(ExprId, ExprId)>,
+    },
     /// Evaluate at exact coordinate bindings. No interpolation or extrapolation is implied.
     Evaluate {
         /// Expression whose spatial coordinates are bound.
@@ -245,6 +275,27 @@ impl ExprNode {
         mut visit: impl FnMut(ExprId) -> Result<(), E>,
     ) -> Result<(), E> {
         match self {
+            Self::CoordinateMapFactor { source, at, .. } => {
+                for coordinate in source {
+                    visit(*coordinate)?;
+                }
+                for (coordinate, value) in at {
+                    visit(*coordinate)?;
+                    visit(*value)?;
+                }
+                Ok(())
+            }
+            Self::Pullback { value, source, at } => {
+                visit(*value)?;
+                for coordinate in source {
+                    visit(*coordinate)?;
+                }
+                for (coordinate, mapped) in at {
+                    visit(*coordinate)?;
+                    visit(*mapped)?;
+                }
+                Ok(())
+            }
             Self::Evaluate { value, at, .. } => {
                 visit(*value)?;
                 for (coordinate, point) in at {
@@ -648,6 +699,41 @@ impl ExprDagBuilder {
             ));
         }
         self.push(ExprNode::Evaluate { value, at, side })
+    }
+
+    /// Retain a map between exact coordinate supports, before numerical sampling.
+    /// Type admission proves complete inventories and each coordinate's own unit.
+    pub fn pullback(
+        &mut self,
+        value: ExprId,
+        source: Vec<ExprId>,
+        at: Vec<(ExprId, ExprId)>,
+    ) -> Result<ExprId, Diagnostic> {
+        if source.is_empty() || at.is_empty() {
+            return Err(Diagnostic::error(
+                codes::INVALID_EXPRESSION_DAG,
+                "coordinate pullback requires nonempty source and target coordinates",
+            ));
+        }
+        self.push(ExprNode::Pullback { value, source, at })
+    }
+
+    /// Derive a local Jacobian factor from a complete coordinate map.
+    /// # Errors
+    /// Rejects empty inventories and operands outside this expression arena.
+    pub fn coordinate_map_factor(
+        &mut self,
+        factor: CoordinateMapFactor,
+        source: Vec<ExprId>,
+        at: Vec<(ExprId, ExprId)>,
+    ) -> Result<ExprId, Diagnostic> {
+        if source.is_empty() || at.is_empty() {
+            return Err(Diagnostic::error(
+                codes::INVALID_EXPRESSION_DAG,
+                "coordinate map factor requires nonempty coordinate inventories",
+            ));
+        }
+        self.push(ExprNode::CoordinateMapFactor { factor, source, at })
     }
 
     /// Take the physical-space divergence.

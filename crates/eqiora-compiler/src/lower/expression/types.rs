@@ -131,6 +131,12 @@ fn expression_type_cached(
     let mut infer = |operand| expression_type_cached(file, operand, bindings, support, cache);
     let violation = |error| spatial_type_error(file, expression, error);
     let inferred = match expression.node.as_ref() {
+        LoweringExpressionNode::CoordinateMapFactor { factor, source, at } => {
+            super::pullback::infer_factor(file, expression, *factor, source, at, &mut infer)
+        }
+        LoweringExpressionNode::Pullback { value, source, at } => {
+            super::pullback::infer(file, expression, value, source, at, &mut infer)
+        }
         LoweringExpressionNode::Evaluate { value, at, side } => {
             super::evaluate::infer(file, expression, value, at, side.is_some(), &mut infer)
         }
@@ -346,7 +352,7 @@ fn expression_type_cached(
                     .filter(|support| support.ambient_dimensions().is_some())
                     .ok_or(typing::TypeViolation::CoordinateRequiresSpatialScope)
                     .map_err(violation)?;
-                return typing::coordinate(
+                return typing::ExpressionType::coordinate(
                     support.parent().unwrap_or(support.domain()),
                     axis,
                     Some(support),
@@ -555,6 +561,6 @@ fn declared_coordinate_type(
             "coordinate factor is not a Domain",
         ));
     };
-    typing::coordinate(&factor.erase(), *axis, Some(&support))
+    typing::ExpressionType::coordinate(&factor.erase(), *axis, Some(&support))
         .map_err(|error| spatial_type_error(file, expression, error))
 }

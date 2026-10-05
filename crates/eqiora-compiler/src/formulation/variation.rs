@@ -230,7 +230,7 @@ impl ExpressionContext<'_> {
                         },
                         _ => return Err(()),
                     };
-                    eqiora_schema::kernel::typing::coordinate(
+                    eqiora_schema::kernel::typing::ExpressionType::coordinate(
                         &factor.erase(),
                         axis,
                         Some(&coordinate_support),

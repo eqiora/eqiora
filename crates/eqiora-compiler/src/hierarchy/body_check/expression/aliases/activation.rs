@@ -121,7 +121,11 @@ impl DependencyActivation {
                     pending.push(value);
                     Self::Static
                 }
-                ExprKind::Evaluate { value, at, .. } => {
+                ExprKind::CoordinateMapFactor { at, .. } => {
+                    pending.extend(at.iter().map(|(_, point)| point));
+                    Self::Static
+                }
+                ExprKind::Evaluate { value, at, .. } | ExprKind::Pullback { value, at, .. } => {
                     pending.push(value);
                     pending.extend(at.iter().map(|(_, point)| point));
                     Self::Static

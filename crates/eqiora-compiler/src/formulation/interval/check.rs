@@ -127,8 +127,12 @@ pub(super) fn check(
                 factor,
                 axis,
             } if declared.erase() == *domain => {
-                eqiora_schema::kernel::typing::coordinate(&factor.erase(), axis, Some(&support))
-                    .map_err(|_| ())
+                eqiora_schema::kernel::typing::ExpressionType::coordinate(
+                    &factor.erase(),
+                    axis,
+                    Some(&support),
+                )
+                .map_err(|_| ())
             }
             SymbolRef::Field(id) if id.erase() == trial.0 => Ok(ExpressionType::new(
                 field.value_type().clone(),

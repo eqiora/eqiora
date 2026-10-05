@@ -183,6 +183,65 @@ impl KernelProgram {
         Ok(value)
     }
 
+    /// Evaluate the retained density of an integral at an exact input point.
+    /// The numerical owner separately admits regularity, chooses quadrature and
+    /// applies the declared measure. This operation performs none of those steps.
+    /// # Errors
+    /// Rejects foreign Observables, non-integral reductions, foreign input points,
+    /// unavailable reconstruction inputs and values differing from the typed density.
+    pub fn evaluate_observable_density_with_points(
+        &self,
+        observable: Id<kinds::Observable>,
+        point: &crate::EvaluationPoint,
+        resolve: &mut impl FnMut(
+            crate::EvaluationInput,
+            Option<&crate::EvaluationPoint>,
+        ) -> Result<eqiora_core::ValueLiteral, Diagnostic>,
+    ) -> Result<eqiora_core::ValueLiteral, Diagnostic> {
+        let Some(KernelNode::Observable(definition)) = self.node(observable.erase()) else {
+            return Err(kernel_error(
+                observable.erase(),
+                "density requires an exact retained Observable",
+            ));
+        };
+        let eqiora_schema::kernel::ObservableReduction::SpatialIntegral { input, .. } =
+            definition.reduction()
+        else {
+            return Err(kernel_error(
+                observable.erase(),
+                "density evaluation requires an integral Observable",
+            ));
+        };
+        if point.domain() != input {
+            return Err(kernel_error(
+                observable.erase(),
+                "density point requires the exact integral input support",
+            ));
+        }
+        point.validate(self)?;
+        let typed = self
+            .typed_observable(observable)
+            .map_err(|errors| errors.into_iter().next().expect("failed typing"))?;
+        let values = crate::evaluate::evaluate_with_points(
+            self,
+            observable.erase(),
+            definition.expression(),
+            Some(point),
+            resolve,
+        )?;
+        let value = values.into_iter().next().ok_or_else(|| {
+            kernel_error(observable.erase(), "integral density has no evaluated root")
+        })?;
+        let root = definition.expression().roots()[0];
+        if value.value_type() != &typed.node_type(root).expect("typed density").value_type {
+            return Err(kernel_error(
+                observable.erase(),
+                "evaluated density differs from its admitted type",
+            ));
+        }
+        Ok(value)
+    }
+
     /// Infer an Observable's retained expression in this exact Model.
     /// # Errors
     /// Rejects foreign identities or incompatible expression/measure types.

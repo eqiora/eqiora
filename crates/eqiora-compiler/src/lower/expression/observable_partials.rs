@@ -105,10 +105,14 @@ pub(in crate::lower) fn expand<'a>(
                 let Some(Binding::Domain(factor_id, _)) = bindings.get(factor) else {
                     return Err(invalid("partial coordinate factor is unavailable"));
                 };
-                eqiora_schema::kernel::typing::coordinate(&factor_id.erase(), *axis, Some(&output))
-                    .map_err(|_| {
-                        invalid("partial coordinate is not an exact remaining integral factor")
-                    })?;
+                eqiora_schema::kernel::typing::ExpressionType::coordinate(
+                    &factor_id.erase(),
+                    *axis,
+                    Some(&output),
+                )
+                .map_err(|_| {
+                    invalid("partial coordinate is not an exact remaining integral factor")
+                })?;
                 let input_name = bindings
                     .iter()
                     .find_map(|(name, binding)| match binding {

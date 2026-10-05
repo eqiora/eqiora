@@ -974,6 +974,38 @@ def vjp(value: object, *, wrt: Expression, cotangent: object) -> Expression:
     ...
 
 
+def pullback(value: object, *, from_: Sequence[Expression], at: Sequence[tuple[Expression, object]]) -> Expression:
+    """Author an explicit coordinate map operation.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::pullback``.
+    """
+    ...
+
+
+def jacobian_determinant(*, from_: Sequence[Expression], at: Sequence[tuple[Expression, object]]) -> Expression:
+    """Author an explicit coordinate map operation.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::jacobian_determinant``.
+    """
+    ...
+
+
+def volume_jacobian(*, from_: Sequence[Expression], at: Sequence[tuple[Expression, object]]) -> Expression:
+    """Author an explicit coordinate map operation.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::volume_jacobian``.
+    """
+    ...
+
+
+def map_orientation(*, from_: Sequence[Expression], at: Sequence[tuple[Expression, object]]) -> Expression:
+    """Author an explicit coordinate map operation.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::map_orientation``.
+    """
+    ...
+
+
 def evaluate(value: object, *, at: Sequence[tuple[Expression, object]], side: Literal["lower", "upper"] | None = None) -> Expression:
     """Bind every coordinate of an exact support using its admitted point reconstruction.
 

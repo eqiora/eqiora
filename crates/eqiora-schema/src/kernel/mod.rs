@@ -37,7 +37,8 @@ pub use definition::{
 };
 pub use expression::property::{PropertyDerivatives, PropertyMeaning, PropertyRelease};
 pub use expression::{
-    ComparisonOp, ExprDag, ExprDagBuilder, ExprId, ExprNode, FiniteBinaryOperation,
-    FiniteUnaryOperation, PureOperatorApplication, SymbolRef, UnaryMathFunction,
+    ComparisonOp, CoordinateMapFactor, ExprDag, ExprDagBuilder, ExprId, ExprNode,
+    FiniteBinaryOperation, FiniteUnaryOperation, PureOperatorApplication, SymbolRef,
+    UnaryMathFunction,
 };
 pub use time::RationalTime;

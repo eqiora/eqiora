@@ -1,6 +1,57 @@
 //! Ordered expression projection and canonical operand traversal.
 use super::*;
 
+// Rust rejects duplicate discriminants at this canonical expression owner.
+#[repr(u8)]
+enum ExpressionTag {
+    Constant = 1,
+    Symbol = 2,
+    Neg = 3,
+    Add = 4,
+    Sub = 5,
+    Mul = 6,
+    Div = 7,
+    PowI = 8,
+    UnaryMath = 10,
+    Gradient = 11,
+    Divergence = 12,
+    SymmetricPart = 13,
+    IsotropicLift = 14,
+    Trace = 15,
+    NormalComponent = 16,
+    PureOperator = 17,
+    Array = 18,
+    Index = 19,
+    Complex = 20,
+    Sample = 21,
+    Hold = 22,
+    Quotient = 23,
+    Remainder = 24,
+    ToReal = 25,
+    ToInteger = 26,
+    Ordinal = 27,
+    Compare = 28,
+    Not = 29,
+    And = 30,
+    Or = 31,
+    Select = 34,
+    Require = 35,
+    Transpose = 36,
+    Adjoint = 37,
+    Apply = 38,
+    Compose = 39,
+    Pair = 40,
+    TensorProduct = 41,
+    PermuteFactors = 42,
+    CoordinatePartial = 43,
+    Evaluate = 44,
+    MatrixTrace = 45,
+    Determinant = 46,
+    Inverse = 47,
+    Pullback = 48,
+    CoordinateMapFactor = 49,
+}
+
 pub(super) fn encode_expression(
     encoder: &mut Encoder,
     expression: &ExprDag,
@@ -20,7 +71,7 @@ pub(super) fn encode_expression(
         let index = canonical_index[original_index];
         match node {
             ExprNode::Constant(value) => {
-                encoder.u8(1)?;
+                encoder.u8(ExpressionTag::Constant as u8)?;
                 encode_literal(encoder, value)?;
                 let mut label = Encoder::new(32);
                 label.u8(3)?;
@@ -30,7 +81,7 @@ pub(super) fn encode_expression(
                 type_reference(value.value_type(), label.finish()?, ids, references, budget)?;
             }
             ExprNode::Array { elements } => {
-                encoder.u8(18)?;
+                encoder.u8(ExpressionTag::Array as u8)?;
                 encoder.u32(
                     u32::try_from(elements.len())
                         .map_err(|_| fingerprint_error("array operands exceed u32"))?,
@@ -40,14 +91,18 @@ pub(super) fn encode_expression(
                 }
             }
             ExprNode::Index { value, index } => {
-                unary_expr(encoder, 19, *value, &canonical_index)?;
+                unary_expr(encoder, ExpressionTag::Index, *value, &canonical_index)?;
                 encoder.u32(*index)?;
             }
-            ExprNode::Complex { real, imag } => {
-                binary_expr(encoder, 20, *real, *imag, &canonical_index)?
-            }
+            ExprNode::Complex { real, imag } => binary_expr(
+                encoder,
+                ExpressionTag::Complex,
+                *real,
+                *imag,
+                &canonical_index,
+            )?,
             ExprNode::Sample { value, clock } => {
-                unary_expr(encoder, 21, *value, &canonical_index)?;
+                unary_expr(encoder, ExpressionTag::Sample, *value, &canonical_index)?;
                 let mut label = Encoder::new(32);
                 label.u8(3)?;
                 label.u8(scope)?;
@@ -60,13 +115,15 @@ pub(super) fn encode_expression(
                     budget,
                 )?;
             }
-            ExprNode::Hold(value) => unary_expr(encoder, 22, *value, &canonical_index)?,
+            ExprNode::Hold(value) => {
+                unary_expr(encoder, ExpressionTag::Hold, *value, &canonical_index)?
+            }
             ExprNode::Symbol(symbol) => {
-                encoder.u8(2)?;
+                encoder.u8(ExpressionTag::Symbol as u8)?;
                 encode_symbol(encoder, *symbol, scope, index, ids, references, budget)?;
             }
             ExprNode::Compare(op, left, right) => {
-                encoder.u8(28)?;
+                encoder.u8(ExpressionTag::Compare as u8)?;
                 encoder.u8(match op {
                     eqiora_schema::kernel::ComparisonOp::Equal => 0,
                     eqiora_schema::kernel::ComparisonOp::NotEqual => 1,
@@ -78,45 +135,77 @@ pub(super) fn encode_expression(
                 encoder.u32(canonical_expr_id(*left, &canonical_index)?)?;
                 encoder.u32(canonical_expr_id(*right, &canonical_index)?)?;
             }
-            ExprNode::Not(value) => unary_expr(encoder, 29, *value, &canonical_index)?,
-            ExprNode::And(left, right) => {
-                binary_expr(encoder, 30, *left, *right, &canonical_index)?
+            ExprNode::Not(value) => {
+                unary_expr(encoder, ExpressionTag::Not, *value, &canonical_index)?
             }
-            ExprNode::Or(left, right) => binary_expr(encoder, 31, *left, *right, &canonical_index)?,
+            ExprNode::And(left, right) => {
+                binary_expr(encoder, ExpressionTag::And, *left, *right, &canonical_index)?
+            }
+            ExprNode::Or(left, right) => {
+                binary_expr(encoder, ExpressionTag::Or, *left, *right, &canonical_index)?
+            }
             ExprNode::Select {
                 condition,
                 then_value,
                 else_value,
             } => {
-                encoder.u8(34)?;
+                encoder.u8(ExpressionTag::Select as u8)?;
                 for operand in [condition, then_value, else_value] {
                     encoder.u32(canonical_expr_id(*operand, &canonical_index)?)?;
                 }
             }
-            ExprNode::Require { condition, value } => {
-                binary_expr(encoder, 35, *condition, *value, &canonical_index)?
+            ExprNode::Require { condition, value } => binary_expr(
+                encoder,
+                ExpressionTag::Require,
+                *condition,
+                *value,
+                &canonical_index,
+            )?,
+            ExprNode::Quotient(left, right) => binary_expr(
+                encoder,
+                ExpressionTag::Quotient,
+                *left,
+                *right,
+                &canonical_index,
+            )?,
+            ExprNode::Remainder(left, right) => binary_expr(
+                encoder,
+                ExpressionTag::Remainder,
+                *left,
+                *right,
+                &canonical_index,
+            )?,
+            ExprNode::Ordinal(value) => {
+                unary_expr(encoder, ExpressionTag::Ordinal, *value, &canonical_index)?
             }
-            ExprNode::Quotient(left, right) => {
-                binary_expr(encoder, 23, *left, *right, &canonical_index)?
+            ExprNode::ToReal(value) => {
+                unary_expr(encoder, ExpressionTag::ToReal, *value, &canonical_index)?
             }
-            ExprNode::Remainder(left, right) => {
-                binary_expr(encoder, 24, *left, *right, &canonical_index)?
+            ExprNode::ToInteger(value) => {
+                unary_expr(encoder, ExpressionTag::ToInteger, *value, &canonical_index)?
             }
-            ExprNode::Ordinal(value) => unary_expr(encoder, 27, *value, &canonical_index)?,
-            ExprNode::ToReal(value) => unary_expr(encoder, 25, *value, &canonical_index)?,
-            ExprNode::ToInteger(value) => unary_expr(encoder, 26, *value, &canonical_index)?,
-            ExprNode::Neg(value) => unary_expr(encoder, 3, *value, &canonical_index)?,
-            ExprNode::Add(left, right) => binary_expr(encoder, 4, *left, *right, &canonical_index)?,
-            ExprNode::Sub(left, right) => binary_expr(encoder, 5, *left, *right, &canonical_index)?,
-            ExprNode::Mul(left, right) => binary_expr(encoder, 6, *left, *right, &canonical_index)?,
-            ExprNode::Div(left, right) => binary_expr(encoder, 7, *left, *right, &canonical_index)?,
+            ExprNode::Neg(value) => {
+                unary_expr(encoder, ExpressionTag::Neg, *value, &canonical_index)?
+            }
+            ExprNode::Add(left, right) => {
+                binary_expr(encoder, ExpressionTag::Add, *left, *right, &canonical_index)?
+            }
+            ExprNode::Sub(left, right) => {
+                binary_expr(encoder, ExpressionTag::Sub, *left, *right, &canonical_index)?
+            }
+            ExprNode::Mul(left, right) => {
+                binary_expr(encoder, ExpressionTag::Mul, *left, *right, &canonical_index)?
+            }
+            ExprNode::Div(left, right) => {
+                binary_expr(encoder, ExpressionTag::Div, *left, *right, &canonical_index)?
+            }
             ExprNode::PowI(value, exponent) => {
-                encoder.u8(8)?;
+                encoder.u8(ExpressionTag::PowI as u8)?;
                 encoder.u32(canonical_expr_id(*value, &canonical_index)?)?;
                 encoder.i32(*exponent)?;
             }
             ExprNode::UnaryMath(function, value) => {
-                encoder.u8(10)?;
+                encoder.u8(ExpressionTag::UnaryMath as u8)?;
                 match function {
                     UnaryMathFunction::Sin => encoder.u8(1)?,
                     UnaryMathFunction::Sqrt => encoder.u8(2)?,
@@ -136,12 +225,12 @@ pub(super) fn encode_expression(
             ExprNode::FiniteUnary(operation, value) => {
                 use eqiora_schema::kernel::FiniteUnaryOperation;
                 let tag = match operation {
-                    FiniteUnaryOperation::MatrixTrace => 45,
-                    FiniteUnaryOperation::Determinant => 46,
-                    FiniteUnaryOperation::Inverse => 47,
-                    FiniteUnaryOperation::Transpose => 36,
-                    FiniteUnaryOperation::Adjoint => 37,
-                    FiniteUnaryOperation::PermuteFactors(_) => 42,
+                    FiniteUnaryOperation::MatrixTrace => ExpressionTag::MatrixTrace,
+                    FiniteUnaryOperation::Determinant => ExpressionTag::Determinant,
+                    FiniteUnaryOperation::Inverse => ExpressionTag::Inverse,
+                    FiniteUnaryOperation::Transpose => ExpressionTag::Transpose,
+                    FiniteUnaryOperation::Adjoint => ExpressionTag::Adjoint,
+                    FiniteUnaryOperation::PermuteFactors(_) => ExpressionTag::PermuteFactors,
                 };
                 unary_expr(encoder, tag, *value, &canonical_index)?;
                 if let FiniteUnaryOperation::PermuteFactors(order) = operation {
@@ -152,18 +241,53 @@ pub(super) fn encode_expression(
             ExprNode::FiniteBinary(operation, left, right) => {
                 use eqiora_schema::kernel::FiniteBinaryOperation;
                 let tag = match operation {
-                    FiniteBinaryOperation::Apply => 38,
-                    FiniteBinaryOperation::Compose => 39,
-                    FiniteBinaryOperation::Pair => 40,
-                    FiniteBinaryOperation::TensorProduct => 41,
+                    FiniteBinaryOperation::Apply => ExpressionTag::Apply,
+                    FiniteBinaryOperation::Compose => ExpressionTag::Compose,
+                    FiniteBinaryOperation::Pair => ExpressionTag::Pair,
+                    FiniteBinaryOperation::TensorProduct => ExpressionTag::TensorProduct,
                 };
                 binary_expr(encoder, tag, *left, *right, &canonical_index)?;
             }
-            ExprNode::CoordinatePartial { value, wrt } => {
-                binary_expr(encoder, 43, *value, *wrt, &canonical_index)?
+            ExprNode::CoordinatePartial { value, wrt } => binary_expr(
+                encoder,
+                ExpressionTag::CoordinatePartial,
+                *value,
+                *wrt,
+                &canonical_index,
+            )?,
+            ExprNode::CoordinateMapFactor { factor, source, at } => {
+                use eqiora_schema::kernel::CoordinateMapFactor;
+                encoder.u8(ExpressionTag::CoordinateMapFactor as u8)?;
+                encoder.u8(match factor {
+                    CoordinateMapFactor::SignedJacobian => 0,
+                    CoordinateMapFactor::VolumeScale => 1,
+                    CoordinateMapFactor::Orientation => 2,
+                })?;
+                encoder.len(source.len())?;
+                for coordinate in source {
+                    encoder.u32(canonical_expr_id(*coordinate, &canonical_index)?)?;
+                }
+                encoder.len(at.len())?;
+                for (coordinate, mapped) in at {
+                    encoder.u32(canonical_expr_id(*coordinate, &canonical_index)?)?;
+                    encoder.u32(canonical_expr_id(*mapped, &canonical_index)?)?;
+                }
+            }
+            ExprNode::Pullback { value, source, at } => {
+                encoder.u8(ExpressionTag::Pullback as u8)?;
+                encoder.u32(canonical_expr_id(*value, &canonical_index)?)?;
+                encoder.len(source.len())?;
+                for coordinate in source {
+                    encoder.u32(canonical_expr_id(*coordinate, &canonical_index)?)?;
+                }
+                encoder.len(at.len())?;
+                for (coordinate, mapped) in at {
+                    encoder.u32(canonical_expr_id(*coordinate, &canonical_index)?)?;
+                    encoder.u32(canonical_expr_id(*mapped, &canonical_index)?)?;
+                }
             }
             ExprNode::Evaluate { value, at, side } => {
-                encoder.u8(44)?;
+                encoder.u8(ExpressionTag::Evaluate as u8)?;
                 encoder.u32(canonical_expr_id(*value, &canonical_index)?)?;
                 encoder.len(at.len())?;
                 for (coordinate, point) in at {
@@ -176,14 +300,35 @@ pub(super) fn encode_expression(
                     Some(eqiora_schema::kernel::BoundarySide::Upper) => 2,
                 })?;
             }
-            ExprNode::Gradient(value) => unary_expr(encoder, 11, *value, &canonical_index)?,
-            ExprNode::Divergence(value) => unary_expr(encoder, 12, *value, &canonical_index)?,
-            ExprNode::SymmetricPart(value) => unary_expr(encoder, 13, *value, &canonical_index)?,
-            ExprNode::IsotropicLift(value) => unary_expr(encoder, 14, *value, &canonical_index)?,
-            ExprNode::Trace(value) => unary_expr(encoder, 15, *value, &canonical_index)?,
-            ExprNode::NormalComponent(value) => unary_expr(encoder, 16, *value, &canonical_index)?,
+            ExprNode::Gradient(value) => {
+                unary_expr(encoder, ExpressionTag::Gradient, *value, &canonical_index)?
+            }
+            ExprNode::Divergence(value) => {
+                unary_expr(encoder, ExpressionTag::Divergence, *value, &canonical_index)?
+            }
+            ExprNode::SymmetricPart(value) => unary_expr(
+                encoder,
+                ExpressionTag::SymmetricPart,
+                *value,
+                &canonical_index,
+            )?,
+            ExprNode::IsotropicLift(value) => unary_expr(
+                encoder,
+                ExpressionTag::IsotropicLift,
+                *value,
+                &canonical_index,
+            )?,
+            ExprNode::Trace(value) => {
+                unary_expr(encoder, ExpressionTag::Trace, *value, &canonical_index)?
+            }
+            ExprNode::NormalComponent(value) => unary_expr(
+                encoder,
+                ExpressionTag::NormalComponent,
+                *value,
+                &canonical_index,
+            )?,
             ExprNode::PureOperatorApplication(application) => {
-                encoder.u8(17)?;
+                encoder.u8(ExpressionTag::PureOperator as u8)?;
                 encoder.raw(&application.definition().bytes())?;
                 encoder.len(application.arguments().len())?;
                 for argument in application.arguments() {
@@ -275,22 +420,22 @@ fn encode_symbol(
 
 fn unary_expr(
     encoder: &mut Encoder,
-    tag: u8,
+    tag: ExpressionTag,
     value: eqiora_schema::kernel::ExprId,
     canonical_index: &[u32],
 ) -> Result<(), Diagnostic> {
-    encoder.u8(tag)?;
+    encoder.u8(tag as u8)?;
     encoder.u32(canonical_expr_id(value, canonical_index)?)
 }
 
 fn binary_expr(
     encoder: &mut Encoder,
-    tag: u8,
+    tag: ExpressionTag,
     left: eqiora_schema::kernel::ExprId,
     right: eqiora_schema::kernel::ExprId,
     canonical_index: &[u32],
 ) -> Result<(), Diagnostic> {
-    encoder.u8(tag)?;
+    encoder.u8(tag as u8)?;
     encoder.u32(canonical_expr_id(left, canonical_index)?)?;
     encoder.u32(canonical_expr_id(right, canonical_index)?)
 }
@@ -353,6 +498,21 @@ fn expression_operands(node: &ExprNode) -> Vec<eqiora_schema::kernel::ExprId> {
         ExprNode::Array { elements } => elements.clone(),
         ExprNode::Complex { real, imag } => vec![*real, *imag],
         ExprNode::CoordinatePartial { value, wrt } => vec![*value, *wrt],
+        ExprNode::CoordinateMapFactor { source, at, .. } => source
+            .iter()
+            .copied()
+            .chain(
+                at.iter()
+                    .flat_map(|(coordinate, mapped)| [*coordinate, *mapped]),
+            )
+            .collect(),
+        ExprNode::Pullback { value, source, at } => std::iter::once(*value)
+            .chain(source.iter().copied())
+            .chain(
+                at.iter()
+                    .flat_map(|(coordinate, mapped)| [*coordinate, *mapped]),
+            )
+            .collect(),
         ExprNode::Evaluate { value, at, .. } => std::iter::once(*value)
             .chain(
                 at.iter()

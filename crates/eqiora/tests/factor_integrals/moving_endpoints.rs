@@ -138,7 +138,7 @@ fn limits_bind_semantic_identity_and_reject_displaced_wire() {
     let swapped = document(&SOURCE.replace("lower=0[m],upper=a", "lower=a,upper=0[m]")).unwrap();
     assert!(!original.structurally_equivalent(&swapped).unwrap());
     let wire = String::from_utf8(original.canonical_json().unwrap()).unwrap();
-    let displaced = wire.replace("eqiora.model-envelope/v39", "eqiora.model-envelope/v37");
+    let displaced = wire.replace("eqiora.model-envelope/v40", "eqiora.model-envelope/v37");
     assert_ne!(wire, displaced);
     assert!(ModelDocument::replay(displaced.as_bytes()).is_err());
 }
