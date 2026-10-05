@@ -20,6 +20,9 @@ pub fn resolve_common_plan(
     authored_formulation: Option<&AuthoredFormulationProjection>,
 ) -> Result<ResolvedCommonPlan, Diagnostic> {
     let recognized = RecognizedNativeAdmission::recognize(model, owner)?;
+    if let Some(projection) = authored_formulation {
+        crate::form_compiler::check_authored_dependence(projection, &recognized.program)?;
+    }
     let (spatial, formulation) = method.into().split();
     match &recognized.recognized {
         RecognizedNativeModel::Coordinates(projection) => {

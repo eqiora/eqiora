@@ -11,6 +11,7 @@ impl PrimalGalerkinCorrespondence {
         program: &KernelProgram,
         dimension: usize,
     ) -> Result<bool, Diagnostic> {
+        crate::form_compiler::check_authored_dependence(projection, program)?;
         let mut variation_dimensions = Vec::new();
         let mut remaining = 65536usize;
         for (_, left, right) in projection.equations() {
