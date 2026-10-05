@@ -2,6 +2,7 @@ use eqiora_core::{Diagnostic, ValueLiteral, ValueType, diagnostic::codes};
 use num_complex::Complex64;
 
 mod metric;
+mod projection;
 mod subspace;
 
 /// A finite Hermitian matrix pencil with an explicitly positive-definite metric.
@@ -24,6 +25,15 @@ impl<'a> HermitianEigenproblem<'a> {
     /// Cholesky pivot of the metric. No dimension-specific formula or size cap
     /// is used. Numerically nonpositive/nonfinite pivots reject explicitly.
     pub fn new(operator: &'a ValueLiteral, metric: &'a ValueLiteral) -> Result<Self, Diagnostic> {
+        let pencil = Self::pencil(operator, metric)?;
+        metric::require_positive_pivots(metric, pencil.dimension)?;
+        Ok(pencil)
+    }
+
+    // Only numerical admission constructs a public executable problem. The
+    // original source pencil can have excluded null directions; verification
+    // below may inspect it without admitting those directions for execution.
+    fn pencil(operator: &'a ValueLiteral, metric: &'a ValueLiteral) -> Result<Self, Diagnostic> {
         let (eigenvalue_type, mode_type) = operator
             .value_type()
             .hermitian_eigenpair_types(metric.value_type())
@@ -31,7 +41,6 @@ impl<'a> HermitianEigenproblem<'a> {
         let dimension = mode_type.shape().component_count().expect("checked type");
         require_hermitian(operator, dimension)?;
         require_hermitian(metric, dimension)?;
-        metric::require_positive_pivots(metric, dimension)?;
         Ok(Self {
             operator,
             metric,
@@ -39,6 +48,31 @@ impl<'a> HermitianEigenproblem<'a> {
             mode_type,
             dimension,
         })
+    }
+
+    /// Verify a lifted mode against a complete original Hermitian pencil.
+    ///
+    /// The original metric need not be positive definite outside the admitted
+    /// space. This evaluates residual and normalization only; it does not admit
+    /// a singular/indefinite pencil for execution or prove subspace membership.
+    pub fn original_eigenpair_defects(
+        operator: &'a ValueLiteral,
+        metric: &'a ValueLiteral,
+        eigenvalue: &ValueLiteral,
+        mode: &ValueLiteral,
+    ) -> Result<(f64, f64), Diagnostic> {
+        Self::pencil(operator, metric)?.eigenpair_defects(eigenvalue, mode)
+    }
+
+    /// Verify B-orthonormal lifted modes and construct their original-space
+    /// metric projector. Positivity outside their span is not established.
+    pub fn original_metric_projector(
+        operator: &'a ValueLiteral,
+        metric: &'a ValueLiteral,
+        modes: &[ValueLiteral],
+        tolerance: f64,
+    ) -> Result<ValueLiteral, Diagnostic> {
+        Self::pencil(operator, metric)?.metric_projector(modes, tolerance)
     }
 
     /// Complete typed operator, in row-major component order.

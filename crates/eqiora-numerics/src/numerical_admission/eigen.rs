@@ -11,6 +11,9 @@ mod request;
 mod source;
 pub use request::CommonEigenRequest;
 
+/// Reconstructed source Fields and the maximum relative coordinate residual.
+type LiftedMode = (Vec<(Id<kinds::Field>, ValueLiteral)>, f64);
+
 /// One exact source Model and its finite Hermitian eigensolve selection.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonEigenPlan {
@@ -26,8 +29,9 @@ pub struct CommonEigenPlan {
 }
 
 impl CommonEigenPlan {
-    /// Resolve one complete finite source pencil without an initial guess.
-    /// Unsupported source constraints and providers reject before execution.
+    /// Resolve a finite source pencil and its explicit coordinate embedding
+    /// chain without an initial guess. Other source constraints and unsupported
+    /// providers reject before execution.
     pub fn resolve(
         model: &ModelEnvelope,
         request: CommonEigenRequest,
@@ -40,7 +44,13 @@ impl CommonEigenPlan {
                 .unwrap_or_else(|| invalid("spectral Model replay failed"))
         })?;
         let source = source::SourcePencil::lower(&kernel)?;
-        let problem = HermitianEigenproblem::new(&source.operator, &source.metric)?;
+        let (operator, metric) = source
+            .projected
+            .as_ref()
+            .map_or((&source.operator, &source.metric), |value| {
+                (&value.operator, &value.metric)
+            });
+        let problem = HermitianEigenproblem::new(operator, metric)?;
         request.validate(&problem)?;
         backend.provider().validate()?;
         backend.require_hermitian_eigenproblem(&problem)?;
@@ -92,7 +102,7 @@ impl CommonEigenPlan {
                 "spectral execution provider differs from the exact Plan",
             ));
         }
-        let problem = HermitianEigenproblem::new(self.operator(), self.metric())?;
+        let problem = self.admitted_problem()?;
         backend.require_hermitian_eigenproblem(&problem)?;
         let start = std::time::Instant::now();
         let candidates = backend.hermitian_eigenpairs(&problem)?;
@@ -136,11 +146,32 @@ impl CommonEigenPlan {
     pub const fn eigenvalue_field(&self) -> Id<kinds::Field> {
         self.source.eigenvalue
     }
+    /// Exact source coordinate equalities, ordered from the physical mode to
+    /// the admitted coordinates: (Relation, target Field, coordinate Field, map).
+    /// Each map means `target = map * coordinate`; no excluded directions are
+    /// silently identified as null modes or discarded from the source Model.
+    pub fn coordinate_embeddings(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            Id<kinds::Relation>,
+            Id<kinds::Field>,
+            Id<kinds::Field>,
+            &ValueLiteral,
+        ),
+    > {
+        self.source
+            .projected
+            .iter()
+            .flat_map(|value| value.embedding.steps.iter())
+            .map(|step| (step.relation, step.target, step.coordinate, &step.map))
+    }
     /// Typed operator derived from the original Relation.
     pub fn operator(&self) -> &ValueLiteral {
         &self.source.operator
     }
-    /// Typed positive metric derived from the original Relation.
+    /// Typed metric derived from the original Relation. It is positive definite
+    /// on the admitted coordinate space; excluded original directions may be singular.
     pub fn metric(&self) -> &ValueLiteral {
         &self.source.metric
     }
@@ -151,5 +182,23 @@ impl CommonEigenPlan {
     /// Exact admitted numerical provider release.
     pub const fn solver_provider(&self) -> SolverProvider {
         self.provider
+    }
+
+    pub(crate) fn admitted_problem(&self) -> Result<HermitianEigenproblem<'_>, Diagnostic> {
+        let (operator, metric) = self
+            .source
+            .projected
+            .as_ref()
+            .map_or((self.operator(), self.metric()), |value| {
+                (&value.operator, &value.metric)
+            });
+        HermitianEigenproblem::new(operator, metric)
+    }
+
+    pub(crate) fn lift_mode(&self, coordinate: &ValueLiteral) -> Result<LiftedMode, Diagnostic> {
+        self.source.projected.as_ref().map_or_else(
+            || Ok((vec![(self.mode_field(), coordinate.clone())], 0.)),
+            |value| value.embedding.lift(coordinate),
+        )
     }
 }

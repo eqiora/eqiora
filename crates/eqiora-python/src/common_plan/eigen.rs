@@ -1,5 +1,5 @@
 use super::*;
-use crate::modeling::PyDimension;
+use crate::modeling::{PyDimension, PyValueType};
 use eqiora::{DynQuantity, solver::SolverProvider};
 use eqiora_numerics::{CommonEigenPlan, CommonEigenRequest};
 use std::num::NonZeroUsize;
@@ -132,7 +132,47 @@ pub(super) fn resolve(
     })
 }
 
-/// Source roles of one complete finite Hermitian pencil.
+/// One exact source equality `target = mapping * coordinate`.
+#[pyclass(
+    name = "EigenCoordinateMap",
+    module = "eqiora._eqiora",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub(super) struct PyEigenCoordinateMap {
+    #[pyo3(get)]
+    relation_id: String,
+    #[pyo3(get)]
+    target_field: PyModelFieldRef,
+    #[pyo3(get)]
+    coordinate_field: PyModelFieldRef,
+    mapping: eqiora::ValueLiteral,
+}
+
+#[pymethods]
+impl PyEigenCoordinateMap {
+    fn __repr__(&self) -> String {
+        format!(
+            "EigenCoordinateMap(relation_id={:?}, target_field={:?}, coordinate_field={:?})",
+            self.relation_id,
+            self.target_field.exact_id(),
+            self.coordinate_field.exact_id()
+        )
+    }
+    #[getter]
+    fn mapping(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        crate::modeling::value_literal::to_python(py, &self.mapping)
+    }
+    #[getter]
+    fn mapping_type(&self) -> PyValueType {
+        PyValueType {
+            value: self.mapping.value_type().clone(),
+        }
+    }
+}
+
+/// Source roles and coordinate equalities of one finite Hermitian pencil.
 #[pyclass(
     name = "EigenPlanView",
     module = "eqiora._eqiora",
@@ -144,6 +184,7 @@ pub(super) struct PyEigenPlanView {
     mode_field: PyModelFieldRef,
     #[pyo3(get)]
     eigenvalue_field: PyModelFieldRef,
+    embeddings: Vec<PyEigenCoordinateMap>,
 }
 pub(super) fn view(py: Python<'_>, plan: &CommonEigenPlan) -> PyResult<Py<PyAny>> {
     Py::new(
@@ -157,6 +198,21 @@ pub(super) fn view(py: Python<'_>, plan: &CommonEigenPlan) -> PyResult<Py<PyAny>
                 plan.model_digest().to_owned(),
                 plan.eigenvalue_field().ulid().to_string(),
             ),
+            embeddings: plan
+                .coordinate_embeddings()
+                .map(|(relation, target, coordinate, map)| PyEigenCoordinateMap {
+                    relation_id: relation.ulid().to_string(),
+                    target_field: PyModelFieldRef::from_exact(
+                        plan.model_digest().to_owned(),
+                        target.ulid().to_string(),
+                    ),
+                    coordinate_field: PyModelFieldRef::from_exact(
+                        plan.model_digest().to_owned(),
+                        coordinate.ulid().to_string(),
+                    ),
+                    mapping: map.clone(),
+                })
+                .collect(),
         },
     )
     .map(Py::into_any)
@@ -164,6 +220,17 @@ pub(super) fn view(py: Python<'_>, plan: &CommonEigenPlan) -> PyResult<Py<PyAny>
 
 #[pymethods]
 impl PyEigenPlanView {
+    #[getter]
+    fn coordinate_embeddings(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        PyTuple::new(
+            py,
+            self.embeddings
+                .iter()
+                .map(|value| Py::new(py, value.clone()))
+                .collect::<PyResult<Vec<_>>>()?,
+        )
+        .map(Bound::unbind)
+    }
     fn __repr__(&self) -> String {
         format!(
             "EigenPlanView(mode_field={:?}, eigenvalue_field={:?})",

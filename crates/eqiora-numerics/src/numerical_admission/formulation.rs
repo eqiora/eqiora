@@ -2,16 +2,28 @@ use super::*;
 
 impl CommonFormulationDescription {
     pub(super) fn finite_hermitian(plan: &CommonEigenPlan) -> Self {
+        let projected = plan.coordinate_embeddings().next().is_some();
+        let mut rules = vec![
+            "spectral.derive.v1.homogeneous-affine-pencil",
+            "spectral.derive.v1.exact-complex-linear-action",
+            "spectral.derive.v1.positive-metric-equation-orientation",
+            "spectral.derive.v1.positive-metric-unit-normalization",
+        ];
+        if projected {
+            rules.extend([
+                "spectral.derive.v1.source-coordinate-embedding",
+                "spectral.derive.v1.lifted-original-pencil-verification",
+            ]);
+        }
         Self {
             requested: FormulationSelectionMode::Automatic,
             kind: FormulationKind::FiniteHermitianPencil,
-            boundary_treatment: "complete-finite-space",
-            rule_ids: Box::new([
-                "spectral.derive.v1.homogeneous-affine-pencil",
-                "spectral.derive.v1.exact-complex-linear-action",
-                "spectral.derive.v1.positive-metric-equation-orientation",
-                "spectral.derive.v1.positive-metric-unit-normalization",
-            ]),
+            boundary_treatment: if projected {
+                "source-coordinate-embedding"
+            } else {
+                "complete-finite-space"
+            },
+            rule_ids: rules.into_boxed_slice(),
             selection_reason_codes: Box::new([
                 "eqiora.formulation.auto.finite-hermitian-pencil/v1",
             ]),

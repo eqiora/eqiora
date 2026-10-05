@@ -11,6 +11,7 @@ use crate::modeling::PyValueType;
 pub(super) struct PyEigenpair {
     eigenvalue: eqiora::ValueLiteral,
     mode: eqiora::ValueLiteral,
+    mode_fields: Vec<(PyModelFieldRef, eqiora::ValueLiteral)>,
     #[pyo3(get)]
     eigenvalue_field: PyModelFieldRef,
     #[pyo3(get)]
@@ -25,6 +26,33 @@ pub(super) struct PyEigenpair {
 
 #[pymethods]
 impl PyEigenpair {
+    /// Return a source Field's value and exact type for this selected mode.
+    fn field(
+        &self,
+        py: Python<'_>,
+        field: PyRef<'_, PyModelFieldRef>,
+    ) -> PyResult<(Py<PyAny>, PyValueType)> {
+        let value = if *field == self.eigenvalue_field {
+            &self.eigenvalue
+        } else {
+            &self
+                .mode_fields
+                .iter()
+                .find(|(candidate, _)| candidate == &*field)
+                .ok_or_else(|| {
+                    PyValueError::new_err(
+                        "Field is not owned by this exact eigenpair Model and coordinate chain",
+                    )
+                })?
+                .1
+        };
+        Ok((
+            crate::modeling::value_literal::to_python(py, value)?,
+            PyValueType {
+                value: value.value_type().clone(),
+            },
+        ))
+    }
     fn __repr__(&self) -> String {
         format!(
             "Eigenpair(eigenvalue={:?}, relative_residual={}, normalization_defect={}, result_identity={:?})",
@@ -80,6 +108,21 @@ impl PyRunResult {
         Ok(PyEigenpair {
             eigenvalue: eigenvalue.clone(),
             mode: mode.clone(),
+            mode_fields: self
+                .native
+                .eigenmode_fields(index)
+                .expect("selected eigenpair")
+                .iter()
+                .map(|(field, value)| {
+                    (
+                        PyModelFieldRef::from_exact(
+                            plan.model_digest().to_owned(),
+                            field.ulid().to_string(),
+                        ),
+                        value.clone(),
+                    )
+                })
+                .collect(),
             eigenvalue_field: PyModelFieldRef::from_exact(
                 plan.model_digest().to_owned(),
                 plan.eigenvalue_field().ulid().to_string(),

@@ -1,7 +1,6 @@
 use super::*;
 use crate::common_result::eigen::EigenResult;
 use eqiora_core::ValueLiteral;
-use eqiora_solver::HermitianEigenproblem;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -15,7 +14,7 @@ pub(super) struct WireEigenResult {
 #[serde(deny_unknown_fields)]
 struct WireEigenpair {
     eigenvalue: f64,
-    mode: Vec<(f64, f64)>,
+    coordinates: Vec<(f64, f64)>,
     residual: f64,
     normalization_defect: f64,
 }
@@ -35,7 +34,7 @@ impl WireEigenResult {
                         .expect("validated finite shape");
                     WireEigenpair {
                         eigenvalue: lambda.component(0).expect("validated scalar").0,
-                        mode: (0..count)
+                        coordinates: (0..count)
                             .map(|i| mode.component(i).expect("validated shape"))
                             .collect(),
                         residual,
@@ -52,7 +51,7 @@ impl WireEigenResult {
         let plan = plan
             .as_eigen()
             .ok_or_else(|| invalid("spectral Result requires its exact spectral Plan"))?;
-        let problem = HermitianEigenproblem::new(plan.operator(), plan.metric())?;
+        let problem = plan.admitted_problem()?;
         let candidates = self
             .candidates
             .iter()
@@ -62,7 +61,7 @@ impl WireEigenResult {
                     vec![(pair.eigenvalue, 0.)],
                 )
                 .map_err(|error| invalid(error.to_string()))?;
-                let mode = ValueLiteral::new(problem.mode_type().clone(), pair.mode.clone())
+                let mode = ValueLiteral::new(problem.mode_type().clone(), pair.coordinates.clone())
                     .map_err(|error| invalid(error.to_string()))?;
                 Ok((lambda, mode))
             })
