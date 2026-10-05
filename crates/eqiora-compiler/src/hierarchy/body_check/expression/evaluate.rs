@@ -33,16 +33,14 @@ impl ExpressionChecker<'_, '_, '_> {
             .zip(at)
             .map(|(selected, (_, mapped))| Ok((selected, self.check(mapped)?)))
             .collect::<Result<Vec<_>, Diagnostic>>()?;
-        eqiora_schema::kernel::typing::coordinate_map_factor(factor, &source, &points).map_err(
-            |error| {
-                source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    self.scope.file,
-                    expression.range(),
-                    error.to_string(),
-                )
-            },
-        )
+        factor.result_type(&source, &points).map_err(|error| {
+            source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                self.scope.file,
+                expression.range(),
+                error.to_string(),
+            )
+        })
     }
     pub(super) fn pullback(
         &mut self,
@@ -76,16 +74,14 @@ impl ExpressionChecker<'_, '_, '_> {
             .map(|(selected, (_, mapped))| Ok((selected, self.check(mapped)?)))
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         let value = self.check(value)?;
-        eqiora_schema::kernel::typing::coordinate_pullback(&value, &source, &points).map_err(
-            |error| {
-                source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    self.scope.file,
-                    expression.range(),
-                    error.to_string(),
-                )
-            },
-        )
+        value.pullback(&source, &points).map_err(|error| {
+            source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                self.scope.file,
+                expression.range(),
+                error.to_string(),
+            )
+        })
     }
     pub(super) fn evaluate_point(
         &mut self,

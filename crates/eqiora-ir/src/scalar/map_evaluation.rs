@@ -2,31 +2,33 @@
 //! Sizes come from typed operands; resource admission belongs to scalarization.
 use super::*;
 
-/// Evaluate a differential factor with the same factorization and conditioning
-/// profile as finite-map determinants and inverses. Entries use coherent units;
-/// the typed coordinate-map owner retains their individual dimensions.
-/// # Errors
-/// Rejects invalid shape, resource exhaustion, nonfinite arithmetic, and (for
-/// volume/orientation) a singular or numerically unresolved differential.
-pub fn coordinate_map_factor(
-    entries: &[f64],
-    extent: usize,
-    factor: eqiora_schema::kernel::CoordinateMapFactor,
-) -> Result<f64, Diagnostic> {
-    use eqiora_schema::kernel::CoordinateMapFactor;
-    let mut map = MapEvaluation::new(entries, extent)?;
-    if factor != CoordinateMapFactor::SignedJacobian {
-        map.inverse()?;
+impl ScalarOperatorIr {
+    /// Evaluate a differential factor with the same factorization and conditioning
+    /// profile as finite-map determinants and inverses. Entries use coherent units;
+    /// the typed coordinate-map owner retains their individual dimensions.
+    /// # Errors
+    /// Rejects invalid shape, resource exhaustion, nonfinite arithmetic, and (for
+    /// volume/orientation) a singular or numerically unresolved differential.
+    pub fn coordinate_map_factor(
+        entries: &[f64],
+        extent: usize,
+        factor: eqiora_schema::kernel::CoordinateMapFactor,
+    ) -> Result<f64, Diagnostic> {
+        use eqiora_schema::kernel::CoordinateMapFactor;
+        let mut map = MapEvaluation::new(entries, extent)?;
+        if factor != CoordinateMapFactor::SignedJacobian {
+            map.inverse()?;
+        }
+        if factor == CoordinateMapFactor::Orientation {
+            return Ok((0..extent).fold(map.sign, |sign, k| sign * map.lu[k * extent + k].signum()));
+        }
+        let determinant = map.value(None)?;
+        Ok(match factor {
+            CoordinateMapFactor::SignedJacobian => determinant,
+            CoordinateMapFactor::VolumeScale => determinant.abs(),
+            CoordinateMapFactor::Orientation => determinant.signum(),
+        })
     }
-    if factor == CoordinateMapFactor::Orientation {
-        return Ok((0..extent).fold(map.sign, |sign, k| sign * map.lu[k * extent + k].signum()));
-    }
-    let determinant = map.value(None)?;
-    Ok(match factor {
-        CoordinateMapFactor::SignedJacobian => determinant,
-        CoordinateMapFactor::VolumeScale => determinant.abs(),
-        CoordinateMapFactor::Orientation => determinant.signum(),
-    })
 }
 
 pub(super) fn operand_range(
@@ -335,11 +337,11 @@ mod tests {
             }
             entries[0] = -1e-200;
             assert_eq!(
-                coordinate_map_factor(&entries, n, Orientation).unwrap(),
+                ScalarOperatorIr::coordinate_map_factor(&entries, n, Orientation).unwrap(),
                 -1.0
             );
             assert!(
-                coordinate_map_factor(&entries, n, VolumeScale)
+                ScalarOperatorIr::coordinate_map_factor(&entries, n, VolumeScale)
                     .unwrap_err()
                     .message()
                     .contains("underflows")

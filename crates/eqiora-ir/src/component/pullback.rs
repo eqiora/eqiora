@@ -56,7 +56,7 @@ mod tests {
     use eqiora_core::{DimExponents, Id, entity::kinds};
     use eqiora_schema::kernel::{
         ExprDagBuilder,
-        typing::{RootContract, SpatialSupport, coordinate},
+        typing::{ExpressionType, RootContract, SpatialSupport},
     };
 
     fn polynomial(self_map: bool, add_identity: bool) -> ComponentScalarization {
@@ -118,7 +118,7 @@ mod tests {
                 else {
                     return Err(());
                 };
-                coordinate(
+                ExpressionType::coordinate(
                     &factor.erase(),
                     axis,
                     Some(&SpatialSupport::Volume {

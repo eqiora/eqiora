@@ -137,8 +137,12 @@ pub(super) fn symbol_type(
             let support = spatial_supports
                 .get(&support.erase())
                 .ok_or(SymbolTypeError::Missing)?;
-            eqiora_schema::kernel::typing::coordinate(&factor.erase(), axis, Some(support))
-                .map_err(SymbolTypeError::Typing)
+            eqiora_schema::kernel::typing::ExpressionType::coordinate(
+                &factor.erase(),
+                axis,
+                Some(support),
+            )
+            .map_err(SymbolTypeError::Typing)
         }
         SymbolRef::Time => Ok(ExpressionType::scalar(
             DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension"),

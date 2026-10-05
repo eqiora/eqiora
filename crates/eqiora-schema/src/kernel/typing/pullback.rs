@@ -35,40 +35,42 @@ pub(super) fn infer_factor<I: Clone + Eq, E>(
             )
         })
         .collect::<Vec<_>>();
-    match factor_result_type(factor, &source, &at) {
+    match factor.result_type(&source, &at) {
         Ok(result) => NodeInference::Typed(result),
         Err(error) => NodeInference::Type(error),
     }
 }
 
-/// Infer a local differential factor from resolved coordinate types.
-/// The syntax/DAG owner proves exact unique coordinate selectors separately.
-pub fn factor_result_type<I: Clone + Eq>(
-    factor: super::super::CoordinateMapFactor,
-    source: &[ExpressionType<I>],
-    at: &[(ExpressionType<I>, ExpressionType<I>)],
-) -> Result<ExpressionType<I>, TypeViolation<I>> {
-    let invalid = || TypeViolation::CoordinatePullbackRequiresExactMap;
-    let (target, _) = at.first().ok_or_else(invalid)?;
-    if source.len() != at.len() {
-        return Err(invalid());
-    }
-    let mut result = result_type(target, source, at)?;
-    let mut dimension = eqiora_core::DimExponents::DIMENSIONLESS;
-    if factor != super::super::CoordinateMapFactor::Orientation {
-        for (source, (target, _)) in source.iter().zip(at) {
-            dimension = target
-                .dimension()
-                .div(source.dimension())
-                .and_then(|ratio| dimension.mul(ratio))
-                .ok_or(TypeViolation::DimensionOverflow {
-                    operation: "coordinate Jacobian",
-                })?;
+impl super::super::CoordinateMapFactor {
+    /// Infer a local differential factor from resolved coordinate types.
+    /// The syntax/DAG owner proves exact unique coordinate selectors separately.
+    pub fn result_type<I: Clone + Eq>(
+        self,
+        source: &[ExpressionType<I>],
+        at: &[(ExpressionType<I>, ExpressionType<I>)],
+    ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+        let invalid = || TypeViolation::CoordinatePullbackRequiresExactMap;
+        let (target, _) = at.first().ok_or_else(invalid)?;
+        if source.len() != at.len() {
+            return Err(invalid());
         }
+        let mut result = target.pullback(source, at)?;
+        let mut dimension = eqiora_core::DimExponents::DIMENSIONLESS;
+        if self != super::super::CoordinateMapFactor::Orientation {
+            for (source, (target, _)) in source.iter().zip(at) {
+                dimension = target
+                    .dimension()
+                    .div(source.dimension())
+                    .and_then(|ratio| dimension.mul(ratio))
+                    .ok_or(TypeViolation::DimensionOverflow {
+                        operation: "coordinate Jacobian",
+                    })?;
+            }
+        }
+        result.value_type = eqiora_core::ValueType::scalar(ScalarDomain::Real, dimension)
+            .expect("scalar dimension");
+        Ok(result)
     }
-    result.value_type =
-        eqiora_core::ValueType::scalar(ScalarDomain::Real, dimension).expect("scalar dimension");
-    Ok(result)
 }
 
 pub(super) fn infer<I: Clone + Eq, E>(
@@ -107,73 +109,75 @@ pub(super) fn infer<I: Clone + Eq, E>(
             )
         })
         .collect::<Vec<_>>();
-    match result_type(&value, &source, &at) {
+    match value.pullback(&source, &at) {
         Ok(value) => NodeInference::Typed(value),
         Err(error) => NodeInference::Type(error),
     }
 }
 
-/// Infer scalar pullback units and support from resolved coordinate types.
-/// The syntax or DAG owner separately proves that selectors are complete,
-/// unique exact coordinate references, rather than arbitrary scalar expressions.
-pub fn result_type<I: Clone + Eq>(
-    value: &ExpressionType<I>,
-    source: &[ExpressionType<I>],
-    at: &[(ExpressionType<I>, ExpressionType<I>)],
-) -> Result<ExpressionType<I>, TypeViolation<I>> {
-    let invalid = || TypeViolation::CoordinatePullbackRequiresExactMap;
-    let source_support = source
-        .first()
-        .and_then(|ty| ty.support.as_ref())
-        .ok_or_else(invalid)?;
-    let target = at
-        .first()
-        .and_then(|(ty, _)| ty.support.as_ref())
-        .ok_or_else(invalid)?;
-    if !matches!(
-        source_support,
-        SpatialSupport::Coordinates { .. } | SpatialSupport::Volume { .. }
-    ) || !matches!(
-        target,
-        SpatialSupport::Coordinates { .. } | SpatialSupport::Volume { .. }
-    ) || source.len() != source_support.intrinsic_dimensions()
-        || at.len() != target.intrinsic_dimensions()
-        || source
-            .iter()
-            .any(|ty| ty.support.as_ref() != Some(source_support))
-        || !value.shape().is_scalar()
-        || value.value_type.array_rank() != 0
-        || value.value_type.frame() != ValueFrame::Invariant
-        || !matches!(
-            value.value_type.scalar_domain(),
-            ScalarDomain::Real | ScalarDomain::Complex
-        )
-        || value
-            .support
-            .as_ref()
-            .is_some_and(|support| support != target)
-    {
-        return Err(invalid());
-    }
-    for (selector, mapped) in at {
-        if selector.support.as_ref() != Some(target)
-            || !mapped.shape().is_scalar()
-            || mapped.value_type.array_rank() != 0
-            || mapped.value_type.scalar_domain() != ScalarDomain::Real
-            || mapped.value_type.frame() != ValueFrame::Invariant
-            || mapped.dimension() != selector.dimension()
-            || mapped
+impl<I: Clone + Eq> ExpressionType<I> {
+    /// Infer scalar pullback units and support from resolved coordinate types.
+    /// The syntax or DAG owner separately proves that selectors are complete,
+    /// unique exact coordinate references, rather than arbitrary scalar expressions.
+    pub fn pullback(
+        &self,
+        source: &[ExpressionType<I>],
+        at: &[(ExpressionType<I>, ExpressionType<I>)],
+    ) -> Result<ExpressionType<I>, TypeViolation<I>> {
+        let invalid = || TypeViolation::CoordinatePullbackRequiresExactMap;
+        let source_support = source
+            .first()
+            .and_then(|ty| ty.support.as_ref())
+            .ok_or_else(invalid)?;
+        let target = at
+            .first()
+            .and_then(|(ty, _)| ty.support.as_ref())
+            .ok_or_else(invalid)?;
+        if !matches!(
+            source_support,
+            SpatialSupport::Coordinates { .. } | SpatialSupport::Volume { .. }
+        ) || !matches!(
+            target,
+            SpatialSupport::Coordinates { .. } | SpatialSupport::Volume { .. }
+        ) || source.len() != source_support.intrinsic_dimensions()
+            || at.len() != target.intrinsic_dimensions()
+            || source
+                .iter()
+                .any(|ty| ty.support.as_ref() != Some(source_support))
+            || !self.shape().is_scalar()
+            || self.value_type.array_rank() != 0
+            || self.value_type.frame() != ValueFrame::Invariant
+            || !matches!(
+                self.value_type.scalar_domain(),
+                ScalarDomain::Real | ScalarDomain::Complex
+            )
+            || self
                 .support
                 .as_ref()
-                .is_some_and(|support| support != source_support)
+                .is_some_and(|support| support != target)
         {
             return Err(invalid());
         }
+        for (selector, mapped) in at {
+            if selector.support.as_ref() != Some(target)
+                || !mapped.shape().is_scalar()
+                || mapped.value_type.array_rank() != 0
+                || mapped.value_type.scalar_domain() != ScalarDomain::Real
+                || mapped.value_type.frame() != ValueFrame::Invariant
+                || mapped.dimension() != selector.dimension()
+                || mapped
+                    .support
+                    .as_ref()
+                    .is_some_and(|support| support != source_support)
+            {
+                return Err(invalid());
+            }
+        }
+        Ok(ExpressionType::new(
+            self.value_type.clone(),
+            Some(source_support.clone()),
+        ))
     }
-    Ok(ExpressionType::new(
-        value.value_type.clone(),
-        Some(source_support.clone()),
-    ))
 }
 
 fn inventory<I: Clone + Eq>(
@@ -246,7 +250,7 @@ mod tests {
                 .iter()
                 .find(|candidate| *candidate.domain() == support.erase())
                 .ok_or(())?;
-            coordinate(&factor.erase(), axis, Some(support)).map_err(|_| ())
+            ExpressionType::coordinate(&factor.erase(), axis, Some(support)).map_err(|_| ())
         })
     }
 
@@ -260,19 +264,22 @@ mod tests {
         };
         let source_support = support(Id::<kinds::Domain>::new().erase(), dimension(-i32::MAX));
         let target_support = support(Id::<kinds::Domain>::new().erase(), dimension(i32::MAX));
-        let source = coordinate(source_support.domain(), 0, Some(&source_support)).unwrap();
-        let target = coordinate(target_support.domain(), 0, Some(&target_support)).unwrap();
+        let source =
+            ExpressionType::coordinate(source_support.domain(), 0, Some(&source_support)).unwrap();
+        let target =
+            ExpressionType::coordinate(target_support.domain(), 0, Some(&target_support)).unwrap();
         let mapped = ExpressionType::new(target.value_type.clone(), Some(source_support));
         let at = [(target, mapped)];
         // Orientation has unit1 even when the determinant would require m^(2*MAX).
         assert_eq!(
-            factor_result_type(Orientation, std::slice::from_ref(&source), &at)
+            Orientation
+                .result_type(std::slice::from_ref(&source), &at)
                 .unwrap()
                 .dimension(),
             DimExponents::DIMENSIONLESS
         );
         assert!(matches!(
-            factor_result_type(SignedJacobian, &[source], &at),
+            SignedJacobian.result_type(&[source], &at),
             Err(TypeViolation::DimensionOverflow { .. })
         ));
     }
@@ -408,8 +415,8 @@ mod tests {
             domain: physical,
             dimensions: 1,
         };
-        let source = coordinate(&reference, 0, Some(&source_support)).unwrap();
-        let target = coordinate(&physical, 0, Some(&target_support)).unwrap();
+        let source = ExpressionType::coordinate(&reference, 0, Some(&source_support)).unwrap();
+        let target = ExpressionType::coordinate(&physical, 0, Some(&target_support)).unwrap();
         let value = ExpressionType::new(
             ValueType::shaped(
                 ScalarDomain::Real,
@@ -422,11 +429,7 @@ mod tests {
         );
         // An identity coordinate map still cannot silently reinterpret a vector.
         assert!(matches!(
-            result_type(
-                &value,
-                std::slice::from_ref(&source),
-                &[(target, source.clone())]
-            ),
+            value.pullback(std::slice::from_ref(&source), &[(target, source.clone())]),
             Err(TypeViolation::CoordinatePullbackRequiresExactMap)
         ));
     }

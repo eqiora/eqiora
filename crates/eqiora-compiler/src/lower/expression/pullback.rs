@@ -17,7 +17,7 @@ pub(super) fn infer_factor<'a>(
         .iter()
         .map(|(coordinate, mapped)| Ok((infer(coordinate)?, infer(mapped)?)))
         .collect::<Result<Vec<_>, Diagnostic>>()?;
-    typing::coordinate_map_factor(factor, &source, &at).map_err(|error| {
+    factor.result_type(&source, &at).map_err(|error| {
         source_error(
             codes::LANGUAGE_TYPE_ERROR,
             file,
@@ -44,7 +44,7 @@ pub(super) fn infer<'a>(
         .iter()
         .map(|(coordinate, mapped)| Ok((infer(coordinate)?, infer(mapped)?)))
         .collect::<Result<Vec<_>, Diagnostic>>()?;
-    typing::coordinate_pullback(&value, &source, &at).map_err(|error| {
+    value.pullback(&source, &at).map_err(|error| {
         source_error(
             codes::LANGUAGE_TYPE_ERROR,
             file,

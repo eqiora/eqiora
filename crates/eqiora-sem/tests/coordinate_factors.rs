@@ -83,7 +83,14 @@ fn distribution_on_position_velocity_product_retains_exact_measure() {
     assert_eq!(root.support.as_ref(), Some(&support));
     assert_eq!(support.ambient_dimensions(), None);
     assert_eq!(support.intrinsic_dimensions(), 2);
-    assert!(eqiora_schema::kernel::typing::coordinate(&phase.erase(), 0, Some(&support)).is_err());
+    assert!(
+        eqiora_schema::kernel::typing::ExpressionType::coordinate(
+            &phase.erase(),
+            0,
+            Some(&support)
+        )
+        .is_err()
+    );
     assert!(eqiora_schema::kernel::typing::gradient(root).is_err());
     // (s/m²) × m × (m/s) = 1, independently of a numerical quadrature.
     assert_eq!(

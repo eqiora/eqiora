@@ -98,7 +98,7 @@ impl ScalarOperatorIr {
                 }
                 entries.extend_from_slice(row.bind_affine(&selected, &fixed)?.coefficients());
             }
-            let value = coordinate_map_factor(&entries, source.len(), *factor)?;
+            let value = Self::coordinate_map_factor(&entries, source.len(), *factor)?;
             let id = expression
                 .node_id(index as u32)
                 .expect("retained map factor");

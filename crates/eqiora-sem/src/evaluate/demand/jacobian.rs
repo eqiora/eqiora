@@ -143,7 +143,7 @@ impl Evaluator<'_, '_> {
             );
         }
         EvaluationPoint::bind(program, self.expression, at, &mapped, None)?;
-        let value = eqiora_ir::coordinate_map_factor(&entries, n, factor)?;
+        let value = eqiora_ir::ScalarOperatorIr::coordinate_map_factor(&entries, n, factor)?;
         ValueLiteral::from_real(
             typed
                 .node_type(id)

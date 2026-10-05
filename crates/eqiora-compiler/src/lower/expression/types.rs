@@ -352,7 +352,7 @@ fn expression_type_cached(
                     .filter(|support| support.ambient_dimensions().is_some())
                     .ok_or(typing::TypeViolation::CoordinateRequiresSpatialScope)
                     .map_err(violation)?;
-                return typing::coordinate(
+                return typing::ExpressionType::coordinate(
                     support.parent().unwrap_or(support.domain()),
                     axis,
                     Some(support),
@@ -561,6 +561,6 @@ fn declared_coordinate_type(
             "coordinate factor is not a Domain",
         ));
     };
-    typing::coordinate(&factor.erase(), *axis, Some(&support))
+    typing::ExpressionType::coordinate(&factor.erase(), *axis, Some(&support))
         .map_err(|error| spatial_type_error(file, expression, error))
 }

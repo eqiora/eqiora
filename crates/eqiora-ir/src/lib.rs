@@ -27,5 +27,4 @@ pub use local_action::LocalLinearActionIr;
 pub use scalar::{
     BoundAffineFailure, BoundAffineScalarIr, ConstantSymbolJacobian, ScalarInputOperatorIr,
     ScalarInputSlot, ScalarLinearization, ScalarOperatorIr, SymbolicLinearityFailure,
-    coordinate_map_factor,
 };

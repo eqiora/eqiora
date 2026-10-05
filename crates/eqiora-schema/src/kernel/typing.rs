@@ -20,9 +20,6 @@ mod inference;
 mod integer;
 mod ordered_selection;
 mod pullback;
-pub use pullback::{
-    factor_result_type as coordinate_map_factor, result_type as coordinate_pullback,
-};
 mod roots;
 pub use roots::{residual, scalar_root};
 mod spatial;
@@ -724,32 +721,6 @@ pub fn power<I: Clone>(
         base.frame(),
         base.support.clone(),
     )
-}
-
-/// Type one exact factor axis, retaining the projection's declared support.
-pub fn coordinate<I: Clone + PartialEq>(
-    factor: &I,
-    axis: usize,
-    relation: Option<&SpatialSupport<I>>,
-) -> Result<ExpressionType<I>, TypeViolation<I>> {
-    let support = relation.ok_or(TypeViolation::CoordinateRequiresSpatialScope)?;
-    let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("length dimension");
-    let (unit, dimensions) = match support {
-        SpatialSupport::Volume { domain, dimensions } if domain == factor => (length, *dimensions),
-        SpatialSupport::Boundary {
-            parent, dimensions, ..
-        } if parent == factor => (length, *dimensions),
-        SpatialSupport::Coordinates { factors, .. } => factors
-            .iter()
-            .find(|(id, _, _)| id == factor)
-            .map(|(_, unit, axes)| (*unit, *axes))
-            .ok_or(TypeViolation::CoordinateFactorMismatch)?,
-        _ => return Err(TypeViolation::CoordinateFactorMismatch),
-    };
-    if axis >= dimensions {
-        return Err(TypeViolation::CoordinateAxisOutOfRange { axis, dimensions });
-    }
-    Ok(ExpressionType::scalar(unit, Some(support.clone())))
 }
 
 /// Type one supported unary mathematical application.

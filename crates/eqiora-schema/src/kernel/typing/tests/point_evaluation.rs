@@ -75,7 +75,7 @@ fn infer(probe: Probe) -> (ExprId, PointInference) {
                 ExpressionType::scalar(DimExponents::DIMENSIONLESS, Some(support))
             }
             SymbolRef::Coordinate { factor, axis, .. } => {
-                coordinate(&factor.erase(), axis, Some(&support)).unwrap()
+                ExpressionType::coordinate(&factor.erase(), axis, Some(&support)).unwrap()
             }
             _ => unreachable!(),
         })

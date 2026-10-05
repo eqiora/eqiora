@@ -213,11 +213,11 @@ struct RawTestId;
 #[test]
 fn coordinate_and_boundary_rules_use_relation_support() {
     assert!(matches!(
-        coordinate::<&str>(&"body", 0, None),
+        ExpressionType::<&str>::coordinate(&"body", 0, None),
         Err(TypeViolation::CoordinateRequiresSpatialScope)
     ));
     assert!(matches!(
-        coordinate(&"body", 2, Some(&volume("body"))),
+        ExpressionType::coordinate(&"body", 2, Some(&volume("body"))),
         Err(TypeViolation::CoordinateAxisOutOfRange { .. })
     ));
 
@@ -237,7 +237,7 @@ fn coordinate_and_boundary_rules_use_relation_support() {
     );
     assert!(normal(&body, Some(&boundary)).is_err());
 
-    let boundary_coordinate = coordinate(&"body", 0, Some(&boundary)).unwrap();
+    let boundary_coordinate = ExpressionType::coordinate(&"body", 0, Some(&boundary)).unwrap();
     let boundary_scalar =
         ExpressionType::scalar(DimExponents::DIMENSIONLESS, Some(boundary.clone()));
     assert!(matches!(
@@ -386,23 +386,23 @@ fn coordinate_factor_projection_keeps_units_identity_and_block_axes() {
         factors: vec![("position", length, 2), ("velocity", speed, 1)],
     };
     assert_eq!(
-        coordinate(&"position", 1, Some(&phase)).unwrap(),
+        ExpressionType::coordinate(&"position", 1, Some(&phase)).unwrap(),
         ExpressionType::scalar(length, Some(phase.clone()))
     );
     assert_eq!(
-        coordinate(&"velocity", 0, Some(&phase)).unwrap(),
+        ExpressionType::coordinate(&"velocity", 0, Some(&phase)).unwrap(),
         ExpressionType::scalar(speed, Some(phase.clone()))
     );
     assert!(matches!(
-        coordinate(&"velocity", 1, Some(&phase)),
+        ExpressionType::coordinate(&"velocity", 1, Some(&phase)),
         Err(TypeViolation::CoordinateAxisOutOfRange { .. })
     ));
     assert!(matches!(
-        coordinate(&"foreign", 0, Some(&phase)),
+        ExpressionType::coordinate(&"foreign", 0, Some(&phase)),
         Err(TypeViolation::CoordinateFactorMismatch)
     ));
     assert!(matches!(
-        coordinate(&"phase", 0, Some(&phase)),
+        ExpressionType::coordinate(&"phase", 0, Some(&phase)),
         Err(TypeViolation::CoordinateFactorMismatch)
     ));
 }

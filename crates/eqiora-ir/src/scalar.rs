@@ -12,7 +12,6 @@ mod batch;
 mod enum_tests;
 mod linearization;
 mod map_evaluation;
-pub use map_evaluation::coordinate_map_factor;
 mod numerical_evaluation;
 mod point_components;
 mod point_projection;

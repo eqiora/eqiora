@@ -38,6 +38,8 @@ use binding::{
 use connection::{lower_connection, prepare_flat_physical_connections};
 use declaration::lower_port;
 pub(crate) use domain_contract::{LoweringDomainContract, LoweringPortContract};
+pub(crate) use value_expression::LoweringExpression;
+use value_expression::LoweringExpressionNode;
 mod relation_body;
 pub(crate) use relation_body::LoweringRelationBody;
 pub(crate) mod constraints;
@@ -187,124 +189,6 @@ pub(crate) struct LoweringModel {
     pub(crate) name: String,
     pub(crate) range: TextRange,
     pub(crate) items: Vec<LoweringItem>,
-}
-
-/// Compiler-owned, typed scalar expression consumed by Kernel lowering.
-///
-/// Source expressions enter through [`Self::from_source`]. Hierarchy
-/// elaboration may additionally substitute dimensioned constants and shared
-/// Parameter-expression DAGs without fabricating source declarations.
-#[derive(Debug, Clone)]
-pub(crate) struct LoweringExpression {
-    node: Arc<LoweringExpressionNode>,
-    range: TextRange,
-    structural_parameters: Option<Arc<BTreeSet<String>>>,
-}
-
-impl PartialEq for LoweringExpression {
-    fn eq(&self, other: &Self) -> bool {
-        self.node == other.node && self.structural_parameters == other.structural_parameters
-    }
-}
-
-#[derive(Debug, PartialEq)]
-enum LoweringExpressionNode {
-    CoordinateMapFactor {
-        factor: eqiora_schema::kernel::CoordinateMapFactor,
-        source: Vec<LoweringExpression>,
-        at: Vec<(LoweringExpression, LoweringExpression)>,
-    },
-    Pullback {
-        value: LoweringExpression,
-        source: Vec<LoweringExpression>,
-        at: Vec<(LoweringExpression, LoweringExpression)>,
-    },
-    Evaluate {
-        value: LoweringExpression,
-        at: Vec<(LoweringExpression, LoweringExpression)>,
-        side: Option<eqiora_schema::kernel::BoundarySide>,
-    },
-    Coordinate {
-        support: String,
-        factor: String,
-        axis: usize,
-    },
-    Partial {
-        value: LoweringExpression,
-        wrt: LoweringExpression,
-    },
-    Number(eqiora_lang::DecimalLiteral),
-    Literal(eqiora_core::ValueLiteral),
-    IntegerCall {
-        operator: IntegerBuiltin,
-        arguments: Vec<LoweringExpression>,
-    },
-    Name(String),
-    Neg(LoweringExpression),
-    Not(LoweringExpression),
-    Array(Vec<LoweringExpression>),
-    Index {
-        value: LoweringExpression,
-        index: u32,
-    },
-    Complex {
-        real: LoweringExpression,
-        imag: LoweringExpression,
-    },
-    Select {
-        condition: LoweringExpression,
-        then_value: LoweringExpression,
-        else_value: LoweringExpression,
-    },
-    Case {
-        value: LoweringExpression,
-        arms: Vec<(eqiora_core::ValueLiteral, LoweringExpression)>,
-    },
-    Require {
-        condition: LoweringExpression,
-        value: LoweringExpression,
-    },
-    Extremum {
-        minimum: bool,
-        left: LoweringExpression,
-        right: LoweringExpression,
-    },
-    Binary {
-        operator: BinaryOp,
-        left: LoweringExpression,
-        right: LoweringExpression,
-    },
-    Call {
-        callee: String,
-        argument: LoweringExpression,
-    },
-    Sample {
-        value: LoweringExpression,
-        clock: String,
-    },
-    Tensor {
-        operation: crate::math::tensor::Operation,
-        arguments: Vec<LoweringExpression>,
-    },
-    Finite {
-        operation: crate::math::finite::Operation,
-        arguments: Vec<LoweringExpression>,
-    },
-    Piecewise {
-        name: String,
-        arguments: Vec<LoweringExpression>,
-    },
-    Property {
-        release: Arc<eqiora_schema::kernel::PropertyRelease>,
-        arguments: Vec<LoweringExpression>,
-    },
-    PureOperator {
-        definition: PureOperatorDefinition,
-        arguments: Vec<LoweringExpression>,
-    },
-    UnknownMath(String),
-    InvalidValue(&'static str),
-    Unsupported,
 }
 
 #[derive(Debug, Clone)]

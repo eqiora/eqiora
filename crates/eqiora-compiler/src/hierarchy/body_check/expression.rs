@@ -681,7 +681,7 @@ impl ExpressionChecker<'_, '_, '_> {
                         typing::TypeViolation::<String>::CoordinateRequiresSpatialScope,
                     )
                 })?;
-            return typing::coordinate(
+            return typing::ExpressionType::coordinate(
                 support.parent().unwrap_or(support.domain()),
                 axis,
                 Some(support),
