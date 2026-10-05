@@ -97,6 +97,10 @@ pub(crate) enum AuthoredFormExpressionKind {
     Frobenius(Box<AuthoredFormExpression>, Box<AuthoredFormExpression>),
     /// Scalar sine.
     Sin(Box<AuthoredFormExpression>),
+    /// Componentwise conjugation, retained even for real arguments.
+    Conjugate(Box<AuthoredFormExpression>),
+    /// Equal-role component pairing, conjugate-linear in its first argument.
+    Inner(Box<AuthoredFormExpression>, Box<AuthoredFormExpression>),
     /// Euclidean inner product of equal vectors.
     Dot(Box<AuthoredFormExpression>, Box<AuthoredFormExpression>),
     /// Spatial integral over one exact volume or boundary Domain.

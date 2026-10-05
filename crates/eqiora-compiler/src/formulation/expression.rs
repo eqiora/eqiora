@@ -99,6 +99,11 @@ fn from_dag(
             ExprNode::UnaryMath(UnaryMathFunction::Sin, value) => AuthoredFormExpressionV1::Sin {
                 value: convert(*value)?,
             },
+            ExprNode::UnaryMath(UnaryMathFunction::Conj, value) => {
+                AuthoredFormExpressionV1::Conjugate {
+                    value: convert(*value)?,
+                }
+            }
             _ => {
                 return Err(ProjectionFailure::Unsupported);
             }
