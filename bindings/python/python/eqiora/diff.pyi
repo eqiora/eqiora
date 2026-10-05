@@ -37,6 +37,11 @@ def compile(
 ) -> DifferentiableProgram:
     """Compile a program over an ordered parameter-coordinate set.
 
+    Finite affine Plans select real scalar Parameters and a real scalar
+    Observable, with real or complex Fields and no required state. Complex
+    actions use the real differential and pairing Re(sum(conj(a)*b)); conjugate
+    dependence is retained. Finite nonlinear Plans require their exact seed.
+
     Authority: ``bindings/python/python/eqiora/diff.py::compile``.
     """
 

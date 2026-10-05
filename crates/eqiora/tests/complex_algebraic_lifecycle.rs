@@ -277,3 +277,68 @@ fn finite_quantum_and_control_maps_share_plan_run_result_and_preserve_bases() {
         assert!((actual.0 - norm).hypot(actual.1) < 1e-10);
     }
 }
+
+#[test]
+fn common_complex_differentiation_retains_real_pairing_and_parameter_points() {
+    use eqiora::api::DifferentiableProgram;
+    // Both pencils have z=p-ip. The conjugate pencil has real-linear, not
+    // holomorphic, action. In either case J=2p²+p and dJ/dp=4p+1.
+    for (equation, complex) in [
+        ("a*z+math.conj(z)=math.complex(4,2)*p", false),
+        ("a*z=math.complex(3,1)*p", true),
+    ] {
+        let source = format!(
+            "model M(){{parameter p:1=3;parameter a:complex<1>=math.complex(1,2);variable z:complex<1>;relation r{{{equation};}}observable output:1=math.abs2(z)+p;}}"
+        );
+        let (document, plan, _) = solve_with(&source, complex);
+        let backend: &'static dyn LinearSolverBackend = if complex {
+            &REFERENCE_LINEAR_SOLVER
+        } else {
+            &FaerLinearSolver
+        };
+        let program = DifferentiableProgram::compile(
+            ResolvedCommonPlan::Algebraic(Box::new(plan)),
+            &[document.parameter_ref("p").unwrap()],
+            &document.observable_ref("output").unwrap(),
+            None,
+            backend,
+        )
+        .unwrap();
+        for p in [3., 5.] {
+            let point = program.evaluate(&[p]).unwrap();
+            assert!((point.accepted_unknowns()[0] - p).abs() < 1e-10);
+            assert!((point.accepted_unknowns()[1] + p).abs() < 1e-10);
+            let primal = point.primal();
+            assert!((primal.output()[0] - (2. * p * p + p)).abs() < 1e-9);
+            assert!(primal.evidence().primal_solve().is_some());
+            assert!(primal.evidence().nonlinear_iterations().is_none());
+            assert!((point.jvp(&[2.]).unwrap().tangent()[0] - 2. * (4. * p + 1.)).abs() < 1e-9);
+            assert!((point.vjp(&[1.]).unwrap().input_cotangent()[0] - (4. * p + 1.)).abs() < 1e-9);
+        }
+        assert!((program.vjp(&[1.]).unwrap().input_cotangent()[0] - 13.).abs() < 1e-9);
+    }
+}
+
+#[test]
+fn complex_zero_residual_does_not_prove_differentiable_regularity() {
+    use eqiora::api::DifferentiableProgram;
+    // At p=0 every z satisfies p*z=0. A successful zero-residual primal
+    // cannot establish a locally unique differentiable solution map.
+    let (document, plan, _) = solve(
+        "model M(){parameter p:1=0;variable z:complex<1>;relation r{p*z=0;}observable output:1=math.abs2(z);}",
+    );
+    let error = DifferentiableProgram::compile(
+        ResolvedCommonPlan::Algebraic(Box::new(plan)),
+        &[document.parameter_ref("p").unwrap()],
+        &document.observable_ref("output").unwrap(),
+        None,
+        &REFERENCE_LINEAR_SOLVER,
+    )
+    .unwrap_err();
+    assert!(
+        error
+            .iter()
+            .any(|error| error.message().contains("Jacobian is singular")),
+        "{error:?}"
+    );
+}

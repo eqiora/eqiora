@@ -29,9 +29,9 @@ impl FiniteConstraintProblem {
         selected: &[Id<kinds::Parameter>],
         values: &[f64],
     ) -> Result<Self, Diagnostic> {
-        if !self.is_strict_interior() || selected.len() != values.len() {
+        if selected.len() != values.len() {
             return Err(invalid(
-                "finite nonlinear Parameter point has incompatible controls or shape",
+                "finite Parameter point has incompatible controls or shape",
             ));
         }
         let mut point = self.clone();
@@ -39,19 +39,34 @@ impl FiniteConstraintProblem {
         for (index, (id, value)) in selected.iter().zip(values).enumerate() {
             if selected[..index].contains(id) || !value.is_finite() {
                 return Err(invalid(
-                    "finite nonlinear Parameter point has duplicate identities or nonfinite values",
+                    "finite Parameter point has duplicate identities or nonfinite values",
                 ));
             }
             let Some(KernelNode::Parameter(parameter)) = self.kernel.node(id.erase()) else {
-                return Err(invalid(
-                    "finite nonlinear Parameter is outside the exact Model",
-                ));
+                return Err(invalid("finite Parameter is outside the exact Model"));
             };
             point.parameter_candidates.push((
                 *id,
                 ValueLiteral::from_real(parameter.value().value_type().clone(), *value)
                     .map_err(|error| invalid(error.to_string()))?,
             ));
+        }
+        // Affine assembly and original-operand evaluation must bind the same
+        // evaluation-local values. Rebind unselected coordinates from the Model
+        // as well, so evaluating a new point never retains a previous candidate.
+        for (coordinate, binding) in &mut point.bindings {
+            let SymbolRef::Parameter(id) = coordinate.symbol() else {
+                continue;
+            };
+            let Some(KernelNode::Parameter(parameter)) = self.kernel.node(id.erase()) else {
+                return Err(invalid("finite binding is outside the exact Model"));
+            };
+            let value = point
+                .parameter_candidates
+                .iter()
+                .find(|(candidate, _)| *candidate == id)
+                .map_or(parameter.value(), |(_, value)| value);
+            *binding = coordinates::component(value, coordinate)?;
         }
         Ok(point)
     }
@@ -77,7 +92,7 @@ impl FiniteConstraintProblem {
             .max(nonlinear.relative_tolerance() * initial_norm);
         let assessment = solve::original_assessment(self, values, target)?;
         let (actions, _) = self.equality_jacobian(values, &[])?;
-        require_regular(values.len(), actions.unknown_jacobian)?;
+        self.require_regular(actions.unknown_jacobian)?;
         Ok((initial_norm, assessment))
     }
 
@@ -121,7 +136,7 @@ impl FiniteConstraintProblem {
                 // Never infer regularity from a small residual or a zero update RHS.
                 // The existing exact rank owner classifies the binary64 AD matrix;
                 // this is a local accepted-point claim, not global branch uniqueness.
-                require_regular(values.len(), actions.unknown_jacobian)?;
+                self.require_regular(actions.unknown_jacobian)?;
                 let assessment = solve::original_assessment(self, &values, target)?;
                 return Ok(FiniteNonlinearSolution {
                     values,
@@ -178,7 +193,7 @@ impl FiniteConstraintProblem {
         values: &[f64],
         selected: &[Id<kinds::Parameter>],
     ) -> Result<(ExpressionLinearization, CsrMatrix), Diagnostic> {
-        let n = self.symbols.len();
+        let n = self.coordinate_count();
         if values.len() != n || values.iter().any(|value| !value.is_finite()) {
             return Err(invalid(
                 "finite nonlinear point differs from its complete Field coordinates",
@@ -223,13 +238,14 @@ impl FiniteConstraintProblem {
     }
 }
 
-fn require_regular(dimension: usize, coefficients: Vec<f64>) -> Result<(), Diagnostic> {
-    if ConstantDerivativeMatrixProof::new(dimension, coefficients)?.exact_rank() != dimension {
-        return Err(failed(
-            "finite nonlinear accepted-point Jacobian is singular",
-        ));
+impl FiniteConstraintProblem {
+    pub(crate) fn require_regular(&self, coefficients: Vec<f64>) -> Result<(), Diagnostic> {
+        let dimension = self.coordinate_count();
+        if ConstantDerivativeMatrixProof::new(dimension, coefficients)?.exact_rank() != dimension {
+            return Err(failed("finite accepted-point Jacobian is singular"));
+        }
+        Ok(())
     }
-    Ok(())
 }
 
 #[cfg(test)]

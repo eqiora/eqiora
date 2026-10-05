@@ -50,7 +50,11 @@ def compile(plan, *, inputs, output, state=None):
     without mutating the Model or Plan. Parameters, tangents, and
     cotangents are exact CPU ``float64`` arrays. Finite nonlinear Plans require
     their initial ``state`` and an Observable output; spatial scalar Plans
-    select a Field output.
+    select a Field output. Finite affine Plans need no seed, and support real
+    Observable sensitivities to real scalar Parameters with real or complex
+    Field coordinates, including conjugate dependence. Complex actions use the
+    real differential and pairing ``Re(sum(conj(a)*b))``; they do not assume
+    holomorphic dependence.
     """
 
     return _compile_differentiable(

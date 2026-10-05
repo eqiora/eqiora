@@ -4,7 +4,8 @@ use super::*;
 impl DifferentiableProgram {
     /// Compile an exact Plan, ordered Parameter selection, and scalar output.
     /// Finite nonlinear Plans require their complete initial State and an
-    /// Observable; spatial scalar Plans select a Field and require no seed.
+    /// Observable; affine finite Plans need no seed and select a real Observable.
+    /// Spatial scalar Plans select a Field and require no seed.
     ///
     /// # Errors
     /// Rejects foreign identities, unsupported roles, and unaccepted primals.
@@ -191,17 +192,30 @@ fn accept_plan_point(
             }
             plan.differentiate(selected, values)
         }
-        ResolvedCommonPlan::Algebraic(plan) => plan.differentiate(
-            initial.ok_or_else(|| {
-                invalid("finite differentiation requires its exact initial State")
-            })?,
-            selected,
-            values,
-            output
-                .downcast()
-                .ok_or_else(|| invalid("finite differentiation requires an Observable"))?,
-            backend,
-        ),
+        ResolvedCommonPlan::Algebraic(plan) => {
+            let canonical;
+            let initial = match initial {
+                Some(initial) => initial,
+                None if plan.nonlinear().is_none() => {
+                    canonical = plan.initial_state(&[])?;
+                    &canonical
+                }
+                None => {
+                    return Err(invalid(
+                        "finite nonlinear differentiation requires its exact initial State",
+                    ));
+                }
+            };
+            plan.differentiate(
+                initial,
+                selected,
+                values,
+                output
+                    .downcast()
+                    .ok_or_else(|| invalid("finite differentiation requires an Observable"))?,
+                backend,
+            )
+        }
         _ => Err(invalid(
             "this Plan does not admit implicit output differentiation",
         )),

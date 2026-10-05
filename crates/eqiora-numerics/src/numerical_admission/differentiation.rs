@@ -10,7 +10,11 @@ enum Output {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum Primal {
+pub(super) enum Primal {
+    Affine {
+        report: eqiora_solver::SolveReport,
+        assessment: crate::finite_constraints::ConstraintAssessment,
+    },
     Linear(Box<ExecutionReceipt>),
     Nonlinear {
         initial: CommonAlgebraicState,
@@ -39,16 +43,15 @@ impl CommonScalarDifferentiationPoint {
         }
     }
 
-    pub(super) fn from_nonlinear(
+    pub(super) fn from_finite(
         relation: AssembledLinearizedRelation,
         output: ScalarObjectiveLinearization,
-        initial: CommonAlgebraicState,
-        solution: FiniteNonlinearSolution,
+        primal: Primal,
     ) -> Self {
         Self {
             relation,
             output: Output::Observable(output),
-            primal: Primal::Nonlinear { initial, solution },
+            primal,
         }
     }
 
@@ -72,6 +75,15 @@ impl CommonScalarDifferentiationPoint {
     pub fn receipt(&self) -> Option<&ExecutionReceipt> {
         match &self.primal {
             Primal::Linear(receipt) => Some(receipt),
+            _ => None,
+        }
+    }
+
+    /// Solve report for a finite affine primal, without a spatial deployment receipt.
+    #[must_use]
+    pub fn affine_solve(&self) -> Option<&eqiora_solver::SolveReport> {
+        match &self.primal {
+            Primal::Affine { report, .. } => Some(report),
             _ => None,
         }
     }
@@ -121,6 +133,7 @@ impl CommonScalarDifferentiationPoint {
     pub fn residual_target(&self) -> f64 {
         match &self.primal {
             Primal::Linear(receipt) => receipt.report().residual_target(),
+            Primal::Affine { assessment, .. } => assessment.residual_target(),
             Primal::Nonlinear { solution, .. } => solution.assessment.residual_target(),
         }
     }

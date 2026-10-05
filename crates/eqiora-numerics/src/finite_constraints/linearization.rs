@@ -1,7 +1,7 @@
 //! One Operator IR lowering for original equality and Observable partial actions.
 use super::*;
-use eqiora_core::ValueLiteral;
-use eqiora_ir::{DifferentiationRole, LinearizedRelation, RelationTangent, ScalarOperatorIr};
+use eqiora_core::ScalarDomain;
+use eqiora_ir::{ComponentScalarization, DifferentiationRole, LinearizedRelation, RelationTangent};
 use eqiora_schema::kernel::KernelNode;
 
 pub(crate) struct ExpressionLinearization {
@@ -17,7 +17,7 @@ impl FiniteConstraintProblem {
         values: &[f64],
         selected: &[Id<kinds::Parameter>],
     ) -> Result<ExpressionLinearization, Diagnostic> {
-        let n = self.symbols.len();
+        let n = self.coordinate_count();
         if values.len() != n || values.iter().any(|value| !value.is_finite()) {
             return Err(invalid(
                 "finite linearization requires complete finite Field coordinates",
@@ -32,58 +32,69 @@ impl FiniteConstraintProblem {
                 ));
             }
         }
-        let expression = super::observables::expand(&self.kernel, expression)?;
-        let operator = ScalarOperatorIr::lower(&expression)?;
-        let mut inputs = Vec::new();
-        let mut roles = Vec::new();
-        let mut unknown_coordinates = Vec::new();
-        let mut parameter_coordinates = Vec::new();
-        for symbol in operator.symbols() {
-            match symbol {
-                SymbolRef::Field(id) => {
-                    let coordinate = self
-                        .symbols
-                        .iter()
-                        .position(|value| value == symbol)
-                        .ok_or_else(|| invalid("finite expression contains a foreign Field"))?;
-                    let Some(KernelNode::Field(field)) = self.kernel.node(id.erase()) else {
-                        return Err(invalid("finite Field is absent from its Model"));
-                    };
-                    inputs.push(
-                        ValueLiteral::from_real(field.value_type().clone(), values[coordinate])
-                            .map_err(|error| invalid(error.to_string()))?,
-                    );
-                    roles.push(DifferentiationRole::Unknown);
-                    unknown_coordinates.push(coordinate);
-                }
-                SymbolRef::Parameter(id) => {
-                    let Some(KernelNode::Parameter(parameter)) = self.kernel.node(id.erase())
-                    else {
-                        return Err(invalid("finite Parameter is absent from its Model"));
-                    };
-                    inputs.push(
-                        self.parameter_candidates
-                            .iter()
-                            .find(|(candidate, _)| candidate == id)
-                            .map_or_else(|| parameter.value().clone(), |(_, value)| value.clone()),
-                    );
-                    if let Some(coordinate) = selected.iter().position(|candidate| candidate == id)
-                    {
-                        roles.push(DifferentiationRole::Parameter);
-                        parameter_coordinates.push(coordinate);
-                    } else {
-                        roles.push(DifferentiationRole::Frozen);
-                    }
-                }
-                _ => {
-                    return Err(invalid(
-                        "finite expressions require static Field/Parameter coordinates",
-                    ));
-                }
+        for id in selected {
+            let Some(KernelNode::Parameter(parameter)) = self.kernel.node(id.erase()) else {
+                unreachable!("validated Parameter");
+            };
+            if parameter.value_type().scalar_domain() != ScalarDomain::Real
+                || !parameter.value_type().shape().is_scalar()
+            {
+                return Err(invalid(
+                    "finite Parameter-point differentiation requires real scalar selected Parameters",
+                ));
             }
         }
-        let linearized = operator.linearize_typed(&inputs, &roles)?;
-        let rows = expression.roots().len();
+        let expression = super::observables::expand(&self.kernel, expression)?;
+        let typed = coordinates::typed_expression(&self.kernel, &expression)?;
+        let operator = ComponentScalarization::lower(&typed)?;
+        let rows = operator.rows().len();
+        let linearized = operator.linearize(|coordinate| match coordinate.symbol() {
+            SymbolRef::Field(_) => self
+                .coordinates
+                .iter()
+                .position(|candidate| candidate == coordinate)
+                .map(|index| (values[index], DifferentiationRole::Unknown)),
+            SymbolRef::Parameter(id) => {
+                let Some(KernelNode::Parameter(parameter)) = self.kernel.node(id.erase()) else {
+                    return None;
+                };
+                let value = self
+                    .parameter_candidates
+                    .iter()
+                    .find(|(candidate, _)| *candidate == id)
+                    .map_or(parameter.value(), |(_, value)| value);
+                let role = if selected.contains(&id) {
+                    DifferentiationRole::Parameter
+                } else {
+                    DifferentiationRole::Frozen
+                };
+                coordinates::component(value, coordinate)
+                    .ok()
+                    .map(|value| (value, role))
+            }
+            _ => None,
+        })?;
+        // Match retained semantic coordinates, never expression traversal order.
+        let unknown_coordinates = linearized
+            .unknown_coordinates()
+            .iter()
+            .map(|coordinate| {
+                self.coordinates
+                    .iter()
+                    .position(|candidate| candidate == coordinate)
+                    .expect("bound Field coordinate")
+            })
+            .collect::<Vec<_>>();
+        let parameter_coordinates = linearized
+            .parameter_coordinates()
+            .iter()
+            .map(|coordinate| {
+                selected
+                    .iter()
+                    .position(|id| coordinate.symbol() == SymbolRef::Parameter(*id))
+                    .expect("bound Parameter coordinate")
+            })
+            .collect::<Vec<_>>();
         let mut primal = vec![0.0; rows];
         linearized.primal(&mut primal)?;
         let mut unknown_jacobian = vec![0.0; rows * n];
@@ -117,5 +128,68 @@ impl FiniteConstraintProblem {
             unknown_jacobian,
             parameter_jacobian,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use eqiora_graph::{GraphStore, InMemoryGraphStore};
+
+    #[test]
+    fn finite_component_partials_keep_nonholomorphic_coordinates_and_frozen_inputs() {
+        // R=(1+2i)z+conj(z)-(4+2i)p gives R=(2x-2y-4p,2x-2p).
+        // At p=3,z=3-3i the residual is zero and J=|z|^2+p=21.
+        let source = "model M(){parameter p:1=3;parameter a:complex<1>=math.complex(1,2);variable z:complex<1>;relation r{a*z+math.conj(z)=math.complex(4,2)*p;}observable j:1=math.abs2(z)+p;}";
+        let compiled = eqiora_compiler::compile("component-partials.eqi", source)
+            .unwrap()
+            .pop()
+            .unwrap();
+        let p = compiled.symbols().get("p").unwrap().downcast().unwrap();
+        let j = compiled.symbols().get("j").unwrap().downcast().unwrap();
+        let (transaction, model, _) = compiled.into_parts();
+        let mut store = InMemoryGraphStore::new();
+        store.commit(transaction).unwrap();
+        let kernel = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+        let problem = lower_finite_constraints(&kernel, None).unwrap();
+        assert_eq!(problem.symbols().len(), 1);
+        assert_eq!(problem.coordinate_count(), 2);
+        let (actions, _) = problem.equality_jacobian(&[3., -3.], &[p]).unwrap();
+        assert_eq!(actions.values, [0., 0.]);
+        assert_eq!(actions.unknown_jacobian, [2., -2., 2., 0.]);
+        assert_eq!(actions.parameter_jacobian, [-4., -2.]);
+        let objective = kernel.typed_observable(j).unwrap();
+        let actions = problem
+            .linearize_expression(objective.expression(), &[3., -3.], &[p])
+            .unwrap();
+        assert_eq!(actions.values, [21.]);
+        assert_eq!(actions.unknown_jacobian, [6., -6.]);
+        assert_eq!(actions.parameter_jacobian, [1.]);
+        assert!(problem.equality_jacobian(&[3.], &[p]).is_err());
+        // A new parameter point changes both affine assembly and independent
+        // original operands, while frozen complex a remains exactly 1+2i.
+        for (point, expected) in [
+            (problem.at_parameters(&[p], &[5.]).unwrap(), 5.),
+            (
+                problem
+                    .at_parameters(&[p], &[5.])
+                    .unwrap()
+                    .at_parameters(&[], &[])
+                    .unwrap(),
+                3.,
+            ),
+        ] {
+            let assembled = solve::branch_system(&point, 0).unwrap();
+            assert_eq!(assembled.right_hand_side(), &[4. * expected, 2. * expected]);
+            assert_eq!(
+                point.original_residual(&[expected, -expected]).unwrap(),
+                [0., 0.]
+            );
+            let actions = point
+                .linearize_expression(objective.expression(), &[expected, -expected], &[p])
+                .unwrap();
+            assert_eq!(actions.values, [2. * expected * expected + expected]);
+        }
+        assert_eq!(problem.original_residual(&[3., -3.]).unwrap(), [0., 0.]);
     }
 }
