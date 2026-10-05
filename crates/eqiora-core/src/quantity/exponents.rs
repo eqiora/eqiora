@@ -61,29 +61,28 @@ impl DimExponents {
 
     /// Apply an exact rational dimension power, independently of value evaluation.
     pub const fn pow(self, numerator: i32, denominator: i32) -> Option<Self> {
-        if numerator == i32::MIN || denominator == i32::MIN {
+        if denominator == 0 {
             return None;
         }
-        let (power_n, power_d) = match reduced(numerator as i128, denominator as i128) {
-            Some(value) => value,
-            None => return None,
-        };
+        // The power is an operation parameter, not a persisted dimension.
+        // Its unreduced magnitude need not fit the result's canonical bounds.
+        // i128 safely holds every product of two admitted i32 components.
+        let power_n = numerator as i128;
+        let power_d = denominator as i128;
         let mut result = Self::DIMENSIONLESS;
         let mut index = 0;
         while index < 7 {
             let (n, d) = self.values[index];
-            let cancel_left = gcd(n as i128, power_d as i128);
-            let cancel_right = gcd(power_n as i128, d as i128);
-            let numerator =
-                match (n as i128 / cancel_left).checked_mul(power_n as i128 / cancel_right) {
-                    Some(value) => value,
-                    None => return None,
-                };
-            let denominator =
-                match (d as i128 / cancel_right).checked_mul(power_d as i128 / cancel_left) {
-                    Some(value) => value,
-                    None => return None,
-                };
+            let cancel_left = gcd(n as i128, power_d);
+            let cancel_right = gcd(power_n, d as i128);
+            let numerator = match (n as i128 / cancel_left).checked_mul(power_n / cancel_right) {
+                Some(value) => value,
+                None => return None,
+            };
+            let denominator = match (d as i128 / cancel_right).checked_mul(power_d / cancel_left) {
+                Some(value) => value,
+                None => return None,
+            };
             result.values[index] = match reduced(numerator, denominator) {
                 Some(value) => value,
                 None => return None,
@@ -229,6 +228,23 @@ mod tests {
             Some(DimExponents::DIMENSIONLESS)
         );
         assert_eq!(length(1, 3).div(length(1, 2)), Some(length(-1, 6)));
+    }
+
+    #[test]
+    fn dimension_powers_bound_reduced_results_not_operation_parameters() {
+        // 0 * (-2^31) is exactly zero; (1/2) * (-2^31) = -2^30.
+        assert_eq!(
+            DimExponents::DIMENSIONLESS.pow(i32::MIN, 1),
+            Some(DimExponents::DIMENSIONLESS)
+        );
+        assert_eq!(length(1, 2).pow(i32::MIN, 1), Some(length(-(1 << 30), 1)));
+        // A negative denominator changes the sign before canonicalization.
+        assert_eq!(length(2, 1).pow(1, i32::MIN), Some(length(-1, 1 << 30)));
+        assert_eq!(length(1, 1).pow(i32::MIN, i32::MIN), Some(length(1, 1)));
+        // The final nonzero exponent still must satisfy the persisted bounds.
+        assert!(length(1, 1).pow(i32::MIN, 1).is_none());
+        assert!(length(1, 1).pow(1, i32::MIN).is_none());
+        assert!(DimExponents::DIMENSIONLESS.pow(0, 0).is_none());
     }
 
     #[test]
