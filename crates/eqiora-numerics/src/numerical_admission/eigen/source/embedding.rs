@@ -114,7 +114,7 @@ impl Embedding {
     pub(in crate::numerical_admission::eigen) fn lift(
         &self,
         coordinate: &ValueLiteral,
-    ) -> Result<(Vec<(Id<kinds::Field>, ValueLiteral)>, f64), Diagnostic> {
+    ) -> Result<LiftedMode, Diagnostic> {
         if coordinate.value_type() != self.coordinate_type() {
             return Err(invalid(
                 "spectral candidate has the wrong admitted coordinate type",

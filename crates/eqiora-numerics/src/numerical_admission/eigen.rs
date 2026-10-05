@@ -11,6 +11,9 @@ mod request;
 mod source;
 pub use request::CommonEigenRequest;
 
+/// Reconstructed source Fields and the maximum relative coordinate residual.
+type LiftedMode = (Vec<(Id<kinds::Field>, ValueLiteral)>, f64);
+
 /// One exact source Model and its finite Hermitian eigensolve selection.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonEigenPlan {
@@ -192,10 +195,7 @@ impl CommonEigenPlan {
         HermitianEigenproblem::new(operator, metric)
     }
 
-    pub(crate) fn lift_mode(
-        &self,
-        coordinate: &ValueLiteral,
-    ) -> Result<(Vec<(Id<kinds::Field>, ValueLiteral)>, f64), Diagnostic> {
+    pub(crate) fn lift_mode(&self, coordinate: &ValueLiteral) -> Result<LiftedMode, Diagnostic> {
         self.source.projected.as_ref().map_or_else(
             || Ok((vec![(self.mode_field(), coordinate.clone())], 0.)),
             |value| value.embedding.lift(coordinate),
