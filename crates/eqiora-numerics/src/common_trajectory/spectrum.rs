@@ -154,7 +154,7 @@ impl CommonTrajectory {
             ));
         };
         if sampling
-            .count
+            .count()
             .checked_mul(sampling.count())
             .is_none_or(|work| work > max_products)
         {
@@ -201,7 +201,7 @@ impl CommonTrajectory {
             ));
         }
         if sampling
-            .count
+            .count()
             .checked_mul(sampling.count())
             .and_then(|work| work.checked_mul(samples[0].component_count()))
             .is_none_or(|work| work > max_products)
