@@ -99,7 +99,7 @@ pub(super) fn signed_flux_coefficient(
     field: RawId,
     owner: RawId,
     dimensions: usize,
-) -> Result<(ScalarSpatialExpression, bool), Diagnostic> {
+) -> Result<(ScalarSpatialExpression<f64>, bool), Diagnostic> {
     fn has_gradient(expression: &ExprDag, value: ExprId, field: RawId) -> bool {
         match expression.node(value) {
             Some(ExprNode::Neg(value)) => has_gradient(expression, *value, field),

@@ -4,7 +4,7 @@ pub(super) fn collect_region_parameters(
     region: &ScalarConservationRegion,
     parameters: &mut Vec<Id<kinds::Parameter>>,
 ) {
-    let mut collect = |expression: &ScalarSpatialExpression| {
+    let mut collect = |expression: &ScalarSpatialExpression<f64>| {
         for parameter in expression.parameter_fields() {
             if !parameters.contains(parameter) {
                 parameters.push(*parameter);

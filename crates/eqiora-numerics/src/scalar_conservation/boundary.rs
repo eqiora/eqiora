@@ -4,7 +4,7 @@ pub(super) fn recognize_exterior_law(
     program: &KernelProgram,
     relation: RawId,
     field: RawId,
-    volume_coefficient: &ScalarSpatialExpression,
+    volume_coefficient: &ScalarSpatialExpression<f64>,
     dimensions: usize,
     physical_law: bool,
 ) -> Result<ScalarExteriorLaw, Diagnostic> {
@@ -241,7 +241,7 @@ pub(super) fn validate_normal_flux(
     expression: &ExprDag,
     normal: ExprId,
     field: RawId,
-    volume_coefficient: &ScalarSpatialExpression,
+    volume_coefficient: &ScalarSpatialExpression<f64>,
     relation: RawId,
     dimensions: usize,
 ) -> Result<(), Diagnostic> {
@@ -306,7 +306,7 @@ fn physical_conormal_orientation(
     expression: &ExprDag,
     normal: ExprId,
     field: RawId,
-    volume_coefficient: &ScalarSpatialExpression,
+    volume_coefficient: &ScalarSpatialExpression<f64>,
     relation: RawId,
     dimensions: usize,
 ) -> Result<bool, Diagnostic> {

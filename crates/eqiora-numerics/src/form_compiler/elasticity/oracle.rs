@@ -193,7 +193,7 @@ fn private_seam_matches_the_frozen_contract() {
             &QuadratureRule,
             f64,
             f64,
-            Option<&ScalarSpatialExpression>,
+            Option<&ScalarSpatialExpression<f64>>,
         ) -> Result<LocalContribution<f64>, Diagnostic> =
             AdmittedCartesianQ1ElasticityForm2d::evaluate;
         let _: fn(

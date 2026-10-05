@@ -2,9 +2,13 @@
 
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
-use eqiora_core::{Diagnostic, GraphPath, Id, RawId};
+use eqiora_core::{Diagnostic, GraphPath, Id, RawId, Scalar};
 use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef, UnaryMathFunction};
 use eqiora_sem::KernelProgram;
+
+mod lowering;
+pub(crate) use lowering::lower;
+use num_complex::ComplexFloat;
 
 // Physical point samplers cannot interpret an abstract product factor's axis
 // as an axis of their ambient point, even when the units happen to agree.
@@ -40,21 +44,22 @@ pub(crate) fn physical_coordinate(
 /// meaning. The tape contains only scalar arithmetic, indexed physical
 /// coordinates, and dimensionally validated unary mathematics.
 #[derive(Debug, Clone, PartialEq)]
-pub struct ScalarSpatialExpression {
+pub struct ScalarSpatialExpression<S: Scalar> {
     coordinate_dimension: usize,
-    instructions: Vec<Instruction>,
+    instructions: Vec<Instruction<S>>,
     root: usize,
     coordinate_dependent: bool,
     parameter_fields: Vec<Id<kinds::Parameter>>,
-    parameter_values: Vec<f64>,
+    parameter_values: Vec<S>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum Instruction {
-    Constant(f64),
+enum Instruction<S: Scalar> {
+    Constant(S),
     Parameter(usize),
     Coordinate(usize),
     Neg(usize),
+    Conjugate(usize),
     Add(usize, usize),
     Sub(usize, usize),
     Mul(usize, usize),
@@ -64,7 +69,7 @@ enum Instruction {
     Sqrt(usize),
 }
 
-impl ScalarSpatialExpression {
+impl<S: Scalar + ComplexFloat<Real = f64> + From<f64>> ScalarSpatialExpression<S> {
     /// Exact physical coordinate dimension admitted by this tape.
     #[must_use]
     pub const fn coordinate_dimension(&self) -> usize {
@@ -76,27 +81,34 @@ impl ScalarSpatialExpression {
     /// # Errors
     /// Returns `EQ0702` for coordinate shape mismatch and `EQ0505` for a
     /// non-finite coordinate or intermediate value.
-    pub fn evaluate(&self, coordinates: &[f64]) -> Result<f64, Diagnostic> {
+    pub fn evaluate(&self, coordinates: &[f64]) -> Result<S, Diagnostic> {
         self.validate_coordinates(coordinates)?;
         let values = self.primal_values(coordinates)?;
         Ok(values[self.root])
     }
 
-    fn primal_values(&self, coordinates: &[f64]) -> Result<Vec<f64>, Diagnostic> {
-        let mut values: Vec<f64> = Vec::with_capacity(self.instructions.len());
+    fn primal_values(&self, coordinates: &[f64]) -> Result<Vec<S>, Diagnostic> {
+        let mut values: Vec<S> = Vec::with_capacity(self.instructions.len());
         for instruction in &self.instructions {
             let value = match *instruction {
                 Instruction::Constant(value) => value,
                 Instruction::Parameter(parameter) => self.parameter_values[parameter],
-                Instruction::Coordinate(axis) => coordinates[axis],
+                Instruction::Coordinate(axis) => <S as From<f64>>::from(coordinates[axis]),
                 Instruction::Neg(value) => -values[value],
+                Instruction::Conjugate(value) => values[value].conj(),
                 Instruction::Add(left, right) => values[left] + values[right],
                 Instruction::Sub(left, right) => values[left] - values[right],
                 Instruction::Mul(left, right) => values[left] * values[right],
                 Instruction::Div(left, right) => values[left] / values[right],
-                Instruction::PowI(base, exponent) => f64::powi(values[base], exponent),
-                Instruction::Sin(value) => f64::sin(values[value]),
-                Instruction::Sqrt(value) => real_sqrt(values[value])?,
+                Instruction::PowI(base, exponent) => values[base].powi(exponent),
+                Instruction::Sin(value) => values[value].sin(),
+                Instruction::Sqrt(value) => {
+                    if S::DOMAIN == eqiora_core::ScalarDomain::Real {
+                        <S as From<f64>>::from(real_sqrt(values[value].re())?)
+                    } else {
+                        values[value].sqrt()
+                    }
+                }
             };
             if !value.is_finite() {
                 return Err(nonfinite(
@@ -107,7 +119,9 @@ impl ScalarSpatialExpression {
         }
         Ok(values)
     }
+}
 
+impl<S: Scalar + ComplexFloat<Real = f64> + From<f64>> ScalarSpatialExpression<S> {
     /// Canonical Parameters retained by this tape, in dense tangent order.
     ///
     /// The order is deterministic first occurrence in the lowered expression.
@@ -118,7 +132,7 @@ impl ScalarSpatialExpression {
 
     /// Complete Parameter values at this tape's evaluation point.
     #[must_use]
-    pub fn parameter_values(&self) -> &[f64] {
+    pub fn parameter_values(&self) -> &[S] {
         &self.parameter_values
     }
 
@@ -135,7 +149,7 @@ impl ScalarSpatialExpression {
     pub(crate) fn bind_parameter_point(
         &self,
         parameter_fields: &[Id<kinds::Parameter>],
-        parameter_values: &[f64],
+        parameter_values: &[S],
     ) -> Result<Self, Diagnostic> {
         if parameter_fields.len() != parameter_values.len() {
             return Err(input_mismatch(format!(
@@ -174,7 +188,9 @@ impl ScalarSpatialExpression {
         bound.parameter_values = bound_values;
         Ok(bound)
     }
+}
 
+impl ScalarSpatialExpression<f64> {
     /// Evaluate the primal value and one Parameter JVP in a single tape pass.
     ///
     /// `parameter_tangent` uses [`Self::parameter_fields`] order. Coordinates
@@ -259,6 +275,7 @@ impl ScalarSpatialExpression {
                 ),
                 Instruction::Coordinate(axis) => (coordinates[axis], coordinate_tangent[axis]),
                 Instruction::Neg(value) => (-values[value], -tangents[value]),
+                Instruction::Conjugate(value) => (values[value], tangents[value]),
                 Instruction::Add(left, right) => (
                     values[left] + values[right],
                     tangents[left] + tangents[right],
@@ -364,6 +381,7 @@ impl ScalarSpatialExpression {
                     coordinate_cotangent[axis] += adjoint;
                 }
                 Instruction::Neg(value) => adjoints[value] -= adjoint,
+                Instruction::Conjugate(value) => adjoints[value] += adjoint,
                 Instruction::Add(left, right) => {
                     adjoints[left] += adjoint;
                     adjoints[right] += adjoint;
@@ -410,7 +428,9 @@ impl ScalarSpatialExpression {
 
         Ok((values[self.root], coordinate_cotangent, parameter_cotangent))
     }
+}
 
+impl<S: Scalar + ComplexFloat<Real = f64> + From<f64>> ScalarSpatialExpression<S> {
     fn validate_coordinates(&self, coordinates: &[f64]) -> Result<(), Diagnostic> {
         if coordinates.len() != self.coordinate_dimension {
             return Err(input_mismatch(format!(
@@ -424,7 +444,9 @@ impl ScalarSpatialExpression {
         }
         Ok(())
     }
+}
 
+impl ScalarSpatialExpression<f64> {
     /// Whether evaluation depends on the physical coordinate.
     #[must_use]
     pub const fn is_coordinate_dependent(&self) -> bool {
@@ -467,6 +489,7 @@ impl ScalarSpatialExpression {
                     (0.0, gradient)
                 }
                 Instruction::Neg(value) => scale_affine(&forms[value], -1.0),
+                Instruction::Conjugate(value) => forms[value].clone(),
                 Instruction::Add(left, right) => add_affine(&forms[left], &forms[right], 1.0),
                 Instruction::Sub(left, right) => add_affine(&forms[left], &forms[right], -1.0),
                 Instruction::Mul(left, right) => {
@@ -504,8 +527,10 @@ impl ScalarSpatialExpression {
         }
         forms.get(self.root).map(|(_, gradient)| gradient.clone())
     }
+}
 
-    pub(crate) fn constant(coordinate_dimension: usize, value: f64) -> Self {
+impl<S: Scalar + ComplexFloat<Real = f64> + From<f64>> ScalarSpatialExpression<S> {
+    pub(crate) fn constant(coordinate_dimension: usize, value: S) -> Self {
         Self {
             coordinate_dimension,
             instructions: vec![Instruction::Constant(value)],
@@ -580,134 +605,17 @@ fn add_affine(
     )
 }
 
-pub(crate) fn lower(
-    program: &KernelProgram,
-    expression: &ExprDag,
-    root: ExprId,
-    owner: RawId,
-    coordinate_dimension: usize,
-) -> Result<ScalarSpatialExpression, Diagnostic> {
-    if coordinate_dimension == 0 {
-        return Err(invalid(
-            owner,
-            "scalar spatial lowering requires a positive coordinate dimension",
-        ));
-    }
-    let required = required_nodes(expression, root, owner)?;
-    let mut remap = vec![None; expression.nodes().len()];
-    let mut instructions = Vec::new();
-    let mut coordinate_dependent = false;
-    let mut parameter_fields = Vec::new();
-    let mut parameter_values = Vec::new();
-
-    for (index, node) in expression.nodes().iter().enumerate() {
-        if !required[index] {
-            continue;
-        }
-        let instruction = match node {
-            ExprNode::Constant(value) => Instruction::Constant(
-                value
-                    .real_scalar_value()
-                    .ok_or_else(|| {
-                        invalid(
-                            owner,
-                            "scalar spatial lowering requires real scalar constants",
-                        )
-                    })?
-                    .value(),
-            ),
-            ExprNode::Symbol(SymbolRef::Parameter(parameter)) => {
-                let value = program
-                    .value(parameter.erase())
-                    .map(|value| value.value())
-                    .ok_or_else(|| invalid(owner, "Parameter has no revision-local value"))?;
-                let parameter = parameter_fields
-                    .iter()
-                    .position(|existing| existing == parameter)
-                    .unwrap_or_else(|| {
-                        let index = parameter_fields.len();
-                        parameter_fields.push(*parameter);
-                        parameter_values.push(value);
-                        index
-                    });
-                Instruction::Parameter(parameter)
-            }
-            ExprNode::Symbol(SymbolRef::Coordinate {
-                support,
-                factor,
-                axis,
-            }) if *axis < coordinate_dimension
-                && physical_coordinate(program, *support, *factor) =>
-            {
-                coordinate_dependent = true;
-                Instruction::Coordinate(*axis)
-            }
-            ExprNode::Symbol(SymbolRef::Coordinate { axis, .. }) => {
-                return Err(invalid(
-                    owner,
-                    format!(
-                        "coordinate axis {axis} is unavailable in this physical spatial dimension {coordinate_dimension}"
-                    ),
-                ));
-            }
-            ExprNode::Neg(value) => Instruction::Neg(remapped(&remap, *value, owner)?),
-            ExprNode::Add(left, right) => Instruction::Add(
-                remapped(&remap, *left, owner)?,
-                remapped(&remap, *right, owner)?,
-            ),
-            ExprNode::Sub(left, right) => Instruction::Sub(
-                remapped(&remap, *left, owner)?,
-                remapped(&remap, *right, owner)?,
-            ),
-            ExprNode::Mul(left, right) => Instruction::Mul(
-                remapped(&remap, *left, owner)?,
-                remapped(&remap, *right, owner)?,
-            ),
-            ExprNode::Div(left, right) => Instruction::Div(
-                remapped(&remap, *left, owner)?,
-                remapped(&remap, *right, owner)?,
-            ),
-            ExprNode::PowI(base, exponent) => {
-                Instruction::PowI(remapped(&remap, *base, owner)?, *exponent)
-            }
-            ExprNode::UnaryMath(UnaryMathFunction::Sin, value) => {
-                Instruction::Sin(remapped(&remap, *value, owner)?)
-            }
-            ExprNode::UnaryMath(UnaryMathFunction::Sqrt, value) => {
-                Instruction::Sqrt(remapped(&remap, *value, owner)?)
-            }
-            _ => {
-                return Err(invalid(
-                    owner,
-                    "source must use constants, Parameters, in-domain coordinates, scalar arithmetic, and supported unary mathematics",
-                ));
-            }
-        };
-        let lowered = instructions.len();
-        instructions.push(instruction);
-        remap[index] = Some(lowered);
-    }
-
-    Ok(ScalarSpatialExpression {
-        coordinate_dimension,
-        instructions,
-        root: remapped(&remap, root, owner)?,
-        coordinate_dependent,
-        parameter_fields,
-        parameter_values,
-    })
-}
-
-fn remap_instruction(
-    instruction: Instruction,
+fn remap_instruction<S: Scalar>(
+    instruction: Instruction<S>,
     node_offset: usize,
     parameter_remap: &[usize],
-) -> Instruction {
+) -> Instruction<S> {
     match instruction {
         Instruction::Constant(value) => Instruction::Constant(value),
         Instruction::Parameter(parameter) => Instruction::Parameter(parameter_remap[parameter]),
         Instruction::Coordinate(axis) => Instruction::Coordinate(axis),
         Instruction::Neg(value) => Instruction::Neg(node_offset + value),
+        Instruction::Conjugate(value) => Instruction::Conjugate(node_offset + value),
         Instruction::Add(left, right) => Instruction::Add(node_offset + left, node_offset + right),
         Instruction::Sub(left, right) => Instruction::Sub(node_offset + left, node_offset + right),
         Instruction::Mul(left, right) => Instruction::Mul(node_offset + left, node_offset + right),
@@ -748,7 +656,11 @@ fn required_nodes(
             ExprNode::Add(left, right)
             | ExprNode::Sub(left, right)
             | ExprNode::Mul(left, right)
-            | ExprNode::Div(left, right) => {
+            | ExprNode::Div(left, right)
+            | ExprNode::Complex {
+                real: left,
+                imag: right,
+            } => {
                 pending.push(*left);
                 pending.push(*right);
             }

@@ -65,15 +65,15 @@ pub struct TransientIncompressibleNavierStokesCartesianModel<const D: usize> {
     pressure: RawId,
     force_potential: RawId,
     bounds: [[f64; 2]; D],
-    mass_density: ScalarSpatialExpression,
-    dynamic_viscosity: ScalarSpatialExpression,
-    force_potential_expression: ScalarSpatialExpression,
+    mass_density: ScalarSpatialExpression<f64>,
+    dynamic_viscosity: ScalarSpatialExpression<f64>,
+    force_potential_expression: ScalarSpatialExpression<f64>,
     force_potential_definition: RawId,
     momentum_relation: RawId,
     incompressibility_relation: RawId,
     boundary_inventory: CartesianBoundaryInventory<D>,
     boundary_relations: Vec<BoundaryRelationBinding>,
-    normal_velocity_expressions: BTreeMap<(usize, BoundarySide), ScalarSpatialExpression>,
+    normal_velocity_expressions: BTreeMap<(usize, BoundarySide), ScalarSpatialExpression<f64>>,
 }
 
 /// Crate-private two-dimensional projection shared by transient execution paths.
@@ -84,15 +84,15 @@ pub(crate) struct TransientIncompressibleNavierStokesModel2d {
     pub(super) pressure: RawId,
     pub(super) force_potential: RawId,
     pub(super) bounds: [[f64; 2]; 2],
-    pub(super) mass_density: ScalarSpatialExpression,
-    pub(super) dynamic_viscosity: ScalarSpatialExpression,
-    pub(super) force_potential_expression: ScalarSpatialExpression,
+    pub(super) mass_density: ScalarSpatialExpression<f64>,
+    pub(super) dynamic_viscosity: ScalarSpatialExpression<f64>,
+    pub(super) force_potential_expression: ScalarSpatialExpression<f64>,
     pub(super) force_potential_definition: RawId,
     pub(super) momentum_relation: RawId,
     pub(super) incompressibility_relation: RawId,
     pub(super) boundary_dispositions: BTreeMap<RawId, PhysicalBoundaryDisposition>,
     pub(super) boundary_relations: Vec<BoundaryRelationBinding>,
-    pub(super) normal_velocity_expressions: BTreeMap<RawId, ScalarSpatialExpression>,
+    pub(super) normal_velocity_expressions: BTreeMap<RawId, ScalarSpatialExpression<f64>>,
     pub(super) named_boundary_ids: BTreeMap<String, RawId>,
     pub(super) stress_form: IncompressibleStressForm,
     pub(super) geometry_source_digest: Option<[u8; 32]>,
@@ -172,7 +172,7 @@ impl<const D: usize> TransientIncompressibleNavierStokesCartesianModel<D> {
 
     /// Immutable density tape shared by inertia and conservative advection.
     #[must_use]
-    pub const fn mass_density_expression(&self) -> &ScalarSpatialExpression {
+    pub const fn mass_density_expression(&self) -> &ScalarSpatialExpression<f64> {
         &self.mass_density
     }
 
@@ -186,13 +186,13 @@ impl<const D: usize> TransientIncompressibleNavierStokesCartesianModel<D> {
 
     /// Immutable viscosity tape retaining revision-local Parameter identity.
     #[must_use]
-    pub const fn dynamic_viscosity_expression(&self) -> &ScalarSpatialExpression {
+    pub const fn dynamic_viscosity_expression(&self) -> &ScalarSpatialExpression<f64> {
         &self.dynamic_viscosity
     }
 
     /// Immutable scalar tape defining the conservative-force potential.
     #[must_use]
-    pub const fn force_potential_expression(&self) -> &ScalarSpatialExpression {
+    pub const fn force_potential_expression(&self) -> &ScalarSpatialExpression<f64> {
         &self.force_potential_expression
     }
 
@@ -478,9 +478,9 @@ pub(super) struct TransientVolume<const D: usize> {
     pub(super) velocity: RawId,
     pub(super) pressure: RawId,
     pub(super) force_potential: RawId,
-    pub(super) mass_density: ScalarSpatialExpression,
-    pub(super) dynamic_viscosity: ScalarSpatialExpression,
-    pub(super) force_potential_expression: ScalarSpatialExpression,
+    pub(super) mass_density: ScalarSpatialExpression<f64>,
+    pub(super) dynamic_viscosity: ScalarSpatialExpression<f64>,
+    pub(super) force_potential_expression: ScalarSpatialExpression<f64>,
     pub(super) force_potential_definition: RawId,
     pub(super) momentum_relation: RawId,
     pub(super) incompressibility_relation: RawId,

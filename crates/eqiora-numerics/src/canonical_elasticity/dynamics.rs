@@ -46,7 +46,7 @@ pub struct IsotropicElastodynamicsCartesianModel<const D: usize> {
     continuum: IsotropicElasticityContinuum<D>,
     velocity: RawId,
     kinematic_relation: RawId,
-    mass_density: ScalarSpatialExpression,
+    mass_density: ScalarSpatialExpression<f64>,
     momentum_orientation: f64,
 }
 
@@ -86,7 +86,7 @@ impl<const D: usize> IsotropicElastodynamicsCartesianModel<D> {
     /// Direct and elaborated package Models retain revision-local Parameter
     /// identities; equality of coefficient values does not conflate lineage.
     #[must_use]
-    pub const fn mass_density_expression(&self) -> &ScalarSpatialExpression {
+    pub const fn mass_density_expression(&self) -> &ScalarSpatialExpression<f64> {
         &self.mass_density
     }
 }

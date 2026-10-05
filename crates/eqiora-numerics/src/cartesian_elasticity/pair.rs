@@ -373,7 +373,7 @@ impl FinalizedConformingCartesianElasticityPair2dState {
 pub(crate) fn finalize_conforming_cartesian_q1_linear_elasticity_pair_2d(
     meshes: [CartesianMesh; 2],
     materials: [IsotropicElasticityMaterial<DIMENSION>; 2],
-    body_force_potentials: [&ScalarSpatialExpression; 2],
+    body_force_potentials: [&ScalarSpatialExpression<f64>; 2],
     quadrature: &QuadratureRule,
     interface_axis: usize,
     essential_sides: [CartesianEssentialSides2d; 2],

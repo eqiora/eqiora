@@ -479,7 +479,7 @@ fn lower_boundary_projection(
     domain: RawId,
     velocity: RawId,
     pressure: RawId,
-    dynamic_viscosity: &crate::spatial_expression::ScalarSpatialExpression,
+    dynamic_viscosity: &crate::spatial_expression::ScalarSpatialExpression<f64>,
     source: BoundarySource2d,
 ) -> Result<LoweredBoundaryProjection2d, Diagnostic> {
     match source {
@@ -751,7 +751,10 @@ fn resolve_normal_pressures(
     let mut definitions = BTreeSet::new();
     let mut lowered_fields: BTreeMap<
         RawId,
-        (RawId, crate::spatial_expression::ScalarSpatialExpression),
+        (
+            RawId,
+            crate::spatial_expression::ScalarSpatialExpression<f64>,
+        ),
     > = BTreeMap::new();
     let mut by_key = BTreeMap::new();
 

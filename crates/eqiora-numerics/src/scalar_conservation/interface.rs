@@ -9,7 +9,7 @@ pub(super) fn recognize_interface_side(
     side: BoundarySide,
     relations: &[RawId],
     field: RawId,
-    volume_coefficient: &ScalarSpatialExpression,
+    volume_coefficient: &ScalarSpatialExpression<f64>,
     dimensions: usize,
 ) -> Result<Option<PendingInterfaceSide>, Diagnostic> {
     let candidates = relations

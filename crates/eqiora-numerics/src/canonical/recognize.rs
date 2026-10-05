@@ -89,7 +89,7 @@ pub(crate) fn lower_volume_relation(
     relation: RawId,
     field: RawId,
     coordinate_dimension: usize,
-) -> Result<(ScalarSpatialExpression, ScalarSpatialExpression), Diagnostic> {
+) -> Result<(ScalarSpatialExpression<f64>, ScalarSpatialExpression<f64>), Diagnostic> {
     let expression = &relation_expression(program, relation)?;
     let root = unique_root(expression, relation)?;
     if let Some((flux, source)) = scalar_volume_top_roles(expression, root) {
@@ -210,7 +210,7 @@ pub(crate) fn lower_cartesian_boundary_relation(
     program: &KernelProgram,
     relation: RawId,
     field: RawId,
-    volume_coefficient: &ScalarSpatialExpression,
+    volume_coefficient: &ScalarSpatialExpression<f64>,
     coordinate_dimension: usize,
 ) -> Result<ScalarEllipticCartesianBoundary, Diagnostic> {
     let expression = &relation_expression(program, relation)?;
@@ -341,10 +341,10 @@ fn lower_scalar_boundary_operator(
     program: &KernelProgram,
     expression: &ExprDag,
     operator: ExprId,
-    value: ScalarSpatialExpression,
+    value: ScalarSpatialExpression<f64>,
     relation: RawId,
     field: RawId,
-    volume_coefficient: &ScalarSpatialExpression,
+    volume_coefficient: &ScalarSpatialExpression<f64>,
     coordinate_dimension: usize,
 ) -> Result<ScalarEllipticCartesianBoundary, Diagnostic> {
     match expression.node(operator) {
@@ -394,8 +394,8 @@ pub(crate) fn lower_constant_boundary_1d(
 }
 
 pub(crate) fn collect_parameter_coordinates(
-    coefficient: &ScalarSpatialExpression,
-    source: &ScalarSpatialExpression,
+    coefficient: &ScalarSpatialExpression<f64>,
+    source: &ScalarSpatialExpression<f64>,
     boundaries: &BTreeMap<(usize, BoundarySide), ScalarEllipticCartesianBoundary>,
 ) -> (Vec<Id<kinds::Parameter>>, Vec<f64>) {
     let mut fields = Vec::new();
@@ -431,7 +431,7 @@ pub(crate) fn lower_flux_coefficient(
     field: RawId,
     owner: RawId,
     coordinate_dimension: usize,
-) -> Result<ScalarSpatialExpression, Diagnostic> {
+) -> Result<ScalarSpatialExpression<f64>, Diagnostic> {
     if let Some(ExprNode::Gradient(argument)) = expression.node(value)
         && is_field(expression, *argument, field)
     {
@@ -480,7 +480,7 @@ pub(crate) fn lower_spatial_factor(
     value: ExprId,
     owner: RawId,
     coordinate_dimension: usize,
-) -> Result<ScalarSpatialExpression, Diagnostic> {
+) -> Result<ScalarSpatialExpression<f64>, Diagnostic> {
     spatial_expression::lower(program, expression, value, owner, coordinate_dimension)
 }
 

@@ -382,7 +382,7 @@ pub fn solve_cartesian_q1_linear_elasticity_2d(
     mesh: &CartesianMesh,
     shear_modulus: f64,
     first_lame_parameter: f64,
-    body_force_potential: &ScalarSpatialExpression,
+    body_force_potential: &ScalarSpatialExpression<f64>,
     quadrature: &QuadratureRule,
     solver: LinearSolveRequest<'_>,
 ) -> Result<CartesianLinearElasticity2dSolution, Diagnostic> {
@@ -407,7 +407,7 @@ pub fn solve_cartesian_q1_linear_elasticity_2d_with_assembly(
     mesh: &CartesianMesh,
     shear_modulus: f64,
     first_lame_parameter: f64,
-    body_force_potential: &ScalarSpatialExpression,
+    body_force_potential: &ScalarSpatialExpression<f64>,
     quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend<f64>,
     solver: LinearSolveRequest<'_>,
@@ -528,7 +528,7 @@ impl FinalizedCartesianElasticity2dState {
 pub(crate) fn finalize_cartesian_q1_linear_elasticity_2d(
     mesh: &CartesianMesh,
     material: IsotropicElasticityMaterial<DIMENSION>,
-    body_force_potential: &ScalarSpatialExpression,
+    body_force_potential: &ScalarSpatialExpression<f64>,
     quadrature: &QuadratureRule,
     essential_sides: CartesianEssentialSides2d,
     tractions: [[Option<[f64; COMPONENTS]>; 2]; DIMENSION],

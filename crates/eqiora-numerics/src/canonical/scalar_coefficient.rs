@@ -49,7 +49,7 @@ impl ScalarEllipticCartesianModel {
 }
 
 pub(crate) fn validate_positive_affine_coefficient(
-    coefficient: &ScalarSpatialExpression,
+    coefficient: &ScalarSpatialExpression<f64>,
     bounds: &[[f64; 2]],
     owner: RawId,
 ) -> Result<(), Diagnostic> {

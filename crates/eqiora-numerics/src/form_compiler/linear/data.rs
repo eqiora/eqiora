@@ -12,8 +12,8 @@ pub(in crate::form_compiler) struct Data(Arc<Node>);
 
 #[derive(Debug, PartialEq)]
 enum Node {
-    Tape(ScalarSpatialExpression),
-    CoordinateDerivative(ScalarSpatialExpression, usize),
+    Tape(ScalarSpatialExpression<f64>),
+    CoordinateDerivative(ScalarSpatialExpression<f64>, usize),
     Add(Data, Data),
     Mul(Data, Data),
     Div(Data, Data),
