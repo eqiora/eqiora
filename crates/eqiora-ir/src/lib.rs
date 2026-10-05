@@ -27,6 +27,6 @@ pub use linearization::{
 };
 pub use local_action::LocalLinearActionIr;
 pub use scalar::{
-    BoundAffineFailure, BoundAffineScalarIr, ConstantSymbolJacobian, ScalarInputOperatorIr,
-    ScalarInputSlot, ScalarLinearization, ScalarOperatorIr, SymbolicLinearityFailure,
+    BoundAffineFailure, BoundAffineScalarIr, ConstantSymbolJacobian, ScalarInputSlot,
+    ScalarLinearization, ScalarOperatorIr, SymbolicLinearityFailure,
 };

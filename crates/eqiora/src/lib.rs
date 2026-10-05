@@ -138,11 +138,12 @@ pub mod package {
 /// Backend-independent lowered representations.
 pub mod ir {
     pub use eqiora_ir::{
-        BoundAffineFailure, BoundAffineScalarIr, ComponentScalarRow, ComponentScalarization,
-        ConstantSymbolJacobian, DifferentiationRole, DiscreteStepLinearization, LinearizedOutput,
-        LinearizedRelation, LocalLinearActionIr, RelationCotangent, RelationTangent,
-        ScalarInputOperatorIr, ScalarInputSlot, ScalarLinearization, ScalarObjectiveLinearization,
-        ScalarOperatorIr, ScalarSymbolCoordinate, SymbolicLinearityFailure,
+        BoundAffineFailure, BoundAffineScalarIr, ComponentLinearization, ComponentScalarRow,
+        ComponentScalarization, ConstantSymbolJacobian, DifferentiationRole,
+        DiscreteStepLinearization, LinearizedOutput, LinearizedRelation, LocalLinearActionIr,
+        RelationCotangent, RelationTangent, ScalarInputSlot, ScalarLinearization,
+        ScalarObjectiveLinearization, ScalarOperatorIr, ScalarSymbolCoordinate,
+        SymbolicLinearityFailure,
     };
 }
 
