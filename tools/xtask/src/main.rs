@@ -208,6 +208,9 @@ fn same_layer_dependency_is_allowed(package: &str, dependency: &str) -> bool {
             // opaque canonical-geometry projection so no caller can forge a
             // digest, dimension, or entity-set fact at the compiler boundary.
             | ("eqiora-compiler", "eqiora-geometry")
+            // #938; docs/architecture.md, Common finite Parameter evaluation
+            // owner: reuse pure component evaluation, never a reverse IR edge.
+            | ("eqiora-compiler", "eqiora-ir")
     )
 }
 
@@ -332,6 +335,26 @@ mod tests {
         assert!(!forbidden_python_dependency("eqiora-numerics"));
         assert!(forbidden_python_dependency("eqiora-runtime"));
         assert!(forbidden_python_dependency("eqiora-meshing"));
+    }
+
+    #[test]
+    fn finite_parameter_composition_preserves_ir_source_independence() {
+        assert!(same_layer_dependency_is_allowed(
+            "eqiora-compiler",
+            "eqiora-ir"
+        ));
+        assert!(!same_layer_dependency_is_allowed(
+            "eqiora-ir",
+            "eqiora-compiler"
+        ));
+        assert!(!same_layer_dependency_is_allowed(
+            "eqiora-compiler",
+            "eqiora-time"
+        ));
+        assert!(!same_layer_dependency_is_allowed(
+            "eqiora-compiler",
+            "eqiora-solver"
+        ));
     }
 
     #[test]

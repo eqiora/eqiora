@@ -85,6 +85,28 @@ the identity/unit layer; copying it would create a competing rank oracle. Initia
 conditions cannot repair a high-index regular system, and a solvable discrete
 step is not an index-one certificate.
 
+## Common finite Parameter evaluation owner
+
+Architecture decision for [#938](https://github.com/eqiora/eqiora/issues/938):
+`eqiora-compiler` consumes `eqiora-ir` in one direction to evaluate closed, typed
+finite Parameter expressions through `ComponentScalarization`. The compiler owns
+name resolution, dependencies, type checking, inactive-branch checking and source
+lineage. IR owns component ordering and numerical finite-map actions, including
+LU-based real inverses and scaled complex quotients. This composition does not
+select a backend, construct a Plan or admit a solver in the compiler.
+
+Static Hamiltonian composition and execution must not carry separate contraction,
+factor-permutation or inverse algorithms. Duplicating those algorithms in the
+compiler would create competing numerical owners; moving the component evaluator
+into schema/core would move execution into the mathematical identity layer. A new
+crate would split an existing owner for one consumer. Reusing pure IR retains one
+implementation and its existing work bounds. Independent expected values remain
+in product tests and claim-local evidence, not derived from the shared evaluator.
+
+The dependency check admits only this directed edge. IR must not consume compiler
+source, AST or elaboration, and other compiler dependencies remain constrained by
+the existing layer policy.
+
 ## Standard Ontology
 
 Model, Coupling, Scale, Objective, Solver, and EvidenceSet are typed named
