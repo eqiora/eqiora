@@ -53,12 +53,12 @@ impl LoopbackSpatialAssemblyBackend {
     }
 }
 
-impl AssemblyBackend for LoopbackSpatialAssemblyBackend {
+impl AssemblyBackend<f64> for LoopbackSpatialAssemblyBackend {
     fn assemble(
         &self,
         plan: &AssemblyPlan,
-        work: &dyn AssemblyWork,
-    ) -> Result<AssemblyResult, Diagnostic> {
+        work: &dyn AssemblyWork<f64>,
+    ) -> Result<AssemblyResult<f64>, Diagnostic> {
         let mut accepted = self
             .accepted
             .lock()

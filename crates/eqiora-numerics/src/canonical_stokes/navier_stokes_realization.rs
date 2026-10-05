@@ -480,7 +480,7 @@ pub fn advance_resolved_transient_navier_stokes_mini_2d_with_assembly(
     mesh: &SimplicialMeshEnvelopeV1,
     initial: TransientNavierStokesInitialState2d,
     run: TransientNavierStokesRun2d,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     solver: &dyn LinearSolverBackend,
 ) -> Result<ResolvedTransientNavierStokesTrajectory2d, Diagnostic> {
     prepare_resolved_transient_navier_stokes_mini_run_2d_with_assembly(

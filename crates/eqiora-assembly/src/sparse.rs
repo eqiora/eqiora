@@ -1,9 +1,10 @@
-use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_core::{Diagnostic, Scalar};
 use eqiora_solver::{
     CompleteCsrStorage, DiagonalAvailability, LinearOperator, OrientedLinearOperator,
     RowLinearAction,
 };
+use num_complex::ComplexFloat;
 
 use crate::{AssemblyDelta, LocalContribution};
 
@@ -20,7 +21,7 @@ impl CsrTopology {
         row_offsets: Vec<usize>,
         column_indices: Vec<usize>,
     ) -> Result<Self, Diagnostic> {
-        CsrMatrix::validate_sorted_csr(
+        validate_sorted_csr(
             size,
             size,
             &row_offsets,
@@ -36,22 +37,22 @@ impl CsrTopology {
 }
 
 #[derive(Debug)]
-pub(crate) struct CsrValueAssembler {
+pub(crate) struct CsrValueAssembler<S> {
     topology: CsrTopology,
-    values: Vec<f64>,
-    rhs: Vec<f64>,
+    values: Vec<S>,
+    rhs: Vec<S>,
 }
 
-impl CsrValueAssembler {
+impl<S: Scalar + ComplexFloat + Sync> CsrValueAssembler<S> {
     pub(crate) fn new(topology: CsrTopology) -> Self {
         Self {
-            values: vec![0.0; topology.column_indices.len()],
-            rhs: vec![0.0; topology.size],
+            values: vec![S::zero(); topology.column_indices.len()],
+            rhs: vec![S::zero(); topology.size],
             topology,
         }
     }
 
-    pub(crate) fn scatter_delta(&mut self, delta: &AssemblyDelta) -> Result<(), Diagnostic> {
+    pub(crate) fn scatter_delta(&mut self, delta: &AssemblyDelta<S>) -> Result<(), Diagnostic> {
         if delta.target_size() != self.topology.size {
             return Err(assembly_failed(
                 "assembly delta differs from prepared CSR size",
@@ -87,18 +88,18 @@ impl CsrValueAssembler {
             let global_row = row.row().index();
             let range =
                 self.topology.row_offsets[global_row]..self.topology.row_offsets[global_row + 1];
-            self.rhs[global_row] += row.rhs();
+            self.rhs[global_row] = self.rhs[global_row] + row.rhs();
             for &(column, value) in row.entries() {
                 let offset = self.topology.column_indices[range.clone()]
                     .binary_search(&column.index())
                     .expect("prepared topology was checked above");
-                self.values[range.start + offset] += value;
+                self.values[range.start + offset] = self.values[range.start + offset] + value;
             }
         }
         Ok(())
     }
 
-    pub(crate) fn finish(self) -> Result<LinearSystem, Diagnostic> {
+    pub(crate) fn finish(self) -> Result<LinearSystem<S>, Diagnostic> {
         let mut row_offsets = Vec::with_capacity(self.topology.size + 1);
         let mut column_indices = Vec::new();
         let mut values = Vec::new();
@@ -109,7 +110,7 @@ impl CsrValueAssembler {
                 .iter()
                 .zip(&self.values[range])
             {
-                if value != 0.0 {
+                if value != S::zero() {
                     column_indices.push(column);
                     values.push(value);
                 }
@@ -154,11 +155,11 @@ impl DofId {
 
 /// One local trial slot after essential constraints are resolved.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum LocalUnknown {
+pub enum LocalUnknown<S> {
     /// Free global unknown.
     Free(DofId),
     /// Fixed affine value eliminated during assembly.
-    Fixed(f64),
+    Fixed(S),
 }
 
 /// Mapping from anonymous local rows/columns to global algebra.
@@ -167,12 +168,12 @@ pub enum LocalUnknown {
 /// equation without fabricating a global row. Fixed column values are moved
 /// to the global right-hand side by the assembler.
 #[derive(Debug, Clone, PartialEq)]
-pub struct AssemblyMap {
+pub struct AssemblyMap<S> {
     equations: Vec<Option<DofId>>,
-    unknowns: Vec<LocalUnknown>,
+    unknowns: Vec<LocalUnknown<S>>,
 }
 
-impl AssemblyMap {
+impl<S: Scalar + ComplexFloat> AssemblyMap<S> {
     /// Construct a local-to-global map.
     ///
     /// # Errors
@@ -180,7 +181,7 @@ impl AssemblyMap {
     /// with a contribution is checked at scatter time.
     pub fn new(
         equations: Vec<Option<DofId>>,
-        unknowns: Vec<LocalUnknown>,
+        unknowns: Vec<LocalUnknown<S>>,
     ) -> Result<Self, Diagnostic> {
         if unknowns
             .iter()
@@ -202,7 +203,7 @@ impl AssemblyMap {
 
     /// Free or fixed global unknown associated with each local column.
     #[must_use]
-    pub fn unknowns(&self) -> &[LocalUnknown] {
+    pub fn unknowns(&self) -> &[LocalUnknown<S>] {
         &self.unknowns
     }
 }
@@ -213,13 +214,13 @@ impl AssemblyMap {
 /// distributed or device assembler may consume the same `AssemblyMap` and
 /// `LocalContribution` without changing local operators.
 #[derive(Debug, Clone)]
-pub struct CooAssembler {
+pub struct CooAssembler<S> {
     size: usize,
-    rows: Vec<Vec<(usize, f64)>>,
-    rhs: Vec<f64>,
+    rows: Vec<Vec<(usize, S)>>,
+    rhs: Vec<S>,
 }
 
-impl CooAssembler {
+impl<S: Scalar + ComplexFloat + Sync> CooAssembler<S> {
     /// Construct a square global system.
     ///
     /// # Errors
@@ -235,7 +236,7 @@ impl CooAssembler {
         Ok(Self {
             size,
             rows,
-            rhs: vec![0.0; size],
+            rhs: vec![S::zero(); size],
         })
     }
 
@@ -246,8 +247,8 @@ impl CooAssembler {
     /// a non-finite accumulated value.
     pub fn scatter(
         &mut self,
-        map: &AssemblyMap,
-        local: &LocalContribution,
+        map: &AssemblyMap<S>,
+        local: &LocalContribution<S>,
     ) -> Result<(), Diagnostic> {
         let delta = AssemblyDelta::from_local(self.size, map, local)?;
         self.scatter_delta(&delta)
@@ -262,7 +263,7 @@ impl CooAssembler {
     /// # Errors
     /// Returns `EQ0806` for a target-size mismatch or non-finite accumulated
     /// value. Failure leaves the assembler unchanged.
-    pub fn scatter_delta(&mut self, delta: &AssemblyDelta) -> Result<(), Diagnostic> {
+    pub fn scatter_delta(&mut self, delta: &AssemblyDelta<S>) -> Result<(), Diagnostic> {
         if delta.target_size() != self.size {
             return Err(assembly_failed(format!(
                 "assembly delta targets size {} but assembler size is {}",
@@ -285,7 +286,7 @@ impl CooAssembler {
         }
         for row in delta.rows() {
             accumulate_row(&mut self.rows[row.row().index()], row.entries());
-            self.rhs[row.row().index()] += row.rhs();
+            self.rhs[row.row().index()] = self.rhs[row.row().index()] + row.rhs();
         }
         Ok(())
     }
@@ -294,7 +295,7 @@ impl CooAssembler {
     ///
     /// # Errors
     /// Returns `EQ0806` if a global row has no nonzero entry.
-    pub fn finish(self) -> Result<LinearSystem, Diagnostic> {
+    pub fn finish(self) -> Result<LinearSystem<S>, Diagnostic> {
         let entry_capacity = self.rows.iter().map(Vec::len).sum();
         let mut row_offsets = Vec::with_capacity(self.size + 1);
         let mut column_indices = Vec::with_capacity(entry_capacity);
@@ -302,7 +303,7 @@ impl CooAssembler {
         row_offsets.push(0);
         for (row, entries) in self.rows.into_iter().enumerate() {
             for (column, value) in entries {
-                if value != 0.0 {
+                if value != S::zero() {
                     column_indices.push(column);
                     values.push(value);
                 }
@@ -321,7 +322,10 @@ impl CooAssembler {
     }
 }
 
-fn row_accumulations_are_finite(accumulated: &[(usize, f64)], delta: &[(DofId, f64)]) -> bool {
+fn row_accumulations_are_finite<S: Scalar + ComplexFloat>(
+    accumulated: &[(usize, S)],
+    delta: &[(DofId, S)],
+) -> bool {
     let mut entry = 0;
     delta.iter().all(|(column, value)| {
         while entry < accumulated.len() && accumulated[entry].0 < column.index() {
@@ -330,18 +334,21 @@ fn row_accumulations_are_finite(accumulated: &[(usize, f64)], delta: &[(DofId, f
         let current = if entry < accumulated.len() && accumulated[entry].0 == column.index() {
             accumulated[entry].1
         } else {
-            0.0
+            S::zero()
         };
-        (current + value).is_finite()
+        (current + *value).is_finite()
     })
 }
 
-fn accumulate_row(accumulated: &mut Vec<(usize, f64)>, delta: &[(DofId, f64)]) {
+fn accumulate_row<S: Scalar + ComplexFloat>(
+    accumulated: &mut Vec<(usize, S)>,
+    delta: &[(DofId, S)],
+) {
     if accumulated.is_empty() {
         accumulated.extend(
             delta
                 .iter()
-                .map(|(column, value)| (column.index(), 0.0 + value)),
+                .map(|(column, value)| (column.index(), S::zero() + *value)),
         );
         return;
     }
@@ -352,9 +359,9 @@ fn accumulate_row(accumulated: &mut Vec<(usize, f64)>, delta: &[(DofId, f64)]) {
             entry += 1;
         }
         if entry < accumulated.len() && accumulated[entry].0 == column.index() {
-            accumulated[entry].1 += value;
+            accumulated[entry].1 = accumulated[entry].1 + value;
         } else {
-            accumulated.insert(entry, (column.index(), 0.0 + value));
+            accumulated.insert(entry, (column.index(), S::zero() + value));
         }
         entry += 1;
     }
@@ -362,15 +369,15 @@ fn accumulate_row(accumulated: &mut Vec<(usize, f64)>, delta: &[(DofId, f64)]) {
 
 /// Immutable compressed sparse row matrix.
 #[derive(Debug, Clone, PartialEq)]
-pub struct CsrMatrix {
+pub struct CsrMatrix<S> {
     rows: usize,
     columns: usize,
     row_offsets: std::sync::Arc<[usize]>,
     column_indices: std::sync::Arc<[usize]>,
-    values: Vec<f64>,
+    values: Vec<S>,
 }
 
-impl CsrMatrix {
+impl<S: Scalar + ComplexFloat + Sync> CsrMatrix<S> {
     /// Construct validated CSR storage with strictly ordered columns per row.
     ///
     /// This is the single admission boundary for finalized sparse storage.
@@ -385,9 +392,9 @@ impl CsrMatrix {
         columns: usize,
         row_offsets: Vec<usize>,
         column_indices: Vec<usize>,
-        values: Vec<f64>,
+        values: Vec<S>,
     ) -> Result<Self, Diagnostic> {
-        Self::validate_sorted_csr(rows, columns, &row_offsets, &column_indices, values.len())?;
+        validate_sorted_csr(rows, columns, &row_offsets, &column_indices, values.len())?;
         if values.iter().any(|value| !value.is_finite()) {
             return Err(assembly_failed("CSR values must all be finite"));
         }
@@ -398,63 +405,6 @@ impl CsrMatrix {
             column_indices: column_indices.into(),
             values,
         })
-    }
-
-    fn validate_sorted_csr(
-        rows: usize,
-        columns: usize,
-        row_offsets: &[usize],
-        column_indices: &[usize],
-        value_count: usize,
-    ) -> Result<(), Diagnostic> {
-        if rows == 0 || columns == 0 {
-            return Err(assembly_failed(
-                "CSR storage requires positive row and column counts",
-            ));
-        }
-        let expected_offsets = rows
-            .checked_add(1)
-            .ok_or_else(|| assembly_failed("CSR row count overflows its offset table"))?;
-        if row_offsets.len() != expected_offsets {
-            return Err(assembly_failed(format!(
-                "CSR with {rows} rows requires {expected_offsets} row offsets, found {}",
-                row_offsets.len()
-            )));
-        }
-        if column_indices.len() != value_count {
-            return Err(assembly_failed(format!(
-                "CSR column/value lengths differ: {} versus {}",
-                column_indices.len(),
-                value_count
-            )));
-        }
-        if row_offsets.first() != Some(&0) || row_offsets.last() != Some(&value_count) {
-            return Err(assembly_failed(
-                "CSR row offsets must start at zero and end at the nonzero count",
-            ));
-        }
-        for row in 0..rows {
-            let start = row_offsets[row];
-            let end = row_offsets[row + 1];
-            if start > end || end > column_indices.len() {
-                return Err(assembly_failed(format!(
-                    "CSR row {row} has invalid offset range {start}..{end}"
-                )));
-            }
-            let columns_in_row = &column_indices[start..end];
-            if let Some(column) = columns_in_row.iter().find(|column| **column >= columns) {
-                return Err(assembly_failed(format!(
-                    "CSR row {row} contains column {column} outside 0..{columns}"
-                )));
-            }
-            if columns_in_row.windows(2).any(|pair| pair[0] >= pair[1]) {
-                return Err(assembly_failed(format!(
-                    "CSR row {row} columns must be strictly increasing"
-                )));
-            }
-        }
-
-        Ok(())
     }
 
     /// Row count.
@@ -483,7 +433,7 @@ impl CsrMatrix {
 
     /// CSR nonzero values.
     #[must_use]
-    pub fn values(&self) -> &[f64] {
+    pub fn values(&self) -> &[S] {
         &self.values
     }
 
@@ -491,8 +441,8 @@ impl CsrMatrix {
     ///
     /// # Errors
     /// Returns `EQ0802` for the wrong input size or a non-finite result.
-    pub fn multiply(&self, input: &[f64]) -> Result<Vec<f64>, Diagnostic> {
-        let mut output = vec![0.0; self.rows];
+    pub fn multiply(&self, input: &[S]) -> Result<Vec<S>, Diagnostic> {
+        let mut output = vec![S::zero(); self.rows];
         self.multiply_into(input, &mut output)?;
         Ok(output)
     }
@@ -501,7 +451,7 @@ impl CsrMatrix {
     ///
     /// # Errors
     /// Returns `EQ0802` for a shape mismatch or non-finite result.
-    pub fn multiply_into(&self, input: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
+    pub fn multiply_into(&self, input: &[S], output: &mut [S]) -> Result<(), Diagnostic> {
         if input.len() != self.columns || output.len() != self.rows {
             return Err(solve_failed(format!(
                 "sparse matrix is {}x{} but input/output have {}/{} values",
@@ -516,20 +466,20 @@ impl CsrMatrix {
 
     /// Read one matrix entry; structural zeros return zero.
     #[must_use]
-    pub fn entry(&self, row: usize, column: usize) -> Option<f64> {
+    pub fn entry(&self, row: usize, column: usize) -> Option<S> {
         if row >= self.rows || column >= self.columns {
             return None;
         }
         let range = self.row_offsets[row]..self.row_offsets[row + 1];
         match self.column_indices[range.clone()].binary_search(&column) {
             Ok(offset) => Some(self.values[range.start + offset]),
-            Err(_) => Some(0.0),
+            Err(_) => Some(S::zero()),
         }
     }
 }
 
-impl LinearOperator for CsrMatrix {
-    type Scalar = f64;
+impl<S: Scalar + ComplexFloat + Sync> LinearOperator for CsrMatrix<S> {
+    type Scalar = S;
 
     fn rows(&self) -> usize {
         self.rows
@@ -539,15 +489,15 @@ impl LinearOperator for CsrMatrix {
         self.columns
     }
 
-    fn apply(&self, input: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
+    fn apply(&self, input: &[S], output: &mut [S]) -> Result<(), Diagnostic> {
         self.multiply_into(input, output)
     }
 
-    fn row_action(&self) -> Option<&dyn RowLinearAction<Scalar = f64>> {
+    fn row_action(&self) -> Option<&dyn RowLinearAction<Scalar = S>> {
         Some(self)
     }
 
-    fn diagonal(&self, output: &mut [f64]) -> Result<DiagonalAvailability, Diagnostic> {
+    fn diagonal(&self, output: &mut [S]) -> Result<DiagonalAvailability, Diagnostic> {
         if self.rows != self.columns || output.len() != self.rows {
             return Err(solve_failed(
                 "CSR diagonal output must match a square matrix",
@@ -563,14 +513,14 @@ impl LinearOperator for CsrMatrix {
     }
 }
 
-impl RowLinearAction for CsrMatrix {
-    type Scalar = f64;
+impl<S: Scalar + ComplexFloat + Sync> RowLinearAction for CsrMatrix<S> {
+    type Scalar = S;
 
     fn apply_rows(
         &self,
         rows: std::ops::Range<usize>,
-        input: &[f64],
-        output: &mut [f64],
+        input: &[S],
+        output: &mut [S],
     ) -> Result<(), Diagnostic> {
         let row_count = rows
             .end
@@ -587,9 +537,10 @@ impl RowLinearAction for CsrMatrix {
             )));
         }
         for (row, output_value) in rows.zip(output.iter_mut()) {
-            *output_value = 0.0;
+            *output_value = S::zero();
             for entry in self.row_offsets[row]..self.row_offsets[row + 1] {
-                *output_value += self.values[entry] * input[self.column_indices[entry]];
+                *output_value =
+                    *output_value + self.values[entry] * input[self.column_indices[entry]];
             }
         }
         if output.iter().any(|value| !value.is_finite()) {
@@ -601,7 +552,7 @@ impl RowLinearAction for CsrMatrix {
     }
 }
 
-impl OrientedLinearOperator for CsrMatrix {
+impl<S: Scalar + ComplexFloat + Sync> OrientedLinearOperator for CsrMatrix<S> {
     fn supports_orientation(&self, _orientation: eqiora_solver::LinearOperatorOrientation) -> bool {
         true
     }
@@ -609,8 +560,8 @@ impl OrientedLinearOperator for CsrMatrix {
     fn apply_oriented(
         &self,
         orientation: eqiora_solver::LinearOperatorOrientation,
-        input: &[f64],
-        output: &mut [f64],
+        input: &[S],
+        output: &mut [S],
     ) -> Result<(), Diagnostic> {
         if orientation == eqiora_solver::LinearOperatorOrientation::Normal {
             return self.apply(input, output);
@@ -624,10 +575,18 @@ impl OrientedLinearOperator for CsrMatrix {
                 output.len()
             )));
         }
-        output.fill(0.0);
+        output.fill(S::zero());
         for (row, input_value) in input.iter().enumerate() {
             for entry in self.row_offsets[row]..self.row_offsets[row + 1] {
-                output[self.column_indices[entry]] += self.values[entry] * input_value;
+                let coefficient = if orientation
+                    == eqiora_solver::LinearOperatorOrientation::ConjugateTransposed
+                {
+                    self.values[entry].conj()
+                } else {
+                    self.values[entry]
+                };
+                let output_value = &mut output[self.column_indices[entry]];
+                *output_value = *output_value + coefficient * *input_value;
             }
         }
         if output.iter().any(|value| !value.is_finite()) {
@@ -641,12 +600,12 @@ impl OrientedLinearOperator for CsrMatrix {
 
 /// Sparse square matrix and matching right-hand side.
 #[derive(Debug, Clone, PartialEq)]
-pub struct LinearSystem {
-    matrix: CsrMatrix,
-    rhs: Vec<f64>,
+pub struct LinearSystem<S> {
+    matrix: CsrMatrix<S>,
+    rhs: Vec<S>,
 }
 
-impl LinearSystem {
+impl<S: Scalar + ComplexFloat + Sync> LinearSystem<S> {
     /// Admit one canonical square sparse matrix and matching finite RHS.
     ///
     /// [`CsrMatrix`] deliberately supports rectangular operators and empty
@@ -656,7 +615,7 @@ impl LinearSystem {
     /// # Errors
     /// Returns `EQ0806` for a nonsquare matrix, RHS shape/value mismatch,
     /// explicit stored zero, or structurally empty equation row.
-    pub fn new(matrix: CsrMatrix, rhs: Vec<f64>) -> Result<Self, Diagnostic> {
+    pub fn new(matrix: CsrMatrix<S>, rhs: Vec<S>) -> Result<Self, Diagnostic> {
         if matrix.rows != matrix.columns {
             return Err(assembly_failed(format!(
                 "linear system matrix must be square, found {}x{}",
@@ -671,7 +630,7 @@ impl LinearSystem {
                 rhs.len()
             )));
         }
-        if matrix.values.contains(&0.0) {
+        if matrix.values.contains(&S::zero()) {
             return Err(assembly_failed(
                 "linear system CSR must omit explicit zero entries",
             ));
@@ -688,18 +647,18 @@ impl LinearSystem {
 
     /// Sparse operator.
     #[must_use]
-    pub const fn matrix(&self) -> &CsrMatrix {
+    pub const fn matrix(&self) -> &CsrMatrix<S> {
         &self.matrix
     }
 
     /// Right-hand side.
     #[must_use]
-    pub fn rhs(&self) -> &[f64] {
+    pub fn rhs(&self) -> &[S] {
         &self.rhs
     }
 }
 
-impl CompleteCsrStorage for LinearSystem {
+impl<S: Scalar + ComplexFloat + Sync> CompleteCsrStorage<S> for LinearSystem<S> {
     fn rows(&self) -> usize {
         self.matrix.rows()
     }
@@ -716,13 +675,70 @@ impl CompleteCsrStorage for LinearSystem {
         self.matrix.column_indices()
     }
 
-    fn values(&self) -> &[f64] {
+    fn values(&self) -> &[S] {
         self.matrix.values()
     }
 
-    fn right_hand_side(&self) -> &[f64] {
+    fn right_hand_side(&self) -> &[S] {
         self.rhs()
     }
+}
+
+fn validate_sorted_csr(
+    rows: usize,
+    columns: usize,
+    row_offsets: &[usize],
+    column_indices: &[usize],
+    value_count: usize,
+) -> Result<(), Diagnostic> {
+    if rows == 0 || columns == 0 {
+        return Err(assembly_failed(
+            "CSR storage requires positive row and column counts",
+        ));
+    }
+    let expected_offsets = rows
+        .checked_add(1)
+        .ok_or_else(|| assembly_failed("CSR row count overflows its offset table"))?;
+    if row_offsets.len() != expected_offsets {
+        return Err(assembly_failed(format!(
+            "CSR with {rows} rows requires {expected_offsets} row offsets, found {}",
+            row_offsets.len()
+        )));
+    }
+    if column_indices.len() != value_count {
+        return Err(assembly_failed(format!(
+            "CSR column/value lengths differ: {} versus {}",
+            column_indices.len(),
+            value_count
+        )));
+    }
+    if row_offsets.first() != Some(&0) || row_offsets.last() != Some(&value_count) {
+        return Err(assembly_failed(
+            "CSR row offsets must start at zero and end at the nonzero count",
+        ));
+    }
+    for row in 0..rows {
+        let start = row_offsets[row];
+        let end = row_offsets[row + 1];
+        if start > end || end > column_indices.len() {
+            return Err(assembly_failed(format!(
+                "CSR row {row} has invalid offset range {start}..{end}"
+            )));
+        }
+        let columns_in_row = &column_indices[start..end];
+        if let Some(column) = columns_in_row.iter().find(|column| **column >= columns) {
+            return Err(assembly_failed(format!(
+                "CSR row {row} contains column {column} outside 0..{columns}"
+            )));
+        }
+        if columns_in_row.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return Err(assembly_failed(format!(
+                "CSR row {row} columns must be strictly increasing"
+            )));
+        }
+    }
+
+    Ok(())
 }
 
 fn assembly_failed(message: impl Into<String>) -> Diagnostic {
@@ -735,3 +751,6 @@ fn solve_failed(message: impl Into<String>) -> Diagnostic {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod complex_tests;

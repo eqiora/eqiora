@@ -51,7 +51,7 @@ impl LocalAssemblyProjection {
     pub fn evaluate_owned(
         layout: &DistributedMeshLayout,
         plan: &AssemblyPlan,
-        work: &dyn AssemblyWork,
+        work: &dyn AssemblyWork<f64>,
         producer: PartitionId,
     ) -> Result<Self, Diagnostic> {
         if producer.index() >= layout.partition_count().get() {
@@ -245,7 +245,7 @@ impl CollectiveRowOwnerCandidatesV1 {
 struct ProjectedPacket {
     index: usize,
     pub(super) producer: PartitionId,
-    pub(super) targets: Vec<TargetAssemblyDelta>,
+    pub(super) targets: Vec<TargetAssemblyDelta<f64>>,
 }
 
 /// Exact collective row ownership admitted before route exchange.

@@ -197,7 +197,7 @@ pub(super) fn accept_step_prepared<const D: usize>(
     previous: &AleFsiState<D>,
     plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
-    assembly_backend: &dyn AssemblyBackend,
+    assembly_backend: &dyn AssemblyBackend<f64>,
     converged: StepAssembly<D>,
     newton: NewtonEvidence,
 ) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {

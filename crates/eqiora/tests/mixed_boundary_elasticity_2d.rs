@@ -231,11 +231,11 @@ fn exact(point: &[f64]) -> ([f64; 2], [[f64; 2]; 2]) {
 
 #[derive(Debug, Default)]
 struct CapturingAssemblyBackend {
-    systems: Mutex<Vec<LinearSystem>>,
+    systems: Mutex<Vec<LinearSystem<f64>>>,
 }
 
 impl CapturingAssemblyBackend {
-    fn systems(&self) -> Vec<LinearSystem> {
+    fn systems(&self) -> Vec<LinearSystem<f64>> {
         self.systems
             .lock()
             .expect("capture mutex remains available")
@@ -243,12 +243,12 @@ impl CapturingAssemblyBackend {
     }
 }
 
-impl AssemblyBackend for CapturingAssemblyBackend {
+impl AssemblyBackend<f64> for CapturingAssemblyBackend {
     fn assemble(
         &self,
         plan: &AssemblyPlan,
-        work: &dyn AssemblyWork,
-    ) -> Result<AssemblyResult, eqiora::Diagnostic> {
+        work: &dyn AssemblyWork<f64>,
+    ) -> Result<AssemblyResult<f64>, eqiora::Diagnostic> {
         let result = REFERENCE_ASSEMBLY_BACKEND.assemble(plan, work)?;
         *self
             .systems

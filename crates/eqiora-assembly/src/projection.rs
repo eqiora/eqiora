@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
-use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_core::{Diagnostic, Scalar};
+use num_complex::ComplexFloat;
 
 use crate::{AssemblyMap, DofId, LocalContribution, LocalUnknown};
 
@@ -12,13 +13,13 @@ use crate::{AssemblyMap, DofId, LocalContribution, LocalUnknown};
 /// order so execution adapters can route the row without reimplementing
 /// constraint elimination or local scatter semantics.
 #[derive(Debug, Clone, PartialEq)]
-pub struct AssemblyRowDelta {
+pub struct AssemblyRowDelta<S> {
     row: DofId,
-    entries: Vec<(DofId, f64)>,
-    rhs: f64,
+    entries: Vec<(DofId, S)>,
+    rhs: S,
 }
 
-impl AssemblyRowDelta {
+impl<S: Scalar + ComplexFloat> AssemblyRowDelta<S> {
     /// Global equation receiving this additive row.
     #[must_use]
     pub const fn row(&self) -> DofId {
@@ -27,13 +28,13 @@ impl AssemblyRowDelta {
 
     /// Canonically ordered global-column deltas.
     #[must_use]
-    pub fn entries(&self) -> &[(DofId, f64)] {
+    pub fn entries(&self) -> &[(DofId, S)] {
         &self.entries
     }
 
     /// Additive right-hand-side value for this row.
     #[must_use]
-    pub const fn rhs(&self) -> f64 {
+    pub const fn rhs(&self) -> S {
         self.rhs
     }
 }
@@ -44,12 +45,12 @@ impl AssemblyRowDelta {
 /// algebra. Distributed adapters may split its already-mapped rows by owner,
 /// but must not repeat the mapping and fixed-column elimination themselves.
 #[derive(Debug, Clone, PartialEq)]
-pub struct AssemblyDelta {
+pub struct AssemblyDelta<S> {
     target_size: usize,
-    rows: Vec<AssemblyRowDelta>,
+    rows: Vec<AssemblyRowDelta<S>>,
 }
 
-impl AssemblyDelta {
+impl<S: Scalar + ComplexFloat> AssemblyDelta<S> {
     /// Project one finite local contribution through its independent map.
     ///
     /// Local duplicates are accumulated in local row-major order before rows
@@ -61,8 +62,8 @@ impl AssemblyDelta {
     /// global degree of freedom, or non-finite projected arithmetic.
     pub fn from_local(
         target_size: usize,
-        map: &AssemblyMap,
-        local: &LocalContribution,
+        map: &AssemblyMap<S>,
+        local: &LocalContribution<S>,
     ) -> Result<Self, Diagnostic> {
         if target_size == 0 {
             return Err(assembly_failed(
@@ -87,25 +88,28 @@ impl AssemblyDelta {
             }
         }
 
-        let mut entry_deltas = BTreeMap::<(DofId, DofId), f64>::new();
-        let mut rhs_deltas = BTreeMap::<DofId, f64>::new();
+        let mut entry_deltas = BTreeMap::<(DofId, DofId), S>::new();
+        let mut rhs_deltas = BTreeMap::<DofId, S>::new();
         for (local_row, equation) in map.equations().iter().enumerate() {
             let Some(global_row) = equation else {
                 continue;
             };
-            *rhs_deltas.entry(*global_row).or_insert(0.0) += local.rhs()[local_row];
+            let rhs = rhs_deltas.entry(*global_row).or_insert(S::zero());
+            *rhs = *rhs + local.rhs()[local_row];
             for (local_column, unknown) in map.unknowns().iter().enumerate() {
                 let value = local
                     .entry(local_row, local_column)
                     .expect("assembly map shape matches local contribution");
                 match unknown {
                     LocalUnknown::Free(global_column) => {
-                        *entry_deltas
+                        let entry = entry_deltas
                             .entry((*global_row, *global_column))
-                            .or_insert(0.0) += value;
+                            .or_insert(S::zero());
+                        *entry = *entry + value;
                     }
                     LocalUnknown::Fixed(fixed) => {
-                        *rhs_deltas.entry(*global_row).or_insert(0.0) -= value * fixed;
+                        let rhs = rhs_deltas.entry(*global_row).or_insert(S::zero());
+                        *rhs = *rhs - value * *fixed;
                     }
                 }
             }
@@ -149,7 +153,7 @@ impl AssemblyDelta {
 
     /// Canonically ascending global rows.
     #[must_use]
-    pub fn rows(&self) -> &[AssemblyRowDelta] {
+    pub fn rows(&self) -> &[AssemblyRowDelta<S>] {
         &self.rows
     }
 }
@@ -172,6 +176,58 @@ fn assembly_failed(message: impl Into<String>) -> Diagnostic {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn complex_projection_folds_duplicates_and_eliminates_fixed_values_without_conjugation() {
+        use num_complex::Complex64 as C;
+        let local = LocalContribution::new(
+            2,
+            3,
+            vec![
+                C::new(1., 2.),
+                C::new(3., -1.),
+                C::new(4., 3.),
+                C::new(-1., 1.),
+                C::new(2., 0.),
+                C::new(1., -2.),
+            ],
+            vec![C::new(11., 13.), C::new(5., -7.)],
+        )
+        .unwrap();
+        let map = AssemblyMap::new(
+            vec![Some(DofId::new(0)); 2],
+            vec![
+                LocalUnknown::Free(DofId::new(0)),
+                LocalUnknown::Free(DofId::new(0)),
+                LocalUnknown::Fixed(C::new(2., -1.)),
+            ],
+        )
+        .unwrap();
+        let delta = AssemblyDelta::from_local(1, &map, &local).unwrap();
+        // Free entries sum to 5+2i. Fixed entries sum to 5+i; their
+        // ordinary product with 2-i is 11-3i, giving (16+6i)-(11-3i)=5+9i.
+        assert_eq!(delta.rows().len(), 1);
+        assert_eq!(
+            delta.rows()[0].entries(),
+            &[(DofId::new(0), C::new(5., 2.))]
+        );
+        assert_eq!(delta.rows()[0].rhs(), C::new(5., 9.));
+        assert!(
+            AssemblyMap::new(
+                vec![Some(DofId::new(0))],
+                vec![LocalUnknown::Fixed(C::new(0., f64::INFINITY))]
+            )
+            .is_err()
+        );
+        let huge =
+            LocalContribution::new(1, 1, vec![C::new(f64::MAX, 0.)], vec![C::new(0., 0.)]).unwrap();
+        let fixed = AssemblyMap::new(
+            vec![Some(DofId::new(0))],
+            vec![LocalUnknown::Fixed(C::new(2., 0.))],
+        )
+        .unwrap();
+        assert!(AssemblyDelta::from_local(1, &fixed, &huge).is_err());
+    }
 
     #[test]
     fn projection_preserves_local_fold_before_canonical_ordering() {

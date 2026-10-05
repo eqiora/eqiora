@@ -861,12 +861,12 @@ enum ReceiptSubstitution {
 #[derive(Debug)]
 struct ForgedAssemblyReceipt(ReceiptSubstitution);
 
-impl AssemblyBackend for ForgedAssemblyReceipt {
+impl AssemblyBackend<f64> for ForgedAssemblyReceipt {
     fn assemble(
         &self,
         plan: &AssemblyPlan,
-        original: &dyn AssemblyWork,
-    ) -> Result<AssemblyResult, Diagnostic> {
+        original: &dyn AssemblyWork<f64>,
+    ) -> Result<AssemblyResult<f64>, Diagnostic> {
         let (systems, report) = REFERENCE_ASSEMBLY_BACKEND
             .assemble(plan, original)?
             .into_parts();
@@ -885,12 +885,12 @@ impl AssemblyBackend for ForgedAssemblyReceipt {
     }
 }
 
-impl AssemblyBackend for DuplicateFirstFaceAssembly {
+impl AssemblyBackend<f64> for DuplicateFirstFaceAssembly {
     fn assemble(
         &self,
         plan: &AssemblyPlan,
-        original: &dyn AssemblyWork,
-    ) -> Result<AssemblyResult, Diagnostic> {
+        original: &dyn AssemblyWork<f64>,
+    ) -> Result<AssemblyResult<f64>, Diagnostic> {
         let work = IndexedAssemblyWork::for_packet_set(
             original.packet_set_identity(),
             original.packet_count(),

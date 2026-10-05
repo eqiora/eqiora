@@ -41,11 +41,18 @@ use crate::jacobian_audit::{StructuralJacobianPattern, StructuralJacobianPattern
 use crate::simplicial_fsi::{FixedReferenceFsiPartition, FixedReferenceFsiState};
 use crate::simplicial_fsi::{element::solid_local, layout::FsiLayout};
 
+type MappedCellResidual = (
+    Vec<f64>,
+    AssemblyMap<f64>,
+    AssemblyMap<f64>,
+    CellResidualSource,
+);
+
 struct PreparedAleFsiCell {
     vertices: Vec<MeshEntity>,
-    reduced_map: AssemblyMap,
-    full_map: AssemblyMap,
-    dense_map: AssemblyMap,
+    reduced_map: AssemblyMap<f64>,
+    full_map: AssemblyMap<f64>,
+    dense_map: AssemblyMap<f64>,
     bubble_cell: Option<CellId>,
 }
 
@@ -285,7 +292,7 @@ pub(super) fn assemble_step_linearization<const D: usize>(
     candidate: &[f64],
     plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     base_layout: &FsiLayout<D>,
 ) -> Result<StepAssembly<D>, Diagnostic> {
     let prepared_boundary = match PreparedAleFsiBoundaryStep::from_boundary(boundary) {
@@ -322,7 +329,7 @@ pub(super) fn assemble_step_linearization_prepared<const D: usize>(
     candidate: &[f64],
     plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     base_layout: &FsiLayout<D>,
 ) -> Result<StepAssembly<D>, Diagnostic> {
     let structure = prepare_ale_fsi_structure(
@@ -354,7 +361,7 @@ pub(super) fn assemble_step_linearization_with_structure<const D: usize>(
     candidate: &[f64],
     plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
 ) -> Result<StepAssembly<D>, Diagnostic> {
     let prepared = prepare_step(
         reference, partition, structure, action, motion, previous, plan, candidate,
@@ -398,7 +405,7 @@ pub(super) fn assemble_step_linearization_with_structure<const D: usize>(
         reference, partition, structure, action, previous, candidate, plan, quadrature, &prepared,
     )?;
 
-    let [linear_system]: [eqiora_assembly::LinearSystem; 1] =
+    let [linear_system]: [eqiora_assembly::LinearSystem<f64>; 1] =
         systems.try_into().map_err(|systems: Vec<_>| {
             invalid(format!(
                 "one-target ALE FSI assembly returned {} systems",
@@ -614,20 +621,20 @@ fn assemble_direct_residuals<const D: usize>(
 }
 
 struct EvaluatedCell {
-    packet: AssemblyPacket,
+    packet: AssemblyPacket<f64>,
 }
 
 struct EvaluatedCellResidual {
     residual: Vec<f64>,
-    reduced_map: AssemblyMap,
-    full_map: AssemblyMap,
+    reduced_map: AssemblyMap<f64>,
+    full_map: AssemblyMap<f64>,
     domain: RawId,
     source: CellResidualSource,
 }
 
 enum CellResidualSource {
     Fluid { bubble_cell: CellId },
-    Solid(LocalContribution),
+    Solid(LocalContribution<f64>),
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -844,7 +851,7 @@ fn evaluate_fluid_residual<const D: usize>(
     current: &AleFsiState<D>,
     geometry_action: &FixedTopologyGeometryAction<D>,
     plan: &AleFsiStepPlan<D>,
-) -> Result<(Vec<f64>, AssemblyMap, AssemblyMap, CellResidualSource), Diagnostic> {
+) -> Result<MappedCellResidual, Diagnostic> {
     let (bubble_cell, prepared) = prepare_fluid_cell(
         layout,
         cell_index,
@@ -989,7 +996,7 @@ fn evaluate_solid_residual<const D: usize>(
     previous: &FixedReferenceFsiState<D>,
     plan: &AleFsiStepPlan<D>,
     candidate: &[f64],
-) -> Result<(Vec<f64>, AssemblyMap, AssemblyMap, CellResidualSource), Diagnostic> {
+) -> Result<MappedCellResidual, Diagnostic> {
     let geometry = reference.geometry_map(entity).ok_or_else(|| {
         invalid(format!(
             "ALE FSI solid cell {cell_index} has no reference affine geometry"
@@ -1024,8 +1031,8 @@ fn evaluate_solid_residual<const D: usize>(
 }
 
 fn embed_solid_jacobian(
-    local: &LocalContribution,
-    reduced_map: &AssemblyMap,
+    local: &LocalContribution<f64>,
+    reduced_map: &AssemblyMap<f64>,
     candidate_width: usize,
 ) -> Result<Vec<f64>, Diagnostic> {
     if reduced_map.unknowns().len() != local.columns() {
@@ -1139,7 +1146,7 @@ fn build_structural_jacobian_pattern<const D: usize>(
     pattern.finish()
 }
 
-fn local_point(map: &AssemblyMap, candidate: &[f64]) -> Result<Vec<f64>, Diagnostic> {
+fn local_point(map: &AssemblyMap<f64>, candidate: &[f64]) -> Result<Vec<f64>, Diagnostic> {
     map.unknowns()
         .iter()
         .map(|unknown| match unknown {
@@ -1169,7 +1176,7 @@ fn require_simplex_closure<const D: usize>(
 }
 
 fn evaluate_affine_residual(
-    local: &LocalContribution,
+    local: &LocalContribution<f64>,
     point: &[f64],
 ) -> Result<Vec<f64>, Diagnostic> {
     let entry_count = local

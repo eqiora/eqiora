@@ -194,7 +194,8 @@ fn private_seam_matches_the_frozen_contract() {
             f64,
             f64,
             Option<&ScalarSpatialExpression>,
-        ) -> Result<LocalContribution, Diagnostic> = AdmittedCartesianQ1ElasticityForm2d::evaluate;
+        ) -> Result<LocalContribution<f64>, Diagnostic> =
+            AdmittedCartesianQ1ElasticityForm2d::evaluate;
         let _: fn(
             &AdmittedCartesianQ1ElasticityForm2d<'form>,
             &AffineGeometryMap,
@@ -208,7 +209,7 @@ fn private_seam_matches_the_frozen_contract() {
             AdmittedCartesianQ1ElasticityForm2d::evaluate_with_actions;
     }
     assert_admitted_methods();
-    let _: fn(&CartesianElasticityDifferentialActions2d) -> &LocalContribution =
+    let _: fn(&CartesianElasticityDifferentialActions2d) -> &LocalContribution<f64> =
         CartesianElasticityDifferentialActions2d::contribution;
     let _: fn(&CartesianElasticityDifferentialActions2d) -> &[f64; 8] =
         CartesianElasticityDifferentialActions2d::residual;

@@ -1,5 +1,6 @@
-use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_core::{Diagnostic, Scalar};
+use num_complex::ComplexFloat;
 
 /// Dense local matrix and right-hand-side contribution in local ordering.
 ///
@@ -7,14 +8,14 @@ use eqiora_core::diagnostic::codes;
 /// [`crate::AssemblyMap`] supplies equations, free unknowns, and fixed values
 /// when the contribution is scattered.
 #[derive(Debug, Clone, PartialEq)]
-pub struct LocalContribution {
+pub struct LocalContribution<S> {
     rows: usize,
     columns: usize,
-    matrix: Vec<f64>,
-    rhs: Vec<f64>,
+    matrix: Vec<S>,
+    rhs: Vec<S>,
 }
 
-impl LocalContribution {
+impl<S: Scalar + ComplexFloat> LocalContribution<S> {
     /// Construct a finite row-major local contribution.
     ///
     /// # Errors
@@ -23,8 +24,8 @@ impl LocalContribution {
     pub fn new(
         rows: usize,
         columns: usize,
-        matrix: Vec<f64>,
-        rhs: Vec<f64>,
+        matrix: Vec<S>,
+        rhs: Vec<S>,
     ) -> Result<Self, Diagnostic> {
         if rows == 0 {
             return Err(invalid_local(
@@ -68,19 +69,19 @@ impl LocalContribution {
 
     /// Row-major local matrix.
     #[must_use]
-    pub fn matrix(&self) -> &[f64] {
+    pub fn matrix(&self) -> &[S] {
         &self.matrix
     }
 
     /// Local right-hand side.
     #[must_use]
-    pub fn rhs(&self) -> &[f64] {
+    pub fn rhs(&self) -> &[S] {
         &self.rhs
     }
 
     /// One local matrix entry.
     #[must_use]
-    pub fn entry(&self, row: usize, column: usize) -> Option<f64> {
+    pub fn entry(&self, row: usize, column: usize) -> Option<S> {
         (row < self.rows && column < self.columns).then(|| self.matrix[row * self.columns + column])
     }
 }
@@ -92,6 +93,24 @@ fn invalid_local(message: impl Into<String>) -> Diagnostic {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn complex_contributions_retain_both_components_and_reject_nonfinite_parts() {
+        use num_complex::Complex64 as C;
+        let value = LocalContribution::new(
+            1,
+            2,
+            vec![C::new(2., 3.), C::new(5., -7.)],
+            vec![C::new(11., 13.)],
+        )
+        .unwrap();
+        assert_eq!(value.entry(0, 1), Some(C::new(5., -7.)));
+        assert_eq!(value.rhs(), &[C::new(11., 13.)]);
+        for invalid in [C::new(f64::NAN, 0.), C::new(0., f64::INFINITY)] {
+            assert!(LocalContribution::new(1, 1, vec![invalid], vec![C::new(0., 0.)]).is_err());
+            assert!(LocalContribution::new(1, 1, vec![C::new(1., 0.)], vec![invalid]).is_err());
+        }
+    }
 
     #[test]
     fn local_contribution_checks_dense_shape_and_values() {

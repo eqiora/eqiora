@@ -70,7 +70,7 @@ pub fn finalize_simplicial_mini_stokes_2d_with_assembly<F, B>(
     body_force: &F,
     essential_velocity: &B,
     quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     solver: SolverPlan,
     vector_layout: VectorLayoutKind,
     target: Target,
@@ -151,7 +151,7 @@ pub fn finalize_simplicial_mini_stokes_2d_with_boundary_and_assembly<F, B>(
     essential_velocity: &B,
     cell_quadrature: &QuadratureRule,
     facet_quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     solver: SolverPlan,
     vector_layout: VectorLayoutKind,
     target: Target,
@@ -211,7 +211,7 @@ pub fn solve_simplicial_mini_stokes_2d_with_assembly<F, B>(
     body_force: &F,
     essential_velocity: &B,
     quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     solver: LinearSolveRequest<'_>,
 ) -> Result<SimplicialMiniStokesSolution2d, Diagnostic>
 where
@@ -278,7 +278,7 @@ pub fn solve_simplicial_mini_stokes_2d_with_boundary_and_assembly<F, B>(
     essential_velocity: &B,
     cell_quadrature: &QuadratureRule,
     facet_quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     solver: LinearSolveRequest<'_>,
 ) -> Result<SimplicialMiniStokesSolution2d, Diagnostic>
 where
@@ -309,7 +309,7 @@ pub(super) fn assemble_simplicial_mini_stokes_2d<F, B>(
     essential_velocity: &B,
     cell_quadrature: &QuadratureRule,
     facet_quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
 ) -> Result<FinalizedMiniStokesAssembly, Diagnostic>
 where
     F: Fn([f64; DIMENSION]) -> Result<[f64; COMPONENTS], Diagnostic> + Sync,
@@ -418,7 +418,7 @@ where
         }
     });
     let (systems, assembly_report) = assembly.assemble(&plan, &work)?.into_parts();
-    let [linear_system, full_system, volume_only_system]: [LinearSystem; 3] =
+    let [linear_system, full_system, volume_only_system]: [LinearSystem<f64>; 3] =
         systems.try_into().map_err(|systems: Vec<_>| {
             invalid(format!(
                 "three-target MINI assembly returned {} systems",

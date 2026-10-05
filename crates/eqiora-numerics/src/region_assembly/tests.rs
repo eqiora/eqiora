@@ -14,7 +14,7 @@ fn close(actual: f64, expected: f64) {
     );
 }
 
-fn dense(system: &LinearSystem) -> Vec<f64> {
+fn dense(system: &LinearSystem<f64>) -> Vec<f64> {
     let matrix = system.matrix();
     let n = matrix.rows();
     let mut dense = vec![0.0; n * n];

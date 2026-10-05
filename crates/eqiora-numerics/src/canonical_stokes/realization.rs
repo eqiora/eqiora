@@ -237,7 +237,7 @@ fn finalize_resolved_steady_stokes_mini_2d_with_assembly(
     resolved: &ResolvedFieldwiseRealization,
     mesh_artifact: MeshArtifactReference,
     mesh: &SimplicialMesh,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
 ) -> Result<
     (
         SteadyIncompressibleStokesCartesianModel2d,
@@ -293,7 +293,7 @@ pub(super) fn finalize_lowered_steady_stokes_mini_2d_with_assembly<B>(
     boundary: &SimplicialMiniStokesBoundary2d,
     scales: SteadyStokesScaleProfile2d,
     essential_velocity: &B,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
 ) -> Result<FinalizedSteadyStokesMini2dProblem, Diagnostic>
 where
     B: Fn([f64; DIMENSION]) -> Result<[f64; DIMENSION], Diagnostic> + Sync,
@@ -452,7 +452,7 @@ fn solve_resolved_steady_stokes_mini_2d_with_assembly(
     resolved: &ResolvedFieldwiseRealization,
     mesh_artifact: MeshArtifactReference,
     mesh: &SimplicialMesh,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     backend: &dyn LinearSolverBackend,
 ) -> Result<
     (

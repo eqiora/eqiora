@@ -29,7 +29,7 @@ struct Dyadic {
 pub(crate) struct PreparedRegionCell {
     dimension: usize,
     fields: Vec<RegionFieldLayout>,
-    affine: LocalContribution,
+    affine: LocalContribution<f64>,
     history: Vec<(RawId, usize, Vec<f64>)>,
     dyadics: Vec<Dyadic>,
     samples: Vec<Sample>,
@@ -142,7 +142,7 @@ impl BoundRegionForm {
         field: RawId,
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
-    ) -> Result<(usize, LocalContribution), Diagnostic> {
+    ) -> Result<(usize, LocalContribution<f64>), Diagnostic> {
         let fields = self
             .fields
             .iter()
@@ -250,7 +250,7 @@ impl PreparedRegionCell {
     pub(crate) fn evaluate(
         &self,
         previous: &BTreeMap<RawId, Vec<f64>>,
-    ) -> Result<LocalContribution, Diagnostic> {
+    ) -> Result<LocalContribution<f64>, Diagnostic> {
         if !self.dyadics.is_empty() {
             return Err(invalid(
                 "nonlinear region evaluation requires an explicit candidate point",

@@ -565,7 +565,7 @@ pub fn reconstruct_distributed_assembly(
     admissions: Vec<LocalRouteAdmissionV1>,
     mut shards: Vec<OwnedRowAssemblyResult>,
     execution: ExecutionReport,
-) -> Result<(Vec<LinearSystem>, DistributedAssemblyEvidence), Diagnostic> {
+) -> Result<(Vec<LinearSystem<f64>>, DistributedAssemblyEvidence), Diagnostic> {
     validate_ownership(layout, plan, ownership)?;
     if route_plan.layout != layout.identity()
         || route_plan.row_ownership != ownership.identity
@@ -832,7 +832,7 @@ fn validate_shard_against_ownership(
 fn reconstruct_system(
     ownership: &AssemblyRowOwnership,
     shards: &[OwnedRowAssemblyResult],
-) -> Result<LinearSystem, Diagnostic> {
+) -> Result<LinearSystem<f64>, Diagnostic> {
     let size = ownership.global_size().get();
     let mut row_offsets = Vec::with_capacity(size + 1);
     let mut column_indices = Vec::new();
@@ -862,7 +862,7 @@ fn reconstruct_system(
 }
 
 fn system_identity(
-    system: &LinearSystem,
+    system: &LinearSystem<f64>,
 ) -> Result<DistributedAssemblySystemIdentityV1, Diagnostic> {
     let mut hash = Sha256::new();
     hash.update(SYSTEM_IDENTITY_DOMAIN_V1);

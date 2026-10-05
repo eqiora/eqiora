@@ -39,7 +39,7 @@ impl MiniNavierStokesLocalLinearization {
         &self.residual
     }
 
-    pub(crate) fn into_linear_contribution(self) -> Result<LocalContribution, Diagnostic> {
+    pub(crate) fn into_linear_contribution(self) -> Result<LocalContribution<f64>, Diagnostic> {
         let rhs = self
             .jacobian
             .as_chunks::<CELL_LOCAL_DOF_COUNT>()

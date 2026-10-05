@@ -314,7 +314,7 @@ impl LocalOperator<AffineGeometryMap> for SimplicialElasticityCell {
         &self,
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution, Diagnostic> {
+    ) -> Result<LocalContribution<f64>, Diagnostic> {
         require_geometry_rule(geometry, quadrature)?;
         let gradients = simplex_p1_physical_gradients::<DIMENSION>(geometry)?;
         let space = SimplexP1Space::new(DIMENSION)?;

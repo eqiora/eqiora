@@ -612,7 +612,7 @@ pub(crate) fn advance_simplicial_ale_fsi_prepared_step<const D: usize>(
     previous: &AleFsiState<D>,
     plan: &AleFsiStepPlan<D>,
     quadrature: &QuadratureRule,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     solver: &dyn LinearSolverBackend,
     base_layout: &FsiLayout<D>,
 ) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {

@@ -502,7 +502,7 @@ where
         &self,
         geometry: &SegmentGeometry1d,
         quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution, Diagnostic> {
+    ) -> Result<LocalContribution<f64>, Diagnostic> {
         require_reference_cell(quadrature, ReferenceCell::segment())?;
         let mut integrated_source = 0.0;
         for point in quadrature.points() {
@@ -531,7 +531,7 @@ impl LocalOperator<InteriorFluxContext> for InteriorTwoPointFlux {
         &self,
         context: &InteriorFluxContext,
         quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution, Diagnostic> {
+    ) -> Result<LocalContribution<f64>, Diagnostic> {
         require_reference_cell(quadrature, ReferenceCell::point())?;
         let distance = context.plus_center - context.minus_center;
         let transmissibility = checked_transmissibility(distance, context.diffusion)?;
@@ -561,7 +561,7 @@ impl LocalOperator<BoundaryFluxContext> for BoundaryTwoPointFlux {
         &self,
         context: &BoundaryFluxContext,
         quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution, Diagnostic> {
+    ) -> Result<LocalContribution<f64>, Diagnostic> {
         require_reference_cell(quadrature, ReferenceCell::point())?;
         let transmissibility = checked_transmissibility(context.distance, context.diffusion)?;
         LocalContribution::new(1, 2, vec![transmissibility, -transmissibility], vec![0.0])
@@ -569,7 +569,7 @@ impl LocalOperator<BoundaryFluxContext> for BoundaryTwoPointFlux {
 }
 
 fn assemble_boundary_flux(
-    assembler: &mut CooAssembler,
+    assembler: &mut CooAssembler<f64>,
     operator: &BoundaryTwoPointFlux,
     quadrature: &QuadratureRule,
     cell: CellId,

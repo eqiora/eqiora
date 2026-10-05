@@ -17,7 +17,7 @@ impl LocalOperator<AffineGeometryMap> for MiniConstantTractionFacet {
         &self,
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution, Diagnostic> {
+    ) -> Result<LocalContribution<f64>, Diagnostic> {
         let rhs = integrated_traction_action(self.traction, geometry, quadrature)?;
         LocalContribution::new(
             FACET_LOCAL_DOF_COUNT,

@@ -154,7 +154,7 @@ fn accepted_residual(
 fn analytic_jacobian(
     operator: &CartesianIncompressibleOperator2d,
     point: &CollocatedPoint2d,
-) -> Result<CsrMatrix, Diagnostic> {
+) -> Result<CsrMatrix<f64>, Diagnostic> {
     let size = operator.unknown_count();
     let mut rows = (0..size).map(|_| Vec::new()).collect::<Vec<_>>();
     for column in 0..size {

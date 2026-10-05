@@ -13,7 +13,7 @@ pub(crate) struct PreparedResolvedTransientMiniRun2d<'a> {
     realization_graph: PortableRealizationGraph,
     block_system: DiscreteBlockSystem,
     step_structure: PreparedStepStructure,
-    assembly: &'a dyn AssemblyBackend,
+    assembly: &'a dyn AssemblyBackend<f64>,
     cell_quadrature: QuadratureRule,
     facet_quadrature: QuadratureRule,
     with_gauge: bool,
@@ -123,7 +123,7 @@ pub(super) fn prepare_resolved_transient_navier_stokes_mini_run_2d_with_assembly
     program: &KernelProgram,
     resolved: &'a ResolvedTransientFieldwiseRealization,
     mesh: &'a SimplicialMeshEnvelopeV1,
-    assembly: &'a dyn AssemblyBackend,
+    assembly: &'a dyn AssemblyBackend<f64>,
 ) -> Result<PreparedResolvedTransientMiniRun2d<'a>, Diagnostic> {
     let mesh_artifact = mesh.artifact_reference()?;
     if program.model() != resolved.model()

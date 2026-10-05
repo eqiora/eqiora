@@ -50,7 +50,7 @@ fn layout() -> DistributedMeshLayout {
 fn cancellation_work<'a>(
     plan: &'a AssemblyPlan,
     evaluations: &'a AtomicUsize,
-) -> IndexedAssemblyWork<impl Fn(usize) -> Result<AssemblyPacket, Diagnostic> + Sync + 'a> {
+) -> IndexedAssemblyWork<impl Fn(usize) -> Result<AssemblyPacket<f64>, Diagnostic> + Sync + 'a> {
     let targets = (0..plan.target_count())
         .map(|index| plan.target_id(index).unwrap())
         .collect::<Vec<_>>();
@@ -129,7 +129,7 @@ fn complete_protocol(
     route_plan: &DistributedAssemblyRoutePlanV1,
     routes: &[AssemblyRowRouteV1],
     execution: ExecutionReport,
-) -> Result<(Vec<LinearSystem>, DistributedAssemblyEvidence), Diagnostic> {
+) -> Result<(Vec<LinearSystem<f64>>, DistributedAssemblyEvidence), Diagnostic> {
     let admissions = projections
         .iter()
         .map(|projection| {

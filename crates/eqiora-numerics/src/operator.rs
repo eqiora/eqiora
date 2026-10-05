@@ -18,5 +18,5 @@ pub trait LocalOperator<C> {
         &self,
         context: &C,
         quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution, Diagnostic>;
+    ) -> Result<LocalContribution<f64>, Diagnostic>;
 }

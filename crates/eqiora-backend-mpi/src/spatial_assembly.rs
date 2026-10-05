@@ -108,12 +108,12 @@ impl fmt::Debug for MpiSpatialAssemblyBackend<'_> {
     }
 }
 
-impl AssemblyBackend for MpiSpatialAssemblyBackend<'_> {
+impl AssemblyBackend<f64> for MpiSpatialAssemblyBackend<'_> {
     fn assemble(
         &self,
         plan: &AssemblyPlan,
-        work: &dyn AssemblyWork,
-    ) -> Result<AssemblyResult, Diagnostic> {
+        work: &dyn AssemblyWork<f64>,
+    ) -> Result<AssemblyResult<f64>, Diagnostic> {
         let mut accepted = self
             .accepted
             .try_borrow_mut()
@@ -133,8 +133,8 @@ fn execute(
     group: &mut MpiExecutionGroup,
     layout: &DistributedMeshLayout,
     plan: &AssemblyPlan,
-    work: &dyn AssemblyWork,
-) -> Result<(AssemblyResult, DistributedAssemblyEvidence), Diagnostic> {
+    work: &dyn AssemblyWork<f64>,
+) -> Result<(AssemblyResult<f64>, DistributedAssemblyEvidence), Diagnostic> {
     let admission = collectively(
         group,
         admission_identity(layout, plan, work),
@@ -290,7 +290,7 @@ fn execute(
 fn admission_identity(
     layout: &DistributedMeshLayout,
     plan: &AssemblyPlan,
-    work: &dyn AssemblyWork,
+    work: &dyn AssemblyWork<f64>,
 ) -> Result<[u8; 32], Diagnostic> {
     if work.packet_count() == 0 || work.packet_count() != layout.cell_count() {
         return Err(assembly_failed(format!(

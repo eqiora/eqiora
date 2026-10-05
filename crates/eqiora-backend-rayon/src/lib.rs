@@ -189,12 +189,12 @@ impl fmt::Debug for RayonAssemblyBackend<'_> {
     }
 }
 
-impl AssemblyBackend for RayonAssemblyBackend<'_> {
+impl AssemblyBackend<f64> for RayonAssemblyBackend<'_> {
     fn assemble(
         &self,
         plan: &AssemblyPlan,
-        work: &dyn AssemblyWork,
-    ) -> Result<AssemblyResult, Diagnostic> {
+        work: &dyn AssemblyWork<f64>,
+    ) -> Result<AssemblyResult<f64>, Diagnostic> {
         let packet_count = work.packet_count();
         if packet_count == 0 {
             return Err(assembly_failed(
@@ -416,7 +416,7 @@ mod tests {
 
     use super::*;
 
-    fn system_bits(system: &LinearSystem) -> Vec<u8> {
+    fn system_bits(system: &LinearSystem<f64>) -> Vec<u8> {
         system
             .matrix()
             .values()

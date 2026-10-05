@@ -578,7 +578,7 @@ fn zero_state(
     );
     AleFsiState::new(0.0, mesh, part, motion, physical)
 }
-fn fixed(unknown: LocalUnknown, expected: u64) -> bool {
+fn fixed(unknown: LocalUnknown<f64>, expected: u64) -> bool {
     matches!(unknown,LocalUnknown::Fixed(v) if v.to_bits()==expected)
 }
 #[allow(clippy::too_many_arguments)]

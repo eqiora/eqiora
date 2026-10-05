@@ -338,7 +338,7 @@ pub fn solve_resolved_isotropic_elasticity_cartesian_2d(
 pub fn solve_resolved_isotropic_elasticity_cartesian_2d_with_assembly(
     program: &KernelProgram,
     resolved: &ResolvedRealization,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
     backend: &dyn LinearSolverBackend,
 ) -> Result<
     (
@@ -390,7 +390,7 @@ pub fn finalize_resolved_isotropic_elasticity_cartesian_2d(
 pub fn finalize_resolved_isotropic_elasticity_cartesian_2d_with_assembly(
     program: &KernelProgram,
     resolved: &ResolvedRealization,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
 ) -> Result<
     (
         IsotropicElasticityContinuum<2>,
@@ -414,7 +414,7 @@ pub(crate) fn finalize_isotropic_elasticity_cartesian_q1_on_mesh(
     model: &IsotropicElasticityContinuum<2>,
     mesh: &CartesianMesh,
     solver: eqiora_solver::SolverPlan,
-    assembly: &dyn AssemblyBackend,
+    assembly: &dyn AssemblyBackend<f64>,
 ) -> Result<FinalizedIsotropicElasticityCartesian2dProblem, Diagnostic> {
     require_two_dimensional_exact_bounds(mesh, model.bounds())?;
     let essential_sides = cartesian_essential_sides(model)?;

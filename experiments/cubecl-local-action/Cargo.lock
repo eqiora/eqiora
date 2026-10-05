@@ -859,6 +859,8 @@ version = "0.1.2"
 dependencies = [
  "eqiora-core",
  "eqiora-solver",
+ "num-complex",
+ "num-traits",
 ]
 
 [[package]]

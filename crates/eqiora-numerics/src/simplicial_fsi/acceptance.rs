@@ -201,7 +201,7 @@ fn sample<const D: usize>(
 }
 
 pub(super) fn require_pressure_closed_by_complete_operator<const D: usize>(
-    system: &LinearSystem,
+    system: &LinearSystem<f64>,
     layout: &FsiLayout<D>,
 ) -> Result<f64, Diagnostic> {
     let mut constant_pressure = vec![0.0; layout.reduced_size()];
@@ -226,7 +226,7 @@ pub(super) fn require_pressure_closed_by_complete_operator<const D: usize>(
     Ok(action_norm)
 }
 
-pub(super) fn require_symmetric(matrix: &CsrMatrix) -> Result<(), Diagnostic> {
+pub(super) fn require_symmetric(matrix: &CsrMatrix<f64>) -> Result<(), Diagnostic> {
     let scale = matrix
         .values()
         .iter()
