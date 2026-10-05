@@ -429,3 +429,56 @@ fn repeated_eigenspace_rotations_keep_projectors_but_not_exact_result_identity()
     assert_eq!(result.eigenpair_count(), 0);
     assert_eq!(result.eigen_convergence(), Some("not-converged"));
 }
+
+#[test]
+fn equality_orientation_preserves_the_positive_metric_pencil() {
+    let document = ModelDocument::compile("canonical.eqi", STRUCTURAL).unwrap();
+    let model = ModelEnvelope::from_program(document.program()).unwrap();
+    let reference = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver).unwrap();
+    for equation in [
+        "lambda*apply(m,u)=apply(k,u)",
+        "-apply(k,u)=-lambda*apply(m,u)",
+        "lambda*apply(m,u)-apply(k,u)=0",
+    ] {
+        let source = STRUCTURAL.replace("apply(k,u)=lambda*apply(m,u)", equation);
+        let document = ModelDocument::compile("equivalent.eqi", &source).unwrap();
+        let model = ModelEnvelope::from_program(document.program()).unwrap();
+        let plan = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver).unwrap();
+        // Separately authored Models retain distinct nominal space identities.
+        // Compare their declared matching coordinate order and physical units.
+        for (actual, expected) in [
+            (plan.operator(), reference.operator()),
+            (plan.metric(), reference.metric()),
+        ] {
+            assert_eq!(
+                actual.value_type().dimension(),
+                expected.value_type().dimension()
+            );
+            for i in 0..4 {
+                assert_eq!(actual.component(i), expected.component(i));
+            }
+        }
+        let result = plan.run_result(&FaerLinearSolver).unwrap();
+        assert_eq!(result.eigen_convergence(), Some("converged"));
+        for (i, expected) in [1., 3.].into_iter().enumerate() {
+            assert!(
+                (result.eigenpair(i).unwrap().0.component(0).unwrap().0 - expected).abs() < 1e-12
+            );
+        }
+    }
+}
+
+#[test]
+fn equality_orientation_does_not_regularize_singular_or_indefinite_metrics() {
+    for metric in [
+        "[[2[kg],0],[0,0[kg]]]",
+        "[[2[kg],0],[0,-8[kg]]]",
+        "[[-2[kg],0],[0,8[kg]]]",
+    ] {
+        let source = STRUCTURAL.replace("[[2[kg],0],[0,8[kg]]]", metric);
+        let document = ModelDocument::compile("invalid-metric.eqi", &source).unwrap();
+        let model = ModelEnvelope::from_program(document.program()).unwrap();
+        let error = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver).unwrap_err();
+        assert!(error.to_string().contains("positive definite"));
+    }
+}

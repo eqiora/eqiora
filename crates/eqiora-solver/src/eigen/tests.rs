@@ -165,7 +165,8 @@ fn complete_matrix_admission_rejects_false_hermitian_and_singular_metrics() {
         assert!(HermitianEigenproblem::new(&identity, &bad).is_err());
     }
     for entries in [
-        [(1., 0.), (0., 0.), (0., 0.), (0., 0.)], // unhandled nullspace
+        [(-1., 0.), (0., 0.), (0., 0.), (-1., 0.)], // explicit negative metric is not reoriented
+        [(1., 0.), (0., 0.), (0., 0.), (0., 0.)],   // unhandled nullspace
         [(1., 0.), (0., 0.), (0., 0.), (-1., 0.)],
         [(1., 0.), (2., 0.), (2., 0.), (1., 0.)], // positive diagonal alone is insufficient
     ] {

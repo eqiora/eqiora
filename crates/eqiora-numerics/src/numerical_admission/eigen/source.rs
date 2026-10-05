@@ -176,8 +176,15 @@ impl SourcePencil {
             a.extend_from_slice(constant.coefficients());
             c.extend_from_slice(spectral_part.coefficients());
         }
-        let operator = assemble(a_type, &a, selected.len(), 1.)?;
-        let metric = assemble(b_type, &c, selected.len(), -1.)?;
+        // An equality has no privileged left/right orientation. Choose the
+        // representative (s A, -s C) whose metric can be positive definite.
+        // Every positive-definite metric has a strictly positive first diagonal;
+        // this fixes only the whole-equation sign, never individual rows or a
+        // regularizing shift. Full Hermitian and positive-pivot admission still
+        // follows in HermitianEigenproblem, including all remaining coordinates.
+        let orientation = if c[0] > 0. { -1. } else { 1. };
+        let operator = assemble(a_type, &a, selected.len(), orientation)?;
+        let metric = assemble(b_type, &c, selected.len(), -orientation)?;
         Ok(Self {
             relation,
             mode: mode.id(),

@@ -9,6 +9,7 @@ impl CommonFormulationDescription {
             rule_ids: Box::new([
                 "spectral.derive.v1.homogeneous-affine-pencil",
                 "spectral.derive.v1.exact-complex-linear-action",
+                "spectral.derive.v1.positive-metric-equation-orientation",
                 "spectral.derive.v1.positive-metric-unit-normalization",
             ]),
             selection_reason_codes: Box::new([
