@@ -9,12 +9,12 @@ pub(super) fn validate(
     program: &KernelProgram,
     plan: &ExecutionPlan,
     state: &RuntimeState,
-    point: (&[Variable], &[f64]),
+    point: (f64, &[Variable], &[f64]),
     relations: &BTreeSet<RawId>,
     tangents: &[tangent::Tangent],
     settings: solver::NonlinearSettings,
 ) -> Result<(), Diagnostic> {
-    let (variables, solution) = point;
+    let (time, variables, solution) = point;
     if variables.is_empty() {
         return Ok(());
     }
@@ -23,7 +23,7 @@ pub(super) fn validate(
     initial_state.fields.clone_from(&candidates.fields);
     let context = EvalContext {
         program,
-        time: 0.0,
+        time,
         typed_fields: &initial_state.typed_fields,
         typed_ports: &initial_state.typed_ports,
         typed_next: &initial_state.typed_next,
@@ -42,7 +42,7 @@ pub(super) fn validate(
         let Some(KernelNode::Relation(relation)) = program.node(owner) else {
             return Err(execution_error(
                 "validated initial Relation is unavailable",
-                0.0,
+                time,
             ));
         };
         let roots = direct_assignments::numerical_roots(program, relation);
@@ -82,7 +82,7 @@ pub(super) fn validate(
             variables
                 .iter()
                 .map(|variable| match variable {
-                    Variable::Derivative(field) => tangent
+                    Variable::Derivative(field, std::num::NonZeroU32::MIN) => tangent
                         .coefficients
                         .iter()
                         .find_map(|(id, value)| (id == field).then_some(*value))
@@ -95,13 +95,13 @@ pub(super) fn validate(
     if matrix.len() != variables.len() {
         return Err(execution_error(
             "initial Jacobian differs from the admitted square solve",
-            0.0,
+            time,
         ));
     }
     solver::solve_linear(matrix, vec![0.0; variables.len()]).ok_or_else(|| {
         Diagnostic::error(codes::NONLINEAR_SOLVE_FAILED,
             "initial Jacobian is singular at the accepted point (Operator IR automatic differentiation)")
-            .with_graph_path(execution_path("initialization", 0.0))
+            .with_graph_path(execution_path("initialization", time))
     })?;
     continuous::validate(program, plan, &context, settings)
 }
@@ -113,7 +113,7 @@ fn coordinate(
 ) -> Option<usize> {
     let variable = match symbol {
         SymbolRef::Field(id) | SymbolRef::Pre(id) => Variable::Field(id.erase()),
-        SymbolRef::Derivative(id) => Variable::Derivative(id.erase()),
+        SymbolRef::Derivative(id, order) => Variable::Derivative(id.erase(), order),
         SymbolRef::Next(id) => Variable::NextField(id.erase()),
         SymbolRef::Port(id) => Variable::Port(
             context
@@ -161,7 +161,10 @@ fn point_operator(
                     && coordinate(*symbol, variables, context).is_none() =>
             {
                 let value = evaluate::resolve_symbol(*symbol, context).ok_or_else(|| {
-                    execution_error("initial Jacobian has an unavailable frozen input", 0.0)
+                    execution_error(
+                        "initial Jacobian has an unavailable frozen input",
+                        context.time,
+                    )
                 })?;
                 builder.constant(value)?;
             }
@@ -215,7 +218,10 @@ fn differentiate_with_time(
         .iter()
         .map(|&symbol| {
             evaluate::resolve_symbol(symbol, context).ok_or_else(|| {
-                execution_error("initial Jacobian has an unavailable active input", 0.0)
+                execution_error(
+                    "initial Jacobian has an unavailable active input",
+                    context.time,
+                )
             })
         })
         .collect::<Result<Vec<_>, _>>()?;

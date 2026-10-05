@@ -18,8 +18,10 @@ For `f=x²y+y³`, independent differentiation gives `∇f=(2xy,x²+3y²)` and
 `H=[[2y,2x],[2x,6y]]`. At `(3,5)`, direction `(2,-1)` gives `Jv=-24` and
 `Hv=(14,-18)`. Output dual seed `7` gives `Jᵀ7=(210,588)`; both dual pairings
 are `-168`. No numerical differencing supplies these expectations. Direct, aliased and
-composed third partials reject; `x*abs(x)` is not admitted as a C2 expression even at a
-currently positive evaluation point.
+composed third partials of `x³` all give `6`, independently of the evaluation point.
+The repeated polynomial transform has no separate derivative-order ceiling; its existing
+node and depth budgets still bound construction and replay. `x*abs(x)` is not admitted
+as a C2 expression even at a currently positive evaluation point.
 
 The heterogeneous specimen `f=x²v`, with `x=3 m`, `v=5 m/s` and direction
 `(2 m,-1 m/s)`, gives `Jv=51 m³/s`. Its Hessian-action blocks are `14 m²/s`
@@ -45,6 +47,7 @@ it does not admit general `partial(field, wrt=coordinate_factor)` or unknown-fie
 second derivatives, which remain owned by the coordinate-partial profile.
 
 This case does not establish complex, nonsmooth, general coordinate-factor/unknown-field,
-material, implicit-solution, or arbitrary higher-order derivatives.
+material or implicit-solution derivatives, or arbitrary expression size and derivative order
+within a fixed execution budget. The nonzero derivative specimens reach order three.
 
 Run `cargo run -p eqiora-verify -- run --case language.formal-partials`.

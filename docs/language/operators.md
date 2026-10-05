@@ -44,15 +44,16 @@ proof normalization does not authorize reassociating floating-point operations.
 The native scalar calculus owner exposes inspectable first and second partial derivative
 graphs. For the example, the temperature derivatives at 20 K are 0.14 W/(m*K^2) and
 0.002 W/(m*K^3). A zero partial retains its derived dimensions and support. Unsupported
-orders or profiles reject rather than substituting finite differences. Source
+profiles and expressions exceeding calculus resource budgets reject rather than substituting finite differences.
+Repeated polynomial partials have no separate derivative-order ceiling. Source
 `partial(expression, wrt = binding, holding = (...))` admits real scalar polynomial
 arithmetic and local operator composition at exact declared formals, Parameters, or continuous
 state Fields. Let aliases retain dependencies and cannot be differentiation or holding bindings.
 A Component Parameter slot preserves a directly bound parent Parameter direction; a literal
 or derived binding does not introduce a new independent value.
 The [formal partial evidence](../../verify/language/formal-partials/README.md) checks analytic
-values and quotient dimensions. General smooth functions, coordinate derivatives, mixed source
-partials, and solved sensitivities remain outside this executable profile.
+values and quotient dimensions. General smooth functions, unknown-field coordinate derivatives and solved sensitivities
+remain outside this executable profile.
 
 Python `Module.operator` authors a local concrete scalar definition from typed formal handles
 and a callback invoked once. Its returned handle accepts named arguments. Formal handles
@@ -73,7 +74,12 @@ profile instead of treating a branch or domain requirement as an algebraic ident
 ## Continuous expression derivatives
 
 `time()` denotes the enclosing continuous timeline coordinate in seconds. Initial and restart
-time are supplied through the ordinary time lifecycle. A pure operator receives time as a named
+time are supplied through the ordinary time lifecycle. For a common ODE Plan,
+`State.initial(plan, time_s=...)` evaluates the authored initial equations at that
+explicit coordinate (default zero); `State.from_result(..., time_s=...)` retains
+the accepted restart coordinate. Neither operation shifts `time()` back to zero.
+Fresh initial Parameter tangents are validated at the chosen initial coordinate,
+not by attempting an unrelated initialization at zero during Plan resolution. A pure operator receives time as a named
 input; it cannot read an ambient clock. Bare `time` is not a source expression.
 
 `derivative(expression)` applies the total time chain rule to admitted real scalar polynomial
@@ -81,6 +87,20 @@ expressions, let aliases and operator composition over continuous States and fix
 For example, `derivative(q*q)` expands through the shared formal partial owner to the two product
 contributions, and `derivative(time()*q)` includes both explicit time and State evolution.
 The default distributed-field derivative holds the declared spatial coordinates fixed.
-Clocked values, `pre`/`next`, algebraic variables and unsupported derivative products reject.
+Nested total derivatives expand through the same ordered partial transform; products of State
+values and rates keep every chain-rule term. A higher-order State retains its source identity
+and lowers to value/derivative coordinates with explicit companion equations and initial data.
+The resolved ODE `Plan.formulation` exposes `FirstOrderEvolution`, its source Relation identity,
+and the ordered `(FieldRef, derivative order)` state coordinates. Consecutive coordinates of
+the same Field obey the companion equation `derivative(q_k) = q_(k+1)`. This correspondence
+is reconstructed and checked when the Plan is restored.
+Clocked values, `pre`/`next`, algebraic variables and unsupported nonsmooth rules reject.
 The [expression chain-rule case](../../verify/time/expression-chain-rule/README.md) executes a
 nonlinear stored quantity through the common implicit lifecycle and exact artifact replay.
+
+Continuous ODE Observables may read these derivatives. At an accepted smooth point the
+execution owner supplies stored lower derivatives and the highest flow rate with their
+original units. Terminal and time-integral Parameter variations include both state dependence
+and direct flow-Parameter dependence. A derivative order not supplied by the admitted ODE
+is unavailable; no extra evolution state or initial condition is invented for observation.
+Reset maps, impulses and stochastic increments are not differentiated as smooth expressions.

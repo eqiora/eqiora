@@ -171,14 +171,14 @@ fn bouncing_fixture(direction: EventDirection, reverse_nodes: bool) -> BouncingF
 
     let mut flight_expression = ExprDagBuilder::new();
     let height_rate = flight_expression
-        .symbol(SymbolRef::Derivative(height))
+        .symbol(SymbolRef::Derivative(height, std::num::NonZeroU32::MIN))
         .unwrap();
     let velocity_value = flight_expression
         .symbol(SymbolRef::Field(velocity))
         .unwrap();
 
     let velocity_rate = flight_expression
-        .symbol(SymbolRef::Derivative(velocity))
+        .symbol(SymbolRef::Derivative(velocity, std::num::NonZeroU32::MIN))
         .unwrap();
     let gravity_value = flight_expression
         .symbol(SymbolRef::Parameter(gravity))
@@ -373,7 +373,7 @@ fn chattering_program() -> KernelProgram {
 
     let mut flow_expression = ExprDagBuilder::new();
     let derivative = flow_expression
-        .symbol(SymbolRef::Derivative(state))
+        .symbol(SymbolRef::Derivative(state, std::num::NonZeroU32::MIN))
         .unwrap();
     let rate_value = flow_expression.symbol(SymbolRef::Parameter(rate)).unwrap();
     let flow_residual = flow_expression.add(derivative, rate_value).unwrap();
@@ -543,7 +543,9 @@ fn coincidence_fixture(reverse: bool, conflict: bool, root_shift: f64) -> Coinci
     for (field, slope) in [(x, 1.0), (y, 2.0), (z, 0.0)] {
         let relation = Id::new();
         let mut dag = ExprDagBuilder::new();
-        let lhs = dag.symbol(SymbolRef::Derivative(field)).unwrap();
+        let lhs = dag
+            .symbol(SymbolRef::Derivative(field, std::num::NonZeroU32::MIN))
+            .unwrap();
         let rhs = dag.constant(DynQuantity::new(slope, rate)).unwrap();
         nodes.push(
             RelationDef::new(relation, dag.finish([lhs, rhs]).unwrap())

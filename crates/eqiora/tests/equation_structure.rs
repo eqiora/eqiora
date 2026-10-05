@@ -18,7 +18,11 @@ fn equal_counts_do_not_hide_a_structurally_deficient_block() {
             "model M() {{ variable x: 1; variable y: 1; variable z: 1; relation r {{ {equations} }} }}"
         ));
         let errors = Interpreter::new()
-            .initialize(model.program(), ReferenceConfig::new(0.0, 0.1).unwrap())
+            .initialize(
+                model.program(),
+                0.0,
+                ReferenceConfig::new(0.0, 0.1).unwrap(),
+            )
             .unwrap_err();
         assert_eq!(errors[0].code(), codes::NONLINEAR_SOLVE_FAILED);
         assert!(
@@ -42,7 +46,11 @@ fn initial_equations_cannot_complete_an_incomplete_regular_system() {
         "model M() { variable x: 1; variable y: 1; relation r { x + y = 3; } initial { x = 1; } }",
     );
     let errors = Interpreter::new()
-        .initialize(model.program(), ReferenceConfig::new(0.0, 0.1).unwrap())
+        .initialize(
+            model.program(),
+            0.0,
+            ReferenceConfig::new(0.0, 0.1).unwrap(),
+        )
         .unwrap_err();
     assert_eq!(errors[0].code(), codes::NONSQUARE_SYSTEM);
     assert!(errors[0].message().contains("1 equations and 2 unknowns"));
@@ -71,7 +79,11 @@ fn full_incidence_rank_does_not_accept_duplicate_numeric_equations() {
         "model M() { variable x: 1; variable y: 1; relation r { x + y = 0; x + y = 0; } }",
     );
     let errors = Interpreter::new()
-        .initialize(model.program(), ReferenceConfig::new(0.0, 0.1).unwrap())
+        .initialize(
+            model.program(),
+            0.0,
+            ReferenceConfig::new(0.0, 0.1).unwrap(),
+        )
         .unwrap_err();
     assert_eq!(errors[0].code(), codes::NONLINEAR_SOLVE_FAILED);
     assert!(errors[0].message().contains("Newton Jacobian is singular"));
@@ -94,7 +106,11 @@ fn component_occurrences_and_expression_aliases_keep_distinct_unknowns() {
     "#,
     );
     let initial = Interpreter::new()
-        .initialize(model.program(), ReferenceConfig::new(0.0, 0.1).unwrap())
+        .initialize(
+            model.program(),
+            0.0,
+            ReferenceConfig::new(0.0, 0.1).unwrap(),
+        )
         .unwrap();
     for (name, expected) in [
         ("first.x", 2.0),
@@ -132,12 +148,20 @@ fn nonlinear_index_one_dae_uses_the_common_source_and_cpu_execution() {
             .with_nonlinear_tolerances(1e-12, 0.0)
             .unwrap();
         let accepted = Interpreter::new()
-            .initialize(model.program(), config)
+            .initialize(model.program(), 0.0, config)
             .unwrap();
         let x = model.aliases()["x"];
         let z = model.aliases()["z"];
-        assert!((accepted.derivatives()[&x] + rate * initial * initial).abs() < 1e-9);
-        assert!(!accepted.derivatives().contains_key(&z));
+        assert!(
+            (accepted.derivatives()[&(x, std::num::NonZeroU32::MIN)] + rate * initial * initial)
+                .abs()
+                < 1e-9
+        );
+        assert!(
+            !accepted
+                .derivatives()
+                .contains_key(&(z, std::num::NonZeroU32::MIN))
+        );
         let cpu = CpuProgram::lower(model.program()).unwrap();
         for trajectory in [
             Interpreter::new().run(model.program(), config).unwrap(),
@@ -164,7 +188,7 @@ fn nonlinear_index_one_dae_uses_the_common_source_and_cpu_execution() {
         ));
         assert!(
             Interpreter::new()
-                .initialize(inconsistent.program(), config)
+                .initialize(inconsistent.program(), 0.0, config)
                 .is_err()
         );
     }
@@ -180,7 +204,11 @@ fn deficient_blocks_exclude_an_independent_balanced_component() {
             "model M() {{ variable x: 1; variable y: 1; variable z: 1; variable w: 1; relation r {{ {equations} }} }}"
         ));
         let errors = Interpreter::new()
-            .initialize(model.program(), ReferenceConfig::new(0.0, 0.1).unwrap())
+            .initialize(
+                model.program(),
+                0.0,
+                ReferenceConfig::new(0.0, 0.1).unwrap(),
+            )
             .unwrap_err();
         let message = errors[0].message();
         let (over, under) = message.split_once("underdetermined block:").unwrap();
@@ -217,7 +245,11 @@ fn deficient_component_occurrence_cannot_borrow_a_balanced_instances_equation() 
             "component Broken() {{ variable x:1; variable y:1; variable z:1; relation equations {{ {equations} }} }} component Balanced() {{ variable x:1; relation equations {{ x=1; }} }} model M() {{ instance broken:Broken(); instance balanced:Balanced(); }}"
         ));
         let errors = Interpreter::new()
-            .initialize(model.program(), ReferenceConfig::new(0.0, 0.1).unwrap())
+            .initialize(
+                model.program(),
+                0.0,
+                ReferenceConfig::new(0.0, 0.1).unwrap(),
+            )
             .unwrap_err();
         assert_eq!(errors[0].code(), codes::NONLINEAR_SOLVE_FAILED);
         let message = errors[0].message();

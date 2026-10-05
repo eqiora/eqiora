@@ -65,7 +65,9 @@ pub(super) fn integrate_dimension(
 
 pub(super) fn contains_exact_derivative(expression: &ExprDag, value: ExprId, field: RawId) -> bool {
     match expression.node(value) {
-        Some(ExprNode::Symbol(SymbolRef::Derivative(id))) => id.erase() == field,
+        Some(ExprNode::Symbol(SymbolRef::Derivative(id, std::num::NonZeroU32::MIN))) => {
+            id.erase() == field
+        }
         Some(ExprNode::Mul(left, right)) => {
             contains_exact_derivative(expression, *left, field)
                 || contains_exact_derivative(expression, *right, field)
@@ -80,7 +82,11 @@ pub(super) fn strip_derivative_factor(
     field: RawId,
 ) -> Option<Option<ExprId>> {
     match expression.node(value) {
-        Some(ExprNode::Symbol(SymbolRef::Derivative(id))) if id.erase() == field => Some(None),
+        Some(ExprNode::Symbol(SymbolRef::Derivative(id, std::num::NonZeroU32::MIN)))
+            if id.erase() == field =>
+        {
+            Some(None)
+        }
         Some(ExprNode::Mul(left, right))
             if contains_exact_derivative(expression, *left, field)
                 && !contains_exact_derivative(expression, *right, field) =>
@@ -113,7 +119,7 @@ pub(super) fn contains_state_symbol(expression: &ExprDag, root: ExprId) -> bool 
         match expression.node(value) {
             Some(ExprNode::Symbol(
                 SymbolRef::Field(_)
-                | SymbolRef::Derivative(_)
+                | SymbolRef::Derivative(_, _)
                 | SymbolRef::Pre(_)
                 | SymbolRef::Next(_),
             )) => true,

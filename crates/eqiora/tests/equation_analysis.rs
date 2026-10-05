@@ -42,10 +42,18 @@ fn deficient_rate_candidate_does_not_reject_a_regular_coupled_descriptor() {
     assert_eq!(report.declared_rate_partition().rank(), 1);
     // x=y and x'+y'=-2*x imply x=y=1, x'=y'=-1 initially.
     let initial = Interpreter::new()
-        .initialize(model.program(), ReferenceConfig::new(0.0, 0.1).unwrap())
+        .initialize(
+            model.program(),
+            0.0,
+            ReferenceConfig::new(0.0, 0.1).unwrap(),
+        )
         .unwrap();
     for alias in ["x", "y"] {
-        assert!((initial.derivatives()[&model.aliases()[alias]] + 1.0).abs() < 1e-9);
+        assert!(
+            (initial.derivatives()[&(model.aliases()[alias], std::num::NonZeroU32::MIN)] + 1.0)
+                .abs()
+                < 1e-9
+        );
     }
 }
 
@@ -64,7 +72,11 @@ fn an_unbalanced_system_can_be_analyzed_before_execution_rejects_it() {
     assert_eq!(report.balance().underdetermined_coordinates().count(), 2);
     assert!(
         Interpreter::new()
-            .initialize(model.program(), ReferenceConfig::new(0.0, 0.1).unwrap())
+            .initialize(
+                model.program(),
+                0.0,
+                ReferenceConfig::new(0.0, 0.1).unwrap()
+            )
             .is_err()
     );
 }

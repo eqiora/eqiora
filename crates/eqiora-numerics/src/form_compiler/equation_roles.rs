@@ -255,7 +255,7 @@ impl EquationRoles {
             .nodes()
             .iter()
             .filter_map(|node| match node {
-                ExprNode::Symbol(SymbolRef::Field(id) | SymbolRef::Derivative(id)) => {
+                ExprNode::Symbol(SymbolRef::Field(id) | SymbolRef::Derivative(id, _)) => {
                     Some(id.erase())
                 }
                 ExprNode::Symbol(SymbolRef::Parameter(id)) => Some(id.erase()),

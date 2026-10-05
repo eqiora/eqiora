@@ -97,7 +97,7 @@ def test_compile_artifact_run_and_owned_numpy_result() -> None:
         temporal=eqiora.time.Tsitouras45(
             initial_step_s=0.01,
             relative_tolerance=1.0e-9,
-            absolute_tolerances={field: 1.0e-11},
+            absolute_tolerances={(field, 0): 1.0e-11},
         ),
     )
     result = eqiora.run(
@@ -154,7 +154,7 @@ def test_diagnostics_are_structured() -> None:
         eqiora.time.Tsitouras45(
             initial_step_s=0.0,
             relative_tolerance=1.0e-9,
-            absolute_tolerances={eqiora.compile(source=SOURCE).field("x"): 1.0e-11},
+            absolute_tolerances={(eqiora.compile(source=SOURCE).field("x"), 0): 1.0e-11},
         )
     assert caught.value.diagnostics[0].code == "EQ0807"
 
@@ -222,14 +222,14 @@ def test_native_declarations_share_the_canonical_compile_and_run_path() -> None:
     )
 
     model = eqiora.compile(source=eqiora.Module("decay", state, rate, flow, eqiora.Initial((state, 1.0))))
-    assert json.loads(model.to_bytes())["schema"] == "eqiora.model-envelope/v40"
+    assert json.loads(model.to_bytes())["schema"] == "eqiora.model-envelope/v41"
     field = model.field(model.field_ids[0])
     plan = eqiora.resolve(
         model,
         temporal=eqiora.time.Tsitouras45(
             initial_step_s=0.01,
             relative_tolerance=1.0e-9,
-            absolute_tolerances={field: 1.0e-11},
+            absolute_tolerances={(field, 0): 1.0e-11},
         ),
     )
     result = eqiora.run(
@@ -269,7 +269,7 @@ def test_source_and_native_models_share_only_structural_identity() -> None:
     assert source != native
     assert source.structural_fingerprint == native.structural_fingerprint
     assert source.structural_fingerprint.generation == (
-        "eqiora.structural-semantic-fingerprint/v35"
+        "eqiora.structural-semantic-fingerprint/v36"
     )
     assert len(source.structural_fingerprint.digest) == 64
     assert source.structurally_equivalent(native)

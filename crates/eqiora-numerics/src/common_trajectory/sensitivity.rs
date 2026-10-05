@@ -2,7 +2,7 @@
 use super::*;
 use eqiora_core::entity::kinds;
 use eqiora_core::{DynQuantity, Id};
-use eqiora_time::{ForwardSensitivitySolution, TimeHistoryStep};
+use eqiora_time::{ForwardSensitivitySolution, ParametricTimeSystem, TimeHistoryStep, TimeSystem};
 
 /// Parameter sensitivity history bound to its exact accepted primal Trajectory.
 #[derive(Debug, Clone, PartialEq)]
@@ -29,14 +29,21 @@ impl CommonTrajectoryParameterSensitivity {
         };
         let roots = request.plan().root_set()?;
         let expected = if let Some(roots) = &roots {
-            crate::common_ode::parameter_system::GlobalParameterSystem::new(request.plan(), roots)?
-                .parameter_ids()
-                .to_vec()
+            let system = crate::common_ode::parameter_system::GlobalParameterSystem::new(
+                request.plan(),
+                roots,
+            )?;
+            system.initial_parameter_jvp(
+                request.state().time_s(),
+                &vec![0.; system.parameter_dimension()],
+                &mut vec![0.; system.dimension()],
+            )?;
+            system.parameter_ids().to_vec()
         } else {
             let proof = request.forward_sensitivity_problem()?;
-            let mut initial = vec![0.0; request.plan().field_dimensions().len()];
+            let mut initial = vec![0.0; request.plan().state_dimensions().len()];
             proof.system().initial_parameter_jvp(
-                0.0,
+                request.state().time_s(),
                 &vec![0.0; proof.parameter_dimension()],
                 &mut initial,
             )?;
@@ -57,8 +64,7 @@ impl CommonTrajectoryParameterSensitivity {
             .start_state()
             .iter()
             .any(|value| *value != 0.0)
-            || request.state().time_s() != 0.0
-            || request.state().values() != request.plan().initial_state()?.values()
+            || request.state() != &request.plan().initial_state(request.state().time_s())?
         {
             return Err(invalid(
                 "Parameter sensitivity requires the exact Parameter-independent Model initial State",

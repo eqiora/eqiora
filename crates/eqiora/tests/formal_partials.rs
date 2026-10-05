@@ -182,7 +182,7 @@ fn dimensioned_mixed_partials_and_absent_inner_selector_keep_typed_zero() {
 }
 
 #[test]
-fn third_partials_reject_direct_alias_and_operator_composition_paths() {
+fn third_partials_preserve_direct_alias_and_operator_composition_values() {
     let cases = [
         "model M() { parameter x:1=3; relation r { partial(partial(partial(x*x*x,wrt=x),wrt=x),wrt=x)=6; } }",
         "model M() { parameter x:1=3; let dx=partial(x*x*x,wrt=x); let ddx=partial(dx,wrt=x); relation r { partial(ddx,wrt=x)=6; } }",
@@ -190,13 +190,8 @@ fn third_partials_reject_direct_alias_and_operator_composition_paths() {
         "operator first(input x:1):1=partial(x*x*x,wrt=x); operator second(input x:1):1=partial(first(x=x),wrt=x); operator third(input x:1):1=partial(second(x=x),wrt=x); model M() { relation r { third(x=3)=6; } }",
     ];
     for source in cases {
-        let errors = compile("third.eqi", source).expect_err("third partial must be rejected");
-        assert!(
-            errors
-                .iter()
-                .any(|error| error.message().contains("derivative order")),
-            "{errors:?}"
-        );
+        // The third derivative of x³ is 6 for every x.
+        assert_eq!(residuals(source), vec![0.]);
     }
 }
 

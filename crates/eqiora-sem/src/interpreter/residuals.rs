@@ -8,7 +8,7 @@ pub(super) fn evaluate_relations(
     time: f64,
     state: &RuntimeState,
     field_candidates: &BTreeMap<RawId, f64>,
-    derivatives: &BTreeMap<RawId, f64>,
+    derivatives: &BTreeMap<(RawId, std::num::NonZeroU32), f64>,
     next_fields: &BTreeMap<RawId, f64>,
     port_candidates: &BTreeMap<RawId, f64>,
     physical_candidates: &BTreeMap<PhysicalUnknown, f64>,

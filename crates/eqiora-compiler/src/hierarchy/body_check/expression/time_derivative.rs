@@ -48,12 +48,15 @@ impl ExpressionChecker<'_, '_, '_> {
                 ExprKind::Call { callee, arguments } if !is_builtin_operator(callee) => {
                     pending.extend(arguments.expressions().cloned());
                 }
+                ExprKind::Call { callee, arguments } if callee.as_str() == "derivative" => {
+                    pending.extend(arguments.expressions().cloned());
+                }
                 ExprKind::Call { callee, arguments }
                     if callee.as_str() == "time" && arguments.expressions().next().is_none() => {}
                 _ => return Err(self.time_rule_error(&value)),
             }
         }
-        typing::time_derivative(&inferred)
+        typing::time_derivative(&inferred, std::num::NonZeroU32::MIN)
             .map_err(|error| type_error(self.scope.file, expression, error))
     }
 

@@ -88,7 +88,7 @@ pub(in crate::lower) fn lower_observable(
         ports: BTreeSet::new(),
         cache: HashMap::new(),
         sampling: false,
-        allow_discrete_symbols: true,
+        allow_discrete_symbols: false,
         allow_observables: true,
         activation: &ActivationSyntax::Continuous,
         initial: false,

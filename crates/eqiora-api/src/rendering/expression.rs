@@ -124,7 +124,7 @@ impl Context<'_> {
                 SymbolRef::Through(id) => self.quantity((*id).into(), QuantityRole::Through)?,
                 SymbolRef::PortTrace(id) => self.quantity((*id).into(), QuantityRole::Trace)?,
                 SymbolRef::PortFlux(id) => self.quantity((*id).into(), QuantityRole::Flux)?,
-                SymbolRef::Derivative(id) => {
+                SymbolRef::Derivative(id, std::num::NonZeroU32::MIN) => {
                     Math::Derivative(Box::new(self.quantity((*id).into(), QuantityRole::Value)?))
                 }
                 SymbolRef::Pre(id) => call(

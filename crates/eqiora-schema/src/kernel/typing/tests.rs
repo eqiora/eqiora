@@ -11,6 +11,20 @@ fn volume(name: &'static str) -> SpatialSupport<&'static str> {
 }
 
 #[test]
+fn time_derivative_checks_the_final_exponent_after_exact_cancellation() {
+    let limit = i32::MAX;
+    let dimension = DimExponents::from_integers([0, 0, limit, 0, 0, 0, 0]).unwrap();
+    let operand = ExpressionType::<()>::scalar(dimension, None);
+    let order = std::num::NonZeroU32::new(u32::MAX - 1).unwrap();
+    let derivative = time_derivative(&operand, order).unwrap();
+    assert_eq!(
+        derivative.dimension(),
+        DimExponents::from_integers([0, 0, -limit, 0, 0, 0, 0]).unwrap()
+    );
+    assert!(time_derivative(&operand, std::num::NonZeroU32::MAX).is_err());
+}
+
+#[test]
 fn complex_domain_survives_arithmetic_and_spatial_type_inference() {
     use eqiora_core::ScalarDomain;
     use eqiora_core::ValueType;
@@ -26,7 +40,7 @@ fn complex_domain_survives_arithmetic_and_spatial_type_inference() {
         multiply(&real, &complex),
         divide(&real, &complex),
         power(&complex, 2),
-        time_derivative(&complex),
+        time_derivative(&complex, std::num::NonZeroU32::MIN),
         gradient(&complex),
         isotropic_lift(&complex),
         unary_math(UnaryMathFunction::Sqrt, &complex),

@@ -40,6 +40,8 @@ pub(super) enum WeakSign {
 /// Mathematical form selected between an exact Model and its numerical Realization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FormulationKind {
+    /// Source-preserving first-order coordinates and companion equations for time evolution.
+    FirstOrderEvolution,
     /// Primal test/trial pairing produced by Galerkin derivation.
     PrimalGalerkin,
     /// Mixed test/trial pairing with more than one field role.

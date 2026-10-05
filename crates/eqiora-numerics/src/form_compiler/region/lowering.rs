@@ -220,7 +220,9 @@ fn expression(
             };
             trial(context, id, coefficient, row, pairing)
         }
-        ExprNode::Symbol(SymbolRef::Derivative(_)) if matches!(position, Position::Strong) => {
+        ExprNode::Symbol(SymbolRef::Derivative(_, std::num::NonZeroU32::MIN))
+            if matches!(position, Position::Strong) =>
+        {
             trial(context, id, coefficient, row, Pairing::Value)
         }
         _ => {
@@ -261,7 +263,9 @@ fn trial(
         {
             (field.erase(), false)
         }
-        Some(ExprNode::Symbol(SymbolRef::Derivative(field))) if pairing == Pairing::Value => {
+        Some(ExprNode::Symbol(SymbolRef::Derivative(field, std::num::NonZeroU32::MIN)))
+            if pairing == Pairing::Value =>
+        {
             (field.erase(), true)
         }
         _ => {

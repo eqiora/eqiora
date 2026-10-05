@@ -1,3 +1,6 @@
+mod coordinates;
+pub(crate) use coordinates::state_order;
+
 use std::collections::HashMap;
 
 use eqiora_core::diagnostic::codes;
@@ -31,7 +34,8 @@ use eqiora_sem::{KernelProgram, ReferenceConfig};
 pub struct FirstOrderProgram {
     relation: Id<kinds::Relation>,
     operator: ScalarOperatorIr,
-    state_fields: Vec<Id<kinds::Field>>,
+    state_coordinates: Vec<(Id<kinds::Field>, u32)>,
+    companions: Vec<(usize, usize)>,
     parameter_fields: Vec<Id<kinds::Parameter>>,
     parameter_values: Vec<f64>,
     kernel: KernelProgram,
@@ -59,22 +63,19 @@ impl FirstOrderProgram {
         let operator = ScalarOperatorIr::lower_typed_scalar(&typed)?;
 
         let state_order = state_order(relation, &operator)?;
-        let state_fields = state_order.fields;
-        let derivatives = state_fields
-            .iter()
-            .copied()
-            .map(SymbolRef::Derivative)
-            .collect::<Vec<_>>();
+        let derivatives = state_order.rate_symbols();
         let jacobian = operator
             .constant_symbol_jacobian(&derivatives)
             .map_err(|failure| derivative_structure_error(relation, failure))?;
-        let classified = classify_first_order(relation, &jacobian, &state_fields)?;
+        let matrix = state_order.derivative_matrix(relation, &jacobian)?;
+        let classified = classify_first_order(relation, matrix, &state_order.state_coordinates)?;
 
         let time_bindings = bind_symbols(program, relation, &operator, &state_order.coordinates)?;
         Ok(Self {
             relation,
             operator,
-            state_fields,
+            state_coordinates: state_order.state_coordinates,
+            companions: state_order.companions,
             parameter_fields: time_bindings.parameter_fields,
             parameter_values: time_bindings.parameter_values,
             kernel: program.kernel().clone(),
@@ -94,8 +95,8 @@ impl FirstOrderProgram {
 
     /// Deterministic state coordinate order.
     #[must_use]
-    pub fn state_fields(&self) -> &[Id<kinds::Field>] {
-        &self.state_fields
+    pub fn state_coordinates(&self) -> &[(Id<kinds::Field>, u32)] {
+        &self.state_coordinates
     }
 
     /// Solve fresh simultaneous initial equations before the first activation.
@@ -107,18 +108,21 @@ impl FirstOrderProgram {
     /// including a locally singular or high-index constant-mass constraint block.
     pub fn initialize(
         &self,
+        initial_time: f64,
         config: ReferenceConfig,
     ) -> Result<ImplicitDaeInitialization, Diagnostic> {
         let initial = super::initialization::initialize(
             &self.kernel,
-            &self.state_fields,
+            &self.state_coordinates,
             self.relation,
+            initial_time,
             config,
         )?;
         super::initialization::require_constant_mass_regularity(
             &self.kernel,
-            &self.state_fields,
+            &self.state_coordinates,
             self.relation,
+            initial_time,
             &initial,
             self.proof.derivative_matrix(),
         )?;
@@ -164,35 +168,42 @@ impl FirstOrderProgram {
             self,
             self.equation_class(),
             self.initial_condition_policy(),
-            self.initialize(ReferenceConfig::new(0.0, 1.0)?)?
+            self.initialize(0.0, ReferenceConfig::new(0.0, 1.0)?)?
                 .state()
                 .to_vec(),
         )
     }
 
-    /// Construct the parameter-JVP problem from the same proven projection.
+    /// Construct the parameter-JVP problem at an explicit initial time from the same proven projection.
     ///
     /// # Errors
     /// Retains `ForwardSensitivityProblem` validation diagnostics when the
     /// Relation has no Parameter symbols or its invariants change.
-    pub fn forward_sensitivity_problem(&self) -> Result<ForwardSensitivityProblem<'_>, Diagnostic> {
-        self.require_parameter_independent_initial_conditions()?;
+    pub fn forward_sensitivity_problem(
+        &self,
+        initial_time: f64,
+    ) -> Result<ForwardSensitivityProblem<'_>, Diagnostic> {
+        self.require_parameter_independent_initial_conditions(initial_time)?;
         ForwardSensitivityProblem::new(
             self,
             self.equation_class(),
             self.initial_condition_policy(),
-            self.initialize(ReferenceConfig::new(0.0, 1.0)?)?
+            self.initialize(initial_time, ReferenceConfig::new(0.0, 1.0)?)?
                 .state()
                 .to_vec(),
         )
     }
 
-    fn require_parameter_independent_initial_conditions(&self) -> Result<(), Diagnostic> {
+    fn require_parameter_independent_initial_conditions(
+        &self,
+        initial_time: f64,
+    ) -> Result<(), Diagnostic> {
         super::initialization::require_zero_parameter_tangent(
             &self.kernel,
-            &self.state_fields,
+            &self.state_coordinates,
             &self.parameter_fields,
             self.relation,
+            initial_time,
         )
     }
 
@@ -214,7 +225,7 @@ impl FirstOrderProgram {
                 residual_rows,
                 derivative_scales,
             } => {
-                for state in 0..self.state_fields.len() {
+                for state in 0..self.state_coordinates.len() {
                     output[state] = -residual[residual_rows[state]] / derivative_scales[state];
                 }
             }
@@ -308,6 +319,7 @@ impl ParametricTimeSystem for FirstOrderProgram {
             RelationTangent::Parameter(parameter_direction),
             &mut residual_tangent,
         )?;
+        residual_tangent.resize(self.state_coordinates.len(), 0.);
         self.write_rhs(&residual_tangent, output);
         require_finite_slice(self.relation, output, "first-order Parameter JVP")
     }
@@ -318,9 +330,9 @@ impl ParametricTimeSystem for FirstOrderProgram {
         parameter_direction: &[f64],
         output: &mut [f64],
     ) -> Result<(), Diagnostic> {
-        self.require_parameter_independent_initial_conditions()?;
+        self.require_parameter_independent_initial_conditions(time)?;
         if !time.is_finite()
-            || output.len() != self.state_fields.len()
+            || output.len() != self.state_coordinates.len()
             || parameter_direction.len() != self.parameter_fields.len()
         {
             return Err(invalid_time(
@@ -340,12 +352,13 @@ impl ParametricTimeSystem for FirstOrderProgram {
 
 impl TimeSystem for FirstOrderProgram {
     fn dimension(&self) -> usize {
-        self.state_fields.len()
+        self.state_coordinates.len()
     }
 
     fn rhs(&self, time: f64, state: &[f64], output: &mut [f64]) -> Result<(), Diagnostic> {
         self.require_action_shape(time, state, None, output)?;
-        let residual = self.operator.evaluate(&self.inputs(time, state))?;
+        let mut residual = self.operator.evaluate(&self.inputs(time, state))?;
+        residual.extend(self.companions.iter().map(|&(_, next)| -state[next]));
         self.write_rhs(&residual, output);
         require_finite_slice(self.relation, output, "first-order right-hand side")
     }
@@ -367,6 +380,7 @@ impl TimeSystem for FirstOrderProgram {
             .collect::<Vec<_>>();
         let mut residual_tangent = vec![0.0; self.operator.residual_count()];
         linearization.jvp(RelationTangent::Unknown(&tangent), &mut residual_tangent)?;
+        residual_tangent.extend(self.companions.iter().map(|&(_, next)| -direction[next]));
         self.write_rhs(&residual_tangent, output);
         require_finite_slice(self.relation, output, "first-order state JVP")
     }
@@ -420,11 +434,6 @@ enum TimeBinding {
     Time,
 }
 
-pub(crate) struct StateOrder {
-    pub(crate) fields: Vec<Id<kinds::Field>>,
-    pub(crate) coordinates: HashMap<Id<kinds::Field>, usize>,
-}
-
 struct TimeBindings {
     values: Vec<TimeBinding>,
     roles: Vec<DifferentiationRole>,
@@ -433,43 +442,11 @@ struct TimeBindings {
     parameter_values: Vec<f64>,
 }
 
-pub(crate) fn state_order(
-    relation: Id<kinds::Relation>,
-    operator: &ScalarOperatorIr,
-) -> Result<StateOrder, Diagnostic> {
-    let mut fields = Vec::new();
-    let mut coordinates = HashMap::new();
-    for symbol in operator.symbols() {
-        let field = match *symbol {
-            SymbolRef::Field(field) | SymbolRef::Derivative(field) => Some(field),
-            _ => None,
-        };
-        if let Some(field) = field {
-            let next = fields.len();
-            coordinates.entry(field).or_insert_with(|| {
-                fields.push(field);
-                next
-            });
-        }
-    }
-    if fields.is_empty() {
-        Err(invalid_time(
-            relation,
-            "first-order Relation has no state Field symbols",
-        ))
-    } else {
-        Ok(StateOrder {
-            fields,
-            coordinates,
-        })
-    }
-}
-
 fn bind_symbols(
     program: &CpuProgram,
     relation: Id<kinds::Relation>,
     operator: &ScalarOperatorIr,
-    state_coordinates: &HashMap<Id<kinds::Field>, usize>,
+    state_coordinates: &HashMap<(Id<kinds::Field>, u32), usize>,
 ) -> Result<TimeBindings, Diagnostic> {
     let mut bindings = Vec::with_capacity(operator.symbols().len());
     let mut roles = Vec::with_capacity(operator.symbols().len());
@@ -480,20 +457,24 @@ fn bind_symbols(
     for symbol in operator.symbols().iter().copied() {
         let (binding, role) = match symbol {
             SymbolRef::Field(field) => {
-                let coordinate = state_coordinates.get(&field).copied().ok_or_else(|| {
+                let coordinate = state_coordinates.get(&(field, 0)).copied().ok_or_else(|| {
                     invalid_time(relation, "Field is absent from first-order state order")
                 })?;
                 state_symbol_coordinates.push(coordinate);
                 (TimeBinding::State(coordinate), DifferentiationRole::Unknown)
             }
-            SymbolRef::Derivative(field) => {
-                if !state_coordinates.contains_key(&field) {
+            SymbolRef::Derivative(field, order) => {
+                if let Some(&coordinate) = state_coordinates.get(&(field, order.get())) {
+                    state_symbol_coordinates.push(coordinate);
+                    (TimeBinding::State(coordinate), DifferentiationRole::Unknown)
+                } else if state_coordinates.contains_key(&(field, order.get() - 1)) {
+                    (TimeBinding::DerivativeZero, DifferentiationRole::Frozen)
+                } else {
                     return Err(invalid_time(
                         relation,
                         "derivative symbol is absent from first-order state order",
                     ));
                 }
-                (TimeBinding::DerivativeZero, DifferentiationRole::Frozen)
             }
             SymbolRef::Parameter(parameter) => {
                 let coordinate = if let Some(coordinate) = parameter_coordinates.get(&parameter) {
@@ -568,20 +549,11 @@ pub(crate) fn require_continuous_activation(
 
 fn classify_first_order(
     relation: Id<kinds::Relation>,
-    jacobian: &ConstantSymbolJacobian,
-    state_fields: &[Id<kinds::Field>],
+    derivative_matrix: ConstantDerivativeMatrixProof,
+    state_coordinates: &[(Id<kinds::Field>, u32)],
 ) -> Result<ClassifiedProjection, Diagnostic> {
-    let dimension = state_fields.len();
-    if jacobian.row_count() != dimension || jacobian.column_count() != dimension {
-        return Err(invalid_time(
-            relation,
-            "first-order system requires one residual equation per state Field",
-        ));
-    }
-
-    let derivative_matrix =
-        ConstantDerivativeMatrixProof::new(dimension, jacobian.coefficients().to_vec())?;
-    let proof = TimeLoweringProof::new(relation, state_fields.to_vec(), derivative_matrix)?;
+    let dimension = state_coordinates.len();
+    let proof = TimeLoweringProof::new(relation, state_coordinates.to_vec(), derivative_matrix)?;
     let projection = if proof.equation_class() == TimeEquationClass::ExplicitOde {
         let rows = proof
             .derivative_matrix()

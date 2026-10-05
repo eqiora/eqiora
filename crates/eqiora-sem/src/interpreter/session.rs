@@ -164,7 +164,7 @@ impl ExecutionSession {
             ));
         }
         let mut state = RuntimeState::new(program, &plan)?;
-        solve_initialization(program, &plan, &mut state, config, backend)?;
+        solve_initialization(program, &plan, &mut state, 0.0, config, backend)?;
         // A clocked sample has no value before its first accepted tick.
         state
             .ports

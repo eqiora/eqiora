@@ -2,7 +2,7 @@
 use super::*;
 use crate::common_ode::parameter_system::GlobalParameterSystem;
 use crate::common_trajectory::CommonTrajectoryParameterSensitivity;
-use eqiora_time::{ForwardSensitivityProblem, TimeRootSensitivityOutcome};
+use eqiora_time::{ForwardSensitivityProblem, ParametricTimeSystem, TimeRootSensitivityOutcome};
 
 impl CommonOdeRunRequest {
     /// Execute registered events with native continuous forward sensitivity history.
@@ -28,8 +28,7 @@ impl CommonOdeRunRequest {
             &TimePlan,
         ) -> Result<TimeRootSensitivityOutcome, Diagnostic>,
     {
-        if self.state.time_s() != 0.0 || self.state.values() != self.plan.initial_state()?.values()
-        {
+        if self.state != self.plan.initial_state(self.state.time_s())? {
             return Err(invalid(
                 "event Parameter sensitivity requires the exact Model initial State",
             ));
@@ -41,6 +40,11 @@ impl CommonOdeRunRequest {
         let parameters = system.parameter_ids().to_vec();
         let parameter_dimension = parameters.len();
         let state_dimension = self.state.values().len();
+        system.initial_parameter_jvp(
+            self.state.time_s(),
+            &vec![0.; parameter_dimension],
+            &mut vec![0.; state_dimension],
+        )?;
         let mut steps = Vec::new();
         let mut event_time_gradients = Vec::new();
         let trajectory = self.run_with_events(|problem, registered_roots, plan| {

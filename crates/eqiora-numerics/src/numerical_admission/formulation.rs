@@ -1,6 +1,40 @@
 use super::*;
 
 impl CommonFormulationDescription {
+    pub(super) fn first_order(proof: &eqiora_time::TimeLoweringProof) -> Self {
+        Self {
+            requested: FormulationSelectionMode::Automatic,
+            kind: FormulationKind::FirstOrderEvolution,
+            boundary_treatment: "not-applicable",
+            rule_ids: Box::new([
+                "time.derive.v1.source-derivative-coordinates",
+                "time.derive.v1.companion-equations",
+            ]),
+            selection_reason_codes: Box::new(["eqiora.formulation.auto.first-order-evolution/v1"]),
+            requested_source_identity: None,
+            source_relation: Some(proof.relation()),
+            state_coordinates: proof.state_coordinates().into(),
+        }
+    }
+
+    /// Authored time Relation retained by first-order normalization, when applicable.
+    #[must_use]
+    pub const fn source_relation(
+        &self,
+    ) -> Option<eqiora_core::Id<eqiora_core::entity::kinds::Relation>> {
+        self.source_relation
+    }
+
+    /// Ordered time coordinates (source Field, derivative order). Consecutive orders
+    /// of a Field obey D(q_k) = q_(k+1); its highest rate enters the authored Relation.
+    /// Empty for spatial Formulations, whose field/space correspondence has its own owner.
+    #[must_use]
+    pub fn state_coordinates(
+        &self,
+    ) -> &[(eqiora_core::Id<eqiora_core::entity::kinds::Field>, u32)] {
+        &self.state_coordinates
+    }
+
     pub(super) fn mixed(
         correspondence: &crate::form_compiler::vocabulary::MixedGalerkinCorrespondence,
         requested: FormulationSelectionMode,
@@ -17,6 +51,8 @@ impl CommonFormulationDescription {
                 .into(),
             selection_reason_codes: Box::new([reason]),
             requested_source_identity: None,
+            source_relation: None,
+            state_coordinates: Box::new([]),
         }
     }
 
@@ -45,6 +81,8 @@ impl CommonFormulationDescription {
                 }
             }]),
             requested_source_identity: None,
+            source_relation: None,
+            state_coordinates: Box::new([]),
         }
     }
 

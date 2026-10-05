@@ -55,15 +55,19 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
     let temporal = CommonTsitouras45::new(
         1e-3,
         1e-11,
-        vec![CommonTsitourasTolerance::new(field, 1e-13).unwrap()],
+        vec![CommonTsitourasTolerance::new((field, 0), 1e-13).unwrap()],
     )
     .unwrap();
     let plan = CommonOdePlan::resolve(&model, &kernel, temporal, DIFFSOL_TIME_BACKEND).unwrap();
-    assert_eq!(plan.field_ids().len(), 1, "functional adds no ODE state");
+    assert_eq!(
+        plan.state_coordinates().len(),
+        1,
+        "functional adds no ODE state"
+    );
     let run = |output_times| {
         let request = CommonOdeRunRequest::new(
             plan.clone(),
-            plan.initial_state().unwrap(),
+            plan.initial_state(0.0).unwrap(),
             1.0,
             output_times,
         )
@@ -108,9 +112,13 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
     assert_eq!(terminal.quadrature(), None);
     assert_eq!(terminal.interval_s(), [1.0, 1.0]);
     assert_eq!(terminal.endpoint_convention(), "terminal-after-events");
-    let request =
-        CommonOdeRunRequest::new(plan.clone(), plan.initial_state().unwrap(), 1.0, vec![0.25])
-            .unwrap();
+    let request = CommonOdeRunRequest::new(
+        plan.clone(),
+        plan.initial_state(0.0).unwrap(),
+        1.0,
+        vec![0.25],
+    )
+    .unwrap();
     let solution = DiffsolTimeBackend::new()
         .solve_forward_sensitivities(
             &request.forward_sensitivity_problem().unwrap(),
@@ -254,7 +262,7 @@ model Reset() {
     let temporal = CommonTsitouras45::new(
         1e-3,
         1e-11,
-        vec![CommonTsitourasTolerance::new(field, 1e-13).unwrap()],
+        vec![CommonTsitourasTolerance::new((field, 0), 1e-13).unwrap()],
     )
     .unwrap()
     .with_events(
@@ -265,7 +273,7 @@ model Reset() {
     let plan = CommonOdePlan::resolve(&model, &kernel, temporal, DIFFSOL_TIME_BACKEND).unwrap();
     let run = |outputs| {
         let request =
-            CommonOdeRunRequest::new(plan.clone(), plan.initial_state().unwrap(), 0.7, outputs)
+            CommonOdeRunRequest::new(plan.clone(), plan.initial_state(0.0).unwrap(), 0.7, outputs)
                 .unwrap();
         request
             .run_with_events(|problem, roots, plan| {
@@ -300,9 +308,13 @@ model Reset() {
     assert!(
         CommonTrajectory::from_bytes(&serde_json::to_vec(&forged).unwrap(), &resolved).is_err()
     );
-    let request =
-        CommonOdeRunRequest::new(plan.clone(), plan.initial_state().unwrap(), 0.7, vec![0.6])
-            .unwrap();
+    let request = CommonOdeRunRequest::new(
+        plan.clone(),
+        plan.initial_state(0.0).unwrap(),
+        0.7,
+        vec![0.6],
+    )
+    .unwrap();
     assert!(
         request.forward_sensitivity_problem().is_err(),
         "smooth entry must not ignore events"
@@ -382,9 +394,13 @@ model Reset() {
             .abs()
             < 1e-9
     );
-    let repeated =
-        CommonOdeRunRequest::new(plan.clone(), plan.initial_state().unwrap(), 0.95, vec![0.9])
-            .unwrap();
+    let repeated = CommonOdeRunRequest::new(
+        plan.clone(),
+        plan.initial_state(0.0).unwrap(),
+        0.95,
+        vec![0.9],
+    )
+    .unwrap();
     let (repeated, repeated_tangent) = repeated
         .run_with_event_forward_sensitivities(|problem, roots, plan| {
             DiffsolTimeBackend::new().solve_until_root_forward_sensitivities(
@@ -443,7 +459,7 @@ model Reset() {
     .unwrap();
     let bounded_request = CommonOdeRunRequest::new(
         bounded.clone(),
-        bounded.initial_state().unwrap(),
+        bounded.initial_state(0.0).unwrap(),
         0.95,
         vec![0.9],
     )
@@ -454,9 +470,13 @@ model Reset() {
                 .solve_until_root(problem, roots, plan))
             .is_err()
     );
-    let endpoint =
-        CommonOdeRunRequest::new(plan.clone(), plan.initial_state().unwrap(), 0.4, vec![0.4])
-            .unwrap();
+    let endpoint = CommonOdeRunRequest::new(
+        plan.clone(),
+        plan.initial_state(0.0).unwrap(),
+        0.4,
+        vec![0.4],
+    )
+    .unwrap();
     let rejection = endpoint
         .run_with_event_forward_sensitivities(|_, roots, _| {
             use eqiora::time::{

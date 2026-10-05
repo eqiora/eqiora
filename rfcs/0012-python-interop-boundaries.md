@@ -100,7 +100,7 @@ plan = eqiora.resolve(
     temporal=eqiora.time.Tsitouras45(
         initial_step_s=0.01,
         relative_tolerance=1e-6,
-        absolute_tolerances={field: 1e-9},
+        absolute_tolerances={(field, 0): 1e-9},
     ),
 )
 result = eqiora.run(

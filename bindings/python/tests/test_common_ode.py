@@ -29,10 +29,44 @@ def resolve_decay(model: eqiora.Model) -> tuple[eqiora.Plan, eqiora.FieldRef]:
         temporal=eqiora.time.Tsitouras45(
             initial_step_s=0.01,
             relative_tolerance=1.0e-9,
-            absolute_tolerances={field: 1.0e-11},
+            absolute_tolerances={(field, 0): 1.0e-11},
         ),
     )
     return plan, field
+
+
+def test_higher_order_initial_time_and_formulation_survive_installed_replay() -> None:
+    model = eqiora.compile(source="""
+model Timed() {
+  state q:m;
+  initial {
+    q=time()*time()*time()*1[m/s^3]/6;
+    derivative(q)=time()*time()*1[m/s^3]/2;
+  }
+  relation flow { derivative(derivative(q))=time()*1[m/s^3]; }
+}
+""")
+    q = model.field("q")
+    plan = eqiora.resolve(model, temporal=eqiora.time.Tsitouras45(
+        initial_step_s=0.001, relative_tolerance=1e-10,
+        absolute_tolerances={(q, order): 1e-12 for order in (0, 1)},
+    ))
+    plan = eqiora.Plan.from_bytes(plan.to_bytes())
+    assert plan.formulation.effective == eqiora.FormulationKind.FirstOrderEvolution
+    assert plan.formulation.state_coordinates == ((q, 0), (q, 1))
+    state = eqiora.State.initial(plan, time_s=2.)
+    state = eqiora.State.from_bytes(plan, state.to_bytes())
+    assert state.time_s == 2.
+    assert math.isclose(state.value(q), 8/6, rel_tol=0, abs_tol=1e-9)
+    assert math.isclose(state.value(q, derivative_order=1), 2., rel_tol=0, abs_tol=1e-9)
+    result = eqiora.run(plan, state=state, until_s=3., output_times_s=(3.,))
+    result = eqiora.Result.from_bytes(plan, result.to_bytes())
+    for order, expected in ((0, 27/6), (1, 9/2)):
+        assert math.isclose(list(result.series(q, derivative_order=order))[-1][1], expected,
+                            rel_tol=0, abs_tol=1e-9)
+    for time_s in (-1., -0., math.inf, math.nan):
+        with pytest.raises(eqiora.ValidationError):
+            eqiora.State.initial(plan, time_s=time_s)
 
 
 def test_model_first_no_mesh_decay_owns_exact_lineage_and_adaptive_series() -> None:
@@ -56,7 +90,7 @@ def test_model_first_no_mesh_decay_owns_exact_lineage_and_adaptive_series() -> N
     assert initial.model is model
     assert initial.mesh is None
     assert initial.time_s == 0.0
-    assert initial.field_refs == (field,)
+    assert initial.state_coordinates == ((field, 0),)
     assert initial.value(field) == 1.0
     assert initial.source_kind == "initial"
     initial_bytes = initial.to_bytes()

@@ -493,7 +493,7 @@ struct ExecutionPlan {
     continuous_relations: BTreeSet<RawId>,
     periodic: Vec<PeriodicTask>,
     events: Vec<EventTask>,
-    differential_fields: BTreeSet<RawId>,
+    differential_orders: BTreeMap<RawId, std::num::NonZeroU32>,
     algebraic_fields: BTreeSet<RawId>,
     continuous_ports: BTreeSet<RawId>,
     signal_sources: BTreeMap<RawId, RawId>,
@@ -534,7 +534,7 @@ struct PeriodicTask {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Variable {
     Field(RawId),
-    Derivative(RawId),
+    Derivative(RawId, std::num::NonZeroU32),
     NextField(RawId),
     Port(RawId),
     Physical(PhysicalUnknown),
@@ -549,10 +549,9 @@ fn solve_consistency(
     backend: &impl ExpressionBackend,
 ) -> Result<(), Diagnostic> {
     let variables = plan
-        .differential_fields
+        .differential_orders
         .iter()
-        .copied()
-        .map(Variable::Derivative)
+        .map(|(&field, &order)| Variable::Derivative(field, order))
         .chain(plan.algebraic_fields.iter().copied().map(Variable::Field))
         .chain(plan.continuous_ports.iter().copied().map(Variable::Port))
         .chain(
@@ -603,10 +602,9 @@ fn solve_continuous_step(
 ) -> Result<(), Diagnostic> {
     let step = end - start;
     let variables = plan
-        .differential_fields
+        .differential_orders
         .iter()
-        .copied()
-        .map(Variable::Derivative)
+        .map(|(&field, &order)| Variable::Derivative(field, order))
         .chain(plan.algebraic_fields.iter().copied().map(Variable::Field))
         .chain(plan.continuous_ports.iter().copied().map(Variable::Port))
         .chain(
@@ -626,18 +624,7 @@ fn solve_continuous_step(
         execution_path("continuous-step", end),
         |values| {
             let mut candidates = candidate_maps(&variables, values, state);
-            for &field in &plan.differential_fields {
-                // Backward Euler in derivative coordinates avoids subtracting
-                // nearly equal accepted/candidate states on a short final step.
-                let value = state.fields[&field] + step * candidates.derivatives[&field];
-                if !value.is_finite() {
-                    return Err(execution_error(
-                        "backward Euler candidate Field is not finite",
-                        end,
-                    ));
-                }
-                candidates.fields.insert(field, value);
-            }
+            advance_continuous_coordinates(plan, state, &mut candidates, step, end)?;
             evaluate_relations(
                 program,
                 &plan.continuous_relations,
@@ -654,14 +641,59 @@ fn solve_continuous_step(
             )
         },
     )?;
+    let mut accepted = candidate_maps(&variables, &solution, state);
+    advance_continuous_coordinates(plan, state, &mut accepted, step, end)?;
     commit_solution(&variables, &solution, state);
-    for &field in &plan.differential_fields {
-        state.fields.insert(
-            field,
-            state.fields[&field] + step * state.derivatives[&field],
-        );
-    }
+    state.fields.extend(accepted.fields);
+    state.derivatives = accepted.derivatives;
     clear_clocked_variables(program, state);
+    Ok(())
+}
+
+fn advance_continuous_coordinates(
+    plan: &ExecutionPlan,
+    state: &RuntimeState,
+    candidates: &mut CandidateMaps,
+    step: f64,
+    time: f64,
+) -> Result<(), Diagnostic> {
+    // Eliminate the first-order companion equations by backward substitution:
+    // q_k(new) = q_k(old) + h*q_{k+1}(new). Only the highest derivative is
+    // a nonlinear solve input; every lower coordinate retains its source identity.
+    for (&field, highest) in &plan.differential_orders {
+        for order in (1..=highest.get()).rev() {
+            let order = std::num::NonZeroU32::new(order).unwrap();
+            let rate = candidates.derivatives[&(field, order)];
+            let lower = std::num::NonZeroU32::new(order.get() - 1);
+            let previous = match lower {
+                None => state.fields.get(&field),
+                Some(lower) => state.derivatives.get(&(field, lower)),
+            }
+            .ok_or_else(|| {
+                execution_error(
+                    "continuous derivative coordinate has no accepted initial value",
+                    time,
+                )
+            })?;
+            let value = previous + step * rate;
+            if !value.is_finite() {
+                let message = if lower.is_none() {
+                    "backward Euler candidate Field is not finite"
+                } else {
+                    "backward Euler candidate derivative coordinate is not finite"
+                };
+                return Err(execution_error(message, time));
+            }
+            match lower {
+                None => {
+                    candidates.fields.insert(field, value);
+                }
+                Some(lower) => {
+                    candidates.derivatives.insert((field, lower), value);
+                }
+            }
+        }
+    }
     Ok(())
 }
 
@@ -762,7 +794,7 @@ fn execute_activated_relations(
 
 struct CandidateMaps {
     fields: BTreeMap<RawId, f64>,
-    derivatives: BTreeMap<RawId, f64>,
+    derivatives: BTreeMap<(RawId, std::num::NonZeroU32), f64>,
     next_fields: BTreeMap<RawId, f64>,
     ports: BTreeMap<RawId, f64>,
     physical: BTreeMap<PhysicalUnknown, f64>,
@@ -781,8 +813,8 @@ fn candidate_maps(variables: &[Variable], values: &[f64], state: &RuntimeState) 
             Variable::Field(id) => {
                 candidates.fields.insert(id, *value);
             }
-            Variable::Derivative(id) => {
-                candidates.derivatives.insert(id, *value);
+            Variable::Derivative(id, order) => {
+                candidates.derivatives.insert((id, order), *value);
             }
             Variable::NextField(id) => {
                 candidates.next_fields.insert(id, *value);
@@ -804,8 +836,8 @@ fn commit_solution(variables: &[Variable], values: &[f64], state: &mut RuntimeSt
             Variable::Field(id) | Variable::NextField(id) => {
                 state.fields.insert(id, *value);
             }
-            Variable::Derivative(id) => {
-                state.derivatives.insert(id, *value);
+            Variable::Derivative(id, order) => {
+                state.derivatives.insert((id, order), *value);
             }
             Variable::Port(id) => {
                 state.ports.insert(id, *value);
@@ -820,7 +852,9 @@ fn commit_solution(variables: &[Variable], values: &[f64], state: &mut RuntimeSt
 fn variable_value(variable: Variable, state: &RuntimeState) -> f64 {
     match variable {
         Variable::Field(id) | Variable::NextField(id) => state.fields[&id],
-        Variable::Derivative(id) => state.derivatives.get(&id).copied().unwrap_or(0.0),
+        Variable::Derivative(id, order) => {
+            state.derivatives.get(&(id, order)).copied().unwrap_or(0.0)
+        }
         Variable::Port(id) => state.ports.get(&id).copied().unwrap_or(0.0),
         Variable::Physical(unknown) => state.physical.get(&unknown).copied().unwrap_or(0.0),
     }

@@ -20,7 +20,7 @@ fn current_wire_replays_roles_initial_relations_and_before_tick_values() {
     let envelope = ModelEnvelope::from_program(&model).unwrap();
     let bytes = envelope.canonical_json().unwrap();
     let wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(wire["schema"], "eqiora.model-envelope/v40");
+    assert_eq!(wire["schema"], "eqiora.model-envelope/v41");
     let replay = ModelEnvelope::from_json(&bytes, Default::default())
         .unwrap()
         .to_program()
@@ -39,7 +39,7 @@ fn current_wire_replays_roles_initial_relations_and_before_tick_values() {
         1
     );
     let config = ReferenceConfig::new(0.0, 0.1).unwrap();
-    let initial = Interpreter::new().initialize(&replay, config).unwrap();
+    let initial = Interpreter::new().initialize(&replay, 0.0, config).unwrap();
     assert!(
         (initial
             .fields()
@@ -62,7 +62,7 @@ fn semantic_identity_binds_role_and_initial_mathematics_but_not_numerical_seed()
     let identity = StructuralSemanticFingerprint::from_program(&model).unwrap();
     assert_eq!(
         identity.generation().as_str(),
-        "eqiora.structural-semantic-fingerprint/v35"
+        "eqiora.structural-semantic-fingerprint/v36"
     );
     let before = ModelEnvelope::from_program(&model)
         .unwrap()
@@ -72,6 +72,7 @@ fn semantic_identity_binds_role_and_initial_mathematics_but_not_numerical_seed()
         Interpreter::new()
             .initialize(
                 &model,
+                0.0,
                 ReferenceConfig::new(0.0, 0.1)
                     .unwrap()
                     .with_initial_guess(guess)
@@ -180,7 +181,7 @@ fn initial_block_keeps_independent_supports_without_spatial_execution_claim() {
     replay.typed_relation_residual(initial).unwrap();
     assert!(
         Interpreter::new()
-            .initialize(&replay, ReferenceConfig::new(0.0, 0.1).unwrap())
+            .initialize(&replay, 0.0, ReferenceConfig::new(0.0, 0.1).unwrap())
             .is_err()
     );
     for condition in ["u=v", "u=x", "u=1"] {
@@ -192,7 +193,7 @@ fn initial_block_keeps_independent_supports_without_spatial_execution_claim() {
     }
     let scalar = program("model M() { domain a=box(0,1); state x:1 on a; initial { x=0; } }");
     let errors = Interpreter::new()
-        .initialize(&scalar, ReferenceConfig::new(0.0, 0.1).unwrap())
+        .initialize(&scalar, 0.0, ReferenceConfig::new(0.0, 0.1).unwrap())
         .unwrap_err();
     assert!(errors.iter().any(|error| {
         error
@@ -211,7 +212,7 @@ fn clocked_state_replay_keeps_pre_first_tick_distinct_from_first_observation() {
         .to_program()
         .unwrap();
     let config = ReferenceConfig::new(0.0, 0.1).unwrap();
-    let initial = Interpreter::new().initialize(&replay, config).unwrap();
+    let initial = Interpreter::new().initialize(&replay, 0.0, config).unwrap();
     let (&field, value) = initial.fields().iter().next().unwrap();
     assert_eq!(value.real_scalar_value().unwrap().value(), 3.0);
     let observed = Interpreter::new().run(&replay, config).unwrap();

@@ -1622,7 +1622,7 @@ fn normalized_physical_semantics(model: &CompiledModel) -> Vec<String> {
     fn normalize_symbol(symbol: SymbolRef, names: &BTreeMap<RawId, String>) -> String {
         match symbol {
             SymbolRef::Field(id) => format!("field({})", named(names, id.erase())),
-            SymbolRef::Derivative(id) => {
+            SymbolRef::Derivative(id, std::num::NonZeroU32::MIN) => {
                 format!("derivative({})", named(names, id.erase()))
             }
             SymbolRef::Pre(id) => format!("pre({})", named(names, id.erase())),

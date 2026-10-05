@@ -138,7 +138,7 @@ impl Context<'_> {
                 terms.reaction.insert(field.erase(), one());
                 Ok(terms)
             }
-            Some(ExprNode::Symbol(SymbolRef::Derivative(field))) => {
+            Some(ExprNode::Symbol(SymbolRef::Derivative(field, std::num::NonZeroU32::MIN))) => {
                 let mut terms = Terms::data(Data::constant(self.dimension, 0.0));
                 terms.storage.insert(field.erase(), one());
                 Ok(terms)

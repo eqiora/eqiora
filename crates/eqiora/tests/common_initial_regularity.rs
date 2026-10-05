@@ -12,7 +12,7 @@ fn singular_algebraic_and_initial_points_reject_in_reference_and_cpu_execution()
         let model = ModelDocument::compile("singular-point.eqi", source).unwrap();
         let config = ReferenceConfig::new(0.0, 0.1).unwrap();
         let errors = Interpreter::new()
-            .initialize(model.program(), config)
+            .initialize(model.program(), 0.0, config)
             .unwrap_err();
         assert!(
             errors[0].message().contains("initial Jacobian"),
@@ -31,7 +31,11 @@ fn singular_algebraic_and_initial_points_reject_in_reference_and_cpu_execution()
 fn regular_initial_equations_retain_the_unique_zero_state() {
     let model = ModelDocument::compile("regular-point.eqi", "model M() { parameter rate: 1/s=1; state x: 1; initial { x=0; } relation r { derivative(x)=-rate*x; } }").unwrap();
     let initial = Interpreter::new()
-        .initialize(model.program(), ReferenceConfig::new(0.0, 0.1).unwrap())
+        .initialize(
+            model.program(),
+            0.0,
+            ReferenceConfig::new(0.0, 0.1).unwrap(),
+        )
         .unwrap();
     assert_eq!(
         initial.fields()[&model.aliases()["x"]]
@@ -40,7 +44,10 @@ fn regular_initial_equations_retain_the_unique_zero_state() {
             .value(),
         0.0
     );
-    assert_eq!(initial.derivatives()[&model.aliases()["x"]], 0.0);
+    assert_eq!(
+        initial.derivatives()[&(model.aliases()["x"], std::num::NonZeroU32::MIN)],
+        0.0
+    );
 }
 
 #[test]
@@ -65,7 +72,11 @@ fn frozen_typed_expressions_keep_their_regular_scalar_solution() {
     ] {
         let model = ModelDocument::compile("frozen-point.eqi", source).unwrap();
         let initial = Interpreter::new()
-            .initialize(model.program(), ReferenceConfig::new(0.0, 0.1).unwrap())
+            .initialize(
+                model.program(),
+                0.0,
+                ReferenceConfig::new(0.0, 0.1).unwrap(),
+            )
             .unwrap();
         assert_eq!(
             initial.fields()[&model.aliases()["x"]]
@@ -92,7 +103,11 @@ fn scalar_equations_can_select_from_constructed_active_arrays() {
         )
         .unwrap();
         let initial = Interpreter::new()
-            .initialize(model.program(), ReferenceConfig::new(0.0, 0.1).unwrap())
+            .initialize(
+                model.program(),
+                0.0,
+                ReferenceConfig::new(0.0, 0.1).unwrap(),
+            )
             .unwrap();
         assert_eq!(
             initial.fields()[&model.aliases()["x"]]
@@ -112,7 +127,11 @@ fn unindexed_channel_array_arithmetic_retains_its_existing_rejection() {
     )
     .unwrap();
     let errors = Interpreter::new()
-        .initialize(model.program(), ReferenceConfig::new(0.0, 0.1).unwrap())
+        .initialize(
+            model.program(),
+            0.0,
+            ReferenceConfig::new(0.0, 0.1).unwrap(),
+        )
         .unwrap_err();
     assert!(
         errors[0]

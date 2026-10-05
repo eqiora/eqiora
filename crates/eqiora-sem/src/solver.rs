@@ -47,16 +47,7 @@ where
     let size = initial.len();
     let mut values = initial;
     let mut residuals = residual(&values)?;
-    if residuals.len() != size {
-        return Err(Diagnostic::error(
-            codes::NONSQUARE_SYSTEM,
-            format!(
-                "executable-kernel v0 requires a square implicit system; found {} equations and {size} unknowns",
-                residuals.len()
-            ),
-        )
-        .with_graph_path(path));
-    }
+    require_square(residuals.len(), size, path.clone())?;
     require_finite(&values, &residuals, &path)?;
     if size == 0 {
         return Ok(values);
@@ -117,6 +108,21 @@ where
         ),
     )
     .with_graph_path(path))
+}
+
+pub(crate) fn require_square(
+    equations: usize,
+    unknowns: usize,
+    path: GraphPath,
+) -> Result<(), Diagnostic> {
+    if equations == unknowns {
+        Ok(())
+    } else {
+        Err(Diagnostic::error(
+            codes::NONSQUARE_SYSTEM,
+            format!("executable-kernel v0 requires a square implicit system; found {equations} equations and {unknowns} unknowns"),
+        ).with_graph_path(path))
+    }
 }
 
 pub(crate) fn solve_linear(mut matrix: Vec<Vec<f64>>, mut right: Vec<f64>) -> Option<Vec<f64>> {

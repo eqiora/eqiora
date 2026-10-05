@@ -194,12 +194,7 @@ impl PyState {
             step: 0,
             time_s: native.time_s(),
             fields: Vec::new(),
-            field_lookup: native
-                .field_ids()
-                .iter()
-                .enumerate()
-                .map(|(index, field)| (field.to_string(), index))
-                .collect(),
+            field_lookup: BTreeMap::new(),
             model: Some(plan.model_handle(py)),
             mesh: None,
             native: None,
@@ -379,13 +374,13 @@ impl PyState {
             return Self::from_common(py, plan, native, 0, None, None);
         }
         if let Some(native_plan) = plan.ode_native() {
-            if fields.is_some() || time_s.is_some() {
+            if fields.is_some() {
                 return Err(PyValueError::new_err(
-                    "ODE State.initial(plan) accepts no FSI field/time arguments",
+                    "ODE State.initial consumes Model-owned initial equations, not spatial fields",
                 ));
             }
             let state = native_plan
-                .initial_state()
+                .initial_state(time_s.unwrap_or(0.0))
                 .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
             return Ok(Self::from_common_ode(py, plan, state, None));
         }
@@ -560,21 +555,24 @@ impl PyState {
     }
 
     #[getter]
-    fn field_refs(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+    fn state_coordinates(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         let Some(native) = &self.ode_native else {
             return Ok(PyTuple::empty(py).unbind());
         };
         PyTuple::new(
             py,
-            native.field_ids().iter().map(|field| {
-                PyModelFieldRef::from_exact(self.model_digest.clone(), field.to_string())
+            native.state_coordinates().iter().map(|(field, order)| {
+                (
+                    PyModelFieldRef::from_exact(self.model_digest.clone(), field.to_string()),
+                    *order,
+                )
             }),
         )
         .map(|value| value.unbind())
     }
 
-    #[pyo3(signature = (field, /))]
-    fn value(&self, field: &PyModelFieldRef) -> PyResult<f64> {
+    #[pyo3(signature = (field, /, *, derivative_order=0))]
+    fn value(&self, field: &PyModelFieldRef, derivative_order: u32) -> PyResult<f64> {
         if field.exact_model_digest() != self.model_digest {
             return Err(PyValueError::new_err(
                 "FieldRef belongs to a different exact Model artifact",
@@ -584,9 +582,11 @@ impl PyState {
             PyValueError::new_err("State.value is available only for no-Mesh scalar ODE States")
         })?;
         let index = native
-            .field_ids()
+            .state_coordinates()
             .iter()
-            .position(|id| id.to_string() == field.exact_id())
+            .position(|(id, order)| {
+                id.to_string() == field.exact_id() && *order == derivative_order
+            })
             .ok_or_else(|| PyKeyError::new_err(field.exact_id().to_owned()))?;
         Ok(native.values()[index])
     }

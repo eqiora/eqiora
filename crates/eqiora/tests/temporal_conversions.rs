@@ -81,7 +81,11 @@ fn delayed_sample_and_hold_observe_initialized_pre_and_committed_post_values() {
 fn missing_hold_memory_initialization_rejects_before_execution() {
     let (program, _) = admit(&SOURCE.replace(" memory = -1[V];", ""));
     let config = ReferenceConfig::new(0.25, 0.25).unwrap();
-    assert!(Interpreter::new().initialize(&program, config).is_err());
+    assert!(
+        Interpreter::new()
+            .initialize(&program, 0.0, config)
+            .is_err()
+    );
     assert!(Interpreter::new().run(&program, config).is_err());
 }
 

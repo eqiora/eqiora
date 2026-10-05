@@ -44,7 +44,9 @@ pub(super) fn normalize(
                 SymbolRef::Field(field) => Atom::Field(*field),
                 SymbolRef::Parameter(parameter) => Atom::Parameter(*parameter),
                 SymbolRef::Time => Atom::Time,
-                SymbolRef::Derivative(field) if allow_derivatives => Atom::Derivative(*field),
+                SymbolRef::Derivative(field, std::num::NonZeroU32::MIN) if allow_derivatives => {
+                    Atom::Derivative(*field)
+                }
                 _ if !allow_derivatives => return Err(Error::UnsupportedStorageSymbol),
                 _ => return Err(Error::UnsupportedExpression),
             }),

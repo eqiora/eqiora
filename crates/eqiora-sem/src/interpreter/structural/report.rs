@@ -97,9 +97,12 @@ pub(super) fn analyze(
     plan: &ExecutionPlan,
 ) -> Result<EquationAnalysis, Diagnostic> {
     let variables = plan
-        .differential_fields
-        .union(&plan.algebraic_fields)
+        .differential_orders
+        .keys()
+        .chain(&plan.algebraic_fields)
         .copied()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
         .map(Variable::Field)
         .chain(plan.continuous_ports.iter().copied().map(Variable::Port))
         .chain(
@@ -145,8 +148,8 @@ pub(super) fn analyze(
         .iter()
         .copied()
         .map(|variable| match variable {
-            Variable::Field(field) if plan.differential_fields.contains(&field) => {
-                Variable::Derivative(field)
+            Variable::Field(field) if plan.differential_orders.contains_key(&field) => {
+                Variable::Derivative(field, plan.differential_orders[&field])
             }
             other => other,
         })
@@ -178,7 +181,7 @@ fn matching(
                 .iter()
                 .copied()
                 .map(|coordinate| match coordinate {
-                    Variable::Derivative(field) if merge_rates => Variable::Field(field),
+                    Variable::Derivative(field, _) if merge_rates => Variable::Field(field),
                     other => other,
                 })
                 .filter_map(|coordinate| variables.get(&coordinate).copied())
@@ -201,7 +204,9 @@ fn matching(
 fn symbol(variable: Variable) -> SymbolRef {
     match variable {
         Variable::Field(id) => SymbolRef::Field(id.downcast().expect("Field coordinate")),
-        Variable::Derivative(id) => SymbolRef::Derivative(id.downcast().expect("derivative Field")),
+        Variable::Derivative(id, order) => {
+            SymbolRef::Derivative(id.downcast().expect("derivative Field"), order)
+        }
         Variable::NextField(id) => SymbolRef::Next(id.downcast().expect("next Field")),
         Variable::Port(id) => SymbolRef::Port(id.downcast().expect("signal Port")),
         Variable::Physical(PhysicalUnknown::Across(id)) => SymbolRef::Across(id),

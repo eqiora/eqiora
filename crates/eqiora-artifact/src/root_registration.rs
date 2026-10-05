@@ -12,7 +12,7 @@ use eqiora_time::{
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
-use crate::time::TimeLoweringEnvelopeV1;
+use crate::time::TimeLoweringEnvelopeV2;
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, ModelEnvelope, TimeDecoderLimits, check_json_limits,
     invalid_artifact,
@@ -44,7 +44,7 @@ impl RootRegistrationEnvelopeV1 {
     pub fn new(
         model: &ModelEnvelope,
         program: &KernelProgram,
-        lowering: &TimeLoweringEnvelopeV1,
+        lowering: &TimeLoweringEnvelopeV2,
     ) -> Result<Self, Diagnostic> {
         validate_model_program(model, program)?;
         lowering.validate_against(model, program)?;
@@ -54,7 +54,7 @@ impl RootRegistrationEnvelopeV1 {
                 "root registration v1 currently requires an explicit-ODE time lowering",
             ));
         }
-        let proof = discover_root_registration(program, lowering_proof.state_fields())?;
+        let proof = discover_root_registration(program, lowering_proof.state_coordinates())?;
         let wire = WireRootRegistrationEnvelopeV1 {
             schema: ROOT_REGISTRATION_SCHEMA.to_owned(),
             encoding: CANONICAL_ENCODING.to_owned(),
@@ -183,7 +183,7 @@ impl RootRegistrationEnvelopeV1 {
         &self,
         model: &ModelEnvelope,
         program: &KernelProgram,
-        lowering: &TimeLoweringEnvelopeV1,
+        lowering: &TimeLoweringEnvelopeV2,
     ) -> Result<(), Diagnostic> {
         validate_model_program(model, program)?;
         lowering.validate_against(model, program)?;
@@ -193,7 +193,8 @@ impl RootRegistrationEnvelopeV1 {
             || self.wire.model_ulid != program.model().ulid().to_string()
             || self.semantic_revision() != program.revision().0
             || lowering_proof.equation_class() != TimeEquationClass::ExplicitOde
-            || self.proof()? != discover_root_registration(program, lowering_proof.state_fields())?
+            || self.proof()?
+                != discover_root_registration(program, lowering_proof.state_coordinates())?
         {
             return Err(invalid_artifact(
                 "root registration model/lowering linkage or Event partition does not match",
@@ -229,9 +230,9 @@ impl RootRegistrationEnvelopeV1 {
 
 fn discover_root_registration(
     program: &KernelProgram,
-    state_fields: &[Id<kinds::Field>],
+    state_coordinates: &[(Id<kinds::Field>, u32)],
 ) -> Result<RootRegistrationProof, Diagnostic> {
-    let state_fields = state_fields.iter().copied().collect::<HashSet<_>>();
+    let state_coordinates = state_coordinates.iter().copied().collect::<HashSet<_>>();
     let mut structural_groups: Vec<(ExprDag, EventDirection, Vec<Id<kinds::Activation>>)> =
         Vec::new();
 
@@ -261,7 +262,7 @@ fn discover_root_registration(
         }
         for symbol in operator.symbols() {
             match *symbol {
-                SymbolRef::Field(field) if state_fields.contains(&field) => {}
+                SymbolRef::Field(field) if state_coordinates.contains(&(field, 0)) => {}
                 SymbolRef::Parameter(parameter) => {
                     let value = match program.node(parameter.erase()) {
                         Some(KernelNode::Parameter(definition)) => {

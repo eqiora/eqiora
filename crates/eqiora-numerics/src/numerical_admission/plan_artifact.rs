@@ -26,7 +26,7 @@ mod forward_policy;
 use event_policy::WireEventPolicy;
 use forward_policy::WireForwardSensitivity;
 
-const SCHEMA: &str = "eqiora.resolved-common-plan/v6";
+const SCHEMA: &str = "eqiora.resolved-common-plan/v7";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 
@@ -73,6 +73,7 @@ struct WireScopedSpatialPolicy {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 enum WireFormulation {
+    FirstOrderEvolution,
     PrimalGalerkin,
     MixedGalerkin,
     IntegralConservative,
@@ -114,6 +115,7 @@ struct WireScalingRequest {
 #[serde(deny_unknown_fields)]
 struct WireOdeTolerance {
     field_ulid: String,
+    derivative_order: u32,
     value: f64,
 }
 
@@ -136,7 +138,7 @@ enum WireTemporal {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireResolvedCommonPlanV6 {
+struct WireResolvedCommonPlanV7 {
     schema: String,
     encoding: String,
     family: WirePlanFamily,
@@ -292,7 +294,7 @@ impl ResolvedCommonPlan {
 
     /// Encode this complete resolved Plan and its exact replay roots.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&WireResolvedCommonPlanV6::from_plan(self)?).map_err(|error| {
+        serde_json::to_vec(&WireResolvedCommonPlanV7::from_plan(self)?).map_err(|error| {
             invalid(format!(
                 "cannot encode resolved common Plan artifact: {error}"
             ))
@@ -314,7 +316,7 @@ impl ResolvedCommonPlan {
                 bytes.len()
             )));
         }
-        let wire: WireResolvedCommonPlanV6 = serde_json::from_slice(bytes)
+        let wire: WireResolvedCommonPlanV7 = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid resolved common Plan JSON: {error}")))?;
         wire.validate_header()?;
         let resolved = wire.resolve(linear_backend, time_backend)?;
@@ -327,7 +329,7 @@ impl ResolvedCommonPlan {
     }
 }
 
-impl WireResolvedCommonPlanV6 {
+impl WireResolvedCommonPlanV7 {
     fn from_plan(plan: &ResolvedCommonPlan) -> Result<Self, Diagnostic> {
         let model = plan_model_artifact(plan).canonical_json()?;
         let mesh = plan_authenticated_mesh(plan)
@@ -492,8 +494,9 @@ impl WireResolvedCommonPlanV6 {
             let tolerances = absolute_tolerances
                 .iter()
                 .map(|entry| {
-                    parse_id::<kinds::Field>(&entry.field_ulid, "Field")
-                        .and_then(|field| CommonTsitourasTolerance::new(field, entry.value))
+                    parse_id::<kinds::Field>(&entry.field_ulid, "Field").and_then(|field| {
+                        CommonTsitourasTolerance::new((field, entry.derivative_order), entry.value)
+                    })
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             let mut temporal =
@@ -668,6 +671,7 @@ impl From<WireSpatialPolicy> for CommonSpatialPolicy {
 impl From<FormulationKind> for WireFormulation {
     fn from(value: FormulationKind) -> Self {
         match value {
+            FormulationKind::FirstOrderEvolution => Self::FirstOrderEvolution,
             FormulationKind::PrimalGalerkin => Self::PrimalGalerkin,
             FormulationKind::MixedGalerkin => Self::MixedGalerkin,
             FormulationKind::IntegralConservative => Self::IntegralConservative,
@@ -678,6 +682,7 @@ impl From<FormulationKind> for WireFormulation {
 impl From<WireFormulation> for FormulationKind {
     fn from(value: WireFormulation) -> Self {
         match value {
+            WireFormulation::FirstOrderEvolution => Self::FirstOrderEvolution,
             WireFormulation::PrimalGalerkin => Self::PrimalGalerkin,
             WireFormulation::MixedGalerkin => Self::MixedGalerkin,
             WireFormulation::IntegralConservative => Self::IntegralConservative,
@@ -828,7 +833,8 @@ fn temporal_request(plan: &ResolvedCommonPlan) -> Option<WireTemporal> {
                 .absolute_tolerances()
                 .iter()
                 .map(|entry| WireOdeTolerance {
-                    field_ulid: entry.field().ulid().to_string(),
+                    field_ulid: entry.coordinate().0.ulid().to_string(),
+                    derivative_order: entry.coordinate().1,
                     value: entry.value(),
                 })
                 .collect(),

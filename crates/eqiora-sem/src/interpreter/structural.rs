@@ -35,7 +35,7 @@ pub(super) fn validate(program: &KernelProgram, plan: &ExecutionPlan) -> Result<
                 .filter(|(_, column)| block_columns.contains(column))
                 .map(|(variable, _)| match variable {
                     Variable::Field(id) | Variable::Port(id) => id.to_string(),
-                    Variable::Derivative(id) => format!("derivative({id})"),
+                    Variable::Derivative(id, order) => format!("derivative({id}, order={order})"),
                     Variable::NextField(id) => format!("next({id})"),
                     Variable::Physical(PhysicalUnknown::Across(port)) => {
                         format!("across({})", port.erase())

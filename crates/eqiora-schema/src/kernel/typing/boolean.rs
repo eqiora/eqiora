@@ -233,7 +233,7 @@ mod tests {
         assert!(multiply(&boolean, &boolean).is_err());
         assert!(divide(&boolean, &boolean).is_err());
         assert!(power(&boolean, 0).is_err());
-        assert!(time_derivative(&boolean).is_err());
+        assert!(time_derivative(&boolean, std::num::NonZeroU32::MIN).is_err());
         let array = ty(real.value_type.array(2).unwrap());
         assert!(array.clone().compare(ComparisonOp::Equal, array).is_err());
         let set = Id::<kinds::IndexSet>::new();

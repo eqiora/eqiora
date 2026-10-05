@@ -115,11 +115,11 @@ fn six_component_constitutive_map_uses_native_authoring_and_exact_replay() {
             .unwrap()
             .generation()
             .as_str(),
-        "eqiora.structural-semantic-fingerprint/v35"
+        "eqiora.structural-semantic-fingerprint/v36"
     );
     let bytes = artifact.canonical_json().unwrap();
     let mut displaced: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(displaced["schema"], "eqiora.model-envelope/v40");
+    assert_eq!(displaced["schema"], "eqiora.model-envelope/v41");
     displaced["schema"] = serde_json::json!("eqiora.model-envelope/v38");
     let error =
         ModelEnvelope::from_json(&serde_json::to_vec(&displaced).unwrap(), Default::default())
@@ -127,7 +127,7 @@ fn six_component_constitutive_map_uses_native_authoring_and_exact_replay() {
     assert!(
         error
             .message()
-            .contains("unsupported eqiora.model-envelope/v40 schema")
+            .contains("unsupported eqiora.model-envelope/v41 schema")
     );
     let (transaction, _) = artifact.to_transaction().unwrap();
     let wire = ModelTransactionEnvelope::from_transaction(&transaction)
@@ -135,7 +135,7 @@ fn six_component_constitutive_map_uses_native_authoring_and_exact_replay() {
         .canonical_json()
         .unwrap();
     let mut displaced: serde_json::Value = serde_json::from_slice(&wire).unwrap();
-    assert_eq!(displaced["schema"], "eqiora.model-transaction-envelope/v40");
+    assert_eq!(displaced["schema"], "eqiora.model-transaction-envelope/v41");
     ModelTransactionEnvelope::from_json(&wire, Default::default())
         .unwrap()
         .to_transaction()
@@ -149,7 +149,7 @@ fn six_component_constitutive_map_uses_native_authoring_and_exact_replay() {
     assert!(
         error
             .message()
-            .contains("unsupported eqiora.model-transaction-envelope/v40 schema")
+            .contains("unsupported eqiora.model-transaction-envelope/v41 schema")
     );
 
     let artifact =

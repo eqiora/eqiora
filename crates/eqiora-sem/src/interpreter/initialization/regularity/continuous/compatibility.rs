@@ -17,7 +17,7 @@ pub(super) fn validate(
         .iter()
         .copied()
         .chain(rates.iter().map(|(_, symbol)| match symbol {
-            SymbolRef::Derivative(field) => Variable::Derivative(field.erase()),
+            SymbolRef::Derivative(field, order) => Variable::Derivative(field.erase(), *order),
             _ => unreachable!("rate coordinate"),
         }))
         .collect::<Vec<_>>();
@@ -59,7 +59,10 @@ pub(super) fn validate(
     let mut free = Vec::new();
     for (local_column, &column) in columns.iter().enumerate() {
         let known_rate = match values[column] {
-            Variable::Field(field) => context.derivatives.get(&field).copied(),
+            Variable::Field(field) => context
+                .derivatives
+                .get(&(field, std::num::NonZeroU32::MIN))
+                .copied(),
             _ => None,
         };
         if known_rate.is_none() {

@@ -2,7 +2,7 @@
 
 use eqiora::artifact::{
     ArtifactDigest, ModelEnvelope, RootRegistrationEnvelopeV1, TimeDecoderLimits,
-    TimeLoweringEnvelopeV1, TimeRunManifestV1,
+    TimeLoweringEnvelopeV2, TimeRunManifestV1,
 };
 use eqiora::backends::diffsol::DiffsolTimeBackend;
 use eqiora::entity::kinds;
@@ -37,9 +37,9 @@ fn canonical_relation_lowers_structurally_and_runs_through_diffsol() {
     let system = FirstOrderProgram::lower(&cpu, relation).expect("proven explicit ODE");
     let lowering = assert_lowering_artifact_round_trip(&kernel, &system);
 
-    assert_eq!(system.state_fields(), &[x, integral]);
+    assert_eq!(system.state_coordinates(), &[(x, 0), (integral, 0)]);
     let initial = system
-        .initialize(eqiora::sem::ReferenceConfig::new(0.0, 1.0).unwrap())
+        .initialize(0.0, eqiora::sem::ReferenceConfig::new(0.0, 1.0).unwrap())
         .unwrap();
     assert_eq!(initial.state(), &[1.0, 0.0]);
 
@@ -81,9 +81,12 @@ fn canonical_algebraic_row_lowers_to_a_rank_deficient_mass_matrix() {
     let system = FirstOrderProgram::lower(&cpu, relation).expect("proven mass-matrix DAE");
     let lowering = assert_lowering_artifact_round_trip(&kernel, &system);
 
-    assert_eq!(system.state_fields(), &[differential, algebraic]);
+    assert_eq!(
+        system.state_coordinates(),
+        &[(differential, 0), (algebraic, 0)]
+    );
     let initial = system
-        .initialize(eqiora::sem::ReferenceConfig::new(0.0, 1.0).unwrap())
+        .initialize(0.0, eqiora::sem::ReferenceConfig::new(0.0, 1.0).unwrap())
         .unwrap();
     assert_eq!(initial.state(), &[0.0, 1.0]);
     assert_eq!(
@@ -137,7 +140,7 @@ fn canonical_dense_full_mass_matrix_is_exactly_classified_and_integrated() {
     let system = FirstOrderProgram::lower(&cpu, relation).expect("proven full mass matrix");
     let lowering = assert_lowering_artifact_round_trip(&kernel, &system);
 
-    assert_eq!(system.state_fields(), &[x, y]);
+    assert_eq!(system.state_coordinates(), &[(x, 0), (y, 0)]);
     assert_eq!(system.lowering_proof().derivative_matrix().exact_rank(), 2);
     assert_eq!(
         system.equation_class(),
@@ -179,7 +182,7 @@ fn canonical_dense_full_mass_matrix_is_exactly_classified_and_integrated() {
         assert_relative(actual[1], (-2.0 * time).exp(), 2.0e-6);
     }
 
-    let sensitivity_problem = system.forward_sensitivity_problem().unwrap();
+    let sensitivity_problem = system.forward_sensitivity_problem(0.0).unwrap();
     let sensitivities = DiffsolTimeBackend::new()
         .solve_forward_sensitivities(
             &sensitivity_problem,
@@ -202,14 +205,14 @@ fn canonical_dense_singular_mass_matrix_has_no_zero_row_shortcut() {
     let system = FirstOrderProgram::lower(&cpu, relation).expect("proven singular mass matrix");
     let lowering = assert_lowering_artifact_round_trip(&kernel, &system);
     let initial = system
-        .initialize(eqiora::sem::ReferenceConfig::new(0.0, 1.0).unwrap())
+        .initialize(0.0, eqiora::sem::ReferenceConfig::new(0.0, 1.0).unwrap())
         .unwrap();
     // Subtraction gives x=y; its tangent gives x'=y'. With x(0)=1
     // the two regular rows independently imply both derivatives equal -1.
     assert_eq!(initial.state(), &[1.0, 1.0]);
     assert_eq!(initial.derivative(), &[-1.0, -1.0]);
 
-    assert_eq!(system.state_fields(), &[x, y]);
+    assert_eq!(system.state_coordinates(), &[(x, 0), (y, 0)]);
     assert_eq!(
         system.lowering_proof().derivative_matrix().coefficients(),
         [1.0, 1.0, 1.0, 1.0]
@@ -249,7 +252,7 @@ fn canonical_dense_singular_mass_matrix_has_no_zero_row_shortcut() {
         assert_relative(actual[0] - actual[1], 0.0, 5.0e-9);
     }
 
-    let sensitivity_problem = system.forward_sensitivity_problem().unwrap();
+    let sensitivity_problem = system.forward_sensitivity_problem(0.0).unwrap();
     let sensitivities = DiffsolTimeBackend::new()
         .solve_forward_sensitivities(
             &sensitivity_problem,
@@ -286,7 +289,7 @@ fn canonical_event_registration_drives_proposal_reset_saltation_and_restart() {
     let system = FirstOrderProgram::lower(&cpu, fixture.flow).expect("proven explicit ODE");
     let model = ModelEnvelope::from_program(&fixture.kernel).unwrap();
     let lowering =
-        TimeLoweringEnvelopeV1::from_proof(&model, &fixture.kernel, system.lowering_proof())
+        TimeLoweringEnvelopeV2::from_proof(&model, &fixture.kernel, system.lowering_proof())
             .unwrap();
     let registration = RootRegistrationEnvelopeV1::new(&model, &fixture.kernel, &lowering).unwrap();
     let bytes = registration.canonical_json().unwrap();
@@ -407,7 +410,7 @@ fn canonical_event_registration_drives_proposal_reset_saltation_and_restart() {
         proposal.root_index(),
         roots.proof().root_count(),
         proposal.state().to_vec(),
-        system.state_fields().len(),
+        system.state_coordinates().len(),
         proposal.report(),
     )
     .unwrap();
@@ -458,8 +461,12 @@ fn canonical_decay_with_integral() -> (
     let model = OntologyId::<Model>::new();
 
     let mut expression = ExprDagBuilder::new();
-    let x_derivative = expression.symbol(SymbolRef::Derivative(x)).unwrap();
-    let integral_derivative = expression.symbol(SymbolRef::Derivative(integral)).unwrap();
+    let x_derivative = expression
+        .symbol(SymbolRef::Derivative(x, std::num::NonZeroU32::MIN))
+        .unwrap();
+    let integral_derivative = expression
+        .symbol(SymbolRef::Derivative(integral, std::num::NonZeroU32::MIN))
+        .unwrap();
     let x_value = expression.symbol(SymbolRef::Field(x)).unwrap();
     let rate_value = expression.symbol(SymbolRef::Parameter(rate)).unwrap();
     let two = expression
@@ -582,7 +589,9 @@ fn state_dependent_mass_relation() -> (eqiora::sem::KernelProgram, Id<kinds::Rel
     let model = OntologyId::<Model>::new();
 
     let mut expression = ExprDagBuilder::new();
-    let derivative = expression.symbol(SymbolRef::Derivative(state)).unwrap();
+    let derivative = expression
+        .symbol(SymbolRef::Derivative(state, std::num::NonZeroU32::MIN))
+        .unwrap();
     let state_value = expression.symbol(SymbolRef::Field(state)).unwrap();
     let rate_value = expression.symbol(SymbolRef::Parameter(rate)).unwrap();
     let weighted_derivative = expression.mul(state_value, derivative).unwrap();
@@ -681,7 +690,10 @@ fn canonical_index_one_dae() -> (
 
     let mut expression = ExprDagBuilder::new();
     let derivative = expression
-        .symbol(SymbolRef::Derivative(differential))
+        .symbol(SymbolRef::Derivative(
+            differential,
+            std::num::NonZeroU32::MIN,
+        ))
         .unwrap();
     let differential_value = expression.symbol(SymbolRef::Field(differential)).unwrap();
     let algebraic_value = expression.symbol(SymbolRef::Field(algebraic)).unwrap();
@@ -818,8 +830,12 @@ fn canonical_dense_mass_matrix(
     let model = OntologyId::<Model>::new();
 
     let mut expression = ExprDagBuilder::new();
-    let x_derivative = expression.symbol(SymbolRef::Derivative(x)).unwrap();
-    let y_derivative = expression.symbol(SymbolRef::Derivative(y)).unwrap();
+    let x_derivative = expression
+        .symbol(SymbolRef::Derivative(x, std::num::NonZeroU32::MIN))
+        .unwrap();
+    let y_derivative = expression
+        .symbol(SymbolRef::Derivative(y, std::num::NonZeroU32::MIN))
+        .unwrap();
     let x_value = expression.symbol(SymbolRef::Field(x)).unwrap();
     let y_value = expression.symbol(SymbolRef::Field(y)).unwrap();
     let rate_value = expression.symbol(SymbolRef::Parameter(rate)).unwrap();
@@ -985,12 +1001,12 @@ fn canonical_bouncing_ball() -> CanonicalBouncingBall {
 
     let mut flow_expression = ExprDagBuilder::new();
     let height_rate = flow_expression
-        .symbol(SymbolRef::Derivative(height))
+        .symbol(SymbolRef::Derivative(height, std::num::NonZeroU32::MIN))
         .unwrap();
     let velocity_value = flow_expression.symbol(SymbolRef::Field(velocity)).unwrap();
     let height_residual = flow_expression.sub(height_rate, velocity_value).unwrap();
     let velocity_rate = flow_expression
-        .symbol(SymbolRef::Derivative(velocity))
+        .symbol(SymbolRef::Derivative(velocity, std::num::NonZeroU32::MIN))
         .unwrap();
     let gravity_value = flow_expression
         .symbol(SymbolRef::Parameter(gravity))
@@ -1235,21 +1251,21 @@ fn assert_relative(actual: f64, expected: f64, tolerance: f64) {
 fn assert_lowering_artifact_round_trip(
     program: &eqiora::sem::KernelProgram,
     system: &FirstOrderProgram,
-) -> TimeLoweringEnvelopeV1 {
+) -> TimeLoweringEnvelopeV2 {
     let model = ModelEnvelope::from_program(program).unwrap();
     let envelope =
-        TimeLoweringEnvelopeV1::from_proof(&model, program, system.lowering_proof()).unwrap();
+        TimeLoweringEnvelopeV2::from_proof(&model, program, system.lowering_proof()).unwrap();
     let bytes = envelope.canonical_json().unwrap();
-    let decoded = TimeLoweringEnvelopeV1::from_json(&bytes, Default::default()).unwrap();
+    let decoded = TimeLoweringEnvelopeV2::from_json(&bytes, Default::default()).unwrap();
 
     assert_eq!(decoded.digest().unwrap(), envelope.digest().unwrap());
     assert_eq!(decoded.proof().unwrap(), *system.lowering_proof());
     decoded.validate_against(&model, program).unwrap();
     assert_eq!(
-        TimeLoweringEnvelopeV1::from_json(
+        TimeLoweringEnvelopeV2::from_json(
             &bytes,
             TimeDecoderLimits {
-                max_exact_rank_dimension: system.state_fields().len() - 1,
+                max_exact_rank_dimension: system.state_coordinates().len() - 1,
                 ..Default::default()
             },
         )
@@ -1264,7 +1280,7 @@ fn assert_lowering_artifact_round_trip(
         .unwrap();
     forged_wire["derivative_matrix"]["exact_rank"] = (exact_rank + 1).into();
     assert_eq!(
-        TimeLoweringEnvelopeV1::from_json(
+        TimeLoweringEnvelopeV2::from_json(
             &serde_json::to_vec(&forged_wire).unwrap(),
             Default::default(),
         )
@@ -1284,16 +1300,16 @@ fn assert_lowering_artifact_round_trip(
         .expect("every admitted first-order proof has a differential coefficient");
     *coefficient *= 2.0;
     let forged_matrix =
-        ConstantDerivativeMatrixProof::new(system.state_fields().len(), forged_coefficients)
+        ConstantDerivativeMatrixProof::new(system.state_coordinates().len(), forged_coefficients)
             .unwrap();
     let forged = TimeLoweringProof::new(
         system.relation(),
-        system.state_fields().to_vec(),
+        system.state_coordinates().to_vec(),
         forged_matrix,
     )
     .unwrap();
     assert_eq!(
-        TimeLoweringEnvelopeV1::from_proof(&model, program, &forged)
+        TimeLoweringEnvelopeV2::from_proof(&model, program, &forged)
             .unwrap_err()
             .code(),
         eqiora::diagnostic::codes::INVALID_ARTIFACT
@@ -1302,7 +1318,7 @@ fn assert_lowering_artifact_round_trip(
 }
 
 fn assert_time_run_artifact_round_trip(
-    lowering: &TimeLoweringEnvelopeV1,
+    lowering: &TimeLoweringEnvelopeV2,
     plan: &TimePlan,
     report: eqiora::time::TimeExecutionReport,
 ) {

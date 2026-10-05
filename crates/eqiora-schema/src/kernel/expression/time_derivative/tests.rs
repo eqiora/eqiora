@@ -17,9 +17,15 @@ fn independent_cubic_binomial_identity_rejects_coefficient_sign_and_field_mutati
     let y_field = Id::new();
     let x = builder.symbol(SymbolRef::Field(x_field)).unwrap();
     let y = builder.symbol(SymbolRef::Field(y_field)).unwrap();
-    let dx = builder.symbol(SymbolRef::Derivative(x_field)).unwrap();
-    let dy = builder.symbol(SymbolRef::Derivative(y_field)).unwrap();
-    let z_rate = builder.symbol(SymbolRef::Derivative(Id::new())).unwrap();
+    let dx = builder
+        .symbol(SymbolRef::Derivative(x_field, std::num::NonZeroU32::MIN))
+        .unwrap();
+    let dy = builder
+        .symbol(SymbolRef::Derivative(y_field, std::num::NonZeroU32::MIN))
+        .unwrap();
+    let z_rate = builder
+        .symbol(SymbolRef::Derivative(Id::new(), std::num::NonZeroU32::MIN))
+        .unwrap();
     let sum = builder.add(x, y).unwrap();
     let storage = builder.powi(sum, 3).unwrap();
     let squared = builder.powi(sum, 2).unwrap();
@@ -54,7 +60,9 @@ fn explicit_time_parameter_and_field_coefficients_keep_exact_symbol_identity() {
     let other_parameter = builder.symbol(SymbolRef::Parameter(Id::new())).unwrap();
     let time = builder.symbol(SymbolRef::Time).unwrap();
     let x = builder.symbol(SymbolRef::Field(field)).unwrap();
-    let dx = builder.symbol(SymbolRef::Derivative(field)).unwrap();
+    let dx = builder
+        .symbol(SymbolRef::Derivative(field, std::num::NonZeroU32::MIN))
+        .unwrap();
     let squared_time = builder.powi(time, 2).unwrap();
     let time_x = builder.mul(squared_time, x).unwrap();
     let storage = builder.mul(parameter, time_x).unwrap();
@@ -103,7 +111,9 @@ fn retained_pure_definition_keeps_exact_thirds_and_substitutes_formal_arguments(
     let mut builder = ExprDagBuilder::new();
     let field = Id::new();
     let x = builder.symbol(SymbolRef::Field(field)).unwrap();
-    let dx = builder.symbol(SymbolRef::Derivative(field)).unwrap();
+    let dx = builder
+        .symbol(SymbolRef::Derivative(field, std::num::NonZeroU32::MIN))
+        .unwrap();
     let storage = builder.pure_operator(&definition, [x]).unwrap();
     let x_squared = builder.mul(x, x).unwrap();
     let correct = builder.mul(x_squared, dx).unwrap();
@@ -146,7 +156,7 @@ fn unsupported_storage_symbols_and_nonsmooth_or_nonpolynomial_expressions_fail_c
     let zero = constant(&mut builder, 0.0);
     let mut unsupported_symbols = Vec::new();
     for symbol in [
-        SymbolRef::Derivative(field),
+        SymbolRef::Derivative(field, std::num::NonZeroU32::MIN),
         SymbolRef::Pre(field),
         SymbolRef::Next(field),
         SymbolRef::Port(Id::new()),

@@ -98,7 +98,9 @@ fn sampled_continuous_source_remains_an_initial_and_continuous_unknown() {
     let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
     let config = ReferenceConfig::new(2., 0.25).unwrap();
     // Before a tick, source = 3 + t/1s is still one ordinary continuous equation.
-    Interpreter::new().initialize(&program, config).unwrap();
+    Interpreter::new()
+        .initialize(&program, 0.0, config)
+        .unwrap();
     let mut session = Interpreter::new()
         .execution_session(&program, config, [])
         .unwrap();

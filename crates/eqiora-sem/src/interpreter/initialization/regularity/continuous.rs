@@ -10,9 +10,12 @@ pub(super) fn validate<'a>(
     settings: solver::NonlinearSettings,
 ) -> Result<(), Diagnostic> {
     let values = plan
-        .differential_fields
-        .union(&plan.algebraic_fields)
+        .differential_orders
+        .keys()
+        .chain(&plan.algebraic_fields)
         .copied()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
         .map(Variable::Field)
         .chain(plan.continuous_ports.iter().copied().map(Variable::Port))
         .chain(
@@ -32,7 +35,13 @@ pub(super) fn validate<'a>(
         .filter_map(|(column, value)| match value {
             Variable::Field(field) => Some((
                 column,
-                SymbolRef::Derivative(field.downcast().expect("Field")),
+                SymbolRef::Derivative(
+                    field.downcast().expect("Field"),
+                    plan.differential_orders
+                        .get(field)
+                        .copied()
+                        .unwrap_or(std::num::NonZeroU32::MIN),
+                ),
             )),
             _ => None,
         })
@@ -41,7 +50,7 @@ pub(super) fn validate<'a>(
         .iter()
         .copied()
         .chain(rates.iter().map(|(_, symbol)| match symbol {
-            SymbolRef::Derivative(field) => Variable::Derivative(field.erase()),
+            SymbolRef::Derivative(field, order) => Variable::Derivative(field.erase(), *order),
             _ => unreachable!(),
         }))
         .collect::<Vec<_>>();
@@ -87,7 +96,7 @@ pub(super) fn validate<'a>(
                 )?
                 .into_iter()
                 .map(|variable| match variable {
-                    Variable::Derivative(field) => Variable::Field(field),
+                    Variable::Derivative(field, _) => Variable::Field(field),
                     other => other,
                 })
                 .filter_map(|variable| columns.get(&variable).copied())
@@ -249,7 +258,22 @@ fn check_block(
             }
             state.extend(columns.iter().map(|&column| equation.jacobian[column]));
         }
-        ConstantDerivativeMatrixProof::new(n, mass)?.require_index_one_regularity(&state)
+        let proof = ConstantDerivativeMatrixProof::new(n, mass)?;
+        if proof.exact_rank() < n
+            && columns.iter().any(|&column| match values[column] {
+                Variable::Field(field) => plan
+                    .differential_orders
+                    .get(&field)
+                    .is_some_and(|order| order.get() > 1),
+                _ => false,
+            })
+        {
+            return Err(execution_error(
+                "rank-deficient higher-order block requires an explicit index-reduction formulation",
+                0.0,
+            ));
+        }
+        proof.require_index_one_regularity(&state)
     } else {
         // Only this connected equation block falls back to its authored
         // rate/algebraic partition; unrelated descriptors keep their proof.
@@ -257,7 +281,7 @@ fn check_block(
             .iter()
             .flat_map(|&row| {
                 columns.iter().map(move |&column| match values[column] {
-                    Variable::Field(field) if plan.differential_fields.contains(&field) => {
+                    Variable::Field(field) if plan.differential_orders.contains_key(&field) => {
                         let rate = rates
                             .iter()
                             .position(|(value_column, _)| *value_column == column)

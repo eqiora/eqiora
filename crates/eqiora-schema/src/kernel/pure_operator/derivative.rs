@@ -36,9 +36,6 @@ impl CalculusBuilder {
         root: CalculusNodeId,
         formal: u16,
     ) -> Result<CalculusNodeId, PureOperatorError> {
-        if self.derivative_order(root)? >= 2 {
-            return Err(PureOperatorError::DerivativeOrder);
-        }
         let selected = self
             .formals
             .get(usize::from(formal))
@@ -180,28 +177,6 @@ impl CalculusBuilder {
     }
 }
 
-impl CalculusBuilder {
-    pub(super) fn derivative_order(&self, root: CalculusNodeId) -> Result<u8, PureOperatorError> {
-        let end = definition_index(root, self.nodes.len())?;
-        let mut orders: Vec<u8> = Vec::with_capacity(end + 1);
-        for node in self.nodes.iter().take(end + 1) {
-            let order = match node {
-                CalculusNode::Differentiated { source, .. } => orders[source.index() as usize] + 1,
-                _ => node
-                    .operands()
-                    .map(|id| orders[id.index() as usize])
-                    .max()
-                    .unwrap_or(0),
-            };
-            if order > 2 {
-                return Err(PureOperatorError::DerivativeOrder);
-            }
-            orders.push(order);
-        }
-        Ok(orders[end])
-    }
-}
-
 fn sum(
     builder: &mut CalculusBuilder,
     left: Option<CalculusNodeId>,
@@ -277,7 +252,7 @@ mod tests {
         }
     }
     #[test]
-    fn ordered_history_survives_a_zero_result_and_rejects_third_order_atomically() {
+    fn ordered_history_survives_zero_results_beyond_second_order() {
         let class = PureValueClass::invariant_scalar()
             .with_dimension(DimExponents::DIMENSIONLESS)
             .with_scalar_domain(ScalarDomain::Real)
@@ -311,12 +286,20 @@ mod tests {
             builder.nodes[wrt.index() as usize],
             CalculusNode::FormalComponent { formal: 1, .. }
         ));
-        let before = builder.nodes.clone();
-        assert_eq!(
-            builder.partial(second, 0),
-            Err(PureOperatorError::DerivativeOrder)
-        );
-        assert_eq!(builder.nodes, before);
-        builder.finish(second).unwrap();
+        let mut current = second;
+        for _ in 3..=16 {
+            let previous = current;
+            current = builder.partial(previous, 0).unwrap();
+            let CalculusNode::Differentiated { source, value, .. } =
+                builder.nodes[current.index() as usize]
+            else {
+                panic!("ordered derivative history");
+            };
+            assert_eq!(source, previous);
+            assert!(
+                matches!(builder.nodes[value.index() as usize], CalculusNode::Rational { value, dimension } if value == ExactRational::integer(0) && dimension == DimExponents::DIMENSIONLESS)
+            );
+        }
+        builder.finish(current).unwrap();
     }
 }

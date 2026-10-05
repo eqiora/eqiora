@@ -6,6 +6,8 @@ use eqiora::{DynQuantity, Id, kinds};
 use eqiora_numerics::CommonTsitouras45;
 use ulid::Ulid;
 
+type SensitivityControl = ((Id<kinds::Field>, u32), Id<kinds::Parameter>, DynQuantity);
+
 #[pyclass(
     name = "SensitivityTolerance",
     module = "eqiora._eqiora",
@@ -15,6 +17,7 @@ use ulid::Ulid;
 #[derive(Debug, Clone)]
 pub(super) struct PySensitivityTolerance {
     pub(super) field: PyModelFieldRef,
+    pub(super) derivative_order: u32,
     pub(super) parameter: PyModelParameterRef,
     pub(super) quantity: DynQuantity,
 }
@@ -23,11 +26,13 @@ impl PySensitivityTolerance {
     #[new]
     fn new(
         _py: Python<'_>,
-        field: &PyModelFieldRef,
+        coordinate: (Py<PyModelFieldRef>, u32),
         parameter: &PyModelParameterRef,
         value: f64,
         dimension: &PyDimension,
     ) -> PyResult<Self> {
+        let field = coordinate.0.borrow(_py);
+        let derivative_order = coordinate.1;
         if field.exact_model_digest() != parameter.value.model().artifact().to_string() {
             return Err(PyTypeError::new_err(
                 "sensitivity Field and Parameter belong to different exact Models",
@@ -43,13 +48,14 @@ impl PySensitivityTolerance {
         let _field_id = Id::<kinds::Field>::from_ulid(id);
         Ok(Self {
             field: field.clone(),
+            derivative_order,
             parameter: parameter.clone(),
             quantity: DynQuantity::new(value, dimension.native()),
         })
     }
     #[getter]
-    fn field(&self) -> PyModelFieldRef {
-        self.field.clone()
+    fn coordinate(&self) -> (PyModelFieldRef, u32) {
+        (self.field.clone(), self.derivative_order)
     }
     #[getter]
     fn parameter(&self) -> PyModelParameterRef {
@@ -81,11 +87,11 @@ impl PyForwardSensitivity {
         py: Python<'_>,
         document: &eqiora::api::ModelDocument,
         relative_tolerance: f64,
-        controls: Vec<(Id<kinds::Field>, Id<kinds::Parameter>, DynQuantity)>,
+        controls: Vec<SensitivityControl>,
     ) -> PyResult<Self> {
         let entries = controls
             .into_iter()
-            .map(|(field_id, parameter_id, quantity)| {
+            .map(|((field_id, derivative_order), parameter_id, quantity)| {
                 let parameter =
                     PyModelParameterRef::from_document(document, &parameter_id.ulid().to_string())
                         .map_err(|error| validation_error(py, &[error]))?;
@@ -95,6 +101,7 @@ impl PyForwardSensitivity {
                 );
                 Ok(PySensitivityTolerance {
                     field,
+                    derivative_order,
                     parameter,
                     quantity,
                 })
@@ -151,6 +158,7 @@ impl PyForwardSensitivity {
             (
                 entry.parameter.value.id().ulid(),
                 entry.field.exact_id().to_owned(),
+                entry.derivative_order,
             )
         });
         CommonTsitouras45::validate_forward_sensitivity_controls(
@@ -161,7 +169,11 @@ impl PyForwardSensitivity {
                     let field = Id::<kinds::Field>::from_ulid(
                         Ulid::from_string(entry.field.exact_id()).expect("validated FieldRef"),
                     );
-                    (field, entry.parameter.value.id(), entry.quantity)
+                    (
+                        (field, entry.derivative_order),
+                        entry.parameter.value.id(),
+                        entry.quantity,
+                    )
                 })
                 .collect(),
         )

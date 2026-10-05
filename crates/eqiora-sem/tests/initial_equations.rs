@@ -41,7 +41,7 @@ fn program(
                 };
                 let field = match *symbol {
                     SymbolRef::Field(field)
-                    | SymbolRef::Derivative(field)
+                    | SymbolRef::Derivative(field, std::num::NonZeroU32::MIN)
                     | SymbolRef::Pre(field)
                     | SymbolRef::Next(field) => field,
                     _ => continue,
@@ -80,7 +80,9 @@ fn program(
 
 fn decay(field: Id<kinds::Field>) -> KernelNode {
     let mut dag = ExprDagBuilder::new();
-    let derivative = dag.symbol(SymbolRef::Derivative(field)).unwrap();
+    let derivative = dag
+        .symbol(SymbolRef::Derivative(field, std::num::NonZeroU32::MIN))
+        .unwrap();
     let value = dag.symbol(SymbolRef::Field(field)).unwrap();
     let rate = dag
         .constant(DynQuantity::new(
@@ -135,7 +137,7 @@ fn initial_algebraic_condition_and_regular_equations_jointly_determine_state() {
     )
     .unwrap();
     let config = ReferenceConfig::new(0.1, 0.1).unwrap();
-    let initial = Interpreter::new().initialize(&model, config).unwrap();
+    let initial = Interpreter::new().initialize(&model, 0.0, config).unwrap();
     assert!(
         (initial.fields()[&x.erase()]
             .real_scalar_value()
@@ -154,10 +156,10 @@ fn initial_algebraic_condition_and_regular_equations_jointly_determine_state() {
             .abs()
             < 1e-8
     );
-    assert!((initial.derivatives()[&x.erase()] + 1.0).abs() < 1e-8);
+    assert!((initial.derivatives()[&(x.erase(), std::num::NonZeroU32::MIN)] + 1.0).abs() < 1e-8);
     for guess in [-4.0, 3.0] {
         let another = Interpreter::new()
-            .initialize(&model, config.with_initial_guess(guess).unwrap())
+            .initialize(&model, 0.0, config.with_initial_guess(guess).unwrap())
             .unwrap();
         assert!(
             (another.fields()[&x.erase()]
@@ -177,7 +179,9 @@ fn initial_algebraic_condition_and_regular_equations_jointly_determine_state() {
                 .abs()
                 < 1e-8
         );
-        assert!((another.derivatives()[&x.erase()] + 1.0).abs() < 1e-8);
+        assert!(
+            (another.derivatives()[&(x.erase(), std::num::NonZeroU32::MIN)] + 1.0).abs() < 1e-8
+        );
     }
     assert_eq!(config.initial_guess(), 0.0);
     for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
@@ -198,7 +202,7 @@ fn initial_derivative_condition_can_determine_stationary_state() {
             RelationDef::initial(
                 Id::new(),
                 equation(
-                    SymbolRef::Derivative(x),
+                    SymbolRef::Derivative(x, std::num::NonZeroU32::MIN),
                     0.0,
                     DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap(),
                 ),
@@ -210,7 +214,7 @@ fn initial_derivative_condition_can_determine_stationary_state() {
     )
     .unwrap();
     let initial = Interpreter::new()
-        .initialize(&model, ReferenceConfig::new(0.0, 0.1).unwrap())
+        .initialize(&model, 0.0, ReferenceConfig::new(0.0, 0.1).unwrap())
         .unwrap();
     assert_eq!(
         initial.fields()[&x.erase()]
@@ -219,7 +223,10 @@ fn initial_derivative_condition_can_determine_stationary_state() {
             .value(),
         0.0
     );
-    assert_eq!(initial.derivatives()[&x.erase()], 0.0);
+    assert_eq!(
+        initial.derivatives()[&(x.erase(), std::num::NonZeroU32::MIN)],
+        0.0
+    );
 }
 
 #[test]
@@ -250,7 +257,7 @@ fn missing_contradictory_and_rank_deficient_zero_residual_initialization_fail() 
         }
         let model = program(nodes, vec![]).unwrap();
         let diagnostics = Interpreter::new()
-            .initialize(&model, ReferenceConfig::new(0.0, 0.1).unwrap())
+            .initialize(&model, 0.0, ReferenceConfig::new(0.0, 0.1).unwrap())
             .unwrap_err();
         assert!(
             diagnostics
@@ -287,7 +294,7 @@ fn initial_pre_is_a_clocked_unknown_and_next_is_not_an_initial_condition() {
     ];
     let model = program(nodes, vec![edge]).unwrap();
     let initial = Interpreter::new()
-        .initialize(&model, ReferenceConfig::new(0.0, 0.1).unwrap())
+        .initialize(&model, 0.0, ReferenceConfig::new(0.0, 0.1).unwrap())
         .unwrap();
     assert_eq!(
         initial.fields()[&field.erase()]
@@ -371,8 +378,12 @@ fn affine_rank_one_descriptor_uses_one_independent_initial_condition() {
         let mut nodes = vec![scalar(x, FieldRole::State), scalar(y, FieldRole::State)];
         for field in [x, y] {
             let mut dag = ExprDagBuilder::new();
-            let dx = dag.symbol(SymbolRef::Derivative(x)).unwrap();
-            let dy = dag.symbol(SymbolRef::Derivative(y)).unwrap();
+            let dx = dag
+                .symbol(SymbolRef::Derivative(x, std::num::NonZeroU32::MIN))
+                .unwrap();
+            let dy = dag
+                .symbol(SymbolRef::Derivative(y, std::num::NonZeroU32::MIN))
+                .unwrap();
             let sum = dag.add(dx, dy).unwrap();
             let value = dag.symbol(SymbolRef::Field(field)).unwrap();
             let coefficient = dag
@@ -405,7 +416,7 @@ fn affine_rank_one_descriptor_uses_one_independent_initial_condition() {
         let missing = program(nodes.clone(), vec![]).unwrap();
         assert!(
             Interpreter::new()
-                .initialize(&missing, ReferenceConfig::new(0.0, 0.1).unwrap())
+                .initialize(&missing, 0.0, ReferenceConfig::new(0.0, 0.1).unwrap())
                 .is_err()
         );
         nodes.push(
@@ -429,12 +440,14 @@ fn affine_rank_one_descriptor_uses_one_independent_initial_condition() {
             Interpreter::new()
                 .initialize(
                     &program(redundant, vec![]).unwrap(),
+                    0.0,
                     ReferenceConfig::new(0.0, 0.1).unwrap()
                 )
                 .is_err()
         );
         let model = program(nodes, vec![]).unwrap();
-        let result = Interpreter::new().initialize(&model, ReferenceConfig::new(0.0, 0.1).unwrap());
+        let result =
+            Interpreter::new().initialize(&model, 0.0, ReferenceConfig::new(0.0, 0.1).unwrap());
         if rate == 0.0 {
             let errors = result.unwrap_err();
             assert!(
@@ -455,7 +468,10 @@ fn affine_rank_one_descriptor_uses_one_independent_initial_condition() {
                     .abs()
                     < 1e-8
             );
-            assert!((initial.derivatives()[&field.erase()] + rate).abs() < 1e-8);
+            assert!(
+                (initial.derivatives()[&(field.erase(), std::num::NonZeroU32::MIN)] + rate).abs()
+                    < 1e-8
+            );
         }
     }
 }

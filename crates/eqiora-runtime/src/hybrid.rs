@@ -153,14 +153,21 @@ impl CanonicalEventProgram {
             .expect("semantic guard typing includes its root")
             .dimension();
         let guard_operator = ScalarOperatorIr::lower(guard_expression)?;
-        validate_guard_symbols(event.erase(), &guard_operator, flow.state_fields())?;
+        let reset_fields = flow.state_coordinates().iter().map(|&(field, order)| {
+            if order == 0 {
+                Ok(field)
+            } else {
+                Err(invalid_event(event.erase(), "event reset requires explicit next-value equations for derivative coordinates"))
+            }
+        }).collect::<Result<Vec<_>, _>>()?;
+        validate_guard_symbols(event.erase(), &guard_operator, &reset_fields)?;
         let reset_operators = relation_ids
             .iter()
             .map(|relation| {
                 let operator = program.operator(*relation).ok_or_else(|| {
                     invalid_event(*relation, "reset Relation has no scalar Operator IR")
                 })?;
-                validate_reset_symbols(*relation, operator, flow.state_fields())?;
+                validate_reset_symbols(*relation, operator, &reset_fields)?;
                 Ok((*relation, operator.clone()))
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
@@ -190,8 +197,7 @@ impl CanonicalEventProgram {
                 }
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
-        let state_coordinates = flow
-            .state_fields()
+        let state_coordinates = reset_fields
             .iter()
             .enumerate()
             .map(|(coordinate, field)| (*field, coordinate))
@@ -219,8 +225,7 @@ impl CanonicalEventProgram {
                 )
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
-        let next_projection =
-            MonomialNextProjection::prove(event.erase(), &resets, flow.state_fields())?;
+        let next_projection = MonomialNextProjection::prove(event.erase(), &resets, &reset_fields)?;
 
         Ok(Self {
             flow,
@@ -275,7 +280,7 @@ impl CanonicalEventProgram {
 
     fn guard_value(&self, time: f64, state: &[f64]) -> Result<f64, Diagnostic> {
         if !time.is_finite()
-            || state.len() != self.flow.state_fields().len()
+            || state.len() != self.flow.state_coordinates().len()
             || state.iter().any(|value| !value.is_finite())
         {
             return Err(invalid_event(
@@ -309,7 +314,7 @@ impl CanonicalEventProgram {
         pre_state: &[f64],
         guard_tolerance: f64,
     ) -> Result<CanonicalEventLinearization, Diagnostic> {
-        let state_dimension = self.flow.state_fields().len();
+        let state_dimension = self.flow.state_coordinates().len();
         if !time.is_finite()
             || !guard_tolerance.is_finite()
             || guard_tolerance < 0.0
@@ -417,7 +422,7 @@ impl CanonicalEventProgram {
         pre_state: &[f64],
         post_state: &[f64],
     ) -> Result<OperatorDerivatives, Diagnostic> {
-        let state_dimension = self.flow.state_fields().len();
+        let state_dimension = self.flow.state_coordinates().len();
         let parameter_dimension = self.parameters.len();
         let mut combined = OperatorDerivatives::empty();
         for reset in &self.resets {

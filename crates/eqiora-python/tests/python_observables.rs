@@ -174,7 +174,7 @@ source = "model Decay() { state x: 1; initial { x=3; } parameter rate: 1/s=2; re
 model = eqiora.compile(source=source)
 field = model.field('x')
 observable = model.observable('sample')
-plan = eqiora.resolve(model, temporal=eqiora.time.Tsitouras45(initial_step_s=1e-3, relative_tolerance=1e-11, absolute_tolerances={field: 1e-13}))
+plan = eqiora.resolve(model, temporal=eqiora.time.Tsitouras45(initial_step_s=1e-3, relative_tolerance=1e-11, absolute_tolerances={(field, 0): 1e-13}))
 rule = eqiora.time.TimeFunctionalQuadrature.AcceptedStepSimpson
 sparse = eqiora.run(plan, state=eqiora.State.initial(plan), until_s=1.0, output_times_s=(0.25,))
 dense = eqiora.run(plan, state=eqiora.State.initial(plan), until_s=1.0, output_times_s=tuple(i/10 for i in range(1, 10)))
@@ -238,7 +238,7 @@ fn python_event_functionals_use_reset_history_and_explicit_policy() -> PyResult<
         py.run(c_str!(r#"
 import json
 import math
-source = "model Reset() { state x: 1; initial { x=0; } parameter threshold: 1=0.4; relation flow { derivative(x)=1[1/s]; } event hit=crossing(x-threshold,direction=rising); relation reset at hit { next(x)=0; } observable sample: 1=x; }"
+source = "model Reset() { state x: 1; initial { x=0; } parameter threshold: 1=0.4; relation flow { derivative(x)=1[1/s]; } event hit=crossing(x-threshold,direction=rising); relation reset at hit { next(x)=0; } observable sample: 1=x; observable smooth_rate:1/s=derivative(x); }"
 model = eqiora.compile(source=source)
 field, event = model.field('x'), model.activation('hit')
 threshold = model.parameter('threshold')
@@ -250,11 +250,11 @@ policy = eqiora.time.EventPolicy(max_events=1, guard_tolerances=(eqiora.time.Gua
 forward = eqiora.time.ForwardSensitivity(
     relative_tolerance=1e-10,
     absolute_tolerances=(eqiora.time.SensitivityTolerance(
-        field, threshold, 1e-12, eqiora.Dimension(),
+        (field, 0), threshold, 1e-12, eqiora.Dimension(),
     ),),
 )
 def temporal(events):
-    return eqiora.time.Tsitouras45(initial_step_s=1e-3, relative_tolerance=1e-11, absolute_tolerances={field:1e-13}, events=events, forward_sensitivities=forward)
+    return eqiora.time.Tsitouras45(initial_step_s=1e-3, relative_tolerance=1e-11, absolute_tolerances={(field, 0):1e-13}, events=events, forward_sensitivities=forward)
 plan = eqiora.resolve(model, temporal=temporal(policy))
 rule = eqiora.time.TimeFunctionalQuadrature.AcceptedStepSimpson
 sparse = eqiora.run(plan, state=eqiora.State.initial(plan), until_s=0.7, output_times_s=(0.2,))
@@ -268,6 +268,11 @@ assert terminal.value_type == eqiora.ValueType.real(eqiora.Dimension())
 assert integral.value_type == eqiora.ValueType.real(eqiora.Dimension(time=1))
 assert terminal.evaluation_kind == 'terminal' and terminal.quadrature is None
 assert integral.evaluation_kind == 'time-integral' and integral.quadrature == rule
+# A smooth derivative is integrated on accepted continuous pieces. Its integral
+# is 0.7, not x(0.7)-x(0)=0.3: the reset is not a smooth derivative or a hidden impulse.
+smooth_rate = model.observable('smooth_rate')
+assert math.isclose(sparse.observe_terminal(smooth_rate).value, 1., abs_tol=1e-9, rel_tol=0)
+assert math.isclose(sparse.observe_time_integral(smooth_rate, quadrature=rule).value, 0.7, abs_tol=1e-9, rel_tol=0)
 direction = {threshold: (eqiora.Dimension(), 1.0)}
 terminal_jvp = sparse.observe_terminal_parameter_jvp(observable, direction)
 integral_jvp = sparse.observe_time_integral_parameter_jvp(observable, direction, quadrature=rule)

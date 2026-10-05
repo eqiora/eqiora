@@ -30,7 +30,7 @@ def result_array() -> tuple[eqiora.Result, eqiora.Array]:
         temporal=eqiora.time.Tsitouras45(
             initial_step_s=0.01,
             relative_tolerance=1.0e-9,
-            absolute_tolerances={field: 1.0e-11},
+            absolute_tolerances={(field, 0): 1.0e-11},
         ),
     )
     result = eqiora.run(
@@ -54,7 +54,7 @@ plan = eqiora.resolve(
     temporal=eqiora.time.Tsitouras45(
         initial_step_s=0.01,
         relative_tolerance=1.0e-9,
-        absolute_tolerances={{field: 1.0e-11}},
+        absolute_tolerances={{(field, 0): 1.0e-11}},
     ),
 )
 result = eqiora.run(

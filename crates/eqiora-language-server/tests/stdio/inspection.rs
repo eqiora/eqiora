@@ -98,7 +98,7 @@ fn plan_inspection_validates_exact_artifacts_and_tracks_selected_model_edits() {
         CommonTsitouras45::new(
             0.01,
             1e-6,
-            vec![CommonTsitourasTolerance::new(field, 1e-9).unwrap()],
+            vec![CommonTsitourasTolerance::new((field, 0), 1e-9).unwrap()],
         )
         .unwrap(),
         eqiora::backends::diffsol::DIFFSOL_TIME_BACKEND,

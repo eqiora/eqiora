@@ -83,13 +83,13 @@ fn authored_pullback_survives_model_replay_with_independent_polynomial_value() {
     let document = ModelDocument::compile("pullback.eqi", source).unwrap();
     let bytes = document.canonical_json().unwrap();
     let mut obsolete: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(obsolete["schema"], "eqiora.model-envelope/v40");
+    assert_eq!(obsolete["schema"], "eqiora.model-envelope/v41");
     obsolete["schema"] = serde_json::json!("eqiora.model-envelope/v39");
     let error = ModelDocument::replay(&serde_json::to_vec(&obsolete).unwrap()).unwrap_err();
     assert!(error.iter().any(|diagnostic| {
         diagnostic
             .message()
-            .contains("unsupported eqiora.model-envelope/v40 schema")
+            .contains("unsupported eqiora.model-envelope/v41 schema")
     }));
 
     // The alternate affine map meets the original at this sample, but has a

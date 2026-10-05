@@ -21,7 +21,7 @@ plan = eqiora.resolve(
     temporal=eqiora.time.Tsitouras45(
         initial_step_s=0.01,
         relative_tolerance=1e-9,
-        absolute_tolerances={x: 1e-11},
+        absolute_tolerances={(x, 0): 1e-11},
     ),
 )
 result = eqiora.run(
@@ -246,7 +246,7 @@ import eqiora
 method = eqiora.time.Tsitouras45(
     initial_step_s=0.01,
     relative_tolerance=1e-9,
-    absolute_tolerances={x: 1e-11},
+    absolute_tolerances={(x, 0): 1e-11},
 )
 plan = eqiora.resolve(model, temporal=method)
 ```

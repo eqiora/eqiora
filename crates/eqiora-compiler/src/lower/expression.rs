@@ -800,7 +800,7 @@ impl ExpressionLowerer<'_> {
         }
         let (symbol, dimension) = match callee {
             "derivative" => (
-                SymbolRef::Derivative(field),
+                SymbolRef::Derivative(field, std::num::NonZeroU32::MIN),
                 contract.dimension.div(time_dimension()).ok_or_else(|| {
                     source_error(
                         codes::LANGUAGE_TYPE_ERROR,

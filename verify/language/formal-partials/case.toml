@@ -2,7 +2,7 @@ id = "language.formal-partials"
 status = "implemented"
 scope = "explicit-real-scalar-polynomial-partials-at-independent-declared-bindings"
 reference_kind = "independent-product-and-composition-rule-analytic-values-and-binding-falsifiers"
-capabilities = ["two-input-formal-partials", "operator-composition-partials", "parameter-alias-chain-rule", "component-parent-parameter-identity", "dimensioned-conductivity-partial", "independence-and-unsupported-rule-falsifiers", "ordered-second-partials", "heterogeneous-jacobian-actions", "hessian-vector-actions", "real-dual-pairing", "derivative-order-falsifiers", "cartesian-analytic-mixed-partial-observables"]
+capabilities = ["two-input-formal-partials", "operator-composition-partials", "parameter-alias-chain-rule", "component-parent-parameter-identity", "dimensioned-conductivity-partial", "independence-and-unsupported-rule-falsifiers", "ordered-second-partials", "heterogeneous-jacobian-actions", "hessian-vector-actions", "real-dual-pairing", "ordered-third-partials", "cartesian-analytic-mixed-partial-observables"]
 
 [claim_boundary]
 real_scalar_polynomial_arithmetic = true
@@ -10,7 +10,9 @@ explicit_operator_composition = true
 parameter_alias_dependency_identity = true
 component_direct_parent_parameter_identity = true
 exact_quotient_dimensions = true
-maximum_derivative_order = 2
+explicit_derivative_order_cap = false
+verified_nonzero_derivative_orders = [1, 2, 3]
+calculus_node_and_depth_budgets = true
 ordered_mixed_partials = true
 heterogeneous_input_directions = true
 real_dimensionless_dual_pairing = true

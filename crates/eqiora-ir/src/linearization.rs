@@ -316,7 +316,7 @@ pub trait LinearizedOutput<S>: Debug + Sync {
 /// prescribe a time integration method.
 pub trait DiscreteStepLinearization: LinearizedRelation<f64> {
     /// Canonical state coordinate order shared by previous and next states.
-    fn state_fields(&self) -> &[Id<kinds::Field>];
+    fn state_coordinates(&self) -> &[(Id<kinds::Field>, u32)];
 
     /// Canonical model Parameter order following the previous-state block.
     fn model_parameter_fields(&self) -> &[Id<kinds::Parameter>];

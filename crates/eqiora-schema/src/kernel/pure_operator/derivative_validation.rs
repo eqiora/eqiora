@@ -9,9 +9,6 @@ impl CalculusBuilder {
         wrt: CalculusNodeId,
         value: CalculusNodeId,
     ) -> Result<(), PureOperatorError> {
-        if self.derivative_order(source)? >= 2 {
-            return Err(PureOperatorError::DerivativeOrder);
-        }
         let selected = self.value_type(wrt)?;
         let output = self.value_type(source)?;
         let selection = match self.nodes.get(wrt.index() as usize) {

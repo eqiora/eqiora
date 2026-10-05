@@ -152,7 +152,7 @@ fn exact_species_transfer_is_atomic_and_resumes_after_second_tick() {
     );
     assert_eq!(
         interpreter
-            .initialize(&program, ReferenceConfig::new(2., 1.).unwrap())
+            .initialize(&program, 0.0, ReferenceConfig::new(2., 1.).unwrap())
             .unwrap()
             .fields()[&field],
         initial
@@ -231,7 +231,11 @@ fn boolean_assignment_short_circuits_and_failed_tick_preserves_snapshot() {
     let interpreter = Interpreter::new();
     let config = ReferenceConfig::new(2., 1.).unwrap();
     assert_eq!(
-        interpreter.initialize(&program, config).unwrap().fields()[&field].as_bool(),
+        interpreter
+            .initialize(&program, 0.0, config)
+            .unwrap()
+            .fields()[&field]
+            .as_bool(),
         Some(false)
     );
     assert!(

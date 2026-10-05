@@ -16,7 +16,7 @@ fn dense_descriptor_initial_sensitivity_uses_regular_compatibility_equations() {
     let cpu = CpuProgram::lower(&kernel).unwrap();
     let system = FirstOrderProgram::lower(&cpu, relation).unwrap();
     let initial = system
-        .initialize(ReferenceConfig::new(0.0, 1.0).unwrap())
+        .initialize(0.0, ReferenceConfig::new(0.0, 1.0).unwrap())
         .unwrap();
     assert_eq!(initial.state(), [1.0, 1.0]);
     assert_eq!(initial.derivative(), [-2.0, -2.0]);
@@ -25,7 +25,7 @@ fn dense_descriptor_initial_sensitivity_uses_regular_compatibility_equations() {
         .initial_parameter_jvp(0.0, &[1.0], &mut tangent)
         .unwrap();
     assert_eq!(tangent, [0.0, 0.0]);
-    system.forward_sensitivity_problem().unwrap();
+    system.forward_sensitivity_problem(0.0).unwrap();
 }
 
 #[test]
@@ -39,7 +39,7 @@ fn parameter_dependent_initial_conditions_cannot_silently_return_zero_sensitivit
             .initial_parameter_jvp(0.0, &[1.0], &mut tangent)
             .is_err()
     );
-    assert!(system.forward_sensitivity_problem().is_err());
+    assert!(system.forward_sensitivity_problem(0.0).is_err());
 }
 
 fn dense_descriptor(parameter_initial: bool) -> (KernelProgram, Id<kinds::Relation>) {
@@ -54,8 +54,12 @@ fn dense_descriptor(parameter_initial: bool) -> (KernelProgram, Id<kinds::Relati
         .expect("numeric scalar type");
     let inverse_time = DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap();
     let mut expression = ExprDagBuilder::new();
-    let dx = expression.symbol(SymbolRef::Derivative(x)).unwrap();
-    let dy = expression.symbol(SymbolRef::Derivative(y)).unwrap();
+    let dx = expression
+        .symbol(SymbolRef::Derivative(x, std::num::NonZeroU32::MIN))
+        .unwrap();
+    let dy = expression
+        .symbol(SymbolRef::Derivative(y, std::num::NonZeroU32::MIN))
+        .unwrap();
     let xv = expression.symbol(SymbolRef::Field(x)).unwrap();
     let yv = expression.symbol(SymbolRef::Field(y)).unwrap();
     let p = expression.symbol(SymbolRef::Parameter(rate)).unwrap();
@@ -160,7 +164,7 @@ fn fresh_initialization_solves_values_and_derivatives_together() {
     let cpu = CpuProgram::lower(&kernel).unwrap();
     let system = FirstOrderProgram::lower(&cpu, relation).unwrap();
     let initial = system
-        .initialize(ReferenceConfig::new(0.0, 1.0).unwrap())
+        .initialize(0.0, ReferenceConfig::new(0.0, 1.0).unwrap())
         .unwrap();
     // x(0)=3 and x'+2x=0 independently imply x'(0)=-6.
     assert!((initial.state()[0] - 3.0).abs() < 1e-10);
@@ -174,7 +178,7 @@ fn structural_lowering_and_accepted_restart_do_not_require_fresh_conditions() {
     let system = FirstOrderProgram::lower(&cpu, relation).unwrap();
     assert!(
         system
-            .initialize(ReferenceConfig::new(0.0, 1.0).unwrap())
+            .initialize(0.0, ReferenceConfig::new(0.0, 1.0).unwrap())
             .is_err()
     );
     assert!(system.time_problem().is_err());
@@ -203,7 +207,9 @@ fn decay(initial_value: Option<f64>) -> (KernelProgram, Id<kinds::Relation>) {
     let inverse_time = DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap();
     let mut expression = ExprDagBuilder::new();
     let value = expression.symbol(SymbolRef::Field(field)).unwrap();
-    let derivative = expression.symbol(SymbolRef::Derivative(field)).unwrap();
+    let derivative = expression
+        .symbol(SymbolRef::Derivative(field, std::num::NonZeroU32::MIN))
+        .unwrap();
     let coefficient = expression.symbol(SymbolRef::Parameter(rate)).unwrap();
     let decay = expression.mul(coefficient, value).unwrap();
     let residual = expression.add(derivative, decay).unwrap();

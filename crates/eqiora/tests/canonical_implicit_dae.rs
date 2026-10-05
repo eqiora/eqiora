@@ -1,5 +1,5 @@
 use eqiora::artifact::{
-    ArtifactDigest, GeneralImplicitTimeLoweringEnvelopeV1, ImplicitTimeInitialDataEnvelopeV1,
+    ArtifactDigest, GeneralImplicitTimeLoweringEnvelopeV2, ImplicitTimeInitialDataEnvelopeV1,
     ImplicitTimeRunManifestV1, ModelEnvelope, TimeDecoderLimits,
 };
 use eqiora::diagnostic::codes;
@@ -37,11 +37,11 @@ fn canonical_state_dependent_mass_dae_uses_only_the_residual_native_seam() {
     let system = GeneralImplicitProgram::lower(&cpu, relation).expect("general residual proof");
     let model = ModelEnvelope::from_program(&kernel).unwrap();
     let lowering =
-        GeneralImplicitTimeLoweringEnvelopeV1::from_proof(&model, &kernel, system.lowering_proof())
+        GeneralImplicitTimeLoweringEnvelopeV2::from_proof(&model, &kernel, system.lowering_proof())
             .unwrap();
     let lowering_bytes = lowering.canonical_json().unwrap();
     let decoded_lowering =
-        GeneralImplicitTimeLoweringEnvelopeV1::from_json(&lowering_bytes, Default::default())
+        GeneralImplicitTimeLoweringEnvelopeV2::from_json(&lowering_bytes, Default::default())
             .unwrap();
     assert_eq!(
         decoded_lowering.digest().unwrap(),
@@ -50,7 +50,7 @@ fn canonical_state_dependent_mass_dae_uses_only_the_residual_native_seam() {
     assert_eq!(decoded_lowering.proof().unwrap(), *system.lowering_proof());
     decoded_lowering.validate_against(&model, &kernel).unwrap();
     assert_eq!(
-        GeneralImplicitTimeLoweringEnvelopeV1::from_json(
+        GeneralImplicitTimeLoweringEnvelopeV2::from_json(
             &lowering_bytes,
             TimeDecoderLimits {
                 max_time_state_dimension: 1,
@@ -63,7 +63,7 @@ fn canonical_state_dependent_mass_dae_uses_only_the_residual_native_seam() {
     );
     let mut forged_partition: serde_json::Value = serde_json::from_slice(&lowering_bytes).unwrap();
     forged_partition["variable_kinds"] = serde_json::json!(["differential", "differential"]);
-    let forged_partition = GeneralImplicitTimeLoweringEnvelopeV1::from_json(
+    let forged_partition = GeneralImplicitTimeLoweringEnvelopeV2::from_json(
         &serde_json::to_vec(&forged_partition).unwrap(),
         Default::default(),
     )
@@ -75,9 +75,12 @@ fn canonical_state_dependent_mass_dae_uses_only_the_residual_native_seam() {
             .code(),
         codes::INVALID_ARTIFACT
     );
-    assert_eq!(system.state_fields(), &[differential, algebraic]);
+    assert_eq!(
+        system.state_coordinates(),
+        &[(differential, 0), (algebraic, 0)]
+    );
     let initial = system
-        .initialize(eqiora::sem::ReferenceConfig::new(0.0, 1.0).unwrap())
+        .initialize(0.0, eqiora::sem::ReferenceConfig::new(0.0, 1.0).unwrap())
         .unwrap();
     assert_eq!(initial.state(), &[1.0, 1.0]);
     assert_eq!(initial.derivative(), &[-1.0, 0.0]);
@@ -306,14 +309,14 @@ fn nonlinear_derivative_relation_retains_an_explicit_branch_choice() {
         system.lowering_proof().reason(),
         GeneralImplicitReason::NonlinearDerivativeDependence
     );
-    assert_eq!(system.state_fields(), [state]);
+    assert_eq!(system.state_coordinates(), [(state, 0)]);
     assert_eq!(
         system.lowering_proof().variable_kinds(),
         [DaeVariableKind::Differential]
     );
     let model = ModelEnvelope::from_program(&kernel).unwrap();
     let lowering =
-        GeneralImplicitTimeLoweringEnvelopeV1::from_proof(&model, &kernel, system.lowering_proof())
+        GeneralImplicitTimeLoweringEnvelopeV2::from_proof(&model, &kernel, system.lowering_proof())
             .unwrap();
     lowering.validate_against(&model, &kernel).unwrap();
 
@@ -375,7 +378,9 @@ fn canonical_nonlinear_derivative_relation() -> (
     let model = OntologyId::<Model>::new();
 
     let mut expression = ExprDagBuilder::new();
-    let derivative = expression.symbol(SymbolRef::Derivative(state)).unwrap();
+    let derivative = expression
+        .symbol(SymbolRef::Derivative(state, std::num::NonZeroU32::MIN))
+        .unwrap();
     let squared = expression.mul(derivative, derivative).unwrap();
     let one = expression
         .constant(DynQuantity::new(1.0, inverse_time_squared))

@@ -9,6 +9,7 @@ pub(crate) enum WireSymbol {
     },
     Derivative {
         id: WireId,
+        order: std::num::NonZeroU32,
     },
     Pre {
         id: WireId,
@@ -51,8 +52,9 @@ impl WireSymbol {
             SymbolRef::Field(id) => Ok(Self::Field {
                 id: WireId::from_raw(id.erase()),
             }),
-            SymbolRef::Derivative(id) => Ok(Self::Derivative {
+            SymbolRef::Derivative(id, order) => Ok(Self::Derivative {
                 id: WireId::from_raw(id.erase()),
+                order,
             }),
             SymbolRef::Pre(id) => Ok(Self::Pre {
                 id: WireId::from_raw(id.erase()),
@@ -100,7 +102,9 @@ impl WireSymbol {
     pub(crate) fn decode(&self) -> Result<SymbolRef, Diagnostic> {
         Ok(match self {
             Self::Field { id } => SymbolRef::Field(id.typed::<kinds::Field>()?),
-            Self::Derivative { id } => SymbolRef::Derivative(id.typed::<kinds::Field>()?),
+            Self::Derivative { id, order } => {
+                SymbolRef::Derivative(id.typed::<kinds::Field>()?, *order)
+            }
             Self::Pre { id } => SymbolRef::Pre(id.typed::<kinds::Field>()?),
             Self::Next { id } => SymbolRef::Next(id.typed::<kinds::Field>()?),
             Self::Parameter { id } => SymbolRef::Parameter(id.typed::<kinds::Parameter>()?),
@@ -126,7 +130,7 @@ impl WireSymbol {
     pub(crate) fn ids(&self) -> impl Iterator<Item = &WireId> {
         let ids = match self {
             Self::Field { id }
-            | Self::Derivative { id }
+            | Self::Derivative { id, .. }
             | Self::Pre { id }
             | Self::Next { id }
             | Self::Parameter { id }

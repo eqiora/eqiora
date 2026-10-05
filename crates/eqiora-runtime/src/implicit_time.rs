@@ -9,9 +9,9 @@ use eqiora_ir::{
 };
 use eqiora_schema::kernel::SymbolRef;
 use eqiora_time::{
-    ConstantDerivativeMatrixProof, DaeVariableKind, GeneralImplicitLoweringProof,
-    GeneralImplicitReason, ImplicitDaeInitialization, ImplicitDaeProblem, ImplicitTimeSystem,
-    InitialConditionPolicy, TimeLoweringProof,
+    DaeVariableKind, GeneralImplicitLoweringProof, GeneralImplicitReason,
+    ImplicitDaeInitialization, ImplicitDaeProblem, ImplicitTimeSystem, InitialConditionPolicy,
+    TimeLoweringProof,
 };
 
 use crate::CpuProgram;
@@ -30,7 +30,8 @@ use eqiora_sem::{KernelProgram, ReferenceConfig};
 pub struct GeneralImplicitProgram {
     relation: Id<kinds::Relation>,
     operator: ScalarOperatorIr,
-    state_fields: Vec<Id<kinds::Field>>,
+    state_coordinates: Vec<(Id<kinds::Field>, u32)>,
+    companions: Vec<(usize, usize)>,
     parameter_fields: Vec<Id<kinds::Parameter>>,
     parameter_values: Vec<f64>,
     kernel: KernelProgram,
@@ -55,19 +56,7 @@ impl GeneralImplicitProgram {
             .map_err(|errors| errors.into_iter().next().expect("typing failure"))?;
         let operator = ScalarOperatorIr::lower_typed_scalar(&typed)?;
         let state_order = state_order(relation, &operator)?;
-        if operator.residual_count() != state_order.fields.len() {
-            return Err(invalid_time(
-                relation,
-                "general implicit system requires one residual equation per state Field",
-            ));
-        }
-
-        let derivatives = state_order
-            .fields
-            .iter()
-            .copied()
-            .map(SymbolRef::Derivative)
-            .collect::<Vec<_>>();
+        let derivatives = state_order.rate_symbols();
         let reason = match operator.constant_symbol_jacobian(&derivatives) {
             Err(SymbolicLinearityFailure::VariableCoefficient { .. }) => {
                 GeneralImplicitReason::NonconstantDerivativeJacobian
@@ -82,17 +71,14 @@ impl GeneralImplicitProgram {
                 ));
             }
             Ok(jacobian) => {
-                let matrix = ConstantDerivativeMatrixProof::new(
-                    state_order.fields.len(),
-                    jacobian.coefficients().to_vec(),
-                )?;
+                let matrix = state_order.derivative_matrix(relation, &jacobian)?;
                 if matrix.exact_rank() == 0 {
                     return Err(invalid_time(
                         relation,
                         "general implicit time Relation has no structurally effective derivative",
                     ));
                 }
-                TimeLoweringProof::new(relation, state_order.fields.clone(), matrix)?;
+                TimeLoweringProof::new(relation, state_order.state_coordinates.clone(), matrix)?;
                 return Err(invalid_time(
                     relation,
                     "Relation has a valid constant first-order projection; use FirstOrderProgram",
@@ -101,13 +87,24 @@ impl GeneralImplicitProgram {
         };
 
         let variable_kinds = state_order
-            .fields
+            .state_coordinates
             .iter()
-            .map(|field| derivative_kind(relation, &operator, *field))
+            .map(|&(field, order)| {
+                if state_order.coordinates.contains_key(&(field, order + 1)) {
+                    Ok(DaeVariableKind::Differential)
+                } else {
+                    derivative_kind(
+                        relation,
+                        &operator,
+                        field,
+                        std::num::NonZeroU32::new(order + 1).unwrap(),
+                    )
+                }
+            })
             .collect::<Result<Vec<_>, _>>()?;
         let proof = GeneralImplicitLoweringProof::new(
             relation,
-            state_order.fields.clone(),
+            state_order.state_coordinates.clone(),
             variable_kinds,
             reason,
         )?;
@@ -115,7 +112,8 @@ impl GeneralImplicitProgram {
         Ok(Self {
             relation,
             operator,
-            state_fields: state_order.fields,
+            state_coordinates: state_order.state_coordinates,
+            companions: state_order.companions,
             parameter_fields: bindings.parameter_fields,
             parameter_values: bindings.parameter_values,
             kernel: program.kernel().clone(),
@@ -133,8 +131,8 @@ impl GeneralImplicitProgram {
 
     /// Deterministic state coordinate order.
     #[must_use]
-    pub fn state_fields(&self) -> &[Id<kinds::Field>] {
-        &self.state_fields
+    pub fn state_coordinates(&self) -> &[(Id<kinds::Field>, u32)] {
+        &self.state_coordinates
     }
 
     /// Solve fresh simultaneous initial equations with explicit numerical controls.
@@ -145,18 +143,21 @@ impl GeneralImplicitProgram {
     /// including a locally singular differential/algebraic partition.
     pub fn initialize(
         &self,
+        initial_time: f64,
         config: ReferenceConfig,
     ) -> Result<ImplicitDaeInitialization, Diagnostic> {
         let initial = super::initialization::initialize(
             &self.kernel,
-            &self.state_fields,
+            &self.state_coordinates,
             self.relation,
+            initial_time,
             config,
         )?;
         super::initialization::require_implicit_regularity(
             &self.kernel,
-            &self.state_fields,
+            &self.state_coordinates,
             self.relation,
+            initial_time,
             &initial,
             self.proof.variable_kinds(),
         )?;
@@ -187,7 +188,7 @@ impl GeneralImplicitProgram {
     /// Retains [`ImplicitDaeProblem`] validation diagnostics if its invariants
     /// change.
     pub fn implicit_problem(&self) -> Result<ImplicitDaeProblem<'_>, Diagnostic> {
-        let initial = self.initialize(ReferenceConfig::new(0.0, 1.0)?)?;
+        let initial = self.initialize(0.0, ReferenceConfig::new(0.0, 1.0)?)?;
         ImplicitDaeProblem::new(
             self,
             self.proof.variable_kinds().to_vec(),
@@ -224,7 +225,7 @@ impl GeneralImplicitProgram {
         previous_state: &[f64],
         next_state: &[f64],
     ) -> Result<ImplicitEulerStepLinearization<'_>, Diagnostic> {
-        let dimension = self.state_fields.len();
+        let dimension = self.state_coordinates.len();
         let step = next_time - previous_time;
         let inverse_step = 1.0 / step;
         if !previous_time.is_finite()
@@ -275,7 +276,8 @@ impl GeneralImplicitProgram {
             relation: self.relation,
             inner,
             bindings: &self.bindings,
-            state_fields: &self.state_fields,
+            companions: &self.companions,
+            state_coordinates: &self.state_coordinates,
             state_dimension: dimension,
             previous_time,
             next_time,
@@ -309,7 +311,7 @@ impl GeneralImplicitProgram {
         derivative_direction: Option<&[f64]>,
         output: &[f64],
     ) -> Result<(), Diagnostic> {
-        let dimension = self.state_fields.len();
+        let dimension = self.state_coordinates.len();
         if !time.is_finite()
             || state.len() != dimension
             || derivative.len() != dimension
@@ -349,7 +351,8 @@ pub struct ImplicitEulerStepLinearization<'a> {
     relation: Id<kinds::Relation>,
     inner: ScalarLinearization<'a>,
     bindings: &'a [ImplicitBinding],
-    state_fields: &'a [Id<kinds::Field>],
+    companions: &'a [(usize, usize)],
+    state_coordinates: &'a [(Id<kinds::Field>, u32)],
     state_dimension: usize,
     previous_time: f64,
     next_time: f64,
@@ -364,8 +367,8 @@ pub struct ImplicitEulerStepLinearization<'a> {
 impl ImplicitEulerStepLinearization<'_> {
     /// Canonical state order used by both step state blocks.
     #[must_use]
-    pub const fn state_fields(&self) -> &[Id<kinds::Field>] {
-        self.state_fields
+    pub const fn state_coordinates(&self) -> &[(Id<kinds::Field>, u32)] {
+        self.state_coordinates
     }
 
     /// Number of leading parameter coordinates occupied by `y_previous`.
@@ -464,11 +467,24 @@ impl LinearizedRelation<f64> for ImplicitEulerStepLinearization<'_> {
     }
 
     fn residual_dimension(&self) -> usize {
-        self.inner.residual_dimension()
+        self.state_dimension
     }
 
     fn primal(&self, residual: &mut [f64]) -> Result<(), Diagnostic> {
-        self.inner.primal(residual)
+        if residual.len() != self.state_dimension {
+            return Err(invalid_step_linearization(
+                self.relation,
+                "implicit-Euler residual shape differs from its state coordinates",
+            ));
+        }
+        let source = self.inner.residual_dimension();
+        self.inner.primal(&mut residual[..source])?;
+        for (row, &(coordinate, next)) in residual[source..].iter_mut().zip(self.companions) {
+            *row = (self.next_state[coordinate] - self.previous_state[coordinate])
+                * self.inverse_step
+                - self.next_state[next];
+        }
+        require_finite_slice(self.relation, residual, "implicit-Euler residual")
     }
 
     fn jvp(
@@ -482,13 +498,32 @@ impl LinearizedRelation<f64> for ImplicitEulerStepLinearization<'_> {
             RelationTangent::Both { unknown, parameter } => (Some(unknown), Some(parameter)),
         };
         self.validate_tangent(unknown, parameter)?;
+        if residual_tangent.len() != self.state_dimension {
+            return Err(invalid_step_linearization(
+                self.relation,
+                "implicit-Euler residual tangent shape differs from its state coordinates",
+            ));
+        }
         let (inner_unknown, inner_parameter) = self.projected_jvp_inputs(unknown, parameter);
+        let source = self.inner.residual_dimension();
         self.inner.jvp(
             RelationTangent::Both {
                 unknown: &inner_unknown,
                 parameter: &inner_parameter,
             },
+            &mut residual_tangent[..source],
+        )?;
+        for (row, &(coordinate, next)) in residual_tangent[source..].iter_mut().zip(self.companions)
+        {
+            *row = (unknown.map_or(0., |values| values[coordinate])
+                - parameter.map_or(0., |values| values[coordinate]))
+                * self.inverse_step
+                - unknown.map_or(0., |values| values[next]);
+        }
+        require_finite_slice(
+            self.relation,
             residual_tangent,
+            "implicit-Euler residual tangent",
         )
     }
 
@@ -502,9 +537,10 @@ impl LinearizedRelation<f64> for ImplicitEulerStepLinearization<'_> {
             RelationCotangent::Parameter(parameter) => (None, Some(parameter)),
             RelationCotangent::Both { unknown, parameter } => (Some(unknown), Some(parameter)),
         };
-        if unknown
-            .as_deref()
-            .is_some_and(|values| values.len() != self.state_dimension)
+        if residual_cotangent.len() != self.state_dimension
+            || unknown
+                .as_deref()
+                .is_some_and(|values| values.len() != self.state_dimension)
             || parameter
                 .as_deref()
                 .is_some_and(|values| values.len() != self.parameter_dimension())
@@ -517,8 +553,14 @@ impl LinearizedRelation<f64> for ImplicitEulerStepLinearization<'_> {
 
         let mut inner_unknown = vec![0.0; self.inner.unknown_dimension()];
         let mut inner_parameter = vec![0.0; self.inner.parameter_dimension()];
-        self.inner.vjp(
+        require_finite_slice(
+            self.relation,
             residual_cotangent,
+            "implicit-Euler residual cotangent",
+        )?;
+        let source = self.inner.residual_dimension();
+        self.inner.vjp(
+            &residual_cotangent[..source],
             RelationCotangent::Both {
                 unknown: &mut inner_unknown,
                 parameter: &mut inner_parameter,
@@ -563,6 +605,17 @@ impl LinearizedRelation<f64> for ImplicitEulerStepLinearization<'_> {
         }
         debug_assert_eq!(inner_unknown_coordinate, inner_unknown.len());
         debug_assert_eq!(inner_parameter_coordinate, inner_parameter.len());
+        for (&value, &(coordinate, next)) in
+            residual_cotangent[source..].iter().zip(self.companions)
+        {
+            if let Some(values) = unknown.as_deref_mut() {
+                values[coordinate] += value * self.inverse_step;
+                values[next] -= value;
+            }
+            if let Some(values) = parameter.as_deref_mut() {
+                values[coordinate] -= value * self.inverse_step;
+            }
+        }
         if unknown
             .as_deref()
             .is_some_and(|values| values.iter().any(|value| !value.is_finite()))
@@ -580,8 +633,8 @@ impl LinearizedRelation<f64> for ImplicitEulerStepLinearization<'_> {
 }
 
 impl DiscreteStepLinearization for ImplicitEulerStepLinearization<'_> {
-    fn state_fields(&self) -> &[Id<kinds::Field>] {
-        self.state_fields
+    fn state_coordinates(&self) -> &[(Id<kinds::Field>, u32)] {
+        self.state_coordinates
     }
 
     fn model_parameter_fields(&self) -> &[Id<kinds::Parameter>] {
@@ -628,8 +681,9 @@ fn derivative_kind(
     relation: Id<kinds::Relation>,
     operator: &ScalarOperatorIr,
     field: Id<kinds::Field>,
+    order: std::num::NonZeroU32,
 ) -> Result<DaeVariableKind, Diagnostic> {
-    match operator.constant_symbol_jacobian(&[SymbolRef::Derivative(field)]) {
+    match operator.constant_symbol_jacobian(&[SymbolRef::Derivative(field, order)]) {
         Ok(jacobian) => Ok(
             if jacobian
                 .coefficients()
@@ -654,7 +708,7 @@ fn derivative_kind(
 
 impl ImplicitTimeSystem for GeneralImplicitProgram {
     fn dimension(&self) -> usize {
-        self.state_fields.len()
+        self.state_coordinates.len()
     }
 
     fn residual(
@@ -668,7 +722,11 @@ impl ImplicitTimeSystem for GeneralImplicitProgram {
         let residual = self
             .operator
             .evaluate(&self.inputs(time, state, derivative))?;
-        output.copy_from_slice(&residual);
+        output[..residual.len()].copy_from_slice(&residual);
+        for (row, &(coordinate, next)) in output[residual.len()..].iter_mut().zip(&self.companions)
+        {
+            *row = derivative[coordinate] - state[next];
+        }
         require_finite_slice(self.relation, output, "general implicit residual")
     }
 
@@ -700,7 +758,11 @@ impl ImplicitTimeSystem for GeneralImplicitProgram {
                 ImplicitBinding::Parameter(_) | ImplicitBinding::Time => None,
             })
             .collect::<Vec<_>>();
-        linearization.jvp(RelationTangent::Unknown(&tangent), output)?;
+        let source = self.operator.residual_count();
+        linearization.jvp(RelationTangent::Unknown(&tangent), &mut output[..source])?;
+        for (row, &(coordinate, next)) in output[source..].iter_mut().zip(&self.companions) {
+            *row = derivative_direction[coordinate] - state_direction[next];
+        }
         require_finite_slice(self.relation, output, "general implicit residual JVP")
     }
 }
@@ -724,7 +786,7 @@ fn bind_symbols(
     program: &CpuProgram,
     relation: Id<kinds::Relation>,
     operator: &ScalarOperatorIr,
-    state_coordinates: &HashMap<Id<kinds::Field>, usize>,
+    state_coordinates: &HashMap<(Id<kinds::Field>, u32), usize>,
 ) -> Result<ImplicitBindings, Diagnostic> {
     let mut values = Vec::with_capacity(operator.symbols().len());
     let mut roles = Vec::with_capacity(operator.symbols().len());
@@ -734,13 +796,22 @@ fn bind_symbols(
     for symbol in operator.symbols().iter().copied() {
         let (binding, role) = match symbol {
             SymbolRef::Field(field) => (
-                ImplicitBinding::State(state_coordinate(relation, state_coordinates, field)?),
+                ImplicitBinding::State(state_coordinate(relation, state_coordinates, (field, 0))?),
                 DifferentiationRole::Unknown,
             ),
-            SymbolRef::Derivative(field) => (
-                ImplicitBinding::Derivative(state_coordinate(relation, state_coordinates, field)?),
-                DifferentiationRole::Unknown,
-            ),
+            SymbolRef::Derivative(field, order) => {
+                let binding =
+                    if let Some(&coordinate) = state_coordinates.get(&(field, order.get())) {
+                        ImplicitBinding::State(coordinate)
+                    } else {
+                        ImplicitBinding::Derivative(state_coordinate(
+                            relation,
+                            state_coordinates,
+                            (field, order.get() - 1),
+                        )?)
+                    };
+                (binding, DifferentiationRole::Unknown)
+            }
             SymbolRef::Parameter(parameter) => {
                 let coordinate = if let Some(coordinate) = parameter_coordinates.get(&parameter) {
                     *coordinate
@@ -789,8 +860,8 @@ fn bind_symbols(
 
 fn state_coordinate(
     relation: Id<kinds::Relation>,
-    coordinates: &HashMap<Id<kinds::Field>, usize>,
-    field: Id<kinds::Field>,
+    coordinates: &HashMap<(Id<kinds::Field>, u32), usize>,
+    field: (Id<kinds::Field>, u32),
 ) -> Result<usize, Diagnostic> {
     coordinates.get(&field).copied().ok_or_else(|| {
         invalid_time(
@@ -812,23 +883,27 @@ mod tests {
         let field = Id::<kinds::Field>::new();
 
         let mut expression = ExprDagBuilder::new();
-        let derivative = expression.symbol(SymbolRef::Derivative(field)).unwrap();
+        let derivative = expression
+            .symbol(SymbolRef::Derivative(field, std::num::NonZeroU32::MIN))
+            .unwrap();
         let canceled = expression.sub(derivative, derivative).unwrap();
         let state = expression.symbol(SymbolRef::Field(field)).unwrap();
         let residual = expression.add(canceled, state).unwrap();
         let operator = ScalarOperatorIr::lower(&expression.finish([residual]).unwrap()).unwrap();
         assert_eq!(
-            derivative_kind(relation, &operator, field).unwrap(),
+            derivative_kind(relation, &operator, field, std::num::NonZeroU32::MIN).unwrap(),
             DaeVariableKind::Algebraic
         );
 
         let mut expression = ExprDagBuilder::new();
-        let derivative = expression.symbol(SymbolRef::Derivative(field)).unwrap();
+        let derivative = expression
+            .symbol(SymbolRef::Derivative(field, std::num::NonZeroU32::MIN))
+            .unwrap();
         let state = expression.symbol(SymbolRef::Field(field)).unwrap();
         let residual = expression.mul(derivative, state).unwrap();
         let operator = ScalarOperatorIr::lower(&expression.finish([residual]).unwrap()).unwrap();
         assert_eq!(
-            derivative_kind(relation, &operator, field).unwrap(),
+            derivative_kind(relation, &operator, field, std::num::NonZeroU32::MIN).unwrap(),
             DaeVariableKind::Differential
         );
     }

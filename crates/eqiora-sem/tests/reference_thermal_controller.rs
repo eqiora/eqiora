@@ -127,7 +127,10 @@ fn thermal_fixture() -> ThermalFixture {
 
     let mut plant = ExprDagBuilder::new();
     let derivative = plant
-        .symbol(SymbolRef::Derivative(temperature))
+        .symbol(SymbolRef::Derivative(
+            temperature,
+            std::num::NonZeroU32::MIN,
+        ))
         .expect("dT/dt");
     let ambient_value = plant
         .symbol(SymbolRef::Parameter(ambient))

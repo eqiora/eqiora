@@ -24,12 +24,13 @@ impl CommonOdeRunRequest {
                 "registered-event sensitivity requires the canonical event sensitivity driver",
             ));
         }
-        if self.state.time_s() != 0.0 || self.state.values() != self.plan.initial_state()?.values()
-        {
+        if self.state != self.plan.initial_state(self.state.time_s())? {
             return Err(invalid(
                 "ODE Parameter sensitivity requires the exact Model initial State",
             ));
         }
-        self.plan.program.forward_sensitivity_problem()
+        self.plan
+            .program
+            .forward_sensitivity_problem(self.state.time_s())
     }
 }
