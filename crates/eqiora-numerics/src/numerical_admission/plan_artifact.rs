@@ -17,7 +17,9 @@ use crate::common_ode::{CommonTsitouras45, CommonTsitourasTolerance};
 use crate::{ScalingComponent2d, ScalingMode2d};
 
 use super::*;
+mod eigen;
 mod enforcement;
+use eigen::WireEigenRequest;
 mod linear;
 use enforcement::WireEnforcement;
 use linear::WireLinearControls;
@@ -26,13 +28,14 @@ mod forward_policy;
 use event_policy::WireEventPolicy;
 use forward_policy::WireForwardSensitivity;
 
-const SCHEMA: &str = "eqiora.resolved-common-plan/v7";
+const SCHEMA: &str = "eqiora.resolved-common-plan/v8";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 enum WirePlanFamily {
+    Eigen,
     Algebraic,
     Ode,
     Scalar,
@@ -73,6 +76,7 @@ struct WireScopedSpatialPolicy {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 enum WireFormulation {
+    FiniteHermitianPencil,
     FirstOrderEvolution,
     PrimalGalerkin,
     MixedGalerkin,
@@ -138,7 +142,7 @@ enum WireTemporal {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireResolvedCommonPlanV7 {
+struct WireResolvedCommonPlanV8 {
     schema: String,
     encoding: String,
     family: WirePlanFamily,
@@ -158,6 +162,8 @@ struct WireResolvedCommonPlanV7 {
     scaling: Option<WireScalingRequest>,
     #[serde(skip_serializing_if = "Option::is_none")]
     solve: Option<WireSolve>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    spectral: Option<WireEigenRequest>,
     #[serde(skip_serializing_if = "Option::is_none")]
     temporal: Option<WireTemporal>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -185,7 +191,7 @@ impl ResolvedCommonPlan {
     #[must_use]
     pub fn canonical_method_request(&self) -> Option<CommonMethodRequest> {
         let mut request = match self {
-            Self::Algebraic(_) | Self::Ode(_) => return None,
+            Self::Eigen(_) | Self::Algebraic(_) | Self::Ode(_) => return None,
             Self::Scalar(plan) => CommonMethodRequest::Uniform(plan.spatial()),
             Self::Elasticity(_) => CommonMethodRequest::Uniform(CommonSpatialPolicy::Q1),
             Self::SteadyStokes(_) => CommonMethodRequest::Uniform(CommonSpatialPolicy::MiniP1),
@@ -248,7 +254,9 @@ impl ResolvedCommonPlan {
                 nonlinear: plan.nonlinear(),
                 linear,
             },
-            Self::Ode(_) => unreachable!("ODE Plan has no effective linear solver"),
+            Self::Eigen(_) | Self::Ode(_) => {
+                unreachable!("ODE Plan has no effective linear solver")
+            }
             Self::Algebraic(plan) => match plan.nonlinear() {
                 Some(nonlinear) => CommonSolvePolicy::Newton { nonlinear, linear },
                 None => CommonSolvePolicy::Linear(linear),
@@ -274,7 +282,11 @@ impl ResolvedCommonPlan {
             Self::Scalar(plan) => plan.admission.temporal,
             Self::TransientFlow(plan) => Some(plan.temporal()),
             Self::Fsi(plan) => Some(plan.temporal()),
-            Self::Algebraic(_) | Self::Ode(_) | Self::Elasticity(_) | Self::SteadyStokes(_) => None,
+            Self::Eigen(_)
+            | Self::Algebraic(_)
+            | Self::Ode(_)
+            | Self::Elasticity(_)
+            | Self::SteadyStokes(_) => None,
         }
     }
 
@@ -283,7 +295,8 @@ impl ResolvedCommonPlan {
     pub fn tsitouras45(&self) -> Option<&CommonTsitouras45> {
         match self {
             Self::Ode(plan) => Some(plan.temporal()),
-            Self::Algebraic(_)
+            Self::Eigen(_)
+            | Self::Algebraic(_)
             | Self::Scalar(_)
             | Self::Elasticity(_)
             | Self::SteadyStokes(_)
@@ -294,7 +307,7 @@ impl ResolvedCommonPlan {
 
     /// Encode this complete resolved Plan and its exact replay roots.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&WireResolvedCommonPlanV7::from_plan(self)?).map_err(|error| {
+        serde_json::to_vec(&WireResolvedCommonPlanV8::from_plan(self)?).map_err(|error| {
             invalid(format!(
                 "cannot encode resolved common Plan artifact: {error}"
             ))
@@ -316,7 +329,7 @@ impl ResolvedCommonPlan {
                 bytes.len()
             )));
         }
-        let wire: WireResolvedCommonPlanV7 = serde_json::from_slice(bytes)
+        let wire: WireResolvedCommonPlanV8 = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid resolved common Plan JSON: {error}")))?;
         wire.validate_header()?;
         let resolved = wire.resolve(linear_backend, time_backend)?;
@@ -329,7 +342,7 @@ impl ResolvedCommonPlan {
     }
 }
 
-impl WireResolvedCommonPlanV7 {
+impl WireResolvedCommonPlanV8 {
     fn from_plan(plan: &ResolvedCommonPlan) -> Result<Self, Diagnostic> {
         let model = plan_model_artifact(plan).canonical_json()?;
         let mesh = plan_authenticated_mesh(plan)
@@ -365,6 +378,9 @@ impl WireResolvedCommonPlanV7 {
             },
             scaling: scaling_request(plan),
             solve: solve_request(plan),
+            spectral: plan
+                .as_eigen()
+                .map(|plan| WireEigenRequest::from_native(plan.request())),
             temporal: temporal_request(plan),
             enforcement: plan
                 .as_algebraic()
@@ -388,6 +404,27 @@ impl WireResolvedCommonPlanV7 {
             ));
         }
         let ode = self.family == WirePlanFamily::Ode;
+        if self.family == WirePlanFamily::Eigen {
+            if self.spectral.is_none()
+                || self.solve.is_some()
+                || self.mesh_base64.is_some()
+                || self.spatial.is_some()
+                || self.realization_base64.is_some()
+                || self.temporal.is_some()
+                || self.scaling.is_some()
+                || self.requested_formulation.is_some()
+                || self.effective_formulation != Some(WireFormulation::FiniteHermitianPencil)
+                || self.authored_formulation_base64.is_some()
+            {
+                return Err(invalid(
+                    "spectral Plan has incompatible controls or replay roots",
+                ));
+            }
+            return Ok(());
+        }
+        if self.spectral.is_some() {
+            return Err(invalid("spectral controls crossed another Plan family"));
+        }
         if self.family == WirePlanFamily::Algebraic {
             if self.mesh_base64.is_some()
                 || self.spatial.is_some()
@@ -450,6 +487,15 @@ impl WireResolvedCommonPlanV7 {
     ) -> Result<ResolvedCommonPlan, Diagnostic> {
         let model_bytes = decode(&self.model_base64, "Model")?;
         let model = ModelEnvelope::from_json(&model_bytes, ModelDecoderLimits::default())?;
+        if self.family == WirePlanFamily::Eigen {
+            let request = self
+                .spectral
+                .as_ref()
+                .ok_or_else(|| invalid("spectral controls are absent"))?
+                .to_native()?;
+            return CommonEigenPlan::resolve(&model, request, linear_backend)
+                .map(|plan| ResolvedCommonPlan::Eigen(Box::new(plan)));
+        }
         if self.family == WirePlanFamily::Algebraic {
             let Some(request) = self
                 .solve
@@ -671,6 +717,7 @@ impl From<WireSpatialPolicy> for CommonSpatialPolicy {
 impl From<FormulationKind> for WireFormulation {
     fn from(value: FormulationKind) -> Self {
         match value {
+            FormulationKind::FiniteHermitianPencil => Self::FiniteHermitianPencil,
             FormulationKind::FirstOrderEvolution => Self::FirstOrderEvolution,
             FormulationKind::PrimalGalerkin => Self::PrimalGalerkin,
             FormulationKind::MixedGalerkin => Self::MixedGalerkin,
@@ -682,6 +729,7 @@ impl From<FormulationKind> for WireFormulation {
 impl From<WireFormulation> for FormulationKind {
     fn from(value: WireFormulation) -> Self {
         match value {
+            WireFormulation::FiniteHermitianPencil => Self::FiniteHermitianPencil,
             WireFormulation::FirstOrderEvolution => Self::FirstOrderEvolution,
             WireFormulation::PrimalGalerkin => Self::PrimalGalerkin,
             WireFormulation::MixedGalerkin => Self::MixedGalerkin,
@@ -692,6 +740,7 @@ impl From<WireFormulation> for FormulationKind {
 
 fn family(plan: &ResolvedCommonPlan) -> WirePlanFamily {
     match plan {
+        ResolvedCommonPlan::Eigen(_) => WirePlanFamily::Eigen,
         ResolvedCommonPlan::Algebraic(_) => WirePlanFamily::Algebraic,
         ResolvedCommonPlan::Ode(_) => WirePlanFamily::Ode,
         ResolvedCommonPlan::Scalar(_) => WirePlanFamily::Scalar,
@@ -704,6 +753,7 @@ fn family(plan: &ResolvedCommonPlan) -> WirePlanFamily {
 
 fn plan_model_artifact(plan: &ResolvedCommonPlan) -> &ModelEnvelope {
     match plan {
+        ResolvedCommonPlan::Eigen(plan) => plan.model_artifact(),
         ResolvedCommonPlan::Algebraic(plan) => plan.model_artifact(),
         ResolvedCommonPlan::Ode(plan) => plan.model_artifact(),
         ResolvedCommonPlan::Scalar(plan) => plan.admission.model(),
@@ -716,7 +766,9 @@ fn plan_model_artifact(plan: &ResolvedCommonPlan) -> &ModelEnvelope {
 
 fn plan_authenticated_mesh(plan: &ResolvedCommonPlan) -> Option<AuthenticatedCommonMesh> {
     match plan {
-        ResolvedCommonPlan::Algebraic(_) | ResolvedCommonPlan::Ode(_) => None,
+        ResolvedCommonPlan::Eigen(_)
+        | ResolvedCommonPlan::Algebraic(_)
+        | ResolvedCommonPlan::Ode(_) => None,
         ResolvedCommonPlan::Scalar(plan) => Some(AuthenticatedCommonMesh {
             resources: plan.admission.resources().clone(),
         }),
@@ -737,7 +789,9 @@ fn plan_authenticated_mesh(plan: &ResolvedCommonPlan) -> Option<AuthenticatedCom
 
 fn portable_graph(plan: &ResolvedCommonPlan) -> Option<&PortableRealizationGraph> {
     match plan {
-        ResolvedCommonPlan::Algebraic(_) | ResolvedCommonPlan::Ode(_) => None,
+        ResolvedCommonPlan::Eigen(_)
+        | ResolvedCommonPlan::Algebraic(_)
+        | ResolvedCommonPlan::Ode(_) => None,
         ResolvedCommonPlan::Scalar(plan) => Some(plan.portable_realization()),
         ResolvedCommonPlan::Elasticity(plan) => Some(plan.portable_realization()),
         ResolvedCommonPlan::SteadyStokes(plan) => Some(plan.portable_realization()),
@@ -749,7 +803,9 @@ fn portable_graph(plan: &ResolvedCommonPlan) -> Option<&PortableRealizationGraph
 fn spatial_request(plan: &ResolvedCommonPlan) -> Option<WireSpatialRequest> {
     let uniform = |policy| WireSpatialRequest::Uniform { policy };
     match plan {
-        ResolvedCommonPlan::Algebraic(_) | ResolvedCommonPlan::Ode(_) => None,
+        ResolvedCommonPlan::Eigen(_)
+        | ResolvedCommonPlan::Algebraic(_)
+        | ResolvedCommonPlan::Ode(_) => None,
         ResolvedCommonPlan::Scalar(plan) => Some(uniform(plan.spatial().into())),
         ResolvedCommonPlan::Elasticity(_) => Some(uniform(WireSpatialPolicy::Q1)),
         ResolvedCommonPlan::SteadyStokes(_) => Some(uniform(WireSpatialPolicy::MiniP1)),
@@ -803,6 +859,7 @@ fn scaling_request(plan: &ResolvedCommonPlan) -> Option<WireScalingRequest> {
         ResolvedCommonPlan::TransientFlow(plan) => plan.scaling_receipt(),
         ResolvedCommonPlan::Fsi(plan) => plan.scaling_receipt(),
         ResolvedCommonPlan::Algebraic(_)
+        | ResolvedCommonPlan::Eigen(_)
         | ResolvedCommonPlan::Ode(_)
         | ResolvedCommonPlan::Scalar(_)
         | ResolvedCommonPlan::Elasticity(_) => return None,
@@ -852,7 +909,8 @@ fn temporal_request(plan: &ResolvedCommonPlan) -> Option<WireTemporal> {
         ResolvedCommonPlan::Fsi(plan) => Some(WireTemporal::BackwardEuler {
             step_s: plan.temporal().step().value(),
         }),
-        ResolvedCommonPlan::Algebraic(_)
+        ResolvedCommonPlan::Eigen(_)
+        | ResolvedCommonPlan::Algebraic(_)
         | ResolvedCommonPlan::Elasticity(_)
         | ResolvedCommonPlan::SteadyStokes(_) => None,
     }

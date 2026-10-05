@@ -93,7 +93,8 @@ pub(super) fn validate_fields(
                     &[(CommonFieldAssociation::Vertex, vec![vertices])],
                 )
         }
-        ResolvedCommonPlan::Algebraic(_)
+        ResolvedCommonPlan::Eigen(_)
+        | ResolvedCommonPlan::Algebraic(_)
         | ResolvedCommonPlan::Ode(_)
         | ResolvedCommonPlan::TransientFlow(_)
         | ResolvedCommonPlan::Fsi(_) => false,
@@ -144,7 +145,8 @@ pub(super) fn require_family(
         (
             ResolvedCommonPlan::Algebraic(_),
             WireResultFamily::Algebraic
-        ) | (ResolvedCommonPlan::Scalar(_), WireResultFamily::Scalar)
+        ) | (ResolvedCommonPlan::Eigen(_), WireResultFamily::Eigen)
+            | (ResolvedCommonPlan::Scalar(_), WireResultFamily::Scalar)
             | (
                 ResolvedCommonPlan::Elasticity(_),
                 WireResultFamily::Elasticity

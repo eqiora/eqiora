@@ -171,6 +171,45 @@ class Linear:
     def __repr__(self) -> str: ...
 ```
 
+<a id="api-eqiora-solve-HermitianEigen"></a>
+
+## `HermitianEigen`
+
+Dense Hermitian selection with a declared provider and typed controls.
+
+```python
+@final
+class HermitianEigen:
+    def __init__(self, *, count: int, provider: SolverProvider, residual_tolerance: float, normalization_tolerance: float, target: tuple[float, Dimension] | None=None, interval: tuple[tuple[float, Dimension], tuple[float, Dimension]] | None=None) -> None: ...
+    @property
+    def count(self) -> int: ...
+    @property
+    def provider(self) -> SolverProvider: ...
+    @property
+    def residual_tolerance(self) -> float: ...
+    @property
+    def normalization_tolerance(self) -> float: ...
+    @property
+    def target(self) -> tuple[float, Dimension] | None: ...
+    @property
+    def interval(self) -> tuple[tuple[float, Dimension], tuple[float, Dimension]] | None: ...
+```
+
+<a id="api-eqiora-solve-EigenPlanView"></a>
+
+## `EigenPlanView`
+
+Source roles of one complete finite Hermitian pencil.
+
+```python
+@final
+class EigenPlanView:
+    @property
+    def mode_field(self) -> FieldRef: ...
+    @property
+    def eigenvalue_field(self) -> FieldRef: ...
+```
+
 <a id="api-eqiora-solve-AlgebraicPlanView"></a>
 
 ## `AlgebraicPlanView`

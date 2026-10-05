@@ -411,8 +411,7 @@ mod tests {
     };
     use eqiora_solver::{
         DiagonalAvailability, LinearOperatorProperties, LinearSolver, PreconditionerPolicy,
-        REFERENCE_LINEAR_SOLVER, REPRODUCIBLE_INNER_PRODUCT_CHUNK_LENGTH, ReductionPolicy,
-        RowLinearAction,
+        REFERENCE_LINEAR_SOLVER, ReductionPolicy, RowLinearAction,
     };
 
     use super::*;
@@ -641,9 +640,9 @@ mod tests {
 
     #[test]
     fn fixed_order_reduction_is_bit_identical_for_one_and_four_workers() {
-        let mut right = vec![1.0; 2 * REPRODUCIBLE_INNER_PRODUCT_CHUNK_LENGTH + 1];
+        let mut right = vec![1.0; 2 * FixedOrderInnerProduct::CHUNK_LENGTH + 1];
         right[0] = 1.0e16;
-        right[REPRODUCIBLE_INNER_PRODUCT_CHUNK_LENGTH] = -1.0e16;
+        right[FixedOrderInnerProduct::CHUNK_LENGTH] = -1.0e16;
         let left = vec![1.0; right.len()];
         let action = FixedOrderInnerProduct::new(&left, &right).unwrap();
         let serial = SERIAL_LINEAR_EXECUTION.inner_product(action).unwrap();

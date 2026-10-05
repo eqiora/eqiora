@@ -29,6 +29,7 @@ const PLAN_FILE_SPEC: ArtifactFileSpec = ArtifactFileSpec {
 
 mod algebraic;
 mod capability_view;
+mod eigen;
 mod enforcement;
 use capability_view::{
     PyElasticityPlanView, PyFixedReferenceFsiPlanView, PyFormulationKind,
@@ -49,7 +50,9 @@ pub(crate) use registration::register;
 mod scaling;
 use scaling::{PyIncompressibleScales, PyIncompressibleScaling, PyIncompressibleScalingReceipt2d};
 mod resolved_solve;
-use resolved_solve::{PyResolvedLinear, PyResolvedNewton, SolverPlanningAudit};
+use resolved_solve::{
+    PyResolvedLinear, PyResolvedNewton, SolverPlanningAudit, solve_handles_from_native,
+};
 mod resolved_execution;
 use resolved_execution::PyResolvedExecution;
 
@@ -69,12 +72,14 @@ enum SpatialHandle {
 
 #[derive(Debug)]
 enum RequestedSolveHandle {
+    Eigen(Py<eigen::PyHermitianEigen>),
     Linear(Py<PyLinear>),
     Newton(Py<PyNewton>),
 }
 
 #[derive(Debug)]
 enum ResolvedSolveHandle {
+    Eigen(Py<eigen::PyHermitianEigen>),
     Linear(Py<PyResolvedLinear>),
     Newton(Py<PyResolvedNewton>),
 }
@@ -259,67 +264,6 @@ fn spatial_handle_from_request(
     }
 }
 
-fn solve_handles_from_native(
-    py: Python<'_>,
-    native: &ResolvedCommonPlan,
-) -> PyResult<(Option<RequestedSolveHandle>, Option<ResolvedSolveHandle>)> {
-    let Some(request) = native.canonical_solve_request() else {
-        return Ok((None, None));
-    };
-    let requested = match request {
-        CommonSolvePolicy::Linear(linear) => {
-            RequestedSolveHandle::Linear(Py::new(py, PyLinear::from_native(linear))?)
-        }
-        CommonSolvePolicy::Newton { nonlinear, linear } => {
-            let linear = Py::new(py, PyLinear::from_native(linear))?;
-            RequestedSolveHandle::Newton(Py::new(py, PyNewton::from_native(linear, nonlinear))?)
-        }
-    };
-    let solver_planning_audit = native.solver_planning_objective().map(|objective| {
-        SolverPlanningAudit::new(
-            objective.into(),
-            native
-                .solver_planning_policy_id()
-                .expect("planned solver retains its policy identity"),
-            native
-                .selected_solver_candidate_id()
-                .expect("planned solver retains its selected candidate"),
-            native
-                .selected_solver_evidence_case()
-                .expect("planned solver retains its evidence identity"),
-            native.solver_planning_reasons().to_vec(),
-        )
-    });
-    let linear = Py::new(
-        py,
-        PyResolvedLinear::new(
-            native
-                .effective_solver()
-                .expect("spatial common Plan owns an effective linear solver"),
-            native
-                .operator_properties()
-                .expect("spatial common Plan owns operator properties"),
-            native
-                .linear_solver_provider()
-                .expect("spatial Plan owns its exact provider"),
-            solver_planning_audit,
-        ),
-    )?;
-    let resolved = match native {
-        ResolvedCommonPlan::TransientFlow(plan) => ResolvedSolveHandle::Newton(Py::new(
-            py,
-            PyResolvedNewton::new(linear, plan.nonlinear()),
-        )?),
-        ResolvedCommonPlan::Ode(_) => unreachable!("ODE Plan has no common solve request"),
-        ResolvedCommonPlan::Algebraic(_)
-        | ResolvedCommonPlan::Scalar(_)
-        | ResolvedCommonPlan::Elasticity(_)
-        | ResolvedCommonPlan::SteadyStokes(_)
-        | ResolvedCommonPlan::Fsi(_) => ResolvedSolveHandle::Linear(linear),
-    };
-    Ok((Some(requested), Some(resolved)))
-}
-
 #[pymethods]
 impl PyPlan {
     /// Explicit finite mathematical enforcement, separate from the Model.
@@ -442,6 +386,7 @@ impl PyPlan {
     #[getter]
     fn capability(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         match &self.native {
+            ResolvedCommonPlan::Eigen(plan) => eigen::view(py, plan),
             ResolvedCommonPlan::Algebraic(plan) => algebraic::view(py, plan),
             ResolvedCommonPlan::Ode(plan) => Py::new(
                 py,
@@ -559,6 +504,12 @@ impl PyPlan {
     fn fields(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         let model_digest = self.native.model_digest().to_owned();
         let fields = match &self.native {
+            ResolvedCommonPlan::Eigen(plan) => [plan.mode_field(), plan.eigenvalue_field()]
+                .into_iter()
+                .map(|field| {
+                    PyModelFieldRef::from_exact(model_digest.clone(), field.ulid().to_string())
+                })
+                .collect(),
             ResolvedCommonPlan::Algebraic(plan) => plan
                 .symbols()
                 .iter()
@@ -635,6 +586,7 @@ impl PyPlan {
     #[getter]
     fn solve(&self, py: Python<'_>) -> Option<Py<PyAny>> {
         self.solve.as_ref().map(|solve| match solve {
+            ResolvedSolveHandle::Eigen(value) => value.clone_ref(py).into_any(),
             ResolvedSolveHandle::Linear(value) => value.clone_ref(py).into_any(),
             ResolvedSolveHandle::Newton(value) => value.clone_ref(py).into_any(),
         })
@@ -642,6 +594,7 @@ impl PyPlan {
     #[getter]
     fn requested_solve(&self, py: Python<'_>) -> Option<Py<PyAny>> {
         self.requested_solve.as_ref().map(|solve| match solve {
+            RequestedSolveHandle::Eigen(value) => value.clone_ref(py).into_any(),
             RequestedSolveHandle::Linear(value) => value.clone_ref(py).into_any(),
             RequestedSolveHandle::Newton(value) => value.clone_ref(py).into_any(),
         })
@@ -698,6 +651,22 @@ fn resolve_plan(
         return Err(PyTypeError::new_err(
             "finite enforcement cannot accompany spatial or temporal resolution",
         ));
+    }
+    if let Some(policy) =
+        solve.and_then(|value| value.extract::<PyRef<'_, eigen::PyHermitianEigen>>().ok())
+    {
+        if mesh.is_some()
+            || spatial.is_some()
+            || temporal.is_some()
+            || formulation.is_some()
+            || scaling.is_some()
+            || enforcement.is_some()
+        {
+            return Err(PyTypeError::new_err(
+                "Hermitian eigen resolution accepts only model and its spectral solve policy",
+            ));
+        }
+        return eigen::resolve(py, model, &policy);
     }
     let ode_temporal = temporal.and_then(|value| value.extract::<Py<PyTsitouras45>>().ok());
     if let Some(temporal_handle) = ode_temporal {
@@ -950,7 +919,9 @@ fn resolve_plan(
             py,
             PyResolvedNewton::new(linear, plan.nonlinear()),
         )?),
-        ResolvedCommonPlan::Ode(_) => unreachable!("spatial resolver cannot return an ODE Plan"),
+        ResolvedCommonPlan::Eigen(_) | ResolvedCommonPlan::Ode(_) => {
+            unreachable!("spatial resolver cannot return an ODE Plan")
+        }
         ResolvedCommonPlan::Algebraic(_)
         | ResolvedCommonPlan::Scalar(_)
         | ResolvedCommonPlan::Elasticity(_)

@@ -282,7 +282,8 @@ impl PyState {
                     .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
                 Self::from_common_fsi(py, plan, native, 0, None)?
             }
-            eqiora_numerics::ResolvedCommonPlan::Elasticity(_)
+            eqiora_numerics::ResolvedCommonPlan::Eigen(_)
+            | eqiora_numerics::ResolvedCommonPlan::Elasticity(_)
             | eqiora_numerics::ResolvedCommonPlan::SteadyStokes(_) => {
                 return Err(PyValueError::new_err(
                     "State.from_bytes requires an ODE, transient-flow, or fixed-reference FSI Plan",

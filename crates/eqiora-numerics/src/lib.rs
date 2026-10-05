@@ -53,13 +53,13 @@ pub use common_result::{CommonObservableStateTangent, CommonResult};
 pub use common_trajectory::{CommonTrajectory, TimeFunctionalQuadrature};
 pub use numerical_admission::{
     AuthenticatedCommonMesh, CommonAlgebraicPlan, CommonAlgebraicState, CommonBackwardEuler,
-    CommonElasticityPlan, CommonFormulationDescription, CommonFsiConnectionInventory,
-    CommonFsiDomainInventory, CommonFsiPlan, CommonFsiRunRequest, CommonInitialField,
-    CommonInitialValues, CommonLinearRequest, CommonMethodRequest, CommonPressureGauge2d,
-    CommonScalarDifferentiationPoint, CommonScalarPlan, CommonScopedSpatialPolicy,
-    CommonSolvePolicy, CommonSpatialPolicy, CommonState, CommonSteadyStokesPlan,
-    CommonTransientFlowPlan, CommonTransientRunRequest, FormulationKind, FormulationSelectionMode,
-    ResolvedCommonPlan, resolve_common_ode_plan, resolve_common_plan,
+    CommonEigenPlan, CommonEigenRequest, CommonElasticityPlan, CommonFormulationDescription,
+    CommonFsiConnectionInventory, CommonFsiDomainInventory, CommonFsiPlan, CommonFsiRunRequest,
+    CommonInitialField, CommonInitialValues, CommonLinearRequest, CommonMethodRequest,
+    CommonPressureGauge2d, CommonScalarDifferentiationPoint, CommonScalarPlan,
+    CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy, CommonState,
+    CommonSteadyStokesPlan, CommonTransientFlowPlan, CommonTransientRunRequest, FormulationKind,
+    FormulationSelectionMode, ResolvedCommonPlan, resolve_common_ode_plan, resolve_common_plan,
 };
 mod factor_measure;
 pub mod finite_constraints;

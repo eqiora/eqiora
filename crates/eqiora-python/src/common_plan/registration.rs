@@ -2,6 +2,8 @@ use super::*;
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     solver_request::register(module)?;
+    module.add_class::<eigen::PyHermitianEigen>()?;
+    module.add_class::<eigen::PyEigenPlanView>()?;
     module.add_class::<PyQ1>()?;
     module.add_class::<PyMiniP1>()?;
     module.add_class::<PyP1>()?;

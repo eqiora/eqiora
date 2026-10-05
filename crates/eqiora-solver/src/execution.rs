@@ -5,12 +5,6 @@ use eqiora_core::diagnostic::codes;
 
 use crate::{ExecutionId, ExecutionProvider, ExecutionReport, LinearOperator, ReductionPolicy};
 
-/// Logical element count in one partial of the reproducible inner product.
-///
-/// This is numerical policy rather than scheduler granularity. Serial and
-/// parallel executions evaluate exactly the same partials and final fold.
-pub const REPRODUCIBLE_INNER_PRODUCT_CHUNK_LENGTH: usize = 1_024;
-
 /// One fixed-order Euclidean inner product lowered into independent partials.
 ///
 /// Execution adapters may evaluate partials concurrently, but their indices,
@@ -23,6 +17,10 @@ pub struct FixedOrderInnerProduct<'a> {
 }
 
 impl<'a> FixedOrderInnerProduct<'a> {
+    /// Logical element count in each reproducible partial, independent of scheduling.
+    /// Serial and parallel executions use these same partials and final fold.
+    pub const CHUNK_LENGTH: usize = 1_024;
+
     /// Bind equal-length complete resident vectors.
     ///
     /// # Errors
@@ -43,7 +41,7 @@ impl<'a> FixedOrderInnerProduct<'a> {
     pub fn partial_count(self) -> usize {
         self.left
             .len()
-            .div_ceil(REPRODUCIBLE_INNER_PRODUCT_CHUNK_LENGTH)
+            .div_ceil(FixedOrderInnerProduct::CHUNK_LENGTH)
     }
 
     /// Evaluate one logical partial in its fixed local order.
@@ -57,8 +55,8 @@ impl<'a> FixedOrderInnerProduct<'a> {
                 self.partial_count()
             )));
         }
-        let start = index * REPRODUCIBLE_INNER_PRODUCT_CHUNK_LENGTH;
-        let end = (start + REPRODUCIBLE_INNER_PRODUCT_CHUNK_LENGTH).min(self.left.len());
+        let start = index * FixedOrderInnerProduct::CHUNK_LENGTH;
+        let end = (start + FixedOrderInnerProduct::CHUNK_LENGTH).min(self.left.len());
         self.left[start..end]
             .iter()
             .zip(&self.right[start..end])
@@ -187,9 +185,9 @@ mod tests {
 
     #[test]
     fn fixed_order_inner_product_has_an_explicit_expression_tree() {
-        let mut right = vec![1.0; 2 * REPRODUCIBLE_INNER_PRODUCT_CHUNK_LENGTH + 1];
+        let mut right = vec![1.0; 2 * FixedOrderInnerProduct::CHUNK_LENGTH + 1];
         right[0] = 1.0e16;
-        right[REPRODUCIBLE_INNER_PRODUCT_CHUNK_LENGTH] = -1.0e16;
+        right[FixedOrderInnerProduct::CHUNK_LENGTH] = -1.0e16;
         let left = vec![1.0; right.len()];
         let action = FixedOrderInnerProduct::new(&left, &right).unwrap();
 

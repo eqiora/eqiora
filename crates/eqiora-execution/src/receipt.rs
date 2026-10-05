@@ -372,8 +372,7 @@ impl<'system> AdmittedExecution<'system> {
             .try_reserve_exact(dimension)
             .map_err(|_| invalid("could not reserve host verifier residual workspace"))?;
         residual.resize(dimension, 0.0);
-        let partial_count =
-            dimension.div_ceil(eqiora_solver::REPRODUCIBLE_INNER_PRODUCT_CHUNK_LENGTH);
+        let partial_count = dimension.div_ceil(eqiora_solver::FixedOrderInnerProduct::CHUNK_LENGTH);
         let mut partials = Vec::new();
         partials
             .try_reserve_exact(partial_count)

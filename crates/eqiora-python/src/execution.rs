@@ -507,6 +507,12 @@ impl PyRun {
             plan_ref.native(),
             request,
         ) {
+            (ResolvedCommonPlan::Eigen(native), None) => (
+                RunIdentity::from_common_eigen(native),
+                NativeRunJob::Eigen(native.clone()),
+                "eqiora-common-eigen-run",
+                false,
+            ),
             (ResolvedCommonPlan::Algebraic(native), Some(CommonRunRequest::Algebraic(state))) => (
                 RunIdentity::from_common_algebraic(native),
                 NativeRunJob::Algebraic(native.clone(), state),
