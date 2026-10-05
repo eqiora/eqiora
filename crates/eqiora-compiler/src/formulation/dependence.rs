@@ -16,9 +16,13 @@ enum Argument {
 type Term = BTreeMap<Argument, (u8, u8)>;
 type Terms = BTreeSet<Term>;
 
-pub(super) fn check_complex_form(value: &AuthoredFormExpression) -> Result<(), Diagnostic> {
+fn check_complex_form(
+    value: &AuthoredFormExpressionV1,
+    domains: &BTreeMap<RawId, ScalarDomain>,
+    trials: &BTreeSet<RawId>,
+) -> Result<(), Diagnostic> {
     let mut budget = 65536;
-    for term in classify(value, false, &mut budget, 0)? {
+    for term in classify(value, false, domains, trials, &mut budget, 0)? {
         let (mut tests, mut trials) = (0_u32, 0_u32);
         for (argument, (linear, antilinear)) in term {
             match argument {
@@ -78,70 +82,87 @@ fn product(left: &Terms, right: &Terms, budget: &mut usize) -> Result<Terms, Dia
 }
 
 fn classify(
-    value: &AuthoredFormExpression,
+    value: &AuthoredFormExpressionV1,
     conjugated: bool,
+    domains: &BTreeMap<RawId, ScalarDomain>,
+    trials: &BTreeSet<RawId>,
     budget: &mut usize,
     depth: usize,
 ) -> Result<Terms, Diagnostic> {
-    use AuthoredFormExpressionKind as E;
+    use AuthoredFormExpressionV1 as E;
     spend(budget)?;
     if depth > 128 {
         return Err(wire::rejection(
             "form dependence exceeds its expression depth",
         ));
     }
-    let complex = value.value_type.scalar_domain() == ScalarDomain::Complex;
-    let mut child = |v, conjugated| classify(v, conjugated, budget, depth + 1);
-    let atom = |argument| {
+    let mut child = |v, conjugated| classify(v, conjugated, domains, trials, budget, depth + 1);
+    let atom = |argument, complex| {
         let anti = conjugated && complex;
         BTreeSet::from([BTreeMap::from([(
             argument,
             if anti { (0, 1) } else { (1, 0) },
         )])])
     };
-    Ok(match &value.kind {
-        E::Number(x) if *x == 0.0 => Terms::new(),
-        E::Number(_) | E::Rational(_) | E::Parameter(_) | E::Coordinate { .. } => constant(),
-        E::Field(id) => atom(Argument::Trial(id.erase())),
-        E::Test(id) => atom(Argument::Test(id.erase(), complex)),
-        E::Direction { name, .. } => atom(Argument::Direction(name.clone(), complex)),
-        E::Conjugate(v) => child(v, !conjugated)?,
-        E::Neg(v)
-        | E::Trace(v)
-        | E::Gradient(v)
-        | E::Divergence(v)
-        | E::SymmetricPart(v)
-        | E::Component { value: v, .. }
-        | E::Integrate { integrand: v, .. } => child(v, conjugated)?,
-        E::Inner(left, right) | E::Dot(left, right) | E::Frobenius(left, right) => {
-            let left = child(left, conjugated ^ matches!(&value.kind, E::Inner(..)))?;
+    Ok(match value {
+        E::Number { value } if *value == 0.0 => Terms::new(),
+        E::Number { .. } | E::Rational { .. } | E::Parameter { .. } | E::Coordinate { .. } => {
+            constant()
+        }
+        E::Field { ulid } => {
+            let id = field_id(ulid)?;
+            if trials.contains(&id) {
+                atom(Argument::Trial(id), domains[&id] == ScalarDomain::Complex)
+            } else {
+                constant()
+            }
+        }
+        E::Test { field_ulid } | E::Direction { field_ulid, .. } => {
+            let id = field_id(field_ulid)?;
+            if !trials.contains(&id) {
+                return Err(wire::rejection(
+                    "test or direction is outside the declared trial inventory",
+                ));
+            }
+            let complex = domains[&id] == ScalarDomain::Complex;
+            let argument = if let E::Direction { name, .. } = value {
+                Argument::Direction(name.clone(), complex)
+            } else {
+                Argument::Test(id, complex)
+            };
+            atom(argument, complex)
+        }
+        E::Conjugate { value } => child(value, !conjugated)?,
+        E::Neg { value }
+        | E::Trace { value }
+        | E::Gradient { value }
+        | E::Divergence { value }
+        | E::SymmetricPart { value }
+        | E::Component { value, .. }
+        | E::Integrate {
+            integrand: value, ..
+        } => child(value, conjugated)?,
+        E::Inner { left, right } | E::Dot { left, right } | E::Frobenius { left, right } => {
+            let left = child(left, conjugated ^ matches!(value, E::Inner { .. }))?;
             let right = child(right, conjugated)?;
             product(&left, &right, budget)?
         }
-        E::Complex(left, right)
-        | E::Binary {
-            operator: BinaryOp::Add | BinaryOp::Sub,
-            left,
-            right,
-        } => {
+        E::Complex {
+            real: left,
+            imag: right,
+        }
+        | E::Add { left, right }
+        | E::Sub { left, right } => {
             let mut result = child(left, conjugated)?;
             result.extend(child(right, conjugated)?);
             result
         }
-        E::Binary {
-            operator: BinaryOp::Mul,
-            left,
-            right,
-        } => {
+        E::Mul { left, right } => {
             let left = child(left, conjugated)?;
             let right = child(right, conjugated)?;
             product(&left, &right, budget)?
         }
-        E::Binary {
-            operator: BinaryOp::Div,
-            left,
-            right,
-        } => {
+        E::Div { left, right } => {
             let left = child(left, conjugated)?;
             if child(right, conjugated)?
                 .iter()
@@ -151,7 +172,7 @@ fn classify(
             }
             left
         }
-        E::Pow(base, exponent) => {
+        E::Pow { base, exponent } => {
             let base = child(base, conjugated)?;
             if *exponent == 0 || base.iter().all(BTreeMap::is_empty) {
                 constant()
@@ -161,12 +182,146 @@ fn classify(
                 return Err(rejection());
             }
         }
-        E::Sin(v) => {
-            if child(v, conjugated)?.iter().any(|term| !term.is_empty()) {
+        E::Sin { value } => {
+            if child(value, conjugated)?
+                .iter()
+                .any(|term| !term.is_empty())
+            {
                 return Err(rejection());
             }
             constant()
         }
-        E::Variation { .. } | E::Binary { .. } => return Err(rejection()),
+        E::Variation { .. }
+        | E::EndpointFlux { .. }
+        | E::IntervalIntegral { .. }
+        | E::CoordinatePartial { .. } => return Err(rejection()),
     })
+}
+
+fn field_id(text: &str) -> Result<RawId, Diagnostic> {
+    canonical_id(text).map(|id| Id::<kinds::Field>::from_ulid(id).erase())
+}
+
+fn canonical_id(text: &str) -> Result<ulid::Ulid, Diagnostic> {
+    text.parse::<ulid::Ulid>()
+        .ok()
+        .filter(|id| id.to_string() == text)
+        .ok_or_else(|| wire::rejection("form dependence requires a canonical live identity"))
+}
+
+impl AuthoredFormulationProjection {
+    /// Recheck complex weak-form argument dependence against live definitions.
+    ///
+    /// The resolver must obtain each Field/Parameter type from the admitted Model.
+    /// Declared trial Fields are arguments; other live Fields are coefficients.
+    /// This does not authenticate supports, dimensions, restrictions, correspondence,
+    /// Hermitian symmetry, or solver suitability. Real-only and non-weak profiles
+    /// retain their separate admission checks. Decoding alone never calls this checker.
+    /// # Errors
+    /// Rejects missing live identities, non-sesquilinear complex argument dependence,
+    /// and expressions exceeding the bounded structural classification inventory.
+    pub fn check_complex_dependence(
+        &self,
+        resolve: &mut dyn FnMut(RawId) -> Result<ValueType, Diagnostic>,
+    ) -> Result<(), Diagnostic> {
+        if self.test_restrictions().is_empty() {
+            return Ok(());
+        }
+        let trials = self
+            .trial_ulids()
+            .iter()
+            .map(|id| field_id(id))
+            .collect::<Result<BTreeSet<_>, _>>()?;
+        let mut domains = BTreeMap::new();
+        for id in &trials {
+            domains.insert(*id, resolve(*id)?.scalar_domain());
+        }
+        let mut complex = domains
+            .values()
+            .any(|domain| *domain == ScalarDomain::Complex);
+        let mut pending = self
+            .equations()
+            .iter()
+            .flat_map(|(_, a, b)| [(a, 0), (b, 0)])
+            .collect::<Vec<_>>();
+        let mut budget = 65536;
+        use AuthoredFormExpressionV1 as E;
+        while let Some((value, depth)) = pending.pop() {
+            spend(&mut budget)?;
+            if depth > 128 {
+                return Err(wire::rejection(
+                    "form dependence exceeds its expression depth",
+                ));
+            }
+            let mut push = |value| pending.push((value, depth + 1));
+            let id = match value {
+                E::Field { ulid } => Some(field_id(ulid)?),
+                E::Test { field_ulid } | E::Direction { field_ulid, .. } => {
+                    Some(field_id(field_ulid)?)
+                }
+                E::Parameter { ulid } => {
+                    Some(Id::<kinds::Parameter>::from_ulid(canonical_id(ulid)?).erase())
+                }
+                E::Complex { real, imag } => {
+                    complex = true;
+                    push(real.as_ref());
+                    push(imag.as_ref());
+                    None
+                }
+                E::Add { left, right }
+                | E::Sub { left, right }
+                | E::Mul { left, right }
+                | E::Div { left, right }
+                | E::Inner { left, right }
+                | E::Dot { left, right }
+                | E::Frobenius { left, right } => {
+                    push(left.as_ref());
+                    push(right.as_ref());
+                    None
+                }
+                E::CoordinatePartial { value, wrt } => {
+                    push(value.as_ref());
+                    push(wrt.as_ref());
+                    None
+                }
+                E::Neg { value }
+                | E::Trace { value }
+                | E::Gradient { value }
+                | E::Divergence { value }
+                | E::SymmetricPart { value }
+                | E::Sin { value }
+                | E::Conjugate { value }
+                | E::Component { value, .. }
+                | E::Variation { value, .. }
+                | E::Integrate {
+                    integrand: value, ..
+                }
+                | E::IntervalIntegral {
+                    integrand: value, ..
+                }
+                | E::EndpointFlux { flux: value, .. }
+                | E::Pow { base: value, .. } => {
+                    push(value.as_ref());
+                    None
+                }
+                E::Number { .. } | E::Rational { .. } | E::Coordinate { .. } => None,
+            };
+            if let Some(id) = id {
+                let domain = match domains.entry(id) {
+                    std::collections::btree_map::Entry::Occupied(entry) => *entry.get(),
+                    std::collections::btree_map::Entry::Vacant(entry) => {
+                        *entry.insert(resolve(id)?.scalar_domain())
+                    }
+                };
+                complex |= domain == ScalarDomain::Complex;
+            }
+        }
+        if complex {
+            for (_, left, right) in self.equations() {
+                check_complex_form(left, &domains, &trials)?;
+                check_complex_form(right, &domains, &trials)?;
+            }
+        }
+        Ok(())
+    }
 }

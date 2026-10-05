@@ -2,6 +2,13 @@ use super::*;
 use eqiora_compiler::{AuthoredFormExpressionV1 as E, AuthoredFormulationProjection};
 
 fn complex_form(expression: &str) -> Result<CompiledModel, Vec<eqiora_core::Diagnostic>> {
+    complex_form_with_fields(expression, "")
+}
+
+fn complex_form_with_fields(
+    expression: &str,
+    fields: &str,
+) -> Result<CompiledModel, Vec<eqiora_core::Diagnostic>> {
     let source = format!(
         r#"
 public component Energy(
@@ -12,6 +19,7 @@ public component Energy(
     parameter gradient:J*m,
     parameter phase:complex<1>=math.complex(0,1)
 ) {{
+    {fields}
     variable c:complex<1> on body;
     relation stationarity on body {{ bulk*phase*c-div(gradient*grad(c))=0; }}
     relation left_value on left {{ trace(c)=0; }}
@@ -89,6 +97,7 @@ fn complex_weak_form_classifies_test_and_trial_dependence_structurally() {
         "inner(eta,math.sin(phase)*c)",
         "inner(eta,phase)",
         "inner(eta,c)/phase",
+        "inner(eta,math.conj(math.conj(c)))",
     ] {
         complex_form(&format!("integrate(body,{expression})"))
             .unwrap_or_else(|errors| panic!("{expression}: {errors:?}"));
@@ -191,5 +200,161 @@ fn authored_pairing_retains_conjugation_and_argument_order_in_current_wire() {
             ""
         )
         .is_err()
+    );
+}
+
+fn replay_types(
+    model: &CompiledModel,
+) -> std::collections::BTreeMap<eqiora_core::RawId, eqiora_core::ValueType> {
+    model
+        .transaction()
+        .ops()
+        .iter()
+        .filter_map(|op| match op {
+            eqiora_graph::Op::DefineKernelNode {
+                node: eqiora_schema::kernel::KernelNode::Field(field),
+            } => Some((field.id().erase(), field.value_type().clone())),
+            eqiora_graph::Op::DefineKernelNode {
+                node: eqiora_schema::kernel::KernelNode::Parameter(parameter),
+            } => Some((parameter.id().erase(), parameter.value_type().clone())),
+            _ => None,
+        })
+        .collect()
+}
+
+fn mutated_form(
+    form: &AuthoredFormulationProjection,
+    integrand: E,
+) -> AuthoredFormulationProjection {
+    let E::Integrate { integrand: old, .. } = &form.equations()[0].1 else {
+        panic!("integral")
+    };
+    let old = format!("\"integrand\":{}", serde_json::to_string(old).unwrap());
+    let new = format!(
+        "\"integrand\":{}",
+        serde_json::to_string(&integrand).unwrap()
+    );
+    let bytes = std::str::from_utf8(form.canonical_bytes())
+        .unwrap()
+        .replacen(&old, &new, 1);
+    AuthoredFormulationProjection::decode(bytes.as_bytes()).unwrap()
+}
+
+#[test]
+fn decoded_complex_dependence_rechecks_argument_order_and_live_types() {
+    use eqiora_core::{DimExponents, ScalarDomain, ValueType};
+    let model = complex_form("integrate(body,inner(eta,c))").unwrap();
+    let projection = model.authored_formulations().next().unwrap().projection();
+    let types = replay_types(&model);
+    let trial = projection.trial_ulids()[0].clone();
+    let test = E::Test {
+        field_ulid: trial.clone(),
+    };
+    let field = E::Field { ulid: trial };
+    let conj = |value| E::Conjugate {
+        value: Box::new(value),
+    };
+    let inner = |left, right| E::Inner {
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let mul = |left, right| E::Mul {
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    for (expression, valid) in [
+        (inner(test.clone(), field.clone()), true),
+        (mul(conj(test.clone()), field.clone()), true),
+        (inner(test.clone(), conj(conj(field.clone()))), true),
+        (inner(field.clone(), test.clone()), false),
+        (mul(test.clone(), field.clone()), false),
+        (inner(test.clone(), conj(field.clone())), false),
+        (
+            inner(test.clone(), mul(field.clone(), field.clone())),
+            false,
+        ),
+        (
+            E::Div {
+                left: Box::new(inner(test.clone(), field.clone())),
+                right: Box::new(field.clone()),
+            },
+            false,
+        ),
+    ] {
+        let decoded = mutated_form(projection, expression);
+        assert_eq!(
+            decoded
+                .check_complex_dependence(&mut |id| Ok(types[&id].clone()))
+                .is_ok(),
+            valid,
+            "{:?}",
+            decoded.equations()
+        );
+    }
+    let decoded = mutated_form(projection, mul(test, field));
+    // Identical serialized multiplication is real-linear but fails when its live
+    // argument domain is complex. The wire cannot assert that its inputs are real.
+    let real = ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap();
+    decoded
+        .check_complex_dependence(&mut |_| Ok(real.clone()))
+        .unwrap();
+    assert!(
+        decoded
+            .check_complex_dependence(&mut |id| Ok(types[&id].clone()))
+            .is_err()
+    );
+    let absent = eqiora_core::Diagnostic::error(
+        eqiora_core::diagnostic::codes::INVALID_DISCRETIZATION,
+        "missing live definition",
+    );
+    assert!(
+        decoded
+            .check_complex_dependence(&mut |_| Err(absent.clone()))
+            .is_err()
+    );
+}
+
+#[test]
+fn known_complex_fields_are_coefficients_and_real_arguments_still_require_linearity() {
+    let model = complex_form_with_fields(
+        "integrate(body,inner(eta,math.conj(known)*c))",
+        "variable known:complex<1> on body;",
+    )
+    .unwrap();
+    let projection = model.authored_formulations().next().unwrap().projection();
+    let types = replay_types(&model);
+    let decoded = AuthoredFormulationProjection::decode(projection.canonical_bytes()).unwrap();
+    decoded
+        .check_complex_dependence(&mut |id| Ok(types[&id].clone()))
+        .unwrap();
+    assert_eq!(projection.trial_ulids().len(), 1);
+
+    let model = complex_form("integrate(body,inner(eta,phase*c))").unwrap();
+    let projection = model.authored_formulations().next().unwrap().projection();
+    let mut types = replay_types(&model);
+    // Keep phase complex while making both test and trial real in the live resolver.
+    for (id, ty) in &mut types {
+        if id.downcast::<eqiora_core::entity::kinds::Field>().is_some() {
+            *ty = eqiora_core::ValueType::scalar(eqiora_core::ScalarDomain::Real, ty.dimension())
+                .unwrap();
+        }
+    }
+    projection
+        .check_complex_dependence(&mut |id| Ok(types[&id].clone()))
+        .unwrap();
+    let E::Integrate { integrand, .. } = &projection.equations()[0].1 else {
+        panic!("integral")
+    };
+    let nonlinear = mutated_form(
+        projection,
+        E::Mul {
+            left: integrand.clone(),
+            right: integrand.clone(),
+        },
+    );
+    assert!(
+        nonlinear
+            .check_complex_dependence(&mut |id| Ok(types[&id].clone()))
+            .is_err()
     );
 }
