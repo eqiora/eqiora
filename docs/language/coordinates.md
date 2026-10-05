@@ -8,8 +8,8 @@ The current implementation admits abstract dimensioned interval slots and owned 
 Model and Component source, including nested products, physical Cartesian region factors, and
 whole-product and selected-factor Observable measures.
 The source support owns factor identity; native `StaticBindingValue::CoordinateInterval` and
-Python `CoordinateInterval` supply checked finite bounds. Model/Transaction v38 and structural
-fingerprint v33 retain these factors. No ambient physical frame or numerical realization is
+Python `CoordinateInterval` supply checked finite bounds. Model/Transaction v39 and structural
+fingerprint v34 retain these factors. No ambient physical frame or numerical realization is
 inferred. Exact coordinate binders and real scalar polynomial partials execute through the
 shared calculus evaluator, including independently dimensioned position and velocity factors.
 First coordinate derivatives of continuous scalar Fields remain explicit Model nodes; the

@@ -46,6 +46,12 @@ pub(super) enum Instruction {
     Mul(ValueId, ValueId),
     Div(ValueId, ValueId),
     PowI(ValueId, i32),
+    // Contiguous row-major numerical operands; None selects the determinant.
+    MapInvariant {
+        start: ValueId,
+        extent: u32,
+        component: Option<u32>,
+    },
 }
 
 impl Instruction {
@@ -69,6 +75,7 @@ impl Instruction {
             Self::Sub(a, b) => Self::Sub(at(a), at(b)),
             Self::Mul(a, b) => Self::Mul(at(a), at(b)),
             Self::Div(a, b) => Self::Div(at(a), at(b)),
+            Self::MapInvariant { .. } => return None,
             Self::Quotient(a, b) => Self::Quotient(at(a), at(b)),
             Self::Remainder(a, b) => Self::Remainder(at(a), at(b)),
             Self::And(a, b) => Self::And(at(a), at(b)),

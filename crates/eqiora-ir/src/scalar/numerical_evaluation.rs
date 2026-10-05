@@ -6,6 +6,7 @@ pub(super) fn evaluate_instructions(
     inputs: &[f64],
 ) -> Result<Vec<f64>, Diagnostic> {
     let mut values = Vec::with_capacity(instructions.len());
+    let mut maps = map_evaluation::MapCache::default();
     for (index, instruction) in instructions.iter().enumerate() {
         let value = match *instruction {
             Instruction::Select { .. }
@@ -56,6 +57,11 @@ pub(super) fn evaluate_instructions(
             Instruction::Div(left, right) => {
                 read(&values, left, index)? / read(&values, right, index)?
             }
+            Instruction::MapInvariant {
+                start,
+                extent,
+                component,
+            } => maps.get(start, extent, &values)?.value(component)?,
             Instruction::PowI(base, exponent) => read(&values, base, index)?.powi(exponent),
         };
         if !value.is_finite() {

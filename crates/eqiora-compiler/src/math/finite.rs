@@ -15,6 +15,9 @@ impl Operation {
     pub(crate) fn named(name: &str) -> Option<Self> {
         Some(match name {
             "transpose" => Self::Unary(FiniteUnaryOperation::Transpose),
+            "matrix_trace" => Self::Unary(FiniteUnaryOperation::MatrixTrace),
+            "determinant" => Self::Unary(FiniteUnaryOperation::Determinant),
+            "inverse" => Self::Unary(FiniteUnaryOperation::Inverse),
             "adjoint" => Self::Unary(FiniteUnaryOperation::Adjoint),
             "apply" => Self::Binary(FiniteBinaryOperation::Apply),
             "compose" => Self::Binary(FiniteBinaryOperation::Compose),
@@ -103,16 +106,23 @@ impl Operation {
         let [value] = operands else {
             return None;
         };
-        if self != Self::Unary(FiniteUnaryOperation::Transpose)
-            || value.frame() != eqiora_core::ValueFrame::SpatialCartesian
+        if !matches!(
+            self,
+            Self::Unary(FiniteUnaryOperation::Transpose | FiniteUnaryOperation::MatrixTrace)
+        ) || value.frame() != eqiora_core::ValueFrame::SpatialCartesian
         {
             return None;
         }
         Some(if value.shape().rank() == 2 {
-            eqiora_schema::kernel::pure_operator::PureOperatorDefinition::permute_axes(
-                value.shape().extents()[0].get(),
-                &[1, 0],
-            )
+            let extent = value.shape().extents()[0].get();
+            if self == Self::Unary(FiniteUnaryOperation::MatrixTrace) {
+                eqiora_schema::kernel::pure_operator::PureOperatorDefinition::matrix_trace(extent)
+            } else {
+                eqiora_schema::kernel::pure_operator::PureOperatorDefinition::permute_axes(
+                    extent,
+                    &[1, 0],
+                )
+            }
         } else {
             Err(eqiora_schema::kernel::pure_operator::PureOperatorError::FormalTypeMismatch)
         })

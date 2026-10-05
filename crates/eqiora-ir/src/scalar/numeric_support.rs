@@ -37,12 +37,12 @@ pub(super) fn slot_index(slot: SymbolSlot, instruction: usize) -> Result<usize, 
 }
 
 pub(super) fn write_roots(
-    ir: &ScalarOperatorIr,
+    roots: &[ValueId],
     values: &[f64],
     output: &mut [f64],
 ) -> Result<(), Diagnostic> {
-    for (output, root) in output.iter_mut().zip(&ir.roots) {
-        *output = read(values, *root, ir.instructions.len())?;
+    for (output, root) in output.iter_mut().zip(roots) {
+        *output = read(values, *root, values.len())?;
     }
     Ok(())
 }
@@ -162,11 +162,12 @@ pub(super) fn ir_path(index: usize) -> GraphPath {
 
 /// Validate the numerical instruction profile and finite role-bound point together.
 pub(super) fn validate_linearization_inputs(
-    ir: &ScalarOperatorIr,
+    instructions: &[Instruction],
+    input_count: usize,
     inputs: &[f64],
     roles: &[DifferentiationRole],
 ) -> Result<(), Diagnostic> {
-    if ir.instructions.iter().any(|instruction| {
+    if instructions.iter().any(|instruction| {
         matches!(
             instruction,
             Instruction::Select { .. }
@@ -180,10 +181,10 @@ pub(super) fn validate_linearization_inputs(
             "retained pure applications, ordered selections and channel operations require explicit scalar projection before automatic differentiation",
         ));
     }
-    if inputs.len() != ir.symbols.len() || roles.len() != ir.symbols.len() {
+    if inputs.len() != input_count || roles.len() != input_count {
         return Err(invalid_linearization(format!(
             "scalar linearization expects {} point values and roles, received {} values and {} roles",
-            ir.symbols.len(),
+            input_count,
             inputs.len(),
             roles.len()
         )));

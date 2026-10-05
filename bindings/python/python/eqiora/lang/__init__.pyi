@@ -347,6 +347,13 @@ class Component:
         Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.coordinates``.
         """
         ...
+    def identity(self, space: FiniteSpace, *, dual: bool = False) -> Expression:
+        """Dimensionless identity on this Module's exact finite space.
+
+        Authority: ``bindings/python/python/eqiora/lang/__init__.py::Component.identity``.
+        """
+        ...
+
     def linear_map(self, source: FiniteSpace, target: FiniteSpace, rows: Sequence[Sequence[object]], *, source_dual: bool = False, target_dual: bool = False) -> Expression: ...
     def index(self, set: IndexSet, value: Expression | int) -> Expression:
         """Construct an ordinal in this Component's exact registered index set.
@@ -684,6 +691,28 @@ def apply(left: object, right: object) -> Expression:
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::apply``.
     """
     ...
+
+def matrix_trace(value: object) -> Expression:
+    """Algebraic trace of a finite endomorphism or spatial tensor.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::matrix_trace``.
+    """
+    ...
+
+def determinant(value: object) -> Expression:
+    """Determinant of a real finite endomorphism.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::determinant``.
+    """
+    ...
+
+def inverse(value: object) -> Expression:
+    """Inverse finite map under explicit numerical regularity admission.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::inverse``.
+    """
+    ...
+
 
 def compose(left: object, right: object) -> Expression:
     """Compose left after right with matching nominal endpoints.

@@ -271,6 +271,18 @@ impl SourceAstFactory {
                     .expect("coordinate basis")
                     .is_dual(),
             ],
+            "identity"
+                if value
+                    .map_bases()
+                    .is_some_and(|(source, target)| source == target)
+                    && value.dimension() == eqiora_core::DimExponents::DIMENSIONLESS
+                    && matches!(
+                        value.scalar_domain(),
+                        eqiora_core::ScalarDomain::Real | eqiora_core::ScalarDomain::Complex
+                    ) =>
+            {
+                vec![value.map_bases().expect("map basis").0.is_dual()]
+            }
             "linear_map" if value.map_bases().is_some() => {
                 let (source, target) = value.map_bases().expect("map bases");
                 vec![source.is_dual(), target.is_dual()]
@@ -282,7 +294,9 @@ impl SourceAstFactory {
                 ));
             }
         };
-        if declarations.len() != duals.len() || arguments.len() != duals.len() + 1 {
+        if declarations.len() != duals.len()
+            || arguments.len() != duals.len() + usize::from(callee.as_str() != "identity")
+        {
             return Err(AstConstructionError::new(
                 "nominal constructor has a different basis arity",
             ));

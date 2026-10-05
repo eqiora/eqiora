@@ -157,6 +157,18 @@ impl ComponentScalarRow {
         self.ir.bind_affine(selected, bindings)
     }
 
+    /// Bind first-order products in the exact real component-coordinate order.
+    /// Numerical regularity checks are replayed by the shared primal/JVP/VJP evaluator.
+    /// # Errors
+    /// Rejects wrong cardinality, non-finite points and unsupported numerical instructions.
+    pub fn linearize(
+        &self,
+        inputs: &[f64],
+        roles: &[crate::DifferentiationRole],
+    ) -> Result<crate::ScalarLinearization<'_>, Diagnostic> {
+        self.ir.linearize(inputs, roles)
+    }
+
     /// Evaluate this scalar row using dense inputs matching [`Self::symbols`].
     ///
     /// # Errors
@@ -314,6 +326,7 @@ fn component_single_root<I: Clone + Eq>(
         node_types,
         builder: ScalarInputIrBuilder::new(),
         remapped: HashMap::new(),
+        map_entries: HashMap::new(),
         inputs: Vec::new(),
         input_nodes: HashMap::new(),
         symbol_shapes: HashMap::new(),
@@ -328,6 +341,7 @@ struct ComponentDagLowering<'a, I> {
     node_types: &'a [ExpressionType<I>],
     builder: ScalarInputIrBuilder,
     remapped: HashMap<(usize, Box<[u32]>, ScalarPart), ScalarInputValueId>,
+    map_entries: HashMap<ExprId, ScalarInputValueId>,
     inputs: Vec<ScalarSymbolCoordinate>,
     input_nodes: HashMap<ScalarSymbolCoordinate, ScalarInputValueId>,
     symbol_shapes: HashMap<SymbolRef, ValueShape>,

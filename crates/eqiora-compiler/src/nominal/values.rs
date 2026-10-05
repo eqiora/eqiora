@@ -41,7 +41,10 @@ fn bind(
     let ExprKind::Call { callee, arguments } = expression.kind() else {
         return Ok(());
     };
-    if !matches!(callee.as_str(), "counts" | "coordinates" | "linear_map") {
+    if !matches!(
+        callee.as_str(),
+        "counts" | "coordinates" | "linear_map" | "identity"
+    ) {
         return Ok(());
     }
     let invalid = |message: &str| {
@@ -60,7 +63,8 @@ fn bind(
     } else {
         1
     };
-    if arguments.len() != arity + 1 {
+    let identity = callee.as_str() == "identity";
+    if arguments.len() != arity + usize::from(!identity) {
         return Err(invalid(
             "finite constructor requires its basis arguments and one component array",
         ));
@@ -77,7 +81,9 @@ fn bind(
         bases.push(if syntax.dual { basis.dual() } else { basis });
         names.push(syntax.name);
     }
-    let value_type = if callee.as_str() == "counts" {
+    let value_type = if identity {
+        ValueType::linear_map(bases[0], bases[0], ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+    } else if callee.as_str() == "counts" {
         if bases[0].is_dual() { return Err(invalid("counts require a primal finite basis")); }
         ValueType::counts(bases[0].space().ok_or_else(|| invalid("counts require an atomic finite basis"))?,bases[0].extent())
     } else {
@@ -168,9 +174,39 @@ fn literal_with_type(
             message,
         )
     };
-    let ExprKind::Call { arguments, .. } = expression.kind() else {
+    let ExprKind::Call { callee, arguments } = expression.kind() else {
         return Err(invalid("nominal literal requires a constructor"));
     };
+    if callee.as_str() == "identity" {
+        // The compact constructor must obey the same literal expansion budget
+        // as ordinary native/source values before allocating its dense payload.
+        eqiora_lang::ValueTypeSyntax::validate_checked(value_type)
+            .map_err(|error| invalid(error.message()))?;
+        let (source, target) = value_type
+            .map_bases()
+            .ok_or_else(|| invalid("identity requires a finite map type"))?;
+        if source != target
+            || value_type.dimension() != DimExponents::DIMENSIONLESS
+            || !matches!(
+                value_type.scalar_domain(),
+                ScalarDomain::Real | ScalarDomain::Complex
+            )
+        {
+            return Err(invalid(
+                "identity is a dimensionless continuous endomorphism on its exact basis",
+            ));
+        }
+        let n = source.extent() as usize;
+        let count = value_type
+            .shape()
+            .component_count()
+            .ok_or_else(|| invalid("identity component count exceeds bounds"))?;
+        return ValueLiteral::new(
+            value_type.clone(),
+            (0..count).map(|i| (if i / n == i % n { 1.0 } else { 0.0 }, 0.0)),
+        )
+        .map_err(|error| invalid(&error.to_string()));
+    }
     let argument = arguments
         .positional()
         .and_then(|values| values.last())

@@ -123,6 +123,11 @@ impl ScalarOperatorIr {
                         | Instruction::Require { .. } => {
                             unreachable!("logical demand is staged separately")
                         }
+                        Instruction::MapInvariant { .. } => {
+                            return Err(ir_builder_error(
+                                "numerical maps require component execution",
+                            ));
+                        }
                         Instruction::Constant(_)
                         | Instruction::TypedConstant(_)
                         | Instruction::Read(_) => {}
@@ -166,6 +171,11 @@ impl ScalarOperatorIr {
                         .ok_or_else(|| ir_builder_error("typed scalar operand is unavailable"))
                 };
                 let value = match instruction {
+                    Instruction::MapInvariant { .. } => {
+                        return Err(ir_builder_error(
+                            "numerical map admission requires component execution",
+                        ));
+                    }
                     Instruction::Select {
                         condition,
                         then_value,

@@ -47,8 +47,11 @@ impl ScalarInputOperatorIr {
                     AffineSummary::constant(constants[coordinate], selected.len())
                 })
             })
-            .map_err(|error| {
-                ir_builder_error(format!("component affine proof failed: {error:?}"))
+            .map_err(|error| match error {
+                affine_analysis::SummaryFailure::Symbolic(error) => {
+                    ir_builder_error(format!("component affine proof failed: {error:?}"))
+                }
+                affine_analysis::SummaryFailure::Numerical { diagnostic, .. } => diagnostic,
             })?;
         let mut coefficients = Vec::new();
         let mut offsets = Vec::new();

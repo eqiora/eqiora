@@ -10,6 +10,14 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
         component: &[u32],
         part: ScalarPart,
     ) -> Result<ScalarInputValueId, Diagnostic> {
+        if matches!(
+            operation,
+            FiniteUnaryOperation::MatrixTrace
+                | FiniteUnaryOperation::Determinant
+                | FiniteUnaryOperation::Inverse
+        ) {
+            return self.lower_map_invariant(operation, operand, component, part);
+        }
         let is_map = self.node_types[operand.index() as usize]
             .value_type
             .map_bases()
@@ -115,5 +123,55 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
             });
         }
         Ok(result.expect("finite bases are nonempty"))
+    }
+}
+
+impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
+    fn lower_map_invariant(
+        &mut self,
+        operation: FiniteUnaryOperation,
+        operand: ExprId,
+        component: &[u32],
+        part: ScalarPart,
+    ) -> Result<ScalarInputValueId, Diagnostic> {
+        let ty = &self.node_types[operand.index() as usize].value_type;
+        let (source, _) = ty.map_bases().expect("typed finite map");
+        let n = source.extent();
+        if operation == FiniteUnaryOperation::MatrixTrace {
+            let mut sum = self.lower_part(operand, &[0, 0], part)?;
+            for i in 1..n {
+                let next = self.lower_part(operand, &[i, i], part)?;
+                sum = self.builder.add(sum, next)?;
+            }
+            return Ok(sum);
+        }
+        // Scalarization gathers n² operands without expanding a factorization
+        // circuit. The numerical owner separately bounds factorization work.
+        let work = (n as usize)
+            .checked_pow(2)
+            .ok_or_else(|| invalid_component_ir("finite map operand work exceeds usize"))?;
+        *self.finite_products = self
+            .finite_products
+            .checked_add(work)
+            .filter(|work| *work <= 1_000_000)
+            .ok_or_else(|| {
+                invalid_component_ir("finite scalarization exceeds one million component products")
+            })?;
+        let start = if let Some(start) = self.map_entries.get(&operand) {
+            *start
+        } else {
+            let mut entries = Vec::new();
+            for row in 0..n {
+                for column in 0..n {
+                    entries.push(self.lower_part(operand, &[row, column], ScalarPart::Real)?);
+                }
+            }
+            let start = self.builder.map_entries(&entries)?;
+            self.map_entries.insert(operand, start);
+            start
+        };
+        let output =
+            (operation == FiniteUnaryOperation::Inverse).then(|| component[0] * n + component[1]);
+        self.builder.map_invariant(start, n, output)
     }
 }

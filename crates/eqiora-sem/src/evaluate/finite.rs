@@ -19,6 +19,36 @@ pub(super) fn unary(
         .finite_unary(operation)
         .map_err(invalid)?
         .value_type;
+    if matches!(
+        operation,
+        FiniteUnaryOperation::MatrixTrace
+            | FiniteUnaryOperation::Determinant
+            | FiniteUnaryOperation::Inverse
+    ) {
+        use eqiora_schema::kernel::{
+            ExprDagBuilder,
+            typing::{RootContract, TypedResidual},
+        };
+        let mut builder = ExprDagBuilder::new();
+        let input = builder.constant(value.clone())?;
+        let root = builder.finite_unary(operation, input)?;
+        let dag = builder.finish([root])?;
+        let typed =
+            TypedResidual::<()>::infer(dag, None, RootContract::ComponentwiseResidual, |_| {
+                Err::<ExpressionType<()>, _>(())
+            })
+            .map_err(|_| invalid("finite map invariant typing failed"))?;
+        let components = eqiora_ir::ComponentScalarization::lower(&typed)?.evaluate(|_| None)?;
+        if output.scalar_domain() == eqiora_core::ScalarDomain::Complex {
+            return ValueLiteral::new(
+                output,
+                components.chunks_exact(2).map(|pair| (pair[0], pair[1])),
+            )
+            .map_err(invalid);
+        }
+        return ValueLiteral::new(output, components.into_iter().map(|value| (value, 0.0)))
+            .map_err(invalid);
+    }
     let count = value.component_count();
     check_component_work(0, count)?;
     let input_columns = value

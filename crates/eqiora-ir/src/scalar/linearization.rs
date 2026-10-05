@@ -11,13 +11,13 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
     }
 
     fn residual_dimension(&self) -> usize {
-        self.ir.roots.len()
+        self.roots.len()
     }
 
     fn primal(&self, residual: &mut [f64]) -> Result<(), Diagnostic> {
         require_length(residual, self.residual_dimension(), "primal residual")?;
-        let values = self.ir.evaluate_values(&self.inputs)?;
-        write_roots(&self.ir, &values, residual)
+        let values = evaluate_instructions(&self.instructions, &self.inputs)?;
+        write_roots(&self.roots, &values, residual)
     }
 
     fn jvp(
@@ -44,9 +44,10 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
             "residual tangent",
         )?;
 
-        let values = self.ir.evaluate_values(&self.inputs)?;
-        let mut tangents = Vec::with_capacity(self.ir.instructions.len());
-        for (index, instruction) in self.ir.instructions.iter().enumerate() {
+        let values = evaluate_instructions(&self.instructions, &self.inputs)?;
+        let mut tangents = Vec::with_capacity(self.instructions.len());
+        let mut maps = map_evaluation::MapCache::default();
+        for (index, instruction) in self.instructions.iter().enumerate() {
             let tangent = match *instruction {
                 Instruction::Select { .. }
                 | Instruction::Require { .. }
@@ -68,6 +69,21 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
                     ));
                 }
                 Instruction::Constant(_) => 0.0,
+                Instruction::MapInvariant {
+                    start,
+                    extent,
+                    component,
+                } => {
+                    let gradient = maps
+                        .get(start, extent, &values[..index])?
+                        .gradient(component)?;
+                    let range = map_evaluation::operand_range(start, extent, index)?;
+                    gradient
+                        .iter()
+                        .zip(&tangents[range])
+                        .map(|(g, h)| g * h)
+                        .sum()
+                }
                 Instruction::Read(slot) => match self.bindings[slot_index(slot, index)?] {
                     InputBinding::Unknown(coordinate) => {
                         unknown_tangent.map_or(0.0, |values| values[coordinate])
@@ -117,7 +133,7 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
             require_finite_value(tangent, "JVP", index)?;
             tangents.push(tangent);
         }
-        write_roots(&self.ir, &tangents, residual_tangent)
+        write_roots(&self.roots, &tangents, residual_tangent)
     }
 
     fn vjp(
@@ -145,13 +161,14 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
         }
         require_finite(residual_cotangent, "residual cotangent")?;
 
-        let values = self.ir.evaluate_values(&self.inputs)?;
-        let mut adjoints = vec![0.0; self.ir.instructions.len()];
-        for (root, seed) in self.ir.roots.iter().zip(residual_cotangent) {
-            accumulate(&mut adjoints, *root, *seed, self.ir.instructions.len())?;
+        let values = evaluate_instructions(&self.instructions, &self.inputs)?;
+        let mut adjoints = vec![0.0; self.instructions.len()];
+        let mut maps = map_evaluation::MapCache::default();
+        for (root, seed) in self.roots.iter().zip(residual_cotangent) {
+            accumulate(&mut adjoints, *root, *seed, self.instructions.len())?;
         }
 
-        for (index, instruction) in self.ir.instructions.iter().enumerate().rev() {
+        for (index, instruction) in self.instructions.iter().enumerate().rev() {
             let cotangent = adjoints[index];
             match *instruction {
                 Instruction::Select { .. }
@@ -174,6 +191,24 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
                     ));
                 }
                 Instruction::Constant(_) => {}
+                Instruction::MapInvariant {
+                    start,
+                    extent,
+                    component,
+                } => {
+                    let gradient = maps
+                        .get(start, extent, &values[..index])?
+                        .gradient(component)?;
+                    let range = map_evaluation::operand_range(start, extent, index)?;
+                    for (coordinate, g) in range.zip(gradient) {
+                        accumulate(
+                            &mut adjoints,
+                            ValueId(coordinate as u32),
+                            cotangent * g,
+                            index,
+                        )?;
+                    }
+                }
                 Instruction::Read(slot) => match self.bindings[slot_index(slot, index)?] {
                     InputBinding::Unknown(coordinate) => {
                         if let Some(values) = unknown_cotangent.as_deref_mut() {
@@ -266,5 +301,43 @@ impl LinearizedRelation<f64> for ScalarLinearization<'_> {
             require_finite(parameter, "parameter VJP")?;
         }
         Ok(())
+    }
+}
+
+impl<'a> ScalarLinearization<'a> {
+    pub(super) fn bind(
+        instructions: &'a [Instruction],
+        roots: &'a [ValueId],
+        input_count: usize,
+        inputs: &[f64],
+        roles: &[DifferentiationRole],
+    ) -> Result<Self, Diagnostic> {
+        validate_linearization_inputs(instructions, input_count, inputs, roles)?;
+        let mut unknown_dimension = 0;
+        let mut parameter_dimension = 0;
+        let bindings = roles
+            .iter()
+            .map(|role| match role {
+                DifferentiationRole::Unknown => {
+                    let coordinate = unknown_dimension;
+                    unknown_dimension += 1;
+                    InputBinding::Unknown(coordinate)
+                }
+                DifferentiationRole::Parameter => {
+                    let coordinate = parameter_dimension;
+                    parameter_dimension += 1;
+                    InputBinding::Parameter(coordinate)
+                }
+                DifferentiationRole::Frozen => InputBinding::Frozen,
+            })
+            .collect();
+        Ok(Self {
+            instructions: std::borrow::Cow::Borrowed(instructions),
+            roots: std::borrow::Cow::Borrowed(roots),
+            inputs: inputs.to_vec(),
+            bindings,
+            unknown_dimension,
+            parameter_dimension,
+        })
     }
 }
