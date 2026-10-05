@@ -164,7 +164,8 @@ fn equality_projection(
     let zero = |value: &AuthoredFormExpression| {
         matches!(value.kind, AuthoredFormExpressionKind::Number(0.0))
     };
-    if left.dimension != right.dimension && !zero(&left) && !zero(&right) {
+    if left.value_type.dimension() != right.value_type.dimension() && !zero(&left) && !zero(&right)
+    {
         return Err(error(
             context.file,
             range,

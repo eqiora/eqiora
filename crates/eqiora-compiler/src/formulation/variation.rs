@@ -158,8 +158,8 @@ impl ExpressionContext<'_> {
                 holding: required.into_iter().collect(),
                 value: Box::new(value),
             },
-            functional.value_type().dimension(),
-            ValueShape::scalar(),
+            ValueType::scalar(ScalarDomain::Real, functional.value_type().dimension())
+                .expect("real scalar type"),
             None,
         );
         self.used_tests.extend(directions);
@@ -335,8 +335,7 @@ fn derive_value(
             domain,
             integrand: Box::new(integrand),
         },
-        dimension,
-        ValueShape::scalar(),
+        ValueType::scalar(ScalarDomain::Real, dimension).expect("real scalar type"),
         None,
     ))
 }
@@ -382,7 +381,7 @@ fn variation_input(
                 .unwrap_or(domain.erase())
                 .downcast::<kinds::Domain>()
                 .ok_or_else(invalid)?;
-            let mut value = typed(kind, field.dimension(), field.shape().clone(), Some(parent));
+            let mut value = typed(kind, field.clone(), Some(parent));
             if support.parent().is_some() {
                 if matches!(source, local::Input::Gradient(..)) {
                     return Err(wire::rejection(
@@ -391,8 +390,7 @@ fn variation_input(
                 }
                 value = typed(
                     AuthoredFormExpressionKind::Trace(Box::new(value)),
-                    field.dimension(),
-                    field.shape().clone(),
+                    field.clone(),
                     Some(domain),
                 );
             }
@@ -413,11 +411,16 @@ fn variation_input(
                 );
                 value = typed(
                     AuthoredFormExpressionKind::Gradient(Box::new(value)),
-                    field
-                        .dimension()
-                        .div(length_dimension())
-                        .ok_or_else(invalid)?,
-                    ValueShape::new(axes).map_err(|_| invalid())?,
+                    ValueType::shaped(
+                        ScalarDomain::Real,
+                        field
+                            .dimension()
+                            .div(length_dimension())
+                            .ok_or_else(invalid)?,
+                        ValueShape::new(axes).map_err(|_| invalid())?,
+                        ValueFrame::SpatialCartesian,
+                    )
+                    .map_err(|_| wire::rejection("invalid spatial form type"))?,
                     Some(domain),
                 );
             }
@@ -428,8 +431,7 @@ fn variation_input(
             (
                 typed(
                     AuthoredFormExpressionKind::Parameter(*id),
-                    parameter.dimension(),
-                    parameter.shape().clone(),
+                    parameter.clone(),
                     None,
                 ),
                 indices.as_slice(),
@@ -449,23 +451,25 @@ fn variation_input(
                     factor: *factor,
                     axis: *axis,
                 },
-                symbol_type(density, *symbol)?.dimension(),
-                ValueShape::scalar(),
+                ValueType::scalar(
+                    ScalarDomain::Real,
+                    symbol_type(density, *symbol)?.dimension(),
+                )
+                .expect("real scalar type"),
                 Some(*support),
             ));
         }
         _ => return Err(invalid()),
     };
     if !indices.is_empty() {
-        let dimension = value.dimension;
+        let dimension = value.value_type.dimension();
         let support = value.support;
         value = typed(
             AuthoredFormExpressionKind::Component {
                 value: Box::new(value),
                 indices: indices.to_vec(),
             },
-            dimension,
-            ValueShape::scalar(),
+            ValueType::scalar(ScalarDomain::Real, dimension).expect("real scalar type"),
             support,
         );
     }
@@ -491,8 +495,7 @@ fn render(
         CalculusNode::FormalComponent { formal, .. } => inputs[usize::from(*formal)].clone(),
         CalculusNode::Rational { value, dimension } => typed(
             AuthoredFormExpressionKind::Rational(*value),
-            *dimension,
-            ValueShape::scalar(),
+            ValueType::scalar(ScalarDomain::Real, *dimension).expect("real scalar type"),
             None,
         ),
         CalculusNode::Differentiated { value, .. } | CalculusNode::BoundInput(value) => {
@@ -502,8 +505,7 @@ fn render(
             let value = child(*value)?;
             typed(
                 AuthoredFormExpressionKind::Neg(Box::new(value.clone())),
-                value.dimension,
-                value.shape,
+                value.value_type.clone(),
                 value.support,
             )
         }
@@ -515,12 +517,15 @@ fn render(
                 CalculusNode::Mul(..)
             );
             let dimension = if multiply {
-                left.dimension.mul(right.dimension).ok_or_else(invalid)?
+                left.value_type
+                    .dimension()
+                    .mul(right.value_type.dimension())
+                    .ok_or_else(invalid)?
             } else {
-                if left.dimension != right.dimension {
+                if left.value_type.dimension() != right.value_type.dimension() {
                     return Err(invalid());
                 }
-                left.dimension
+                left.value_type.dimension()
             };
             if left.support.is_some() && right.support.is_some() && left.support != right.support {
                 return Err(invalid());
@@ -536,8 +541,7 @@ fn render(
                     left,
                     right,
                 ),
-                dimension,
-                ValueShape::scalar(),
+                ValueType::scalar(ScalarDomain::Real, dimension).expect("real scalar type"),
                 support,
             )
         }
