@@ -801,7 +801,7 @@ class InitialField:
         *,
         vertex_values: object | None = None,
         cell_values: object | None = None,
-        scalar_value: float | None = None,
+        value: object | None = None,
     ) -> InitialField: ...
     @property
     def field(self) -> FieldRef: ...
@@ -2265,7 +2265,7 @@ def resolve(
     spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None = None,
     formulation: FormulationKind | None = None,
     solve: solve.Linear | solve.Newton | solve.HermitianEigen | None = None,
-    scaling: fluid.IncompressibleScaling | None = None,
+    scaling: fluid.IncompressibleScaling | dict[ConstraintRef, tuple[float, Dimension]] | None = None,
     temporal: time.BackwardEuler | time.Tsitouras45 | None = None,
     enforcement: solve.ActiveSet | solve.StrictInterior | None = None,
 ) -> Plan:

@@ -5,7 +5,7 @@ use eqiora::entity::kinds;
 use eqiora::kernel::{KernelNode, RelationConditionKind};
 use eqiora_numerics::finite_constraints::ConstraintRef;
 
-/// One inequality or complementarity condition bound to an exact Model artifact.
+/// One equality, inequality or complementarity condition bound to an exact Model artifact.
 #[pyclass(
     name = "ConstraintRef",
     module = "eqiora._eqiora",
@@ -91,11 +91,12 @@ pub(super) fn select(
         .conditions()
         .and_then(|conditions| conditions.get(ordinal as usize))
     {
+        Some(RelationConditionKind::Equality) => "equality",
         Some(RelationConditionKind::Inequality) => "inequality",
         Some(RelationConditionKind::Complementarity) => "complementarity",
         _ => {
             return Err(PyTypeError::new_err(
-                "constraint selection requires an existing inequality or complementarity ordinal",
+                "constraint selection requires an existing Relation condition ordinal",
             ));
         }
     };

@@ -60,10 +60,7 @@ impl CommonAlgebraicPlan {
         &self,
         fields: &[CommonInitialField],
     ) -> Result<CommonAlgebraicState, Diagnostic> {
-        if !self
-            .enforcement()
-            .is_some_and(FiniteConstraintEnforcement::is_strict_interior)
-        {
+        if self.nonlinear.is_none() {
             if !fields.is_empty() {
                 return Err(invalid("affine finite State requires no seed assignments"));
             }
@@ -71,10 +68,10 @@ impl CommonAlgebraicPlan {
         }
         if fields.len() != self.symbols.len() {
             return Err(invalid(
-                "nonlinear finite State requires exactly one scalar assignment per Field",
+                "nonlinear finite State requires exactly one complete assignment per Field",
             ));
         }
-        let mut values = vec![None; self.symbols.len()];
+        let mut values: Vec<Option<Vec<f64>>> = vec![None; self.symbols.len()];
         for field in fields {
             if field.model().as_str() != self.model_digest() {
                 return Err(invalid("finite seed Field belongs to another exact Model"));
@@ -84,9 +81,29 @@ impl CommonAlgebraicPlan {
                 .iter()
                 .position(|symbol| *symbol == SymbolRef::Field(field.field()))
                 .ok_or_else(|| invalid("finite seed Field is outside the Plan"))?;
-            let value = field
-                .scalar_value()
-                .ok_or_else(|| invalid("finite seed requires a no-Mesh scalar association"))?;
+            let (shape, components) = field
+                .finite_value()
+                .ok_or_else(|| invalid("finite seed requires a no-Mesh association"))?;
+            let Some(KernelNode::Field(definition)) = self.kernel.node(field.field().erase())
+            else {
+                return Err(invalid("finite seed Field is absent from its Model"));
+            };
+            let ty = definition.value_type();
+            if shape != ty.shape() {
+                return Err(invalid("finite seed shape differs from its exact Field"));
+            }
+            let typed = eqiora_core::ValueLiteral::new(ty.clone(), components.iter().copied())
+                .map_err(|error| invalid(error.to_string()))?;
+            let mut value = Vec::new();
+            for (re, im) in typed
+                .components()
+                .ok_or_else(|| invalid("finite seed Field is not numeric"))?
+            {
+                value.push(re);
+                if ty.scalar_domain() == eqiora_core::ScalarDomain::Complex {
+                    value.push(im);
+                }
+            }
             if values[index].replace(value).is_some() {
                 return Err(invalid("finite seed repeats a Field assignment"));
             }
@@ -94,7 +111,7 @@ impl CommonAlgebraicPlan {
         self.state_from_values(
             values
                 .into_iter()
-                .map(|value| value.expect("complete unique field coverage"))
+                .flat_map(|value| value.expect("complete unique field coverage"))
                 .collect(),
         )
     }
@@ -109,10 +126,7 @@ impl CommonAlgebraicPlan {
                 "finite seed requires the complete finite Plan coordinate vector",
             ));
         }
-        if self
-            .enforcement()
-            .is_some_and(FiniteConstraintEnforcement::is_strict_interior)
-        {
+        if self.nonlinear.is_some() {
             self.problem.validate_seed(&values)?;
         } else if values.iter().any(|value| *value != 0.0) {
             return Err(invalid("affine finite State has a canonical zero seed"));

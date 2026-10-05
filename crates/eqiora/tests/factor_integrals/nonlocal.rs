@@ -117,14 +117,21 @@ fn nonlocal_integral_retains_residual_and_output_jvp_vjp_at_parameter_points() {
         .unwrap(),
     ])
     .unwrap();
-    let plan =
-        CommonAlgebraicPlan::resolve(&model, policy, Some(enforcement), None, &FaerLinearSolver)
-            .unwrap();
+    let plan = CommonAlgebraicPlan::resolve(
+        &model,
+        policy,
+        Some(enforcement),
+        &[],
+        None,
+        &FaerLinearSolver,
+    )
+    .unwrap();
     use eqiora_artifact::CanonicalModelArtifact;
-    let seed = eqiora_numerics::CommonInitialField::scalar(
+    let seed = eqiora_numerics::CommonInitialField::finite(
         model.artifact_reference().unwrap().artifact().clone(),
         document.aliases()["amplitude"].downcast().unwrap(),
-        1.0,
+        eqiora::ValueShape::scalar(),
+        vec![(1.0, 0.)],
     )
     .unwrap();
     let initial = plan.initial_state(&[seed]).unwrap();

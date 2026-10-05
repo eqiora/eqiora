@@ -112,9 +112,15 @@ fn exact_package_replay_retains_equality_complementarity_and_inequality() {
     let request = CommonSolvePolicy::Linear(
         CommonLinearRequest::exact(solver, FaerLinearSolver.provider()).unwrap(),
     );
-    let plan =
-        CommonAlgebraicPlan::resolve(&model, request, Some(enforcement), None, &FaerLinearSolver)
-            .unwrap();
+    let plan = CommonAlgebraicPlan::resolve(
+        &model,
+        request,
+        Some(enforcement),
+        &[],
+        None,
+        &FaerLinearSolver,
+    )
+    .unwrap();
     let state = plan.initial_state(&[]).unwrap();
     let result = plan.run_result(&state, &FaerLinearSolver).unwrap();
     let measurements = result.constraint_measurements();

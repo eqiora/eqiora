@@ -11,6 +11,7 @@ pub(crate) use nonlinear::FiniteNonlinearSolution;
 mod observables;
 mod parameters;
 mod preparation;
+mod scaling;
 mod solve;
 #[cfg(test)]
 mod tests;
@@ -36,6 +37,7 @@ pub(crate) struct FiniteConstraintProblem {
     relations: Vec<RelationOperands>,
     enforcement: Option<FiniteConstraintEnforcement>,
     complementarity_count: usize,
+    nonlinear: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -44,6 +46,7 @@ struct RelationOperands {
     expression: ExprDag,
     conditions: Vec<RelationConditionKind>,
     dimensions: Vec<(DimExponents, DimExponents)>,
+    equality_scales: Vec<scaling::EqualityScale>,
 }
 
 impl FiniteConstraintProblem {
@@ -61,6 +64,9 @@ impl FiniteConstraintProblem {
     #[must_use]
     pub const fn enforcement(&self) -> Option<&FiniteConstraintEnforcement> {
         self.enforcement.as_ref()
+    }
+    pub(crate) const fn is_nonlinear(&self) -> bool {
+        self.nonlinear
     }
     pub(crate) fn is_strict_interior(&self) -> bool {
         self.enforcement

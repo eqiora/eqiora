@@ -61,6 +61,7 @@ fn resolve(
             CommonLinearRequest::exact(solver, FaerLinearSolver.provider()).unwrap(),
         ),
         None,
+        &[],
         if authored {
             document.authored_formulation_projection().unwrap()
         } else {

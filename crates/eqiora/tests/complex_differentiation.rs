@@ -18,6 +18,81 @@ use eqiora::solver::{
 use eqiora_backend_faer::FaerLinearSolver;
 
 #[test]
+fn cubic_complex_residual_retains_the_full_real_newton_differential() {
+    // F(z)=z+alpha*|z|²*z-b. At alpha=1/4, z=1+2i and b=9/4+9/2 i,
+    // F=0 and D_z F=(1+alpha*|z|²)I+2alpha [x;y][x,y].
+    // Thus J=[[11/4,1],[1,17/4]], not multiplication by a complex scalar.
+    let source = "model M(){parameter alpha:1=0.25;parameter b:complex<1>=math.complex(2.25,4.5);variable z:complex<1>;relation r{z+alpha*math.abs2(z)*z=b;}}";
+    let (transaction, model, symbols) = compile("cubic.eqi", source)
+        .unwrap()
+        .pop()
+        .unwrap()
+        .into_parts();
+    let field = symbols.get("z").unwrap().downcast().unwrap();
+    let alpha = symbols.get("alpha").unwrap().downcast().unwrap();
+    let rhs = symbols.get("b").unwrap().downcast().unwrap();
+    let relation = symbols.get("r").unwrap().downcast().unwrap();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let kernel = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    let lowered =
+        ComponentScalarization::lower(&kernel.typed_relation_residual(relation).unwrap()).unwrap();
+    let residual = lowered
+        .linearize(|coordinate| {
+            Some(match coordinate.symbol() {
+                SymbolRef::Field(id) if id == field => (
+                    if coordinate.is_imaginary() { 2. } else { 1. },
+                    DifferentiationRole::Unknown,
+                ),
+                SymbolRef::Parameter(id) if id == alpha => (0.25, DifferentiationRole::Parameter),
+                SymbolRef::Parameter(id) if id == rhs => (
+                    if coordinate.is_imaginary() { 4.5 } else { 2.25 },
+                    DifferentiationRole::Frozen,
+                ),
+                _ => return None,
+            })
+        })
+        .unwrap();
+    let mut output = [0.; 2];
+    residual.primal(&mut output).unwrap();
+    assert_eq!(output, [0., 0.]);
+    for (imaginary, expected) in [(false, [2.75, 1.]), (true, [1., 4.25])] {
+        let direction = residual
+            .unknown_coordinates()
+            .iter()
+            .map(|coordinate| f64::from(coordinate.is_imaginary() == imaginary))
+            .collect::<Vec<_>>();
+        residual
+            .jvp(
+                eqiora::ir::RelationTangent::Unknown(&direction),
+                &mut output,
+            )
+            .unwrap();
+        assert_eq!(output, expected);
+    }
+    // dF/dalpha=|z|²*z=(5,10); b is frozen, not an accidental AD input.
+    assert_eq!(residual.parameter_dimension(), 1);
+    residual
+        .jvp(eqiora::ir::RelationTangent::Parameter(&[2.]), &mut output)
+        .unwrap();
+    assert_eq!(output, [10., 20.]);
+    let mut pullback = [0.; 2];
+    residual
+        .vjp(&[5., -7.], RelationCotangent::Unknown(&mut pullback))
+        .unwrap();
+    for (coordinate, value) in residual.unknown_coordinates().iter().zip(pullback) {
+        assert_eq!(
+            value,
+            if coordinate.is_imaginary() {
+                -24.75
+            } else {
+                6.75
+            }
+        );
+    }
+}
+
+#[test]
 fn nonholomorphic_implicit_state_uses_shared_forward_and_adjoint_solvers() {
     // (1+2i)z+conj(z)=(4+2i)p gives x=p, y=-p. This is
     // real-linear, not complex-linear. J=|z|²+p=2p²+p, hence dJ/dp=4p+1.

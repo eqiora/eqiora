@@ -44,9 +44,11 @@ impl AlgebraicProblem {
     pub(super) fn admit(
         kernel: &KernelProgram,
         enforcement: Option<FiniteConstraintEnforcement>,
+        nonlinear: bool,
     ) -> Result<Self, Diagnostic> {
         if let Some(enforcement) = enforcement {
-            return lower_finite_constraints(kernel, Some(&enforcement)).map(Self::Constrained);
+            return lower_finite_constraints(kernel, Some(&enforcement), nonlinear)
+                .map(Self::Constrained);
         }
         if kernel.nodes().any(|node| {
             matches!(node,
@@ -60,7 +62,7 @@ impl AlgebraicProblem {
             .nodes()
             .any(|node| matches!(node, KernelNode::Field(_)))
         {
-            return lower_finite_constraints(kernel, None).map(Self::Constrained);
+            return lower_finite_constraints(kernel, None, nonlinear).map(Self::Constrained);
         }
         if kernel.nodes().any(|node| {
             matches!(node, KernelNode::Field(_) | KernelNode::ClockDomain(_))
@@ -69,6 +71,9 @@ impl AlgebraicProblem {
             return Err(invalid(
                 "conserving affine admission does not admit unresolved Fields or clocked/signal execution",
             ));
+        }
+        if nonlinear {
+            return Err(invalid("finite Newton requires an admitted Field problem"));
         }
         let connection = kernel
             .nodes()
@@ -112,10 +117,8 @@ impl AlgebraicProblem {
 
     pub(super) fn nonlinear(&self) -> Result<&FiniteConstraintProblem, Diagnostic> {
         match self {
-            Self::Constrained(problem) if problem.is_strict_interior() => Ok(problem),
-            _ => Err(invalid(
-                "nonlinear finite Plan requires strict-interior constraints",
-            )),
+            Self::Constrained(problem) if problem.is_nonlinear() => Ok(problem),
+            _ => Err(invalid("nonlinear finite Plan requires Newton admission")),
         }
     }
     pub(super) fn validate_seed(&self, values: &[f64]) -> Result<(), Diagnostic> {

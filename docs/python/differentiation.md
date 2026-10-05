@@ -322,3 +322,8 @@ Named collective axes, sharding, `pmap`, higher-order derivatives, accelerators,
 and export remain unsupported; batching makes no speedup claim.
 
 Importing base `eqiora` imports neither optional framework.
+
+Finite Newton residual products use the Plan-normalized equality rows: each original
+residual and both its unknown and Parameter derivatives are divided by the same
+physical residual scale. Reduced output JVP/VJP use the real pairing for complex
+coordinates and remain invariant under a change of residual normalization.

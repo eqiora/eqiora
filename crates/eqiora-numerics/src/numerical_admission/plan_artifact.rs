@@ -19,7 +19,10 @@ use crate::{ScalingComponent2d, ScalingMode2d};
 use super::*;
 mod eigen;
 mod enforcement;
+mod residual_scaling;
 use eigen::WireEigenRequest;
+use residual_scaling::WireResidualScale;
+pub(super) use residual_scaling::bytes as residual_scaling_bytes;
 mod linear;
 use enforcement::WireEnforcement;
 use linear::WireLinearControls;
@@ -28,7 +31,7 @@ mod forward_policy;
 use event_policy::WireEventPolicy;
 use forward_policy::WireForwardSensitivity;
 
-const SCHEMA: &str = "eqiora.resolved-common-plan/v8";
+const SCHEMA: &str = "eqiora.resolved-common-plan/v9";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 
@@ -142,7 +145,7 @@ enum WireTemporal {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireResolvedCommonPlanV8 {
+struct WireResolvedCommonPlanV9 {
     schema: String,
     encoding: String,
     family: WirePlanFamily,
@@ -168,6 +171,8 @@ struct WireResolvedCommonPlanV8 {
     temporal: Option<WireTemporal>,
     #[serde(skip_serializing_if = "Option::is_none")]
     enforcement: Option<WireEnforcement>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    residual_scales: Option<Vec<WireResidualScale>>,
     backend: String,
     backend_version: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -307,7 +312,7 @@ impl ResolvedCommonPlan {
 
     /// Encode this complete resolved Plan and its exact replay roots.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&WireResolvedCommonPlanV8::from_plan(self)?).map_err(|error| {
+        serde_json::to_vec(&WireResolvedCommonPlanV9::from_plan(self)?).map_err(|error| {
             invalid(format!(
                 "cannot encode resolved common Plan artifact: {error}"
             ))
@@ -329,7 +334,7 @@ impl ResolvedCommonPlan {
                 bytes.len()
             )));
         }
-        let wire: WireResolvedCommonPlanV8 = serde_json::from_slice(bytes)
+        let wire: WireResolvedCommonPlanV9 = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid resolved common Plan JSON: {error}")))?;
         wire.validate_header()?;
         let resolved = wire.resolve(linear_backend, time_backend)?;
@@ -342,7 +347,7 @@ impl ResolvedCommonPlan {
     }
 }
 
-impl WireResolvedCommonPlanV8 {
+impl WireResolvedCommonPlanV9 {
     fn from_plan(plan: &ResolvedCommonPlan) -> Result<Self, Diagnostic> {
         let model = plan_model_artifact(plan).canonical_json()?;
         let mesh = plan_authenticated_mesh(plan)
@@ -386,6 +391,15 @@ impl WireResolvedCommonPlanV8 {
                 .as_algebraic()
                 .and_then(|plan| plan.enforcement())
                 .map(WireEnforcement::from_native),
+            residual_scales: plan
+                .as_algebraic()
+                .filter(|plan| plan.nonlinear().is_some())
+                .map(|plan| {
+                    plan.residual_scales()
+                        .iter()
+                        .map(WireResidualScale::from_native)
+                        .collect()
+                }),
             backend: plan.solver_backend().to_owned(),
             backend_version: plan.solver_backend_version().to_owned(),
             realization_base64: graph,
@@ -398,9 +412,11 @@ impl WireResolvedCommonPlanV8 {
                 "resolved common Plan has an unknown schema or encoding",
             ));
         }
-        if self.family != WirePlanFamily::Algebraic && self.enforcement.is_some() {
+        if self.family != WirePlanFamily::Algebraic
+            && (self.enforcement.is_some() || self.residual_scales.is_some())
+        {
             return Err(invalid(
-                "finite enforcement cannot accompany a spatial or temporal Plan",
+                "finite enforcement or residual scales cannot accompany a spatial or temporal Plan",
             ));
         }
         let ode = self.family == WirePlanFamily::Ode;
@@ -512,6 +528,13 @@ impl WireResolvedCommonPlanV8 {
                     .as_ref()
                     .map(WireEnforcement::to_native)
                     .transpose()?,
+                &self
+                    .residual_scales
+                    .as_deref()
+                    .unwrap_or_default()
+                    .iter()
+                    .map(WireResidualScale::to_native)
+                    .collect::<Result<Vec<_>, _>>()?,
                 self.authored_formulation_base64
                     .as_ref()
                     .map(|encoded| {

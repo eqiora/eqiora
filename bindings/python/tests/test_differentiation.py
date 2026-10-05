@@ -380,7 +380,7 @@ def test_finite_program_preserves_partial_and_reduced_actions_and_seed_ownership
     from test_constraints import nonlinear_root
 
     model, plan = nonlinear_root()
-    seed = eqiora.State.initial(plan, fields=(eqiora.InitialField(model.field("w"), scalar_value=2.0),))
+    seed = eqiora.State.initial(plan, fields=(eqiora.InitialField(model.field("w"), value=2.0),))
     program = eqiora.diff.compile(plan, inputs=(model.parameter("p"),),
                                  output=model.observable("output"), state=seed)
     one = np.array([1.0], dtype=np.float64)
@@ -416,7 +416,7 @@ def test_finite_program_preserves_partial_and_reduced_actions_and_seed_ownership
     with pytest.raises((eqiora.ValidationError, eqiora.ExecutionError)):
         eqiora.diff.compile(plan, inputs=(model.parameter("p"),), output=model.observable("output"))
     foreign, foreign_plan = nonlinear_root(p=9)
-    foreign_seed = eqiora.State.initial(foreign_plan, fields=(eqiora.InitialField(foreign.field("w"), scalar_value=2.0),))
+    foreign_seed = eqiora.State.initial(foreign_plan, fields=(eqiora.InitialField(foreign.field("w"), value=2.0),))
     for inputs, output, state in (
         ((foreign.parameter("p"),), model.observable("output"), seed),
         ((model.parameter("p"),), foreign.observable("output"), seed),
@@ -443,7 +443,7 @@ model OrderedRoot() {{
             model.constraint("root", ordinal), 1e-8, eqiora.Dimension()) for ordinal in (1, 2))
         plan = eqiora.resolve(model, solve=controls.requested_solve,
                               enforcement=eqiora.solve.StrictInterior(margins=margins))
-        state = eqiora.State.initial(plan, fields=(eqiora.InitialField(model.field("w"), scalar_value=2.0),))
+        state = eqiora.State.initial(plan, fields=(eqiora.InitialField(model.field("w"), value=2.0),))
         return model, plan, state
 
     model, plan, state = compile_root("w*w=p")

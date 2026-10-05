@@ -46,20 +46,27 @@ fn fixture(p: f64, margin: f64, equality: &str) -> (ModelDocument, CommonAlgebra
         nonlinear: NonlinearSolvePlan::new(0.0, 1e-12, NonZeroUsize::new(32).unwrap(), 16).unwrap(),
         linear: CommonLinearRequest::exact(linear, FaerLinearSolver.provider()).unwrap(),
     };
-    let plan =
-        CommonAlgebraicPlan::resolve(&model, solve, Some(enforcement), None, &FaerLinearSolver)
-            .unwrap();
+    let plan = CommonAlgebraicPlan::resolve(
+        &model,
+        solve,
+        Some(enforcement),
+        &[],
+        None,
+        &FaerLinearSolver,
+    )
+    .unwrap();
     (document, plan)
 }
 fn seed(document: &ModelDocument, plan: &CommonAlgebraicPlan, value: f64) -> CommonInitialField {
-    CommonInitialField::scalar(
+    CommonInitialField::finite(
         plan.model_artifact()
             .artifact_reference()
             .unwrap()
             .artifact()
             .clone(),
         document.aliases()["w"].downcast().unwrap(),
-        value,
+        eqiora::ValueShape::scalar(),
+        vec![(value, 0.)],
     )
     .unwrap()
 }

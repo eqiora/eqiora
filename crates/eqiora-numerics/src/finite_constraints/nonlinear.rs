@@ -6,6 +6,9 @@ use eqiora_realization::NonlinearSolvePlan;
 use eqiora_solver::{CanonicalCsrSystemView, LinearOperatorProperties};
 use eqiora_time::ConstantDerivativeMatrixProof;
 
+#[cfg(test)]
+mod cubic_tests;
+
 /// Nonlinear acceptance is distinct from the reports for individual linear updates.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FiniteNonlinearSolution {
@@ -22,10 +25,8 @@ impl FiniteConstraintProblem {
     }
 
     pub(crate) fn assess_seed(&self, values: &[f64]) -> Result<ConstraintAssessment, Diagnostic> {
-        if !self.is_strict_interior() {
-            return Err(invalid(
-                "nonlinear seed requires strict-interior enforcement",
-            ));
+        if !self.is_nonlinear() {
+            return Err(invalid("nonlinear seed requires Newton admission"));
         }
         solve::original_assessment(self, values, f64::MAX)
     }
@@ -64,9 +65,9 @@ impl FiniteConstraintProblem {
         nonlinear: NonlinearSolvePlan,
         linear: LinearSolveRequest<'_>,
     ) -> Result<FiniteNonlinearSolution, Diagnostic> {
-        if !self.is_strict_interior() {
+        if !self.is_nonlinear() {
             return Err(invalid(
-                "nonlinear finite execution requires strict-interior enforcement",
+                "nonlinear finite execution requires Newton admission",
             ));
         }
         // This independently evaluates original operands, including parameter-only
@@ -157,7 +158,19 @@ impl FiniteConstraintProblem {
             let Some(expression) = preparation::branch_expression(relation, 0, &mut 0)? else {
                 continue;
             };
-            let actions = self.linearize_expression(&expression, values, selected)?;
+            let mut actions = self.linearize_expression(&expression, values, selected)?;
+            let parameter_width = self.parameter_coordinates(selected)?.len();
+            for (row, scale) in relation.row_scales().enumerate() {
+                actions.values[row] = scaling::normalize(actions.values[row], scale)?;
+                for value in &mut actions.unknown_jacobian[row * n..(row + 1) * n] {
+                    *value = scaling::normalize(*value, scale)?;
+                }
+                for value in &mut actions.parameter_jacobian
+                    [row * parameter_width..(row + 1) * parameter_width]
+                {
+                    *value = scaling::normalize(*value, scale)?;
+                }
+            }
             residuals.extend(actions.values);
             coefficients.extend(actions.unknown_jacobian);
             parameter_jacobian.extend(actions.parameter_jacobian);
@@ -233,7 +246,7 @@ mod tests {
                 .collect(),
         )
         .unwrap();
-        lower_finite_constraints(&kernel, Some(&policy)).unwrap()
+        lower_finite_constraints(&kernel, Some(&policy), true).unwrap()
     }
 
     fn solve(

@@ -101,7 +101,7 @@ fn structural_and_quantum_source_plans_retain_roles_units_and_provider_identity(
         assert_eq!(restored, resolved);
         assert_eq!(restored.as_eigen().unwrap().mode_field(), plan.mode_field());
         let wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(wire["schema"], "eqiora.resolved-common-plan/v8");
+        assert_eq!(wire["schema"], "eqiora.resolved-common-plan/v9");
         for (key, value) in [
             ("count", serde_json::json!(1)),
             ("algorithm", serde_json::json!("unsupported")),

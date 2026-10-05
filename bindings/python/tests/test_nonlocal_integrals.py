@@ -54,7 +54,7 @@ def test_nonlocal_residual_output_and_total_actions_keep_integrated_dependence()
     plan = q.resolve(model, solve=q.solve.Newton(linear=linear(), relative_tolerance=0.0,
         absolute_tolerance=1e-12, maximum_iterations=8, maximum_line_search_steps=8),
         enforcement=enforcement)
-    seed = q.State.initial(plan, fields=(q.InitialField(model.field("amplitude"), scalar_value=1.0),))
+    seed = q.State.initial(plan, fields=(q.InitialField(model.field("amplitude"), value=1.0),))
     program = q.diff.compile(plan, inputs=(model.parameter("amount"),),
                             output=model.observable("readout"), state=seed)
     def vector(x):

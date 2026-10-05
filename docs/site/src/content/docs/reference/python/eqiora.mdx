@@ -1106,7 +1106,7 @@ Immutable exact-Field-bound coherent-SI initial coefficients.
 ```python
 @final
 class InitialField:
-    def __new__(cls, field: FieldRef, /, *, vertex_values: object | None=None, cell_values: object | None=None, scalar_value: float | None=None) -> InitialField: ...
+    def __new__(cls, field: FieldRef, /, *, vertex_values: object | None=None, cell_values: object | None=None, value: object | None=None) -> InitialField: ...
     @property
     def field(self) -> FieldRef: ...
 ```
@@ -2375,7 +2375,7 @@ resource. Spatial paths retain their exact Mesh without regeneration;
 structural no-Mesh ODE paths reject spatial resources.
 
 ```python
-def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, formulation: FormulationKind | None=None, solve: solve.Linear | solve.Newton | solve.HermitianEigen | None=None, scaling: fluid.IncompressibleScaling | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | None=None, enforcement: solve.ActiveSet | solve.StrictInterior | None=None) -> Plan: ...
+def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, formulation: FormulationKind | None=None, solve: solve.Linear | solve.Newton | solve.HermitianEigen | None=None, scaling: fluid.IncompressibleScaling | dict[ConstraintRef, tuple[float, Dimension]] | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | None=None, enforcement: solve.ActiveSet | solve.StrictInterior | None=None) -> Plan: ...
 ```
 
 <a id="api-eqiora-ProjectUpdate"></a>

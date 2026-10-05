@@ -212,8 +212,8 @@ model M() {
             )
             .unwrap(),
         );
-        let plan =
-            CommonAlgebraicPlan::resolve(&model, policy, None, None, &FaerLinearSolver).unwrap();
+        let plan = CommonAlgebraicPlan::resolve(&model, policy, None, &[], None, &FaerLinearSolver)
+            .unwrap();
         let result = plan
             .run_result(&plan.initial_state(&[]).unwrap(), &FaerLinearSolver)
             .unwrap();
@@ -545,11 +545,17 @@ model M() {{
             )
             .unwrap(),
         );
-        let error =
-            match CommonAlgebraicPlan::resolve(&model, policy, None, None, &FaerLinearSolver) {
-                Err(error) => error,
-                Ok(_) => panic!("Plan must preserve inverse admission"),
-            };
+        let error = match CommonAlgebraicPlan::resolve(
+            &model,
+            policy,
+            None,
+            &[],
+            None,
+            &FaerLinearSolver,
+        ) {
+            Err(error) => error,
+            Ok(_) => panic!("Plan must preserve inverse admission"),
+        };
         assert!(error.message().contains(gate), "{error:?}");
     }
 }

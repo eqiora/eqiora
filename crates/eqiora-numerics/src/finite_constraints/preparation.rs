@@ -1,6 +1,6 @@
 use super::*;
 use eqiora_core::{ScalarDomain, ValueFrame};
-use eqiora_ir::{ComponentScalarization, ScalarOperatorIr, ScalarSymbolCoordinate};
+use eqiora_ir::{ComponentScalarization, ScalarSymbolCoordinate};
 use eqiora_schema::kernel::typing::{ExpressionType, RootContract, TypedResidual};
 use eqiora_schema::kernel::{ActivationKind, ExprDagBuilder, ExprNode, FieldRole, KernelNode};
 use std::collections::BTreeSet;
@@ -13,9 +13,15 @@ use std::collections::BTreeSet;
 pub(crate) fn lower_finite_constraints(
     kernel: &KernelProgram,
     enforcement: Option<&FiniteConstraintEnforcement>,
+    nonlinear: bool,
 ) -> Result<FiniteConstraintProblem, Diagnostic> {
     let max_active_sets = enforcement.and_then(FiniteConstraintEnforcement::max_active_sets);
     let strict_interior = enforcement.is_some_and(FiniteConstraintEnforcement::is_strict_interior);
+    if strict_interior != nonlinear && enforcement.is_some() {
+        return Err(invalid(
+            "finite Newton permits only strict-interior inequality enforcement",
+        ));
+    }
     let mut symbols = Vec::new();
     let mut dimensions = Vec::new();
     let mut coordinates = Vec::new();
@@ -40,12 +46,9 @@ pub(crate) fn lower_finite_constraints(
                     || value.frame() != ValueFrame::Invariant
                     || (value.array_rank() != value.shape().rank()
                         && value.finite_bases().next().is_none())
-                    || (strict_interior
-                        && (value.scalar_domain() != ScalarDomain::Real
-                            || !value.shape().is_scalar()))
                 {
                     return Err(invalid(
-                        "finite affine execution requires invariant numeric Fields; Newton requires real scalars",
+                        "finite execution requires invariant numeric Fields",
                     ));
                 }
                 symbols.push(SymbolRef::Field(field.id()));
@@ -73,9 +76,6 @@ pub(crate) fn lower_finite_constraints(
             }
             KernelNode::Parameter(parameter) => {
                 let value = parameter.value();
-                if strict_interior && value.real_scalar_value().is_none() {
-                    return Err(invalid("finite Newton Parameters must be real scalars"));
-                }
                 if value.value_type().frame() != ValueFrame::Invariant
                     || (value.value_type().array_rank() != value.value_type().shape().rank()
                         && value.value_type().finite_bases().next().is_none())
@@ -195,6 +195,7 @@ pub(crate) fn lower_finite_constraints(
         )
         .map_err(|errors| invalid(format!("finite original operand typing failed: {errors:?}")))?;
         let mut operand_dimensions = Vec::new();
+        let mut equality_scales = Vec::new();
         for (ordinal, (kind, (left, right))) in conditions
             .iter()
             .zip(
@@ -218,12 +219,12 @@ pub(crate) fn lower_finite_constraints(
                     || operand.frame() != ValueFrame::Invariant
                     || (operand.value_type.array_rank() != operand.shape().rank()
                         && operand.value_type.finite_bases().next().is_none())
-                    || ((*kind != RelationConditionKind::Equality || strict_interior)
+                    || ((*kind != RelationConditionKind::Equality)
                         && (operand.value_type.scalar_domain() != ScalarDomain::Real
                             || !operand.shape().is_scalar()))
                 {
                     return Err(invalid(
-                        "finite equalities require invariant numeric operands; ordered constraints and Newton require real scalars",
+                        "finite equalities require invariant numeric operands; ordered constraints require real scalars",
                     ));
                 }
             }
@@ -246,6 +247,15 @@ pub(crate) fn lower_finite_constraints(
                             )
                         })
                         .ok_or_else(|| invalid("equality coordinate count overflow"))?;
+                    equality_scales.push(scaling::EqualityScale {
+                        ordinal: u32::try_from(ordinal)
+                            .map_err(|_| invalid("condition ordinal overflow"))?,
+                        scale: eqiora_realization::PositivePhysicalScale::new(DynQuantity::new(
+                            1.0,
+                            value_type.dimension(),
+                        ))?,
+                        coordinates: count,
+                    });
                     equality_count = equality_count
                         .checked_add(count)
                         .ok_or_else(|| invalid("equality coordinate count overflow"))?;
@@ -295,7 +305,7 @@ pub(crate) fn lower_finite_constraints(
                 "finite active-set branches must be square: too many equality coordinates",
             ));
         }
-        if !strict_interior {
+        {
             // Every scalarized operand row may traverse the original DAG; a
             // complex node may need both parts. Charge that expansion before
             // constructing rows, within the existing finite node-work budget.
@@ -339,10 +349,9 @@ pub(crate) fn lower_finite_constraints(
         }
         // Prove every original operand affine before considering any active branch.
         // A branch must never hide a nonlinear inactive operand.
-        if strict_interior {
-            ScalarOperatorIr::lower(&expression)?;
-        } else {
-            for row in ComponentScalarization::lower(&typed)?.rows() {
+        let lowered = ComponentScalarization::lower(&typed)?;
+        if !nonlinear {
+            for row in lowered.rows() {
                 row.bind_affine(&coordinates, &bindings).map_err(|error| {
                     invalid(format!(
                         "finite condition operands are not affine: {}",
@@ -356,6 +365,7 @@ pub(crate) fn lower_finite_constraints(
             expression,
             conditions: conditions.to_vec(),
             dimensions: operand_dimensions,
+            equality_scales,
         });
     }
     if expected.len() != enforcement.map_or(0, |policy| policy.tolerances().len()) {
@@ -370,11 +380,7 @@ pub(crate) fn lower_finite_constraints(
             "complete active-set enumeration exceeds its explicit bounded budget",
         ));
     }
-    let node_work = if strict_interior {
-        expression_nodes
-    } else {
-        affine_node_work
-    };
+    let node_work = affine_node_work;
     if node_work.saturating_mul(1usize << complementarity_count) > 16_777_216 {
         return Err(invalid(
             "finite active-set expression work exceeds 16777216 node evaluations",
@@ -395,6 +401,7 @@ pub(crate) fn lower_finite_constraints(
         relations,
         enforcement: enforcement.cloned(),
         complementarity_count,
+        nonlinear,
     })
 }
 

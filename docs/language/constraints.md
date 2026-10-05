@@ -35,9 +35,10 @@ contact assembly, friction, nonlinear constraints and augmented or penalty formu
 separate explicit formulations.
 
 
-## Strict-interior nonlinear execution
+## Finite nonlinear execution
 
-A finite real-scalar nonlinear equality system can instead use `solve.Newton` with
+A finite real or complex nonlinear equality system can use `solve.Newton`. Equality-only
+systems need no enforcement policy. If inequalities are authored, supply
 `solve.StrictInterior(margins=...)`. Every authored inequality requires a positive margin in
 its own physical dimension. Execution accepts only points whose original inequality slack is
 strictly greater than that margin; complementarity is excluded. These numerical margins
@@ -47,21 +48,35 @@ For `w*w=p`, author `inequality(p>=0)` and `inequality(w>=0)`. Margins of `1e-8`
 execution to `p>1e-8` and `w>1e-8`; they do not admit every arbitrarily small positive p.
 `p=0` rejects before Newton, even if a small approximate positive w would satisfy a residual
 tolerance. The numerical seed is supplied with
-`State.initial(plan, fields=(InitialField(model.field("w"), scalar_value=1.0),))`.
-Every exact Field needs one finite coherent-SI scalar value. Spatial associations, foreign
-Fields, duplicates and omissions reject. A source `initial` equation is not a numerical seed.
+`State.initial(plan, fields=(InitialField(model.field("w"), value=1.0),))`.
+Every exact Field needs one complete finite coherent-SI value. `value=` accepts real or
+complex scalars and rectangular nested component arrays; shapes must match exactly, with no
+broadcasting or reshaping. Units and nominal bases come from the exact Field. Imaginary
+components in real Fields, spatial associations, foreign Fields, duplicates and omissions
+reject. A source `initial` equation is not a numerical seed. This replaces the pre-1.0
+`scalar_value=` argument. Native callers use `CommonInitialField::finite` with the exact
+`ValueShape` and row-major real/imaginary component pairs.
 
-Newton uses the existing scalar Operator IR's exact AD and the Plan's exact
+Residual acceptance uses the real Euclidean norm of the normalized equality components.
+By default, each equality uses one coherent-SI unit of its operand dimension. Override it
+with `scaling={model.constraint("root", 0): (scale, Dimension(...))}` in `resolve`.
+Scales must be finite and positive with the exact equality dimension; both parts of a
+complex component use the same scale. The same scales divide the residual, unknown
+Jacobian and Parameter partial rows, so Newton updates and acceptance agree. The Plan
+retains every effective scale, including defaults, in canonical condition order. Wrong
+units, foreign conditions, and nonrepresentable normalization reject. This normalization
+does not imply an unknown-space metric or a physical energy norm.
+
+Newton uses the shared component Operator IR's real-linear AD and the Plan's exact
 SparseLU/Identity/Fast provider policy. It requires strictly improving or converged interior
 trial points within the requested iteration and backtracking budgets. Before publishing a
 Result, the original equations and inequalities are reevaluated and the accepted-point AD
 Jacobian must have full rank, even if the seed already has zero residual. This is local
 regularity of the represented Jacobian, not a global uniqueness or branch-tracking theorem.
 
-Plan v6 retains Newton controls and margins; finite State v2 binds the complete numerical seed;
-Result v7 retains that State, original residual acceptance and distinct nonlinear/linear
+Plan v9 retains Newton controls and margins; finite State v2 binds the complete numerical seed;
+Result v11 retains that State, original residual acceptance and distinct nonlinear/linear
 records. Replay rechecks original conditions and local regularity. A zero-update record must
 retain an already accepted seed exactly. Python `result.solve` returns `NonlinearSolveSummary`
-for this profile, including nonlinear iteration count and residual bounds. This primal
-lifecycle does not yet expose reduced-solution derivatives, global branch selection,
-complementarity derivatives or spatial nonlinear constraints.
+for this profile, including nonlinear iteration count and residual bounds. Accepted-point reduced sensitivities use the common differentiable Program. Global branch
+selection, complementarity derivatives and spatial nonlinear constraints remain separate.
