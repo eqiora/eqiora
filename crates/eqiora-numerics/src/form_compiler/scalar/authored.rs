@@ -177,6 +177,7 @@ pub(crate) fn equivalent(
         ) => a == b && a_support == b_support && a_factor == b_factor,
         (Expression::Test { field_ulid: a }, Expression::Test { field_ulid: b }) => a == b,
         (Expression::Neg { value: a }, Expression::Neg { value: b })
+        | (Expression::Conjugate { value: a }, Expression::Conjugate { value: b })
         | (Expression::Trace { value: a }, Expression::Trace { value: b })
         | (Expression::Gradient { value: a }, Expression::Gradient { value: b })
         | (Expression::Sin { value: a }, Expression::Sin { value: b }) => equivalent(a, b),
@@ -209,6 +210,20 @@ pub(crate) fn equivalent(
                 left: bl,
                 right: br,
             },
+        )
+        | (
+            Expression::Inner {
+                left: al,
+                right: ar,
+            },
+            Expression::Inner {
+                left: bl,
+                right: br,
+            },
+        )
+        | (
+            Expression::Complex { real: al, imag: ar },
+            Expression::Complex { real: bl, imag: br },
         ) => equivalent(al, bl) && equivalent(ar, br),
         (
             Expression::Pow {
@@ -271,4 +286,46 @@ fn rejection_with(projection: &AuthoredFormulationProjection, message: &str) -> 
         "{message} (source identity {})",
         projection.source_identity()
     ))
+}
+
+#[cfg(test)]
+mod complex_tests {
+    use super::*;
+    use AuthoredFormExpressionV1 as E;
+
+    #[test]
+    fn authored_equivalence_retains_inner_order_and_complex_phase() {
+        let test = E::Test {
+            field_ulid: "test".into(),
+        };
+        let field = E::Field {
+            ulid: "trial".into(),
+        };
+        let inner = |left, right| E::Inner {
+            left: Box::new(left),
+            right: Box::new(right),
+        };
+        let value = inner(test.clone(), field.clone());
+        assert!(equivalent(&value, &value.clone()));
+        assert!(!equivalent(&value, &inner(field.clone(), test.clone())));
+        assert!(!equivalent(
+            &value,
+            &E::Dot {
+                left: Box::new(test),
+                right: Box::new(field.clone())
+            }
+        ));
+        let conjugate = E::Conjugate {
+            value: Box::new(field.clone()),
+        };
+        assert!(equivalent(&conjugate, &conjugate.clone()));
+        assert!(!equivalent(&conjugate, &field));
+        let complex = |imag| E::Complex {
+            real: Box::new(E::Number { value: 1.0 }),
+            imag: Box::new(E::Number { value: imag }),
+        };
+        assert!(equivalent(&complex(2.0), &complex(2.0)));
+        assert!(!equivalent(&complex(2.0), &complex(-2.0)));
+        assert!(!equivalent(&complex(0.0), &E::Number { value: 1.0 }));
+    }
 }
