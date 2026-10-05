@@ -264,7 +264,7 @@ pub enum LinearizationState {
 
 #[derive(Debug, Clone, PartialEq)]
 enum PrimalEvidence {
-    Affine(SolveReport),
+    Affine(Box<SolveReport>),
     Linear(Box<ExecutionReceipt>),
     Nonlinear {
         initial_state_identity: String,
@@ -635,12 +635,12 @@ impl DifferentiableEvaluation {
                 .agreement_fingerprint(),
             primal: match self.native.receipt() {
                 Some(receipt) => PrimalEvidence::Linear(Box::new(receipt.clone())),
-                None if self.native.affine_solve().is_some() => PrimalEvidence::Affine(
+                None if self.native.affine_solve().is_some() => PrimalEvidence::Affine(Box::new(
                     self.native
                         .affine_solve()
                         .expect("accepted affine solve")
                         .clone(),
-                ),
+                )),
                 None => PrimalEvidence::Nonlinear {
                     initial_state_identity: self
                         .native
