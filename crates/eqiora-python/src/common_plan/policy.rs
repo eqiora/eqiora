@@ -1,4 +1,5 @@
 //! Closed Python numerical-policy requests consumed by the root resolver.
+mod ode;
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -491,6 +492,7 @@ impl PyBackwardEuler {
 pub(super) struct OdePolicyData {
     pub(super) native: CommonOdePolicy,
     coordinates: Vec<(Py<PyModelFieldRef>, u32, usize, bool)>,
+    contract_models: Vec<String>,
     events: Option<super::event_policy::PyEventPolicy>,
     forward_sensitivities: Option<super::forward_policy::PyForwardSensitivity>,
 }
@@ -515,195 +517,33 @@ pub(crate) struct PyImplicitMidpoint {
     pub(super) data: OdePolicyData,
 }
 
-impl OdePolicyData {
-    fn absolute_tolerances(&self, py: Python<'_>) -> PyResult<Py<PyDict>> {
-        let result = PyDict::new(py);
-        for ((field, order, component, imaginary), tolerance) in self
-            .coordinates
-            .iter()
-            .zip(self.native.absolute_tolerances())
-        {
-            result.set_item(
-                (field.clone_ref(py), *order, *component, *imaginary),
-                tolerance.value(),
-            )?;
-        }
-        Ok(result.unbind())
-    }
-    fn new(
-        py: Python<'_>,
-        method: eqiora::time::TimeMethod,
-        initial_step_s: f64,
-        relative_tolerance: f64,
-        absolute_tolerances: &Bound<'_, PyDict>,
-        events: Option<&super::event_policy::PyEventPolicy>,
-        forward_sensitivities: Option<&super::forward_policy::PyForwardSensitivity>,
-    ) -> PyResult<Self> {
-        let mut native = Vec::with_capacity(absolute_tolerances.len());
-        let mut coordinates = Vec::with_capacity(absolute_tolerances.len());
-        for (field, value) in absolute_tolerances.iter() {
-            let (field, order, component, imaginary) = field.extract::<(Py<PyModelFieldRef>, u32, usize, bool)>().map_err(|_| {
-                PyTypeError::new_err(
-                    "absolute_tolerances keys must be (exact eqiora.FieldRef, derivative order, component, imaginary) tuples",
-                )
-            })?;
-            let value = exact_time_float(&value)?;
-            let id = Ulid::from_string(field.borrow(py).exact_id()).map_err(|_| {
-                PyTypeError::new_err("absolute_tolerances contains an invalid exact FieldRef")
-            })?;
-            native.push(
-                CommonTimeTolerance::new(
-                    eqiora::TimeStateCoordinate::new(
-                        Id::<kinds::Field>::from_ulid(id),
-                        order,
-                        component,
-                        imaginary,
-                    ),
-                    value,
-                )
-                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
-            );
-            coordinates.push((field, order, component, imaginary));
-        }
-        coordinates.sort_by_key(|(field, order, component, imaginary)| {
-            (
-                field.borrow(py).exact_id().to_owned(),
-                *order,
-                *component,
-                *imaginary,
-            )
-        });
-        let mut native = CommonOdePolicy::new(method, initial_step_s, relative_tolerance, native)
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-        if let Some(events) = events {
-            native = native
-                .with_events(
-                    events.max_events,
-                    events
-                        .entries
-                        .iter()
-                        .map(|entry| (entry.activation.id, entry.quantity))
-                        .collect(),
-                )
-                .map_err(|error| validation_error(py, &[error]))?;
-        }
-        if let Some(policy) = forward_sensitivities {
-            native = native
-                .with_forward_sensitivities(
-                    policy.relative_tolerance,
-                    policy
-                        .entries
-                        .iter()
-                        .map(|entry| {
-                            let field = Ulid::from_string(entry.field.exact_id())
-                                .map(Id::<kinds::Field>::from_ulid)
-                                .expect("validated exact FieldRef");
-                            (
-                                eqiora::TimeStateCoordinate::new(
-                                    field,
-                                    entry.derivative_order,
-                                    entry.component,
-                                    entry.imaginary,
-                                ),
-                                entry.parameter.value.id(),
-                                entry.quantity,
-                            )
-                        })
-                        .collect(),
-                )
-                .map_err(|error| validation_error(py, &[error]))?;
-        }
-        Ok(Self {
-            native,
-            coordinates,
-            events: events.cloned(),
-            forward_sensitivities: forward_sensitivities.cloned(),
-        })
-    }
-    pub(super) fn from_native(
-        py: Python<'_>,
-        model_digest: &str,
-        native: CommonOdePolicy,
-        document: &eqiora::api::ModelDocument,
-    ) -> PyResult<Self> {
-        let coordinates = native
-            .absolute_tolerances()
-            .iter()
-            .map(|entry| {
-                Py::new(
-                    py,
-                    PyModelFieldRef::from_exact(
-                        model_digest.to_owned(),
-                        entry.coordinate().field().ulid().to_string(),
-                    ),
-                )
-                .map(|field| {
-                    (
-                        field,
-                        entry.coordinate().derivative_order(),
-                        entry.coordinate().component(),
-                        entry.coordinate().is_imaginary(),
-                    )
-                })
-            })
-            .collect::<PyResult<Vec<_>>>()?;
-        let events = native
-            .events()
-            .map(|policy| super::event_policy::PyEventPolicy {
-                model_digest: model_digest.to_owned(),
-                max_events: policy.max_events(),
-                entries: policy
-                    .guard_tolerances()
-                    .iter()
-                    .map(|entry| super::event_policy::PyGuardTolerance {
-                        activation: crate::model::PyActivationRef {
-                            model_digest: model_digest.to_owned(),
-                            id: entry.activation(),
-                        },
-                        quantity: entry.quantity(),
-                    })
-                    .collect(),
-            });
-        let forward_sensitivities = native
-            .forward_sensitivities()
-            .map(|policy| {
-                super::forward_policy::PyForwardSensitivity::from_native(
-                    py,
-                    document,
-                    policy.relative_tolerance(),
-                    policy
-                        .absolute_tolerances()
-                        .iter()
-                        .map(|entry| (entry.coordinate(), entry.parameter(), entry.quantity()))
-                        .collect(),
-                )
-            })
-            .transpose()?;
-        Ok(Self {
-            native,
-            coordinates,
-            events,
-            forward_sensitivities,
-        })
-    }
-
-    pub(super) fn belongs_to_model(&self, py: Python<'_>, model_digest: &str) -> bool {
-        self.forward_sensitivities
-            .as_ref()
-            .is_none_or(|policy| policy.model_digest == model_digest)
-            && self
-                .events
-                .as_ref()
-                .is_none_or(|events| events.model_digest == model_digest)
-            && self
-                .coordinates
-                .iter()
-                .all(|(field, _, _, _)| field.borrow(py).exact_model_digest() == model_digest)
-    }
-}
-
 #[pymethods]
 impl PyTsitouras45 {
+    /// Return a policy with an explicit complete-Field squared-norm contract.
+    #[pyo3(signature = (fields, *, target, tolerance, dimension))]
+    fn with_conserved_norm(
+        &self,
+        py: Python<'_>,
+        fields: Vec<Py<PyModelFieldRef>>,
+        #[pyo3(from_py_with = exact_time_float)] target: f64,
+        #[pyo3(from_py_with = exact_time_float)] tolerance: f64,
+        dimension: &crate::modeling::PyDimension,
+    ) -> PyResult<Self> {
+        self.data
+            .with_norm(py, fields, target, tolerance, dimension)
+            .map(|data| Self { data })
+    }
+    /// Check the selected bound matrix before evolution scaling.
+    fn with_hermitian_parameter(
+        &self,
+        py: Python<'_>,
+        parameter: &crate::model::PyModelParameterRef,
+    ) -> PyResult<Self> {
+        self.data
+            .with_hermitian(py, parameter)
+            .map(|data| Self { data })
+    }
+
     #[new]
     #[pyo3(signature = (*, initial_step_s, relative_tolerance, absolute_tolerances, events=None, forward_sensitivities=None))]
     fn new(
@@ -911,6 +751,31 @@ fn exact_time_float(value: &Bound<'_, PyAny>) -> PyResult<f64> {
 
 #[pymethods]
 impl PyImplicitMidpoint {
+    /// Return a policy with an explicit complete-Field squared-norm contract.
+    #[pyo3(signature = (fields, *, target, tolerance, dimension))]
+    fn with_conserved_norm(
+        &self,
+        py: Python<'_>,
+        fields: Vec<Py<PyModelFieldRef>>,
+        #[pyo3(from_py_with = exact_time_float)] target: f64,
+        #[pyo3(from_py_with = exact_time_float)] tolerance: f64,
+        dimension: &crate::modeling::PyDimension,
+    ) -> PyResult<Self> {
+        self.data
+            .with_norm(py, fields, target, tolerance, dimension)
+            .map(|data| Self { data })
+    }
+    /// Check the selected bound matrix before evolution scaling.
+    fn with_hermitian_parameter(
+        &self,
+        py: Python<'_>,
+        parameter: &crate::model::PyModelParameterRef,
+    ) -> PyResult<Self> {
+        self.data
+            .with_hermitian(py, parameter)
+            .map(|data| Self { data })
+    }
+
     #[new]
     #[pyo3(signature = (*, step_s, relative_tolerance, absolute_tolerances))]
     fn new(

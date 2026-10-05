@@ -86,6 +86,62 @@ impl TimeOperator {
             }
         }
     }
+    /// Prove homogeneity and constant state coefficients with bound Parameters.
+    /// Time is selected, never frozen at a probe point; its coefficient must vanish.
+    pub(super) fn require_homogeneous_constant(
+        &self,
+        relation: Id<kinds::Relation>,
+        selected: &[ScalarSymbolCoordinate],
+        bindings: &[(ScalarSymbolCoordinate, f64)],
+        time_column: Option<usize>,
+    ) -> Result<(), Diagnostic> {
+        let check = |coefficients: &[f64], offsets: &[f64]| {
+            if offsets.iter().any(|&offset| offset != 0.)
+                || time_column.is_some_and(|column| {
+                    coefficients
+                        .chunks_exact(selected.len())
+                        .any(|row| row[column] != 0.)
+                })
+            {
+                Err(invalid_time(
+                    relation,
+                    "constant generator requires homogeneous autonomous equations",
+                ))
+            } else {
+                Ok(())
+            }
+        };
+        match &self.profile {
+            Profile::Scalar(operator) => {
+                let selected = selected
+                    .iter()
+                    .map(ScalarSymbolCoordinate::symbol)
+                    .collect::<Vec<_>>();
+                let bindings = bindings
+                    .iter()
+                    .map(|(c, v)| (c.symbol(), *v))
+                    .collect::<Vec<_>>();
+                let affine = operator
+                    .bind_affine(&selected, &bindings)
+                    .map_err(|error| {
+                        invalid_time(
+                            relation,
+                            format!(
+                                "constant generator requires a structural affine proof: {error:?}"
+                            ),
+                        )
+                    })?;
+                check(affine.coefficients(), affine.offsets())
+            }
+            Profile::Components(operator) => {
+                for row in operator.rows() {
+                    let affine = row.bind_affine(selected, bindings)?;
+                    check(affine.coefficients(), affine.offsets())?;
+                }
+                Ok(())
+            }
+        }
+    }
     pub(super) fn evaluate(&self, inputs: &[f64]) -> Result<Vec<f64>, Diagnostic> {
         match &self.profile {
             Profile::Scalar(operator) => operator.evaluate(inputs),

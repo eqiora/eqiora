@@ -534,3 +534,18 @@ fn native_space_invalid_labels_reject_before_source_projection() {
         );
     }
 }
+
+#[test]
+fn inferred_finite_map_units_span_zero_rows_without_erasing_explicit_units() {
+    let source = "space A=orthonormal(a,b,c); model M(){ variable u:coordinates<complex<1>,A>; variable y:coordinates<complex<J>,A>; relation r{y=apply(linear_map(A,A,[[0,2[J],0],[0,0,0],[0,0,math.complex(0[J],3[J])]]),u);}}";
+    compile(source);
+    // A bare zero is contextual even in an entirely zero row. An explicitly
+    // dimensioned zero must not be recast, nor may a nonzero dimensionless value.
+    for bad in [
+        source.replace("[0,0,0]", "[0,0[s],0]"),
+        source.replace("[0,0,0]", "[0,1,0]"),
+        source.replace("[0,0,0]", "[0,0]"),
+    ] {
+        assert!(CompiledModel::compile_selected("bad-finite.eqi", &bad, "M", &[]).is_err());
+    }
+}

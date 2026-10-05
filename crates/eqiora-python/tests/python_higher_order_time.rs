@@ -14,7 +14,7 @@ fn higher_order_python_solve_preserves_derivative_coordinates_and_replay() -> Py
 import math
 complex_model = eqiora.compile(source="model ComplexState() { state z:array<complex<m>,2>; initial { z=[math.complex(1,2)*1[m],math.complex(3,4)*1[m]]; } relation flow { derivative(z)=math.complex(0,1)*1[1/s]*z; } }")
 z = complex_model.field("z")
-complex_plan = eqiora.resolve(complex_model, temporal=eqiora.time.ImplicitMidpoint(step_s=0.05, relative_tolerance=1e-12, absolute_tolerances={(z,0,c,i):1e-14 for c in range(2) for i in (False,True)}))
+complex_plan = eqiora.resolve(complex_model, temporal=eqiora.time.ImplicitMidpoint(step_s=0.05, relative_tolerance=1e-12, absolute_tolerances={(z,0,c,i):1e-14 for c in range(2) for i in (False,True)}).with_conserved_norm([z],target=30.0,tolerance=1e-10,dimension=eqiora.Dimension(length=2)))
 complex_plan = eqiora.Plan.from_bytes(complex_plan.to_bytes())
 complex_state = eqiora.State.initial(complex_plan)
 assert complex_state.value(z) == (1+2j, 3+4j)

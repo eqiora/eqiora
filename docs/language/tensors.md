@@ -165,3 +165,50 @@ On a boundary, tensor extents use the parent ambient dimension, not the boundary
 measure dimension. Operands on different boundaries, different parents, or a volume
 and its boundary do not become interchangeable; apply explicit trace or normal
 operations first. Conserving-interface supports remain outside this pure profile.
+
+## Finite Hamiltonians and declared evolution conditions
+
+A finite Hamiltonian is an energy-valued linear map on a declared orthonormal basis.
+For example, `H:map<complex<J>,S,S>` acts on dimensionless
+`psi:coordinates<complex<1>,S>`. The evolution equation keeps the physical conversion
+explicit: `derivative(psi)=math.complex(0,-1)/hbar*apply(H,psi)`, with
+`hbar:J*s`. Finite map sums, compositions, adjoints and tensor products can be bound
+as Parameters through the same typed component IR used during execution.
+
+For a closed system, declare both conditions on its ordinary time policy:
+
+```python
+psi = model.field("psi")
+H = model.parameter("H")
+policy = policy.with_hermitian_parameter(H).with_conserved_norm(
+    [psi], target=1.0, tolerance=1e-10, dimension=eqiora.Dimension()
+)
+plan = eqiora.resolve(model, temporal=policy)
+```
+
+Both `Tsitouras45` and `ImplicitMidpoint` expose these immutable policy methods.
+The first checks the complete bound matrix before division by hbar or other
+numerical scaling; tiny unequal conjugate entries cannot disappear before this
+check. It validates the bound binary64 Parameter, not symbolic arithmetic before
+its construction. The Parameter must belong to the exact Model. The same declaration can check a
+Hermitian observable operator before taking the real part of its expectation.
+
+The second declares the sum of squared magnitudes of complete selected Fields.
+The target and tolerance have the squared physical dimension of those Fields.
+Admission structurally proves a homogeneous autonomous linear generator and its
+selected norm identity; sampling the vector field does not establish linearity.
+Every accepted `State` must satisfy the tolerance. No value is normalized or
+projected to make it pass. Output interpolation can fail this condition even when
+accepted integration steps preserve the norm; choose suitable output boundaries
+and tolerances explicitly. These conditions survive Plan/State replay and cannot
+be mixed with references from a different Model.
+
+Current conservation admission does not prove nonlinear or time-dependent
+invariants, event resets or forward-sensitivity directions. Such requests fail
+explicitly; ordinary time evolution without these declarations retains its wider
+admitted scope. Finite basis extent is independent of physical-space dimension;
+there is no two-level or 4×4 bound in these conditions. Focused product tests cover
+a two-level example and equivalent explicit/composed 2×3-factor Hamiltonians.
+The [registered finite-Hamiltonian case](../../verify/time/finite-hamiltonians/README.md)
+proves the stated two-level and 2×3 spectral/Cayley claims. Python global-phase and
+explicit basis-change invariance have separate focused product tests.

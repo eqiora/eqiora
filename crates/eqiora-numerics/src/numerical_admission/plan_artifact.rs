@@ -33,7 +33,7 @@ use event_policy::WireEventPolicy;
 use forward_policy::WireForwardSensitivity;
 use temporal::{WireTemporal, WireTimeCoordinates, temporal_request};
 
-const SCHEMA: &str = "eqiora.resolved-common-plan/v10";
+const SCHEMA: &str = "eqiora.resolved-common-plan/v11";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 
@@ -122,7 +122,7 @@ struct WireScalingRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireResolvedCommonPlanV10 {
+struct WireResolvedCommonPlanV11 {
     schema: String,
     encoding: String,
     family: WirePlanFamily,
@@ -289,7 +289,7 @@ impl ResolvedCommonPlan {
 
     /// Encode this complete resolved Plan and its exact replay roots.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&WireResolvedCommonPlanV10::from_plan(self)?).map_err(|error| {
+        serde_json::to_vec(&WireResolvedCommonPlanV11::from_plan(self)?).map_err(|error| {
             invalid(format!(
                 "cannot encode resolved common Plan artifact: {error}"
             ))
@@ -312,7 +312,7 @@ impl ResolvedCommonPlan {
                 bytes.len()
             )));
         }
-        let wire: WireResolvedCommonPlanV10 = serde_json::from_slice(bytes)
+        let wire: WireResolvedCommonPlanV11 = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid resolved common Plan JSON: {error}")))?;
         wire.validate_header()?;
         let resolved = wire.resolve(linear_backend, time_backend)?;
@@ -325,7 +325,7 @@ impl ResolvedCommonPlan {
     }
 }
 
-impl WireResolvedCommonPlanV10 {
+impl WireResolvedCommonPlanV11 {
     fn from_plan(plan: &ResolvedCommonPlan) -> Result<Self, Diagnostic> {
         let model = plan_model_artifact(plan).canonical_json()?;
         let mesh = plan_authenticated_mesh(plan)
@@ -534,6 +534,8 @@ impl WireResolvedCommonPlanV10 {
                 initial_step_s,
                 relative_tolerance,
                 absolute_tolerances,
+                conserved_norms,
+                hermitian_parameters,
                 events,
                 forward_sensitivities,
             }) = &self.temporal
@@ -563,6 +565,15 @@ impl WireResolvedCommonPlanV10 {
                 *relative_tolerance,
                 tolerances,
             )?;
+            for parameter in hermitian_parameters {
+                temporal = temporal.with_hermitian_parameter(parse_id::<kinds::Parameter>(
+                    parameter,
+                    "Parameter",
+                )?)?;
+            }
+            for norm in conserved_norms {
+                temporal = norm.apply(temporal)?;
+            }
             if let Some(events) = events {
                 temporal = temporal.with_event_policy(events.to_native()?);
             }

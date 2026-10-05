@@ -1,0 +1,1 @@
+The source models are constructed in `crates/eqiora/tests/finite_hamiltonian_lifecycle.rs`: two-level 2X, the right-factor-fastest 2×3 tensor sum, its explicit 6×6 equivalent, and the named invalid variants. This directory does not maintain a second copy of those fixtures.

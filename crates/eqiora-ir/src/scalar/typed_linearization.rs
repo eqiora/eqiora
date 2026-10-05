@@ -111,7 +111,7 @@ impl ScalarOperatorIr {
             } else {
                 let at = |id: ValueId| dependencies[id.0 as usize];
                 match *node {
-                    Instruction::MapInvariant { .. } => {
+                    Instruction::MapInvariant { .. } | Instruction::ComplexDiv { .. } => {
                         return Err(ir_builder_error(
                             "numerical maps require component execution",
                         ));

@@ -1,0 +1,20 @@
+id = "time.finite-hamiltonians"
+status = "implemented"
+scope = "dimensioned-two-level-and-two-by-three-factor-hamiltonians"
+reference_kind = "analytic-tensor-sum-spectrum-and-cayley-evolution"
+capabilities = ["finite-hamiltonian-composition", "physical-hbar", "hermitian-parameter-contract", "declared-squared-norm", "common-eigen-time-lifecycle"]
+
+[claim_boundary]
+finite_basis_extents = [2, 6]
+tensor_factor_extents = [2, 3]
+constant_hamiltonian = true
+orthonormal_basis = true
+coordinate_precision = "binary64"
+implicit_normalization = false
+events = false
+forward_sensitivities = false
+many_body_scaling = false
+
+[evidence]
+package = "eqiora"
+test = "finite_hamiltonian_lifecycle"

@@ -126,6 +126,15 @@ fn require_bidegree(
                 independent(at(right)?)?;
                 at(left)?
             }
+            Instruction::ComplexDiv {
+                operands: [a, b, c, d],
+                ..
+            } => {
+                independent(at(c)?)?;
+                independent(at(d)?)?;
+                let (a, b) = (at(a)?, at(b)?);
+                [a[0].max(b[0]), a[1].max(b[1])]
+            }
             Instruction::PowI(_, 0) => [0, 0],
             Instruction::PowI(value, 1) => at(value)?,
             Instruction::PowI(value, _)

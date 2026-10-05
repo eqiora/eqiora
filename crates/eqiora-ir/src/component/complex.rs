@@ -5,6 +5,8 @@ use eqiora_schema::kernel::UnaryMathFunction;
 
 #[cfg(test)]
 mod differentiation_tests;
+#[cfg(test)]
+mod division_tests;
 
 impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
     fn is_complex(&self, value: ExprId) -> bool {
@@ -93,9 +95,12 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                 }
             },
             ExprNode::Div(left, right) if self.is_complex(left) || self.is_complex(right) => {
-                return Err(invalid_component_ir(
-                    "complex division is not admitted by component scalarization",
-                ));
+                let ar = self.lower_shaped_part(left, component, Real)?;
+                let ai = self.lower_shaped_part(left, component, Imaginary)?;
+                let br = self.lower_shaped_part(right, component, Real)?;
+                let bi = self.lower_shaped_part(right, component, Imaginary)?;
+                self.builder
+                    .complex_div([ar, ai, br, bi], part == Imaginary)?
             }
             ExprNode::PowI(base, _) if self.is_complex(base) => {
                 return Err(invalid_component_ir(

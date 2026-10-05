@@ -1,4 +1,5 @@
 mod case;
+mod finite;
 mod initializers;
 pub(super) use initializers::{
     coerce_parameter, coerce_parameter_with_label, evaluate_initializer, evaluate_initializer_mode,
@@ -165,6 +166,19 @@ pub(super) fn evaluate_mode(
             evaluate_values && demand == Some(false),
         )?;
         return piecewise::select(file, expression.range(), condition, then_value, else_value);
+    }
+    if let ExprKind::Call { callee, arguments } = expression.kind()
+        && crate::math::finite::Operation::named(callee.as_str()).is_some()
+    {
+        return finite::evaluate(
+            file,
+            expression,
+            context,
+            resolve,
+            (&mut *resolve_clock, &mut *resolve_frame),
+            (callee.as_str(), arguments),
+            evaluate_values,
+        );
     }
     if let ExprKind::Call { callee, arguments } = expression.kind()
         && let Some(arity) = crate::math::piecewise::arity(callee.as_str())

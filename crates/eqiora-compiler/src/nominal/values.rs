@@ -98,8 +98,12 @@ fn bind(
             && matches!(arguments[arity].kind(), ExprKind::Array(values) if values.iter().all(|value| crate::hierarchy::exact_signed_literal(value).is_some())) {
             (ScalarDomain::Integer,DimExponents::DIMENSIONLESS)
         } else {
-            let value = crate::hierarchy::infer_closed_value(file,&arguments[arity])?;
-            (value.value_type().scalar_domain(),value.value_type().dimension())
+            let shape = if arity == 1 {
+                ValueType::coordinates(bases[0], ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            } else {
+                ValueType::linear_map(bases[0], bases[1], ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+            }.map_err(|error| invalid(&error.to_string()))?;
+            infer_component_scalar(file, &arguments[arity], &shape)?
         };
         if arity == 1 { ValueType::coordinates(bases[0],scalar.0,scalar.1) }
         else { ValueType::linear_map(bases[0],bases[1],scalar.0,scalar.1) }
@@ -268,4 +272,47 @@ fn collect<'a>(
         collect(value, rest, leaves)?;
     }
     Ok(())
+}
+
+// Infer the scalar type across all components, not independently per nested row.
+// Only authored bare zeros are contextual; named/computed or explicitly unitful
+// zeros retain their own type and must agree with the other components.
+fn infer_component_scalar(
+    file: &str,
+    expression: &Expr,
+    shape: &ValueType,
+) -> Result<(ScalarDomain, DimExponents), Diagnostic> {
+    use eqiora_schema::kernel::typing::{ExpressionType, additive};
+    let invalid = |message: &str| {
+        source_error(
+            codes::LANGUAGE_TYPE_ERROR,
+            file,
+            expression.range(),
+            message,
+        )
+    };
+    let mut leaves = Vec::new();
+    collect(expression, shape.shape().extents(), &mut leaves).map_err(invalid)?;
+    let mut inferred: Option<ExpressionType<()>> = None;
+    for leaf in leaves {
+        if crate::lower::equality::is_contextual_zero(leaf) {
+            continue;
+        }
+        let value = crate::hierarchy::infer_closed_value(file, leaf)?;
+        let ty = ExpressionType::new(value.value_type().clone(), None);
+        if !ty.value_type.shape().is_scalar() {
+            return Err(invalid("finite component must be a scalar"));
+        }
+        inferred = Some(match inferred {
+            Some(previous) => {
+                additive(&previous, &ty).map_err(|error| invalid(&error.to_string()))?
+            }
+            None => ty,
+        });
+    }
+    Ok(
+        inferred.map_or((ScalarDomain::Real, DimExponents::DIMENSIONLESS), |ty| {
+            (ty.value_type.scalar_domain(), ty.value_type.dimension())
+        }),
+    )
 }

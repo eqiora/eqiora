@@ -9,6 +9,7 @@ mod slot_affine;
 mod slot_pencil;
 use instruction::{Instruction, ValueId};
 mod batch;
+mod complex_quotient;
 #[cfg(test)]
 mod enum_tests;
 mod linearization;
@@ -209,6 +210,20 @@ impl ScalarInputIrBuilder {
         right: ScalarInputValueId,
     ) -> Result<ScalarInputValueId, Diagnostic> {
         self.binary(left, right, Instruction::Div)
+    }
+
+    pub(crate) fn complex_div(
+        &mut self,
+        operands: [ScalarInputValueId; 4],
+        imaginary: bool,
+    ) -> Result<ScalarInputValueId, Diagnostic> {
+        for value in operands {
+            self.require_prior(value)?;
+        }
+        self.push(Instruction::ComplexDiv {
+            operands: operands.map(|value| value.0),
+            imaginary,
+        })
     }
 
     pub(crate) fn map_entries(

@@ -57,6 +57,10 @@ pub(super) fn evaluate_instructions(
             Instruction::Div(left, right) => {
                 read(&values, left, index)? / read(&values, right, index)?
             }
+            Instruction::ComplexDiv {
+                operands,
+                imaginary,
+            } => complex_quotient::evaluate(operands, &values, index)?[usize::from(imaginary)],
             Instruction::MapInvariant {
                 start,
                 extent,

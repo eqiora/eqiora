@@ -22,6 +22,27 @@ pub struct HermitianEigenproblem<'a> {
 }
 
 impl<'a> HermitianEigenproblem<'a> {
+    /// Check one complete Hermitian endomorphism on its exact finite basis.
+    ///
+    /// This checks the bound coefficients before any evolution scaling or solve.
+    /// Both triangles and imaginary diagonal parts participate; no tolerance,
+    /// dimension cap, or discarded triangle weakens this mathematical contract.
+    ///
+    /// # Errors
+    /// Rejects non-endomorphism types or any unequal conjugate coefficients.
+    pub fn check_operator(operator: &ValueLiteral) -> Result<(), Diagnostic> {
+        let (source, target) = operator
+            .value_type()
+            .map_bases()
+            .ok_or_else(|| invalid("Hermitian operator requires a finite linear map"))?;
+        if source != target || operator.value_type().array_rank() != 0 {
+            return Err(invalid(
+                "Hermitian operator requires the same exact source and target basis",
+            ));
+        }
+        require_hermitian(operator, source.extent() as usize)
+    }
+
     /// Check exact type correspondence, both full Hermitian matrices, and every
     /// Cholesky pivot of the metric. No dimension-specific formula or size cap
     /// is used. Numerically nonpositive/nonfinite pivots reject explicitly.
@@ -40,8 +61,8 @@ impl<'a> HermitianEigenproblem<'a> {
             .hermitian_eigenpair_types(metric.value_type())
             .map_err(|error| invalid(format!("incompatible Hermitian pencil types: {error}")))?;
         let dimension = mode_type.shape().component_count().expect("checked type");
-        require_hermitian(operator, dimension)?;
-        require_hermitian(metric, dimension)?;
+        Self::check_operator(operator)?;
+        Self::check_operator(metric)?;
         Ok(Self {
             operator,
             metric,
