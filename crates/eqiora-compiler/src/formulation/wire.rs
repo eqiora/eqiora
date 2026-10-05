@@ -85,6 +85,10 @@ pub enum AuthoredFormExpressionV1 {
     Number {
         value: f64,
     },
+    Complex {
+        real: Box<Self>,
+        imag: Box<Self>,
+    },
     Rational {
         numerator: i64,
         denominator: u64,
@@ -608,6 +612,10 @@ pub(super) fn expression(value: &AuthoredFormExpression) -> AuthoredFormExpressi
         AuthoredFormExpressionKind::Number(value) => {
             AuthoredFormExpressionV1::Number { value: *value }
         }
+        AuthoredFormExpressionKind::Complex(real, imag) => AuthoredFormExpressionV1::Complex {
+            real: Box::new(expression(real)),
+            imag: Box::new(expression(imag)),
+        },
         AuthoredFormExpressionKind::Field(id) => AuthoredFormExpressionV1::Field {
             ulid: ulid(id.erase()),
         },

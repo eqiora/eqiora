@@ -104,7 +104,10 @@ impl ExpressionContext<'_> {
             Some(KernelNode::Field(field))
                 if field.shape().rank() <= 1
                     && (self.tests.len() > 1 || field.shape().is_scalar())
-                    && field.value_type().scalar_domain() == eqiora_core::ScalarDomain::Real =>
+                    && matches!(
+                        field.value_type().scalar_domain(),
+                        ScalarDomain::Real | ScalarDomain::Complex
+                    ) =>
             {
                 let support = self.field_support(expression, raw)?;
                 Ok(typed(
@@ -116,15 +119,21 @@ impl ExpressionContext<'_> {
             Some(KernelNode::Field(_)) => Err(error(
                 self.file,
                 expression.range(),
-                "scalar-primal forms accept only real scalar Fields",
+                "weak forms require admitted real or complex Field shapes",
             )),
-            Some(KernelNode::Parameter(parameter)) if parameter.real_scalar_value().is_some() => {
+            Some(KernelNode::Parameter(parameter))
+                if parameter.value_type().shape().is_scalar()
+                    && matches!(
+                        parameter.value_type().scalar_domain(),
+                        ScalarDomain::Real | ScalarDomain::Complex
+                    ) =>
+            {
                 Ok(parameter_expression(parameter))
             }
             Some(KernelNode::Parameter(_)) => Err(error(
                 self.file,
                 expression.range(),
-                "scalar-primal forms accept only real scalar Parameters",
+                "weak forms require real or complex scalar Parameters",
             )),
             _ => Err(error(
                 self.file,
@@ -189,7 +198,10 @@ impl ExpressionContext<'_> {
                 })?;
             return Ok(typed(
                 AuthoredFormExpressionKind::Pow(Box::new(base.clone()), exponent),
-                ValueType::scalar(ScalarDomain::Real, dimension).expect("real scalar type"),
+                base.value_type
+                    .clone()
+                    .with_dimension(dimension)
+                    .map_err(|_| wire::rejection("invalid power dimension"))?,
                 base.support,
             ));
         }
@@ -203,7 +215,21 @@ impl ExpressionContext<'_> {
         )?;
         let (kind, value_type) = match op {
             BinaryOp::Add | BinaryOp::Sub => {
-                if left_value.value_type != right_value.value_type {
+                let value_type = left_value
+                    .value_type
+                    .clone()
+                    .with_common_scalar_domain(&right_value.value_type)
+                    .ok_or_else(|| {
+                        wire::rejection("incompatible additive scalar domains or roles")
+                    })?;
+                let right_type = right_value
+                    .value_type
+                    .clone()
+                    .with_common_scalar_domain(&left_value.value_type)
+                    .ok_or_else(|| {
+                        wire::rejection("incompatible additive scalar domains or roles")
+                    })?;
+                if value_type != right_type {
                     return Err(error(
                         self.file,
                         expression.range(),
@@ -216,7 +242,7 @@ impl ExpressionContext<'_> {
                     BinaryOp::Sub
                 };
                 let kind = binary(operator, left_value.clone(), right_value);
-                (kind, left_value.value_type.clone())
+                (kind, value_type)
             }
             BinaryOp::Mul => {
                 if !left_value.value_type.shape().is_scalar()
@@ -244,6 +270,9 @@ impl ExpressionContext<'_> {
                 } else {
                     left_value.value_type.clone()
                 }
+                .with_common_scalar_domain(&left_value.value_type)
+                .and_then(|value| value.with_common_scalar_domain(&right_value.value_type))
+                .ok_or_else(|| wire::rejection("incompatible product scalar domains or roles"))?
                 .with_dimension(dimension)
                 .map_err(|_| wire::rejection("invalid product dimension"))?;
                 (binary(BinaryOp::Mul, left_value, right_value), value_type)
@@ -264,6 +293,10 @@ impl ExpressionContext<'_> {
                 let value_type = left_value
                     .value_type
                     .clone()
+                    .with_common_scalar_domain(&right_value.value_type)
+                    .ok_or_else(|| {
+                        wire::rejection("incompatible quotient scalar domains or roles")
+                    })?
                     .with_dimension(dimension)
                     .map_err(|_| wire::rejection("invalid quotient dimension"))?;
                 (binary(BinaryOp::Div, left_value, right_value), value_type)
@@ -301,8 +334,7 @@ impl ExpressionContext<'_> {
                 }
                 Ok(typed(
                     AuthoredFormExpressionKind::Sin(Box::new(argument.clone())),
-                    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
-                        .expect("real scalar type"),
+                    argument.value_type.clone(),
                     argument.support,
                 ))
             }
@@ -385,19 +417,44 @@ impl ExpressionContext<'_> {
                         "Geometry ambient dimension is not representable",
                     )
                 })?;
+                let value_type = ValueType::shaped(
+                    argument.value_type.scalar_domain(),
+                    dimension,
+                    shape,
+                    ValueFrame::SpatialCartesian,
+                )
+                .map_err(|_| wire::rejection("invalid spatial form type"))?;
                 Ok(typed(
                     AuthoredFormExpressionKind::Gradient(Box::new(argument)),
-                    ValueType::shaped(
-                        ScalarDomain::Real,
-                        dimension,
-                        shape,
-                        ValueFrame::SpatialCartesian,
-                    )
-                    .map_err(|_| wire::rejection("invalid spatial form type"))?,
+                    value_type,
                     Some(support),
                 ))
             }
-            ("conj", [argument]) => {
+            ("math.complex", [real, imag]) => {
+                let real = self.compile(real)?;
+                let imag = self.compile(imag)?;
+                if !real.value_type.shape().is_scalar()
+                    || real.value_type.scalar_domain() != ScalarDomain::Real
+                    || real.value_type != imag.value_type
+                {
+                    return Err(error(
+                        self.file,
+                        expression.range(),
+                        "math.complex requires two equally dimensioned real scalars",
+                    ));
+                }
+                let value_type =
+                    ValueType::scalar(ScalarDomain::Complex, real.value_type.dimension())
+                        .map_err(|_| wire::rejection("invalid complex scalar type"))?;
+                let support =
+                    merge_support(self.file, expression.range(), real.support, imag.support)?;
+                Ok(typed(
+                    AuthoredFormExpressionKind::Complex(Box::new(real), Box::new(imag)),
+                    value_type,
+                    support,
+                ))
+            }
+            ("math.conj", [argument]) => {
                 let argument = self.compile(argument)?;
                 let value_type = argument.value_type.clone();
                 let support = argument.support;
@@ -454,7 +511,7 @@ impl ExpressionContext<'_> {
                 Ok(typed(
                     kind,
                     ValueType::shaped(
-                        ScalarDomain::Real,
+                        argument.value_type.scalar_domain(),
                         dimension,
                         shape.clone(),
                         if shape.is_scalar() {
@@ -498,12 +555,15 @@ impl ExpressionContext<'_> {
         };
         if (self.tests.len() == 1 && !field.shape().is_scalar())
             || field.shape().rank() > 1
-            || field.value_type().scalar_domain() != eqiora_core::ScalarDomain::Real
+            || !matches!(
+                field.value_type().scalar_domain(),
+                ScalarDomain::Real | ScalarDomain::Complex
+            )
         {
             return Err(error(
                 self.file,
                 expression.range(),
-                "test requires a real scalar/vector Field",
+                "test requires an admitted real or complex Field shape",
             ));
         }
         let support = self.field_support(expression, raw)?;
@@ -674,12 +734,17 @@ impl ExpressionContext<'_> {
                     "integral dimension overflows",
                 )
             })?;
+        let value_type = integrand
+            .value_type
+            .clone()
+            .with_dimension(dimension)
+            .map_err(|_| wire::rejection("invalid integral dimension"))?;
         Ok(typed(
             AuthoredFormExpressionKind::Integrate {
                 domain: domain_id,
                 integrand: Box::new(integrand),
             },
-            ValueType::scalar(ScalarDomain::Real, dimension).expect("real scalar type"),
+            value_type,
             None,
         ))
     }

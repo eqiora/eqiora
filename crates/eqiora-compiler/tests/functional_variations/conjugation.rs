@@ -1,6 +1,86 @@
 use super::*;
 use eqiora_compiler::{AuthoredFormExpressionV1 as E, AuthoredFormulationProjection};
 
+fn complex_form(expression: &str) -> Result<CompiledModel, Vec<eqiora_core::Diagnostic>> {
+    let source = format!(
+        r#"
+public component Energy(
+    support body:volume(ambient_dimension=1),
+    support left:boundary(parent=body),
+    support right:boundary(parent=body),
+    parameter bulk:J/m,
+    parameter gradient:J*m,
+    parameter phase:complex<1>=math.complex(0,1)
+) {{
+    variable c:complex<1> on body;
+    relation stationarity on body {{ bulk*phase*c-div(gradient*grad(c))=0; }}
+    relation left_value on left {{ trace(c)=0; }}
+    relation right_value on right {{ trace(c)=0; }}
+    form stationary for stationarity {{
+        test eta:1 for c zero_on left,right;
+        {expression}=0;
+    }}
+}}
+"#
+    );
+    compile_source_with_values(
+        &source,
+        &geometry(),
+        "model Values(){parameter bulk:1=2;parameter gradient:1=3;parameter phase:complex<1>=math.complex(0,1);}",
+    )
+}
+
+#[test]
+fn complex_scalar_domains_survive_authored_operators() {
+    let compiled =
+        complex_form("integrate(body,bulk*inner(eta,phase*c)+gradient*inner(grad(eta),grad(c)))")
+            .unwrap_or_else(|errors| panic!("{errors:?}"));
+    let form = compiled
+        .authored_formulations()
+        .next()
+        .unwrap()
+        .projection();
+    assert_eq!(
+        AuthoredFormulationProjection::decode(form.canonical_bytes()).unwrap(),
+        *form
+    );
+    // math.complex requires real inputs. Equal operands isolate scalar-domain
+    // rejection from dimension, shape and support mismatch.
+    for expression in [
+        "c*2",
+        "2*c",
+        "c/2",
+        "2/c",
+        "c+2",
+        "2-c",
+        "c^2",
+        "math.sin(c)",
+        "math.conj(c)",
+        "inner(eta,c)",
+        "phase",
+        "inner(grad(eta),grad(c))",
+        "math.complex(1,2)",
+    ] {
+        let source = format!("integrate(body,math.complex({expression},{expression}))");
+        let errors = complex_form(&source).unwrap_err();
+        assert!(
+            errors.iter().any(|error| error
+                .message()
+                .contains("math.complex requires two equally dimensioned real scalars")),
+            "{expression}: {errors:?}"
+        );
+    }
+    let integral = "integrate(body,inner(eta,c))";
+    assert!(
+        complex_form(&format!("math.complex({integral},{integral})"))
+            .unwrap_err()
+            .iter()
+            .any(|error| error
+                .message()
+                .contains("math.complex requires two equally dimensioned real scalars"))
+    );
+}
+
 #[test]
 fn authored_pairing_retains_conjugation_and_argument_order_in_current_wire() {
     let geometry = geometry();
@@ -13,7 +93,7 @@ fn authored_pairing_retains_conjugation_and_argument_order_in_current_wire() {
         &geometry,
     );
     let conjugate = compile(
-        "integrate(body,bulk*conj(eta)*c+gradient*inner(grad(eta),grad(c)))",
+        "integrate(body,bulk*math.conj(eta)*c+gradient*inner(grad(eta),grad(c)))",
         &geometry,
     );
     assert_eq!(plain.transaction().ops(), inner.transaction().ops());
