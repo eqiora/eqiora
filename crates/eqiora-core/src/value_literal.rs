@@ -280,6 +280,7 @@ impl std::error::Error for InvalidValueLiteral {}
 mod array;
 mod comparison;
 mod integer;
+mod projection;
 
 #[cfg(test)]
 mod tests;

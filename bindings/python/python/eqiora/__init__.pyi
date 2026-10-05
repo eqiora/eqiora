@@ -1716,6 +1716,17 @@ class Observation:
 
     Authority: ``crates/eqiora-python/src/result/observe.rs::PyObservation``.
     """
+    def project_component(
+        self,
+        projection: Literal["real", "imaginary", "magnitude", "squared_magnitude", "phase"],
+        index: int = 0,
+    ) -> tuple[float, Dimension] | None:
+        """Native mathematical projection in SI; phase is radians and None at exact zero.
+
+        The source Observation retains exact shape, basis and Result lineage.
+        No threshold, phase unwrapping, peak/RMS, power or probability is inferred.
+        """
+        ...
     @property
     def value(self) -> _TypedValue: ...
     @property

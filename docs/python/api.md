@@ -1493,6 +1493,7 @@ Point boundaries use one point. Values are expressed in SI units.
 ```python
 @final
 class Observation:
+    def project_component(self, projection: Literal['real', 'imaginary', 'magnitude', 'squared_magnitude', 'phase'], index: int=0) -> tuple[float, Dimension] | None: ...
     @property
     def value(self) -> _TypedValue: ...
     @property

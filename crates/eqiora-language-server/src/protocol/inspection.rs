@@ -8,6 +8,7 @@ use serde_json::{Value, json};
 use super::{ServerState, document, source_range};
 
 mod plan;
+mod result;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -17,6 +18,7 @@ pub(super) struct InspectParams {
     #[serde(default)]
     fingerprint: bool,
     plan: Option<String>,
+    result: Option<String>,
 }
 
 pub(super) fn inspect(params: InspectParams, state: &ServerState) -> Result<Value, String> {
@@ -26,6 +28,16 @@ pub(super) fn inspect(params: InspectParams, state: &ServerState) -> Result<Valu
         .is_some_and(|plan| plan.len() > 2 * 1024 * 1024)
     {
         return Err("Plan exceeds the 2 MiB editor admission limit".to_owned());
+    }
+    if params
+        .result
+        .as_ref()
+        .is_some_and(|result| result.len() > 2 * 1024 * 1024)
+    {
+        return Err("Result exceeds the 2 MiB editor admission limit".to_owned());
+    }
+    if params.result.is_some() && params.plan.is_none() {
+        return Err("Result inspection requires its exact numerical Plan".to_owned());
     }
     let uri = &params.text_document.uri;
     let open = document(state, uri)?;
@@ -40,7 +52,7 @@ pub(super) fn inspect(params: InspectParams, state: &ServerState) -> Result<Valu
         .map(|symbol| symbol.name())
         .collect::<Vec<_>>();
     let mut result = json!({"version": open.version, "models": models, "model": null,
-        "nodes": [], "edges": [], "equations": [], "fingerprint": null, "plan": null, "errors": []});
+        "nodes": [], "edges": [], "equations": [], "fingerprint": null, "plan": null, "result": null, "errors": []});
     let Some(selected) = params.model.as_deref().or_else(|| models.first().copied()) else {
         return Ok(result);
     };
@@ -65,8 +77,12 @@ pub(super) fn inspect(params: InspectParams, state: &ServerState) -> Result<Valu
             "model exceeds the rich editor view limit (4096 nodes / 16384 edges)".to_owned(),
         );
     }
-    if let Some(bytes) = params.plan {
+    if let Some(bytes) = &params.plan {
         result["plan"] = plan::project(bytes.as_bytes(), &compiled)?;
+        if let Some(result_bytes) = &params.result {
+            result["result"] =
+                result::project(result_bytes.as_bytes(), bytes.as_bytes(), &compiled)?;
+        }
     }
     let mut nodes = Vec::new();
     let mut equations = Vec::new();
