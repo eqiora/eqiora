@@ -358,3 +358,52 @@ fn known_complex_fields_are_coefficients_and_real_arguments_still_require_linear
             .is_err()
     );
 }
+
+#[test]
+fn body_parameter_coefficients_retain_closed_types_and_live_alias_dependencies() {
+    let model = complex_form_with_fields(
+        "integrate(body,gradient*inner(grad(eta),grad(c))+gradient*inner(eta,q*c))",
+        "parameter q:complex<1/m^2>=math.complex(3,-1);",
+    )
+    .unwrap();
+    let form = model.authored_formulations().next().unwrap().projection();
+    let bytes = std::str::from_utf8(form.canonical_bytes()).unwrap();
+    assert!(bytes.contains("\"kind\":\"complex\""));
+    assert!(bytes.contains("\"value\":3.0"));
+    assert!(bytes.contains("\"value\":-1.0"));
+    let model = complex_form_with_fields(
+        "integrate(body,bulk*inner(eta,q*c))",
+        "parameter q:complex<1>=phase*2;",
+    )
+    .unwrap();
+    let form = model.authored_formulations().next().unwrap().projection();
+    let phase = model
+        .symbols()
+        .iter()
+        .find(|(name, _)| name.ends_with(".phase") || *name == "phase")
+        .unwrap()
+        .1;
+    assert!(
+        std::str::from_utf8(form.canonical_bytes())
+            .unwrap()
+            .contains(&format!(
+                "\"kind\":\"parameter\",\"ulid\":\"{}\"",
+                phase.ulid()
+            ))
+    );
+    let inline = complex_form_with_fields(
+        "integrate(body,bulk*inner(eta,(phase*2)*c))",
+        "parameter q:complex<1>=phase*2;",
+    )
+    .unwrap();
+    assert_eq!(
+        form.equations()[0].1,
+        inline
+            .authored_formulations()
+            .next()
+            .unwrap()
+            .projection()
+            .equations()[0]
+            .1
+    );
+}

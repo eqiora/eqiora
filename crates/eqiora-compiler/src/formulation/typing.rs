@@ -99,6 +99,21 @@ impl ExpressionContext<'_> {
         expression: &Expr,
         name: &str,
     ) -> Result<AuthoredFormExpression, Diagnostic> {
+        if let Some(value) = self.index.coefficients.get(name) {
+            if value.value_type.shape().is_scalar()
+                && matches!(
+                    value.value_type.scalar_domain(),
+                    ScalarDomain::Real | ScalarDomain::Complex
+                )
+            {
+                return Ok(value.clone());
+            }
+            return Err(error(
+                self.file,
+                expression.range(),
+                "weak forms require real or complex scalar coefficient aliases",
+            ));
+        }
         let raw = resolve_symbol(self.file, expression.range(), name, self.symbols)?;
         match self.index.nodes.get(&raw).copied() {
             Some(KernelNode::Field(field))

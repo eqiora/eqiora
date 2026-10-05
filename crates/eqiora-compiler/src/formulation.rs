@@ -43,6 +43,8 @@ pub(crate) struct AuthoredFormExpression {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub(crate) enum AuthoredFormExpressionKind {
+    /// Typed static alias projected through the ordinary expression lowerer.
+    Coefficient(AuthoredFormExpressionV1),
     /// Dimensionless scalar literal.
     Number(f64),
     /// Explicit complex construction from two equally dimensioned real scalars.
@@ -177,6 +179,7 @@ pub(crate) fn compile_component_formulations(
     transaction: &Transaction,
     geometry: Option<&eqiora_geometry::CanonicalGeometryV1>,
     supports: &[crate::external::ExternalSupportBinding],
+    coefficients: BTreeMap<String, AuthoredFormExpression>,
 ) -> Result<Vec<CompiledAuthoredFormulation>, Vec<Diagnostic>> {
     if component.formulations().len() == 0 {
         return Ok(Vec::new());
@@ -191,7 +194,8 @@ pub(crate) fn compile_component_formulations(
     }
     let source_identity = AuthoredFormSourceIdentity::from_component(component)
         .map_err(|diagnostic| vec![diagnostic])?;
-    let index = KernelIndex::new(transaction);
+    let mut index = KernelIndex::new(transaction);
+    index.coefficients = coefficients;
     component
         .formulations()
         .map(|(name, relations, equations, range)| {
@@ -323,7 +327,8 @@ fn compile_weak(
     for (test, trial, boundaries, dimension) in tests {
         let dimension = crate::dimensions::lower_dimension(file, dimension)?;
         let declaration_suffix = format!(".{test}");
-        if symbols.get(test).is_some()
+        if index.coefficients.contains_key(test)
+            || symbols.get(test).is_some()
             || symbols
                 .iter()
                 .any(|(candidate, _)| candidate.ends_with(&declaration_suffix))
@@ -429,6 +434,21 @@ struct ExpressionContext<'a> {
     tests: BTreeMap<&'a str, (&'a str, DimExponents)>,
     integration_domain: Option<Id<kinds::Domain>>,
     used_tests: std::collections::BTreeSet<String>,
+}
+
+pub(crate) fn coefficient_alias(
+    dag: &eqiora_schema::kernel::ExprDag,
+    value_type: ValueType,
+) -> Result<AuthoredFormExpression, Diagnostic> {
+    let expression =
+        AuthoredFormExpressionV1::from_expression(dag, dag.roots()[0])?.ok_or_else(|| {
+            wire::rejection("coefficient alias exceeds the authored expression inventory")
+        })?;
+    Ok(typed(
+        AuthoredFormExpressionKind::Coefficient(expression),
+        value_type,
+        None,
+    ))
 }
 
 fn parameter_expression(parameter: &ParameterDef) -> AuthoredFormExpression {
