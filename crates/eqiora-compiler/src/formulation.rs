@@ -16,6 +16,7 @@ use crate::dimensions::length_dimension;
 use crate::lower::ModelSymbols;
 use crate::source_identity::formulation::AuthoredFormSourceIdentity;
 
+mod dependence;
 mod expression;
 mod finite;
 mod gauge;
@@ -372,6 +373,12 @@ fn compile_weak(
     for ((left, right), relation) in equations.iter().zip(&relations) {
         let left = context.compile_root(left)?;
         let right = context.compile_root(right)?;
+        if left.value_type.scalar_domain() == ScalarDomain::Complex
+            || right.value_type.scalar_domain() == ScalarDomain::Complex
+        {
+            dependence::check_complex_form(&left)?;
+            dependence::check_complex_form(&right)?;
+        }
         let zero =
             |v: &AuthoredFormExpression| matches!(v.kind, AuthoredFormExpressionKind::Number(0.0));
         if (left.value_type.dimension() != right.value_type.dimension()
