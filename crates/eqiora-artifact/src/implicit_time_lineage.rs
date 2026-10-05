@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::implicit_time::validate_general_proof;
 use crate::time::canonical_time_operator;
 use crate::{
-    ArtifactDigest, CANONICAL_ENCODING, GeneralImplicitTimeLoweringEnvelopeV2,
+    ArtifactDigest, CANONICAL_ENCODING, GeneralImplicitTimeLoweringEnvelopeV3,
     ImplicitTimeInitialDataEnvelopeV1, ImplicitTimeRunManifestV1, TimeDecoderLimits,
     check_json_limits, invalid_artifact,
 };
@@ -37,7 +37,7 @@ impl ImplicitTimeCheckpointEnvelopeV1 {
     /// Returns `EQ0901` for model/lowering drift, invalid point data, or a
     /// canonical residual infinity norm above `residual_tolerance`.
     pub fn from_accepted_pair(
-        lowering: &GeneralImplicitTimeLoweringEnvelopeV2,
+        lowering: &GeneralImplicitTimeLoweringEnvelopeV3,
         program: &KernelProgram,
         time: f64,
         mut state: Vec<f64>,
@@ -181,7 +181,7 @@ impl ImplicitTimeCheckpointEnvelopeV1 {
     /// or acceptance drift.
     pub fn validate_against(
         &self,
-        lowering: &GeneralImplicitTimeLoweringEnvelopeV2,
+        lowering: &GeneralImplicitTimeLoweringEnvelopeV3,
         program: &KernelProgram,
     ) -> Result<(), Diagnostic> {
         if self.model_artifact() != lowering.model_artifact()
@@ -263,7 +263,7 @@ impl ImplicitTimeRestartManifestV1 {
     /// Returns `EQ0901` for any canonical replay, digest, point, time, or run
     /// linkage contradiction.
     pub fn new(
-        lowering: &GeneralImplicitTimeLoweringEnvelopeV2,
+        lowering: &GeneralImplicitTimeLoweringEnvelopeV3,
         program: &KernelProgram,
         parent_run: &ImplicitTimeRunManifestV1,
         checkpoint: &ImplicitTimeCheckpointEnvelopeV1,
@@ -385,7 +385,7 @@ impl ImplicitTimeRestartManifestV1 {
     /// linkage.
     pub fn validate_against(
         &self,
-        lowering: &GeneralImplicitTimeLoweringEnvelopeV2,
+        lowering: &GeneralImplicitTimeLoweringEnvelopeV3,
         program: &KernelProgram,
         parent_run: &ImplicitTimeRunManifestV1,
         checkpoint: &ImplicitTimeCheckpointEnvelopeV1,
@@ -460,7 +460,7 @@ impl ImplicitTimeRestartManifestV1 {
 }
 
 fn replay_residual_norm(
-    lowering: &GeneralImplicitTimeLoweringEnvelopeV2,
+    lowering: &GeneralImplicitTimeLoweringEnvelopeV3,
     program: &KernelProgram,
     time: f64,
     state: &[f64],
@@ -488,6 +488,11 @@ fn replay_residual_norm(
             "implicit time checkpoint point does not match canonical state shape",
         ));
     }
+    // These coordinates come from the independently checked scalar canonical operator.
+    let state_coordinates = state_coordinates
+        .iter()
+        .map(|coordinate| (coordinate.field(), coordinate.derivative_order()))
+        .collect::<Vec<_>>();
     let coordinates = state_coordinates
         .iter()
         .copied()

@@ -97,7 +97,7 @@ def test_compile_artifact_run_and_owned_numpy_result() -> None:
         temporal=eqiora.time.Tsitouras45(
             initial_step_s=0.01,
             relative_tolerance=1.0e-9,
-            absolute_tolerances={(field, 0): 1.0e-11},
+            absolute_tolerances={(field, 0, 0, False): 1.0e-11},
         ),
     )
     result = eqiora.run(
@@ -154,7 +154,7 @@ def test_diagnostics_are_structured() -> None:
         eqiora.time.Tsitouras45(
             initial_step_s=0.0,
             relative_tolerance=1.0e-9,
-            absolute_tolerances={(eqiora.compile(source=SOURCE).field("x"), 0): 1.0e-11},
+            absolute_tolerances={(eqiora.compile(source=SOURCE).field("x"), 0, 0, False): 1.0e-11},
         )
     assert caught.value.diagnostics[0].code == "EQ0807"
 
@@ -229,7 +229,7 @@ def test_native_declarations_share_the_canonical_compile_and_run_path() -> None:
         temporal=eqiora.time.Tsitouras45(
             initial_step_s=0.01,
             relative_tolerance=1.0e-9,
-            absolute_tolerances={(field, 0): 1.0e-11},
+            absolute_tolerances={(field, 0, 0, False): 1.0e-11},
         ),
     )
     result = eqiora.run(

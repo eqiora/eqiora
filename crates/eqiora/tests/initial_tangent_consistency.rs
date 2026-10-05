@@ -22,8 +22,14 @@ fn nonlinear_descriptor_initial_rates_follow_the_constraint_tangent() {
             );
             if accepted {
                 let initial = result.unwrap();
-                let dx = initial.derivatives()[&(model.aliases()["x"], std::num::NonZeroU32::MIN)];
-                let dy = initial.derivatives()[&(model.aliases()["y"], std::num::NonZeroU32::MIN)];
+                let dx = initial.derivatives()[&(model.aliases()["x"], std::num::NonZeroU32::MIN)]
+                    .real_scalar_value()
+                    .unwrap()
+                    .value();
+                let dy = initial.derivatives()[&(model.aliases()["y"], std::num::NonZeroU32::MIN)]
+                    .real_scalar_value()
+                    .unwrap()
+                    .value();
                 let c = if constraint.contains("time()") {
                     1.0
                 } else {
@@ -129,7 +135,10 @@ fn tangent_ad_does_not_require_finite_acceleration_in_unconstrained_rows() {
             )
             .unwrap();
         assert_eq!(
-            initial.derivatives()[&(model.aliases()["x"], std::num::NonZeroU32::MIN)],
+            initial.derivatives()[&(model.aliases()["x"], std::num::NonZeroU32::MIN)]
+                .real_scalar_value()
+                .unwrap()
+                .value(),
             0.0
         );
     }

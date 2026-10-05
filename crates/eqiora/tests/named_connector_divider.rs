@@ -335,7 +335,11 @@ fn common_finite_lifecycle_accepts_eight_volts_and_rejects_stale_state() {
     let replayed = ResolvedCommonPlan::from_bytes(
         &resolved.to_bytes().unwrap(),
         &FaerLinearSolver,
-        eqiora::time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+        eqiora::time::TimeBackendCapabilities::new(
+            eqiora::time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+            &[eqiora::ScalarDomain::Real, eqiora::ScalarDomain::Complex],
+            &[eqiora::ScalarType::F64],
+        ),
     )
     .unwrap();
     assert_eq!(replayed, resolved);
@@ -450,7 +454,11 @@ fn finite_plan_and_state_bind_exact_provider_library_releases() {
     );
     assert!(second_plan.run_result(&first_state, &second).is_err());
 
-    let time = eqiora::time::TimeBackendIdentity::new("eqiora.test.time", "1");
+    let time = eqiora::time::TimeBackendCapabilities::new(
+        eqiora::time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+        &[eqiora::ScalarDomain::Real, eqiora::ScalarDomain::Complex],
+        &[eqiora::ScalarType::F64],
+    );
     let first_plan = ResolvedCommonPlan::Algebraic(Box::new(first_plan));
     let second_plan = ResolvedCommonPlan::Algebraic(Box::new(second_plan));
     let bytes = first_plan.to_bytes().unwrap();

@@ -23,13 +23,15 @@ import eqiora
 method = eqiora.time.Tsitouras45(
     initial_step_s=0.01,
     relative_tolerance=1e-9,
-    absolute_tolerances={(x, 0): 1e-11},
+    absolute_tolerances={(x, 0, 0, False): 1e-11},
 )
 plan = eqiora.resolve(model, temporal=method)
 ```
 
 The initial step is in seconds. Each absolute tolerance is bound to an exact
-Model field and expressed in that field's SI units; `x` is dimensionless here.
+state coordinate `(field, derivative_order, component, imaginary)`. Components use
+zero-based row-major indices; `False` selects the real part and `True` the imaginary
+part. Tolerances use the coordinate's SI units; `x` is dimensionless here.
 `output_times_s` in `run` chooses observation times independently of the
 adaptive internal steps.
 
@@ -66,28 +68,54 @@ class OdePlanView:
     @property
     def backend_version(self) -> str: ...
     def __repr__(self) -> str: ...
+    @property
+    def scalar_type(self) -> str: ...
+    @property
+    def value_representation(self) -> str: ...
 ```
 
 <a id="api-eqiora-time-Tsitouras45"></a>
 
 ## `Tsitouras45`
 
-Adaptive explicit ODE integration with exact (Field, derivative order)-bound SI tolerances.
+Adaptive explicit ODE integration with SI tolerances bound to (Field, derivative order, component, imaginary).
 
 ```python
 @final
 class Tsitouras45:
-    def __new__(cls, *, initial_step_s: float, relative_tolerance: float, absolute_tolerances: Mapping[tuple[FieldRef, int], float], events: EventPolicy | None=None, forward_sensitivities: ForwardSensitivity | None=None) -> Self: ...
+    def __new__(cls, *, initial_step_s: float, relative_tolerance: float, absolute_tolerances: Mapping[tuple[FieldRef, int, int, bool], float], events: EventPolicy | None=None, forward_sensitivities: ForwardSensitivity | None=None) -> Self: ...
     @property
     def initial_step_s(self) -> float: ...
     @property
     def relative_tolerance(self) -> float: ...
     @property
-    def absolute_tolerances(self) -> dict[tuple[FieldRef, int], float]: ...
+    def absolute_tolerances(self) -> dict[tuple[FieldRef, int, int, bool], float]: ...
     @property
     def events(self) -> EventPolicy | None: ...
     @property
     def forward_sensitivities(self) -> ForwardSensitivity | None: ...
+    def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-time-ImplicitMidpoint"></a>
+
+## `ImplicitMidpoint`
+
+Fixed-step implicit midpoint with exact coordinate-bound Newton tolerances.
+
+Tolerances control Newton corrections, not temporal truncation error.
+Output samples use the accepted collocation polynomial without changing steps.
+
+```python
+@final
+class ImplicitMidpoint:
+    def __new__(cls, *, step_s: float, relative_tolerance: float, absolute_tolerances: Mapping[tuple[FieldRef, int, int, bool], float]) -> Self: ...
+    @property
+    def step_s(self) -> float: ...
+    @property
+    def relative_tolerance(self) -> float: ...
+    @property
+    def absolute_tolerances(self) -> dict[tuple[FieldRef, int, int, bool], float]: ...
     def __repr__(self) -> str: ...
 ```
 
@@ -170,9 +198,9 @@ Positive Field/Parameter derivative tolerance in quotient physical units.
 ```python
 @final
 class SensitivityTolerance:
-    def __new__(cls, coordinate: tuple[FieldRef, int], parameter: ParameterRef, value: float, dimension: Dimension) -> Self: ...
+    def __new__(cls, coordinate: tuple[FieldRef, int, int, bool], parameter: ParameterRef, value: float, dimension: Dimension) -> Self: ...
     @property
-    def coordinate(self) -> tuple[FieldRef, int]: ...
+    def coordinate(self) -> tuple[FieldRef, int, int, bool]: ...
     @property
     def parameter(self) -> ParameterRef: ...
     @property

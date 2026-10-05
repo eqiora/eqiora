@@ -91,7 +91,7 @@ time-run artifacts name 0.16.1. Existing immutable artifacts that name 0.16.0
 retain their bytes and remain historically truthful; replay never rewrites
 their backend version.
 
-`DiffsolTimeBackend` owns one compile-time `DIFFSOL_TIME_BACKEND` identity that
+`DiffsolTimeBackend` owns one compile-time `DiffsolTimeBackend::IDENTITY` that
 atomically binds adapter name and exact release. Every accepted
 `TimeExecutionReport` carries that pair, and run-artifact constructors take it
 only from the report. A repository-level integration test compares the

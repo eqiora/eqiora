@@ -295,7 +295,14 @@ fn execute_job(
                         request
                             .problem()
                             .and_then(|problem| {
-                                DiffsolTimeBackend::new().solve(&problem, request.time_plan())
+                                if request.time_plan().method()
+                                    == eqiora::time::TimeMethod::ImplicitMidpoint
+                                {
+                                    eqiora::time::ImplicitMidpointTimeBackend::new()
+                                        .solve(&problem, request.time_plan())
+                                } else {
+                                    DiffsolTimeBackend::new().solve(&problem, request.time_plan())
+                                }
                             })
                             .and_then(|solution| CommonTrajectory::accept_ode(*request, solution))
                     }

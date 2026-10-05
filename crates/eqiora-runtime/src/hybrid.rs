@@ -52,7 +52,7 @@ impl CanonicalEventProgram {
         flow: Id<kinds::Relation>,
         event: Id<kinds::Activation>,
     ) -> Result<Self, Diagnostic> {
-        let flow = FirstOrderProgram::lower(program, flow)?;
+        let flow = FirstOrderProgram::lower(program.kernel(), flow)?;
         if flow.equation_class() != TimeEquationClass::ExplicitOde {
             return Err(invalid_event(
                 event.erase(),
@@ -153,7 +153,11 @@ impl CanonicalEventProgram {
             .expect("semantic guard typing includes its root")
             .dimension();
         let guard_operator = ScalarOperatorIr::lower(guard_expression)?;
-        let reset_fields = flow.state_coordinates().iter().map(|&(field, order)| {
+        let reset_fields = flow.state_coordinates().iter().map(|coordinate| {
+            let (field, order) = (coordinate.field(), coordinate.derivative_order());
+            if coordinate.component() != 0 || coordinate.is_imaginary() {
+                return Err(eqiora_core::Diagnostic::error(eqiora_core::diagnostic::codes::NOT_IMPLEMENTED, "event reset requires an admitted complete component reset"));
+            }
             if order == 0 {
                 Ok(field)
             } else {

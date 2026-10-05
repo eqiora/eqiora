@@ -30,7 +30,7 @@ use eqiora_sem::{KernelProgram, ReferenceConfig};
 pub struct GeneralImplicitProgram {
     relation: Id<kinds::Relation>,
     operator: ScalarOperatorIr,
-    state_coordinates: Vec<(Id<kinds::Field>, u32)>,
+    state_coordinates: Vec<eqiora_core::TimeStateCoordinate>,
     companions: Vec<(usize, usize)>,
     parameter_fields: Vec<Id<kinds::Parameter>>,
     parameter_values: Vec<f64>,
@@ -49,7 +49,7 @@ impl GeneralImplicitProgram {
     /// algebraic Relation, a malformed derivative analysis, or a Relation that
     /// is already representable by [`crate::FirstOrderProgram`].
     pub fn lower(program: &CpuProgram, relation: Id<kinds::Relation>) -> Result<Self, Diagnostic> {
-        require_continuous_activation(program, relation)?;
+        require_continuous_activation(program.kernel(), relation)?;
         let typed = program
             .kernel()
             .typed_relation_residual(relation)
@@ -89,7 +89,8 @@ impl GeneralImplicitProgram {
         let variable_kinds = state_order
             .state_coordinates
             .iter()
-            .map(|&(field, order)| {
+            .map(|coordinate| {
+                let (field, order) = (coordinate.field(), coordinate.derivative_order());
                 if state_order.coordinates.contains_key(&(field, order + 1)) {
                     Ok(DaeVariableKind::Differential)
                 } else {
@@ -131,7 +132,7 @@ impl GeneralImplicitProgram {
 
     /// Deterministic state coordinate order.
     #[must_use]
-    pub fn state_coordinates(&self) -> &[(Id<kinds::Field>, u32)] {
+    pub fn state_coordinates(&self) -> &[eqiora_core::TimeStateCoordinate] {
         &self.state_coordinates
     }
 
@@ -352,7 +353,7 @@ pub struct ImplicitEulerStepLinearization<'a> {
     inner: ScalarLinearization<'a>,
     bindings: &'a [ImplicitBinding],
     companions: &'a [(usize, usize)],
-    state_coordinates: &'a [(Id<kinds::Field>, u32)],
+    state_coordinates: &'a [eqiora_core::TimeStateCoordinate],
     state_dimension: usize,
     previous_time: f64,
     next_time: f64,
@@ -367,7 +368,7 @@ pub struct ImplicitEulerStepLinearization<'a> {
 impl ImplicitEulerStepLinearization<'_> {
     /// Canonical state order used by both step state blocks.
     #[must_use]
-    pub const fn state_coordinates(&self) -> &[(Id<kinds::Field>, u32)] {
+    pub const fn state_coordinates(&self) -> &[eqiora_core::TimeStateCoordinate] {
         self.state_coordinates
     }
 
@@ -633,7 +634,7 @@ impl LinearizedRelation<f64> for ImplicitEulerStepLinearization<'_> {
 }
 
 impl DiscreteStepLinearization for ImplicitEulerStepLinearization<'_> {
-    fn state_coordinates(&self) -> &[(Id<kinds::Field>, u32)] {
+    fn state_coordinates(&self) -> &[eqiora_core::TimeStateCoordinate] {
         self.state_coordinates
     }
 

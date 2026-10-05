@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use eqiora_artifact::{CanonicalModelArtifact, ModelEnvelope, TimeLoweringEnvelopeV2};
+use eqiora_artifact::{CanonicalModelArtifact, ModelEnvelope, TimeLoweringEnvelopeV3};
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id};
@@ -25,23 +25,26 @@ pub(crate) use events::{CommonEventPolicy, CommonGuardTolerance};
 mod sensitivity;
 mod state_artifact;
 
-/// One exact (Field, derivative order)-bound absolute tolerance for Tsitouras 5(4).
+/// One exact state-coordinate absolute tolerance in coherent SI units.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CommonTsitourasTolerance {
-    coordinate: (Id<kinds::Field>, u32),
+pub struct CommonTimeTolerance {
+    coordinate: eqiora_core::TimeStateCoordinate,
     value: f64,
 }
 
-impl CommonTsitourasTolerance {
+impl CommonTimeTolerance {
     /// Construct one positive finite coherent-SI tolerance.
-    pub fn new(coordinate: (Id<kinds::Field>, u32), value: f64) -> Result<Self, Diagnostic> {
-        require_positive(value, "Tsitouras45 absolute tolerances")?;
+    pub fn new(
+        coordinate: eqiora_core::TimeStateCoordinate,
+        value: f64,
+    ) -> Result<Self, Diagnostic> {
+        require_positive(value, "ODE absolute tolerances")?;
         Ok(Self { coordinate, value })
     }
 
     /// Exact source Field and derivative order receiving this tolerance.
     #[must_use]
-    pub const fn coordinate(self) -> (Id<kinds::Field>, u32) {
+    pub const fn coordinate(self) -> eqiora_core::TimeStateCoordinate {
         self.coordinate
     }
 
@@ -52,41 +55,58 @@ impl CommonTsitourasTolerance {
     }
 }
 
-/// Closed adaptive Tsitouras 5(4) request before Model admission.
+/// ODE method and numerical controls before Model admission.
 #[derive(Debug, Clone, PartialEq)]
-pub struct CommonTsitouras45 {
+pub struct CommonOdePolicy {
+    method: TimeMethod,
     initial_step_s: f64,
     relative_tolerance: f64,
-    absolute_tolerances: Vec<CommonTsitourasTolerance>,
+    absolute_tolerances: Vec<CommonTimeTolerance>,
     events: Option<CommonEventPolicy>,
     forward_sensitivities: Option<CommonForwardSensitivity>,
 }
 
-impl CommonTsitouras45 {
+impl CommonOdePolicy {
     /// Construct finite positive adaptive controls with no duplicate Field.
     pub fn new(
+        method: TimeMethod,
         initial_step_s: f64,
         relative_tolerance: f64,
-        mut absolute_tolerances: Vec<CommonTsitourasTolerance>,
+        mut absolute_tolerances: Vec<CommonTimeTolerance>,
     ) -> Result<Self, Diagnostic> {
-        require_positive(initial_step_s, "Tsitouras45 initial_step_s")?;
-        require_positive(relative_tolerance, "Tsitouras45 relative_tolerance")?;
+        if !matches!(
+            method,
+            TimeMethod::Tsitouras45 | TimeMethod::ImplicitMidpoint
+        ) {
+            return Err(invalid(
+                "common ODE policy requires Tsitouras45 or ImplicitMidpoint",
+            ));
+        }
+        require_positive(initial_step_s, "ODE step_s")?;
+        require_positive(relative_tolerance, "ODE relative_tolerance")?;
         if absolute_tolerances.is_empty() {
             return Err(invalid(
                 "Tsitouras45 requires one exact Field-bound absolute tolerance per state",
             ));
         }
-        absolute_tolerances
-            .sort_by_key(|entry| (entry.coordinate().0.ulid(), entry.coordinate().1));
+        absolute_tolerances.sort_by_key(|entry| {
+            (
+                entry.coordinate().field().ulid(),
+                entry.coordinate().derivative_order(),
+                entry.coordinate().component(),
+                entry.coordinate().is_imaginary(),
+            )
+        });
         if absolute_tolerances
             .windows(2)
             .any(|pair| pair[0].coordinate() == pair[1].coordinate())
         {
             return Err(invalid(
-                "Tsitouras45 absolute tolerances contain a duplicate exact state coordinate",
+                "ODE absolute tolerances contain a duplicate exact state coordinate",
             ));
         }
         Ok(Self {
+            method,
             initial_step_s,
             relative_tolerance,
             absolute_tolerances,
@@ -95,13 +115,19 @@ impl CommonTsitouras45 {
         })
     }
 
+    /// Exact numerical integration method selected by this policy.
+    #[must_use]
+    pub const fn method(&self) -> TimeMethod {
+        self.method
+    }
+
     /// Initial adaptive step-size guess in coherent SI seconds.
     #[must_use]
     pub const fn initial_step_s(&self) -> f64 {
         self.initial_step_s
     }
 
-    /// Relative local-error tolerance.
+    /// Relative local-error tolerance (Tsitouras) or Newton correction tolerance (midpoint).
     #[must_use]
     pub const fn relative_tolerance(&self) -> f64 {
         self.relative_tolerance
@@ -109,17 +135,17 @@ impl CommonTsitouras45 {
 
     /// Canonically coordinate-ordered absolute tolerances.
     #[must_use]
-    pub fn absolute_tolerances(&self) -> &[CommonTsitourasTolerance] {
+    pub fn absolute_tolerances(&self) -> &[CommonTimeTolerance] {
         &self.absolute_tolerances
     }
 }
 
-/// Opaque no-Mesh Plan for one structurally proven explicit ODE.
+/// Opaque no-Mesh Plan for one structurally proven ODE.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonOdePlan {
     model: Arc<ModelEnvelope>,
     program: FirstOrderProgram,
-    temporal: CommonTsitouras45,
+    temporal: CommonOdePolicy,
     ordered_absolute_tolerances: Vec<f64>,
     ordered_guard_tolerances: Vec<eqiora_core::DynQuantity>,
     forward_sensitivity_plan: Option<eqiora_time::ForwardSensitivityPlan>,
@@ -147,18 +173,42 @@ impl CommonOdePlan {
     pub fn resolve(
         model: &ModelEnvelope,
         kernel: &KernelProgram,
-        temporal: CommonTsitouras45,
-        backend: TimeBackendIdentity,
+        temporal: CommonOdePolicy,
+        capabilities: eqiora_time::TimeBackendCapabilities,
     ) -> Result<Self, Diagnostic> {
+        let backend = capabilities.identity();
+        if temporal.method() == TimeMethod::ImplicitMidpoint
+            && backend != eqiora_time::ImplicitMidpointTimeBackend::IDENTITY
+        {
+            return Err(invalid(
+                "implicit midpoint requires its available host backend identity",
+            ));
+        }
+        if temporal.method() == TimeMethod::ImplicitMidpoint
+            && (temporal.events().is_some() || temporal.forward_sensitivities().is_some())
+        {
+            return Err(invalid(
+                "implicit midpoint event and forward-sensitivity execution is not implemented",
+            ));
+        }
         let reference = model.artifact_reference()?;
-        let cpu = CpuProgram::lower(kernel).map_err(|diagnostics| {
-            diagnostics.into_iter().next().unwrap_or_else(|| {
-                invalid("canonical explicit-ODE lowering failed without a diagnostic")
-            })
-        })?;
         let flow = events::flow(kernel, temporal.events())?;
-        let program = FirstOrderProgram::lower(&cpu, flow)?;
+        let program = FirstOrderProgram::lower(kernel, flow)?;
+        for coordinate in program.state_coordinates() {
+            let Some(KernelNode::Field(field)) = kernel.node(coordinate.field().erase()) else {
+                return Err(invalid("time coordinate has no exact Field type"));
+            };
+            capabilities.admit_real_coordinates(
+                field.value_type().scalar_domain(),
+                eqiora_core::ScalarType::F64,
+            )?;
+        }
         let ordered_guard_tolerances = if let Some(policy) = temporal.events() {
+            let cpu = CpuProgram::lower(kernel).map_err(|diagnostics| {
+                diagnostics.into_iter().next().unwrap_or_else(|| {
+                    invalid("canonical explicit-ODE lowering failed without a diagnostic")
+                })
+            })?;
             let roots = events::roots(model, kernel, &cpu, &program, policy)?;
             roots
                 .events()
@@ -175,9 +225,20 @@ impl CommonOdePlan {
         } else {
             Vec::new()
         };
-        if program.equation_class() != TimeEquationClass::ExplicitOde {
+        let admitted = match temporal.method() {
+            TimeMethod::Tsitouras45 => program.equation_class() == TimeEquationClass::ExplicitOde,
+            TimeMethod::ImplicitMidpoint => matches!(
+                program.equation_class(),
+                TimeEquationClass::ExplicitOde
+                    | TimeEquationClass::MassMatrix {
+                        rank: eqiora_time::MassMatrixRank::Full
+                    }
+            ),
+            _ => false,
+        };
+        if !admitted {
             return Err(invalid(
-                "Tsitouras45 admits only a structurally proven explicit ODE",
+                "selected ODE method does not admit this equation class",
             ));
         }
         if program.initial_condition_policy() != InitialConditionPolicy::Provided {
@@ -193,7 +254,7 @@ impl CommonOdePlan {
                 .any(|entry| !state_coordinates.contains(&entry.coordinate()))
         {
             return Err(invalid(
-                "Tsitouras45 absolute tolerances must cover exactly the admitted Model state coordinates",
+                "ODE absolute tolerances must cover exactly the admitted Model state coordinates",
             ));
         }
         let ordered_absolute_tolerances = state_coordinates
@@ -208,28 +269,33 @@ impl CommonOdePlan {
             .collect::<Result<Vec<_>, _>>()?;
         let state_dimensions = state_coordinates
             .iter()
-            .map(|&(field, order)| match kernel.node(field.erase()) {
-                Some(KernelNode::Field(definition)) if definition.shape().is_scalar() => {
-                    if let Some(order) = std::num::NonZeroU32::new(order) {
-                        eqiora_schema::kernel::typing::time_derivative(
-                            &eqiora_schema::kernel::typing::ExpressionType::<()>::scalar(
-                                definition.dimension(),
-                                None,
-                            ),
-                            order,
-                        )
-                        .map(|typed| typed.dimension())
-                        .map_err(|_| invalid("ODE state derivative dimension is not representable"))
-                    } else {
-                        Ok(definition.dimension())
+            .map(|coordinate| {
+                let (field, order) = (coordinate.field(), coordinate.derivative_order());
+                match kernel.node(field.erase()) {
+                    Some(KernelNode::Field(definition)) => {
+                        if let Some(order) = std::num::NonZeroU32::new(order) {
+                            eqiora_schema::kernel::typing::time_derivative(
+                                &eqiora_schema::kernel::typing::ExpressionType::<()>::scalar(
+                                    definition.dimension(),
+                                    None,
+                                ),
+                                order,
+                            )
+                            .map(|typed| typed.dimension())
+                            .map_err(|_| {
+                                invalid("ODE state derivative dimension is not representable")
+                            })
+                        } else {
+                            Ok(definition.dimension())
+                        }
                     }
+                    _ => Err(invalid(
+                        "no-Mesh ODE state coordinate requires an exact Model Field",
+                    )),
                 }
-                _ => Err(invalid(
-                    "no-Mesh explicit-ODE State admits only exact scalar Model Fields",
-                )),
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let lowering = TimeLoweringEnvelopeV2::from_proof(model, kernel, program.lowering_proof())?;
+        let lowering = TimeLoweringEnvelopeV3::from_proof(model, kernel, program.lowering_proof())?;
         let lowering_digest = lowering.digest()?.to_string();
         let model_digest = reference.artifact().to_string();
         let model_id = reference.model().ulid().to_string();
@@ -240,13 +306,19 @@ impl CommonOdePlan {
         push(&mut state_space, model_digest.as_bytes());
         state_space.extend_from_slice(&model_revision.to_be_bytes());
         push(&mut state_space, lowering_digest.as_bytes());
-        for ((field, order), dimension) in state_coordinates.iter().zip(&state_dimensions) {
+        for (coordinate, dimension) in state_coordinates.iter().zip(&state_dimensions) {
+            let (field, order) = (coordinate.field(), coordinate.derivative_order());
+            state_space.extend_from_slice(&(coordinate.component() as u64).to_be_bytes());
+            state_space.push(u8::from(coordinate.is_imaginary()));
             push(&mut state_space, field.ulid().to_string().as_bytes());
             state_space.extend_from_slice(&order.to_be_bytes());
             state_space.extend_from_slice(&dimension_bytes(*dimension));
         }
-        push(&mut state_space, b"scalar-f64/no-method-history/v1");
-        let state_space_identity = digest(b"eqiora.common-ode-state-space/v3\0", &state_space);
+        push(
+            &mut state_space,
+            b"real-coordinate-f64/no-method-history/v2",
+        );
+        let state_space_identity = digest(b"eqiora.common-ode-state-space/v4\0", &state_space);
 
         let mut identity = state_space;
         identity.extend_from_slice(&temporal.initial_step_s().to_bits().to_be_bytes());
@@ -260,7 +332,14 @@ impl CommonOdePlan {
         if let Some(policy) = temporal.forward_sensitivities() {
             push(&mut identity, &policy.identity_bytes());
         }
-        push(&mut identity, b"tsitouras45");
+        push(
+            &mut identity,
+            match temporal.method() {
+                TimeMethod::Tsitouras45 => b"tsitouras45",
+                TimeMethod::ImplicitMidpoint => b"implicit-midpoint",
+                _ => unreachable!("validated common ODE method"),
+            },
+        );
         push(&mut identity, backend.id().as_bytes());
         push(&mut identity, backend.version().as_bytes());
         push(&mut identity, b"host-serial");
@@ -314,11 +393,13 @@ impl CommonOdePlan {
     }
 
     #[must_use]
-    pub const fn temporal(&self) -> &CommonTsitouras45 {
+    pub const fn temporal(&self) -> &CommonOdePolicy {
         &self.temporal
     }
 
-    pub fn state_coordinates(&self) -> impl ExactSizeIterator<Item = (Id<kinds::Field>, u32)> + '_ {
+    pub fn state_coordinates(
+        &self,
+    ) -> impl ExactSizeIterator<Item = eqiora_core::TimeStateCoordinate> + '_ {
         self.program.state_coordinates().iter().copied()
     }
 
@@ -330,6 +411,12 @@ impl CommonOdePlan {
     #[must_use]
     pub fn state_space_identity(&self) -> &str {
         &self.state_space_identity
+    }
+
+    /// Equation class structurally admitted by this Plan's time method.
+    #[must_use]
+    pub const fn equation_class(&self) -> TimeEquationClass {
+        self.program.equation_class()
     }
 
     /// Exact time backend selected by resolution.
@@ -360,7 +447,7 @@ impl CommonOdePlan {
         }
         TimeProblem::new(
             &self.program,
-            TimeEquationClass::ExplicitOde,
+            self.program.equation_class(),
             InitialConditionPolicy::Provided,
             state.values.clone(),
         )
@@ -374,7 +461,7 @@ pub struct CommonOdeState {
     identity: String,
     model_digest: String,
     time_s: f64,
-    state_coordinates: Vec<(Id<kinds::Field>, u32)>,
+    state_coordinates: Vec<eqiora_core::TimeStateCoordinate>,
     dimensions: Vec<DimExponents>,
     values: Vec<f64>,
     source_kind: &'static str,
@@ -416,6 +503,68 @@ impl CommonOdeState {
         })
     }
 
+    /// Recover one complete typed Field or stored derivative from this exact State.
+    ///
+    /// # Errors
+    /// Rejects a foreign Model, absent Field/order, or incomplete coordinate layout.
+    pub fn field_value(
+        &self,
+        model: &ModelEnvelope,
+        field: Id<kinds::Field>,
+        derivative_order: u32,
+    ) -> Result<eqiora_core::ValueLiteral, Diagnostic> {
+        if model.artifact_reference()?.artifact().to_string() != self.model_digest {
+            return Err(invalid(
+                "ODE State value belongs to a different exact Model",
+            ));
+        }
+        let kernel = model
+            .to_program()
+            .map_err(|errors| errors.into_iter().next().expect("failed Model replay"))?;
+        let Some(KernelNode::Field(definition)) = kernel.node(field.erase()) else {
+            return Err(invalid("ODE State value requires an exact Field"));
+        };
+        let coordinate = |component, imaginary| {
+            self.state_coordinates
+                .iter()
+                .position(|coordinate| {
+                    *coordinate
+                        == eqiora_core::TimeStateCoordinate::new(
+                            field,
+                            derivative_order,
+                            component,
+                            imaginary,
+                        )
+                })
+                .ok_or_else(|| invalid("ODE State omits the requested Field derivative coordinate"))
+        };
+        let first = coordinate(0, false)?;
+        let value_type = definition
+            .value_type()
+            .clone()
+            .with_dimension(self.dimensions[first])
+            .map_err(|error| invalid(error.to_string()))?;
+        let complex = value_type.scalar_domain() == eqiora_core::ScalarDomain::Complex;
+        let count = value_type
+            .shape()
+            .component_count()
+            .ok_or_else(|| invalid("ODE State Field shape is not representable"))?;
+        let components = (0..count)
+            .map(|component| {
+                Ok((
+                    self.values[coordinate(component, false)?],
+                    if complex {
+                        self.values[coordinate(component, true)?]
+                    } else {
+                        0.
+                    },
+                ))
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        eqiora_core::ValueLiteral::new(value_type, components)
+            .map_err(|error| invalid(error.to_string()))
+    }
+
     #[must_use]
     pub fn state_space_identity(&self) -> &str {
         &self.state_space_identity
@@ -437,7 +586,7 @@ impl CommonOdeState {
     }
 
     #[must_use]
-    pub fn state_coordinates(&self) -> &[(Id<kinds::Field>, u32)] {
+    pub fn state_coordinates(&self) -> &[eqiora_core::TimeStateCoordinate] {
         &self.state_coordinates
     }
 
@@ -505,7 +654,7 @@ impl CommonOdeRunRequest {
             execution_times_s.push(until_s);
         }
         let time_plan = TimePlan::new(
-            TimeMethod::Tsitouras45,
+            plan.temporal.method(),
             state.time_s(),
             plan.temporal.initial_step_s(),
             plan.temporal.relative_tolerance(),

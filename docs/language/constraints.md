@@ -74,7 +74,7 @@ Result, the original equations and inequalities are reevaluated and the accepted
 Jacobian must have full rank, even if the seed already has zero residual. This is local
 regularity of the represented Jacobian, not a global uniqueness or branch-tracking theorem.
 
-Plan v9 retains Newton controls and margins; finite State v2 binds the complete numerical seed;
+Plan v10 retains Newton controls and margins; finite State v2 binds the complete numerical seed;
 Result v11 retains that State, original residual acceptance and distinct nonlinear/linear
 records. Replay rechecks original conditions and local regularity. A zero-update record must
 retain an already accepted seed exactly. Python `result.solve` returns `NonlinearSolveSummary`

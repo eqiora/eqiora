@@ -2,6 +2,51 @@
 use super::*;
 
 impl ScalarInputOperatorIr {
+    pub(crate) fn constant_coordinate_jacobian(
+        &self,
+        selected: &[ScalarSymbolCoordinate],
+    ) -> Result<ConstantSymbolJacobian, Diagnostic> {
+        let mut columns = HashMap::new();
+        for (column, coordinate) in selected.iter().enumerate() {
+            if columns.insert(coordinate, column).is_some() {
+                return Err(ir_builder_error(
+                    "constant Jacobian repeats a selected coordinate",
+                ));
+            }
+        }
+        let summaries =
+            affine_analysis::summarize(&self.instructions, selected.len(), |slot, index| {
+                let source = self
+                    .slots
+                    .get(slot.0 as usize)
+                    .ok_or(SymbolicLinearityFailure::InvalidProgram { instruction: index })?
+                    .source();
+                Ok(if let Some(&column) = columns.get(source) {
+                    AffineSummary::variable(column, selected.len())
+                } else {
+                    AffineSummary::independent(selected.len())
+                })
+            })
+            .map_err(|failure| match failure {
+                affine_analysis::SummaryFailure::Symbolic(failure) => ir_builder_error(format!(
+                    "cannot prove constant component Jacobian: {failure:?}"
+                )),
+                affine_analysis::SummaryFailure::Numerical { diagnostic, .. } => diagnostic,
+            })?;
+        let mut coefficients = Vec::new();
+        for root in &self.roots {
+            let summary = summaries
+                .get(root.0 as usize)
+                .ok_or_else(|| ir_builder_error("constant Jacobian root is unavailable"))?;
+            coefficients.extend_from_slice(&summary.coefficients);
+        }
+        Ok(ConstantSymbolJacobian {
+            rows: self.roots.len(),
+            columns: selected.len(),
+            coefficients,
+        })
+    }
+
     pub(crate) fn bind_affine(
         &self,
         selected: &[ScalarSymbolCoordinate],

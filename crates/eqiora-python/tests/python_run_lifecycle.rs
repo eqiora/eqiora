@@ -30,7 +30,7 @@ def resolve(model):
         temporal=eqiora.time.Tsitouras45(
             initial_step_s=0.01,
             relative_tolerance=1.0e-9,
-            absolute_tolerances={(field, 0): 1.0e-11},
+            absolute_tolerances={(field, 0, 0, False): 1.0e-11},
         ),
     )
     return field, plan
@@ -48,7 +48,7 @@ assert portable_plan.spatial is None
 assert portable_plan.solve is None
 assert portable_plan.temporal.initial_step_s == plan.temporal.initial_step_s
 assert portable_plan.temporal.relative_tolerance == plan.temporal.relative_tolerance
-assert portable_plan.temporal.absolute_tolerances == {(portable_field, 0): 1.0e-11}
+assert portable_plan.temporal.absolute_tolerances == {(portable_field, 0, 0, False): 1.0e-11}
 try:
     eqiora.Plan.from_bytes(plan_bytes + b"\n")
 except eqiora.ValidationError:
@@ -62,7 +62,7 @@ assert isinstance(plan.capability, eqiora.time.OdePlanView)
 assert not hasattr(plan.capability, "scaling")
 assert plan.solve is None
 assert plan.temporal is not None
-assert plan.temporal.absolute_tolerances == {(field, 0): 1.0e-11}
+assert plan.temporal.absolute_tolerances == {(field, 0, 0, False): 1.0e-11}
 state = eqiora.State.initial(plan)
 assert state.value(field) == 1.0
 result = eqiora.run(
@@ -109,7 +109,7 @@ assert other_plan.model_digest != plan.model_digest
 foreign_temporal = eqiora.time.Tsitouras45(
     initial_step_s=0.01,
     relative_tolerance=1.0e-9,
-    absolute_tolerances={(other_field, 0): 1.0e-11},
+    absolute_tolerances={(other_field, 0, 0, False): 1.0e-11},
 )
 try:
     eqiora.resolve(
@@ -144,7 +144,7 @@ changed = eqiora.resolve(
     temporal=eqiora.time.Tsitouras45(
         initial_step_s=0.02,
         relative_tolerance=1.0e-8,
-        absolute_tolerances={(field, 0): 2.0e-11},
+        absolute_tolerances={(field, 0, 0, False): 2.0e-11},
     ),
 )
 assert changed.identity != plan.identity
@@ -163,12 +163,12 @@ for outputs in ((), (0.0,), (0.2, 0.1), (0.3,), (float("nan"),), (float("inf"),)
     else:
         raise AssertionError(f"invalid ODE output schedule was admitted: {outputs!r}")
 for kwargs in (
-    dict(initial_step_s=True, relative_tolerance=1.0e-9, absolute_tolerances={(field, 0): 1.0e-11}),
-    dict(initial_step_s=0.0, relative_tolerance=1.0e-9, absolute_tolerances={(field, 0): 1.0e-11}),
-    dict(initial_step_s=float("nan"), relative_tolerance=1.0e-9, absolute_tolerances={(field, 0): 1.0e-11}),
-    dict(initial_step_s=0.01, relative_tolerance=0.0, absolute_tolerances={(field, 0): 1.0e-11}),
+    dict(initial_step_s=True, relative_tolerance=1.0e-9, absolute_tolerances={(field, 0, 0, False): 1.0e-11}),
+    dict(initial_step_s=0.0, relative_tolerance=1.0e-9, absolute_tolerances={(field, 0, 0, False): 1.0e-11}),
+    dict(initial_step_s=float("nan"), relative_tolerance=1.0e-9, absolute_tolerances={(field, 0, 0, False): 1.0e-11}),
+    dict(initial_step_s=0.01, relative_tolerance=0.0, absolute_tolerances={(field, 0, 0, False): 1.0e-11}),
     dict(initial_step_s=0.01, relative_tolerance=1.0e-9, absolute_tolerances={}),
-    dict(initial_step_s=0.01, relative_tolerance=1.0e-9, absolute_tolerances={(field, 0): -1.0e-11}),
+    dict(initial_step_s=0.01, relative_tolerance=1.0e-9, absolute_tolerances={(field, 0, 0, False): -1.0e-11}),
 ):
     try:
         eqiora.time.Tsitouras45(**kwargs)
@@ -249,7 +249,7 @@ assert events.model_digest == model.digest
 assert {entry.activation for entry in events.guard_tolerances} == {h, v}
 assert all(entry.value == 1e-8 and entry.dimension == length for entry in events.guard_tolerances)
 def temporal(events=None):
-    return eqiora.time.Tsitouras45(initial_step_s=1e-3, relative_tolerance=1e-9, absolute_tolerances={(model.field('height'), 0):1e-11,(model.field('velocity'), 0):1e-11}, events=events)
+    return eqiora.time.Tsitouras45(initial_step_s=1e-3, relative_tolerance=1e-9, absolute_tolerances={(model.field('height'), 0, 0, False):1e-11,(model.field('velocity'), 0, 0, False):1e-11}, events=events)
 assert temporal().events is None
 try:
     eqiora.resolve(model, temporal=temporal())

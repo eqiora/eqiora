@@ -84,7 +84,10 @@ fn state_dependent_mass_index_one_path_preserves_equation_order_independence() {
         let x = system
             .state_coordinates()
             .iter()
-            .position(|(field, order)| field.erase() == model.aliases()["x"] && *order == 0)
+            .position(|coordinate| {
+                coordinate.field().erase() == model.aliases()["x"]
+                    && coordinate.derivative_order() == 0
+            })
             .unwrap();
         let z = 1 - x;
         assert!((initial.derivative()[x] + 0.5).abs() < 1e-9);

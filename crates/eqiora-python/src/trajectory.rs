@@ -562,34 +562,56 @@ impl PyState {
         };
         PyTuple::new(
             py,
-            native.state_coordinates().iter().map(|(field, order)| {
+            native.state_coordinates().iter().map(|coordinate| {
                 (
-                    PyModelFieldRef::from_exact(self.model_digest.clone(), field.to_string()),
-                    *order,
+                    PyModelFieldRef::from_exact(
+                        self.model_digest.clone(),
+                        coordinate.field().to_string(),
+                    ),
+                    coordinate.derivative_order(),
+                    coordinate.component(),
+                    coordinate.is_imaginary(),
                 )
             }),
         )
         .map(|value| value.unbind())
     }
 
+    /// Complete typed ODE value, preserving every array axis and complex part.
     #[pyo3(signature = (field, /, *, derivative_order=0))]
-    fn value(&self, field: &PyModelFieldRef, derivative_order: u32) -> PyResult<f64> {
+    fn value(
+        &self,
+        py: Python<'_>,
+        field: &PyModelFieldRef,
+        derivative_order: u32,
+    ) -> PyResult<Py<PyAny>> {
         if field.exact_model_digest() != self.model_digest {
             return Err(PyValueError::new_err(
                 "FieldRef belongs to a different exact Model artifact",
             ));
         }
-        let native = self.ode_native.as_ref().ok_or_else(|| {
-            PyValueError::new_err("State.value is available only for no-Mesh scalar ODE States")
-        })?;
-        let index = native
+        let native = self
+            .ode_native
+            .as_ref()
+            .ok_or_else(|| PyValueError::new_err("State.value requires a no-Mesh ODE State"))?;
+        let field_id = native
             .state_coordinates()
             .iter()
-            .position(|(id, order)| {
-                id.to_string() == field.exact_id() && *order == derivative_order
+            .find(|coordinate| {
+                coordinate.field().to_string() == field.exact_id()
+                    && coordinate.derivative_order() == derivative_order
             })
+            .map(|coordinate| coordinate.field())
             .ok_or_else(|| PyKeyError::new_err(field.exact_id().to_owned()))?;
-        Ok(native.values()[index])
+        let model = self
+            .model
+            .as_ref()
+            .ok_or_else(|| PyRuntimeError::new_err("ODE State omitted its Model"))?
+            .borrow(py);
+        let value = native
+            .field_value(model.artifact(), field_id, derivative_order)
+            .map_err(|error| PyValueError::new_err(error.to_string()))?;
+        crate::modeling::value_literal::to_python(py, &value)
     }
 
     /// Select one complete Field observation by exact Model-bound identity.

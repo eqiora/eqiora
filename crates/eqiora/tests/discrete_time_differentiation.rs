@@ -24,7 +24,10 @@ fn canonical_implicit_euler_step_has_paired_forward_and_adjoint_derivatives() {
     let system = GeneralImplicitProgram::lower(&cpu, fixture.relation).unwrap();
     assert_eq!(
         system.state_coordinates(),
-        [(fixture.differential, 0), (fixture.algebraic, 0)]
+        [
+            eqiora_core::TimeStateCoordinate::new(fixture.differential, 0, 0, false),
+            eqiora_core::TimeStateCoordinate::new(fixture.algebraic, 0, 0, false)
+        ]
     );
     let problem = system.implicit_problem().unwrap();
     let plan = TimePlan::new(
@@ -47,7 +50,10 @@ fn canonical_implicit_euler_step_has_paired_forward_and_adjoint_derivatives() {
     assert_eq!(step.unknown_dimension(), 2);
     assert_eq!(
         step.state_coordinates(),
-        [(fixture.differential, 0), (fixture.algebraic, 0)]
+        [
+            eqiora_core::TimeStateCoordinate::new(fixture.differential, 0, 0, false),
+            eqiora_core::TimeStateCoordinate::new(fixture.algebraic, 0, 0, false)
+        ]
     );
     assert_eq!(step.previous_state_parameter_dimension(), 2);
     assert_eq!(step.parameter_dimension(), 3);

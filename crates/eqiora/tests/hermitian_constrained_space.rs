@@ -53,7 +53,14 @@ fn declared_embedding_removes_shared_nullspace_without_regularizing_metric() {
     let restored = eqiora_numerics::ResolvedCommonPlan::from_bytes(
         &resolved.to_bytes().unwrap(),
         &FaerLinearSolver,
-        eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+        eqiora_time::TimeBackendCapabilities::new(
+            eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+            &[
+                eqiora_core::ScalarDomain::Real,
+                eqiora_core::ScalarDomain::Complex,
+            ],
+            &[eqiora_core::ScalarType::F64],
+        ),
     )
     .unwrap();
     assert_eq!(restored, resolved);

@@ -8,4 +8,4 @@
 mod runtime;
 
 #[cfg(feature = "diffsol-runtime")]
-pub use runtime::{DIFFSOL_TIME_BACKEND, DiffsolTimeBackend};
+pub use runtime::DiffsolTimeBackend;

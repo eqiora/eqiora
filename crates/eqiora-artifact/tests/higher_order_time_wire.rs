@@ -1,7 +1,7 @@
 //! Source-derived witnesses must replay every authored and companion equation.
 use eqiora_artifact::{
-    GeneralImplicitTimeLoweringEnvelopeV2, ImplicitTimeCheckpointEnvelopeV1, ModelEnvelope,
-    TimeLoweringEnvelopeV2,
+    GeneralImplicitTimeLoweringEnvelopeV3, ImplicitTimeCheckpointEnvelopeV1, ModelEnvelope,
+    TimeLoweringEnvelopeV3,
 };
 use eqiora_compiler::compile;
 use eqiora_core::{Id, entity::kinds};
@@ -40,20 +40,23 @@ fn constant_projection_replays_source_order_and_companion_matrix() {
     let make = |coefficients| {
         TimeLoweringProof::new(
             relation,
-            vec![(field, 0), (field, 1)],
+            vec![
+                eqiora_core::TimeStateCoordinate::new(field, 0, 0, false),
+                eqiora_core::TimeStateCoordinate::new(field, 1, 0, false),
+            ],
             ConstantDerivativeMatrixProof::new(2, coefficients).unwrap(),
         )
         .unwrap()
     };
     let proof = make(vec![0., 1., 1., 0.]);
-    let envelope = TimeLoweringEnvelopeV2::from_proof(&model, &program, &proof).unwrap();
+    let envelope = TimeLoweringEnvelopeV3::from_proof(&model, &program, &proof).unwrap();
     let bytes = envelope.canonical_json().unwrap();
-    let decoded = TimeLoweringEnvelopeV2::from_json(&bytes, Default::default()).unwrap();
+    let decoded = TimeLoweringEnvelopeV3::from_json(&bytes, Default::default()).unwrap();
     decoded.validate_against(&model, &program).unwrap();
     assert_eq!(decoded.proof().unwrap(), proof);
     // Both forged matrices have full rank; rank/class alone cannot prove linkage.
     for coefficients in [vec![0., 2., 1., 0.], vec![0., 1., 2., 0.]] {
-        assert!(TimeLoweringEnvelopeV2::from_proof(&model, &program, &make(coefficients)).is_err());
+        assert!(TimeLoweringEnvelopeV3::from_proof(&model, &program, &make(coefficients)).is_err());
     }
 }
 
@@ -63,14 +66,17 @@ fn implicit_checkpoint_replays_lower_derivatives_and_companion_residuals() {
     let model = ModelEnvelope::from_program(&program).unwrap();
     let proof = GeneralImplicitLoweringProof::new(
         relation,
-        vec![(field, 0), (field, 1)],
+        vec![
+            eqiora_core::TimeStateCoordinate::new(field, 0, 0, false),
+            eqiora_core::TimeStateCoordinate::new(field, 1, 0, false),
+        ],
         vec![DaeVariableKind::Differential; 2],
         GeneralImplicitReason::NonconstantDerivativeJacobian,
     )
     .unwrap();
     let lowering =
-        GeneralImplicitTimeLoweringEnvelopeV2::from_proof(&model, &program, &proof).unwrap();
-    let decoded = GeneralImplicitTimeLoweringEnvelopeV2::from_json(
+        GeneralImplicitTimeLoweringEnvelopeV3::from_proof(&model, &program, &proof).unwrap();
+    let decoded = GeneralImplicitTimeLoweringEnvelopeV3::from_json(
         &lowering.canonical_json().unwrap(),
         Default::default(),
     )
@@ -143,12 +149,14 @@ fn coordinate_replay_has_no_fixture_order_ceiling() {
         }
         let proof = TimeLoweringProof::new(
             relation,
-            (0..order).map(|k| (field, k)).collect(),
+            (0..order)
+                .map(|k| eqiora_core::TimeStateCoordinate::new(field, k, 0, false))
+                .collect(),
             ConstantDerivativeMatrixProof::new(n, coefficients).unwrap(),
         )
         .unwrap();
-        let lowering = TimeLoweringEnvelopeV2::from_proof(&model, &replay, &proof).unwrap();
-        let restored = TimeLoweringEnvelopeV2::from_json(
+        let lowering = TimeLoweringEnvelopeV3::from_proof(&model, &replay, &proof).unwrap();
+        let restored = TimeLoweringEnvelopeV3::from_json(
             &lowering.canonical_json().unwrap(),
             Default::default(),
         )
@@ -207,4 +215,61 @@ fn current_model_epoch_requires_explicit_positive_derivative_orders() {
                 .is_err()
         );
     }
+}
+
+#[test]
+fn coordinate_wire_requires_complete_metadata_and_rejects_changed_parts() {
+    let (program, relation, field) = oscillator(false);
+    let model = ModelEnvelope::from_program(&program).unwrap();
+    let proof = TimeLoweringProof::new(
+        relation,
+        (0..2)
+            .map(|order| eqiora_core::TimeStateCoordinate::new(field, order, 0, false))
+            .collect(),
+        ConstantDerivativeMatrixProof::new(2, vec![0., 1., 1., 0.]).unwrap(),
+    )
+    .unwrap();
+    let envelope = TimeLoweringEnvelopeV3::from_proof(&model, &program, &proof).unwrap();
+    let wire: serde_json::Value =
+        serde_json::from_slice(&envelope.canonical_json().unwrap()).unwrap();
+    assert_eq!(wire["schema"], "eqiora.time-lowering-envelope/v3");
+    assert_eq!(wire["state_coordinates"][0]["component"], 0);
+    assert_eq!(wire["state_coordinates"][0]["imaginary"], false);
+    for key in ["component", "imaginary"] {
+        let mut missing = wire.clone();
+        missing["state_coordinates"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove(key);
+        assert!(
+            TimeLoweringEnvelopeV3::from_json(
+                &serde_json::to_vec(&missing).unwrap(),
+                Default::default()
+            )
+            .is_err()
+        );
+    }
+    for (key, value) in [
+        ("component", serde_json::json!(1)),
+        ("imaginary", serde_json::json!(true)),
+    ] {
+        let mut changed = wire.clone();
+        changed["state_coordinates"][0][key] = value;
+        assert!(
+            TimeLoweringEnvelopeV3::from_json(
+                &serde_json::to_vec(&changed).unwrap(),
+                Default::default()
+            )
+            .is_err()
+        );
+    }
+    let mut old_schema = wire;
+    old_schema["schema"] = serde_json::json!("eqiora.time-lowering-envelope/v2");
+    assert!(
+        TimeLoweringEnvelopeV3::from_json(
+            &serde_json::to_vec(&old_schema).unwrap(),
+            Default::default()
+        )
+        .is_err()
+    );
 }

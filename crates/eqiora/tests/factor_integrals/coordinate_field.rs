@@ -55,7 +55,14 @@ fn prescribed_phase_field_moments_conserve_mass_and_match_cell_antiderivatives()
         let selected = ResolvedCommonPlan::from_bytes(
             &selected.to_bytes().unwrap(),
             &FaerLinearSolver,
-            eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+            eqiora_time::TimeBackendCapabilities::new(
+                eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+                &[
+                    eqiora_core::ScalarDomain::Real,
+                    eqiora_core::ScalarDomain::Complex,
+                ],
+                &[eqiora_core::ScalarType::F64],
+            ),
         )
         .unwrap();
         let solved = selected

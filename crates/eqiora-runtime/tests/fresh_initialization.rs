@@ -14,7 +14,7 @@ use eqiora_time::{InitialConditionPolicy, ParametricTimeSystem, TimeProblem, Tim
 fn dense_descriptor_initial_sensitivity_uses_regular_compatibility_equations() {
     let (kernel, relation) = dense_descriptor(false);
     let cpu = CpuProgram::lower(&kernel).unwrap();
-    let system = FirstOrderProgram::lower(&cpu, relation).unwrap();
+    let system = FirstOrderProgram::lower(cpu.kernel(), relation).unwrap();
     let initial = system
         .initialize(0.0, ReferenceConfig::new(0.0, 1.0).unwrap())
         .unwrap();
@@ -32,7 +32,7 @@ fn dense_descriptor_initial_sensitivity_uses_regular_compatibility_equations() {
 fn parameter_dependent_initial_conditions_cannot_silently_return_zero_sensitivity() {
     let (kernel, relation) = dense_descriptor(true);
     let cpu = CpuProgram::lower(&kernel).unwrap();
-    let system = FirstOrderProgram::lower(&cpu, relation).unwrap();
+    let system = FirstOrderProgram::lower(cpu.kernel(), relation).unwrap();
     let mut tangent = [0.0; 2];
     assert!(
         system
@@ -162,7 +162,7 @@ fn dense_descriptor(parameter_initial: bool) -> (KernelProgram, Id<kinds::Relati
 fn fresh_initialization_solves_values_and_derivatives_together() {
     let (kernel, relation) = decay(Some(3.0));
     let cpu = CpuProgram::lower(&kernel).unwrap();
-    let system = FirstOrderProgram::lower(&cpu, relation).unwrap();
+    let system = FirstOrderProgram::lower(cpu.kernel(), relation).unwrap();
     let initial = system
         .initialize(0.0, ReferenceConfig::new(0.0, 1.0).unwrap())
         .unwrap();
@@ -175,7 +175,7 @@ fn fresh_initialization_solves_values_and_derivatives_together() {
 fn structural_lowering_and_accepted_restart_do_not_require_fresh_conditions() {
     let (kernel, relation) = decay(None);
     let cpu = CpuProgram::lower(&kernel).unwrap();
-    let system = FirstOrderProgram::lower(&cpu, relation).unwrap();
+    let system = FirstOrderProgram::lower(cpu.kernel(), relation).unwrap();
     assert!(
         system
             .initialize(0.0, ReferenceConfig::new(0.0, 1.0).unwrap())

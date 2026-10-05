@@ -33,6 +33,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyPressureGauge2d>()?;
     module.add_class::<PyBackwardEuler>()?;
     module.add_class::<PyTsitouras45>()?;
+    module.add_class::<PyImplicitMidpoint>()?;
     module.add_class::<PyPlan>()?;
     scaling::register(module)?;
     event_policy::register(module)?;

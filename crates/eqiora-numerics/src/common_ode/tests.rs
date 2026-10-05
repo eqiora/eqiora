@@ -7,7 +7,6 @@ use eqiora_schema::kernel::{
 use eqiora_schema::{Model, ModelView};
 use eqiora_sem::KernelProgram;
 use eqiora_solver::REFERENCE_LINEAR_SOLVER;
-use eqiora_time::TimeBackendIdentity;
 
 use super::*;
 
@@ -194,17 +193,31 @@ fn no_mesh_plan_owns_model_initial_state_and_run_only_horizon() {
             _ => None,
         })
         .unwrap();
-    let temporal = CommonTsitouras45::new(
+    let temporal = CommonOdePolicy::new(
+        eqiora_time::TimeMethod::Tsitouras45,
         0.01,
         1.0e-9,
-        vec![CommonTsitourasTolerance::new((field, 0), 1.0e-11).unwrap()],
+        vec![
+            CommonTimeTolerance::new(
+                eqiora_core::TimeStateCoordinate::new(field, 0, 0, false),
+                1.0e-11,
+            )
+            .unwrap(),
+        ],
     )
     .unwrap();
     let plan = CommonOdePlan::resolve(
         &model,
         &program,
         temporal,
-        TimeBackendIdentity::new("eqiora.test.time", "1"),
+        eqiora_time::TimeBackendCapabilities::new(
+            eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+            &[
+                eqiora_core::ScalarDomain::Real,
+                eqiora_core::ScalarDomain::Complex,
+            ],
+            &[eqiora_core::ScalarType::F64],
+        ),
     )
     .unwrap();
     let resolved = crate::ResolvedCommonPlan::Ode(Box::new(plan.clone()));
@@ -213,14 +226,24 @@ fn no_mesh_plan_owns_model_initial_state_and_run_only_horizon() {
         crate::ResolvedCommonPlan::from_bytes(
             &bytes,
             &REFERENCE_LINEAR_SOLVER,
-            TimeBackendIdentity::new("eqiora.test.time", "1"),
+            eqiora_time::TimeBackendCapabilities::new(
+                eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+                &[
+                    eqiora_core::ScalarDomain::Real,
+                    eqiora_core::ScalarDomain::Complex
+                ],
+                &[eqiora_core::ScalarType::F64]
+            ),
         )
         .unwrap(),
         resolved
     );
     let state = plan.initial_state(0.0).unwrap();
     assert_eq!(state.time_s(), 0.0);
-    assert_eq!(state.state_coordinates(), &[(field, 0)]);
+    assert_eq!(
+        state.state_coordinates(),
+        &[eqiora_core::TimeStateCoordinate::new(field, 0, 0, false)]
+    );
     assert_eq!(state.values(), &[1.0]);
     let state_bytes = state.to_bytes().unwrap();
     assert_eq!(
@@ -279,13 +302,34 @@ fn field_tolerances_are_exact_complete_and_positive() {
             _ => None,
         })
         .unwrap();
-    assert!(CommonTsitourasTolerance::new((field, 0), 0.0).is_err());
-    assert!(CommonTsitouras45::new(0.01, 1.0e-9, Vec::new()).is_err());
+    assert!(
+        CommonTimeTolerance::new(
+            eqiora_core::TimeStateCoordinate::new(field, 0, 0, false),
+            0.0
+        )
+        .is_err()
+    );
+    assert!(
+        CommonOdePolicy::new(
+            eqiora_time::TimeMethod::Tsitouras45,
+            0.01,
+            1.0e-9,
+            Vec::new()
+        )
+        .is_err()
+    );
     let foreign = Id::<kinds::Field>::new();
-    let temporal = CommonTsitouras45::new(
+    let temporal = CommonOdePolicy::new(
+        eqiora_time::TimeMethod::Tsitouras45,
         0.01,
         1.0e-9,
-        vec![CommonTsitourasTolerance::new((foreign, 0), 1.0e-11).unwrap()],
+        vec![
+            CommonTimeTolerance::new(
+                eqiora_core::TimeStateCoordinate::new(foreign, 0, 0, false),
+                1.0e-11,
+            )
+            .unwrap(),
+        ],
     )
     .unwrap();
     assert!(
@@ -293,7 +337,14 @@ fn field_tolerances_are_exact_complete_and_positive() {
             &model,
             &program,
             temporal,
-            TimeBackendIdentity::new("eqiora.test.time", "1"),
+            eqiora_time::TimeBackendCapabilities::new(
+                eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+                &[
+                    eqiora_core::ScalarDomain::Real,
+                    eqiora_core::ScalarDomain::Complex
+                ],
+                &[eqiora_core::ScalarType::F64]
+            ),
         )
         .is_err()
     );
@@ -302,12 +353,21 @@ fn field_tolerances_are_exact_complete_and_positive() {
 #[test]
 fn field_tolerances_map_to_canonical_first_order_state_coordinates() {
     let (model, program, decay, integral) = two_state_fixture(false);
-    let temporal = CommonTsitouras45::new(
+    let temporal = CommonOdePolicy::new(
+        eqiora_time::TimeMethod::Tsitouras45,
         0.01,
         1.0e-9,
         vec![
-            CommonTsitourasTolerance::new((integral, 0), 2.0e-11).unwrap(),
-            CommonTsitourasTolerance::new((decay, 0), 1.0e-11).unwrap(),
+            CommonTimeTolerance::new(
+                eqiora_core::TimeStateCoordinate::new(integral, 0, 0, false),
+                2.0e-11,
+            )
+            .unwrap(),
+            CommonTimeTolerance::new(
+                eqiora_core::TimeStateCoordinate::new(decay, 0, 0, false),
+                1.0e-11,
+            )
+            .unwrap(),
         ],
     )
     .unwrap();
@@ -315,13 +375,23 @@ fn field_tolerances_map_to_canonical_first_order_state_coordinates() {
         &model,
         &program,
         temporal,
-        TimeBackendIdentity::new("eqiora.test.time", "1"),
+        eqiora_time::TimeBackendCapabilities::new(
+            eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+            &[
+                eqiora_core::ScalarDomain::Real,
+                eqiora_core::ScalarDomain::Complex,
+            ],
+            &[eqiora_core::ScalarType::F64],
+        ),
     )
     .unwrap();
 
     assert_eq!(
         plan.state_coordinates().collect::<Vec<_>>(),
-        [(decay, 0), (integral, 0)]
+        [
+            eqiora_core::TimeStateCoordinate::new(decay, 0, 0, false),
+            eqiora_core::TimeStateCoordinate::new(integral, 0, 0, false)
+        ]
     );
     assert_eq!(plan.ordered_absolute_tolerances, [1.0e-11, 2.0e-11]);
     assert_eq!(
@@ -329,19 +399,34 @@ fn field_tolerances_map_to_canonical_first_order_state_coordinates() {
         [DimExponents::DIMENSIONLESS, DimExponents::DIMENSIONLESS]
     );
     let initial = plan.initial_state(0.0).unwrap();
-    assert_eq!(initial.state_coordinates(), [(decay, 0), (integral, 0)]);
+    assert_eq!(
+        initial.state_coordinates(),
+        [
+            eqiora_core::TimeStateCoordinate::new(decay, 0, 0, false),
+            eqiora_core::TimeStateCoordinate::new(integral, 0, 0, false)
+        ]
+    );
     assert_eq!(initial.values(), [1.0, 0.0]);
 }
 
 #[test]
 fn tsitouras_common_plan_rejects_a_structural_mass_matrix() {
     let (model, program, decay, integral) = two_state_fixture(true);
-    let temporal = CommonTsitouras45::new(
+    let temporal = CommonOdePolicy::new(
+        eqiora_time::TimeMethod::Tsitouras45,
         0.01,
         1.0e-9,
         vec![
-            CommonTsitourasTolerance::new((decay, 0), 1.0e-11).unwrap(),
-            CommonTsitourasTolerance::new((integral, 0), 2.0e-11).unwrap(),
+            CommonTimeTolerance::new(
+                eqiora_core::TimeStateCoordinate::new(decay, 0, 0, false),
+                1.0e-11,
+            )
+            .unwrap(),
+            CommonTimeTolerance::new(
+                eqiora_core::TimeStateCoordinate::new(integral, 0, 0, false),
+                2.0e-11,
+            )
+            .unwrap(),
         ],
     )
     .unwrap();
@@ -350,7 +435,14 @@ fn tsitouras_common_plan_rejects_a_structural_mass_matrix() {
             &model,
             &program,
             temporal,
-            TimeBackendIdentity::new("eqiora.test.time", "1"),
+            eqiora_time::TimeBackendCapabilities::new(
+                eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+                &[
+                    eqiora_core::ScalarDomain::Real,
+                    eqiora_core::ScalarDomain::Complex
+                ],
+                &[eqiora_core::ScalarType::F64]
+            ),
         )
         .is_err()
     );

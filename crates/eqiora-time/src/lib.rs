@@ -6,11 +6,15 @@
 //! `F(t, y, y_dot) = 0` systems use a distinct residual/JVP problem and must
 //! never be disguised as mass-matrix problems to satisfy an adapter.
 
+mod capabilities;
+pub use capabilities::TimeBackendCapabilities;
 mod diagnostic;
 mod event_linearization;
 mod history;
 mod lowering;
+mod midpoint;
 mod plan;
+pub use midpoint::ImplicitMidpointTimeBackend;
 mod problem;
 mod reference_implicit;
 mod root_outcome;

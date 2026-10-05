@@ -19,7 +19,11 @@ use crate::ModelDocument;
 
 const SOURCE: &str =
     include_str!("../../../../verify/fluid/cell-centered-navier-stokes-fvm-2d/models/direct.eqi");
-const TIME_BACKEND: TimeBackendIdentity = TimeBackendIdentity::new("eqiora.test.time", "1");
+const TIME_BACKEND: TimeBackendCapabilities = TimeBackendCapabilities::new(
+    eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+    &[eqiora_core::ScalarDomain::Real],
+    &[eqiora_core::ScalarType::F64],
+);
 
 #[test]
 fn exact_common_transient_request_round_trips_and_normalizes_schedule_spelling() {

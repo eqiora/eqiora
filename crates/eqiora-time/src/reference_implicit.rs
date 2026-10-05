@@ -240,7 +240,7 @@ fn implicit_euler_step(
     Ok((state, derivative))
 }
 
-fn newton<E, J>(
+pub(crate) fn newton<E, J>(
     point: &mut [f64],
     absolute_tolerances: &[f64],
     relative_tolerance: f64,
@@ -271,6 +271,16 @@ where
                 jacobian[row * dimension + column] = action[row];
             }
         }
+        let row_scales = jacobian
+            .chunks_exact(dimension)
+            .map(|row| row.iter().copied().map(f64::abs).fold(0., f64::max))
+            .collect::<Vec<_>>();
+        let residual_norm = |values: &[f64]| {
+            values
+                .iter()
+                .zip(&row_scales)
+                .fold(0_f64, |norm, (value, scale)| norm.hypot(value / scale))
+        };
         let right_hand_side = residual.iter().map(|value| -*value).collect::<Vec<_>>();
         let correction = solve_dense(jacobian, right_hand_side)?;
         let correction_norm =
@@ -284,7 +294,7 @@ where
             require_finite(&residual, "implicit residual")?;
             return Ok(());
         }
-        let previous_norm = euclidean_norm(&residual);
+        let previous_norm = residual_norm(&residual);
         let mut accepted = None;
         let mut scale = 1.0;
         for _ in 0..=MAX_LINE_SEARCH_STEPS {
@@ -297,21 +307,21 @@ where
                 let mut candidate_residual = vec![0.0; dimension];
                 evaluate(&candidate, &mut candidate_residual)?;
                 require_finite(&candidate_residual, "implicit residual")?;
-                if euclidean_norm(&candidate_residual) < previous_norm {
-                    accepted = Some((candidate, candidate_residual, scale));
+                if residual_norm(&candidate_residual) < previous_norm {
+                    accepted = Some((candidate, candidate_residual));
                     break;
                 }
             }
             scale *= 0.5;
         }
-        let Some((candidate, candidate_residual, scale)) = accepted else {
+        let Some((candidate, candidate_residual)) = accepted else {
             return Err(time_solve_failed(
                 "residual-native Newton line search failed to decrease the residual",
             ));
         };
         point.copy_from_slice(&candidate);
         residual = candidate_residual;
-        if infinity_norm(&residual) == 0.0 || scale * correction_norm <= 1.0 {
+        if infinity_norm(&residual) == 0.0 {
             return Ok(());
         }
     }
@@ -320,11 +330,25 @@ where
     ))
 }
 
-fn solve_dense(
+pub(crate) fn solve_dense(
     mut matrix: Vec<f64>,
     mut right_hand_side: Vec<f64>,
 ) -> Result<Vec<f64>, Diagnostic> {
     let dimension = right_hand_side.len();
+    // Row scaling is an equation-unit change, not a physical state rescale.
+    // It keeps equivalent residuals from acquiring an absolute pivot threshold.
+    for (row, rhs) in matrix.chunks_exact_mut(dimension).zip(&mut right_hand_side) {
+        let scale = row.iter().copied().map(f64::abs).fold(0., f64::max);
+        if !scale.is_finite() || scale == 0. {
+            return Err(time_solve_failed(
+                "implicit Newton Jacobian has a singular or nonfinite row",
+            ));
+        }
+        for value in row {
+            *value /= scale;
+        }
+        *rhs /= scale;
+    }
     let scale = matrix
         .iter()
         .copied()
@@ -395,10 +419,6 @@ fn weighted_rms(
         })
         .sum::<f64>();
     (sum / correction.len() as f64).sqrt()
-}
-
-fn euclidean_norm(values: &[f64]) -> f64 {
-    values.iter().map(|value| value * value).sum::<f64>().sqrt()
 }
 
 fn infinity_norm(values: &[f64]) -> f64 {

@@ -62,7 +62,9 @@ pub(super) fn validate(
             Variable::Field(field) => context
                 .derivatives
                 .get(&(field, std::num::NonZeroU32::MIN))
-                .copied(),
+                .map(evaluate::real)
+                .transpose()?
+                .map(|value| value.value()),
             _ => None,
         };
         if known_rate.is_none() {

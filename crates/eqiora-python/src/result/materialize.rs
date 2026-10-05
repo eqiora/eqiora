@@ -69,17 +69,20 @@ fn materialize_common_ode_trajectory(
         .collect::<Vec<_>>();
     let mut fields = Vec::new();
     let mut lookup = BTreeMap::new();
-    for (column, ((field, order), dimension)) in native
+    for (column, (coordinate, dimension)) in native
         .state_coordinates()
         .zip(native.state_dimensions())
         .enumerate()
     {
+        let (field, order) = (coordinate.field(), coordinate.derivative_order());
         let id = field.to_string();
         let values = states.iter().map(|state| state.values()[column]).collect();
         let series = Py::new(
             py,
             PySeries {
                 derivative_order: order,
+                component: coordinate.component(),
+                imaginary: coordinate.is_imaginary(),
                 field: Some(Py::new(
                     py,
                     PyModelFieldRef::from_exact(native.model_digest().to_owned(), id.clone()),
@@ -91,7 +94,10 @@ fn materialize_common_ode_trajectory(
                 values: PyArrayBuffer::from_owned_result(py, values)?,
             },
         )?;
-        lookup.insert((id, order), fields.len());
+        lookup.insert(
+            (id, order, coordinate.component(), coordinate.is_imaginary()),
+            fields.len(),
+        );
         fields.push(series);
     }
     Ok(PyRunResult {

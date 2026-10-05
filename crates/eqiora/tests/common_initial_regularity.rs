@@ -45,7 +45,10 @@ fn regular_initial_equations_retain_the_unique_zero_state() {
         0.0
     );
     assert_eq!(
-        initial.derivatives()[&(model.aliases()["x"], std::num::NonZeroU32::MIN)],
+        initial.derivatives()[&(model.aliases()["x"], std::num::NonZeroU32::MIN)]
+            .real_scalar_value()
+            .unwrap()
+            .value(),
         0.0
     );
 }

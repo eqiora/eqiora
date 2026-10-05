@@ -1,4 +1,4 @@
-//! Whole typed assignments share the expression backend; Newton only sees real scalar residuals.
+//! Whole typed discrete updates share the expression backend with numeric initialization.
 use super::*;
 use eqiora_core::{ScalarDomain, ValueLiteral, ValueType};
 use eqiora_schema::kernel::{ExprDag, ExprId};
@@ -23,7 +23,13 @@ pub(super) fn supported_type(value: &ValueType) -> bool {
 
 pub(super) fn requires_typed_assignment(program: &KernelProgram, symbol: SymbolRef) -> bool {
     program.execution_symbol_type(symbol).is_some_and(|value| {
-        value.array_rank() > 0
+        (value.array_rank() > 0
+            && match symbol {
+                SymbolRef::Field(id) | SymbolRef::Pre(id) => {
+                    is_clocked_variable(program, id.erase())
+                }
+                _ => true,
+            })
             || matches!(
                 value.scalar_domain(),
                 ScalarDomain::Integer | ScalarDomain::Boolean | ScalarDomain::Enum

@@ -75,7 +75,11 @@ fn complex_cubic_uses_common_plan_state_run_and_result_replay() {
     let replayed = ResolvedCommonPlan::from_bytes(
         &resolved.to_bytes().unwrap(),
         &FaerLinearSolver,
-        eqiora::time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+        eqiora::time::TimeBackendCapabilities::new(
+            eqiora::time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+            &[eqiora::ScalarDomain::Real, eqiora::ScalarDomain::Complex],
+            &[eqiora::ScalarType::F64],
+        ),
     )
     .unwrap();
     assert_eq!(replayed, resolved);
@@ -224,7 +228,11 @@ fn different_physical_units_have_exact_plan_bound_residual_scales() {
         ResolvedCommonPlan::from_bytes(
             bytes,
             &FaerLinearSolver,
-            eqiora::time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+            eqiora::time::TimeBackendCapabilities::new(
+                eqiora::time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+                &[eqiora::ScalarDomain::Real, eqiora::ScalarDomain::Complex],
+                &[eqiora::ScalarType::F64],
+            ),
         )
     };
     assert_eq!(replay(&bytes).unwrap(), resolved);
@@ -247,7 +255,7 @@ fn different_physical_units_have_exact_plan_bound_residual_scales() {
         result
     );
     let mut wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(wire["schema"], "eqiora.resolved-common-plan/v9");
+    assert_eq!(wire["schema"], "eqiora.resolved-common-plan/v10");
     wire["residual_scales"][0]["value"] = serde_json::json!(0.);
     assert!(replay(&serde_json::to_vec(&wire).unwrap()).is_err());
 }

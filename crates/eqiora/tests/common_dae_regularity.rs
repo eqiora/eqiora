@@ -98,7 +98,10 @@ fn nonlinear_value_terms_preserve_a_regular_constant_mass_descriptor() {
         .unwrap();
     for alias in ["x", "y"] {
         assert_eq!(
-            initial.derivatives()[&(model.aliases()[alias], std::num::NonZeroU32::MIN)],
+            initial.derivatives()[&(model.aliases()[alias], std::num::NonZeroU32::MIN)]
+                .real_scalar_value()
+                .unwrap()
+                .value(),
             0.0
         );
     }
@@ -117,13 +120,20 @@ fn an_independent_nonlinear_rate_does_not_change_descriptor_admission() {
         .unwrap();
     for alias in ["x", "y"] {
         assert!(
-            (initial.derivatives()[&(model.aliases()[alias], std::num::NonZeroU32::MIN)] + 1.0)
+            (initial.derivatives()[&(model.aliases()[alias], std::num::NonZeroU32::MIN)]
+                .real_scalar_value()
+                .unwrap()
+                .value()
+                + 1.0)
                 .abs()
                 < 1e-9
         );
     }
     assert_eq!(
-        initial.derivatives()[&(model.aliases()["u"], std::num::NonZeroU32::MIN)],
+        initial.derivatives()[&(model.aliases()["u"], std::num::NonZeroU32::MIN)]
+            .real_scalar_value()
+            .unwrap()
+            .value(),
         0.0
     );
 }

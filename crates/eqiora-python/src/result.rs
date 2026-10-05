@@ -51,6 +51,8 @@ const RESULT_FILE_SPEC: ArtifactFileSpec = ArtifactFileSpec {
 pub(crate) struct PySeries {
     field: Option<Py<PyModelFieldRef>>,
     derivative_order: u32,
+    component: usize,
+    imaginary: bool,
     id: String,
     name: Option<String>,
     dimension: DimExponents,
@@ -63,6 +65,14 @@ impl PySeries {
     #[getter]
     fn field(&self, py: Python<'_>) -> Option<Py<PyModelFieldRef>> {
         self.field.as_ref().map(|field| field.clone_ref(py))
+    }
+    #[getter]
+    fn component(&self) -> usize {
+        self.component
+    }
+    #[getter]
+    fn imaginary(&self) -> bool {
+        self.imaginary
     }
     #[getter]
     fn derivative_order(&self) -> u32 {
@@ -134,7 +144,7 @@ struct CommonTrajectoryResultPayload {
 
 struct CommonOdeResultPayload {
     fields: Vec<Py<PySeries>>,
-    lookup: BTreeMap<(String, u32), usize>,
+    lookup: BTreeMap<(String, u32, usize, bool), usize>,
     states: Vec<eqiora_numerics::CommonOdeState>,
 }
 
@@ -434,12 +444,14 @@ impl PyRunResult {
     }
 
     /// Select one no-Mesh scalar series by exact Model-bound Field identity.
-    #[pyo3(signature = (field, /, *, derivative_order=0))]
+    #[pyo3(signature = (field, /, *, derivative_order=0, component=0, imaginary=false))]
     fn series(
         &self,
         py: Python<'_>,
         field: &PyModelFieldRef,
         derivative_order: u32,
+        component: usize,
+        imaginary: bool,
     ) -> PyResult<Py<PySeries>> {
         if field.exact_model_digest() != self.identity.model_digest() {
             return Err(PyValueError::new_err(
@@ -451,7 +463,12 @@ impl PyRunResult {
         };
         let index = payload
             .lookup
-            .get(&(field.exact_id().to_owned(), derivative_order))
+            .get(&(
+                field.exact_id().to_owned(),
+                derivative_order,
+                component,
+                imaginary,
+            ))
             .copied()
             .ok_or_else(|| PyKeyError::new_err(field.exact_id().to_owned()))?;
         Ok(payload.fields[index].clone_ref(py))

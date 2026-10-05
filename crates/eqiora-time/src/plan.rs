@@ -9,6 +9,8 @@ use eqiora_core::Diagnostic;
 pub enum TimeMethod {
     /// Deterministic first-order backward Euler reference method.
     ImplicitEuler,
+    /// Fixed-step second-order implicit midpoint in real state coordinates.
+    ImplicitMidpoint,
     /// Tsitouras 5(4) explicit Runge--Kutta for non-stiff ODEs.
     Tsitouras45,
     /// Variable-order backward differentiation formula for stiff/DAE systems.

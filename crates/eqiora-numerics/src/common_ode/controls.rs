@@ -1,12 +1,12 @@
 use super::*;
 
 type SensitivityControl = (
-    (Id<kinds::Field>, u32),
+    eqiora_core::TimeStateCoordinate,
     Id<kinds::Parameter>,
     eqiora_core::DynQuantity,
 );
 
-impl CommonTsitouras45 {
+impl CommonOdePolicy {
     /// Validate event controls before attaching them to an integration request.
     pub fn validate_event_controls(
         max_events: usize,

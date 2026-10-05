@@ -307,7 +307,7 @@ fn flatten(states: &[NalgebraVec<f64>]) -> Vec<f64> {
 
 fn report(problem: &TimeProblem<'_>, plan: &TimePlan) -> TimeExecutionReport {
     TimeExecutionReport::new(
-        DIFFSOL_TIME_BACKEND,
+        DiffsolTimeBackend::IDENTITY,
         plan.method(),
         problem.equation_class(),
         problem.initial_condition(),

@@ -398,7 +398,10 @@ fn short_terminal_step_retains_the_solved_derivative_without_subtractive_cancell
     .unwrap();
     assert_eq!(state.fields[&field.erase()], 20. + (end - start));
     assert_eq!(
-        state.derivatives[&(field.erase(), std::num::NonZeroU32::MIN)],
+        state.derivatives[&(field.erase(), std::num::NonZeroU32::MIN)]
+            .real_scalar_value()
+            .unwrap()
+            .value(),
         1.
     );
 

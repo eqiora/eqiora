@@ -1,5 +1,5 @@
 use eqiora::artifact::{
-    ArtifactDigest, GeneralImplicitTimeLoweringEnvelopeV2, ImplicitTimeInitialDataEnvelopeV1,
+    ArtifactDigest, GeneralImplicitTimeLoweringEnvelopeV3, ImplicitTimeInitialDataEnvelopeV1,
     ImplicitTimeRunManifestV1, ModelEnvelope, TimeDecoderLimits,
 };
 use eqiora::diagnostic::codes;
@@ -31,17 +31,19 @@ fn canonical_state_dependent_mass_dae_uses_only_the_residual_native_seam() {
     let rate = fixture.rate;
     let cpu = CpuProgram::lower(&kernel).expect("scalar Operator IR");
     assert_eq!(
-        FirstOrderProgram::lower(&cpu, relation).unwrap_err().code(),
+        FirstOrderProgram::lower(cpu.kernel(), relation)
+            .unwrap_err()
+            .code(),
         codes::INVALID_TIME_LOWERING
     );
     let system = GeneralImplicitProgram::lower(&cpu, relation).expect("general residual proof");
     let model = ModelEnvelope::from_program(&kernel).unwrap();
     let lowering =
-        GeneralImplicitTimeLoweringEnvelopeV2::from_proof(&model, &kernel, system.lowering_proof())
+        GeneralImplicitTimeLoweringEnvelopeV3::from_proof(&model, &kernel, system.lowering_proof())
             .unwrap();
     let lowering_bytes = lowering.canonical_json().unwrap();
     let decoded_lowering =
-        GeneralImplicitTimeLoweringEnvelopeV2::from_json(&lowering_bytes, Default::default())
+        GeneralImplicitTimeLoweringEnvelopeV3::from_json(&lowering_bytes, Default::default())
             .unwrap();
     assert_eq!(
         decoded_lowering.digest().unwrap(),
@@ -50,7 +52,7 @@ fn canonical_state_dependent_mass_dae_uses_only_the_residual_native_seam() {
     assert_eq!(decoded_lowering.proof().unwrap(), *system.lowering_proof());
     decoded_lowering.validate_against(&model, &kernel).unwrap();
     assert_eq!(
-        GeneralImplicitTimeLoweringEnvelopeV2::from_json(
+        GeneralImplicitTimeLoweringEnvelopeV3::from_json(
             &lowering_bytes,
             TimeDecoderLimits {
                 max_time_state_dimension: 1,
@@ -63,7 +65,7 @@ fn canonical_state_dependent_mass_dae_uses_only_the_residual_native_seam() {
     );
     let mut forged_partition: serde_json::Value = serde_json::from_slice(&lowering_bytes).unwrap();
     forged_partition["variable_kinds"] = serde_json::json!(["differential", "differential"]);
-    let forged_partition = GeneralImplicitTimeLoweringEnvelopeV2::from_json(
+    let forged_partition = GeneralImplicitTimeLoweringEnvelopeV3::from_json(
         &serde_json::to_vec(&forged_partition).unwrap(),
         Default::default(),
     )
@@ -77,7 +79,10 @@ fn canonical_state_dependent_mass_dae_uses_only_the_residual_native_seam() {
     );
     assert_eq!(
         system.state_coordinates(),
-        &[(differential, 0), (algebraic, 0)]
+        &[
+            eqiora_core::TimeStateCoordinate::new(differential, 0, 0, false),
+            eqiora_core::TimeStateCoordinate::new(algebraic, 0, 0, false)
+        ]
     );
     let initial = system
         .initialize(0.0, eqiora::sem::ReferenceConfig::new(0.0, 1.0).unwrap())
@@ -301,7 +306,9 @@ fn nonlinear_derivative_relation_retains_an_explicit_branch_choice() {
     let (kernel, relation, state) = canonical_nonlinear_derivative_relation();
     let cpu = CpuProgram::lower(&kernel).expect("scalar Operator IR");
     assert_eq!(
-        FirstOrderProgram::lower(&cpu, relation).unwrap_err().code(),
+        FirstOrderProgram::lower(cpu.kernel(), relation)
+            .unwrap_err()
+            .code(),
         codes::INVALID_TIME_LOWERING
     );
     let system = GeneralImplicitProgram::lower(&cpu, relation).unwrap();
@@ -309,14 +316,17 @@ fn nonlinear_derivative_relation_retains_an_explicit_branch_choice() {
         system.lowering_proof().reason(),
         GeneralImplicitReason::NonlinearDerivativeDependence
     );
-    assert_eq!(system.state_coordinates(), [(state, 0)]);
+    assert_eq!(
+        system.state_coordinates(),
+        [eqiora_core::TimeStateCoordinate::new(state, 0, 0, false)]
+    );
     assert_eq!(
         system.lowering_proof().variable_kinds(),
         [DaeVariableKind::Differential]
     );
     let model = ModelEnvelope::from_program(&kernel).unwrap();
     let lowering =
-        GeneralImplicitTimeLoweringEnvelopeV2::from_proof(&model, &kernel, system.lowering_proof())
+        GeneralImplicitTimeLoweringEnvelopeV3::from_proof(&model, &kernel, system.lowering_proof())
             .unwrap();
     lowering.validate_against(&model, &kernel).unwrap();
 

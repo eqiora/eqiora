@@ -2,7 +2,27 @@
 use super::*;
 
 impl CommonOdePlan {
-    /// Exact declared Parameters in the lowering's derivative coordinate order.
+    pub(super) fn require_scalar_parameter_directions(&self) -> Result<(), Diagnostic> {
+        let kernel = self
+            .model_artifact()
+            .to_program()
+            .map_err(|errors| errors.into_iter().next().expect("failed Model replay"))?;
+        for parameter in self.program.parameter_fields() {
+            let value = kernel
+                .typed_value(parameter.erase())
+                .ok_or_else(|| invalid("Parameter has no exact typed value"))?;
+            if !value.value_type().shape().is_scalar()
+                || value.value_type().scalar_domain() != eqiora_core::ScalarDomain::Real
+            {
+                return Err(invalid(
+                    "common forward sensitivity requires an admitted complete typed Parameter direction",
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// Exact declared Parameter inventory; derivative controls establish coordinate admission.
     #[must_use]
     pub fn parameter_ids(&self) -> &[Id<kinds::Parameter>] {
         self.forward_parameter_ids
@@ -19,6 +39,7 @@ impl CommonOdeRunRequest {
     pub fn forward_sensitivity_problem(
         &self,
     ) -> Result<eqiora_time::ForwardSensitivityProblem<'_>, Diagnostic> {
+        self.plan.require_scalar_parameter_directions()?;
         if self.plan.event_policy().is_some() {
             return Err(invalid(
                 "registered-event sensitivity requires the canonical event sensitivity driver",

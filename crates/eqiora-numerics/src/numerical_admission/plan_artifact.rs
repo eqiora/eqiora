@@ -9,11 +9,11 @@ use eqiora_core::entity::kinds;
 use eqiora_core::{Entity, Id};
 use eqiora_realization::{NonlinearSolvePlan, PortableRealizationGraph};
 use eqiora_solver::{LinearSolverBackend, SolverPlanningObjective};
-use eqiora_time::TimeBackendIdentity;
+use eqiora_time::TimeBackendCapabilities;
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
-use crate::common_ode::{CommonTsitouras45, CommonTsitourasTolerance};
+use crate::common_ode::{CommonOdePolicy, CommonTimeTolerance};
 use crate::{ScalingComponent2d, ScalingMode2d};
 
 use super::*;
@@ -28,10 +28,12 @@ use enforcement::WireEnforcement;
 use linear::WireLinearControls;
 mod event_policy;
 mod forward_policy;
+mod temporal;
 use event_policy::WireEventPolicy;
 use forward_policy::WireForwardSensitivity;
+use temporal::{WireTemporal, WireTimeCoordinates, temporal_request};
 
-const SCHEMA: &str = "eqiora.resolved-common-plan/v9";
+const SCHEMA: &str = "eqiora.resolved-common-plan/v10";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 
@@ -120,32 +122,7 @@ struct WireScalingRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireOdeTolerance {
-    field_ulid: String,
-    derivative_order: u32,
-    value: f64,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
-enum WireTemporal {
-    BackwardEuler {
-        step_s: f64,
-    },
-    Tsitouras45 {
-        initial_step_s: f64,
-        relative_tolerance: f64,
-        absolute_tolerances: Vec<WireOdeTolerance>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        events: Option<WireEventPolicy>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        forward_sensitivities: Option<WireForwardSensitivity>,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireResolvedCommonPlanV9 {
+struct WireResolvedCommonPlanV10 {
     schema: String,
     encoding: String,
     family: WirePlanFamily,
@@ -295,9 +272,9 @@ impl ResolvedCommonPlan {
         }
     }
 
-    /// Tsitouras policy owned by a no-Mesh ODE Plan.
+    /// Numerical time policy owned by a no-Mesh ODE Plan.
     #[must_use]
-    pub fn tsitouras45(&self) -> Option<&CommonTsitouras45> {
+    pub fn ode_temporal(&self) -> Option<&CommonOdePolicy> {
         match self {
             Self::Ode(plan) => Some(plan.temporal()),
             Self::Eigen(_)
@@ -312,7 +289,7 @@ impl ResolvedCommonPlan {
 
     /// Encode this complete resolved Plan and its exact replay roots.
     pub fn to_bytes(&self) -> Result<Vec<u8>, Diagnostic> {
-        serde_json::to_vec(&WireResolvedCommonPlanV9::from_plan(self)?).map_err(|error| {
+        serde_json::to_vec(&WireResolvedCommonPlanV10::from_plan(self)?).map_err(|error| {
             invalid(format!(
                 "cannot encode resolved common Plan artifact: {error}"
             ))
@@ -321,12 +298,13 @@ impl ResolvedCommonPlan {
 
     /// Decode and independently resolve one exact self-contained Plan.
     ///
-    /// The caller supplies the admitted local provider implementations; their
-    /// exact identities and versions must reproduce the persisted Plan.
+    /// The caller supplies external linear and adaptive-time providers. Fixed-step
+    /// midpoint uses the built-in host implementation. Exact identities and
+    /// versions must reproduce the persisted Plan.
     pub fn from_bytes(
         bytes: &[u8],
         linear_backend: &dyn LinearSolverBackend,
-        time_backend: TimeBackendIdentity,
+        time_backend: TimeBackendCapabilities,
     ) -> Result<Self, Diagnostic> {
         if bytes.len() > MAX_BYTES {
             return Err(invalid(format!(
@@ -334,7 +312,7 @@ impl ResolvedCommonPlan {
                 bytes.len()
             )));
         }
-        let wire: WireResolvedCommonPlanV9 = serde_json::from_slice(bytes)
+        let wire: WireResolvedCommonPlanV10 = serde_json::from_slice(bytes)
             .map_err(|error| invalid(format!("invalid resolved common Plan JSON: {error}")))?;
         wire.validate_header()?;
         let resolved = wire.resolve(linear_backend, time_backend)?;
@@ -347,7 +325,7 @@ impl ResolvedCommonPlan {
     }
 }
 
-impl WireResolvedCommonPlanV9 {
+impl WireResolvedCommonPlanV10 {
     fn from_plan(plan: &ResolvedCommonPlan) -> Result<Self, Diagnostic> {
         let model = plan_model_artifact(plan).canonical_json()?;
         let mesh = plan_authenticated_mesh(plan)
@@ -467,7 +445,7 @@ impl WireResolvedCommonPlanV9 {
                 "resolved common Plan has an incoherent ODE/spatial root shape",
             ));
         }
-        if ode != matches!(self.temporal, Some(WireTemporal::Tsitouras45 { .. })) {
+        if ode != matches!(self.temporal, Some(WireTemporal::Ode { .. })) {
             return Err(invalid(
                 "resolved common Plan has an incompatible temporal policy",
             ));
@@ -499,7 +477,7 @@ impl WireResolvedCommonPlanV9 {
     fn resolve(
         &self,
         linear_backend: &dyn LinearSolverBackend,
-        time_backend: TimeBackendIdentity,
+        time_backend: TimeBackendCapabilities,
     ) -> Result<ResolvedCommonPlan, Diagnostic> {
         let model_bytes = decode(&self.model_base64, "Model")?;
         let model = ModelEnvelope::from_json(&model_bytes, ModelDecoderLimits::default())?;
@@ -550,7 +528,9 @@ impl WireResolvedCommonPlanV9 {
             .map(|plan| ResolvedCommonPlan::Algebraic(Box::new(plan)));
         }
         if self.family == WirePlanFamily::Ode {
-            let Some(WireTemporal::Tsitouras45 {
+            let Some(WireTemporal::Ode {
+                method,
+                coordinates: WireTimeCoordinates::RealF64,
                 initial_step_s,
                 relative_tolerance,
                 absolute_tolerances,
@@ -558,18 +538,31 @@ impl WireResolvedCommonPlanV9 {
                 forward_sensitivities,
             }) = &self.temporal
             else {
-                return Err(invalid("ODE Plan omitted its Tsitouras45 policy"));
+                return Err(invalid("ODE Plan omitted its method policy"));
             };
             let tolerances = absolute_tolerances
                 .iter()
                 .map(|entry| {
                     parse_id::<kinds::Field>(&entry.field_ulid, "Field").and_then(|field| {
-                        CommonTsitourasTolerance::new((field, entry.derivative_order), entry.value)
+                        CommonTimeTolerance::new(
+                            eqiora_core::TimeStateCoordinate::new(
+                                field,
+                                entry.derivative_order,
+                                usize::try_from(entry.component)
+                                    .map_err(|_| invalid("time component exceeds address space"))?,
+                                entry.imaginary,
+                            ),
+                            entry.value,
+                        )
                     })
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            let mut temporal =
-                CommonTsitouras45::new(*initial_step_s, *relative_tolerance, tolerances)?;
+            let mut temporal = CommonOdePolicy::new(
+                method.decode(),
+                *initial_step_s,
+                *relative_tolerance,
+                tolerances,
+            )?;
             if let Some(events) = events {
                 temporal = temporal.with_event_policy(events.to_native()?);
             }
@@ -586,7 +579,12 @@ impl WireResolvedCommonPlanV9 {
                         .join("; ")
                 ))
             })?;
-            return resolve_common_ode_plan(&model, &program, temporal, time_backend);
+            let backend = if temporal.method() == eqiora_time::TimeMethod::ImplicitMidpoint {
+                eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES
+            } else {
+                time_backend
+            };
+            return resolve_common_ode_plan(&model, &program, temporal, backend);
         }
 
         let mesh = self
@@ -629,7 +627,7 @@ impl WireResolvedCommonPlanV9 {
             Some(WireTemporal::BackwardEuler { step_s }) => {
                 Some(CommonBackwardEuler::from_seconds(step_s)?)
             }
-            Some(WireTemporal::Tsitouras45 { .. }) => {
+            Some(WireTemporal::Ode { .. }) => {
                 return Err(invalid("spatial Plan carries an ODE temporal policy"));
             }
         };
@@ -896,47 +894,6 @@ fn scaling_request(plan: &ResolvedCommonPlan) -> Option<WireScalingRequest> {
         velocity_m_per_s: manual(ScalingComponent2d::Velocity),
         pressure_pa: manual(ScalingComponent2d::Pressure),
     })
-}
-
-fn temporal_request(plan: &ResolvedCommonPlan) -> Option<WireTemporal> {
-    match plan {
-        ResolvedCommonPlan::Ode(plan) => Some(WireTemporal::Tsitouras45 {
-            events: plan.event_policy().map(WireEventPolicy::from_native),
-            forward_sensitivities: plan
-                .temporal()
-                .forward_sensitivities()
-                .map(WireForwardSensitivity::from_native),
-            initial_step_s: plan.temporal().initial_step_s(),
-            relative_tolerance: plan.temporal().relative_tolerance(),
-            absolute_tolerances: plan
-                .temporal()
-                .absolute_tolerances()
-                .iter()
-                .map(|entry| WireOdeTolerance {
-                    field_ulid: entry.coordinate().0.ulid().to_string(),
-                    derivative_order: entry.coordinate().1,
-                    value: entry.value(),
-                })
-                .collect(),
-        }),
-        ResolvedCommonPlan::Scalar(plan) => {
-            plan.admission
-                .temporal
-                .map(|temporal| WireTemporal::BackwardEuler {
-                    step_s: temporal.step().value(),
-                })
-        }
-        ResolvedCommonPlan::TransientFlow(plan) => Some(WireTemporal::BackwardEuler {
-            step_s: plan.temporal().step().value(),
-        }),
-        ResolvedCommonPlan::Fsi(plan) => Some(WireTemporal::BackwardEuler {
-            step_s: plan.temporal().step().value(),
-        }),
-        ResolvedCommonPlan::Eigen(_)
-        | ResolvedCommonPlan::Algebraic(_)
-        | ResolvedCommonPlan::Elasticity(_)
-        | ResolvedCommonPlan::SteadyStokes(_) => None,
-    }
 }
 
 fn nonzero(value: usize, label: &str) -> Result<NonZeroUsize, Diagnostic> {

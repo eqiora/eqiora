@@ -33,20 +33,14 @@ fn typed_initial_equations_survive_source_and_model_replay() {
                 |node| matches!(node, KernelNode::Relation(relation) if relation.is_initial())
             )
         );
-        if field.value_type().scalar_domain() != ScalarDomain::Real || !field.shape().is_scalar() {
-            let errors = eqiora_sem::Interpreter::new()
-                .initialize(
-                    &original,
-                    0.0,
-                    eqiora_sem::ReferenceConfig::new(0.0, 0.01).unwrap(),
-                )
-                .unwrap_err();
-            assert!(errors.iter().any(|error| {
-                error.message().contains(
-                    "real scalar, invariant real/integer channels, or exact discrete Fields",
-                )
-            }));
-        }
+        let replayed_program = replay.to_program().unwrap();
+        let Some(KernelNode::Field(replayed_field)) = replayed_program.node(field.id().erase())
+        else {
+            panic!("Model replay omitted the typed initial Field");
+        };
+        assert_eq!(replayed_field.value_type(), field.value_type());
+        assert_eq!(replayed_field.role(), field.role());
+        assert!(structurally_equivalent(&original, &replayed_program).unwrap());
     }
 }
 

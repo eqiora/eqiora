@@ -84,7 +84,14 @@ fn radial_diffusion_result_replays_and_converges_to_the_spherical_average() {
         let plan = ResolvedCommonPlan::from_bytes(
             &plan.to_bytes().unwrap(),
             &REFERENCE_LINEAR_SOLVER,
-            eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+            eqiora_time::TimeBackendCapabilities::new(
+                eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+                &[
+                    eqiora_core::ScalarDomain::Real,
+                    eqiora_core::ScalarDomain::Complex,
+                ],
+                &[eqiora_core::ScalarType::F64],
+            ),
         )
         .unwrap();
         let result = plan

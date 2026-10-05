@@ -34,18 +34,49 @@ fn typing_error(error: typing::TypeViolation<()>) -> Diagnostic {
     Diagnostic::error(codes::DIMENSION_MISMATCH, error.to_string())
 }
 
+#[derive(Clone, Copy)]
+enum Binary {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Complex,
+}
+
+pub(super) fn subtract(
+    left: &ValueLiteral,
+    right: &ValueLiteral,
+) -> Result<ValueLiteral, Diagnostic> {
+    apply_binary(Binary::Subtract, left, right)
+}
+
 pub(super) fn binary(
     node: &ExprNode,
     left: &ValueLiteral,
     right: &ValueLiteral,
 ) -> Result<ValueLiteral, Diagnostic> {
-    let (left_type, right_type) = (ty(left)?, ty(right)?);
-    let output = match node {
-        ExprNode::Add(..) | ExprNode::Sub(..) => typing::additive(&left_type, &right_type),
-        ExprNode::Mul(..) => typing::multiply(&left_type, &right_type),
-        ExprNode::Div(..) => typing::divide(&left_type, &right_type),
-        ExprNode::Complex { .. } => left_type.complex(right_type),
+    let operation = match node {
+        ExprNode::Add(..) => Binary::Add,
+        ExprNode::Sub(..) => Binary::Subtract,
+        ExprNode::Mul(..) => Binary::Multiply,
+        ExprNode::Div(..) => Binary::Divide,
+        ExprNode::Complex { .. } => Binary::Complex,
         _ => unreachable!("numeric binary dispatch"),
+    };
+    apply_binary(operation, left, right)
+}
+
+fn apply_binary(
+    operation: Binary,
+    left: &ValueLiteral,
+    right: &ValueLiteral,
+) -> Result<ValueLiteral, Diagnostic> {
+    let (left_type, right_type) = (ty(left)?, ty(right)?);
+    let output = match operation {
+        Binary::Add | Binary::Subtract => typing::additive(&left_type, &right_type),
+        Binary::Multiply => typing::multiply(&left_type, &right_type),
+        Binary::Divide => typing::divide(&left_type, &right_type),
+        Binary::Complex => left_type.complex(right_type),
     }
     .map_err(typing_error)?
     .value_type;
@@ -67,23 +98,22 @@ pub(super) fn binary(
                 .component(if scalar_right { 0 } else { index })
                 .expect("typed component");
             if real_output {
-                let real = match node {
-                    ExprNode::Add(..) => ar + br,
-                    ExprNode::Sub(..) => ar - br,
-                    ExprNode::Mul(..) => ar * br,
-                    ExprNode::Div(..) => ar / br,
+                let real = match operation {
+                    Binary::Add => ar + br,
+                    Binary::Subtract => ar - br,
+                    Binary::Multiply => ar * br,
+                    Binary::Divide => ar / br,
                     _ => unreachable!("real arithmetic"),
                 };
                 return (real, 0.0);
             }
             let (a, b) = (Complex64::new(ar, ai), Complex64::new(br, bi));
-            let result = match node {
-                ExprNode::Add(..) => a + b,
-                ExprNode::Sub(..) => a - b,
-                ExprNode::Mul(..) => a * b,
-                ExprNode::Div(..) => complex_divide(a, b),
-                ExprNode::Complex { .. } => Complex64::new(ar, br),
-                _ => unreachable!("complex arithmetic"),
+            let result = match operation {
+                Binary::Add => a + b,
+                Binary::Subtract => a - b,
+                Binary::Multiply => a * b,
+                Binary::Divide => complex_divide(a, b),
+                Binary::Complex => Complex64::new(ar, br),
             };
             (result.re, result.im)
         }),

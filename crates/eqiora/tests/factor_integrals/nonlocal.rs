@@ -193,7 +193,11 @@ fn nonsymmetric_kernel_uses_the_declared_pairing_and_each_domain_measure() {
     let plan = ResolvedCommonPlan::from_bytes(
         &result.plan().to_bytes().unwrap(),
         &FaerLinearSolver,
-        eqiora::time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+        eqiora::time::TimeBackendCapabilities::new(
+            eqiora::time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+            &[eqiora::ScalarDomain::Real, eqiora::ScalarDomain::Complex],
+            &[eqiora::ScalarType::F64],
+        ),
     )
     .unwrap();
     let result = CommonResult::from_bytes(&result.to_bytes().unwrap(), &plan).unwrap();

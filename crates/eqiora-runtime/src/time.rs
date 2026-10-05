@@ -1,3 +1,5 @@
+mod operator;
+use operator::TimeOperator;
 mod coordinates;
 pub(crate) use coordinates::state_order;
 
@@ -18,14 +20,13 @@ use eqiora_time::{
     TimeLoweringProof, TimeProblem, TimeSystem,
 };
 
-use crate::CpuProgram;
 use eqiora_sem::{KernelProgram, ReferenceConfig};
 
 /// Canonical continuous Relation proven to have first-order form
 /// `M y_dot = f(t,y)`.
 ///
 /// State order follows first occurrence of current-value or derivative Field
-/// symbols in scalar Operator IR. A full constant monomial derivative Jacobian
+/// coordinates in Operator IR. A full constant monomial derivative Jacobian
 /// is normalized to an explicit ODE. Every other non-zero-rank constant matrix
 /// remains a full or rank-deficient mass matrix. State-dependent and
 /// derivative-nonlinear systems fail closed; equation class is never inferred
@@ -33,11 +34,12 @@ use eqiora_sem::{KernelProgram, ReferenceConfig};
 #[derive(Debug, Clone, PartialEq)]
 pub struct FirstOrderProgram {
     relation: Id<kinds::Relation>,
-    operator: ScalarOperatorIr,
-    state_coordinates: Vec<(Id<kinds::Field>, u32)>,
+    operator: TimeOperator,
+    state_coordinates: Vec<eqiora_core::TimeStateCoordinate>,
     companions: Vec<(usize, usize)>,
     parameter_fields: Vec<Id<kinds::Parameter>>,
     parameter_values: Vec<f64>,
+    parameter_coordinates: Vec<eqiora_ir::ScalarSymbolCoordinate>,
     kernel: KernelProgram,
     bindings: Vec<TimeBinding>,
     roles: Vec<DifferentiationRole>,
@@ -47,27 +49,27 @@ pub struct FirstOrderProgram {
 }
 
 impl FirstOrderProgram {
-    /// Lower one continuously activated Relation from an already lowered CPU
-    /// program and prove an admitted first-order equation class.
+    /// Lower one continuously activated Relation from its validated kernel
+    /// Model and prove an admitted first-order equation class.
     ///
     /// # Errors
     /// Returns `EQ0705` if activation, symbols, shapes, or
     /// derivative structure cannot enter the first-order seam. Existing
     /// Operator IR diagnostics are retained when scalar evaluation fails.
-    pub fn lower(program: &CpuProgram, relation: Id<kinds::Relation>) -> Result<Self, Diagnostic> {
+    pub fn lower(
+        program: &KernelProgram,
+        relation: Id<kinds::Relation>,
+    ) -> Result<Self, Diagnostic> {
         require_continuous_activation(program, relation)?;
         let typed = program
-            .kernel()
             .typed_relation_residual(relation)
             .map_err(|errors| errors.into_iter().next().expect("typing failure"))?;
-        let operator = ScalarOperatorIr::lower_typed_scalar(&typed)?;
+        let operator = TimeOperator::lower(&typed)?;
 
-        let state_order = state_order(relation, &operator)?;
+        let state_order = coordinates::component_state_order(program, relation, &operator)?;
         let derivatives = state_order.rate_symbols();
-        let jacobian = operator
-            .constant_symbol_jacobian(&derivatives)
-            .map_err(|failure| derivative_structure_error(relation, failure))?;
-        let matrix = state_order.derivative_matrix(relation, &jacobian)?;
+        let coefficients = operator.derivative_coefficients(relation, &derivatives)?;
+        let matrix = state_order.derivative_matrix(relation, &coefficients)?;
         let classified = classify_first_order(relation, matrix, &state_order.state_coordinates)?;
 
         let time_bindings = bind_symbols(program, relation, &operator, &state_order.coordinates)?;
@@ -78,7 +80,8 @@ impl FirstOrderProgram {
             companions: state_order.companions,
             parameter_fields: time_bindings.parameter_fields,
             parameter_values: time_bindings.parameter_values,
-            kernel: program.kernel().clone(),
+            parameter_coordinates: time_bindings.parameter_coordinates,
+            kernel: program.clone(),
             bindings: time_bindings.values,
             roles: time_bindings.roles,
             state_symbol_coordinates: time_bindings.state_coordinates,
@@ -95,7 +98,7 @@ impl FirstOrderProgram {
 
     /// Deterministic state coordinate order.
     #[must_use]
-    pub fn state_coordinates(&self) -> &[(Id<kinds::Field>, u32)] {
+    pub fn state_coordinates(&self) -> &[eqiora_core::TimeStateCoordinate] {
         &self.state_coordinates
     }
 
@@ -135,7 +138,13 @@ impl FirstOrderProgram {
         &self.parameter_fields
     }
 
-    /// Revision-captured Parameter values in [`Self::parameter_fields`] order.
+    /// Complete real coordinates of bound Parameters in derivative-vector order.
+    #[must_use]
+    pub fn parameter_coordinates(&self) -> &[eqiora_ir::ScalarSymbolCoordinate] {
+        &self.parameter_coordinates
+    }
+
+    /// Revision-captured Parameter values in [`Self::parameter_coordinates`] order.
     #[must_use]
     pub fn parameters(&self) -> &[f64] {
         &self.parameter_values
@@ -333,7 +342,7 @@ impl ParametricTimeSystem for FirstOrderProgram {
         self.require_parameter_independent_initial_conditions(time)?;
         if !time.is_finite()
             || output.len() != self.state_coordinates.len()
-            || parameter_direction.len() != self.parameter_fields.len()
+            || parameter_direction.len() != self.parameter_values.len()
         {
             return Err(invalid_time(
                 self.relation,
@@ -440,34 +449,43 @@ struct TimeBindings {
     state_coordinates: Vec<usize>,
     parameter_fields: Vec<Id<kinds::Parameter>>,
     parameter_values: Vec<f64>,
+    parameter_coordinates: Vec<eqiora_ir::ScalarSymbolCoordinate>,
 }
 
 fn bind_symbols(
-    program: &CpuProgram,
+    program: &KernelProgram,
     relation: Id<kinds::Relation>,
-    operator: &ScalarOperatorIr,
-    state_coordinates: &HashMap<(Id<kinds::Field>, u32), usize>,
+    operator: &TimeOperator,
+    state_coordinates: &HashMap<eqiora_ir::ScalarSymbolCoordinate, usize>,
 ) -> Result<TimeBindings, Diagnostic> {
     let mut bindings = Vec::with_capacity(operator.symbols().len());
     let mut roles = Vec::with_capacity(operator.symbols().len());
     let mut state_symbol_coordinates = Vec::new();
     let mut parameter_fields = Vec::new();
     let mut parameter_values = Vec::new();
-    let mut parameter_coordinates = HashMap::new();
-    for symbol in operator.symbols().iter().copied() {
-        let (binding, role) = match symbol {
-            SymbolRef::Field(field) => {
-                let coordinate = state_coordinates.get(&(field, 0)).copied().ok_or_else(|| {
+    let mut parameter_indices = HashMap::new();
+    let mut parameter_coordinates = Vec::new();
+    for source in operator.symbols() {
+        let (binding, role) = match source.symbol() {
+            SymbolRef::Field(_) => {
+                let coordinate = state_coordinates.get(source).copied().ok_or_else(|| {
                     invalid_time(relation, "Field is absent from first-order state order")
                 })?;
                 state_symbol_coordinates.push(coordinate);
                 (TimeBinding::State(coordinate), DifferentiationRole::Unknown)
             }
             SymbolRef::Derivative(field, order) => {
-                if let Some(&coordinate) = state_coordinates.get(&(field, order.get())) {
+                if let Some(&coordinate) = state_coordinates.get(source) {
                     state_symbol_coordinates.push(coordinate);
                     (TimeBinding::State(coordinate), DifferentiationRole::Unknown)
-                } else if state_coordinates.contains_key(&(field, order.get() - 1)) {
+                } else if state_coordinates.contains_key(&source.with_symbol(if order.get() == 1 {
+                    SymbolRef::Field(field)
+                } else {
+                    SymbolRef::Derivative(
+                        field,
+                        std::num::NonZeroU32::new(order.get() - 1).unwrap(),
+                    )
+                })) {
                     (TimeBinding::DerivativeZero, DifferentiationRole::Frozen)
                 } else {
                     return Err(invalid_time(
@@ -477,18 +495,44 @@ fn bind_symbols(
                 }
             }
             SymbolRef::Parameter(parameter) => {
-                let coordinate = if let Some(coordinate) = parameter_coordinates.get(&parameter) {
+                let coordinate = if let Some(coordinate) = parameter_indices.get(source) {
                     *coordinate
                 } else {
-                    let value = program
-                        .kernel()
-                        .value(parameter.erase())
-                        .ok_or_else(|| invalid_time(relation, "Parameter has no bound value"))?
-                        .value();
+                    let value = program.typed_value(parameter.erase()).ok_or_else(|| {
+                        invalid_time(relation, "Parameter has no bound typed value")
+                    })?;
+                    let coordinates = eqiora_ir::ScalarSymbolCoordinate::for_value(
+                        SymbolRef::Parameter(parameter),
+                        value.value_type(),
+                    )?;
+                    let index = coordinates
+                        .iter()
+                        .position(|coordinate| coordinate == source)
+                        .ok_or_else(|| {
+                            invalid_time(
+                                relation,
+                                "Parameter coordinate differs from its exact type",
+                            )
+                        })?;
+                    let complex =
+                        value.value_type().scalar_domain() == eqiora_core::ScalarDomain::Complex;
+                    let component = value
+                        .component(index / if complex { 2 } else { 1 })
+                        .ok_or_else(|| {
+                            invalid_time(relation, "Parameter component is unavailable")
+                        })?;
+                    let value = if source.is_imaginary() {
+                        component.1
+                    } else {
+                        component.0
+                    };
                     require_finite(relation, value, "Parameter value")?;
                     let coordinate = parameter_values.len();
-                    parameter_coordinates.insert(parameter, coordinate);
-                    parameter_fields.push(parameter);
+                    parameter_indices.insert(source.clone(), coordinate);
+                    parameter_coordinates.push(source.clone());
+                    if !parameter_fields.contains(&parameter) {
+                        parameter_fields.push(parameter);
+                    }
                     parameter_values.push(value);
                     coordinate
                 };
@@ -520,21 +564,21 @@ fn bind_symbols(
         state_coordinates: state_symbol_coordinates,
         parameter_fields,
         parameter_values,
+        parameter_coordinates,
     })
 }
 
 pub(crate) fn require_continuous_activation(
-    program: &CpuProgram,
+    program: &KernelProgram,
     relation: Id<kinds::Relation>,
 ) -> Result<(), Diagnostic> {
     let activation = program
-        .kernel()
         .edges()
         .iter()
         .find(|edge| edge.kind() == EdgeKind::Activates && edge.to() == relation.erase())
         .map(|edge| edge.from())
         .ok_or_else(|| invalid_time(relation, "Relation has no Activation"))?;
-    match program.kernel().node(activation) {
+    match program.node(activation) {
         Some(KernelNode::Activation(activation))
             if matches!(activation.kind(), ActivationKind::Continuous) =>
         {
@@ -550,7 +594,7 @@ pub(crate) fn require_continuous_activation(
 fn classify_first_order(
     relation: Id<kinds::Relation>,
     derivative_matrix: ConstantDerivativeMatrixProof,
-    state_coordinates: &[(Id<kinds::Field>, u32)],
+    state_coordinates: &[eqiora_core::TimeStateCoordinate],
 ) -> Result<ClassifiedProjection, Diagnostic> {
     let dimension = state_coordinates.len();
     let proof = TimeLoweringProof::new(relation, state_coordinates.to_vec(), derivative_matrix)?;

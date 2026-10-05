@@ -7,7 +7,8 @@ use eqiora_core::{Diagnostic, Id};
 use num_rational::BigRational;
 use num_traits::{ToPrimitive, Zero};
 mod exact;
-use std::collections::HashSet;
+use eqiora_core::TimeStateCoordinate;
+use std::collections::{HashMap, HashSet};
 
 /// Structural rank promised by the lowering that produced a mass matrix.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -343,7 +344,7 @@ impl ConstantDerivativeMatrixProof {
 #[derive(Debug, Clone, PartialEq)]
 pub struct TimeLoweringProof {
     relation: Id<kinds::Relation>,
-    state_coordinates: Vec<(Id<kinds::Field>, u32)>,
+    state_coordinates: Vec<TimeStateCoordinate>,
     derivative_matrix: ConstantDerivativeMatrixProof,
     equation_class: TimeEquationClass,
 }
@@ -356,7 +357,7 @@ impl TimeLoweringProof {
     /// or a system with an identically zero derivative matrix.
     pub fn new(
         relation: Id<kinds::Relation>,
-        state_coordinates: Vec<(Id<kinds::Field>, u32)>,
+        state_coordinates: Vec<TimeStateCoordinate>,
         derivative_matrix: ConstantDerivativeMatrixProof,
     ) -> Result<Self, Diagnostic> {
         let dimension = state_coordinates.len();
@@ -398,11 +399,11 @@ impl TimeLoweringProof {
         self.relation
     }
 
-    /// Deterministic `(source Field, derivative order)` coordinates.
+    /// Deterministic source Field, derivative order, component, and scalar-part coordinates.
     /// Order zero denotes the authored value; every higher coordinate retains
     /// the same source identity and requires all lower orders.
     #[must_use]
-    pub fn state_coordinates(&self) -> &[(Id<kinds::Field>, u32)] {
+    pub fn state_coordinates(&self) -> &[TimeStateCoordinate] {
         &self.state_coordinates
     }
 
@@ -461,7 +462,7 @@ pub enum DaeVariableKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GeneralImplicitLoweringProof {
     relation: Id<kinds::Relation>,
-    state_coordinates: Vec<(Id<kinds::Field>, u32)>,
+    state_coordinates: Vec<TimeStateCoordinate>,
     variable_kinds: Vec<DaeVariableKind>,
     reason: GeneralImplicitReason,
 }
@@ -474,7 +475,7 @@ impl GeneralImplicitLoweringProof {
     /// mismatch, or a system without a differential coordinate.
     pub fn new(
         relation: Id<kinds::Relation>,
-        state_coordinates: Vec<(Id<kinds::Field>, u32)>,
+        state_coordinates: Vec<TimeStateCoordinate>,
         variable_kinds: Vec<DaeVariableKind>,
         reason: GeneralImplicitReason,
     ) -> Result<Self, Diagnostic> {
@@ -503,11 +504,11 @@ impl GeneralImplicitLoweringProof {
         self.relation
     }
 
-    /// Deterministic `(source Field, derivative order)` coordinates.
+    /// Deterministic source Field, derivative order, component, and scalar-part coordinates.
     /// Order zero denotes the authored value; every higher coordinate retains
     /// the same source identity and requires all lower orders.
     #[must_use]
-    pub fn state_coordinates(&self) -> &[(Id<kinds::Field>, u32)] {
+    pub fn state_coordinates(&self) -> &[TimeStateCoordinate] {
         &self.state_coordinates
     }
 
@@ -538,19 +539,33 @@ fn exact_matrix_rank(dimension: usize, coefficients: &[BigRational]) -> usize {
     exact::eliminate(&mut matrix, dimension).len()
 }
 
-fn validate_state_coordinates(coordinates: &[(Id<kinds::Field>, u32)]) -> Result<(), Diagnostic> {
+fn validate_state_coordinates(coordinates: &[TimeStateCoordinate]) -> Result<(), Diagnostic> {
     let unique = coordinates.iter().copied().collect::<HashSet<_>>();
     if unique.len() != coordinates.len() {
         return Err(invalid_lowering(
             "time-lowering state coordinates must be unique",
         ));
     }
-    if coordinates.iter().any(|&(field, order)| {
-        order == u32::MAX || (order > 0 && !unique.contains(&(field, order - 1)))
-    }) {
-        return Err(invalid_lowering(
-            "time-lowering coordinates require a representable rate and every lower derivative order",
-        ));
+    let mut groups = HashMap::new();
+    for coordinate in coordinates {
+        let group = groups
+            .entry(coordinate.field())
+            .or_insert((0u32, 0usize, false, 0usize));
+        group.0 = group.0.max(coordinate.derivative_order());
+        group.1 = group.1.max(coordinate.component());
+        group.2 |= coordinate.is_imaginary();
+        group.3 += 1;
+    }
+    for (_, (order, component, imaginary, count)) in groups {
+        let expected = order
+            .checked_add(1)
+            .and_then(|orders| component.checked_add(1)?.checked_mul(orders as usize))
+            .and_then(|count| count.checked_mul(if imaginary { 2 } else { 1 }));
+        if expected != Some(count) {
+            return Err(invalid_lowering(
+                "time-lowering coordinates require complete components, scalar parts, and lower derivative orders with a representable rate",
+            ));
+        }
     }
     Ok(())
 }

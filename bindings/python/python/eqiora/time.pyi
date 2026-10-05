@@ -19,6 +19,11 @@ class OdePlanView:
     def backend_version(self) -> str: ...
     def __repr__(self) -> str: ...
 
+    @property
+    def scalar_type(self) -> str: ...
+    @property
+    def value_representation(self) -> str: ...
+
 @final
 class BackwardEuler:
     """Positive Backward-Euler operator step.
@@ -32,7 +37,7 @@ class BackwardEuler:
 
 @final
 class Tsitouras45:
-    """Adaptive explicit ODE integration with exact (Field, derivative order)-bound SI tolerances.
+    """Adaptive explicit ODE integration with SI tolerances bound to (Field, derivative order, component, imaginary).
 
     Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyTsitouras45``.
     """
@@ -41,7 +46,7 @@ class Tsitouras45:
         *,
         initial_step_s: float,
         relative_tolerance: float,
-        absolute_tolerances: Mapping[tuple[FieldRef, int], float],
+        absolute_tolerances: Mapping[tuple[FieldRef, int, int, bool], float],
         events: EventPolicy | None = None,
         forward_sensitivities: ForwardSensitivity | None = None,
     ) -> Self: ...
@@ -50,14 +55,32 @@ class Tsitouras45:
     @property
     def relative_tolerance(self) -> float: ...
     @property
-    def absolute_tolerances(self) -> dict[tuple[FieldRef, int], float]: ...
+    def absolute_tolerances(self) -> dict[tuple[FieldRef, int, int, bool], float]: ...
     @property
     def events(self) -> EventPolicy | None: ...
     @property
     def forward_sensitivities(self) -> ForwardSensitivity | None: ...
     def __repr__(self) -> str: ...
 
-__all__ = ["BackwardEuler", "OdePlanView", "Tsitouras45", "TimeFunctionalQuadrature", "GuardTolerance", "EventPolicy", "ForwardSensitivity", "SensitivityTolerance"]
+@final
+class ImplicitMidpoint:
+    """Fixed-step implicit midpoint with exact coordinate-bound Newton tolerances.
+
+    Tolerances control Newton corrections, not temporal truncation error.
+    Output samples use the accepted collocation polynomial without changing steps.
+
+    Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyImplicitMidpoint``.
+    """
+    def __new__(cls, *, step_s: float, relative_tolerance: float, absolute_tolerances: Mapping[tuple[FieldRef, int, int, bool], float]) -> Self: ...
+    @property
+    def step_s(self) -> float: ...
+    @property
+    def relative_tolerance(self) -> float: ...
+    @property
+    def absolute_tolerances(self) -> dict[tuple[FieldRef, int, int, bool], float]: ...
+    def __repr__(self) -> str: ...
+
+__all__ = ["BackwardEuler", "OdePlanView", "Tsitouras45", "ImplicitMidpoint", "TimeFunctionalQuadrature", "GuardTolerance", "EventPolicy", "ForwardSensitivity", "SensitivityTolerance"]
 
 @final
 class TimeFunctionalQuadrature:
@@ -105,9 +128,9 @@ class SensitivityTolerance:
 
     Authority: ``crates/eqiora-python/src/common_plan/forward_policy.rs::PySensitivityTolerance``.
     """
-    def __new__(cls, coordinate: tuple[FieldRef, int], parameter: ParameterRef, value: float, dimension: Dimension) -> Self: ...
+    def __new__(cls, coordinate: tuple[FieldRef, int, int, bool], parameter: ParameterRef, value: float, dimension: Dimension) -> Self: ...
     @property
-    def coordinate(self) -> tuple[FieldRef, int]: ...
+    def coordinate(self) -> tuple[FieldRef, int, int, bool]: ...
     @property
     def parameter(self) -> ParameterRef: ...
     @property

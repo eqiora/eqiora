@@ -4,12 +4,41 @@ use super::*;
 
 impl ExecutionPlan {
     pub(super) fn new(program: &KernelProgram) -> Result<Self, Diagnostic> {
-        let plan = Self::for_analysis(program)?;
+        let plan = Self::build(program, false)?;
+        for &field in plan
+            .differential_orders
+            .keys()
+            .chain(&plan.algebraic_fields)
+        {
+            let ty = Variable::Field(field).value_type(program)?;
+            if !ty.shape().is_scalar() || ty.scalar_domain() != eqiora_core::ScalarDomain::Real {
+                return Err(execution_error(
+                    "reference time stepping requires real scalar evolving Fields",
+                    0.,
+                ));
+            }
+        }
+        structural::validate(program, &plan)?;
+        Ok(plan)
+    }
+
+    pub(super) fn for_initialization(program: &KernelProgram) -> Result<Self, Diagnostic> {
+        let plan = Self::build(program, true)?;
         structural::validate(program, &plan)?;
         Ok(plan)
     }
 
     pub(super) fn for_analysis(program: &KernelProgram) -> Result<Self, Diagnostic> {
+        Self::build(program, true)
+    }
+
+    fn build(program: &KernelProgram, finite: bool) -> Result<Self, Diagnostic> {
+        let numeric = |ty: &eqiora_core::ValueType| {
+            matches!(
+                ty.scalar_domain(),
+                eqiora_core::ScalarDomain::Real | eqiora_core::ScalarDomain::Complex
+            )
+        };
         direct_assignments::validate_storage_budget(program)?;
         for node in program.nodes() {
             if let KernelNode::Relation(relation) = node
@@ -22,6 +51,7 @@ impl ExecutionPlan {
             }
             if let KernelNode::Parameter(parameter) = node
                 && !direct_assignments::supported_type(parameter.value_type())
+                && !(finite && numeric(parameter.value_type()))
                 && !(parameter.value_type().scalar_domain() == eqiora_core::ScalarDomain::Complex
                     && parameter.value_type().shape().is_scalar())
             {
@@ -31,6 +61,7 @@ impl ExecutionPlan {
                 ));
             }
             if let KernelNode::Relation(relation) = node
+                && !finite
                 && relation
                     .expression()
                     .nodes()
@@ -57,6 +88,7 @@ impl ExecutionPlan {
             }
             if let KernelNode::Field(field) = node
                 && !direct_assignments::supported_type(field.value_type())
+                && !(finite && numeric(field.value_type()))
             {
                 return Err(Diagnostic::error(
                     codes::NOT_IMPLEMENTED,
@@ -89,6 +121,7 @@ impl ExecutionPlan {
             if let KernelNode::Port(port) = node
                 && let Some((_, value_type)) = port.signal_contract()
                 && !direct_assignments::supported_type(value_type)
+                && !(finite && numeric(value_type))
             {
                 return Err(Diagnostic::error(
                     codes::NOT_IMPLEMENTED,
@@ -272,6 +305,7 @@ impl ExecutionPlan {
         }
         for relation in &continuous_relations {
             if let Some(KernelNode::Relation(definition)) = program.node(*relation)
+                && !finite
                 && direct_assignments::numerical_roots(program, definition).len()
                     != definition.expression().roots().len()
             {
@@ -287,7 +321,11 @@ impl ExecutionPlan {
             .copied()
             .filter(|field| {
                 !typed_fields.contains(field)
-                    && !direct_assignments::requires_typed_assignment_id(program, *field)
+                    && (!direct_assignments::requires_typed_assignment_id(program, *field)
+                        || (finite
+                            && Variable::Field(*field)
+                                .value_type(program)
+                                .is_ok_and(|ty| numeric(&ty))))
             })
             .collect();
         let fields = program

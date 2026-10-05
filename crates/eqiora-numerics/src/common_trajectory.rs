@@ -1,9 +1,7 @@
 //! One native authority for accepted common ODE and spatial trajectories.
 
 use eqiora_core::Diagnostic;
-use eqiora_time::{
-    AcceptedTimeHistory, InitialConditionPolicy, TimeEquationClass, TimeMethod, TimeSolution,
-};
+use eqiora_time::{AcceptedTimeHistory, InitialConditionPolicy, TimeMethod, TimeSolution};
 use sha2::{Digest, Sha256};
 
 use crate::{
@@ -45,9 +43,9 @@ impl CommonTrajectory {
         request: CommonOdeRunRequest,
         solution: TimeSolution,
     ) -> Result<Self, Diagnostic> {
-        if solution.report().method() != TimeMethod::Tsitouras45
+        if solution.report().method() != request.time_plan().method()
             || solution.report().backend_identity() != request.plan().backend()
-            || solution.report().equation_class() != TimeEquationClass::ExplicitOde
+            || solution.report().equation_class() != request.plan().equation_class()
             || solution.report().initial_condition() != InitialConditionPolicy::Provided
             || solution.dimension() != request.plan().state_dimensions().len()
             || solution.times() != request.time_plan().output_times()

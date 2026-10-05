@@ -87,6 +87,18 @@ impl ScalarSymbolCoordinate {
         self.symbol
     }
 
+    /// Rename the source symbol while retaining its exact component and scalar part.
+    /// The consumer must establish that the replacement has the same value shape
+    /// and scalar domain (for example a Field and its time derivative).
+    #[must_use]
+    pub fn with_symbol(&self, symbol: SymbolRef) -> Self {
+        Self {
+            symbol,
+            component_index: self.component_index.clone(),
+            part: self.part,
+        }
+    }
+
     /// Whether this is the imaginary coordinate; false denotes the real coordinate.
     /// This is separate from the channel index.
     #[must_use]
@@ -144,6 +156,21 @@ impl ComponentScalarRow {
     #[must_use]
     pub fn input_slots(&self) -> &[ScalarInputSlot] {
         self.ir.slots()
+    }
+
+    /// Prove a row Jacobian constant with respect to every other source coordinate.
+    /// This uses the scalar SSA proof, retaining real/imaginary component identity.
+    /// Unselected inputs remain symbolic, so state-dependent mass cannot be frozen
+    /// accidentally by evaluation at a particular point.
+    ///
+    /// # Errors
+    /// Rejects duplicate selections, nonlinear dependence, variable coefficients,
+    /// unsupported instructions, and nonfinite coefficient arithmetic.
+    pub fn constant_coordinate_jacobian(
+        &self,
+        selected: &[ScalarSymbolCoordinate],
+    ) -> Result<crate::ConstantSymbolJacobian, Diagnostic> {
+        self.ir.constant_coordinate_jacobian(selected)
     }
 
     /// Structurally bind a real affine row in exact symbol/channel/part coordinates.
@@ -252,16 +279,6 @@ impl ComponentScalarization {
         residual: &TypedResidual<I>,
         roots: &[ExprId],
     ) -> Result<Self, Diagnostic> {
-        if residual.node_types().iter().any(|value| {
-            !matches!(
-                value.value_type.scalar_domain(),
-                eqiora_core::ScalarDomain::Real | eqiora_core::ScalarDomain::Complex
-            )
-        }) {
-            return Err(invalid_component_ir(
-                "component scalarization requires real or complex mathematical values",
-            ));
-        }
         let expression = residual.expression();
         let mut rows = Vec::new();
         let mut finite_products = 0usize;
@@ -408,6 +425,16 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
             .node_types
             .get(index)
             .ok_or_else(|| invalid_component_ir("component node has no inferred type"))?;
+        // Only demanded operands belong to this projection. Other retained roots
+        // may carry exact discrete values that must never enter floating-point IR.
+        if !matches!(
+            node_type.value_type.scalar_domain(),
+            eqiora_core::ScalarDomain::Real | eqiora_core::ScalarDomain::Complex
+        ) {
+            return Err(invalid_component_ir(
+                "component scalarization requires real or complex mathematical values",
+            ));
+        }
         validate_component(node_type.shape(), component)?;
         let key = (index, component.into(), part);
         if let Some(mapped) = self.remapped.get(&key) {
