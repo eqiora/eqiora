@@ -459,9 +459,10 @@ impl ExpressionChecker<'_, '_, '_> {
             );
         }
         if !is_builtin_operator(callee)
+            && expression.resolved_nominal().is_none()
             && !matches!(
                 callee_name,
-                "counts" | "coordinates" | "index" | "linear_map" | "identity" | "sin"
+                "counts" | "coordinates" | "index" | "linear_map" | "sin"
             )
             && crate::lower::IntegerBuiltin::named(callee_name).is_none()
             && !crate::math::is_namespaced(callee)

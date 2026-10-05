@@ -47,6 +47,11 @@ fn bind(
     ) {
         return Ok(());
     }
+    // User-defined pure operators use named arguments. Their lexical name
+    // `identity` does not make them finite-basis constructors.
+    if callee.as_str() == "identity" && arguments.named().is_some() {
+        return Ok(());
+    }
     let invalid = |message: &str| {
         source_error(
             codes::LANGUAGE_TYPE_ERROR,
