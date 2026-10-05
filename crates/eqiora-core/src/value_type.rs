@@ -266,6 +266,8 @@ pub enum InvalidValueType {
     ArrayExtent,
     /// Component count cannot be represented on this target.
     ComponentCountOverflow,
+    /// A derived physical dimension exceeds the exact exponent representation.
+    DimensionOverflow,
     /// A scalar cannot carry component-frame axes.
     ScalarFrame,
 }
@@ -281,6 +283,7 @@ impl core::fmt::Display for InvalidValueType {
             Self::FiniteSpaceShape => "finite basis coordinates are not channel arrays",
             Self::ArrayExtent => "array extent must be positive",
             Self::ComponentCountOverflow => "mathematical component count is not representable",
+            Self::DimensionOverflow => "derived physical dimension is not representable",
             Self::ScalarFrame => "a scalar must have an invariant component frame",
         })
     }

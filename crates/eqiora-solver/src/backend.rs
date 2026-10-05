@@ -320,6 +320,36 @@ pub trait LinearSolverBackend<S = f64>: Debug + Sync {
     /// Exact numerical policy admitted by this adapter.
     fn capabilities(&self) -> SolverCapabilities;
 
+    /// Admit the optional complete, dense, host binary64 Hermitian pencil path.
+    ///
+    /// This is independent of RHS solver capabilities and of `S`: the pencil's
+    /// exact types retain real/complex coefficients. Plans call this before
+    /// execution. Unsupported adapters reject without silently choosing another
+    /// provider or converting a complex problem to a real one.
+    fn require_hermitian_eigenproblem(
+        &self,
+        _problem: &crate::HermitianEigenproblem<'_>,
+    ) -> Result<(), Diagnostic> {
+        Err(Diagnostic::error(
+            eqiora_core::diagnostic::codes::INVALID_REALIZATION,
+            "this provider does not support dense Hermitian eigenproblems",
+        ))
+    }
+
+    /// Compute typed eigenpair candidates for the optional admitted dense path.
+    /// The owning Plan must select modes and verify residual, normalization,
+    /// orthogonality and convergence before exposing accepted Results.
+    fn hermitian_eigenpairs(
+        &self,
+        problem: &crate::HermitianEigenproblem<'_>,
+    ) -> Result<Vec<(eqiora_core::ValueLiteral, eqiora_core::ValueLiteral)>, Diagnostic> {
+        self.require_hermitian_eigenproblem(problem)?;
+        Err(Diagnostic::error(
+            eqiora_core::diagnostic::codes::INVALID_REALIZATION,
+            "this provider has no Hermitian eigenpair implementation",
+        ))
+    }
+
     /// Prepare provider-private state for repeated run-local solves.
     ///
     /// `None` means the provider has no prepared implementation and the caller
