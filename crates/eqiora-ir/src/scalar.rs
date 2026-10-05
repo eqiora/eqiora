@@ -73,7 +73,7 @@ impl ScalarInputSlot {
 /// It shares the same ordered evaluator but has no semantic-symbol API and
 /// cannot expose a fabricated Parameter identity.
 #[derive(Debug, Clone, PartialEq)]
-pub struct ScalarInputOperatorIr {
+pub(crate) struct ScalarInputOperatorIr {
     slots: Vec<ScalarInputSlot>,
     instructions: Vec<Instruction>,
     roots: Vec<ValueId>,
@@ -98,12 +98,6 @@ impl ScalarInputOperatorIr {
     #[must_use]
     pub fn slots(&self) -> &[ScalarInputSlot] {
         &self.slots
-    }
-
-    /// Number of ordered scalar instructions.
-    #[must_use]
-    pub fn instruction_count(&self) -> usize {
-        self.instructions.len()
     }
 
     /// Evaluate roots from values in [`Self::slots`] order.

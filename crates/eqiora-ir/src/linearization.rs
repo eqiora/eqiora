@@ -217,6 +217,13 @@ pub enum RelationCotangent<'a, S> {
 /// the primal residual, a Jacobian-vector product (JVP), and the paired
 /// vector-Jacobian product (VJP) without prescribing symbolic, automatic, or
 /// handwritten differentiation.
+///
+/// Real-coordinate implementations use the Euclidean pairing. Complex Model
+/// values lowered through [`crate::ComponentScalarization`] use paired real/imaginary
+/// coordinates, equivalent to `Re(sum(conj(a) * b))`; their differential may be
+/// real-linear without being complex-linear. A provider must state its scalar
+/// representation and pairing before implementing these products. Implementing
+/// this trait for real storage does not by itself establish complex semantics.
 pub trait LinearizedRelation<S>: Debug + Sync {
     /// Number of implicitly solved coordinates.
     fn unknown_dimension(&self) -> usize;
@@ -246,7 +253,9 @@ pub trait LinearizedRelation<S>: Debug + Sync {
         residual_tangent: &mut [S],
     ) -> Result<(), Diagnostic>;
 
-    /// Evaluate `(R_w^T * c, R_p^T * c)` for one residual cotangent `c`.
+    /// Evaluate the paired adjoints for one residual cotangent `c`.
+    /// In real coordinates these are `(R_w^T * c, R_p^T * c)`; this is not
+    /// an unconjugated complex transpose or an implicit metric adjoint.
     ///
     /// # Errors
     /// Returns a structured diagnostic for a shape mismatch or an
