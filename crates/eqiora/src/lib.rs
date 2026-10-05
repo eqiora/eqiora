@@ -24,8 +24,8 @@ pub use eqiora_core::quantity::{
     self, DimExponents, Dimension, DynQuantity, Quantity, Scalar, aliases, dim,
 };
 pub use eqiora_core::{
-    FiniteBasis, InvalidValueLiteral, InvalidValueShape, InvalidValueType, ScalarDomain,
-    ValueFrame, ValueLiteral, ValueShape, ValueType,
+    ComplexProjection, FiniteBasis, InvalidValueLiteral, InvalidValueShape, InvalidValueType,
+    ScalarDomain, ValueFrame, ValueLiteral, ValueShape, ValueType,
 };
 /// Exact Cargo SemVer release identity of the public Eqiora facade.
 pub use release_identity::VERSION;

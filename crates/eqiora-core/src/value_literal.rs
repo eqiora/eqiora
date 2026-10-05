@@ -279,6 +279,8 @@ impl std::error::Error for InvalidValueLiteral {}
 
 mod array;
 mod comparison;
+mod projection;
+pub use projection::ComplexProjection;
 mod integer;
 
 #[cfg(test)]

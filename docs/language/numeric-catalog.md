@@ -428,3 +428,22 @@ Useful independent reference points include `sqrt(4)=2`, `sqrt'(4)=1/4`, `exp(0)
 `atan2(1,1)=pi/4`. Boundary tests must also reach rejected domains and inactive conditional
 branches. Small-argument accuracy tests for `expm1` and `log1p` require a separately justified
 error bound, not comparison against the cancellation-prone expression they are meant to replace.
+
+### Result component inspection
+
+`result.observe(observable).project_component("magnitude", index=0)` in Python
+returns a native `(value, Dimension)` pair for one row-major component. The
+available projections are `real`, `imaginary`, `magnitude`, `squared_magnitude`
+and `phase`. The first three preserve the source dimension; squared magnitude
+squares it. Phase is the principal argument in radians (dimensionless), with
+`None` at exact zero. No threshold or phase unwrapping is implicit. A component
+outside the exact shape and an unrepresentable requested projection reject.
+The source Observation retains its exact basis, shape, support and Result lineage.
+
+The language server's `eqioraResultInspection: 1` projection uses this same native
+mathematical owner after canonical Result/Plan replay and exact selected-Model
+validation. It never executes a new solve. Spatial outputs requiring coordinates
+or quadrature report that missing evaluation policy. Real/imaginary/magnitude
+values are not automatically power, probability, spectra or peak/RMS phasors;
+author these physical quantities explicitly as typed Observables. Modal
+normalization and phase/reference conventions await the native modal Result owner.

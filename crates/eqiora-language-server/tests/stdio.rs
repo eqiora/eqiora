@@ -24,6 +24,8 @@ mod local_navigation;
 mod notation;
 #[path = "stdio/project_refresh.rs"]
 mod project_refresh;
+#[path = "stdio/result_inspection.rs"]
+mod result_inspection;
 #[path = "stdio/symbol_capabilities.rs"]
 mod symbol_capabilities;
 #[path = "stdio/symbol_details.rs"]

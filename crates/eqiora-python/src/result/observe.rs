@@ -44,6 +44,32 @@ impl PyObservation {
     fn value(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         crate::modeling::value_literal::to_python(py, &self.value)
     }
+    /// Project one component through the native mathematical value owner.
+    #[pyo3(signature = (projection, index=0))]
+    fn project_component(
+        &self,
+        projection: &str,
+        index: usize,
+    ) -> PyResult<Option<(f64, PyDimension)>> {
+        use eqiora::ComplexProjection;
+        let projection = match projection {
+            "real" => ComplexProjection::Real,
+            "imaginary" => ComplexProjection::Imaginary,
+            "magnitude" => ComplexProjection::Magnitude,
+            "squared_magnitude" => ComplexProjection::SquaredMagnitude,
+            "phase" => ComplexProjection::Phase,
+            _ => {
+                return Err(PyValueError::new_err(
+                    "projection must be real, imaginary, magnitude, squared_magnitude or phase",
+                ));
+            }
+        };
+        self.value
+            .project_component(index, projection)
+            .map(|value| value.map(|value| (value.value(), PyDimension { value: value.dim() })))
+            .map_err(|error| PyValueError::new_err(error.to_string()))
+    }
+
     #[getter]
     fn value_type(&self) -> PyValueType {
         PyValueType {
