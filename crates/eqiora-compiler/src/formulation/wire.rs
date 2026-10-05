@@ -579,6 +579,7 @@ impl AuthoredFormulationProjection {
 
 pub(super) fn expression(value: &AuthoredFormExpression) -> AuthoredFormExpressionV1 {
     match &value.kind {
+        AuthoredFormExpressionKind::Coefficient(value) => value.clone(),
         AuthoredFormExpressionKind::Rational(rational) => AuthoredFormExpressionV1::Rational {
             numerator: rational.numerator(),
             denominator: rational.denominator(),

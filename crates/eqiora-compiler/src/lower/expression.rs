@@ -23,6 +23,7 @@ pub(crate) use partial::result_type as partial_result_type;
 mod finite;
 mod piecewise;
 use super::*;
+use eqiora_core::ValueType;
 pub(super) use event::lower_event_guard;
 pub(super) use law::lower_law;
 
@@ -254,6 +255,36 @@ fn spatial_type_error(
         expression.range(),
         error.to_string(),
     )
+}
+
+/// Reuse ordinary static expression typing/lowering for a selected authored coefficient.
+pub(crate) fn lower_parameter_coefficient(
+    file: &str,
+    expression: &LoweringExpression,
+    parameters: &BTreeMap<String, (Id<kinds::Parameter>, ValueType)>,
+) -> Result<(ExprDag, ValueType), Diagnostic> {
+    let bindings = parameters
+        .iter()
+        .map(|(name, (id, ty))| (name.clone(), Binding::Parameter(*id, ty.clone())))
+        .collect();
+    let expression = contextual::value(file, expression, &bindings)?;
+    let value_type = types::expression_type(file, &expression, &bindings, None)?.value_type;
+    let mut lowerer = ExpressionLowerer {
+        file,
+        bindings: &bindings,
+        support: None,
+        builder: ExprDagBuilder::new(),
+        dependencies: BTreeSet::new(),
+        ports: BTreeSet::new(),
+        cache: HashMap::new(),
+        sampling: false,
+        allow_discrete_symbols: false,
+        allow_observables: false,
+        activation: &ActivationSyntax::Continuous,
+        initial: false,
+    };
+    let root = lowerer.lower(&expression)?.id;
+    Ok((lowerer.builder.finish([root])?, value_type))
 }
 
 struct ExpressionLowerer<'a> {

@@ -455,6 +455,12 @@ fn compile(
             StaticBindingValue::GeometrySupport { geometry, .. } => Some(*geometry),
             _ => None,
         });
+        let coefficients = parameters::resolve_formulation_coefficients(
+            component.file,
+            component.declaration,
+            &parameters::RecordContext::component(elaborator, &component),
+            &compiled,
+        )?;
         let formulations = crate::formulation::compile_component_formulations(
             component.file,
             component.declaration,
@@ -462,6 +468,7 @@ fn compile(
             compiled.transaction(),
             geometry,
             prepared.supports(),
+            coefficients,
         )?;
         Ok(compiled.with_authored_formulations(formulations))
     } else {

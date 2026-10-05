@@ -20,6 +20,7 @@ mod domain;
 mod domain_contract;
 use diagnostics::{normalize_zero, unresolved};
 mod expression;
+pub(crate) use expression::lower_parameter_coefficient;
 pub(crate) use expression::{partial_result_type, point_result_type};
 mod external;
 mod integer;
