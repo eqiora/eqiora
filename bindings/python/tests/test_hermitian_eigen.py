@@ -74,12 +74,13 @@ def test_python_source_coordinate_embedding_and_original_residual() -> None:
     model Floating() {
      parameter a:map<1,Full,Full>=linear_map(Full,Full,[[1,-1],[-1,1]]);
      parameter b:map<1,Full,Full>=linear_map(Full,Full,[[1,-1],[-1,1]]);
-     parameter p:map<1,Reduced,Full>=linear_map(Reduced,Full,[[1],[-1]]);
+     parameter p:map<1,Reduced,Full>=linear_map(Reduced,Full,[[-2],[2]]);
+     parameter r:map<1,Full,Full>=linear_map(Full,Full,[[0,2],[3,1]]);
      variable u:coordinates<1,Full>;
      variable q:coordinates<1,Reduced>;
      variable lambda:1;
      relation pencil {apply(a,u)=lambda*apply(b,u);}
-     relation coordinates {u=apply(p,q);}
+     relation coordinates {apply(r,u)=apply(p,q);}
     }
     """
     model = eqiora.compile(source=source)
