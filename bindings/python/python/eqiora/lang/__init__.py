@@ -392,6 +392,19 @@ class Operator:
                           _sources=frozenset((self._owner,)))
 
 
+def matrix_trace(value: object) -> Expression:
+    """Algebraic diagonal sum on an exact finite endomorphism or spatial tensor."""
+    return _unary("matrix_trace", value)
+
+def determinant(value: object) -> Expression:
+    """Determinant of an admitted real finite endomorphism."""
+    return _unary("determinant", value)
+
+def inverse(value: object) -> Expression:
+    """Inverse finite map; singular and numerically unresolved execution rejects."""
+    return _unary("inverse", value)
+
+
 def transpose(value: object) -> Expression:
     """Algebraic dual or transpose without conjugation."""
     return _unary("transpose", value)
@@ -1343,6 +1356,17 @@ class Component:
         if value._owner is not None and value._owner is not self._component_token:
             raise ModuleError("nominal value components must belong to this Component")
         return Expression(_CREATE, _Ast.call("coordinates", [basis, value._ast]), self._component_token, _binders=value._binders, _sources=value._sources)
+
+    def identity(self, space: FiniteSpace, *, dual: bool = False) -> Expression:
+        """Dimensionless identity on one exact finite basis; real unless context declares complex."""
+        if not isinstance(space, FiniteSpace):
+            raise ModuleError("identity space must belong to this Module")
+        if type(dual) is not bool:
+            raise TypeError("dual must be bool")
+        basis = _Ast.name(self._space_syntax(space))
+        if dual:
+            basis = _Ast.call("dual", [basis])
+        return Expression(_CREATE, _Ast.call("identity", [basis]), self._component_token)
 
     def linear_map(self, source: FiniteSpace, target: FiniteSpace, rows: Sequence[Sequence[object]], *, source_dual: bool = False, target_dual: bool = False) -> Expression:
         """Construct row-major finite coefficients with explicit source and target bases."""
@@ -2782,7 +2806,7 @@ from ._constraints import Inequality, Complementarity, inequality, complementari
 
 
 __all__ = [
-    "transpose", "adjoint", "apply", "compose", "pair", "tensor_product", "permute_factors",
+    "matrix_trace", "determinant", "inverse", "transpose", "adjoint", "apply", "compose", "pair", "tensor_product", "permute_factors",
     "BoundarySet",
     "BoundaryMember",
     "BoundarySelectionSet",

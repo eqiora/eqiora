@@ -459,7 +459,11 @@ impl ExpressionChecker<'_, '_, '_> {
             );
         }
         if !is_builtin_operator(callee)
-            && !matches!(callee_name, "counts" | "coordinates" | "index" | "sin")
+            && expression.resolved_nominal().is_none()
+            && !matches!(
+                callee_name,
+                "counts" | "coordinates" | "index" | "linear_map" | "sin"
+            )
             && crate::lower::IntegerBuiltin::named(callee_name).is_none()
             && !crate::math::is_namespaced(callee)
         {
@@ -519,7 +523,10 @@ impl ExpressionChecker<'_, '_, '_> {
             }
             return Ok(ExpressionType::scalar(time_dimension(), None));
         }
-        if matches!(callee_name, "counts" | "coordinates" | "index") {
+        if matches!(
+            callee_name,
+            "counts" | "coordinates" | "index" | "linear_map" | "identity"
+        ) {
             return expression
                 .resolved_nominal()
                 .cloned()

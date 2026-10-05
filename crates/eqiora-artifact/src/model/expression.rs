@@ -431,6 +431,15 @@ pub(crate) enum WireExpressionNode {
         left: u32,
         right: u32,
     },
+    FiniteMatrixTrace {
+        value: u32,
+    },
+    FiniteDeterminant {
+        value: u32,
+    },
+    FiniteInverse {
+        value: u32,
+    },
     FiniteTranspose {
         value: u32,
     },
@@ -587,6 +596,15 @@ impl WireExpressionNode {
                     value: value.index(),
                     order: *order,
                 },
+                FiniteUnaryOperation::MatrixTrace => Self::FiniteMatrixTrace {
+                    value: value.index(),
+                },
+                FiniteUnaryOperation::Determinant => Self::FiniteDeterminant {
+                    value: value.index(),
+                },
+                FiniteUnaryOperation::Inverse => Self::FiniteInverse {
+                    value: value.index(),
+                },
                 FiniteUnaryOperation::Transpose => Self::FiniteTranspose {
                     value: value.index(),
                 },
@@ -732,6 +750,15 @@ impl WireExpressionNode {
                 operand(ids, *left)?,
                 operand(ids, *right)?,
             ),
+            Self::FiniteMatrixTrace { value } => {
+                builder.finite_unary(FiniteUnaryOperation::MatrixTrace, operand(ids, *value)?)
+            }
+            Self::FiniteDeterminant { value } => {
+                builder.finite_unary(FiniteUnaryOperation::Determinant, operand(ids, *value)?)
+            }
+            Self::FiniteInverse { value } => {
+                builder.finite_unary(FiniteUnaryOperation::Inverse, operand(ids, *value)?)
+            }
             Self::FiniteTranspose { value } => {
                 builder.finite_unary(FiniteUnaryOperation::Transpose, operand(ids, *value)?)
             }

@@ -20,7 +20,8 @@ impl ScalarOperatorIr {
         samples: &[ExprId],
     ) -> Result<ScalarLinearization<'_>, Diagnostic> {
         validate_linearization_inputs(
-            self,
+            &self.instructions,
+            self.symbols.len(),
             inputs,
             &vec![DifferentiationRole::Frozen; inputs.len()],
         )?;
@@ -49,7 +50,8 @@ impl ScalarOperatorIr {
             bindings.push(InputBinding::Unknown(ordinal));
         }
         let bound = ScalarLinearization {
-            ir: std::borrow::Cow::Owned(ir),
+            instructions: std::borrow::Cow::Owned(ir.instructions),
+            roots: std::borrow::Cow::Owned(ir.roots),
             inputs: point,
             bindings,
             unknown_dimension: samples.len(),

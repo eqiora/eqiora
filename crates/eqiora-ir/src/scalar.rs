@@ -9,6 +9,7 @@ mod batch;
 #[cfg(test)]
 mod enum_tests;
 mod linearization;
+mod map_evaluation;
 mod numerical_evaluation;
 mod point_components;
 mod point_projection;
@@ -77,6 +78,20 @@ pub struct ScalarInputOperatorIr {
 }
 
 impl ScalarInputOperatorIr {
+    pub(crate) fn linearize(
+        &self,
+        inputs: &[f64],
+        roles: &[DifferentiationRole],
+    ) -> Result<ScalarLinearization<'_>, Diagnostic> {
+        ScalarLinearization::bind(
+            &self.instructions,
+            &self.roots,
+            self.slots.len(),
+            inputs,
+            roles,
+        )
+    }
+
     /// Dense local slots in exact read order.
     #[must_use]
     pub fn slots(&self) -> &[ScalarInputSlot] {
@@ -197,6 +212,38 @@ impl ScalarInputIrBuilder {
         right: ScalarInputValueId,
     ) -> Result<ScalarInputValueId, Diagnostic> {
         self.binary(left, right, Instruction::Div)
+    }
+
+    pub(crate) fn map_entries(
+        &mut self,
+        entries: &[ScalarInputValueId],
+    ) -> Result<ScalarInputValueId, Diagnostic> {
+        let zero = self.constant(eqiora_core::DynQuantity::new(
+            0.0,
+            eqiora_core::DimExponents::DIMENSIONLESS,
+        ))?;
+        let start = ScalarInputValueId(ValueId(
+            u32::try_from(self.instructions.len()).map_err(|_| ir_size_error())?,
+        ));
+        // Gather existing SSA values contiguously without another operand arena.
+        for entry in entries {
+            self.add(*entry, zero)?;
+        }
+        Ok(start)
+    }
+
+    pub(crate) fn map_invariant(
+        &mut self,
+        start: ScalarInputValueId,
+        extent: u32,
+        component: Option<u32>,
+    ) -> Result<ScalarInputValueId, Diagnostic> {
+        map_evaluation::operand_range(start.0, extent, self.instructions.len())?;
+        self.push(Instruction::MapInvariant {
+            start: start.0,
+            extent,
+            component,
+        })
     }
 
     pub(crate) fn unary_math(
@@ -438,32 +485,13 @@ impl ScalarOperatorIr {
         inputs: &[f64],
         roles: &[DifferentiationRole],
     ) -> Result<ScalarLinearization<'_>, Diagnostic> {
-        validate_linearization_inputs(self, inputs, roles)?;
-        let mut unknown_dimension = 0usize;
-        let mut parameter_dimension = 0usize;
-        let bindings = roles
-            .iter()
-            .map(|role| match role {
-                DifferentiationRole::Unknown => {
-                    let coordinate = unknown_dimension;
-                    unknown_dimension += 1;
-                    InputBinding::Unknown(coordinate)
-                }
-                DifferentiationRole::Parameter => {
-                    let coordinate = parameter_dimension;
-                    parameter_dimension += 1;
-                    InputBinding::Parameter(coordinate)
-                }
-                DifferentiationRole::Frozen => InputBinding::Frozen,
-            })
-            .collect();
-        Ok(ScalarLinearization {
-            ir: std::borrow::Cow::Borrowed(self),
-            inputs: inputs.to_vec(),
-            bindings,
-            unknown_dimension,
-            parameter_dimension,
-        })
+        ScalarLinearization::bind(
+            &self.instructions,
+            &self.roots,
+            self.symbols.len(),
+            inputs,
+            roles,
+        )
     }
 
     fn evaluate_values(&self, inputs: &[f64]) -> Result<Vec<f64>, Diagnostic> {
@@ -794,7 +822,8 @@ fn selected_columns(
 /// `f64` scalar SSA relation fixed at one explicit linearization point.
 #[derive(Debug)]
 pub struct ScalarLinearization<'a> {
-    ir: std::borrow::Cow<'a, ScalarOperatorIr>,
+    instructions: std::borrow::Cow<'a, [Instruction]>,
+    roots: std::borrow::Cow<'a, [ValueId]>,
     inputs: Vec<f64>,
     bindings: Vec<InputBinding>,
     unknown_dimension: usize,

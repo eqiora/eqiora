@@ -87,7 +87,8 @@ impl ScalarOperatorIr {
             ..
         } = bound;
         Ok(ScalarLinearization {
-            ir: std::borrow::Cow::Owned(active),
+            instructions: std::borrow::Cow::Owned(active.instructions),
+            roots: std::borrow::Cow::Owned(active.roots),
             inputs,
             bindings,
             unknown_dimension,
@@ -110,6 +111,11 @@ impl ScalarOperatorIr {
             } else {
                 let at = |id: ValueId| dependencies[id.0 as usize];
                 match *node {
+                    Instruction::MapInvariant { .. } => {
+                        return Err(ir_builder_error(
+                            "numerical maps require component execution",
+                        ));
+                    }
                     Instruction::Constant(_) | Instruction::TypedConstant(_) => false,
                     Instruction::Read(slot) => {
                         roles[slot.0 as usize] != DifferentiationRole::Frozen

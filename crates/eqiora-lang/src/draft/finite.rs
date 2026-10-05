@@ -2,6 +2,22 @@
 use super::DraftExpression;
 
 impl DraftExpression {
+    /// Algebraic diagonal sum on an exact finite endomorphism or spatial tensor.
+    #[must_use]
+    pub fn matrix_trace(self) -> Self {
+        Self::call("matrix_trace", vec![self])
+    }
+    /// Determinant of an admitted real finite endomorphism.
+    #[must_use]
+    pub fn determinant(self) -> Self {
+        Self::call("determinant", vec![self])
+    }
+    /// Inverse real finite map under the execution owner's regularity policy.
+    #[must_use]
+    pub fn inverse(self) -> Self {
+        Self::call("inverse", vec![self])
+    }
+
     /// Algebraic dual or map transpose, without conjugating coefficients.
     #[must_use]
     pub fn transpose(self) -> Self {

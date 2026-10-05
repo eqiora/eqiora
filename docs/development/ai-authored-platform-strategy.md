@@ -79,6 +79,13 @@ cost.
 
 ## Architecture discipline
 
+Preserve the general mathematical surface when choosing a first executable profile. A
+convenient algorithm or fixture size must not become a permanent dimension, model-family,
+or composition restriction. Keep mathematical admissibility separate from execution
+resources, numerical conditioning, and provider availability. When a concrete consumer
+exposes such a restriction, replace the limiting algorithm at its existing owner and
+verify that consumer; do not merely increase a hard-coded size or imply untested generality.
+
 Choose the smallest design that closes the current claim:
 
 - use an existing type before adding a wrapper or translation layer;

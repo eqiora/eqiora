@@ -6,6 +6,12 @@ use eqiora_core::Diagnostic;
 pub enum FiniteUnaryOperation {
     /// Algebraic dual/transpose without complex conjugation.
     Transpose,
+    /// Algebraic trace on one exact real or complex endomorphism space.
+    MatrixTrace,
+    /// Determinant of a real endomorphism, with coefficient units raised to its extent.
+    Determinant,
+    /// Real inverse map under invertibility, exchanging exact endpoints and coefficient units.
+    Inverse,
     /// Conjugate transpose in the declared orthonormal component bases.
     Adjoint,
     /// Explicit ordering of the two tensor factors, applied to both map endpoints.

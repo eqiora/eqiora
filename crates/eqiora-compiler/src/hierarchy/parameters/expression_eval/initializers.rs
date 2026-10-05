@@ -30,7 +30,7 @@ pub(in crate::hierarchy::parameters) fn evaluate_initializer_mode(
     (label, evaluate_values): (&str, bool),
     (resolve_clock, resolve_frame): StaticContexts<'_>,
 ) -> Result<EvaluatedParameter, Diagnostic> {
-    let mut evaluated = if matches!(expression.kind(), ExprKind::Call { callee, .. } if matches!(callee.as_str(), "coordinates" | "linear_map"))
+    let mut evaluated = if matches!(expression.kind(), ExprKind::Call { callee, .. } if matches!(callee.as_str(), "coordinates" | "linear_map" | "identity"))
         && target.finite_bases().next().is_some()
         && matches!(
             target.scalar_domain(),

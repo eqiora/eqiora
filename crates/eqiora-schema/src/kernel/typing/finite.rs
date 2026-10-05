@@ -19,6 +19,48 @@ impl<I: Clone + Eq> ExpressionType<I> {
     pub fn finite_unary(self, operation: FiniteUnaryOperation) -> Result<Self, TypeViolation<I>> {
         continuous(&self.value_type)?;
         let value = &self.value_type;
+        if matches!(
+            operation,
+            FiniteUnaryOperation::MatrixTrace
+                | FiniteUnaryOperation::Determinant
+                | FiniteUnaryOperation::Inverse
+        ) {
+            let (source, target) = value
+                .map_bases()
+                .ok_or(TypeViolation::FiniteBasisMismatch)?;
+            if value.scalar_domain() != ScalarDomain::Real
+                && operation != FiniteUnaryOperation::MatrixTrace
+            {
+                return Err(TypeViolation::ScalarDomainMismatch);
+            }
+            if source.extent() != target.extent()
+                || (operation != FiniteUnaryOperation::Inverse && source != target)
+            {
+                return Err(TypeViolation::FiniteBasisMismatch);
+            }
+            let exponent = match operation {
+                FiniteUnaryOperation::MatrixTrace => 1,
+                FiniteUnaryOperation::Determinant => i32::try_from(source.extent())
+                    .map_err(|_| TypeViolation::FiniteBasisMismatch)?,
+                FiniteUnaryOperation::Inverse => -1,
+                _ => unreachable!("selected local map invariant"),
+            };
+            let dimension =
+                value
+                    .dimension()
+                    .pow(exponent, 1)
+                    .ok_or(TypeViolation::DimensionOverflow {
+                        operation: "finite map invariant",
+                    })?;
+            let output = if operation == FiniteUnaryOperation::Inverse {
+                ValueType::linear_map(target, source, ScalarDomain::Real, dimension)
+                    .map_err(|_| TypeViolation::FiniteBasisMismatch)?
+            } else {
+                ValueType::scalar(value.scalar_domain(), dimension).expect("continuous scalar type")
+            };
+            return Ok(Self::new(output, self.support));
+        }
+
         if let FiniteUnaryOperation::PermuteFactors(order) = operation {
             let permute = |basis: FiniteBasis| -> Result<FiniteBasis, TypeViolation<I>> {
                 let [left, right] = basis.factors().ok_or(TypeViolation::FiniteBasisMismatch)?;

@@ -2853,6 +2853,36 @@ Author Eqiora Modules, Components, expressions, and equations in Python.
 
 [View source](../../bindings/python/python/eqiora/lang/__init__.pyi)
 
+<a id="api-eqiora-lang-matrix_trace"></a>
+
+### `eqiora.lang.matrix_trace`
+
+Algebraic trace of a finite endomorphism or spatial tensor.
+
+```python
+def matrix_trace(value: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-determinant"></a>
+
+### `eqiora.lang.determinant`
+
+Determinant of a real finite endomorphism.
+
+```python
+def determinant(value: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-inverse"></a>
+
+### `eqiora.lang.inverse`
+
+Inverse finite map under explicit numerical regularity admission.
+
+```python
+def inverse(value: object) -> Expression: ...
+```
+
 <a id="api-eqiora-lang-transpose"></a>
 
 ### `eqiora.lang.transpose`
@@ -3123,6 +3153,7 @@ class Component:
     def set_notation(self, name: str, notation: Notation) -> None: ...
     def counts(self, space: FiniteSpace, components: Sequence[Expression | int]) -> Expression: ...
     def coordinates(self, space: FiniteSpace, components: Sequence[Expression | int | float | complex], *, dual: bool=False) -> Expression: ...
+    def identity(self, space: FiniteSpace, *, dual: bool=False) -> Expression: ...
     def linear_map(self, source: FiniteSpace, target: FiniteSpace, rows: Sequence[Sequence[object]], *, source_dual: bool=False, target_dual: bool=False) -> Expression: ...
     def index(self, set: IndexSet, value: Expression | int) -> Expression: ...
     def sum(self, body: Callable[[Expression], object], *, over: IndexSet, name: str='i') -> Expression: ...

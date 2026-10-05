@@ -15,6 +15,7 @@ requires:
   shape, frame, ambient-dimension, and exact-support failures before graph
   mutation, plus parser rejection of any non-`continuum` slot family.
 
-Source identity uses the current typed-signature and named-binding epoch `local-source-v6`.
+Source identity uses the current typed-signature and named-binding namespace returned by
+`LocalSourceIdentity::namespace`; its retired epochs are not accepted as current identities.
 Changing an exact Field target changes that identity; historical encodings
 are not retained as compatibility alternatives.

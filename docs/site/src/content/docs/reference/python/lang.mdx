@@ -35,6 +35,36 @@ for parameters, components, imports, and spatial equations.
 
 ## API
 
+<a id="api-eqiora-lang-matrix_trace"></a>
+
+## `matrix_trace`
+
+Algebraic trace of a finite endomorphism or spatial tensor.
+
+```python
+def matrix_trace(value: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-determinant"></a>
+
+## `determinant`
+
+Determinant of a real finite endomorphism.
+
+```python
+def determinant(value: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-inverse"></a>
+
+## `inverse`
+
+Inverse finite map under explicit numerical regularity admission.
+
+```python
+def inverse(value: object) -> Expression: ...
+```
+
 <a id="api-eqiora-lang-transpose"></a>
 
 ## `transpose`
@@ -305,6 +335,7 @@ class Component:
     def set_notation(self, name: str, notation: Notation) -> None: ...
     def counts(self, space: FiniteSpace, components: Sequence[Expression | int]) -> Expression: ...
     def coordinates(self, space: FiniteSpace, components: Sequence[Expression | int | float | complex], *, dual: bool=False) -> Expression: ...
+    def identity(self, space: FiniteSpace, *, dual: bool=False) -> Expression: ...
     def linear_map(self, source: FiniteSpace, target: FiniteSpace, rows: Sequence[Sequence[object]], *, source_dual: bool=False, target_dual: bool=False) -> Expression: ...
     def index(self, set: IndexSet, value: Expression | int) -> Expression: ...
     def sum(self, body: Callable[[Expression], object], *, over: IndexSet, name: str='i') -> Expression: ...

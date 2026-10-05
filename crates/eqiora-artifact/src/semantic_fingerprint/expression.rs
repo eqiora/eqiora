@@ -136,6 +136,9 @@ pub(super) fn encode_expression(
             ExprNode::FiniteUnary(operation, value) => {
                 use eqiora_schema::kernel::FiniteUnaryOperation;
                 let tag = match operation {
+                    FiniteUnaryOperation::MatrixTrace => 45,
+                    FiniteUnaryOperation::Determinant => 46,
+                    FiniteUnaryOperation::Inverse => 47,
                     FiniteUnaryOperation::Transpose => 36,
                     FiniteUnaryOperation::Adjoint => 37,
                     FiniteUnaryOperation::PermuteFactors(_) => 42,

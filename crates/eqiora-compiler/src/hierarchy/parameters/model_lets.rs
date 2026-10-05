@@ -303,7 +303,7 @@ fn is_static_expression(expression: &eqiora_lang::Expr, values: &SymbolicParamet
             // Tensor algebra retains its shared typed calculus graph even for uniform inputs.
             eqiora_lang::ExprKind::Call { callee, .. }
                 if crate::math::tensor::named(callee.as_str())
-                    || callee.as_str() == "transpose" =>
+                    || crate::math::finite::Operation::named(callee.as_str()).is_some() =>
             {
                 return false;
             }

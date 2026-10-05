@@ -5,7 +5,8 @@ The current spatial profile executes full-coordinate ranks one through four via
 `component`, `permute_axes`, `transpose`, `outer`, `contract`, `matrix_trace` and
 `componentwise_product`. Uniform real/complex source evaluation is independently
 checked by [the tensor contraction case](../../verify/language/tensor-contractions/README.md).
-The local inverse-map and Hermitian `inner` profiles below remain specified targets.
+Finite-map trace and identity, and real determinant/inverse with composition execute through the
+ordinary source/native/Python Model/Plan/Result path. Hermitian `inner` remains a specified target.
 
 ## Axes and construction
 
@@ -129,11 +130,30 @@ the inverse derivative `[[-49, 21], [35, -15]]`. This agrees with `-inverse(A)*H
 using map composition, and provides a separate directional check rather than relying only
 on `A*inverse(A) = identity`.
 
-A singular matrix such as `[[1, 2], [2, 4]]` has no admitted inverse. Execution may not replace
-it with a pseudoinverse, diagonal shift, or truncated spectrum. An ill-conditioned invertible
-map has a separate numerical admission/failure policy; a successful factorization is not an
-exact proof of mathematical regularity. Complex inverse derivatives use the shared real-linear
-derivative owner when that profile is admitted.
+The numerical reference owner uses scaled row-pivoted LU, rather than expanding the determinant
+or inverse into a factorial-size scalar expression. There is no special 4×4 cutoff. Focused
+independent checks include 6×6 constitutive maps and coupled 9×9 and 16×16 maps, with inverse
+JVP/VJP products; these are finite matrix sizes, independent of physical-space dimension.
+`identity(S)` is dimensionless and retains the exact declared basis, including explicit duality.
+It defaults to real coefficients and also admits an explicitly declared complex map context.
+Algebraic trace preserves either real or complex coefficients without conjugation.
+
+A singular matrix such as `[[1, 2], [2, 4]]` has no admitted inverse. Execution does not substitute
+a pseudoinverse, diagonal shift, or truncated spectrum. The binary64 reference profile admits an
+inverse only when its computed reciprocal infinity-norm condition estimate exceeds 64 machine
+epsilons. A zero numerical pivot reports singularity or unresolved arithmetic; factorization
+success is not an exact regularity proof. The determinant remains differentiable at singular
+matrices through its cofactors. An unrepresentable underflowed determinant reports a numerical
+failure instead of claiming mathematical singularity. Normalization also rejects if it would
+round a nonzero coefficient to zero. Cofactor evaluation avoids accepting a zero derivative
+caused only by underflow in an intermediate determinant/inverse product.
+
+Resource admission remains separate from the mathematical operators: scalarization charges the
+retained coefficient inventory against its existing component-work budget, and numerical
+factorization bounds its work before allocation. Full inverses currently reuse a factorization
+within one scalar row, not across all output rows. Complex inverse/determinant execution,
+general provider selection for these local operations, and spatial finite-coordinate solves
+remain outside this profile.
 
 Reject repeated/out-of-range contraction axes, mismatched frames, foreign same-sized spaces,
 implicit symmetric compression, and unsupported rank or extent before allocation/evaluation.

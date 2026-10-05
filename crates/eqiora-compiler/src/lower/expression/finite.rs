@@ -8,46 +8,39 @@ impl ExpressionLowerer<'_> {
         operation: crate::math::finite::Operation,
         arguments: &[LoweringExpression],
     ) -> Result<TypedExpression, Diagnostic> {
-        if operation
-            == crate::math::finite::Operation::Unary(
-                eqiora_schema::kernel::FiniteUnaryOperation::Transpose,
-            )
-        {
-            let types = arguments
-                .iter()
-                .map(|argument| expression_type(self.file, argument, self.bindings, None))
-                .collect::<Result<Vec<_>, _>>()?;
-            if let Some(definition) = operation.spatial_definition(&types) {
-                let definition = definition.map_err(|error| {
-                    source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        self.file,
-                        expression.range(),
-                        error.to_string(),
-                    )
-                })?;
-                return self.lower_pure_operator(expression, &definition, arguments);
-            }
+        let types = arguments
+            .iter()
+            .map(|argument| {
+                expression_type(self.file, argument, self.bindings, self.support.as_ref())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        if let Some(definition) = operation.spatial_definition(&types) {
+            let definition = definition.map_err(|error| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.file,
+                    expression.range(),
+                    error.to_string(),
+                )
+            })?;
+            return self.lower_pure_operator(expression, &definition, arguments);
         }
+        let dimension = operation
+            .result_type(&types)
+            .map_err(|error| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.file,
+                    expression.range(),
+                    error.to_string(),
+                )
+            })?
+            .value_type
+            .dimension();
         let operands = arguments
             .iter()
             .map(|value| self.lower(value))
             .collect::<Result<Vec<_>, _>>()?;
-        let dimension = match operands.as_slice() {
-            [value] => value.dimension,
-            [left, right] => left
-                .dimension
-                .mul(right.dimension)
-                .ok_or_else(|| dimension_overflow(self.file, expression.range()))?,
-            _ => {
-                return Err(source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    self.file,
-                    expression.range(),
-                    "finite operation has incorrect arity",
-                ));
-            }
-        };
         operation
             .emit(
                 &mut self.builder,
