@@ -261,10 +261,12 @@ mod tests {
             [12, 12, 1, 1, 2, 2]
         );
         // d(x+iy)/d(x,y)=I and d(conj(x+iy))/d(x,y)=diag(1,-1).
-        for channel in 0..12 {
-            for column in 0..13 {
+        for (channel, row) in rows[0].iter().enumerate() {
+            assert_eq!(row.len(), 13);
+            assert_eq!(rows[1][channel].len(), 13);
+            for (column, value) in row.iter().enumerate() {
                 let identity = f64::from(column == channel + 1);
-                assert_eq!(rows[0][channel][column], identity);
+                assert_eq!(*value, identity);
                 assert_eq!(
                     rows[1][channel][column],
                     identity * if channel % 2 == 0 { 1. } else { -1. }
