@@ -33,6 +33,7 @@ mod eigen;
 mod materialize;
 pub(crate) use materialize::materialize_common_result;
 mod observe;
+mod spectrum;
 mod time_observe;
 
 use field_output::FieldOutputBlock;
@@ -241,6 +242,30 @@ impl PyRunResult {
     #[getter]
     fn constraints(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyTuple>> {
         constraints::measurements(self, py)
+    }
+
+    /// Observe explicitly declared finite uniform samples; no exact continuous transform.
+    #[pyo3(signature = (observable, *, start_s, spacing_s, count, window, max_products))]
+    #[allow(clippy::too_many_arguments)]
+    fn observe_spectrum(
+        &self,
+        py: Python<'_>,
+        observable: &crate::model::PyObservableRef,
+        start_s: f64,
+        spacing_s: f64,
+        count: usize,
+        window: &str,
+        max_products: usize,
+    ) -> PyResult<spectrum::PyFiniteSpectrum> {
+        self.spectrum(
+            py,
+            observable,
+            start_s,
+            spacing_s,
+            count,
+            window,
+            max_products,
+        )
     }
 
     /// Evaluate at the accepted terminal State, independently of output cadence.

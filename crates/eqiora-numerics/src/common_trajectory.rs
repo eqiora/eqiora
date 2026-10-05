@@ -13,8 +13,10 @@ mod artifact;
 mod functional;
 mod history_boundary;
 mod sensitivity;
+mod spectrum;
 pub use functional::TimeFunctionalQuadrature;
 pub(crate) use sensitivity::CommonTrajectoryParameterSensitivity;
+pub use spectrum::{FiniteSpectrum, SpectrumWindow, UniformDft};
 
 /// Accepted output States bound to the complete immutable Run request.
 #[derive(Debug, Clone, PartialEq)]

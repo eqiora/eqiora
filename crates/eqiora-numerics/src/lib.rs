@@ -50,7 +50,9 @@ pub use common_ode::{
     CommonOdePlan, CommonOdePolicy, CommonOdeRunRequest, CommonOdeState, CommonTimeTolerance,
 };
 pub use common_result::{CommonObservableStateTangent, CommonResult};
-pub use common_trajectory::{CommonTrajectory, TimeFunctionalQuadrature};
+pub use common_trajectory::{
+    CommonTrajectory, FiniteSpectrum, SpectrumWindow, TimeFunctionalQuadrature, UniformDft,
+};
 pub use numerical_admission::{
     AuthenticatedCommonMesh, CommonAlgebraicPlan, CommonAlgebraicState, CommonBackwardEuler,
     CommonEigenPlan, CommonEigenRequest, CommonElasticityPlan, CommonFormulationDescription,
