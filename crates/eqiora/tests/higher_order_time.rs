@@ -383,7 +383,7 @@ fn repeated_derivatives_of_fixed_parameters_do_not_create_evolving_coordinates()
         })
         .unwrap();
     assert_eq!(values.len(), 4);
-    for pair in values.chunks_exact(2) {
+    for pair in values.as_chunks::<2>().0 {
         assert_eq!(pair[0], pair[1]);
         assert_eq!(pair[0].real_scalar_value().unwrap().value(), 0.);
     }
