@@ -2,9 +2,7 @@ use super::*;
 use eqiora::{
     api::ModelDocument,
     artifact::ModelEnvelope,
-    solver::{
-        LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverPlan,
-    },
+    solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverPlan},
 };
 use eqiora_numerics::{CommonAlgebraicPlan, CommonLinearRequest, CommonSolvePolicy};
 use std::num::NonZeroUsize;

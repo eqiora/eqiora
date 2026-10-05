@@ -51,21 +51,19 @@ impl PyObservation {
         projection: &str,
         index: usize,
     ) -> PyResult<Option<(f64, PyDimension)>> {
-        use eqiora::ComplexProjection;
-        let projection = match projection {
-            "real" => ComplexProjection::Real,
-            "imaginary" => ComplexProjection::Imaginary,
-            "magnitude" => ComplexProjection::Magnitude,
-            "squared_magnitude" => ComplexProjection::SquaredMagnitude,
-            "phase" => ComplexProjection::Phase,
+        let value = match projection {
+            "real" => self.value.component_real(index).map(Some),
+            "imaginary" => self.value.component_imaginary(index).map(Some),
+            "magnitude" => self.value.component_magnitude(index).map(Some),
+            "squared_magnitude" => self.value.component_squared_magnitude(index).map(Some),
+            "phase" => self.value.component_phase(index),
             _ => {
                 return Err(PyValueError::new_err(
                     "projection must be real, imaginary, magnitude, squared_magnitude or phase",
                 ));
             }
         };
-        self.value
-            .project_component(index, projection)
+        value
             .map(|value| value.map(|value| (value.value(), PyDimension { value: value.dim() })))
             .map_err(|error| PyValueError::new_err(error.to_string()))
     }

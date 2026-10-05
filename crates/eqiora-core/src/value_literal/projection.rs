@@ -5,7 +5,7 @@ use crate::{DimExponents, DynQuantity};
 /// A mathematical projection of one declared real or complex component.
 /// Shape, basis, support and physical interpretation remain with the source value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ComplexProjection {
+enum ComplexProjection {
     /// Real part, with the source dimension.
     Real,
     /// Imaginary part, with the source dimension.
@@ -19,6 +19,61 @@ pub enum ComplexProjection {
 }
 
 impl ValueLiteral {
+    /// Real part of one declared row-major component, with the source dimension.
+    /// # Errors
+    /// Rejects nonnumeric domains and indexes outside the exact shape.
+    pub fn component_real(&self, index: usize) -> Result<DynQuantity, InvalidValueLiteral> {
+        self.defined_component(index, ComplexProjection::Real)
+    }
+
+    /// Imaginary part of one declared row-major component, with the source dimension.
+    /// # Errors
+    /// Rejects nonnumeric domains and indexes outside the exact shape.
+    pub fn component_imaginary(&self, index: usize) -> Result<DynQuantity, InvalidValueLiteral> {
+        self.defined_component(index, ComplexProjection::Imaginary)
+    }
+
+    /// Euclidean magnitude of one declared component, with the source dimension.
+    /// No peak/RMS, power or probability interpretation is inferred.
+    /// # Errors
+    /// Rejects nonnumeric domains, out-of-shape indexes and numerical overflow.
+    pub fn component_magnitude(&self, index: usize) -> Result<DynQuantity, InvalidValueLiteral> {
+        self.defined_component(index, ComplexProjection::Magnitude)
+    }
+
+    /// Squared magnitude of one declared component, with the squared source dimension.
+    /// This does not sum components or infer a physical normalization.
+    /// # Errors
+    /// Rejects nonnumeric domains, out-of-shape indexes, derived-dimension overflow
+    /// and numerical overflow.
+    pub fn component_squared_magnitude(
+        &self,
+        index: usize,
+    ) -> Result<DynQuantity, InvalidValueLiteral> {
+        self.defined_component(index, ComplexProjection::SquaredMagnitude)
+    }
+
+    /// Principal argument in radians (dimensionless), undefined exactly at zero.
+    /// No threshold, phase unwrapping or phasor convention is implicit. The source
+    /// value retains its exact shape, support and nominal component basis.
+    /// # Errors
+    /// Rejects nonnumeric domains and indexes outside the exact shape.
+    pub fn component_phase(
+        &self,
+        index: usize,
+    ) -> Result<Option<DynQuantity>, InvalidValueLiteral> {
+        self.project_component(index, ComplexProjection::Phase)
+    }
+
+    fn defined_component(
+        &self,
+        index: usize,
+        projection: ComplexProjection,
+    ) -> Result<DynQuantity, InvalidValueLiteral> {
+        self.project_component(index, projection)
+            .map(|value| value.expect("non-phase component is defined"))
+    }
+
     /// Project one row-major component without dropping its physical dimension.
     ///
     /// Only phase at exact zero returns `None`. No threshold, peak/RMS conversion,
@@ -27,7 +82,7 @@ impl ValueLiteral {
     /// # Errors
     /// Rejects nonnumeric domains, an out-of-range component, unrepresentable
     /// derived dimensions, and overflow of the requested projection.
-    pub fn project_component(
+    fn project_component(
         &self,
         index: usize,
         projection: ComplexProjection,

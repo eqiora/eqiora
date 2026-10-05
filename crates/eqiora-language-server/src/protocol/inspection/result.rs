@@ -1,6 +1,6 @@
 //! Exact Result replay and typed observations. The viewer performs no scientific arithmetic.
 use eqiora::{
-    ComplexProjection, ScalarDomain, ValueLiteral, ValueType,
+    ScalarDomain, ValueLiteral, ValueType,
     api::{MathRendering, ModelDocument},
     backends::{diffsol::DIFFSOL_TIME_BACKEND, faer::FaerLinearSolver},
     kernel::KernelNode,
@@ -92,13 +92,16 @@ pub(super) fn project(
 fn component(value: &ValueLiteral, index: usize) -> Value {
     let mut component = json!({"index": index});
     for (name, projection) in [
-        ("real", ComplexProjection::Real),
-        ("imaginary", ComplexProjection::Imaginary),
-        ("magnitude", ComplexProjection::Magnitude),
-        ("squaredMagnitude", ComplexProjection::SquaredMagnitude),
-        ("phase", ComplexProjection::Phase),
+        ("real", value.component_real(index).map(Some)),
+        ("imaginary", value.component_imaginary(index).map(Some)),
+        ("magnitude", value.component_magnitude(index).map(Some)),
+        (
+            "squaredMagnitude",
+            value.component_squared_magnitude(index).map(Some),
+        ),
+        ("phase", value.component_phase(index)),
     ] {
-        component[name] = match value.project_component(index, projection) {
+        component[name] = match projection {
             Ok(Some(value)) => {
                 let unit = ValueType::scalar(ScalarDomain::Real, value.dim());
                 match unit
@@ -106,7 +109,7 @@ fn component(value: &ValueLiteral, index: usize) -> Value {
                     .and_then(|ty| MathRendering::value_type(&ty, NotationProfile::Plain).ok())
                 {
                     Some(unit) => {
-                        json!({"value": value.value(), "unit": if projection == ComplexProjection::Phase { "rad" } else { unit.plain() }})
+                        json!({"value": value.value(), "unit": if name == "phase" { "rad" } else { unit.plain() }})
                     }
                     None => json!({"unavailable": "Cannot render the derived dimension"}),
                 }
@@ -123,9 +126,7 @@ mod tests {
     use super::*;
     use eqiora::{
         artifact::ModelEnvelope,
-        solver::{
-            LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverPlan,
-        },
+        solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, ReductionPolicy, SolverPlan},
     };
     use eqiora_numerics::{CommonAlgebraicPlan, CommonLinearRequest, CommonSolvePolicy};
     use std::num::NonZeroUsize;
