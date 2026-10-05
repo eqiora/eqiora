@@ -30,6 +30,18 @@ impl PyHermitianEigen {
 
 #[pymethods]
 impl PyHermitianEigen {
+    fn __repr__(&self) -> String {
+        format!(
+            "HermitianEigen(count={}, provider={:?}, target={:?}, interval={:?}, residual_tolerance={}, normalization_tolerance={})",
+            self.native.count(),
+            self.provider.id().as_str(),
+            self.native.target(),
+            self.native.interval(),
+            self.native.residual_tolerance(),
+            self.native.normalization_tolerance()
+        )
+    }
+
     #[new]
     #[pyo3(signature = (*, count, provider, residual_tolerance, normalization_tolerance, target=None, interval=None))]
     #[allow(clippy::too_many_arguments)]
@@ -148,4 +160,15 @@ pub(super) fn view(py: Python<'_>, plan: &CommonEigenPlan) -> PyResult<Py<PyAny>
         },
     )
     .map(Py::into_any)
+}
+
+#[pymethods]
+impl PyEigenPlanView {
+    fn __repr__(&self) -> String {
+        format!(
+            "EigenPlanView(mode_field={:?}, eigenvalue_field={:?})",
+            self.mode_field.exact_id(),
+            self.eigenvalue_field.exact_id()
+        )
+    }
 }

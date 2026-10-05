@@ -25,6 +25,16 @@ pub(super) struct PyEigenpair {
 
 #[pymethods]
 impl PyEigenpair {
+    fn __repr__(&self) -> String {
+        format!(
+            "Eigenpair(eigenvalue={:?}, relative_residual={}, normalization_defect={}, result_identity={:?})",
+            self.eigenvalue.component(0),
+            self.relative_residual,
+            self.normalization_defect,
+            self.result_identity
+        )
+    }
+
     #[getter]
     fn eigenvalue(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         crate::modeling::value_literal::to_python(py, &self.eigenvalue)
