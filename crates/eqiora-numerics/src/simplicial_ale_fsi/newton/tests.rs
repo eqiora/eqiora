@@ -52,7 +52,7 @@ fn real_payload_prepares_each_structural_phase_once_and_reuses_after_failure() {
     let plan = fixture.plan.clone();
     let quadrature = triangle_duffy_gauss_legendre(5).unwrap();
     let assembly = FailFirstAssembly::default();
-    let prepared = PreparedAleFsiRun::new(
+    let mut prepared = PreparedAleFsiRun::new(
         &fixture.mesh,
         &fixture.partition,
         &fixture.boundary,
@@ -679,3 +679,5 @@ fn solve_dense(mut matrix: Vec<f64>, mut rhs: Vec<f64>) -> Result<Vec<f64>, Diag
         ))
     }
 }
+
+mod prepared_provider;

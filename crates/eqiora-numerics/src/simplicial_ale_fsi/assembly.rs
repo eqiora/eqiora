@@ -182,6 +182,17 @@ pub(super) fn prepare_ale_fsi_structure<const D: usize>(
     {
         phases.maps += 1;
     }
+    let assembly_plan = assembly_plan.prepare(
+        cells
+            .iter()
+            .map(|cell| {
+                vec![TargetAssemblyMap::new(
+                    reduced_target,
+                    cell.dense_map.clone(),
+                )]
+            })
+            .collect(),
+    )?;
     Ok(PreparedAleFsiStructure {
         boundary_template: boundary.clone(),
         layout,
