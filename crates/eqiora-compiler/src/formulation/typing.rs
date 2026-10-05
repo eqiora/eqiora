@@ -1,6 +1,8 @@
 //! Type authored mathematical expressions without choosing a numerical realization.
 use super::*;
 
+mod contraction;
+
 impl ExpressionContext<'_> {
     pub(super) fn compile_root(
         &mut self,
@@ -395,40 +397,18 @@ impl ExpressionContext<'_> {
                     Some(support),
                 ))
             }
-            ("dot" | "frobenius", [left, right]) => {
-                let left = self.compile(left)?;
-                let right = self.compile(right)?;
-                if left.value_type.shape().rank() != if name == "dot" { 1 } else { 2 }
-                    || left.value_type.shape() != right.value_type.shape()
-                {
-                    return Err(error(
-                        self.file,
-                        expression.range(),
-                        "dot requires equal non-scalar vector shapes",
-                    ));
-                }
-                let support =
-                    merge_support(self.file, expression.range(), left.support, right.support)?;
-                let dimension = left
-                    .value_type
-                    .dimension()
-                    .mul(right.value_type.dimension())
-                    .ok_or_else(|| {
-                        error(
-                            self.file,
-                            expression.range(),
-                            "dot-product dimension overflows",
-                        )
-                    })?;
+            ("conj", [argument]) => {
+                let argument = self.compile(argument)?;
+                let value_type = argument.value_type.clone();
+                let support = argument.support;
                 Ok(typed(
-                    if name == "dot" {
-                        AuthoredFormExpressionKind::Dot(Box::new(left), Box::new(right))
-                    } else {
-                        AuthoredFormExpressionKind::Frobenius(Box::new(left), Box::new(right))
-                    },
-                    ValueType::scalar(ScalarDomain::Real, dimension).expect("real scalar type"),
+                    AuthoredFormExpressionKind::Conjugate(Box::new(argument)),
+                    value_type,
                     support,
                 ))
+            }
+            ("dot" | "frobenius" | "inner", [left, right]) => {
+                self.compile_contraction(expression, name, left, right)
             }
             ("div" | "symmetric_part", [argument]) => {
                 let argument = self.compile(argument)?;

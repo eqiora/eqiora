@@ -4,6 +4,9 @@ use std::collections::BTreeMap;
 use eqiora_compiler::{CompiledModel, StaticBindingValue};
 use eqiora_geometry::{CanonicalGeometryV1, GeometryGraph};
 
+#[path = "functional_variations/conjugation.rs"]
+mod conjugation;
+
 fn geometry() -> CanonicalGeometryV1 {
     let graph = GeometryGraph::new();
     let interval = graph.interval([0.0, 1.0]).unwrap();

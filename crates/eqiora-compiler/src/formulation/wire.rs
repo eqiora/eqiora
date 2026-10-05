@@ -6,7 +6,7 @@ use ulid::Ulid;
 
 use super::{AuthoredFormExpression, AuthoredFormExpressionKind};
 
-const SCHEMA: &str = "eqiora.authored-form/v9";
+const SCHEMA: &str = "eqiora.authored-form/v10";
 const MAX_BYTES: usize = 1024 * 1024;
 
 /// Ordered test name, trial Field, zero-trace boundaries and canonical SI dimension.
@@ -164,6 +164,13 @@ pub enum AuthoredFormExpressionV1 {
     },
     Sin {
         value: Box<Self>,
+    },
+    Conjugate {
+        value: Box<Self>,
+    },
+    Inner {
+        left: Box<Self>,
+        right: Box<Self>,
     },
     Dot {
         left: Box<Self>,
@@ -663,6 +670,13 @@ pub(super) fn expression(value: &AuthoredFormExpression) -> AuthoredFormExpressi
         AuthoredFormExpressionKind::Sin(value) => AuthoredFormExpressionV1::Sin {
             value: Box::new(expression(value)),
         },
+        AuthoredFormExpressionKind::Conjugate(value) => AuthoredFormExpressionV1::Conjugate {
+            value: Box::new(expression(value)),
+        },
+        AuthoredFormExpressionKind::Inner(left, right) => AuthoredFormExpressionV1::Inner {
+            left: Box::new(expression(left)),
+            right: Box::new(expression(right)),
+        },
         AuthoredFormExpressionKind::Dot(left, right) => AuthoredFormExpressionV1::Dot {
             left: Box::new(expression(left)),
             right: Box::new(expression(right)),
@@ -813,7 +827,7 @@ mod tests {
         let bytes = projection().canonical_bytes().to_vec();
         let old = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.authored-form/v9", "eqiora.authored-scalar-form/v3");
+            .replace("eqiora.authored-form/v10", "eqiora.authored-scalar-form/v3");
         assert!(AuthoredFormulationProjection::decode(old.as_bytes()).is_err());
     }
 
