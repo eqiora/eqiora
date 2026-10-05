@@ -12,9 +12,9 @@ enum Position {
 }
 
 pub(super) fn lower(
-    context: &Context<'_>,
+    context: &Context<'_, f64>,
     id: ExprId,
-    coefficient: Data,
+    coefficient: Data<f64>,
     row: &mut Row,
     depth: usize,
 ) -> Result<(), Diagnostic> {
@@ -22,7 +22,7 @@ pub(super) fn lower(
 }
 
 pub(super) fn boundary_flux(
-    context: &Context<'_>,
+    context: &Context<'_, f64>,
     id: ExprId,
     row: &Row,
 ) -> Result<Vec<FluxTerm>, Diagnostic> {
@@ -47,9 +47,9 @@ pub(super) fn boundary_flux(
 }
 
 fn expression(
-    context: &Context<'_>,
+    context: &Context<'_, f64>,
     id: ExprId,
-    coefficient: Data,
+    coefficient: Data<f64>,
     row: &mut Row,
     position: Position,
     depth: usize,
@@ -58,7 +58,7 @@ fn expression(
         return Err(invalid("region expression nesting exceeds 128"));
     }
     let node = context.dag.node(id).expect("validated DAG");
-    let negative = |value: Data| value.multiply(Data::constant(context.dimension, -1.0));
+    let negative = |value: Data<f64>| value.multiply(Data::constant(context.dimension, -1.0));
     let recurse = |id, coefficient, row: &mut Row| {
         expression(context, id, coefficient, row, position, depth + 1)
     };
@@ -251,9 +251,9 @@ fn expression(
 }
 
 fn trial(
-    context: &Context<'_>,
+    context: &Context<'_, f64>,
     id: ExprId,
-    coefficient: Data,
+    coefficient: Data<f64>,
     row: &mut Row,
     pairing: Pairing,
 ) -> Result<(), Diagnostic> {

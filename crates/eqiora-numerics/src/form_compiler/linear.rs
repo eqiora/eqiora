@@ -29,8 +29,8 @@ pub(crate) struct CompiledLinearBlockForm {
     boundary_laws: BTreeMap<RawId, BTreeMap<RawId, super::region::RegionBoundaryLaw>>,
     volume: CompiledRegionForm,
     step: Option<DynQuantity>,
-    initial: BTreeMap<RawId, Data>,
-    storage: BTreeMap<RawId, Data>,
+    initial: BTreeMap<RawId, Data<f64>>,
+    storage: BTreeMap<RawId, Data<f64>>,
 }
 
 impl CompiledLinearBlockForm {
@@ -259,7 +259,7 @@ pub(super) fn coefficients(
     program: &KernelProgram,
     dimension: usize,
     roles: &EquationRoles,
-) -> Result<BTreeMap<RawId, Data>, Diagnostic> {
+) -> Result<BTreeMap<RawId, Data<f64>>, Diagnostic> {
     let mut known = BTreeMap::new();
     let mut pending = roles
         .relations

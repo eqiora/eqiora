@@ -228,7 +228,7 @@ pub(crate) fn lower_isotropic_elastodynamics_subdomain<const D: usize>(
     let load_potential_expression =
         spatial_expression::lower(program, load_expression, load_root, load_relation, D)?;
     let momentum_expression = &relation_expression(program, momentum_relation)?;
-    let mass_density = spatial_expression::lower(
+    let mass_density = spatial_expression::lower::<f64>(
         program,
         momentum_expression,
         momentum_parts.density,

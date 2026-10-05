@@ -24,8 +24,8 @@ pub(crate) struct RegionBoundaryLaw {
 
 #[derive(Debug, Clone, PartialEq)]
 enum BoundaryDatum {
-    Components(Vec<Data>),
-    NormalMultiple(Data),
+    Components(Vec<Data<f64>>),
+    NormalMultiple(Data<f64>),
 }
 
 impl RegionBoundaryLaw {

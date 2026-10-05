@@ -6,10 +6,10 @@ pub(super) fn initial_values(
     program: &KernelProgram,
     domain: RawId,
     dimension: usize,
-    storage: &BTreeMap<RawId, Data>,
-    coefficients: &BTreeMap<RawId, Data>,
+    storage: &BTreeMap<RawId, Data<f64>>,
+    coefficients: &BTreeMap<RawId, Data<f64>>,
     transient: bool,
-) -> Result<BTreeMap<RawId, Data>, Diagnostic> {
+) -> Result<BTreeMap<RawId, Data<f64>>, Diagnostic> {
     let mut values = BTreeMap::new();
     if !transient {
         return Ok(values);

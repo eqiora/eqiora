@@ -99,19 +99,7 @@ impl<S: Scalar + ComplexFloat<Real = f64> + From<f64>> ScalarSpatialExpression<S
                     (values[value].sin(), values[value].cos() * tangents[value])
                 }
                 Instruction::Sqrt(value) => {
-                    let root = if S::DOMAIN == eqiora_core::ScalarDomain::Real {
-                        scalar(real_sqrt(values[value].re())?)
-                    } else {
-                        if values[value].im() == 0.0 && values[value].re() < 0.0 {
-                            return Err(nonfinite(
-                                "complex square-root derivative is not admitted on the principal branch cut",
-                            ));
-                        }
-                        values[value].sqrt()
-                    };
-                    if root == zero {
-                        return Err(nonfinite("square-root derivative is undefined at zero"));
-                    }
+                    let root = sqrt_derivative_root(values[value])?;
                     (root, tangents[value] / (scalar(2.0) * root))
                 }
             };
@@ -135,4 +123,26 @@ pub(super) fn preceding_power<S: ComplexFloat>(value: S, exponent: i32) -> S {
         Some(previous) => value.powi(previous),
         None => value.powi(exponent) / value,
     }
+}
+
+/// Principal square root at points where its first derivative is defined.
+pub(crate) fn sqrt_derivative_root<S: Scalar + ComplexFloat<Real = f64> + From<f64>>(
+    value: S,
+) -> Result<S, Diagnostic> {
+    let root = if S::DOMAIN == eqiora_core::ScalarDomain::Real {
+        <S as From<f64>>::from(real_sqrt(value.re())?)
+    } else {
+        if value.im() == 0.0 && value.re() < 0.0 {
+            return Err(nonfinite(
+                "complex square-root derivative is not admitted on the principal branch cut",
+            ));
+        }
+        value.sqrt()
+    };
+    if root == <S as From<f64>>::from(0.0) || !root.is_finite() {
+        return Err(nonfinite(
+            "square-root derivative requires a finite nonzero root",
+        ));
+    }
+    Ok(root)
 }

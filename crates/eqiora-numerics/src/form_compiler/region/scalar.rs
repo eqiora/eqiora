@@ -9,10 +9,10 @@ pub(in crate::form_compiler) struct ScalarRow {
     pub relation: RawId,
     pub field: RawId,
     pub residual_type: ValueType,
-    pub diffusion: Data,
-    pub reaction: BTreeMap<RawId, Data>,
-    pub storage: BTreeMap<RawId, Data>,
-    pub forcing: Data,
+    pub diffusion: Data<f64>,
+    pub reaction: BTreeMap<RawId, Data<f64>>,
+    pub storage: BTreeMap<RawId, Data<f64>>,
+    pub forcing: Data<f64>,
 }
 
 impl CompiledRegionForm {

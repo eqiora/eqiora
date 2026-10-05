@@ -7,14 +7,14 @@ use super::data::{Context, Data};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct Terms {
-    pub(super) constant: Data,
-    pub(super) reaction: BTreeMap<RawId, Data>,
-    pub(super) storage: BTreeMap<RawId, Data>,
-    pub(super) diffusion: BTreeMap<RawId, Data>,
+    pub(super) constant: Data<f64>,
+    pub(super) reaction: BTreeMap<RawId, Data<f64>>,
+    pub(super) storage: BTreeMap<RawId, Data<f64>>,
+    pub(super) diffusion: BTreeMap<RawId, Data<f64>>,
 }
 
 impl Terms {
-    fn data(constant: Data) -> Self {
+    fn data(constant: Data<f64>) -> Self {
         Self {
             constant,
             reaction: BTreeMap::new(),
@@ -38,7 +38,7 @@ impl Terms {
         }
         self
     }
-    pub(super) fn scale(mut self, data: Data) -> Result<Self, Diagnostic> {
+    pub(super) fn scale(mut self, data: Data<f64>) -> Result<Self, Diagnostic> {
         if !self.diffusion.is_empty() && data.spatial() {
             return Err(super::invalid(
                 "spatial factors outside divergence require additional weak derivative terms",
@@ -57,7 +57,7 @@ impl Terms {
     }
 }
 
-impl Context<'_> {
+impl Context<'_, f64> {
     pub(super) fn conservation(
         &self,
         law: eqiora_schema::kernel::ConservationTerms,
@@ -170,7 +170,7 @@ impl Context<'_> {
         }
     }
 
-    pub(super) fn flux(&self, id: ExprId, depth: usize) -> Result<(RawId, Data), Diagnostic> {
+    pub(super) fn flux(&self, id: ExprId, depth: usize) -> Result<(RawId, Data<f64>), Diagnostic> {
         if depth > 128 {
             return Err(super::invalid("linear flux nesting exceeds 128"));
         }

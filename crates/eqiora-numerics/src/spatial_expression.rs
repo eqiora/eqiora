@@ -8,8 +8,9 @@ use eqiora_sem::KernelProgram;
 
 mod lowering;
 mod tangent;
-pub(crate) use lowering::lower;
+pub(crate) use lowering::{Coefficient, lower};
 use num_complex::ComplexFloat;
+pub(crate) use tangent::sqrt_derivative_root;
 
 // Physical point samplers cannot interpret an abstract product factor's axis
 // as an axis of their ambient point, even when the units happen to agree.
@@ -352,7 +353,7 @@ impl<S: Scalar + ComplexFloat<Real = f64> + From<f64>> ScalarSpatialExpression<S
     }
 }
 
-impl ScalarSpatialExpression<f64> {
+impl<S: Scalar + ComplexFloat<Real = f64> + From<f64>> ScalarSpatialExpression<S> {
     /// Whether evaluation depends on the physical coordinate.
     #[must_use]
     pub const fn is_coordinate_dependent(&self) -> bool {
@@ -361,7 +362,7 @@ impl ScalarSpatialExpression<f64> {
 
     /// Evaluate a spatially constant tape once.
     #[must_use]
-    pub fn constant_value(&self) -> Option<f64> {
+    pub fn constant_value(&self) -> Option<S> {
         (!self.coordinate_dependent)
             .then(|| self.evaluate(&vec![0.0; self.coordinate_dimension]).ok())
             .flatten()
@@ -377,7 +378,9 @@ impl ScalarSpatialExpression<f64> {
     pub(crate) fn is_same_coefficient_as(&self, other: &Self) -> bool {
         self == other
     }
+}
 
+impl ScalarSpatialExpression<f64> {
     /// Exact affine coordinate gradient when the lowered tape is affine.
     ///
     /// Parameter values are already point-bound constants. Returning

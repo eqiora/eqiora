@@ -200,7 +200,7 @@ fn recognize_exterior_law_oriented(
         (None, Some(normal), Some((robin, coefficient_expression, trace_expression)))
             if normal_sign == Some(robin.sign()) =>
         {
-            let coefficient = spatial_expression::lower(
+            let coefficient = spatial_expression::lower::<f64>(
                 program,
                 expression,
                 coefficient_expression,

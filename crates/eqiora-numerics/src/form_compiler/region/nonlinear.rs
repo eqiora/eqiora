@@ -9,7 +9,7 @@ use super::{BoundRegionForm, Data, binding::basis, invalid};
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct DyadicTerm {
     pub field: RawId,
-    pub coefficient: Data,
+    pub coefficient: Data<f64>,
     /// A retained div(field)=0 constraint permits the skew split by parts.
     /// This is a mathematical condition, not a velocity or fluid role.
     pub split: bool,

@@ -10,7 +10,7 @@ pub(super) enum FluxTerm {
     Trial(Term),
     // A uniform isotropic tensor has zero volume divergence, but its outward
     // traction is its scalar coefficient times the exact parent normal.
-    Isotropic(Data),
+    Isotropic(Data<f64>),
 }
 
 impl FluxTerm {

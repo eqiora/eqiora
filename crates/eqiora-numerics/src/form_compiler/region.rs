@@ -49,7 +49,7 @@ struct Row {
     terms: Vec<Term>,
     dyadics: Vec<nonlinear::DyadicTerm>,
     flux: Vec<flux::FluxTerm>,
-    forcing: Vec<Data>,
+    forcing: Vec<Data<f64>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -57,7 +57,7 @@ struct Term {
     trial: RawId,
     derivative: bool,
     pairing: Pairing,
-    coefficient: Data,
+    coefficient: Data<f64>,
     positive_diffusion: bool,
 }
 
