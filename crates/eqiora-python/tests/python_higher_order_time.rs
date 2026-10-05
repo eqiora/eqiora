@@ -12,10 +12,24 @@ fn higher_order_python_solve_preserves_derivative_coordinates_and_replay() -> Py
         locals.set_item("eqiora", &module)?;
         py.run(c_str!(r#"
 import math
+complex_model = eqiora.compile(source="model ComplexState() { state z:array<complex<m>,2>; initial { z=[math.complex(1,2)*1[m],math.complex(3,4)*1[m]]; } relation flow { derivative(z)=math.complex(0,1)*1[1/s]*z; } }")
+z = complex_model.field("z")
+complex_plan = eqiora.resolve(complex_model, temporal=eqiora.time.ImplicitMidpoint(step_s=0.05, relative_tolerance=1e-12, absolute_tolerances={(z,0,c,i):1e-14 for c in range(2) for i in (False,True)}))
+complex_plan = eqiora.Plan.from_bytes(complex_plan.to_bytes())
+complex_state = eqiora.State.initial(complex_plan)
+assert complex_state.value(z) == (1+2j, 3+4j)
+complex_state = eqiora.State.from_bytes(complex_plan, complex_state.to_bytes())
+assert complex_state.value(z) == (1+2j, 3+4j)
+complex_result = eqiora.run(complex_plan, state=complex_state, until_s=0.5, output_times_s=(0.5,))
+complex_state = eqiora.State.from_result(complex_plan, complex_result, time_s=0.5)
+angle = 20*math.atan(0.025)
+rotation = complex(math.cos(angle),math.sin(angle))
+for actual, seed in zip(complex_state.value(z), (1+2j, 3+4j)):
+    assert abs(actual-seed*rotation) < 1e-11
 model = eqiora.compile(source="model Oscillator() { parameter k:1/s^2=4; state x:m; initial { x=1[m]; derivative(x)=2[m/s]; } relation motion { derivative(derivative(x))+k*x=0[m/s^2]; } observable velocity:m/s=derivative(x); observable acceleration:m/s^2=derivative(derivative(x)); observable squared_acceleration:m^2/s^2=derivative(derivative(x*x)); }")
 field = model.field("x")
-temporal = eqiora.time.Tsitouras45(initial_step_s=0.001, relative_tolerance=1e-10, absolute_tolerances={(field, 1):2e-12, (field, 0):1e-12})
-assert temporal.absolute_tolerances == {(field, 0):1e-12, (field, 1):2e-12}
+temporal = eqiora.time.Tsitouras45(initial_step_s=0.001, relative_tolerance=1e-10, absolute_tolerances={(field, 1, 0, False):2e-12, (field, 0, 0, False):1e-12})
+assert temporal.absolute_tolerances == {(field, 0, 0, False):1e-12, (field, 1, 0, False):2e-12}
 plan = eqiora.resolve(model, temporal=temporal)
 assert plan.fields == (field,)
 restored_plan = eqiora.Plan.from_bytes(plan.to_bytes())
@@ -24,12 +38,12 @@ for inspected in (plan, restored_plan):
     form = inspected.formulation
     assert form.effective == eqiora.FormulationKind.FirstOrderEvolution
     assert form.requested == eqiora.FormulationSelectionMode.Automatic
-    assert form.state_coordinates == ((field, 0), (field, 1))
+    assert form.state_coordinates == ((field, 0, 0, False), (field, 1, 0, False))
     assert form.source_relation_id is not None
     assert form.source_relation_id == plan.formulation.source_relation_id
     assert "time.derive.v1.companion-equations" in form.rule_ids
 initial = eqiora.State.initial(restored_plan)
-assert initial.state_coordinates == ((field, 0), (field, 1))
+assert initial.state_coordinates == ((field, 0, 0, False), (field, 1, 0, False))
 assert initial.value(field) == 1.
 assert initial.value(field, derivative_order=1) == 2.
 restored_initial = eqiora.State.from_bytes(restored_plan, initial.to_bytes())
@@ -51,7 +65,7 @@ for time, value in v:
 # The authored first-order system has identical physical initial data and controls.
 first_order = eqiora.compile(source="model FirstOrder() { parameter k:1/s^2=4; state x:m; state v:m/s; initial { x=1[m]; v=2[m/s]; } relation motion { derivative(x)=v; derivative(v)=-k*x; } }")
 authored_x, authored_v = first_order.field("x"), first_order.field("v")
-authored_plan = eqiora.resolve(first_order, temporal=eqiora.time.Tsitouras45(initial_step_s=0.001, relative_tolerance=1e-10, absolute_tolerances={(authored_x, 0):1e-12, (authored_v, 0):2e-12}))
+authored_plan = eqiora.resolve(first_order, temporal=eqiora.time.Tsitouras45(initial_step_s=0.001, relative_tolerance=1e-10, absolute_tolerances={(authored_x, 0, 0, False):1e-12, (authored_v, 0, 0, False):2e-12}))
 authored_result = eqiora.run(authored_plan, state=eqiora.State.initial(authored_plan), until_s=1., output_times_s=(0.25, 0.5, 1.))
 for normalized, authored in ((x, authored_result.series(authored_x)), (v, authored_result.series(authored_v))):
     normalized_points, authored_points = list(normalized), list(authored)
@@ -82,7 +96,7 @@ for select in (lambda: initial.value(field, derivative_order=2), lambda: result.
 # A third-order equation uses the same execution and result path.
 jerk = eqiora.compile(source="model Jerk() { state q:m; initial { q=0[m]; derivative(q)=0[m/s]; derivative(derivative(q))=0[m/s^2]; } relation motion { derivative(derivative(derivative(q)))=6[m/s^3]; } }")
 q = jerk.field("q")
-jerk_plan = eqiora.resolve(jerk, temporal=eqiora.time.Tsitouras45(initial_step_s=0.001, relative_tolerance=1e-10, absolute_tolerances={(q, k):1e-12 for k in range(3)}))
+jerk_plan = eqiora.resolve(jerk, temporal=eqiora.time.Tsitouras45(initial_step_s=0.001, relative_tolerance=1e-10, absolute_tolerances={(q, k, 0, False):1e-12 for k in range(3)}))
 jerk_result = eqiora.run(jerk_plan, state=eqiora.State.initial(jerk_plan), until_s=1., output_times_s=(0.25, 0.5, 1.))
 for order, exact in enumerate((lambda t: t**3, lambda t: 3*t*t, lambda t: 6*t)):
     for time, value in jerk_result.series(q, derivative_order=order):
@@ -92,7 +106,7 @@ for order, exact in enumerate((lambda t: t**3, lambda t: 3*t*t, lambda t: 6*t)):
 # q''=t, q(0)=q'(0)=0 gives q=t^3/6, q'=t^2/2.
 timed = eqiora.compile(source="model Timed() { state q:m; initial { q=0[m]; derivative(q)=0[m/s]; } relation motion { derivative(derivative(q))=time()*1[m/s^3]; } }")
 q = timed.field("q")
-timed_plan = eqiora.resolve(timed, temporal=eqiora.time.Tsitouras45(initial_step_s=0.001, relative_tolerance=1e-10, absolute_tolerances={(q, order):1e-12 for order in (0, 1)}))
+timed_plan = eqiora.resolve(timed, temporal=eqiora.time.Tsitouras45(initial_step_s=0.001, relative_tolerance=1e-10, absolute_tolerances={(q, order, 0, False):1e-12 for order in (0, 1)}))
 prefix = eqiora.run(timed_plan, state=eqiora.State.initial(timed_plan), until_s=0.5, output_times_s=(0.5,))
 restart = eqiora.State.from_result(timed_plan, prefix, time_s=0.5)
 assert abs(restart.value(q) - 1/48) < 1e-9
@@ -104,8 +118,8 @@ for order, expected in ((0, 1/6), (1, 1/2)):
 # Fresh initialization binds time too; sensitivities start at this chosen instant.
 fresh = eqiora.compile(source="model Fresh() { parameter p:m/s^3=1; state q:m; initial { time()*q=time()*time()*time()*time()*1[m/s^3]/6; derivative(q)=time()*time()*1[m/s^3]/2; } relation flow { derivative(derivative(q))=p*time(); } observable position:m=q; observable velocity:m/s=derivative(q); }")
 q, p = fresh.field("q"), fresh.parameter("p")
-control = eqiora.time.ForwardSensitivity(relative_tolerance=1e-10, absolute_tolerances=(eqiora.time.SensitivityTolerance((q, 0), p, 1e-12, eqiora.Dimension(time=3)), eqiora.time.SensitivityTolerance((q, 1), p, 1e-12, eqiora.Dimension(time=2))))
-fresh_plan = eqiora.resolve(fresh, temporal=eqiora.time.Tsitouras45(initial_step_s=0.001, relative_tolerance=1e-10, absolute_tolerances={(q, order):1e-12 for order in (0, 1)}, forward_sensitivities=control))
+control = eqiora.time.ForwardSensitivity(relative_tolerance=1e-10, absolute_tolerances=(eqiora.time.SensitivityTolerance((q, 0, 0, False), p, 1e-12, eqiora.Dimension(time=3)), eqiora.time.SensitivityTolerance((q, 1, 0, False), p, 1e-12, eqiora.Dimension(time=2))))
+fresh_plan = eqiora.resolve(fresh, temporal=eqiora.time.Tsitouras45(initial_step_s=0.001, relative_tolerance=1e-10, absolute_tolerances={(q, order, 0, False):1e-12 for order in (0, 1)}, forward_sensitivities=control))
 # The initial position is underdetermined at zero but regular at t=2.
 # Plan admission must not secretly solve these equations at zero.
 try:
@@ -133,8 +147,8 @@ for name, value, tangent in (("position", 27/6, 7/6), ("velocity", 9/2, 5/2)):
 linear = eqiora.compile(source="model Linear() { parameter p:m/s=2; state q:m; initial { q=1[m]; } relation flow { derivative(q)=p; } observable rate:m^2/s=derivative(q*q); observable unsupplied:m/s^2=derivative(derivative(q)); }")
 q = linear.field("q")
 p = linear.parameter("p")
-control = eqiora.time.ForwardSensitivity(relative_tolerance=1e-10, absolute_tolerances=(eqiora.time.SensitivityTolerance((q, 0), p, 1e-12, eqiora.Dimension(time=1)),))
-linear_plan = eqiora.resolve(linear, temporal=eqiora.time.Tsitouras45(initial_step_s=0.001, relative_tolerance=1e-10, absolute_tolerances={(q, 0):1e-12}, forward_sensitivities=control))
+control = eqiora.time.ForwardSensitivity(relative_tolerance=1e-10, absolute_tolerances=(eqiora.time.SensitivityTolerance((q, 0, 0, False), p, 1e-12, eqiora.Dimension(time=1)),))
+linear_plan = eqiora.resolve(linear, temporal=eqiora.time.Tsitouras45(initial_step_s=0.001, relative_tolerance=1e-10, absolute_tolerances={(q, 0, 0, False):1e-12}, forward_sensitivities=control))
 linear_result = eqiora.run(linear_plan, state=eqiora.State.initial(linear_plan), until_s=1., output_times_s=(0.5,))
 rate = linear.observable("rate")
 rule = eqiora.time.TimeFunctionalQuadrature.AcceptedStepSimpson

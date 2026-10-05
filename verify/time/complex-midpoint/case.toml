@@ -1,0 +1,18 @@
+id = "time.complex-midpoint"
+status = "implemented"
+scope = "common-real-coordinate-midpoint-complex-and-real-oscillators"
+reference_kind = "analytic-continuous-rotation-and-cayley-step"
+capabilities = ["complex-time-evolution", "implicit-midpoint", "constant-mass-ode", "second-order-phase-convergence", "output-independent-step-history", "typed-state-restart"]
+
+[claim_boundary]
+complex_channels = 2
+real_oscillator_coordinates = 2
+constant_full_rank_mass = true
+implicit_normalization = false
+events = false
+complex_dae = false
+nonlinear_convergence = false
+
+[evidence]
+package = "eqiora"
+test = "complex_midpoint_time"

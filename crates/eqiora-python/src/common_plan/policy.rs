@@ -9,8 +9,8 @@ use eqiora::realization::NonlinearSolvePlan;
 use eqiora::solver::{SolverPlan, SolverPlanningObjective};
 use eqiora::{Id, kinds};
 use eqiora_numerics::{
-    CommonBackwardEuler, CommonLinearRequest, CommonPressureGauge2d, CommonTsitouras45,
-    CommonTsitourasTolerance,
+    CommonBackwardEuler, CommonLinearRequest, CommonOdePolicy, CommonPressureGauge2d,
+    CommonTimeTolerance,
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
@@ -487,7 +487,13 @@ impl PyBackwardEuler {
     }
 }
 
-/// Adaptive Tsitouras 5(4) policy with exact Field-bound SI tolerances.
+#[derive(Debug)]
+pub(super) struct OdePolicyData {
+    pub(super) native: CommonOdePolicy,
+    coordinates: Vec<(Py<PyModelFieldRef>, u32, usize, bool)>,
+    events: Option<super::event_policy::PyEventPolicy>,
+    forward_sensitivities: Option<super::forward_policy::PyForwardSensitivity>,
+}
 #[pyclass(
     name = "Tsitouras45",
     module = "eqiora._eqiora",
@@ -496,17 +502,128 @@ impl PyBackwardEuler {
 )]
 #[derive(Debug)]
 pub(crate) struct PyTsitouras45 {
-    pub(super) native: CommonTsitouras45,
-    coordinates: Vec<(Py<PyModelFieldRef>, u32)>,
-    events: Option<super::event_policy::PyEventPolicy>,
-    forward_sensitivities: Option<super::forward_policy::PyForwardSensitivity>,
+    pub(super) data: OdePolicyData,
+}
+#[pyclass(
+    name = "ImplicitMidpoint",
+    module = "eqiora._eqiora",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Debug)]
+pub(crate) struct PyImplicitMidpoint {
+    pub(super) data: OdePolicyData,
 }
 
-impl PyTsitouras45 {
+impl OdePolicyData {
+    fn absolute_tolerances(&self, py: Python<'_>) -> PyResult<Py<PyDict>> {
+        let result = PyDict::new(py);
+        for ((field, order, component, imaginary), tolerance) in self
+            .coordinates
+            .iter()
+            .zip(self.native.absolute_tolerances())
+        {
+            result.set_item(
+                (field.clone_ref(py), *order, *component, *imaginary),
+                tolerance.value(),
+            )?;
+        }
+        Ok(result.unbind())
+    }
+    fn new(
+        py: Python<'_>,
+        method: eqiora::time::TimeMethod,
+        initial_step_s: f64,
+        relative_tolerance: f64,
+        absolute_tolerances: &Bound<'_, PyDict>,
+        events: Option<&super::event_policy::PyEventPolicy>,
+        forward_sensitivities: Option<&super::forward_policy::PyForwardSensitivity>,
+    ) -> PyResult<Self> {
+        let mut native = Vec::with_capacity(absolute_tolerances.len());
+        let mut coordinates = Vec::with_capacity(absolute_tolerances.len());
+        for (field, value) in absolute_tolerances.iter() {
+            let (field, order, component, imaginary) = field.extract::<(Py<PyModelFieldRef>, u32, usize, bool)>().map_err(|_| {
+                PyTypeError::new_err(
+                    "absolute_tolerances keys must be (exact eqiora.FieldRef, derivative order, component, imaginary) tuples",
+                )
+            })?;
+            let value = exact_time_float(&value)?;
+            let id = Ulid::from_string(field.borrow(py).exact_id()).map_err(|_| {
+                PyTypeError::new_err("absolute_tolerances contains an invalid exact FieldRef")
+            })?;
+            native.push(
+                CommonTimeTolerance::new(
+                    eqiora::TimeStateCoordinate::new(
+                        Id::<kinds::Field>::from_ulid(id),
+                        order,
+                        component,
+                        imaginary,
+                    ),
+                    value,
+                )
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
+            );
+            coordinates.push((field, order, component, imaginary));
+        }
+        coordinates.sort_by_key(|(field, order, component, imaginary)| {
+            (
+                field.borrow(py).exact_id().to_owned(),
+                *order,
+                *component,
+                *imaginary,
+            )
+        });
+        let mut native = CommonOdePolicy::new(method, initial_step_s, relative_tolerance, native)
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        if let Some(events) = events {
+            native = native
+                .with_events(
+                    events.max_events,
+                    events
+                        .entries
+                        .iter()
+                        .map(|entry| (entry.activation.id, entry.quantity))
+                        .collect(),
+                )
+                .map_err(|error| validation_error(py, &[error]))?;
+        }
+        if let Some(policy) = forward_sensitivities {
+            native = native
+                .with_forward_sensitivities(
+                    policy.relative_tolerance,
+                    policy
+                        .entries
+                        .iter()
+                        .map(|entry| {
+                            let field = Ulid::from_string(entry.field.exact_id())
+                                .map(Id::<kinds::Field>::from_ulid)
+                                .expect("validated exact FieldRef");
+                            (
+                                eqiora::TimeStateCoordinate::new(
+                                    field,
+                                    entry.derivative_order,
+                                    entry.component,
+                                    entry.imaginary,
+                                ),
+                                entry.parameter.value.id(),
+                                entry.quantity,
+                            )
+                        })
+                        .collect(),
+                )
+                .map_err(|error| validation_error(py, &[error]))?;
+        }
+        Ok(Self {
+            native,
+            coordinates,
+            events: events.cloned(),
+            forward_sensitivities: forward_sensitivities.cloned(),
+        })
+    }
     pub(super) fn from_native(
         py: Python<'_>,
         model_digest: &str,
-        native: CommonTsitouras45,
+        native: CommonOdePolicy,
         document: &eqiora::api::ModelDocument,
     ) -> PyResult<Self> {
         let coordinates = native
@@ -517,10 +634,17 @@ impl PyTsitouras45 {
                     py,
                     PyModelFieldRef::from_exact(
                         model_digest.to_owned(),
-                        entry.coordinate().0.ulid().to_string(),
+                        entry.coordinate().field().ulid().to_string(),
                     ),
                 )
-                .map(|field| (field, entry.coordinate().1))
+                .map(|field| {
+                    (
+                        field,
+                        entry.coordinate().derivative_order(),
+                        entry.coordinate().component(),
+                        entry.coordinate().is_imaginary(),
+                    )
+                })
             })
             .collect::<PyResult<Vec<_>>>()?;
         let events = native
@@ -574,7 +698,7 @@ impl PyTsitouras45 {
             && self
                 .coordinates
                 .iter()
-                .all(|(field, _)| field.borrow(py).exact_model_digest() == model_digest)
+                .all(|(field, _, _, _)| field.borrow(py).exact_model_digest() == model_digest)
     }
 }
 
@@ -590,99 +714,41 @@ impl PyTsitouras45 {
         events: Option<&super::event_policy::PyEventPolicy>,
         forward_sensitivities: Option<&super::forward_policy::PyForwardSensitivity>,
     ) -> PyResult<Self> {
-        let mut native = Vec::with_capacity(absolute_tolerances.len());
-        let mut coordinates = Vec::with_capacity(absolute_tolerances.len());
-        for (field, value) in absolute_tolerances.iter() {
-            let (field, order) = field.extract::<(Py<PyModelFieldRef>, u32)>().map_err(|_| {
-                PyTypeError::new_err(
-                    "absolute_tolerances keys must be (exact eqiora.FieldRef, derivative order) pairs",
-                )
-            })?;
-            let value = exact_time_float(&value)?;
-            let id = Ulid::from_string(field.borrow(py).exact_id()).map_err(|_| {
-                PyTypeError::new_err("absolute_tolerances contains an invalid exact FieldRef")
-            })?;
-            native.push(
-                CommonTsitourasTolerance::new((Id::<kinds::Field>::from_ulid(id), order), value)
-                    .map_err(|diagnostic| validation_error(py, &[diagnostic]))?,
-            );
-            coordinates.push((field, order));
-        }
-        coordinates.sort_by_key(|(field, order)| (field.borrow(py).exact_id().to_owned(), *order));
-        let mut native = CommonTsitouras45::new(initial_step_s, relative_tolerance, native)
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
-        if let Some(events) = events {
-            native = native
-                .with_events(
-                    events.max_events,
-                    events
-                        .entries
-                        .iter()
-                        .map(|entry| (entry.activation.id, entry.quantity))
-                        .collect(),
-                )
-                .map_err(|error| validation_error(py, &[error]))?;
-        }
-        if let Some(policy) = forward_sensitivities {
-            native = native
-                .with_forward_sensitivities(
-                    policy.relative_tolerance,
-                    policy
-                        .entries
-                        .iter()
-                        .map(|entry| {
-                            let field = Ulid::from_string(entry.field.exact_id())
-                                .map(Id::<kinds::Field>::from_ulid)
-                                .expect("validated exact FieldRef");
-                            (
-                                (field, entry.derivative_order),
-                                entry.parameter.value.id(),
-                                entry.quantity,
-                            )
-                        })
-                        .collect(),
-                )
-                .map_err(|error| validation_error(py, &[error]))?;
-        }
-        Ok(Self {
-            native,
-            coordinates,
-            events: events.cloned(),
-            forward_sensitivities: forward_sensitivities.cloned(),
-        })
+        OdePolicyData::new(
+            py,
+            eqiora::time::TimeMethod::Tsitouras45,
+            initial_step_s,
+            relative_tolerance,
+            absolute_tolerances,
+            events,
+            forward_sensitivities,
+        )
+        .map(|data| Self { data })
     }
 
     #[getter]
     fn forward_sensitivities(&self) -> Option<super::forward_policy::PyForwardSensitivity> {
-        self.forward_sensitivities.clone()
+        self.data.forward_sensitivities.clone()
     }
 
     #[getter]
     fn events(&self) -> Option<super::event_policy::PyEventPolicy> {
-        self.events.clone()
+        self.data.events.clone()
     }
 
     #[getter]
     fn initial_step_s(&self) -> f64 {
-        self.native.initial_step_s()
+        self.data.native.initial_step_s()
     }
 
     #[getter]
     fn relative_tolerance(&self) -> f64 {
-        self.native.relative_tolerance()
+        self.data.native.relative_tolerance()
     }
 
     #[getter]
     fn absolute_tolerances(&self, py: Python<'_>) -> PyResult<Py<PyDict>> {
-        let result = PyDict::new(py);
-        for ((field, order), tolerance) in self
-            .coordinates
-            .iter()
-            .zip(self.native.absolute_tolerances())
-        {
-            result.set_item((field.clone_ref(py), *order), tolerance.value())?;
-        }
-        Ok(result.unbind())
+        self.data.absolute_tolerances(py)
     }
 
     fn __repr__(&self) -> String {
@@ -690,7 +756,7 @@ impl PyTsitouras45 {
             "Tsitouras45(initial_step_s={}, relative_tolerance={}, coordinates={})",
             self.initial_step_s(),
             self.relative_tolerance(),
-            self.coordinates.len()
+            self.data.coordinates.len()
         )
     }
 }
@@ -841,4 +907,46 @@ fn exact_time_float(value: &Bound<'_, PyAny>) -> PyResult<f64> {
         .cast::<PyFloat>()
         .map(|value| value.value())
         .map_err(|_| PyTypeError::new_err("time integration values must be floats"))
+}
+
+#[pymethods]
+impl PyImplicitMidpoint {
+    #[new]
+    #[pyo3(signature = (*, step_s, relative_tolerance, absolute_tolerances))]
+    fn new(
+        py: Python<'_>,
+        #[pyo3(from_py_with = exact_time_float)] step_s: f64,
+        #[pyo3(from_py_with = exact_time_float)] relative_tolerance: f64,
+        absolute_tolerances: &Bound<'_, PyDict>,
+    ) -> PyResult<Self> {
+        OdePolicyData::new(
+            py,
+            eqiora::time::TimeMethod::ImplicitMidpoint,
+            step_s,
+            relative_tolerance,
+            absolute_tolerances,
+            None,
+            None,
+        )
+        .map(|data| Self { data })
+    }
+    #[getter]
+    fn step_s(&self) -> f64 {
+        self.data.native.initial_step_s()
+    }
+    #[getter]
+    fn relative_tolerance(&self) -> f64 {
+        self.data.native.relative_tolerance()
+    }
+    #[getter]
+    fn absolute_tolerances(&self, py: Python<'_>) -> PyResult<Py<PyDict>> {
+        self.data.absolute_tolerances(py)
+    }
+    fn __repr__(&self) -> String {
+        format!(
+            "ImplicitMidpoint(step_s={}, relative_tolerance={})",
+            self.step_s(),
+            self.relative_tolerance()
+        )
+    }
 }

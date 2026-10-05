@@ -245,7 +245,7 @@ model decay() {
         temporal=eqiora.time.Tsitouras45(
             initial_step_s=0.01,
             relative_tolerance=1.0e-9,
-            absolute_tolerances={(field, 0): 1.0e-11},
+            absolute_tolerances={(field, 0, 0, False): 1.0e-11},
         ),
     )
     ode_result = eqiora.run(

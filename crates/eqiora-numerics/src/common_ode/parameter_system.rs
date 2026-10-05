@@ -22,6 +22,7 @@ impl<'a> GlobalParameterSystem<'a> {
         plan: &'a CommonOdePlan,
         roots: &CanonicalRootSet,
     ) -> Result<Self, Diagnostic> {
+        plan.require_scalar_parameter_directions()?;
         let flow = &plan.program;
         let mut coordinates = HashMap::<Id<kinds::Parameter>, usize>::new();
         let mut parameter_ids = Vec::new();
@@ -329,9 +330,13 @@ model Ramp() {
         let absolute = kernel
             .nodes()
             .filter_map(|node| match node {
-                KernelNode::Field(field) => {
-                    Some(CommonTsitourasTolerance::new((field.id(), 0), 1e-10).unwrap())
-                }
+                KernelNode::Field(field) => Some(
+                    CommonTimeTolerance::new(
+                        eqiora_core::TimeStateCoordinate::new(field.id(), 0, 0, false),
+                        1e-10,
+                    )
+                    .unwrap(),
+                ),
                 _ => None,
             })
             .collect();
@@ -352,14 +357,22 @@ model Ramp() {
                 _ => None,
             })
             .collect();
-        let temporal = CommonTsitouras45::new(1e-3, 1e-9, absolute)
-            .unwrap()
-            .with_event_policy(CommonEventPolicy::new(4, guards).unwrap());
+        let temporal =
+            CommonOdePolicy::new(eqiora_time::TimeMethod::Tsitouras45, 1e-3, 1e-9, absolute)
+                .unwrap()
+                .with_event_policy(CommonEventPolicy::new(4, guards).unwrap());
         CommonOdePlan::resolve(
             &ModelEnvelope::from_program(&kernel).unwrap(),
             &kernel,
             temporal,
-            TimeBackendIdentity::new("test.parameters", "1"),
+            eqiora_time::TimeBackendCapabilities::new(
+                eqiora_time::TimeBackendIdentity::new("test.parameters", "1"),
+                &[
+                    eqiora_core::ScalarDomain::Real,
+                    eqiora_core::ScalarDomain::Complex,
+                ],
+                &[eqiora_core::ScalarType::F64],
+            ),
         )
         .unwrap()
     }

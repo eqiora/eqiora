@@ -33,16 +33,29 @@ pub(super) fn validate(program: &KernelProgram, plan: &ExecutionPlan) -> Result<
             let unknowns = variables
                 .iter()
                 .filter(|(_, column)| block_columns.contains(column))
-                .map(|(variable, _)| match variable {
-                    Variable::Field(id) | Variable::Port(id) => id.to_string(),
-                    Variable::Derivative(id, order) => format!("derivative({id}, order={order})"),
-                    Variable::NextField(id) => format!("next({id})"),
-                    Variable::Physical(PhysicalUnknown::Across(port)) => {
-                        format!("across({})", port.erase())
-                    }
-                    Variable::Physical(PhysicalUnknown::Through(port)) => {
-                        format!("through({})", port.erase())
-                    }
+                .map(|(coordinate, _)| {
+                    let name = match coordinate.variable() {
+                        Variable::Field(id) | Variable::Port(id) => id.to_string(),
+                        Variable::Derivative(id, order) => {
+                            format!("derivative({id}, order={order})")
+                        }
+                        Variable::NextField(id) => format!("next({id})"),
+                        Variable::Physical(PhysicalUnknown::Across(port)) => {
+                            format!("across({})", port.erase())
+                        }
+                        Variable::Physical(PhysicalUnknown::Through(port)) => {
+                            format!("through({})", port.erase())
+                        }
+                    };
+                    format!(
+                        "{name} component {:?} {}",
+                        coordinate.component_index(),
+                        if coordinate.is_imaginary() {
+                            "imaginary"
+                        } else {
+                            "real"
+                        }
+                    )
                 })
                 .collect::<Vec<_>>()
                 .join(", ");

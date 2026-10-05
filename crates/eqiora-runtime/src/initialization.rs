@@ -9,7 +9,7 @@ use crate::time::invalid_time;
 
 pub(crate) fn initialize(
     kernel: &KernelProgram,
-    fields: &[(Id<kinds::Field>, u32)],
+    fields: &[eqiora_core::TimeStateCoordinate],
     relation: Id<kinds::Relation>,
     initial_time: f64,
     config: ReferenceConfig,
@@ -23,15 +23,18 @@ pub(crate) fn initialize(
         })?;
     let state = fields
         .iter()
-        .map(|&(field, order)| {
+        .map(|coordinate| {
+            let (field, order) = (coordinate.field(), coordinate.derivative_order());
             let value = if let Some(order) = std::num::NonZeroU32::new(order) {
-                initial.derivatives().get(&(field.erase(), order)).copied()
+                initial
+                    .derivatives()
+                    .get(&(field.erase(), order))
+                    .and_then(|value| coordinate_value(*coordinate, value))
             } else {
                 initial
                     .fields()
                     .get(&field.erase())
-                    .and_then(eqiora_core::ValueLiteral::real_scalar_value)
-                    .map(|value| value.value())
+                    .and_then(|value| coordinate_value(*coordinate, value))
             };
             value.ok_or_else(|| {
                 invalid_time(
@@ -41,11 +44,14 @@ pub(crate) fn initialize(
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let derivative = fields.iter().map(|&(field, order)| {
+    let derivative = fields.iter().map(|coordinate| {
+            let (field, order) = (coordinate.field(), coordinate.derivative_order());
         let order = order.checked_add(1).and_then(std::num::NonZeroU32::new)
             .ok_or_else(|| invalid_time(relation, "state coordinate derivative order overflows"))?;
         if let Some(value) = initial.derivatives().get(&(field.erase(), order)) {
-            return Ok(*value);
+            return coordinate_value(*coordinate, value).ok_or_else(|| {
+                invalid_time(relation, "time lowering requires the complete initial derivative coordinate")
+            });
         }
         // Only an algebraic coordinate with no authored time rate uses zero
         // for its unused adapter rate. Missing differential data is an error.
@@ -64,12 +70,29 @@ pub(crate) fn initialize(
     ImplicitDaeInitialization::accepted(state, derivative)
 }
 
+fn coordinate_value(
+    coordinate: eqiora_core::TimeStateCoordinate,
+    value: &eqiora_core::ValueLiteral,
+) -> Option<f64> {
+    if coordinate.is_imaginary()
+        && value.value_type().scalar_domain() != eqiora_core::ScalarDomain::Complex
+    {
+        return None;
+    }
+    let (real, imaginary) = value.component(coordinate.component())?;
+    Some(if coordinate.is_imaginary() {
+        imaginary
+    } else {
+        real
+    })
+}
+
 /// Certify the existing zero initial-state Parameter action from the complete
 /// linearized initial constraints, including regular descriptor equations.
 /// Free derivative directions are allowed only when they cannot change state.
 pub(crate) fn require_zero_parameter_tangent(
     kernel: &KernelProgram,
-    fields: &[(Id<kinds::Field>, u32)],
+    fields: &[eqiora_core::TimeStateCoordinate],
     parameters: &[Id<kinds::Parameter>],
     relation: Id<kinds::Relation>,
     initial_time: f64,
@@ -110,7 +133,7 @@ pub(crate) fn require_zero_parameter_tangent(
 /// This neither differentiates a constraint nor certifies an entire trajectory.
 pub(crate) fn require_constant_mass_regularity(
     kernel: &KernelProgram,
-    fields: &[(Id<kinds::Field>, u32)],
+    fields: &[eqiora_core::TimeStateCoordinate],
     relation: Id<kinds::Relation>,
     initial_time: f64,
     initial: &ImplicitDaeInitialization,
@@ -133,7 +156,7 @@ pub(crate) fn require_constant_mass_regularity(
 /// rates and algebraic values with differential values held fixed.
 pub(crate) fn require_implicit_regularity(
     kernel: &KernelProgram,
-    fields: &[(Id<kinds::Field>, u32)],
+    fields: &[eqiora_core::TimeStateCoordinate],
     relation: Id<kinds::Relation>,
     initial_time: f64,
     initial: &ImplicitDaeInitialization,
@@ -170,7 +193,7 @@ pub(crate) fn require_implicit_regularity(
 
 fn linearized_constraints(
     kernel: &KernelProgram,
-    fields: &[(Id<kinds::Field>, u32)],
+    fields: &[eqiora_core::TimeStateCoordinate],
     parameters: &[Id<kinds::Parameter>],
     relation: Id<kinds::Relation>,
     initial_time: f64,
@@ -205,20 +228,30 @@ fn linearized_constraints(
                 SymbolRef::Field(field) => {
                     let index = fields
                         .iter()
-                        .position(|candidate| *candidate == (*field, 0))
+                        .position(|candidate| {
+                            *candidate == eqiora_core::TimeStateCoordinate::new(*field, 0, 0, false)
+                        })
                         .ok_or_else(unsupported)?;
                     (initial.state()[index], Some(index))
                 }
                 SymbolRef::Derivative(field, order) => {
-                    if let Some(index) = fields
-                        .iter()
-                        .position(|candidate| *candidate == (*field, order.get()))
-                    {
+                    if let Some(index) = fields.iter().position(|candidate| {
+                        *candidate
+                            == eqiora_core::TimeStateCoordinate::new(*field, order.get(), 0, false)
+                    }) {
                         (initial.state()[index], Some(index))
                     } else {
                         let index = fields
                             .iter()
-                            .position(|candidate| *candidate == (*field, order.get() - 1))
+                            .position(|candidate| {
+                                *candidate
+                                    == eqiora_core::TimeStateCoordinate::new(
+                                        *field,
+                                        order.get() - 1,
+                                        0,
+                                        false,
+                                    )
+                            })
                             .ok_or_else(unsupported)?;
                         (initial.derivative()[index], Some(n + index))
                     }
@@ -260,11 +293,11 @@ fn linearized_constraints(
         }
         rows.extend(block);
     }
-    for (coordinate, &(field, order)) in fields.iter().enumerate() {
-        if let Some(next) = fields
-            .iter()
-            .position(|candidate| *candidate == (field, order + 1))
-        {
+    for (coordinate, source) in fields.iter().enumerate() {
+        let (field, order) = (source.field(), source.derivative_order());
+        if let Some(next) = fields.iter().position(|candidate| {
+            *candidate == eqiora_core::TimeStateCoordinate::new(field, order + 1, 0, false)
+        }) {
             let mut row = vec![0.; width];
             row[n + coordinate] = 1.;
             row[next] = -1.;
@@ -285,4 +318,36 @@ fn rank(rows: &[Vec<f64>], columns: std::ops::Range<usize>) -> Result<usize, Dia
         }
     }
     Ok(eqiora_time::ConstantDerivativeMatrixProof::new(size, square)?.exact_rank())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use eqiora_core::{DimExponents, ScalarDomain, TimeStateCoordinate, ValueLiteral, ValueType};
+
+    #[test]
+    fn initial_projection_keeps_imaginary_channels_and_rejects_foreign_parts() {
+        let field = Id::<kinds::Field>::new();
+        let ty = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+            .unwrap()
+            .array(2)
+            .unwrap();
+        let value = ValueLiteral::new(ty, [(1., 2.), (3., 4.)]).unwrap();
+        let projected =
+            [(1, false), (1, true), (0, false), (0, true)].map(|(component, imaginary)| {
+                coordinate_value(
+                    TimeStateCoordinate::new(field, 0, component, imaginary),
+                    &value,
+                )
+                .unwrap()
+            });
+        assert_eq!(projected, [3., 4., 1., 2.]);
+        assert!(coordinate_value(TimeStateCoordinate::new(field, 0, 2, false), &value).is_none());
+        let real = ValueLiteral::from_real(
+            ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap(),
+            7.,
+        )
+        .unwrap();
+        assert!(coordinate_value(TimeStateCoordinate::new(field, 0, 0, true), &real).is_none());
+    }
 }

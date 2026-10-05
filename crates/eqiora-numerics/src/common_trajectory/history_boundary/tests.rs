@@ -1,12 +1,12 @@
 use super::*;
-use crate::{CommonOdePlan, CommonTsitouras45, CommonTsitourasTolerance};
+use crate::{CommonOdePlan, CommonOdePolicy, CommonTimeTolerance};
 use eqiora_artifact::ModelEnvelope;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_schema::kernel::KernelNode;
 use eqiora_sem::KernelProgram;
 use eqiora_time::{
-    RootProposal, RootRegistrationId, TimeBackendIdentity, TimeEventDiscontinuity,
-    TimeExecutionReport, TimeHistoryStep,
+    RootProposal, RootRegistrationId, TimeBackendIdentity, TimeEquationClass,
+    TimeEventDiscontinuity, TimeExecutionReport, TimeHistoryStep,
 };
 
 fn report() -> TimeExecutionReport {
@@ -50,13 +50,24 @@ fn request() -> CommonOdeRunRequest {
     let plan = CommonOdePlan::resolve(
         &model,
         &kernel,
-        CommonTsitouras45::new(
+        CommonOdePolicy::new(
+            eqiora_time::TimeMethod::Tsitouras45,
             0.01,
             1e-9,
-            vec![CommonTsitourasTolerance::new((field, 0), 1e-11).unwrap()],
+            vec![
+                CommonTimeTolerance::new(
+                    eqiora_core::TimeStateCoordinate::new(field, 0, 0, false),
+                    1e-11,
+                )
+                .unwrap(),
+            ],
         )
         .unwrap(),
-        report().backend_identity(),
+        eqiora_time::TimeBackendCapabilities::new(
+            report().backend_identity(),
+            &[eqiora_core::ScalarDomain::Real],
+            &[eqiora_core::ScalarType::F64],
+        ),
     )
     .unwrap();
     CommonOdeRunRequest::new(

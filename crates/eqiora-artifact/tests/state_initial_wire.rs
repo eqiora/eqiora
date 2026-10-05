@@ -53,7 +53,19 @@ fn current_wire_replays_roles_initial_relations_and_before_tick_values() {
             .abs()
             < 1e-8
     );
-    assert!((initial.derivatives().values().next().unwrap() + 2.0).abs() < 1e-8);
+    assert!(
+        (initial
+            .derivatives()
+            .values()
+            .next()
+            .unwrap()
+            .real_scalar_value()
+            .unwrap()
+            .value()
+            + 2.0)
+            .abs()
+            < 1e-8
+    );
 }
 
 #[test]

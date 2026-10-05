@@ -309,7 +309,14 @@ fn coordinate_grid_common_plan_solves_and_replays_complete_cell_field() {
     let replay = ResolvedCommonPlan::from_bytes(
         &bytes,
         &REFERENCE_LINEAR_SOLVER,
-        eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+        eqiora_time::TimeBackendCapabilities::new(
+            eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+            &[
+                eqiora_core::ScalarDomain::Real,
+                eqiora_core::ScalarDomain::Complex,
+            ],
+            &[eqiora_core::ScalarType::F64],
+        ),
     )
     .unwrap();
     assert_eq!(plan, replay);

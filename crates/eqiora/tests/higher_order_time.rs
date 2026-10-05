@@ -88,7 +88,7 @@ fn explicit_first_order_oscillator_establishes_the_existing_execution_owner() {
         // differentiated by the existing residual-native owner, even when its
         // captured value happens to be one; classification must not sample it.
         if mass == "1[kg]" {
-            let system = FirstOrderProgram::lower(&cpu, relation).unwrap();
+            let system = FirstOrderProgram::lower(cpu.kernel(), relation).unwrap();
             let initial = system
                 .initialize(0.0, ReferenceConfig::new(0., 1.).unwrap())
                 .unwrap();
@@ -283,6 +283,18 @@ fn higher_order_initialization_retains_velocity_and_solves_acceleration() {
             Interpreter::new().initialize(&kernel, 0.0, ReferenceConfig::new(0., 1.).unwrap());
         if let Some(velocity) = velocity {
             let initial = result.unwrap();
+            for (order, exponents) in [(1, [0, 1, -1, 0, 0, 0, 0]), (2, [0, 1, -2, 0, 0, 0, 0])] {
+                let derivative =
+                    &initial.derivatives()[&(field, std::num::NonZeroU32::new(order).unwrap())];
+                assert_eq!(
+                    derivative.value_type().dimension(),
+                    eqiora_core::DimExponents::from_integers(exponents).unwrap()
+                );
+                assert_eq!(
+                    derivative.value_type().scalar_domain(),
+                    eqiora_core::ScalarDomain::Real
+                );
+            }
             assert_eq!(
                 initial.fields()[&field]
                     .real_scalar_value()
@@ -291,11 +303,17 @@ fn higher_order_initialization_retains_velocity_and_solves_acceleration() {
                 1.
             );
             assert_eq!(
-                initial.derivatives()[&(field, std::num::NonZeroU32::MIN)],
+                initial.derivatives()[&(field, std::num::NonZeroU32::MIN)]
+                    .real_scalar_value()
+                    .unwrap()
+                    .value(),
                 velocity
             );
             assert_eq!(
-                initial.derivatives()[&(field, std::num::NonZeroU32::new(2).unwrap())],
+                initial.derivatives()[&(field, std::num::NonZeroU32::new(2).unwrap())]
+                    .real_scalar_value()
+                    .unwrap()
+                    .value(),
                 -4.
             );
         } else {

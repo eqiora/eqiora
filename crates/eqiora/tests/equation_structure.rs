@@ -153,7 +153,11 @@ fn nonlinear_index_one_dae_uses_the_common_source_and_cpu_execution() {
         let x = model.aliases()["x"];
         let z = model.aliases()["z"];
         assert!(
-            (accepted.derivatives()[&(x, std::num::NonZeroU32::MIN)] + rate * initial * initial)
+            (accepted.derivatives()[&(x, std::num::NonZeroU32::MIN)]
+                .real_scalar_value()
+                .unwrap()
+                .value()
+                + rate * initial * initial)
                 .abs()
                 < 1e-9
         );

@@ -171,7 +171,11 @@ fn prescribed_elastic_surface_work_has_an_authored_positive_result() {
     let replayed = eqiora_numerics::ResolvedCommonPlan::from_bytes(
         &bytes,
         &REFERENCE_LINEAR_SOLVER,
-        eqiora::time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+        eqiora::time::TimeBackendCapabilities::new(
+            eqiora::time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+            &[eqiora::ScalarDomain::Real, eqiora::ScalarDomain::Complex],
+            &[eqiora::ScalarType::F64],
+        ),
     )
     .unwrap();
     assert_eq!(replayed.to_bytes().unwrap(), bytes);

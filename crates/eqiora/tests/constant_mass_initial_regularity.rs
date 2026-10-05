@@ -30,7 +30,7 @@ fn hidden_constraint_and_singular_algebraic_point_reject_at_their_regularity_bou
         }
         let cpu = CpuProgram::lower(model.program()).unwrap();
         let relation = model.aliases()["r"].downcast().unwrap();
-        let system = FirstOrderProgram::lower(&cpu, relation).unwrap();
+        let system = FirstOrderProgram::lower(cpu.kernel(), relation).unwrap();
         let error = system.initialize(0.0, config).unwrap_err();
         if equations.contains("z*z") {
             assert_eq!(error.code(), codes::NONLINEAR_SOLVE_FAILED);
@@ -66,12 +66,14 @@ fn nonlinear_index_one_initial_point_is_regular_under_equation_permutation() {
         )).unwrap();
         let cpu = CpuProgram::lower(model.program()).unwrap();
         let system =
-            FirstOrderProgram::lower(&cpu, model.aliases()["r"].downcast().unwrap()).unwrap();
+            FirstOrderProgram::lower(cpu.kernel(), model.aliases()["r"].downcast().unwrap())
+                .unwrap();
         let initial = system
             .initialize(0.0, ReferenceConfig::new(0.0, 1.0).unwrap())
             .unwrap();
-        for (index, (field, order)) in system.state_coordinates().iter().enumerate() {
-            assert_eq!(*order, 0);
+        for (index, coordinate) in system.state_coordinates().iter().enumerate() {
+            let (field, order) = (coordinate.field(), coordinate.derivative_order());
+            assert_eq!(order, 0);
             assert!((initial.state()[index] - 1.0).abs() < 1e-9);
             let derivative = if field.erase() == model.aliases()["x"] {
                 -2.0

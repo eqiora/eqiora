@@ -12,7 +12,7 @@ use eqiora_time::{
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
-use crate::time::TimeLoweringEnvelopeV2;
+use crate::time::TimeLoweringEnvelopeV3;
 use crate::{
     ArtifactDigest, CANONICAL_ENCODING, ModelEnvelope, TimeDecoderLimits, check_json_limits,
     invalid_artifact,
@@ -44,7 +44,7 @@ impl RootRegistrationEnvelopeV1 {
     pub fn new(
         model: &ModelEnvelope,
         program: &KernelProgram,
-        lowering: &TimeLoweringEnvelopeV2,
+        lowering: &TimeLoweringEnvelopeV3,
     ) -> Result<Self, Diagnostic> {
         validate_model_program(model, program)?;
         lowering.validate_against(model, program)?;
@@ -183,7 +183,7 @@ impl RootRegistrationEnvelopeV1 {
         &self,
         model: &ModelEnvelope,
         program: &KernelProgram,
-        lowering: &TimeLoweringEnvelopeV2,
+        lowering: &TimeLoweringEnvelopeV3,
     ) -> Result<(), Diagnostic> {
         validate_model_program(model, program)?;
         lowering.validate_against(model, program)?;
@@ -230,7 +230,7 @@ impl RootRegistrationEnvelopeV1 {
 
 fn discover_root_registration(
     program: &KernelProgram,
-    state_coordinates: &[(Id<kinds::Field>, u32)],
+    state_coordinates: &[eqiora_core::TimeStateCoordinate],
 ) -> Result<RootRegistrationProof, Diagnostic> {
     let state_coordinates = state_coordinates.iter().copied().collect::<HashSet<_>>();
     let mut structural_groups: Vec<(ExprDag, EventDirection, Vec<Id<kinds::Activation>>)> =
@@ -262,7 +262,9 @@ fn discover_root_registration(
         }
         for symbol in operator.symbols() {
             match *symbol {
-                SymbolRef::Field(field) if state_coordinates.contains(&(field, 0)) => {}
+                SymbolRef::Field(field)
+                    if state_coordinates
+                        .contains(&eqiora_core::TimeStateCoordinate::new(field, 0, 0, false)) => {}
                 SymbolRef::Parameter(parameter) => {
                     let value = match program.node(parameter.erase()) {
                         Some(KernelNode::Parameter(definition)) => {

@@ -1,8 +1,8 @@
 use super::*;
-use eqiora::backends::diffsol::DIFFSOL_TIME_BACKEND;
+use eqiora::backends::diffsol::DIFFSOL_TIME_CAPABILITIES;
 use eqiora_numerics::{
-    CommonOdePlan, CommonOdeRunRequest, CommonTrajectory, CommonTsitouras45,
-    CommonTsitourasTolerance, ResolvedCommonPlan, TimeFunctionalQuadrature,
+    CommonOdePlan, CommonOdePolicy, CommonOdeRunRequest, CommonTimeTolerance, CommonTrajectory,
+    ResolvedCommonPlan, TimeFunctionalQuadrature,
 };
 
 fn fixture(rate: u32) -> (ModelEnvelope, KernelProgram) {
@@ -52,13 +52,21 @@ fn ordinary_time_functional_uses_native_steps_and_exact_trajectory_lineage() {
             _ => None,
         })
         .unwrap();
-    let temporal = CommonTsitouras45::new(
+    let temporal = CommonOdePolicy::new(
+        eqiora_time::TimeMethod::Tsitouras45,
         1e-3,
         1e-11,
-        vec![CommonTsitourasTolerance::new((field, 0), 1e-13).unwrap()],
+        vec![
+            CommonTimeTolerance::new(
+                eqiora_core::TimeStateCoordinate::new(field, 0, 0, false),
+                1e-13,
+            )
+            .unwrap(),
+        ],
     )
     .unwrap();
-    let plan = CommonOdePlan::resolve(&model, &kernel, temporal, DIFFSOL_TIME_BACKEND).unwrap();
+    let plan =
+        CommonOdePlan::resolve(&model, &kernel, temporal, DIFFSOL_TIME_CAPABILITIES).unwrap();
     assert_eq!(
         plan.state_coordinates().len(),
         1,
@@ -259,10 +267,17 @@ model Reset() {
             }
         })
         .unwrap();
-    let temporal = CommonTsitouras45::new(
+    let temporal = CommonOdePolicy::new(
+        eqiora_time::TimeMethod::Tsitouras45,
         1e-3,
         1e-11,
-        vec![CommonTsitourasTolerance::new((field, 0), 1e-13).unwrap()],
+        vec![
+            CommonTimeTolerance::new(
+                eqiora_core::TimeStateCoordinate::new(field, 0, 0, false),
+                1e-13,
+            )
+            .unwrap(),
+        ],
     )
     .unwrap()
     .with_events(
@@ -270,7 +285,8 @@ model Reset() {
         vec![(event, DynQuantity::new(1e-9, DimExponents::DIMENSIONLESS))],
     )
     .unwrap();
-    let plan = CommonOdePlan::resolve(&model, &kernel, temporal, DIFFSOL_TIME_BACKEND).unwrap();
+    let plan =
+        CommonOdePlan::resolve(&model, &kernel, temporal, DIFFSOL_TIME_CAPABILITIES).unwrap();
     let run = |outputs| {
         let request =
             CommonOdeRunRequest::new(plan.clone(), plan.initial_state(0.0).unwrap(), 0.7, outputs)
@@ -454,7 +470,7 @@ model Reset() {
                 vec![(event, DynQuantity::new(1e-9, DimExponents::DIMENSIONLESS))],
             )
             .unwrap(),
-        DIFFSOL_TIME_BACKEND,
+        DIFFSOL_TIME_CAPABILITIES,
     )
     .unwrap();
     let bounded_request = CommonOdeRunRequest::new(
@@ -484,7 +500,7 @@ model Reset() {
                 TimeRootSensitivityOutcome,
             };
             let report = TimeExecutionReport::new(
-                DIFFSOL_TIME_BACKEND,
+                DIFFSOL_TIME_CAPABILITIES.identity(),
                 TimeMethod::Tsitouras45,
                 TimeEquationClass::ExplicitOde,
                 InitialConditionPolicy::Provided,

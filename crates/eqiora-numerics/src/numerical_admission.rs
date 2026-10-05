@@ -47,7 +47,7 @@ use crate::cartesian_elliptic::{
     linearize_scalar_elliptic_cartesian_fvm, linearize_scalar_elliptic_cartesian_fvm_output,
 };
 use crate::common::{AssembledLinearizedRelation, SpatialDesignCoordinate};
-use crate::common_ode::{CommonOdePlan, CommonTsitouras45};
+use crate::common_ode::{CommonOdePlan, CommonOdePolicy};
 use crate::finalized_spatial::FinalizedScalarEllipticCartesianProblem;
 use crate::fluid::{
     CellCenteredPressureField2d, CellCenteredVelocityField2d, IncompressibleFlowScaleProfile2d,
@@ -100,7 +100,7 @@ use eqiora_solver::{
     ResolvedHostSerialSolverPlan, SERIAL_EXECUTION_PROVIDER, SolverCapabilities, SolverCapability,
     SolverPlan, SolverPlanningObjective, SolverProvider,
 };
-use eqiora_time::TimeBackendIdentity;
+use eqiora_time::TimeBackendCapabilities;
 
 use sha2::{Digest, Sha256};
 
@@ -487,8 +487,8 @@ impl CommonSpatialPlanLineage {
 pub fn resolve_common_ode_plan(
     model: &ModelEnvelope,
     kernel: &KernelProgram,
-    temporal: CommonTsitouras45,
-    backend: TimeBackendIdentity,
+    temporal: CommonOdePolicy,
+    backend: TimeBackendCapabilities,
 ) -> Result<ResolvedCommonPlan, Diagnostic> {
     CommonOdePlan::resolve(model, kernel, temporal, backend)
         .map(|plan| ResolvedCommonPlan::Ode(Box::new(plan)))
@@ -537,7 +537,7 @@ impl FormulationSelectionMode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommonFormulationDescription {
     source_relation: Option<eqiora_core::Id<eqiora_core::entity::kinds::Relation>>,
-    state_coordinates: Box<[(eqiora_core::Id<eqiora_core::entity::kinds::Field>, u32)]>,
+    state_coordinates: Box<[eqiora_core::TimeStateCoordinate]>,
     requested: FormulationSelectionMode,
     kind: FormulationKind,
     boundary_treatment: &'static str,

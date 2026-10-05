@@ -2,7 +2,7 @@
 
 use eqiora::artifact::{
     ArtifactDigest, ModelEnvelope, RootRegistrationEnvelopeV1, TimeDecoderLimits,
-    TimeLoweringEnvelopeV2, TimeRunManifestV1,
+    TimeLoweringEnvelopeV3, TimeRunManifestV1,
 };
 use eqiora::backends::diffsol::DiffsolTimeBackend;
 use eqiora::entity::kinds;
@@ -34,10 +34,16 @@ fn canonical_relation_lowers_structurally_and_runs_through_diffsol() {
             .message()
             .contains("FirstOrderProgram")
     );
-    let system = FirstOrderProgram::lower(&cpu, relation).expect("proven explicit ODE");
+    let system = FirstOrderProgram::lower(cpu.kernel(), relation).expect("proven explicit ODE");
     let lowering = assert_lowering_artifact_round_trip(&kernel, &system);
 
-    assert_eq!(system.state_coordinates(), &[(x, 0), (integral, 0)]);
+    assert_eq!(
+        system.state_coordinates(),
+        &[
+            eqiora_core::TimeStateCoordinate::new(x, 0, 0, false),
+            eqiora_core::TimeStateCoordinate::new(integral, 0, 0, false)
+        ]
+    );
     let initial = system
         .initialize(0.0, eqiora::sem::ReferenceConfig::new(0.0, 1.0).unwrap())
         .unwrap();
@@ -78,12 +84,15 @@ fn canonical_relation_lowers_structurally_and_runs_through_diffsol() {
 fn canonical_algebraic_row_lowers_to_a_rank_deficient_mass_matrix() {
     let (kernel, relation, differential, algebraic) = canonical_index_one_dae();
     let cpu = CpuProgram::lower(&kernel).expect("scalar Operator IR");
-    let system = FirstOrderProgram::lower(&cpu, relation).expect("proven mass-matrix DAE");
+    let system = FirstOrderProgram::lower(cpu.kernel(), relation).expect("proven mass-matrix DAE");
     let lowering = assert_lowering_artifact_round_trip(&kernel, &system);
 
     assert_eq!(
         system.state_coordinates(),
-        &[(differential, 0), (algebraic, 0)]
+        &[
+            eqiora_core::TimeStateCoordinate::new(differential, 0, 0, false),
+            eqiora_core::TimeStateCoordinate::new(algebraic, 0, 0, false)
+        ]
     );
     let initial = system
         .initialize(0.0, eqiora::sem::ReferenceConfig::new(0.0, 1.0).unwrap())
@@ -137,10 +146,16 @@ fn canonical_algebraic_row_lowers_to_a_rank_deficient_mass_matrix() {
 fn canonical_dense_full_mass_matrix_is_exactly_classified_and_integrated() {
     let (kernel, relation, x, y) = canonical_dense_mass_matrix(false);
     let cpu = CpuProgram::lower(&kernel).expect("scalar Operator IR");
-    let system = FirstOrderProgram::lower(&cpu, relation).expect("proven full mass matrix");
+    let system = FirstOrderProgram::lower(cpu.kernel(), relation).expect("proven full mass matrix");
     let lowering = assert_lowering_artifact_round_trip(&kernel, &system);
 
-    assert_eq!(system.state_coordinates(), &[(x, 0), (y, 0)]);
+    assert_eq!(
+        system.state_coordinates(),
+        &[
+            eqiora_core::TimeStateCoordinate::new(x, 0, 0, false),
+            eqiora_core::TimeStateCoordinate::new(y, 0, 0, false)
+        ]
+    );
     assert_eq!(system.lowering_proof().derivative_matrix().exact_rank(), 2);
     assert_eq!(
         system.equation_class(),
@@ -202,7 +217,8 @@ fn canonical_dense_full_mass_matrix_is_exactly_classified_and_integrated() {
 fn canonical_dense_singular_mass_matrix_has_no_zero_row_shortcut() {
     let (kernel, relation, x, y) = canonical_dense_mass_matrix(true);
     let cpu = CpuProgram::lower(&kernel).expect("scalar Operator IR");
-    let system = FirstOrderProgram::lower(&cpu, relation).expect("proven singular mass matrix");
+    let system =
+        FirstOrderProgram::lower(cpu.kernel(), relation).expect("proven singular mass matrix");
     let lowering = assert_lowering_artifact_round_trip(&kernel, &system);
     let initial = system
         .initialize(0.0, eqiora::sem::ReferenceConfig::new(0.0, 1.0).unwrap())
@@ -212,7 +228,13 @@ fn canonical_dense_singular_mass_matrix_has_no_zero_row_shortcut() {
     assert_eq!(initial.state(), &[1.0, 1.0]);
     assert_eq!(initial.derivative(), &[-1.0, -1.0]);
 
-    assert_eq!(system.state_coordinates(), &[(x, 0), (y, 0)]);
+    assert_eq!(
+        system.state_coordinates(),
+        &[
+            eqiora_core::TimeStateCoordinate::new(x, 0, 0, false),
+            eqiora_core::TimeStateCoordinate::new(y, 0, 0, false)
+        ]
+    );
     assert_eq!(
         system.lowering_proof().derivative_matrix().coefficients(),
         [1.0, 1.0, 1.0, 1.0]
@@ -272,7 +294,7 @@ fn canonical_dense_singular_mass_matrix_has_no_zero_row_shortcut() {
 fn state_dependent_derivative_coefficient_fails_closed_from_first_order_projection() {
     let (kernel, relation) = state_dependent_mass_relation();
     let cpu = CpuProgram::lower(&kernel).expect("scalar Operator IR");
-    let diagnostic = FirstOrderProgram::lower(&cpu, relation)
+    let diagnostic = FirstOrderProgram::lower(cpu.kernel(), relation)
         .expect_err("state-dependent mass is not an admitted first-order projection");
 
     assert_eq!(
@@ -286,10 +308,10 @@ fn state_dependent_derivative_coefficient_fails_closed_from_first_order_projecti
 fn canonical_event_registration_drives_proposal_reset_saltation_and_restart() {
     let fixture = canonical_bouncing_ball();
     let cpu = CpuProgram::lower(&fixture.kernel).expect("scalar Operator IR");
-    let system = FirstOrderProgram::lower(&cpu, fixture.flow).expect("proven explicit ODE");
+    let system = FirstOrderProgram::lower(cpu.kernel(), fixture.flow).expect("proven explicit ODE");
     let model = ModelEnvelope::from_program(&fixture.kernel).unwrap();
     let lowering =
-        TimeLoweringEnvelopeV2::from_proof(&model, &fixture.kernel, system.lowering_proof())
+        TimeLoweringEnvelopeV3::from_proof(&model, &fixture.kernel, system.lowering_proof())
             .unwrap();
     let registration = RootRegistrationEnvelopeV1::new(&model, &fixture.kernel, &lowering).unwrap();
     let bytes = registration.canonical_json().unwrap();
@@ -1251,18 +1273,18 @@ fn assert_relative(actual: f64, expected: f64, tolerance: f64) {
 fn assert_lowering_artifact_round_trip(
     program: &eqiora::sem::KernelProgram,
     system: &FirstOrderProgram,
-) -> TimeLoweringEnvelopeV2 {
+) -> TimeLoweringEnvelopeV3 {
     let model = ModelEnvelope::from_program(program).unwrap();
     let envelope =
-        TimeLoweringEnvelopeV2::from_proof(&model, program, system.lowering_proof()).unwrap();
+        TimeLoweringEnvelopeV3::from_proof(&model, program, system.lowering_proof()).unwrap();
     let bytes = envelope.canonical_json().unwrap();
-    let decoded = TimeLoweringEnvelopeV2::from_json(&bytes, Default::default()).unwrap();
+    let decoded = TimeLoweringEnvelopeV3::from_json(&bytes, Default::default()).unwrap();
 
     assert_eq!(decoded.digest().unwrap(), envelope.digest().unwrap());
     assert_eq!(decoded.proof().unwrap(), *system.lowering_proof());
     decoded.validate_against(&model, program).unwrap();
     assert_eq!(
-        TimeLoweringEnvelopeV2::from_json(
+        TimeLoweringEnvelopeV3::from_json(
             &bytes,
             TimeDecoderLimits {
                 max_exact_rank_dimension: system.state_coordinates().len() - 1,
@@ -1280,7 +1302,7 @@ fn assert_lowering_artifact_round_trip(
         .unwrap();
     forged_wire["derivative_matrix"]["exact_rank"] = (exact_rank + 1).into();
     assert_eq!(
-        TimeLoweringEnvelopeV2::from_json(
+        TimeLoweringEnvelopeV3::from_json(
             &serde_json::to_vec(&forged_wire).unwrap(),
             Default::default(),
         )
@@ -1304,12 +1326,12 @@ fn assert_lowering_artifact_round_trip(
             .unwrap();
     let forged = TimeLoweringProof::new(
         system.relation(),
-        system.state_coordinates().to_vec(),
+        system.lowering_proof().state_coordinates().to_vec(),
         forged_matrix,
     )
     .unwrap();
     assert_eq!(
-        TimeLoweringEnvelopeV2::from_proof(&model, program, &forged)
+        TimeLoweringEnvelopeV3::from_proof(&model, program, &forged)
             .unwrap_err()
             .code(),
         eqiora::diagnostic::codes::INVALID_ARTIFACT
@@ -1318,7 +1340,7 @@ fn assert_lowering_artifact_round_trip(
 }
 
 fn assert_time_run_artifact_round_trip(
-    lowering: &TimeLoweringEnvelopeV2,
+    lowering: &TimeLoweringEnvelopeV3,
     plan: &TimePlan,
     report: eqiora::time::TimeExecutionReport,
 ) {
@@ -1359,7 +1381,7 @@ fn assert_time_run_artifact_round_trip(
     );
 
     let wrong_method = match report.method() {
-        TimeMethod::ImplicitEuler => TimeMethod::Tsitouras45,
+        TimeMethod::ImplicitEuler | TimeMethod::ImplicitMidpoint => TimeMethod::Tsitouras45,
         TimeMethod::Tsitouras45 => TimeMethod::Bdf,
         TimeMethod::Bdf => TimeMethod::Tsitouras45,
     };

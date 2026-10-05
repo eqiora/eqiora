@@ -3,10 +3,14 @@ use super::*;
 use crate::model::{PyModelFieldRef, PyModelParameterRef};
 use crate::modeling::PyDimension;
 use eqiora::{DynQuantity, Id, kinds};
-use eqiora_numerics::CommonTsitouras45;
+use eqiora_numerics::CommonOdePolicy;
 use ulid::Ulid;
 
-type SensitivityControl = ((Id<kinds::Field>, u32), Id<kinds::Parameter>, DynQuantity);
+type SensitivityControl = (
+    eqiora::TimeStateCoordinate,
+    Id<kinds::Parameter>,
+    DynQuantity,
+);
 
 #[pyclass(
     name = "SensitivityTolerance",
@@ -18,6 +22,8 @@ type SensitivityControl = ((Id<kinds::Field>, u32), Id<kinds::Parameter>, DynQua
 pub(super) struct PySensitivityTolerance {
     pub(super) field: PyModelFieldRef,
     pub(super) derivative_order: u32,
+    pub(super) component: usize,
+    pub(super) imaginary: bool,
     pub(super) parameter: PyModelParameterRef,
     pub(super) quantity: DynQuantity,
 }
@@ -26,7 +32,7 @@ impl PySensitivityTolerance {
     #[new]
     fn new(
         _py: Python<'_>,
-        coordinate: (Py<PyModelFieldRef>, u32),
+        coordinate: (Py<PyModelFieldRef>, u32, usize, bool),
         parameter: &PyModelParameterRef,
         value: f64,
         dimension: &PyDimension,
@@ -49,13 +55,20 @@ impl PySensitivityTolerance {
         Ok(Self {
             field: field.clone(),
             derivative_order,
+            component: coordinate.2,
+            imaginary: coordinate.3,
             parameter: parameter.clone(),
             quantity: DynQuantity::new(value, dimension.native()),
         })
     }
     #[getter]
-    fn coordinate(&self) -> (PyModelFieldRef, u32) {
-        (self.field.clone(), self.derivative_order)
+    fn coordinate(&self) -> (PyModelFieldRef, u32, usize, bool) {
+        (
+            self.field.clone(),
+            self.derivative_order,
+            self.component,
+            self.imaginary,
+        )
     }
     #[getter]
     fn parameter(&self) -> PyModelParameterRef {
@@ -91,7 +104,9 @@ impl PyForwardSensitivity {
     ) -> PyResult<Self> {
         let entries = controls
             .into_iter()
-            .map(|((field_id, derivative_order), parameter_id, quantity)| {
+            .map(|(coordinate, parameter_id, quantity)| {
+                let (field_id, derivative_order) =
+                    (coordinate.field(), coordinate.derivative_order());
                 let parameter =
                     PyModelParameterRef::from_document(document, &parameter_id.ulid().to_string())
                         .map_err(|error| validation_error(py, &[error]))?;
@@ -102,6 +117,8 @@ impl PyForwardSensitivity {
                 Ok(PySensitivityTolerance {
                     field,
                     derivative_order,
+                    component: coordinate.component(),
+                    imaginary: coordinate.is_imaginary(),
                     parameter,
                     quantity,
                 })
@@ -159,9 +176,11 @@ impl PyForwardSensitivity {
                 entry.parameter.value.id().ulid(),
                 entry.field.exact_id().to_owned(),
                 entry.derivative_order,
+                entry.component,
+                entry.imaginary,
             )
         });
-        CommonTsitouras45::validate_forward_sensitivity_controls(
+        CommonOdePolicy::validate_forward_sensitivity_controls(
             relative_tolerance,
             entries
                 .iter()
@@ -170,7 +189,12 @@ impl PyForwardSensitivity {
                         Ulid::from_string(entry.field.exact_id()).expect("validated FieldRef"),
                     );
                     (
-                        (field, entry.derivative_order),
+                        eqiora::TimeStateCoordinate::new(
+                            field,
+                            entry.derivative_order,
+                            entry.component,
+                            entry.imaginary,
+                        ),
                         entry.parameter.value.id(),
                         entry.quantity,
                     )

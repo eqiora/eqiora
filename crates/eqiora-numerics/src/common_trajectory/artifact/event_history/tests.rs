@@ -1,12 +1,11 @@
 use super::*;
 use crate::common_ode::{CommonEventPolicy, CommonGuardTolerance};
-use crate::{CommonOdePlan, CommonTsitouras45, CommonTsitourasTolerance};
+use crate::{CommonOdePlan, CommonOdePolicy, CommonTimeTolerance};
 use eqiora_artifact::ModelEnvelope;
 use eqiora_core::DynQuantity;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_schema::kernel::{ActivationKind, KernelNode};
 use eqiora_sem::KernelProgram;
-use eqiora_time::TimeBackendIdentity;
 
 fn fixture(max_events: usize) -> CommonOdePlan {
     let source = "model M(){state x:1;initial{x=1;}relation flow{derivative(x)=-1[1/s];}event zero=crossing(x,direction=falling);relation reset at zero{next(x)=1;}}";
@@ -22,9 +21,13 @@ fn fixture(max_events: usize) -> CommonOdePlan {
     let fields = kernel
         .nodes()
         .filter_map(|node| match node {
-            KernelNode::Field(field) => {
-                Some(CommonTsitourasTolerance::new((field.id(), 0), 1e-11).unwrap())
-            }
+            KernelNode::Field(field) => Some(
+                CommonTimeTolerance::new(
+                    eqiora_core::TimeStateCoordinate::new(field.id(), 0, 0, false),
+                    1e-11,
+                )
+                .unwrap(),
+            ),
             _ => None,
         })
         .collect();
@@ -48,10 +51,17 @@ fn fixture(max_events: usize) -> CommonOdePlan {
     CommonOdePlan::resolve(
         &model,
         &kernel,
-        CommonTsitouras45::new(1e-3, 1e-9, fields)
+        CommonOdePolicy::new(eqiora_time::TimeMethod::Tsitouras45, 1e-3, 1e-9, fields)
             .unwrap()
             .with_event_policy(CommonEventPolicy::new(max_events, guards).unwrap()),
-        TimeBackendIdentity::new("eqiora.test.time", "1"),
+        eqiora_time::TimeBackendCapabilities::new(
+            eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+            &[
+                eqiora_core::ScalarDomain::Real,
+                eqiora_core::ScalarDomain::Complex,
+            ],
+            &[eqiora_core::ScalarType::F64],
+        ),
     )
     .unwrap()
 }

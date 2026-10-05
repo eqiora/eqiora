@@ -3,10 +3,8 @@
 use eqiora_artifact::ModelEnvelope;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, DimExponents, Id, ValueLiteral, ValueType};
-use eqiora_ir::ScalarOperatorIr;
 use eqiora_schema::kernel::{KernelNode, ObservableReduction, SymbolRef};
 use eqiora_sem::KernelProgram;
-use eqiora_time::TimeSystem;
 use std::collections::HashMap;
 
 use super::{CommonTrajectory, invalid};
@@ -83,7 +81,7 @@ impl CommonTrajectoryObservation {
 impl CommonTrajectory {
     /// Evaluate an Observable at the accepted terminal State.
     ///
-    /// The initial profile admits finite scalar ODE Observables. The terminal
+    /// Finite real and complex ODE Observables retain their full shape. The terminal
     /// state is taken from the accepted integration history, independently of
     /// the requested output schedule.
     pub fn observe_terminal(
@@ -130,14 +128,31 @@ impl CommonTrajectory {
         let history = self
             .ode_history()
             .ok_or_else(|| invalid("time Observable requires accepted ODE integration history"))?;
-        let mut integral = 0.0;
+        let count = evaluator
+            .value_type
+            .shape()
+            .component_count()
+            .ok_or_else(|| invalid("time Observable shape overflows"))?;
+        let mut integral = vec![(0., 0.); count];
         for step in history.steps() {
             let start = step.start_time();
             let end = step.end_time();
-            let a = evaluator.scalar(start, step.start_state())?;
-            let b = evaluator.scalar(start + (end - start) * 0.5, step.midpoint_state())?;
-            let c = evaluator.scalar(end, step.end_state())?;
-            integral += (end - start) * (a + 4.0 * b + c) / 6.0;
+            let a = evaluator.evaluate(start, step.start_state())?;
+            let b = evaluator.evaluate(start + (end - start) * 0.5, step.midpoint_state())?;
+            let c = evaluator.evaluate(end, step.end_state())?;
+            for (index, sum) in integral.iter_mut().enumerate() {
+                let a = a
+                    .component(index)
+                    .ok_or_else(|| invalid("non-numeric time Observable"))?;
+                let b = b
+                    .component(index)
+                    .ok_or_else(|| invalid("non-numeric time Observable"))?;
+                let c = c
+                    .component(index)
+                    .ok_or_else(|| invalid("non-numeric time Observable"))?;
+                sum.0 += (end - start) * (a.0 + 4.0 * b.0 + c.0) / 6.;
+                sum.1 += (end - start) * (a.1 + 4.0 * b.1 + c.1) / 6.;
+            }
         }
         let seconds = DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0])
             .expect("seconds have exact dimension");
@@ -151,8 +166,8 @@ impl CommonTrajectory {
             .clone()
             .with_dimension(dimension)
             .map_err(|error| invalid(error.to_string()))?;
-        let value = ValueLiteral::from_real(value_type, integral)
-            .map_err(|error| invalid(error.to_string()))?;
+        let value =
+            ValueLiteral::new(value_type, integral).map_err(|error| invalid(error.to_string()))?;
         Ok(CommonTrajectoryObservation {
             observable,
             trajectory_identity: self.identity().to_owned(),
@@ -170,9 +185,8 @@ impl CommonTrajectory {
 struct OdeObservable<'a> {
     plan: &'a CommonOdePlan,
     program: KernelProgram,
-    operator: ScalarOperatorIr,
+    observable: Id<kinds::Observable>,
     input_types: HashMap<SymbolRef, ValueType>,
-    root: eqiora_schema::kernel::ExprId,
     value_type: ValueType,
 }
 
@@ -183,9 +197,7 @@ impl<'a> OdeObservable<'a> {
         observable: Id<kinds::Observable>,
     ) -> Result<Self, Diagnostic> {
         let CommonTrajectory::Ode { request, .. } = trajectory else {
-            return Err(invalid(
-                "time functional requires the admitted scalar ODE profile",
-            ));
+            return Err(invalid("time functional requires the admitted ODE profile"));
         };
         let plan = request.plan();
         if model != plan.model_artifact() {
@@ -214,8 +226,6 @@ impl<'a> OdeObservable<'a> {
             ));
         }
         let value_type = definition.value_type().clone();
-        let operator = ScalarOperatorIr::lower(typed.expression())?;
-        let root = typed.expression().roots()[0];
         let input_types = typed
             .expression()
             .nodes()
@@ -232,9 +242,8 @@ impl<'a> OdeObservable<'a> {
         Ok(Self {
             plan,
             program,
-            operator,
+            observable,
             input_types,
-            root,
             value_type,
         })
     }
@@ -242,23 +251,30 @@ impl<'a> OdeObservable<'a> {
     // The Model supplies derivative meaning; the accepted ODE supplies either
     // a stored lower derivative or its highest rate at this exact point.
     fn coordinate(&self, symbol: SymbolRef) -> Result<(usize, bool), Diagnostic> {
+        self.component_coordinate(symbol, 0, false)
+    }
+
+    fn component_coordinate(
+        &self,
+        symbol: SymbolRef,
+        component: usize,
+        imaginary: bool,
+    ) -> Result<(usize, bool), Diagnostic> {
         let (field, order) = match symbol {
             SymbolRef::Field(field) => (field, 0),
             SymbolRef::Derivative(field, order) => (field, order.get()),
             _ => return Err(invalid("Observable input is not a time state coordinate")),
         };
-        if let Some(index) = self
-            .plan
-            .state_coordinates()
-            .position(|coordinate| coordinate == (field, order))
-        {
+        if let Some(index) = self.plan.state_coordinates().position(|coordinate| {
+            coordinate == eqiora_core::TimeStateCoordinate::new(field, order, component, imaginary)
+        }) {
             return Ok((index, false));
         }
         if order > 0
-            && let Some(index) = self
-                .plan
-                .state_coordinates()
-                .position(|coordinate| coordinate == (field, order - 1))
+            && let Some(index) = self.plan.state_coordinates().position(|coordinate| {
+                coordinate
+                    == eqiora_core::TimeStateCoordinate::new(field, order - 1, component, imaginary)
+            })
         {
             return Ok((index, true));
         }
@@ -269,7 +285,7 @@ impl<'a> OdeObservable<'a> {
 
     fn rates(&self, time: f64, state: &[f64]) -> Result<Option<Vec<f64>>, Diagnostic> {
         let mut required = false;
-        for symbol in self.operator.symbols() {
+        for symbol in self.input_types.keys() {
             if matches!(symbol, SymbolRef::Field(_) | SymbolRef::Derivative(..)) {
                 required |= self.coordinate(*symbol)?.1;
             }
@@ -277,9 +293,13 @@ impl<'a> OdeObservable<'a> {
         if !required {
             return Ok(None);
         }
-        let mut rates = vec![0.; state.len()];
-        self.plan.system().rhs(time, state, &mut rates)?;
-        Ok(Some(rates))
+        let problem = eqiora_time::TimeProblem::new(
+            self.plan.system(),
+            self.plan.equation_class(),
+            eqiora_time::InitialConditionPolicy::Provided,
+            state.to_vec(),
+        )?;
+        Ok(Some(problem.rate(time, state)?))
     }
 
     fn evaluate(&self, time: f64, state: &[f64]) -> Result<ValueLiteral, Diagnostic> {
@@ -287,13 +307,23 @@ impl<'a> OdeObservable<'a> {
         let mut resolve = |symbol| match symbol {
             SymbolRef::Parameter(id) => self.program.typed_value(id.erase()).cloned(),
             SymbolRef::Field(_) | SymbolRef::Derivative(..) => {
-                let (index, rate) = self.coordinate(symbol).ok()?;
-                let value = if rate {
-                    rates.as_ref()?.get(index)?
-                } else {
-                    state.get(index)?
-                };
-                ValueLiteral::from_real(self.input_types.get(&symbol)?.clone(), *value).ok()
+                let ty = self.input_types.get(&symbol)?.clone();
+                let complex = ty.scalar_domain() == eqiora_core::ScalarDomain::Complex;
+                let mut components = Vec::new();
+                for component in 0..ty.shape().component_count()? {
+                    let value = |imaginary| {
+                        let (index, rate) = self
+                            .component_coordinate(symbol, component, imaginary)
+                            .ok()?;
+                        if rate {
+                            rates.as_ref()?.get(index).copied()
+                        } else {
+                            state.get(index).copied()
+                        }
+                    };
+                    components.push((value(false)?, if complex { value(true)? } else { 0. }));
+                }
+                ValueLiteral::new(ty, components).ok()
             }
             SymbolRef::Time => {
                 let dimension = DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0])?;
@@ -305,15 +335,9 @@ impl<'a> OdeObservable<'a> {
             }
             _ => None,
         };
-        let mut values = self.operator.evaluate_typed(&[self.root], &mut resolve)?;
-        let value = values
-            .pop()
-            .ok_or_else(|| invalid("time Observable has no scalar root"))?;
-        if value.value_type() != &self.value_type {
-            return Err(invalid(
-                "time Observable evaluated outside its declared type",
-            ));
-        }
+        let value = self
+            .program
+            .evaluate_finite_observable(self.observable, &mut resolve)?;
         Ok(value)
     }
 

@@ -1,5 +1,6 @@
 //! Accepted-point initial Jacobian through the existing scalar Operator IR AD.
 use super::*;
+mod components;
 mod continuous;
 use eqiora_ir::{DifferentiationRole, LinearizedRelation, RelationTangent, ScalarOperatorIr};
 use eqiora_schema::kernel::typing::RootContract;
@@ -18,9 +19,8 @@ pub(super) fn validate(
     if variables.is_empty() {
         return Ok(());
     }
-    let candidates = candidate_maps(variables, solution, state);
-    let mut initial_state = state.clone();
-    initial_state.fields.clone_from(&candidates.fields);
+    let candidates = candidate_maps(program, variables, solution, state)?;
+    let initial_state = candidates.initial_context_state(state);
     let context = EvalContext {
         program,
         time,
@@ -49,7 +49,7 @@ pub(super) fn validate(
         if roots.is_empty() {
             continue;
         }
-        let rows = jacobian(
+        let rows = components::jacobian(
             program,
             owner,
             relation.expression(),
@@ -57,48 +57,66 @@ pub(super) fn validate(
             variables,
             &context,
         )?;
-        matrix.extend(rows.as_chunks::<2>().0.iter().map(|pair| {
-            pair[0]
-                .iter()
-                .zip(&pair[1])
-                .map(|(left, right)| left - right)
-                .collect()
-        }));
+        for pair in rows.as_chunks::<2>().0 {
+            if pair[0].len() != pair[1].len() {
+                return Err(execution_error(
+                    "initial equation component shapes differ",
+                    time,
+                ));
+            }
+            matrix.extend(
+                pair[0]
+                    .iter()
+                    .zip(&pair[1])
+                    .map(|(left, right)| left.iter().zip(right).map(|(a, b)| a - b).collect()),
+            );
+        }
     }
     for system in &plan.physical_systems {
         for junction in system.junctions() {
-            matrix.extend(jacobian(
-                program,
-                junction.owner().erase(),
-                junction.dag(),
-                junction.dag().roots(),
-                variables,
-                &context,
-            )?);
+            matrix.extend(
+                components::jacobian(
+                    program,
+                    junction.owner().erase(),
+                    junction.dag(),
+                    junction.dag().roots(),
+                    variables,
+                    &context,
+                )?
+                .into_iter()
+                .flatten(),
+            );
         }
     }
     for tangent in tangents {
-        matrix.push(
-            variables
-                .iter()
-                .map(|variable| match variable {
-                    Variable::Derivative(field, std::num::NonZeroU32::MIN) => tangent
-                        .coefficients
-                        .iter()
-                        .find_map(|(id, value)| (id == field).then_some(*value))
-                        .unwrap_or(0.0),
-                    _ => 0.0,
-                })
-                .collect(),
-        );
+        let mut row = Vec::new();
+        for variable in variables {
+            let width = variables::numeric_width(&variable.value_type(program)?)?;
+            let coefficient = match variable {
+                Variable::Derivative(field, std::num::NonZeroU32::MIN) => tangent
+                    .coefficients
+                    .iter()
+                    .find_map(|(id, value)| (id == field).then_some(*value))
+                    .unwrap_or(0.),
+                _ => 0.,
+            };
+            if width != 1 && coefficient != 0. {
+                return Err(execution_error(
+                    "scalar descriptor tangent cannot bind shaped coordinates",
+                    time,
+                ));
+            }
+            row.extend(std::iter::repeat_n(coefficient, width));
+        }
+        matrix.push(row);
     }
-    if matrix.len() != variables.len() {
+    if matrix.len() != solution.len() || matrix.iter().any(|row| row.len() != solution.len()) {
         return Err(execution_error(
             "initial Jacobian differs from the admitted square solve",
             time,
         ));
     }
-    solver::solve_linear(matrix, vec![0.0; variables.len()]).ok_or_else(|| {
+    solver::solve_linear(matrix, vec![0.0; solution.len()]).ok_or_else(|| {
         Diagnostic::error(codes::NONLINEAR_SOLVE_FAILED,
             "initial Jacobian is singular at the accepted point (Operator IR automatic differentiation)")
             .with_graph_path(execution_path("initialization", time))
@@ -131,18 +149,6 @@ fn coordinate(
         .position(|candidate| *candidate == variable)
 }
 
-fn jacobian(
-    program: &KernelProgram,
-    owner: RawId,
-    expression: &ExprDag,
-    roots: &[ExprId],
-    variables: &[Variable],
-    context: &EvalContext<'_>,
-) -> Result<Vec<Vec<f64>>, Diagnostic> {
-    let operator = point_operator(program, owner, expression, roots, variables, context)?;
-    differentiate(&operator, variables, context, roots.len())
-}
-
 fn point_operator(
     program: &KernelProgram,
     owner: RawId,
@@ -151,6 +157,19 @@ fn point_operator(
     variables: &[Variable],
     context: &EvalContext<'_>,
 ) -> Result<ScalarOperatorIr, Diagnostic> {
+    ScalarOperatorIr::lower_typed_scalar(&point_residual(
+        program, owner, expression, roots, variables, context,
+    )?)
+}
+
+fn point_residual(
+    program: &KernelProgram,
+    owner: RawId,
+    expression: &ExprDag,
+    roots: &[ExprId],
+    variables: &[Variable],
+    context: &EvalContext<'_>,
+) -> Result<eqiora_schema::kernel::typing::TypedResidual<RawId>, Diagnostic> {
     // Bind only frozen inputs. This is a point projection, never a mutation of
     // authored equations, identities, properties, or the accepted Model.
     let mut builder = ExprDagBuilder::new();
@@ -182,7 +201,7 @@ fn point_operator(
     for (&id, release) in expression.properties() {
         builder.bind_property(id, release.clone())?;
     }
-    let typed = program
+    program
         .type_derived_residual(
             builder.finish(roots.iter().copied())?,
             owner,
@@ -193,8 +212,7 @@ fn point_operator(
                 RootContract::ComponentwiseResidual
             },
         )
-        .map_err(|errors| errors.into_iter().next().expect("typing failure"))?;
-    ScalarOperatorIr::lower_typed_scalar(&typed)
+        .map_err(|errors| errors.into_iter().next().expect("typing failure"))
 }
 
 fn differentiate(

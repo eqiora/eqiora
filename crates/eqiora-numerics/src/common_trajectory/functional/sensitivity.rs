@@ -2,7 +2,8 @@
 use super::*;
 use crate::common_trajectory::CommonTrajectoryParameterSensitivity;
 use eqiora_core::DynQuantity;
-use eqiora_ir::{DifferentiationRole, LinearizedRelation, RelationTangent};
+use eqiora_ir::{DifferentiationRole, LinearizedRelation, RelationTangent, ScalarOperatorIr};
+use eqiora_time::TimeSystem;
 
 impl CommonTrajectory {
     /// Apply an exact Parameter direction to a time-integrated Observable.
@@ -160,6 +161,11 @@ impl OdeObservable<'_> {
         direction: &[f64],
     ) -> Result<f64, Diagnostic> {
         use eqiora_time::ParametricTimeSystem;
+        let typed = self
+            .program
+            .typed_observable(self.observable)
+            .map_err(|errors| errors.into_iter().next().expect("failed typing"))?;
+        let operator = ScalarOperatorIr::lower(typed.expression())?;
         let rates = self.rates(time, state)?;
         let state_delta = (0..state.len())
             .map(|index| {
@@ -197,7 +203,7 @@ impl OdeObservable<'_> {
         let mut values = Vec::new();
         let mut roles = Vec::new();
         let mut deltas = Vec::new();
-        for symbol in self.operator.symbols() {
+        for symbol in operator.symbols() {
             let (value, delta) = match *symbol {
                 SymbolRef::Field(_) | SymbolRef::Derivative(..) => {
                     let (index, rate) = self.coordinate(*symbol)?;
@@ -244,7 +250,7 @@ impl OdeObservable<'_> {
                 DifferentiationRole::Frozen
             });
         }
-        let linearized = self.operator.linearize_typed(&values, &roles)?;
+        let linearized = operator.linearize_typed(&values, &roles)?;
         let mut result = [0.0];
         linearized.jvp(RelationTangent::Unknown(&deltas), &mut result)?;
         Ok(result[0])

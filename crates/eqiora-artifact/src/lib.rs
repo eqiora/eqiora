@@ -91,7 +91,7 @@ pub use geometry_state_v2::{
 };
 pub use geometry_state_v3::GeometryStateEnvelopeV3;
 pub use implicit_time::{
-    GeneralImplicitTimeLoweringEnvelopeV2, ImplicitTimeInitialDataEnvelopeV1,
+    GeneralImplicitTimeLoweringEnvelopeV3, ImplicitTimeInitialDataEnvelopeV1,
     ImplicitTimeRunManifestV1,
 };
 pub use implicit_time_lineage::{ImplicitTimeCheckpointEnvelopeV1, ImplicitTimeRestartManifestV1};
@@ -155,7 +155,7 @@ pub use spatial_trajectory_v3::{
     SpatialTrajectoryEnvelopeV3, SpatialTrajectorySegmentEnvelopeV3,
     SpatialTrajectorySegmentOriginKindV3,
 };
-pub use time::{TimeDecoderLimits, TimeLoweringEnvelopeV2, TimeRunManifestV1};
+pub use time::{TimeDecoderLimits, TimeLoweringEnvelopeV3, TimeRunManifestV1};
 pub use xdmf_hdf5_trajectory_storage::{
     TemporalStorageBlockPresentationV1, TemporalStorageStateKindV1, TrajectoryStorageDecoderLimits,
     XdmfHdf5TrajectoryBlockV1, XdmfHdf5TrajectoryFieldV1, XdmfHdf5TrajectoryFrameV1,

@@ -44,7 +44,7 @@ pub(crate) struct EvalContext<'a> {
     pub(crate) time: f64,
     pub(crate) fields: &'a BTreeMap<RawId, f64>,
     pub(crate) field_candidates: &'a BTreeMap<RawId, f64>,
-    pub(crate) derivatives: &'a BTreeMap<(RawId, std::num::NonZeroU32), f64>,
+    pub(crate) derivatives: &'a BTreeMap<(RawId, std::num::NonZeroU32), eqiora_core::ValueLiteral>,
     pub(crate) next_fields: &'a BTreeMap<RawId, f64>,
     pub(crate) ports: &'a BTreeMap<RawId, f64>,
     pub(crate) port_candidates: &'a BTreeMap<RawId, f64>,
@@ -64,6 +64,9 @@ pub(crate) fn evaluate_expression(
 pub(crate) fn resolve_symbol(symbol: SymbolRef, context: &EvalContext<'_>) -> Option<ValueLiteral> {
     if let SymbolRef::Parameter(id) = symbol {
         return context.program.typed_value(id.erase()).cloned();
+    }
+    if let SymbolRef::Derivative(id, order) = symbol {
+        return context.derivatives.get(&(id.erase(), order)).cloned();
     }
     let discrete = match symbol {
         SymbolRef::Field(id) | SymbolRef::Pre(id) => context.typed_fields.get(&id.erase()),
@@ -85,7 +88,6 @@ pub(crate) fn resolve_symbol(symbol: SymbolRef, context: &EvalContext<'_>) -> Op
             .get(&id.erase())
             .or_else(|| context.fields.get(&id.erase()))
             .copied(),
-        SymbolRef::Derivative(id, order) => context.derivatives.get(&(id.erase(), order)).copied(),
         SymbolRef::Pre(id) => context.fields.get(&id.erase()).copied(),
         SymbolRef::Next(id) => context.next_fields.get(&id.erase()).copied(),
         SymbolRef::Parameter(id) => context.program.value(id.erase()).map(|value| value.value()),
@@ -176,13 +178,33 @@ pub(crate) fn numerical_differences(values: Vec<ValueLiteral>) -> Result<Vec<f64
             "numerical equation evaluation returned an incomplete side pair",
         ));
     }
-    pairs
-        .iter()
-        .map(|sides| {
-            literal(real(&sides[0])?.try_sub(real(&sides[1])?)?)
-                .and_then(|value| real(&value).map(|value| value.value()))
-        })
-        .collect()
+    let mut residuals = Vec::new();
+    for sides in pairs {
+        let difference = numeric::subtract(&sides[0], &sides[1])?;
+        let count = difference
+            .value_type()
+            .shape()
+            .component_count()
+            .expect("typed shape");
+        let complex = difference.value_type().scalar_domain() == ScalarDomain::Complex;
+        let width = count
+            .checked_mul(if complex { 2 } else { 1 })
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    codes::NOT_IMPLEMENTED,
+                    "residual coordinate count overflows",
+                )
+            })?;
+        check_component_work(residuals.len(), width)?;
+        for component in 0..count {
+            let (real, imaginary) = difference.component(component).expect("typed component");
+            residuals.push(real);
+            if complex {
+                residuals.push(imaginary);
+            }
+        }
+    }
+    Ok(residuals)
 }
 
 pub(crate) fn real_values(values: Vec<ValueLiteral>) -> Result<Vec<f64>, Diagnostic> {

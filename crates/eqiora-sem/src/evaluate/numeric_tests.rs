@@ -17,6 +17,52 @@ fn evaluate(builder: ExprDagBuilder, roots: &[ExprId]) -> Result<Vec<ValueLitera
 }
 
 #[test]
+fn equation_residuals_keep_complete_channel_parts_and_physical_units() {
+    let unit = DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).unwrap();
+    let ty = ValueType::scalar(ScalarDomain::Complex, unit)
+        .unwrap()
+        .array(6)
+        .unwrap();
+    let left = ValueLiteral::new(
+        ty.clone(),
+        (0..6).map(|i| (i as f64 + 2., 2. * i as f64 - 1.)),
+    )
+    .unwrap();
+    let right = ValueLiteral::new(ty, [(1., -2.); 6]).unwrap();
+    let real = scalar(ScalarDomain::Real, unit, 7., 0.);
+    let zero = scalar(ScalarDomain::Real, unit, 0., 0.);
+    assert_eq!(
+        numerical_differences(vec![left.clone(), right.clone(), real, zero]).unwrap(),
+        [1., 1., 2., 3., 3., 5., 4., 7., 5., 9., 6., 11., 7.]
+    );
+    assert!(numerical_differences(vec![left.clone()]).is_err());
+    assert!(
+        numerical_differences(vec![left, scalar(ScalarDomain::Complex, unit, 1., -2.)]).is_err()
+    );
+    assert!(
+        numerical_differences(vec![
+            right,
+            ValueLiteral::new(
+                ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
+                    .unwrap()
+                    .array(6)
+                    .unwrap(),
+                [(0., 0.); 6],
+            )
+            .unwrap()
+        ])
+        .is_err()
+    );
+    assert!(
+        numerical_differences(vec![
+            scalar(ScalarDomain::Complex, unit, f64::MAX, 0.),
+            scalar(ScalarDomain::Complex, unit, -f64::MAX, 0.),
+        ])
+        .is_err()
+    );
+}
+
+#[test]
 fn typed_complex_product_division_and_constructor_keep_both_components() {
     let unit = DimExponents::DIMENSIONLESS;
     let mut b = ExprDagBuilder::new();

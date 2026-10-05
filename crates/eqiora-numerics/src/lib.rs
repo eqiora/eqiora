@@ -47,7 +47,7 @@ pub use canonical_stokes::{
     check_authored_mixed_formulation,
 };
 pub use common_ode::{
-    CommonOdePlan, CommonOdeRunRequest, CommonOdeState, CommonTsitouras45, CommonTsitourasTolerance,
+    CommonOdePlan, CommonOdePolicy, CommonOdeRunRequest, CommonOdeState, CommonTimeTolerance,
 };
 pub use common_result::{CommonObservableStateTangent, CommonResult};
 pub use common_trajectory::{CommonTrajectory, TimeFunctionalQuadrature};

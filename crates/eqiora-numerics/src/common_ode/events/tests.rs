@@ -28,16 +28,21 @@ fn fixture(source: &str) -> (ModelEnvelope, KernelProgram) {
     let kernel = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
     (ModelEnvelope::from_program(&kernel).unwrap(), kernel)
 }
-fn temporal(kernel: &KernelProgram) -> CommonTsitouras45 {
-    CommonTsitouras45::new(
+fn temporal(kernel: &KernelProgram) -> CommonOdePolicy {
+    CommonOdePolicy::new(
+        eqiora_time::TimeMethod::Tsitouras45,
         1e-3,
         1e-9,
         kernel
             .nodes()
             .filter_map(|node| match node {
-                KernelNode::Field(field) => {
-                    Some(CommonTsitourasTolerance::new((field.id(), 0), 1e-11).unwrap())
-                }
+                KernelNode::Field(field) => Some(
+                    CommonTimeTolerance::new(
+                        eqiora_core::TimeStateCoordinate::new(field.id(), 0, 0, false),
+                        1e-11,
+                    )
+                    .unwrap(),
+                ),
                 _ => None,
             })
             .collect(),
@@ -66,8 +71,15 @@ fn entries(kernel: &KernelProgram) -> Vec<CommonGuardTolerance> {
         })
         .collect()
 }
-fn backend() -> TimeBackendIdentity {
-    TimeBackendIdentity::new("eqiora.test.time", "1")
+fn backend() -> eqiora_time::TimeBackendCapabilities {
+    eqiora_time::TimeBackendCapabilities::new(
+        eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+        &[
+            eqiora_core::ScalarDomain::Real,
+            eqiora_core::ScalarDomain::Complex,
+        ],
+        &[eqiora_core::ScalarType::F64],
+    )
 }
 
 #[test]

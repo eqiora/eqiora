@@ -356,3 +356,88 @@ mod channel_tests {
         );
     }
 }
+
+#[test]
+fn selected_numeric_roots_do_not_admit_or_demand_discrete_roots() {
+    use eqiora_core::{ScalarDomain, ValueLiteral, ValueType};
+    let mut builder = ExprDagBuilder::new();
+    let real = builder
+        .constant(eqiora_core::DynQuantity::new(
+            2.,
+            DimExponents::DIMENSIONLESS,
+        ))
+        .unwrap();
+    let integer = builder
+        .constant(
+            ValueLiteral::from_integer(
+                ValueType::scalar(ScalarDomain::Integer, DimExponents::DIMENSIONLESS).unwrap(),
+                9_007_199_254_740_993,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    let typed = TypedResidual::infer(
+        builder.finish([real, real, integer, integer]).unwrap(),
+        None::<SpatialSupport<()>>,
+        RootContract::InitialConditions,
+        |_| -> Result<ExpressionType<()>, ()> { unreachable!("constant has no symbols") },
+    )
+    .unwrap();
+    let projected = ComponentScalarization::lower_selected(&typed, &[real]).unwrap();
+    assert_eq!(projected.rows()[0].evaluate(&[]).unwrap(), 2.);
+    assert!(ComponentScalarization::lower_selected(&typed, &[integer]).is_err());
+    assert!(ComponentScalarization::lower(&typed).is_err());
+}
+
+#[test]
+fn constant_rate_matrix_retains_complex_parts_without_freezing_other_symbols() {
+    use eqiora_core::{ScalarDomain, ValueLiteral, ValueType};
+    let field = Id::<kinds::Field>::new();
+    let rate = SymbolRef::Derivative(field, std::num::NonZeroU32::MIN);
+    let ty = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS).unwrap();
+    let selected = super::ScalarSymbolCoordinate::for_value(rate, &ty).unwrap();
+    for profile in ["constant", "state-dependent", "nonlinear-rate"] {
+        let mut builder = ExprDagBuilder::new();
+        let w = builder.symbol(SymbolRef::Field(field)).unwrap();
+        let dw = builder.symbol(rate).unwrap();
+        let coefficient = match profile {
+            "constant" => builder
+                .constant(ValueLiteral::new(ty.clone(), [(0., 1.)]).unwrap())
+                .unwrap(),
+            "state-dependent" => w,
+            _ => dw,
+        };
+        let mass = builder.mul(coefficient, dw).unwrap();
+        let forcing = builder.mul(w, w).unwrap();
+        let root = builder.add(mass, forcing).unwrap();
+        let typed = TypedResidual::infer(
+            builder.finish([root]).unwrap(),
+            None::<SpatialSupport<()>>,
+            RootContract::ComponentwiseResidual,
+            |_| Ok::<_, ()>(ExpressionType::new(ty.clone(), None)),
+        )
+        .unwrap();
+        let operator = ComponentScalarization::lower(&typed).unwrap();
+        let proof = operator
+            .rows()
+            .iter()
+            .map(|row| row.constant_coordinate_jacobian(&selected))
+            .collect::<Result<Vec<_>, _>>();
+        if profile == "constant" {
+            let matrix = proof
+                .unwrap()
+                .into_iter()
+                .flat_map(|row| row.coefficients().to_vec())
+                .collect::<Vec<_>>();
+            // Multiplication by i maps (a,b) to (-b,a), regardless of w^2.
+            assert_eq!(matrix, [0., -1., 1., 0.]);
+            assert!(
+                operator.rows()[0]
+                    .constant_coordinate_jacobian(&[selected[0].clone(), selected[0].clone(),])
+                    .is_err()
+            );
+        } else {
+            assert!(proof.is_err(), "{profile}");
+        }
+    }
+}

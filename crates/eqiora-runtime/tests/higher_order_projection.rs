@@ -21,8 +21,14 @@ fn one_authored_state_projects_to_displacement_and_velocity() {
         let (kernel, relation, field) = oscillator(parameter_mass);
         let cpu = CpuProgram::lower(&kernel).unwrap();
         if !parameter_mass {
-            let system = FirstOrderProgram::lower(&cpu, relation).unwrap();
-            assert_eq!(system.state_coordinates(), &[(field, 0), (field, 1)]);
+            let system = FirstOrderProgram::lower(cpu.kernel(), relation).unwrap();
+            assert_eq!(
+                system.state_coordinates(),
+                &[
+                    eqiora_core::TimeStateCoordinate::new(field, 0, 0, false),
+                    eqiora_core::TimeStateCoordinate::new(field, 1, 0, false)
+                ]
+            );
             let initial = system
                 .initialize(0.0, ReferenceConfig::new(0., 1.).unwrap())
                 .unwrap();
@@ -37,7 +43,13 @@ fn one_authored_state_projects_to_displacement_and_velocity() {
             assert_eq!(output, [13., -44.]);
         } else {
             let system = GeneralImplicitProgram::lower(&cpu, relation).unwrap();
-            assert_eq!(system.state_coordinates(), &[(field, 0), (field, 1)]);
+            assert_eq!(
+                system.state_coordinates(),
+                &[
+                    eqiora_core::TimeStateCoordinate::new(field, 0, 0, false),
+                    eqiora_core::TimeStateCoordinate::new(field, 1, 0, false)
+                ]
+            );
             let initial = system
                 .initialize(0.0, ReferenceConfig::new(0., 1.).unwrap())
                 .unwrap();

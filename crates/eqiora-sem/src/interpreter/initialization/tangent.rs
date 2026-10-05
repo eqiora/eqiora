@@ -14,16 +14,18 @@ pub(super) struct Tangent {
 impl Tangent {
     pub(super) fn residual(
         &self,
-        derivatives: &BTreeMap<(RawId, std::num::NonZeroU32), f64>,
-    ) -> f64 {
-        self.constant
+        derivatives: &BTreeMap<(RawId, std::num::NonZeroU32), eqiora_core::ValueLiteral>,
+    ) -> Result<f64, Diagnostic> {
+        Ok(self.constant
             + self
                 .coefficients
                 .iter()
                 .map(|(field, coefficient)| {
-                    coefficient * derivatives[&(*field, std::num::NonZeroU32::MIN)]
+                    Ok(coefficient
+                        * evaluate::real(&derivatives[&(*field, std::num::NonZeroU32::MIN)])?
+                            .value())
                 })
-                .sum::<f64>()
+                .sum::<Result<f64, Diagnostic>>()?)
     }
 }
 

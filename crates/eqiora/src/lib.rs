@@ -25,7 +25,7 @@ pub use eqiora_core::quantity::{
 };
 pub use eqiora_core::{
     FiniteBasis, InvalidValueLiteral, InvalidValueShape, InvalidValueType, ScalarDomain,
-    ValueFrame, ValueLiteral, ValueShape, ValueType,
+    ScalarType, TimeStateCoordinate, ValueFrame, ValueLiteral, ValueShape, ValueType,
 };
 /// Exact Cargo SemVer release identity of the public Eqiora facade.
 pub use release_identity::VERSION;

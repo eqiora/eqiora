@@ -94,14 +94,21 @@ fn structural_and_quantum_source_plans_retain_roles_units_and_provider_identity(
             ResolvedCommonPlan::from_bytes(
                 bytes,
                 &FaerLinearSolver,
-                eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+                eqiora_time::TimeBackendCapabilities::new(
+                    eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+                    &[
+                        eqiora_core::ScalarDomain::Real,
+                        eqiora_core::ScalarDomain::Complex,
+                    ],
+                    &[eqiora_core::ScalarType::F64],
+                ),
             )
         };
         let restored = replay(&bytes).unwrap();
         assert_eq!(restored, resolved);
         assert_eq!(restored.as_eigen().unwrap().mode_field(), plan.mode_field());
         let wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(wire["schema"], "eqiora.resolved-common-plan/v9");
+        assert_eq!(wire["schema"], "eqiora.resolved-common-plan/v10");
         for (key, value) in [
             ("count", serde_json::json!(1)),
             ("algorithm", serde_json::json!("unsupported")),

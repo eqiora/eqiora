@@ -9,7 +9,7 @@ mod tangent;
 #[derive(Debug, Clone, PartialEq)]
 pub struct InitialState {
     fields: BTreeMap<RawId, eqiora_core::ValueLiteral>,
-    derivatives: BTreeMap<(RawId, std::num::NonZeroU32), f64>,
+    derivatives: BTreeMap<(RawId, std::num::NonZeroU32), eqiora_core::ValueLiteral>,
 }
 
 impl InitialState {
@@ -20,22 +20,28 @@ impl InitialState {
     }
 
     /// Continuous Field derivatives solved at the initial instant, keyed by
-    /// source Field identity and exact positive derivative order.
+    /// source Field identity and exact positive derivative order. Each value
+    /// retains the Field domain and shape, with its dimension divided by the
+    /// corresponding power of physical time.
     #[must_use]
-    pub const fn derivatives(&self) -> &BTreeMap<(RawId, std::num::NonZeroU32), f64> {
+    pub const fn derivatives(
+        &self,
+    ) -> &BTreeMap<(RawId, std::num::NonZeroU32), eqiora_core::ValueLiteral> {
         &self.derivatives
     }
 }
 
 impl Interpreter {
-    /// Solve real regular and fresh initial equations jointly at the explicit initial time.
+    /// Solve regular and fresh initial equations jointly at the explicit initial time.
+    /// Numeric unknowns retain complete real/complex values and finite component shapes.
+    /// Complex continuous initialization currently requires a regular constant-mass linear ODE.
     /// Exact discrete values require acyclic direct initial assignments from
     /// Parameters or other initialized discrete values; they never enter Newton.
     /// Periodic ticks and event resets are not executed. Restart callers must
     /// consume accepted State/history instead of invoking this operation.
     ///
     /// # Errors
-    /// Rejects unsupported value profiles or typed assignment dependencies, non-square real initialization,
+    /// Rejects unsupported value profiles or typed assignment dependencies, non-square initialization in real coordinates,
     /// singular numerical Jacobians, and inconsistent or nonconvergent systems.
     pub fn initialize(
         &self,
@@ -53,7 +59,7 @@ impl Interpreter {
                 initial_time,
             )]);
         }
-        let plan = ExecutionPlan::new(program).map_err(|error| vec![error])?;
+        let plan = ExecutionPlan::for_initialization(program).map_err(|error| vec![error])?;
         let mut state = RuntimeState::new(program, &plan).map_err(|error| vec![error])?;
         solve_initialization(
             program,
@@ -117,22 +123,60 @@ pub(super) fn solve_initialization(
     // Check the existing square-system invariant before expanding an authored
     // order into coordinates. A huge order without initial data must not cause
     // a huge allocation merely to discover that the system is underdetermined.
-    let mut unknowns =
-        fields.clone().count() + plan.continuous_ports.len() + plan.physical_unknowns.len();
-    for order in highest.values() {
-        unknowns = unknowns.checked_add(order.get() as usize).ok_or_else(|| {
-            execution_error(
-                "initial coordinate cardinality exceeds addressable storage",
-                initial_time,
-            )
-        })?;
+    let overflow = || {
+        execution_error(
+            "initial coordinate cardinality exceeds addressable storage",
+            initial_time,
+        )
+    };
+    let mut unknowns = 0usize;
+    for variable in fields
+        .clone()
+        .map(Variable::Field)
+        .chain(plan.continuous_ports.iter().copied().map(Variable::Port))
+        .chain(
+            plan.physical_unknowns
+                .iter()
+                .copied()
+                .map(Variable::Physical),
+        )
+    {
+        unknowns = unknowns
+            .checked_add(variables::numeric_width(&variable.value_type(program)?)?)
+            .ok_or_else(overflow)?;
+    }
+    for (&field, order) in &highest {
+        let width = variables::numeric_width(&Variable::Field(field).value_type(program)?)?;
+        unknowns = width
+            .checked_mul(order.get() as usize)
+            .and_then(|count| unknowns.checked_add(count))
+            .ok_or_else(overflow)?;
     }
     let mut equations = tangents.len();
     for &relation in &relations {
         let Some(KernelNode::Relation(definition)) = program.node(relation) else {
             unreachable!("admitted Relation")
         };
-        equations += direct_assignments::numerical_roots(program, definition).len() / 2;
+        let typed = program
+            .type_derived_residual(
+                definition.expression().clone(),
+                relation,
+                None,
+                eqiora_schema::kernel::typing::RootContract::InitialConditions,
+            )
+            .map_err(|errors| errors.into_iter().next().expect("typing failure"))?;
+        for pair in direct_assignments::numerical_roots(program, definition)
+            .as_chunks::<2>()
+            .0
+        {
+            let residual_type = eqiora_schema::kernel::typing::additive(
+                typed.node_type(pair[0]).expect("typed equation side"),
+                typed.node_type(pair[1]).expect("typed equation side"),
+            )
+            .map_err(|error| execution_error(error.to_string(), initial_time))?;
+            let width = variables::numeric_width(&residual_type.value_type)?;
+            equations = equations.checked_add(width).ok_or_else(overflow)?;
+        }
     }
     equations += plan
         .physical_systems
@@ -167,14 +211,13 @@ pub(super) fn solve_initialization(
         )
         .collect::<Vec<_>>();
     let solution = solver::solve_initial(
-        vec![config.initial_guess(); variables.len()],
+        vec![config.initial_guess(); unknowns],
         config.nonlinear_settings(),
         execution_path("initialization", initial_time),
         |values| {
-            let candidates = candidate_maps(&variables, values, state);
+            let candidates = candidate_maps(program, &variables, values, state)?;
             // Initial Pre denotes the pre-first-activation unknown, not a prior runtime sample.
-            let mut initial_state = state.clone();
-            initial_state.fields.clone_from(&candidates.fields);
+            let initial_state = candidates.initial_context_state(state);
             let mut residuals = evaluate_relations(
                 program,
                 &relations,
@@ -192,7 +235,8 @@ pub(super) fn solve_initialization(
             residuals.extend(
                 tangents
                     .iter()
-                    .map(|tangent| tangent.residual(&candidates.derivatives)),
+                    .map(|tangent| tangent.residual(&candidates.derivatives))
+                    .collect::<Result<Vec<_>, _>>()?,
             );
             Ok(residuals)
         },
@@ -206,6 +250,6 @@ pub(super) fn solve_initialization(
         &tangents,
         config.nonlinear_settings(),
     )?;
-    commit_solution(&variables, &solution, state);
+    commit_solution(program, &variables, &solution, state)?;
     Ok(())
 }

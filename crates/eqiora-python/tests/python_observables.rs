@@ -174,7 +174,7 @@ source = "model Decay() { state x: 1; initial { x=3; } parameter rate: 1/s=2; re
 model = eqiora.compile(source=source)
 field = model.field('x')
 observable = model.observable('sample')
-plan = eqiora.resolve(model, temporal=eqiora.time.Tsitouras45(initial_step_s=1e-3, relative_tolerance=1e-11, absolute_tolerances={(field, 0): 1e-13}))
+plan = eqiora.resolve(model, temporal=eqiora.time.Tsitouras45(initial_step_s=1e-3, relative_tolerance=1e-11, absolute_tolerances={(field, 0, 0, False): 1e-13}))
 rule = eqiora.time.TimeFunctionalQuadrature.AcceptedStepSimpson
 sparse = eqiora.run(plan, state=eqiora.State.initial(plan), until_s=1.0, output_times_s=(0.25,))
 dense = eqiora.run(plan, state=eqiora.State.initial(plan), until_s=1.0, output_times_s=tuple(i/10 for i in range(1, 10)))
@@ -250,11 +250,11 @@ policy = eqiora.time.EventPolicy(max_events=1, guard_tolerances=(eqiora.time.Gua
 forward = eqiora.time.ForwardSensitivity(
     relative_tolerance=1e-10,
     absolute_tolerances=(eqiora.time.SensitivityTolerance(
-        (field, 0), threshold, 1e-12, eqiora.Dimension(),
+        (field, 0, 0, False), threshold, 1e-12, eqiora.Dimension(),
     ),),
 )
 def temporal(events):
-    return eqiora.time.Tsitouras45(initial_step_s=1e-3, relative_tolerance=1e-11, absolute_tolerances={(field, 0):1e-13}, events=events, forward_sensitivities=forward)
+    return eqiora.time.Tsitouras45(initial_step_s=1e-3, relative_tolerance=1e-11, absolute_tolerances={(field, 0, 0, False):1e-13}, events=events, forward_sensitivities=forward)
 plan = eqiora.resolve(model, temporal=temporal(policy))
 rule = eqiora.time.TimeFunctionalQuadrature.AcceptedStepSimpson
 sparse = eqiora.run(plan, state=eqiora.State.initial(plan), until_s=0.7, output_times_s=(0.2,))

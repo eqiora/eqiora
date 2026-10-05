@@ -6,13 +6,13 @@ use eqiora_time::ForwardSensitivityPlan;
 /// Positive absolute tolerance for one exact state/Parameter derivative.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CommonSensitivityTolerance {
-    coordinate: (Id<kinds::Field>, u32),
+    coordinate: eqiora_core::TimeStateCoordinate,
     parameter: Id<kinds::Parameter>,
     quantity: DynQuantity,
 }
 impl CommonSensitivityTolerance {
     pub fn new(
-        coordinate: (Id<kinds::Field>, u32),
+        coordinate: eqiora_core::TimeStateCoordinate,
         parameter: Id<kinds::Parameter>,
         quantity: DynQuantity,
     ) -> Result<Self, Diagnostic> {
@@ -24,7 +24,7 @@ impl CommonSensitivityTolerance {
         })
     }
     #[must_use]
-    pub const fn coordinate(self) -> (Id<kinds::Field>, u32) {
+    pub const fn coordinate(self) -> eqiora_core::TimeStateCoordinate {
         self.coordinate
     }
     #[must_use]
@@ -51,8 +51,10 @@ impl CommonForwardSensitivity {
         absolute_tolerances.sort_by_key(|entry| {
             (
                 entry.parameter().ulid(),
-                entry.coordinate().0.ulid(),
-                entry.coordinate().1,
+                entry.coordinate().field().ulid(),
+                entry.coordinate().derivative_order(),
+                entry.coordinate().component(),
+                entry.coordinate().is_imaginary(),
             )
         });
         if absolute_tolerances.is_empty()
@@ -79,14 +81,16 @@ impl CommonForwardSensitivity {
         &self.absolute_tolerances
     }
     pub(super) fn identity_bytes(&self) -> Vec<u8> {
-        let mut bytes = b"forward-sensitivity/v2\0".to_vec();
+        let mut bytes = b"forward-sensitivity/v3\0".to_vec();
         bytes.extend_from_slice(&self.relative_tolerance.to_bits().to_be_bytes());
         for entry in &self.absolute_tolerances {
             push(
                 &mut bytes,
-                entry.coordinate().0.ulid().to_string().as_bytes(),
+                entry.coordinate().field().ulid().to_string().as_bytes(),
             );
-            bytes.extend_from_slice(&entry.coordinate().1.to_be_bytes());
+            bytes.extend_from_slice(&entry.coordinate().derivative_order().to_be_bytes());
+            bytes.extend_from_slice(&(entry.coordinate().component() as u64).to_be_bytes());
+            bytes.push(u8::from(entry.coordinate().is_imaginary()));
             push(&mut bytes, entry.parameter().ulid().to_string().as_bytes());
             bytes.extend_from_slice(&entry.quantity().value().to_bits().to_be_bytes());
             bytes.extend_from_slice(&dimension_bytes(entry.quantity().dim()));
@@ -108,6 +112,7 @@ impl CommonOdePlan {
         let Some(policy) = self.temporal.forward_sensitivities() else {
             return Ok(());
         };
+        self.require_scalar_parameter_directions()?;
         let parameters = if let Some(roots) = self.root_set()? {
             parameter_system::GlobalParameterSystem::new(self, &roots)?
                 .parameter_ids()

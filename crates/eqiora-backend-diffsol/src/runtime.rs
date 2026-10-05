@@ -19,6 +19,17 @@ use eqiora_time::{
 pub const DIFFSOL_TIME_BACKEND: TimeBackendIdentity =
     TimeBackendIdentity::new("eqiora.time.diffsol", "0.16.2");
 
+/// Domains and real-coordinate precision supported by this adapter.
+pub const DIFFSOL_TIME_CAPABILITIES: eqiora_time::TimeBackendCapabilities =
+    eqiora_time::TimeBackendCapabilities::new(
+        DIFFSOL_TIME_BACKEND,
+        &[
+            eqiora_core::ScalarDomain::Real,
+            eqiora_core::ScalarDomain::Complex,
+        ],
+        &[eqiora_core::ScalarType::F64],
+    );
+
 /// Stateless Diffsol adapter for admitted first-order time problems.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct DiffsolTimeBackend;
@@ -46,8 +57,8 @@ impl DiffsolTimeBackend {
         match (equation_class, method) {
             (TimeEquationClass::ExplicitOde, TimeMethod::Tsitouras45 | TimeMethod::Bdf)
             | (TimeEquationClass::MassMatrix { .. }, TimeMethod::Bdf) => Ok(()),
-            (_, TimeMethod::ImplicitEuler) => Err(unsupported(
-                "ImplicitEuler is the deterministic residual reference method, not a Diffsol method",
+            (_, TimeMethod::ImplicitEuler | TimeMethod::ImplicitMidpoint) => Err(unsupported(
+                "the selected fixed-step implicit method is not a Diffsol method",
             )),
             (TimeEquationClass::MassMatrix { .. }, TimeMethod::Tsitouras45) => Err(unsupported(
                 "Tsitouras45 requires an explicit ODE; select BDF for a mass-matrix system",
@@ -226,7 +237,7 @@ fn propose_ode_root(
             })?;
             history::capture_until_root(&mut solver, problem, plan, roots, &failures)
         }
-        TimeMethod::ImplicitEuler => {
+        TimeMethod::ImplicitEuler | TimeMethod::ImplicitMidpoint => {
             unreachable!("Diffsol admission rejects the reference implicit-Euler method")
         }
     }
@@ -355,7 +366,7 @@ fn solve_ode(problem: &TimeProblem<'_>, plan: &TimePlan) -> Result<TimeSolution,
                 .map_err(|error| map_failure(&failures, "initialize Diffsol BDF", error))?;
             Ok(history::capture(&mut solver, problem, plan, 0, &failures)?.primal())
         }
-        TimeMethod::ImplicitEuler => {
+        TimeMethod::ImplicitEuler | TimeMethod::ImplicitMidpoint => {
             unreachable!("Diffsol admission rejects the reference implicit-Euler method")
         }
     }

@@ -18,23 +18,23 @@ use crate::{
     invalid_artifact, validate_text,
 };
 
-const GENERAL_IMPLICIT_LOWERING_SCHEMA: &str = "eqiora.general-implicit-time-lowering-envelope/v2";
+const GENERAL_IMPLICIT_LOWERING_SCHEMA: &str = "eqiora.general-implicit-time-lowering-envelope/v3";
 const IMPLICIT_INITIAL_DATA_SCHEMA: &str = "eqiora.implicit-time-initial-data-envelope/v1";
 const IMPLICIT_RUN_SCHEMA: &str = "eqiora.implicit-time-run-manifest/v1";
 
 /// Content-addressed witness for canonical Relation → residual-native time
 /// lowering.
 ///
-/// The envelope is deliberately separate from [`crate::TimeLoweringEnvelopeV2`].
+/// The envelope is deliberately separate from [`crate::TimeLoweringEnvelopeV3`].
 /// It records the structural obstruction to a constant first-order projection
 /// and the effective differential/algebraic partition, not a fabricated mass
 /// matrix.
 #[derive(Debug, Clone, PartialEq)]
-pub struct GeneralImplicitTimeLoweringEnvelopeV2 {
-    wire: WireGeneralImplicitTimeLoweringEnvelopeV2,
+pub struct GeneralImplicitTimeLoweringEnvelopeV3 {
+    wire: WireGeneralImplicitTimeLoweringEnvelopeV3,
 }
 
-impl GeneralImplicitTimeLoweringEnvelopeV2 {
+impl GeneralImplicitTimeLoweringEnvelopeV3 {
     /// Bind a runtime-produced residual-native witness to one immutable model.
     ///
     /// # Errors
@@ -48,7 +48,7 @@ impl GeneralImplicitTimeLoweringEnvelopeV2 {
     ) -> Result<Self, Diagnostic> {
         validate_model_program(model, program)?;
         validate_general_proof(proof, program)?;
-        let wire = WireGeneralImplicitTimeLoweringEnvelopeV2 {
+        let wire = WireGeneralImplicitTimeLoweringEnvelopeV3 {
             schema: GENERAL_IMPLICIT_LOWERING_SCHEMA.to_owned(),
             encoding: CANONICAL_ENCODING.to_owned(),
             model_sha256: model.digest()?.0,
@@ -228,7 +228,7 @@ impl ImplicitTimeInitialDataEnvelopeV1 {
     /// Returns `EQ0901` if dimension or variable partition differs from the
     /// linked lowering.
     pub fn from_problem(
-        lowering: &GeneralImplicitTimeLoweringEnvelopeV2,
+        lowering: &GeneralImplicitTimeLoweringEnvelopeV3,
         problem: &ImplicitDaeProblem<'_>,
     ) -> Result<Self, Diagnostic> {
         let proof = lowering.proof()?;
@@ -251,7 +251,7 @@ impl ImplicitTimeInitialDataEnvelopeV1 {
     /// Returns `EQ0901` if the accepted pair dimension differs from the linked
     /// lowering.
     pub fn from_initialization(
-        lowering: &GeneralImplicitTimeLoweringEnvelopeV2,
+        lowering: &GeneralImplicitTimeLoweringEnvelopeV3,
         initialization: &ImplicitDaeInitialization,
     ) -> Result<Self, Diagnostic> {
         Self::new(
@@ -269,7 +269,7 @@ impl ImplicitTimeInitialDataEnvelopeV1 {
     /// Returns `EQ0901` if checkpoint content or canonical Operator-IR linkage
     /// does not match the lowering/program pair.
     pub fn from_checkpoint(
-        lowering: &GeneralImplicitTimeLoweringEnvelopeV2,
+        lowering: &GeneralImplicitTimeLoweringEnvelopeV3,
         checkpoint: &crate::ImplicitTimeCheckpointEnvelopeV1,
         program: &KernelProgram,
     ) -> Result<Self, Diagnostic> {
@@ -283,7 +283,7 @@ impl ImplicitTimeInitialDataEnvelopeV1 {
     }
 
     fn new(
-        lowering: &GeneralImplicitTimeLoweringEnvelopeV2,
+        lowering: &GeneralImplicitTimeLoweringEnvelopeV3,
         initial_condition: InitialConditionPolicy,
         mut state: Vec<f64>,
         mut derivative: Vec<f64>,
@@ -394,7 +394,7 @@ impl ImplicitTimeInitialDataEnvelopeV1 {
     /// Returns `EQ0901` for any linkage or shape drift.
     pub fn validate_against(
         &self,
-        lowering: &GeneralImplicitTimeLoweringEnvelopeV2,
+        lowering: &GeneralImplicitTimeLoweringEnvelopeV3,
     ) -> Result<(), Diagnostic> {
         let proof = lowering.proof()?;
         if self.model_artifact() != lowering.model_artifact()
@@ -452,7 +452,7 @@ impl ImplicitTimeRunManifestV1 {
     /// Returns `EQ0901` for any linkage, dimension, method, equation-class,
     /// initial-condition, or adapter-supplied backend-version contradiction.
     pub fn new(
-        lowering: &GeneralImplicitTimeLoweringEnvelopeV2,
+        lowering: &GeneralImplicitTimeLoweringEnvelopeV3,
         input: &ImplicitTimeInitialDataEnvelopeV1,
         accepted: &ImplicitTimeInitialDataEnvelopeV1,
         plan: &TimePlan,
@@ -620,7 +620,7 @@ impl ImplicitTimeRunManifestV1 {
     /// equation-class, or initial-condition drift.
     pub fn validate_against(
         &self,
-        lowering: &GeneralImplicitTimeLoweringEnvelopeV2,
+        lowering: &GeneralImplicitTimeLoweringEnvelopeV3,
         input: &ImplicitTimeInitialDataEnvelopeV1,
         accepted: &ImplicitTimeInitialDataEnvelopeV1,
     ) -> Result<(), Diagnostic> {
@@ -695,6 +695,11 @@ pub(crate) fn validate_general_proof(
             "general implicit time state order or residual shape differs from canonical Operator IR",
         ));
     }
+    // Canonical scalar lowering above checked every component and scalar part.
+    let expected_fields = expected_fields
+        .iter()
+        .map(|coordinate| (coordinate.field(), coordinate.derivative_order()))
+        .collect::<Vec<_>>();
     let derivatives = expected_fields
         .iter()
         .copied()
@@ -788,7 +793,7 @@ fn is_negative_zero(value: f64) -> bool {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireGeneralImplicitTimeLoweringEnvelopeV2 {
+struct WireGeneralImplicitTimeLoweringEnvelopeV3 {
     schema: String,
     encoding: String,
     model_sha256: String,
@@ -965,8 +970,8 @@ impl WireImplicitTimeMethod {
         match value {
             TimeMethod::ImplicitEuler => Ok(Self::ImplicitEuler),
             TimeMethod::Bdf => Ok(Self::Bdf),
-            TimeMethod::Tsitouras45 => Err(invalid_artifact(
-                "Tsitouras45 cannot enter a residual-native time artifact",
+            TimeMethod::Tsitouras45 | TimeMethod::ImplicitMidpoint => Err(invalid_artifact(
+                "the selected ODE method cannot enter a residual-native time artifact",
             )),
         }
     }

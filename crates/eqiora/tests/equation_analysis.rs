@@ -50,7 +50,11 @@ fn deficient_rate_candidate_does_not_reject_a_regular_coupled_descriptor() {
         .unwrap();
     for alias in ["x", "y"] {
         assert!(
-            (initial.derivatives()[&(model.aliases()[alias], std::num::NonZeroU32::MIN)] + 1.0)
+            (initial.derivatives()[&(model.aliases()[alias], std::num::NonZeroU32::MIN)]
+                .real_scalar_value()
+                .unwrap()
+                .value()
+                + 1.0)
                 .abs()
                 < 1e-9
         );
@@ -79,4 +83,55 @@ fn an_unbalanced_system_can_be_analyzed_before_execution_rejects_it() {
             )
             .is_err()
     );
+}
+
+#[test]
+fn finite_complex_incidence_preserves_channels_and_real_parts() {
+    for duplicate in [false, true] {
+        let equations = (0..6)
+            .map(|channel| {
+                let index = if duplicate && channel == 5 {
+                    4
+                } else {
+                    channel
+                };
+                format!("derivative(z)[{index}]=math.complex(0,1)*omega*z[{index}];")
+            })
+            .collect::<String>();
+        let source = format!(
+            "model M() {{ parameter omega:1/s=1; state z:array<complex<1>,6>; relation r {{ {equations} }} }}"
+        );
+        let model = ModelDocument::compile("complex-incidence.eqi", &source).unwrap();
+        let report = Interpreter::new()
+            .analyze_equations(model.program())
+            .unwrap();
+        assert_eq!(report.equations().len(), 12);
+        let coordinates = report.balance().coordinates().collect::<Vec<_>>();
+        assert_eq!(coordinates.len(), 12);
+        for (index, coordinate) in coordinates.iter().enumerate() {
+            assert_eq!(
+                coordinate.symbol(),
+                eqiora_schema::kernel::SymbolRef::Field(model.aliases()["z"].downcast().unwrap())
+            );
+            assert_eq!(coordinate.component_index(), &[(index / 2) as u32]);
+            assert_eq!(coordinate.is_imaginary(), index % 2 == 1);
+        }
+        assert_eq!(report.balance().rank(), if duplicate { 10 } else { 12 });
+        assert_eq!(
+            report.declared_rate_partition().rank(),
+            if duplicate { 10 } else { 12 }
+        );
+        if duplicate {
+            let missing = report
+                .balance()
+                .underdetermined_coordinates()
+                .collect::<Vec<_>>();
+            assert_eq!(missing.len(), 2);
+            assert!(
+                missing
+                    .iter()
+                    .all(|coordinate| coordinate.component_index() == [5])
+            );
+        }
+    }
 }

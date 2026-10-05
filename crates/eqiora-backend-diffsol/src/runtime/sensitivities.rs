@@ -156,7 +156,7 @@ where
             })?;
             capture(&mut solver, problem, plan, roots, failures)
         }
-        TimeMethod::ImplicitEuler => {
+        TimeMethod::ImplicitEuler | TimeMethod::ImplicitMidpoint => {
             unreachable!("Diffsol admission rejects reference implicit Euler")
         }
     }

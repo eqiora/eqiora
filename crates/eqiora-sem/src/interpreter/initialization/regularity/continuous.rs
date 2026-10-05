@@ -1,5 +1,6 @@
 //! Regular equations alone must locally determine an admitted continuous DAE.
 use super::*;
+mod affine;
 mod compatibility;
 use eqiora_time::ConstantDerivativeMatrixProof;
 
@@ -9,6 +10,19 @@ pub(super) fn validate<'a>(
     context: &EvalContext<'_>,
     settings: solver::NonlinearSettings,
 ) -> Result<(), Diagnostic> {
+    if plan.algebraic_fields.is_empty()
+        && plan.continuous_ports.is_empty()
+        && plan.physical_systems.is_empty()
+        && affine::regular_ode(
+            program,
+            &plan.differential_orders,
+            &plan.continuous_relations,
+        )?
+    {
+        // Full-rank constant mass determines every initial rate; there is no
+        // algebraic constraint whose tangent would require additional rates.
+        return Ok(());
+    }
     let values = plan
         .differential_orders
         .keys()

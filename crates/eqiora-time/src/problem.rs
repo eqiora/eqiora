@@ -123,6 +123,57 @@ impl<'a> TimeProblem<'a> {
         &self.initial_state
     }
 
+    /// Evaluate the physical rate, solving `M y_dot = f` for full-rank mass.
+    ///
+    /// # Errors
+    /// Rejects invalid points, singular mass actions and non-finite arithmetic.
+    /// Rank-deficient systems require a residual consistency solve instead.
+    pub fn rate(&self, time: f64, state: &[f64]) -> Result<Vec<f64>, Diagnostic> {
+        let n = self.dimension();
+        if !time.is_finite() || state.len() != n || state.iter().any(|x| !x.is_finite()) {
+            return Err(invalid_lowering(
+                "rate evaluation requires a finite complete state",
+            ));
+        }
+        if !matches!(
+            self.equation_class,
+            TimeEquationClass::ExplicitOde
+                | TimeEquationClass::MassMatrix {
+                    rank: MassMatrixRank::Full
+                }
+        ) {
+            return Err(invalid_lowering(
+                "rate evaluation requires a uniquely determined derivative",
+            ));
+        }
+        let mut rhs = vec![0.; n];
+        self.system.rhs(time, state, &mut rhs)?;
+        if rhs.iter().any(|x| !x.is_finite()) {
+            return Err(time_solve_failed("rate right-hand side is non-finite"));
+        }
+        if self.equation_class == TimeEquationClass::ExplicitOde {
+            return Ok(rhs);
+        }
+        let size = n
+            .checked_mul(n)
+            .ok_or_else(|| invalid_lowering("mass matrix size overflows"))?;
+        let mut matrix = vec![0.; size];
+        let mut direction = vec![0.; n];
+        let mut column = vec![0.; n];
+        for j in 0..n {
+            direction[j] = 1.;
+            self.system.mass_action(time, &direction, &mut column)?;
+            if column.iter().any(|x| !x.is_finite()) {
+                return Err(time_solve_failed("rate mass action is non-finite"));
+            }
+            for i in 0..n {
+                matrix[i * n + j] = column[i];
+            }
+            direction[j] = 0.;
+        }
+        crate::reference_implicit::solve_dense(matrix, rhs)
+    }
+
     /// Rebind the same lowered system/class after an Eqiora-owned reset.
     ///
     /// The caller, normally the hybrid scheduler, determines atomic reset

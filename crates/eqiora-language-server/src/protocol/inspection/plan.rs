@@ -1,7 +1,7 @@
 //! Thin, read-only projection of the existing canonical numerical Plan owner.
 use eqiora::{
     api::ModelDocument,
-    backends::{diffsol::DIFFSOL_TIME_BACKEND, faer::FaerLinearSolver},
+    backends::{diffsol::DIFFSOL_TIME_CAPABILITIES, faer::FaerLinearSolver},
 };
 use eqiora_numerics::ResolvedCommonPlan;
 use serde_json::{Value, json};
@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 pub(super) fn project(bytes: &[u8], selected: &ModelDocument) -> Result<Value, String> {
     // Decoding re-resolves admission and checks exact canonical bytes and provider
     // versions. It never executes the Plan or accepts renderer-authored controls.
-    let plan = ResolvedCommonPlan::from_bytes(bytes, &FaerLinearSolver, DIFFSOL_TIME_BACKEND)
+    let plan = ResolvedCommonPlan::from_bytes(bytes, &FaerLinearSolver, DIFFSOL_TIME_CAPABILITIES)
         .map_err(|error| format!("Cannot validate numerical Plan: {}", error.message()))?;
     let selected_digest = selected
         .digest()
@@ -39,7 +39,7 @@ mod tests {
     use super::*;
     use eqiora::artifact::{ModelDecoderLimits, ModelEnvelope};
     use eqiora::kernel::KernelNode;
-    use eqiora_numerics::{CommonTsitouras45, CommonTsitourasTolerance, resolve_common_ode_plan};
+    use eqiora_numerics::{CommonOdePolicy, CommonTimeTolerance, resolve_common_ode_plan};
 
     fn model(rate: u8) -> ModelDocument {
         ModelDocument::compile("decay.eqi", &format!("model Decay() {{ parameter rate: 1 / s = {rate}; state x: 1; initial {{ x = 1; }} relation decay {{ derivative(x) = -rate * x; }} }}")).unwrap()
@@ -62,13 +62,20 @@ mod tests {
         resolve_common_ode_plan(
             &envelope,
             model.program(),
-            CommonTsitouras45::new(
+            CommonOdePolicy::new(
+                eqiora::time::TimeMethod::Tsitouras45,
                 0.01,
                 1e-6,
-                vec![CommonTsitourasTolerance::new((field, 0), 1e-9).unwrap()],
+                vec![
+                    CommonTimeTolerance::new(
+                        eqiora::TimeStateCoordinate::new(field, 0, 0, false),
+                        1e-9,
+                    )
+                    .unwrap(),
+                ],
             )
             .unwrap(),
-            DIFFSOL_TIME_BACKEND,
+            DIFFSOL_TIME_CAPABILITIES,
         )
         .unwrap()
         .to_bytes()
@@ -82,7 +89,10 @@ mod tests {
         let view = project(&bytes, &selected).unwrap();
         assert_eq!(view["matchesSelectedModel"], true);
         assert_eq!(view["modelDigest"], selected.digest().unwrap());
-        assert_eq!(view["solverBackend"], DIFFSOL_TIME_BACKEND.id());
+        assert_eq!(
+            view["solverBackend"],
+            DIFFSOL_TIME_CAPABILITIES.identity().id()
+        );
         assert_eq!(view["metadata"]["family"], "ode");
         assert_eq!(view["metadata"]["temporal"]["initial_step_s"], 0.01);
         assert_eq!(view["metadata"]["temporal"]["relative_tolerance"], 1e-6);

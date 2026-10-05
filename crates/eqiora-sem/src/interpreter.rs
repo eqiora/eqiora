@@ -13,6 +13,8 @@ use residuals::evaluate_relations;
 mod samples;
 mod session;
 mod state;
+mod variables;
+use variables::{CandidateMaps, candidate_maps, commit_solution, variable_value};
 mod structural;
 pub use session::ExecutionSession;
 use state::RuntimeState;
@@ -441,7 +443,7 @@ impl Interpreter {
         backend: &impl ExpressionBackend,
         observer: &mut impl ExecutionObserver,
     ) -> Result<ExecutionOutcome, Vec<Diagnostic>> {
-        if program.nodes().any(|node| matches!(node, KernelNode::Field(field) if direct_assignments::requires_typed_assignment(program,SymbolRef::Field(field.id())))) {
+        if program.nodes().any(|node| matches!(node, KernelNode::Field(field) if !field.value_type().shape().is_scalar() || field.value_type().scalar_domain() != eqiora_core::ScalarDomain::Real)) {
             return Err(vec![execution_error("DynQuantity trajectories cannot retain channel or exact discrete Fields; use execution_session",0.0)]);
         }
         let mut session =
@@ -570,7 +572,7 @@ fn solve_consistency(
         config.nonlinear_settings(),
         execution_path("consistency", time),
         |values| {
-            let candidates = candidate_maps(&variables, values, state);
+            let candidates = candidate_maps(program, &variables, values, state)?;
             evaluate_relations(
                 program,
                 &plan.continuous_relations,
@@ -587,7 +589,7 @@ fn solve_consistency(
             )
         },
     )?;
-    commit_solution(&variables, &solution, state);
+    commit_solution(program, &variables, &solution, state)?;
     Ok(())
 }
 
@@ -623,7 +625,7 @@ fn solve_continuous_step(
         config.nonlinear_settings(),
         execution_path("continuous-step", end),
         |values| {
-            let mut candidates = candidate_maps(&variables, values, state);
+            let mut candidates = candidate_maps(program, &variables, values, state)?;
             advance_continuous_coordinates(plan, state, &mut candidates, step, end)?;
             evaluate_relations(
                 program,
@@ -641,9 +643,9 @@ fn solve_continuous_step(
             )
         },
     )?;
-    let mut accepted = candidate_maps(&variables, &solution, state);
+    let mut accepted = candidate_maps(program, &variables, &solution, state)?;
     advance_continuous_coordinates(plan, state, &mut accepted, step, end)?;
-    commit_solution(&variables, &solution, state);
+    commit_solution(program, &variables, &solution, state)?;
     state.fields.extend(accepted.fields);
     state.derivatives = accepted.derivatives;
     clear_clocked_variables(program, state);
@@ -663,11 +665,16 @@ fn advance_continuous_coordinates(
     for (&field, highest) in &plan.differential_orders {
         for order in (1..=highest.get()).rev() {
             let order = std::num::NonZeroU32::new(order).unwrap();
-            let rate = candidates.derivatives[&(field, order)];
+            let rate = evaluate::real(&candidates.derivatives[&(field, order)])?.value();
             let lower = std::num::NonZeroU32::new(order.get() - 1);
             let previous = match lower {
-                None => state.fields.get(&field),
-                Some(lower) => state.derivatives.get(&(field, lower)),
+                None => state.fields.get(&field).copied(),
+                Some(lower) => state
+                    .derivatives
+                    .get(&(field, lower))
+                    .map(evaluate::real)
+                    .transpose()?
+                    .map(|value| value.value()),
             }
             .ok_or_else(|| {
                 execution_error(
@@ -689,6 +696,11 @@ fn advance_continuous_coordinates(
                     candidates.fields.insert(field, value);
                 }
                 Some(lower) => {
+                    let value_type = state.derivatives[&(field, lower)].value_type().clone();
+                    let value =
+                        eqiora_core::ValueLiteral::from_real(value_type, value).map_err(|_| {
+                            execution_error("candidate derivative does not match its type", time)
+                        })?;
                     candidates.derivatives.insert((field, lower), value);
                 }
             }
@@ -745,7 +757,7 @@ fn execute_activated_relations(
     let (initial, check_rank) =
         clocked_variables::solve_seed(program, &variables, &accepted_candidate, config);
     let residual = |values: &[f64]| {
-        let candidates = candidate_maps(&variables, values, &accepted_candidate);
+        let candidates = candidate_maps(program, &variables, values, &accepted_candidate)?;
         evaluate_relations(
             program,
             relations,
@@ -776,7 +788,7 @@ fn execute_activated_relations(
             residual,
         )
     }?;
-    commit_solution(&variables, &solution, &mut accepted_candidate);
+    commit_solution(program, &variables, &solution, &mut accepted_candidate)?;
     accepted_candidate
         .typed_fields
         .extend(std::mem::take(&mut accepted_candidate.typed_next));
@@ -790,74 +802,6 @@ fn execute_activated_relations(
     )?;
     *state = accepted_candidate;
     Ok(())
-}
-
-struct CandidateMaps {
-    fields: BTreeMap<RawId, f64>,
-    derivatives: BTreeMap<(RawId, std::num::NonZeroU32), f64>,
-    next_fields: BTreeMap<RawId, f64>,
-    ports: BTreeMap<RawId, f64>,
-    physical: BTreeMap<PhysicalUnknown, f64>,
-}
-
-fn candidate_maps(variables: &[Variable], values: &[f64], state: &RuntimeState) -> CandidateMaps {
-    let mut candidates = CandidateMaps {
-        fields: BTreeMap::new(),
-        derivatives: state.derivatives.clone(),
-        next_fields: BTreeMap::new(),
-        ports: BTreeMap::new(),
-        physical: BTreeMap::new(),
-    };
-    for (variable, value) in variables.iter().zip(values) {
-        match *variable {
-            Variable::Field(id) => {
-                candidates.fields.insert(id, *value);
-            }
-            Variable::Derivative(id, order) => {
-                candidates.derivatives.insert((id, order), *value);
-            }
-            Variable::NextField(id) => {
-                candidates.next_fields.insert(id, *value);
-            }
-            Variable::Port(id) => {
-                candidates.ports.insert(id, *value);
-            }
-            Variable::Physical(unknown) => {
-                candidates.physical.insert(unknown, *value);
-            }
-        }
-    }
-    candidates
-}
-
-fn commit_solution(variables: &[Variable], values: &[f64], state: &mut RuntimeState) {
-    for (variable, value) in variables.iter().zip(values) {
-        match *variable {
-            Variable::Field(id) | Variable::NextField(id) => {
-                state.fields.insert(id, *value);
-            }
-            Variable::Derivative(id, order) => {
-                state.derivatives.insert((id, order), *value);
-            }
-            Variable::Port(id) => {
-                state.ports.insert(id, *value);
-            }
-            Variable::Physical(unknown) => {
-                state.physical.insert(unknown, *value);
-            }
-        }
-    }
-}
-
-fn variable_value(variable: Variable, state: &RuntimeState) -> f64 {
-    match variable {
-        Variable::Field(id) | Variable::NextField(id) => state.fields[&id],
-        Variable::Derivative(id, order) => {
-            state.derivatives.get(&(id, order)).copied().unwrap_or(0.0)
-        }
-        Variable::Port(id) => state.ports.get(&id).copied().unwrap_or(0.0),
-        Variable::Physical(unknown) => state.physical.get(&unknown).copied().unwrap_or(0.0),
-    }
 }
 
 fn relation_symbols(

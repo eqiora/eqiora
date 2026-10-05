@@ -3,7 +3,7 @@ use super::*;
 use crate::model::PyActivationRef;
 use crate::modeling::PyDimension;
 use eqiora::DynQuantity;
-use eqiora_numerics::CommonTsitouras45;
+use eqiora_numerics::CommonOdePolicy;
 
 #[pyclass(
     name = "GuardTolerance",
@@ -93,7 +93,7 @@ impl PyEventPolicy {
                 "EventPolicy guard tolerances belong to different exact Models",
             ));
         }
-        CommonTsitouras45::validate_event_controls(
+        CommonOdePolicy::validate_event_controls(
             max_events,
             entries
                 .iter()

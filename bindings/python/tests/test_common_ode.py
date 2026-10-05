@@ -29,7 +29,7 @@ def resolve_decay(model: eqiora.Model) -> tuple[eqiora.Plan, eqiora.FieldRef]:
         temporal=eqiora.time.Tsitouras45(
             initial_step_s=0.01,
             relative_tolerance=1.0e-9,
-            absolute_tolerances={(field, 0): 1.0e-11},
+            absolute_tolerances={(field, 0, 0, False): 1.0e-11},
         ),
     )
     return plan, field
@@ -49,11 +49,11 @@ model Timed() {
     q = model.field("q")
     plan = eqiora.resolve(model, temporal=eqiora.time.Tsitouras45(
         initial_step_s=0.001, relative_tolerance=1e-10,
-        absolute_tolerances={(q, order): 1e-12 for order in (0, 1)},
+        absolute_tolerances={(q, order, 0, False): 1e-12 for order in (0, 1)},
     ))
     plan = eqiora.Plan.from_bytes(plan.to_bytes())
     assert plan.formulation.effective == eqiora.FormulationKind.FirstOrderEvolution
-    assert plan.formulation.state_coordinates == ((q, 0), (q, 1))
+    assert plan.formulation.state_coordinates == ((q, 0, 0, False), (q, 1, 0, False))
     state = eqiora.State.initial(plan, time_s=2.)
     state = eqiora.State.from_bytes(plan, state.to_bytes())
     assert state.time_s == 2.
@@ -90,7 +90,7 @@ def test_model_first_no_mesh_decay_owns_exact_lineage_and_adaptive_series() -> N
     assert initial.model is model
     assert initial.mesh is None
     assert initial.time_s == 0.0
-    assert initial.state_coordinates == ((field, 0),)
+    assert initial.state_coordinates == ((field, 0, 0, False),)
     assert initial.value(field) == 1.0
     assert initial.source_kind == "initial"
     initial_bytes = initial.to_bytes()

@@ -98,7 +98,7 @@ pub(crate) enum PyFormulationSelectionMode {
 pub(crate) struct PyFormulationView {
     model_digest: String,
     source_relation_id: Option<String>,
-    state_coordinates: Vec<(String, u32)>,
+    state_coordinates: Vec<(String, u32, usize, bool)>,
     requested: PyFormulationSelectionMode,
     effective: PyFormulationKind,
     boundary_treatment: &'static str,
@@ -127,7 +127,14 @@ impl PyFormulationView {
             state_coordinates: description
                 .state_coordinates()
                 .iter()
-                .map(|(field, order)| (field.ulid().to_string(), *order))
+                .map(|coordinate| {
+                    (
+                        coordinate.field().ulid().to_string(),
+                        coordinate.derivative_order(),
+                        coordinate.component(),
+                        coordinate.is_imaginary(),
+                    )
+                })
                 .collect(),
             requested,
             effective,
@@ -149,12 +156,16 @@ impl PyFormulationView {
     fn state_coordinates(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
         PyTuple::new(
             py,
-            self.state_coordinates.iter().map(|(field, order)| {
-                (
-                    PyModelFieldRef::from_exact(self.model_digest.clone(), field.clone()),
-                    *order,
-                )
-            }),
+            self.state_coordinates
+                .iter()
+                .map(|(field, order, component, imaginary)| {
+                    (
+                        PyModelFieldRef::from_exact(self.model_digest.clone(), field.clone()),
+                        *order,
+                        *component,
+                        *imaginary,
+                    )
+                }),
         )
         .map(Bound::unbind)
     }
@@ -216,6 +227,16 @@ impl PyOdePlanView {
     #[getter]
     const fn backend_version(&self) -> &'static str {
         self.backend_version
+    }
+    /// Storage of each real or imaginary coordinate admitted by this Plan.
+    #[getter]
+    const fn scalar_type(&self) -> &'static str {
+        "f64"
+    }
+    /// Complex values retain both coordinates; no magnitude-only projection.
+    #[getter]
+    const fn value_representation(&self) -> &'static str {
+        "real-coordinates"
     }
     fn __repr__(&self) -> String {
         format!("OdePlanView(backend={:?})", self.backend)

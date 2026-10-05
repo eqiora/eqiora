@@ -17,7 +17,7 @@ plan = eqiora.resolve(
     temporal=eqiora.time.Tsitouras45(
         initial_step_s=0.01,
         relative_tolerance=1.0e-9,
-        absolute_tolerances={(field, 0): 1.0e-11},
+        absolute_tolerances={(field, 0, 0, False): 1.0e-11},
     ),
 )
 state = eqiora.State.initial(plan)
@@ -211,3 +211,10 @@ preserves the accepted clock position and previously absent or present outputs.
 The immutable Model fixes every extent. Scalar broadcasting, partial indexed
 writes, spatial tensors and complex execution are unsupported in execution sessions.
 Input and retained output limits count scalar components, including nested arrays.
+
+For common ODE runs, `state.value(field)` returns the entire declared value:
+real scalars remain `float`, complex scalars are `complex`, and arrays are nested
+immutable tuples with the declared axes. `derivative_order=` selects a stored
+higher-order state coordinate; an unstored derivative is rejected. Accepted-State
+serialization and restart preserve these complete values. `result.series(field,
+component=..., imaginary=...)` selects one real coordinate for a time series.

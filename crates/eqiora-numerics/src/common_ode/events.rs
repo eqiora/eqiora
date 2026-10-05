@@ -154,7 +154,7 @@ pub(super) fn roots(
     program: &FirstOrderProgram,
     policy: &CommonEventPolicy,
 ) -> Result<CanonicalRootSet, Diagnostic> {
-    let lowering = TimeLoweringEnvelopeV2::from_proof(model, kernel, program.lowering_proof())?;
+    let lowering = TimeLoweringEnvelopeV3::from_proof(model, kernel, program.lowering_proof())?;
     let registration = RootRegistrationEnvelopeV1::new(model, kernel, &lowering)?;
     let roots = CanonicalRootSet::lower(
         cpu,

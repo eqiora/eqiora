@@ -72,7 +72,7 @@ fn plan_inspection_validates_exact_artifacts_and_tracks_selected_model_edits() {
         compiler::{CompilationNamespaceId, ResolvedHierarchyInput, ResolvedSourceUnit},
         kernel::KernelNode,
     };
-    use eqiora_numerics::{CommonTsitouras45, CommonTsitourasTolerance, resolve_common_ode_plan};
+    use eqiora_numerics::{CommonOdePolicy, CommonTimeTolerance, resolve_common_ode_plan};
     let source = "model Decay() { state x: 1; initial { x = 1; } parameter rate: 1 / s = 1; relation flow { derivative(x) + rate * x = 0; } }";
     let owner = CompilationNamespaceId::new(["editor.workspace"]).unwrap();
     let unit = ResolvedSourceUnit::new(owner.clone(), "src/decay.eqi", source).unwrap();
@@ -95,13 +95,20 @@ fn plan_inspection_validates_exact_artifacts_and_tracks_selected_model_edits() {
     let plan = resolve_common_ode_plan(
         &envelope,
         model.program(),
-        CommonTsitouras45::new(
+        CommonOdePolicy::new(
+            eqiora::time::TimeMethod::Tsitouras45,
             0.01,
             1e-6,
-            vec![CommonTsitourasTolerance::new((field, 0), 1e-9).unwrap()],
+            vec![
+                CommonTimeTolerance::new(
+                    eqiora::TimeStateCoordinate::new(field, 0, 0, false),
+                    1e-9,
+                )
+                .unwrap(),
+            ],
         )
         .unwrap(),
-        eqiora::backends::diffsol::DIFFSOL_TIME_BACKEND,
+        eqiora::backends::diffsol::DIFFSOL_TIME_CAPABILITIES,
     )
     .unwrap();
     let bytes = String::from_utf8(plan.to_bytes().unwrap()).unwrap();

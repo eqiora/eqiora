@@ -2,7 +2,7 @@
 use eqiora::{
     ScalarDomain, ValueLiteral, ValueType,
     api::{MathRendering, ModelDocument},
-    backends::{diffsol::DIFFSOL_TIME_BACKEND, faer::FaerLinearSolver},
+    backends::{diffsol::DIFFSOL_TIME_CAPABILITIES, faer::FaerLinearSolver},
     kernel::KernelNode,
     language::NotationProfile,
 };
@@ -15,7 +15,7 @@ pub(super) fn project(
     plan: &[u8],
     selected: &ModelDocument,
 ) -> Result<Value, String> {
-    let plan = ResolvedCommonPlan::from_bytes(plan, &FaerLinearSolver, DIFFSOL_TIME_BACKEND)
+    let plan = ResolvedCommonPlan::from_bytes(plan, &FaerLinearSolver, DIFFSOL_TIME_CAPABILITIES)
         .map_err(|error| format!("Cannot validate Result Plan: {}", error.message()))?;
     if plan.model_digest()
         != selected

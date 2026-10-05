@@ -21,7 +21,7 @@ plan = eqiora.resolve(
     temporal=eqiora.time.Tsitouras45(
         initial_step_s=0.01,
         relative_tolerance=1e-9,
-        absolute_tolerances={(x, 0): 1e-11},
+        absolute_tolerances={(x, 0, 0, False): 1e-11},
     ),
 )
 result = eqiora.run(
@@ -246,13 +246,15 @@ import eqiora
 method = eqiora.time.Tsitouras45(
     initial_step_s=0.01,
     relative_tolerance=1e-9,
-    absolute_tolerances={(x, 0): 1e-11},
+    absolute_tolerances={(x, 0, 0, False): 1e-11},
 )
 plan = eqiora.resolve(model, temporal=method)
 ```
 
 The initial step is in seconds. Each absolute tolerance is bound to an exact
-Model field and expressed in that field's SI units; `x` is dimensionless here.
+state coordinate `(field, derivative_order, component, imaginary)`. Components use
+zero-based row-major indices; `False` selects the real part and `True` the imaginary
+part. Tolerances use the coordinate's SI units; `x` is dimensionless here.
 `output_times_s` in `run` chooses observation times independently of the
 adaptive internal steps.
 ''',

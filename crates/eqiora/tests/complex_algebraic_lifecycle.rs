@@ -51,7 +51,11 @@ fn solve_with(source: &str, complex: bool) -> (ModelDocument, CommonAlgebraicPla
     let replayed = ResolvedCommonPlan::from_bytes(
         &resolved.to_bytes().unwrap(),
         &FaerLinearSolver,
-        eqiora::time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+        eqiora::time::TimeBackendCapabilities::new(
+            eqiora::time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+            &[eqiora::ScalarDomain::Real, eqiora::ScalarDomain::Complex],
+            &[eqiora::ScalarType::F64],
+        ),
     )
     .unwrap();
     assert_eq!(replayed, resolved);

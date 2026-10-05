@@ -8,7 +8,7 @@ fn fixture(
 ) -> (
     ModelEnvelope,
     KernelProgram,
-    CommonTsitouras45,
+    CommonOdePolicy,
     Vec<CommonSensitivityTolerance>,
 ) {
     let source = if events {
@@ -32,10 +32,17 @@ fn fixture(
             _ => None,
         })
         .unwrap();
-    let mut temporal = CommonTsitouras45::new(
+    let mut temporal = CommonOdePolicy::new(
+        eqiora_time::TimeMethod::Tsitouras45,
         0.001,
         1e-9,
-        vec![CommonTsitourasTolerance::new((field.id(), 0), 1e-11).unwrap()],
+        vec![
+            CommonTimeTolerance::new(
+                eqiora_core::TimeStateCoordinate::new(field.id(), 0, 0, false),
+                1e-11,
+            )
+            .unwrap(),
+        ],
     )
     .unwrap();
     if events {
@@ -83,7 +90,7 @@ fn fixture(
                 )
                 .unwrap();
             CommonSensitivityTolerance::new(
-                (field.id(), 0),
+                eqiora_core::TimeStateCoordinate::new(field.id(), 0, 0, false),
                 parameter,
                 DynQuantity::new((index + 1) as f64 * 1e-11, dimension),
             )
@@ -95,14 +102,21 @@ fn fixture(
 fn resolve(
     model: &ModelEnvelope,
     kernel: &KernelProgram,
-    temporal: CommonTsitouras45,
+    temporal: CommonOdePolicy,
     entries: Vec<CommonSensitivityTolerance>,
 ) -> Result<CommonOdePlan, Diagnostic> {
     CommonOdePlan::resolve(
         model,
         kernel,
         temporal.with_forward_sensitivity_policy(CommonForwardSensitivity::new(1e-9, entries)?),
-        TimeBackendIdentity::new("test.forward", "1"),
+        eqiora_time::TimeBackendCapabilities::new(
+            eqiora_time::TimeBackendIdentity::new("test.forward", "1"),
+            &[
+                eqiora_core::ScalarDomain::Real,
+                eqiora_core::ScalarDomain::Complex,
+            ],
+            &[eqiora_core::ScalarType::F64],
+        ),
     )
 }
 #[test]
@@ -113,7 +127,14 @@ fn controls_bind_units_global_event_coordinates_and_exact_plan_replay() {
             &model,
             &kernel,
             temporal.clone(),
-            TimeBackendIdentity::new("test.forward", "1"),
+            eqiora_time::TimeBackendCapabilities::new(
+                eqiora_time::TimeBackendIdentity::new("test.forward", "1"),
+                &[
+                    eqiora_core::ScalarDomain::Real,
+                    eqiora_core::ScalarDomain::Complex,
+                ],
+                &[eqiora_core::ScalarType::F64],
+            ),
         )
         .unwrap();
         let plan = resolve(&model, &kernel, temporal.clone(), entries.clone()).unwrap();
@@ -143,7 +164,14 @@ fn controls_bind_units_global_event_coordinates_and_exact_plan_replay() {
         let reopened = ResolvedCommonPlan::from_bytes(
             &bytes,
             &REFERENCE_LINEAR_SOLVER,
-            TimeBackendIdentity::new("test.forward", "1"),
+            eqiora_time::TimeBackendCapabilities::new(
+                eqiora_time::TimeBackendIdentity::new("test.forward", "1"),
+                &[
+                    eqiora_core::ScalarDomain::Real,
+                    eqiora_core::ScalarDomain::Complex,
+                ],
+                &[eqiora_core::ScalarType::F64],
+            ),
         )
         .unwrap();
         assert_eq!(reopened, resolved);

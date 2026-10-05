@@ -41,7 +41,10 @@ fn canonical_bouncing_ball_produces_event_time_reset_and_saltation_derivatives()
     assert_eq!(event.activations().len(), 2);
     assert_eq!(
         event.flow().state_coordinates(),
-        [(fixture.height, 0), (fixture.velocity, 0)]
+        [
+            eqiora_core::TimeStateCoordinate::new(fixture.height, 0, 0, false),
+            eqiora_core::TimeStateCoordinate::new(fixture.velocity, 0, 0, false)
+        ]
     );
     assert_eq!(
         event.parameter_fields(),

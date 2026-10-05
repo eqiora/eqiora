@@ -156,7 +156,15 @@ fn initial_algebraic_condition_and_regular_equations_jointly_determine_state() {
             .abs()
             < 1e-8
     );
-    assert!((initial.derivatives()[&(x.erase(), std::num::NonZeroU32::MIN)] + 1.0).abs() < 1e-8);
+    assert!(
+        (initial.derivatives()[&(x.erase(), std::num::NonZeroU32::MIN)]
+            .real_scalar_value()
+            .unwrap()
+            .value()
+            + 1.0)
+            .abs()
+            < 1e-8
+    );
     for guess in [-4.0, 3.0] {
         let another = Interpreter::new()
             .initialize(&model, 0.0, config.with_initial_guess(guess).unwrap())
@@ -180,7 +188,13 @@ fn initial_algebraic_condition_and_regular_equations_jointly_determine_state() {
                 < 1e-8
         );
         assert!(
-            (another.derivatives()[&(x.erase(), std::num::NonZeroU32::MIN)] + 1.0).abs() < 1e-8
+            (another.derivatives()[&(x.erase(), std::num::NonZeroU32::MIN)]
+                .real_scalar_value()
+                .unwrap()
+                .value()
+                + 1.0)
+                .abs()
+                < 1e-8
         );
     }
     assert_eq!(config.initial_guess(), 0.0);
@@ -224,7 +238,10 @@ fn initial_derivative_condition_can_determine_stationary_state() {
         0.0
     );
     assert_eq!(
-        initial.derivatives()[&(x.erase(), std::num::NonZeroU32::MIN)],
+        initial.derivatives()[&(x.erase(), std::num::NonZeroU32::MIN)]
+            .real_scalar_value()
+            .unwrap()
+            .value(),
         0.0
     );
 }
@@ -469,7 +486,12 @@ fn affine_rank_one_descriptor_uses_one_independent_initial_condition() {
                     < 1e-8
             );
             assert!(
-                (initial.derivatives()[&(field.erase(), std::num::NonZeroU32::MIN)] + rate).abs()
+                (initial.derivatives()[&(field.erase(), std::num::NonZeroU32::MIN)]
+                    .real_scalar_value()
+                    .unwrap()
+                    .value()
+                    + rate)
+                    .abs()
                     < 1e-8
             );
         }

@@ -122,7 +122,7 @@ fn nonlinear_stored_quantity_runs_through_the_common_implicit_lifecycle() {
         let replay_system =
             GeneralImplicitProgram::lower(&CpuProgram::lower(&replay).unwrap(), relation).unwrap();
         assert_eq!(system.lowering_proof(), replay_system.lowering_proof());
-        let lowering = eqiora::artifact::GeneralImplicitTimeLoweringEnvelopeV2::from_proof(
+        let lowering = eqiora::artifact::GeneralImplicitTimeLoweringEnvelopeV3::from_proof(
             &envelope,
             &kernel,
             system.lowering_proof(),

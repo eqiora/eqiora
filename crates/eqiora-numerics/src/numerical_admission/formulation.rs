@@ -61,9 +61,7 @@ impl CommonFormulationDescription {
     /// of a Field obey D(q_k) = q_(k+1); its highest rate enters the authored Relation.
     /// Empty for spatial Formulations, whose field/space correspondence has its own owner.
     #[must_use]
-    pub fn state_coordinates(
-        &self,
-    ) -> &[(eqiora_core::Id<eqiora_core::entity::kinds::Field>, u32)] {
+    pub fn state_coordinates(&self) -> &[eqiora_core::TimeStateCoordinate] {
         &self.state_coordinates
     }
 

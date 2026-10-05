@@ -1,4 +1,5 @@
 use super::*;
+use eqiora_core::TimeStateCoordinate;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
@@ -110,13 +111,23 @@ fn lowering_proof_derives_equation_class_from_exact_matrix() {
     let differential = Id::<kinds::Field>::new();
     let algebraic = Id::<kinds::Field>::new();
     let matrix = ConstantDerivativeMatrixProof::new(2, vec![-2.0, 0.0, 0.0, 0.0]).unwrap();
-    let proof =
-        TimeLoweringProof::new(relation, vec![(differential, 0), (algebraic, 0)], matrix).unwrap();
+    let proof = TimeLoweringProof::new(
+        relation,
+        vec![
+            TimeStateCoordinate::new(differential, 0, 0, false),
+            TimeStateCoordinate::new(algebraic, 0, 0, false),
+        ],
+        matrix,
+    )
+    .unwrap();
 
     assert_eq!(proof.relation(), relation);
     assert_eq!(
         proof.state_coordinates(),
-        [(differential, 0), (algebraic, 0)]
+        [
+            TimeStateCoordinate::new(differential, 0, 0, false),
+            TimeStateCoordinate::new(algebraic, 0, 0, false)
+        ]
     );
     assert_eq!(
         proof.equation_class(),
@@ -139,9 +150,16 @@ fn exact_rank_separates_ill_conditioned_full_and_singular_dense_matrices() {
         ConstantDerivativeMatrixProof::new(2, vec![1.0, 1.0, 1.0, 1.0 + f64::EPSILON]).unwrap();
     assert_eq!(full.exact_rank(), 2);
     assert_eq!(
-        TimeLoweringProof::new(relation, vec![(first, 0), (second, 0)], full)
-            .unwrap()
-            .equation_class(),
+        TimeLoweringProof::new(
+            relation,
+            vec![
+                TimeStateCoordinate::new(first, 0, 0, false),
+                TimeStateCoordinate::new(second, 0, 0, false)
+            ],
+            full
+        )
+        .unwrap()
+        .equation_class(),
         TimeEquationClass::MassMatrix {
             rank: MassMatrixRank::Full
         }
@@ -150,9 +168,16 @@ fn exact_rank_separates_ill_conditioned_full_and_singular_dense_matrices() {
     let singular = ConstantDerivativeMatrixProof::new(2, vec![1.0, 1.0, 2.0, 2.0]).unwrap();
     assert_eq!(singular.exact_rank(), 1);
     assert_eq!(
-        TimeLoweringProof::new(relation, vec![(first, 0), (second, 0)], singular)
-            .unwrap()
-            .equation_class(),
+        TimeLoweringProof::new(
+            relation,
+            vec![
+                TimeStateCoordinate::new(first, 0, 0, false),
+                TimeStateCoordinate::new(second, 0, 0, false)
+            ],
+            singular
+        )
+        .unwrap()
+        .equation_class(),
         TimeEquationClass::MassMatrix {
             rank: MassMatrixRank::RankDeficient
         }
@@ -160,9 +185,16 @@ fn exact_rank_separates_ill_conditioned_full_and_singular_dense_matrices() {
 
     let zero = ConstantDerivativeMatrixProof::new(2, vec![0.0; 4]).unwrap();
     assert_eq!(
-        TimeLoweringProof::new(relation, vec![(first, 0), (second, 0)], zero)
-            .unwrap_err()
-            .code(),
+        TimeLoweringProof::new(
+            relation,
+            vec![
+                TimeStateCoordinate::new(first, 0, 0, false),
+                TimeStateCoordinate::new(second, 0, 0, false)
+            ],
+            zero
+        )
+        .unwrap_err()
+        .code(),
         codes::INVALID_TIME_LOWERING
     );
 }
@@ -474,4 +506,48 @@ fn exact_matrix_proof_preserves_products_and_rejects_invalid_raw_rationals() {
             .is_err()
     );
     assert!(full.is_compatible(&[], &[invalid]).is_err());
+}
+
+#[test]
+fn time_state_coordinates_require_complete_channels_parts_and_derivative_chains() {
+    let field = Id::<kinds::Field>::new();
+    let relation = Id::<kinds::Relation>::new();
+    let coordinates = (0..2)
+        .flat_map(|order| {
+            (0..6).flat_map(move |component| {
+                [false, true]
+                    .map(|imaginary| TimeStateCoordinate::new(field, order, component, imaginary))
+            })
+        })
+        .collect::<Vec<_>>();
+    let matrix = |n: usize| {
+        ConstantDerivativeMatrixProof::new(
+            n,
+            (0..n * n)
+                .map(|index| f64::from(index / n == index % n))
+                .collect(),
+        )
+        .unwrap()
+    };
+    let proof = TimeLoweringProof::new(relation, coordinates.clone(), matrix(24)).unwrap();
+    assert_eq!(proof.state_coordinates(), coordinates);
+    assert_eq!(proof.state_coordinates()[23].field(), field);
+    assert_eq!(proof.state_coordinates()[23].derivative_order(), 1);
+    assert_eq!(proof.state_coordinates()[23].component(), 5);
+    assert!(proof.state_coordinates()[23].is_imaginary());
+    for remove in [0, 1, 12, 23] {
+        let mut incomplete = coordinates.clone();
+        incomplete.remove(remove);
+        assert!(TimeLoweringProof::new(relation, incomplete, matrix(23)).is_err());
+    }
+    let mut repeated = coordinates.clone();
+    repeated[23] = repeated[0];
+    assert!(TimeLoweringProof::new(relation, repeated, matrix(24)).is_err());
+    for impossible in [
+        TimeStateCoordinate::new(field, u32::MAX, 0, false),
+        TimeStateCoordinate::new(field, 0, usize::MAX, false),
+        TimeStateCoordinate::new(field, 0, 0, true),
+    ] {
+        assert!(TimeLoweringProof::new(relation, vec![impossible], matrix(1)).is_err());
+    }
 }

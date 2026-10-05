@@ -681,7 +681,11 @@ fn authored_elastic_energy_first_variation_reaches_the_exact_q1_solve() {
     let replayed = eqiora_numerics::ResolvedCommonPlan::from_bytes(
         &bytes,
         &REFERENCE_LINEAR_SOLVER,
-        eqiora::time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+        eqiora::time::TimeBackendCapabilities::new(
+            eqiora::time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+            &[eqiora::ScalarDomain::Real, eqiora::ScalarDomain::Complex],
+            &[eqiora::ScalarType::F64],
+        ),
     )
     .unwrap();
     assert_eq!(replayed.to_bytes().unwrap(), bytes);

@@ -1,3 +1,5 @@
+mod components;
+use eqiora_core::TimeStateCoordinate;
 use std::str::FromStr;
 
 use eqiora_core::entity::kinds;
@@ -19,7 +21,7 @@ use crate::{
     invalid_artifact, validate_text,
 };
 
-const TIME_LOWERING_SCHEMA: &str = "eqiora.time-lowering-envelope/v2";
+const TIME_LOWERING_SCHEMA: &str = "eqiora.time-lowering-envelope/v3";
 const TIME_RUN_SCHEMA: &str = "eqiora.time-run-manifest/v1";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -27,20 +29,27 @@ const TIME_RUN_SCHEMA: &str = "eqiora.time-run-manifest/v1";
 pub(crate) struct WireTimeCoordinate {
     field_ulid: String,
     derivative_order: u32,
+    component: u64,
+    imaginary: bool,
 }
 
 impl WireTimeCoordinate {
-    pub(crate) fn encode((field, derivative_order): (Id<kinds::Field>, u32)) -> Self {
+    pub(crate) fn encode(coordinate: TimeStateCoordinate) -> Self {
         Self {
-            field_ulid: field.ulid().to_string(),
-            derivative_order,
+            field_ulid: coordinate.field().ulid().to_string(),
+            derivative_order: coordinate.derivative_order(),
+            component: coordinate.component() as u64,
+            imaginary: coordinate.is_imaginary(),
         }
     }
 
-    pub(crate) fn decode(&self) -> Result<(Id<kinds::Field>, u32), Diagnostic> {
-        Ok((
+    pub(crate) fn decode(&self) -> Result<TimeStateCoordinate, Diagnostic> {
+        Ok(TimeStateCoordinate::new(
             Id::from_ulid(parse_ulid(&self.field_ulid)?),
             self.derivative_order,
+            usize::try_from(self.component)
+                .map_err(|_| invalid_artifact("time component exceeds local address space"))?,
+            self.imaginary,
         ))
     }
 }
@@ -78,13 +87,13 @@ impl Default for TimeDecoderLimits {
 /// The wire records the complete residual-ordered constant derivative matrix
 /// and its exact binary-rational rank, not only a class label. Construction
 /// and external linkage validation independently lower the referenced Relation
-/// to scalar Operator IR, compare every coefficient, and replay rank proof.
+/// to real-coordinate Operator IR, compare every coefficient, and replay rank proof.
 #[derive(Debug, Clone, PartialEq)]
-pub struct TimeLoweringEnvelopeV2 {
-    wire: WireTimeLoweringEnvelopeV2,
+pub struct TimeLoweringEnvelopeV3 {
+    wire: WireTimeLoweringEnvelopeV3,
 }
 
-impl TimeLoweringEnvelopeV2 {
+impl TimeLoweringEnvelopeV3 {
     /// Bind a runtime-produced witness to one immutable model artifact and
     /// independently verify it against the canonical Relation.
     ///
@@ -100,7 +109,7 @@ impl TimeLoweringEnvelopeV2 {
     ) -> Result<Self, Diagnostic> {
         validate_model_program(model, program)?;
         validate_proof_program(proof, program)?;
-        let wire = WireTimeLoweringEnvelopeV2 {
+        let wire = WireTimeLoweringEnvelopeV3 {
             schema: TIME_LOWERING_SCHEMA.to_owned(),
             encoding: CANONICAL_ENCODING.to_owned(),
             model_sha256: model.digest()?.0,
@@ -268,7 +277,7 @@ impl TimeRunManifestV1 {
     /// differs across plan/report/lowering, the plan selects a residual-native
     /// reference method, or the adapter-supplied backend version is invalid.
     pub fn new(
-        lowering: &TimeLoweringEnvelopeV2,
+        lowering: &TimeLoweringEnvelopeV3,
         plan: &TimePlan,
         report: TimeExecutionReport,
     ) -> Result<Self, Diagnostic> {
@@ -408,7 +417,7 @@ impl TimeRunManifestV1 {
     /// # Errors
     /// Returns `EQ0901` for any linkage, method, equation-class, or
     /// initial-condition drift.
-    pub fn validate_against(&self, lowering: &TimeLoweringEnvelopeV2) -> Result<(), Diagnostic> {
+    pub fn validate_against(&self, lowering: &TimeLoweringEnvelopeV3) -> Result<(), Diagnostic> {
         let proof = lowering.proof()?;
         let plan = self.plan()?;
         if self.model() != lowering.model_artifact()
@@ -480,6 +489,13 @@ fn validate_proof_program(
     proof: &TimeLoweringProof,
     program: &KernelProgram,
 ) -> Result<(), Diagnostic> {
+    let typed = canonical_time_residual(program, proof.relation())?;
+    if typed.node_types().iter().any(|ty| {
+        !ty.shape().is_scalar()
+            || ty.value_type.scalar_domain() == eqiora_core::ScalarDomain::Complex
+    }) {
+        return components::validate(proof, program, &typed);
+    }
     let (operator, expected_fields) =
         canonical_time_operator(program, proof.relation(), proof.state_coordinates().len())?;
     if expected_fields != proof.state_coordinates() {
@@ -487,7 +503,12 @@ fn validate_proof_program(
             "time lowering proof state order differs from canonical symbol order",
         ));
     }
-    let coordinates = proof.state_coordinates();
+    // Full coordinate equality above establishes this scalar canonical path.
+    let coordinates = proof
+        .state_coordinates()
+        .iter()
+        .map(|coordinate| (coordinate.field(), coordinate.derivative_order()))
+        .collect::<Vec<_>>();
     let highest = coordinates
         .iter()
         .enumerate()
@@ -552,40 +573,14 @@ fn validate_proof_program(
     Ok(())
 }
 
-type StateCoordinates = Vec<(Id<kinds::Field>, u32)>;
+type StateCoordinates = Vec<TimeStateCoordinate>;
 
 pub(crate) fn canonical_time_operator(
     program: &KernelProgram,
     relation_id: Id<kinds::Relation>,
     coordinate_count: usize,
 ) -> Result<(ScalarOperatorIr, StateCoordinates), Diagnostic> {
-    let relation = match program.node(relation_id.erase()) {
-        Some(KernelNode::Relation(relation)) => relation,
-        _ => {
-            return Err(invalid_artifact(
-                "time lowering proof Relation is absent from the model",
-            ));
-        }
-    };
-    let activation = program
-        .edges()
-        .iter()
-        .find(|edge| edge.kind() == EdgeKind::Activates && edge.to() == relation_id.erase())
-        .map(|edge| edge.from())
-        .ok_or_else(|| invalid_artifact("time lowering proof Relation has no Activation"))?;
-    if !matches!(
-        program.node(activation),
-        Some(KernelNode::Activation(activation))
-            if matches!(activation.kind(), ActivationKind::Continuous)
-    ) {
-        return Err(invalid_artifact(
-            "time lowering proof requires a continuously activated Relation",
-        ));
-    }
-
-    let typed = program
-        .typed_relation_residual(relation.id())
-        .map_err(|errors| invalid_artifact(errors[0].message()))?;
+    let typed = canonical_time_residual(program, relation_id)?;
     let operator = ScalarOperatorIr::lower_typed_scalar(&typed)
         .map_err(|error| invalid_artifact(error.message()))?;
     let mut expected_fields = Vec::new();
@@ -615,10 +610,44 @@ pub(crate) fn canonical_time_operator(
     let mut coordinates = Vec::with_capacity(coordinate_count);
     for field in expected_fields {
         for order in 0..orders[&field] {
-            coordinates.push((field, order));
+            coordinates.push(TimeStateCoordinate::new(field, order, 0, false));
         }
     }
     Ok((operator, coordinates))
+}
+
+fn canonical_time_residual(
+    program: &KernelProgram,
+    relation_id: Id<kinds::Relation>,
+) -> Result<eqiora_schema::kernel::typing::TypedResidual<eqiora_core::RawId>, Diagnostic> {
+    let relation = match program.node(relation_id.erase()) {
+        Some(KernelNode::Relation(relation)) => relation,
+        _ => {
+            return Err(invalid_artifact(
+                "time lowering proof Relation is absent from the model",
+            ));
+        }
+    };
+    let activation = program
+        .edges()
+        .iter()
+        .find(|edge| edge.kind() == EdgeKind::Activates && edge.to() == relation_id.erase())
+        .map(|edge| edge.from())
+        .ok_or_else(|| invalid_artifact("time lowering proof Relation has no Activation"))?;
+    if !matches!(
+        program.node(activation),
+        Some(KernelNode::Activation(activation))
+            if matches!(activation.kind(), ActivationKind::Continuous)
+    ) {
+        return Err(invalid_artifact(
+            "time lowering proof requires a continuously activated Relation",
+        ));
+    }
+
+    let typed = program
+        .typed_relation_residual(relation.id())
+        .map_err(|errors| invalid_artifact(errors[0].message()))?;
+    Ok(typed)
 }
 
 pub(crate) fn parse_ulid(value: &str) -> Result<Ulid, Diagnostic> {
@@ -627,7 +656,7 @@ pub(crate) fn parse_ulid(value: &str) -> Result<Ulid, Diagnostic> {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WireTimeLoweringEnvelopeV2 {
+struct WireTimeLoweringEnvelopeV3 {
     schema: String,
     encoding: String,
     model_sha256: String,
@@ -703,6 +732,7 @@ struct WireTimeExecution {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 enum WireTimeMethod {
+    ImplicitMidpoint,
     Tsitouras45,
     Bdf,
 }
@@ -713,6 +743,7 @@ impl WireTimeMethod {
             TimeMethod::ImplicitEuler => Err(invalid_artifact(
                 "reference ImplicitEuler runs require a residual-native run artifact",
             )),
+            TimeMethod::ImplicitMidpoint => Ok(Self::ImplicitMidpoint),
             TimeMethod::Tsitouras45 => Ok(Self::Tsitouras45),
             TimeMethod::Bdf => Ok(Self::Bdf),
         }
@@ -720,6 +751,7 @@ impl WireTimeMethod {
 
     const fn decode(self) -> TimeMethod {
         match self {
+            Self::ImplicitMidpoint => TimeMethod::ImplicitMidpoint,
             Self::Tsitouras45 => TimeMethod::Tsitouras45,
             Self::Bdf => TimeMethod::Bdf,
         }

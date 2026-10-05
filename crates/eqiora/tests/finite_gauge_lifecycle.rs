@@ -79,7 +79,11 @@ fn explicit_reference_changes_coordinates_but_not_voltage_drop_and_replays() {
         let replayed = ResolvedCommonPlan::from_bytes(
             &resolved.to_bytes().unwrap(),
             &FaerLinearSolver,
-            eqiora::time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+            eqiora::time::TimeBackendCapabilities::new(
+                eqiora::time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+                &[eqiora::ScalarDomain::Real, eqiora::ScalarDomain::Complex],
+                &[eqiora::ScalarType::F64],
+            ),
         )
         .unwrap();
         assert_eq!(replayed, resolved);

@@ -161,7 +161,14 @@ fn replay_plan(plan: ResolvedCommonPlan, backend: &dyn LinearSolverBackend) -> R
     let replayed = ResolvedCommonPlan::from_bytes(
         &bytes,
         backend,
-        TimeBackendIdentity::new("eqiora.test.time", "1"),
+        eqiora_time::TimeBackendCapabilities::new(
+            eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+            &[
+                eqiora_core::ScalarDomain::Real,
+                eqiora_core::ScalarDomain::Complex,
+            ],
+            &[eqiora_core::ScalarType::F64],
+        ),
     )
     .unwrap();
     assert_eq!(replayed, plan);
@@ -182,7 +189,14 @@ fn replay_plan(plan: ResolvedCommonPlan, backend: &dyn LinearSolverBackend) -> R
         ResolvedCommonPlan::from_bytes(
             &false_identity,
             backend,
-            TimeBackendIdentity::new("eqiora.test.time", "1"),
+            eqiora_time::TimeBackendCapabilities::new(
+                eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+                &[
+                    eqiora_core::ScalarDomain::Real,
+                    eqiora_core::ScalarDomain::Complex
+                ],
+                &[eqiora_core::ScalarType::F64]
+            ),
         )
         .is_err(),
         "a canonical-looking false resolved identity must reject"
@@ -193,7 +207,14 @@ fn replay_plan(plan: ResolvedCommonPlan, backend: &dyn LinearSolverBackend) -> R
         ResolvedCommonPlan::from_bytes(
             &noncanonical,
             backend,
-            TimeBackendIdentity::new("eqiora.test.time", "1"),
+            eqiora_time::TimeBackendCapabilities::new(
+                eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+                &[
+                    eqiora_core::ScalarDomain::Real,
+                    eqiora_core::ScalarDomain::Complex
+                ],
+                &[eqiora_core::ScalarType::F64]
+            ),
         )
         .is_err()
     );
