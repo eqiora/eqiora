@@ -42,7 +42,11 @@ pub(super) fn unary(
         if output.scalar_domain() == eqiora_core::ScalarDomain::Complex {
             return ValueLiteral::new(
                 output,
-                components.chunks_exact(2).map(|pair| (pair[0], pair[1])),
+                components
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|pair| (pair[0], pair[1])),
             )
             .map_err(invalid);
         }
