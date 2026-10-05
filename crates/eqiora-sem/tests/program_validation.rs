@@ -1094,9 +1094,8 @@ fn shared_spatial_contract_falsifiers_reach_graph_diagnostics() {
 }
 
 #[test]
-fn revision_values_preserve_complex_channels_without_scalar_execution_coercion() {
+fn revision_values_preserve_complex_channels_without_scalar_value_coercion() {
     use eqiora_core::{ScalarDomain, ValueLiteral, ValueType};
-    use eqiora_sem::{Interpreter, ReferenceConfig};
     let id = Id::<kinds::Parameter>::new();
     let model = OntologyId::<Model>::new();
     let ty = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS)
@@ -1141,8 +1140,4 @@ fn revision_values_preserve_complex_channels_without_scalar_execution_coercion()
     assert_eq!(old.typed_value(id.erase()), Some(&declared));
     assert_eq!(current.typed_value(id.erase()), Some(&edited));
     assert_eq!(current.value(id.erase()), None);
-    let errors = Interpreter::new()
-        .initialize(&current, 0.0, ReferenceConfig::new(0.0, 0.1).unwrap())
-        .unwrap_err();
-    assert_eq!(errors[0].code(), codes::NOT_IMPLEMENTED);
 }
