@@ -9,6 +9,7 @@ mod linearization;
 mod nonlinear;
 pub(crate) use nonlinear::FiniteNonlinearSolution;
 mod observables;
+mod parameters;
 mod preparation;
 mod solve;
 #[cfg(test)]

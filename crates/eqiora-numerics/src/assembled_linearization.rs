@@ -412,7 +412,7 @@ mod tests {
             jacobian,
             vec![1.0, 2.0],
             vec![0.0, 0.0],
-            vec![SpatialDesignCoordinate::ModelParameter(Id::new())],
+            vec![SpatialDesignCoordinate::from(Id::new())],
             vec![2.0],
             vec![2.0, 0.0],
             LinearOperatorProperties::General,

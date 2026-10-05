@@ -1,6 +1,5 @@
 //! One Operator IR lowering for original equality and Observable partial actions.
 use super::*;
-use eqiora_core::ScalarDomain;
 use eqiora_ir::{ComponentScalarization, DifferentiationRole, LinearizedRelation, RelationTangent};
 use eqiora_schema::kernel::KernelNode;
 
@@ -23,27 +22,7 @@ impl FiniteConstraintProblem {
                 "finite linearization requires complete finite Field coordinates",
             ));
         }
-        for (index, id) in selected.iter().enumerate() {
-            if selected[..index].contains(id)
-                || !matches!(self.kernel.node(id.erase()), Some(KernelNode::Parameter(_)))
-            {
-                return Err(invalid(
-                    "finite linearization requires unique exact Model Parameters",
-                ));
-            }
-        }
-        for id in selected {
-            let Some(KernelNode::Parameter(parameter)) = self.kernel.node(id.erase()) else {
-                unreachable!("validated Parameter");
-            };
-            if parameter.value_type().scalar_domain() != ScalarDomain::Real
-                || !parameter.value_type().shape().is_scalar()
-            {
-                return Err(invalid(
-                    "finite Parameter-point differentiation requires real scalar selected Parameters",
-                ));
-            }
-        }
+        let selected_coordinates = self.parameter_coordinates(selected)?;
         let expression = super::observables::expand(&self.kernel, expression)?;
         let typed = coordinates::typed_expression(&self.kernel, &expression)?;
         let operator = ComponentScalarization::lower(&typed)?;
@@ -89,21 +68,21 @@ impl FiniteConstraintProblem {
             .parameter_coordinates()
             .iter()
             .map(|coordinate| {
-                selected
+                selected_coordinates
                     .iter()
-                    .position(|id| coordinate.symbol() == SymbolRef::Parameter(*id))
+                    .position(|candidate| coordinate == candidate)
                     .expect("bound Parameter coordinate")
             })
             .collect::<Vec<_>>();
         let mut primal = vec![0.0; rows];
         linearized.primal(&mut primal)?;
         let mut unknown_jacobian = vec![0.0; rows * n];
-        let mut parameter_jacobian = vec![0.0; rows * selected.len()];
+        let mut parameter_jacobian = vec![0.0; rows * selected_coordinates.len()];
         for (coordinates, width, matrix, parameter_role) in [
             (&unknown_coordinates, n, &mut unknown_jacobian, false),
             (
                 &parameter_coordinates,
-                selected.len(),
+                selected_coordinates.len(),
                 &mut parameter_jacobian,
                 true,
             ),

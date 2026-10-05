@@ -575,7 +575,16 @@ fn select_design<'a>(
     let mut actions = Vec::with_capacity(selected.len());
     for coordinate in selected {
         match *coordinate {
-            SpatialDesignCoordinate::ModelParameter(parameter) => {
+            SpatialDesignCoordinate::ModelParameter {
+                parameter,
+                component,
+                imaginary,
+            } => {
+                if component != 0 || imaginary {
+                    return Err(invalid(
+                        "simplicial scalar Parameter requires its real scalar coordinate",
+                    ));
+                }
                 let Some(index) = model
                     .parameter_fields()
                     .iter()

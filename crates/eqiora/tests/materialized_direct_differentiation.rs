@@ -44,7 +44,7 @@ fn materialized_direct_output_runs_positive_pair_before_three_falsifiers() {
     let relation = fixture.relation(source, parameter);
     assert_eq!(
         relation.design_coordinates(),
-        &[SpatialDesignCoordinate::ModelParameter(parameter)]
+        &[SpatialDesignCoordinate::from(parameter)]
     );
     let output = DotOutput {
         weights: &fixture.b,
@@ -494,7 +494,7 @@ impl Fixture {
         AssembledLinearizedRelation::from_canonical(
             source,
             self.w.clone(),
-            vec![SpatialDesignCoordinate::ModelParameter(parameter)],
+            vec![SpatialDesignCoordinate::from(parameter)],
             vec![0.0],
             self.b.iter().map(|value| -value).collect(),
         )

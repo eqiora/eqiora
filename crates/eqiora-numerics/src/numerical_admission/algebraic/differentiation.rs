@@ -1,7 +1,7 @@
 //! Original-equation finite acceptance followed by implicit partial actions.
 use super::super::differentiation::Primal;
 use super::*;
-use crate::common::{AssembledLinearizedRelation, SpatialDesignCoordinate};
+use crate::common::AssembledLinearizedRelation;
 use eqiora_core::{Id, ScalarDomain, entity::kinds};
 use eqiora_ir::ScalarObjectiveLinearization;
 use eqiora_schema::kernel::ObservableReduction;
@@ -39,35 +39,13 @@ impl CommonAlgebraicPlan {
                 "finite differentiation does not admit changing active sets",
             ));
         }
-        let selected_values = selected
-            .iter()
-            .enumerate()
-            .map(|(index, id)| {
-                let Some(KernelNode::Parameter(parameter)) = self.kernel.node(id.erase()) else {
-                    return Err(invalid(
-                        "differentiable Parameter is outside the exact finite Model",
-                    ));
-                };
-                match values {
-                    Some(values) => values
-                        .get(index)
-                        .copied()
-                        .ok_or_else(|| invalid("finite Parameter point has the wrong arity")),
-                    None => parameter
-                        .value()
-                        .real_scalar_value()
-                        .map(|value| value.value())
-                        .ok_or_else(|| {
-                            invalid("finite differentiation requires real scalar Parameters")
-                        }),
-                }
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        if selected.is_empty() || values.is_some_and(|values| values.len() != selected.len()) {
+        let (design_coordinates, defaults) = base.parameter_point(selected)?;
+        if selected.is_empty() || values.is_some_and(|values| values.len() != defaults.len()) {
             return Err(invalid(
                 "finite differentiation requires a complete nonempty Parameter point",
             ));
         }
+        let selected_values = values.map_or(defaults, <[f64]>::to_vec);
         let typed = self.kernel.typed_observable(observable).map_err(|errors| {
             errors
                 .into_iter()
@@ -154,11 +132,7 @@ impl CommonAlgebraicPlan {
             jacobian,
             point.clone(),
             original,
-            selected
-                .iter()
-                .copied()
-                .map(SpatialDesignCoordinate::ModelParameter)
-                .collect(),
+            design_coordinates,
             selected_values,
             actions.parameter_jacobian,
             LinearOperatorProperties::General,

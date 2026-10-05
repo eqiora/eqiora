@@ -165,7 +165,20 @@ fn accepted_point_keeps_equal_primal_systems_with_different_derivatives_distinct
         .unwrap();
     let positive = positive.finish(positive_solution).unwrap();
     let negative = negative.finish(negative_solution).unwrap();
-    let coordinates = [SpatialDesignCoordinate::ModelParameter(diffusion)];
+    for (component, imaginary) in [(1, false), (0, true)] {
+        let error = positive
+            .linearize(&[SpatialDesignCoordinate::ModelParameter {
+                parameter: diffusion,
+                component,
+                imaginary,
+            }])
+            .unwrap_err();
+        assert!(
+            error.message().contains("real scalar coordinate"),
+            "{error:?}"
+        );
+    }
+    let coordinates = [SpatialDesignCoordinate::from(diffusion)];
     let (positive, _) = positive.linearize(&coordinates).unwrap();
     let (negative, _) = negative.linearize(&coordinates).unwrap();
 
@@ -240,7 +253,7 @@ fn affine_coordinate_coefficient_uses_the_existing_fem_and_fvm_finalizers() {
             .unwrap();
         let accepted = finalized.finish(solved).unwrap();
         let (relation, _) = accepted
-            .linearize(&[SpatialDesignCoordinate::ModelParameter(wave_number)])
+            .linearize(&[SpatialDesignCoordinate::from(wave_number)])
             .unwrap();
         assert!(
             relation
@@ -330,7 +343,7 @@ fn mixed_natural_boundary_reuses_the_volume_coefficient_for_fem_and_fvm() {
             .unwrap();
         let accepted = finalized.finish(solved).unwrap();
         let (relation, _) = accepted
-            .linearize(&[SpatialDesignCoordinate::ModelParameter(wave_number)])
+            .linearize(&[SpatialDesignCoordinate::from(wave_number)])
             .unwrap();
         assert!(
             relation

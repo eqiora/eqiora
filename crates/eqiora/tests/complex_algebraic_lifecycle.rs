@@ -368,3 +368,159 @@ fn common_sensitivity_keeps_mixed_real_and_shaped_complex_coordinates() {
         assert!((point.vjp(&[1.]).unwrap().input_cotangent()[0] - (372. * p + 1.)).abs() < 1e-8);
     }
 }
+
+#[test]
+fn complex_parameter_coordinates_preserve_nonholomorphic_partials_and_real_pairing() {
+    use eqiora::api::DifferentiableProgram;
+    // c=u+iv gives z=(u+2v)+i(-u+3v), J=2u²-2uv+13v².
+    // At c=3+2i: J=58 and grad J=(8,46), so direction (1,-2) gives -84.
+    let (document, plan, _) = solve_with(
+        "model M(){parameter c:complex<1>=math.complex(3,2);variable z:complex<1>;relation r{math.complex(1,2)*z+math.conj(z)=math.complex(4,2)*c;}observable output:1=math.abs2(z);}",
+        false,
+    );
+    let program = DifferentiableProgram::compile(
+        ResolvedCommonPlan::Algebraic(Box::new(plan)),
+        &[document.parameter_ref("c").unwrap()],
+        &document.observable_ref("output").unwrap(),
+        None,
+        &FaerLinearSolver,
+    )
+    .unwrap();
+    assert_eq!(program.identity().input_dimension(), 2);
+    let point = program.evaluate(&[3., 2.]).unwrap();
+    assert!((point.primal().output()[0] - 58.).abs() < 1e-10);
+    let residual = point.residual_jvp(&[0., 0.], &[1., -2.]).unwrap();
+    assert_eq!(residual, [-8., 6.]);
+    assert!((point.jvp(&[1., -2.]).unwrap().tangent()[0] + 84.).abs() < 1e-10);
+    for (actual, expected) in point
+        .vjp(&[1.])
+        .unwrap()
+        .input_cotangent()
+        .iter()
+        .zip([8., 46.])
+    {
+        assert!((actual - expected).abs() < 1e-10);
+    }
+    assert!(program.evaluate(&[3.]).is_err());
+}
+
+#[test]
+fn shaped_parameters_keep_channel_parts_selection_order_and_point_ownership() {
+    use eqiora::api::DifferentiableProgram;
+    // z=p*c, J=p² sum|c|²+p. These are exact independent values at two points.
+    for (domain, initializer, points) in [
+        (
+            "complex<1>",
+            "[math.complex(1,2),math.complex(3,4)]",
+            vec![
+                (
+                    vec![2., 1., 2., 3., 4.],
+                    122.,
+                    vec![121., 8., 16., 24., 32.],
+                ),
+                (
+                    vec![3., 2., -1., -2., 1.],
+                    93.,
+                    vec![61., 36., -18., -36., 18.],
+                ),
+            ],
+        ),
+        (
+            "1",
+            "[1,3]",
+            vec![
+                (vec![2., 1., 3.], 42., vec![41., 8., 24.]),
+                (vec![3., 2., -2.], 75., vec![49., 36., -36.]),
+            ],
+        ),
+    ] {
+        let source = format!(
+            "model M(){{parameter p:1=2;parameter c:array<{domain},2>={initializer};variable z:array<complex<1>,2>;relation r{{z=p*c;}}observable output:1=math.abs2(z[0])+math.abs2(z[1])+p;}}"
+        );
+        let (document, plan, _) = solve(&source);
+        for reversed in [false, true] {
+            let mut inputs = vec![
+                document.parameter_ref("p").unwrap(),
+                document.parameter_ref("c").unwrap(),
+            ];
+            if reversed {
+                inputs.reverse();
+            }
+            let program = DifferentiableProgram::compile(
+                ResolvedCommonPlan::Algebraic(Box::new(plan.clone())),
+                &inputs,
+                &document.observable_ref("output").unwrap(),
+                None,
+                &REFERENCE_LINEAR_SOLVER,
+            )
+            .unwrap();
+            for (values, expected, gradient) in &points {
+                let (mut values, mut gradient) = (values.clone(), gradient.clone());
+                if reversed {
+                    values.rotate_left(1);
+                    gradient.rotate_left(1);
+                }
+                let point = program.evaluate(&values).unwrap();
+                assert_eq!(program.identity().input_dimension(), values.len());
+                assert!((point.primal().output()[0] - expected).abs() < 1e-9);
+                let direction = vec![1.; values.len()];
+                assert!(
+                    (point.jvp(&direction).unwrap().tangent()[0] - gradient.iter().sum::<f64>())
+                        .abs()
+                        < 1e-9
+                );
+                for (actual, expected) in point
+                    .vjp(&[1.])
+                    .unwrap()
+                    .input_cotangent()
+                    .iter()
+                    .zip(&gradient)
+                {
+                    assert!((actual - expected).abs() < 1e-9);
+                }
+            }
+            assert!((program.primal().output()[0] - points[0].1).abs() < 1e-9);
+        }
+    }
+}
+
+#[test]
+fn nominal_complex_map_parameter_keeps_both_matrix_axes_and_conjugate_pairing() {
+    use eqiora::api::DifferentiableProgram;
+    // At A=I, x=(1+i,2-i), J=7. dJ=-2 Re(x^H dA x), giving
+    // row-major real/imaginary derivatives [-4,0,-2,-6,-2,6,-10,0].
+    let source = "space V=orthonormal(first,second);model M(){parameter a:map<complex<1>,V,V>=linear_map(V,V,[[1,0],[0,1]]);parameter b:coordinates<complex<1>,V>=coordinates(V,[math.complex(1,1),math.complex(2,-1)]);variable z:coordinates<complex<1>,V>;relation r{apply(a,z)=b;}observable output:1=math.real(pair(adjoint(z),z));}";
+    let (document, plan, _) = solve(source);
+    let program = DifferentiableProgram::compile(
+        ResolvedCommonPlan::Algebraic(Box::new(plan)),
+        &[document.parameter_ref("a").unwrap()],
+        &document.observable_ref("output").unwrap(),
+        None,
+        &REFERENCE_LINEAR_SOLVER,
+    )
+    .unwrap();
+    assert_eq!(program.identity().input_dimension(), 8);
+    for scale in [1., 2.] {
+        let point = program
+            .evaluate(&[scale, 0., 0., 0., 0., 0., scale, 0.])
+            .unwrap();
+        assert!((point.primal().output()[0] - 7. / (scale * scale)).abs() < 1e-10);
+        let reverse = point.vjp(&[1.]).unwrap();
+        for (actual, expected) in reverse
+            .input_cotangent()
+            .iter()
+            .zip([-4., 0., -2., -6., -2., 6., -10., 0.])
+        {
+            assert!((actual - expected / (scale * scale * scale)).abs() < 1e-10);
+        }
+        assert!(
+            (point
+                .jvp(&[0., 0., 0., 1., 0., 0., 0., 0.])
+                .unwrap()
+                .tangent()[0]
+                + 6. / (scale * scale * scale))
+                .abs()
+                < 1e-10
+        );
+    }
+}
