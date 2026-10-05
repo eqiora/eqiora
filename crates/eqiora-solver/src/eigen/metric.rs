@@ -2,7 +2,7 @@ use super::{Complex64, Diagnostic, ValueLiteral, coefficient, invalid};
 
 // Admission checks the entire metric, independently of any candidate mode.
 // A candidate supported away from a singular/negative direction cannot hide it.
-pub(super) fn require_positive_pivots(metric: &ValueLiteral, n: usize) -> Result<(), Diagnostic> {
+pub(super) fn cholesky(metric: &ValueLiteral, n: usize) -> Result<Vec<Complex64>, Diagnostic> {
     let count = n
         .checked_mul(n)
         .ok_or_else(|| invalid("metric workspace size overflowed"))?;
@@ -34,5 +34,5 @@ pub(super) fn require_positive_pivots(metric: &ValueLiteral, n: usize) -> Result
         }
         lower[row * n + row] = Complex64::new(pivot.sqrt(), 0.);
     }
-    Ok(())
+    Ok(lower)
 }

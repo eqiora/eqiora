@@ -7,6 +7,7 @@ use eqiora_solver::{HermitianEigenproblem, LinearSolverBackend, SolverProvider};
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
 
+mod exclusion;
 mod request;
 mod source;
 pub use request::CommonEigenRequest;
@@ -20,6 +21,7 @@ pub struct CommonEigenPlan {
     model: Arc<ModelEnvelope>,
     kernel: KernelProgram,
     source: source::SourcePencil,
+    exclusion: Option<exclusion::Exclusion>,
     request: CommonEigenRequest,
     provider: SolverProvider,
     identity: String,
@@ -54,6 +56,7 @@ impl CommonEigenPlan {
         request.validate(&problem)?;
         backend.provider().validate()?;
         backend.require_hermitian_eigenproblem(&problem)?;
+        let exclusion = exclusion::Exclusion::derive(&source, request)?;
         let reference = model.artifact_reference()?;
         let model_digest = reference.artifact().to_string();
         let provider = backend.provider();
@@ -84,6 +87,7 @@ impl CommonEigenPlan {
             model: Arc::new(model.clone()),
             kernel,
             source,
+            exclusion,
             request,
             provider,
             identity,
@@ -92,6 +96,18 @@ impl CommonEigenPlan {
             model_revision: reference.semantic_revision().get(),
         })
     }
+    /// Excluded source directions as `(projector, dimension, operator_defect, metric_defect)`.
+    /// The dimensionless metric projector retains the physical Field basis.
+    /// Defects are `||A E||_F/(||A||_F ||E||_F)` and the analogous B action,
+    /// with zero defect for a zero operator. Compare each separately with the
+    /// request's residual tolerance; numerical nullity does not establish gauge
+    /// freedom. None means that the source embedding excludes no directions.
+    pub fn excluded_space(&self) -> Option<(&ValueLiteral, usize, f64, f64)> {
+        self.exclusion
+            .as_ref()
+            .map(exclusion::Exclusion::description)
+    }
+
     /// Execute with the exact admitted provider and verify the original pencil.
     pub fn run_result(
         &self,

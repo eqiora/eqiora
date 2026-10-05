@@ -185,11 +185,22 @@ pub(super) struct PyEigenPlanView {
     #[pyo3(get)]
     eigenvalue_field: PyModelFieldRef,
     embeddings: Vec<PyEigenCoordinateMap>,
+    #[pyo3(get)]
+    excluded_space: Option<PyEigenExclusion>,
 }
 pub(super) fn view(py: Python<'_>, plan: &CommonEigenPlan) -> PyResult<Py<PyAny>> {
     Py::new(
         py,
         PyEigenPlanView {
+            excluded_space: plan.excluded_space().map(
+                |(projector, dimension, operator_defect, metric_defect)| PyEigenExclusion {
+                    projector: projector.clone(),
+                    dimension,
+                    operator_defect,
+                    metric_defect,
+                    tolerance: plan.request().residual_tolerance(),
+                },
+            ),
             mode_field: PyModelFieldRef::from_exact(
                 plan.model_digest().to_owned(),
                 plan.mode_field().ulid().to_string(),
@@ -236,6 +247,66 @@ impl PyEigenPlanView {
             "EigenPlanView(mode_field={:?}, eigenvalue_field={:?})",
             self.mode_field.exact_id(),
             self.eigenvalue_field.exact_id()
+        )
+    }
+}
+
+/// Excluded source directions and separately verified numerical nullspaces.
+#[pyclass(
+    name = "EigenExclusion",
+    module = "eqiora._eqiora",
+    frozen,
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub(super) struct PyEigenExclusion {
+    projector: eqiora::ValueLiteral,
+    dimension: usize,
+    operator_defect: f64,
+    metric_defect: f64,
+    tolerance: f64,
+}
+
+#[pymethods]
+impl PyEigenExclusion {
+    #[getter]
+    fn dimension(&self) -> usize {
+        self.dimension
+    }
+    #[getter]
+    fn projector(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        crate::modeling::value_literal::to_python(py, &self.projector)
+    }
+    #[getter]
+    fn projector_type(&self) -> PyValueType {
+        PyValueType {
+            value: self.projector.value_type().clone(),
+        }
+    }
+    #[getter]
+    fn operator_defect(&self) -> f64 {
+        self.operator_defect
+    }
+    #[getter]
+    fn metric_defect(&self) -> f64 {
+        self.metric_defect
+    }
+    #[getter]
+    fn tolerance(&self) -> f64 {
+        self.tolerance
+    }
+    #[getter]
+    fn is_operator_null(&self) -> bool {
+        self.operator_defect <= self.tolerance
+    }
+    #[getter]
+    fn is_metric_null(&self) -> bool {
+        self.metric_defect <= self.tolerance
+    }
+    fn __repr__(&self) -> String {
+        format!(
+            "EigenExclusion(dimension={}, operator_defect={:?}, metric_defect={:?}, tolerance={:?})",
+            self.dimension, self.operator_defect, self.metric_defect, self.tolerance
         )
     }
 }

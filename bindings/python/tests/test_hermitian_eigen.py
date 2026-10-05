@@ -17,6 +17,7 @@ def test_python_hermitian_plan_run_result_and_replay() -> None:
     controls = dict(count=2, provider=eqiora.solve.SolverProvider.faer(), residual_tolerance=1e-12, normalization_tolerance=1e-12)
     plan = eqiora.resolve(model, solve=eqiora.solve.HermitianEigen(**controls))
     assert plan.formulation.effective == eqiora.FormulationKind.FiniteHermitianPencil
+    assert plan.capability.excluded_space is None
     assert plan.capability.mode_field == model.field("u")
     assert plan.capability.eigenvalue_field == model.field("lambda")
     assert plan.fields == (model.field("u"), model.field("lambda"))
@@ -87,6 +88,16 @@ def test_python_source_coordinate_embedding_and_original_residual() -> None:
     solve = eqiora.solve.HermitianEigen(count=1, provider=eqiora.solve.SolverProvider.faer(), residual_tolerance=1e-12, normalization_tolerance=1e-12)
     plan = eqiora.resolve(model, solve=solve)
     assert plan.fields == (model.field("u"), model.field("lambda"), model.field("q"))
+    excluded = plan.capability.excluded_space
+    assert isinstance(excluded, eqiora.solve.EigenExclusion)
+    assert excluded.dimension == 1
+    assert excluded.is_operator_null and excluded.is_metric_null
+    assert excluded.operator_defect <= excluded.tolerance
+    assert excluded.metric_defect <= excluded.tolerance
+    for row in excluded.projector:
+        for entry in row:
+            assert abs(entry - 0.5) < 1e-12
+    assert "dimension=1" in repr(excluded)
     (embedding,) = plan.capability.coordinate_embeddings
     assert isinstance(embedding, eqiora.solve.EigenCoordinateMap)
     assert embedding.target_field == model.field("u")
@@ -95,6 +106,10 @@ def test_python_source_coordinate_embedding_and_original_residual() -> None:
     assert embedding.relation_id and "relation_id=" in repr(embedding)
     restored = eqiora.Plan.from_bytes(plan.to_bytes())
     assert restored.fields == plan.fields
+    restored_exclusion = restored.capability.excluded_space
+    assert restored_exclusion.projector == excluded.projector
+    assert restored_exclusion.projector_type == excluded.projector_type
+    assert restored_exclusion.is_operator_null and restored_exclusion.is_metric_null
     (restored_embedding,) = restored.capability.coordinate_embeddings
     assert restored_embedding.relation_id == embedding.relation_id
     assert restored_embedding.mapping == embedding.mapping

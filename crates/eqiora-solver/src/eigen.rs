@@ -1,6 +1,7 @@
 use eqiora_core::{Diagnostic, ValueLiteral, ValueType, diagnostic::codes};
 use num_complex::Complex64;
 
+mod exclusion;
 mod metric;
 mod projection;
 mod subspace;
@@ -26,7 +27,7 @@ impl<'a> HermitianEigenproblem<'a> {
     /// is used. Numerically nonpositive/nonfinite pivots reject explicitly.
     pub fn new(operator: &'a ValueLiteral, metric: &'a ValueLiteral) -> Result<Self, Diagnostic> {
         let pencil = Self::pencil(operator, metric)?;
-        metric::require_positive_pivots(metric, pencil.dimension)?;
+        metric::cholesky(metric, pencil.dimension)?;
         Ok(pencil)
     }
 
