@@ -8,6 +8,39 @@ pub(super) fn encode_expression(
 ) -> Result<(), Diagnostic> {
     budget.account_expression(depth)?;
     match expression.kind() {
+        ExprKind::CoordinateMapFactor { factor, source, at } => {
+            encoder.u16(23)?;
+            use eqiora_schema::kernel::CoordinateMapFactor;
+            encoder.u16(match factor {
+                CoordinateMapFactor::SignedJacobian => 0,
+                CoordinateMapFactor::VolumeScale => 1,
+                CoordinateMapFactor::Orientation => 2,
+            })?;
+            encoder.u32(as_u32(source.len(), "pullback source coordinates")?)?;
+            for coordinate in source {
+                encode_path(encoder, coordinate, budget)?;
+            }
+            encoder.u32(as_u32(at.len(), "pullback target coordinates")?)?;
+            for (coordinate, mapped) in at {
+                encode_path(encoder, coordinate, budget)?;
+                encode_expression(encoder, mapped, budget, next_depth(depth)?)?;
+            }
+            Ok(())
+        }
+        ExprKind::Pullback { value, source, at } => {
+            encoder.u16(22)?;
+            encode_expression(encoder, value, budget, next_depth(depth)?)?;
+            encoder.u32(as_u32(source.len(), "pullback source coordinates")?)?;
+            for coordinate in source {
+                encode_path(encoder, coordinate, budget)?;
+            }
+            encoder.u32(as_u32(at.len(), "pullback target coordinates")?)?;
+            for (coordinate, mapped) in at {
+                encode_path(encoder, coordinate, budget)?;
+                encode_expression(encoder, mapped, budget, next_depth(depth)?)?;
+            }
+            Ok(())
+        }
         ExprKind::Evaluate { value, at, side } => {
             encoder.u16(21)?;
             encode_expression(encoder, value, budget, next_depth(depth)?)?;

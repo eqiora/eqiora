@@ -129,6 +129,7 @@ impl KernelProgram {
         let mut geometry_boundary_junctions = BTreeMap::new();
         let mut admitted_geometry_ports = std::collections::BTreeSet::new();
         let mut affine_geometry_boundaries = std::collections::BTreeSet::new();
+        let mut planar_geometry = BTreeMap::new();
         if let Some(geometry) = geometry {
             let artifacts = match index_closed_bundle(&nodes, geometry) {
                 Ok(artifacts) => artifacts,
@@ -138,6 +139,12 @@ impl KernelProgram {
                 }
             };
             let admission = admit_entity_sets(&nodes, &edges, &invalid_domains, &artifacts);
+            planar_geometry = artifacts
+                .iter()
+                .filter_map(|(digest, artifact)| {
+                    artifact.region().map(|region| (*digest, region.clone()))
+                })
+                .collect();
             diagnostics.extend(admission.diagnostics);
             spatial_supports.extend(admission.supports);
             cartesian_geometry_regions = admission.cartesian_bounds.keys().copied().collect();
@@ -201,6 +208,7 @@ impl KernelProgram {
                 boundary: view.boundary().clone(),
                 spatial_supports,
                 cartesian_bounds,
+                planar_geometry,
                 geometry_boundary_junctions,
             })
         } else {

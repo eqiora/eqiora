@@ -4,32 +4,33 @@ use std::collections::BTreeMap;
 use crate::factor_measure::{axes, mapped_sample};
 use eqiora_core::{DynQuantity, RawId, ScalarDomain, ValueType};
 use eqiora_meshing::ReferenceCell;
-use eqiora_schema::kernel::ExprId;
 use eqiora_schema::kernel::typing::{SpatialSupport, TypedResidual};
 
 use super::*;
 
 pub(super) type Point = BTreeMap<(RawId, usize), f64>;
 
-// Keep source roots and exact discrete intermediates for the shared typed evaluator.
-// Numerical density admission uses a separate projection, never its remapped roots.
+// Numerical regularity uses a projection; values retain the canonical point evaluator.
 struct FactorExpression {
-    operator: ScalarOperatorIr,
-    root: ExprId,
+    observable: Id<kinds::Observable>,
     work: usize,
     inputs: HashMap<SymbolRef, ValueType>,
 }
 
 impl FactorExpression {
-    fn new(typed: &TypedResidual<RawId>, projected: &ScalarOperatorIr) -> Result<Self, Diagnostic> {
-        let operator = ScalarOperatorIr::lower(typed.expression())?;
-        let work = operator
-            .instruction_count()
+    fn new(
+        observable: Id<kinds::Observable>,
+        typed: &TypedResidual<RawId>,
+        projected: &ScalarOperatorIr,
+    ) -> Result<Self, Diagnostic> {
+        let work = typed
+            .expression()
+            .nodes()
+            .len()
             .max(projected.instruction_count());
         Ok(Self {
-            operator,
+            observable,
             work,
-            root: typed.expression().roots()[0],
             inputs: typed
                 .expression()
                 .nodes()
@@ -135,8 +136,9 @@ impl Context<'_> {
             .program
             .typed_observable(definition.id())
             .map_err(|errors| errors.into_iter().next().expect("failed typing"))?;
-        let projected = ScalarOperatorIr::lower_typed_scalar(&typed)?;
-        let expression = FactorExpression::new(&typed, &projected)?;
+        let projected =
+            ScalarOperatorIr::lower_affine_map_density(&typed, &mut |symbol| self.resolve(symbol))?;
+        let expression = FactorExpression::new(definition.id(), &typed, &projected)?;
         let value = match definition.reduction() {
             ObservableReduction::Value => self.factor_point(&expression, point, depth)?,
             ObservableReduction::SpatialIntegral {
@@ -263,7 +265,10 @@ impl Context<'_> {
                     .program
                     .typed_observable(*id)
                     .map_err(|errors| errors.into_iter().next().expect("failed typing"))?;
-                let dependency = ScalarOperatorIr::lower_typed_scalar(&typed)?;
+                let dependency =
+                    ScalarOperatorIr::lower_affine_map_density(&typed, &mut |symbol| {
+                        self.resolve(symbol)
+                    })?;
                 self.require_regular_density(&dependency, depth + 1)?;
             }
         }
@@ -280,25 +285,60 @@ impl Context<'_> {
             .remaining
             .checked_sub(expression.work)
             .ok_or_else(|| invalid("factor quadrature exceeds its expression work bound"))?;
-        let mut failure = None;
-        let values = expression
-            .operator
-            .evaluate_typed(&[expression.root], &mut |symbol| {
-                let value = self.factor_input(symbol, &expression.inputs[&symbol], point, depth);
-                match value {
-                    Ok(value) => Some(value),
-                    Err(error) => {
-                        failure = Some(error);
-                        None
-                    }
+        let program = self.program;
+        let Some(KernelNode::Observable(definition)) = program.node(expression.observable.erase())
+        else {
+            return Err(invalid("factor density Observable is unavailable"));
+        };
+        let domain = definition
+            .reduction()
+            .input_domain()
+            .or_else(|| self.output_domain(expression.observable))
+            .ok_or_else(|| invalid("factor density has no exact input support"))?;
+        let coordinates = axes(program, domain)?
+            .into_iter()
+            .map(|(axis, bounds)| {
+                let value = point
+                    .get(&axis)
+                    .ok_or_else(|| invalid("factor density point omits an input coordinate"))?;
+                Ok((axis, DynQuantity::new(*value, bounds.lower().dim())))
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        let selected = eqiora_sem::EvaluationPoint::new(program, domain, coordinates, None)?;
+        let mut resolve = |input, selected: Option<&eqiora_sem::EvaluationPoint>| {
+            let selected =
+                selected.ok_or_else(|| invalid("factor input has no exact point context"))?;
+            let symbol = match input {
+                eqiora_sem::EvaluationInput::Value(symbol) => symbol,
+                eqiora_sem::EvaluationInput::CoordinatePartial {
+                    field,
+                    factor,
+                    axis,
+                } => {
+                    return spatial::sample_partial(self.result, field, factor, axis, selected);
                 }
-            });
-        if let Some(error) = failure {
-            return Err(error);
-        }
-        values?
-            .first()
-            .and_then(ValueLiteral::real_scalar_value)
+            };
+            let point = selected
+                .coordinates()
+                .map(|(axis, value)| (axis, value.value()))
+                .collect();
+            self.factor_input(symbol, &expression.inputs[&symbol], &point, depth)
+        };
+        let value = if definition.reduction() == ObservableReduction::Value {
+            program.evaluate_observable_with_points(
+                expression.observable,
+                Some(&selected),
+                &mut resolve,
+            )?
+        } else {
+            program.evaluate_observable_density_with_points(
+                expression.observable,
+                &selected,
+                &mut resolve,
+            )?
+        };
+        value
+            .real_scalar_value()
             .map(|value| value.value())
             .ok_or_else(|| invalid("factor density has no real scalar root"))
     }

@@ -733,6 +733,68 @@ def vjp(value: object, *, wrt: Expression, cotangent: object) -> Expression:
     return _ternary("vjp", value, wrt, cotangent)
 
 
+def _coordinate_mapping(value, source, at, factor):
+    if isinstance(source, (str, bytes)) or not isinstance(source, Sequence):
+        raise TypeError("coordinate map from_ requires a sequence of declared coordinates")
+    if isinstance(at, (str, bytes)) or not isinstance(at, Sequence):
+        raise TypeError("coordinate map at requires a sequence of coordinate/value pairs")
+    if not source or not at:
+        raise ModuleError("coordinate map requires nonempty source and target bindings")
+    if len(source) + len(at) > _MAX_EXPRESSION_NODES:
+        raise ModuleError("coordinate map exceeds the expression node limit")
+    if any(not isinstance(item, Expression) for item in source):
+        raise TypeError("coordinate map from_ requires declared coordinates")
+    coordinates, points = [], []
+    inputs = ([] if value is None else [value]) + list(source)
+    for binding in at:
+        if not isinstance(binding, (tuple, list)) or len(binding) != 2:
+            raise TypeError("coordinate map at requires coordinate/value pairs")
+        coordinate, point = binding
+        if not isinstance(coordinate, Expression):
+            raise TypeError("coordinate map targets require declared coordinates")
+        point = _expression(point)
+        coordinates.append(coordinate)
+        points.append(point)
+        inputs.extend((coordinate, point))
+    owner = None
+    for item in inputs:
+        if owner is not None and item._owner is not None and owner is not item._owner:
+            raise ModuleError("coordinate map bindings must belong to the same lexical owner")
+        if item._owner is not None:
+            owner = item._owner
+    arguments = ([item._ast for item in source], [item._ast for item in coordinates],
+                 [item._ast for item in points])
+    ast = (_Ast.pullback(value._ast, *arguments) if factor is None
+           else _Ast.coordinate_map_factor(factor, *arguments))
+    return Expression(_CREATE, ast, owner,
+                      _binders=frozenset().union(*(item._binders for item in inputs)),
+                      _sources=frozenset().union(*(item._sources for item in inputs)))
+
+
+def pullback(value: object, *, from_: Sequence[Expression],
+             at: Sequence[tuple[Expression, object]]) -> Expression:
+    """Pull back a scalar through an explicit map of exact coordinate supports."""
+    return _coordinate_mapping(_expression(value), from_, at, None)
+
+
+def jacobian_determinant(*, from_: Sequence[Expression],
+                         at: Sequence[tuple[Expression, object]]) -> Expression:
+    """Signed local Jacobian determinant; a singular differential may have value zero."""
+    return _coordinate_mapping(None, from_, at, "jacobian_determinant")
+
+
+def volume_jacobian(*, from_: Sequence[Expression],
+                    at: Sequence[tuple[Expression, object]]) -> Expression:
+    """Absolute Jacobian determinant of an admitted invertible volume map."""
+    return _coordinate_mapping(None, from_, at, "volume_jacobian")
+
+
+def map_orientation(*, from_: Sequence[Expression],
+                    at: Sequence[tuple[Expression, object]]) -> Expression:
+    """Dimensionless local orientation of an admitted invertible map."""
+    return _coordinate_mapping(None, from_, at, "map_orientation")
+
+
 def evaluate(value: object, *, at: Sequence[tuple[Expression, object]],
              side: Literal["lower", "upper"] | None = None) -> Expression:
     """Bind every coordinate of one exact support to a dimensioned point.
@@ -2863,6 +2925,10 @@ __all__ = [
     "ordinal",
     "partial",
     "evaluate",
+    "pullback",
+    "jacobian_determinant",
+    "volume_jacobian",
+    "map_orientation",
     "variation",
     "contract",
     "jvp",

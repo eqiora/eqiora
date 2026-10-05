@@ -109,6 +109,66 @@ pub(super) fn entries() -> Vec<EditorSymbol> {
             ],
         ),
         function(
+            "pullback",
+            "pullback(expression, from = (...), at = (...))",
+            "Compose an invariant scalar with an explicit coordinate map. Source selectors and target bindings must each cover their exact support once. Coordinate derivatives use the chain rule; this operation does not convert vector frames.",
+            &[
+                (
+                    "from",
+                    "Complete ordered tuple of source coordinate selectors.",
+                ),
+                (
+                    "at",
+                    "Complete ordered target coordinate assignments evaluated on the source support.",
+                ),
+            ],
+        ),
+        function(
+            "jacobian_determinant",
+            "jacobian_determinant(from = (...), at = (...))",
+            "Signed determinant of an explicit square coordinate map. Its unit is the product of target coordinate units divided by the product of source coordinate units. A singular map has determinant zero.",
+            &[
+                (
+                    "from",
+                    "Complete ordered tuple of source coordinate selectors.",
+                ),
+                (
+                    "at",
+                    "Complete ordered target coordinate assignments evaluated on the source support.",
+                ),
+            ],
+        ),
+        function(
+            "volume_jacobian",
+            "volume_jacobian(from = (...), at = (...))",
+            "Absolute Jacobian determinant for an invertible square coordinate map. Use this factor explicitly in a pulled-back scalar integral. Embedded surface measure is not inferred.",
+            &[
+                (
+                    "from",
+                    "Complete ordered tuple of source coordinate selectors.",
+                ),
+                (
+                    "at",
+                    "Complete ordered target coordinate assignments evaluated on the source support.",
+                ),
+            ],
+        ),
+        function(
+            "map_orientation",
+            "map_orientation(from = (...), at = (...))",
+            "Dimensionless orientation sign of an invertible square coordinate map, kept separate from its positive volume scale. This does not supply a flux or vector frame conversion.",
+            &[
+                (
+                    "from",
+                    "Complete ordered tuple of source coordinate selectors.",
+                ),
+                (
+                    "at",
+                    "Complete ordered target coordinate assignments evaluated on the source support.",
+                ),
+            ],
+        ),
+        function(
             "pre",
             "pre(state)",
             "Read the committed left value of a State in its admitted clock or event context. Preserves the State's type and dimensions.",

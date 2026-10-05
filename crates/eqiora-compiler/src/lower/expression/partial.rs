@@ -32,6 +32,7 @@ pub(crate) fn result_type<I: Clone + PartialEq>(
 enum Input {
     Name(String),
     Coordinate(String, String, usize),
+    Pullback(usize),
 }
 fn input(value: &LoweringExpression) -> Option<Input> {
     match value.node.as_ref() {
@@ -41,12 +42,29 @@ fn input(value: &LoweringExpression) -> Option<Input> {
             factor,
             axis,
         } => Some(Input::Coordinate(support.clone(), factor.clone(), *axis)),
+        LoweringExpressionNode::Pullback { .. } => {
+            Some(Input::Pullback(Arc::as_ptr(&value.node) as usize))
+        }
         _ => None,
     }
 }
 
 impl ExpressionLowerer<'_> {
     pub(super) fn lower_partial(
+        &mut self,
+        expression: &LoweringExpression,
+        value: &LoweringExpression,
+        selected: &LoweringExpression,
+    ) -> Result<TypedExpression, Diagnostic> {
+        // Formalization creates temporary reciprocals and chain-rule terms.
+        // Their pointer keys must never escape the lifetime of this call.
+        let outer_cache = std::mem::take(&mut self.cache);
+        let lowered = self.lower_partial_scoped(expression, value, selected);
+        self.cache = outer_cache;
+        lowered
+    }
+
+    fn lower_partial_scoped(
         &mut self,
         expression: &LoweringExpression,
         value: &LoweringExpression,
@@ -67,6 +85,40 @@ impl ExpressionLowerer<'_> {
         let input_type = types::expression_type(self.file, selected, self.bindings, None)?;
         let result = result_type(&value_type, &input_type)
             .map_err(|message| error(self.file, expression, message))?;
+        if matches!(input(selected), Some(Input::Coordinate(..)))
+            && let LoweringExpressionNode::Pullback { value, source, at } = value.node.as_ref()
+        {
+            // Each target coordinate contributes its own dimensioned Jacobian
+            // entry. Keep the map on the differentiated value, rather than
+            // treating mapped coordinates as independent formal inputs.
+            let terms = at.iter().map(|(coordinate, mapped)| {
+                let derivative = LoweringExpression::partial(
+                    value.clone(),
+                    coordinate.clone(),
+                    expression.range(),
+                );
+                let pulled = LoweringExpression::pullback(
+                    derivative,
+                    source.clone(),
+                    at.clone(),
+                    expression.range(),
+                );
+                let jacobian = LoweringExpression::partial(
+                    mapped.clone(),
+                    selected.clone(),
+                    expression.range(),
+                );
+                LoweringExpression::binary(BinaryOp::Mul, pulled, jacobian, expression.range())
+            });
+            let sum = terms
+                .reduce(|left, right| {
+                    LoweringExpression::binary(BinaryOp::Add, left, right, expression.range())
+                })
+                .ok_or_else(|| {
+                    error(self.file, expression, "pullback has no target coordinates")
+                })?;
+            return self.lower(&sum);
+        }
         if matches!(input(selected), Some(Input::Coordinate(..)))
             && let LoweringExpressionNode::Name(name) = value.node.as_ref()
             && matches!(self.bindings.get(name), Some(Binding::Field(_, contract)) if contract.domain.is_some() && matches!(contract.activation, ActivationSyntax::Continuous))
@@ -106,7 +158,9 @@ impl ExpressionLowerer<'_> {
                 continue;
             }
             match value.node.as_ref() {
-                LoweringExpressionNode::Name(_) | LoweringExpressionNode::Coordinate { .. } => {
+                LoweringExpressionNode::Name(_)
+                | LoweringExpressionNode::Coordinate { .. }
+                | LoweringExpressionNode::Pullback { .. } => {
                     let key = input(value).expect("matched independent input");
                     if let std::collections::btree_map::Entry::Vacant(entry) = names.entry(key) {
                         let index = input_slot(inputs.len())
@@ -155,7 +209,19 @@ impl ExpressionLowerer<'_> {
                 }
             }
         }
-        let mut field_directions = Vec::new();
+        let mut coordinate_directions = Vec::new();
+        for (index, value) in inputs.iter().enumerate() {
+            if matches!(value.node.as_ref(), LoweringExpressionNode::Pullback { .. }) {
+                if !coordinate_derivative || nested_partial {
+                    return Err(error(
+                        self.file,
+                        expression,
+                        "composed pullback differentiation requires an explicit first coordinate derivative",
+                    ));
+                }
+                coordinate_directions.push(index);
+            }
+        }
         if coordinate_derivative {
             for (index, value) in inputs.iter().enumerate() {
                 if let LoweringExpressionNode::Name(name) = value.node.as_ref()
@@ -171,7 +237,7 @@ impl ExpressionLowerer<'_> {
                             "coordinate Field derivatives require a continuous Field and the admitted first-order profile",
                         ));
                     }
-                    field_directions.push(index);
+                    coordinate_directions.push(index);
                 }
             }
         }
@@ -193,7 +259,7 @@ impl ExpressionLowerer<'_> {
                     .map_err(|failure| error(self.file, expression, failure.to_string()))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        for index in &field_directions {
+        for index in &coordinate_directions {
             input_slot(formals.len()).map_err(|message| error(self.file, expression, message))?;
             let ty = result_type(&formal_types[*index], &input_type)
                 .map_err(|message| error(self.file, expression, message))?;
@@ -221,8 +287,8 @@ impl ExpressionLowerer<'_> {
             .partial(root, 0)
             .map_err(|failure| error(self.file, expression, failure.to_string()))?;
         // Chain the common exact polynomial derivative with each retained Field
-        // coordinate derivative. Numerical basis choice remains outside calculus.
-        for (direction, index) in field_directions.iter().enumerate() {
+        // or pullback derivative. Numerical basis choice stays outside calculus.
+        for (direction, index) in coordinate_directions.iter().enumerate() {
             let coefficient = calculus
                 .partial(root, *index as u16)
                 .map_err(|failure| error(self.file, expression, failure.to_string()))?;
@@ -259,11 +325,17 @@ impl ExpressionLowerer<'_> {
                 self.lower(value).map(|value| value.id)
             })
             .collect::<Result<Vec<_>, _>>()?;
-        for index in field_directions {
-            let direction = self
-                .builder
-                .coordinate_partial(arguments[index], arguments[0])
-                .map_err(|failure| self.builder_error(expression, failure))?;
+        for index in coordinate_directions {
+            let direction = if matches!(
+                inputs[index].node.as_ref(),
+                LoweringExpressionNode::Pullback { .. }
+            ) {
+                self.lower_partial(expression, &inputs[index], selected)?.id
+            } else {
+                self.builder
+                    .coordinate_partial(arguments[index], arguments[0])
+                    .map_err(|failure| self.builder_error(expression, failure))?
+            };
             arguments.push(direction);
         }
         let id = self
@@ -341,12 +413,12 @@ fn scalar(
         return Ok(*value);
     }
     let node = match expression.node.as_ref() {
-        LoweringExpressionNode::Name(_) | LoweringExpressionNode::Coordinate { .. } => {
-            CalculusNode::FormalComponent {
-                formal: names[&input(expression).expect("matched independent input")],
-                axes: Box::new([]),
-            }
-        }
+        LoweringExpressionNode::Name(_)
+        | LoweringExpressionNode::Coordinate { .. }
+        | LoweringExpressionNode::Pullback { .. } => CalculusNode::FormalComponent {
+            formal: names[&input(expression).expect("matched independent input")],
+            axes: Box::new([]),
+        },
         LoweringExpressionNode::Literal(_) => CalculusNode::FormalComponent {
             formal: literals[&(Arc::as_ptr(&expression.node) as usize)],
             axes: Box::new([]),

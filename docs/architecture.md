@@ -579,7 +579,7 @@ single current Model contract and accept no artifact-generation selector.
 Source-text callers use `compile`, client-neutral `Module` callers use `compile_module`,
 and persisted current bytes use `replay`; all three converge before artifact
 acceptance.
-Canonical bytes expose the persisted `eqiora.model-envelope/v39` schema as an
+Canonical bytes expose the persisted `eqiora.model-envelope/v40` schema as an
 output fact; the suffix is not a selectable authoring profile. Historical
 Model bytes reject, and replay never sniffs, retries, or migrates them.
 The bounded value-edit and scalar-elliptic application workflows retain exact

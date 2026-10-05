@@ -8,8 +8,8 @@ The current implementation admits abstract dimensioned interval slots and owned 
 Model and Component source, including nested products, physical Cartesian region factors, and
 whole-product and selected-factor Observable measures.
 The source support owns factor identity; native `StaticBindingValue::CoordinateInterval` and
-Python `CoordinateInterval` supply checked finite bounds. Model/Transaction v39 and structural
-fingerprint v34 retain these factors. No ambient physical frame or numerical realization is
+Python `CoordinateInterval` supply checked finite bounds. Model/Transaction v40 and structural
+fingerprint v35 retain these factors. No ambient physical frame or numerical realization is
 inferred. Exact coordinate binders and real scalar polynomial partials execute through the
 shared calculus evaluator, including independently dimensioned position and velocity factors.
 First coordinate derivatives of continuous scalar Fields remain explicit Model nodes; the
@@ -21,6 +21,44 @@ finite Result amplitudes, exact selected measures and explicit remaining output 
 and finite Gaussian error bounds. Non-Cartesian product factors, product-domain Field/PDE
 realizations, transient radial diffusion, nonpolynomial integral solver coupling, general differentiation under integrals,
 higher unknown-Field partials and curved embedded-field extensions remain separate work. The complete examples below include target operations beyond this bounded implementation.
+
+## Explicit coordinate pullbacks
+
+`pullback(value, from=(xi, eta), at=(x=2*xi+eta, y=3*eta))` composes an
+invariant scalar on the target support with the declared map from the source support.
+Both selector inventories must be complete and unique. Matching units or sampled values do
+not identify coordinates or maps. All assignments are evaluated before binding any target
+coordinate, so mappings between aliases on the same support are simultaneous.
+
+The same `from` and `at` arguments define `jacobian_determinant`, `volume_jacobian`, and
+`map_orientation`. For a square map with Jacobian J these return det(J), |det(J)|, and
+its orientation sign respectively. The first two retain the product of target coordinate
+units divided by the product of source coordinate units; orientation is dimensionless.
+A singular map has zero signed determinant, but cannot supply an invertible volume scale
+or orientation. Numerical conditioning and execution resource limits are distinct from
+mathematical dimension: these operators have no fixed maximum matrix dimension.
+
+For x=2ξ+η and y=3η, u=x²+xy pulls back to 4ξ²+10ξη+4η².
+The chain rule gives its reference derivatives (8ξ+10η, 10ξ+8η); applying J⁻ᵀ
+recovers the physical derivatives (4ξ+5η, 2ξ+η). The volume scale is 6, so the
+integral over the image of the unit square is 31 m⁴. Omitting the scale instead
+integrates over the reference measure and gives 31/6 m⁴. A reflection changes orientation,
+not the positive volume measure. The map and its factor must be written explicitly in the
+density; `pullback` alone does not change the integration measure.
+
+The current ordinary Result integral path proves spatially affine maps, with finite solved
+scalar coefficients, and uses the canonical coordinate evaluator at quadrature points.
+Non-affine maps remain expressible and locally evaluable in the admitted differentiable
+profile; general nonlinear map quadrature is not yet implemented. Point evaluation checks
+exact admitted planar Geometry membership, including holes, rather than only a bounding box.
+That check is not a proof of global map coverage or bijectivity.
+
+Scalar pullbacks may have different source and target dimensions, but the three determinant
+factors require a square map. They do not infer an embedded metric, a chart atlas, vector or
+covector frame conversion, or a Piola transform. Unknown spatial Field derivatives require
+an admitted reconstruction; higher composed pullback derivatives and general map sensitivity
+remain separate execution work. Existing declared radial measures and center regularity
+retain their own contracts below.
 
 ## Exact factors and coordinate bindings
 

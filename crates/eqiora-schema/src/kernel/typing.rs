@@ -19,6 +19,10 @@ mod finite;
 mod inference;
 mod integer;
 mod ordered_selection;
+mod pullback;
+pub use pullback::{
+    factor_result_type as coordinate_map_factor, result_type as coordinate_pullback,
+};
 mod roots;
 pub use roots::{residual, scalar_root};
 mod spatial;
@@ -119,6 +123,8 @@ impl<I> SpatialSupport<I> {
 /// Pure typing failure, retaining identities without choosing diagnostics.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeViolation<I> {
+    /// A scalar pullback must retain complete exact source and target coordinates.
+    CoordinatePullbackRequiresExactMap,
     /// Discrete domains do not implicitly embed into continuous numeric domains.
     ScalarDomainMismatch,
     /// Finite operands have incompatible roles, basis identities, or dualities.
@@ -251,6 +257,7 @@ impl<I> TypeViolation<I> {
 impl<I: fmt::Debug> fmt::Display for TypeViolation<I> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::CoordinatePullbackRequiresExactMap => formatter.write_str("scalar pullback requires complete exact coordinate inventories, matching coordinate units and an invariant scalar value"),
             Self::ScalarDomainMismatch => {
                 formatter.write_str("operation requires compatible admitted scalar domains")
             }

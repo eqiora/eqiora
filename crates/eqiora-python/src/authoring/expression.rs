@@ -7,6 +7,8 @@ use eqiora::language::{
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyTuple};
 
+mod coordinates;
+
 pub(super) const RANGE: TextRange = TextRange::new(0, 1);
 const MAX_DEPTH: usize = 64;
 const MAX_NODES: usize = 4096;
@@ -111,6 +113,33 @@ impl PyAstExpression {
                 ExprKind::Name(name.to_owned())
             })
         })
+    }
+
+    #[staticmethod]
+    fn pullback(
+        value: &Self,
+        source: &Bound<'_, PyAny>,
+        coordinates: &Bound<'_, PyAny>,
+        points: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        Self::mapping(Some(value), None, source, coordinates, points)
+    }
+
+    #[staticmethod]
+    fn coordinate_map_factor(
+        factor: &str,
+        source: &Bound<'_, PyAny>,
+        coordinates: &Bound<'_, PyAny>,
+        points: &Bound<'_, PyAny>,
+    ) -> PyResult<Self> {
+        use eqiora::kernel::CoordinateMapFactor;
+        let factor = match factor {
+            "jacobian_determinant" => CoordinateMapFactor::SignedJacobian,
+            "volume_jacobian" => CoordinateMapFactor::VolumeScale,
+            "map_orientation" => CoordinateMapFactor::Orientation,
+            _ => return Err(syntax_error("unknown coordinate map factor")),
+        };
+        Self::mapping(None, Some(factor), source, coordinates, points)
     }
 
     #[staticmethod]

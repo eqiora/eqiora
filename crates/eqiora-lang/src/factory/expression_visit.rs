@@ -161,7 +161,12 @@ pub(crate) fn expression(
             expression(scope, then_value, visit);
             expression(scope, else_value, visit);
         }
-        ExprKind::Evaluate { value, at, .. } => {
+        ExprKind::CoordinateMapFactor { at, .. } => {
+            for (_, point) in at {
+                expression(scope, point, visit);
+            }
+        }
+        ExprKind::Evaluate { value, at, .. } | ExprKind::Pullback { value, at, .. } => {
             expression(scope, value, visit);
             for (_, point) in at {
                 expression(scope, point, visit);

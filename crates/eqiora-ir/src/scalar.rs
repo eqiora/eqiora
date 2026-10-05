@@ -1,7 +1,9 @@
 mod additive_terms;
 mod affine_analysis;
+mod affine_density;
 mod instruction;
 mod lower;
+mod pullback;
 mod regularity;
 mod slot_affine;
 use instruction::{Instruction, ValueId};
@@ -10,6 +12,7 @@ mod batch;
 mod enum_tests;
 mod linearization;
 mod map_evaluation;
+pub use map_evaluation::coordinate_map_factor;
 mod numerical_evaluation;
 mod point_components;
 mod point_projection;

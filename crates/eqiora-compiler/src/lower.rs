@@ -209,6 +209,16 @@ impl PartialEq for LoweringExpression {
 
 #[derive(Debug, PartialEq)]
 enum LoweringExpressionNode {
+    CoordinateMapFactor {
+        factor: eqiora_schema::kernel::CoordinateMapFactor,
+        source: Vec<LoweringExpression>,
+        at: Vec<(LoweringExpression, LoweringExpression)>,
+    },
+    Pullback {
+        value: LoweringExpression,
+        source: Vec<LoweringExpression>,
+        at: Vec<(LoweringExpression, LoweringExpression)>,
+    },
     Evaluate {
         value: LoweringExpression,
         at: Vec<(LoweringExpression, LoweringExpression)>,

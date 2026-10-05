@@ -2,6 +2,91 @@
 use super::*;
 
 impl ExpressionChecker<'_, '_, '_> {
+    pub(super) fn coordinate_map_factor(
+        &mut self,
+        expression: &Expr,
+        factor: eqiora_schema::kernel::CoordinateMapFactor,
+        source: &[eqiora_lang::NamePath],
+        at: &[(eqiora_lang::NamePath, Expr)],
+    ) -> Result<ExpressionType<String>, Diagnostic> {
+        let coordinate = |name: &eqiora_lang::NamePath| {
+            let SymbolContract::Coordinate(selected) = self.scope.resolve_symbol(name)? else {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.scope.file,
+                    name.range(),
+                    "pullback selector must name a declared coordinate",
+                ));
+            };
+            Ok(selected)
+        };
+        let source = source
+            .iter()
+            .map(coordinate)
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        let selectors = at
+            .iter()
+            .map(|(name, _)| coordinate(name))
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        let points = selectors
+            .into_iter()
+            .zip(at)
+            .map(|(selected, (_, mapped))| Ok((selected, self.check(mapped)?)))
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        eqiora_schema::kernel::typing::coordinate_map_factor(factor, &source, &points).map_err(
+            |error| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.scope.file,
+                    expression.range(),
+                    error.to_string(),
+                )
+            },
+        )
+    }
+    pub(super) fn pullback(
+        &mut self,
+        expression: &Expr,
+        value: &Expr,
+        source: &[eqiora_lang::NamePath],
+        at: &[(eqiora_lang::NamePath, Expr)],
+    ) -> Result<ExpressionType<String>, Diagnostic> {
+        let coordinate = |name: &eqiora_lang::NamePath| {
+            let SymbolContract::Coordinate(selected) = self.scope.resolve_symbol(name)? else {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.scope.file,
+                    name.range(),
+                    "pullback selector must name a declared coordinate",
+                ));
+            };
+            Ok(selected)
+        };
+        let source = source
+            .iter()
+            .map(coordinate)
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        let selectors = at
+            .iter()
+            .map(|(name, _)| coordinate(name))
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        let points = selectors
+            .into_iter()
+            .zip(at)
+            .map(|(selected, (_, mapped))| Ok((selected, self.check(mapped)?)))
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
+        let value = self.check(value)?;
+        eqiora_schema::kernel::typing::coordinate_pullback(&value, &source, &points).map_err(
+            |error| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.scope.file,
+                    expression.range(),
+                    error.to_string(),
+                )
+            },
+        )
+    }
     pub(super) fn evaluate_point(
         &mut self,
         expression: &Expr,

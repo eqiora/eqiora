@@ -210,6 +210,24 @@ one-dimensional approach; cell-boundary gradients require it. See
 [coordinates and point evaluation](../language/coordinates.md#point-evaluation-and-one-sided-traces)
 for the admitted profile and non-claims.
 
+Structured coordinate maps use the same canonical source operation:
+
+```python
+mapped = lang.pullback(x * x + x * y, from_=(xi, eta),
+                       at=((x, 2 * xi + eta), (y, 3 * eta)))
+scale = lang.volume_jacobian(from_=(xi, eta),
+                             at=((x, 2 * xi + eta), (y, 3 * eta)))
+```
+
+Here `x`, `y`, `xi`, and `eta` are coordinate handles in the same owning model body.
+Python uses `from_` because `from` is a reserved word; emitted Eqiora source uses `from`.
+`lang.jacobian_determinant` and `lang.map_orientation` accept the same keyword arguments.
+Use `mapped * scale` as the explicitly transformed integral density. Source and target
+inventories must be complete and unique, with compatible declared coordinate units;
+foreign lexical owners reject before compilation. Scalar pullback does not convert vector
+frames or infer an embedded measure. See [explicit coordinate pullbacks](../language/coordinates.md#explicit-coordinate-pullbacks)
+for the current execution profiles and their independent mathematical expectations.
+
 An `observable` retains a typed expression in Model meaning without adding a
 Field unknown or solving equation. Finite values and spatial integrals use the
 same declaration:
@@ -1538,7 +1556,7 @@ assert same.revision == child.revision
 ```
 
 The canonical bytes still expose the persisted
-`eqiora.model-envelope/v39` schema, but callers do not select that suffix.
+`eqiora.model-envelope/v40` schema, but callers do not select that suffix.
 `.eqi` remains source text; `.eqmodel` is the canonical compiled Model artifact.
 Only the current schema is accepted; decoding never sniffs, retries, or silently
 migrates an older artifact.

@@ -14,6 +14,7 @@ mod observable_partials;
 pub(super) use observable_partials::expand as expand_observable_partials;
 mod evaluate;
 mod partial;
+mod pullback;
 pub(crate) use evaluate::result_type as point_result_type;
 pub(super) use observable::lower_observable;
 mod physical_accessors;
@@ -307,6 +308,12 @@ impl ExpressionLowerer<'_> {
             }
             LoweringExpressionNode::Evaluate { value, at, side } => {
                 self.lower_evaluate(expression, value, at, *side)
+            }
+            LoweringExpressionNode::CoordinateMapFactor { factor, source, at } => {
+                self.lower_coordinate_map_factor(expression, *factor, source, at)
+            }
+            LoweringExpressionNode::Pullback { value, source, at } => {
+                self.lower_pullback(expression, value, source, at)
             }
             LoweringExpressionNode::Partial { value, wrt } => {
                 self.lower_partial(expression, value, wrt)

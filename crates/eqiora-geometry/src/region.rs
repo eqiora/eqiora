@@ -138,6 +138,58 @@ pub struct PlanarRegion {
 }
 
 impl PlanarRegion {
+    /// Classify a point in metres against a named union of closed faces.
+    /// Boundary membership uses this geometry's declared classification precision;
+    /// hole interiors are excluded while their boundaries belong to the closure.
+    ///
+    /// # Errors
+    /// Rejects a missing/non-face selection, non-finite point, or arithmetic
+    /// outside the finite classification profile.
+    pub fn contains_point(&self, selection: &str, point: [f64; 2]) -> Result<bool, Diagnostic> {
+        let selected = self
+            .entity_set(selection)
+            .filter(|set| set.dimension() == FACE_DIMENSION)
+            .ok_or_else(|| invalid("point membership requires an exact face selection"))?;
+        if point.iter().any(|value| !value.is_finite()) {
+            return Err(invalid("geometry point must be finite metres"));
+        }
+        for index in selected.members() {
+            let face = &self.faces[*index];
+            for boundary in face.loops() {
+                for position in 0..boundary.len() {
+                    let (a, b) = segment(boundary, position);
+                    let a = self.vertices[a];
+                    let b = self.vertices[b];
+                    let delta = [b[0] - a[0], b[1] - a[1]];
+                    let length = delta[0].hypot(delta[1]);
+                    let relative = [point[0] - a[0], point[1] - a[1]];
+                    let along = (relative[0] * (delta[0] / length)
+                        + relative[1] * (delta[1] / length))
+                        .clamp(0.0, length);
+                    let distance = (relative[0] - along * (delta[0] / length))
+                        .hypot(relative[1] - along * (delta[1] / length));
+                    if !length.is_finite() || !distance.is_finite() {
+                        return Err(invalid(
+                            "geometry point classification exceeds finite arithmetic",
+                        ));
+                    }
+                    if distance <= self.tolerance_m {
+                        return Ok(true);
+                    }
+                }
+            }
+            if point_strictly_inside(point, face.outer(), &self.vertices)
+                && !face
+                    .holes()
+                    .iter()
+                    .any(|hole| point_strictly_inside(point, hole, &self.vertices))
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     /// Canonicalize and admit one straight-edged planar region.
     ///
     /// Vertex order, loop rotation, loop orientation, face order and entity-set
@@ -565,6 +617,20 @@ fn point_strictly_inside(point: [f64; 2], boundary: &[usize], vertices: &[[f64; 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn closed_face_membership_preserves_holes_and_declared_precision() {
+        let region = square_with_hole();
+        for point in [[0.1, 0.5], [0.0, 0.5], [0.25, 0.5], [-0.5e-9, 0.5]] {
+            assert!(region.contains_point("fluid", point).unwrap(), "{point:?}");
+        }
+        for point in [[0.5, 0.5], [-2.0e-9, 0.5], [2.0, 0.5]] {
+            assert!(!region.contains_point("fluid", point).unwrap(), "{point:?}");
+        }
+        assert!(region.contains_point("hole", [0.5, 0.5]).is_err());
+        assert!(region.contains_point("missing", [0.5, 0.5]).is_err());
+        assert!(region.contains_point("fluid", [f64::NAN, 0.5]).is_err());
+    }
 
     /// Unit square with a centred square hole, authored the obvious way.
     fn square_with_hole() -> PlanarRegion {

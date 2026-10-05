@@ -77,7 +77,9 @@ impl Resolver<'_> {
     }
     fn anchor_node(&mut self, value: &LoweringExpression) -> Option<ScalarDomain> {
         match value.node.as_ref() {
-            LoweringExpressionNode::Evaluate { value, .. } => self.anchor(value),
+            LoweringExpressionNode::CoordinateMapFactor { .. } => Some(ScalarDomain::Real),
+            LoweringExpressionNode::Evaluate { value, .. }
+            | LoweringExpressionNode::Pullback { value, .. } => self.anchor(value),
             LoweringExpressionNode::Case { arms, .. } => {
                 arms.iter().find_map(|(_, value)| self.anchor(value))
             }
@@ -134,6 +136,36 @@ impl Resolver<'_> {
     ) -> Result<LoweringExpression, Diagnostic> {
         let file = self.file;
         let node = match expression.node.as_ref() {
+            LoweringExpressionNode::CoordinateMapFactor { factor, source, at } => {
+                LoweringExpressionNode::CoordinateMapFactor {
+                    factor: *factor,
+                    source: source.clone(),
+                    at: at
+                        .iter()
+                        .map(|(coordinate, mapped)| {
+                            Ok((
+                                coordinate.clone(),
+                                self.resolve(mapped, Some(ScalarDomain::Real))?,
+                            ))
+                        })
+                        .collect::<Result<_, Diagnostic>>()?,
+                }
+            }
+            LoweringExpressionNode::Pullback { value, source, at } => {
+                LoweringExpressionNode::Pullback {
+                    value: self.resolve(value, expected)?,
+                    source: source.clone(),
+                    at: at
+                        .iter()
+                        .map(|(coordinate, mapped)| {
+                            Ok((
+                                coordinate.clone(),
+                                self.resolve(mapped, Some(ScalarDomain::Real))?,
+                            ))
+                        })
+                        .collect::<Result<_, Diagnostic>>()?,
+                }
+            }
             LoweringExpressionNode::Evaluate { value, at, side } => {
                 LoweringExpressionNode::Evaluate {
                     value: self.resolve(value, expected)?,

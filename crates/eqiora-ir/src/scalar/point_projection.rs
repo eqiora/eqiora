@@ -31,7 +31,13 @@ impl ScalarOperatorIr {
     /// Rejects non-real or shaped values, invalid typed applications, and the
     /// existing scalar projection resource bounds.
     pub fn lower_typed_scalar<I>(typed: &TypedResidual<I>) -> Result<Self, Diagnostic> {
-        let operator = Self::lower(typed.expression())?;
+        Self::project_typed_operator(typed, Self::lower(typed.expression())?)
+    }
+
+    pub(super) fn project_typed_operator<I>(
+        typed: &TypedResidual<I>,
+        operator: Self,
+    ) -> Result<Self, Diagnostic> {
         if operator.definitions.is_empty() {
             return Ok(operator);
         }

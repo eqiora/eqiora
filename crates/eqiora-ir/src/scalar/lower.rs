@@ -13,6 +13,13 @@ impl ScalarOperatorIr {
     /// Returns `EQ0701` if an operand/root index is inconsistent with the DAG
     /// contract.
     pub fn lower(expression: &ExprDag) -> Result<Self, Diagnostic> {
+        Self::lower_bound_factors(expression, &HashMap::new())
+    }
+
+    pub(super) fn lower_bound_factors(
+        expression: &ExprDag,
+        factors: &HashMap<ExprId, eqiora_core::DynQuantity>,
+    ) -> Result<Self, Diagnostic> {
         let definitions = expression
             .definitions()
             .iter()
@@ -25,6 +32,42 @@ impl ScalarOperatorIr {
         let mut instructions = Vec::with_capacity(expression.nodes().len());
         let mut values = Vec::with_capacity(expression.nodes().len());
         for (index, node) in expression.nodes().iter().enumerate() {
+            if let Some(value) =
+                factors.get(&expression.node_id(index as u32).expect("retained node"))
+            {
+                values.push(ValueId(
+                    u32::try_from(instructions.len()).map_err(|_| ir_size_error())?,
+                ));
+                instructions.push(Instruction::Constant(*value));
+                continue;
+            }
+            if let ExprNode::Pullback { value, at, .. } = node {
+                let mut bindings = HashMap::new();
+                for (selector, mapped) in at {
+                    let Some(ExprNode::Symbol(symbol @ SymbolRef::Coordinate { .. })) =
+                        expression.node(*selector)
+                    else {
+                        return Err(ir_builder_error(
+                            "pullback selector is not an exact coordinate",
+                        ));
+                    };
+                    if bindings
+                        .insert(*symbol, value_id(*mapped, &values)?)
+                        .is_some()
+                    {
+                        return Err(ir_builder_error("pullback repeats an exact coordinate"));
+                    }
+                }
+                let root = super::pullback::substitute(
+                    value_id(*value, &values)?,
+                    &bindings,
+                    &symbols,
+                    &mut instructions,
+                    &mut array_operands,
+                )?;
+                values.push(root);
+                continue;
+            }
             if let ExprNode::Sample { value, .. } | ExprNode::Hold(value) = node {
                 values.push(value_id(*value, &values)?);
                 continue;

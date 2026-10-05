@@ -126,6 +126,12 @@ impl ExpressionChecker<'_, '_, '_> {
             return self.check_physical_member(member, &port);
         }
         match expression.kind() {
+            ExprKind::CoordinateMapFactor { factor, source, at } => {
+                self.coordinate_map_factor(expression, *factor, source, at)
+            }
+            ExprKind::Pullback { value, source, at } => {
+                self.pullback(expression, value, source, at)
+            }
             ExprKind::Evaluate { value, at, side } => {
                 self.evaluate_point(expression, value, at, side.is_some())
             }

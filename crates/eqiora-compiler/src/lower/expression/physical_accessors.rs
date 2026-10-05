@@ -90,6 +90,21 @@ impl LoweringExpression {
                     pending.push(argument);
                 }
                 LoweringExpressionNode::Partial { value, wrt } => pending.extend([value, wrt]),
+                LoweringExpressionNode::CoordinateMapFactor { source, at, .. } => {
+                    pending.extend(source);
+                    pending.extend(
+                        at.iter()
+                            .flat_map(|(coordinate, mapped)| [coordinate, mapped]),
+                    );
+                }
+                LoweringExpressionNode::Pullback { value, source, at } => {
+                    pending.push(value);
+                    pending.extend(source);
+                    pending.extend(
+                        at.iter()
+                            .flat_map(|(coordinate, mapped)| [coordinate, mapped]),
+                    );
+                }
                 LoweringExpressionNode::Evaluate { value, at, .. } => {
                     pending.push(value);
                     pending.extend(

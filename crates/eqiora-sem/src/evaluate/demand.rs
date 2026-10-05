@@ -1,5 +1,6 @@
 //! Demand-driven evaluation; each coordinate binding owns a fresh value cache.
 use super::*;
+mod jacobian;
 
 type Resolver<'a> =
     dyn FnMut(EvaluationInput, Option<&EvaluationPoint>) -> Result<ValueLiteral, Diagnostic> + 'a;
@@ -46,10 +47,14 @@ pub(crate) fn evaluate_with_points(
         owner,
         expression,
         program: (point.is_some()
-            || expression
-                .nodes()
-                .iter()
-                .any(|node| matches!(node, ExprNode::Evaluate { .. })))
+            || expression.nodes().iter().any(|node| {
+                matches!(
+                    node,
+                    ExprNode::Evaluate { .. }
+                        | ExprNode::Pullback { .. }
+                        | ExprNode::CoordinateMapFactor { .. }
+                )
+            }))
         .then_some(program),
         resolve,
         component_work: 0,
@@ -115,7 +120,44 @@ impl Evaluator<'_, '_> {
                 if point.is_some_and(|point| point.side().is_some()) {
                     super::point::require_side_regularity(expression, node)?;
                 }
-                if let ExprNode::Evaluate { value, at, side } = node {
+                if let ExprNode::CoordinateMapFactor { factor, source, at } = node {
+                    values[index] = Some(self.map_factor(id, *factor, source, at, point)?);
+                    continue;
+                }
+                let binding = match node {
+                    ExprNode::Evaluate { value, at, side } => Some((*value, at, *side)),
+                    ExprNode::Pullback { value, source, at } => {
+                        let source_point = point.ok_or_else(|| {
+                            Diagnostic::error(
+                                codes::MISSING_EXECUTION_INPUT,
+                                "coordinate pullback requires an exact source point",
+                            )
+                        })?;
+                        if source_point.side().is_some() {
+                            return Err(Diagnostic::error(
+                                codes::NOT_IMPLEMENTED,
+                                "one-sided coordinate pullback requires an admitted orientation transform",
+                            ));
+                        }
+                        for selector in source {
+                            let Some(ExprNode::Symbol(SymbolRef::Coordinate {
+                                support,
+                                factor,
+                                axis,
+                            })) = expression.node(*selector)
+                            else {
+                                return Err(Diagnostic::error(
+                                    codes::INVALID_EXPRESSION_DAG,
+                                    "coordinate pullback source selector is not a coordinate",
+                                ));
+                            };
+                            source_point.coordinate(*support, *factor, *axis)?;
+                        }
+                        Some((*value, at, None))
+                    }
+                    _ => None,
+                };
+                if let Some((value, at, side)) = binding {
                     let program = self.program.ok_or_else(|| {
                         Diagnostic::error(
                             codes::NOT_IMPLEMENTED,
@@ -124,8 +166,8 @@ impl Evaluator<'_, '_> {
                     })?;
                     let roots = at.iter().map(|(_, value)| *value).collect::<Vec<_>>();
                     let points = self.selected(&roots, point, depth + 1)?;
-                    let bound = EvaluationPoint::bind(program, expression, at, &points, *side)?;
-                    let mut evaluated = self.selected(&[*value], Some(&bound), depth + 1)?;
+                    let bound = EvaluationPoint::bind(program, expression, at, &points, side)?;
+                    let mut evaluated = self.selected(&[value], Some(&bound), depth + 1)?;
                     values[index] = evaluated.pop();
                     continue;
                 }

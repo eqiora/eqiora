@@ -60,10 +60,27 @@ pub struct KernelProgram {
     boundary: BTreeSet<RawId>,
     spatial_supports: BTreeMap<RawId, SpatialSupport<RawId>>,
     cartesian_bounds: BTreeMap<RawId, Vec<AxisBounds>>,
+    planar_geometry: BTreeMap<[u8; 32], eqiora_geometry::PlanarRegion>,
     geometry_boundary_junctions: BTreeMap<RawId, GeometryBoundaryJunction>,
 }
 
 impl KernelProgram {
+    pub(crate) fn planar_region(
+        &self,
+        domain: Id<kinds::Domain>,
+    ) -> Option<(&eqiora_geometry::PlanarRegion, &str)> {
+        let KernelNode::Domain(definition) = self.nodes.get(&domain.erase())? else {
+            return None;
+        };
+        let DomainKind::GeometryRegion {
+            geometry,
+            entity_set,
+        } = definition.kind()
+        else {
+            return None;
+        };
+        Some((self.planar_geometry.get(&geometry.bytes())?, entity_set))
+    }
     pub(crate) const fn node_definitions(&self) -> &BTreeMap<RawId, KernelNode> {
         &self.nodes
     }

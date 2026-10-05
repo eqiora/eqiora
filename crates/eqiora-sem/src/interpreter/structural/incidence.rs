@@ -38,6 +38,21 @@ pub(in crate::interpreter) fn variables(
                 }
             }
             ExprNode::Constant(_) => {}
+            ExprNode::CoordinateMapFactor { source, at, .. } => {
+                pending.extend(source);
+                pending.extend(
+                    at.iter()
+                        .flat_map(|(coordinate, mapped)| [*coordinate, *mapped]),
+                );
+            }
+            ExprNode::Pullback { value, source, at } => {
+                pending.push(*value);
+                pending.extend(source);
+                pending.extend(
+                    at.iter()
+                        .flat_map(|(coordinate, mapped)| [*coordinate, *mapped]),
+                );
+            }
             ExprNode::Evaluate { value, at, .. } => {
                 pending.push(*value);
                 pending.extend(

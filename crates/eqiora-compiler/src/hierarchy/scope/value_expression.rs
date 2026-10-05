@@ -76,6 +76,59 @@ pub(in crate::hierarchy) fn rewrite_expression_with_boundary_member(
             let expanded = crate::pure_operator::actions::expand(file, expression, arguments)?;
             rewrite_expression_with_boundary_member(file, &expanded, scope, active)?
         }
+        ExprKind::CoordinateMapFactor { factor, source, at } => {
+            let coordinate = |name: &eqiora_lang::NamePath| {
+                scope.coordinate(name.as_str()).cloned().ok_or_else(|| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        name.range(),
+                        "pullback selector must name an exact coordinate",
+                    )
+                })
+            };
+            let source = source
+                .iter()
+                .map(coordinate)
+                .collect::<Result<Vec<_>, _>>()?;
+            let at = at
+                .iter()
+                .map(|(name, mapped)| {
+                    Ok((
+                        coordinate(name)?,
+                        rewrite_expression_with_boundary_member(file, mapped, scope, active)?,
+                    ))
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?;
+            LoweringExpression::coordinate_map_factor(*factor, source, at, expression.range())
+        }
+        ExprKind::Pullback { value, source, at } => {
+            let coordinate = |name: &eqiora_lang::NamePath| {
+                scope.coordinate(name.as_str()).cloned().ok_or_else(|| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        file,
+                        name.range(),
+                        "pullback selector must name an exact coordinate",
+                    )
+                })
+            };
+            let source = source
+                .iter()
+                .map(coordinate)
+                .collect::<Result<Vec<_>, _>>()?;
+            let at = at
+                .iter()
+                .map(|(name, mapped)| {
+                    Ok((
+                        coordinate(name)?,
+                        rewrite_expression_with_boundary_member(file, mapped, scope, active)?,
+                    ))
+                })
+                .collect::<Result<Vec<_>, Diagnostic>>()?;
+            let value = rewrite_expression_with_boundary_member(file, value, scope, active)?;
+            LoweringExpression::pullback(value, source, at, expression.range())
+        }
         ExprKind::Evaluate { value, at, side } => {
             let value = rewrite_expression_with_boundary_member(file, value, scope, active)?;
             let points =

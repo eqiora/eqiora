@@ -13,8 +13,8 @@ use eqiora_core::Diagnostic;
 use eqiora_core::entity::kinds;
 use eqiora_schema::kernel::pure_operator::PureOperatorDefinition;
 use eqiora_schema::kernel::{
-    ComparisonOp, ExprDag, ExprDagBuilder, ExprId, ExprNode, FiniteBinaryOperation,
-    FiniteUnaryOperation, SymbolRef, UnaryMathFunction,
+    ComparisonOp, CoordinateMapFactor, ExprDag, ExprDagBuilder, ExprId, ExprNode,
+    FiniteBinaryOperation, FiniteUnaryOperation, SymbolRef, UnaryMathFunction,
 };
 use serde::{Deserialize, Serialize};
 
@@ -462,6 +462,16 @@ pub(crate) enum WireExpressionNode {
         value: u32,
         wrt: u32,
     },
+    CoordinateMapFactor {
+        factor: WireCoordinateMapFactor,
+        source: Vec<u32>,
+        at: Vec<(u32, u32)>,
+    },
+    Pullback {
+        value: u32,
+        source: Vec<u32>,
+        at: Vec<(u32, u32)>,
+    },
     Evaluate {
         value: u32,
         at: Vec<(u32, u32)>,
@@ -634,6 +644,22 @@ impl WireExpressionNode {
                 value: value.index(),
                 wrt: wrt.index(),
             },
+            ExprNode::CoordinateMapFactor { factor, source, at } => Self::CoordinateMapFactor {
+                factor: WireCoordinateMapFactor::encode(*factor),
+                source: source.iter().map(|id| id.index()).collect(),
+                at: at
+                    .iter()
+                    .map(|(coordinate, mapped)| (coordinate.index(), mapped.index()))
+                    .collect(),
+            },
+            ExprNode::Pullback { value, source, at } => Self::Pullback {
+                value: value.index(),
+                source: source.iter().map(|id| id.index()).collect(),
+                at: at
+                    .iter()
+                    .map(|(coordinate, mapped)| (coordinate.index(), mapped.index()))
+                    .collect(),
+            },
             ExprNode::Evaluate { value, at, side } => Self::Evaluate {
                 value: value.index(),
                 at: at
@@ -783,6 +809,30 @@ impl WireExpressionNode {
             Self::CoordinatePartial { value, wrt } => {
                 builder.coordinate_partial(operand(ids, *value)?, operand(ids, *wrt)?)
             }
+            Self::CoordinateMapFactor { factor, source, at } => builder.coordinate_map_factor(
+                factor.decode(),
+                source
+                    .iter()
+                    .map(|id| operand(ids, *id))
+                    .collect::<Result<_, _>>()?,
+                at.iter()
+                    .map(|(coordinate, mapped)| {
+                        Ok((operand(ids, *coordinate)?, operand(ids, *mapped)?))
+                    })
+                    .collect::<Result<_, Diagnostic>>()?,
+            ),
+            Self::Pullback { value, source, at } => builder.pullback(
+                operand(ids, *value)?,
+                source
+                    .iter()
+                    .map(|id| operand(ids, *id))
+                    .collect::<Result<_, _>>()?,
+                at.iter()
+                    .map(|(coordinate, mapped)| {
+                        Ok((operand(ids, *coordinate)?, operand(ids, *mapped)?))
+                    })
+                    .collect::<Result<_, Diagnostic>>()?,
+            ),
             Self::Evaluate { value, at, side } => builder.evaluate_at(
                 operand(ids, *value)?,
                 at.iter()
@@ -822,6 +872,31 @@ impl WireExpressionNode {
         match self {
             Self::PureOperatorApplication { arguments, .. } => arguments.len(),
             _ => 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum WireCoordinateMapFactor {
+    SignedJacobian,
+    VolumeScale,
+    Orientation,
+}
+
+impl WireCoordinateMapFactor {
+    fn encode(factor: CoordinateMapFactor) -> Self {
+        match factor {
+            CoordinateMapFactor::SignedJacobian => Self::SignedJacobian,
+            CoordinateMapFactor::VolumeScale => Self::VolumeScale,
+            CoordinateMapFactor::Orientation => Self::Orientation,
+        }
+    }
+    fn decode(self) -> CoordinateMapFactor {
+        match self {
+            Self::SignedJacobian => CoordinateMapFactor::SignedJacobian,
+            Self::VolumeScale => CoordinateMapFactor::VolumeScale,
+            Self::Orientation => CoordinateMapFactor::Orientation,
         }
     }
 }

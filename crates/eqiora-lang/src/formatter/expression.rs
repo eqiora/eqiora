@@ -15,6 +15,50 @@ pub(super) fn format_expression(
         output.push('(');
     }
     match &expression.kind {
+        ExprKind::CoordinateMapFactor { factor, source, at } => {
+            use eqiora_schema::kernel::CoordinateMapFactor;
+            output.push_str(match factor {
+                CoordinateMapFactor::SignedJacobian => "jacobian_determinant",
+                CoordinateMapFactor::VolumeScale => "volume_jacobian",
+                CoordinateMapFactor::Orientation => "map_orientation",
+            });
+            output.push_str("(from = (");
+            for (index, coordinate) in source.iter().enumerate() {
+                if index > 0 {
+                    output.push_str(", ");
+                }
+                write!(output, "{coordinate}").expect("String write");
+            }
+            output.push_str("), at = (");
+            for (index, (coordinate, mapped)) in at.iter().enumerate() {
+                if index > 0 {
+                    output.push_str(", ");
+                }
+                write!(output, "{coordinate} = ").expect("String write");
+                format_expression(mapped, 0, output);
+            }
+            output.push_str("))");
+        }
+        ExprKind::Pullback { value, source, at } => {
+            output.push_str("pullback(");
+            format_expression(value, 0, output);
+            output.push_str(", from = (");
+            for (index, coordinate) in source.iter().enumerate() {
+                if index > 0 {
+                    output.push_str(", ");
+                }
+                write!(output, "{coordinate}").expect("String write");
+            }
+            output.push_str("), at = (");
+            for (index, (coordinate, mapped)) in at.iter().enumerate() {
+                if index > 0 {
+                    output.push_str(", ");
+                }
+                write!(output, "{coordinate} = ").expect("String write");
+                format_expression(mapped, 0, output);
+            }
+            output.push_str("))");
+        }
         ExprKind::Evaluate { value, at, side } => {
             output.push_str("evaluate(");
             format_expression(value, 0, output);
@@ -261,6 +305,8 @@ fn expression_precedence(expression: &Expr) -> u8 {
         | ExprKind::Call { .. }
         | ExprKind::Partial { .. }
         | ExprKind::Evaluate { .. }
+        | ExprKind::Pullback { .. }
+        | ExprKind::CoordinateMapFactor { .. }
         | ExprKind::Reduction { .. }
         | ExprKind::Array(_)
         | ExprKind::Tuple(_)

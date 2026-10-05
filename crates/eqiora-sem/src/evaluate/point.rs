@@ -1,6 +1,6 @@
 //! A point is admitted against exact Model factors before a representation can sample it.
 use super::*;
-use eqiora_core::{Id, entity::kinds};
+use eqiora_core::{DimExponents, Id, entity::kinds};
 use eqiora_schema::kernel::{BoundarySide, DomainKind, KernelNode, typing::SpatialSupport};
 
 /// A value or first coordinate derivative requested from an admitted reconstruction.
@@ -47,6 +47,37 @@ impl EvaluationPoint {
         self.side
     }
 
+    /// Admit an exact, complete coordinate context for numerical sampling.
+    /// This validates support identity, coordinate units, bounds and retained geometry.
+    /// # Errors
+    /// Rejects missing, repeated, foreign or invalid coordinates and unsupported sides.
+    pub fn new(
+        program: &KernelProgram,
+        domain: Id<kinds::Domain>,
+        coordinates: Vec<((RawId, usize), DynQuantity)>,
+        side: Option<BoundarySide>,
+    ) -> Result<Self, Diagnostic> {
+        if coordinates.is_empty()
+            || coordinates.len() > 64
+            || (side.is_some() && coordinates.len() != 1)
+        {
+            return Err(invalid(
+                "point evaluation has an invalid coordinate inventory or side",
+            ));
+        }
+        let mut seen = std::collections::BTreeSet::new();
+        if coordinates.iter().any(|(axis, _)| !seen.insert(*axis)) {
+            return Err(invalid("evaluation repeats an exact coordinate"));
+        }
+        let point = Self {
+            domain,
+            coordinates,
+            side,
+        };
+        point.validate(program)?;
+        Ok(point)
+    }
+
     pub(super) fn bind(
         program: &KernelProgram,
         expression: &ExprDag,
@@ -90,11 +121,7 @@ impl EvaluationPoint {
             }
             coordinates.push((key, value));
         }
-        Ok(Self {
-            domain: domain.expect("nonempty point"),
-            coordinates,
-            side,
-        })
+        Self::new(program, domain.expect("nonempty point"), coordinates, side)
     }
 
     pub(crate) fn validate(&self, program: &KernelProgram) -> Result<(), Diagnostic> {
@@ -111,6 +138,33 @@ impl EvaluationPoint {
                 self.side,
                 self.coordinates.len(),
             )?;
+        }
+        self.validate_geometry(program)
+    }
+
+    fn validate_geometry(&self, program: &KernelProgram) -> Result<(), Diagnostic> {
+        let mut checked = std::collections::BTreeSet::new();
+        for ((factor, _), _) in &self.coordinates {
+            if !checked.insert(*factor) {
+                continue;
+            }
+            let factor_id = factor
+                .downcast()
+                .ok_or_else(|| invalid("point factor is not a Domain"))?;
+            if let Some((region, selection)) = program.planar_region(factor_id) {
+                let coordinate = |axis| {
+                    self.coordinates
+                        .iter()
+                        .find(|((id, index), _)| id == factor && *index == axis)
+                        .map(|(_, value)| value.value())
+                        .ok_or_else(|| invalid("geometry point omits an exact coordinate"))
+                };
+                if !region.contains_point(selection, [coordinate(0)?, coordinate(1)?])? {
+                    return Err(invalid(
+                        "evaluation point lies outside its exact geometry support",
+                    ));
+                }
+            }
         }
         Ok(())
     }
@@ -163,6 +217,16 @@ fn checked_coordinate(
     let Some(KernelNode::Domain(definition)) = program.node(factor.erase()) else {
         return Err(invalid("evaluation factor is outside the Model"));
     };
+    if program.planar_region(factor).is_some() {
+        let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("length dimension");
+        if axis >= 2 || value.dim() != length || !value.value().is_finite() || side.is_some() {
+            return Err(invalid(
+                "planar geometry point requires finite length coordinates without an implicit side",
+            ));
+        }
+        // Membership needs the complete point, not independent axis bounds.
+        return Ok(());
+    }
     let bounds = match definition.kind() {
         DomainKind::CoordinateInterval { bounds } if axis == 0 => *bounds,
         _ => *program

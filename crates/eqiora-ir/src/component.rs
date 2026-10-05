@@ -1,5 +1,6 @@
 mod complex;
 mod finite;
+mod pullback;
 mod pure;
 
 use std::collections::HashMap;
@@ -207,6 +208,18 @@ impl ComponentScalarization {
     /// count, inconsistent repeated-symbol shape, a non-pointwise expression,
     /// or an invalid exact component coordinate.
     pub fn lower<I: Clone + Eq>(residual: &TypedResidual<I>) -> Result<Self, Diagnostic> {
+        Self::lower_selected(residual, residual.expression().roots())
+    }
+
+    /// Lower selected retained operands using their original typed environment.
+    /// Unselected roots do not contribute execution or derivative inputs.
+    /// # Errors
+    /// Rejects foreign roots and the same unsupported values or resource limits
+    /// as full component scalarization.
+    pub fn lower_selected<I: Clone + Eq>(
+        residual: &TypedResidual<I>,
+        roots: &[ExprId],
+    ) -> Result<Self, Diagnostic> {
         if residual.node_types().iter().any(|value| {
             !matches!(
                 value.value_type.scalar_domain(),
@@ -220,7 +233,7 @@ impl ComponentScalarization {
         let expression = residual.expression();
         let mut rows = Vec::new();
         let mut finite_products = 0usize;
-        for (root_index, root) in expression.roots().iter().copied().enumerate() {
+        for (root_index, root) in roots.iter().copied().enumerate() {
             let root_node_index = node_index(root, expression.nodes().len())?;
             let root_shape = residual.node_types()[root_node_index].shape();
             let component_count = root_shape.component_count().ok_or_else(|| {
@@ -330,6 +343,8 @@ fn component_single_root<I: Clone + Eq>(
         inputs: Vec::new(),
         input_nodes: HashMap::new(),
         symbol_shapes: HashMap::new(),
+        coordinate_bindings: HashMap::new(),
+        pullback_depth: 0,
     };
     let root = lowering.lower_part(root, component_index, part)?;
     Ok((lowering.builder.finish([root])?, lowering.inputs))
@@ -345,6 +360,8 @@ struct ComponentDagLowering<'a, I> {
     inputs: Vec<ScalarSymbolCoordinate>,
     input_nodes: HashMap<ScalarSymbolCoordinate, ScalarInputValueId>,
     symbol_shapes: HashMap<SymbolRef, ValueShape>,
+    coordinate_bindings: HashMap<SymbolRef, ScalarInputValueId>,
+    pullback_depth: usize,
 }
 
 impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
@@ -380,6 +397,7 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
             return Ok(mapped);
         }
         let mapped = match node {
+            ExprNode::Pullback { value, at, .. } => self.lower_pullback(value, &at, part)?,
             ExprNode::FiniteUnary(operation, operand) => {
                 self.lower_finite_unary(operation, operand, component, part)?
             }
@@ -423,7 +441,21 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
                     .collect::<Vec<_>>();
                 self.lower_part(value, &coordinates, part)?
             }
-            ExprNode::Symbol(symbol) => self.input(symbol, node_type.shape(), component, part)?,
+            ExprNode::Symbol(symbol) => {
+                if let Some(bound) = self.coordinate_bindings.get(&symbol) {
+                    *bound
+                } else {
+                    if self.pullback_depth > 0
+                        && node_type.support.is_some()
+                        && !matches!(symbol, SymbolRef::Coordinate { .. })
+                    {
+                        return Err(invalid_component_ir(
+                            "spatial Field pullback requires an admitted point reconstruction",
+                        ));
+                    }
+                    self.input(symbol, node_type.shape(), component, part)?
+                }
+            }
             ExprNode::Neg(operand) => {
                 let operand = self.lower_shaped_part(operand, component, part)?;
                 self.builder.neg(operand)?

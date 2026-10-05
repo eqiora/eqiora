@@ -3,6 +3,30 @@
 use super::*;
 
 impl LoweringExpression {
+    pub(crate) fn coordinate_map_factor(
+        factor: eqiora_schema::kernel::CoordinateMapFactor,
+        source: Vec<Self>,
+        at: Vec<(Self, Self)>,
+        range: TextRange,
+    ) -> Self {
+        Self {
+            node: Arc::new(LoweringExpressionNode::CoordinateMapFactor { factor, source, at }),
+            range,
+            structural_parameters: None,
+        }
+    }
+    pub(crate) fn pullback(
+        value: Self,
+        source: Vec<Self>,
+        at: Vec<(Self, Self)>,
+        range: TextRange,
+    ) -> Self {
+        Self {
+            node: Arc::new(LoweringExpressionNode::Pullback { value, source, at }),
+            range,
+            structural_parameters: None,
+        }
+    }
     pub(crate) fn evaluate_at(
         value: Self,
         at: Vec<(Self, Self)>,
