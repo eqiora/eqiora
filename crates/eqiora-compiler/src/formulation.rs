@@ -373,12 +373,6 @@ fn compile_weak(
     for ((left, right), relation) in equations.iter().zip(&relations) {
         let left = context.compile_root(left)?;
         let right = context.compile_root(right)?;
-        if left.value_type.scalar_domain() == ScalarDomain::Complex
-            || right.value_type.scalar_domain() == ScalarDomain::Complex
-        {
-            dependence::check_complex_form(&left)?;
-            dependence::check_complex_form(&right)?;
-        }
         let zero =
             |v: &AuthoredFormExpression| matches!(v.kind, AuthoredFormExpressionKind::Number(0.0));
         if (left.value_type.dimension() != right.value_type.dimension()
@@ -408,6 +402,13 @@ fn compile_weak(
         restrictions,
         compiled,
     )?;
+    projection.check_complex_dependence(&mut |id| match index.nodes.get(&id).copied() {
+        Some(KernelNode::Field(field)) => Ok(field.value_type().clone()),
+        Some(KernelNode::Parameter(parameter)) => Ok(parameter.value_type().clone()),
+        _ => Err(wire::rejection(
+            "form dependence identity is outside the live Model",
+        )),
+    })?;
     Ok(CompiledAuthoredFormulation {
         relations,
         domain: Some(domain),
