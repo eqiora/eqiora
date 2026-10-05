@@ -23,6 +23,9 @@ impl<I> ExpressionType<I> {
     ) -> Result<Self, TypeViolation<I>> {
         let value_type = ValueType::shaped(scalar_domain, dimension, shape, frame).map_err(
             |error| match error {
+                InvalidValueType::DimensionOverflow => TypeViolation::DimensionOverflow {
+                    operation: "value type derivation",
+                },
                 InvalidValueType::EnumType
                 | InvalidValueType::BooleanType
                 | InvalidValueType::FiniteSpaceType

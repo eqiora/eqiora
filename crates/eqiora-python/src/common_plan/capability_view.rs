@@ -36,6 +36,7 @@ pub(super) fn space_name(space: Space) -> &'static str {
 )]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum PyFormulationKind {
+    FiniteHermitianPencil,
     FirstOrderEvolution,
     PrimalGalerkin,
     MixedGalerkin,
@@ -45,6 +46,7 @@ pub(crate) enum PyFormulationKind {
 impl From<FormulationKind> for PyFormulationKind {
     fn from(value: FormulationKind) -> Self {
         match value {
+            FormulationKind::FiniteHermitianPencil => Self::FiniteHermitianPencil,
             FormulationKind::FirstOrderEvolution => Self::FirstOrderEvolution,
             FormulationKind::PrimalGalerkin => Self::PrimalGalerkin,
             FormulationKind::MixedGalerkin => Self::MixedGalerkin,
@@ -56,6 +58,7 @@ impl From<FormulationKind> for PyFormulationKind {
 impl From<PyFormulationKind> for FormulationKind {
     fn from(value: PyFormulationKind) -> Self {
         match value {
+            PyFormulationKind::FiniteHermitianPencil => Self::FiniteHermitianPencil,
             PyFormulationKind::FirstOrderEvolution => Self::FirstOrderEvolution,
             PyFormulationKind::PrimalGalerkin => Self::PrimalGalerkin,
             PyFormulationKind::MixedGalerkin => Self::MixedGalerkin,

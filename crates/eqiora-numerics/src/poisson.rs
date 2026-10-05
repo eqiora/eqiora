@@ -13,8 +13,7 @@ use eqiora_solver::{
 };
 
 use crate::elliptic::{
-    ScalarBoundaryCondition1d, ScalarBoundaryPair1d, ScalarEllipticSolution1d,
-    solve_scalar_elliptic_linear_fem,
+    ScalarBoundaryCondition1d, ScalarBoundaryPair1d, solve_scalar_elliptic_linear_fem,
 };
 use crate::operator::LocalOperator;
 
@@ -208,58 +207,6 @@ impl ScalarEllipticFvmSolution1d {
     pub const fn solve_report(&self) -> &SolveReport {
         &self.solve_report
     }
-}
-
-/// Solve `-u'' = source` using continuous piecewise-linear Galerkin FEM.
-///
-/// Cell stiffness and load are produced by a cell-local operator. Essential
-/// values are eliminated only by [`AssemblyMap`].
-///
-/// # Errors
-/// Returns a numerical diagnostic for an insufficient mesh, incompatible
-/// quadrature, invalid source value, assembly failure, or linear-solver failure.
-pub fn solve_poisson_linear_fem<S>(
-    mesh: &LineMesh,
-    source: &S,
-    boundary: DirichletBoundary1d,
-    quadrature: &QuadratureRule,
-    solver: LinearSolveRequest<'_>,
-) -> Result<ScalarEllipticSolution1d, Diagnostic>
-where
-    S: Fn(f64) -> f64 + Sync + ?Sized,
-{
-    solve_scalar_elliptic_linear_fem(
-        mesh,
-        &|_| 1.0,
-        source,
-        ScalarBoundaryPair1d::new(
-            ScalarBoundaryCondition1d::Essential(boundary.left()),
-            ScalarBoundaryCondition1d::Essential(boundary.right()),
-        )?,
-        quadrature,
-        solver,
-    )
-}
-
-/// Solve `-u'' = source` using cell-centered two-point-flux FVM.
-///
-/// Source integrals are cell-local; diffusion is an interior/boundary-facet
-/// local operator. Both scatter through the same assembly contract as FEM.
-///
-/// # Errors
-/// Returns a numerical diagnostic for incompatible quadrature, invalid source
-/// data, assembly failure, or linear-solver failure.
-pub fn solve_poisson_cell_fvm<S>(
-    mesh: &LineMesh,
-    source: &S,
-    boundary: DirichletBoundary1d,
-    quadrature: &QuadratureRule,
-    solver: LinearSolveRequest<'_>,
-) -> Result<ScalarEllipticFvmSolution1d, Diagnostic>
-where
-    S: Fn(f64) -> f64 + ?Sized,
-{
-    solve_scalar_elliptic_cell_fvm(mesh, 1.0, source, boundary, quadrature, solver)
 }
 
 /// Solve `-d/dx(k du/dx) = source` using cell-centered two-point-flux FVM
@@ -770,11 +717,28 @@ mod tests {
         let quadrature = QuadratureRule::gauss_legendre(3).unwrap();
         let boundary = DirichletBoundary1d::new(0.0, 0.0).unwrap();
         let source = |coordinate: f64| PI.powi(2) * (PI * coordinate).sin();
-        let fem =
-            solve_poisson_linear_fem(&mesh, &source, boundary, &quadrature, reference_solver())
-                .unwrap();
-        let fvm = solve_poisson_cell_fvm(&mesh, &source, boundary, &quadrature, reference_solver())
-            .unwrap();
+        let fem = solve_scalar_elliptic_linear_fem(
+            &mesh,
+            &|_| 1.0,
+            &source,
+            ScalarBoundaryPair1d::new(
+                ScalarBoundaryCondition1d::Essential(boundary.left()),
+                ScalarBoundaryCondition1d::Essential(boundary.right()),
+            )
+            .unwrap(),
+            &quadrature,
+            reference_solver(),
+        )
+        .unwrap();
+        let fvm = solve_scalar_elliptic_cell_fvm(
+            &mesh,
+            1.0,
+            &source,
+            boundary,
+            &quadrature,
+            reference_solver(),
+        )
+        .unwrap();
         assert_eq!(&fem.field().coordinates()[1..4], &[0.25, 0.5, 0.75]);
         assert_eq!(fvm.unknown_coordinates(), &[0.125, 0.375, 0.625, 0.875]);
     }

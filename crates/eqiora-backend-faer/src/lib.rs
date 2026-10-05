@@ -6,6 +6,7 @@
 //! returns Eqiora-owned convergence evidence after independent true-residual
 //! verification.
 
+mod eigen;
 mod prepared_sparse_lu;
 mod sparse_lu;
 mod sparse_lu_factor;
@@ -51,6 +52,20 @@ pub struct FaerLinearSolver;
 const EXPLICIT_INITIAL_GUESS: InitialGuessStatus = InitialGuessStatus::MaybeNonZero;
 
 impl LinearSolverBackend for FaerLinearSolver {
+    fn require_hermitian_eigenproblem(
+        &self,
+        _problem: &eqiora_solver::HermitianEigenproblem<'_>,
+    ) -> Result<(), Diagnostic> {
+        Ok(())
+    }
+
+    fn hermitian_eigenpairs(
+        &self,
+        problem: &eqiora_solver::HermitianEigenproblem<'_>,
+    ) -> Result<Vec<(eqiora_core::ValueLiteral, eqiora_core::ValueLiteral)>, Diagnostic> {
+        eigen::hermitian_eigenpairs(problem)
+    }
+
     fn provider(&self) -> SolverProvider {
         FAER_SOLVER_PROVIDER
     }

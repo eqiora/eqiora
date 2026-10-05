@@ -1086,6 +1086,7 @@ class FormulationKind:
     Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PyFormulationKind``.
     """
 
+    FiniteHermitianPencil: ClassVar[FormulationKind]
     FirstOrderEvolution: ClassVar[FormulationKind]
     PrimalGalerkin: ClassVar[FormulationKind]
     MixedGalerkin: ClassVar[FormulationKind]
@@ -1175,15 +1176,15 @@ class Plan:
     @property
     def formulation(self) -> FormulationView | None: ...
     @property
-    def capability(self) -> ScalarPlanView | solve.AlgebraicPlanView | time.OdePlanView | solid.ElasticityPlanView | fluid.IncompressibleFlowPlanView | fsi.FixedReferenceFsiPlanView: ...
+    def capability(self) -> ScalarPlanView | solve.AlgebraicPlanView | solve.EigenPlanView | time.OdePlanView | solid.ElasticityPlanView | fluid.IncompressibleFlowPlanView | fsi.FixedReferenceFsiPlanView: ...
     @property
     def fields(self) -> tuple[FieldRef, ...]: ...
     @property
     def spatial(self) -> fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None: ...
     @property
-    def solve(self) -> solve_module.ResolvedLinear | solve_module.ResolvedNewton | None: ...
+    def solve(self) -> solve_module.ResolvedLinear | solve_module.ResolvedNewton | solve_module.HermitianEigen | None: ...
     @property
-    def requested_solve(self) -> solve_module.Linear | solve_module.Newton | None: ...
+    def requested_solve(self) -> solve_module.Linear | solve_module.Newton | solve_module.HermitianEigen | None: ...
     @property
     def temporal(self) -> time.BackwardEuler | time.Tsitouras45 | None: ...
     @property
@@ -1862,12 +1863,45 @@ class NonlinearSolveSummary:
     def residual_target(self) -> float: ...
 
 @final
+class Eigenpair:
+    """Accepted typed eigenpair bound to exact source Fields and Result.
+
+    Authority: ``crates/eqiora-python/src/result/eigen.rs::PyEigenpair``.
+    """
+    @property
+    def eigenvalue(self) -> float: ...
+    @property
+    def mode(self) -> tuple[float | complex, ...]: ...
+    @property
+    def eigenvalue_type(self) -> ValueType: ...
+    @property
+    def mode_type(self) -> ValueType: ...
+    @property
+    def eigenvalue_field(self) -> FieldRef: ...
+    @property
+    def mode_field(self) -> FieldRef: ...
+    @property
+    def result_identity(self) -> str: ...
+    @property
+    def relative_residual(self) -> float: ...
+    @property
+    def normalization_defect(self) -> float: ...
+
+@final
 class Result:
     """Accepted execution occurrence with typed output relationships.
 
     Authority: ``crates/eqiora-python/src/result.rs::PyRunResult``.
     """
 
+    @property
+    def eigenpair_count(self) -> int: ...
+    @property
+    def eigen_convergence(self) -> str | None: ...
+    @property
+    def eigen_candidate_counts(self) -> tuple[int, int] | None: ...
+    def eigenpair(self, index: int) -> Eigenpair: ...
+    def eigenprojector(self, indices: list[int]) -> tuple[object, ValueType]: ...
     @property
     def original_residual_norm(self) -> float | None: ...
     @property
@@ -2227,7 +2261,7 @@ def resolve(
     mesh: meshing.Mesh | None = None,
     spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None = None,
     formulation: FormulationKind | None = None,
-    solve: solve.Linear | solve.Newton | None = None,
+    solve: solve.Linear | solve.Newton | solve.HermitianEigen | None = None,
     scaling: fluid.IncompressibleScaling | None = None,
     temporal: time.BackwardEuler | time.Tsitouras45 | None = None,
     enforcement: solve.ActiveSet | solve.StrictInterior | None = None,
@@ -2371,6 +2405,7 @@ __all__ = [
     "ConstraintMeasurement",
     "ActivationRef",
     "Observation",
+    "Eigenpair",
     "TrajectoryObservation",
     "ObservableStateTangent",
     "integral",

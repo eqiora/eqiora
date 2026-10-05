@@ -2,8 +2,30 @@
 
 Authority: ``crates/eqiora-python/src/common_plan/policy.rs::PyLinear``.
 """
-from . import ConstraintRef, Dimension
+from . import ConstraintRef, Dimension, FieldRef
 from typing import ClassVar, Final, Self, final
+
+@final
+class HermitianEigen:
+    """Dense Hermitian selection with a declared provider and typed controls.
+
+    Authority: ``crates/eqiora-python/src/common_plan/eigen.rs::PyHermitianEigen``.
+    """
+    def __init__(self, *, count: int, provider: SolverProvider, residual_tolerance: float,
+                 normalization_tolerance: float, target: tuple[float, Dimension] | None = None,
+                 interval: tuple[tuple[float, Dimension], tuple[float, Dimension]] | None = None) -> None: ...
+    @property
+    def count(self) -> int: ...
+    @property
+    def provider(self) -> SolverProvider: ...
+    @property
+    def residual_tolerance(self) -> float: ...
+    @property
+    def normalization_tolerance(self) -> float: ...
+    @property
+    def target(self) -> tuple[float, Dimension] | None: ...
+    @property
+    def interval(self) -> tuple[tuple[float, Dimension], tuple[float, Dimension]] | None: ...
 
 @final
 class SolverPlanningObjective:
@@ -224,6 +246,8 @@ __all__ = [
     "Fast",
     "LowMemory",
     "Linear",
+    "HermitianEigen",
+    "EigenPlanView",
     "AlgebraicPlanView",
     "LinearSolver",
     "Preconditioner",
@@ -294,3 +318,14 @@ class StrictInterior:
     def margins(self) -> tuple[ConstraintTolerance, ...]: ...
     @property
     def model_digest(self) -> str: ...
+
+@final
+class EigenPlanView:
+    """Source roles of one complete finite Hermitian pencil.
+
+    Authority: ``crates/eqiora-python/src/common_plan/eigen.rs::PyEigenPlanView``.
+    """
+    @property
+    def mode_field(self) -> FieldRef: ...
+    @property
+    def eigenvalue_field(self) -> FieldRef: ...

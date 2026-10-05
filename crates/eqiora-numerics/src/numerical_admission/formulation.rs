@@ -1,6 +1,26 @@
 use super::*;
 
 impl CommonFormulationDescription {
+    pub(super) fn finite_hermitian(plan: &CommonEigenPlan) -> Self {
+        Self {
+            requested: FormulationSelectionMode::Automatic,
+            kind: FormulationKind::FiniteHermitianPencil,
+            boundary_treatment: "complete-finite-space",
+            rule_ids: Box::new([
+                "spectral.derive.v1.homogeneous-affine-pencil",
+                "spectral.derive.v1.exact-complex-linear-action",
+                "spectral.derive.v1.positive-metric-equation-orientation",
+                "spectral.derive.v1.positive-metric-unit-normalization",
+            ]),
+            selection_reason_codes: Box::new([
+                "eqiora.formulation.auto.finite-hermitian-pencil/v1",
+            ]),
+            requested_source_identity: None,
+            source_relation: Some(plan.relation()),
+            state_coordinates: Box::new([]),
+        }
+    }
+
     pub(super) fn first_order(proof: &eqiora_time::TimeLoweringProof) -> Self {
         Self {
             requested: FormulationSelectionMode::Automatic,
@@ -17,7 +37,7 @@ impl CommonFormulationDescription {
         }
     }
 
-    /// Authored time Relation retained by first-order normalization, when applicable.
+    /// Authored Relation retained by source-preserving time or spectral derivation.
     #[must_use]
     pub const fn source_relation(
         &self,

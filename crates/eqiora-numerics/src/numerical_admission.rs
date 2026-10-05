@@ -4,6 +4,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
+mod eigen;
+pub use eigen::{CommonEigenPlan, CommonEigenRequest};
+
 use crate::canonical::{
     ScalarEllipticCartesianBoundary, geometry_cartesian_support,
     project_scalar_conservation_for_differentiation,
@@ -457,6 +460,8 @@ pub enum CommonPressureGauge2d {
 /// project it, but must not create a parallel Plan-kind authority.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ResolvedCommonPlan {
+    /// Finite Hermitian spectral Plan with exact source Field roles.
+    Eigen(Box<CommonEigenPlan>),
     /// Finite scalar affine physical Plan.
     Algebraic(Box<CommonAlgebraicPlan>),
     /// Explicit no-Mesh ODE Plan.
@@ -486,6 +491,7 @@ impl ResolvedCommonPlan {
             Self::Ode(plan) => Some(CommonFormulationDescription::first_order(
                 plan.system().lowering_proof(),
             )),
+            Self::Eigen(plan) => Some(CommonFormulationDescription::finite_hermitian(plan)),
             Self::Algebraic(_) | Self::Fsi(_) => None,
         }
     }

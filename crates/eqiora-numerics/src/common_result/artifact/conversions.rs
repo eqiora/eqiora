@@ -60,6 +60,7 @@ pub(super) fn dimension_from_wire(value: [(i32, i32); 7]) -> Result<DimExponents
 impl From<CommonResultFamily> for WireResultFamily {
     fn from(value: CommonResultFamily) -> Self {
         match value {
+            CommonResultFamily::Eigen => Self::Eigen,
             CommonResultFamily::Algebraic => Self::Algebraic,
             CommonResultFamily::Scalar => Self::Scalar,
             CommonResultFamily::Elasticity => Self::Elasticity,
@@ -74,6 +75,7 @@ impl From<CommonResultFamily> for WireResultFamily {
 impl From<WireResultFamily> for CommonResultFamily {
     fn from(value: WireResultFamily) -> Self {
         match value {
+            WireResultFamily::Eigen => Self::Eigen,
             WireResultFamily::Algebraic => Self::Algebraic,
             WireResultFamily::Scalar => Self::Scalar,
             WireResultFamily::Elasticity => Self::Elasticity,

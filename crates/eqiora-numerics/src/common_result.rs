@@ -20,10 +20,12 @@ pub use observe::CommonObservableStateTangent;
 
 use evidence::{AlgebraicSolveEvidence, CommonAssemblyEvidence, CommonSolveEvidence};
 mod algebraic;
+mod eigen;
 
 /// Stable family of one accepted common Result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CommonResultFamily {
+    Eigen,
     Algebraic,
     Scalar,
     Elasticity,
@@ -256,6 +258,7 @@ struct CommonStaticResultPayload {
 
 #[derive(Debug, Clone, PartialEq)]
 enum CommonResultPayload {
+    Eigen(Box<eigen::EigenResult>),
     Algebraic {
         values: Vec<f64>,
         solve: AlgebraicSolveEvidence,
@@ -662,6 +665,7 @@ impl CommonResult {
     #[must_use]
     pub const fn family_name(&self) -> &'static str {
         match self.family {
+            CommonResultFamily::Eigen => "eigen",
             CommonResultFamily::Algebraic => "algebraic",
             CommonResultFamily::Scalar => "scalar",
             CommonResultFamily::Elasticity => "elasticity",
@@ -692,7 +696,9 @@ impl CommonResult {
     pub fn field_count(&self) -> usize {
         match &self.payload {
             CommonResultPayload::Static(payload) => payload.fields.len(),
-            CommonResultPayload::Algebraic { .. } | CommonResultPayload::Trajectory { .. } => 0,
+            CommonResultPayload::Eigen(_)
+            | CommonResultPayload::Algebraic { .. }
+            | CommonResultPayload::Trajectory { .. } => 0,
         }
     }
 
@@ -708,7 +714,9 @@ impl CommonResult {
                     field.space(),
                 )
             }),
-            CommonResultPayload::Algebraic { .. } | CommonResultPayload::Trajectory { .. } => None,
+            CommonResultPayload::Eigen(_)
+            | CommonResultPayload::Algebraic { .. }
+            | CommonResultPayload::Trajectory { .. } => None,
         }
     }
 
@@ -719,7 +727,9 @@ impl CommonResult {
                 .fields
                 .get(field)
                 .map_or(0, |field| field.blocks.len()),
-            CommonResultPayload::Algebraic { .. } | CommonResultPayload::Trajectory { .. } => 0,
+            CommonResultPayload::Eigen(_)
+            | CommonResultPayload::Algebraic { .. }
+            | CommonResultPayload::Trajectory { .. } => 0,
         }
     }
 
@@ -843,7 +853,9 @@ impl CommonResult {
     #[must_use]
     pub fn trajectory(&self) -> Option<&CommonTrajectory> {
         match &self.payload {
-            CommonResultPayload::Algebraic { .. } | CommonResultPayload::Static(_) => None,
+            CommonResultPayload::Eigen(_)
+            | CommonResultPayload::Algebraic { .. }
+            | CommonResultPayload::Static(_) => None,
             CommonResultPayload::Trajectory { trajectory, .. } => Some(trajectory),
         }
     }

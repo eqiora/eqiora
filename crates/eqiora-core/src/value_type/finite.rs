@@ -1,6 +1,8 @@
 use super::{InvalidValueType, Meaning, ValueFrame, ValueType};
 use crate::{DimExponents, Id, ScalarDomain, ValueShape, entity::kinds};
 
+mod eigen;
+
 /// An exact declared component basis or its coordinate dual.
 /// Extent is cross-checked against the selected FiniteSpace by semantic admission.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

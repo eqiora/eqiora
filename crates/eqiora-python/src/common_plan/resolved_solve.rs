@@ -245,3 +245,78 @@ impl PyResolvedNewton {
         )
     }
 }
+
+use super::{
+    CommonSolvePolicy, PyLinear, PyNewton, RequestedSolveHandle, ResolvedCommonPlan,
+    ResolvedSolveHandle, eigen,
+};
+
+pub(super) fn solve_handles_from_native(
+    py: Python<'_>,
+    native: &ResolvedCommonPlan,
+) -> PyResult<(Option<RequestedSolveHandle>, Option<ResolvedSolveHandle>)> {
+    if let Some(plan) = native.as_eigen() {
+        let policy = Py::new(py, eigen::PyHermitianEigen::from_native(plan))?;
+        return Ok((
+            Some(RequestedSolveHandle::Eigen(policy.clone_ref(py))),
+            Some(ResolvedSolveHandle::Eigen(policy)),
+        ));
+    }
+    let Some(request) = native.canonical_solve_request() else {
+        return Ok((None, None));
+    };
+    let requested = match request {
+        CommonSolvePolicy::Linear(linear) => {
+            RequestedSolveHandle::Linear(Py::new(py, PyLinear::from_native(linear))?)
+        }
+        CommonSolvePolicy::Newton { nonlinear, linear } => {
+            let linear = Py::new(py, PyLinear::from_native(linear))?;
+            RequestedSolveHandle::Newton(Py::new(py, PyNewton::from_native(linear, nonlinear))?)
+        }
+    };
+    let solver_planning_audit = native.solver_planning_objective().map(|objective| {
+        SolverPlanningAudit::new(
+            objective.into(),
+            native
+                .solver_planning_policy_id()
+                .expect("planned solver retains its policy identity"),
+            native
+                .selected_solver_candidate_id()
+                .expect("planned solver retains its selected candidate"),
+            native
+                .selected_solver_evidence_case()
+                .expect("planned solver retains its evidence identity"),
+            native.solver_planning_reasons().to_vec(),
+        )
+    });
+    let linear = Py::new(
+        py,
+        PyResolvedLinear::new(
+            native
+                .effective_solver()
+                .expect("spatial common Plan owns an effective linear solver"),
+            native
+                .operator_properties()
+                .expect("spatial common Plan owns operator properties"),
+            native
+                .linear_solver_provider()
+                .expect("spatial Plan owns its exact provider"),
+            solver_planning_audit,
+        ),
+    )?;
+    let resolved = match native {
+        ResolvedCommonPlan::TransientFlow(plan) => ResolvedSolveHandle::Newton(Py::new(
+            py,
+            PyResolvedNewton::new(linear, plan.nonlinear()),
+        )?),
+        ResolvedCommonPlan::Eigen(_) | ResolvedCommonPlan::Ode(_) => {
+            unreachable!("ODE Plan has no common solve request")
+        }
+        ResolvedCommonPlan::Algebraic(_)
+        | ResolvedCommonPlan::Scalar(_)
+        | ResolvedCommonPlan::Elasticity(_)
+        | ResolvedCommonPlan::SteadyStokes(_)
+        | ResolvedCommonPlan::Fsi(_) => ResolvedSolveHandle::Linear(linear),
+    };
+    Ok((Some(requested), Some(resolved)))
+}

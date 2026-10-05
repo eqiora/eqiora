@@ -2,6 +2,8 @@
 
 from ._eqiora import (
     Linear,
+    HermitianEigen,
+    EigenPlanView,
     ConstraintTolerance,
     ActiveSet,
     StrictInterior,
@@ -29,6 +31,8 @@ __all__ = [
     "Fast",
     "LowMemory",
     "Linear",
+    "HermitianEigen",
+    "EigenPlanView",
     "AlgebraicPlanView",
     "LinearSolver",
     "Preconditioner",

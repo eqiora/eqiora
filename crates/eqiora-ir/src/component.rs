@@ -160,6 +160,29 @@ impl ComponentScalarRow {
         self.ir.bind_affine(selected, bindings)
     }
 
+    /// Prove and bind a homogeneous affine pencil `(A + lambda C) u`.
+    ///
+    /// Returns the two ordinary affine maps `(A u, C u)` in `selected` order.
+    /// Structural degree admission precedes all coefficient evaluation: neither
+    /// numerical sampling nor an assumed holomorphic rule proves linearity.
+    /// Coefficients of lambda use the existing affine extractor directly, never
+    /// subtraction of two evaluated operators. Physical units, complex-linearity
+    /// and the Hermitian/metric contract remain with the mathematical owner.
+    pub fn bind_affine_pencil(
+        &self,
+        selected: &[ScalarSymbolCoordinate],
+        spectral: &ScalarSymbolCoordinate,
+        bindings: &[(ScalarSymbolCoordinate, f64)],
+    ) -> Result<
+        (
+            crate::BoundAffineScalarIr<ScalarSymbolCoordinate>,
+            crate::BoundAffineScalarIr<ScalarSymbolCoordinate>,
+        ),
+        Diagnostic,
+    > {
+        self.ir.bind_affine_pencil(selected, spectral, bindings)
+    }
+
     /// Bind first-order products in the exact real component-coordinate order.
     /// Complex symbols retain two coordinates per component. The derivative is
     /// real-linear: `conj`, `real`, `imag`, and `abs2` do not require holomorphy.

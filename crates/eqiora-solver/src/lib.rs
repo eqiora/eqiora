@@ -7,6 +7,7 @@
 
 mod backend;
 mod csr;
+mod eigen;
 mod execution;
 mod operator;
 mod plan;
@@ -21,10 +22,11 @@ pub use backend::{
     BackendId, LinearSolveRequest, LinearSolverBackend, SolverCapabilities, SolverCapability,
 };
 pub use csr::{CanonicalCsrAgreementFingerprintV1, CanonicalCsrSystemView, CompleteCsrStorage};
+pub use eigen::HermitianEigenproblem;
 use eqiora_core::ScalarType;
 pub use execution::{
-    FixedOrderInnerProduct, REPRODUCIBLE_INNER_PRODUCT_CHUNK_LENGTH, ReplicatedLinearExecution,
-    SERIAL_EXECUTION_PROVIDER, SERIAL_LINEAR_EXECUTION,
+    FixedOrderInnerProduct, ReplicatedLinearExecution, SERIAL_EXECUTION_PROVIDER,
+    SERIAL_LINEAR_EXECUTION,
 };
 pub use operator::{
     DiagonalAvailability, LinearOperator, LinearOperatorOrientation, LinearOperatorProperties,
