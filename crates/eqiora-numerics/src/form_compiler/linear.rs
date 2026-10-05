@@ -255,11 +255,11 @@ impl CompiledLinearBlockForm {
     }
 }
 
-pub(super) fn coefficients(
+pub(super) fn coefficients<S: crate::spatial_expression::Coefficient>(
     program: &KernelProgram,
     dimension: usize,
     roles: &EquationRoles,
-) -> Result<BTreeMap<RawId, Data<f64>>, Diagnostic> {
+) -> Result<BTreeMap<RawId, Data<S>>, Diagnostic> {
     let mut known = BTreeMap::new();
     let mut pending = roles
         .relations

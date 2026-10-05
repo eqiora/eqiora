@@ -4,17 +4,18 @@ use eqiora_core::{Diagnostic, RawId};
 use eqiora_schema::kernel::{ExprId, ExprNode, SymbolRef};
 
 use super::data::{Context, Data};
+use crate::spatial_expression::Coefficient;
 
 #[derive(Debug, Clone, PartialEq)]
-pub(super) struct Terms {
-    pub(super) constant: Data<f64>,
-    pub(super) reaction: BTreeMap<RawId, Data<f64>>,
-    pub(super) storage: BTreeMap<RawId, Data<f64>>,
-    pub(super) diffusion: BTreeMap<RawId, Data<f64>>,
+pub(super) struct Terms<S: Coefficient> {
+    pub(super) constant: Data<S>,
+    pub(super) reaction: BTreeMap<RawId, Data<S>>,
+    pub(super) storage: BTreeMap<RawId, Data<S>>,
+    pub(super) diffusion: BTreeMap<RawId, Data<S>>,
 }
 
-impl Terms {
-    fn data(constant: Data<f64>) -> Self {
+impl<S: Coefficient> Terms<S> {
+    fn data(constant: Data<S>) -> Self {
         Self {
             constant,
             reaction: BTreeMap::new(),
@@ -38,7 +39,7 @@ impl Terms {
         }
         self
     }
-    pub(super) fn scale(mut self, data: Data<f64>) -> Result<Self, Diagnostic> {
+    pub(super) fn scale(mut self, data: Data<S>) -> Result<Self, Diagnostic> {
         if !self.diffusion.is_empty() && data.spatial() {
             return Err(super::invalid(
                 "spatial factors outside divergence require additional weak derivative terms",
@@ -57,19 +58,19 @@ impl Terms {
     }
 }
 
-impl Context<'_, f64> {
+impl<S: Coefficient> Context<'_, S> {
     pub(super) fn conservation(
         &self,
         law: eqiora_schema::kernel::ConservationTerms,
-    ) -> Result<Terms, Diagnostic> {
+    ) -> Result<Terms<S>, Diagnostic> {
         let (field, coefficient) = self.flux(law.flux(), 0)?;
         let mut row = Terms::data(
             self.data(law.source(), 0)?
-                .multiply(Data::constant(self.dimension, -1.0)),
+                .multiply(Data::constant(self.dimension, <S as From<f64>>::from(-1.0))),
         );
         row.diffusion.insert(
             field,
-            coefficient.multiply(Data::constant(self.dimension, -1.0)),
+            coefficient.multiply(Data::constant(self.dimension, <S as From<f64>>::from(-1.0))),
         );
         if let Some((stored, _accumulation)) = law.storage() {
             // Kernel admission independently proves accumulation is d(stored)/dt.
@@ -81,7 +82,8 @@ impl Context<'_, f64> {
                 || storage.reaction.len() != 1
                 || !storage.reaction.contains_key(&field)
                 || storage.constant.spatial()
-                || storage.constant.evaluate(&vec![0.0; self.dimension])? != 0.0
+                || storage.constant.evaluate(&vec![0.0; self.dimension])?
+                    != <S as From<f64>>::from(0.0)
             {
                 return Err(super::invalid(
                     "scalar Law storage requires one coefficient times its exact Field",
@@ -122,7 +124,7 @@ impl Context<'_, f64> {
         }
     }
 
-    pub(super) fn terms(&self, id: ExprId, depth: usize) -> Result<Terms, Diagnostic> {
+    pub(super) fn terms(&self, id: ExprId, depth: usize) -> Result<Terms<S>, Diagnostic> {
         if depth > 128 {
             return Err(super::invalid("linear expression nesting exceeds 128"));
         }
@@ -130,16 +132,18 @@ impl Context<'_, f64> {
             return Ok(Terms::data(data));
         }
         let terms = |id| self.terms(id, depth + 1);
-        let one = || Data::constant(self.dimension, 1.0);
-        let minus = || Data::constant(self.dimension, -1.0);
+        let one = || Data::constant(self.dimension, <S as From<f64>>::from(1.0));
+        let minus = || Data::constant(self.dimension, <S as From<f64>>::from(-1.0));
         match self.dag.node(id) {
             Some(ExprNode::Symbol(SymbolRef::Field(field))) => {
-                let mut terms = Terms::data(Data::constant(self.dimension, 0.0));
+                let mut terms =
+                    Terms::data(Data::constant(self.dimension, <S as From<f64>>::from(0.0)));
                 terms.reaction.insert(field.erase(), one());
                 Ok(terms)
             }
             Some(ExprNode::Symbol(SymbolRef::Derivative(field, std::num::NonZeroU32::MIN))) => {
-                let mut terms = Terms::data(Data::constant(self.dimension, 0.0));
+                let mut terms =
+                    Terms::data(Data::constant(self.dimension, <S as From<f64>>::from(0.0)));
                 terms.storage.insert(field.erase(), one());
                 Ok(terms)
             }
@@ -160,7 +164,8 @@ impl Context<'_, f64> {
             Some(ExprNode::Div(a, b)) => terms(*a)?.scale(one().divide(self.data(*b, depth + 1)?)),
             Some(ExprNode::Divergence(flux)) => {
                 let (field, coefficient) = self.flux(*flux, depth + 1)?;
-                let mut terms = Terms::data(Data::constant(self.dimension, 0.0));
+                let mut terms =
+                    Terms::data(Data::constant(self.dimension, <S as From<f64>>::from(0.0)));
                 terms.diffusion.insert(field, coefficient.multiply(minus()));
                 Ok(terms)
             }
@@ -170,7 +175,7 @@ impl Context<'_, f64> {
         }
     }
 
-    pub(super) fn flux(&self, id: ExprId, depth: usize) -> Result<(RawId, Data<f64>), Diagnostic> {
+    pub(super) fn flux(&self, id: ExprId, depth: usize) -> Result<(RawId, Data<S>), Diagnostic> {
         if depth > 128 {
             return Err(super::invalid("linear flux nesting exceeds 128"));
         }
@@ -179,7 +184,10 @@ impl Context<'_, f64> {
                 Some(ExprNode::Symbol(SymbolRef::Field(field)))
                     if !self.coefficients.contains_key(&field.erase()) =>
                 {
-                    Ok((field.erase(), Data::constant(self.dimension, 1.0)))
+                    Ok((
+                        field.erase(),
+                        Data::constant(self.dimension, <S as From<f64>>::from(1.0)),
+                    ))
                 }
                 _ => Err(super::invalid(
                     "diffusive gradient requires one exact unknown Field",
@@ -207,7 +215,8 @@ impl Context<'_, f64> {
                 let (field, coefficient) = self.flux(*a, depth + 1)?;
                 Ok((
                     field,
-                    coefficient.multiply(Data::constant(self.dimension, -1.0)),
+                    coefficient
+                        .multiply(Data::constant(self.dimension, <S as From<f64>>::from(-1.0))),
                 ))
             }
             _ => Err(super::invalid(

@@ -15,7 +15,7 @@ mod boundary;
 pub(crate) use boundary::RegionBoundaryLaw;
 mod boundary_integral;
 mod evaluate;
-mod integration;
+pub(super) mod integration;
 mod scalar;
 pub(super) use integration::integrate_scalar;
 pub(super) use scalar::ScalarRow;

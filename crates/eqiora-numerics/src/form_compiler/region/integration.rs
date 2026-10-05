@@ -12,14 +12,14 @@ use crate::form_compiler::bilinear::{Basis, Pairing};
 
 use super::{binding::basis, invalid};
 
-pub(super) struct IntegralTerm {
+pub(in crate::form_compiler) struct IntegralTerm {
     pub row: usize,
     pub column: usize,
     pub pairing: Pairing,
     pub trial_scale: f64,
 }
 
-pub(super) fn integrate<
+pub(in crate::form_compiler) fn integrate<
     S: Scalar + ComplexFloat<Real = f64> + From<f64> + AddAssign + SubAssign,
 >(
     reference: ReferenceCell,
