@@ -4727,6 +4727,8 @@ class EigenPlanView:
     def eigenvalue_field(self) -> FieldRef: ...
     @property
     def coordinate_embeddings(self) -> tuple[EigenCoordinateMap, ...]: ...
+    @property
+    def excluded_space(self) -> EigenExclusion | None: ...
 ```
 
 <a id="api-eqiora-solve-EigenCoordinateMap"></a>
@@ -4748,6 +4750,37 @@ class EigenCoordinateMap:
     def mapping(self) -> Any: ...
     @property
     def mapping_type(self) -> ValueType: ...
+```
+
+<a id="api-eqiora-solve-EigenExclusion"></a>
+
+### `eqiora.solve.EigenExclusion`
+
+Excluded source directions with separate operator/metric nullspace tests.
+
+Defects are normalized Frobenius action norms. Null flags compare them
+with the Plan's explicit residual tolerance; they do not infer a physical
+gauge. The dimensionless projector may be oblique in coefficient space.
+
+```python
+@final
+class EigenExclusion:
+    @property
+    def dimension(self) -> int: ...
+    @property
+    def projector(self) -> Any: ...
+    @property
+    def projector_type(self) -> ValueType: ...
+    @property
+    def operator_defect(self) -> float: ...
+    @property
+    def metric_defect(self) -> float: ...
+    @property
+    def tolerance(self) -> float: ...
+    @property
+    def is_operator_null(self) -> bool: ...
+    @property
+    def is_metric_null(self) -> bool: ...
 ```
 
 <a id="api-eqiora-solve-AlgebraicPlanView"></a>

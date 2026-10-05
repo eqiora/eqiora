@@ -402,3 +402,51 @@ fn target_elimination_rejects_singular_and_numerically_unresolved_operators() {
         );
     }
 }
+
+#[test]
+fn excluded_space_distinguishes_common_nullspace_zero_modes_and_other_directions() {
+    let identity_metric = QUOTIENT.replace(
+        "b:map<1,Full,Full>=linear_map(Full,Full,[[1,-1],[-1,1]])",
+        "b:map<1,Full,Full>=linear_map(Full,Full,[[1,0],[0,1]])",
+    );
+    for (source, operator_null, metric_null, a_defect, b_defect) in [
+        (QUOTIENT.to_owned(), true, true, 0., 0.),
+        (identity_metric.clone(), true, false, 0., 1. / 2_f64.sqrt()),
+        (
+            identity_metric.replace("[[1,-1],[-1,1]]", "[[0,0],[0,0]]"),
+            true,
+            false,
+            0.,
+            1. / 2_f64.sqrt(),
+        ),
+        (
+            identity_metric.replace("[[1,-1],[-1,1]]", "[[1,0],[0,1]]"),
+            false,
+            false,
+            1. / 2_f64.sqrt(),
+            1. / 2_f64.sqrt(),
+        ),
+    ] {
+        let document = ModelDocument::compile("excluded-space.eqi", &source).unwrap();
+        let model = ModelEnvelope::from_program(document.program()).unwrap();
+        let plan = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver).unwrap();
+        let (projector, dimension, actual_a, actual_b) = plan.excluded_space().unwrap();
+        assert_eq!(dimension, 1);
+        assert_eq!(actual_a <= request().residual_tolerance(), operator_null);
+        assert_eq!(actual_b <= request().residual_tolerance(), metric_null);
+        assert!((actual_a - a_defect).abs() < 1e-12);
+        assert!((actual_b - b_defect).abs() < 1e-12);
+        // All four use E=1/2[[1,1],[1,1]], whose Frobenius norm is 1.
+        // ||I E||/(||I|| ||E||)=1/sqrt(2); L E=0 and 0 E=0.
+        for i in 0..4 {
+            let (re, im) = projector.component(i).unwrap();
+            assert!((re - 0.5).abs() < 1e-12 && im.abs() < 1e-12);
+        }
+        assert_eq!(
+            plan.run_result(&FaerLinearSolver)
+                .unwrap()
+                .eigen_convergence(),
+            Some("converged")
+        );
+    }
+}
