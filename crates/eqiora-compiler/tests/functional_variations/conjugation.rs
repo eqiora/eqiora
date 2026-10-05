@@ -82,6 +82,37 @@ fn complex_scalar_domains_survive_authored_operators() {
 }
 
 #[test]
+fn complex_weak_form_classifies_test_and_trial_dependence_structurally() {
+    for expression in [
+        "inner(eta,c)",
+        "math.conj(eta)*c",
+        "inner(eta,math.sin(phase)*c)",
+        "inner(eta,phase)",
+        "inner(eta,c)/phase",
+    ] {
+        complex_form(&format!("integrate(body,{expression})"))
+            .unwrap_or_else(|errors| panic!("{expression}: {errors:?}"));
+    }
+    for expression in [
+        "inner(c,eta)",
+        "inner(math.conj(eta),c)",
+        "math.conj(inner(eta,c))",
+        "eta*c",
+        "inner(eta,math.conj(c))",
+        "inner(eta,c*c)",
+        "inner(eta,math.sin(c))",
+        "inner(eta,c)/c",
+        "inner(eta,c)*inner(eta,c)",
+        "inner(eta,c)+c",
+    ] {
+        let errors = complex_form(&format!("integrate(body,{expression})")).unwrap_err();
+        assert!(errors.iter().any(|error| error.message().contains(
+            "complex weak forms require conjugate-linear test dependence and linear trial dependence"
+        )), "{expression}: {errors:?}");
+    }
+}
+
+#[test]
 fn authored_pairing_retains_conjugation_and_argument_order_in_current_wire() {
     let geometry = geometry();
     let plain = compile(
