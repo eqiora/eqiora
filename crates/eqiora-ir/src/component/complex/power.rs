@@ -16,13 +16,15 @@ impl<I: Clone + Eq> ComponentDagLowering<'_, I> {
             1.,
             eqiora_core::DimExponents::DIMENSIONLESS,
         ))?;
-        if exponent == 0 {
-            return Ok(if part == ScalarPart::Real { one } else { zero });
-        }
         let mut value = [
             self.lower_shaped_part(base, component, ScalarPart::Real)?,
             self.lower_shaped_part(base, component, ScalarPart::Imaginary)?,
         ];
+        // Preserve the common eager operand semantics even for the zero power.
+        // An invalid base must not become valid merely because its result is 1.
+        if exponent == 0 {
+            return Ok(if part == ScalarPart::Real { one } else { zero });
+        }
         // Invert before exponentiation, preserving representable reciprocals
         // when the positive power would overflow. The common division kernel
         // handles coefficient scaling and rejects zero/nonfinite divisors.
@@ -81,6 +83,31 @@ mod tests {
         .unwrap();
         ComponentScalarization::lower(&typed)?
             .evaluate(|coordinate| Some(value[usize::from(coordinate.is_imaginary())]))
+    }
+
+    #[test]
+    fn zero_complex_power_does_not_hide_an_invalid_base() {
+        let symbol = SymbolRef::Field(Id::new());
+        let ty = ValueType::scalar(ScalarDomain::Complex, DimExponents::DIMENSIONLESS).unwrap();
+        let mut dag = ExprDagBuilder::new();
+        let z = dag.symbol(symbol).unwrap();
+        let quotient = dag.div(z, z).unwrap();
+        let power = dag.powi(quotient, 0).unwrap();
+        let typed = TypedResidual::infer(
+            dag.finish([power]).unwrap(),
+            None,
+            RootContract::ComponentwiseResidual,
+            |_| Ok::<_, ()>(ExpressionType::<()>::new(ty.clone(), None)),
+        )
+        .unwrap();
+        let lowering = ComponentScalarization::lower(&typed).unwrap();
+        assert!(lowering.evaluate(|_| Some(0.)).is_err());
+        assert_eq!(
+            lowering
+                .evaluate(|coordinate| Some(if coordinate.is_imaginary() { 0. } else { 1. }))
+                .unwrap(),
+            [1., 0.]
+        );
     }
 
     #[test]
