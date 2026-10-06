@@ -277,3 +277,26 @@ fn harmonic_solver() -> LinearSolveRequest<'static> {
     .unwrap();
     LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan)
 }
+
+#[test]
+fn step_plan_admits_direct_general_solvers_without_changing_the_operator_class() {
+    let solver =
+        SolverPlan::new(LinearSolver::SparseLu, 1.0e-10, 1.0e-12, NonZeroUsize::MIN).unwrap();
+    let plan = AleFsiStepPlan::<2>::new(
+        0.05,
+        exact_material(),
+        FixedReferenceFsiScale::new(2.0, 1.0, 1.0).unwrap(),
+        FixedReferenceFsiLoad::Zero,
+        nonlinear(),
+        solver,
+        Target::HostCpu {
+            threads: NonZeroUsize::MIN,
+        },
+    )
+    .unwrap();
+    assert_eq!(plan.linear_solver(), solver);
+    assert_eq!(
+        plan.operator_properties(),
+        LinearOperatorProperties::General
+    );
+}
