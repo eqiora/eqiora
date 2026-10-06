@@ -61,7 +61,7 @@ pub use numerical_admission::{
     CommonPressureGauge2d, CommonScalarDifferentiationPoint, CommonScalarPlan,
     CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy, CommonState,
     CommonSteadyStokesPlan, CommonTransientFlowPlan, CommonTransientRunRequest, FormulationKind,
-    FormulationSelectionMode, ResolvedCommonPlan, resolve_common_ode_plan, resolve_common_plan,
+    FormulationSelectionMode, ResolvedCommonPlan,
 };
 mod factor_measure;
 pub mod finite_constraints;

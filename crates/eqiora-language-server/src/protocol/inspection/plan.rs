@@ -40,7 +40,7 @@ mod tests {
     use super::*;
     use eqiora::artifact::{ModelDecoderLimits, ModelEnvelope};
     use eqiora::kernel::KernelNode;
-    use eqiora_numerics::{CommonOdePolicy, CommonTimeTolerance, resolve_common_ode_plan};
+    use eqiora_numerics::{CommonOdePolicy, CommonTimeTolerance};
 
     fn model(rate: u8) -> ModelDocument {
         ModelDocument::compile("decay.eqi", &format!("model Decay() {{ parameter rate: 1 / s = {rate}; state x: 1; initial {{ x = 1; }} relation decay {{ derivative(x) = -rate * x; }} }}")).unwrap()
@@ -60,7 +60,7 @@ mod tests {
                 _ => None,
             })
             .unwrap();
-        resolve_common_ode_plan(
+        eqiora_numerics::ResolvedCommonPlan::resolve_ode(
             &envelope,
             model.program(),
             CommonOdePolicy::new(

@@ -9,7 +9,7 @@ use eqiora_artifact::{
 use eqiora_geometry::{GeometryGraph, PlanarTopologyHandle};
 use eqiora_numerics::{
     AuthenticatedCommonMesh, CommonBackwardEuler, CommonSolvePolicy, CommonSpatialPolicy,
-    IncompressibleScalingRequest2d, resolve_common_plan,
+    IncompressibleScalingRequest2d,
 };
 use eqiora_realization::NonlinearSolvePlan;
 use eqiora_solver::REFERENCE_LINEAR_SOLVER;
@@ -233,7 +233,7 @@ fn transient_plan() -> CommonTransientFlowPlan {
     };
     let scaling = IncompressibleScalingRequest2d::from_si(Some(1.0), Some(2.0), Some(3.0)).unwrap();
     let temporal = CommonBackwardEuler::from_seconds(0.01).unwrap();
-    resolve_common_plan(
+    eqiora_numerics::ResolvedCommonPlan::resolve(
         &model,
         owner,
         CommonSpatialPolicy::CellCentered,

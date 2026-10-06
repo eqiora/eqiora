@@ -107,7 +107,7 @@ fn chain_resources(count: usize) -> AuthenticatedCommonMesh {
 }
 
 fn chain_plan(model: &ModelEnvelope, count: usize) -> Result<ResolvedCommonPlan, Diagnostic> {
-    resolve_common_plan(
+    ResolvedCommonPlan::resolve(
         model,
         chain_resources(count),
         CommonSpatialPolicy::Q1,
@@ -440,7 +440,7 @@ fn plural_solver_admits_and_rechecks_exact_fields_for_manual_and_planned_runs() 
         } else {
             &REFERENCE_LINEAR_SOLVER
         };
-        let resolved = resolve_common_plan(
+        let resolved = ResolvedCommonPlan::resolve(
             &model,
             chain_resources(3),
             CommonSpatialPolicy::Q1,

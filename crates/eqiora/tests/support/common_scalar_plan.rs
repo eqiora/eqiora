@@ -10,7 +10,6 @@ use eqiora::geometry::{GeometryGraph, PlanarTopologyHandle};
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
     AuthenticatedCommonMesh, CommonScalarPlan, CommonSolvePolicy, CommonSpatialPolicy,
-    resolve_common_plan,
 };
 
 pub(crate) const COMPONENT: &str = r#"
@@ -116,7 +115,7 @@ pub(crate) fn plan_for_document(
         .unwrap(),
     );
     let model = ModelEnvelope::from_program(document.program()).unwrap();
-    resolve_common_plan(
+    eqiora_numerics::ResolvedCommonPlan::resolve(
         &model,
         owner,
         spatial,
@@ -320,7 +319,7 @@ fn document_and_plans_with_source(
     };
     let model = ModelEnvelope::from_program(document.program()).unwrap();
     let resolve = |owner, spatial| {
-        resolve_common_plan(
+        eqiora_numerics::ResolvedCommonPlan::resolve(
             &model,
             owner,
             spatial,

@@ -275,7 +275,6 @@ fn coordinate_grid_plan_lineage_binds_units_without_fabricating_geometry() {
 fn coordinate_grid_common_plan_solves_and_replays_complete_cell_field() {
     use crate::numerical_admission::{
         CommonLinearRequest, CommonSolvePolicy, CommonSpatialPolicy, ResolvedCommonPlan,
-        resolve_common_plan,
     };
     use eqiora_solver::{LinearSolver, REFERENCE_LINEAR_SOLVER, SolverPlan};
     let (model, phase) = compile(POLYNOMIAL);
@@ -291,7 +290,7 @@ fn coordinate_grid_common_plan_solves_and_replays_complete_cell_field() {
         REFERENCE_LINEAR_SOLVER.provider(),
     )
     .unwrap();
-    let plan = resolve_common_plan(
+    let plan = ResolvedCommonPlan::resolve(
         &model,
         mesh,
         CommonSpatialPolicy::CellCentered,

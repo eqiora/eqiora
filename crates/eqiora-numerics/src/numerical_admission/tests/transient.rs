@@ -135,7 +135,7 @@ fn prepared_transient_methods_keep_authoritative_common_grid_time_bits() {
                 NonZeroUsize::new(2_000).unwrap(),
             )
         };
-        resolve_common_plan(
+        ResolvedCommonPlan::resolve(
             &model,
             owner,
             spatial,
@@ -244,7 +244,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
                 formulation,
             },
         };
-        let resolved = resolve_common_plan(
+        let resolved = ResolvedCommonPlan::resolve(
             model,
             owner,
             method,
@@ -286,7 +286,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
             objective,
         )
         .unwrap();
-        resolve_common_plan(
+        ResolvedCommonPlan::resolve(
             &model,
             resources(&geometry),
             CommonSpatialPolicy::CellCentered,
@@ -346,7 +346,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
     );
     let custom_nonlinear =
         NonlinearSolvePlan::new(2.0e-9, 3.0e-11, NonZeroUsize::new(19).unwrap(), 7).unwrap();
-    let custom = resolve_common_plan(
+    let custom = ResolvedCommonPlan::resolve(
         &model,
         affine_resources(&geometry),
         CommonSpatialPolicy::MiniP1,
@@ -362,7 +362,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
     .expect("fixture retains its admitted transient_flow Plan");
     let alternate_scaling =
         IncompressibleScalingRequest2d::from_si(Some(4.0), Some(5.0), Some(6.0)).unwrap();
-    let fvm_alternate_scaling = resolve_common_plan(
+    let fvm_alternate_scaling = ResolvedCommonPlan::resolve(
         &model,
         resources(&geometry),
         CommonSpatialPolicy::CellCentered,
@@ -416,7 +416,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         assert_eq!(plan.solver_planning_reasons().len(), 4);
         assert!(plan.selected_solver_evidence_case().is_some());
     }
-    let planned_mini = resolve_common_plan(
+    let planned_mini = ResolvedCommonPlan::resolve(
         &model,
         affine_resources(&geometry),
         CommonSpatialPolicy::MiniP1,
@@ -621,7 +621,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
     );
 
     assert!(
-        resolve_common_plan(
+        ResolvedCommonPlan::resolve(
             &model,
             affine_resources(&geometry),
             CommonSpatialPolicy::MiniP1,
@@ -634,7 +634,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         .is_err()
     );
     assert!(
-        resolve_common_plan(
+        ResolvedCommonPlan::resolve(
             &model,
             affine_resources(&geometry),
             CommonSpatialPolicy::MiniP1,
@@ -647,7 +647,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         .is_err()
     );
     assert!(
-        resolve_common_plan(
+        ResolvedCommonPlan::resolve(
             &model,
             affine_resources(&geometry),
             CommonSpatialPolicy::MiniP1,
@@ -660,7 +660,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         .is_err()
     );
     assert!(
-        resolve_common_plan(
+        ResolvedCommonPlan::resolve(
             &model,
             resources(&geometry),
             CommonSpatialPolicy::MiniP1,
@@ -673,7 +673,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         .is_err()
     );
     assert!(
-        resolve_common_plan(
+        ResolvedCommonPlan::resolve(
             &model,
             affine_resources(&geometry),
             CommonMethodRequest::Exact {
@@ -689,7 +689,7 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
         .is_err()
     );
     assert!(
-        resolve_common_plan(
+        ResolvedCommonPlan::resolve(
             &model,
             resources(&geometry),
             CommonMethodRequest::Exact {

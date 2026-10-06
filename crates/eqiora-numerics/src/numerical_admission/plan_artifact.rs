@@ -595,7 +595,7 @@ impl WireResolvedCommonPlanV11 {
             } else {
                 time_backend
             };
-            return resolve_common_ode_plan(&model, &program, temporal, backend);
+            return ResolvedCommonPlan::resolve_ode(&model, &program, temporal, backend);
         }
 
         let mesh = self
@@ -649,7 +649,7 @@ impl WireResolvedCommonPlanV11 {
             .transpose()?
             .map(|bytes| AuthoredFormulationProjection::decode(&bytes))
             .transpose()?;
-        resolve_common_plan(
+        ResolvedCommonPlan::resolve(
             &model,
             mesh,
             method,
