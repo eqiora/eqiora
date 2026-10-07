@@ -12,7 +12,6 @@ use eqiora_core::diagnostic::codes;
 use eqiora_geometry::{GeometryGraph, PlanarTopologyHandle};
 use eqiora_numerics::{
     AuthenticatedCommonMesh, CommonScalarPlan, CommonSolvePolicy, CommonSpatialPolicy,
-    resolve_common_plan,
 };
 use eqiora_realization::RealizationRevision;
 use eqiora_solver::REFERENCE_LINEAR_SOLVER;
@@ -561,7 +560,7 @@ fn plan_for(
         .unwrap(),
     );
     let model = ModelEnvelope::from_program(document.program()).unwrap();
-    resolve_common_plan(
+    eqiora_numerics::ResolvedCommonPlan::resolve(
         &model,
         owner,
         spatial,

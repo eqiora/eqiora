@@ -8,7 +8,6 @@ use eqiora::backends::faer::FaerLinearSolver;
 use eqiora_numerics::{
     CommonFsiPlan, CommonMethodRequest, CommonOdePlan, CommonScalarPlan, CommonScopedSpatialPolicy,
     CommonSolvePolicy, CommonSpatialPolicy, CommonTransientFlowPlan, ResolvedCommonPlan,
-    resolve_common_ode_plan, resolve_common_plan,
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
@@ -744,8 +743,9 @@ fn resolve_plan(
         let program = artifact
             .to_program()
             .map_err(|diagnostics| validation_error(py, &diagnostics))?;
-        let native = resolve_common_ode_plan(artifact, &program, policy, backend)
-            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        let native =
+            eqiora_numerics::ResolvedCommonPlan::resolve_ode(artifact, &program, policy, backend)
+                .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
         drop(model_ref);
         return Ok(PyPlan {
             native,
@@ -910,7 +910,7 @@ fn resolve_plan(
         .ok_or_else(|| {
             PyTypeError::new_err("mesh must be an authenticated caller-owned common Mesh")
         })?;
-    let native = resolve_common_plan(
+    let native = eqiora_numerics::ResolvedCommonPlan::resolve(
         model_ref.artifact(),
         owner,
         method_request,

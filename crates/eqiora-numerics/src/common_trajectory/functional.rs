@@ -182,7 +182,7 @@ impl CommonTrajectory {
     }
 }
 
-struct OdeObservable<'a> {
+pub(super) struct OdeObservable<'a> {
     plan: &'a CommonOdePlan,
     program: KernelProgram,
     observable: Id<kinds::Observable>,
@@ -191,7 +191,7 @@ struct OdeObservable<'a> {
 }
 
 impl<'a> OdeObservable<'a> {
-    fn new(
+    pub(super) fn new(
         trajectory: &'a CommonTrajectory,
         model: &ModelEnvelope,
         observable: Id<kinds::Observable>,
@@ -302,7 +302,7 @@ impl<'a> OdeObservable<'a> {
         Ok(Some(problem.rate(time, state)?))
     }
 
-    fn evaluate(&self, time: f64, state: &[f64]) -> Result<ValueLiteral, Diagnostic> {
+    pub(super) fn evaluate(&self, time: f64, state: &[f64]) -> Result<ValueLiteral, Diagnostic> {
         let rates = self.rates(time, state)?;
         let mut resolve = |symbol| match symbol {
             SymbolRef::Parameter(id) => self.program.typed_value(id.erase()).cloned(),

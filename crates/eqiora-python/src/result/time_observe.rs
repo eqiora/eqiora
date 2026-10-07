@@ -214,5 +214,6 @@ impl PyRunResult {
 pub(super) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyTimeFunctionalQuadrature>()?;
     module.add_class::<PyTrajectoryObservation>()?;
+    super::spectrum::register(module)?;
     Ok(())
 }

@@ -136,7 +136,7 @@ fn resolve_scalar_box(
         1.0e-12,
         NonZeroUsize::new(10_000).unwrap(),
     );
-    resolve_common_plan(
+    ResolvedCommonPlan::resolve(
         model,
         resources,
         spatial,
@@ -218,7 +218,7 @@ pub(super) fn scalar_q1_and_tpfa_consume_one_exact_anisotropic_common_mesh() {
     let exact_owner = resources(&geometry);
     let caller_resources = exact_owner.resources.clone();
     let admit = |owner, spatial, policy: NativeLinearPolicy, backend: &dyn LinearSolverBackend| {
-        resolve_common_plan(
+        ResolvedCommonPlan::resolve(
             &model,
             owner,
             spatial,
@@ -307,7 +307,7 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
         NonZeroUsize::new(10_000).unwrap(),
     );
     let resolve_scalar = |method, solve| {
-        let resolved = resolve_common_plan(
+        let resolved = ResolvedCommonPlan::resolve(
             &model,
             resources(&geometry),
             method,
@@ -399,7 +399,7 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
         6
     );
     assert!(
-        resolve_common_plan(
+        ResolvedCommonPlan::resolve(
             &model,
             resources(&geometry),
             CommonSpatialPolicy::MiniP1,
@@ -412,7 +412,7 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
         .is_err()
     );
     assert!(
-        resolve_common_plan(
+        ResolvedCommonPlan::resolve(
             &model,
             resources(&geometry),
             CommonMethodRequest::Exact {
@@ -441,7 +441,7 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
         NonZeroUsize::new(10_000).unwrap(),
     );
     let resolve_elasticity = |model: &ModelEnvelope| {
-        let resolved = resolve_common_plan(
+        let resolved = ResolvedCommonPlan::resolve(
             model,
             resources(&geometry),
             CommonSpatialPolicy::Q1,
@@ -531,7 +531,7 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
     assert!(omitted.run_result(&REFERENCE_LINEAR_SOLVER).is_err());
 
     assert!(
-        resolve_common_plan(
+        ResolvedCommonPlan::resolve(
             &model,
             resources(&geometry),
             CommonSpatialPolicy::CellCenteredTpfa,
@@ -988,7 +988,7 @@ pub(super) fn mathematical_resolution_ignores_names_and_rejects_changed_operator
         "PoissonInterval",
         &["left", "right"],
     );
-    let error = resolve_common_plan(
+    let error = ResolvedCommonPlan::resolve(
         &nonlinear_model,
         cartesian_box_resources(&geometry, &[3]),
         CommonSpatialPolicy::Q1,
@@ -1023,7 +1023,7 @@ pub(super) fn mathematical_resolution_ignores_names_and_rejects_changed_operator
         "PoissonInterval",
         &["left", "right"],
     );
-    let plan = resolve_common_plan(
+    let plan = ResolvedCommonPlan::resolve(
         &flux_model,
         cartesian_box_resources(&geometry, &[3]),
         CommonMethodRequest::Exact {

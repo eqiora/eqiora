@@ -44,7 +44,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
     );
     let temporal = CommonBackwardEuler::from_seconds(0.05).unwrap();
     let resolve = |scaling| {
-        let resolved = resolve_common_plan(
+        let resolved = ResolvedCommonPlan::resolve(
             &model,
             resources.clone(),
             scoped.clone(),
@@ -169,7 +169,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         SolverPlanningObjective::Fast,
         SolverPlanningObjective::LowMemory,
     ] {
-        let ranked = resolve_common_plan(
+        let ranked = ResolvedCommonPlan::resolve(
             &model,
             resources.clone(),
             scoped.clone(),
@@ -212,7 +212,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         FsiPlanningBackend.provider(),
     )
     .unwrap();
-    let error = resolve_common_plan(
+    let error = ResolvedCommonPlan::resolve(
         &model,
         resources.clone(),
         scoped.clone(),
@@ -316,7 +316,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         CommonScopedSpatialPolicy::new(digest, solid_domain, CommonSpatialPolicy::P1),
     ]);
     assert!(
-        resolve_common_plan(
+        ResolvedCommonPlan::resolve(
             &model,
             resources,
             foreign_scoped,
