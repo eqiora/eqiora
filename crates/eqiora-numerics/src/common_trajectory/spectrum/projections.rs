@@ -27,7 +27,7 @@ impl FiniteSpectrum {
     }
     /// Magnitude of one explicitly selected ordered component. This projection
     /// is not a covariant vector/tensor operation.
-    /// Two-sided magnitude |C[k]|, in the original value units.
+    /// Two-sided magnitude `|C[k]|`, in the original value units.
     pub fn amplitude(&self, bin: usize, component: usize) -> Result<ValueLiteral, Diagnostic> {
         self.real_projection(
             self.coefficient(bin, component)?.norm(),
@@ -47,7 +47,7 @@ impl FiniteSpectrum {
             self.input_type.dimension(),
         )
     }
-    /// Two-sided bin power |C[k]|^2, in squared value units. Its sum is the
+    /// Two-sided bin power `|C[k]|^2`, in squared value units. Its sum is the
     /// mean-square of the windowed samples by this discrete Parseval convention.
     pub fn power(&self, bin: usize, component: usize) -> Result<ValueLiteral, Diagnostic> {
         self.real_projection(
@@ -55,7 +55,7 @@ impl FiniteSpectrum {
             self.squared_dimension()?,
         )
     }
-    /// Two-sided power per Hz = |C[k]|^2 / df, with df=1/(N*dt).
+    /// Two-sided power per Hz = `|C[k]|^2 / df`, with `df=1/(N*dt)`.
     /// This finite-window periodogram has no implicit window-energy correction.
     pub fn power_density_per_hz(
         &self,

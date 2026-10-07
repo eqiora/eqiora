@@ -12,11 +12,11 @@ mod tests;
 /// Uniform half-open DFT sampling and explicit window, with phase measured
 /// from the first sample. No amplitude or energy correction is implicit.
 ///
-/// Forward C[k] = sum(w[n] x[n] exp(+2*pi*i*k*n/N))/N; inverse uses -i.
+/// Forward `C[k] = sum(w[n] x[n] exp(+2*pi*i*k*n/N))/N`; inverse uses -i.
 /// The endpoint t0+N*dt is excluded. Observation validates this complete policy.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UniformDft {
-    /// w[n]=1 on n=0,...,N-1.
+    /// `w[n]=1` on `n=0,...,N-1`.
     Rectangular {
         /// First included sample and phase reference, in SI seconds.
         start_s: f64,
@@ -25,7 +25,7 @@ pub enum UniformDft {
         /// Number of samples and coefficients.
         count: usize,
     },
-    /// w[n]=(1-cos(2*pi*n/N))/2; periodic, not the symmetric N-1 convention.
+    /// `w[n]=(1-cos(2*pi*n/N))/2`; periodic, not the symmetric N-1 convention.
     PeriodicHann {
         /// First included sample and phase reference, in SI seconds.
         start_s: f64,
@@ -36,7 +36,7 @@ pub enum UniformDft {
     },
 }
 impl UniformDft {
-    /// Validate the exact floating-point grid t[n]=start+n*spacing.
+    /// Validate the exact floating-point grid `t[n]=start+n*spacing`.
     pub fn validate(self) -> Result<Self, Diagnostic> {
         let start_s = self.start_s();
         let spacing_s = self.spacing_s();

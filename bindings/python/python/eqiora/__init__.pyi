@@ -1763,6 +1763,7 @@ class FiniteSpectrum:
     Units: coefficients/amplitude retain input units; power squares them;
     power density adds seconds; rectangle-transform estimate adds seconds.
     Reconstruction returns windowed samples only. No alias-free or harmonic-solve claim.
+
     Authority: ``crates/eqiora-python/src/result/spectrum.rs::PyFiniteSpectrum``.
     """
     @property

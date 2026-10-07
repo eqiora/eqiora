@@ -13,6 +13,16 @@ pub(crate) struct PyFiniteSpectrum {
 }
 #[pymethods]
 impl PyFiniteSpectrum {
+    fn __repr__(&self) -> String {
+        format!(
+            "FiniteSpectrum(observable_id={:?}, sample_count={}, window={:?}, trajectory_identity={:?})",
+            self.observable_id(),
+            self.sample_count(),
+            self.window(),
+            self.trajectory_identity()
+        )
+    }
+
     #[getter]
     fn trajectory_identity(&self) -> &str {
         self.value.trajectory_identity()
