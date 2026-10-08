@@ -1,11 +1,17 @@
 //! Exact bounded comparison of a first variation with the independently derived weak Law.
 //! Live energy replay and exact boundary-discharge checks precede this comparison.
 use eqiora_compiler::{AuthoredFormExpressionV1 as E, AuthoredFormulationProjection};
-use eqiora_schema::kernel::pure_operator::{ExactPolynomial, ExactRational};
+use eqiora_core::ValueType;
+use eqiora_schema::kernel::pure_operator::ExactRational;
+use eqiora_sem::KernelProgram;
+use std::collections::BTreeMap;
 
+mod coefficients;
 mod source;
+mod typing;
+use coefficients::Polynomial;
+use typing::symbol_types;
 
-type Polynomial = ExactPolynomial<Atom>;
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Atom {
     Measure(String),
@@ -21,6 +27,7 @@ enum Atom {
 
 pub(super) fn matches_variation(
     projection: &AuthoredFormulationProjection,
+    program: &KernelProgram,
     dimensions: usize,
     left: &E,
     right: &E,
@@ -37,6 +44,7 @@ pub(super) fn matches_variation(
         field,
         dimensions,
         remaining: 65536,
+        symbols: symbol_types(program),
     };
     let compare = || -> Option<bool> {
         let actual = context
@@ -62,6 +70,7 @@ pub(super) struct ElasticTractionTerm {
 
 pub(super) fn matches_elastic_variation(
     projection: &AuthoredFormulationProjection,
+    program: &KernelProgram,
     typed: &eqiora_schema::kernel::typing::TypedResidual<eqiora_core::RawId>,
     stress: eqiora_schema::kernel::ExprId,
     load: eqiora_schema::kernel::ExprId,
@@ -81,6 +90,7 @@ pub(super) fn matches_elastic_variation(
         field,
         dimensions: 2,
         remaining: 65536,
+        symbols: symbol_types(program),
     };
     let mut compare = || -> Option<bool> {
         let actual = context
@@ -135,6 +145,7 @@ struct Context<'a> {
     field: &'a str,
     dimensions: usize,
     remaining: usize,
+    symbols: BTreeMap<String, ValueType>,
 }
 impl Context<'_> {
     fn integral(&mut self, value: &E) -> Option<Polynomial> {
@@ -192,14 +203,14 @@ impl Context<'_> {
         }
     }
     fn trace(&self, value: &E, indices: Vec<usize>) -> Option<Polynomial> {
-        Some(Polynomial::atom(match value {
+        self.atom(match value {
             E::Field { ulid } => Atom::TraceField(ulid.clone(), indices),
             E::Test { field_ulid } if field_ulid == self.field => Atom::TraceTest(indices),
             E::Direction { name, field_ulid } if name == self.name && field_ulid == self.field => {
                 Atom::TraceTest(indices)
             }
             _ => return None,
-        }))
+        })
     }
     fn step(&mut self, depth: usize) -> Option<()> {
         if depth > 96 || self.remaining == 0 {
@@ -219,9 +230,9 @@ impl Context<'_> {
             } => Polynomial::constant(
                 ExactRational::new(*numerator, i64::try_from(*denominator).ok()?).ok()?,
             ),
-            E::Field { ulid } => Polynomial::atom(Atom::Field(ulid.clone(), vec![])),
+            E::Field { ulid } => self.atom(Atom::Field(ulid.clone(), vec![]))?,
             E::Trace { value } => self.trace(value, vec![])?,
-            E::Parameter { ulid } => Polynomial::atom(Atom::Parameter(ulid.clone(), vec![])),
+            E::Parameter { ulid } => self.atom(Atom::Parameter(ulid.clone(), vec![]))?,
             E::Coordinate {
                 support_ulid,
                 factor_ulid,
@@ -231,12 +242,14 @@ impl Context<'_> {
                 factor_ulid.clone(),
                 *axis,
             )),
-            E::Test { field_ulid } if field_ulid == self.field => {
-                Polynomial::atom(Atom::Test(vec![]))
-            }
+            E::Test { field_ulid } if field_ulid == self.field => self.atom(Atom::Test(vec![]))?,
             E::Direction { name, field_ulid } if name == self.name && field_ulid == self.field => {
-                Polynomial::atom(Atom::Test(vec![]))
+                self.atom(Atom::Test(vec![]))?
             }
+            E::Complex { real, imag } => {
+                Polynomial::complex(self.scalar(real, depth + 1)?, self.scalar(imag, depth + 1)?)?
+            }
+            E::Conjugate { value } => self.scalar(value, depth + 1)?.conjugate().ok()?,
             E::Neg { value } => self.scalar(value, depth + 1)?.checked_neg().ok()?,
             E::Add { left, right } => self
                 .scalar(left, depth + 1)?
@@ -259,17 +272,8 @@ impl Context<'_> {
                 usize::try_from(indices[1]).ok()?,
                 depth + 1,
             )?,
-            E::Dot { left, right } => {
-                let mut sum = Polynomial::constant(ExactRational::integer(0));
-                for axis in 0..self.dimensions {
-                    let term = self
-                        .vector(left, axis, depth + 1)?
-                        .checked_mul(&self.vector(right, axis, depth + 1)?)
-                        .ok()?;
-                    sum = sum.checked_add(&term).ok()?;
-                }
-                sum
-            }
+            E::Inner { left, right } => self.contract(left, right, true, depth + 1)?,
+            E::Dot { left, right } => self.contract(left, right, false, depth + 1)?,
             _ => return None,
         })
     }
@@ -285,7 +289,7 @@ impl Context<'_> {
             return None;
         }
         match value {
-            E::Gradient { value } => Some(Polynomial::atom(match value.as_ref() {
+            E::Gradient { value } => self.atom(match value.as_ref() {
                 E::Field { ulid } => Atom::FieldGradient(ulid.clone(), vec![component, axis]),
                 E::Direction { name, field_ulid }
                     if name == self.name && field_ulid == self.field =>
@@ -296,28 +300,21 @@ impl Context<'_> {
                     Atom::TestGradient(vec![component, axis])
                 }
                 _ => return None,
-            })),
+            }),
             _ => None,
         }
     }
     fn vector(&mut self, value: &E, axis: usize, depth: usize) -> Option<Polynomial> {
         self.step(depth)?;
-        if axis >= self.dimensions {
-            return None;
-        }
         match value {
             E::Trace { value } => self.trace(value, vec![axis]),
-            E::Field { ulid } => Some(Polynomial::atom(Atom::Field(ulid.clone(), vec![axis]))),
-            E::Parameter { ulid } => {
-                Some(Polynomial::atom(Atom::Parameter(ulid.clone(), vec![axis])))
-            }
+            E::Field { ulid } => self.atom(Atom::Field(ulid.clone(), vec![axis])),
+            E::Parameter { ulid } => self.atom(Atom::Parameter(ulid.clone(), vec![axis])),
             E::Direction { name, field_ulid } if name == self.name && field_ulid == self.field => {
-                Some(Polynomial::atom(Atom::Test(vec![axis])))
+                self.atom(Atom::Test(vec![axis]))
             }
-            E::Test { field_ulid } if field_ulid == self.field => {
-                Some(Polynomial::atom(Atom::Test(vec![axis])))
-            }
-            E::Gradient { value } => Some(Polynomial::atom(match value.as_ref() {
+            E::Test { field_ulid } if field_ulid == self.field => self.atom(Atom::Test(vec![axis])),
+            E::Gradient { value } => self.atom(match value.as_ref() {
                 E::Field { ulid } => Atom::FieldGradient(ulid.clone(), vec![axis]),
                 E::Test { field_ulid } if field_ulid == self.field => {
                     Atom::TestGradient(vec![axis])
@@ -328,7 +325,16 @@ impl Context<'_> {
                     Atom::TestGradient(vec![axis])
                 }
                 _ => return None,
-            })),
+            }),
+            E::Add { left, right } => self
+                .vector(left, axis, depth + 1)?
+                .checked_add(&self.vector(right, axis, depth + 1)?)
+                .ok(),
+            E::Sub { left, right } => self
+                .vector(left, axis, depth + 1)?
+                .checked_add(&self.vector(right, axis, depth + 1)?.checked_neg().ok()?)
+                .ok(),
+            E::Conjugate { value } => self.vector(value, axis, depth + 1)?.conjugate().ok(),
             E::Neg { value } => self.vector(value, axis, depth + 1)?.checked_neg().ok(),
             E::Mul { left, right } => {
                 if let Some(scalar) = self.scalar(left, depth + 1) {
@@ -385,90 +391,4 @@ fn number(value: f64) -> Option<ExactRational> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn integral_sums_keep_exact_measures_and_traces() {
-        let test = E::Test {
-            field_ulid: "u".into(),
-        };
-        let trace = E::Trace {
-            value: Box::new(test.clone()),
-        };
-        let integral = |domain: &str, value: E| E::Integrate {
-            domain_ulid: domain.into(),
-            integrand: Box::new(value),
-        };
-        let bulk = integral("body", test.clone());
-        let surface = integral("right", trace.clone());
-        let sum = E::Add {
-            left: Box::new(bulk.clone()),
-            right: Box::new(surface.clone()),
-        };
-        let mut context = Context {
-            name: "eta",
-            field: "u",
-            dimensions: 2,
-            remaining: 65536,
-        };
-        // Integration domains are independent formal measures, even for equal
-        // constant densities. A boundary restriction is a distinct input atom.
-        let expected = Polynomial::atom(Atom::Measure("body".into()))
-            .checked_mul(&Polynomial::atom(Atom::Test(vec![])))
-            .unwrap()
-            .checked_add(
-                &Polynomial::atom(Atom::Measure("right".into()))
-                    .checked_mul(&Polynomial::atom(Atom::TraceTest(vec![])))
-                    .unwrap(),
-            )
-            .unwrap();
-        assert_eq!(context.integral(&sum), Some(expected));
-        assert_ne!(context.integral(&bulk), context.integral(&sum));
-        assert_ne!(
-            context.integral(&surface),
-            context.integral(&integral("left", trace))
-        );
-        assert_ne!(
-            context.integral(&surface),
-            context.integral(&integral("right", test))
-        );
-        let opposite_sides = E::Sub {
-            left: Box::new(integral("left", E::Number { value: 1.0 })),
-            right: Box::new(integral("right", E::Number { value: 1.0 })),
-        };
-        assert_ne!(
-            context.integral(&opposite_sides),
-            context.integral(&E::Number { value: 0.0 })
-        );
-        let product = E::Mul {
-            left: Box::new(bulk),
-            right: Box::new(surface),
-        };
-        assert!(context.integral(&product).is_none());
-    }
-
-    #[test]
-    fn binary_coefficients_are_exact_and_fail_closed_outside_portable_bounds() {
-        for (value, numerator, denominator) in [
-            (0.0, 0, 1),
-            (-0.0, 0, 1),
-            (0.5, 1, 2),
-            (-3.25, -13, 4),
-            (0.1, 3602879701896397, 36028797018963968),
-        ] {
-            assert_eq!(
-                number(value),
-                Some(ExactRational::new(numerator, denominator).unwrap())
-            );
-        }
-        for value in [
-            f64::NAN,
-            f64::INFINITY,
-            f64::MIN_POSITIVE,
-            f64::MAX,
-            -2.0_f64.powi(127),
-        ] {
-            assert!(number(value).is_none());
-        }
-    }
-}
+mod tests;

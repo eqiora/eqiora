@@ -98,14 +98,20 @@ pub(crate) fn admit(
         };
     }
     if has_variation {
-        return polynomial::matches_variation(projection, derived.dimension, &left, &right)
-            .then_some(())
-            .ok_or_else(|| {
-                rejection_with(
-                    projection,
-                    "functional variation differs from the admitted strong-law weak residual",
-                )
-            });
+        return polynomial::matches_variation(
+            projection,
+            program,
+            derived.dimension,
+            &left,
+            &right,
+        )
+        .then_some(())
+        .ok_or_else(|| {
+            rejection_with(
+                projection,
+                "functional variation differs from the admitted strong-law weak residual",
+            )
+        });
     }
     if !equivalent(&projection.equations()[0].1, &left) {
         return Err(rejection_with(

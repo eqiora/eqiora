@@ -108,6 +108,7 @@ pub(crate) fn derive(
         }
         if !authored_polynomial::matches_elastic_variation(
             authored,
+            program,
             &typed,
             volume.stress,
             volume.load_gradient,
