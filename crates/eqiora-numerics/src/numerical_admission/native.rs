@@ -36,9 +36,9 @@ pub(super) struct NativeLinearPolicy {
 }
 
 impl NativeLinearPolicy {
-    pub(super) fn exact(
+    pub(super) fn exact<S>(
         solver: SolverPlan,
-        backend: &dyn LinearSolverBackend,
+        backend: &dyn LinearSolverBackend<S>,
     ) -> Result<Self, Diagnostic> {
         if solver.relative_tolerance().to_bits() == (-0.0_f64).to_bits()
             || solver.absolute_tolerance().to_bits() == (-0.0_f64).to_bits()
@@ -106,6 +106,29 @@ impl NativeLinearPolicy {
             plan: self.solver,
             profile: self.planning_profile.clone(),
         })
+    }
+
+    pub(super) fn checked_complex_backend<'a>(
+        &self,
+        backend: &'a dyn LinearSolverBackend,
+    ) -> Result<&'a dyn LinearSolverBackend<num_complex::Complex64>, Diagnostic> {
+        let complex = backend.complex_backend().ok_or_else(|| {
+            invalid("selected provider has no typed complex linear implementation")
+        })?;
+        if backend.provider() != self.provider
+            || complex.provider() != self.provider
+            || complex.capabilities() != self.capabilities
+        {
+            return Err(invalid(
+                "complex execution differs from admitted exact provider or capabilities",
+            ));
+        }
+        if self.planning_profile.is_some() || self.planning_objective.is_some() {
+            return Err(invalid(
+                "complex execution requires an exact complex solver policy",
+            ));
+        }
+        Ok(complex)
     }
 
     pub(super) fn planning_audit_is_coherent(&self) -> bool {

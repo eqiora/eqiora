@@ -320,6 +320,17 @@ pub trait LinearSolverBackend<S = f64>: Debug + Sync {
     /// Exact numerical policy admitted by this adapter.
     fn capabilities(&self) -> SolverCapabilities;
 
+    /// Borrow this provider's optional binary64 complex linear implementation.
+    ///
+    /// Common Plans use this typed boundary instead of substituting a solver
+    /// based on a provider name. The returned implementation must have the same
+    /// exact provider identity; its capabilities are admitted and rechecked
+    /// independently of this adapter's real capabilities. Absence rejects a
+    /// complex execution profile before numerical work.
+    fn complex_backend(&self) -> Option<&dyn LinearSolverBackend<num_complex::Complex64>> {
+        None
+    }
+
     /// Admit the optional complete, dense, host binary64 Hermitian pencil path.
     ///
     /// This is independent of RHS solver capabilities and of `S`: the pencil's

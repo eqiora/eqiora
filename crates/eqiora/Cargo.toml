@@ -68,6 +68,7 @@ eqiora-backend-faer = { workspace = true }
 eqiora-execution = { workspace = true }
 eqiora-backend-rayon = { workspace = true }
 eqiora-spatial-distribution = { workspace = true }
+num-complex = { workspace = true }
 num-rational = { workspace = true }
 rustix = { workspace = true }
 quick-xml = { workspace = true }

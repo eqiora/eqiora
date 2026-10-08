@@ -53,6 +53,10 @@ impl LinearSolverBackend for ReferenceLinearSolver {
         Self::capabilities(self)
     }
 
+    fn complex_backend(&self) -> Option<&dyn LinearSolverBackend<num_complex::Complex64>> {
+        Some(self)
+    }
+
     fn solve_with_execution(
         &self,
         problem: &LinearProblem<'_>,

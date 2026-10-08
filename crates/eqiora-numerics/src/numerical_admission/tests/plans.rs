@@ -257,7 +257,7 @@ pub(super) fn scalar_q1_and_tpfa_consume_one_exact_anisotropic_common_mesh() {
     let alternate_provider = admit(
         resources(&geometry),
         CommonSpatialPolicy::Q1,
-        NativeLinearPolicy::exact(
+        NativeLinearPolicy::exact::<f64>(
             SolverPlan::new(
                 LinearSolver::BiConjugateGradientStabilized,
                 1.0e-10,
@@ -550,7 +550,7 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
     let geometry = rectangle();
     let model = model(&geometry);
     assert!(
-        NativeLinearPolicy::exact(
+        NativeLinearPolicy::exact::<f64>(
             SolverPlan::new(
                 LinearSolver::ConjugateGradient,
                 -0.0,
@@ -592,7 +592,7 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
                 &model,
                 resources(&geometry),
                 NativeSpatialPolicy::ScalarQ1,
-                NativeLinearPolicy::exact(solver, &REFERENCE_LINEAR_SOLVER).unwrap(),
+                NativeLinearPolicy::exact::<f64>(solver, &REFERENCE_LINEAR_SOLVER).unwrap(),
             )
             .is_err()
         );
@@ -766,7 +766,7 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
 }
 
 fn general_linear() -> NativeLinearPolicy {
-    NativeLinearPolicy::exact(
+    NativeLinearPolicy::exact::<f64>(
         SolverPlan::new(
             LinearSolver::BiConjugateGradientStabilized,
             1.0e-10,

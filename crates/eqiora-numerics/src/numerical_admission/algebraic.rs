@@ -94,21 +94,11 @@ impl CommonAlgebraicPlan {
             None
         };
         let linear = if complex_system.is_some() {
-            let (plan, provider) = request
-                .exact_request()
-                .ok_or_else(|| invalid("complex finite Plan requires exact linear controls"))?;
-            if provider != REFERENCE_LINEAR_SOLVER.provider() {
-                return Err(invalid(
-                    "complex finite Plan requires the admitted reference provider",
-                ));
-            }
-            REFERENCE_LINEAR_SOLVER.capabilities().require_problem(
-                plan,
-                eqiora_core::ScalarDomain::Complex,
-                ScalarType::F64,
+            solver_planning::resolve_complex_linear(
+                request,
                 LinearOperatorProperties::General,
-            )?;
-            NativeLinearPolicy::exact(plan, &REFERENCE_LINEAR_SOLVER)?
+                backend,
+            )?
         } else {
             solver_planning::resolve_linear(
                 request,
@@ -266,8 +256,8 @@ impl CommonAlgebraicPlan {
                 "finite Run requires its exact Plan-bound State and admitted provider",
             ));
         }
-        let checked = self.linear.checked_backend(backend, None)?;
         if let Some(gauge) = &self.gauge {
+            let checked = self.linear.checked_backend(backend, None)?;
             let solution = gauge.solve(LinearSolveRequest::new(&checked, self.linear.solver))?;
             return crate::CommonResult::from_algebraic(
                 self,
@@ -287,8 +277,8 @@ impl CommonAlgebraicPlan {
                 .map(|pair| num_complex::Complex64::new(pair[0], pair[1]))
                 .collect::<Vec<_>>();
             let problem = system.linear_problem()?.with_initial_guess(&initial)?;
-            let solution = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, self.linear.solver)
-                .solve(&problem)?;
+            let complex = self.linear.checked_complex_backend(backend)?;
+            let solution = LinearSolveRequest::new(complex, self.linear.solver).solve(&problem)?;
             let values = solution
                 .values()
                 .iter()
@@ -303,6 +293,7 @@ impl CommonAlgebraicPlan {
                 None,
             );
         }
+        let checked = self.linear.checked_backend(backend, None)?;
         if let Some(nonlinear) = self.nonlinear {
             let solution = self.problem.nonlinear()?.solve_nonlinear(
                 &state.values,

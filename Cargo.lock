@@ -675,6 +675,7 @@ dependencies = [
  "eqiora-spatial-distribution",
  "eqiora-time",
  "mpi",
+ "num-complex",
  "num-rational",
  "quick-xml",
  "rustix",

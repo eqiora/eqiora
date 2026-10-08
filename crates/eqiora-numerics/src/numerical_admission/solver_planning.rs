@@ -54,6 +54,35 @@ pub(super) fn resolve_linear(
     NativeLinearPolicy::exact(decision.solver_plan(), backend)?.with_planning(&decision)
 }
 
+/// Resolve the typed complex implementation of the selected provider. The
+/// current automatic host profile describes real storage, so complex controls
+/// remain explicit until that profile owns complex facts.
+pub(super) fn resolve_complex_linear(
+    request: CommonLinearRequest,
+    properties: LinearOperatorProperties,
+    supplied_backend: &dyn LinearSolverBackend,
+) -> Result<NativeLinearPolicy, Diagnostic> {
+    let (plan, provider) = request
+        .exact_request()
+        .ok_or_else(|| invalid("complex Plan requires exact linear controls"))?;
+    let backend = exact_backend(provider, supplied_backend)?;
+    let complex = backend
+        .complex_backend()
+        .ok_or_else(|| invalid("selected provider has no typed complex linear implementation"))?;
+    if complex.provider() != provider {
+        return Err(invalid(
+            "complex implementation belongs to a different provider",
+        ));
+    }
+    complex.capabilities().require_problem(
+        plan,
+        eqiora_core::ScalarDomain::Complex,
+        ScalarType::F64,
+        properties,
+    )?;
+    NativeLinearPolicy::exact(plan, complex)
+}
+
 fn exact_backend(
     provider: SolverProvider,
     supplied_backend: &dyn LinearSolverBackend,

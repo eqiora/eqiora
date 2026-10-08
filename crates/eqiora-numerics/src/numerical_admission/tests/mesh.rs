@@ -485,7 +485,7 @@ pub(super) fn transient_model() -> ModelEnvelope {
 }
 
 pub(super) fn linear() -> NativeLinearPolicy {
-    NativeLinearPolicy::exact(
+    NativeLinearPolicy::exact::<f64>(
         SolverPlan::new(
             LinearSolver::ConjugateGradient,
             1.0e-10,
