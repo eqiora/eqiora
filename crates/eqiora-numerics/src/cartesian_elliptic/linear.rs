@@ -22,7 +22,7 @@ use crate::region_assembly::{PreparedRegionAssembly, RegionAssemblyCell};
 pub(crate) struct CartesianLinearAssembly {
     pub(crate) fields: Vec<(RawId, ValueType)>,
     pub(crate) mesh: CartesianMesh,
-    pub(crate) constraints: ConstrainedDofLayout,
+    pub(crate) constraints: ConstrainedDofLayout<f64>,
     pub(crate) system: LinearSystem<f64>,
     pub(crate) full_system: LinearSystem<f64>,
     pub(crate) report: AssemblyReport,

@@ -111,7 +111,7 @@ pub(crate) struct RegionDofMap {
     cell_keys: Vec<Vec<FieldDof>>,
     cell_domains: Vec<RawId>,
     traces: Vec<(ConformingTraceQuotient, BTreeSet<FieldDof>)>,
-    constraints: ConstrainedDofLayout,
+    constraints: ConstrainedDofLayout<f64>,
     full_count: usize,
     fields: BTreeMap<RawId, (RawId, RegionFieldLayout)>,
 }

@@ -218,7 +218,7 @@ impl ConformingCartesianLinearElasticityPair2dSolution {
 pub(crate) struct FinalizedConformingCartesianElasticityPair2dAssembly {
     meshes: [CartesianMesh; 2],
     interface_map: ConformingCartesianInterfaceMap2d,
-    constrained_dofs: ConstrainedDofLayout,
+    constrained_dofs: ConstrainedDofLayout<f64>,
     linear_system: eqiora_assembly::LinearSystem<f64>,
     full_system: eqiora_assembly::LinearSystem<f64>,
     subdomain_systems: [eqiora_assembly::LinearSystem<f64>; 2],
@@ -269,7 +269,7 @@ impl FinalizedConformingCartesianElasticityPair2dAssembly {
 pub(crate) struct FinalizedConformingCartesianElasticityPair2dState {
     meshes: [CartesianMesh; 2],
     interface_map: ConformingCartesianInterfaceMap2d,
-    constrained_dofs: ConstrainedDofLayout,
+    constrained_dofs: ConstrainedDofLayout<f64>,
     full_system: eqiora_assembly::LinearSystem<f64>,
     subdomain_systems: [eqiora_assembly::LinearSystem<f64>; 2],
     integrated_body_force: [[f64; COMPONENTS]; 2],

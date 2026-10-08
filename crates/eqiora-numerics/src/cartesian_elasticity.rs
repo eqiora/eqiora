@@ -430,7 +430,7 @@ pub fn solve_cartesian_q1_linear_elasticity_2d_with_assembly(
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FinalizedCartesianElasticity2dAssembly {
     mesh: CartesianMesh,
-    constrained_dofs: ConstrainedDofLayout,
+    constrained_dofs: ConstrainedDofLayout<f64>,
     linear_system: eqiora_assembly::LinearSystem<f64>,
     full_system: eqiora_assembly::LinearSystem<f64>,
     integrated_body_force: [f64; COMPONENTS],
@@ -475,7 +475,7 @@ impl FinalizedCartesianElasticity2dAssembly {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FinalizedCartesianElasticity2dState {
     mesh: CartesianMesh,
-    constrained_dofs: ConstrainedDofLayout,
+    constrained_dofs: ConstrainedDofLayout<f64>,
     full_system: eqiora_assembly::LinearSystem<f64>,
     integrated_body_force: [f64; COMPONENTS],
     assembly_report: AssemblyReport,

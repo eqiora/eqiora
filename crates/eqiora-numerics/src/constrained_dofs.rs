@@ -8,31 +8,35 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 
 use crate::interleaved_dofs::InterleavedDofValues;
+use crate::spatial_expression::Coefficient;
 
 fn invalid(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_DISCRETIZATION, message)
 }
 
-fn fallible_zeroed(length: usize, message: &'static str) -> Result<Vec<f64>, Diagnostic> {
+fn fallible_zeroed<S: Coefficient>(
+    length: usize,
+    message: &'static str,
+) -> Result<Vec<S>, Diagnostic> {
     let mut values = Vec::new();
     values
         .try_reserve_exact(length)
         .map_err(|_| Diagnostic::error(codes::NUMERICAL_SOLVE_FAILED, message))?;
-    values.resize(length, 0.0);
+    values.resize(length, <S as From<f64>>::from(0.0));
     Ok(values)
 }
 
 /// One exact partition of global degrees of freedom into fixed values and
 /// reduced-system equations.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct ConstrainedDofLayout {
-    fixed_values: Vec<Option<f64>>,
+pub(crate) struct ConstrainedDofLayout<S: Coefficient> {
+    fixed_values: Vec<Option<S>>,
     free_indices: Vec<Option<DofId>>,
     free_count: usize,
 }
 
-impl ConstrainedDofLayout {
-    pub(crate) fn new(fixed_values: Vec<Option<f64>>) -> Result<Self, Diagnostic> {
+impl<S: Coefficient + Send + Sync> ConstrainedDofLayout<S> {
+    pub(crate) fn new(fixed_values: Vec<Option<S>>) -> Result<Self, Diagnostic> {
         if fixed_values
             .iter()
             .flatten()
@@ -68,10 +72,10 @@ impl ConstrainedDofLayout {
 
     pub(crate) fn assemble(
         &self,
-        backend: &dyn AssemblyBackend<f64>,
+        backend: &dyn AssemblyBackend<S>,
         packet_count: usize,
-        contribution: impl Fn(usize) -> Result<(LocalContribution<f64>, Vec<usize>), Diagnostic> + Sync,
-    ) -> Result<(LinearSystem<f64>, LinearSystem<f64>, AssemblyReport), Diagnostic> {
+        contribution: impl Fn(usize) -> Result<(LocalContribution<S>, Vec<usize>), Diagnostic> + Sync,
+    ) -> Result<(LinearSystem<S>, LinearSystem<S>, AssemblyReport), Diagnostic> {
         let plan = AssemblyPlan::new(vec![
             AssemblyTarget::new(self.free_count)?,
             AssemblyTarget::new(self.fixed_values.len())?,
@@ -113,10 +117,7 @@ impl ConstrainedDofLayout {
         globals
     }
 
-    pub(crate) fn reduced_map(
-        &self,
-        global_dofs: &[usize],
-    ) -> Result<AssemblyMap<f64>, Diagnostic> {
+    pub(crate) fn reduced_map(&self, global_dofs: &[usize]) -> Result<AssemblyMap<S>, Diagnostic> {
         let mut equations = Vec::with_capacity(global_dofs.len());
         let mut unknowns = Vec::with_capacity(global_dofs.len());
         for &global in global_dofs {
@@ -136,7 +137,7 @@ impl ConstrainedDofLayout {
         AssemblyMap::new(equations, unknowns)
     }
 
-    pub(crate) fn full_map(&self, global_dofs: &[usize]) -> Result<AssemblyMap<f64>, Diagnostic> {
+    pub(crate) fn full_map(&self, global_dofs: &[usize]) -> Result<AssemblyMap<S>, Diagnostic> {
         for &global in global_dofs {
             if global >= self.fixed_values.len() {
                 return Err(invalid(
@@ -156,19 +157,19 @@ impl ConstrainedDofLayout {
         )
     }
 
-    pub(crate) fn lift(&self, free_values: &[f64]) -> Result<Vec<f64>, Diagnostic> {
+    pub(crate) fn lift(&self, free_values: &[S]) -> Result<Vec<S>, Diagnostic> {
         self.lift_with_constraints(free_values, false)
     }
 
-    pub(crate) fn lift_direction(&self, free_values: &[f64]) -> Result<Vec<f64>, Diagnostic> {
+    pub(crate) fn lift_direction(&self, free_values: &[S]) -> Result<Vec<S>, Diagnostic> {
         self.lift_with_constraints(free_values, true)
     }
 
     fn lift_with_constraints(
         &self,
-        free_values: &[f64],
+        free_values: &[S],
         direction: bool,
-    ) -> Result<Vec<f64>, Diagnostic> {
+    ) -> Result<Vec<S>, Diagnostic> {
         if free_values.len() != self.free_count {
             return Err(invalid(
                 "reduced solution shape differs from its constrained layout",
@@ -185,7 +186,13 @@ impl ConstrainedDofLayout {
             .zip(&mut values)
         {
             *value = fixed
-                .map(|fixed| if direction { 0.0 } else { fixed })
+                .map(|fixed| {
+                    if direction {
+                        <S as From<f64>>::from(0.0)
+                    } else {
+                        fixed
+                    }
+                })
                 .unwrap_or_else(|| {
                     free_values[free
                         .expect("every unfixed degree of freedom owns a reduced equation")
@@ -195,7 +202,7 @@ impl ConstrainedDofLayout {
         Ok(values)
     }
 
-    pub(crate) fn restrict(&self, values: &[f64]) -> Result<Vec<f64>, Diagnostic> {
+    pub(crate) fn restrict(&self, values: &[S]) -> Result<Vec<S>, Diagnostic> {
         if values.len() != self.fixed_values.len() || values.iter().any(|value| !value.is_finite())
         {
             return Err(invalid(
@@ -211,7 +218,10 @@ impl ConstrainedDofLayout {
             .zip(&self.fixed_values)
             .zip(&self.free_indices)
         {
-            if fixed.is_some_and(|fixed| fixed.to_bits() != value.to_bits()) {
+            if fixed.is_some_and(|fixed| {
+                fixed.re().to_bits() != value.re().to_bits()
+                    || fixed.im().to_bits() != value.im().to_bits()
+            }) {
                 return Err(invalid(
                     "reduction requires each fixed value to match its exact prescribed word",
                 ));
@@ -225,9 +235,9 @@ impl ConstrainedDofLayout {
 
     pub(crate) fn full_residual(
         &self,
-        system: &LinearSystem<f64>,
-        values: &[f64],
-    ) -> Result<Vec<f64>, Diagnostic> {
+        system: &LinearSystem<S>,
+        values: &[S],
+    ) -> Result<Vec<S>, Diagnostic> {
         if values.len() != self.fixed_values.len() {
             return Err(invalid(
                 "full solution shape differs from its constrained layout",
@@ -239,11 +249,13 @@ impl ConstrainedDofLayout {
         )?;
         system.matrix().multiply_into(values, &mut residual)?;
         for (value, right_hand_side) in residual.iter_mut().zip(system.rhs()) {
-            *value -= right_hand_side;
+            *value -= *right_hand_side;
         }
         Ok(residual)
     }
+}
 
+impl ConstrainedDofLayout<f64> {
     pub(crate) fn reaction_sum<const D: usize>(
         &self,
         residual: &[f64],
@@ -264,7 +276,7 @@ mod tests {
 
     #[test]
     fn primal_direction_and_restriction_share_one_exact_constraint_inventory() {
-        let layout = ConstrainedDofLayout::new(vec![Some(-0.0), None, Some(1.25)]).unwrap();
+        let layout = ConstrainedDofLayout::<f64>::new(vec![Some(-0.0), None, Some(1.25)]).unwrap();
         let full = layout.lift(&[7.5]).unwrap();
         assert_eq!(full[0].to_bits(), (-0.0_f64).to_bits());
         assert_eq!(&full[1..], &[7.5, 1.25]);
@@ -297,8 +309,63 @@ mod tests {
     }
 
     #[test]
+    fn complex_constraints_preserve_both_words_and_eliminate_without_conjugation() {
+        use num_complex::Complex64 as C;
+
+        let fixed = C::new(-0.0, -0.0);
+        let exact = ConstrainedDofLayout::new(vec![Some(fixed), None]).unwrap();
+        let free = C::new(3.0, -4.0);
+        let lifted = exact.lift(&[free]).unwrap();
+        assert_eq!(lifted[0].re.to_bits(), (-0.0_f64).to_bits());
+        assert_eq!(lifted[0].im.to_bits(), (-0.0_f64).to_bits());
+        assert_eq!(exact.restrict(&lifted).unwrap(), vec![free]);
+        assert!(exact.restrict(&[C::new(0.0, -0.0), free]).is_err());
+        assert!(exact.restrict(&[C::new(-0.0, 0.0), free]).is_err());
+        assert!(
+            exact
+                .restrict(&[fixed, C::new(3.0, f64::INFINITY)])
+                .is_err()
+        );
+        assert!(ConstrainedDofLayout::new(vec![Some(C::new(1.0, f64::NAN))]).is_err());
+        let direction = exact.lift_direction(&[free]).unwrap();
+        assert_eq!(direction[0].re.to_bits(), 0.0_f64.to_bits());
+        assert_eq!(direction[0].im.to_bits(), 0.0_f64.to_bits());
+        assert_eq!(direction[1], free);
+
+        let layout = ConstrainedDofLayout::new(vec![Some(C::new(1.0, 2.0)), None]).unwrap();
+        let (reduced, full, _) = layout
+            .assemble(&eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND, 1, |_| {
+                Ok((
+                    LocalContribution::new(
+                        2,
+                        2,
+                        vec![
+                            C::new(7.0, -1.0),
+                            C::new(2.0, -2.0),
+                            C::new(4.0, 3.0),
+                            C::new(5.0, -1.0),
+                        ],
+                        vec![C::new(3.0, 9.0), C::new(-2.0, 1.0)],
+                    )?,
+                    vec![1, 0],
+                ))
+            })
+            .unwrap();
+        // (2-2i)(1+2i) = 6+2i, so the free RHS is -3+7i.
+        assert_eq!(reduced.matrix().values(), &[C::new(7.0, -1.0)]);
+        assert_eq!(reduced.rhs(), &[C::new(-3.0, 7.0)]);
+        // At global u=[1+2i, 3-4i], A*u-b = [33+1i, 20-38i].
+        assert_eq!(
+            layout
+                .full_residual(&full, &layout.lift(&[free]).unwrap())
+                .unwrap(),
+            vec![C::new(33.0, 1.0), C::new(20.0, -38.0)]
+        );
+    }
+
+    #[test]
     fn constrained_allocation_failure_is_stable() {
-        let error = fallible_zeroed(
+        let error = fallible_zeroed::<f64>(
             usize::MAX,
             "constrained allocation exceeds platform capacity",
         )
