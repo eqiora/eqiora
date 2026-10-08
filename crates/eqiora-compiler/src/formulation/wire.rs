@@ -180,6 +180,15 @@ pub enum AuthoredFormExpressionV1 {
         left: Box<Self>,
         right: Box<Self>,
     },
+    /// Closed component values after ordinary source specialization.
+    Components {
+        shape: Vec<u32>,
+        values: Vec<(f64, f64)>,
+    },
+    Apply {
+        left: Box<Self>,
+        right: Box<Self>,
+    },
     Dot {
         left: Box<Self>,
         right: Box<Self>,
@@ -699,6 +708,10 @@ pub(super) fn expression(value: &AuthoredFormExpression) -> AuthoredFormExpressi
             value: Box::new(expression(value)),
         },
         AuthoredFormExpressionKind::Inner(left, right) => AuthoredFormExpressionV1::Inner {
+            left: Box::new(expression(left)),
+            right: Box::new(expression(right)),
+        },
+        AuthoredFormExpressionKind::Apply(left, right) => AuthoredFormExpressionV1::Apply {
             left: Box::new(expression(left)),
             right: Box::new(expression(right)),
         },

@@ -95,3 +95,42 @@ fn finite_coordinate_scaling_uses_shared_value_type_rules() {
         compile(&source).unwrap_or_else(|errors| panic!("{source}: {errors:?}"));
     }
 }
+
+#[test]
+fn finite_map_application_retains_complex_coefficients_and_nominal_endpoints() {
+    let source = SOURCE.replace("parameter h:1=2;",
+        "parameter h:map<complex<1>,Spin,Spin>=linear_map(Spin,Spin,[[2,math.complex(0,-1)],[math.complex(0,1),2]]);")
+        .replace("h*u", "apply(h,u)");
+    let compiled = compile(&source).unwrap();
+    let form = compiled
+        .authored_formulations()
+        .next()
+        .unwrap()
+        .projection();
+    assert_eq!(
+        form,
+        &AuthoredFormulationProjection::decode(form.canonical_bytes()).unwrap()
+    );
+    assert!(
+        String::from_utf8(form.canonical_bytes().to_vec())
+            .unwrap()
+            .contains("apply")
+    );
+    for wrong in [
+        source.replace("inner(eta,apply(h,u))", "inner(apply(h,u),eta)"),
+        source.replace("inner(eta,apply(h,u))", "inner(eta,apply(h,math.conj(u)))"),
+        source.replace("inner(eta,apply(h,u))", "inner(eta,apply(u,h))"),
+        source
+            .replace(
+                "space Spin=orthonormal(up,down);",
+                "space Spin=orthonormal(up,down); space Other=orthonormal(first,second);",
+            )
+            .replace(
+                "variable lambda:1;",
+                "variable lambda:1; variable v:coordinates<complex<1>,Other>;",
+            )
+            .replace("inner(eta,apply(h,u))", "inner(eta,apply(h,v))"),
+    ] {
+        assert!(compile(&wrong).is_err(), "{wrong}");
+    }
+}

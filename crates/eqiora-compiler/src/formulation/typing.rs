@@ -100,7 +100,8 @@ impl ExpressionContext<'_> {
         name: &str,
     ) -> Result<AuthoredFormExpression, Diagnostic> {
         if let Some(value) = self.index.coefficients.get(name) {
-            if value.value_type.shape().is_scalar()
+            if (value.value_type.shape().is_scalar()
+                || (self.relation_domain.is_none() && value.value_type.map_bases().is_some()))
                 && matches!(
                     value.value_type.scalar_domain(),
                     ScalarDomain::Real | ScalarDomain::Complex
@@ -111,7 +112,7 @@ impl ExpressionContext<'_> {
             return Err(error(
                 self.file,
                 expression.range(),
-                "weak forms require real or complex scalar coefficient aliases",
+                "weak forms require real or complex scalar coefficient aliases or global finite maps",
             ));
         }
         let raw = resolve_symbol(self.file, expression.range(), name, self.symbols)?;
@@ -140,7 +141,9 @@ impl ExpressionContext<'_> {
                 "weak forms require admitted real or complex Field shapes",
             )),
             Some(KernelNode::Parameter(parameter))
-                if parameter.value_type().shape().is_scalar()
+                if (parameter.value_type().shape().is_scalar()
+                    || (self.relation_domain.is_none()
+                        && parameter.value_type().map_bases().is_some()))
                     && matches!(
                         parameter.value_type().scalar_domain(),
                         ScalarDomain::Real | ScalarDomain::Complex
@@ -151,7 +154,7 @@ impl ExpressionContext<'_> {
             Some(KernelNode::Parameter(_)) => Err(error(
                 self.file,
                 expression.range(),
-                "weak forms require real or complex scalar Parameters",
+                "weak forms require real or complex scalar Parameters or global finite maps",
             )),
             _ => Err(error(
                 self.file,
@@ -456,6 +459,9 @@ impl ExpressionContext<'_> {
                     value_type,
                     support,
                 ))
+            }
+            ("apply", [left, right]) if self.relation_domain.is_none() => {
+                self.compile_apply(expression, left, right)
             }
             ("dot" | "frobenius" | "inner", [left, right]) => {
                 self.compile_contraction(expression, name, left, right)

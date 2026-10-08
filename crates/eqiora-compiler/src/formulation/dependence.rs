@@ -106,9 +106,11 @@ fn classify(
     };
     Ok(match value {
         E::Number { value } if *value == 0.0 => Terms::new(),
-        E::Number { .. } | E::Rational { .. } | E::Parameter { .. } | E::Coordinate { .. } => {
-            constant()
-        }
+        E::Number { .. }
+        | E::Rational { .. }
+        | E::Parameter { .. }
+        | E::Coordinate { .. }
+        | E::Components { .. } => constant(),
         E::Field { ulid } => {
             let id = field_id(ulid)?;
             if trials.contains(&id) {
@@ -157,7 +159,7 @@ fn classify(
             result.extend(child(right, conjugated)?);
             result
         }
-        E::Mul { left, right } => {
+        E::Mul { left, right } | E::Apply { left, right } => {
             let left = child(left, conjugated)?;
             let right = child(right, conjugated)?;
             product(&left, &right, budget)?
@@ -271,6 +273,7 @@ impl AuthoredFormulationProjection {
                 E::Add { left, right }
                 | E::Sub { left, right }
                 | E::Mul { left, right }
+                | E::Apply { left, right }
                 | E::Div { left, right }
                 | E::Inner { left, right }
                 | E::Dot { left, right }
@@ -302,6 +305,10 @@ impl AuthoredFormulationProjection {
                 | E::EndpointFlux { flux: value, .. }
                 | E::Pow { base: value, .. } => {
                     push(value.as_ref());
+                    None
+                }
+                E::Components { values, .. } => {
+                    complex |= values.iter().any(|(_, imag)| *imag != 0.0);
                     None
                 }
                 E::Number { .. } | E::Rational { .. } | E::Coordinate { .. } => None,

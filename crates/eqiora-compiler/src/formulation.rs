@@ -106,6 +106,8 @@ pub(crate) enum AuthoredFormExpressionKind {
     Conjugate(Box<AuthoredFormExpression>),
     /// Equal-role component pairing, conjugate-linear in its first argument.
     Inner(Box<AuthoredFormExpression>, Box<AuthoredFormExpression>),
+    /// Finite map application with exact nominal endpoints.
+    Apply(Box<AuthoredFormExpression>, Box<AuthoredFormExpression>),
     /// Euclidean inner product of equal vectors.
     Dot(Box<AuthoredFormExpression>, Box<AuthoredFormExpression>),
     /// Spatial integral over one exact volume or boundary Domain.
