@@ -1,10 +1,12 @@
 """Python-authored weak forms execute through the same emitted-source path."""
 
+import shutil
+
 import eqiora
 import pytest
 
 
-def test_finite_weak_authoring_preserves_spectral_phase():
+def test_finite_weak_authoring_preserves_spectral_phase(tmp_path):
     q = eqiora.lang
     module = eqiora.Module("main")
     spin = module.space("Spin", labels=("up", "down"))
@@ -17,9 +19,7 @@ def test_finite_weak_authoring_preserves_spectral_phase():
     states = component.relation("states", q.equation(q.apply(h, u), eigenvalue*u))
     eta = component.test("eta", for_=u)
     component.weak_form("weak", [states], equations=[(q.inner(eta, q.apply(h, u)), q.inner(eta, eigenvalue*u))])
-    emitted = module.to_eqi()
-    models = [eqiora.compile(source=source, entry="Wave") for source in (module, emitted)]
-    assert models[0].digest == models[1].digest
+    models = authoring_models(module, tmp_path)
     solve = eqiora.solve.HermitianEigen(count=2, provider=eqiora.solve.SolverProvider.faer(), residual_tolerance=1e-12, normalization_tolerance=1e-12)
     identities = []
     for model in models:
@@ -39,9 +39,11 @@ def test_finite_weak_authoring_preserves_spectral_phase():
                     assert abs(projector[row][col]-expected[row][col]) < 1e-12
         assert eqiora.Result.from_bytes(restored, result.to_bytes()).to_bytes() == result.to_bytes()
     assert identities[0] == identities[1]
+    assert identities[2] == identities[3]
+    assert identities[0] != identities[2]
 
 
-def test_spatial_weak_authoring_includes_complex_boundary_load():
+def test_spatial_weak_authoring_includes_complex_boundary_load(tmp_path):
     q = eqiora.lang
     module = eqiora.Module("main")
     component = module.component("Wave")
@@ -63,13 +65,11 @@ def test_spatial_weak_authoring_includes_complex_boundary_load():
         q.integrate(body, q.inner(q.grad(eta), a*q.grad(u))+q.inner(eta, reaction*u)),
         q.integrate(body, q.inner(eta, f+slope*q.coordinate(0)))+q.integrate(right, q.inner(q.trace(eta), flux)),
     )])
-    emitted = module.to_eqi()
     graph = eqiora.geometry.GeometryGraph()
     interval = graph.interval(bounds=(0., 6.))
     geometry = graph.build(interval, named_topology={"body": interval.region, "left": interval.boundaries[0], "right": interval.boundaries[1]})
     bindings = {"body": geometry.selection("body"), "left": (geometry.selection("left"), geometry.selection("body")), "right": (geometry.selection("right"), geometry.selection("body")), "a": 6+6j, "q": 1+1j, "f": -2+4j, "s": 3+1j, "g": 18+6j}
-    models = [eqiora.compile(source=source, entry="Wave", geometry=geometry, bindings=bindings) for source in (module, emitted)]
-    assert models[0].digest == models[1].digest
+    models = authoring_models(module, tmp_path, geometry=geometry, bindings=bindings)
     mesh = eqiora.meshing.generate(eqiora.meshing.resolve(geometry, eqiora.meshing.CartesianMesher(cells=(2,))))
     solve = eqiora.solve.Linear(algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized, preconditioner=eqiora.solve.Preconditioner.Identity, reduction=eqiora.solve.Reduction.Reproducible, provider=eqiora.solve.SolverProvider.reference(), relative_tolerance=1e-12, absolute_tolerance=1e-14, maximum_iterations=128)
     identities = []
@@ -88,6 +88,8 @@ def test_spatial_weak_authoring_includes_complex_boundary_load():
         replayed = eqiora.Result.from_bytes(restored, result.to_bytes())
         assert replayed.to_bytes() == result.to_bytes()
     assert identities[0] == identities[1]
+    assert identities[2] == identities[3]
+    assert identities[0] != identities[2]
 
 
 def test_inner_and_integrate_preserve_component_ownership():
@@ -107,3 +109,32 @@ def test_inner_and_integrate_preserve_component_ownership():
     for unsupported in (exterior, exterior.member("member")):
         with pytest.raises(q.ModuleError, match="volume or boundary"):
             q.integrate(unsupported, x)
+
+
+def authoring_models(module, tmp_path, **bindings):
+    emitted = module.to_eqi()
+    models = [eqiora.compile(source=source, entry="Wave", **bindings) for source in (module, emitted)]
+    assert models[0].digest == models[1].digest
+    project = tmp_path / "project"
+    (project / "src").mkdir(parents=True)
+    (project / "eqiora.toml").write_text('[package]\nname = "eqiora.local_project"\nversion = "0.1.0"\nentry = "main"\n')
+    (project / "src/main.eqi").write_text(emitted)
+    store = tmp_path / "store"
+    store.mkdir()
+    lock = eqiora.resolve_local_project(project, store)
+    packaged = eqiora.compile_package(store, lock, entry="Wave", **bindings)
+    assert packaged.structural_fingerprint == models[0].structural_fingerprint
+    assert packaged.package_compilation_digest is not None
+    assert models[0].package_compilation_digest is None
+    assert packaged.digest != models[0].digest
+    vendor = project / "vendor"
+    vendor.mkdir()
+    assert eqiora.vendor_project(project, store, vendor) == lock
+    shutil.rmtree(store)
+    moved = tmp_path / "moved"
+    project.rename(moved)
+    assert eqiora.open_project(moved, moved / "vendor") == lock
+    offline = eqiora.compile_package(moved / "vendor", lock, entry="Wave", **bindings)
+    assert offline.digest == packaged.digest
+    assert offline.package_compilation_digest == packaged.package_compilation_digest
+    return [*models, packaged, offline]
