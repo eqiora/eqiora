@@ -12,7 +12,7 @@ use eqiora_core::diagnostic::codes;
 use eqiora_meshing::{FixedTopologyGeometryAction, FixedTopologyGeometryState};
 use eqiora_meshing::{MeshTopology, SimplicialMesh};
 use eqiora_realization::{NonlinearSolvePlan, Target};
-use eqiora_solver::{LinearOperatorProperties, LinearSolver, SolverPlan};
+use eqiora_solver::{LinearOperatorProperties, SolverPlan};
 
 use super::{P1HarmonicMeshMotionAction, invalid};
 use crate::simplicial_fsi::{
@@ -117,8 +117,8 @@ impl<const D: usize> AleFsiStepPlan<D> {
     ///
     /// # Errors
     /// Returns `EQ0801` for an invalid duration and `EQ0807` unless the load is
-    /// the explicit zero-load slice, the common linear plan selects BiCGSTAB
-    /// for the general Newton action, and placement is exactly one host worker.
+    /// the explicit zero-load slice, the common linear plan accepts
+    /// a general Newton action, and placement is exactly one host worker.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         time_step: f64,
@@ -136,13 +136,12 @@ impl<const D: usize> AleFsiStepPlan<D> {
                 "fixed-topology ALE FSI v1 admits only the explicit zero-load policy",
             ));
         }
-        if linear_solver.algorithm() != LinearSolver::BiConjugateGradientStabilized
-            || !linear_solver
-                .algorithm()
-                .accepts(LinearOperatorProperties::General)
+        if !linear_solver
+            .algorithm()
+            .accepts(LinearOperatorProperties::General)
         {
             return Err(invalid_realization(
-                "fixed-topology ALE FSI Newton actions require the common general-operator BiCGSTAB plan",
+                "fixed-topology ALE FSI Newton actions require a common general-operator solver plan",
             ));
         }
         if target

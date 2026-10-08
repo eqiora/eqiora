@@ -125,7 +125,12 @@ fn faer_closes_moving_fsi_evidence_and_first_order_refinement() {
     );
 
     assert_harmonic_geometry_replays(&fixture, &medium.motion, trajectory);
-    assert_consecutive_geometry_and_evidence(&fixture, trajectory, 0.01);
+    assert_consecutive_geometry_and_evidence(
+        &fixture,
+        trajectory,
+        0.01,
+        LinearSolver::BiConjugateGradientStabilized,
+    );
     assert_moving_artifact_dag_replays(&fixture, trajectory, 0.01);
     assert_static_geometry_falsifier(&fixture, &medium.motion);
     assert_eq!(coarse.trajectory.final_state().time(), FINAL_TIME);
@@ -255,7 +260,13 @@ impl Fixture {
         }
         FixedReferenceFsiState::new(
             self.document.program(),
-            realization_plan(&self.canonical, self.mesh_reference, time_step).coupled(),
+            realization_plan(
+                &self.canonical,
+                self.mesh_reference,
+                time_step,
+                nonlinear_solver_plan(),
+            )
+            .coupled(),
             &self.mesh,
             &self.partition,
             [
@@ -289,7 +300,12 @@ impl Fixture {
                 self.canonical.model(),
                 SemanticRevision::new(self.canonical.semantic_revision()),
                 RealizationRevision::new(1),
-                realization_plan(&self.canonical, self.mesh_reference, time_step),
+                realization_plan(
+                    &self.canonical,
+                    self.mesh_reference,
+                    time_step,
+                    nonlinear_solver_plan(),
+                ),
             ),
             fixed_topology_ale_fsi_requirements_2d(&self.canonical),
             &capabilities(),
@@ -662,6 +678,7 @@ fn assert_consecutive_geometry_and_evidence(
     fixture: &Fixture,
     trajectory: &AleFsiTrajectory<2>,
     time_step: f64,
+    algorithm: LinearSolver,
 ) {
     let finalized = finalize_resolved_fixed_topology_ale_fsi_2d(
         &fixture.canonical,
@@ -714,10 +731,7 @@ fn assert_consecutive_geometry_and_evidence(
                 report.backend(),
                 eqiora::solver::LinearSolverBackend::id(&FaerLinearSolver)
             );
-            assert_eq!(
-                report.algorithm(),
-                LinearSolver::BiConjugateGradientStabilized
-            );
+            assert_eq!(report.algorithm(), algorithm);
             assert!(report.true_residual_norm() <= report.residual_target());
         }
         let solid_velocity_values = vector_field(&states[1], solid_velocity(&fixture.canonical));
@@ -852,6 +866,7 @@ fn realization_plan(
     model: &AleFsiCartesianModel<2>,
     mesh_artifact: MeshArtifactReference,
     time_step: f64,
+    linear_solver: SolverPlan,
 ) -> FixedTopologyAleCoupledRealizationPlan {
     let p1 = Space::continuous_lagrange(NonZeroU16::MIN);
     let length = physical_scale(2.0, LENGTH);
@@ -909,7 +924,7 @@ fn realization_plan(
         )
         .unwrap(),
         LinearOperatorProperties::General,
-        nonlinear_solver_plan(),
+        linear_solver,
         Target::HostCpu {
             threads: NonZeroUsize::MIN,
         },
@@ -945,6 +960,14 @@ fn capabilities() -> RealizationCapabilities {
         )],
         [VectorLayoutKind::Replicated],
         SolverCapabilities::exact([
+            SolverCapability {
+                scalar_domain: eqiora_core::ScalarDomain::Real,
+                algorithm: LinearSolver::SparseLu,
+                operator_properties: LinearOperatorProperties::General,
+                preconditioner: PreconditionerPolicy::Identity,
+                reduction: ReductionPolicy::Fast,
+                scalar_type: ScalarType::F64,
+            },
             SolverCapability {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::BiConjugateGradientStabilized,
@@ -1135,3 +1158,6 @@ fn find_vertex(mesh: &SimplicialMesh, target: [f64; COMPONENTS]) -> usize {
         .position(|coordinates| coordinates.as_slice() == target)
         .unwrap()
 }
+
+#[path = "fixed_topology_ale_fsi_2d/prepared_provider.rs"]
+mod prepared_provider;

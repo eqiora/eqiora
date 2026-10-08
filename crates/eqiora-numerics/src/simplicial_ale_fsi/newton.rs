@@ -9,9 +9,8 @@ use eqiora_assembly::REFERENCE_ASSEMBLY_BACKEND;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{Diagnostic, ScalarType};
 use eqiora_meshing::{QuadratureRule, SimplicialMesh};
-use eqiora_solver::{LinearOperatorProperties, LinearProblem, LinearSolverBackend};
+use eqiora_solver::{LinearOperatorProperties, LinearSolverBackend};
 
-use super::P1HarmonicMeshMotionAction;
 use super::acceptance::{NewtonEvidence, accept_step_prepared};
 use super::api::{AleFsiStepEvidence, AleFsiTrajectory};
 use super::assembly::{
@@ -20,6 +19,7 @@ use super::assembly::{
 };
 use super::boundary_step::{PreparedAleFsiBoundaryRun, PreparedAleFsiBoundaryStep};
 use super::contract::{AleFsiBoundary, AleFsiState, AleFsiStepPlan};
+use super::{P1HarmonicMeshMotionAction, invalid};
 use crate::prepared_execution::advance_prepared_actions;
 use crate::simplicial_fsi::FixedReferenceFsiPartition;
 use crate::step_count::NonZeroStepCount;
@@ -174,6 +174,7 @@ struct PreparedAleFsiRun<'a, const D: usize> {
     quadrature: &'a QuadratureRule,
     assembly: &'a dyn AssemblyBackend<f64>,
     solver: &'a dyn LinearSolverBackend,
+    prepared_linear: Option<Box<dyn eqiora_solver::PreparedLinearSolver>>,
     #[cfg(test)]
     phases: AleFsiRunPhaseCounts,
 }
@@ -244,13 +245,14 @@ impl<'a, const D: usize> PreparedAleFsiRun<'a, D> {
             quadrature,
             assembly,
             solver,
+            prepared_linear: solver.prepare_linear(plan.linear_solver())?,
             #[cfg(test)]
             phases,
         })
     }
 
     fn advance(
-        &self,
+        &mut self,
         previous: &AleFsiState<D>,
     ) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {
         let boundary = self.boundary.action(previous, &self.plan)?;
@@ -272,6 +274,7 @@ impl<'a, const D: usize> PreparedAleFsiRun<'a, D> {
             self.quadrature,
             self.assembly,
             self.solver,
+            &mut self.prepared_linear,
         )
     }
 }
@@ -371,6 +374,7 @@ pub(super) fn solve_one_step<const D: usize>(
         base_layout,
     )?;
     let action = structure.prepare_action(reference, partition, prepared, previous, plan)?;
+    let mut prepared_linear = solver.prepare_linear(plan.linear_solver())?;
     solve_one_step_prepared(
         reference,
         partition,
@@ -382,6 +386,7 @@ pub(super) fn solve_one_step<const D: usize>(
         quadrature,
         assembly_backend,
         solver,
+        &mut prepared_linear,
     )
 }
 
@@ -397,6 +402,7 @@ fn solve_one_step_prepared<const D: usize>(
     quadrature: &QuadratureRule,
     assembly_backend: &dyn AssemblyBackend<f64>,
     solver: &dyn LinearSolverBackend,
+    prepared_linear: &mut Option<Box<dyn eqiora_solver::PreparedLinearSolver>>,
 ) -> Result<(AleFsiState<D>, AleFsiStepEvidence<D>), Diagnostic> {
     let mut point = structure.initial_point(action, previous, plan)?;
     let mut current = assemble_step_linearization_with_structure(
@@ -439,13 +445,22 @@ fn solve_one_step_prepared<const D: usize>(
         .try_reserve_exact(maximum_iterations)
         .map_err(|_| solve_failed("ALE FSI Newton report allocation failed"))?;
     for iteration in 1..=maximum_iterations {
-        let linear_problem = LinearProblem::new(
-            current.relation.state_jacobian(),
-            current.relation.state_jacobian().right_hand_side(),
-            LinearOperatorProperties::General,
-        )?
-        .with_initial_guess(&point)?;
-        let solution = solver.solve(&linear_problem, plan.linear_solver())?;
+        let linear_problem = current
+            .relation
+            .state_jacobian()
+            .linear_problem()?
+            .with_initial_guess(&point)?;
+        let solution = if let Some(prepared_linear) = prepared_linear.as_deref_mut() {
+            let identity = current
+                .assembly_report
+                .structure_identity()
+                .ok_or_else(|| {
+                    invalid("prepared ALE FSI solve requires an exact assembly structure identity")
+                })?;
+            prepared_linear.solve(identity, &linear_problem)?
+        } else {
+            solver.solve(&linear_problem, plan.linear_solver())?
+        };
         let (proposed, report) = solution.into_parts();
         reports.push(report);
         let previous_norm = current.residual_norm()?;
