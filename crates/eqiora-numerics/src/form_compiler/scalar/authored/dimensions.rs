@@ -1,4 +1,4 @@
-//! Check physical dimensions before exact numerical cancellation.
+//! Check physical dimensions and coordinate support before numerical cancellation.
 use eqiora_compiler::{AuthoredFormExpressionV1 as E, AuthoredFormulationProjection};
 use eqiora_core::{DimExponents as D, Id, RawId, entity::kinds};
 use eqiora_schema::kernel::{KernelNode, typing::TypedResidual};
@@ -30,6 +30,7 @@ pub(super) fn check(
         field,
         test,
         remaining: 65536,
+        integration_domain: None,
     };
     for value in [left, right] {
         let actual = context.expression(value, 0)?;
@@ -47,6 +48,7 @@ struct Context<'a> {
     field: &'a str,
     test: D,
     remaining: usize,
+    integration_domain: Option<String>,
 }
 impl Context<'_> {
     fn expression(&mut self, value: &E, depth: usize) -> Option<D> {
@@ -86,7 +88,16 @@ impl Context<'_> {
             E::Direction { name, field_ulid } if name == self.name && field_ulid == self.field => {
                 Some(self.test)
             }
-            E::Coordinate { .. } => Some(length()),
+            E::Coordinate {
+                support_ulid,
+                factor_ulid,
+                axis,
+            } if self.integration_domain.as_deref() == Some(support_ulid.as_str())
+                && factor_ulid == &self.derived.domain.ulid().to_string()
+                && *axis < self.derived.dimension =>
+            {
+                Some(length())
+            }
             E::Neg { value }
             | E::Conjugate { value }
             | E::Trace { value }
@@ -128,6 +139,9 @@ impl Context<'_> {
                 domain_ulid,
                 integrand,
             } => {
+                if self.integration_domain.is_some() {
+                    return None;
+                }
                 let dimension = if domain_ulid == &self.derived.domain.ulid().to_string() {
                     self.derived.dimension
                 } else if self
@@ -140,8 +154,10 @@ impl Context<'_> {
                 } else {
                     return None;
                 };
-                self.expression(integrand, depth + 1)?
-                    .mul(length().pow(i32::try_from(dimension).ok()?, 1)?)
+                self.integration_domain = Some(domain_ulid.clone());
+                let integrand = self.expression(integrand, depth + 1);
+                self.integration_domain = None;
+                integrand?.mul(length().pow(i32::try_from(dimension).ok()?, 1)?)
             }
             _ => None,
         }

@@ -24,7 +24,7 @@ pub(crate) fn admit(
     dimensions::check(projection, program, derived, &typed).ok_or_else(|| {
         rejection_with(
             projection,
-            "weak residual dimension differs from the strong-law test pairing",
+            "weak residual dimensions or coordinate support differ from the strong-law test pairing",
         )
     })?;
     let dag = typed.expression();
