@@ -364,7 +364,7 @@ impl CommonResult {
     pub(crate) fn accept_scalar(
         plan: CommonScalarPlan,
         elapsed_seconds: f64,
-        output: CommonScalarRunOutput,
+        output: CommonScalarRunOutput<f64>,
     ) -> Result<Self, Diagnostic> {
         require_elapsed(elapsed_seconds)?;
         if output.fields.len() != plan.fields().len()

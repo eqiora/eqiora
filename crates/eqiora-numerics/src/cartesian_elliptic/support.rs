@@ -429,19 +429,27 @@ pub(super) fn boundary_sides(
     Ok(sides)
 }
 
-pub(crate) fn require_compatible_boundary_value(
-    accepted: Option<f64>,
-    candidate: f64,
-) -> Result<Option<f64>, Diagnostic> {
+pub(crate) fn require_compatible_boundary_value<S: num_complex::ComplexFloat<Real = f64>>(
+    accepted: Option<S>,
+    candidate: S,
+) -> Result<Option<S>, Diagnostic> {
     if !candidate.is_finite() {
         return Err(invalid("Cartesian boundary returned a non-finite value"));
     }
     if let Some(accepted) = accepted {
-        let scale = accepted.abs().max(candidate.abs()).max(1.0);
-        if (accepted - candidate).abs() > 256.0 * f64::EPSILON * scale {
-            return Err(invalid(
-                "Cartesian essential boundary values disagree at an edge or corner",
-            ));
+        // Compare each real coordinate with the existing real tolerance. A large
+        // real part must not hide a conflicting imaginary boundary value, and
+        // forming a complex magnitude can overflow for finite components.
+        for (accepted, candidate) in [
+            (accepted.re(), candidate.re()),
+            (accepted.im(), candidate.im()),
+        ] {
+            let scale = accepted.abs().max(candidate.abs()).max(1.0);
+            if (accepted - candidate).abs() > 256.0 * f64::EPSILON * scale {
+                return Err(invalid(
+                    "Cartesian essential boundary values disagree at an edge or corner",
+                ));
+            }
         }
     }
     Ok(Some(candidate))

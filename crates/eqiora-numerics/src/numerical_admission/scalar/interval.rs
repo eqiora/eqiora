@@ -5,7 +5,7 @@ pub(in crate::numerical_admission) use gauge::admit as admit_gauge;
 
 pub(super) fn admit(
     admission: &NativeNumericalAdmission,
-    lowered: &ExecutableScalarEquations,
+    lowered: &ExecutableScalarEquations<f64>,
     requested: FormulationSelectionMode,
     authored: Option<&AuthoredFormulationProjection>,
 ) -> Result<Option<CommonFormulationDescription>, Diagnostic> {

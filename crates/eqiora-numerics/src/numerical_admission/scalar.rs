@@ -35,7 +35,7 @@ pub(super) fn describe_primal(
 
 pub(super) fn resolve_common_scalar_portable(
     admission: &NativeNumericalAdmission,
-    lowered: &ExecutableScalarEquations,
+    lowered: &ExecutableScalarEquations<f64>,
     mesh: &CartesianMeshEnvelopeV1,
     cells: &[usize],
 ) -> Result<PortableRealizationGraph, Diagnostic> {
@@ -363,7 +363,7 @@ impl CommonScalarPlan {
     pub(crate) fn run(
         &self,
         backend: &dyn LinearSolverBackend,
-    ) -> Result<CommonScalarRunOutput, Diagnostic> {
+    ) -> Result<CommonScalarRunOutput<f64>, Diagnostic> {
         self.reauthenticate_portable_realization()?;
         self.admission.execute_scalar(backend)
     }

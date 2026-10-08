@@ -8,20 +8,22 @@ use eqiora_assembly::{
 };
 use eqiora_meshing::{CartesianMesh, MeshEntity, MeshGeometry, MeshTopology};
 
-impl ExecutableScalarEquations {
+impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
+    ExecutableScalarEquations<S>
+{
     pub(in crate::numerical_admission) fn execute(
         &self,
-        admission: &NativeNumericalAdmission,
-        request: LinearSolveRequest<'_>,
+        workers: NonZeroUsize,
+        request: LinearSolveRequest<'_, S>,
         mesh: &CartesianMesh,
         complete: impl FnOnce(
-            &crate::region_assembly::InterfaceReactions<f64>,
-            &[f64],
+            &crate::region_assembly::InterfaceReactions<S>,
+            &[S],
         ) -> Result<
-            crate::region_assembly::RecoveredInterfaceReactions<f64>,
+            crate::region_assembly::RecoveredInterfaceReactions<S>,
             Diagnostic,
         >,
-    ) -> Result<CommonScalarRunOutput, Diagnostic> {
+    ) -> Result<CommonScalarRunOutput<S>, Diagnostic> {
         let dimension = mesh.topological_dimension();
         let domains = self.cell_domains(mesh)?;
         let layouts = self
@@ -198,9 +200,7 @@ impl ExecutableScalarEquations {
         let core = crate::finalized_spatial::FinalizedLinearCore::new(
             request.plan(),
             VectorLayoutKind::Replicated,
-            Target::HostCpu {
-                threads: admission.linear.workers,
-            },
+            Target::HostCpu { threads: workers },
             canonical,
         );
         let solution = request.solve(&core.linear_problem()?)?;

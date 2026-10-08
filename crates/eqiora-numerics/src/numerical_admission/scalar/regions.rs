@@ -1,24 +1,25 @@
 use super::*;
+use crate::spatial_expression::Coefficient;
 use eqiora_core::RawId;
 
 /// Checked scalar equations and their exact Cartesian support.
 #[derive(Debug, Clone, PartialEq)]
-pub(in crate::numerical_admission) struct ScalarRegion {
+pub(in crate::numerical_admission) struct ScalarRegion<S: Coefficient> {
     pub(in crate::numerical_admission) form:
-        crate::form_compiler::linear::CompiledLinearBlockForm<f64>,
+        crate::form_compiler::linear::CompiledLinearBlockForm<S>,
     pub(in crate::numerical_admission) bounds: Vec<[f64; 2]>,
     pub(in crate::numerical_admission) boundaries:
         BTreeMap<(usize, BoundarySide), eqiora_core::RawId>,
 }
 
-impl ScalarRegion {
+impl<S: Coefficient> ScalarRegion<S> {
     pub(in crate::numerical_admission) fn new(
         program: &KernelProgram,
         domain: eqiora_core::RawId,
         bounds: Vec<[f64; 2]>,
         boundaries: BTreeMap<(usize, BoundarySide), eqiora_core::RawId>,
     ) -> Result<Self, Diagnostic> {
-        let form = crate::form_compiler::linear::CompiledLinearBlockForm::<f64>::derive(
+        let form = crate::form_compiler::linear::CompiledLinearBlockForm::<S>::derive(
             program,
             domain,
             bounds.len(),
@@ -103,13 +104,13 @@ impl ScalarRegion {
 
 /// One ordered mathematical inventory; Region count never selects an executor.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct ExecutableScalarEquations {
-    pub(in crate::numerical_admission) regions: Vec<ScalarRegion>,
+pub(crate) struct ExecutableScalarEquations<S: Coefficient> {
+    pub(in crate::numerical_admission) regions: Vec<ScalarRegion<S>>,
     pub(in crate::numerical_admission) interfaces:
         Vec<crate::scalar_conservation::ScalarMaterialInterface>,
 }
 
-impl ExecutableScalarEquations {
+impl<S: Coefficient> ExecutableScalarEquations<S> {
     pub(in crate::numerical_admission) fn new(
         program: &KernelProgram,
         domain: RawId,
@@ -121,7 +122,7 @@ impl ExecutableScalarEquations {
             interfaces: vec![],
         })
     }
-    pub(in crate::numerical_admission) fn single(&self) -> Result<&ScalarRegion, Diagnostic> {
+    pub(in crate::numerical_admission) fn single(&self) -> Result<&ScalarRegion<S>, Diagnostic> {
         let [region] = self.regions.as_slice() else {
             return Err(invalid(
                 "this numerical operation requires one exact Region",
@@ -193,7 +194,7 @@ impl ExecutableScalarEquations {
                     boundaries.insert((side.axis(), side.side()), side.boundary());
                 }
             }
-            let form = crate::form_compiler::linear::CompiledLinearBlockForm::<f64>::derive(
+            let form = crate::form_compiler::linear::CompiledLinearBlockForm::<S>::derive(
                 program,
                 region.domain(),
                 region.dimensions(),
@@ -273,7 +274,7 @@ impl ExecutableScalarEquations {
     }
 }
 
-impl ExecutableScalarEquations {
+impl<S: Coefficient> ExecutableScalarEquations<S> {
     pub(in crate::numerical_admission) fn discretizations(
         &self,
         space: Space,
@@ -331,3 +332,6 @@ impl ExecutableScalarEquations {
     }
 }
 mod execute;
+
+#[cfg(test)]
+mod complex_tests;

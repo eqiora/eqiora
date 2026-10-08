@@ -158,7 +158,7 @@ pub(crate) fn resource_artifact_digests(
 pub(crate) fn recognize_exact_model(
     program: &KernelProgram,
     resources: &NativeMeshResources,
-    scalar: Result<ExecutableScalarEquations, Diagnostic>,
+    scalar: Result<ExecutableScalarEquations<f64>, Diagnostic>,
     transient: Result<TransientIncompressibleNavierStokesCartesianModel2d, Diagnostic>,
     transient_geometry: Result<(), Diagnostic>,
     fsi: Result<FixedReferenceFsiCartesianModel2d, Diagnostic>,
@@ -301,7 +301,7 @@ pub(crate) fn recognize_exact_model(
 pub(crate) fn lower_scalar_candidate(
     program: &KernelProgram,
     resources: &NativeMeshResources,
-) -> Result<ExecutableScalarEquations, Diagnostic> {
+) -> Result<ExecutableScalarEquations<f64>, Diagnostic> {
     let NativeMeshResources::Cartesian {
         geometry,
         mesh,

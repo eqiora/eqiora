@@ -363,7 +363,7 @@ pub(super) struct NativeNumericalAdmission {
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum RecognizedNativeModel {
     Coordinates(Box<super::coordinate_grid::CellEquations>),
-    Scalar(Box<ExecutableScalarEquations>),
+    Scalar(Box<ExecutableScalarEquations<f64>>),
     Elasticity(Box<IsotropicElasticityContinuum<2>>),
     Stokes(Box<SteadyStokesGeometryBinding2d>),
     Transient(Box<TransientIncompressibleNavierStokesCartesianModel2d>),
@@ -621,7 +621,7 @@ impl NativeNumericalAdmission {
     pub(super) fn execute_scalar(
         &self,
         backend: &dyn LinearSolverBackend,
-    ) -> Result<CommonScalarRunOutput, Diagnostic> {
+    ) -> Result<CommonScalarRunOutput<f64>, Diagnostic> {
         self.execute_scalar_with_completion(backend, |reactions, full| reactions.recover(full))
     }
 
@@ -635,7 +635,7 @@ impl NativeNumericalAdmission {
             crate::region_assembly::RecoveredInterfaceReactions<f64>,
             Diagnostic,
         >,
-    ) -> Result<CommonScalarRunOutput, Diagnostic> {
+    ) -> Result<CommonScalarRunOutput<f64>, Diagnostic> {
         self.revalidate()?;
         if backend.provider() != self.linear.provider
             || backend.capabilities() != self.linear.capabilities
@@ -662,7 +662,7 @@ impl NativeNumericalAdmission {
         let backend: &dyn LinearSolverBackend = &checked_backend;
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
         if self.spatial == NativeSpatialPolicy::ScalarQ1 {
-            return lowered.execute(self, solve, mesh.mesh(), complete);
+            return lowered.execute(self.linear.workers, solve, mesh.mesh(), complete);
         }
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
         match self.spatial {
