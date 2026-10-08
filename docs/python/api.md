@@ -3737,10 +3737,20 @@ def coordinate(axis: int) -> Expression: ...
 
 ### `eqiora.lang.dot`
 
-Return the inner product of two authored expressions.
+Return the bilinear dot product without complex conjugation.
 
 ```python
 def dot(left: Expression | float | int | complex, right: Expression | float | int | complex) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-inner"></a>
+
+### `eqiora.lang.inner`
+
+Return the inner product, conjugating the first argument.
+
+```python
+def inner(left: Expression | float | int | complex, right: Expression | float | int | complex) -> Expression: ...
 ```
 
 <a id="api-eqiora-lang-div"></a>
@@ -3767,7 +3777,7 @@ def grad(value: Expression) -> Expression: ...
 
 ### `eqiora.lang.integrate`
 
-Return one volume integral over an exact Module Support.
+Return one volume or boundary integral over an exact Module Support.
 
 ```python
 def integrate(domain: Support, integrand: Expression | float | int | complex) -> Expression: ...
