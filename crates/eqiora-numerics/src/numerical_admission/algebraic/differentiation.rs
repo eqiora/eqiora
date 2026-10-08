@@ -94,8 +94,8 @@ impl CommonAlgebraicPlan {
                 let system = problem.complex_linear_system()?.ok_or_else(|| {
                     invalid("finite Parameter point changed its admitted complex execution profile")
                 })?;
-                let complex = self.linear.checked_complex_backend(backend)?;
-                let solution = LinearSolveRequest::new(complex, self.linear.solver)
+                let complex = self.linear.checked_complex_backend(backend, None)?;
+                let solution = LinearSolveRequest::new(&complex, self.linear.solver)
                     .solve(&system.linear_problem()?)?;
                 (
                     solution

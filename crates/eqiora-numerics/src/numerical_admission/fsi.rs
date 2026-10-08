@@ -43,7 +43,7 @@ impl CommonFsiConnectionInventory {
 
 pub(super) struct PreparedCommonFsiExecution<'a> {
     plan: &'a CommonFsiPlan,
-    backend: super::native::ProfileCheckedBackend<'a>,
+    backend: super::native::ProfileCheckedBackend<'a, f64>,
     prepared: PreparedResolvedFixedReferenceFsiRun2d<'a>,
 }
 

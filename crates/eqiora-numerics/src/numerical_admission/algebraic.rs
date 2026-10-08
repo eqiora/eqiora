@@ -277,8 +277,8 @@ impl CommonAlgebraicPlan {
                 .map(|pair| num_complex::Complex64::new(pair[0], pair[1]))
                 .collect::<Vec<_>>();
             let problem = system.linear_problem()?.with_initial_guess(&initial)?;
-            let complex = self.linear.checked_complex_backend(backend)?;
-            let solution = LinearSolveRequest::new(complex, self.linear.solver).solve(&problem)?;
+            let complex = self.linear.checked_complex_backend(backend, None)?;
+            let solution = LinearSolveRequest::new(&complex, self.linear.solver).solve(&problem)?;
             let values = solution
                 .values()
                 .iter()
