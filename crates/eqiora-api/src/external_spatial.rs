@@ -440,7 +440,9 @@ public component SteadyFlowPastCylinder(
                     "dot(grad(w), diffusion * grad(potential))",
                     "dot(w, diffusion * grad(potential))",
                 ),
-                "dot requires equal non-scalar vector shapes",
+                // A scalar test value and a spatial gradient differ in both
+                // component role and shape under the common contraction rule.
+                "contraction requires identical component roles, bases and shapes",
             ),
             (
                 SCALAR_PRIMAL_SOURCE.replacen("integrate(fluid", "integrate(missing", 1),
