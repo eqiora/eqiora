@@ -1,4 +1,5 @@
 use super::*;
+use eqiora_solver::{LinearOperator, LinearOperatorOrientation as O, OrientedLinearOperator};
 use num_complex::Complex64 as C;
 
 #[test]
@@ -142,7 +143,7 @@ fn complex_mapping_recovers_scaled_fields_and_rebinds_prescriptions() {
     let work = PreparedRegionAssembly::new(
         AssemblyPacketSetIdentityV1::Unbound,
         &plan,
-        vec![(bound, QuadratureRule::gauss_legendre(2).unwrap())],
+        vec![(bound.clone(), QuadratureRule::gauss_legendre(2).unwrap())],
         &[domain; 2],
         cells,
         vec![],
@@ -178,6 +179,72 @@ fn complex_mapping_recovers_scaled_fields_and_rebinds_prescriptions() {
     let recovered = assembled_map.recover(solution.values(), &[field]).unwrap();
     for value in recovered[&field].coefficients.values() {
         assert!((*value - C::new(1.0, 3.0)).norm() < 1e-12);
+    }
+
+    // Retain two free coordinates so off-diagonal complex action participates.
+    // The same source, quadrature and physical scale feed CSR and packet action.
+    let one_fixed = BTreeMap::from([(key(0), C::new(1., 3.))]);
+    let action_map =
+        RegionDofMap::new(&mesh, &layouts, reference, &[domain; 2], &[], &one_fixed).unwrap();
+    let action_plan = AssemblyPlan::new(vec![AssemblyTarget::new(2).unwrap()]).unwrap();
+    let target = action_plan.target_id(0).unwrap();
+    let cells = (0..2)
+        .map(|index| RegionAssemblyCell {
+            index,
+            geometry: mesh.geometry_map(MeshEntity::new(1, index)).unwrap(),
+            mappings: vec![TargetAssemblyMap::new(
+                target,
+                action_map.cell_map(index, true).unwrap(),
+            )],
+            previous: BTreeMap::new(),
+        })
+        .collect();
+    let work = PreparedRegionAssembly::new(
+        AssemblyPacketSetIdentityV1::Unbound,
+        &action_plan,
+        vec![(bound, QuadratureRule::gauss_legendre(2).unwrap())],
+        &[domain; 2],
+        cells,
+        vec![],
+    )
+    .unwrap();
+    let csr = REFERENCE_ASSEMBLY_BACKEND
+        .assemble(&action_plan, &work)
+        .unwrap();
+    let csr = csr.system(target).unwrap();
+    let packets =
+        eqiora_assembly::PacketLinearSystem::from_work(&action_plan, target, &work).unwrap();
+    // Each scaled cell has diagonal 6+4i and off-diagonal -3-4i.
+    // Eliminating z_left=(1+3i)/2 gives b=(-1.5+15.5i, 1.5+4.5i).
+    let expected_rhs = [C::new(-1.5, 15.5), C::new(1.5, 4.5)];
+    for rhs in [csr.rhs(), packets.right_hand_side()] {
+        for (actual, expected) in rhs.iter().zip(expected_rhs) {
+            assert!((*actual - expected).norm() < 1e-12);
+        }
+    }
+    let input = [C::new(2., -1.), C::new(-1., 3.)];
+    for (orientation, expected) in [
+        (O::Normal, [C::new(47., -1.), C::new(-28., 9.)]),
+        (O::Transposed, [C::new(47., -1.), C::new(-28., 9.)]),
+        (O::ConjugateTransposed, [C::new(7., -41.), C::new(4., 33.)]),
+    ] {
+        for operator in [
+            csr.matrix() as &dyn OrientedLinearOperator<Scalar = C>,
+            packets.operator(),
+        ] {
+            let mut actual = [C::new(0., 0.); 2];
+            operator
+                .apply_oriented(orientation, &input, &mut actual)
+                .unwrap();
+            for (actual, expected) in actual.into_iter().zip(expected) {
+                assert!((actual - expected).norm() < 1e-12);
+            }
+        }
+    }
+    let mut diagonal = [C::new(0., 0.); 2];
+    packets.operator().diagonal(&mut diagonal).unwrap();
+    for (actual, expected) in diagonal.into_iter().zip([C::new(12., 8.), C::new(6., 4.)]) {
+        assert!((actual - expected).norm() < 1e-12);
     }
 
     let rebound = mapping
