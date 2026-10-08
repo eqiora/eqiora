@@ -134,7 +134,7 @@ pub(in crate::numerical_admission) fn execute(
     admission: &NativeNumericalAdmission,
     projection: &CellEquations,
     backend: &dyn LinearSolverBackend,
-) -> Result<CommonScalarRunOutput, Diagnostic> {
+) -> Result<CommonScalarRunOutput<f64>, Diagnostic> {
     let NativeMeshResources::Coordinates(grid) = admission.resources() else {
         return Err(invalid("coordinate cell execution requires its exact grid"));
     };

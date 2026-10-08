@@ -43,101 +43,8 @@ pub(crate) enum CommonFieldAssociation {
     CellBubble,
 }
 
-/// One shape-checked coefficient block belonging to a common result Field.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct CommonResultFieldBlock {
-    association: CommonFieldAssociation,
-    values: Vec<f64>,
-    logical_shape: Vec<usize>,
-}
-
-impl CommonResultFieldBlock {
-    fn new(
-        association: CommonFieldAssociation,
-        values: Vec<f64>,
-        logical_shape: Vec<usize>,
-    ) -> Result<Self, Diagnostic> {
-        let count = logical_shape.iter().try_fold(1usize, |count, extent| {
-            count
-                .checked_mul(*extent)
-                .ok_or_else(|| invalid("Result Field block shape overflows usize"))
-        })?;
-        if logical_shape.is_empty()
-            || count != values.len()
-            || values.iter().any(|v| !v.is_finite())
-        {
-            return Err(invalid(
-                "Result Field block requires a nonempty exact shape and finite coefficients",
-            ));
-        }
-        Ok(Self {
-            association,
-            values,
-            logical_shape,
-        })
-    }
-
-    #[must_use]
-    pub fn values(&self) -> &[f64] {
-        &self.values
-    }
-
-    #[must_use]
-    pub fn logical_shape(&self) -> &[usize] {
-        &self.logical_shape
-    }
-}
-
-/// One exact semantic Field and its complete accepted coefficient blocks.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct CommonResultField {
-    field_id: String,
-    dimension: DimExponents,
-    value_shape: Vec<usize>,
-    space: String,
-    blocks: Vec<CommonResultFieldBlock>,
-}
-
-impl CommonResultField {
-    fn new(
-        field_id: String,
-        dimension: DimExponents,
-        value_shape: Vec<usize>,
-        space: impl Into<String>,
-        blocks: Vec<CommonResultFieldBlock>,
-    ) -> Result<Self, Diagnostic> {
-        let space = space.into();
-        if field_id.is_empty() || space.is_empty() || blocks.is_empty() {
-            return Err(invalid(
-                "Result Field requires exact identity, space, and coefficient blocks",
-            ));
-        }
-        Ok(Self {
-            field_id,
-            dimension,
-            value_shape,
-            space,
-            blocks,
-        })
-    }
-
-    #[must_use]
-    pub fn field_id(&self) -> &str {
-        &self.field_id
-    }
-    #[must_use]
-    pub const fn dimension(&self) -> DimExponents {
-        self.dimension
-    }
-    #[must_use]
-    pub fn value_shape(&self) -> &[usize] {
-        &self.value_shape
-    }
-    #[must_use]
-    pub fn space(&self) -> &str {
-        &self.space
-    }
-}
+mod fields;
+use fields::{CommonResultField, CommonResultFieldBlock};
 
 /// Complete accepted numerical evidence paired with one FSI output State.
 #[derive(Debug, Clone, PartialEq)]
@@ -364,7 +271,7 @@ impl CommonResult {
     pub(crate) fn accept_scalar(
         plan: CommonScalarPlan,
         elapsed_seconds: f64,
-        output: CommonScalarRunOutput,
+        output: CommonScalarRunOutput<f64>,
     ) -> Result<Self, Diagnostic> {
         require_elapsed(elapsed_seconds)?;
         if output.fields.len() != plan.fields().len()
@@ -399,6 +306,7 @@ impl CommonResult {
             .map(|(field, value_type, values)| {
                 CommonResultField::new(
                     field.ulid().to_string(),
+                    value_type.scalar_domain(),
                     value_type.dimension(),
                     Vec::new(),
                     space,
@@ -436,6 +344,7 @@ impl CommonResult {
         let vertices = values.len() / 2;
         let field = CommonResultField::new(
             plan.displacement_field_id().to_owned(),
+            eqiora_core::ScalarDomain::Real,
             DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
             vec![2],
             "continuous-lagrange-p1",
@@ -478,6 +387,7 @@ impl CommonResult {
         let pressure = solution.pressure().vertex_values();
         let velocity = CommonResultField::new(
             plan.velocity_field_id().to_owned(),
+            eqiora_core::ScalarDomain::Real,
             DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension"),
             vec![2],
             "simplex-p1-bubble",
@@ -496,6 +406,7 @@ impl CommonResult {
         )?;
         let pressure = CommonResultField::new(
             plan.pressure_field_id().to_owned(),
+            eqiora_core::ScalarDomain::Real,
             DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension"),
             Vec::new(),
             "continuous-lagrange-p1",
@@ -720,6 +631,16 @@ impl CommonResult {
         }
     }
 
+    /// Exact scalar domain of a static Field. Complex coefficient buffers store
+    /// adjacent real/imaginary coordinates for each logical scalar coefficient.
+    #[must_use]
+    pub fn field_scalar_domain(&self, field: usize) -> Option<eqiora_core::ScalarDomain> {
+        let CommonResultPayload::Static(payload) = &self.payload else {
+            return None;
+        };
+        payload.fields.get(field).map(|field| field.scalar_domain)
+    }
+
     #[must_use]
     pub fn field_block_count(&self, field: usize) -> usize {
         match &self.payload {
@@ -733,7 +654,9 @@ impl CommonResult {
         }
     }
 
-    /// Association, coefficients, and logical shape of one exact Field block.
+    /// Association, real coordinates, and logical shape of one exact Field block.
+    /// Complex Fields use adjacent real/imaginary coordinates; the logical shape
+    /// counts mathematical coefficients and excludes this storage width.
     #[must_use]
     pub fn field_block(
         &self,

@@ -267,7 +267,7 @@ public connector OtherVelocityTractionBoundary {
     );
 }
 
-fn coefficient_derivatives(expression: &ScalarSpatialExpression) -> (u64, Vec<u64>, Vec<u64>) {
+fn coefficient_derivatives(expression: &ScalarSpatialExpression<f64>) -> (u64, Vec<u64>, Vec<u64>) {
     let coordinates = vec![0.0; expression.coordinate_dimension()];
     let mut jvps = Vec::new();
     let mut vjps = Vec::new();

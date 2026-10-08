@@ -1,14 +1,16 @@
 use super::*;
 
+mod complex;
 pub(super) mod interval;
 mod regions;
+mod support;
 mod transient;
 pub(crate) use regions::ExecutableScalarEquations;
 
 pub(super) fn describe_primal(
     kind: FormulationKind,
     boundary_treatment: &'static str,
-    rule_ids: [&'static str; 4],
+    rule_ids: Vec<&'static str>,
     requested: FormulationSelectionMode,
 ) -> CommonFormulationDescription {
     CommonFormulationDescription {
@@ -33,9 +35,9 @@ pub(super) fn describe_primal(
     }
 }
 
-pub(super) fn resolve_common_scalar_portable(
+pub(super) fn resolve_common_scalar_portable<S: crate::spatial_expression::Coefficient>(
     admission: &NativeNumericalAdmission,
-    lowered: &ExecutableScalarEquations,
+    lowered: &ExecutableScalarEquations<S>,
     mesh: &CartesianMeshEnvelopeV1,
     cells: &[usize],
 ) -> Result<PortableRealizationGraph, Diagnostic> {
@@ -86,7 +88,12 @@ pub(super) fn resolve_common_scalar_portable(
     let solver = admission.linear.solver;
     admission.linear.capabilities.require_problem(
         solver,
-        eqiora_core::ScalarDomain::Real,
+        lowered
+            .fields()
+            .first()
+            .ok_or_else(|| invalid("scalar Plan has no unknown Fields"))?
+            .1
+            .scalar_domain(),
         ScalarType::F64,
         scalar_operator_properties(admission.spatial),
     )?;
@@ -147,7 +154,13 @@ impl CommonScalarPlan {
         self.admission.linear.provider
     }
 
-    fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
+    pub(super) fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
+        if matches!(
+            self.admission.recognized_model(),
+            RecognizedNativeModel::ComplexScalar(_)
+        ) {
+            return self.reauthenticate_complex();
+        }
         if matches!(
             self.admission.recognized_model(),
             RecognizedNativeModel::Coordinates(_)
@@ -207,7 +220,6 @@ impl CommonScalarPlan {
         formulation_selection: Option<FormulationSelectionMode>,
         authored_formulation: Option<&AuthoredFormulationProjection>,
     ) -> Result<Self, Diagnostic> {
-        let model_reference = model.artifact_reference()?;
         let NativeMeshResources::Cartesian {
             mesh, production, ..
         } = admission.resources()
@@ -314,6 +326,32 @@ impl CommonScalarPlan {
             }
         };
         let portable = resolve_common_scalar_portable(&admission, lowered, mesh, &cells)?;
+        Self::finish_admission(
+            model,
+            admission,
+            cells,
+            fields,
+            portable,
+            formulation,
+            accepted_authored_formulation,
+        )
+    }
+
+    fn finish_admission(
+        model: &ModelEnvelope,
+        admission: NativeNumericalAdmission,
+        cells: Box<[usize]>,
+        fields: Box<
+            [(
+                eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+                eqiora_core::ValueType,
+            )],
+        >,
+        portable: PortableRealizationGraph,
+        formulation: Option<CommonFormulationDescription>,
+        accepted_authored_formulation: Option<AuthoredFormulationProjection>,
+    ) -> Result<Self, Diagnostic> {
+        let model_reference = model.artifact_reference()?;
         let realization_digest = hex_bytes(&portable.digest()?);
         let (digests, mut identity_bytes) =
             static_plan_identity_lineage(&admission, &realization_digest)?;
@@ -363,7 +401,7 @@ impl CommonScalarPlan {
     pub(crate) fn run(
         &self,
         backend: &dyn LinearSolverBackend,
-    ) -> Result<CommonScalarRunOutput, Diagnostic> {
+    ) -> Result<CommonScalarRunOutput<f64>, Diagnostic> {
         self.reauthenticate_portable_realization()?;
         self.admission.execute_scalar(backend)
     }
@@ -769,46 +807,17 @@ impl CommonScalarPlan {
             }
             return Ok((self.cells.to_vec(), Vec::new()));
         }
-        let RecognizedNativeModel::Scalar(equations) = self.admission.recognized_model() else {
-            return Err(invalid("missing scalar inventory"));
-        };
         let NativeMeshResources::Cartesian { mesh, .. } = self.admission.resources() else {
             return Err(invalid("missing Cartesian mesh"));
         };
-        let mesh = mesh.mesh();
-        let region = equations
-            .regions
-            .iter()
-            .find(|region| region.form.fields().iter().any(|(id, _)| *id == field))
-            .ok_or_else(|| invalid("Field absent from exact Region inventory"))?;
-        let mut shape = Vec::new();
-        for (axis, bounds) in region.bounds.iter().enumerate() {
-            let coordinates = mesh.axis_coordinates(axis).expect("axis");
-            let start = coordinates
-                .iter()
-                .position(|x| *x == bounds[0])
-                .ok_or_else(|| invalid("Field support lower bound absent"))?;
-            let end = coordinates
-                .iter()
-                .position(|x| *x == bounds[1])
-                .ok_or_else(|| invalid("Field support upper bound absent"))?;
-            shape.push(end - start + usize::from(self.spatial() == CommonSpatialPolicy::Q1));
-        }
-        let domains = equations.cell_domains(mesh)?;
-        let mut vertices = BTreeSet::new();
-        for (index, domain) in domains.iter().enumerate() {
-            if *domain == region.form.domain() {
-                vertices.extend(
-                    mesh.incidence(
-                        eqiora_meshing::MeshEntity::new(mesh.topological_dimension(), index),
-                        0,
-                    )
-                    .expect("cell closure")
-                    .iter()
-                    .map(|vertex| vertex.entity.index()),
-                );
+        match self.admission.recognized_model() {
+            RecognizedNativeModel::Scalar(equations) => {
+                support::field_support(equations, mesh.mesh(), field, self.spatial())
             }
+            RecognizedNativeModel::ComplexScalar(equations) => {
+                support::field_support(equations, mesh.mesh(), field, self.spatial())
+            }
+            _ => Err(invalid("missing scalar inventory")),
         }
-        Ok((shape, vertices.into_iter().collect()))
     }
 }

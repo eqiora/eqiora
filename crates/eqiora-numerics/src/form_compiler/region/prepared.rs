@@ -8,12 +8,13 @@ use eqiora_meshing::{AffineGeometryMap, GeometryMap, QuadratureRule};
 
 use super::{BoundRegionForm, RegionFieldLayout, RegionLinearization, basis, invalid};
 use crate::affine_fem::physical_gradient;
+use crate::spatial_expression::Coefficient;
 
 #[derive(Debug, Clone, PartialEq)]
-struct Sample {
+struct Sample<S: Coefficient> {
     values: Vec<Vec<f64>>,
     gradients: Vec<Vec<[f64; 3]>>,
-    coefficients: Vec<f64>,
+    coefficients: Vec<S>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -26,21 +27,21 @@ struct Dyadic {
 /// Local numbering contains no mesh indices, global maps or mutable coefficients.
 /// Adaptation creates new geometry bindings and resolves its maps separately.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct PreparedRegionCell {
+pub(crate) struct PreparedRegionCell<S: Coefficient> {
     dimension: usize,
     fields: Vec<RegionFieldLayout>,
-    affine: LocalContribution<f64>,
-    history: Vec<(RawId, usize, Vec<f64>)>,
+    affine: LocalContribution<S>,
+    history: Vec<(RawId, usize, Vec<S>)>,
     dyadics: Vec<Dyadic>,
-    samples: Vec<Sample>,
+    samples: Vec<Sample<S>>,
 }
 
-impl BoundRegionForm {
+impl<S: Coefficient> BoundRegionForm<S> {
     pub(crate) fn prepare_cell(
         &self,
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
-    ) -> Result<PreparedRegionCell, Diagnostic> {
+    ) -> Result<PreparedRegionCell<S>, Diagnostic> {
         let affine = self.prepare_affine(geometry, quadrature)?;
         let mut history = Vec::new();
         for (field, layout) in &self.previous {
@@ -111,10 +112,9 @@ impl BoundRegionForm {
                 let coefficients = data
                     .iter()
                     .map(|(row, coefficient)| {
-                        Ok(point.weight
-                            * geometry.measure_scale()
-                            * self.row_multipliers[*row]
-                            * coefficient.evaluate(&physical)?)
+                        Ok(<S as From<f64>>::from(
+                            point.weight * geometry.measure_scale() * self.row_multipliers[*row],
+                        ) * coefficient.evaluate(&physical)?)
                     })
                     .collect::<Result<Vec<_>, Diagnostic>>()?;
                 if coefficients.iter().any(|value| !value.is_finite()) {
@@ -142,7 +142,7 @@ impl BoundRegionForm {
         field: RawId,
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
-    ) -> Result<(usize, LocalContribution<f64>), Diagnostic> {
+    ) -> Result<(usize, LocalContribution<S>), Diagnostic> {
         let fields = self
             .fields
             .iter()
@@ -191,7 +191,8 @@ impl BoundRegionForm {
             quadrature,
             |physical, coefficients, _, _| {
                 for (value, (row, coefficient)) in coefficients.iter_mut().zip(&data) {
-                    *value = self.row_multipliers[*row] * coefficient.evaluate(physical)?;
+                    *value = <S as From<f64>>::from(self.row_multipliers[*row])
+                        * coefficient.evaluate(physical)?;
                 }
                 Ok(())
             },
@@ -200,8 +201,8 @@ impl BoundRegionForm {
     }
 }
 
-impl PreparedRegionCell {
-    pub(crate) fn add_load(&mut self, load: &[f64]) -> Result<(), Diagnostic> {
+impl<S: Coefficient> PreparedRegionCell<S> {
+    pub(crate) fn add_load(&mut self, load: &[S]) -> Result<(), Diagnostic> {
         if load.len() != self.affine.rows() || load.iter().any(|value| !value.is_finite()) {
             return Err(invalid(
                 "prepared load requires exact finite local equation coverage",
@@ -212,7 +213,7 @@ impl PreparedRegionCell {
             .rhs()
             .iter()
             .zip(load)
-            .map(|(a, b)| a + b)
+            .map(|(a, b)| *a + *b)
             .collect();
         self.affine = LocalContribution::new(
             self.affine.rows(),
@@ -222,7 +223,7 @@ impl PreparedRegionCell {
         )?;
         Ok(())
     }
-    fn rhs(&self, previous: &BTreeMap<RawId, Vec<f64>>) -> Result<Vec<f64>, Diagnostic> {
+    fn rhs(&self, previous: &BTreeMap<RawId, Vec<S>>) -> Result<Vec<S>, Diagnostic> {
         if previous.len() != self.history.len()
             || self.history.iter().any(|(id, count, _)| {
                 previous.get(id).is_none_or(|values| {
@@ -240,8 +241,7 @@ impl PreparedRegionCell {
                 *value += row
                     .iter()
                     .zip(&previous[id])
-                    .map(|(a, b)| a * b)
-                    .sum::<f64>();
+                    .fold(<S as From<f64>>::from(0.0), |sum, (a, b)| sum + *a * *b);
             }
         }
         Ok(rhs)
@@ -249,8 +249,8 @@ impl PreparedRegionCell {
 
     pub(crate) fn evaluate(
         &self,
-        previous: &BTreeMap<RawId, Vec<f64>>,
-    ) -> Result<LocalContribution<f64>, Diagnostic> {
+        previous: &BTreeMap<RawId, Vec<S>>,
+    ) -> Result<LocalContribution<S>, Diagnostic> {
         if !self.dyadics.is_empty() {
             return Err(invalid(
                 "nonlinear region evaluation requires an explicit candidate point",
@@ -263,7 +263,9 @@ impl PreparedRegionCell {
             self.rhs(previous)?,
         )
     }
+}
 
+impl PreparedRegionCell<f64> {
     pub(crate) fn linearize(
         &self,
         previous: &BTreeMap<RawId, Vec<f64>>,

@@ -32,27 +32,27 @@ impl Context<'_> {
                     .zip(ty.shape().extents())
                     .fold(0, |flat, (i, n)| flat * n.get() as usize + i);
                 let (real, imaginary) = value.component(flat)?;
-                if imaginary != 0.0 {
-                    return None;
-                }
-                Polynomial::constant(number(real)?)
+                Polynomial::complex(
+                    Polynomial::constant(number(real)?),
+                    Polynomial::constant(number(imaginary)?),
+                )?
             }
             ExprNode::Symbol(SymbolRef::Field(field)) => {
-                Polynomial::atom(Atom::Field(field.ulid().to_string(), coordinate.to_vec()))
+                self.atom(Atom::Field(field.ulid().to_string(), coordinate.to_vec()))?
             }
-            ExprNode::Symbol(SymbolRef::Parameter(parameter)) => Polynomial::atom(Atom::Parameter(
+            ExprNode::Symbol(SymbolRef::Parameter(parameter)) => self.atom(Atom::Parameter(
                 parameter.ulid().to_string(),
                 coordinate.to_vec(),
-            )),
+            ))?,
             ExprNode::Gradient(value) => {
                 let ExprNode::Symbol(SymbolRef::Field(field)) = typed.expression().node(*value)?
                 else {
                     return None;
                 };
-                Polynomial::atom(Atom::FieldGradient(
+                self.atom(Atom::FieldGradient(
                     field.ulid().to_string(),
                     coordinate.to_vec(),
-                ))
+                ))?
             }
             ExprNode::Divergence(value) if coordinate.is_empty() => {
                 let ExprNode::Symbol(SymbolRef::Field(field)) = typed.expression().node(*value)?
@@ -65,10 +65,10 @@ impl Context<'_> {
                 let mut sum = Polynomial::constant(ExactRational::integer(0));
                 for i in 0..extent.get() as usize {
                     sum = sum
-                        .checked_add(&Polynomial::atom(Atom::FieldGradient(
-                            field.ulid().to_string(),
-                            vec![i, i],
-                        )))
+                        .checked_add(
+                            &self
+                                .atom(Atom::FieldGradient(field.ulid().to_string(), vec![i, i]))?,
+                        )
                         .ok()?;
                 }
                 sum
@@ -82,6 +82,14 @@ impl Context<'_> {
                 factor.ulid().to_string(),
                 *axis,
             )),
+            ExprNode::Complex { real, imag } => Polynomial::complex(
+                self.source(typed, *real, coordinate, depth + 1)?,
+                self.source(typed, *imag, coordinate, depth + 1)?,
+            )?,
+            ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Conj, value) => self
+                .source(typed, *value, coordinate, depth + 1)?
+                .conjugate()
+                .ok()?,
             ExprNode::Neg(value) => self
                 .source(typed, *value, coordinate, depth + 1)?
                 .checked_neg()
@@ -177,6 +185,9 @@ impl Context<'_> {
                     i64::from(a.resolve(&coordinate).ok()? == b.resolve(&coordinate).ok()?),
                 )),
                 CalculusNode::Neg(a) => mapped[a.index() as usize].checked_neg().ok()?,
+                CalculusNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Conj, a) => {
+                    mapped[a.index() as usize].conjugate().ok()?
+                }
                 CalculusNode::Add(a, b) => mapped[a.index() as usize]
                     .checked_add(&mapped[b.index() as usize])
                     .ok()?,

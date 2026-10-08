@@ -14,7 +14,7 @@ use std::collections::{BTreeMap, BTreeSet};
 /// Complete physical coefficients of all represented exact Fields.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FixedReferenceFsiState<const D: usize> {
-    pub(crate) fields: BTreeMap<RawId, RecoveredRegionField>,
+    pub(crate) fields: BTreeMap<RawId, RecoveredRegionField<f64>>,
 }
 
 impl<const D: usize> FixedReferenceFsiState<D> {

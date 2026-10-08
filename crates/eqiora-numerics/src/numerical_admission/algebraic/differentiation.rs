@@ -66,8 +66,8 @@ impl CommonAlgebraicPlan {
             ));
         }
         let problem = base.at_parameters(selected, &selected_values)?;
-        let checked = self.linear.checked_backend(backend, None)?;
         let (point, primal) = if let Some(nonlinear) = self.nonlinear {
+            let checked = self.linear.checked_backend(backend, None)?;
             let solution = problem.solve_at_point(
                 initial.values(),
                 nonlinear,
@@ -94,9 +94,9 @@ impl CommonAlgebraicPlan {
                 let system = problem.complex_linear_system()?.ok_or_else(|| {
                     invalid("finite Parameter point changed its admitted complex execution profile")
                 })?;
-                let solution =
-                    LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, self.linear.solver)
-                        .solve(&system.linear_problem()?)?;
+                let complex = self.linear.checked_complex_backend(backend, None)?;
+                let solution = LinearSolveRequest::new(&complex, self.linear.solver)
+                    .solve(&system.linear_problem()?)?;
                 (
                     solution
                         .values()
@@ -106,6 +106,7 @@ impl CommonAlgebraicPlan {
                     solution.report().clone(),
                 )
             } else {
+                let checked = self.linear.checked_backend(backend, None)?;
                 let solution = crate::finite_constraints::solve_finite_constraints(
                     &problem,
                     LinearSolveRequest::new(&checked, self.linear.solver),

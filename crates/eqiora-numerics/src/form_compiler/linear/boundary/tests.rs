@@ -24,7 +24,7 @@ model Boundaries() {
 }
 "#;
 
-fn derive(source: &str) -> Result<CompiledLinearBlockForm, Diagnostic> {
+fn derive(source: &str) -> Result<CompiledLinearBlockForm<f64>, Diagnostic> {
     let (transaction, model, symbols) = compile("boundary.eqi", source)
         .unwrap()
         .remove(0)
@@ -32,7 +32,7 @@ fn derive(source: &str) -> Result<CompiledLinearBlockForm, Diagnostic> {
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
     let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-    CompiledLinearBlockForm::derive(
+    CompiledLinearBlockForm::<f64>::derive(
         &program,
         symbols.get("body").unwrap(),
         1,

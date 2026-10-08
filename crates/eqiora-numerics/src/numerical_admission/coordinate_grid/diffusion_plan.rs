@@ -11,7 +11,7 @@ pub(super) fn execute(
     grid: &CoordinateGrid,
     equation: &Diffusion,
     backend: &dyn LinearSolverBackend,
-) -> Result<CommonScalarRunOutput, Diagnostic> {
+) -> Result<CommonScalarRunOutput<f64>, Diagnostic> {
     let axis = grid.mesh.mesh().axis_coordinates(0).expect("radial axis");
     let count = axis.len() - 1;
     if count > 1_048_576 {

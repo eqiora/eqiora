@@ -384,7 +384,7 @@ fn plural_chain_permutation_retains_exact_field_identity_and_result_recovery() {
     };
     let output = permuted
         .execute(
-            &plan.admission,
+            plan.admission.linear.workers,
             LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.admission.linear.solver),
             mesh.mesh(),
             |reactions, full| reactions.recover(full),

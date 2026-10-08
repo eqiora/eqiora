@@ -1,4 +1,5 @@
 use crate::form_compiler::region::CompiledRegionForm;
+use crate::spatial_expression::Coefficient;
 
 #[cfg(test)]
 mod tests;
@@ -9,19 +10,19 @@ use eqiora_schema::kernel::{BoundarySide, DomainKind, KernelNode};
 use eqiora_sem::KernelProgram;
 use std::collections::{BTreeMap, BTreeSet};
 
-pub(super) struct Inventory {
-    pub(super) fields: BTreeMap<RawId, BTreeMap<RawId, RegionBoundaryLaw>>,
+pub(super) struct Inventory<S: Coefficient> {
+    pub(super) fields: BTreeMap<RawId, BTreeMap<RawId, RegionBoundaryLaw<S>>>,
     pub(super) dependencies: BTreeMap<RawId, BTreeSet<RawId>>,
 }
 
-pub(super) fn derive(
+pub(super) fn derive<S: Coefficient>(
     program: &KernelProgram,
     parent: RawId,
     dimension: usize,
     fields: &[(RawId, ValueType)],
-    volume: &CompiledRegionForm,
+    volume: &CompiledRegionForm<S>,
     interface_boundaries: &BTreeSet<RawId>,
-) -> Result<Inventory, Diagnostic> {
+) -> Result<Inventory<S>, Diagnostic> {
     let mut boundaries = fields
         .iter()
         .map(|(field, _)| (*field, BTreeMap::new()))

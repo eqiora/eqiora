@@ -24,9 +24,9 @@ use crate::spatial_expression::{self, ScalarSpatialExpression};
 #[derive(Debug, Clone, PartialEq)]
 pub enum ScalarTransportCartesianBoundary {
     /// Prescribed transported-state trace.
-    PrescribedTrace(ScalarSpatialExpression),
+    PrescribedTrace(ScalarSpatialExpression<f64>),
     /// Prescribed parent-outward diffusive flux `normal(k grad(c))`.
-    PrescribedDiffusiveFlux(ScalarSpatialExpression),
+    PrescribedDiffusiveFlux(ScalarSpatialExpression<f64>),
     /// Exact live identification with the opposite side of one Cartesian axis.
     SpatialPeriodic {
         /// Spatial-periodic Connection owning the identification.
@@ -39,7 +39,7 @@ pub enum ScalarTransportCartesianBoundary {
 impl ScalarTransportCartesianBoundary {
     /// Canonical prescribed data in full physical coordinates, when present.
     #[must_use]
-    pub const fn value(&self) -> Option<&ScalarSpatialExpression> {
+    pub const fn value(&self) -> Option<&ScalarSpatialExpression<f64>> {
         match self {
             Self::PrescribedTrace(value) | Self::PrescribedDiffusiveFlux(value) => Some(value),
             Self::SpatialPeriodic { .. } => None,
@@ -70,8 +70,8 @@ pub struct ScalarTransportCartesianModel2d {
     transport_relation: RawId,
     potential_definition: RawId,
     bounds: [[f64; 2]; 2],
-    diffusivity: ScalarSpatialExpression,
-    potential_expression: ScalarSpatialExpression,
+    diffusivity: ScalarSpatialExpression<f64>,
+    potential_expression: ScalarSpatialExpression<f64>,
     boundaries: BTreeMap<(usize, BoundarySide), ScalarTransportCartesianBoundary>,
     spatial_periodic_connections: std::collections::BTreeSet<RawId>,
 }
@@ -133,13 +133,13 @@ impl ScalarTransportCartesianModel2d {
 
     /// Exact lowered diffusivity expression.
     #[must_use]
-    pub const fn diffusivity_expression(&self) -> &ScalarSpatialExpression {
+    pub const fn diffusivity_expression(&self) -> &ScalarSpatialExpression<f64> {
         &self.diffusivity
     }
 
     /// Exact lowered advecting-potential expression.
     #[must_use]
-    pub const fn potential_expression(&self) -> &ScalarSpatialExpression {
+    pub const fn potential_expression(&self) -> &ScalarSpatialExpression<f64> {
         &self.potential_expression
     }
 
@@ -356,7 +356,7 @@ fn lower_transport_relation(
     program: &KernelProgram,
     relation: RawId,
     state: RawId,
-) -> Result<(RawId, ScalarSpatialExpression), Diagnostic> {
+) -> Result<(RawId, ScalarSpatialExpression<f64>), Diagnostic> {
     let expression = &relation_expression(program, relation)?;
     let root = unique_root(expression, relation)?;
     let Some(ExprNode::Sub(transient_advection, diffusion_divergence)) = expression.node(root)
@@ -453,7 +453,7 @@ fn lower_potential_definition(
     relation: RawId,
     potential: RawId,
     transport_relation: RawId,
-) -> Result<ScalarSpatialExpression, Diagnostic> {
+) -> Result<ScalarSpatialExpression<f64>, Diagnostic> {
     let expression = &relation_expression(program, relation)?;
     if expression.nodes().iter().any(|node| {
         matches!(
@@ -494,7 +494,7 @@ fn lower_boundary_relation(
     relation: RawId,
     state: RawId,
     potential: RawId,
-    diffusivity: &ScalarSpatialExpression,
+    diffusivity: &ScalarSpatialExpression<f64>,
 ) -> Result<ScalarTransportCartesianBoundary, Diagnostic> {
     let expression = &relation_expression(program, relation)?;
     if expression.roots().len() == 2 {
@@ -554,7 +554,7 @@ fn lower_spatial_periodic_boundary_relation(
     expression: &ExprDag,
     state: RawId,
     potential: RawId,
-    diffusivity: &ScalarSpatialExpression,
+    diffusivity: &ScalarSpatialExpression<f64>,
 ) -> Result<ScalarTransportCartesianBoundary, Diagnostic> {
     let mut trace_port = None;
     let mut flux_port = None;
@@ -664,7 +664,7 @@ fn validate_total_transport_flux(
     total_flux: ExprId,
     state: RawId,
     potential: RawId,
-    diffusivity: &ScalarSpatialExpression,
+    diffusivity: &ScalarSpatialExpression<f64>,
     relation: RawId,
 ) -> Result<(), Diagnostic> {
     let Some(ExprNode::Sub(advective, diffusive)) = expression.node(total_flux) else {

@@ -66,7 +66,7 @@ impl MiniNavierStokesLocalLinearization {
 impl MiniNavierStokesCell<'_> {
     pub(crate) fn residual_prepared(
         &self,
-        prepared: &crate::form_compiler::region::PreparedRegionCell,
+        prepared: &crate::form_compiler::region::PreparedRegionCell<f64>,
     ) -> Result<Vec<f64>, Diagnostic> {
         let (candidate, previous, pressure) = self.local_state();
         Ok(self
@@ -77,7 +77,7 @@ impl MiniNavierStokesCell<'_> {
 
     pub(crate) fn linearize_prepared(
         &self,
-        prepared: &crate::form_compiler::region::PreparedRegionCell,
+        prepared: &crate::form_compiler::region::PreparedRegionCell<f64>,
     ) -> Result<MiniNavierStokesLocalLinearization, Diagnostic> {
         let (candidate, previous, pressure) = self.local_state();
         let action = self

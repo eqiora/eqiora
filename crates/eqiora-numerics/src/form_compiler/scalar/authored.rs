@@ -43,30 +43,62 @@ pub(crate) fn admit(
         } else {
             flux
         };
-    let left = AuthoredFormExpressionV1::Integrate {
+    let gradient_test = AuthoredFormExpressionV1::Gradient {
+        value: Box::new(test.clone()),
+    };
+    let conjugate = |value| {
+        if derived.conjugate_test {
+            AuthoredFormExpressionV1::Conjugate {
+                value: Box::new(value),
+            }
+        } else {
+            value
+        }
+    };
+    let mut left = AuthoredFormExpressionV1::Integrate {
         domain_ulid: expected_domain.clone(),
         integrand: Box::new(AuthoredFormExpressionV1::Dot {
-            left: Box::new(AuthoredFormExpressionV1::Gradient {
-                value: Box::new(test.clone()),
-            }),
+            left: Box::new(conjugate(gradient_test)),
             right: Box::new(flux),
         }),
     };
-    let mut right = AuthoredFormExpressionV1::Integrate {
-        domain_ulid: expected_domain,
-        integrand: Box::new(AuthoredFormExpressionV1::Mul {
-            left: Box::new(test.clone()),
-            right: Box::new(
-                AuthoredFormExpressionV1::from_expression(dag, derived.volume_nodes.source)?
-                    .ok_or_else(|| {
-                        rejection_with(
-                            projection,
-                            "source expression exceeds the scalar-primal inventory",
-                        )
-                    })?,
-            ),
-        }),
-    };
+    let mut right = None;
+    for term in &derived.volume_nodes.values {
+        let mut value = AuthoredFormExpressionV1::from_expression(dag, term.source_node)?
+            .ok_or_else(|| {
+                rejection_with(
+                    projection,
+                    "source value exceeds the scalar-primal inventory",
+                )
+            })?;
+        if term.sign == super::super::vocabulary::WeakSign::Negative {
+            value = AuthoredFormExpressionV1::Neg {
+                value: Box::new(value),
+            };
+        }
+        let integral = AuthoredFormExpressionV1::Integrate {
+            domain_ulid: expected_domain.clone(),
+            integrand: Box::new(AuthoredFormExpressionV1::Mul {
+                left: Box::new(conjugate(test.clone())),
+                right: Box::new(value),
+            }),
+        };
+        if term.trial_dependent {
+            left = AuthoredFormExpressionV1::Add {
+                left: Box::new(left),
+                right: Box::new(integral),
+            };
+        } else {
+            right = Some(match right {
+                None => integral,
+                Some(previous) => AuthoredFormExpressionV1::Add {
+                    left: Box::new(previous),
+                    right: Box::new(integral),
+                },
+            });
+        }
+    }
+    let mut right = right.unwrap_or(AuthoredFormExpressionV1::Number { value: 0.0 });
     for boundary in &derived.boundary_roles {
         let Some((datum, negative)) = boundary.flux_data else {
             continue;
@@ -89,23 +121,22 @@ pub(crate) fn admit(
             right: Box::new(AuthoredFormExpressionV1::Integrate {
                 domain_ulid: boundary.domain.ulid().to_string(),
                 integrand: Box::new(AuthoredFormExpressionV1::Mul {
-                    left: Box::new(AuthoredFormExpressionV1::Trace {
+                    left: Box::new(conjugate(AuthoredFormExpressionV1::Trace {
                         value: Box::new(test.clone()),
-                    }),
+                    })),
                     right: Box::new(value),
                 }),
             }),
         };
     }
-    if has_variation {
-        return polynomial::matches_variation(projection, derived.dimension, &left, &right)
-            .then_some(())
-            .ok_or_else(|| {
-                rejection_with(
-                    projection,
-                    "functional variation differs from the admitted strong-law weak residual",
-                )
-            });
+    if polynomial::matches_weak_residual(projection, program, derived.dimension, &left, &right) {
+        return Ok(());
+    }
+    if has_variation || derived.conjugate_test {
+        return Err(rejection_with(
+            projection,
+            "authored weak residual differs from the admitted strong-law weak residual",
+        ));
     }
     if !equivalent(&projection.equations()[0].1, &left) {
         return Err(rejection_with(

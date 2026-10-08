@@ -75,7 +75,7 @@ Jacobian must have full rank, even if the seed already has zero residual. This i
 regularity of the represented Jacobian, not a global uniqueness or branch-tracking theorem.
 
 Plan v10 retains Newton controls and margins; finite State v2 binds the complete numerical seed;
-Result v11 retains that State, original residual acceptance and distinct nonlinear/linear
+Result v12 retains that State, original residual acceptance and distinct nonlinear/linear
 records. Replay rechecks original conditions and local regularity. A zero-update record must
 retain an already accepted seed exactly. Python `result.solve` returns `NonlinearSolveSummary`
 for this profile, including nonlinear iteration count and residual bounds. Accepted-point reduced sensitivities use the common differentiable Program. Global branch

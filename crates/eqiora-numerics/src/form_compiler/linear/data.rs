@@ -5,28 +5,29 @@ use eqiora_core::{Diagnostic, RawId};
 use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef, UnaryMathFunction};
 use eqiora_sem::KernelProgram;
 
-use crate::spatial_expression::{self, ScalarSpatialExpression};
+use crate::spatial_expression::{self, Coefficient, ScalarSpatialExpression};
 
 #[derive(Debug, Clone, PartialEq)]
-pub(in crate::form_compiler) struct Data(Arc<Node>);
+pub(in crate::form_compiler) struct Data<S: Coefficient>(Arc<Node<S>>);
 
 #[derive(Debug, PartialEq)]
-enum Node {
-    Tape(ScalarSpatialExpression),
-    CoordinateDerivative(ScalarSpatialExpression, usize),
-    Add(Data, Data),
-    Mul(Data, Data),
-    Div(Data, Data),
-    Pow(Data, i32),
-    Math(UnaryMathFunction, Data),
-    Cos(Data),
+enum Node<S: Coefficient> {
+    Tape(ScalarSpatialExpression<S>),
+    CoordinateDerivative(ScalarSpatialExpression<S>, usize),
+    Add(Data<S>, Data<S>),
+    Mul(Data<S>, Data<S>),
+    Div(Data<S>, Data<S>),
+    Pow(Data<S>, i32),
+    Math(UnaryMathFunction, Data<S>),
+    Cos(Data<S>),
+    SqrtDerivativeRoot(Data<S>),
 }
 
-impl Data {
+impl<S: Coefficient> Data<S> {
     pub(in crate::form_compiler) fn bind_parameter_point(
         &self,
         fields: &[eqiora_core::Id<eqiora_core::entity::kinds::Parameter>],
-        values: &[f64],
+        values: &[S],
     ) -> Result<Self, Diagnostic> {
         let bind = |data: &Self| data.bind_parameter_point(fields, values);
         Ok(Self(Arc::new(match self.0.as_ref() {
@@ -40,12 +41,17 @@ impl Data {
             Node::Pow(a, power) => Node::Pow(bind(a)?, *power),
             Node::Math(function, a) => Node::Math(*function, bind(a)?),
             Node::Cos(a) => Node::Cos(bind(a)?),
+            Node::SqrtDerivativeRoot(a) => Node::SqrtDerivativeRoot(bind(a)?),
         })))
     }
 
     /// Compare symbolic coefficient products without sampling or erasing Parameters.
     pub(in crate::form_compiler) fn same_coefficient(&self, other: &Self) -> bool {
-        fn product<'a>(data: &'a Data, scale: &mut f64, factors: &mut Vec<&'a Data>) {
+        fn product<'a, S: Coefficient>(
+            data: &'a Data<S>,
+            scale: &mut S,
+            factors: &mut Vec<&'a Data<S>>,
+        ) {
             match data.0.as_ref() {
                 Node::Mul(a, b) => {
                     product(a, scale, factors);
@@ -53,7 +59,7 @@ impl Data {
                 }
                 Node::Tape(tape) if tape.parameter_fields().is_empty() => {
                     if let Some(value) = tape.constant_value() {
-                        *scale *= value;
+                        *scale = *scale * value;
                     } else {
                         factors.push(data);
                     }
@@ -61,7 +67,7 @@ impl Data {
                 _ => factors.push(data),
             }
         }
-        fn factor(a: &Data, b: &Data) -> bool {
+        fn factor<S: Coefficient>(a: &Data<S>, b: &Data<S>) -> bool {
             match (a.0.as_ref(), b.0.as_ref()) {
                 (Node::Tape(a), Node::Tape(b)) => a.is_same_coefficient_as(b),
                 (Node::CoordinateDerivative(a, i), Node::CoordinateDerivative(b, j)) => {
@@ -76,11 +82,15 @@ impl Data {
                 }
                 (Node::Pow(a, n), Node::Pow(b, m)) => n == m && a.same_coefficient(b),
                 (Node::Math(f, a), Node::Math(g, b)) => f == g && a.same_coefficient(b),
-                (Node::Cos(a), Node::Cos(b)) => a.same_coefficient(b),
+                (Node::Cos(a), Node::Cos(b))
+                | (Node::SqrtDerivativeRoot(a), Node::SqrtDerivativeRoot(b)) => {
+                    a.same_coefficient(b)
+                }
                 _ => false,
             }
         }
-        let (mut left_scale, mut right_scale) = (1.0, 1.0);
+        let (mut left_scale, mut right_scale) =
+            (<S as From<f64>>::from(1.0), <S as From<f64>>::from(1.0));
         let (mut left, mut right) = (Vec::new(), Vec::new());
         product(self, &mut left_scale, &mut left);
         product(other, &mut right_scale, &mut right);
@@ -96,13 +106,13 @@ impl Data {
         true
     }
 
-    pub(in crate::form_compiler) fn constant(dimension: usize, value: f64) -> Self {
+    pub(in crate::form_compiler) fn constant(dimension: usize, value: S) -> Self {
         Self(Arc::new(Node::Tape(ScalarSpatialExpression::constant(
             dimension, value,
         ))))
     }
     pub(in crate::form_compiler) fn add(self, right: Self) -> Self {
-        let zero = |data: &Self| matches!(data.0.as_ref(), Node::Tape(tape) if tape.parameter_fields().is_empty() && tape.constant_value() == Some(0.0));
+        let zero = |data: &Self| matches!(data.0.as_ref(), Node::Tape(tape) if tape.parameter_fields().is_empty() && tape.constant_value() == Some(<S as From<f64>>::from(0.0)));
         if zero(&self) {
             return right;
         }
@@ -138,29 +148,39 @@ impl Data {
                 .add(
                     a.clone()
                         .multiply(derivative(b)?)
-                        .multiply(Self::constant(dimension, -1.0)),
+                        .multiply(Self::constant(dimension, <S as From<f64>>::from(-1.0))),
                 )
                 .divide(b.clone().multiply(b.clone())),
             Node::Pow(a, exponent) => {
                 if *exponent == 0 {
                     // Demand the primal too: differentiation must not erase an undefined base.
-                    self.clone().multiply(Self::constant(dimension, 0.0))
+                    self.clone()
+                        .multiply(Self::constant(dimension, <S as From<f64>>::from(0.0)))
                 } else {
-                    let power = exponent.checked_sub(1).ok_or_else(|| {
-                        super::invalid("gradient power exceeds exact integer bound")
-                    })?;
-                    Self::constant(dimension, f64::from(*exponent))
-                        .multiply(Self(Arc::new(Node::Pow(a.clone(), power))))
+                    let previous = match exponent.checked_sub(1) {
+                        Some(power) => Self(Arc::new(Node::Pow(a.clone(), power))),
+                        None => self.clone().divide(a.clone()),
+                    };
+                    Self::constant(dimension, <S as From<f64>>::from(f64::from(*exponent)))
+                        .multiply(previous)
                         .multiply(derivative(a)?)
                 }
             }
-            Node::Math(UnaryMathFunction::Sqrt, a) => {
-                derivative(a)?.divide(Self::constant(dimension, 2.0).multiply(self.clone()))
-            }
+            Node::Math(UnaryMathFunction::Sqrt, a) => derivative(a)?.divide(
+                Self::constant(dimension, <S as From<f64>>::from(2.0))
+                    .multiply(Self(Arc::new(Node::SqrtDerivativeRoot(a.clone())))),
+            ),
+            Node::Math(UnaryMathFunction::Conj, a) => Self(Arc::new(Node::Math(
+                UnaryMathFunction::Conj,
+                derivative(a)?,
+            ))),
             Node::Math(UnaryMathFunction::Sin, a) => {
                 Self(Arc::new(Node::Cos(a.clone()))).multiply(derivative(a)?)
             }
-            Node::Math(_, _) | Node::CoordinateDerivative(_, _) | Node::Cos(_) => {
+            Node::Math(_, _)
+            | Node::CoordinateDerivative(_, _)
+            | Node::Cos(_)
+            | Node::SqrtDerivativeRoot(_) => {
                 return Err(super::invalid(
                     "coefficient gradient requires an admitted first-derivative rule",
                 ));
@@ -173,10 +193,12 @@ impl Data {
                 tape.is_coordinate_dependent()
             }
             Node::Add(a, b) | Node::Mul(a, b) | Node::Div(a, b) => a.spatial() || b.spatial(),
-            Node::Pow(a, _) | Node::Math(_, a) | Node::Cos(a) => a.spatial(),
+            Node::Pow(a, _) | Node::Math(_, a) | Node::Cos(a) | Node::SqrtDerivativeRoot(a) => {
+                a.spatial()
+            }
         }
     }
-    pub(in crate::form_compiler) fn evaluate(&self, point: &[f64]) -> Result<f64, Diagnostic> {
+    pub(in crate::form_compiler) fn evaluate(&self, point: &[f64]) -> Result<S, Diagnostic> {
         let value = match self.0.as_ref() {
             Node::Tape(tape) => tape.evaluate(point)?,
             Node::CoordinateDerivative(tape, axis) => {
@@ -185,15 +207,23 @@ impl Data {
                     .get_mut(*axis)
                     .ok_or_else(|| super::invalid("gradient axis exceeds physical dimension"))? =
                     1.0;
-                tape.evaluate_jvp(point, &direction, &vec![0.0; tape.parameter_fields().len()])?
-                    .1
+                tape.evaluate_tangent(
+                    point,
+                    &direction,
+                    &vec![<S as From<f64>>::from(0.0); tape.parameter_fields().len()],
+                )?
+                .1
             }
             Node::Add(a, b) => a.evaluate(point)? + b.evaluate(point)?,
             Node::Mul(a, b) => a.evaluate(point)? * b.evaluate(point)?,
             Node::Div(a, b) => a.evaluate(point)? / b.evaluate(point)?,
             Node::Pow(a, n) => a.evaluate(point)?.powi(*n),
+            Node::Math(UnaryMathFunction::Conj, a) => a.evaluate(point)?.conj(),
             Node::Math(UnaryMathFunction::Sin, a) => a.evaluate(point)?.sin(),
             Node::Cos(a) => a.evaluate(point)?.cos(),
+            Node::SqrtDerivativeRoot(a) => {
+                spatial_expression::sqrt_derivative_root(a.evaluate(point)?)?
+            }
             Node::Math(UnaryMathFunction::Sqrt, a) => a.evaluate(point)?.sqrt(),
             _ => return Err(super::invalid("unsupported coefficient mathematics")),
         };
@@ -205,20 +235,20 @@ impl Data {
     }
 }
 
-pub(in crate::form_compiler) struct Context<'a> {
+pub(in crate::form_compiler) struct Context<'a, S: Coefficient> {
     pub(in crate::form_compiler) program: &'a KernelProgram,
     pub(in crate::form_compiler) dag: &'a ExprDag,
     pub(in crate::form_compiler) owner: RawId,
     pub(in crate::form_compiler) dimension: usize,
-    pub(in crate::form_compiler) coefficients: &'a BTreeMap<RawId, Data>,
+    pub(in crate::form_compiler) coefficients: &'a BTreeMap<RawId, Data<S>>,
 }
 
-impl Context<'_> {
+impl<S: Coefficient> Context<'_, S> {
     pub(in crate::form_compiler) fn data(
         &self,
         id: ExprId,
         depth: usize,
-    ) -> Result<Data, Diagnostic> {
+    ) -> Result<Data<S>, Diagnostic> {
         if depth > 128 {
             return Err(super::invalid("linear expression nesting exceeds 128"));
         }
@@ -244,11 +274,21 @@ impl Context<'_> {
                         "unknown-dependent coefficient or unresolved coefficient definition",
                     )
                 })?,
-            Some(ExprNode::Neg(a)) => data(*a)?.multiply(Data::constant(self.dimension, -1.0)),
-            Some(ExprNode::Add(a, b)) => data(*a)?.add(data(*b)?),
-            Some(ExprNode::Sub(a, b)) => {
-                data(*a)?.add(data(*b)?.multiply(Data::constant(self.dimension, -1.0)))
+            Some(ExprNode::Complex { real, imag }) => {
+                let unit = S::imaginary_unit().ok_or_else(|| {
+                    super::invalid(
+                        "complex coefficient construction requires a complex scalar domain",
+                    )
+                })?;
+                data(*real)?.add(data(*imag)?.multiply(Data::constant(self.dimension, unit)))
             }
+            Some(ExprNode::Neg(a)) => {
+                data(*a)?.multiply(Data::constant(self.dimension, <S as From<f64>>::from(-1.0)))
+            }
+            Some(ExprNode::Add(a, b)) => data(*a)?.add(data(*b)?),
+            Some(ExprNode::Sub(a, b)) => data(*a)?.add(
+                data(*b)?.multiply(Data::constant(self.dimension, <S as From<f64>>::from(-1.0))),
+            ),
             Some(ExprNode::Mul(a, b)) => data(*a)?.multiply(data(*b)?),
             Some(ExprNode::Div(a, b)) => data(*a)?.divide(data(*b)?),
             Some(ExprNode::PowI(a, n)) => Data(Arc::new(Node::Pow(data(*a)?, *n))),
@@ -259,3 +299,6 @@ impl Context<'_> {
         })
     }
 }
+
+#[cfg(test)]
+mod tests;

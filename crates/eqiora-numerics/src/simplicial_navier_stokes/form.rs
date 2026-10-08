@@ -16,7 +16,7 @@ use crate::form_compiler::region::{
 
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct StepForm {
-    pub form: BoundRegionForm,
+    pub form: BoundRegionForm<f64>,
     pub vector: RawId,
     pub scalar: RawId,
     pub length: f64,
@@ -68,7 +68,7 @@ model Step() {{
         scales: [f64; 3],
         origin: [f64; 2],
     ) -> Result<Self, Diagnostic> {
-        let compiled = CompiledRegionForm::derive(program, domain, 2)?;
+        let compiled = CompiledRegionForm::<f64>::derive(program, domain, 2)?;
         let [length, vector_scale, scalar_scale] = scales;
         let length_dim = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("length");
         let measure_dim = length_dim.pow(2, 1).expect("area");
@@ -144,7 +144,7 @@ model Step() {{
         normalized: &AffineGeometryMap,
         quadrature: &eqiora_meshing::QuadratureRule,
         load: &impl Fn([f64; 2]) -> Result<[f64; 2], Diagnostic>,
-    ) -> Result<PreparedRegionCell, Diagnostic> {
+    ) -> Result<PreparedRegionCell<f64>, Diagnostic> {
         let mut prepared = self
             .form
             .prepare_cell(&self.geometry(normalized)?, quadrature)?;
@@ -159,7 +159,7 @@ model Step() {{
 
     pub fn linearize_prepared(
         &self,
-        prepared: &PreparedRegionCell,
+        prepared: &PreparedRegionCell<f64>,
         previous: &[[f64; 2]; 4],
         current: &[[f64; 2]; 4],
         scalar: &[f64; 3],

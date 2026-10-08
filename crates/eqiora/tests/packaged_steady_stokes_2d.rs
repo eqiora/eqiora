@@ -410,7 +410,10 @@ fn assert_same_lowered_stokes(
     );
 }
 
-fn assert_same_expression_action(left: &ScalarSpatialExpression, right: &ScalarSpatialExpression) {
+fn assert_same_expression_action(
+    left: &ScalarSpatialExpression<f64>,
+    right: &ScalarSpatialExpression<f64>,
+) {
     assert_eq!(left.coordinate_dimension(), right.coordinate_dimension());
     assert_eq!(left.parameter_fields(), right.parameter_fields());
     assert_eq!(left.parameter_values(), right.parameter_values());

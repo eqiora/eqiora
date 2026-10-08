@@ -5,22 +5,22 @@ use eqiora_realization::Space;
 use super::*;
 
 /// Transient admission result, consumed into the sole executable region representation.
-pub(in crate::form_compiler) struct ScalarRow {
+pub(in crate::form_compiler) struct ScalarRow<S: Coefficient> {
     pub relation: RawId,
     pub field: RawId,
     pub residual_type: ValueType,
-    pub diffusion: Data,
-    pub reaction: BTreeMap<RawId, Data>,
-    pub storage: BTreeMap<RawId, Data>,
-    pub forcing: Data,
+    pub diffusion: Data<S>,
+    pub reaction: BTreeMap<RawId, Data<S>>,
+    pub storage: BTreeMap<RawId, Data<S>>,
+    pub forcing: Data<S>,
 }
 
-impl CompiledRegionForm {
+impl<S: Coefficient> CompiledRegionForm<S> {
     pub(in crate::form_compiler) fn scalar(
         domain: RawId,
         dimension: usize,
         roles: EquationRoles,
-        rows: Vec<ScalarRow>,
+        rows: Vec<ScalarRow<S>>,
     ) -> Result<Self, Diagnostic> {
         let rows = rows
             .into_iter()
@@ -30,7 +30,7 @@ impl CompiledRegionForm {
                     derivative: false,
                     pairing: Pairing::Gradient,
                     coefficient: row.diffusion,
-                    positive_diffusion: true,
+                    positive_diffusion: S::DOMAIN == ScalarDomain::Real,
                 }];
                 terms.extend(row.reaction.into_iter().map(|(trial, coefficient)| Term {
                     trial,
@@ -69,7 +69,7 @@ impl CompiledRegionForm {
     pub(in crate::form_compiler) fn bind_scalar(
         &self,
         time: Option<&RegionTimeBinding>,
-    ) -> Result<BoundRegionForm, Diagnostic> {
+    ) -> Result<BoundRegionForm<S>, Diagnostic> {
         let form = self;
         let dimension = self.dimension;
         let fields = form
@@ -102,11 +102,11 @@ impl CompiledRegionForm {
     }
 }
 
-impl CompiledRegionForm {
+impl<S: Coefficient> CompiledRegionForm<S> {
     pub(in crate::form_compiler) fn bind_parameter_point(
         &self,
         fields: &[Id<kinds::Parameter>],
-        values: &[f64],
+        values: &[S],
     ) -> Result<Self, Diagnostic> {
         let mut bound = self.clone();
         for row in &mut bound.rows {

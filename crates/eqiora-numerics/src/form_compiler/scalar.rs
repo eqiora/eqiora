@@ -19,6 +19,7 @@ use crate::canonical::{boundary_parent, lowering_error, relations_on};
 use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
 use crate::form_compiler::vocabulary::{
     BoundaryDischarge, BoundarySource, PrimalGalerkinCorrespondence, PrimalGalerkinSource,
+    PrimalValueTerm,
 };
 
 mod authored;
@@ -40,7 +41,6 @@ const MAX_QUADRATURE_POINTS: usize = 64;
 const MAX_LOCAL_DOFS: usize = 32;
 const MAX_TEMPORARIES: usize = 256;
 const DERIVED_DERIVATIVE_ORDER: usize = 1;
-const DERIVED_INTEGRAL_TERMS: usize = 2;
 const Q1_TEMPORARIES: usize = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,16 +64,17 @@ pub(crate) struct DerivedScalarGalerkinForm {
     boundary_roles: Vec<BoundaryRole>,
     parameters: Vec<RawId>,
     certificate: PrimalGalerkinCorrespondence,
+    conjugate_test: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct VolumeNodes {
     root: ExprId,
     divergence: ExprId,
     bilinear_flux: ExprId,
     divergence_sign: super::vocabulary::WeakSign,
     gradient: ExprId,
-    source: ExprId,
+    values: Vec<PrimalValueTerm>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -106,7 +107,10 @@ impl DerivedScalarGalerkinForm {
             self.certificate
                 .formulation
                 .rules
-                .map(crate::form_compiler::vocabulary::FormulationRule::id),
+                .iter()
+                .copied()
+                .map(crate::form_compiler::vocabulary::FormulationRule::id)
+                .collect(),
         )
     }
 
@@ -114,6 +118,19 @@ impl DerivedScalarGalerkinForm {
         &self,
         quadrature: &QuadratureRule,
     ) -> Result<AdmittedScalarGalerkinForm<'_>, Diagnostic> {
+        if self.conjugate_test
+            || self
+                .volume_nodes
+                .values
+                .iter()
+                .any(|term| term.trial_dependent)
+        {
+            return Err(gate_error(
+                self.volume_relation,
+                "realization compatibility",
+                "the diffusion/load callback adapter cannot represent this form; use the common bound Region form",
+            ));
+        }
         let exactness = quadrature.polynomial_exactness().ok_or_else(|| {
             gate_error(
                 self.volume_relation,
@@ -174,7 +191,8 @@ impl DerivedScalarGalerkinForm {
                 root: self.volume_nodes.root,
                 divergence: self.volume_nodes.divergence,
                 divergence_sign: self.volume_nodes.divergence_sign,
-                source: self.volume_nodes.source,
+                values: &self.volume_nodes.values,
+                conjugate_test: self.conjugate_test,
                 boundaries: &boundary_sources,
             })
             .map_err(|message| certificate_error(self.volume_relation, message))
@@ -320,21 +338,37 @@ pub(crate) fn derive_candidate_with_dimension(
     }
     let (volume_relation, field) = principal[0];
     let typed = typed_relation(program, volume_relation)?;
-    let volume = recognize_volume(typed.expression(), volume_relation, field)?;
-    let boundaries = boundary_inventory(program, domain, field, dimension, &typed, volume)?;
+    let conjugate_test = match program.node(field) {
+        Some(KernelNode::Field(value)) => {
+            value.value_type().scalar_domain() == eqiora_core::ScalarDomain::Complex
+        }
+        _ => return Err(role_error(field, "principal trial must be an exact Field")),
+    };
+    let volume = recognize_volume(typed.expression(), volume_relation, field, conjugate_test)?;
+    let boundaries = boundary_inventory(program, domain, field, dimension, &typed, &volume)?;
     let Some(boundary_roles) = boundaries else {
         return Ok(None);
     };
     validate_expression(&typed, volume_relation, field)?;
-    validate_source_expression(typed.expression(), volume.source, volume_relation)?;
-    validate_static_bounds(typed.expression(), volume_relation, dimension)?;
+    for term in &volume.values {
+        if !term.trial_dependent {
+            validate_source_expression(typed.expression(), term.source_node, volume_relation)?;
+        }
+    }
+    validate_static_bounds(
+        typed.expression(),
+        volume_relation,
+        dimension,
+        1 + volume.values.len(),
+    )?;
     let parameters =
         validate_closed_roles(program, domain, field, volume_relation, &boundary_roles)?;
     let certificate = build_certificate(
         domain,
         field,
         volume_relation,
-        volume,
+        &volume,
+        conjugate_test,
         &boundary_roles,
         &parameters,
     )?;
@@ -344,6 +378,7 @@ pub(crate) fn derive_candidate_with_dimension(
         field,
         volume_relation,
         volume_nodes: volume,
+        conjugate_test,
         boundary_roles,
         parameters,
         certificate,
@@ -397,7 +432,7 @@ fn boundary_inventory(
     field: RawId,
     dimension: usize,
     volume: &TypedResidual<RawId>,
-    volume_nodes: VolumeNodes,
+    volume_nodes: &VolumeNodes,
 ) -> Result<Option<Vec<BoundaryRole>>, Diagnostic> {
     let mut by_side = BTreeMap::new();
     let geometry_backed = matches!(
@@ -513,13 +548,18 @@ fn validate_expression(
     for node in expression.nodes() {
         let admitted = match node {
             ExprNode::Constant(_)
+            | ExprNode::Complex { .. }
             | ExprNode::Neg(_)
             | ExprNode::Add(_, _)
             | ExprNode::Sub(_, _)
             | ExprNode::Mul(_, _)
             | ExprNode::PowI(_, _)
             | ExprNode::Symbol(SymbolRef::Coordinate { .. })
-            | ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Sin, _)
+            | ExprNode::UnaryMath(
+                eqiora_schema::kernel::UnaryMathFunction::Sin
+                | eqiora_schema::kernel::UnaryMathFunction::Conj,
+                _,
+            )
             | ExprNode::Gradient(_)
             | ExprNode::Divergence(_)
             | ExprNode::Trace(_)
@@ -597,7 +637,11 @@ pub(super) fn push_operands(node: &ExprNode, pending: &mut Vec<ExprId>) {
         | ExprNode::IsotropicLift(value)
         | ExprNode::NormalComponent(value)
         | ExprNode::Trace(value) => pending.push(*value),
-        ExprNode::Add(left, right)
+        ExprNode::Complex {
+            real: left,
+            imag: right,
+        }
+        | ExprNode::Add(left, right)
         | ExprNode::Sub(left, right)
         | ExprNode::Mul(left, right)
         | ExprNode::Div(left, right) => {
@@ -612,9 +656,10 @@ fn validate_static_bounds(
     expression: &ExprDag,
     owner: RawId,
     dimension: usize,
+    integral_terms: usize,
 ) -> Result<(), Diagnostic> {
     if DERIVED_DERIVATIVE_ORDER > MAX_DERIVATIVE_ORDER
-        || DERIVED_INTEGRAL_TERMS > MAX_INTEGRAL_TERMS
+        || integral_terms > MAX_INTEGRAL_TERMS
         || Q1_TEMPORARIES > MAX_TEMPORARIES
         || expression.nodes().len() > MAX_DAG_NODES
     {
@@ -795,11 +840,15 @@ fn build_certificate(
     domain: RawId,
     field: RawId,
     volume_relation: RawId,
-    volume: VolumeNodes,
+    volume: &VolumeNodes,
+    conjugate_test: bool,
     boundaries: &[BoundaryRole],
     _parameters: &[RawId],
 ) -> Result<PrimalGalerkinCorrespondence, Diagnostic> {
-    if volume.gradient == volume.source
+    if volume
+        .values
+        .iter()
+        .any(|term| volume.gradient == term.source_node)
         || boundaries
             .iter()
             .any(|role| role.relation == volume_relation)
@@ -825,7 +874,8 @@ fn build_certificate(
         root: volume.root,
         divergence: volume.divergence,
         divergence_sign: volume.divergence_sign,
-        source: volume.source,
+        values: &volume.values,
+        conjugate_test,
         boundaries: &boundary_sources,
     }))
 }

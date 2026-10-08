@@ -748,7 +748,7 @@ fn lower_isotropic_stress_coefficients(
     stress: ExprId,
     displacement: RawId,
     owner: RawId,
-) -> Result<(ScalarSpatialExpression, ScalarSpatialExpression), Diagnostic> {
+) -> Result<(ScalarSpatialExpression<f64>, ScalarSpatialExpression<f64>), Diagnostic> {
     let spatial_dimension = vector_field_dimension(program, displacement, owner)?;
     let expression = residual.expression();
     let ExprNode::Add(left, right) = expression.node(stress).ok_or_else(|| {
@@ -799,7 +799,7 @@ fn lower_scaled_target<F>(
     owner: RawId,
     spatial_dimension: usize,
     target: F,
-) -> Result<Option<ScalarSpatialExpression>, Diagnostic>
+) -> Result<Option<ScalarSpatialExpression<f64>>, Diagnostic>
 where
     F: Copy + Fn(&TypedResidual<RawId>, ExprId) -> Result<bool, Diagnostic>,
 {

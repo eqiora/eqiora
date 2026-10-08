@@ -12,7 +12,7 @@ mod tests;
 pub(crate) mod vocabulary;
 
 pub(crate) type PrimalFormDescription =
-    (vocabulary::FormulationKind, &'static str, [&'static str; 4]);
+    (vocabulary::FormulationKind, &'static str, Vec<&'static str>);
 
 pub(crate) use elasticity::{
     compile_cartesian_q1_elasticity_form_2d, derive_elasticity_correspondence,

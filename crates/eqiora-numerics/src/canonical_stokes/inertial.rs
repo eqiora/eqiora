@@ -44,9 +44,9 @@ pub struct InertialIncompressibleNewtonianCartesianModel2d {
     pressure: RawId,
     force_potential: RawId,
     bounds: [[f64; 2]; 2],
-    mass_density: ScalarSpatialExpression,
-    dynamic_viscosity: ScalarSpatialExpression,
-    force_potential_expression: ScalarSpatialExpression,
+    mass_density: ScalarSpatialExpression<f64>,
+    dynamic_viscosity: ScalarSpatialExpression<f64>,
+    force_potential_expression: ScalarSpatialExpression<f64>,
     force_potential_definition: RawId,
     momentum_relation: RawId,
     momentum_orientation: f64,
@@ -100,7 +100,7 @@ impl InertialIncompressibleNewtonianCartesianModel2d {
 
     /// Immutable density tape retaining revision-local Parameter identity.
     #[must_use]
-    pub const fn mass_density_expression(&self) -> &ScalarSpatialExpression {
+    pub const fn mass_density_expression(&self) -> &ScalarSpatialExpression<f64> {
         &self.mass_density
     }
 
@@ -114,13 +114,13 @@ impl InertialIncompressibleNewtonianCartesianModel2d {
 
     /// Immutable viscosity tape retaining revision-local Parameter identity.
     #[must_use]
-    pub const fn dynamic_viscosity_expression(&self) -> &ScalarSpatialExpression {
+    pub const fn dynamic_viscosity_expression(&self) -> &ScalarSpatialExpression<f64> {
         &self.dynamic_viscosity
     }
 
     /// Immutable scalar tape defining the conservative-force potential.
     #[must_use]
-    pub const fn force_potential_expression(&self) -> &ScalarSpatialExpression {
+    pub const fn force_potential_expression(&self) -> &ScalarSpatialExpression<f64> {
         &self.force_potential_expression
     }
 
@@ -475,7 +475,7 @@ fn inertia_density(expression: &ExprDag, value: ExprId, velocity: RawId) -> Opti
 }
 
 pub(super) fn require_positive_constant(
-    expression: &ScalarSpatialExpression,
+    expression: &ScalarSpatialExpression<f64>,
     owner: RawId,
     quantity: &str,
 ) -> Result<(), Diagnostic> {

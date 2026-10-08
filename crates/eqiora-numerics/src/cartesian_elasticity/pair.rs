@@ -218,7 +218,7 @@ impl ConformingCartesianLinearElasticityPair2dSolution {
 pub(crate) struct FinalizedConformingCartesianElasticityPair2dAssembly {
     meshes: [CartesianMesh; 2],
     interface_map: ConformingCartesianInterfaceMap2d,
-    constrained_dofs: ConstrainedDofLayout,
+    constrained_dofs: ConstrainedDofLayout<f64>,
     linear_system: eqiora_assembly::LinearSystem<f64>,
     full_system: eqiora_assembly::LinearSystem<f64>,
     subdomain_systems: [eqiora_assembly::LinearSystem<f64>; 2],
@@ -269,7 +269,7 @@ impl FinalizedConformingCartesianElasticityPair2dAssembly {
 pub(crate) struct FinalizedConformingCartesianElasticityPair2dState {
     meshes: [CartesianMesh; 2],
     interface_map: ConformingCartesianInterfaceMap2d,
-    constrained_dofs: ConstrainedDofLayout,
+    constrained_dofs: ConstrainedDofLayout<f64>,
     full_system: eqiora_assembly::LinearSystem<f64>,
     subdomain_systems: [eqiora_assembly::LinearSystem<f64>; 2],
     integrated_body_force: [[f64; COMPONENTS]; 2],
@@ -373,7 +373,7 @@ impl FinalizedConformingCartesianElasticityPair2dState {
 pub(crate) fn finalize_conforming_cartesian_q1_linear_elasticity_pair_2d(
     meshes: [CartesianMesh; 2],
     materials: [IsotropicElasticityMaterial<DIMENSION>; 2],
-    body_force_potentials: [&ScalarSpatialExpression; 2],
+    body_force_potentials: [&ScalarSpatialExpression<f64>; 2],
     quadrature: &QuadratureRule,
     interface_axis: usize,
     essential_sides: [CartesianEssentialSides2d; 2],

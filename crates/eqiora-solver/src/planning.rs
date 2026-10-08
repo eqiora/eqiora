@@ -71,7 +71,7 @@ impl HostSerialSolverProfile {
         }
     }
 
-    /// Describe a normal-orientation canonical CSR f64 operator using exact
+    /// Describe a normal-orientation canonical CSR operator using exact
     /// method-owned mathematical properties and structural diagonal availability.
     /// `Some(true)` asserts a complete diagonal, `Some(false)` asserts its
     /// absence, and `None` makes no diagonal claim. Jacobi requires `Some(true)`;
@@ -173,10 +173,17 @@ impl HostSerialSolverProfile {
 
     /// Reauthenticate every claimed fact against the actual canonical problem.
     /// An unclaimed diagonal remains unconstrained; known facts must match exactly.
+    /// These structural facts are shared by real and complex coefficients; exact
+    /// scalar-domain and precision admission remains the selected backend's responsibility.
     ///
     /// # Errors
     /// Returns `EQ0807` before numerical work when a claimed fact differs.
-    pub fn require_problem(&self, problem: &LinearProblem<'_>) -> Result<(), Diagnostic> {
+    pub fn require_problem<
+        S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync,
+    >(
+        &self,
+        problem: &LinearProblem<'_, S>,
+    ) -> Result<(), Diagnostic> {
         let actual = PlanningProfileFacts::from_problem(problem);
         let mut claimed = self.facts;
         if claimed.complete_diagonal.is_none() {
@@ -449,7 +456,9 @@ impl PlanningProfileFacts {
         complete_diagonal: Some(true),
     };
 
-    fn from_problem(problem: &LinearProblem<'_>) -> Self {
+    fn from_problem<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>(
+        problem: &LinearProblem<'_, S>,
+    ) -> Self {
         let system = problem.canonical_csr_system();
         Self {
             properties: problem.properties(),

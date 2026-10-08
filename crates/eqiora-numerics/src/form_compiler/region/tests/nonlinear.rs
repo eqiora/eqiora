@@ -9,7 +9,7 @@ model Transport() {
  relation balance on body { density*derivative(a) + div(density*outer_product(left = a, right = a)) = 0; }
 }";
 
-fn bind_unit(form: &CompiledRegionForm) -> BoundRegionForm {
+fn bind_unit(form: &CompiledRegionForm<f64>) -> BoundRegionForm<f64> {
     let bindings = form
         .fields()
         .map(|(field, value_type)| RegionFieldBinding {
@@ -362,7 +362,7 @@ fn operator_definition_not_name_controls_nonlinear_admission() {
     );
     let rule = simplex_duffy_gauss_legendre(2, 5).unwrap();
     let point = vec![0.4, -0.1, 1.2, 0.3, 0.7, -0.2];
-    let evaluate = |form: &BoundRegionForm| {
+    let evaluate = |form: &BoundRegionForm<f64>| {
         form.prepare_cell(&geometry(), &rule)
             .and_then(|cell| {
                 cell.linearize(

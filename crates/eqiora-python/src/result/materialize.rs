@@ -169,6 +169,15 @@ fn materialize_common_result_unprofiled(
     let mut outputs = Vec::with_capacity(result.field_count());
     let mut lookup = BTreeMap::new();
     for field_index in 0..result.field_count() {
+        let complex = match result.field_scalar_domain(field_index) {
+            Some(eqiora::ScalarDomain::Real) => false,
+            Some(eqiora::ScalarDomain::Complex) => true,
+            _ => {
+                return Err(PyRuntimeError::new_err(
+                    "common Result omitted a supported Field scalar domain",
+                ));
+            }
+        };
         let (field_id, dimension, value_shape, native_space) = result
             .field(field_index)
             .ok_or_else(|| PyRuntimeError::new_err("common Result omitted Field metadata"))?;
@@ -188,7 +197,8 @@ fn materialize_common_result_unprofiled(
             py,
             PyModelFieldRef::from_exact(identity.model_digest().to_owned(), field_id.clone()),
         )?;
-        let value_width = value_shape.iter().product::<usize>().max(1);
+        let value_width =
+            value_shape.iter().product::<usize>().max(1) * if complex { 2 } else { 1 };
         let blocks = (0..result.field_block_count(field_index))
             .map(|block_index| {
                 let (association, values, logical_shape) = result
@@ -201,7 +211,19 @@ fn materialize_common_result_unprofiled(
                 }
                 Ok(FieldOutputBlock::new(
                     association,
-                    PyArrayBuffer::from_owned_result(py, values.to_vec())?,
+                    if complex {
+                        PyArrayBuffer::from_owned_complex_result(
+                            py,
+                            values
+                                .as_chunks::<2>()
+                                .0
+                                .iter()
+                                .map(|pair| numpy::Complex64::new(pair[0], pair[1]))
+                                .collect(),
+                        )?
+                    } else {
+                        PyArrayBuffer::from_owned_result(py, values.to_vec())?
+                    },
                     values.len() / value_width,
                     logical_shape.to_vec(),
                 ))

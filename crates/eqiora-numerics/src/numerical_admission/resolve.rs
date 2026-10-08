@@ -117,6 +117,58 @@ impl ResolvedCommonPlan {
                 )
                 .map(|plan| ResolvedCommonPlan::Scalar(Box::new(plan)))
             }
+            RecognizedNativeModel::ComplexScalar(equations) => {
+                if resolve_scalar(spatial)? != NativeSpatialPolicy::ScalarQ1
+                    || scaling.is_some()
+                    || temporal.is_some()
+                {
+                    return Err(invalid(
+                        "complex spatial Plan requires steady Q1 without incompressible scaling",
+                    ));
+                }
+                let selection = resolve_formulation_request(
+                    formulation,
+                    FormulationKind::PrimalGalerkin,
+                    "complex scalar Q1",
+                )?;
+                let CommonSolvePolicy::Linear(request) = solve else {
+                    return Err(invalid(
+                        "complex spatial Plan requires exact linear controls",
+                    ));
+                };
+                if equations
+                    .regions
+                    .iter()
+                    .any(|region| region.form.is_transient())
+                {
+                    return Err(invalid(
+                        "complex spatial storage has no admitted temporal execution",
+                    ));
+                }
+                let structure = equations.algebraic_structure(None)?;
+                let mut linear = super::solver_planning::resolve_complex_linear(
+                    request,
+                    LinearOperatorProperties::General,
+                    stokes_backend,
+                )?;
+                let profile = eqiora_solver::HostSerialSolverProfile::canonical_csr(
+                    LinearOperatorProperties::General,
+                    None,
+                    None,
+                )
+                .with_structure(structure)?;
+                profile.require_plan(linear.solver)?;
+                linear.planning_profile = Some(profile);
+                let admission =
+                    recognized.complete(NativeSpatialPolicy::ScalarQ1, linear, None, None)?;
+                CommonScalarPlan::from_complex_admission(
+                    model,
+                    admission,
+                    selection,
+                    authored_formulation,
+                )
+                .map(|plan| ResolvedCommonPlan::Scalar(Box::new(plan)))
+            }
             RecognizedNativeModel::Elasticity(continuum) => {
                 let selection = resolve_formulation_request(
                     formulation,

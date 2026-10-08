@@ -74,7 +74,7 @@ pub(super) fn lower_newtonian_stress_viscosity(
     velocity: RawId,
     pressure: RawId,
     owner: RawId,
-) -> Result<Option<ScalarSpatialExpression>, Diagnostic> {
+) -> Result<Option<ScalarSpatialExpression<f64>>, Diagnostic> {
     lower_incompressible_stress_viscosity(
         program,
         residual,
@@ -94,7 +94,7 @@ pub(super) fn lower_incompressible_stress_viscosity(
     pressure: RawId,
     owner: RawId,
     form: IncompressibleStressForm,
-) -> Result<Option<ScalarSpatialExpression>, Diagnostic> {
+) -> Result<Option<ScalarSpatialExpression<f64>>, Diagnostic> {
     let Some(viscous) =
         incompressible_stress_viscous_root(residual, stress, velocity, pressure, owner, form)?
     else {
@@ -153,7 +153,7 @@ pub(super) fn lower_exact_twice_viscosity(
     value: ExprId,
     velocity: RawId,
     owner: RawId,
-) -> Result<Option<ScalarSpatialExpression>, Diagnostic> {
+) -> Result<Option<ScalarSpatialExpression<f64>>, Diagnostic> {
     let spatial_dimension = vector_field_dimension(program, velocity, owner)?;
     let expression = residual.expression();
     let mut factors = Vec::new();

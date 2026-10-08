@@ -11,6 +11,7 @@ use eqiora_sem::KernelProgram;
 
 use crate::constrained_dofs::ConstrainedDofLayout;
 use crate::form_compiler::region::{RegionFieldLayout, basis, components};
+use crate::spatial_expression::Coefficient;
 
 use super::invalid;
 
@@ -105,18 +106,18 @@ pub(crate) struct TraceBinding {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct RegionDofMap {
+pub(crate) struct RegionDofMap<S: Coefficient> {
     globals: BTreeMap<FieldDof, usize>,
     cells: Vec<Vec<usize>>,
     cell_keys: Vec<Vec<FieldDof>>,
     cell_domains: Vec<RawId>,
     traces: Vec<(ConformingTraceQuotient, BTreeSet<FieldDof>)>,
-    constraints: ConstrainedDofLayout,
+    constraints: ConstrainedDofLayout<S>,
     full_count: usize,
     fields: BTreeMap<RawId, (RawId, RegionFieldLayout)>,
 }
 
-impl RegionDofMap {
+impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
     /// Membership and Connections are already semantically admitted. This boundary
     /// rechecks exact local layout, complete mesh coverage and oriented trace closure.
     pub(crate) fn new(
@@ -125,7 +126,7 @@ impl RegionDofMap {
         reference: ReferenceCell,
         cell_domains: &[RawId],
         traces: &[TraceBinding],
-        prescribed: &BTreeMap<FieldDof, f64>,
+        prescribed: &BTreeMap<FieldDof, S>,
     ) -> Result<Self, Diagnostic> {
         let dimension = mesh.topological_dimension();
         if dimension == 0
@@ -149,7 +150,9 @@ impl RegionDofMap {
                 return Err(invalid("mapping Region has no algebraic Fields"));
             }
             for layout in region_fields {
-                if layout.components != components(&layout.value_type, dimension)?
+                if (layout.value_type.scalar_domain() == eqiora_core::ScalarDomain::Complex
+                    && S::DOMAIN != eqiora_core::ScalarDomain::Complex)
+                    || layout.components != components(&layout.value_type, dimension)?
                     || !layout.scale.is_finite()
                     || layout.scale <= 0.0
                 {
@@ -438,14 +441,14 @@ impl RegionDofMap {
     /// Replace essential values without rebuilding topology or quotient identity.
     pub(crate) fn with_prescribed(
         &self,
-        prescribed: &BTreeMap<FieldDof, f64>,
+        prescribed: &BTreeMap<FieldDof, S>,
     ) -> Result<Self, Diagnostic> {
         let mut fixed = vec![None; self.full_count];
         for (key, physical) in prescribed {
             let index = self
                 .global_dof(*key)
                 .ok_or_else(|| invalid("constraint references a missing exact Field DOF"))?;
-            let value = physical / self.field_scale(key.field)?;
+            let value = *physical / self.field_scale(key.field)?;
             if !value.is_finite() || fixed[index].is_some_and(|old| old != value) {
                 return Err(invalid(
                     "quotiented Field constraints are nonfinite or inconsistent",
@@ -462,7 +465,7 @@ impl RegionDofMap {
         &self,
         keys: &[FieldDof],
         reduced: bool,
-    ) -> Result<AssemblyMap<f64>, Diagnostic> {
+    ) -> Result<AssemblyMap<S>, Diagnostic> {
         let globals = keys
             .iter()
             .map(|key| {
@@ -477,7 +480,7 @@ impl RegionDofMap {
         }
     }
 
-    pub(crate) fn lift(&self, reduced: &[f64], direction: bool) -> Result<Vec<f64>, Diagnostic> {
+    pub(crate) fn lift(&self, reduced: &[S], direction: bool) -> Result<Vec<S>, Diagnostic> {
         if reduced.iter().any(|value| !value.is_finite()) {
             return Err(invalid("algebraic recovery requires finite values"));
         }
@@ -488,7 +491,7 @@ impl RegionDofMap {
         }
     }
 
-    pub(crate) fn restrict(&self, full: &[f64]) -> Result<Vec<f64>, Diagnostic> {
+    pub(crate) fn restrict(&self, full: &[S]) -> Result<Vec<S>, Diagnostic> {
         self.constraints.restrict(full)
     }
 
@@ -515,7 +518,7 @@ impl RegionDofMap {
         &self,
         cell: usize,
         reduced: bool,
-    ) -> Result<AssemblyMap<f64>, Diagnostic> {
+    ) -> Result<AssemblyMap<S>, Diagnostic> {
         let globals = self
             .cells
             .get(cell)

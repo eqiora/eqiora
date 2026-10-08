@@ -1,12 +1,13 @@
 use super::CompiledLinearBlockForm;
+use crate::spatial_expression::Coefficient;
 use eqiora_core::entity::kinds;
 use eqiora_core::{Diagnostic, Id};
 
-impl CompiledLinearBlockForm {
+impl<S: Coefficient> CompiledLinearBlockForm<S> {
     pub(crate) fn bind_parameter_point(
         &self,
         fields: &[Id<kinds::Parameter>],
-        values: &[f64],
+        values: &[S],
     ) -> Result<Self, Diagnostic> {
         let mut bound = self.clone();
         bound.volume = self.volume.bind_parameter_point(fields, values)?;

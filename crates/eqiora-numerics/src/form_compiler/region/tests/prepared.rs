@@ -7,7 +7,7 @@ const HEAT: &str = "model Heat() {
  relation balance on body { derivative(temperature) - div(diffusivity * grad(temperature)) = 0; }
 }";
 
-fn heat(step: f64, diffusivity: f64) -> BoundRegionForm {
+fn heat(step: f64, diffusivity: f64) -> BoundRegionForm<f64> {
     let compiled = derive(&HEAT.replace("m^2/s = 3", &format!("m^2/s = {diffusivity}"))).unwrap();
     let fields = compiled
         .fields()

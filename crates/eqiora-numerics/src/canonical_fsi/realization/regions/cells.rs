@@ -18,14 +18,14 @@ use super::super::validate::invalid_realization;
 #[allow(clippy::too_many_arguments)]
 pub(in super::super) fn prepare_cells(
     _model: &FixedReferenceFsiCartesianModel2d,
-    forms: &BTreeMap<RawId, BoundRegionForm>,
+    forms: &BTreeMap<RawId, BoundRegionForm<f64>>,
     mesh: &SimplicialMesh,
     partition: &FixedReferenceFsiPartition<2>,
     previous: &FixedReferenceFsiState<2>,
     quadrature: &QuadratureRule,
     prepared: &PreparedFixedReferenceFsiAssembly<'_, 2>,
     packet_set: AssemblyPacketSetIdentityV1,
-) -> Result<PreparedRegionAssembly, Diagnostic> {
+) -> Result<PreparedRegionAssembly<f64>, Diagnostic> {
     let mut domains = vec![None; partition.cell_count()];
     let mut cells = Vec::new();
     for (&domain, form) in forms {

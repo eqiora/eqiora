@@ -14,7 +14,7 @@ fn program(source: &str) -> KernelProgram {
     KernelProgram::from_snapshot(&store.snapshot(), model).unwrap()
 }
 
-fn derive(source: &str) -> Result<CompiledLinearBlockForm, Diagnostic> {
+fn derive(source: &str) -> Result<CompiledLinearBlockForm<f64>, Diagnostic> {
     let program = program(source);
     let domain = program
         .nodes()
@@ -27,8 +27,12 @@ fn derive(source: &str) -> Result<CompiledLinearBlockForm, Diagnostic> {
             _ => None,
         })
         .unwrap();
-    let form =
-        CompiledLinearBlockForm::derive(&program, domain, 1, &std::collections::BTreeSet::new())?;
+    let form = CompiledLinearBlockForm::<f64>::derive(
+        &program,
+        domain,
+        1,
+        &std::collections::BTreeSet::new(),
+    )?;
     assert_eq!(form.domain(), domain);
     Ok(form)
 }
@@ -133,9 +137,13 @@ fn parameter_point_rebinding_preserves_the_original_compiled_form() {
             _ => None,
         })
         .unwrap();
-    let form =
-        CompiledLinearBlockForm::derive(&program, domain, 1, &std::collections::BTreeSet::new())
-            .unwrap();
+    let form = CompiledLinearBlockForm::<f64>::derive(
+        &program,
+        domain,
+        1,
+        &std::collections::BTreeSet::new(),
+    )
+    .unwrap();
     let fields = program
         .nodes()
         .filter_map(|node| match node {
@@ -201,7 +209,7 @@ fn bound_volume_preserves_field_order_and_rebound_diffusion_positivity() {
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
     let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-    let form = CompiledLinearBlockForm::derive(
+    let form = CompiledLinearBlockForm::<f64>::derive(
         &program,
         symbols.get("body").unwrap(),
         1,
@@ -457,3 +465,97 @@ fn conservation_preserves_physical_flux_orientation() {
         .unwrap_err();
     assert!(error.message().contains("positive finite diffusion"));
 }
+
+#[test]
+fn complex_source_equation_uses_common_scalar_lowering_and_quadrature() {
+    use crate::form_compiler::bilinear::Pairing;
+    use crate::form_compiler::region::integration::{IntegralTerm, integrate};
+    use eqiora_realization::Space;
+    use num_complex::Complex64 as C;
+    let program = program(
+        r#"
+model Wave() {
+  domain body = box(0, 6);
+  parameter a: complex<1> = math.complex(6, 6);
+  parameter q: complex<1 / m ^ 2> = math.complex(3, -1);
+  parameter f: complex<1 / m ^ 2> = math.complex(1, 3);
+  variable u: complex<1> on body;
+  relation wave on body { -div(a * grad(u)) + q * u - f = 0; }
+}
+"#,
+    );
+    let domain = program
+        .nodes()
+        .find_map(|node| match node {
+            KernelNode::Domain(domain) => Some(domain.id().erase()),
+            _ => None,
+        })
+        .unwrap();
+    let roles = EquationRoles::derive(&program, [domain]).unwrap();
+    let known = coefficients::<C>(&program, 1, &roles).unwrap();
+    let (relation, field) = roles
+        .relations
+        .iter()
+        .find_map(|(relation, role)| match role.kind {
+            Role::Residual { tested } => Some((*relation, tested)),
+            _ => None,
+        })
+        .unwrap();
+    let typed = typed_relation(&program, relation).unwrap();
+    let context = Context {
+        program: &program,
+        dag: typed.expression(),
+        owner: relation,
+        dimension: 1,
+        coefficients: &known,
+    };
+    let row = context.terms(typed.expression().roots()[0], 0).unwrap();
+    assert_eq!(row.diffusion.len(), 1);
+    assert_eq!(row.reaction.len(), 1);
+    assert!(row.storage.is_empty());
+    let reference = ReferenceCell::hypercube(1).unwrap();
+    let geometry = AffineGeometryMap::new(reference, 1, vec![3.0], vec![3.0]).unwrap();
+    let quadrature = QuadratureRule::gauss_legendre(2).unwrap();
+    let local = integrate(
+        reference,
+        &[(Space::continuous_lagrange(std::num::NonZeroU16::MIN), 1)],
+        &[
+            IntegralTerm {
+                row: 0,
+                column: 0,
+                pairing: Pairing::Gradient,
+                trial_scale: 1.0,
+            },
+            IntegralTerm {
+                row: 0,
+                column: 0,
+                pairing: Pairing::Value,
+                trial_scale: 1.0,
+            },
+        ],
+        &geometry,
+        &quadrature,
+        |point, values, forcing, _| {
+            values[0] = row.diffusion[&field].evaluate(point)?;
+            values[1] = row.reaction[&field].evaluate(point)?;
+            forcing[0] = -row.constant.evaluate(point)?;
+            Ok(())
+        },
+    )
+    .unwrap();
+    // h=6: stiffness=a/6 [[1,-1],[-1,1]], mass=q [[2,1],[1,2]], load=3f.
+    for (actual, expected) in local.matrix().iter().zip([
+        C::new(7.0, -1.0),
+        C::new(2.0, -2.0),
+        C::new(2.0, -2.0),
+        C::new(7.0, -1.0),
+    ]) {
+        assert!((*actual - expected).norm() < 1e-12);
+    }
+    for actual in local.rhs() {
+        assert!((*actual - C::new(3.0, 9.0)).norm() < 1e-12);
+    }
+    assert_ne!(local.matrix()[1], local.matrix()[2].conj());
+}
+
+mod complex;

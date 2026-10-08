@@ -59,7 +59,7 @@ pub(crate) struct PreparedResolvedFixedReferenceFsiRun2d<'a> {
     layout: crate::simplicial_fsi::layout::FsiLayout<2>,
     regions: std::collections::BTreeMap<
         eqiora_core::RawId,
-        crate::form_compiler::region::BoundRegionForm,
+        crate::form_compiler::region::BoundRegionForm<f64>,
     >,
 }
 

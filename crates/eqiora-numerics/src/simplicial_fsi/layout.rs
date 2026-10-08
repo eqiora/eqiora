@@ -17,7 +17,7 @@ pub(crate) struct FsiLayout<const D: usize = 2> {
     reference: Arc<SimplicialMesh>,
     partition: Arc<FixedReferenceFsiPartition<D>>,
     boundary: Arc<FixedReferenceFsiBoundary<D>>,
-    mapping: RegionDofMap,
+    mapping: RegionDofMap<f64>,
     roles: FsiRoles,
     time_step: eqiora_realization::BackwardEulerStep,
 }
@@ -126,14 +126,14 @@ impl<const D: usize> FsiLayout<D> {
         }
         Ok(())
     }
-    pub(crate) fn mapping(&self) -> &RegionDofMap {
+    pub(crate) fn mapping(&self) -> &RegionDofMap<f64> {
         &self.mapping
     }
     pub(crate) fn reactions(
         &self,
         work: &dyn eqiora_assembly::AssemblyWork<f64>,
         target: eqiora_assembly::AssemblyTargetId,
-    ) -> Result<crate::region_assembly::InterfaceReactions, Diagnostic> {
+    ) -> Result<crate::region_assembly::InterfaceReactions<f64>, Diagnostic> {
         crate::region_assembly::InterfaceReactions::prepare(
             work,
             target,
@@ -191,7 +191,7 @@ impl<const D: usize> FsiLayout<D> {
         mesh: &SimplicialMesh,
         partition: &FixedReferenceFsiPartition<D>,
         boundary: &FixedReferenceFsiBoundary<D>,
-        mapping: &RegionDofMap,
+        mapping: &RegionDofMap<f64>,
         roles: FsiRoles,
         time_step: eqiora_realization::BackwardEulerStep,
     ) -> Result<Self, Diagnostic> {

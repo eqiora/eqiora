@@ -36,7 +36,7 @@ pub struct FinalizedResolvedFixedReferenceFsiStep2d {
     mesh_artifact: MeshArtifactReference,
     realization_plan: CoupledFieldwiseRealizationPlan,
     realization_graph: PortableRealizationGraph,
-    core: FinalizedLinearCore,
+    core: FinalizedLinearCore<f64>,
     inner: FinalizedFixedReferenceFsiStep<2>,
 }
 

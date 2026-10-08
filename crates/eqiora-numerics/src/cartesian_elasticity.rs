@@ -382,7 +382,7 @@ pub fn solve_cartesian_q1_linear_elasticity_2d(
     mesh: &CartesianMesh,
     shear_modulus: f64,
     first_lame_parameter: f64,
-    body_force_potential: &ScalarSpatialExpression,
+    body_force_potential: &ScalarSpatialExpression<f64>,
     quadrature: &QuadratureRule,
     solver: LinearSolveRequest<'_>,
 ) -> Result<CartesianLinearElasticity2dSolution, Diagnostic> {
@@ -407,7 +407,7 @@ pub fn solve_cartesian_q1_linear_elasticity_2d_with_assembly(
     mesh: &CartesianMesh,
     shear_modulus: f64,
     first_lame_parameter: f64,
-    body_force_potential: &ScalarSpatialExpression,
+    body_force_potential: &ScalarSpatialExpression<f64>,
     quadrature: &QuadratureRule,
     assembly: &dyn AssemblyBackend<f64>,
     solver: LinearSolveRequest<'_>,
@@ -430,7 +430,7 @@ pub fn solve_cartesian_q1_linear_elasticity_2d_with_assembly(
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FinalizedCartesianElasticity2dAssembly {
     mesh: CartesianMesh,
-    constrained_dofs: ConstrainedDofLayout,
+    constrained_dofs: ConstrainedDofLayout<f64>,
     linear_system: eqiora_assembly::LinearSystem<f64>,
     full_system: eqiora_assembly::LinearSystem<f64>,
     integrated_body_force: [f64; COMPONENTS],
@@ -475,7 +475,7 @@ impl FinalizedCartesianElasticity2dAssembly {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FinalizedCartesianElasticity2dState {
     mesh: CartesianMesh,
-    constrained_dofs: ConstrainedDofLayout,
+    constrained_dofs: ConstrainedDofLayout<f64>,
     full_system: eqiora_assembly::LinearSystem<f64>,
     integrated_body_force: [f64; COMPONENTS],
     assembly_report: AssemblyReport,
@@ -528,7 +528,7 @@ impl FinalizedCartesianElasticity2dState {
 pub(crate) fn finalize_cartesian_q1_linear_elasticity_2d(
     mesh: &CartesianMesh,
     material: IsotropicElasticityMaterial<DIMENSION>,
-    body_force_potential: &ScalarSpatialExpression,
+    body_force_potential: &ScalarSpatialExpression<f64>,
     quadrature: &QuadratureRule,
     essential_sides: CartesianEssentialSides2d,
     tractions: [[Option<[f64; COMPONENTS]>; 2]; DIMENSION],

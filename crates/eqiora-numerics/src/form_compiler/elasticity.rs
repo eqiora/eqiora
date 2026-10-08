@@ -61,7 +61,7 @@ pub(crate) struct DerivedCartesianQ1ElasticityForm2d {
     balance_relation: RawId,
     material_parameters: [Id<kinds::Parameter>; 2],
     parameters: [Id<kinds::Parameter>; 3],
-    load: ScalarSpatialExpression,
+    load: ScalarSpatialExpression<f64>,
     volume: VolumeNodes,
     boundaries: Vec<BoundaryRole>,
     certificate: PrimalGalerkinCorrespondence,
@@ -222,6 +222,11 @@ impl ElasticityDerivationSource<'_> {
                     self.balance_relation,
                     self.volume,
                     &boundary_sources,
+                    &[super::vocabulary::PrimalValueTerm {
+                        source_node: self.volume.load_gradient,
+                        sign: super::vocabulary::WeakSign::Positive,
+                        trial_dependent: false,
+                    }],
                 ))
                 .is_err()
         {
@@ -245,7 +250,7 @@ impl<'form> AdmittedCartesianQ1ElasticityForm2d<'form> {
         quadrature: &QuadratureRule,
         shear_modulus: f64,
         first_lame_parameter: f64,
-        body_force_potential: Option<&ScalarSpatialExpression>,
+        body_force_potential: Option<&ScalarSpatialExpression<f64>>,
     ) -> Result<LocalContribution<f64>, Diagnostic> {
         if let Some(form) = self.form {
             let potential = body_force_potential.ok_or_else(|| {
@@ -437,7 +442,7 @@ fn cumulative_local_form(
     quadrature: &QuadratureRule,
     admitted_quadrature: &QuadratureRule,
     material: [f64; 2],
-    potential: Option<&ScalarSpatialExpression>,
+    potential: Option<&ScalarSpatialExpression<f64>>,
     request: EvaluationRequest<'_>,
 ) -> Result<CartesianElasticityDifferentialActions2d, Diagnostic> {
     validate_realization(geometry, quadrature, admitted_quadrature)?;
@@ -846,7 +851,12 @@ fn build_certificate(
         root: volume.root,
         divergence: volume.divergence,
         divergence_sign: super::vocabulary::WeakSign::Positive,
-        source: volume.load_gradient,
+        values: &[super::vocabulary::PrimalValueTerm {
+            source_node: volume.load_gradient,
+            sign: super::vocabulary::WeakSign::Positive,
+            trial_dependent: false,
+        }],
+        conjugate_test: false,
         boundaries: &boundary_sources,
     })
 }
@@ -869,6 +879,7 @@ fn correspondence_source<'a>(
     balance_relation: RawId,
     volume: VolumeNodes,
     boundaries: &'a [BoundarySource],
+    values: &'a [super::vocabulary::PrimalValueTerm],
 ) -> PrimalGalerkinSource<'a> {
     PrimalGalerkinSource {
         domain,
@@ -877,7 +888,8 @@ fn correspondence_source<'a>(
         root: volume.root,
         divergence: volume.divergence,
         divergence_sign: super::vocabulary::WeakSign::Positive,
-        source: volume.load_gradient,
+        values,
+        conjugate_test: false,
         boundaries,
     }
 }
@@ -899,7 +911,7 @@ fn typed_relation(
         })
 }
 
-fn affine_body_force(expression: &ScalarSpatialExpression) -> Result<[f64; 2], Diagnostic> {
+fn affine_body_force(expression: &ScalarSpatialExpression<f64>) -> Result<[f64; 2], Diagnostic> {
     expression
         .affine_gradient()
         .and_then(|gradient| gradient.try_into().ok())
@@ -907,7 +919,7 @@ fn affine_body_force(expression: &ScalarSpatialExpression) -> Result<[f64; 2], D
 }
 
 fn potential_gradient(
-    potential: &ScalarSpatialExpression,
+    potential: &ScalarSpatialExpression<f64>,
     coordinates: &[f64; DIMENSION],
     zero_parameter_tangent: &[f64],
 ) -> Result<[f64; COMPONENTS], Diagnostic> {

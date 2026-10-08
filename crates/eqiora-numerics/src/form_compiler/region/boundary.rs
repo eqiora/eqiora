@@ -11,7 +11,7 @@ use crate::canonical_boundary::{BoundaryRelationBinding, PhysicalBoundaryQuantit
 use super::*;
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct RegionBoundaryLaw {
+pub(crate) struct RegionBoundaryLaw<S: Coefficient> {
     pub(crate) binding: BoundaryRelationBinding,
     pub(crate) tested: RawId,
     pub(crate) trace_field: Option<RawId>,
@@ -19,17 +19,17 @@ pub(crate) struct RegionBoundaryLaw {
     pub(crate) dependencies: BTreeSet<RawId>,
     pub(crate) operator: ExprId,
     pub(crate) datum_expression: Option<ExprId>,
-    datum: BoundaryDatum,
+    datum: BoundaryDatum<S>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum BoundaryDatum {
-    Components(Vec<Data>),
-    NormalMultiple(Data),
+enum BoundaryDatum<S: Coefficient> {
+    Components(Vec<Data<S>>),
+    NormalMultiple(Data<S>),
 }
 
-impl RegionBoundaryLaw {
-    pub(crate) fn evaluate(&self, point: &[f64], normal: &[f64]) -> Result<Vec<f64>, Diagnostic> {
+impl<S: Coefficient> RegionBoundaryLaw<S> {
+    pub(crate) fn evaluate(&self, point: &[f64], normal: &[f64]) -> Result<Vec<S>, Diagnostic> {
         match &self.datum {
             BoundaryDatum::Components(values) => {
                 values.iter().map(|value| value.evaluate(point)).collect()
@@ -39,7 +39,10 @@ impl RegionBoundaryLaw {
                 if normal.len() != point.len() || normal.iter().any(|value| !value.is_finite()) {
                     return Err(invalid("boundary datum requires the exact parent normal"));
                 }
-                Ok(normal.iter().map(|normal| normal * value).collect())
+                Ok(normal
+                    .iter()
+                    .map(|normal| <S as From<f64>>::from(*normal) * value)
+                    .collect())
             }
         }
     }
@@ -47,7 +50,7 @@ impl RegionBoundaryLaw {
     pub(crate) fn bind_parameter_point(
         &mut self,
         fields: &[Id<kinds::Parameter>],
-        values: &[f64],
+        values: &[S],
     ) -> Result<(), Diagnostic> {
         match &mut self.datum {
             BoundaryDatum::Components(components) => {
@@ -63,13 +66,13 @@ impl RegionBoundaryLaw {
     }
 }
 
-impl CompiledRegionForm {
+impl<S: Coefficient> CompiledRegionForm<S> {
     pub(in crate::form_compiler) fn boundary_law(
         &self,
         program: &KernelProgram,
         boundary: RawId,
         relation: RawId,
-    ) -> Result<RegionBoundaryLaw, Diagnostic> {
+    ) -> Result<RegionBoundaryLaw<S>, Diagnostic> {
         if crate::canonical::boundary_parent(program, boundary) != Some(self.domain)
             || !crate::canonical::relations_on(program, boundary).contains(&relation)
         {
@@ -179,7 +182,13 @@ impl CompiledRegionForm {
         };
         let count = components(&row.value_type, self.dimension)?;
         let mut datum = match datum_expression {
-            None => BoundaryDatum::Components(vec![Data::constant(self.dimension, 0.0); count]),
+            None => BoundaryDatum::Components(vec![
+                Data::constant(
+                    self.dimension,
+                    <S as From<f64>>::from(0.0)
+                );
+                count
+            ]),
             Some(id) if row.value_type.shape().is_scalar() => {
                 BoundaryDatum::Components(vec![context.data(id, 0)?])
             }
@@ -193,7 +202,7 @@ impl CompiledRegionForm {
                         let potential = context.data(*potential, 0)?;
                         let primal = potential
                             .clone()
-                            .multiply(Data::constant(self.dimension, 0.0));
+                            .multiply(Data::constant(self.dimension, <S as From<f64>>::from(0.0)));
                         BoundaryDatum::Components(
                             (0..count)
                                 .map(|axis| {
@@ -230,7 +239,7 @@ impl CompiledRegionForm {
             .first()
             .is_some_and(|value| value.sign() == operator.sign())
         {
-            let negative = Data::constant(self.dimension, -1.0);
+            let negative = Data::constant(self.dimension, <S as From<f64>>::from(-1.0));
             match &mut datum {
                 BoundaryDatum::Components(components) => {
                     for value in components {

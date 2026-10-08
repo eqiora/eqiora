@@ -1,5 +1,6 @@
 //! Exact Domain residuals, accumulated once before Connection projection.
 use super::invalid;
+use crate::spatial_expression::Coefficient;
 use eqiora_assembly::{AssemblyDelta, AssemblyRowDelta, AssemblyTargetId, AssemblyWork};
 use eqiora_core::{Diagnostic, RawId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -8,14 +9,14 @@ mod interfaces;
 pub(crate) use interfaces::{InterfaceReactions, RecoveredInterfaceReactions};
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct DomainReactions {
+pub(crate) struct DomainReactions<S> {
     size: usize,
-    rows: BTreeMap<RawId, Vec<AssemblyRowDelta<f64>>>,
+    rows: BTreeMap<RawId, Vec<AssemblyRowDelta<S>>>,
 }
 
-impl DomainReactions {
+impl<S: Coefficient + Sync> DomainReactions<S> {
     pub(crate) fn prepare(
-        work: &dyn AssemblyWork<f64>,
+        work: &dyn AssemblyWork<S>,
         source_target: AssemblyTargetId,
         size: usize,
         packet_domains: &[RawId],
@@ -57,7 +58,7 @@ impl DomainReactions {
         })
     }
 
-    pub(crate) fn recover(&self, values: &[f64]) -> Result<RecoveredDomainReactions, Diagnostic> {
+    pub(crate) fn recover(&self, values: &[S]) -> Result<RecoveredDomainReactions<S>, Diagnostic> {
         if values.len() != self.size || values.iter().any(|value| !value.is_finite()) {
             return Err(invalid(
                 "reaction values differ from the exact finite full solution",
@@ -65,11 +66,11 @@ impl DomainReactions {
         }
         let mut recovered = BTreeMap::new();
         for (&domain, rows) in &self.rows {
-            let mut residual = vec![0.0; self.size];
+            let mut residual = vec![S::zero(); self.size];
             for row in rows {
-                let mut product_sum = 0.0;
+                let mut product_sum = S::zero();
                 for (column, coefficient) in row.entries() {
-                    let product = coefficient * values[column.index()];
+                    let product = *coefficient * values[column.index()];
                     product_sum += product;
                 }
                 residual[row.row().index()] += product_sum - row.rhs();
@@ -83,6 +84,6 @@ impl DomainReactions {
     }
 }
 
-pub(crate) struct RecoveredDomainReactions {
-    pub(crate) values: BTreeMap<RawId, Vec<f64>>,
+pub(crate) struct RecoveredDomainReactions<S> {
+    pub(crate) values: BTreeMap<RawId, Vec<S>>,
 }

@@ -92,7 +92,27 @@ impl PrimalGalerkinCorrespondence {
             .boundaries
             .iter()
             .any(|b| b.discharge == BoundaryDischarge::PrescribedFlux);
-        if self.formulation.direction != DirectionalProof::StrongImpliesWeak
+        let mut expected_rules = vec![
+            if source.conjugate_test {
+                FormulationRule::ConjugatedTestPairing
+            } else {
+                FormulationRule::TestPairing
+            },
+            FormulationRule::DivergenceByParts,
+            if has_prescribed {
+                FormulationRule::TraceOrPrescribedFlux
+            } else if has_natural {
+                FormulationRule::TraceOrZeroFluxDischarge
+            } else {
+                FormulationRule::ZeroTestTraceDischarge
+            },
+        ];
+        if source.values.iter().any(|term| term.trial_dependent) {
+            expected_rules.push(FormulationRule::ValuePairing);
+        }
+        expected_rules.push(FormulationRule::SourcePairing);
+        if self.formulation.conjugate_test != source.conjugate_test
+            || self.formulation.direction != DirectionalProof::StrongImpliesWeak
             || self.formulation.assumptions
                 != eqiora_compiler::AuthoredFormulationProjection::required_assumptions()
             || !self.formulation.zero_on.iter().copied().eq(source
@@ -109,29 +129,21 @@ impl PrimalGalerkinCorrespondence {
                 } else {
                     BoundaryTreatment::CompleteEssential
                 }
-            || self.formulation.rules
-                != [
-                    FormulationRule::TestPairing,
-                    FormulationRule::DivergenceByParts,
-                    if has_prescribed {
-                        FormulationRule::TraceOrPrescribedFlux
-                    } else if has_natural {
-                        FormulationRule::TraceOrZeroFluxDischarge
-                    } else {
-                        FormulationRule::ZeroTestTraceDischarge
-                    },
-                    FormulationRule::SourcePairing,
-                ]
+            || self.formulation.rules != expected_rules
         {
             return Err("scalar effective Formulation or closed rule inventory is stale");
         }
 
         // The retained order is test introduction, parts, every boundary discharge,
-        // then source pairing. Requiring exhaustion rejects extra/missing terms.
+        // then ordered reaction/load pairings. Requiring exhaustion rejects extra/missing terms.
         let mut entries = self.entries.iter();
         check_entry(
             entries.next(),
-            TEST_PAIRING,
+            if source.conjugate_test {
+                CONJUGATED_TEST_PAIRING
+            } else {
+                TEST_PAIRING
+            },
             source.volume_relation,
             source.root,
             WeakTermSlot::TestPairing {
@@ -165,16 +177,29 @@ impl PrimalGalerkinCorrespondence {
                 },
             )?;
         }
-        check_entry(
-            entries.next(),
-            SOURCE_PAIRING,
-            source.volume_relation,
-            source.source,
-            WeakTermSlot::Linear {
-                test: MatrixSlot::Test,
-            },
-            WeakSign::Positive,
-        )?;
+        for term in source.values {
+            check_entry(
+                entries.next(),
+                if term.trial_dependent {
+                    VALUE_PAIRING
+                } else {
+                    SOURCE_PAIRING
+                },
+                source.volume_relation,
+                term.source_node,
+                if term.trial_dependent {
+                    WeakTermSlot::Bilinear {
+                        test: MatrixSlot::Test,
+                        trial: MatrixSlot::Trial,
+                    }
+                } else {
+                    WeakTermSlot::Linear {
+                        test: MatrixSlot::Test,
+                    }
+                },
+                term.sign,
+            )?;
+        }
         if entries.next().is_some() {
             return Err("scalar correspondence has unconsumed entries");
         }

@@ -37,8 +37,8 @@ pub(super) fn lower(
     domain: RawId,
     trace_field: RawId,
     stress_displacement: RawId,
-    volume_two_mu: &ScalarSpatialExpression,
-    volume_lambda: &ScalarSpatialExpression,
+    volume_two_mu: &ScalarSpatialExpression<f64>,
+    volume_lambda: &ScalarSpatialExpression<f64>,
 ) -> Result<LoweredElasticityBoundary2d, Diagnostic> {
     lower_with_boundaries(
         program,
@@ -56,8 +56,8 @@ pub(super) fn lower_with_boundaries(
     domain: RawId,
     trace_field: RawId,
     stress_displacement: RawId,
-    volume_two_mu: &ScalarSpatialExpression,
-    volume_lambda: &ScalarSpatialExpression,
+    volume_two_mu: &ScalarSpatialExpression<f64>,
+    volume_lambda: &ScalarSpatialExpression<f64>,
     exact_boundaries: BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), RawId>,
 ) -> Result<LoweredElasticityBoundary2d, Diagnostic> {
     lower_dimension_with_boundaries::<2>(
@@ -76,8 +76,8 @@ pub(super) fn lower_dimension<const D: usize>(
     domain: RawId,
     trace_field: RawId,
     stress_displacement: RawId,
-    volume_two_mu: &ScalarSpatialExpression,
-    volume_lambda: &ScalarSpatialExpression,
+    volume_two_mu: &ScalarSpatialExpression<f64>,
+    volume_lambda: &ScalarSpatialExpression<f64>,
 ) -> Result<LoweredElasticityBoundary<D>, Diagnostic> {
     let exact_boundaries = exact_cartesian_boundaries::<D>(program, domain)?;
     lower_dimension_with_boundaries(
@@ -96,8 +96,8 @@ pub(crate) fn lower_dimension_with_boundaries<const D: usize>(
     _domain: RawId,
     trace_field: RawId,
     stress_displacement: RawId,
-    volume_two_mu: &ScalarSpatialExpression,
-    volume_lambda: &ScalarSpatialExpression,
+    volume_two_mu: &ScalarSpatialExpression<f64>,
+    volume_lambda: &ScalarSpatialExpression<f64>,
     exact_boundaries: BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), RawId>,
 ) -> Result<LoweredElasticityBoundary<D>, Diagnostic> {
     let mut entries = BTreeMap::new();
@@ -187,8 +187,8 @@ fn direct_disposition<const D: usize>(
     relation: RawId,
     trace_field: RawId,
     stress_displacement: RawId,
-    volume_two_mu: &ScalarSpatialExpression,
-    volume_lambda: &ScalarSpatialExpression,
+    volume_two_mu: &ScalarSpatialExpression<f64>,
+    volume_lambda: &ScalarSpatialExpression<f64>,
 ) -> Result<Option<PhysicalBoundaryDisposition>, Diagnostic> {
     let expression = &relation_expression(program, relation)?;
     let [root] = expression.roots() else {
@@ -299,8 +299,8 @@ fn normalize_physical_interface(
     boundary: RawId,
     trace_field: RawId,
     stress_displacement: RawId,
-    volume_two_mu: &ScalarSpatialExpression,
-    volume_lambda: &ScalarSpatialExpression,
+    volume_two_mu: &ScalarSpatialExpression<f64>,
+    volume_lambda: &ScalarSpatialExpression<f64>,
     boundary_relations: &[RawId],
 ) -> Result<crate::canonical_boundary::NormalizedFieldPhysicalInterface, Diagnostic> {
     let mut interfaces = Vec::new();
@@ -340,8 +340,8 @@ fn interface_port(
     relation: RawId,
     trace_field: RawId,
     stress_displacement: RawId,
-    volume_two_mu: &ScalarSpatialExpression,
-    volume_lambda: &ScalarSpatialExpression,
+    volume_two_mu: &ScalarSpatialExpression<f64>,
+    volume_lambda: &ScalarSpatialExpression<f64>,
 ) -> Result<Option<RawId>, Diagnostic> {
     let expression = &relation_expression(program, relation)?;
     let [first, second] = expression.roots() else {
@@ -389,8 +389,8 @@ fn require_matching_stress(
     stress: ExprId,
     displacement: RawId,
     relation: RawId,
-    volume_two_mu: &ScalarSpatialExpression,
-    volume_lambda: &ScalarSpatialExpression,
+    volume_two_mu: &ScalarSpatialExpression<f64>,
+    volume_lambda: &ScalarSpatialExpression<f64>,
 ) -> Result<(), Diagnostic> {
     let typed = typed_relation(program, relation)?;
     debug_assert_eq!(typed.expression(), expression);

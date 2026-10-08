@@ -21,7 +21,7 @@ use crate::simplicial_stokes::{FinalizedMiniStokesAssembly, FinalizedMiniStokesS
 /// prescribed-traction boundary, never an implicit execution choice.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FinalizedSimplicialMiniStokes2dProblem {
-    core: FinalizedLinearCore,
+    core: FinalizedLinearCore<f64>,
     state: FinalizedMiniStokesState,
 }
 

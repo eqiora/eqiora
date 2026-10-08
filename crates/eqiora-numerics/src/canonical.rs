@@ -52,15 +52,15 @@ use eqiora_meshing::CartesianMesh;
 #[derive(Debug, Clone, PartialEq)]
 pub enum ScalarEllipticCartesianBoundary {
     /// Prescribed trace value.
-    Essential(ScalarSpatialExpression),
+    Essential(ScalarSpatialExpression<f64>),
     /// Prescribed outward constitutive flux.
-    Natural(ScalarSpatialExpression),
+    Natural(ScalarSpatialExpression<f64>),
 }
 
 impl ScalarEllipticCartesianBoundary {
     /// Canonical boundary-data expression in full physical coordinates.
     #[must_use]
-    pub const fn value(&self) -> &ScalarSpatialExpression {
+    pub const fn value(&self) -> &ScalarSpatialExpression<f64> {
         match self {
             Self::Essential(value) | Self::Natural(value) => value,
         }
@@ -85,8 +85,8 @@ pub struct ScalarEllipticCartesianModel {
     domain: RawId,
     field: RawId,
     bounds: Vec<[f64; 2]>,
-    coefficient: ScalarSpatialExpression,
-    source: ScalarSpatialExpression,
+    coefficient: ScalarSpatialExpression<f64>,
+    source: ScalarSpatialExpression<f64>,
     boundaries: BTreeMap<(usize, BoundarySide), ScalarEllipticCartesianBoundary>,
     parameter_fields: Vec<Id<kinds::Parameter>>,
     parameter_values: Vec<f64>,
@@ -234,13 +234,13 @@ impl ScalarEllipticCartesianModel {
 
     /// Canonical constitutive-coefficient expression at this revision.
     #[must_use]
-    pub const fn coefficient_expression(&self) -> &ScalarSpatialExpression {
+    pub const fn coefficient_expression(&self) -> &ScalarSpatialExpression<f64> {
         &self.coefficient
     }
 
     /// Canonical scalar source expression.
     #[must_use]
-    pub const fn source(&self) -> &ScalarSpatialExpression {
+    pub const fn source(&self) -> &ScalarSpatialExpression<f64> {
         &self.source
     }
 
@@ -457,7 +457,7 @@ impl ScalarEllipticCartesianModel {
 
     fn evaluate_expression_jvp(
         &self,
-        expression: &ScalarSpatialExpression,
+        expression: &ScalarSpatialExpression<f64>,
         coordinates: &[f64],
         coordinate_tangent: &[f64],
         parameter_tangent: &[f64],
@@ -496,7 +496,7 @@ pub struct ScalarEllipticModel1d {
     field: RawId,
     interval: [f64; 2],
     coefficient: f64,
-    source: ScalarSpatialExpression,
+    source: ScalarSpatialExpression<f64>,
     boundary: ScalarBoundaryPair1d,
 }
 
@@ -543,7 +543,7 @@ impl ScalarEllipticModel1d {
 
     /// Canonical scalar source expression in coherent SI coordinates.
     #[must_use]
-    pub const fn source(&self) -> &ScalarSpatialExpression {
+    pub const fn source(&self) -> &ScalarSpatialExpression<f64> {
         &self.source
     }
 

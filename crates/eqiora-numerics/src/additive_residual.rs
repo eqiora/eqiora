@@ -79,6 +79,16 @@ impl AdditiveResidualView {
         root: ExprId,
         owner: RawId,
     ) -> Result<Self, Diagnostic> {
+        Self::derive_preserving(expression, root, owner, &|_| false)
+    }
+
+    /// Retain admitted coefficient subtrees at their source boundary.
+    pub(crate) fn derive_preserving(
+        expression: &ExprDag,
+        root: ExprId,
+        owner: RawId,
+        preserve: &impl Fn(ExprId) -> bool,
+    ) -> Result<Self, Diagnostic> {
         let mut leaves = Vec::new();
         let mut provenance = Vec::new();
         flatten(
@@ -89,6 +99,7 @@ impl AdditiveResidualView {
             &mut provenance,
             &mut leaves,
             owner,
+            preserve,
         )?;
         Ok(Self { owner, leaves })
     }
@@ -125,6 +136,7 @@ fn flatten(
     provenance: &mut Vec<AdditiveStep>,
     leaves: &mut Vec<SignedOpaqueLeaf>,
     owner: RawId,
+    preserve: &impl Fn(ExprId) -> bool,
 ) -> Result<(), Diagnostic> {
     if depth > MAX_ADDITIVE_DEPTH {
         return Err(admission_error(
@@ -133,7 +145,7 @@ fn flatten(
         ));
     }
     match expression.node(value) {
-        Some(ExprNode::Add(left, right)) => {
+        Some(ExprNode::Add(left, right)) if !preserve(value) => {
             descend(
                 expression,
                 *left,
@@ -143,6 +155,7 @@ fn flatten(
                 provenance,
                 leaves,
                 owner,
+                preserve,
             )?;
             descend(
                 expression,
@@ -153,9 +166,10 @@ fn flatten(
                 provenance,
                 leaves,
                 owner,
+                preserve,
             )
         }
-        Some(ExprNode::Sub(left, right)) => {
+        Some(ExprNode::Sub(left, right)) if !preserve(value) => {
             descend(
                 expression,
                 *left,
@@ -165,6 +179,7 @@ fn flatten(
                 provenance,
                 leaves,
                 owner,
+                preserve,
             )?;
             descend(
                 expression,
@@ -175,9 +190,10 @@ fn flatten(
                 provenance,
                 leaves,
                 owner,
+                preserve,
             )
         }
-        Some(ExprNode::Neg(operand)) => descend(
+        Some(ExprNode::Neg(operand)) if !preserve(value) => descend(
             expression,
             *operand,
             sign.negated(),
@@ -186,6 +202,7 @@ fn flatten(
             provenance,
             leaves,
             owner,
+            preserve,
         ),
         Some(_) => {
             if leaves.len() == MAX_ADDITIVE_LEAVES {
@@ -221,6 +238,7 @@ fn descend(
     provenance: &mut Vec<AdditiveStep>,
     leaves: &mut Vec<SignedOpaqueLeaf>,
     owner: RawId,
+    preserve: &impl Fn(ExprId) -> bool,
 ) -> Result<(), Diagnostic> {
     provenance.push(step);
     let result = flatten(
@@ -231,6 +249,7 @@ fn descend(
         provenance,
         leaves,
         owner,
+        preserve,
     );
     provenance.pop();
     result

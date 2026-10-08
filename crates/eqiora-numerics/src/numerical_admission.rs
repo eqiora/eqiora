@@ -639,11 +639,11 @@ pub struct CommonScalarPlan {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct CommonScalarRunOutput {
+pub(crate) struct CommonScalarRunOutput<S> {
     pub(crate) fields: Vec<(
         eqiora_core::Id<eqiora_core::entity::kinds::Field>,
         eqiora_core::ValueType,
-        Vec<f64>,
+        Vec<S>,
     )>,
     pub(crate) solve_report: eqiora_solver::SolveReport,
     pub(crate) assembly_report: eqiora_assembly::AssemblyReport,

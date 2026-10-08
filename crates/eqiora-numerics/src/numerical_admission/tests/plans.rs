@@ -1,3 +1,4 @@
+mod complex;
 mod interval;
 mod observables;
 use super::*;
@@ -257,7 +258,7 @@ pub(super) fn scalar_q1_and_tpfa_consume_one_exact_anisotropic_common_mesh() {
     let alternate_provider = admit(
         resources(&geometry),
         CommonSpatialPolicy::Q1,
-        NativeLinearPolicy::exact(
+        NativeLinearPolicy::exact::<f64>(
             SolverPlan::new(
                 LinearSolver::BiConjugateGradientStabilized,
                 1.0e-10,
@@ -550,7 +551,7 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
     let geometry = rectangle();
     let model = model(&geometry);
     assert!(
-        NativeLinearPolicy::exact(
+        NativeLinearPolicy::exact::<f64>(
             SolverPlan::new(
                 LinearSolver::ConjugateGradient,
                 -0.0,
@@ -592,7 +593,7 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
                 &model,
                 resources(&geometry),
                 NativeSpatialPolicy::ScalarQ1,
-                NativeLinearPolicy::exact(solver, &REFERENCE_LINEAR_SOLVER).unwrap(),
+                NativeLinearPolicy::exact::<f64>(solver, &REFERENCE_LINEAR_SOLVER).unwrap(),
             )
             .is_err()
         );
@@ -766,7 +767,7 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
 }
 
 fn general_linear() -> NativeLinearPolicy {
-    NativeLinearPolicy::exact(
+    NativeLinearPolicy::exact::<f64>(
         SolverPlan::new(
             LinearSolver::BiConjugateGradientStabilized,
             1.0e-10,
@@ -924,7 +925,7 @@ pub(super) fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_fie
         );
         let old = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.common-result/v11", "eqiora.common-result/v2");
+            .replace("eqiora.common-result/v12", "eqiora.common-result/v2");
         assert!(crate::CommonResult::from_bytes(old.as_bytes(), &replayed).is_err());
     }
 }

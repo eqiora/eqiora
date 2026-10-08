@@ -331,7 +331,7 @@ impl ScalarEllipticCartesianFvmSolution {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FinalizedCartesianFemAssembly {
     mesh: CartesianMesh,
-    constrained_dofs: ConstrainedDofLayout,
+    constrained_dofs: ConstrainedDofLayout<f64>,
     linear_system: LinearSystem<f64>,
     full_system: LinearSystem<f64>,
     integrated_source: f64,
@@ -370,7 +370,7 @@ impl FinalizedCartesianFemAssembly {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FinalizedCartesianFemState {
     mesh: CartesianMesh,
-    constrained_dofs: ConstrainedDofLayout,
+    constrained_dofs: ConstrainedDofLayout<f64>,
     full_system: LinearSystem<f64>,
     integrated_source: f64,
     assembly_report: AssemblyReport,

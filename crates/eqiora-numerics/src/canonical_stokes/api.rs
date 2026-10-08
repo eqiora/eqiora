@@ -31,11 +31,11 @@ pub(super) struct SteadyStokesBoundaryEntry2d {
 pub struct SteadyStokesNormalPressure2d {
     coefficient_field: Option<RawId>,
     definition_relation: Option<RawId>,
-    expression: ScalarSpatialExpression,
+    expression: ScalarSpatialExpression<f64>,
 }
 
 impl SteadyStokesNormalPressure2d {
-    pub(super) const fn zero(expression: ScalarSpatialExpression) -> Self {
+    pub(super) const fn zero(expression: ScalarSpatialExpression<f64>) -> Self {
         Self {
             coefficient_field: None,
             definition_relation: None,
@@ -46,7 +46,7 @@ impl SteadyStokesNormalPressure2d {
     pub(super) const fn field(
         coefficient_field: RawId,
         definition_relation: RawId,
-        expression: ScalarSpatialExpression,
+        expression: ScalarSpatialExpression<f64>,
     ) -> Self {
         Self {
             coefficient_field: Some(coefficient_field),
@@ -69,7 +69,7 @@ impl SteadyStokesNormalPressure2d {
 
     /// Immutable coherent-SI scalar pressure tape.
     #[must_use]
-    pub const fn expression(&self) -> &ScalarSpatialExpression {
+    pub const fn expression(&self) -> &ScalarSpatialExpression<f64> {
         &self.expression
     }
 }
@@ -91,8 +91,8 @@ impl SteadyStokesNormalPressure2d {
 pub(crate) struct SteadyIncompressibleStokesModel2d {
     pub(super) correspondence: MixedGalerkinCorrespondence,
     pub(super) bounds: [[f64; 2]; 2],
-    pub(super) dynamic_viscosity: ScalarSpatialExpression,
-    pub(super) force_potential_expression: ScalarSpatialExpression,
+    pub(super) dynamic_viscosity: ScalarSpatialExpression<f64>,
+    pub(super) force_potential_expression: ScalarSpatialExpression<f64>,
     pub(super) boundary_entries: BTreeMap<StokesBoundaryKey2d, SteadyStokesBoundaryEntry2d>,
     pub(super) boundary_relations: Vec<BoundaryRelationBinding>,
     pub(super) normal_pressures: BTreeMap<StokesBoundaryKey2d, SteadyStokesNormalPressure2d>,
@@ -142,13 +142,13 @@ impl SteadyIncompressibleStokesModel2d {
 
     /// Immutable constant tape retaining dynamic-viscosity Parameter identity.
     #[must_use]
-    pub const fn dynamic_viscosity_expression(&self) -> &ScalarSpatialExpression {
+    pub const fn dynamic_viscosity_expression(&self) -> &ScalarSpatialExpression<f64> {
         &self.dynamic_viscosity
     }
 
     /// Immutable scalar tape defining the conservative-force potential.
     #[must_use]
-    pub const fn force_potential_expression(&self) -> &ScalarSpatialExpression {
+    pub const fn force_potential_expression(&self) -> &ScalarSpatialExpression<f64> {
         &self.force_potential_expression
     }
 
@@ -240,7 +240,7 @@ impl SteadyIncompressibleStokesModel2d {
 
     pub(super) fn normal_velocity_expressions(
         &self,
-    ) -> impl Iterator<Item = &ScalarSpatialExpression> {
+    ) -> impl Iterator<Item = &ScalarSpatialExpression<f64>> {
         self.prescribed_velocity_traces
             .values()
             .filter_map(|trace| match trace {
@@ -335,13 +335,13 @@ impl SteadyIncompressibleStokesCartesianModel2d {
 
     /// Immutable viscosity tape retaining revision-local Parameter identity.
     #[must_use]
-    pub const fn dynamic_viscosity_expression(&self) -> &ScalarSpatialExpression {
+    pub const fn dynamic_viscosity_expression(&self) -> &ScalarSpatialExpression<f64> {
         self.common.dynamic_viscosity_expression()
     }
 
     /// Immutable conservative-force potential tape.
     #[must_use]
-    pub const fn force_potential_expression(&self) -> &ScalarSpatialExpression {
+    pub const fn force_potential_expression(&self) -> &ScalarSpatialExpression<f64> {
         self.common.force_potential_expression()
     }
 

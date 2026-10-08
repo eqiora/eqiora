@@ -1,23 +1,25 @@
 use super::*;
+use crate::spatial_expression::Coefficient;
 use eqiora_core::RawId;
 
 /// Checked scalar equations and their exact Cartesian support.
 #[derive(Debug, Clone, PartialEq)]
-pub(in crate::numerical_admission) struct ScalarRegion {
-    pub(in crate::numerical_admission) form: crate::form_compiler::linear::CompiledLinearBlockForm,
+pub(in crate::numerical_admission) struct ScalarRegion<S: Coefficient> {
+    pub(in crate::numerical_admission) form:
+        crate::form_compiler::linear::CompiledLinearBlockForm<S>,
     pub(in crate::numerical_admission) bounds: Vec<[f64; 2]>,
     pub(in crate::numerical_admission) boundaries:
         BTreeMap<(usize, BoundarySide), eqiora_core::RawId>,
 }
 
-impl ScalarRegion {
+impl<S: Coefficient> ScalarRegion<S> {
     pub(in crate::numerical_admission) fn new(
         program: &KernelProgram,
         domain: eqiora_core::RawId,
         bounds: Vec<[f64; 2]>,
         boundaries: BTreeMap<(usize, BoundarySide), eqiora_core::RawId>,
     ) -> Result<Self, Diagnostic> {
-        let form = crate::form_compiler::linear::CompiledLinearBlockForm::derive(
+        let form = crate::form_compiler::linear::CompiledLinearBlockForm::<S>::derive(
             program,
             domain,
             bounds.len(),
@@ -102,13 +104,13 @@ impl ScalarRegion {
 
 /// One ordered mathematical inventory; Region count never selects an executor.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct ExecutableScalarEquations {
-    pub(in crate::numerical_admission) regions: Vec<ScalarRegion>,
+pub(crate) struct ExecutableScalarEquations<S: Coefficient> {
+    pub(in crate::numerical_admission) regions: Vec<ScalarRegion<S>>,
     pub(in crate::numerical_admission) interfaces:
         Vec<crate::scalar_conservation::ScalarMaterialInterface>,
 }
 
-impl ExecutableScalarEquations {
+impl<S: Coefficient> ExecutableScalarEquations<S> {
     pub(in crate::numerical_admission) fn new(
         program: &KernelProgram,
         domain: RawId,
@@ -120,7 +122,7 @@ impl ExecutableScalarEquations {
             interfaces: vec![],
         })
     }
-    pub(in crate::numerical_admission) fn single(&self) -> Result<&ScalarRegion, Diagnostic> {
+    pub(in crate::numerical_admission) fn single(&self) -> Result<&ScalarRegion<S>, Diagnostic> {
         let [region] = self.regions.as_slice() else {
             return Err(invalid(
                 "this numerical operation requires one exact Region",
@@ -170,38 +172,49 @@ impl ExecutableScalarEquations {
         program: &KernelProgram,
         mesh: &eqiora_meshing::CartesianMesh,
     ) -> Result<Self, Diagnostic> {
-        let descriptor = crate::scalar_conservation::recognize_scalar_conservation(program)?;
-        let interfaces = descriptor.interfaces().cloned().collect::<Vec<_>>();
+        let supports = crate::scalar_conservation::cartesian_region_supports(program)?;
+        if supports.is_empty() {
+            return Err(invalid(
+                "scalar equations require at least one Cartesian volume Domain",
+            ));
+        }
+        // Connection semantics still belong to the admitted conservation profile.
+        // Geometry alone must not require positive real diffusion or exclude
+        // complex reaction/load equations that the shared form compiler admits.
+        let interfaces = if program
+            .nodes()
+            .any(|node| matches!(node, eqiora_schema::kernel::KernelNode::Connection(_)))
+        {
+            crate::scalar_conservation::recognize_scalar_conservation(program)?
+                .interfaces()
+                .cloned()
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
         let interface_boundaries = interfaces
             .iter()
             .flat_map(|interface| interface.sides().iter().map(|side| side.boundary()))
             .collect::<BTreeSet<_>>();
         let mut regions = Vec::new();
-        for region in descriptor.regions() {
-            if region.storage().is_some() || region.dimensions() != mesh.topological_dimension() {
+        for support in supports {
+            if support.bounds.len() != mesh.topological_dimension() {
                 return Err(invalid(
-                    "steady Region execution requires fixed matching spatial dimension without storage",
+                    "steady Region execution requires matching spatial dimension",
                 ));
             }
-            let mut boundaries = region
-                .exterior()
-                .map(|boundary| ((boundary.axis(), boundary.side()), boundary.boundary()))
-                .collect::<BTreeMap<_, _>>();
-            for side in interfaces.iter().flat_map(|interface| interface.sides()) {
-                if side.domain() == region.domain() {
-                    boundaries.insert((side.axis(), side.side()), side.boundary());
-                }
-            }
-            let form = crate::form_compiler::linear::CompiledLinearBlockForm::derive(
+            let form = crate::form_compiler::linear::CompiledLinearBlockForm::<S>::derive(
                 program,
-                region.domain(),
-                region.dimensions(),
+                support.domain,
+                support.bounds.len(),
                 &interface_boundaries,
             )?;
+            // The shared binding rejects storage without a temporal Plan.
+            form.volume()?;
             regions.push(ScalarRegion {
                 form,
-                bounds: region.bounds().to_vec(),
-                boundaries,
+                bounds: support.bounds,
+                boundaries: support.boundaries,
             });
         }
         regions.sort_by_key(|region| region.form.domain());
@@ -272,7 +285,7 @@ impl ExecutableScalarEquations {
     }
 }
 
-impl ExecutableScalarEquations {
+impl<S: Coefficient> ExecutableScalarEquations<S> {
     pub(in crate::numerical_admission) fn discretizations(
         &self,
         space: Space,
@@ -330,3 +343,6 @@ impl ExecutableScalarEquations {
     }
 }
 mod execute;
+
+#[cfg(test)]
+mod complex_tests;

@@ -2,7 +2,7 @@ use super::*;
 
 pub(in crate::numerical_admission) struct PreparedCommonTransientExecution<'a> {
     pub(super) plan: &'a CommonTransientFlowPlan,
-    pub(super) backend: super::native::ProfileCheckedBackend<'a>,
+    pub(super) backend: super::native::ProfileCheckedBackend<'a, f64>,
     pub(super) prepared_linear: Option<Box<dyn eqiora_solver::PreparedLinearSolver>>,
     pub(super) method: PreparedCommonTransientMethod<'a>,
 }

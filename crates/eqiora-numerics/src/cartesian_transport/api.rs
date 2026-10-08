@@ -347,7 +347,7 @@ pub(super) enum TransportFace2d {
 /// Finalized general linear operator plus method-private reconstruction state.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FinalizedScalarTransportFvmStep2d {
-    pub(super) core: FinalizedLinearCore,
+    pub(super) core: FinalizedLinearCore<f64>,
     pub(super) realization: ResolvedTransientCellCenteredTransportRealization,
     pub(super) mesh: CartesianMesh,
     pub(super) field: Id<kinds::Field>,

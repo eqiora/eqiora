@@ -1,3 +1,4 @@
+use crate::spatial_expression::Coefficient;
 use std::collections::BTreeMap;
 
 use eqiora_assembly::LocalContribution;
@@ -8,13 +9,13 @@ use eqiora_realization::SpaceFamily;
 use super::binding::BoundRegionForm;
 use super::invalid;
 
-impl BoundRegionForm {
+impl<S: Coefficient> BoundRegionForm<S> {
     /// Validate local inputs without performing quadrature or constructing contributions.
     pub(crate) fn validate_cell(
         &self,
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
-        previous: &BTreeMap<RawId, Vec<f64>>,
+        previous: &BTreeMap<RawId, Vec<S>>,
     ) -> Result<(), Diagnostic> {
         self.validate_geometry(geometry, quadrature)?;
         if previous.len() != self.previous.len()
@@ -85,7 +86,7 @@ impl BoundRegionForm {
         &self,
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
-    ) -> Result<LocalContribution<f64>, Diagnostic> {
+    ) -> Result<LocalContribution<S>, Diagnostic> {
         self.validate_geometry(geometry, quadrature)?;
         let fields = self
             .fields
@@ -129,26 +130,28 @@ impl BoundRegionForm {
             |point, coefficients, forcing, isotropic_flux| {
                 let mut components = forcing.iter_mut();
                 for (index, row) in self.form.rows.iter().enumerate() {
-                    isotropic_flux[index] = 0.0;
+                    isotropic_flux[index] = <S as From<f64>>::from(0.0);
                     for flux in &row.flux {
                         if let super::flux::FluxTerm::Isotropic(value) = flux {
                             isotropic_flux[index] +=
-                                self.row_multipliers[index] * value.evaluate(point)?;
+                                <S as From<f64>>::from(self.row_multipliers[index])
+                                    * value.evaluate(point)?;
                         }
                     }
                     for component in &row.forcing {
                         *components.next().expect("exact row component inventory") =
-                            self.row_multipliers[index] * component.evaluate(point)?;
+                            <S as From<f64>>::from(self.row_multipliers[index])
+                                * component.evaluate(point)?;
                     }
                 }
                 for (coefficient, (row, term)) in coefficients.iter_mut().zip(&data) {
                     let value = term.coefficient.evaluate(point)?;
-                    if term.positive_diffusion && value <= 0.0 {
+                    if term.positive_diffusion && (value.im() != 0.0 || value.re() <= 0.0) {
                         return Err(invalid(
                             "linear Q1 requires positive finite diffusion and finite reaction/forcing",
                         ));
                     }
-                    *coefficient = self.row_multipliers[*row] * value;
+                    *coefficient = <S as From<f64>>::from(self.row_multipliers[*row]) * value;
                 }
                 Ok(())
             },

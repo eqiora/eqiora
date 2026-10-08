@@ -2,19 +2,19 @@ use super::*;
 use crate::region_assembly::mapping::{FieldDof, RegionDofMap};
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct InterfaceReactions {
-    domains: DomainReactions,
+pub(crate) struct InterfaceReactions<S> {
+    domains: DomainReactions<S>,
     projections: BTreeMap<(RawId, FieldDof), (RawId, usize)>,
     pairs: Vec<[(RawId, FieldDof); 2]>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct RecoveredInterfaceReactions {
-    actions: BTreeMap<(RawId, FieldDof), f64>,
+pub(crate) struct RecoveredInterfaceReactions<S> {
+    actions: BTreeMap<(RawId, FieldDof), S>,
     pub(crate) imbalance_norm: f64,
 }
 
-impl RecoveredInterfaceReactions {
+impl<S: Coefficient> RecoveredInterfaceReactions<S> {
     #[cfg(test)]
     pub(crate) fn connections(&self) -> BTreeSet<RawId> {
         self.actions
@@ -23,7 +23,7 @@ impl RecoveredInterfaceReactions {
             .collect()
     }
 
-    pub(crate) fn action(&self, connection: RawId, key: FieldDof) -> Result<f64, Diagnostic> {
+    pub(crate) fn action(&self, connection: RawId, key: FieldDof) -> Result<S, Diagnostic> {
         self.actions
             .get(&(connection, key))
             .copied()
@@ -31,11 +31,11 @@ impl RecoveredInterfaceReactions {
     }
 }
 
-impl InterfaceReactions {
+impl<S: Coefficient + Send + Sync> InterfaceReactions<S> {
     pub(crate) fn prepare(
-        work: &dyn AssemblyWork<f64>,
+        work: &dyn AssemblyWork<S>,
         target: AssemblyTargetId,
-        mapping: &RegionDofMap,
+        mapping: &RegionDofMap<S>,
         packet_domains: &[RawId],
     ) -> Result<Self, Diagnostic> {
         let known = mapping
@@ -111,7 +111,7 @@ impl InterfaceReactions {
         })
     }
 
-    pub(crate) fn recover(&self, full: &[f64]) -> Result<RecoveredInterfaceReactions, Diagnostic> {
+    pub(crate) fn recover(&self, full: &[S]) -> Result<RecoveredInterfaceReactions<S>, Diagnostic> {
         let domains = self.domains.recover(full)?;
         let actions = self
             .projections
@@ -130,7 +130,7 @@ impl InterfaceReactions {
             .collect::<Result<BTreeMap<_, _>, _>>()?;
         let mut imbalance_norm = 0.0_f64;
         for [first, second] in &self.pairs {
-            imbalance_norm = imbalance_norm.hypot(actions[first] + actions[second]);
+            imbalance_norm = imbalance_norm.hypot((actions[first] + actions[second]).abs());
         }
         if !imbalance_norm.is_finite() {
             return Err(invalid("interface reaction imbalance is non-finite"));

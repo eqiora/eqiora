@@ -41,9 +41,9 @@ pub struct IsotropicElasticityContinuum<const D: usize> {
     reduction: IsotropicElasticityReduction,
     integration_measure: ElasticityIntegrationMeasure,
     material: IsotropicElasticityMaterial<D>,
-    shear_modulus: ScalarSpatialExpression,
-    first_lame_parameter: ScalarSpatialExpression,
-    load_potential_expression: ScalarSpatialExpression,
+    shear_modulus: ScalarSpatialExpression<f64>,
+    first_lame_parameter: ScalarSpatialExpression<f64>,
+    load_potential_expression: ScalarSpatialExpression<f64>,
     boundary_inventory: CartesianBoundaryInventory<D>,
     boundary_relations: Vec<BoundaryRelationBinding>,
     tractions: std::collections::BTreeMap<RawId, [f64; D]>,
@@ -59,9 +59,9 @@ impl<const D: usize> IsotropicElasticityContinuum<D> {
         equilibrium_relation: RawId,
         bounds: [[f64; 2]; D],
         material: IsotropicElasticityMaterial<D>,
-        shear_modulus: ScalarSpatialExpression,
-        first_lame_parameter: ScalarSpatialExpression,
-        load_potential_expression: ScalarSpatialExpression,
+        shear_modulus: ScalarSpatialExpression<f64>,
+        first_lame_parameter: ScalarSpatialExpression<f64>,
+        load_potential_expression: ScalarSpatialExpression<f64>,
         boundary_inventory: CartesianBoundaryInventory<D>,
         boundary_relations: Vec<BoundaryRelationBinding>,
         tractions: std::collections::BTreeMap<RawId, [f64; D]>,
@@ -166,19 +166,19 @@ impl<const D: usize> IsotropicElasticityContinuum<D> {
 
     /// Constant expression retaining the exact `mu` Parameter lineage.
     #[must_use]
-    pub const fn shear_modulus_expression(&self) -> &ScalarSpatialExpression {
+    pub const fn shear_modulus_expression(&self) -> &ScalarSpatialExpression<f64> {
         &self.shear_modulus
     }
 
     /// Constant expression retaining the exact `lambda` Parameter lineage.
     #[must_use]
-    pub const fn first_lame_parameter_expression(&self) -> &ScalarSpatialExpression {
+    pub const fn first_lame_parameter_expression(&self) -> &ScalarSpatialExpression<f64> {
         &self.first_lame_parameter
     }
 
     /// Immutable scalar tape defining the conservative-load potential.
     #[must_use]
-    pub const fn load_potential_expression(&self) -> &ScalarSpatialExpression {
+    pub const fn load_potential_expression(&self) -> &ScalarSpatialExpression<f64> {
         &self.load_potential_expression
     }
 

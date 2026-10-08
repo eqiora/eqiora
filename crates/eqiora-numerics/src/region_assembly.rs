@@ -10,6 +10,7 @@ use eqiora_core::{Diagnostic, RawId};
 use eqiora_meshing::{AffineGeometryMap, GeometryMap, QuadratureRule};
 
 use crate::form_compiler::region::{BoundRegionForm, PreparedRegionCell};
+use crate::spatial_expression::Coefficient;
 
 pub(crate) mod mapping;
 mod reactions;
@@ -19,31 +20,31 @@ pub(crate) use reactions::{InterfaceReactions, RecoveredInterfaceReactions};
 
 /// One cell's geometry, resolved algebraic maps and physical previous coefficients.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct RegionAssemblyCell {
+pub(crate) struct RegionAssemblyCell<S: Coefficient> {
     pub(crate) index: usize,
     pub(crate) geometry: AffineGeometryMap,
-    pub(crate) mappings: Vec<TargetAssemblyMap<f64>>,
-    pub(crate) previous: BTreeMap<RawId, Vec<f64>>,
+    pub(crate) mappings: Vec<TargetAssemblyMap<S>>,
+    pub(crate) previous: BTreeMap<RawId, Vec<S>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct PreparedRegionAssembly {
+pub(crate) struct PreparedRegionAssembly<S: Coefficient> {
     packet_set: AssemblyPacketSetIdentityV1,
-    prepared: Vec<PreparedRegionCell>,
-    cells: Vec<RegionAssemblyCell>,
-    boundary_packets: Vec<AssemblyPacket<f64>>,
+    prepared: Vec<PreparedRegionCell<S>>,
+    cells: Vec<RegionAssemblyCell<S>>,
+    boundary_packets: Vec<AssemblyPacket<S>>,
 }
 
-impl PreparedRegionAssembly {
+impl<S: Coefficient + Send + Sync> PreparedRegionAssembly<S> {
     /// The Domain sequence is in the authenticated mesh's logical packet order.
     /// Maps already include Plan DOF binding and any trace/essential constraints.
     pub(crate) fn new(
         packet_set: AssemblyPacketSetIdentityV1,
         plan: &AssemblyPlan,
-        forms: Vec<(BoundRegionForm, QuadratureRule)>,
+        forms: Vec<(BoundRegionForm<S>, QuadratureRule)>,
         cell_domains: &[RawId],
-        mut cells: Vec<RegionAssemblyCell>,
-        boundary_packets: Vec<AssemblyPacket<f64>>,
+        mut cells: Vec<RegionAssemblyCell<S>>,
+        boundary_packets: Vec<AssemblyPacket<S>>,
     ) -> Result<Self, Diagnostic> {
         if cell_domains.is_empty() || cells.len() != cell_domains.len() {
             return Err(invalid(
@@ -109,7 +110,7 @@ impl PreparedRegionAssembly {
     }
 }
 
-impl AssemblyWork<f64> for PreparedRegionAssembly {
+impl<S: Coefficient + Send + Sync> AssemblyWork<S> for PreparedRegionAssembly<S> {
     fn packet_set_identity(&self) -> AssemblyPacketSetIdentityV1 {
         self.packet_set
     }
@@ -118,7 +119,7 @@ impl AssemblyWork<f64> for PreparedRegionAssembly {
         self.cells.len() + self.boundary_packets.len()
     }
 
-    fn evaluate(&self, packet_index: usize) -> Result<AssemblyPacket<f64>, Diagnostic> {
+    fn evaluate(&self, packet_index: usize) -> Result<AssemblyPacket<S>, Diagnostic> {
         if packet_index >= self.cells.len() {
             return self
                 .boundary_packets
@@ -137,10 +138,10 @@ impl AssemblyWork<f64> for PreparedRegionAssembly {
     }
 }
 
-fn validate_maps(
+fn validate_maps<S: Coefficient + Sync>(
     plan: &AssemblyPlan,
     count: usize,
-    mappings: &[TargetAssemblyMap<f64>],
+    mappings: &[TargetAssemblyMap<S>],
 ) -> Result<(), Diagnostic> {
     if mappings.is_empty() {
         return Err(invalid("prepared cell needs an assembly target map"));

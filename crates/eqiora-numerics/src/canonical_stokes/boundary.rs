@@ -40,7 +40,7 @@ pub(crate) struct LoweredStokesBoundary<const D: usize> {
     pub(crate) prescribed_velocity_fields: BTreeSet<RawId>,
     pub(crate) prescribed_velocity_definitions: BTreeSet<RawId>,
     pub(crate) normal_velocity_expressions:
-        BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), ScalarSpatialExpression>,
+        BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), ScalarSpatialExpression<f64>>,
     pub(crate) normal_velocity_fields: BTreeSet<RawId>,
     pub(crate) normal_velocity_definitions: BTreeSet<RawId>,
     pub(crate) relations: BTreeSet<RawId>,
@@ -60,7 +60,7 @@ pub(super) struct LoweredNamedStokesBoundary2d {
     pub(super) prescribed_velocity_traces: BTreeMap<String, SteadyStokesPrescribedVelocityTrace2d>,
     pub(super) prescribed_velocity_fields: BTreeSet<RawId>,
     pub(super) prescribed_velocity_definitions: BTreeSet<RawId>,
-    pub(super) normal_velocity_expressions: BTreeMap<String, ScalarSpatialExpression>,
+    pub(super) normal_velocity_expressions: BTreeMap<String, ScalarSpatialExpression<f64>>,
     pub(super) boundary_relations: Vec<BoundaryRelationBinding>,
     pub(super) ports: BTreeSet<RawId>,
     pub(super) connections: BTreeSet<RawId>,
@@ -83,7 +83,7 @@ struct LoweredBoundaryEntries<K> {
 }
 
 struct NormalVelocityProjection<K> {
-    expressions: BTreeMap<K, ScalarSpatialExpression>,
+    expressions: BTreeMap<K, ScalarSpatialExpression<f64>>,
     fields: BTreeSet<RawId>,
     definitions: BTreeSet<RawId>,
 }
@@ -105,7 +105,7 @@ struct StressBoundaryContext<'a> {
     program: &'a KernelProgram,
     velocity: RawId,
     pressure: RawId,
-    volume_viscosity: &'a ScalarSpatialExpression,
+    volume_viscosity: &'a ScalarSpatialExpression<f64>,
     stress_form: IncompressibleStressForm,
 }
 
@@ -114,7 +114,7 @@ pub(super) fn lower(
     domain: RawId,
     velocity: RawId,
     pressure: RawId,
-    volume_viscosity: &ScalarSpatialExpression,
+    volume_viscosity: &ScalarSpatialExpression<f64>,
 ) -> Result<LoweredStokesBoundary2d, Diagnostic> {
     lower_dimension::<2>(program, domain, velocity, pressure, volume_viscosity)
 }
@@ -124,7 +124,7 @@ pub(super) fn lower_dimension<const D: usize>(
     domain: RawId,
     velocity: RawId,
     pressure: RawId,
-    volume_viscosity: &ScalarSpatialExpression,
+    volume_viscosity: &ScalarSpatialExpression<f64>,
 ) -> Result<LoweredStokesBoundary<D>, Diagnostic> {
     lower_dimension_with_stress(
         program,
@@ -141,7 +141,7 @@ pub(crate) fn lower_with_boundaries(
     domain: RawId,
     velocity: RawId,
     pressure: RawId,
-    volume_viscosity: &ScalarSpatialExpression,
+    volume_viscosity: &ScalarSpatialExpression<f64>,
     exact_boundaries: BTreeMap<(usize, eqiora_schema::kernel::BoundarySide), RawId>,
 ) -> Result<LoweredStokesBoundary<2>, Diagnostic> {
     let lowered = lower_entries::<2, _>(
@@ -177,7 +177,7 @@ fn lower_dimension_with_stress<const D: usize>(
     domain: RawId,
     velocity: RawId,
     pressure: RawId,
-    volume_viscosity: &ScalarSpatialExpression,
+    volume_viscosity: &ScalarSpatialExpression<f64>,
     stress_form: IncompressibleStressForm,
 ) -> Result<LoweredStokesBoundary<D>, Diagnostic> {
     let exact_boundaries = exact_cartesian_boundaries::<D>(program, domain)?;
@@ -214,7 +214,7 @@ pub(super) fn lower_named(
     domain: RawId,
     velocity: RawId,
     pressure: RawId,
-    volume_viscosity: &ScalarSpatialExpression,
+    volume_viscosity: &ScalarSpatialExpression<f64>,
     exact_boundaries: BTreeMap<String, RawId>,
 ) -> Result<LoweredNamedStokesBoundary2d, Diagnostic> {
     lower_named_with_stress(
@@ -233,7 +233,7 @@ pub(super) fn lower_named_with_stress(
     domain: RawId,
     velocity: RawId,
     pressure: RawId,
-    volume_viscosity: &ScalarSpatialExpression,
+    volume_viscosity: &ScalarSpatialExpression<f64>,
     exact_boundaries: BTreeMap<String, RawId>,
     stress_form: IncompressibleStressForm,
 ) -> Result<LoweredNamedStokesBoundary2d, Diagnostic> {
@@ -293,7 +293,7 @@ fn lower_entries<const D: usize, K: Clone + Ord>(
     domain: RawId,
     velocity: RawId,
     pressure: RawId,
-    volume_viscosity: &ScalarSpatialExpression,
+    volume_viscosity: &ScalarSpatialExpression<f64>,
     exact_boundaries: BTreeMap<K, RawId>,
     stress_form: IncompressibleStressForm,
 ) -> Result<LoweredBoundaryEntries<K>, Diagnostic> {
@@ -407,7 +407,7 @@ fn direct_disposition(
     relation: RawId,
     velocity: RawId,
     pressure: RawId,
-    volume_viscosity: &ScalarSpatialExpression,
+    volume_viscosity: &ScalarSpatialExpression<f64>,
     stress_form: IncompressibleStressForm,
 ) -> Result<Option<BoundaryCandidate>, Diagnostic> {
     let expression = &relation_expression(program, relation)?;
@@ -702,7 +702,7 @@ fn prescribed_normal_velocity_expression<const D: usize>(
     relation: RawId,
     velocity: RawId,
     domain: RawId,
-) -> Result<(ScalarSpatialExpression, RawId, RawId), Diagnostic> {
+) -> Result<(ScalarSpatialExpression<f64>, RawId, RawId), Diagnostic> {
     let expression = &relation_expression(program, relation)?;
     let [root] = expression.roots() else {
         return Err(lowering_error(
@@ -790,7 +790,7 @@ fn normalize_physical_interface(
     boundary: RawId,
     velocity: RawId,
     pressure: RawId,
-    volume_viscosity: &ScalarSpatialExpression,
+    volume_viscosity: &ScalarSpatialExpression<f64>,
     boundary_relations: &[RawId],
     stress_form: IncompressibleStressForm,
 ) -> Result<crate::canonical_boundary::NormalizedFieldPhysicalInterface, Diagnostic> {
@@ -831,7 +831,7 @@ fn interface_port(
     relation: RawId,
     velocity: RawId,
     pressure: RawId,
-    volume_viscosity: &ScalarSpatialExpression,
+    volume_viscosity: &ScalarSpatialExpression<f64>,
     stress_form: IncompressibleStressForm,
 ) -> Result<Option<RawId>, Diagnostic> {
     let expression = &relation_expression(program, relation)?;

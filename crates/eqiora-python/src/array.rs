@@ -1,22 +1,22 @@
 //! Bounded Python data-plane projection for immutable CPU result buffers.
 
 use std::mem;
-use std::sync::Mutex;
 
-use numpy::{
-    IntoPyArray, PyArray1, PyArrayDescrMethods, PyArrayDyn, PyArrayMethods, PyUntypedArrayMethods,
-};
-use pyo3::exceptions::{PyBufferError, PyIndexError, PyRuntimeError};
+use numpy::{Complex64, PyArrayDescrMethods, PyArrayDyn, PyArrayMethods, PyUntypedArrayMethods};
+use pyo3::exceptions::{PyBufferError, PyIndexError};
 use pyo3::prelude::*;
 use pyo3::types::IntoPyDict;
-use pyo3::types::{PyAny, PyDict, PyModule};
+use pyo3::types::{PyAny, PyComplex, PyDict, PyFloat, PyModule};
+
+mod storage;
+use storage::OwnedBuffer;
 
 const DLPACK_CPU_DEVICE_TYPE: i32 = 1;
 const DLPACK_CPU_DEVICE_ID: i32 = 0;
 const DLPACK_MAJOR_VERSION: u32 = 1;
 const DLPACK_MINOR_VERSION: u32 = 0;
 
-/// One immutable, dense, one-dimensional CPU `float64` buffer.
+/// One immutable, dense, one-dimensional CPU `float64` or `complex128` buffer.
 ///
 /// The native result allocation is transferred into an opaque Python owner.
 /// NumPy can therefore borrow it without copying while retaining its lifetime
@@ -26,92 +26,57 @@ const DLPACK_MINOR_VERSION: u32 = 0;
 #[pyclass(name = "Array", module = "eqiora._eqiora", frozen)]
 pub(crate) struct PyArrayBuffer {
     len: usize,
-    storage: Mutex<ArrayStorage>,
+    storage: ArrayStorage,
 }
 
 enum ArrayStorage {
-    Native(Vec<f64>),
-    Materializing,
-    Numpy(Py<PyArray1<f64>>),
+    Real(OwnedBuffer<f64>),
+    Complex(OwnedBuffer<Complex64>),
 }
 
 impl PyArrayBuffer {
     pub(crate) fn from_owned_result(py: Python<'_>, values: Vec<f64>) -> PyResult<Py<Self>> {
-        let len = values.len();
         Py::new(
             py,
             Self {
-                len,
-                storage: Mutex::new(ArrayStorage::Native(values)),
+                len: values.len(),
+                storage: ArrayStorage::Real(OwnedBuffer::new(values)),
             },
         )
     }
 
-    pub(crate) fn numpy_array(&self, py: Python<'_>) -> PyResult<Py<PyArray1<f64>>> {
-        let values = {
-            let mut storage = self
-                .storage
-                .lock()
-                .map_err(|_| PyRuntimeError::new_err("Array storage lock is poisoned"))?;
-            match &*storage {
-                ArrayStorage::Numpy(array) => return Ok(array.clone_ref(py)),
-                ArrayStorage::Materializing => {
-                    return Err(PyRuntimeError::new_err(
-                        "Array NumPy materialization is already in progress",
-                    ));
-                }
-                ArrayStorage::Native(_) => {}
-            }
-            let ArrayStorage::Native(values) =
-                mem::replace(&mut *storage, ArrayStorage::Materializing)
-            else {
-                return Err(PyRuntimeError::new_err(
-                    "Array storage changed before NumPy materialization",
-                ));
-            };
-            values
-        };
+    pub(crate) fn from_owned_complex_result(
+        py: Python<'_>,
+        values: Vec<Complex64>,
+    ) -> PyResult<Py<Self>> {
+        Py::new(
+            py,
+            Self {
+                len: values.len(),
+                storage: ArrayStorage::Complex(OwnedBuffer::new(values)),
+            },
+        )
+    }
 
-        // NumPy initialization may execute Python import hooks. Do not hold
-        // the storage lock across it: re-entry must fail, never self-deadlock.
-        let array = values.into_pyarray(py);
-        let owned = array.clone().unbind();
-        drop(array.readwrite().make_nonwriteable());
-
-        let mut storage = self
-            .storage
-            .lock()
-            .map_err(|_| PyRuntimeError::new_err("Array storage lock is poisoned"))?;
-        if !matches!(*storage, ArrayStorage::Materializing) {
-            return Err(PyRuntimeError::new_err(
-                "Array storage changed during NumPy materialization",
-            ));
+    pub(crate) fn numpy_array(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        match &self.storage {
+            ArrayStorage::Real(values) => Ok(values.numpy(py)?.into_any()),
+            ArrayStorage::Complex(values) => Ok(values.numpy(py)?.into_any()),
         }
-        *storage = ArrayStorage::Numpy(owned.clone_ref(py));
-        Ok(owned)
     }
 
     pub(crate) const fn len(&self) -> usize {
         self.len
     }
 
+    /// Real-only staging and visualization must never discard an imaginary component.
     pub(crate) fn snapshot(&self, py: Python<'_>) -> PyResult<Vec<f64>> {
-        let numpy = {
-            let storage = self
-                .storage
-                .lock()
-                .map_err(|_| PyRuntimeError::new_err("Array storage lock is poisoned"))?;
-            match &*storage {
-                ArrayStorage::Native(values) => return Ok(values.clone()),
-                ArrayStorage::Materializing => {
-                    return Err(PyRuntimeError::new_err(
-                        "Array NumPy materialization is already in progress",
-                    ));
-                }
-                ArrayStorage::Numpy(array) => array.clone_ref(py),
-            }
-        };
-        Ok(numpy.bind(py).readonly().as_slice()?.to_vec())
+        match &self.storage {
+            ArrayStorage::Real(values) => values.snapshot(py),
+            ArrayStorage::Complex(_) => Err(PyBufferError::new_err(
+                "this operation requires a float64 Array; complex128 is not implicitly projected to real",
+            )),
+        }
     }
 }
 
@@ -316,15 +281,12 @@ impl PyArrayBuffer {
     }
 
     #[pyo3(signature = (*, copy=None))]
-    fn numpy(&self, py: Python<'_>, copy: Option<bool>) -> PyResult<Py<PyArray1<f64>>> {
+    fn numpy(&self, py: Python<'_>, copy: Option<bool>) -> PyResult<Py<PyAny>> {
+        let array = self.numpy_array(py)?;
         if copy == Some(true) {
-            Ok(self
-                .numpy_array(py)?
-                .bind(py)
-                .call_method0("copy")?
-                .extract::<Py<PyArray1<f64>>>()?)
+            Ok(array.bind(py).call_method0("copy")?.unbind())
         } else {
-            self.numpy_array(py)
+            Ok(array)
         }
     }
 
@@ -401,10 +363,13 @@ impl PyArrayBuffer {
     /// Exact scalar dtype.
     #[getter]
     fn dtype(&self) -> &'static str {
-        "float64"
+        match self.storage {
+            ArrayStorage::Real(_) => "float64",
+            ArrayStorage::Complex(_) => "complex128",
+        }
     }
 
-    /// Native byte order of the stored `float64` values.
+    /// Native byte order of the stored scalar components.
     #[getter]
     const fn byte_order(&self) -> &'static str {
         if cfg!(target_endian = "little") {
@@ -423,7 +388,10 @@ impl PyArrayBuffer {
     /// Byte strides in logical-axis order.
     #[getter]
     const fn strides(&self) -> (isize,) {
-        (mem::size_of::<f64>() as isize,)
+        (match self.storage {
+            ArrayStorage::Real(_) => mem::size_of::<f64>(),
+            ArrayStorage::Complex(_) => mem::size_of::<Complex64>(),
+        } as isize,)
     }
 
     /// This producer slice admits C-contiguous storage only.
@@ -432,7 +400,7 @@ impl PyArrayBuffer {
         true
     }
 
-    /// The native allocation satisfies `float64` alignment.
+    /// The native allocation satisfies its exact scalar dtype alignment.
     #[getter]
     const fn aligned(&self) -> bool {
         true
@@ -461,7 +429,7 @@ impl PyArrayBuffer {
     }
 
     /// Read one scalar without forcing NumPy materialization.
-    fn __getitem__(&self, py: Python<'_>, index: isize) -> PyResult<f64> {
+    fn __getitem__(&self, py: Python<'_>, index: isize) -> PyResult<Py<PyAny>> {
         let index = if index < 0 {
             self.len.checked_sub(index.unsigned_abs())
         } else {
@@ -471,28 +439,24 @@ impl PyArrayBuffer {
         }
         .ok_or_else(|| PyIndexError::new_err("Array index out of range"))?;
 
-        let numpy = {
-            let storage = self
-                .storage
-                .lock()
-                .map_err(|_| PyRuntimeError::new_err("Array storage lock is poisoned"))?;
-            match &*storage {
-                ArrayStorage::Native(values) => return Ok(values[index]),
-                ArrayStorage::Materializing => {
-                    return Err(PyRuntimeError::new_err(
-                        "Array NumPy materialization is already in progress",
-                    ));
-                }
-                ArrayStorage::Numpy(array) => array.clone_ref(py),
+        match &self.storage {
+            ArrayStorage::Real(values) => {
+                Ok(PyFloat::new(py, values.get(py, index)?).into_any().unbind())
             }
-        };
-        Ok(numpy.bind(py).readonly().as_slice()?[index])
+            ArrayStorage::Complex(values) => {
+                let value = values.get(py, index)?;
+                Ok(PyComplex::from_doubles(py, value.re, value.im)
+                    .into_any()
+                    .unbind())
+            }
+        }
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "Array(shape=({},), dtype='float64', device='cpu:0', readonly=True)",
-            self.len
+            "Array(shape=({},), dtype='{}', device='cpu:0', readonly=True)",
+            self.len,
+            self.dtype()
         )
     }
 }
@@ -509,7 +473,23 @@ mod tests {
     fn descriptor_constants_match_the_native_allocation_contract() {
         assert_eq!(mem::size_of::<f64>(), 8);
         assert_eq!(mem::align_of::<f64>(), 8);
+        assert_eq!(mem::size_of::<Complex64>(), 16);
         assert_eq!(DLPACK_CPU_DEVICE_TYPE, 1);
         assert_eq!(DLPACK_CPU_DEVICE_ID, 0);
+    }
+
+    #[test]
+    fn real_input_staging_rejects_complex_arrays_without_projection() -> PyResult<()> {
+        Python::initialize();
+        Python::attach(|py| {
+            for value in [Complex64::new(2., 0.), Complex64::new(2., 3.)] {
+                let array = PyArrayBuffer::from_owned_complex_result(py, vec![value])?;
+                let error = stage_f64_input(py, array.bind(py).as_any(), 1, "input")
+                    .expect_err("complex dtype cannot enter real-only staging");
+                assert!(error.is_instance_of::<PyBufferError>(py));
+                assert!(error.to_string().contains("not implicitly projected"));
+            }
+            Ok(())
+        })
     }
 }

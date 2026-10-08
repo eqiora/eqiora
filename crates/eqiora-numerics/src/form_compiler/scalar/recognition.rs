@@ -10,101 +10,74 @@ pub(super) fn recognize_volume(
     expression: &ExprDag,
     owner: RawId,
     field: RawId,
+    complex_trial: bool,
 ) -> Result<VolumeNodes, Diagnostic> {
+    use crate::additive_residual::{AdditiveResidualView, AdditiveSign};
+    use crate::form_compiler::vocabulary::PrimalValueTerm;
     let root = expression.roots()[0];
-    let (divergence, flux, divergence_sign, source) =
-        recognize_volume_top_roles(expression, root).or_else(|| {
-            let view = crate::additive_residual::AdditiveResidualView::derive(
-                expression, root, owner,
-            )
-            .ok()?;
-            if view.leaves().len() != 2 {
-                return None;
-            }
-            let divergences = view
-                .leaves()
-                .iter()
-                .filter_map(|leaf| match expression.node(leaf.value()) {
-                    Some(ExprNode::Divergence(flux)) => Some((leaf, *flux)),
-                    _ => None,
-                })
-                .collect::<Vec<_>>();
-            let [(operator, flux)] = divergences.as_slice() else {
-                return None;
-            };
-            let source = view
-                .leaves()
-                .iter()
-                .find(|leaf| leaf.value() != operator.value())?;
-            let source_sign = if multiplicative_sign_is_negative(expression, *flux) {
-                match operator.sign() {
-                    crate::additive_residual::AdditiveSign::Positive => {
-                        crate::additive_residual::AdditiveSign::Negative
-                    }
-                    crate::additive_residual::AdditiveSign::Negative => {
-                        crate::additive_residual::AdditiveSign::Positive
-                    }
-                }
+    // Keep independent forcing expressions intact: splitting their integrals
+    // would require additional algebra to replay non-polynomial authored forms.
+    let view = AdditiveResidualView::derive_preserving(expression, root, owner, &|value| {
+        value_degree(expression, value, field, owner, false, complex_trial)
+            .is_ok_and(|degree| degree == 0)
+    })?;
+    let divergences = view
+        .leaves()
+        .iter()
+        .filter_map(|leaf| {
+            if let Some(ExprNode::Divergence(flux)) = expression.node(leaf.value()) {
+                Some((leaf, *flux))
             } else {
-                operator.sign()
-            };
-            if source.sign() != source_sign {
-                return None;
+                None
             }
-            Some((
-                operator.value(),
-                *flux,
-                weak_divergence_sign(operator.sign()),
-                source.value(),
-            ))
         })
-        .ok_or_else(|| {
-            crate::additive_residual::AdditiveResidualView::derive(expression, root, owner)
-                .map(|view| {
-                    view.mismatch(
-                        "volume residual requires one diffusion divergence and one equally signed source, up to whole-equation reversal",
-                    )
-                })
-                .unwrap_or_else(|diagnostic| diagnostic)
-        })?;
-    let gradients = gradient_nodes(expression, flux, field);
+        .collect::<Vec<_>>();
+    let [(operator, flux)] = divergences.as_slice() else {
+        return Err(view.mismatch("volume residual requires exactly one diffusion divergence"));
+    };
+    let gradients = gradient_nodes(expression, *flux, field);
     if gradients.len() != 1 {
         return Err(certificate_error(
             owner,
             "constitutive flux must contain exactly one gradient of the unknown",
         ));
     }
-    Ok(VolumeNodes {
-        root,
-        divergence,
-        bilinear_flux: flux,
-        divergence_sign,
-        gradient: gradients[0],
-        source,
-    })
-}
-
-fn recognize_volume_top_roles(
-    expression: &ExprDag,
-    root: ExprId,
-) -> Option<(ExprId, ExprId, WeakSign, ExprId)> {
-    let negative_divergence = |value| {
-        let ExprNode::Neg(divergence) = expression.node(value)? else {
-            return None;
-        };
-        let ExprNode::Divergence(flux) = expression.node(*divergence)? else {
-            return None;
-        };
-        Some((*divergence, *flux))
-    };
-    let positive_divergence = |value| {
-        let ExprNode::Divergence(flux) = expression.node(value)? else {
-            return None;
-        };
-        Some((value, *flux))
-    };
-    let zero_source = || {
-        expression
+    if value_degree(expression, *flux, field, owner, true, complex_trial)? != 1 {
+        return Err(certificate_error(
+            owner,
+            "diffusion flux requires linear trial dependence",
+        ));
+    }
+    let mut values = Vec::new();
+    for leaf in view.leaves() {
+        if leaf.value() == operator.value() {
+            continue;
+        }
+        let degree = value_degree(expression, leaf.value(), field, owner, false, complex_trial)?;
+        if degree > 1 {
+            return Err(certificate_error(
+                owner,
+                "value pairing requires linear trial dependence",
+            ));
+        }
+        let trial_dependent = degree == 1;
+        // Integration by parts changes only the divergence sign. Loads move
+        // to the right side; trial-dependent values remain on the left.
+        let positive = (leaf.sign() == AdditiveSign::Positive) == trial_dependent;
+        values.push(PrimalValueTerm {
+            source_node: leaf.value(),
+            trial_dependent,
+            sign: if positive {
+                WeakSign::Positive
+            } else {
+                WeakSign::Negative
+            },
+        });
+    }
+    // Preserve an explicit typed zero source occurrence when residual projection
+    // has elided it. It contributes no mathematical term.
+    if !values.iter().any(|term| !term.trial_dependent)
+        && let Some(zero) = expression
             .nodes()
             .iter()
             .enumerate()
@@ -113,55 +86,88 @@ fn recognize_volume_top_roles(
                     .then(|| expression.node_id(u32::try_from(index).ok()?))
                     .flatten()
             })
-    };
-    match expression.node(root)? {
-        ExprNode::Neg(divergence)
-            if matches!(expression.node(*divergence), Some(ExprNode::Divergence(_))) =>
-        {
-            let (divergence, flux) = negative_divergence(root)?;
-            Some((divergence, flux, WeakSign::Positive, zero_source()?))
+    {
+        values.push(PrimalValueTerm {
+            source_node: zero,
+            trial_dependent: false,
+            sign: WeakSign::Positive,
+        });
+    }
+    Ok(VolumeNodes {
+        root,
+        divergence: operator.value(),
+        bilinear_flux: *flux,
+        divergence_sign: if operator.sign() == AdditiveSign::Negative {
+            WeakSign::Positive
+        } else {
+            WeakSign::Negative
+        },
+        gradient: gradients[0],
+        values,
+    })
+}
+
+/// Classify local values without evaluating coefficients or sampling the trial.
+/// The memoized postorder traversal visits each source node at most once.
+fn value_degree(
+    dag: &ExprDag,
+    root: ExprId,
+    field: RawId,
+    owner: RawId,
+    allow_gradient: bool,
+    complex_trial: bool,
+) -> Result<u8, Diagnostic> {
+    let mut degrees = vec![None; dag.nodes().len()];
+    let mut pending = vec![(root, false)];
+    while let Some((id, ready)) = pending.pop() {
+        let index = id.index() as usize;
+        if degrees[index].is_some() {
+            continue;
         }
-        ExprNode::Divergence(flux) => Some((root, *flux, WeakSign::Negative, zero_source()?)),
-        ExprNode::Sub(left, right) => {
-            if let Some((divergence, flux)) = negative_divergence(*left) {
-                Some((divergence, flux, WeakSign::Positive, *right))
-            } else if let Some((divergence, flux)) = positive_divergence(*left) {
-                Some((divergence, flux, WeakSign::Negative, *right))
-            } else {
-                negative_divergence(*right)
-                    .map(|(divergence, flux)| (divergence, flux, WeakSign::Negative, *left))
+        let node = dag.node(id).expect("validated source DAG");
+        if !ready {
+            pending.push((id, true));
+            let mut operands = Vec::new();
+            push_operands(node, &mut operands);
+            pending.extend(operands.into_iter().map(|operand| (operand, false)));
+            continue;
+        }
+        let degree = |id: ExprId| degrees[id.index() as usize].expect("postorder operand");
+        let result = match node {
+            ExprNode::Constant(_)
+            | ExprNode::Symbol(SymbolRef::Parameter(_))
+            | ExprNode::Symbol(SymbolRef::Coordinate { .. }) => 0,
+            ExprNode::Symbol(SymbolRef::Field(id)) if id.erase() == field => 1,
+            ExprNode::Gradient(value) if allow_gradient => degree(*value),
+            ExprNode::Neg(value) => degree(*value),
+            ExprNode::Add(a, b) | ExprNode::Sub(a, b) | ExprNode::Complex { real: a, imag: b } => {
+                let (a, b) = (degree(*a), degree(*b));
+                // An opaque affine sum cannot be recorded as a homogeneous
+                // bilinear term. Top-level sums are separated by the residual view.
+                if a == b { a } else { 2 }
             }
-        }
-        ExprNode::Add(left, right) => {
-            if let (Some((divergence, flux)), Some(ExprNode::Neg(source))) =
-                (negative_divergence(*left), expression.node(*right))
+            ExprNode::Mul(a, b) => (degree(*a) + degree(*b)).min(2),
+            ExprNode::PowI(value, power) => match (degree(*value), *power) {
+                (0, _) | (_, 0) => 0,
+                (value, 1) => value,
+                _ => 2,
+            },
+            ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Conj, value)
+                if !complex_trial =>
             {
-                Some((divergence, flux, WeakSign::Positive, *source))
-            } else {
-                positive_divergence(*left)
-                    .map(|(divergence, flux)| (divergence, flux, WeakSign::Negative, *right))
+                degree(*value)
             }
-        }
-        _ => None,
+            ExprNode::UnaryMath(_, value) if degree(*value) == 0 => 0,
+            _ => {
+                return Err(certificate_error(
+                    owner,
+                    "value pairing contains an unsupported or antilinear trial operation",
+                ));
+            }
+        };
+        degrees[index] = Some(result);
     }
-}
-
-fn multiplicative_sign_is_negative(expression: &ExprDag, value: ExprId) -> bool {
-    match expression.node(value) {
-        Some(ExprNode::Neg(value)) => !multiplicative_sign_is_negative(expression, *value),
-        Some(ExprNode::Mul(left, right)) => {
-            multiplicative_sign_is_negative(expression, *left)
-                ^ multiplicative_sign_is_negative(expression, *right)
-        }
-        _ => false,
-    }
-}
-
-const fn weak_divergence_sign(sign: crate::additive_residual::AdditiveSign) -> WeakSign {
-    match sign {
-        crate::additive_residual::AdditiveSign::Positive => WeakSign::Negative,
-        crate::additive_residual::AdditiveSign::Negative => WeakSign::Positive,
-    }
+    Ok(degrees[root.index() as usize].expect("root degree"))
 }
 
 fn gradient_nodes(expression: &ExprDag, value: ExprId, field: RawId) -> Vec<ExprId> {
@@ -174,6 +180,10 @@ fn gradient_nodes(expression: &ExprDag, value: ExprId, field: RawId) -> Vec<Expr
         {
             vec![value]
         }
+        Some(
+            ExprNode::Neg(value)
+            | ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Conj, value),
+        ) => gradient_nodes(expression, *value, field),
         Some(ExprNode::Mul(left, right)) => {
             let mut nodes = gradient_nodes(expression, *left, field);
             nodes.extend(gradient_nodes(expression, *right, field));
@@ -200,6 +210,7 @@ pub(super) fn validate_source_expression(
         if !matches!(
             node,
             ExprNode::Constant(_)
+                | ExprNode::Complex { .. }
                 | ExprNode::Symbol(SymbolRef::Parameter(_))
                 | ExprNode::Neg(_)
                 | ExprNode::Add(_, _)
@@ -207,7 +218,11 @@ pub(super) fn validate_source_expression(
                 | ExprNode::Mul(_, _)
                 | ExprNode::PowI(_, _)
                 | ExprNode::Symbol(SymbolRef::Coordinate { .. })
-                | ExprNode::UnaryMath(eqiora_schema::kernel::UnaryMathFunction::Sin, _)
+                | ExprNode::UnaryMath(
+                    eqiora_schema::kernel::UnaryMathFunction::Sin
+                        | eqiora_schema::kernel::UnaryMathFunction::Conj,
+                    _
+                )
         ) {
             return Err(certificate_error(
                 owner,
@@ -302,7 +317,7 @@ pub(super) fn recognize_flux(
     boundary_domain: RawId,
     parent: RawId,
     volume: &eqiora_schema::kernel::typing::TypedResidual<RawId>,
-    volume_nodes: VolumeNodes,
+    volume_nodes: &VolumeNodes,
 ) -> Result<Option<BoundaryFlux>, Diagnostic> {
     use eqiora_compiler::AuthoredFormExpressionV1 as Expression;
     let dag = boundary.expression();

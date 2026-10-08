@@ -36,9 +36,9 @@ pub(super) struct NativeLinearPolicy {
 }
 
 impl NativeLinearPolicy {
-    pub(super) fn exact(
+    pub(super) fn exact<S>(
         solver: SolverPlan,
-        backend: &dyn LinearSolverBackend,
+        backend: &dyn LinearSolverBackend<S>,
     ) -> Result<Self, Diagnostic> {
         if solver.relative_tolerance().to_bits() == (-0.0_f64).to_bits()
             || solver.absolute_tolerance().to_bits() == (-0.0_f64).to_bits()
@@ -86,11 +86,14 @@ impl NativeLinearPolicy {
         Ok(self)
     }
 
-    pub(super) fn checked_backend<'a>(
+    pub(super) fn checked_backend<
+        'a,
+        S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync + 'static,
+    >(
         &self,
-        backend: &'a dyn LinearSolverBackend,
+        backend: &'a dyn LinearSolverBackend<S>,
         structure: Option<&eqiora_solver::AlgebraicStructure>,
-    ) -> Result<ProfileCheckedBackend<'a>, Diagnostic> {
+    ) -> Result<ProfileCheckedBackend<'a, S>, Diagnostic> {
         if backend.provider() != self.provider || backend.capabilities() != self.capabilities {
             return Err(invalid(
                 "execution backend differs from admitted exact provider or capabilities",
@@ -106,6 +109,27 @@ impl NativeLinearPolicy {
             plan: self.solver,
             profile: self.planning_profile.clone(),
         })
+    }
+
+    pub(super) fn checked_complex_backend<'a>(
+        &self,
+        backend: &'a dyn LinearSolverBackend,
+        structure: Option<&eqiora_solver::AlgebraicStructure>,
+    ) -> Result<ProfileCheckedBackend<'a, num_complex::Complex64>, Diagnostic> {
+        let complex = backend.complex_backend().ok_or_else(|| {
+            invalid("selected provider has no typed complex linear implementation")
+        })?;
+        if backend.provider() != self.provider {
+            return Err(invalid(
+                "complex execution differs from admitted exact provider or capabilities",
+            ));
+        }
+        if self.planning_objective.is_some() {
+            return Err(invalid(
+                "complex execution requires an exact complex solver policy",
+            ));
+        }
+        self.checked_backend(complex, structure)
     }
 
     pub(super) fn planning_audit_is_coherent(&self) -> bool {
@@ -130,13 +154,15 @@ impl NativeLinearPolicy {
 /// The existing execution boundary rechecks admitted facts before forwarding
 /// exactly one numerical attempt to the already selected backend.
 #[derive(Debug)]
-pub(super) struct ProfileCheckedBackend<'a> {
-    backend: &'a dyn LinearSolverBackend,
+pub(super) struct ProfileCheckedBackend<'a, S> {
+    backend: &'a dyn LinearSolverBackend<S>,
     plan: SolverPlan,
     profile: Option<eqiora_solver::HostSerialSolverProfile>,
 }
 
-impl LinearSolverBackend for ProfileCheckedBackend<'_> {
+impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync + 'static>
+    LinearSolverBackend<S> for ProfileCheckedBackend<'_, S>
+{
     fn provider(&self) -> SolverProvider {
         self.backend.provider()
     }
@@ -146,7 +172,7 @@ impl LinearSolverBackend for ProfileCheckedBackend<'_> {
     fn prepare_linear(
         &self,
         plan: SolverPlan,
-    ) -> Result<Option<Box<dyn eqiora_solver::PreparedLinearSolver>>, Diagnostic> {
+    ) -> Result<Option<Box<dyn eqiora_solver::PreparedLinearSolver<S>>>, Diagnostic> {
         if plan != self.plan {
             return Err(invalid("execution changed the admitted exact solver plan"));
         }
@@ -160,10 +186,10 @@ impl LinearSolverBackend for ProfileCheckedBackend<'_> {
     }
     fn solve_with_execution(
         &self,
-        problem: &eqiora_solver::LinearProblem<'_>,
+        problem: &eqiora_solver::LinearProblem<'_, S>,
         plan: SolverPlan,
         execution: &dyn eqiora_solver::ReplicatedLinearExecution,
-    ) -> Result<eqiora_solver::LinearSolution, Diagnostic> {
+    ) -> Result<eqiora_solver::LinearSolution<S>, Diagnostic> {
         if plan != self.plan {
             return Err(invalid("execution changed the admitted exact solver plan"));
         }
@@ -175,17 +201,19 @@ impl LinearSolverBackend for ProfileCheckedBackend<'_> {
 }
 
 #[derive(Debug)]
-struct ProfileCheckedPreparedLinear {
-    prepared: Box<dyn eqiora_solver::PreparedLinearSolver>,
+struct ProfileCheckedPreparedLinear<S> {
+    prepared: Box<dyn eqiora_solver::PreparedLinearSolver<S>>,
     profile: Option<eqiora_solver::HostSerialSolverProfile>,
 }
 
-impl eqiora_solver::PreparedLinearSolver for ProfileCheckedPreparedLinear {
+impl<S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync>
+    eqiora_solver::PreparedLinearSolver<S> for ProfileCheckedPreparedLinear<S>
+{
     fn solve(
         &mut self,
         structure: &eqiora_solver::PreparedLinearStructureIdentity,
-        problem: &eqiora_solver::LinearProblem<'_>,
-    ) -> Result<eqiora_solver::LinearSolution, Diagnostic> {
+        problem: &eqiora_solver::LinearProblem<'_, S>,
+    ) -> Result<eqiora_solver::LinearSolution<S>, Diagnostic> {
         if let Some(profile) = &self.profile {
             profile.require_problem(problem)?;
         }
@@ -335,7 +363,8 @@ pub(super) struct NativeNumericalAdmission {
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum RecognizedNativeModel {
     Coordinates(Box<super::coordinate_grid::CellEquations>),
-    Scalar(Box<ExecutableScalarEquations>),
+    Scalar(Box<ExecutableScalarEquations<f64>>),
+    ComplexScalar(Box<ExecutableScalarEquations<num_complex::Complex64>>),
     Elasticity(Box<IsotropicElasticityContinuum<2>>),
     Stokes(Box<SteadyStokesGeometryBinding2d>),
     Transient(Box<TransientIncompressibleNavierStokesCartesianModel2d>),
@@ -404,7 +433,15 @@ impl RecognizedNativeAdmission {
         nonlinear: Option<NonlinearSolvePlan>,
     ) -> Result<NativeNumericalAdmission, Diagnostic> {
         self.recognized.require_spatial_realization(spatial)?;
-        require_policy_compatibility(spatial, &linear)?;
+        require_policy_compatibility(
+            spatial,
+            &linear,
+            if matches!(self.recognized, RecognizedNativeModel::ComplexScalar(_)) {
+                eqiora_core::ScalarDomain::Complex
+            } else {
+                eqiora_core::ScalarDomain::Real
+            },
+        )?;
         validate_resources(spatial, &self.resources)?;
         if matches!(spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
             let RecognizedNativeModel::Scalar(equations) = &self.recognized else {
@@ -434,7 +471,8 @@ impl RecognizedNativeModel {
             ) | (
                 Self::Scalar(_),
                 NativeSpatialPolicy::ScalarQ1 | NativeSpatialPolicy::ScalarTpfa(_)
-            ) | (Self::Elasticity(_), NativeSpatialPolicy::ElasticityQ1)
+            ) | (Self::ComplexScalar(_), NativeSpatialPolicy::ScalarQ1)
+                | (Self::Elasticity(_), NativeSpatialPolicy::ElasticityQ1)
                 | (Self::Stokes(_), NativeSpatialPolicy::StokesMiniP1(_))
                 | (
                     Self::Transient(_) | Self::TransientGeometry(_),
@@ -593,7 +631,10 @@ impl NativeNumericalAdmission {
     pub(super) fn execute_scalar(
         &self,
         backend: &dyn LinearSolverBackend,
-    ) -> Result<CommonScalarRunOutput, Diagnostic> {
+    ) -> Result<CommonScalarRunOutput<f64>, Diagnostic> {
+        if let RecognizedNativeModel::ComplexScalar(equations) = self.recognized_model() {
+            return self.execute_complex_scalar(equations, backend);
+        }
         self.execute_scalar_with_completion(backend, |reactions, full| reactions.recover(full))
     }
 
@@ -601,11 +642,13 @@ impl NativeNumericalAdmission {
         &self,
         backend: &dyn LinearSolverBackend,
         complete: impl FnOnce(
-            &crate::region_assembly::InterfaceReactions,
+            &crate::region_assembly::InterfaceReactions<f64>,
             &[f64],
-        )
-            -> Result<crate::region_assembly::RecoveredInterfaceReactions, Diagnostic>,
-    ) -> Result<CommonScalarRunOutput, Diagnostic> {
+        ) -> Result<
+            crate::region_assembly::RecoveredInterfaceReactions<f64>,
+            Diagnostic,
+        >,
+    ) -> Result<CommonScalarRunOutput<f64>, Diagnostic> {
         self.revalidate()?;
         if backend.provider() != self.linear.provider
             || backend.capabilities() != self.linear.capabilities
@@ -632,7 +675,7 @@ impl NativeNumericalAdmission {
         let backend: &dyn LinearSolverBackend = &checked_backend;
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
         if self.spatial == NativeSpatialPolicy::ScalarQ1 {
-            return lowered.execute(self, solve, mesh.mesh(), complete);
+            return lowered.execute(self.linear.workers, solve, mesh.mesh(), complete);
         }
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
         match self.spatial {
@@ -725,3 +768,6 @@ pub(super) use resources::{
     derive_gmsh_resources, validate_cartesian_resources, validate_resources,
     validate_simplicial_resources,
 };
+
+#[cfg(test)]
+mod complex_profile;

@@ -15,7 +15,7 @@ impl<const D: usize> FsiLayout<D> {
         mesh: &SimplicialMesh,
         partition: &FixedReferenceFsiPartition<D>,
         boundary: &FixedReferenceFsiBoundary<D>,
-        mapping: &RegionDofMap,
+        mapping: &RegionDofMap<f64>,
     ) -> Result<Self, Diagnostic> {
         Self::new(
             mesh,

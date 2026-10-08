@@ -127,7 +127,7 @@ pub(crate) struct PreparedStepStructure {
     mesh: SimplicialMesh,
     bound: Option<(
         Arc<super::form::StepForm>,
-        Vec<crate::form_compiler::region::PreparedRegionCell>,
+        Vec<crate::form_compiler::region::PreparedRegionCell<f64>>,
     )>,
     boundary: PreparedBoundary2d,
     layout: Arc<MixedLayout>,
@@ -188,7 +188,7 @@ impl PreparedStepStructure {
     fn cells(
         &self,
         plan: &MiniNavierStokesStepPlan2d,
-    ) -> Result<&[crate::form_compiler::region::PreparedRegionCell], Diagnostic> {
+    ) -> Result<&[crate::form_compiler::region::PreparedRegionCell<f64>], Diagnostic> {
         let Some((form, cells)) = &self.bound else {
             return Err(invalid(
                 "step assembly requires its exact prepared form binding",

@@ -47,7 +47,7 @@ pub(crate) enum SteadyStokesPrescribedVelocityTrace2d {
         relation: RawId,
         coefficient_field: RawId,
         definition_relation: RawId,
-        expression: ScalarSpatialExpression,
+        expression: ScalarSpatialExpression<f64>,
     },
     CompleteAffinePotential {
         boundary: RawId,
@@ -55,7 +55,7 @@ pub(crate) enum SteadyStokesPrescribedVelocityTrace2d {
         potential_field: RawId,
         definition_relation: RawId,
         speed_parameter: RawId,
-        expression: ScalarSpatialExpression,
+        expression: ScalarSpatialExpression<f64>,
     },
 }
 
@@ -65,7 +65,7 @@ impl SteadyStokesPrescribedVelocityTrace2d {
         relation: RawId,
         coefficient_field: RawId,
         definition_relation: RawId,
-        expression: ScalarSpatialExpression,
+        expression: ScalarSpatialExpression<f64>,
     ) -> Self {
         Self::Normal {
             boundary,
@@ -82,7 +82,7 @@ impl SteadyStokesPrescribedVelocityTrace2d {
         potential_field: RawId,
         definition_relation: RawId,
         speed_parameter: RawId,
-        expression: ScalarSpatialExpression,
+        expression: ScalarSpatialExpression<f64>,
     ) -> Result<Self, Diagnostic> {
         let gradient = exact_complete_gradient(&expression)?;
         let speed = expression.parameter_values()[0];
@@ -143,7 +143,7 @@ impl SteadyStokesPrescribedVelocityTrace2d {
         }
     }
 
-    pub(super) const fn expression(&self) -> &ScalarSpatialExpression {
+    pub(super) const fn expression(&self) -> &ScalarSpatialExpression<f64> {
         match self {
             Self::Normal { expression, .. } | Self::CompleteAffinePotential { expression, .. } => {
                 expression
@@ -166,7 +166,9 @@ impl SteadyStokesPrescribedVelocityTrace2d {
 
     /// The volume law identity every outer side must share, without its
     /// side-local Boundary and Relation identity.
-    pub(super) fn law_identity(&self) -> (RawId, RawId, Option<RawId>, &ScalarSpatialExpression) {
+    pub(super) fn law_identity(
+        &self,
+    ) -> (RawId, RawId, Option<RawId>, &ScalarSpatialExpression<f64>) {
         (
             self.coefficient_field(),
             self.definition_relation(),
@@ -459,7 +461,9 @@ fn replay_owned_vertices(
     })
 }
 
-fn exact_complete_gradient(expression: &ScalarSpatialExpression) -> Result<[f64; 2], Diagnostic> {
+fn exact_complete_gradient(
+    expression: &ScalarSpatialExpression<f64>,
+) -> Result<[f64; 2], Diagnostic> {
     if expression.coordinate_dimension() != 2
         || expression.parameter_fields().len() != 1
         || expression.parameter_values().len() != 1

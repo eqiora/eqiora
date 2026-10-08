@@ -76,12 +76,12 @@ impl ScalarExteriorLineage {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ScalarStorageMeaning {
-    coefficient: ScalarSpatialExpression,
+    coefficient: ScalarSpatialExpression<f64>,
     lineage: ScalarTermLineage,
 }
 
 impl ScalarStorageMeaning {
-    pub(crate) const fn coefficient(&self) -> &ScalarSpatialExpression {
+    pub(crate) const fn coefficient(&self) -> &ScalarSpatialExpression<f64> {
         &self.coefficient
     }
     pub(crate) const fn lineage(&self) -> ScalarTermLineage {
@@ -91,12 +91,12 @@ impl ScalarStorageMeaning {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ScalarFluxMeaning {
-    coefficient: ScalarSpatialExpression,
+    coefficient: ScalarSpatialExpression<f64>,
     lineage: ScalarTermLineage,
 }
 
 impl ScalarFluxMeaning {
-    pub(crate) const fn coefficient(&self) -> &ScalarSpatialExpression {
+    pub(crate) const fn coefficient(&self) -> &ScalarSpatialExpression<f64> {
         &self.coefficient
     }
     pub(crate) const fn lineage(&self) -> ScalarTermLineage {
@@ -106,14 +106,14 @@ impl ScalarFluxMeaning {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct VolumetricSourceMeaning {
-    expression: ScalarSpatialExpression,
+    expression: ScalarSpatialExpression<f64>,
     dimension: DimExponents,
     integrated_dimension: DimExponents,
     lineage: ScalarTermLineage,
 }
 
 impl VolumetricSourceMeaning {
-    pub(crate) const fn expression(&self) -> &ScalarSpatialExpression {
+    pub(crate) const fn expression(&self) -> &ScalarSpatialExpression<f64> {
         &self.expression
     }
     pub(crate) const fn dimension(&self) -> DimExponents {
@@ -130,16 +130,16 @@ impl VolumetricSourceMeaning {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum ScalarExteriorLaw {
     PrescribedTrace {
-        value: ScalarSpatialExpression,
+        value: ScalarSpatialExpression<f64>,
         lineage: ScalarExteriorLineage,
     },
     PrescribedOutwardFlux {
-        value: ScalarSpatialExpression,
+        value: ScalarSpatialExpression<f64>,
         lineage: ScalarExteriorLineage,
     },
     Robin {
-        trace_coefficient: ScalarSpatialExpression,
-        value: ScalarSpatialExpression,
+        trace_coefficient: ScalarSpatialExpression<f64>,
+        value: ScalarSpatialExpression<f64>,
         lineage: ScalarExteriorLineage,
     },
     ZeroOutwardFlux {
@@ -308,9 +308,9 @@ pub(crate) struct ScalarConservationDescriptor {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ScalarRegionSupport {
-    domain: RawId,
-    bounds: Vec<[f64; 2]>,
-    boundaries: BTreeMap<(usize, BoundarySide), RawId>,
+    pub(crate) domain: RawId,
+    pub(crate) bounds: Vec<[f64; 2]>,
+    pub(crate) boundaries: BTreeMap<(usize, BoundarySide), RawId>,
 }
 
 impl ScalarRegionSupport {
@@ -350,6 +350,7 @@ mod boundary;
 mod descriptor_support;
 mod interface;
 mod recognize;
+pub(crate) use recognize::cartesian_region_supports;
 mod retained;
 mod support;
 

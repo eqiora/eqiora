@@ -16,24 +16,25 @@ pub(super) mod data;
 mod lowering;
 mod temporal;
 
+use crate::spatial_expression::Coefficient;
 use data::{Context, Data};
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct CompiledLinearBlockForm {
+pub(crate) struct CompiledLinearBlockForm<S: Coefficient> {
     domain: RawId,
     dimension: usize,
     fields: Vec<(RawId, ValueType)>,
     relations: Vec<RawId>,
     residual_types: Vec<ValueType>,
     dependencies: BTreeMap<RawId, BTreeSet<RawId>>,
-    boundary_laws: BTreeMap<RawId, BTreeMap<RawId, super::region::RegionBoundaryLaw>>,
-    volume: CompiledRegionForm,
+    boundary_laws: BTreeMap<RawId, BTreeMap<RawId, super::region::RegionBoundaryLaw<S>>>,
+    volume: CompiledRegionForm<S>,
     step: Option<DynQuantity>,
-    initial: BTreeMap<RawId, Data>,
-    storage: BTreeMap<RawId, Data>,
+    initial: BTreeMap<RawId, Data<S>>,
+    storage: BTreeMap<RawId, Data<S>>,
 }
 
-impl CompiledLinearBlockForm {
+impl<S: Coefficient> CompiledLinearBlockForm<S> {
     pub(crate) fn derive(
         program: &KernelProgram,
         domain: RawId,
@@ -85,7 +86,7 @@ impl CompiledLinearBlockForm {
             }
         }
         for (_, value_type) in roles.fields.values() {
-            require_scalar(value_type)?;
+            require_scalar::<S>(value_type)?;
         }
         let mut residuals = BTreeMap::new();
         for (relation, role) in &roles.relations {
@@ -120,7 +121,7 @@ impl CompiledLinearBlockForm {
                 .expect("typed root")
                 .value_type
                 .clone();
-            require_scalar(&value_type)?;
+            require_scalar::<S>(&value_type)?;
             let context = Context {
                 program,
                 dag: typed.expression(),
@@ -141,7 +142,7 @@ impl CompiledLinearBlockForm {
                 Some(KernelNode::Relation(definition))
                     if matches!(definition.meaning(), RelationMeaning::Conservation(_)));
             if !physical_balance && context.diffusion_orientation(root, 0)? == Some(1) {
-                row = row.scale(Data::constant(dimension, -1.0))?;
+                row = row.scale(Data::constant(dimension, <S as From<f64>>::from(-1.0)))?;
             }
             if row.diffusion.len() != 1
                 || !row.diffusion.contains_key(field)
@@ -172,18 +173,22 @@ impl CompiledLinearBlockForm {
             .iter()
             .zip(rows)
             .zip(&residual_types)
-            .map(|(((field, relation), mut row), residual_type)| ScalarRow {
-                relation: *relation,
-                field: *field,
-                residual_type: residual_type.clone(),
-                diffusion: row
-                    .diffusion
-                    .remove(field)
-                    .expect("admitted principal diffusion"),
-                reaction: row.reaction,
-                storage: row.storage,
-                forcing: row.constant.multiply(Data::constant(dimension, -1.0)),
-            })
+            .map(
+                |(((field, relation), mut row), residual_type)| ScalarRow::<S> {
+                    relation: *relation,
+                    field: *field,
+                    residual_type: residual_type.clone(),
+                    diffusion: row
+                        .diffusion
+                        .remove(field)
+                        .expect("admitted principal diffusion"),
+                    reaction: row.reaction,
+                    storage: row.storage,
+                    forcing: row
+                        .constant
+                        .multiply(Data::constant(dimension, <S as From<f64>>::from(-1.0))),
+                },
+            )
             .collect();
         let initial = temporal::initial_values(
             program,
@@ -193,7 +198,8 @@ impl CompiledLinearBlockForm {
             &coefficients,
             !storage.is_empty(),
         )?;
-        let volume = CompiledRegionForm::scalar(domain, dimension, roles.clone(), volume_rows)?;
+        let volume =
+            CompiledRegionForm::<S>::scalar(domain, dimension, roles.clone(), volume_rows)?;
         let boundary = boundary::derive(
             program,
             domain,
@@ -242,11 +248,11 @@ impl CompiledLinearBlockForm {
     }
     pub(crate) fn boundary_laws(
         &self,
-    ) -> &BTreeMap<RawId, BTreeMap<RawId, super::region::RegionBoundaryLaw>> {
+    ) -> &BTreeMap<RawId, BTreeMap<RawId, super::region::RegionBoundaryLaw<S>>> {
         &self.boundary_laws
     }
 
-    pub(crate) fn volume(&self) -> Result<BoundRegionForm, Diagnostic> {
+    pub(crate) fn volume(&self) -> Result<BoundRegionForm<S>, Diagnostic> {
         let time = self.step.map(|step| super::region::RegionTimeBinding {
             step,
             states: Vec::new(),
@@ -255,11 +261,11 @@ impl CompiledLinearBlockForm {
     }
 }
 
-pub(super) fn coefficients(
+pub(super) fn coefficients<S: crate::spatial_expression::Coefficient>(
     program: &KernelProgram,
     dimension: usize,
     roles: &EquationRoles,
-) -> Result<BTreeMap<RawId, Data>, Diagnostic> {
+) -> Result<BTreeMap<RawId, Data<S>>, Diagnostic> {
     let mut known = BTreeMap::new();
     let mut pending = roles
         .relations
@@ -314,14 +320,18 @@ pub(super) fn coefficients(
     Ok(known)
 }
 
-fn require_scalar(value_type: &ValueType) -> Result<(), Diagnostic> {
-    if value_type.scalar_domain() != ScalarDomain::Real
+fn require_scalar<S: Coefficient>(value_type: &ValueType) -> Result<(), Diagnostic> {
+    if !matches!(
+        value_type.scalar_domain(),
+        ScalarDomain::Real | ScalarDomain::Complex
+    ) || (value_type.scalar_domain() == ScalarDomain::Complex
+        && S::DOMAIN != ScalarDomain::Complex)
         || !value_type.shape().is_scalar()
         || value_type.frame() != ValueFrame::Invariant
         || value_type.array_rank() != 0
     {
         return Err(invalid(
-            "linear block execution requires invariant real scalar values",
+            "linear block execution requires invariant scalar values matching its coefficient representation",
         ));
     }
     Ok(())
