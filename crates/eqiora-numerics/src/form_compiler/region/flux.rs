@@ -6,14 +6,14 @@ use eqiora_schema::kernel::{ExprId, ExprNode};
 use super::*;
 
 #[derive(Debug, Clone, PartialEq)]
-pub(super) enum FluxTerm {
-    Trial(Term),
+pub(super) enum FluxTerm<S: Coefficient> {
+    Trial(Term<S>),
     // A uniform isotropic tensor has zero volume divergence, but its outward
     // traction is its scalar coefficient times the exact parent normal.
-    Isotropic(Data<f64>),
+    Isotropic(Data<S>),
 }
 
-impl FluxTerm {
+impl<S: Coefficient> FluxTerm<S> {
     fn same_coefficient(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Trial(a), Self::Trial(b)) => {
@@ -30,7 +30,7 @@ impl FluxTerm {
     pub(super) fn bind_parameter_point(
         &mut self,
         fields: &[Id<kinds::Parameter>],
-        values: &[f64],
+        values: &[S],
     ) -> Result<(), Diagnostic> {
         let coefficient = match self {
             Self::Trial(term) => &mut term.coefficient,
@@ -41,7 +41,7 @@ impl FluxTerm {
     }
 }
 
-impl CompiledRegionForm {
+impl<S: Coefficient> CompiledRegionForm<S> {
     pub(super) fn require_boundary_flux(
         &self,
         program: &KernelProgram,

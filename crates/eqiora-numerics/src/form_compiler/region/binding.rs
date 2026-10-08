@@ -1,3 +1,4 @@
+use crate::spatial_expression::Coefficient;
 use std::collections::BTreeMap;
 use std::ops::Range;
 
@@ -36,8 +37,8 @@ pub(crate) struct RegionFieldLayout {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct BoundRegionForm {
-    pub(super) form: CompiledRegionForm,
+pub(crate) struct BoundRegionForm<S: Coefficient> {
+    pub(super) form: CompiledRegionForm<S>,
     pub(super) reference: ReferenceCell,
     pub(super) fields: Vec<RegionFieldLayout>,
     pub(super) previous: BTreeMap<RawId, RegionFieldLayout>,
@@ -46,14 +47,14 @@ pub(crate) struct BoundRegionForm {
     pub(super) row_multipliers: Vec<f64>,
 }
 
-impl CompiledRegionForm {
+impl<S: Coefficient> CompiledRegionForm<S> {
     pub(crate) fn bind(
         &self,
         reference: ReferenceCell,
         fields: &[RegionFieldBinding],
         row_multipliers: &BTreeMap<RawId, DynQuantity>,
         time: Option<&RegionTimeBinding>,
-    ) -> Result<BoundRegionForm, Diagnostic> {
+    ) -> Result<BoundRegionForm<S>, Diagnostic> {
         if reference.dimension() != self.dimension
             || fields.len() != self.rows.len()
             || row_multipliers.len() != self.rows.len()
@@ -154,7 +155,7 @@ impl CompiledRegionForm {
     }
 }
 
-impl BoundRegionForm {
+impl<S: Coefficient> BoundRegionForm<S> {
     pub(crate) const fn domain(&self) -> RawId {
         self.form.domain()
     }

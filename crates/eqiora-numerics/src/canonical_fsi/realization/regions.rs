@@ -18,7 +18,7 @@ pub(super) use cells::prepare_cells;
 pub(super) fn bind(
     model: &FixedReferenceFsiCartesianModel2d,
     plan: &CoupledFieldwiseRealizationPlan,
-) -> Result<BTreeMap<RawId, BoundRegionForm>, Diagnostic> {
+) -> Result<BTreeMap<RawId, BoundRegionForm<f64>>, Diagnostic> {
     let reference = ReferenceCell::simplex(2)?;
     let functional = plan.scaling().weak_functional_scale().quantity();
     model
@@ -98,7 +98,7 @@ pub(super) fn bind(
 /// same global map used by every region packet consumer.
 pub(super) fn layout(
     model: &FixedReferenceFsiCartesianModel2d,
-    forms: &BTreeMap<RawId, BoundRegionForm>,
+    forms: &BTreeMap<RawId, BoundRegionForm<f64>>,
     plan: &CoupledFieldwiseRealizationPlan,
     mesh: &eqiora_meshing::SimplicialMesh,
     partition: &crate::simplicial_fsi::FixedReferenceFsiPartition<2>,

@@ -102,7 +102,7 @@ fn potential_gradient_rebinds_exact_parameters_without_mutating_the_original() {
         .iter()
         .map(|(field, _)| *field)
         .collect::<Vec<_>>();
-    let form = CompiledRegionForm::derive(&program, domain, 2).unwrap();
+    let form = CompiledRegionForm::<f64>::derive(&program, domain, 2).unwrap();
     let original = &form.rows[0].forcing[0];
     let rebound = original.bind_parameter_point(&fields, &values).unwrap();
     close(
@@ -181,7 +181,7 @@ fn scalar_q1_uses_the_same_value_and_gradient_contractions() {
             _ => None,
         })
         .unwrap();
-    let form = CompiledRegionForm::derive(&program, domain, 2).unwrap();
+    let form = CompiledRegionForm::<f64>::derive(&program, domain, 2).unwrap();
     let reference = ReferenceCell::hypercube(2).unwrap();
     let fields = form
         .fields()

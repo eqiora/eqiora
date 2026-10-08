@@ -7,7 +7,7 @@ use eqiora_meshing::{
 use super::*;
 use crate::discrete_space::{CellConstantSpace, DiscreteSpace, HypercubeQ1Space, SimplexP1Space};
 
-impl BoundRegionForm {
+impl<S: Coefficient> BoundRegionForm<S> {
     /// Integrate physical parent-outward flux into the complete parent-cell map.
     /// The caller owns the authenticated facet-to-cell incidence and Domain binding.
     pub(crate) fn evaluate_natural_facet(
@@ -16,8 +16,8 @@ impl BoundRegionForm {
         cell: &AffineGeometryMap,
         facet: (&AffineGeometryMap, EntityIncidence, &[usize]),
         rule: &QuadratureRule,
-        datum: impl Fn(&[f64], &[f64]) -> Result<Vec<f64>, Diagnostic>,
-    ) -> Result<LocalContribution<f64>, Diagnostic> {
+        datum: impl Fn(&[f64], &[f64]) -> Result<Vec<S>, Diagnostic>,
+    ) -> Result<LocalContribution<S>, Diagnostic> {
         let (facet, incidence, parent_vertices) = facet;
         let dimension = self.form.dimension;
         if cell.reference_cell() != self.reference
@@ -63,7 +63,7 @@ impl BoundRegionForm {
         let entries = count
             .checked_mul(count)
             .ok_or_else(|| invalid("natural flux local matrix size overflow"))?;
-        let mut rhs = vec![0.0; count];
+        let mut rhs = vec![<S as From<f64>>::from(0.0); count];
         let normal = parent_outward_normal(cell, incidence)?;
         for point in rule.points() {
             let mut physical = vec![0.0; dimension];
@@ -92,11 +92,16 @@ impl BoundRegionForm {
                 let test = test.values()[facet_vertex];
                 for (component, value) in value.iter().enumerate() {
                     rhs[layout.range.start + node * layout.components + component] +=
-                        weight * test * value;
+                        <S as From<f64>>::from(weight * test) * *value;
                 }
             }
         }
-        LocalContribution::new(count, count, vec![0.0; entries], rhs)
+        LocalContribution::new(
+            count,
+            count,
+            vec![<S as From<f64>>::from(0.0); entries],
+            rhs,
+        )
     }
 }
 

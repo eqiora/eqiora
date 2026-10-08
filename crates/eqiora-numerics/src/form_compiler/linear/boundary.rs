@@ -10,7 +10,7 @@ use eqiora_sem::KernelProgram;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) struct Inventory {
-    pub(super) fields: BTreeMap<RawId, BTreeMap<RawId, RegionBoundaryLaw>>,
+    pub(super) fields: BTreeMap<RawId, BTreeMap<RawId, RegionBoundaryLaw<f64>>>,
     pub(super) dependencies: BTreeMap<RawId, BTreeSet<RawId>>,
 }
 
@@ -19,7 +19,7 @@ pub(super) fn derive(
     parent: RawId,
     dimension: usize,
     fields: &[(RawId, ValueType)],
-    volume: &CompiledRegionForm,
+    volume: &CompiledRegionForm<f64>,
     interface_boundaries: &BTreeSet<RawId>,
 ) -> Result<Inventory, Diagnostic> {
     let mut boundaries = fields

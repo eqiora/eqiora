@@ -178,7 +178,7 @@ pub(super) fn lower(
     let region_forms = domains
         .into_iter()
         .map(|domain| {
-            crate::form_compiler::region::CompiledRegionForm::derive(program, domain, 2)
+            crate::form_compiler::region::CompiledRegionForm::<f64>::derive(program, domain, 2)
                 .map(|form| (domain, form))
         })
         .collect::<Result<_, _>>()?;

@@ -436,7 +436,7 @@ model Mathematics() {{ domain body = box({bounds});
                 _ => None,
             })
             .unwrap();
-        let compiled = CompiledRegionForm::derive(&program, domain, D).unwrap();
+        let compiled = CompiledRegionForm::<f64>::derive(&program, domain, D).unwrap();
         let bindings = compiled
             .fields()
             .map(|(field, value_type)| RegionFieldBinding {

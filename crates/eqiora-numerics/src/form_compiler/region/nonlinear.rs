@@ -7,9 +7,9 @@ use eqiora_meshing::{AffineGeometryMap, GeometryMap, QuadratureRule};
 use super::{BoundRegionForm, Data, binding::basis, invalid};
 
 #[derive(Debug, Clone, PartialEq)]
-pub(super) struct DyadicTerm {
+pub(super) struct DyadicTerm<S: crate::spatial_expression::Coefficient> {
     pub field: RawId,
-    pub coefficient: Data<f64>,
+    pub coefficient: Data<S>,
     /// A retained div(field)=0 constraint permits the skew split by parts.
     /// This is a mathematical condition, not a velocity or fluid role.
     pub split: bool,
@@ -41,7 +41,7 @@ impl RegionLinearization {
     }
 }
 
-impl BoundRegionForm {
+impl BoundRegionForm<f64> {
     /// Anonymous source/test pairing, shared by caller-provided mathematical loads.
     pub(crate) fn pair_load(
         &self,

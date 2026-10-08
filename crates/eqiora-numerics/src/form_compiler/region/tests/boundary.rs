@@ -4,7 +4,11 @@ use crate::canonical_boundary::PhysicalBoundaryQuantity;
 fn boundary_fixture(
     source: &str,
     addition: &str,
-) -> (KernelProgram, CompiledRegionForm, BTreeMap<String, RawId>) {
+) -> (
+    KernelProgram,
+    CompiledRegionForm<f64>,
+    BTreeMap<String, RawId>,
+) {
     boundary_fixture_dimension(source, addition, 2)
 }
 
@@ -12,7 +16,11 @@ fn boundary_fixture_dimension(
     source: &str,
     addition: &str,
     dimension: usize,
-) -> (KernelProgram, CompiledRegionForm, BTreeMap<String, RawId>) {
+) -> (
+    KernelProgram,
+    CompiledRegionForm<f64>,
+    BTreeMap<String, RawId>,
+) {
     let (prefix, _) = source.rsplit_once('}').unwrap();
     let source = format!("{prefix} {addition} }}");
     let (transaction, model, symbols) = compile("boundary.eqi", &source)
@@ -26,7 +34,7 @@ fn boundary_fixture_dimension(
         .into_iter()
         .filter_map(|name| symbols.get(name).map(|id| (name.to_owned(), id)))
         .collect::<BTreeMap<_, _>>();
-    let form = CompiledRegionForm::derive(&program, ids["body"], dimension).unwrap();
+    let form = CompiledRegionForm::<f64>::derive(&program, ids["body"], dimension).unwrap();
     (program, form, ids)
 }
 

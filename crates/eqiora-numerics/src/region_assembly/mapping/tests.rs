@@ -231,7 +231,7 @@ fn model_derived_chain_assembles_solves_and_recovers_every_exact_field() {
         let forms = regions
             .iter()
             .map(|region| {
-                let form = CompiledRegionForm::derive(&program, region.domain(), 1).unwrap();
+                let form = CompiledRegionForm::<f64>::derive(&program, region.domain(), 1).unwrap();
                 let fields = layouts[&region.domain()]
                     .iter()
                     .map(|layout| RegionFieldBinding {
@@ -541,7 +541,7 @@ model VectorRegion() {
         AssemblyTarget::new(mapping.full_count()).unwrap(),
     ])
     .unwrap();
-    let form = CompiledRegionForm::derive(&program, domain, 2).unwrap();
+    let form = CompiledRegionForm::<f64>::derive(&program, domain, 2).unwrap();
     let rows = form
         .rows()
         .map(|(relation, _, _)| (relation, DynQuantity::new(1.0, DimExponents::DIMENSIONLESS)))

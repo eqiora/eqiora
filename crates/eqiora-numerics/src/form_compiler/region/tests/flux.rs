@@ -1,7 +1,13 @@
 use super::*;
 use eqiora_schema::kernel::ExprNode;
 
-fn fixture(flux: &str) -> (KernelProgram, CompiledRegionForm, BTreeMap<String, RawId>) {
+fn fixture(
+    flux: &str,
+) -> (
+    KernelProgram,
+    CompiledRegionForm<f64>,
+    BTreeMap<String, RawId>,
+) {
     let source = format!("model Stress() {{
         domain body = box(0, 1, 0, 1);
         domain left = boundary(body, axis=0, side=lower);
@@ -30,13 +36,13 @@ fn fixture(flux: &str) -> (KernelProgram, CompiledRegionForm, BTreeMap<String, R
         .into_iter()
         .map(|name| (name.to_owned(), symbols.get(name).unwrap()))
         .collect::<BTreeMap<_, _>>();
-    let form = CompiledRegionForm::derive(&program, ids["body"], 2).unwrap();
+    let form = CompiledRegionForm::<f64>::derive(&program, ids["body"], 2).unwrap();
     (program, form, ids)
 }
 
 fn check(
     program: &KernelProgram,
-    form: &CompiledRegionForm,
+    form: &CompiledRegionForm<f64>,
     ids: &BTreeMap<String, RawId>,
     side: &str,
 ) -> Result<(), Diagnostic> {

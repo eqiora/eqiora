@@ -26,8 +26,8 @@ pub(crate) struct CompiledLinearBlockForm {
     relations: Vec<RawId>,
     residual_types: Vec<ValueType>,
     dependencies: BTreeMap<RawId, BTreeSet<RawId>>,
-    boundary_laws: BTreeMap<RawId, BTreeMap<RawId, super::region::RegionBoundaryLaw>>,
-    volume: CompiledRegionForm,
+    boundary_laws: BTreeMap<RawId, BTreeMap<RawId, super::region::RegionBoundaryLaw<f64>>>,
+    volume: CompiledRegionForm<f64>,
     step: Option<DynQuantity>,
     initial: BTreeMap<RawId, Data<f64>>,
     storage: BTreeMap<RawId, Data<f64>>,
@@ -172,18 +172,20 @@ impl CompiledLinearBlockForm {
             .iter()
             .zip(rows)
             .zip(&residual_types)
-            .map(|(((field, relation), mut row), residual_type)| ScalarRow {
-                relation: *relation,
-                field: *field,
-                residual_type: residual_type.clone(),
-                diffusion: row
-                    .diffusion
-                    .remove(field)
-                    .expect("admitted principal diffusion"),
-                reaction: row.reaction,
-                storage: row.storage,
-                forcing: row.constant.multiply(Data::constant(dimension, -1.0)),
-            })
+            .map(
+                |(((field, relation), mut row), residual_type)| ScalarRow::<f64> {
+                    relation: *relation,
+                    field: *field,
+                    residual_type: residual_type.clone(),
+                    diffusion: row
+                        .diffusion
+                        .remove(field)
+                        .expect("admitted principal diffusion"),
+                    reaction: row.reaction,
+                    storage: row.storage,
+                    forcing: row.constant.multiply(Data::constant(dimension, -1.0)),
+                },
+            )
             .collect();
         let initial = temporal::initial_values(
             program,
@@ -193,7 +195,8 @@ impl CompiledLinearBlockForm {
             &coefficients,
             !storage.is_empty(),
         )?;
-        let volume = CompiledRegionForm::scalar(domain, dimension, roles.clone(), volume_rows)?;
+        let volume =
+            CompiledRegionForm::<f64>::scalar(domain, dimension, roles.clone(), volume_rows)?;
         let boundary = boundary::derive(
             program,
             domain,
@@ -242,11 +245,11 @@ impl CompiledLinearBlockForm {
     }
     pub(crate) fn boundary_laws(
         &self,
-    ) -> &BTreeMap<RawId, BTreeMap<RawId, super::region::RegionBoundaryLaw>> {
+    ) -> &BTreeMap<RawId, BTreeMap<RawId, super::region::RegionBoundaryLaw<f64>>> {
         &self.boundary_laws
     }
 
-    pub(crate) fn volume(&self) -> Result<BoundRegionForm, Diagnostic> {
+    pub(crate) fn volume(&self) -> Result<BoundRegionForm<f64>, Diagnostic> {
         let time = self.step.map(|step| super::region::RegionTimeBinding {
             step,
             states: Vec::new(),

@@ -5,7 +5,9 @@ use num_complex::Complex64;
 
 // This private conversion boundary prevents imaginary channels from being
 // silently discarded when the caller requests a real coefficient tape.
-pub(crate) trait Coefficient: Scalar + ComplexFloat<Real = f64> + From<f64> {
+pub(crate) trait Coefficient:
+    Scalar + ComplexFloat<Real = f64> + From<f64> + std::ops::AddAssign + std::ops::SubAssign
+{
     fn literal(value: &ValueLiteral) -> Option<Self>;
     fn imaginary_unit() -> Option<Self>;
 }

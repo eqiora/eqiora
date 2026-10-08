@@ -17,9 +17,9 @@ use super::*;
 pub(super) struct Fixture {
     pub packet_set: AssemblyPacketSetIdentityV1,
     pub plan: AssemblyPlan,
-    pub forms: Vec<(BoundRegionForm, QuadratureRule)>,
+    pub forms: Vec<(BoundRegionForm<f64>, QuadratureRule)>,
     pub domains: Vec<RawId>,
-    pub cells: Vec<RegionAssemblyCell>,
+    pub cells: Vec<RegionAssemblyCell<f64>>,
     pub boundary_packets: Vec<AssemblyPacket<f64>>,
     pub matrix: Vec<f64>,
     pub rhs: Vec<f64>,
@@ -54,7 +54,7 @@ impl Fixture {
         let mut domains = Vec::new();
         let mut cells = Vec::new();
         for (region, domain) in selected {
-            let form = CompiledRegionForm::derive(&program, domain, 1).unwrap();
+            let form = CompiledRegionForm::<f64>::derive(&program, domain, 1).unwrap();
             let bindings = form
                 .fields()
                 .map(|(field, value_type)| RegionFieldBinding {
@@ -135,7 +135,7 @@ impl Fixture {
         }
     }
 
-    pub fn prepare(&self) -> Result<PreparedRegionAssembly, Diagnostic> {
+    pub fn prepare(&self) -> Result<PreparedRegionAssembly<f64>, Diagnostic> {
         PreparedRegionAssembly::new(
             self.packet_set,
             &self.plan,

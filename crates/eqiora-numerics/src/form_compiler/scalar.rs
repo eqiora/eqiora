@@ -597,7 +597,11 @@ pub(super) fn push_operands(node: &ExprNode, pending: &mut Vec<ExprId>) {
         | ExprNode::IsotropicLift(value)
         | ExprNode::NormalComponent(value)
         | ExprNode::Trace(value) => pending.push(*value),
-        ExprNode::Add(left, right)
+        ExprNode::Complex {
+            real: left,
+            imag: right,
+        }
+        | ExprNode::Add(left, right)
         | ExprNode::Sub(left, right)
         | ExprNode::Mul(left, right)
         | ExprNode::Div(left, right) => {

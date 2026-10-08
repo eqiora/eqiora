@@ -1,3 +1,4 @@
+use crate::spatial_expression::Coefficient;
 use eqiora_core::Diagnostic;
 use eqiora_schema::kernel::{ExprId, ExprNode, SymbolRef};
 
@@ -11,21 +12,21 @@ enum Position {
     Isotropic,
 }
 
-pub(super) fn lower(
-    context: &Context<'_, f64>,
+pub(super) fn lower<S: Coefficient>(
+    context: &Context<'_, S>,
     id: ExprId,
-    coefficient: Data<f64>,
-    row: &mut Row,
+    coefficient: Data<S>,
+    row: &mut Row<S>,
     depth: usize,
 ) -> Result<(), Diagnostic> {
     expression(context, id, coefficient, row, Position::Strong, depth)
 }
 
-pub(super) fn boundary_flux(
-    context: &Context<'_, f64>,
+pub(super) fn boundary_flux<S: Coefficient>(
+    context: &Context<'_, S>,
     id: ExprId,
-    row: &Row,
-) -> Result<Vec<FluxTerm>, Diagnostic> {
+    row: &Row<S>,
+) -> Result<Vec<FluxTerm<S>>, Diagnostic> {
     let mut boundary = row.clone();
     boundary.terms.clear();
     boundary.dyadics.clear();
@@ -33,7 +34,7 @@ pub(super) fn boundary_flux(
     expression(
         context,
         id,
-        Data::constant(context.dimension, 1.0),
+        Data::constant(context.dimension, <S as From<f64>>::from(1.0)),
         &mut boundary,
         Position::Flux,
         0,
@@ -46,11 +47,11 @@ pub(super) fn boundary_flux(
     Ok(boundary.flux)
 }
 
-fn expression(
-    context: &Context<'_, f64>,
+fn expression<S: Coefficient>(
+    context: &Context<'_, S>,
     id: ExprId,
-    coefficient: Data<f64>,
-    row: &mut Row,
+    coefficient: Data<S>,
+    row: &mut Row<S>,
     position: Position,
     depth: usize,
 ) -> Result<(), Diagnostic> {
@@ -58,8 +59,13 @@ fn expression(
         return Err(invalid("region expression nesting exceeds 128"));
     }
     let node = context.dag.node(id).expect("validated DAG");
-    let negative = |value: Data<f64>| value.multiply(Data::constant(context.dimension, -1.0));
-    let recurse = |id, coefficient, row: &mut Row| {
+    let negative = |value: Data<S>| {
+        value.multiply(Data::constant(
+            context.dimension,
+            <S as From<f64>>::from(-1.0),
+        ))
+    };
+    let recurse = |id, coefficient, row: &mut Row<S>| {
         expression(context, id, coefficient, row, position, depth + 1)
     };
     match node {
@@ -132,7 +138,10 @@ fn expression(
                     // derivative must not hide an overflowing or undefined potential.
                     let derivative = potential
                         .clone()
-                        .multiply(Data::constant(context.dimension, 0.0))
+                        .multiply(Data::constant(
+                            context.dimension,
+                            <S as From<f64>>::from(0.0),
+                        ))
                         .add(potential.coordinate_derivative(axis, context.dimension)?);
                     *forcing = forcing
                         .clone()
@@ -250,11 +259,11 @@ fn expression(
     }
 }
 
-fn trial(
-    context: &Context<'_, f64>,
+fn trial<S: Coefficient>(
+    context: &Context<'_, S>,
     id: ExprId,
-    coefficient: Data<f64>,
-    row: &mut Row,
+    coefficient: Data<S>,
+    row: &mut Row<S>,
     pairing: Pairing,
 ) -> Result<(), Diagnostic> {
     let (field, derivative) = match context.dag.node(id) {

@@ -1,5 +1,6 @@
 //! Typed equation-derived region forms, before global Field DOF mapping.
 
+use crate::spatial_expression::Coefficient;
 use std::collections::{BTreeMap, BTreeSet};
 
 use eqiora_core::{Diagnostic, RawId, ScalarDomain, ValueFrame, ValueType};
@@ -34,34 +35,34 @@ pub(crate) use binding::{
 };
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct CompiledRegionForm {
+pub(crate) struct CompiledRegionForm<S: Coefficient> {
     domain: RawId,
     dimension: usize,
     roles: EquationRoles,
-    rows: Vec<Row>,
+    rows: Vec<Row<S>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct Row {
+struct Row<S: Coefficient> {
     relation: RawId,
     tested: RawId,
     value_type: ValueType,
-    terms: Vec<Term>,
-    dyadics: Vec<nonlinear::DyadicTerm>,
-    flux: Vec<flux::FluxTerm>,
-    forcing: Vec<Data<f64>>,
+    terms: Vec<Term<S>>,
+    dyadics: Vec<nonlinear::DyadicTerm<S>>,
+    flux: Vec<flux::FluxTerm<S>>,
+    forcing: Vec<Data<S>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct Term {
+struct Term<S: Coefficient> {
     trial: RawId,
     derivative: bool,
     pairing: Pairing,
-    coefficient: Data<f64>,
+    coefficient: Data<S>,
     positive_diffusion: bool,
 }
 
-impl CompiledRegionForm {
+impl<S: Coefficient> CompiledRegionForm<S> {
     pub(crate) fn derive(
         program: &KernelProgram,
         domain: RawId,
@@ -72,6 +73,13 @@ impl CompiledRegionForm {
         }
         let roles = EquationRoles::derive(program, [domain])?;
         for (_, value_type) in roles.fields.values() {
+            if value_type.scalar_domain() == ScalarDomain::Complex
+                && S::DOMAIN != ScalarDomain::Complex
+            {
+                return Err(invalid(
+                    "complex region Fields require a complex coefficient representation",
+                ));
+            }
             components(value_type, dimension)?;
         }
         let coefficients = super::linear::coefficients(program, dimension, &roles)?;
@@ -117,9 +125,18 @@ impl CompiledRegionForm {
                 terms: Vec::new(),
                 dyadics: Vec::new(),
                 flux: Vec::new(),
-                forcing: vec![Data::constant(dimension, 0.0); components(&value_type, dimension)?],
+                forcing: vec![
+                    Data::constant(dimension, <S as From<f64>>::from(0.0));
+                    components(&value_type, dimension)?
+                ],
             };
-            lowering::lower(&context, root, Data::constant(dimension, 1.0), &mut row, 0)?;
+            lowering::lower(
+                &context,
+                root,
+                Data::constant(dimension, <S as From<f64>>::from(1.0)),
+                &mut row,
+                0,
+            )?;
             for term in &mut row.dyadics {
                 let field = roles
                     .fields
@@ -197,7 +214,11 @@ impl CompiledRegionForm {
 }
 
 pub(crate) fn components(value_type: &ValueType, dimension: usize) -> Result<usize, Diagnostic> {
-    if value_type.scalar_domain() == ScalarDomain::Real && value_type.array_rank() == 0 {
+    if matches!(
+        value_type.scalar_domain(),
+        ScalarDomain::Real | ScalarDomain::Complex
+    ) && value_type.array_rank() == 0
+    {
         if value_type.shape().is_scalar() && value_type.frame() == ValueFrame::Invariant {
             return Ok(1);
         }
@@ -209,7 +230,7 @@ pub(crate) fn components(value_type: &ValueType, dimension: usize) -> Result<usi
         }
     }
     Err(invalid(
-        "region execution requires real invariant scalars or spatial vectors",
+        "region execution requires real or complex invariant scalars or spatial vectors",
     ))
 }
 

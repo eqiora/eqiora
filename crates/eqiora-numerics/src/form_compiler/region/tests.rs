@@ -12,6 +12,7 @@ use eqiora_schema::kernel::KernelNode;
 use super::*;
 
 mod boundary;
+mod complex;
 mod flux;
 mod nonlinear;
 mod prepared;
@@ -46,11 +47,11 @@ const ELIMINATED: &str = "model Elastic() {
  }
 }";
 
-fn derive(source: &str) -> Result<CompiledRegionForm, Diagnostic> {
+fn derive(source: &str) -> Result<CompiledRegionForm<f64>, Diagnostic> {
     derive_dimension(source, 2)
 }
 
-fn derive_dimension(source: &str, dimension: usize) -> Result<CompiledRegionForm, Diagnostic> {
+fn derive_dimension(source: &str, dimension: usize) -> Result<CompiledRegionForm<f64>, Diagnostic> {
     let (transaction, model, _) = compile("region.eqi", source)
         .unwrap()
         .remove(0)
@@ -65,7 +66,7 @@ fn derive_dimension(source: &str, dimension: usize) -> Result<CompiledRegionForm
             _ => None,
         })
         .unwrap();
-    let form = CompiledRegionForm::derive(&program, domain, dimension)?;
+    let form = CompiledRegionForm::<f64>::derive(&program, domain, dimension)?;
     assert_eq!(form.domain(), domain);
     assert!(
         form.roles
@@ -93,7 +94,7 @@ fn geometry() -> AffineGeometryMap {
 }
 
 fn inputs(
-    form: &CompiledRegionForm,
+    form: &CompiledRegionForm<f64>,
     bubble: bool,
 ) -> (
     Vec<RegionFieldBinding>,
@@ -173,7 +174,7 @@ fn inputs(
     )
 }
 
-fn bound(form: &CompiledRegionForm, bubble: bool) -> BoundRegionForm {
+fn bound(form: &CompiledRegionForm<f64>, bubble: bool) -> BoundRegionForm<f64> {
     let (fields, rows, time) = inputs(form, bubble);
     form.bind(
         ReferenceCell::simplex(2).unwrap(),

@@ -142,7 +142,7 @@ pub struct FixedReferenceFsiCartesianModel2d {
     interfaces: BTreeMap<RawId, FsiInterface>,
     test_orientations: BTreeMap<RawId, f64>,
     equation_roles: crate::form_compiler::equation_roles::EquationRoles,
-    region_forms: BTreeMap<RawId, crate::form_compiler::region::CompiledRegionForm>,
+    region_forms: BTreeMap<RawId, crate::form_compiler::region::CompiledRegionForm<f64>>,
 }
 
 impl FixedReferenceFsiCartesianModel2d {
