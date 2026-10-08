@@ -63,6 +63,7 @@ fn from_dag(
                     .checked_sub(count)
                     .ok_or(ProjectionFailure::Unsupported)?;
                 AuthoredFormExpressionV1::Components {
+                    dimension: value.value_type().dimension().exponents(),
                     shape,
                     values: (0..count)
                         .map(|i| value.component(i))
@@ -76,16 +77,17 @@ fn from_dag(
             {
                 let (real, imag) = value.component(0).ok_or(ProjectionFailure::Unsupported)?;
                 AuthoredFormExpressionV1::Complex {
-                    real: Box::new(AuthoredFormExpressionV1::Number { value: real }),
-                    imag: Box::new(AuthoredFormExpressionV1::Number { value: imag }),
+                    real: Box::new(literal(real, value.value_type().dimension())?),
+                    imag: Box::new(literal(imag, value.value_type().dimension())?),
                 }
             }
-            ExprNode::Constant(value) => AuthoredFormExpressionV1::Number {
-                value: value
+            ExprNode::Constant(value) => literal(
+                value
                     .real_scalar_value()
                     .ok_or(ProjectionFailure::Unsupported)?
                     .value(),
-            },
+                value.value_type().dimension(),
+            )?,
             ExprNode::Complex { real, imag } => AuthoredFormExpressionV1::Complex {
                 real: convert(*real)?,
                 imag: convert(*imag)?,
@@ -158,4 +160,20 @@ fn from_dag(
             }
         },
     )
+}
+
+fn literal(
+    value: f64,
+    dimension: eqiora_core::DimExponents,
+) -> Result<AuthoredFormExpressionV1, ProjectionFailure> {
+    if dimension == eqiora_core::DimExponents::DIMENSIONLESS {
+        return Ok(AuthoredFormExpressionV1::Number { value });
+    }
+    let rational = eqiora_schema::kernel::pure_operator::ExactRational::from_binary64(value)
+        .ok_or(ProjectionFailure::Unsupported)?;
+    Ok(AuthoredFormExpressionV1::Rational {
+        numerator: rational.numerator(),
+        denominator: rational.denominator(),
+        dimension: dimension.exponents(),
+    })
 }

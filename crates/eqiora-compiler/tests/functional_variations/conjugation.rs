@@ -369,8 +369,15 @@ fn body_parameter_coefficients_retain_closed_types_and_live_alias_dependencies()
     let form = model.authored_formulations().next().unwrap().projection();
     let bytes = std::str::from_utf8(form.canonical_bytes()).unwrap();
     assert!(bytes.contains("\"kind\":\"complex\""));
-    assert!(bytes.contains("\"value\":3.0"));
-    assert!(bytes.contains("\"value\":-1.0"));
+    let dimension = eqiora_core::DimExponents::from_integers([0, -2, 0, 0, 0, 0, 0]).unwrap();
+    for numerator in [3, -1] {
+        let expected = E::Rational {
+            numerator,
+            denominator: 1,
+            dimension: dimension.exponents(),
+        };
+        assert!(bytes.contains(&serde_json::to_string(&expected).unwrap()));
+    }
     let model = complex_form_with_fields(
         "integrate(body,bulk*inner(eta,q*c))",
         "parameter q:complex<1>=phase*2;",

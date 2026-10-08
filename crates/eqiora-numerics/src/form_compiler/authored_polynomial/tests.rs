@@ -384,6 +384,7 @@ public component Wave() {
     }
     let bad = E::Apply {
         left: Box::new(E::Components {
+            dimension: eqiora_core::DimExponents::DIMENSIONLESS.exponents(),
             shape: vec![2, 2],
             values: vec![(2., 0.), (0., 1.), (0., -1.), (2., 0.)],
         }),
@@ -404,6 +405,7 @@ public component Wave() {
         right
     ));
     let malformed = E::Components {
+        dimension: eqiora_core::DimExponents::DIMENSIONLESS.exponents(),
         shape: vec![2, 2],
         values: vec![(2., 0.); 3],
     };

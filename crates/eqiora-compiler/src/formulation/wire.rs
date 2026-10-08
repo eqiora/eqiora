@@ -182,6 +182,7 @@ pub enum AuthoredFormExpressionV1 {
     },
     /// Closed component values after ordinary source specialization.
     Components {
+        dimension: [(i32, i32); 7],
         shape: Vec<u32>,
         values: Vec<(f64, f64)>,
     },

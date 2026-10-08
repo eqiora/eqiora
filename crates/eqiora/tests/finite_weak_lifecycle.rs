@@ -43,7 +43,16 @@ fn replay(bytes: &[u8]) -> Result<ResolvedCommonPlan, eqiora_core::Diagnostic> {
 }
 #[test]
 fn real_and_complex_weak_forms_execute_and_replay_with_exact_authored_identity() {
+    let physical = SOURCE
+        .replace("map<complex<1>", "map<complex<J>")
+        .replace(
+            "[[2,math.complex(0,-1)],[math.complex(0,1),2]]",
+            "[[2[J],math.complex(0[J],-1[J])],[math.complex(0[J],1[J]),2[J]]]",
+        )
+        .replace("lambda:1", "lambda:J");
     for source in [
+        physical,
+        SOURCE.replace("test eta:1", "test eta:m"),
         SOURCE.to_owned(),
         SOURCE
             .replace("complex<1>", "1")
@@ -93,8 +102,14 @@ fn real_and_complex_weak_forms_execute_and_replay_with_exact_authored_identity()
         let mut wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         wire["authored_formulation_base64"] = serde_json::Value::Null;
         assert!(replay(&serde_json::to_vec(&wire).unwrap()).is_err());
-        wire["schema"] = serde_json::json!("eqiora.resolved-common-plan/v11");
-        assert!(replay(&serde_json::to_vec(&wire).unwrap()).is_err());
+        let mut retired: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        retired["schema"] = serde_json::json!("eqiora.resolved-common-plan/v11");
+        assert!(
+            replay(&serde_json::to_vec(&retired).unwrap())
+                .unwrap_err()
+                .message()
+                .contains("unknown schema")
+        );
     }
 }
 #[test]
@@ -109,4 +124,16 @@ fn correspondence_does_not_admit_changed_coefficients_or_infer_hermitian_structu
     ] {
         assert!(resolve(&wrong).is_err(), "{wrong}");
     }
+}
+
+#[test]
+fn finite_correspondence_rejects_a_unit_only_coefficient_change() {
+    let wrong = SOURCE
+        .replace("parameter h:", "parameter scale:m=1; parameter h:")
+        .replace("inner(eta,apply(h,u))", "inner(eta,scale*apply(h,u))")
+        .replace("inner(eta,lambda*u)", "inner(eta,scale*lambda*u)");
+    assert!(
+        resolve(&wrong).is_err(),
+        "unitful weak scaling must not match the source residual"
+    );
 }

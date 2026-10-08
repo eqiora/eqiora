@@ -181,3 +181,25 @@ def test_python_authored_finite_weak_form_execution_and_replay() -> None:
         pass
     else:
         raise AssertionError("finite weak correspondence ignored a changed coefficient")
+
+    # A canonical byte edit must reach the correspondence gate before identity checks.
+    import base64
+    payload = json.loads(plan.to_bytes())
+    form = json.loads(base64.b64decode(payload["authored_formulation_base64"]))
+    def change_units(node):
+        if isinstance(node, dict):
+            if node.get("kind") == "components":
+                node["dimension"][1] = [1, 1]
+                return True
+            return any(change_units(value) for value in node.values())
+        if isinstance(node, list):
+            return any(change_units(value) for value in node)
+        return False
+    assert change_units(form)
+    payload["authored_formulation_base64"] = base64.b64encode(json.dumps(form, separators=(",", ":")).encode()).decode()
+    try:
+        eqiora.Plan.from_bytes(json.dumps(payload, separators=(",", ":")).encode())
+    except eqiora.EqioraError as error:
+        assert "finite weak Formulation" in str(error), str(error)
+    else:
+        raise AssertionError("replay ignored a changed coefficient dimension")

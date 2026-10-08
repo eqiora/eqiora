@@ -62,7 +62,7 @@ impl Context<'_> {
     pub(super) fn shape(&mut self, value: &E, depth: usize) -> Option<Vec<usize>> {
         self.step(depth)?;
         match value {
-            E::Components { shape, values } => {
+            E::Components { shape, values, .. } => {
                 let shape = shape.iter().map(|n| *n as usize).collect::<Vec<_>>();
                 let count = shape.iter().try_fold(1usize, |a, b| a.checked_mul(*b))?;
                 (shape.len() == 2 && !shape.contains(&0) && count == values.len()).then_some(shape)

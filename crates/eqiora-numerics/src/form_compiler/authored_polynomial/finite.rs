@@ -57,3 +57,68 @@ impl Context<'_> {
         Some(sum)
     }
 }
+
+impl Context<'_> {
+    pub(super) fn finite_residual_dimension(
+        &mut self,
+        left: &E,
+        right: &E,
+        test: eqiora_core::DimExponents,
+    ) -> Option<eqiora_core::DimExponents> {
+        self.finite_dimension(
+            &E::Sub {
+                left: Box::new(left.clone()),
+                right: Box::new(right.clone()),
+            },
+            test,
+            0,
+        )
+    }
+
+    // DimExponents owns unit arithmetic. Numeric polynomial equality alone cannot
+    // distinguish a closed coefficient 1 m from 1, so check this projection first.
+    fn finite_dimension(
+        &mut self,
+        value: &E,
+        test: eqiora_core::DimExponents,
+        depth: usize,
+    ) -> Option<eqiora_core::DimExponents> {
+        use eqiora_core::DimExponents;
+        self.step(depth)?;
+        let field = self.field;
+        let mut child = |value| self.finite_dimension(value, test, depth + 1);
+        match value {
+            E::Number { .. } => Some(DimExponents::DIMENSIONLESS),
+            E::Rational { dimension, .. } | E::Components { dimension, .. } => {
+                DimExponents::from_rationals(*dimension)
+                    .filter(|value| value.exponents() == *dimension)
+            }
+            E::Field { ulid } | E::Parameter { ulid } => Some(self.symbols.get(ulid)?.dimension()),
+            E::Test { field_ulid } if field_ulid == field => Some(test),
+            E::Conjugate { value } | E::Neg { value } | E::Component { value, .. } => child(value),
+            E::Complex {
+                real: left,
+                imag: right,
+            }
+            | E::Add { left, right }
+            | E::Sub { left, right } => {
+                let a = child(left)?;
+                let b = child(right)?;
+                if matches!(left.as_ref(), E::Number { value: 0. }) {
+                    Some(b)
+                } else if matches!(right.as_ref(), E::Number { value: 0. }) || a == b {
+                    Some(a)
+                } else {
+                    None
+                }
+            }
+            E::Mul { left, right }
+            | E::Apply { left, right }
+            | E::Inner { left, right }
+            | E::Dot { left, right } => child(left)?.mul(child(right)?),
+            E::Div { left, right } => child(left)?.div(child(right)?),
+            E::Pow { base, exponent } => child(base)?.pow(*exponent, 1),
+            _ => None,
+        }
+    }
+}
