@@ -137,6 +137,24 @@ fn real_reaction_uses_the_same_inventory_and_conjugation_is_identity() {
     admit(&source.replace("q*u = f", "q*math.conj(u) = f")).unwrap();
 }
 
+#[test]
+fn correspondence_rejects_unit_only_scaling_of_the_whole_spatial_form() {
+    let wrong = SOURCE
+        .replace("parameter a:", "parameter scale:m=1; parameter a:")
+        .replace(
+            "inner(grad(eta),a*grad(u))",
+            "inner(grad(eta),scale*a*grad(u))",
+        )
+        .replace("inner(eta,q*u)", "inner(eta,scale*q*u)")
+        .replace("inner(eta,f)", "inner(eta,scale*f)")
+        .replace("inner(trace(eta),g)", "inner(trace(eta),scale*g)");
+    admit(&wrong.replace("scale:m=1", "scale:1=1")).unwrap();
+    assert!(
+        admit(&wrong).is_err(),
+        "unitful scaling changed the weak residual dimension"
+    );
+}
+
 fn real_source() -> String {
     SOURCE
         .replace("complex<m^2>", "m^2")
