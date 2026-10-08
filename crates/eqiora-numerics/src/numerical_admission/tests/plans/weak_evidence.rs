@@ -2,28 +2,12 @@ use super::*;
 use eqiora_compiler::AuthoredFormulationProjection;
 use num_complex::Complex64 as C;
 
-const SOURCE: &str = r#"
-public component Wave(
- support body:volume(ambient_dimension=1),
- support left:boundary(parent=body),
- support right:boundary(parent=body)
-) {
- parameter a:complex<m^2>=math.complex(6[m^2],6[m^2]);
- parameter q:complex<1>=math.complex(1,1);
- parameter f:complex<1>=math.complex(-2,4);
- parameter s:complex<1/m>=math.complex(3[1/m],1[1/m]);
- parameter g:complex<m>=math.complex(18[m],6[m]);
- variable u:complex<1> on body;
- relation balance on body {-div(a*grad(u))+q*u=f+s*coordinate(0);}
- relation fixed on left {trace(u)=math.complex(1,3);}
- relation flux on right {normal(a*grad(u))=g;}
- form weak for balance {
-  test eta:1 for u zero_on left;
-  integrate(body,inner(grad(eta),a*grad(u))+inner(eta,q*u))=
-   integrate(body,inner(eta,f+s*coordinate(0)))+integrate(right,inner(trace(eta),g));
- }
-}
-"#;
+mod actions;
+
+const SOURCE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../verify/numerics/complex-weak-forms/models/affine.eqi"
+));
 
 fn geometry(reflected: bool) -> CanonicalGeometryV1 {
     let graph = GeometryGraph::new();
@@ -49,7 +33,7 @@ fn geometry(reflected: bool) -> CanonicalGeometryV1 {
 fn compile(
     source: &str,
     geometry: &CanonicalGeometryV1,
-) -> Result<(ModelEnvelope, AuthoredFormulationProjection), Diagnostic> {
+) -> Result<(KernelProgram, AuthoredFormulationProjection), Diagnostic> {
     let bindings = ["body", "left", "right"].map(|name| {
         (
             name,
@@ -73,7 +57,7 @@ fn compile(
     store.commit(transaction).unwrap();
     let program =
         KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[geometry]).unwrap();
-    Ok((ModelEnvelope::from_program(&program).unwrap(), projection))
+    Ok((program, projection))
 }
 
 fn resolve(source: &str) -> Result<ResolvedCommonPlan, Diagnostic> {
@@ -84,7 +68,8 @@ fn resolve_on(
     source: &str,
     geometry: CanonicalGeometryV1,
 ) -> Result<ResolvedCommonPlan, Diagnostic> {
-    let (model, projection) = compile(source, &geometry)?;
+    let (program, projection) = compile(source, &geometry)?;
+    let model = ModelEnvelope::from_program(&program).unwrap();
     ResolvedCommonPlan::resolve(
         &model,
         cartesian_box_resources(&geometry, &[2]),
@@ -104,6 +89,8 @@ fn resolve_on(
 
 #[test]
 fn affine_complex_weak_form_has_independent_volume_and_boundary_solution() {
+    let (program, projection) = compile(SOURCE, &geometry(false)).unwrap();
+    actions::check(&program, &projection);
     let plan = replay_plan(resolve(SOURCE).unwrap(), &REFERENCE_LINEAR_SOLVER);
     let result = plan
         .as_scalar()

@@ -1,0 +1,24 @@
+id = "numerics.complex-weak-forms"
+status = "implemented"
+scope = "two-cell-affine-real-and-complex-scalar-q1-weak-forms"
+reference_kind = "analytic-affine-solution-and-independent-q1-volume-boundary-integrals"
+capabilities = ["conjugate-test-weak-correspondence", "complex-q1-local-actions", "assembled-and-packet-actions", "transpose-versus-adjoint", "complex-prescribed-flux", "reflected-boundary-orientation", "authored-plan-result-replay"]
+
+[claim_boundary]
+spatial_dimension = 1
+cartesian_q1_cells = 2
+scalar_precision = "binary64"
+constant_diffusion_and_reaction = true
+affine_volume_load = true
+nonzero_essential_and_natural_boundaries = true
+real_specialization = true
+matrix_free_public_plan_selection = false
+finite_hermitian_forms = false
+python_and_package_authoring = false
+transient_or_nonlinear_forms = false
+optional_backends = false
+
+[evidence]
+runner = "cargo-library-test"
+package = "eqiora-numerics"
+test = "numerical_admission::tests::plans::weak_evidence::affine_complex_weak_form_has_independent_volume_and_boundary_solution"

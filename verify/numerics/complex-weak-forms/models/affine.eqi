@@ -1,0 +1,20 @@
+public component Wave(
+ support body:volume(ambient_dimension=1),
+ support left:boundary(parent=body),
+ support right:boundary(parent=body)
+) {
+ parameter a:complex<m^2>=math.complex(6[m^2],6[m^2]);
+ parameter q:complex<1>=math.complex(1,1);
+ parameter f:complex<1>=math.complex(-2,4);
+ parameter s:complex<1/m>=math.complex(3[1/m],1[1/m]);
+ parameter g:complex<m>=math.complex(18[m],6[m]);
+ variable u:complex<1> on body;
+ relation balance on body {-div(a*grad(u))+q*u=f+s*coordinate(0);}
+ relation fixed on left {trace(u)=math.complex(1,3);}
+ relation flux on right {normal(a*grad(u))=g;}
+ form weak for balance {
+  test eta:1 for u zero_on left;
+  integrate(body,inner(grad(eta),a*grad(u))+inner(eta,q*u))=
+   integrate(body,inner(eta,f+s*coordinate(0)))+integrate(right,inner(trace(eta),g));
+ }
+}
