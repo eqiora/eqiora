@@ -150,3 +150,34 @@ def test_python_source_coordinate_embedding_and_original_residual() -> None:
         pass
     else:
         raise AssertionError("candidate must retain its exact admitted coordinate shape")
+
+
+def test_python_authored_finite_weak_form_execution_and_replay() -> None:
+    source = """
+    space Spin=orthonormal(up,down);
+    public component Wave() {
+     parameter h:map<complex<1>,Spin,Spin>=linear_map(Spin,Spin,[[2,math.complex(0,-1)],[math.complex(0,1),2]]);
+     variable u:coordinates<complex<1>,Spin>;
+     variable lambda:1;
+     relation states {apply(h,u)=lambda*u;}
+     form weak for states {test eta:1 for u; inner(eta,apply(h,u))=inner(eta,lambda*u);}
+    }
+    """
+    model = eqiora.compile(source=source, entry="Wave")
+    solve = eqiora.solve.HermitianEigen(count=2, provider=eqiora.solve.SolverProvider.faer(), residual_tolerance=1e-12, normalization_tolerance=1e-12)
+    plan = eqiora.resolve(model, solve=solve)
+    assert plan.formulation.requested == eqiora.FormulationSelectionMode.Authored
+    assert plan.formulation.requested_source_identity == model.authored_formulations[0].source_identity
+    restored = eqiora.Plan.from_bytes(plan.to_bytes())
+    assert restored.to_bytes() == plan.to_bytes()
+    result = eqiora.run(restored)
+    for i, expected in enumerate((1., 3.)):
+        assert abs(result.eigenpair(i).eigenvalue - expected) < 1e-12
+    assert eqiora.Result.from_bytes(restored, result.to_bytes()).to_bytes() == result.to_bytes()
+    wrong = eqiora.compile(source=source.replace("inner(eta,apply(h,u))", "inner(eta,2*apply(h,u))"), entry="Wave")
+    try:
+        eqiora.resolve(wrong, solve=solve)
+    except eqiora.EqioraError:
+        pass
+    else:
+        raise AssertionError("finite weak correspondence ignored a changed coefficient")

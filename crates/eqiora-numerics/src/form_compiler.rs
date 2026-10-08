@@ -3,6 +3,8 @@
 mod authored_polynomial;
 mod bilinear;
 mod elasticity;
+mod finite;
+pub(crate) use finite::admit_authored_finite_weak_form;
 pub(crate) mod equation_roles;
 pub(crate) mod linear;
 pub(crate) mod region;

@@ -47,7 +47,7 @@ fn structural_and_quantum_source_plans_retain_roles_units_and_provider_identity(
     ] {
         let document = ModelDocument::compile("spectral.eqi", source).unwrap();
         let model = ModelEnvelope::from_program(document.program()).unwrap();
-        let plan = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver).unwrap();
+        let plan = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver, None).unwrap();
         assert_eq!(plan.mode_field().erase(), document.aliases()["u"]);
         assert_eq!(
             plan.eigenvalue_field().erase(),
@@ -63,21 +63,26 @@ fn structural_and_quantum_source_plans_retain_roles_units_and_provider_identity(
         );
         assert_eq!(
             plan,
-            CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver).unwrap()
+            CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver, None).unwrap()
         );
         let targeted = request()
             .with_target(DynQuantity::new(2., dimension))
             .unwrap();
-        let another = CommonEigenPlan::resolve(&model, targeted, &FaerLinearSolver).unwrap();
+        let another = CommonEigenPlan::resolve(&model, targeted, &FaerLinearSolver, None).unwrap();
         assert_eq!(another.model_digest(), plan.model_digest());
         assert_ne!(another.identity(), plan.identity());
         let wrong = request()
             .with_target(DynQuantity::new(2., DimExponents::DIMENSIONLESS))
             .unwrap();
-        assert!(CommonEigenPlan::resolve(&model, wrong, &FaerLinearSolver).is_err());
+        assert!(CommonEigenPlan::resolve(&model, wrong, &FaerLinearSolver, None).is_err());
         assert!(
-            CommonEigenPlan::resolve(&model, request(), &eqiora_solver::REFERENCE_LINEAR_SOLVER)
-                .is_err()
+            CommonEigenPlan::resolve(
+                &model,
+                request(),
+                &eqiora_solver::REFERENCE_LINEAR_SOLVER,
+                None
+            )
+            .is_err()
         );
         let resolved = ResolvedCommonPlan::Eigen(Box::new(another));
         let formulation = resolved.formulation().unwrap();
@@ -108,7 +113,7 @@ fn structural_and_quantum_source_plans_retain_roles_units_and_provider_identity(
         assert_eq!(restored, resolved);
         assert_eq!(restored.as_eigen().unwrap().mode_field(), plan.mode_field());
         let wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(wire["schema"], "eqiora.resolved-common-plan/v11");
+        assert_eq!(wire["schema"], "eqiora.resolved-common-plan/v12");
         for (key, value) in [
             ("count", serde_json::json!(1)),
             ("algorithm", serde_json::json!("unsupported")),
@@ -139,7 +144,7 @@ fn source_plan_rejects_unhandled_constraints_nonlinearity_and_wrong_normalizatio
         // admission must not silently omit their mathematical requirements.
         let document = ModelDocument::compile("invalid-spectral.eqi", &source).unwrap();
         let model = ModelEnvelope::from_program(document.program()).unwrap();
-        assert!(CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver).is_err());
+        assert!(CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver, None).is_err());
     }
 }
 
@@ -151,7 +156,7 @@ fn source_clients_execute_with_physical_metric_normalization() {
     for source in [STRUCTURAL, QUANTUM] {
         let document = ModelDocument::compile("spectral.eqi", source).unwrap();
         let model = ModelEnvelope::from_program(document.program()).unwrap();
-        let plan = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver).unwrap();
+        let plan = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver, None).unwrap();
         let pencil = HermitianEigenproblem::new(plan.operator(), plan.metric()).unwrap();
         let pairs = FaerLinearSolver.hermitian_eigenpairs(&pencil).unwrap();
         assert_eq!(pairs.len(), 2);
@@ -180,7 +185,7 @@ fn common_results_replay_selection_evidence_and_partial_convergence() {
     for source in [STRUCTURAL, QUANTUM] {
         let document = ModelDocument::compile("spectral.eqi", source).unwrap();
         let model = ModelEnvelope::from_program(document.program()).unwrap();
-        let plan = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver).unwrap();
+        let plan = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver, None).unwrap();
         let result = plan.run_result(&FaerLinearSolver).unwrap();
         assert_eq!(result.family_name(), "eigen");
         assert_eq!(result.eigen_convergence(), Some("converged"));
@@ -230,7 +235,7 @@ fn common_results_replay_selection_evidence_and_partial_convergence() {
                 ])
                 .unwrap();
             let partial_plan =
-                CommonEigenPlan::resolve(&model, controls, &FaerLinearSolver).unwrap();
+                CommonEigenPlan::resolve(&model, controls, &FaerLinearSolver, None).unwrap();
             let partial = partial_plan.run_result(&FaerLinearSolver).unwrap();
             assert_eq!(partial.eigenpair_count(), expected_count);
             assert_eq!(partial.eigen_convergence(), Some(status));
@@ -248,7 +253,7 @@ fn common_results_replay_selection_evidence_and_partial_convergence() {
             .unwrap()
             .with_target(DynQuantity::new(2.75, dimension))
             .unwrap();
-        let targeted = CommonEigenPlan::resolve(&model, target, &FaerLinearSolver)
+        let targeted = CommonEigenPlan::resolve(&model, target, &FaerLinearSolver, None)
             .unwrap()
             .run_result(&FaerLinearSolver)
             .unwrap();
@@ -351,7 +356,7 @@ fn result_acceptance_distinguishes_failed_candidates_from_nonunique_modes() {
         ("wrong-eigenvalue", 1, "partial", 1),
     ] {
         let provider = CandidateProbe(probe);
-        let plan = CommonEigenPlan::resolve(&model, request(), &provider).unwrap();
+        let plan = CommonEigenPlan::resolve(&model, request(), &provider, None).unwrap();
         let result = plan.run_result(&provider).unwrap();
         assert_eq!(result.eigenpair_count(), count);
         assert_eq!(result.eigen_convergence(), Some(status));
@@ -364,13 +369,13 @@ fn result_acceptance_distinguishes_failed_candidates_from_nonunique_modes() {
     }
     for probe in ["duplicate", "zero"] {
         let provider = CandidateProbe(probe);
-        let plan = CommonEigenPlan::resolve(&model, request(), &provider).unwrap();
+        let plan = CommonEigenPlan::resolve(&model, request(), &provider, None).unwrap();
         assert!(plan.run_result(&provider).is_err());
     }
     let provider = CandidateProbe("phase-permutation");
-    let plan = CommonEigenPlan::resolve(&model, request(), &provider).unwrap();
+    let plan = CommonEigenPlan::resolve(&model, request(), &provider, None).unwrap();
     let changed = plan.run_result(&provider).unwrap();
-    let reference = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver)
+    let reference = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver, None)
         .unwrap()
         .run_result(&FaerLinearSolver)
         .unwrap();
@@ -395,7 +400,8 @@ fn repeated_eigenspace_rotations_keep_projectors_but_not_exact_result_identity()
         .replace("math.complex(0[J],1[J])", "0[J]");
     let document = ModelDocument::compile("degenerate.eqi", &source).unwrap();
     let model = ModelEnvelope::from_program(document.program()).unwrap();
-    let plan = CommonEigenPlan::resolve(&model, request(), &CandidateProbe("unchanged")).unwrap();
+    let plan =
+        CommonEigenPlan::resolve(&model, request(), &CandidateProbe("unchanged"), None).unwrap();
     let original = plan
         .run_result(&CandidateProbe("unchanged"))
         .unwrap()
@@ -428,7 +434,7 @@ fn repeated_eigenspace_rotations_keep_projectors_but_not_exact_result_identity()
     let model = ModelEnvelope::from_program(document.program()).unwrap();
     let one = CommonEigenRequest::dense(NonZeroUsize::new(1).unwrap(), 1e-12, 1e-12).unwrap();
     let provider = CandidateProbe("wrong-eigenvalue");
-    let result = CommonEigenPlan::resolve(&model, one, &provider)
+    let result = CommonEigenPlan::resolve(&model, one, &provider, None)
         .unwrap()
         .run_result(&provider)
         .unwrap();
@@ -441,7 +447,7 @@ fn repeated_eigenspace_rotations_keep_projectors_but_not_exact_result_identity()
 fn equality_orientation_preserves_the_positive_metric_pencil() {
     let document = ModelDocument::compile("canonical.eqi", STRUCTURAL).unwrap();
     let model = ModelEnvelope::from_program(document.program()).unwrap();
-    let reference = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver).unwrap();
+    let reference = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver, None).unwrap();
     for equation in [
         "lambda*apply(m,u)=apply(k,u)",
         "-apply(k,u)=-lambda*apply(m,u)",
@@ -450,7 +456,7 @@ fn equality_orientation_preserves_the_positive_metric_pencil() {
         let source = STRUCTURAL.replace("apply(k,u)=lambda*apply(m,u)", equation);
         let document = ModelDocument::compile("equivalent.eqi", &source).unwrap();
         let model = ModelEnvelope::from_program(document.program()).unwrap();
-        let plan = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver).unwrap();
+        let plan = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver, None).unwrap();
         // Separately authored Models retain distinct nominal space identities.
         // Compare their declared matching coordinate order and physical units.
         for (actual, expected) in [
@@ -485,7 +491,8 @@ fn equality_orientation_does_not_regularize_singular_or_indefinite_metrics() {
         let source = STRUCTURAL.replace("[[2[kg],0],[0,8[kg]]]", metric);
         let document = ModelDocument::compile("invalid-metric.eqi", &source).unwrap();
         let model = ModelEnvelope::from_program(document.program()).unwrap();
-        let error = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver).unwrap_err();
+        let error =
+            CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver, None).unwrap_err();
         assert!(error.to_string().contains("positive definite"));
     }
 }

@@ -53,6 +53,7 @@ fn dimensioned_hamiltonians_share_eigenpairs_and_time_states() {
                 CommonEigenRequest::dense(NonZeroUsize::new(spectrum.len()).unwrap(), 1e-12, 1e-12)
                     .unwrap(),
                 &FaerLinearSolver,
+                None,
             )
             .unwrap()
             .run_result(&FaerLinearSolver)

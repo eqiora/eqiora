@@ -22,6 +22,7 @@ pub struct CommonEigenPlan {
     kernel: KernelProgram,
     source: source::SourcePencil,
     exclusion: Option<exclusion::Exclusion>,
+    pub(super) authored_formulation: Option<eqiora_compiler::AuthoredFormulationProjection>,
     request: CommonEigenRequest,
     provider: SolverProvider,
     identity: String,
@@ -38,6 +39,7 @@ impl CommonEigenPlan {
         model: &ModelEnvelope,
         request: CommonEigenRequest,
         backend: &dyn LinearSolverBackend,
+        authored_formulation: Option<&eqiora_compiler::AuthoredFormulationProjection>,
     ) -> Result<Self, Diagnostic> {
         let kernel = model.to_program().map_err(|errors| {
             errors
@@ -46,6 +48,14 @@ impl CommonEigenPlan {
                 .unwrap_or_else(|| invalid("spectral Model replay failed"))
         })?;
         let source = source::SourcePencil::lower(&kernel)?;
+        if let Some(form) = authored_formulation {
+            crate::form_compiler::admit_authored_finite_weak_form(
+                form,
+                &kernel,
+                source.relation,
+                source.mode,
+            )?;
+        }
         let (operator, metric) = source
             .projected
             .as_ref()
@@ -66,6 +76,7 @@ impl CommonEigenPlan {
             source.mode.ulid().to_string(),
             source.eigenvalue.ulid().to_string(),
             request.identity_bytes()?,
+            authored_formulation.map(|form| form.canonical_bytes()),
             provider.id().as_str(),
             provider.implementation_version(),
             provider
@@ -76,7 +87,7 @@ impl CommonEigenPlan {
         ))
         .map_err(|error| invalid(format!("cannot identify spectral Plan: {error}")))?;
         let mut hash = Sha256::new();
-        hash.update(b"eqiora.common-eigen-plan/v1\0");
+        hash.update(b"eqiora.common-eigen-plan/v2\0");
         hash.update(bytes);
         let identity = hash
             .finalize()
@@ -88,6 +99,7 @@ impl CommonEigenPlan {
             kernel,
             source,
             exclusion,
+            authored_formulation: authored_formulation.cloned(),
             request,
             provider,
             identity,
@@ -96,6 +108,13 @@ impl CommonEigenPlan {
             model_revision: reference.semantic_revision().get(),
         })
     }
+    /// Checked global weak Formulation retained for exact Plan replay.
+    pub fn authored_formulation_bytes(&self) -> Option<&[u8]> {
+        self.authored_formulation
+            .as_ref()
+            .map(|form| form.canonical_bytes())
+    }
+
     /// Excluded source directions as `(projector, dimension, operator_defect, metric_defect)`.
     /// The dimensionless metric projector retains the physical Field basis.
     /// Defects are `||A E||_F/(||A||_F ||E||_F)` and the analogous B action,

@@ -15,8 +15,16 @@ impl CommonFormulationDescription {
                 "spectral.derive.v1.lifted-original-pencil-verification",
             ]);
         }
+        let authored = plan.authored_formulation.as_ref();
+        if authored.is_some() {
+            rules.push("finite.derive.v1.exact-conjugate-test-residual");
+        }
         Self {
-            requested: FormulationSelectionMode::Automatic,
+            requested: if authored.is_some() {
+                FormulationSelectionMode::Authored
+            } else {
+                FormulationSelectionMode::Automatic
+            },
             kind: FormulationKind::FiniteHermitianPencil,
             boundary_treatment: if projected {
                 "source-coordinate-embedding"
@@ -24,10 +32,12 @@ impl CommonFormulationDescription {
                 "complete-finite-space"
             },
             rule_ids: rules.into_boxed_slice(),
-            selection_reason_codes: Box::new([
-                "eqiora.formulation.auto.finite-hermitian-pencil/v1",
-            ]),
-            requested_source_identity: None,
+            selection_reason_codes: Box::new([if authored.is_some() {
+                "eqiora.formulation.authored.finite-hermitian-pencil/v1"
+            } else {
+                "eqiora.formulation.auto.finite-hermitian-pencil/v1"
+            }]),
+            requested_source_identity: authored.map(|form| form.source_identity().to_owned()),
             source_relation: Some(plan.relation()),
             state_coordinates: Box::new([]),
         }

@@ -16,7 +16,7 @@ fn python_hermitian_plan_run_result_and_replay() -> PyResult<()> {
         .unwrap();
         py.run(&source, Some(&locals), Some(&locals))?;
         py.run(
-            c_str!("test_python_hermitian_plan_run_result_and_replay(); test_python_source_coordinate_embedding_and_original_residual()"),
+            c_str!("test_python_hermitian_plan_run_result_and_replay(); test_python_source_coordinate_embedding_and_original_residual(); test_python_authored_finite_weak_form_execution_and_replay()"),
             Some(&locals),
             Some(&locals),
         )
