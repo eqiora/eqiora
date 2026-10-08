@@ -25,7 +25,7 @@ use crate::discrete_block::DiscreteBlockSystem;
 /// [`LinearSolution`] is returned.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FinalizedIsotropicElasticityCartesian2dProblem {
-    core: FinalizedLinearCore,
+    core: FinalizedLinearCore<f64>,
     state: FinalizedCartesianElasticity2dState,
 }
 
@@ -106,7 +106,7 @@ impl FinalizedIsotropicElasticityCartesian2dProblem {
 /// where they reconstruct both fields and expose weak interface equilibrium.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FinalizedConformingIsotropicElasticityCartesianPair2dProblem {
-    core: FinalizedLinearCore,
+    core: FinalizedLinearCore<f64>,
     state: FinalizedConformingCartesianElasticityPair2dState,
 }
 

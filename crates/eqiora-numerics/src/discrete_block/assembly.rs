@@ -42,7 +42,12 @@ pub(crate) struct BlockMaterialization {
 }
 
 impl BlockMaterialization {
-    pub(crate) fn validate(self, system: &CanonicalCsrSystemView) -> Result<(), Diagnostic> {
+    pub(crate) fn validate<
+        S: eqiora_core::Scalar + num_complex::ComplexFloat<Real = f64> + Sync,
+    >(
+        self,
+        system: &CanonicalCsrSystemView<S>,
+    ) -> Result<(), Diagnostic> {
         if self.rows != system.rows()
             || self.csr_fingerprint != system.agreement_fingerprint()
             || self.packet_count == 0

@@ -26,7 +26,7 @@ use crate::cartesian_elliptic::{
 pub struct FinalizedScalarEllipticCartesianProblem {
     portable_realization: PortableRealizationGraph,
     method: DiscretizationMethod,
-    core: FinalizedLinearCore,
+    core: FinalizedLinearCore<f64>,
     state: FinalizedScalarEllipticCartesianState,
 }
 

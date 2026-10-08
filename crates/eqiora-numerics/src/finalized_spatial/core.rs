@@ -1,14 +1,15 @@
 use std::sync::Arc;
 
 use eqiora_assembly::AssemblyReport;
-use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
+use eqiora_core::{Diagnostic, Scalar};
 use eqiora_realization::{Target, VectorLayoutKind};
 use eqiora_solver::{
     CanonicalCsrSystemView, ExecutionTopology, FixedOrderInnerProduct, LinearOperator,
     LinearOperatorOrientation, LinearOperatorProperties, LinearProblem, LinearSolution,
     ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION, SolverPlan,
 };
+use num_complex::{Complex64, ComplexFloat};
 
 use crate::discrete_block::{BlockMaterialization, DiscreteBlockSystem};
 
@@ -19,20 +20,20 @@ use crate::discrete_block::{BlockMaterialization, DiscreteBlockSystem};
 /// core owns only the exact Realization-selected execution contract and the
 /// single canonical algebraic source accepted by every backend.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct FinalizedLinearCore {
+pub(crate) struct FinalizedLinearCore<S> {
     solver: SolverPlan,
     vector_layout: VectorLayoutKind,
     target: Target,
-    canonical_system: Arc<CanonicalCsrSystemView>,
+    canonical_system: Arc<CanonicalCsrSystemView<S>>,
     block_materialization: Option<BlockMaterialization>,
 }
 
-impl FinalizedLinearCore {
+impl<S: ResidualScalar> FinalizedLinearCore<S> {
     pub(crate) fn new(
         solver: SolverPlan,
         vector_layout: VectorLayoutKind,
         target: Target,
-        canonical_system: Arc<CanonicalCsrSystemView>,
+        canonical_system: Arc<CanonicalCsrSystemView<S>>,
     ) -> Self {
         Self {
             solver,
@@ -41,16 +42,6 @@ impl FinalizedLinearCore {
             canonical_system,
             block_materialization: None,
         }
-    }
-
-    pub(crate) fn with_block_system(
-        mut self,
-        block_system: &DiscreteBlockSystem,
-        assembly_report: &AssemblyReport,
-    ) -> Result<Self, Diagnostic> {
-        self.block_materialization =
-            Some(block_system.bind_materialization(&self.canonical_system, assembly_report)?);
-        Ok(self)
     }
 
     pub(super) fn operator_properties(&self) -> LinearOperatorProperties {
@@ -65,15 +56,15 @@ impl FinalizedLinearCore {
         self.vector_layout
     }
 
-    pub(crate) fn canonical_csr_system_view(&self) -> &CanonicalCsrSystemView {
+    pub(crate) fn canonical_csr_system_view(&self) -> &CanonicalCsrSystemView<S> {
         self.canonical_system.as_ref()
     }
 
-    pub(crate) fn linear_problem(&self) -> Result<LinearProblem<'_>, Diagnostic> {
+    pub(crate) fn linear_problem(&self) -> Result<LinearProblem<'_, S>, Diagnostic> {
         self.canonical_system.linear_problem()
     }
 
-    pub(crate) fn validate_solution(&self, solution: &LinearSolution) -> Result<(), Diagnostic> {
+    pub(crate) fn validate_solution(&self, solution: &LinearSolution<S>) -> Result<(), Diagnostic> {
         if let Some(materialization) = self.block_materialization {
             materialization.validate(&self.canonical_system)?;
         }
@@ -109,10 +100,7 @@ impl FinalizedLinearCore {
             report.verification().topology(),
         )?;
 
-        let rhs_squared = SERIAL_LINEAR_EXECUTION.inner_product(FixedOrderInnerProduct::new(
-            self.canonical_system.right_hand_side(),
-            self.canonical_system.right_hand_side(),
-        )?)?;
+        let rhs_squared = S::squared_norm(self.canonical_system.right_hand_side())?;
         let expected_target = self.solver.residual_target(rhs_squared.sqrt())?;
         if report.residual_target().to_bits() != expected_target.to_bits() {
             return Err(invalid_realization(
@@ -126,10 +114,9 @@ impl FinalizedLinearCore {
             .iter_mut()
             .zip(self.canonical_system.right_hand_side())
         {
-            *value = rhs - *value;
+            *value = *rhs - *value;
         }
-        let residual_squared = SERIAL_LINEAR_EXECUTION
-            .inner_product(FixedOrderInnerProduct::new(&residual, &residual)?)?;
+        let residual_squared = S::squared_norm(&residual)?;
         let exact_residual = residual_squared.sqrt();
         if exact_residual > expected_target {
             return Err(Diagnostic::error(
@@ -142,8 +129,45 @@ impl FinalizedLinearCore {
         Ok(())
     }
 
-    pub(super) fn into_canonical_system(self) -> Arc<CanonicalCsrSystemView> {
+    pub(super) fn into_canonical_system(self) -> Arc<CanonicalCsrSystemView<S>> {
         self.canonical_system
+    }
+}
+
+// Block execution is still real-only; this specialization does not widen its
+// semantic Field admission merely because the finalized CSR can be complex.
+impl FinalizedLinearCore<f64> {
+    pub(crate) fn with_block_system(
+        mut self,
+        block_system: &DiscreteBlockSystem,
+        assembly_report: &AssemblyReport,
+    ) -> Result<Self, Diagnostic> {
+        self.block_materialization =
+            Some(block_system.bind_materialization(&self.canonical_system, assembly_report)?);
+        Ok(self)
+    }
+}
+
+/// Scalar-specific coordinate projection into the existing fixed-order real
+/// reduction. The rest of spatial reacceptance has one implementation.
+pub(crate) trait ResidualScalar: Scalar + ComplexFloat<Real = f64> + Sync {
+    fn squared_norm(values: &[Self]) -> Result<f64, Diagnostic>;
+}
+
+impl ResidualScalar for f64 {
+    fn squared_norm(values: &[Self]) -> Result<f64, Diagnostic> {
+        SERIAL_LINEAR_EXECUTION.inner_product(FixedOrderInnerProduct::new(values, values)?)
+    }
+}
+
+impl ResidualScalar for Complex64 {
+    fn squared_norm(values: &[Self]) -> Result<f64, Diagnostic> {
+        let length = values.len().checked_mul(2).ok_or_else(allocation_error)?;
+        let mut coordinates = fallible_residual::<f64>(length)?;
+        for (pair, value) in coordinates.as_chunks_mut::<2>().0.iter_mut().zip(values) {
+            *pair = [value.re, value.im];
+        }
+        f64::squared_norm(&coordinates)
     }
 }
 
@@ -243,17 +267,26 @@ fn invalid_realization(message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(codes::INVALID_REALIZATION, message)
 }
 
-fn fallible_residual(length: usize) -> Result<Vec<f64>, Diagnostic> {
+fn fallible_residual<S: Scalar + ComplexFloat<Real = f64>>(
+    length: usize,
+) -> Result<Vec<S>, Diagnostic> {
     let mut residual = Vec::new();
-    residual.try_reserve_exact(length).map_err(|_| {
-        Diagnostic::error(
-            codes::NUMERICAL_SOLVE_FAILED,
-            "finalized spatial residual allocation exceeds platform capacity",
-        )
-    })?;
-    residual.resize(length, 0.0);
+    residual
+        .try_reserve_exact(length)
+        .map_err(|_| allocation_error())?;
+    residual.resize(length, S::zero());
     Ok(residual)
 }
+
+fn allocation_error() -> Diagnostic {
+    Diagnostic::error(
+        codes::NUMERICAL_SOLVE_FAILED,
+        "finalized spatial residual allocation exceeds platform capacity",
+    )
+}
+
+#[cfg(test)]
+mod complex_tests;
 
 #[cfg(test)]
 mod tests {
@@ -261,7 +294,7 @@ mod tests {
 
     #[test]
     fn residual_capacity_failure_is_a_stable_diagnostic() {
-        let diagnostic = fallible_residual(usize::MAX).unwrap_err();
+        let diagnostic = fallible_residual::<f64>(usize::MAX).unwrap_err();
 
         assert_eq!(diagnostic.code(), codes::NUMERICAL_SOLVE_FAILED);
         assert_eq!(

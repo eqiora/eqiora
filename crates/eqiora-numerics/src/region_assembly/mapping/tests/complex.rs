@@ -156,7 +156,6 @@ fn complex_mapping_recovers_scaled_fields_and_rebinds_prescriptions() {
     let captured =
         eqiora_solver::CanonicalCsrSystemView::new(system, LinearOperatorProperties::General)
             .unwrap();
-    let problem = captured.linear_problem().unwrap();
     let policy = SolverPlan::new(
         LinearSolver::BiConjugateGradientStabilized,
         1e-12,
@@ -164,7 +163,18 @@ fn complex_mapping_recovers_scaled_fields_and_rebinds_prescriptions() {
         NonZeroUsize::new(20).unwrap(),
     )
     .unwrap();
-    let solution = REFERENCE_LINEAR_SOLVER.solve(&problem, policy).unwrap();
+    let finalized = crate::finalized_spatial::FinalizedLinearCore::new(
+        policy,
+        eqiora_realization::VectorLayoutKind::Replicated,
+        eqiora_realization::Target::HostCpu {
+            threads: NonZeroUsize::MIN,
+        },
+        std::sync::Arc::new(captured),
+    );
+    let solution = REFERENCE_LINEAR_SOLVER
+        .solve(&finalized.linear_problem().unwrap(), policy)
+        .unwrap();
+    finalized.validate_solution(&solution).unwrap();
     let recovered = assembled_map.recover(solution.values(), &[field]).unwrap();
     for value in recovered[&field].coefficients.values() {
         assert!((*value - C::new(1.0, 3.0)).norm() < 1e-12);
