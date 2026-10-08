@@ -3,6 +3,7 @@ use eqiora_compiler::AuthoredFormulationProjection;
 use num_complex::Complex64 as C;
 
 mod actions;
+mod coordinate_replay;
 
 const SOURCE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
