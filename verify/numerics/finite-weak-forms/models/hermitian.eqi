@@ -1,0 +1,8 @@
+space Spin=orthonormal(up,down);
+public component Wave() {
+ parameter h:map<complex<1>,Spin,Spin>=linear_map(Spin,Spin,[[2,math.complex(0,-1)],[math.complex(0,1),2]]);
+ variable u:coordinates<complex<1>,Spin>;
+ variable lambda:1;
+ relation states {apply(h,u)=lambda*u;}
+ form weak for states {test eta:1 for u; inner(eta,apply(h,u))=inner(eta,lambda*u);}
+}
