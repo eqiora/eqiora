@@ -632,6 +632,9 @@ impl NativeNumericalAdmission {
         &self,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonScalarRunOutput<f64>, Diagnostic> {
+        if let RecognizedNativeModel::ComplexScalar(equations) = self.recognized_model() {
+            return self.execute_complex_scalar(equations, backend);
+        }
         self.execute_scalar_with_completion(backend, |reactions, full| reactions.recover(full))
     }
 

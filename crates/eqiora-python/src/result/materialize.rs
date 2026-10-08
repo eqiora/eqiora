@@ -169,6 +169,11 @@ fn materialize_common_result_unprofiled(
     let mut outputs = Vec::with_capacity(result.field_count());
     let mut lookup = BTreeMap::new();
     for field_index in 0..result.field_count() {
+        if result.field_scalar_domain(field_index) != Some(eqiora::ScalarDomain::Real) {
+            return Err(PyRuntimeError::new_err(
+                "complex spatial Field materialization is not yet admitted by the Python coefficient buffer",
+            ));
+        }
         let (field_id, dimension, value_shape, native_space) = result
             .field(field_index)
             .ok_or_else(|| PyRuntimeError::new_err("common Result omitted Field metadata"))?;

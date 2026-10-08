@@ -3,6 +3,7 @@ use super::*;
 mod complex;
 pub(super) mod interval;
 mod regions;
+mod support;
 mod transient;
 pub(crate) use regions::ExecutableScalarEquations;
 
@@ -806,46 +807,17 @@ impl CommonScalarPlan {
             }
             return Ok((self.cells.to_vec(), Vec::new()));
         }
-        let RecognizedNativeModel::Scalar(equations) = self.admission.recognized_model() else {
-            return Err(invalid("missing scalar inventory"));
-        };
         let NativeMeshResources::Cartesian { mesh, .. } = self.admission.resources() else {
             return Err(invalid("missing Cartesian mesh"));
         };
-        let mesh = mesh.mesh();
-        let region = equations
-            .regions
-            .iter()
-            .find(|region| region.form.fields().iter().any(|(id, _)| *id == field))
-            .ok_or_else(|| invalid("Field absent from exact Region inventory"))?;
-        let mut shape = Vec::new();
-        for (axis, bounds) in region.bounds.iter().enumerate() {
-            let coordinates = mesh.axis_coordinates(axis).expect("axis");
-            let start = coordinates
-                .iter()
-                .position(|x| *x == bounds[0])
-                .ok_or_else(|| invalid("Field support lower bound absent"))?;
-            let end = coordinates
-                .iter()
-                .position(|x| *x == bounds[1])
-                .ok_or_else(|| invalid("Field support upper bound absent"))?;
-            shape.push(end - start + usize::from(self.spatial() == CommonSpatialPolicy::Q1));
-        }
-        let domains = equations.cell_domains(mesh)?;
-        let mut vertices = BTreeSet::new();
-        for (index, domain) in domains.iter().enumerate() {
-            if *domain == region.form.domain() {
-                vertices.extend(
-                    mesh.incidence(
-                        eqiora_meshing::MeshEntity::new(mesh.topological_dimension(), index),
-                        0,
-                    )
-                    .expect("cell closure")
-                    .iter()
-                    .map(|vertex| vertex.entity.index()),
-                );
+        match self.admission.recognized_model() {
+            RecognizedNativeModel::Scalar(equations) => {
+                support::field_support(equations, mesh.mesh(), field, self.spatial())
             }
+            RecognizedNativeModel::ComplexScalar(equations) => {
+                support::field_support(equations, mesh.mesh(), field, self.spatial())
+            }
+            _ => Err(invalid("missing scalar inventory")),
         }
-        Ok((shape, vertices.into_iter().collect()))
     }
 }

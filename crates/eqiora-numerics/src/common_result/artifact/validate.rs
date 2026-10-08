@@ -44,6 +44,7 @@ pub(super) fn validate_fields(
                             field_matches(
                                 field,
                                 &id,
+                                value_type.scalar_domain(),
                                 value_type.dimension(),
                                 &[],
                                 space,
@@ -59,6 +60,7 @@ pub(super) fn validate_fields(
                 && field_matches(
                     &fields[0],
                     plan.displacement_field_id(),
+                    eqiora_core::ScalarDomain::Real,
                     DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
                     &[2],
                     "continuous-lagrange-p1",
@@ -75,6 +77,7 @@ pub(super) fn validate_fields(
                 && field_matches(
                     &fields[0],
                     plan.velocity_field_id(),
+                    eqiora_core::ScalarDomain::Real,
                     DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension"),
                     &[2],
                     "simplex-p1-bubble",
@@ -86,6 +89,7 @@ pub(super) fn validate_fields(
                 && field_matches(
                     &fields[1],
                     plan.pressure_field_id(),
+                    eqiora_core::ScalarDomain::Real,
                     DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0])
                         .expect("bounded dimension"),
                     &[],
@@ -110,12 +114,14 @@ pub(super) fn validate_fields(
 fn field_matches(
     field: &CommonResultField,
     id: &str,
+    scalar_domain: eqiora_core::ScalarDomain,
     dimension: DimExponents,
     value_shape: &[usize],
     space: &str,
     blocks: &[(CommonFieldAssociation, Vec<usize>)],
 ) -> bool {
     field.field_id == id
+        && field.scalar_domain == scalar_domain
         && field.dimension == dimension
         && field.value_shape == value_shape
         && field.space == space

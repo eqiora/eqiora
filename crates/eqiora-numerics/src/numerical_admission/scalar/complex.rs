@@ -95,3 +95,45 @@ impl CommonScalarPlan {
         Ok(())
     }
 }
+
+impl NativeNumericalAdmission {
+    pub(in crate::numerical_admission) fn execute_complex_scalar(
+        &self,
+        equations: &ExecutableScalarEquations<num_complex::Complex64>,
+        backend: &dyn LinearSolverBackend,
+    ) -> Result<CommonScalarRunOutput<f64>, Diagnostic> {
+        self.revalidate()?;
+        let NativeMeshResources::Cartesian { mesh, .. } = self.resources() else {
+            return Err(invalid("complex scalar Run lost Cartesian resources"));
+        };
+        let structure = equations.algebraic_structure(None)?;
+        let checked = self
+            .linear
+            .checked_complex_backend(backend, Some(&structure))?;
+        let output = equations.execute(
+            self.linear.workers,
+            LinearSolveRequest::new(&checked, self.linear.solver),
+            mesh.mesh(),
+            |reactions, values| reactions.recover(values),
+        )?;
+        Ok(CommonScalarRunOutput {
+            fields: output
+                .fields
+                .into_iter()
+                .map(|(field, ty, values)| {
+                    (
+                        field,
+                        ty,
+                        values
+                            .into_iter()
+                            .flat_map(|value| [value.re, value.im])
+                            .collect(),
+                    )
+                })
+                .collect(),
+            solve_report: output.solve_report,
+            assembly_report: output.assembly_report,
+            nullspace: output.nullspace,
+        })
+    }
+}
