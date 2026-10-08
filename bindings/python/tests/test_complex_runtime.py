@@ -121,7 +121,7 @@ def test_complex_linear_plan_rejects_real_only_provider_before_run():
         preconditioner=eqiora.solve.Preconditioner.Identity,
         reduction=eqiora.solve.Reduction.Fast, provider=eqiora.solve.SolverProvider.faer(),
     )
-    with pytest.raises(eqiora.ValidationError, match="complex finite Plan requires"):
+    with pytest.raises(eqiora.ValidationError, match="selected provider has no typed complex linear implementation"):
         eqiora.resolve(model, solve=real_only)
 
 

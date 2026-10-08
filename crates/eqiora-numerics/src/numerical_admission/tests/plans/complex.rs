@@ -48,7 +48,12 @@ fn complex_spatial_plan_retains_types_exact_solver_and_replay() {
     assert_eq!(coordinates.len(), 10);
     // -u''=1+2i on [0,1], zero endpoints: nodal Q1 values equal
     // (1+2i)x(1-x)/2, independently of the implementation's matrix.
-    for (pair, x) in coordinates.chunks_exact(2).zip([0., 0.25, 0.5, 0.75, 1.]) {
+    for (pair, x) in coordinates
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .zip([0., 0.25, 0.5, 0.75, 1.])
+    {
         assert!((C::new(pair[0], pair[1]) - C::new(1., 2.) * (x * (1. - x) / 2.)).norm() < 1e-11);
     }
     let bytes = result.to_bytes().unwrap();
