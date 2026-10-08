@@ -1159,7 +1159,13 @@ def _binary_function(name: str, left: object, right: object) -> Expression:
         _binders=left_expression._binders | right_expression._binders, _sources=left_expression._sources | right_expression._sources)
 
 
+def inner(left: object, right: object) -> Expression:
+    """Return the inner product, conjugating the first argument."""
+    return _binary_function("inner", left, right)
+
+
 def dot(left: object, right: object) -> Expression:
+    """Return the bilinear dot product without complex conjugation."""
     return _binary_function("dot", left, right)
 
 
@@ -1189,8 +1195,8 @@ def to_integer(value: object) -> Expression:
 
 
 def integrate(domain: Support, integrand: object) -> Expression:
-    if not isinstance(domain, Support) or domain._kind != "volume":
-        raise ModuleError("integrate() requires a volume Support")
+    if not isinstance(domain, Support) or domain._kind not in ("volume", "boundary"):
+        raise ModuleError("integrate() requires a volume or boundary Support")
     expression = _expression(integrand)
     if expression._owner is not None and expression._owner is not domain._component:
         raise ModuleError("integrand and Support must belong to the same Component")
@@ -2915,6 +2921,7 @@ __all__ = [
     "case",
     "coordinate",
     "dot",
+    "inner",
     "div",
     "grad",
     "integrate",
