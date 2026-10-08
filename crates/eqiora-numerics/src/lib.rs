@@ -50,7 +50,9 @@ pub use common_ode::{
     CommonOdePlan, CommonOdePolicy, CommonOdeRunRequest, CommonOdeState, CommonTimeTolerance,
 };
 pub use common_result::{CommonObservableStateTangent, CommonResult};
-pub use common_trajectory::{CommonTrajectory, TimeFunctionalQuadrature};
+pub use common_trajectory::{
+    CommonTrajectory, FiniteSpectrum, TimeFunctionalQuadrature, UniformDft,
+};
 pub use numerical_admission::{
     AuthenticatedCommonMesh, CommonAlgebraicPlan, CommonAlgebraicState, CommonBackwardEuler,
     CommonEigenPlan, CommonEigenRequest, CommonElasticityPlan, CommonFormulationDescription,
@@ -59,7 +61,7 @@ pub use numerical_admission::{
     CommonPressureGauge2d, CommonScalarDifferentiationPoint, CommonScalarPlan,
     CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy, CommonState,
     CommonSteadyStokesPlan, CommonTransientFlowPlan, CommonTransientRunRequest, FormulationKind,
-    FormulationSelectionMode, ResolvedCommonPlan, resolve_common_ode_plan, resolve_common_plan,
+    FormulationSelectionMode, ResolvedCommonPlan,
 };
 mod factor_measure;
 pub mod finite_constraints;

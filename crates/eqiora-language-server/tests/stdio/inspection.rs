@@ -72,7 +72,7 @@ fn plan_inspection_validates_exact_artifacts_and_tracks_selected_model_edits() {
         compiler::{CompilationNamespaceId, ResolvedHierarchyInput, ResolvedSourceUnit},
         kernel::KernelNode,
     };
-    use eqiora_numerics::{CommonOdePolicy, CommonTimeTolerance, resolve_common_ode_plan};
+    use eqiora_numerics::{CommonOdePolicy, CommonTimeTolerance};
     let source = "model Decay() { state x: 1; initial { x = 1; } parameter rate: 1 / s = 1; relation flow { derivative(x) + rate * x = 0; } }";
     let owner = CompilationNamespaceId::new(["editor.workspace"]).unwrap();
     let unit = ResolvedSourceUnit::new(owner.clone(), "src/decay.eqi", source).unwrap();
@@ -92,7 +92,7 @@ fn plan_inspection_validates_exact_artifacts_and_tracks_selected_model_edits() {
             _ => None,
         })
         .unwrap();
-    let plan = resolve_common_ode_plan(
+    let plan = eqiora_numerics::ResolvedCommonPlan::resolve_ode(
         &envelope,
         model.program(),
         CommonOdePolicy::new(

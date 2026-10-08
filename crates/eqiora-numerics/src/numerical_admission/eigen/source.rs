@@ -171,10 +171,24 @@ impl SourcePencil {
         let mut a = Vec::new();
         let mut c = Vec::new();
         for row in rows.rows() {
-            let (constant, spectral_part) =
-                row.bind_affine_pencil(&selected, &spectral, &bindings)?;
-            a.extend_from_slice(constant.coefficients());
-            c.extend_from_slice(spectral_part.coefficients());
+            let coefficients = row.bind_polynomial_pencil(
+                &selected,
+                std::slice::from_ref(&spectral),
+                1,
+                1_000_000,
+                &bindings,
+            )?;
+            let zero = vec![0.; selected.len()];
+            a.extend_from_slice(
+                coefficients
+                    .get(&vec![0])
+                    .map_or(&zero[..], |term| term.coefficients()),
+            );
+            c.extend_from_slice(
+                coefficients
+                    .get(&vec![1])
+                    .map_or(&zero[..], |term| term.coefficients()),
+            );
         }
         // An equality has no privileged left/right orientation. Choose the
         // representative (s A, -s C) whose metric can be positive definite.

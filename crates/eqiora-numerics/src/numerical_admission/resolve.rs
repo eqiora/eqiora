@@ -5,244 +5,272 @@ use super::spatial_planning::{
 };
 use super::*;
 
-#[allow(
-    clippy::too_many_arguments,
-    reason = "the opaque compiler projection is a separate Formulation input, not numerical policy"
-)]
-pub fn resolve_common_plan(
-    model: &ModelEnvelope,
-    owner: AuthenticatedCommonMesh,
-    method: impl Into<CommonMethodRequest>,
-    solve: CommonSolvePolicy,
-    scaling: Option<IncompressibleScalingRequest2d>,
-    temporal: Option<CommonBackwardEuler>,
-    stokes_backend: &dyn LinearSolverBackend,
-    authored_formulation: Option<&AuthoredFormulationProjection>,
-) -> Result<ResolvedCommonPlan, Diagnostic> {
-    let recognized = RecognizedNativeAdmission::recognize(model, owner)?;
-    if let Some(projection) = authored_formulation {
-        crate::form_compiler::check_authored_dependence(projection, &recognized.program)?;
-    }
-    let (spatial, formulation) = method.into().split();
-    match &recognized.recognized {
-        RecognizedNativeModel::Coordinates(projection) => {
-            if spatial != CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCentered)
-                || formulation.is_some()
-                || authored_formulation.is_some()
-            {
-                return Err(invalid(
-                    "coordinate conservation requires automatic CellCentered realization without an authored Formulation",
-                ));
-            }
-            let structure =
-                eqiora_solver::AlgebraicStructure::new([projection.primary_field()], [])?;
-            let (linear, temporal) = resolve_linear_requirements(
-                solve,
-                scaling,
-                temporal,
-                false,
-                "coordinate cell-integrated equality",
-                LinearOperatorProperties::SymmetricPositiveDefinite,
-                Some(structure),
-                stokes_backend,
-            )?;
-            let admission = recognized.complete(
-                NativeSpatialPolicy::CoordinateCellConstant,
-                linear,
-                temporal,
-                None,
-            )?;
-            CommonScalarPlan::from_coordinate_admission(model, admission)
-                .map(|plan| ResolvedCommonPlan::Scalar(Box::new(plan)))
+impl ResolvedCommonPlan {
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the opaque compiler projection is a separate Formulation input, not numerical policy"
+    )]
+    pub fn resolve(
+        model: &ModelEnvelope,
+        owner: AuthenticatedCommonMesh,
+        method: impl Into<CommonMethodRequest>,
+        solve: CommonSolvePolicy,
+        scaling: Option<IncompressibleScalingRequest2d>,
+        temporal: Option<CommonBackwardEuler>,
+        stokes_backend: &dyn LinearSolverBackend,
+        authored_formulation: Option<&AuthoredFormulationProjection>,
+    ) -> Result<ResolvedCommonPlan, Diagnostic> {
+        let recognized = RecognizedNativeAdmission::recognize(model, owner)?;
+        if let Some(projection) = authored_formulation {
+            crate::form_compiler::check_authored_dependence(projection, &recognized.program)?;
         }
-
-        RecognizedNativeModel::Scalar(equations) => {
-            let mut spatial = resolve_scalar(spatial)?;
-            if matches!(spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
-                let constraint = authored_formulation
-                    .map(|form| scalar::interval::admit_gauge(&recognized.program, equations, form))
-                    .transpose()?
-                    .flatten();
-                spatial = NativeSpatialPolicy::ScalarTpfa(constraint);
+        let (spatial, formulation) = method.into().split();
+        match &recognized.recognized {
+            RecognizedNativeModel::Coordinates(projection) => {
+                if spatial != CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCentered)
+                    || formulation.is_some()
+                    || authored_formulation.is_some()
+                {
+                    return Err(invalid(
+                        "coordinate conservation requires automatic CellCentered realization without an authored Formulation",
+                    ));
+                }
+                let structure =
+                    eqiora_solver::AlgebraicStructure::new([projection.primary_field()], [])?;
+                let (linear, temporal) = resolve_linear_requirements(
+                    solve,
+                    scaling,
+                    temporal,
+                    false,
+                    "coordinate cell-integrated equality",
+                    LinearOperatorProperties::SymmetricPositiveDefinite,
+                    Some(structure),
+                    stokes_backend,
+                )?;
+                let admission = recognized.complete(
+                    NativeSpatialPolicy::CoordinateCellConstant,
+                    linear,
+                    temporal,
+                    None,
+                )?;
+                CommonScalarPlan::from_coordinate_admission(model, admission)
+                    .map(|plan| ResolvedCommonPlan::Scalar(Box::new(plan)))
             }
-            let (formulation_selection, properties) = match spatial {
-                NativeSpatialPolicy::ScalarQ1 => (
-                    Some(resolve_formulation_request(
-                        formulation,
-                        FormulationKind::PrimalGalerkin,
-                        "scalar-elliptic Q1",
-                    )?),
-                    LinearOperatorProperties::General,
-                ),
-                NativeSpatialPolicy::ScalarTpfa(_) => {
-                    if authored_formulation.is_some_and(|form| form.interval().is_none()) {
-                        return Err(invalid(
-                            "TPFA requires an integral-conservative authored form",
-                        ));
-                    }
-                    (
+
+            RecognizedNativeModel::Scalar(equations) => {
+                let mut spatial = resolve_scalar(spatial)?;
+                if matches!(spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
+                    let constraint = authored_formulation
+                        .map(|form| {
+                            scalar::interval::admit_gauge(&recognized.program, equations, form)
+                        })
+                        .transpose()?
+                        .flatten();
+                    spatial = NativeSpatialPolicy::ScalarTpfa(constraint);
+                }
+                let (formulation_selection, properties) = match spatial {
+                    NativeSpatialPolicy::ScalarQ1 => (
                         Some(resolve_formulation_request(
                             formulation,
-                            FormulationKind::IntegralConservative,
-                            "scalar-elliptic TPFA",
+                            FormulationKind::PrimalGalerkin,
+                            "scalar-elliptic Q1",
                         )?),
-                        scalar::scalar_operator_properties(spatial),
-                    )
-                }
-                _ => unreachable!("scalar resolution returns only scalar spatial policies"),
-            };
-            let structure = equations.algebraic_structure(spatial.scalar_constraint())?;
-            let (linear, temporal) = resolve_linear_requirements(
-                solve,
-                scaling,
-                temporal,
-                equations
-                    .regions
-                    .iter()
-                    .any(|region| region.form.is_transient()),
-                "scalar conservation form",
-                properties,
-                Some(structure),
-                stokes_backend,
-            )?;
-            let admission = recognized.complete(spatial, linear, temporal, None)?;
-            CommonScalarPlan::from_admission(
-                model,
-                admission,
-                formulation_selection,
-                authored_formulation,
-            )
-            .map(|plan| ResolvedCommonPlan::Scalar(Box::new(plan)))
-        }
-        RecognizedNativeModel::Elasticity(continuum) => {
-            let selection = resolve_formulation_request(
-                formulation,
-                FormulationKind::PrimalGalerkin,
-                "isotropic small-strain form",
-            )?;
-            let spatial = resolve_elasticity(spatial)?;
-            let structure = super::elasticity::algebraic_structure(continuum)?;
-            let (linear, temporal) = resolve_linear_requirements(
-                solve,
-                scaling,
-                temporal,
-                false,
-                "isotropic small-strain form",
-                LinearOperatorProperties::SymmetricPositiveDefinite,
-                Some(structure),
-                stokes_backend,
-            )?;
-            let admission = recognized.complete(spatial, linear, temporal, None)?;
-            CommonElasticityPlan::from_admission(model, admission, selection, authored_formulation)
-                .map(|plan| ResolvedCommonPlan::Elasticity(Box::new(plan)))
-        }
-        RecognizedNativeModel::Stokes(binding) => {
-            reject_authored_scalar_form(authored_formulation, "steady incompressible mixed form")?;
-            let formulation_selection = resolve_formulation_request(
-                formulation,
-                FormulationKind::MixedGalerkin,
-                "steady-Stokes MINI/P1",
-            )?;
-            let CommonSolvePolicy::Linear(solve) = solve else {
-                return Err(invalid(
-                    "steady-Stokes mathematics requires Linear solve policy",
-                ));
-            };
-            if temporal.is_some() {
-                return Err(invalid(
-                    "steady-Stokes mathematics does not admit a temporal policy",
-                ));
+                        LinearOperatorProperties::General,
+                    ),
+                    NativeSpatialPolicy::ScalarTpfa(_) => {
+                        if authored_formulation.is_some_and(|form| form.interval().is_none()) {
+                            return Err(invalid(
+                                "TPFA requires an integral-conservative authored form",
+                            ));
+                        }
+                        (
+                            Some(resolve_formulation_request(
+                                formulation,
+                                FormulationKind::IntegralConservative,
+                                "scalar-elliptic TPFA",
+                            )?),
+                            scalar::scalar_operator_properties(spatial),
+                        )
+                    }
+                    _ => unreachable!("scalar resolution returns only scalar spatial policies"),
+                };
+                let structure = equations.algebraic_structure(spatial.scalar_constraint())?;
+                let (linear, temporal) = resolve_linear_requirements(
+                    solve,
+                    scaling,
+                    temporal,
+                    equations
+                        .regions
+                        .iter()
+                        .any(|region| region.form.is_transient()),
+                    "scalar conservation form",
+                    properties,
+                    Some(structure),
+                    stokes_backend,
+                )?;
+                let admission = recognized.complete(spatial, linear, temporal, None)?;
+                CommonScalarPlan::from_admission(
+                    model,
+                    admission,
+                    formulation_selection,
+                    authored_formulation,
+                )
+                .map(|plan| ResolvedCommonPlan::Scalar(Box::new(plan)))
             }
-            let spatial = resolve_stokes(spatial)?;
-            let scaling = binding.resolve_incompressible_scaling(model, scaling)?;
-            let linear = resolve_linear(
-                solve,
-                LinearOperatorProperties::SymmetricIndefinite,
-                None,
-                None,
-                Some(binding.algebraic_structure()?),
-                stokes_backend,
-            )?;
-            let admission =
-                recognized.complete(spatial.with_scaling(scaling.scales()), linear, None, None)?;
-            CommonSteadyStokesPlan::from_admission(model, admission, formulation_selection, scaling)
+            RecognizedNativeModel::Elasticity(continuum) => {
+                let selection = resolve_formulation_request(
+                    formulation,
+                    FormulationKind::PrimalGalerkin,
+                    "isotropic small-strain form",
+                )?;
+                let spatial = resolve_elasticity(spatial)?;
+                let structure = super::elasticity::algebraic_structure(continuum)?;
+                let (linear, temporal) = resolve_linear_requirements(
+                    solve,
+                    scaling,
+                    temporal,
+                    false,
+                    "isotropic small-strain form",
+                    LinearOperatorProperties::SymmetricPositiveDefinite,
+                    Some(structure),
+                    stokes_backend,
+                )?;
+                let admission = recognized.complete(spatial, linear, temporal, None)?;
+                CommonElasticityPlan::from_admission(
+                    model,
+                    admission,
+                    selection,
+                    authored_formulation,
+                )
+                .map(|plan| ResolvedCommonPlan::Elasticity(Box::new(plan)))
+            }
+            RecognizedNativeModel::Stokes(binding) => {
+                reject_authored_scalar_form(
+                    authored_formulation,
+                    "steady incompressible mixed form",
+                )?;
+                let formulation_selection = resolve_formulation_request(
+                    formulation,
+                    FormulationKind::MixedGalerkin,
+                    "steady-Stokes MINI/P1",
+                )?;
+                let CommonSolvePolicy::Linear(solve) = solve else {
+                    return Err(invalid(
+                        "steady-Stokes mathematics requires Linear solve policy",
+                    ));
+                };
+                if temporal.is_some() {
+                    return Err(invalid(
+                        "steady-Stokes mathematics does not admit a temporal policy",
+                    ));
+                }
+                let spatial = resolve_stokes(spatial)?;
+                let scaling = binding.resolve_incompressible_scaling(model, scaling)?;
+                let linear = resolve_linear(
+                    solve,
+                    LinearOperatorProperties::SymmetricIndefinite,
+                    None,
+                    None,
+                    Some(binding.algebraic_structure()?),
+                    stokes_backend,
+                )?;
+                let admission = recognized.complete(
+                    spatial.with_scaling(scaling.scales()),
+                    linear,
+                    None,
+                    None,
+                )?;
+                CommonSteadyStokesPlan::from_admission(
+                    model,
+                    admission,
+                    formulation_selection,
+                    scaling,
+                )
                 .map(|plan| ResolvedCommonPlan::SteadyStokes(Box::new(plan)))
-        }
-        RecognizedNativeModel::Transient(_) | RecognizedNativeModel::TransientGeometry(_) => {
-            reject_authored_scalar_form(authored_formulation, "transient storage form")?;
-            let spatial = resolve_transient(spatial)?;
-            let effective_formulation = match spatial {
-                TransientSpatialDecision::MiniP1 => FormulationKind::MixedGalerkin,
-                TransientSpatialDecision::CellCentered => FormulationKind::IntegralConservative,
-            };
-            let formulation_selection = resolve_formulation_request(
-                formulation,
-                effective_formulation,
-                "transient incompressible-flow spatial policy",
-            )?;
-            let CommonSolvePolicy::Newton { nonlinear, linear } = solve else {
-                return Err(invalid(
-                    "transient incompressible-flow mathematics requires Newton(linear=...) policy",
-                ));
-            };
-            let temporal = temporal.ok_or_else(|| {
-                invalid("transient incompressible-flow mathematics requires BackwardEuler")
-            })?;
-            let (geometry, mesh, correspondence, _) =
-                resource_artifact_digests(&recognized.resources)?;
-            let scaling = resolve_complete_manual_incompressible_scaling_2d(
-                scaling,
-                model.digest()?,
-                geometry,
-                correspondence,
-                mesh,
-            )?;
-            let linear = resolve_linear(
-                linear,
-                LinearOperatorProperties::General,
-                None,
-                None,
-                Some(transient_algebraic_structure(
-                    &recognized.recognized,
-                    spatial,
-                )?),
-                stokes_backend,
-            )?;
-            let native_spatial = spatial.with_scaling(scaling.scales());
-            let admission =
-                recognized.complete(native_spatial, linear, Some(temporal), Some(nonlinear))?;
-            CommonTransientFlowPlan::from_admission(
-                model,
-                admission,
-                formulation_selection,
-                scaling,
-                temporal,
-                nonlinear,
-            )
-            .map(|plan| ResolvedCommonPlan::TransientFlow(Box::new(plan)))
-        }
-        RecognizedNativeModel::Fsi(canonical) => {
-            reject_authored_scalar_form(authored_formulation, "coupled interface form")?;
-            reject_unsupported_formulation_request(formulation, "fixed-reference FSI")?;
-            let CommonSolvePolicy::Linear(linear) = solve else {
-                return Err(invalid(
-                    "fixed-reference FSI mathematics requires Linear solve policy",
-                ));
-            };
-            let temporal = temporal
-                .ok_or_else(|| invalid("fixed-reference FSI mathematics requires BackwardEuler"))?;
-            require_fixed_reference_fsi(model, canonical, spatial)?;
-            let effective_linear = resolve_linear(
-                linear,
-                LinearOperatorProperties::SymmetricIndefinite,
-                None,
-                // The admitted common host FSI execution owns reproducible reductions.
-                Some(ReductionPolicy::Reproducible),
-                Some(canonical.algebraic_structure()?),
-                stokes_backend,
-            )?;
-            CommonFsiPlan::from_recognized(model, recognized, scaling, temporal, effective_linear)
+            }
+            RecognizedNativeModel::Transient(_) | RecognizedNativeModel::TransientGeometry(_) => {
+                reject_authored_scalar_form(authored_formulation, "transient storage form")?;
+                let spatial = resolve_transient(spatial)?;
+                let effective_formulation = match spatial {
+                    TransientSpatialDecision::MiniP1 => FormulationKind::MixedGalerkin,
+                    TransientSpatialDecision::CellCentered => FormulationKind::IntegralConservative,
+                };
+                let formulation_selection = resolve_formulation_request(
+                    formulation,
+                    effective_formulation,
+                    "transient incompressible-flow spatial policy",
+                )?;
+                let CommonSolvePolicy::Newton { nonlinear, linear } = solve else {
+                    return Err(invalid(
+                        "transient incompressible-flow mathematics requires Newton(linear=...) policy",
+                    ));
+                };
+                let temporal = temporal.ok_or_else(|| {
+                    invalid("transient incompressible-flow mathematics requires BackwardEuler")
+                })?;
+                let (geometry, mesh, correspondence, _) =
+                    resource_artifact_digests(&recognized.resources)?;
+                let scaling = resolve_complete_manual_incompressible_scaling_2d(
+                    scaling,
+                    model.digest()?,
+                    geometry,
+                    correspondence,
+                    mesh,
+                )?;
+                let linear = resolve_linear(
+                    linear,
+                    LinearOperatorProperties::General,
+                    None,
+                    None,
+                    Some(transient_algebraic_structure(
+                        &recognized.recognized,
+                        spatial,
+                    )?),
+                    stokes_backend,
+                )?;
+                let native_spatial = spatial.with_scaling(scaling.scales());
+                let admission =
+                    recognized.complete(native_spatial, linear, Some(temporal), Some(nonlinear))?;
+                CommonTransientFlowPlan::from_admission(
+                    model,
+                    admission,
+                    formulation_selection,
+                    scaling,
+                    temporal,
+                    nonlinear,
+                )
+                .map(|plan| ResolvedCommonPlan::TransientFlow(Box::new(plan)))
+            }
+            RecognizedNativeModel::Fsi(canonical) => {
+                reject_authored_scalar_form(authored_formulation, "coupled interface form")?;
+                reject_unsupported_formulation_request(formulation, "fixed-reference FSI")?;
+                let CommonSolvePolicy::Linear(linear) = solve else {
+                    return Err(invalid(
+                        "fixed-reference FSI mathematics requires Linear solve policy",
+                    ));
+                };
+                let temporal = temporal.ok_or_else(|| {
+                    invalid("fixed-reference FSI mathematics requires BackwardEuler")
+                })?;
+                require_fixed_reference_fsi(model, canonical, spatial)?;
+                let effective_linear = resolve_linear(
+                    linear,
+                    LinearOperatorProperties::SymmetricIndefinite,
+                    None,
+                    // The admitted common host FSI execution owns reproducible reductions.
+                    Some(ReductionPolicy::Reproducible),
+                    Some(canonical.algebraic_structure()?),
+                    stokes_backend,
+                )?;
+                CommonFsiPlan::from_recognized(
+                    model,
+                    recognized,
+                    scaling,
+                    temporal,
+                    effective_linear,
+                )
                 .map(|plan| ResolvedCommonPlan::Fsi(Box::new(plan)))
+            }
         }
     }
 }

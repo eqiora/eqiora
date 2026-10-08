@@ -35,6 +35,7 @@ assert math.isclose(result.observe(finite.observable("composed")).value, 20.0, a
 assert eqiora.Result.from_bytes(plan, result.to_bytes()).observe(output).result_identity == observed.result_identity
 for invalid in (lambda: finite.observable("a"), lambda: result.observe("twice"),
                 lambda: result.observe_terminal(output),
+                lambda: result.observe_spectrum(output, start_s=0., spacing_s=1., count=4, window='rectangular', max_products=16),
                 lambda: result.observe_time_integral(output, quadrature=eqiora.time.TimeFunctionalQuadrature.AcceptedStepSimpson),
                 lambda: result.observe(output, quadrature_points=2)):
     try:
@@ -317,6 +318,69 @@ for receipt in (terminal, integral):
         pass
     else:
         raise AssertionError('event functional receipt must be frozen')
+"#), Some(&locals), Some(&locals))
+    })
+}
+
+#[test]
+fn finite_spectrum_uses_accepted_python_run_and_explicit_discrete_convention() -> PyResult<()> {
+    let _fixture = MODULE_FIXTURE.lock().expect("Python package fixture lock");
+    Python::initialize();
+    Python::attach(|py| {
+        let locals = PyDict::new(py);
+        locals.set_item("eqiora", public_module(py)?)?;
+        py.run(c_str!(r#"
+import math
+source = "model Signal(){state x:1;initial{x=0;}relation flow{derivative(x)=0[1/s];}observable signal:complex<m>=math.complex(2[m],3[m])*math.exp(math.complex(0,-3.141592653589793)*(time()/1[s]-1));}"
+model = eqiora.compile(source=source)
+field = model.field('x')
+observable = model.observable('signal')
+plan = eqiora.resolve(model, temporal=eqiora.time.Tsitouras45(initial_step_s=0.1, relative_tolerance=1e-10, absolute_tolerances={(field, 0, 0, False): 1e-12}))
+result = eqiora.run(plan, state=eqiora.State.initial(plan), until_s=4.0, output_times_s=(1.0, 1.5, 2.0, 2.5))
+options = dict(start_s=1., spacing_s=.5, count=4, window='rectangular', max_products=16)
+spectrum = result.observe_spectrum(observable, **options)
+assert isinstance(spectrum, eqiora.FiniteSpectrum)
+assert spectrum.result_identity == result.observe_terminal(observable).result_identity
+assert spectrum.interval_s == (1., 3.)
+assert spectrum.phase_reference_s == 1.
+assert spectrum.window == 'rectangular'
+assert spectrum.endpoint_convention == 'half-open-uniform-samples'
+assert spectrum.convention == 'forward:+i,1/N;inverse:-i,1;phase:first-sample'
+assert spectrum.sample_count == 4 and spectrum.spacing_s == .5
+assert abs(spectrum.coefficients[1]-(2+3j)) < 1e-12
+assert spectrum.frequency_hz(1) == .5
+assert spectrum.angular_frequency_rad_s(1) == math.pi
+assert abs(spectrum.phase_rad(1)-math.atan2(3,2)) < 1e-12
+assert abs(spectrum.power(1)-13) < 1e-12
+assert abs(spectrum.power_density_per_hz(1)-26) < 1e-12
+assert abs(spectrum.rectangle_transform_estimate(1)-(4+6j)) < 1e-12
+for n, expected in enumerate((2+3j, 3-2j, -2-3j, -3+2j)):
+    assert abs(spectrum.reconstruct_sample(n)-expected) < 1e-12
+shaped_model = eqiora.compile(source=source.replace('signal:complex<m>=math.complex(2[m],3[m])', 'signal:array<complex<m>,6>=[1[m],2[m],3[m],4[m],5[m],6[m]]'))
+shaped_field = shaped_model.field('x')
+shaped_plan = eqiora.resolve(shaped_model, temporal=eqiora.time.Tsitouras45(initial_step_s=.1, relative_tolerance=1e-10, absolute_tolerances={(shaped_field,0,0,False):1e-12}))
+shaped_result = eqiora.run(shaped_plan, state=eqiora.State.initial(shaped_plan), until_s=4., output_times_s=(1.,1.5,2.,2.5))
+shaped = shaped_result.observe_spectrum(shaped_model.observable('signal'), **dict(options,max_products=96))
+assert abs(shaped.amplitude(1,component=5)-6.)<1e-12
+try:
+    shaped.amplitude(1)
+except ValueError:
+    pass
+else:
+    raise AssertionError('shaped spectrum silently selected one component')
+restored = eqiora.Result.from_bytes(plan, result.to_bytes()).observe_spectrum(observable, **options)
+assert restored.trajectory_identity == spectrum.trajectory_identity
+assert restored.coefficients == spectrum.coefficients
+for invalid in (lambda: spectrum.one_sided_amplitude(1),
+                lambda: result.observe_spectrum(observable, **dict(options, spacing_s=.6)),
+                lambda: result.observe_spectrum(observable, **dict(options, window='plot-default')),
+                lambda: result.observe_spectrum(observable, **dict(options, max_products=15))):
+    try:
+        invalid()
+    except (ValueError, TypeError, eqiora.ValidationError):
+        pass
+    else:
+        raise AssertionError('unsupported finite-spectrum profile was admitted')
 "#), Some(&locals), Some(&locals))
     })
 }

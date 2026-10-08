@@ -15,8 +15,7 @@ use eqiora::package::{
 };
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
-    AuthenticatedCommonMesh, CommonResult, CommonScalarPlan, CommonSolvePolicy,
-    CommonSpatialPolicy, resolve_common_plan,
+    AuthenticatedCommonMesh, CommonResult, CommonScalarPlan, CommonSolvePolicy, CommonSpatialPolicy,
 };
 
 const VERSION: &str = "1.0.0";
@@ -687,7 +686,7 @@ fn resolve_scalar(document: &ModelDocument, geometry: &CanonicalGeometryV1) -> C
         .unwrap(),
     );
     let model = ModelEnvelope::from_program(document.program()).unwrap();
-    resolve_common_plan(
+    eqiora_numerics::ResolvedCommonPlan::resolve(
         &model,
         owner,
         CommonSpatialPolicy::Q1,

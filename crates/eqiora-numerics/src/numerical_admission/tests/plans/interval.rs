@@ -216,7 +216,7 @@ fn authored_neumann_plan_binds_and_replays_zero_integral_tpfa_execution() {
     let geometry = cartesian_interval();
     let (model, authored) = neumann_model(&geometry, NEUMANN_INTERVAL);
     let resolve = |solver, projection| {
-        resolve_common_plan(
+        ResolvedCommonPlan::resolve(
             &model,
             cartesian_box_resources(&geometry, &[4]),
             CommonSpatialPolicy::CellCenteredTpfa,
