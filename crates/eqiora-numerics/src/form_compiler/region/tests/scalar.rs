@@ -203,7 +203,7 @@ fn scalar_q1_uses_the_same_value_and_gradient_contractions() {
         .prepare_cell(&geometry, &quadrature)
         .and_then(|cell| cell.evaluate(&BTreeMap::new()))
         .unwrap();
-    let scalar = crate::form_compiler::linear::CompiledLinearBlockForm::derive(
+    let scalar = crate::form_compiler::linear::CompiledLinearBlockForm::<f64>::derive(
         &program,
         domain,
         2,

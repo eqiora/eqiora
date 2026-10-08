@@ -63,7 +63,7 @@ fn authored(reaction: &[Vec<f64>], reverse: bool) -> (String, Vec<String>) {
     (source, names)
 }
 
-fn compiled(source: &str) -> (CompiledLinearBlockForm, ModelSymbols) {
+fn compiled(source: &str) -> (CompiledLinearBlockForm<f64>, ModelSymbols) {
     let (transaction, model, symbols) = compile("assembly.eqi", source)
         .unwrap()
         .remove(0)
@@ -71,7 +71,7 @@ fn compiled(source: &str) -> (CompiledLinearBlockForm, ModelSymbols) {
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
     let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-    let form = CompiledLinearBlockForm::derive(
+    let form = CompiledLinearBlockForm::<f64>::derive(
         &program,
         symbols.get("body").unwrap(),
         1,

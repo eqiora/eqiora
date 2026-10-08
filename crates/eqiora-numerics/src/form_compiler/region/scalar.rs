@@ -30,7 +30,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                     derivative: false,
                     pairing: Pairing::Gradient,
                     coefficient: row.diffusion,
-                    positive_diffusion: true,
+                    positive_diffusion: S::DOMAIN == ScalarDomain::Real,
                 }];
                 terms.extend(row.reaction.into_iter().map(|(trial, coefficient)| Term {
                     trial,

@@ -4,7 +4,8 @@ use eqiora_core::RawId;
 /// Checked scalar equations and their exact Cartesian support.
 #[derive(Debug, Clone, PartialEq)]
 pub(in crate::numerical_admission) struct ScalarRegion {
-    pub(in crate::numerical_admission) form: crate::form_compiler::linear::CompiledLinearBlockForm,
+    pub(in crate::numerical_admission) form:
+        crate::form_compiler::linear::CompiledLinearBlockForm<f64>,
     pub(in crate::numerical_admission) bounds: Vec<[f64; 2]>,
     pub(in crate::numerical_admission) boundaries:
         BTreeMap<(usize, BoundarySide), eqiora_core::RawId>,
@@ -17,7 +18,7 @@ impl ScalarRegion {
         bounds: Vec<[f64; 2]>,
         boundaries: BTreeMap<(usize, BoundarySide), eqiora_core::RawId>,
     ) -> Result<Self, Diagnostic> {
-        let form = crate::form_compiler::linear::CompiledLinearBlockForm::derive(
+        let form = crate::form_compiler::linear::CompiledLinearBlockForm::<f64>::derive(
             program,
             domain,
             bounds.len(),
@@ -192,7 +193,7 @@ impl ExecutableScalarEquations {
                     boundaries.insert((side.axis(), side.side()), side.boundary());
                 }
             }
-            let form = crate::form_compiler::linear::CompiledLinearBlockForm::derive(
+            let form = crate::form_compiler::linear::CompiledLinearBlockForm::<f64>::derive(
                 program,
                 region.domain(),
                 region.dimensions(),

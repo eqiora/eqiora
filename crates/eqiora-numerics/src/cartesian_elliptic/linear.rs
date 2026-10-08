@@ -70,7 +70,7 @@ impl CartesianLinearAssembly {
     }
 
     pub(crate) fn assemble(
-        form: &CompiledLinearBlockForm,
+        form: &CompiledLinearBlockForm<f64>,
         mesh: &CartesianMesh,
         quadrature: &QuadratureRule,
         backend: &dyn AssemblyBackend<f64>,
@@ -80,7 +80,7 @@ impl CartesianLinearAssembly {
     }
 
     pub(crate) fn assemble_backward_euler(
-        form: &CompiledLinearBlockForm,
+        form: &CompiledLinearBlockForm<f64>,
         mesh: &CartesianMesh,
         quadrature: &QuadratureRule,
         backend: &dyn AssemblyBackend<f64>,
@@ -96,7 +96,7 @@ impl CartesianLinearAssembly {
     }
 
     fn assemble_inner(
-        form: &CompiledLinearBlockForm,
+        form: &CompiledLinearBlockForm<f64>,
         mesh: &CartesianMesh,
         quadrature: &QuadratureRule,
         backend: &dyn AssemblyBackend<f64>,

@@ -2,20 +2,23 @@
 use super::*;
 use eqiora_schema::kernel::FieldRole;
 
-pub(super) fn initial_values(
+pub(super) fn initial_values<S: Coefficient>(
     program: &KernelProgram,
     domain: RawId,
     dimension: usize,
-    storage: &BTreeMap<RawId, Data<f64>>,
-    coefficients: &BTreeMap<RawId, Data<f64>>,
+    storage: &BTreeMap<RawId, Data<S>>,
+    coefficients: &BTreeMap<RawId, Data<S>>,
     transient: bool,
-) -> Result<BTreeMap<RawId, Data<f64>>, Diagnostic> {
+) -> Result<BTreeMap<RawId, Data<S>>, Diagnostic> {
     let mut values = BTreeMap::new();
     if !transient {
         return Ok(values);
     }
     for (field, capacity) in storage {
-        if capacity.spatial() || capacity.evaluate(&vec![0.0; dimension])? <= 0.0 {
+        if capacity.spatial() || {
+            let value = capacity.evaluate(&vec![0.0; dimension])?;
+            value.im() != 0.0 || value.re() <= 0.0
+        } {
             return Err(invalid(
                 "scalar storage requires a finite strictly positive constant capacity",
             ));
@@ -89,7 +92,7 @@ pub(super) fn initial_values(
         let data = rhs
             .map(|rhs| context.data(rhs, 0))
             .transpose()?
-            .unwrap_or_else(|| Data::constant(dimension, 0.0));
+            .unwrap_or_else(|| Data::constant(dimension, <S as From<f64>>::from(0.0)));
         if data.spatial()
             || !data.evaluate(&vec![0.0; dimension])?.is_finite()
             || values.insert(target, data).is_some()
@@ -102,11 +105,11 @@ pub(super) fn initial_values(
     Ok(values)
 }
 
-impl CompiledLinearBlockForm {
+impl<S: Coefficient> CompiledLinearBlockForm<S> {
     pub(crate) fn is_transient(&self) -> bool {
         !self.storage.is_empty()
     }
-    pub(crate) fn initial_values(&self) -> Result<BTreeMap<RawId, f64>, Diagnostic> {
+    pub(crate) fn initial_values(&self) -> Result<BTreeMap<RawId, S>, Diagnostic> {
         self.initial
             .iter()
             .map(|(field, data)| Ok((*field, data.evaluate(&vec![0.0; self.dimension])?)))
@@ -124,7 +127,7 @@ impl CompiledLinearBlockForm {
     pub(super) fn validate_storage(&self) -> Result<(), Diagnostic> {
         for capacity in self.storage.values() {
             let value = capacity.evaluate(&vec![0.0; self.dimension])?;
-            if capacity.spatial() || !value.is_finite() || value <= 0.0 {
+            if capacity.spatial() || !value.is_finite() || value.im() != 0.0 || value.re() <= 0.0 {
                 return Err(invalid(
                     "scalar storage requires finite strictly positive constant capacity",
                 ));
