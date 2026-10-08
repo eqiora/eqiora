@@ -1,0 +1,23 @@
+id = "numerics.finite-weak-forms"
+status = "implemented"
+scope = "two-coordinate-authored-real-and-complex-hermitian-pencils"
+reference_kind = "analytic-characteristic-polynomial-and-phase-invariant-spectral-projectors"
+capabilities = ["finite-conjugate-test-weak-forms", "independent-spectral-projector-phase", "dimensioned-finite-weak-replay", "rectangular-map-composition", "nominal-basis-before-cancellation", "separate-hermitian-admission"]
+
+[claim_boundary]
+coordinate_extent = 2
+intermediate_map_extent = 3
+metric = "identity"
+scalar_precision = "binary64"
+real_specialization = true
+dimensioned_hamiltonian = true
+plan_and_result_replay = true
+arbitrary_tensor_algebra = false
+generalized_metric = false
+degenerate_eigenspace = false
+python_or_package_authoring = false
+time_evolution = false
+
+[evidence]
+package = "eqiora"
+test = "finite_weak_lifecycle"
