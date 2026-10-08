@@ -1,6 +1,7 @@
 mod complex;
 mod interval;
 mod observables;
+mod weak_evidence;
 use super::*;
 
 const POISSON_INTERVAL: &str = r#"
