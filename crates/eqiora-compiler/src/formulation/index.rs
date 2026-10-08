@@ -2,6 +2,7 @@
 use super::*;
 
 pub(super) struct KernelIndex<'a> {
+    pub(super) coefficients: BTreeMap<String, AuthoredFormExpression>,
     pub(super) nodes: BTreeMap<RawId, &'a KernelNode>,
     pub(super) applies_on: BTreeMap<RawId, RawId>,
     pub(super) defined_on: BTreeMap<RawId, RawId>,
@@ -44,6 +45,7 @@ impl<'a> KernelIndex<'a> {
             }
         }
         Self {
+            coefficients: BTreeMap::new(),
             nodes,
             applies_on,
             defined_on,

@@ -26,3 +26,19 @@ use vocabulary::{
     DIVERGENCE_BY_PARTS, MatrixSlot, SOURCE_PAIRING, TEST_PAIRING, WeakSign, WeakTermSlot,
     ZERO_TEST_TRACE_DISCHARGE,
 };
+
+/// Reauthenticate argument dependence using the live Model's scalar domains.
+pub(crate) fn check_authored_dependence(
+    projection: &eqiora_compiler::AuthoredFormulationProjection,
+    program: &eqiora_sem::KernelProgram,
+) -> Result<(), eqiora_core::Diagnostic> {
+    use eqiora_schema::kernel::KernelNode;
+    projection.check_complex_dependence(&mut |id| match program.node(id) {
+        Some(KernelNode::Field(field)) => Ok(field.value_type().clone()),
+        Some(KernelNode::Parameter(parameter)) => Ok(parameter.value_type().clone()),
+        _ => Err(eqiora_core::Diagnostic::error(
+            eqiora_core::diagnostic::codes::INVALID_DISCRETIZATION,
+            "authored form coefficient or argument is not a live Field or Parameter",
+        )),
+    })
+}

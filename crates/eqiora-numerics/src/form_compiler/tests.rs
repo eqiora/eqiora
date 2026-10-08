@@ -128,3 +128,65 @@ fn boundary_flux_compares_exact_parent_coordinate_restrictions() {
         );
     }
 }
+
+#[test]
+fn decoded_complex_dependence_resolves_the_live_model() {
+    use eqiora_compiler::{AuthoredFormulationProjection, CompiledModel, StaticBindingValue};
+    use eqiora_geometry::GeometryGraph;
+    let graph = GeometryGraph::new();
+    let interval = graph.interval([0.0, 1.0]).unwrap();
+    let geometry = graph
+        .build(
+            &interval,
+            &std::collections::BTreeMap::from([
+                ("body".to_owned(), vec![interval.region().into()]),
+                ("left".to_owned(), vec![interval.boundaries()[0].into()]),
+                ("right".to_owned(), vec![interval.boundaries()[1].into()]),
+            ]),
+        )
+        .unwrap();
+    let compiled = CompiledModel::compile_selected(
+        "complex-form.eqi",
+        r#"
+public component ComplexForm(support body:volume(ambient_dimension=1)) {
+    parameter q:complex<1/m^2> = math.complex(3,-1);
+    variable u:complex<1> on body;
+    relation wave on body { -div(grad(u))+q*u=0; }
+    form weak for wave {
+        test eta:1 for u;
+        integrate(body,inner(grad(eta),grad(u))+inner(eta,q*u))=0;
+    }
+}
+"#,
+        "ComplexForm",
+        &[(
+            "body",
+            StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set("body").unwrap(),
+                parent: None,
+            },
+        )],
+    )
+    .unwrap_or_else(|errors| panic!("{errors:?}"));
+    let projection = compiled
+        .authored_formulations()
+        .next()
+        .unwrap()
+        .projection()
+        .clone();
+    let decoded = AuthoredFormulationProjection::decode(projection.canonical_bytes()).unwrap();
+    let (transaction, model, _) = compiled.into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program =
+        KernelProgram::from_snapshot_with_geometry(&store.snapshot(), model, &[&geometry]).unwrap();
+    super::check_authored_dependence(&decoded, &program).unwrap();
+    // Equal-looking wire leaves are not authority for a different live Model.
+    let foreign = compile_program(
+        "foreign.eqi",
+        "model Foreign(){parameter q:complex<1/m^2> = math.complex(3,-1); variable u:complex<1/m^2>; relation law{u=q;}}",
+    );
+    let error = super::check_authored_dependence(&decoded, &foreign).unwrap_err();
+    assert!(error.message().contains("not a live Field or Parameter"));
+}

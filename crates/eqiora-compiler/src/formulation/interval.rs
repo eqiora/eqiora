@@ -139,7 +139,9 @@ pub(super) fn compile(
                         ));
                     };
                     let flux = context.compile(flux)?;
-                    if flux.shape != ValueShape::new([1]).expect("one vector component") {
+                    if *flux.value_type.shape()
+                        != ValueShape::new([1]).expect("one vector component")
+                    {
                         return Err(error(
                             file,
                             range,
@@ -153,14 +155,15 @@ pub(super) fn compile(
                             normal,
                             flux: Box::new(wire::expression(&flux)),
                         },
-                        flux.dimension,
+                        flux.value_type.dimension(),
                     ))
                 }
                 ("integrate", [interval, source]) if owned(interval, name) => {
                     let source = context.compile(source)?;
                     require_scalar(file, range, &source)?;
                     let dimension = source
-                        .dimension
+                        .value_type
+                        .dimension()
                         .mul(length_dimension())
                         .ok_or_else(|| error(file, range, "interval measure dimension overflow"))?;
                     Ok((

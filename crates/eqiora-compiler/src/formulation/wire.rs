@@ -6,7 +6,7 @@ use ulid::Ulid;
 
 use super::{AuthoredFormExpression, AuthoredFormExpressionKind};
 
-const SCHEMA: &str = "eqiora.authored-form/v9";
+const SCHEMA: &str = "eqiora.authored-form/v10";
 const MAX_BYTES: usize = 1024 * 1024;
 
 /// Ordered test name, trial Field, zero-trace boundaries and canonical SI dimension.
@@ -84,6 +84,10 @@ pub enum AuthoredFormExpressionV1 {
     },
     Number {
         value: f64,
+    },
+    Complex {
+        real: Box<Self>,
+        imag: Box<Self>,
     },
     Rational {
         numerator: i64,
@@ -164,6 +168,13 @@ pub enum AuthoredFormExpressionV1 {
     },
     Sin {
         value: Box<Self>,
+    },
+    Conjugate {
+        value: Box<Self>,
+    },
+    Inner {
+        left: Box<Self>,
+        right: Box<Self>,
     },
     Dot {
         left: Box<Self>,
@@ -568,10 +579,11 @@ impl AuthoredFormulationProjection {
 
 pub(super) fn expression(value: &AuthoredFormExpression) -> AuthoredFormExpressionV1 {
     match &value.kind {
+        AuthoredFormExpressionKind::Coefficient(value) => value.clone(),
         AuthoredFormExpressionKind::Rational(rational) => AuthoredFormExpressionV1::Rational {
             numerator: rational.numerator(),
             denominator: rational.denominator(),
-            dimension: value.dimension.exponents(),
+            dimension: value.value_type.dimension().exponents(),
         },
         AuthoredFormExpressionKind::Direction { name, trial } => {
             AuthoredFormExpressionV1::Direction {
@@ -601,6 +613,10 @@ pub(super) fn expression(value: &AuthoredFormExpression) -> AuthoredFormExpressi
         AuthoredFormExpressionKind::Number(value) => {
             AuthoredFormExpressionV1::Number { value: *value }
         }
+        AuthoredFormExpressionKind::Complex(real, imag) => AuthoredFormExpressionV1::Complex {
+            real: Box::new(expression(real)),
+            imag: Box::new(expression(imag)),
+        },
         AuthoredFormExpressionKind::Field(id) => AuthoredFormExpressionV1::Field {
             ulid: ulid(id.erase()),
         },
@@ -663,6 +679,13 @@ pub(super) fn expression(value: &AuthoredFormExpression) -> AuthoredFormExpressi
         AuthoredFormExpressionKind::Sin(value) => AuthoredFormExpressionV1::Sin {
             value: Box::new(expression(value)),
         },
+        AuthoredFormExpressionKind::Conjugate(value) => AuthoredFormExpressionV1::Conjugate {
+            value: Box::new(expression(value)),
+        },
+        AuthoredFormExpressionKind::Inner(left, right) => AuthoredFormExpressionV1::Inner {
+            left: Box::new(expression(left)),
+            right: Box::new(expression(right)),
+        },
         AuthoredFormExpressionKind::Dot(left, right) => AuthoredFormExpressionV1::Dot {
             left: Box::new(expression(left)),
             right: Box::new(expression(right)),
@@ -709,7 +732,7 @@ pub(super) fn rejection(message: &str) -> Diagnostic {
 #[cfg(test)]
 mod tests {
     use eqiora_core::entity::kinds;
-    use eqiora_core::{DimExponents, Id, ValueShape};
+    use eqiora_core::{DimExponents, Id, ScalarDomain, ValueType};
 
     use super::*;
 
@@ -717,8 +740,7 @@ mod tests {
         let id = |value: &str| value.parse::<Ulid>().expect("fixed ULID");
         let expression = AuthoredFormExpression {
             kind: AuthoredFormExpressionKind::Number(1.0),
-            dimension: DimExponents::DIMENSIONLESS,
-            shape: ValueShape::scalar(),
+            value_type: ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap(),
             support: None,
         };
         AuthoredFormulationProjection::encode_weak(
@@ -814,7 +836,7 @@ mod tests {
         let bytes = projection().canonical_bytes().to_vec();
         let old = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.authored-form/v9", "eqiora.authored-scalar-form/v3");
+            .replace("eqiora.authored-form/v10", "eqiora.authored-scalar-form/v3");
         assert!(AuthoredFormulationProjection::decode(old.as_bytes()).is_err());
     }
 

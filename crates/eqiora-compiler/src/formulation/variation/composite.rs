@@ -142,8 +142,7 @@ impl Context<'_, '_> {
                 let value = result.value;
                 result.value = typed(
                     AuthoredFormExpressionKind::Neg(Box::new(value.clone())),
-                    value.dimension,
-                    value.shape,
+                    value.value_type.clone(),
                     None,
                 );
                 result
@@ -151,12 +150,14 @@ impl Context<'_, '_> {
             node @ (ExprNode::Add(left, right) | ExprNode::Sub(left, right)) => {
                 let mut left = self.expression(density, *left, depth + 1)?;
                 let right = self.expression(density, *right, depth + 1)?;
-                if left.volume != right.volume || left.value.dimension != right.value.dimension {
+                if left.volume != right.volume
+                    || left.value.value_type.dimension() != right.value.value_type.dimension()
+                {
                     return Err(wire::rejection(
                         "composite functional terms must share the exact parent volume and dimension",
                     ));
                 }
-                let dimension = left.value.dimension;
+                let dimension = left.value.value_type.dimension();
                 left.holding.extend(right.holding);
                 left.value = typed(
                     binary(
@@ -168,8 +169,7 @@ impl Context<'_, '_> {
                         left.value,
                         right.value,
                     ),
-                    dimension,
-                    ValueShape::scalar(),
+                    ValueType::scalar(ScalarDomain::Real, dimension).expect("real scalar type"),
                     None,
                 );
                 left
@@ -179,7 +179,7 @@ impl Context<'_, '_> {
         let ty = density.node_type(id).ok_or_else(invalid)?;
         if ty.support.is_some()
             || !ty.shape().is_scalar()
-            || ty.dimension() != derived.value.dimension
+            || ty.dimension() != derived.value.value_type.dimension()
         {
             return Err(wire::rejection(
                 "composite functional value differs from its live reduced type",

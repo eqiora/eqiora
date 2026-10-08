@@ -4,6 +4,9 @@ use std::collections::BTreeMap;
 use eqiora_compiler::{CompiledModel, StaticBindingValue};
 use eqiora_geometry::{CanonicalGeometryV1, GeometryGraph};
 
+#[path = "functional_variations/conjugation.rs"]
+mod conjugation;
+
 fn geometry() -> CanonicalGeometryV1 {
     let graph = GeometryGraph::new();
     let interval = graph.interval([0.0, 1.0]).unwrap();
@@ -80,6 +83,18 @@ fn compile_source(
     source: &str,
     geometry: &CanonicalGeometryV1,
 ) -> Result<CompiledModel, Vec<eqiora_core::Diagnostic>> {
+    compile_source_with_values(
+        source,
+        geometry,
+        "model Values(){parameter bulk:1=2;parameter gradient:1=3;}",
+    )
+}
+
+fn compile_source_with_values(
+    source: &str,
+    geometry: &CanonicalGeometryV1,
+    values: &str,
+) -> Result<CompiledModel, Vec<eqiora_core::Diagnostic>> {
     let body = geometry.entity_set("body").unwrap();
     let mut bindings = ["body", "left", "right"]
         .map(|name| {
@@ -93,12 +108,9 @@ fn compile_source(
             )
         })
         .to_vec();
-    let values = eqiora_lang::parse(
-        "values.eqi",
-        "model Values(){parameter bulk:1=2;parameter gradient:1=3;}",
-    )
-    .into_document()
-    .unwrap();
+    let values = eqiora_lang::parse("values.eqi", values)
+        .into_document()
+        .unwrap();
     for item in values.models()[0].items() {
         if let eqiora_lang::Item::Parameter(parameter) = item {
             bindings.push((

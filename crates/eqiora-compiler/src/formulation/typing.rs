@@ -1,13 +1,15 @@
 //! Type authored mathematical expressions without choosing a numerical realization.
 use super::*;
 
+mod contraction;
+
 impl ExpressionContext<'_> {
     pub(super) fn compile_root(
         &mut self,
         expression: &Expr,
     ) -> Result<AuthoredFormExpression, Diagnostic> {
         let value = self.compile(expression)?;
-        if value.shape.is_scalar()
+        if value.value_type.shape().is_scalar()
             && (value.support.is_none()
                 || matches!(value.kind, AuthoredFormExpressionKind::Number(0.0)))
         {
@@ -32,8 +34,8 @@ impl ExpressionContext<'_> {
                         .to_f64()
                         .map_err(|e| error(self.file, expression.range(), e.message()))?,
                 ),
-                DimExponents::DIMENSIONLESS,
-                ValueShape::scalar(),
+                ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                    .expect("real scalar type"),
                 None,
             )),
             ExprKind::Name(name) if self.tests.contains_key(name.as_str()) => {
@@ -43,8 +45,8 @@ impl ExpressionContext<'_> {
             ExprKind::Path(path) => match crate::math::constant(path) {
                 Some(value) => Ok(typed(
                     AuthoredFormExpressionKind::Number(value),
-                    DimExponents::DIMENSIONLESS,
-                    ValueShape::scalar(),
+                    ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS)
+                        .expect("real scalar type"),
                     None,
                 )),
                 None if crate::math::is_namespaced(path) => Err(error(
@@ -70,8 +72,7 @@ impl ExpressionContext<'_> {
                 let value = self.compile(value)?;
                 Ok(typed(
                     AuthoredFormExpressionKind::Neg(Box::new(value.clone())),
-                    value.dimension,
-                    value.shape.clone(),
+                    value.value_type.clone(),
                     value.support,
                 ))
             }
@@ -98,33 +99,56 @@ impl ExpressionContext<'_> {
         expression: &Expr,
         name: &str,
     ) -> Result<AuthoredFormExpression, Diagnostic> {
+        if let Some(value) = self.index.coefficients.get(name) {
+            if value.value_type.shape().is_scalar()
+                && matches!(
+                    value.value_type.scalar_domain(),
+                    ScalarDomain::Real | ScalarDomain::Complex
+                )
+            {
+                return Ok(value.clone());
+            }
+            return Err(error(
+                self.file,
+                expression.range(),
+                "weak forms require real or complex scalar coefficient aliases",
+            ));
+        }
         let raw = resolve_symbol(self.file, expression.range(), name, self.symbols)?;
         match self.index.nodes.get(&raw).copied() {
             Some(KernelNode::Field(field))
                 if field.shape().rank() <= 1
                     && (self.tests.len() > 1 || field.shape().is_scalar())
-                    && field.value_type().scalar_domain() == eqiora_core::ScalarDomain::Real =>
+                    && matches!(
+                        field.value_type().scalar_domain(),
+                        ScalarDomain::Real | ScalarDomain::Complex
+                    ) =>
             {
                 let support = self.field_support(expression, raw)?;
                 Ok(typed(
                     AuthoredFormExpressionKind::Field(field.id()),
-                    field.dimension(),
-                    field.shape().clone(),
+                    field.value_type().clone(),
                     support,
                 ))
             }
             Some(KernelNode::Field(_)) => Err(error(
                 self.file,
                 expression.range(),
-                "scalar-primal forms accept only real scalar Fields",
+                "weak forms require admitted real or complex Field shapes",
             )),
-            Some(KernelNode::Parameter(parameter)) if parameter.real_scalar_value().is_some() => {
+            Some(KernelNode::Parameter(parameter))
+                if parameter.value_type().shape().is_scalar()
+                    && matches!(
+                        parameter.value_type().scalar_domain(),
+                        ScalarDomain::Real | ScalarDomain::Complex
+                    ) =>
+            {
                 Ok(parameter_expression(parameter))
             }
             Some(KernelNode::Parameter(_)) => Err(error(
                 self.file,
                 expression.range(),
-                "scalar-primal forms accept only real scalar Parameters",
+                "weak forms require real or complex scalar Parameters",
             )),
             _ => Err(error(
                 self.file,
@@ -176,17 +200,23 @@ impl ExpressionContext<'_> {
                     "Formulation power requires an integer literal",
                 )
             })?;
-            let dimension = base.dimension.pow(exponent, 1).ok_or_else(|| {
-                error(
-                    self.file,
-                    expression.range(),
-                    "Formulation dimension exponent overflows",
-                )
-            })?;
+            let dimension = base
+                .value_type
+                .dimension()
+                .pow(exponent, 1)
+                .ok_or_else(|| {
+                    error(
+                        self.file,
+                        expression.range(),
+                        "Formulation dimension exponent overflows",
+                    )
+                })?;
             return Ok(typed(
                 AuthoredFormExpressionKind::Pow(Box::new(base.clone()), exponent),
-                dimension,
-                ValueShape::scalar(),
+                base.value_type
+                    .clone()
+                    .with_dimension(dimension)
+                    .map_err(|_| wire::rejection("invalid power dimension"))?,
                 base.support,
             ));
         }
@@ -198,11 +228,23 @@ impl ExpressionContext<'_> {
             left_value.support,
             right_value.support,
         )?;
-        let (kind, dimension, shape) = match op {
+        let (kind, value_type) = match op {
             BinaryOp::Add | BinaryOp::Sub => {
-                if left_value.dimension != right_value.dimension
-                    || left_value.shape != right_value.shape
-                {
+                let value_type = left_value
+                    .value_type
+                    .clone()
+                    .with_common_scalar_domain(&right_value.value_type)
+                    .ok_or_else(|| {
+                        wire::rejection("incompatible additive scalar domains or roles")
+                    })?;
+                let right_type = right_value
+                    .value_type
+                    .clone()
+                    .with_common_scalar_domain(&left_value.value_type)
+                    .ok_or_else(|| {
+                        wire::rejection("incompatible additive scalar domains or roles")
+                    })?;
+                if value_type != right_type {
                     return Err(error(
                         self.file,
                         expression.range(),
@@ -215,57 +257,64 @@ impl ExpressionContext<'_> {
                     BinaryOp::Sub
                 };
                 let kind = binary(operator, left_value.clone(), right_value);
-                (kind, left_value.dimension, left_value.shape.clone())
+                (kind, value_type)
             }
             BinaryOp::Mul => {
-                if !left_value.shape.is_scalar() && !right_value.shape.is_scalar() {
+                if !left_value.value_type.shape().is_scalar()
+                    && !right_value.value_type.shape().is_scalar()
+                {
                     return Err(error(
                         self.file,
                         expression.range(),
                         "multiplication accepts at most one non-scalar operand",
                     ));
                 }
-                let dimension =
-                    left_value
-                        .dimension
-                        .mul(right_value.dimension)
-                        .ok_or_else(|| {
-                            error(
-                                self.file,
-                                expression.range(),
-                                "Formulation dimension multiplication overflows",
-                            )
-                        })?;
-                let shape = if left_value.shape.is_scalar() {
-                    right_value.shape.clone()
+                let dimension = left_value
+                    .value_type
+                    .dimension()
+                    .mul(right_value.value_type.dimension())
+                    .ok_or_else(|| {
+                        error(
+                            self.file,
+                            expression.range(),
+                            "Formulation dimension multiplication overflows",
+                        )
+                    })?;
+                let value_type = if left_value.value_type.shape().is_scalar() {
+                    right_value.value_type.clone()
                 } else {
-                    left_value.shape.clone()
-                };
-                (
-                    binary(BinaryOp::Mul, left_value, right_value),
-                    dimension,
-                    shape,
-                )
+                    left_value.value_type.clone()
+                }
+                .with_common_scalar_domain(&left_value.value_type)
+                .and_then(|value| value.with_common_scalar_domain(&right_value.value_type))
+                .ok_or_else(|| wire::rejection("incompatible product scalar domains or roles"))?
+                .with_dimension(dimension)
+                .map_err(|_| wire::rejection("invalid product dimension"))?;
+                (binary(BinaryOp::Mul, left_value, right_value), value_type)
             }
             BinaryOp::Div => {
                 require_scalar(self.file, right.range(), &right_value)?;
-                let dimension =
-                    left_value
-                        .dimension
-                        .div(right_value.dimension)
-                        .ok_or_else(|| {
-                            error(
-                                self.file,
-                                expression.range(),
-                                "Formulation dimension division overflows",
-                            )
-                        })?;
-                let shape = left_value.shape.clone();
-                (
-                    binary(BinaryOp::Div, left_value, right_value),
-                    dimension,
-                    shape,
-                )
+                let dimension = left_value
+                    .value_type
+                    .dimension()
+                    .div(right_value.value_type.dimension())
+                    .ok_or_else(|| {
+                        error(
+                            self.file,
+                            expression.range(),
+                            "Formulation dimension division overflows",
+                        )
+                    })?;
+                let value_type = left_value
+                    .value_type
+                    .clone()
+                    .with_common_scalar_domain(&right_value.value_type)
+                    .ok_or_else(|| {
+                        wire::rejection("incompatible quotient scalar domains or roles")
+                    })?
+                    .with_dimension(dimension)
+                    .map_err(|_| wire::rejection("invalid quotient dimension"))?;
+                (binary(BinaryOp::Div, left_value, right_value), value_type)
             }
             BinaryOp::Pow => unreachable!(),
             _ => {
@@ -276,7 +325,7 @@ impl ExpressionContext<'_> {
                 ));
             }
         };
-        Ok(typed(kind, dimension, shape, support))
+        Ok(typed(kind, value_type, support))
     }
 
     fn compile_call(
@@ -291,7 +340,7 @@ impl ExpressionContext<'_> {
             ("math.sin", [argument]) => {
                 let argument = self.compile(argument)?;
                 require_scalar(self.file, expression.range(), &argument)?;
-                if argument.dimension != DimExponents::DIMENSIONLESS {
+                if argument.value_type.dimension() != DimExponents::DIMENSIONLESS {
                     return Err(error(
                         self.file,
                         expression.range(),
@@ -300,8 +349,7 @@ impl ExpressionContext<'_> {
                 }
                 Ok(typed(
                     AuthoredFormExpressionKind::Sin(Box::new(argument.clone())),
-                    DimExponents::DIMENSIONLESS,
-                    ValueShape::scalar(),
+                    argument.value_type.clone(),
                     argument.support,
                 ))
             }
@@ -321,14 +369,13 @@ impl ExpressionContext<'_> {
                 }
                 Ok(typed(
                     AuthoredFormExpressionKind::Trace(Box::new(argument.clone())),
-                    argument.dimension,
-                    argument.shape,
+                    argument.value_type.clone(),
                     Some(boundary),
                 ))
             }
             ("grad", [argument]) => {
                 let argument = self.compile(argument)?;
-                if argument.shape.rank() > 1 {
+                if argument.value_type.shape().rank() > 1 {
                     return Err(error(
                         self.file,
                         expression.range(),
@@ -349,13 +396,17 @@ impl ExpressionContext<'_> {
                         "grad requires a parent-volume expression; boundary derivatives need an explicit tangential operator",
                     ));
                 }
-                let dimension = argument.dimension.div(length_dimension()).ok_or_else(|| {
-                    error(
-                        self.file,
-                        expression.range(),
-                        "gradient dimension overflows",
-                    )
-                })?;
+                let dimension = argument
+                    .value_type
+                    .dimension()
+                    .div(length_dimension())
+                    .ok_or_else(|| {
+                        error(
+                            self.file,
+                            expression.range(),
+                            "gradient dimension overflows",
+                        )
+                    })?;
                 let extent = u32::try_from(self.ambient_dimension)
                     .ok()
                     .filter(|value| *value > 0)
@@ -367,7 +418,8 @@ impl ExpressionContext<'_> {
                         )
                     })?;
                 let mut axes = argument
-                    .shape
+                    .value_type
+                    .shape()
                     .extents()
                     .iter()
                     .map(|n| n.get())
@@ -380,51 +432,67 @@ impl ExpressionContext<'_> {
                         "Geometry ambient dimension is not representable",
                     )
                 })?;
-                Ok(typed(
-                    AuthoredFormExpressionKind::Gradient(Box::new(argument)),
+                let value_type = ValueType::shaped(
+                    argument.value_type.scalar_domain(),
                     dimension,
                     shape,
+                    ValueFrame::SpatialCartesian,
+                )
+                .map_err(|_| wire::rejection("invalid spatial form type"))?;
+                Ok(typed(
+                    AuthoredFormExpressionKind::Gradient(Box::new(argument)),
+                    value_type,
                     Some(support),
                 ))
             }
-            ("dot" | "frobenius", [left, right]) => {
-                let left = self.compile(left)?;
-                let right = self.compile(right)?;
-                if left.shape.rank() != if name == "dot" { 1 } else { 2 }
-                    || left.shape != right.shape
+            ("math.complex", [real, imag]) => {
+                let real = self.compile(real)?;
+                let imag = self.compile(imag)?;
+                if !real.value_type.shape().is_scalar()
+                    || real.value_type.scalar_domain() != ScalarDomain::Real
+                    || real.value_type != imag.value_type
                 {
                     return Err(error(
                         self.file,
                         expression.range(),
-                        "dot requires equal non-scalar vector shapes",
+                        "math.complex requires two equally dimensioned real scalars",
                     ));
                 }
+                let value_type =
+                    ValueType::scalar(ScalarDomain::Complex, real.value_type.dimension())
+                        .map_err(|_| wire::rejection("invalid complex scalar type"))?;
                 let support =
-                    merge_support(self.file, expression.range(), left.support, right.support)?;
-                let dimension = left.dimension.mul(right.dimension).ok_or_else(|| {
-                    error(
-                        self.file,
-                        expression.range(),
-                        "dot-product dimension overflows",
-                    )
-                })?;
+                    merge_support(self.file, expression.range(), real.support, imag.support)?;
                 Ok(typed(
-                    if name == "dot" {
-                        AuthoredFormExpressionKind::Dot(Box::new(left), Box::new(right))
-                    } else {
-                        AuthoredFormExpressionKind::Frobenius(Box::new(left), Box::new(right))
-                    },
-                    dimension,
-                    ValueShape::scalar(),
+                    AuthoredFormExpressionKind::Complex(Box::new(real), Box::new(imag)),
+                    value_type,
                     support,
                 ))
+            }
+            ("math.conj", [argument]) => {
+                let argument = self.compile(argument)?;
+                let value_type = argument.value_type.clone();
+                let support = argument.support;
+                Ok(typed(
+                    AuthoredFormExpressionKind::Conjugate(Box::new(argument)),
+                    value_type,
+                    support,
+                ))
+            }
+            ("dot" | "frobenius" | "inner", [left, right]) => {
+                self.compile_contraction(expression, name, left, right)
             }
             ("div" | "symmetric_part", [argument]) => {
                 let argument = self.compile(argument)?;
                 let expected = if name == "div" { 1 } else { 2 };
                 let n = self.ambient_dimension as u32;
-                if argument.shape.rank() != expected
-                    || argument.shape.extents().iter().any(|axis| axis.get() != n)
+                if argument.value_type.shape().rank() != expected
+                    || argument
+                        .value_type
+                        .shape()
+                        .extents()
+                        .iter()
+                        .any(|axis| axis.get() != n)
                 {
                     return Err(error(
                         self.file,
@@ -435,23 +503,41 @@ impl ExpressionContext<'_> {
                 let (kind, dimension, shape) = if name == "div" {
                     (
                         AuthoredFormExpressionKind::Divergence(Box::new(argument.clone())),
-                        argument.dimension.div(length_dimension()).ok_or_else(|| {
-                            error(
-                                self.file,
-                                expression.range(),
-                                "divergence dimension overflow",
-                            )
-                        })?,
+                        argument
+                            .value_type
+                            .dimension()
+                            .div(length_dimension())
+                            .ok_or_else(|| {
+                                error(
+                                    self.file,
+                                    expression.range(),
+                                    "divergence dimension overflow",
+                                )
+                            })?,
                         ValueShape::scalar(),
                     )
                 } else {
                     (
                         AuthoredFormExpressionKind::SymmetricPart(Box::new(argument.clone())),
-                        argument.dimension,
-                        argument.shape.clone(),
+                        argument.value_type.dimension(),
+                        argument.value_type.shape().clone(),
                     )
                 };
-                Ok(typed(kind, dimension, shape, argument.support))
+                Ok(typed(
+                    kind,
+                    ValueType::shaped(
+                        argument.value_type.scalar_domain(),
+                        dimension,
+                        shape.clone(),
+                        if shape.is_scalar() {
+                            ValueFrame::Invariant
+                        } else {
+                            argument.value_type.frame()
+                        },
+                    )
+                    .map_err(|_| wire::rejection("invalid spatial form type"))?,
+                    argument.support,
+                ))
             }
             ("integrate", [domain, integrand]) => {
                 self.compile_integral(expression, domain, integrand)
@@ -484,12 +570,15 @@ impl ExpressionContext<'_> {
         };
         if (self.tests.len() == 1 && !field.shape().is_scalar())
             || field.shape().rank() > 1
-            || field.value_type().scalar_domain() != eqiora_core::ScalarDomain::Real
+            || !matches!(
+                field.value_type().scalar_domain(),
+                ScalarDomain::Real | ScalarDomain::Complex
+            )
         {
             return Err(error(
                 self.file,
                 expression.range(),
-                "test requires a real scalar/vector Field",
+                "test requires an admitted real or complex Field shape",
             ));
         }
         let support = self.field_support(expression, raw)?;
@@ -511,8 +600,11 @@ impl ExpressionContext<'_> {
             } else {
                 AuthoredFormExpressionKind::Test(field.id())
             },
-            self.tests[name].1,
-            field.shape().clone(),
+            field
+                .value_type()
+                .clone()
+                .with_dimension(self.tests[name].1)
+                .map_err(|_| wire::rejection("invalid test dimension"))?,
             support,
         ))
     }
@@ -562,8 +654,7 @@ impl ExpressionContext<'_> {
                 factor,
                 axis,
             },
-            length_dimension(),
-            ValueShape::scalar(),
+            ValueType::scalar(ScalarDomain::Real, length_dimension()).expect("real scalar type"),
             self.integration_domain.or(self.relation_domain),
         ))
     }
@@ -647,20 +738,28 @@ impl ExpressionContext<'_> {
                     "integration-measure dimension overflows",
                 )
             })?;
-        let dimension = integrand.dimension.mul(measure_dimension).ok_or_else(|| {
-            error(
-                self.file,
-                expression.range(),
-                "integral dimension overflows",
-            )
-        })?;
+        let dimension = integrand
+            .value_type
+            .dimension()
+            .mul(measure_dimension)
+            .ok_or_else(|| {
+                error(
+                    self.file,
+                    expression.range(),
+                    "integral dimension overflows",
+                )
+            })?;
+        let value_type = integrand
+            .value_type
+            .clone()
+            .with_dimension(dimension)
+            .map_err(|_| wire::rejection("invalid integral dimension"))?;
         Ok(typed(
             AuthoredFormExpressionKind::Integrate {
                 domain: domain_id,
                 integrand: Box::new(integrand),
             },
-            dimension,
-            ValueShape::scalar(),
+            value_type,
             None,
         ))
     }
