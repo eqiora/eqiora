@@ -100,7 +100,8 @@ impl ExpressionContext<'_> {
         name: &str,
     ) -> Result<AuthoredFormExpression, Diagnostic> {
         if let Some(value) = self.index.coefficients.get(name) {
-            if value.value_type.shape().is_scalar()
+            if (value.value_type.shape().is_scalar()
+                || (self.relation_domain.is_none() && value.value_type.map_bases().is_some()))
                 && matches!(
                     value.value_type.scalar_domain(),
                     ScalarDomain::Real | ScalarDomain::Complex
@@ -111,14 +112,17 @@ impl ExpressionContext<'_> {
             return Err(error(
                 self.file,
                 expression.range(),
-                "weak forms require real or complex scalar coefficient aliases",
+                "weak forms require real or complex scalar coefficient aliases or global finite maps",
             ));
         }
         let raw = resolve_symbol(self.file, expression.range(), name, self.symbols)?;
         match self.index.nodes.get(&raw).copied() {
             Some(KernelNode::Field(field))
                 if field.shape().rank() <= 1
-                    && (self.tests.len() > 1 || field.shape().is_scalar())
+                    && (self.tests.len() > 1
+                        || field.shape().is_scalar()
+                        || (self.relation_domain.is_none()
+                            && field.value_type().coordinate_basis().is_some()))
                     && matches!(
                         field.value_type().scalar_domain(),
                         ScalarDomain::Real | ScalarDomain::Complex
@@ -137,7 +141,9 @@ impl ExpressionContext<'_> {
                 "weak forms require admitted real or complex Field shapes",
             )),
             Some(KernelNode::Parameter(parameter))
-                if parameter.value_type().shape().is_scalar()
+                if (parameter.value_type().shape().is_scalar()
+                    || (self.relation_domain.is_none()
+                        && parameter.value_type().map_bases().is_some()))
                     && matches!(
                         parameter.value_type().scalar_domain(),
                         ScalarDomain::Real | ScalarDomain::Complex
@@ -148,7 +154,7 @@ impl ExpressionContext<'_> {
             Some(KernelNode::Parameter(_)) => Err(error(
                 self.file,
                 expression.range(),
-                "weak forms require real or complex scalar Parameters",
+                "weak forms require real or complex scalar Parameters or global finite maps",
             )),
             _ => Err(error(
                 self.file,
@@ -259,62 +265,25 @@ impl ExpressionContext<'_> {
                 let kind = binary(operator, left_value.clone(), right_value);
                 (kind, value_type)
             }
-            BinaryOp::Mul => {
-                if !left_value.value_type.shape().is_scalar()
-                    && !right_value.value_type.shape().is_scalar()
-                {
-                    return Err(error(
+            BinaryOp::Mul | BinaryOp::Div => {
+                use eqiora_schema::kernel::typing::{self, ExpressionType};
+                // Support was checked above; delegate complete value roles and
+                // dimensions to the same rules used for the original Relation.
+                let left_type = ExpressionType::<RawId>::new(left_value.value_type.clone(), None);
+                let right_type = ExpressionType::<RawId>::new(right_value.value_type.clone(), None);
+                let result = if op == BinaryOp::Mul {
+                    typing::multiply(&left_type, &right_type)
+                } else {
+                    typing::divide(&left_type, &right_type)
+                }
+                .map_err(|violation| {
+                    error(
                         self.file,
                         expression.range(),
-                        "multiplication accepts at most one non-scalar operand",
-                    ));
-                }
-                let dimension = left_value
-                    .value_type
-                    .dimension()
-                    .mul(right_value.value_type.dimension())
-                    .ok_or_else(|| {
-                        error(
-                            self.file,
-                            expression.range(),
-                            "Formulation dimension multiplication overflows",
-                        )
-                    })?;
-                let value_type = if left_value.value_type.shape().is_scalar() {
-                    right_value.value_type.clone()
-                } else {
-                    left_value.value_type.clone()
-                }
-                .with_common_scalar_domain(&left_value.value_type)
-                .and_then(|value| value.with_common_scalar_domain(&right_value.value_type))
-                .ok_or_else(|| wire::rejection("incompatible product scalar domains or roles"))?
-                .with_dimension(dimension)
-                .map_err(|_| wire::rejection("invalid product dimension"))?;
-                (binary(BinaryOp::Mul, left_value, right_value), value_type)
-            }
-            BinaryOp::Div => {
-                require_scalar(self.file, right.range(), &right_value)?;
-                let dimension = left_value
-                    .value_type
-                    .dimension()
-                    .div(right_value.value_type.dimension())
-                    .ok_or_else(|| {
-                        error(
-                            self.file,
-                            expression.range(),
-                            "Formulation dimension division overflows",
-                        )
-                    })?;
-                let value_type = left_value
-                    .value_type
-                    .clone()
-                    .with_common_scalar_domain(&right_value.value_type)
-                    .ok_or_else(|| {
-                        wire::rejection("incompatible quotient scalar domains or roles")
-                    })?
-                    .with_dimension(dimension)
-                    .map_err(|_| wire::rejection("invalid quotient dimension"))?;
-                (binary(BinaryOp::Div, left_value, right_value), value_type)
+                        format!("invalid weak-form arithmetic: {violation}"),
+                    )
+                })?;
+                (binary(op, left_value, right_value), result.value_type)
             }
             BinaryOp::Pow => unreachable!(),
             _ => {
@@ -335,6 +304,18 @@ impl ExpressionContext<'_> {
         arguments: &[Expr],
     ) -> Result<AuthoredFormExpression, Diagnostic> {
         let name = unqualified_callee(self.file, expression.range(), callee)?;
+        if self.relation_domain.is_none()
+            && matches!(
+                name,
+                "coordinate" | "trace" | "grad" | "div" | "symmetric_part" | "integrate"
+            )
+        {
+            return Err(error(
+                self.file,
+                expression.range(),
+                "global weak forms cannot contain spatial operators or measures",
+            ));
+        }
         match (name, arguments) {
             ("coordinate", [axis]) => self.compile_coordinate(expression, axis),
             ("math.sin", [argument]) => {
@@ -479,6 +460,9 @@ impl ExpressionContext<'_> {
                     support,
                 ))
             }
+            ("apply", [left, right]) if self.relation_domain.is_none() => {
+                self.compile_apply(expression, left, right)
+            }
             ("dot" | "frobenius" | "inner", [left, right]) => {
                 self.compile_contraction(expression, name, left, right)
             }
@@ -568,7 +552,9 @@ impl ExpressionContext<'_> {
                 "test trial is not a Field",
             ));
         };
-        if (self.tests.len() == 1 && !field.shape().is_scalar())
+        if (self.tests.len() == 1
+            && !field.shape().is_scalar()
+            && !(self.relation_domain.is_none() && field.value_type().coordinate_basis().is_some()))
             || field.shape().rank() > 1
             || !matches!(
                 field.value_type().scalar_domain(),

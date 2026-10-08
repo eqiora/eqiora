@@ -59,9 +59,44 @@ impl Context<'_> {
             ty.scalar_domain() == ScalarDomain::Complex,
         ))
     }
-    fn shape(&mut self, value: &E, depth: usize) -> Option<Vec<usize>> {
+    pub(super) fn shape(&mut self, value: &E, depth: usize) -> Option<Vec<usize>> {
         self.step(depth)?;
         match value {
+            E::LinearMap {
+                source_basis,
+                target_basis,
+                values,
+                ..
+            } => {
+                let extent = |atoms: &[(String, u32, bool)]| {
+                    if !(1..=2).contains(&atoms.len()) {
+                        return None;
+                    }
+                    atoms.iter().try_fold(1usize, |n, (_, extent, _)| {
+                        if *extent == 0 {
+                            None
+                        } else {
+                            n.checked_mul(*extent as usize)
+                        }
+                    })
+                };
+                let shape = vec![extent(target_basis)?, extent(source_basis)?];
+                (shape[0].checked_mul(shape[1])? == values.len()).then_some(shape)
+            }
+            E::Component { value, indices } => {
+                let shape = self.shape(value, depth + 1)?;
+                (shape.len() == indices.len()
+                    && shape.iter().zip(indices).all(|(n, i)| (*i as usize) < *n))
+                .then(Vec::new)
+            }
+            E::Apply { left, right } => {
+                let matrix = self.shape(left, depth + 1)?;
+                let vector = self.shape(right, depth + 1)?;
+                match (matrix.as_slice(), vector.as_slice()) {
+                    ([rows, cols], [n]) if cols == n => Some(vec![*rows]),
+                    _ => None,
+                }
+            }
             E::Field { ulid } | E::Parameter { ulid } => {
                 let ty = self.symbols.get(ulid)?;
                 (ty.array_rank() == 0).then(|| {

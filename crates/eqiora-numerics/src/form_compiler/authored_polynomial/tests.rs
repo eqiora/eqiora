@@ -273,3 +273,164 @@ fn live_strong_expression_and_authored_projection_keep_symbolic_complex_phase() 
     };
     assert_ne!(Some(actual), context.scalar(&wrong, 0));
 }
+
+#[test]
+fn global_finite_weak_action_matches_original_residual_and_independent_complex_rows() {
+    use eqiora_graph::{GraphStore, InMemoryGraphStore};
+    let source = r#"
+space Spin=orthonormal(up,down);
+public component Wave() {
+ parameter h:map<complex<1>,Spin,Spin>=linear_map(Spin,Spin,[[2,math.complex(0,-1)],[math.complex(0,1),2]]);
+ variable u:coordinates<complex<1>,Spin>;
+ variable lambda:1;
+ relation states {apply(h,u)=lambda*u;}
+ form weak for states {test eta:1 for u; inner(eta,apply(h,u))=inner(eta,lambda*u);}
+}
+"#;
+    let compiled =
+        eqiora_compiler::CompiledModel::compile_selected("finite.eqi", source, "Wave", &[])
+            .unwrap();
+    let projection = compiled
+        .authored_formulations()
+        .next()
+        .unwrap()
+        .projection()
+        .clone();
+    let (transaction, model, symbols) = compiled.into_parts();
+    let mut store = InMemoryGraphStore::new();
+    store.commit(transaction).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    let field = projection.trial_ulids()[0].clone();
+    let relation = symbols
+        .iter()
+        .find(|(name, _)| name.ends_with("states"))
+        .unwrap()
+        .1;
+    let typed = crate::form_compiler::scalar::typed_relation(&program, relation).unwrap();
+    let mut context = Context {
+        name: "eta",
+        field: &field,
+        dimensions: 0,
+        remaining: 65536,
+        symbols: symbol_types(&program),
+    };
+    let (_, left, right) = &projection.equations()[0];
+    let actual = context
+        .scalar(left, 0)
+        .unwrap()
+        .checked_add(&context.scalar(right, 0).unwrap().checked_neg().unwrap())
+        .unwrap();
+    let mut expected = Polynomial::constant(ExactRational::integer(0));
+    for row in 0..2 {
+        let term = context
+            .atom(Atom::Test(vec![row]))
+            .unwrap()
+            .conjugate()
+            .unwrap()
+            .checked_mul(
+                &context
+                    .source(&typed, typed.expression().roots()[0], &[row], 0)
+                    .unwrap(),
+            )
+            .unwrap();
+        expected = expected.checked_add(&term).unwrap();
+    }
+    assert_eq!(actual, expected);
+
+    // H u = (2 u0 - i u1, i u0 + 2 u1), derived directly from the two rows.
+    let component = |i| E::Component {
+        value: Box::new(E::Field {
+            ulid: field.clone(),
+        }),
+        indices: vec![i],
+    };
+    let add = |left, right| E::Add {
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    let test = |i| E::Component {
+        value: Box::new(E::Test {
+            field_ulid: field.clone(),
+        }),
+        indices: vec![i],
+    };
+    let row0 = add(
+        mul(complex(2., 0.), component(0)),
+        mul(complex(0., -1.), component(1)),
+    );
+    let row1 = add(
+        mul(complex(0., 1.), component(0)),
+        mul(complex(2., 0.), component(1)),
+    );
+    let expanded = add(inner(test(0), row0), inner(test(1), row1));
+    assert!(matches_weak_residual(
+        &projection,
+        &program,
+        0,
+        &expanded,
+        right
+    ));
+    for wrong in [
+        conj(expanded.clone()),
+        mul(complex(0., 1.), expanded.clone()),
+    ] {
+        assert!(!matches_weak_residual(
+            &projection,
+            &program,
+            0,
+            &wrong,
+            right
+        ));
+    }
+    let E::Inner { right: applied, .. } = left else {
+        panic!("inner product");
+    };
+    let E::Apply { left: matrix, .. } = applied.as_ref() else {
+        panic!("map application");
+    };
+    let mut changed = matrix.as_ref().clone();
+    let E::LinearMap { values, .. } = &mut changed else {
+        panic!("closed matrix");
+    };
+    // Transposing this Hermitian matrix reverses both off-diagonal imaginary signs.
+    values[1].1 = 1.;
+    values[2].1 = -1.;
+    let bad = E::Apply {
+        left: Box::new(changed),
+        right: Box::new(E::Field {
+            ulid: field.clone(),
+        }),
+    };
+    assert!(!matches_weak_residual(
+        &projection,
+        &program,
+        0,
+        &inner(
+            E::Test {
+                field_ulid: field.clone()
+            },
+            bad
+        ),
+        right
+    ));
+    let mut malformed = matrix.as_ref().clone();
+    let E::LinearMap { values, .. } = &mut malformed else {
+        panic!("closed matrix");
+    };
+    values.pop();
+    assert!(context.tensor(&malformed, 0, 0, 0).is_none());
+    assert!(
+        context
+            .vector(
+                &E::Apply {
+                    left: Box::new(malformed),
+                    right: Box::new(E::Field {
+                        ulid: field.clone()
+                    })
+                },
+                0,
+                0
+            )
+            .is_none()
+    );
+}

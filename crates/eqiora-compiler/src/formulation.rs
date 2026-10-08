@@ -106,6 +106,8 @@ pub(crate) enum AuthoredFormExpressionKind {
     Conjugate(Box<AuthoredFormExpression>),
     /// Equal-role component pairing, conjugate-linear in its first argument.
     Inner(Box<AuthoredFormExpression>, Box<AuthoredFormExpression>),
+    /// Finite map application with exact nominal endpoints.
+    Apply(Box<AuthoredFormExpression>, Box<AuthoredFormExpression>),
     /// Euclidean inner product of equal vectors.
     Dot(Box<AuthoredFormExpression>, Box<AuthoredFormExpression>),
     /// Spatial integral over one exact volume or boundary Domain.
@@ -214,14 +216,14 @@ pub(crate) fn compile_component_formulations(
                 )
                 .map_err(|e| vec![e]);
             }
-            let geometry = geometry.ok_or_else(|| {
-                vec![error(
-                    file,
-                    range,
-                    "spatial forms require exact Geometry support bindings",
-                )]
-            })?;
             if matches!(binding, eqiora_lang::FormulationBinding::Interval { .. }) {
+                let geometry = geometry.ok_or_else(|| {
+                    vec![error(
+                        file,
+                        range,
+                        "spatial forms require exact Geometry support bindings",
+                    )]
+                })?;
                 let ([relation], [(left, right)]) = (relations, equations) else {
                     return Err(vec![error(
                         file,
@@ -286,7 +288,7 @@ fn compile_weak(
     source_identity: AuthoredFormSourceIdentity,
     symbols: &ModelSymbols,
     index: &KernelIndex<'_>,
-    geometry: &eqiora_geometry::CanonicalGeometryV1,
+    geometry: Option<&eqiora_geometry::CanonicalGeometryV1>,
     supports: &[crate::external::ExternalSupportBinding],
 ) -> Result<CompiledAuthoredFormulation, Diagnostic> {
     if relation_names.len() != equations.len()
@@ -313,11 +315,21 @@ fn compile_weak(
         .applies_on
         .get(&relations[0].erase())
         .copied()
-        .and_then(RawId::downcast::<kinds::Domain>)
-        .ok_or_else(|| error(file, range, "form has no exact Domain"))?;
+        .map(|id| {
+            id.downcast::<kinds::Domain>()
+                .ok_or_else(|| error(file, range, "form has no exact Domain"))
+        })
+        .transpose()?;
+    if domain.is_some() && geometry.is_none() {
+        return Err(error(
+            file,
+            range,
+            "spatial forms require exact Geometry support bindings",
+        ));
+    }
     if relations
         .iter()
-        .any(|r| index.applies_on.get(&r.erase()) != Some(&domain.erase()))
+        .any(|r| index.applies_on.get(&r.erase()).copied() != domain.map(Id::erase))
     {
         return Err(error(file, range, "form Relations have foreign support"));
     }
@@ -345,14 +357,24 @@ fn compile_weak(
         let trial = resolve_symbol(file, range, trial, symbols)?
             .downcast::<kinds::Field>()
             .ok_or_else(|| error(file, range, "test trial is not a Field"))?;
-        let zero_on = restriction::resolve(
-            file,
-            (range, boundaries),
-            domain.erase(),
-            symbols,
-            index,
-            supports,
-        )?;
+        let zero_on = match domain {
+            Some(domain) => restriction::resolve(
+                file,
+                (range, boundaries),
+                domain.erase(),
+                symbols,
+                index,
+                supports,
+            )?,
+            None if boundaries.is_empty() => Vec::new(),
+            None => {
+                return Err(error(
+                    file,
+                    range,
+                    "global weak tests cannot carry spatial boundary restrictions",
+                ));
+            }
+        };
         restrictions.push((
             test.clone(),
             trial.ulid().to_string(),
@@ -367,9 +389,9 @@ fn compile_weak(
         file,
         symbols,
         index,
-        ambient_dimension: geometry.ambient_dimension(),
-        topological_dimension: geometry.topological_dimension(),
-        relation_domain: Some(domain),
+        ambient_dimension: geometry.map_or(0, |value| value.ambient_dimension()),
+        topological_dimension: geometry.map_or(0, |value| value.topological_dimension()),
+        relation_domain: domain,
         tests: named_tests,
         integration_domain: None,
         used_tests: std::collections::BTreeSet::new(),
@@ -403,7 +425,7 @@ fn compile_weak(
     let projection = AuthoredFormulationProjection::encode_weak(
         source_identity.to_string(),
         name.into(),
-        domain.erase(),
+        domain.map(Id::erase),
         restrictions,
         compiled,
     )?;
@@ -416,7 +438,7 @@ fn compile_weak(
     })?;
     Ok(CompiledAuthoredFormulation {
         relations,
-        domain: Some(domain),
+        domain,
         trials,
         projection,
         file: file.into(),

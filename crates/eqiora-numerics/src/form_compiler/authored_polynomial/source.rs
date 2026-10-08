@@ -107,6 +107,28 @@ impl Context<'_> {
                         .ok()?,
                 )
                 .ok()?,
+            ExprNode::FiniteBinary(
+                eqiora_schema::kernel::FiniteBinaryOperation::Apply,
+                left,
+                right,
+            ) => {
+                let [row] = coordinate else {
+                    return None;
+                };
+                let [columns] = typed.node_type(*right)?.shape().extents() else {
+                    return None;
+                };
+                self.remaining = self.remaining.checked_sub(columns.get() as usize)?;
+                let mut sum = Polynomial::constant(ExactRational::integer(0));
+                for column in 0..columns.get() as usize {
+                    let term = self
+                        .source(typed, *left, &[*row, column], depth + 1)?
+                        .checked_mul(&self.source(typed, *right, &[column], depth + 1)?)
+                        .ok()?;
+                    sum = sum.checked_add(&term).ok()?;
+                }
+                sum
+            }
             ExprNode::Mul(left, right) => {
                 let a = if typed.node_type(*left)?.shape().is_scalar() {
                     &[][..]

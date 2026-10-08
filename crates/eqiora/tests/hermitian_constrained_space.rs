@@ -31,7 +31,7 @@ fn declared_embedding_removes_shared_nullspace_without_regularizing_metric() {
     // The original metric is singular; only its declared restriction is positive.
     let document = ModelDocument::compile("quotient.eqi", QUOTIENT).unwrap();
     let model = ModelEnvelope::from_program(document.program()).unwrap();
-    let plan = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver).unwrap();
+    let plan = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver, None).unwrap();
     assert_eq!(plan.mode_field().erase(), document.aliases()["u"]);
     let result = plan.run_result(&FaerLinearSolver).unwrap();
     assert_eq!(result.eigen_convergence(), Some("converged"));
@@ -95,7 +95,7 @@ fn a_projected_residual_cannot_hide_an_unsatisfied_original_equation() {
         .replace("[[1],[-1]]", "[[1],[0]]");
     let document = ModelDocument::compile("incompatible-subspace.eqi", &source).unwrap();
     let model = ModelEnvelope::from_program(document.program()).unwrap();
-    let plan = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver).unwrap();
+    let plan = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver, None).unwrap();
     let result = plan.run_result(&FaerLinearSolver).unwrap();
     assert_eq!(result.eigenpair_count(), 0);
     assert_eq!(result.eigen_convergence(), Some("not-converged"));
@@ -114,7 +114,7 @@ fn chained_coordinate_equalities_preserve_all_source_roles() {
         );
     let document = ModelDocument::compile("chain.eqi", &source).unwrap();
     let model = ModelEnvelope::from_program(document.program()).unwrap();
-    let plan = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver).unwrap();
+    let plan = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver, None).unwrap();
     let chain = plan.coordinate_embeddings().collect::<Vec<_>>();
     assert_eq!(chain.len(), 2);
     assert_eq!(chain[0].1.erase(), document.aliases()["u"]);
@@ -187,7 +187,7 @@ fn complex_source_embedding_keeps_five_modes_and_the_full_metric_projector() {
         let model = ModelEnvelope::from_program(document.program()).unwrap();
         let request =
             CommonEigenRequest::dense(NonZeroUsize::new(5).unwrap(), 1e-12, 1e-12).unwrap();
-        let plan = CommonEigenPlan::resolve(&model, request, &FaerLinearSolver).unwrap();
+        let plan = CommonEigenPlan::resolve(&model, request, &FaerLinearSolver, None).unwrap();
         let result = plan.run_result(&FaerLinearSolver).unwrap();
         assert_eq!(result.eigen_convergence(), Some("converged"));
         assert_eq!(result.eigenpair_count(), 5);
@@ -231,7 +231,7 @@ fn source_embeddings_reject_offsets_nonlinearity_and_unresolved_fields() {
     ] {
         let document = ModelDocument::compile("invalid-embedding.eqi", &source).unwrap();
         let model = ModelEnvelope::from_program(document.program()).unwrap();
-        assert!(CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver).is_err());
+        assert!(CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver, None).is_err());
     }
 }
 
@@ -249,7 +249,7 @@ fn dimensionful_maps_and_excluded_indefinite_directions_preserve_the_source_prob
     for source in [dimensionful, indefinite] {
         let document = ModelDocument::compile("typed-restriction.eqi", &source).unwrap();
         let model = ModelEnvelope::from_program(document.program()).unwrap();
-        let plan = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver).unwrap();
+        let plan = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver, None).unwrap();
         let result = plan.run_result(&FaerLinearSolver).unwrap();
         assert_eq!(result.eigen_convergence(), Some("converged"));
         let (lambda, mode, residual, normalization) = result.eigenpair(0).unwrap();
@@ -293,7 +293,7 @@ fn coupled_target_elimination_pivots_and_replays_original_coordinate_equalities(
     ] {
         let document = ModelDocument::compile("coupled-target.eqi", &source).unwrap();
         let model = ModelEnvelope::from_program(document.program()).unwrap();
-        let plan = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver).unwrap();
+        let plan = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver, None).unwrap();
         let map = plan.coordinate_embeddings().next().unwrap().3;
         assert!((map.component(0).unwrap().0 - 1.).abs() < 1e-12);
         assert!((map.component(1).unwrap().0 + 1.).abs() < 1e-12);
@@ -365,7 +365,7 @@ fn complex_six_dimensional_coupled_target_retains_all_five_admitted_modes() {
     let document = ModelDocument::compile("complex-coupled.eqi", &source).unwrap();
     let model = ModelEnvelope::from_program(document.program()).unwrap();
     let request = CommonEigenRequest::dense(NonZeroUsize::new(5).unwrap(), 1e-12, 1e-12).unwrap();
-    let plan = CommonEigenPlan::resolve(&model, request, &FaerLinearSolver).unwrap();
+    let plan = CommonEigenPlan::resolve(&model, request, &FaerLinearSolver, None).unwrap();
     let map = plan.coordinate_embeddings().next().unwrap().3;
     for i in 0..6 {
         for j in 0..5 {
@@ -401,7 +401,8 @@ fn target_elimination_rejects_singular_and_numerically_unresolved_operators() {
             .replace("u=apply(p,q)", "apply(r,u)=apply(p,q)");
         let document = ModelDocument::compile("unresolved-target.eqi", &source).unwrap();
         let model = ModelEnvelope::from_program(document.program()).unwrap();
-        let error = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver).unwrap_err();
+        let error =
+            CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver, None).unwrap_err();
         assert!(
             error
                 .message()
@@ -436,7 +437,7 @@ fn excluded_space_distinguishes_common_nullspace_zero_modes_and_other_directions
     ] {
         let document = ModelDocument::compile("excluded-space.eqi", &source).unwrap();
         let model = ModelEnvelope::from_program(document.program()).unwrap();
-        let plan = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver).unwrap();
+        let plan = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver, None).unwrap();
         let (projector, dimension, actual_a, actual_b) = plan.excluded_space().unwrap();
         assert_eq!(dimension, 1);
         assert_eq!(actual_a <= request().residual_tolerance(), operator_null);

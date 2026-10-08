@@ -7,6 +7,7 @@ use eqiora_sem::KernelProgram;
 use std::collections::BTreeMap;
 
 mod coefficients;
+mod finite;
 mod source;
 mod typing;
 use coefficients::Polynomial;
@@ -35,10 +36,9 @@ pub(super) fn matches_weak_residual(
     let [(name, field, _, _)] = projection.test_restrictions() else {
         return false;
     };
-    if projection.domain_ulid().is_none() {
+    let [(_, authored_left, authored_right)] = projection.equations() else {
         return false;
-    }
-    let (_, authored_left, authored_right) = &projection.equations()[0];
+    };
     let mut context = Context {
         name,
         field,
@@ -47,13 +47,18 @@ pub(super) fn matches_weak_residual(
         symbols: symbol_types(program),
     };
     let compare = || -> Option<bool> {
-        let actual = context
-            .integral(authored_left)?
-            .checked_add(&context.integral(authored_right)?.checked_neg().ok()?)
+        let mut project = |value| {
+            if projection.domain_ulid().is_some() {
+                context.integral(value)
+            } else {
+                context.scalar(value, 0)
+            }
+        };
+        let actual = project(authored_left)?
+            .checked_add(&project(authored_right)?.checked_neg().ok()?)
             .ok()?;
-        let expected = context
-            .integral(left)?
-            .checked_add(&context.integral(right)?.checked_neg().ok()?)
+        let expected = project(left)?
+            .checked_add(&project(right)?.checked_neg().ok()?)
             .ok()?;
         // A whole residual reversal preserves the same equation; individual
         // term sign or phase changes still fail exact channel equality.
@@ -287,28 +292,38 @@ impl Context<'_> {
         depth: usize,
     ) -> Option<Polynomial> {
         self.step(depth)?;
-        if component >= self.dimensions || axis >= self.dimensions {
-            return None;
-        }
         match value {
-            E::Gradient { value } => self.atom(match value.as_ref() {
-                E::Field { ulid } => Atom::FieldGradient(ulid.clone(), vec![component, axis]),
-                E::Direction { name, field_ulid }
-                    if name == self.name && field_ulid == self.field =>
-                {
-                    Atom::TestGradient(vec![component, axis])
-                }
-                E::Test { field_ulid } if field_ulid == self.field => {
-                    Atom::TestGradient(vec![component, axis])
-                }
-                _ => return None,
-            }),
+            E::LinearMap { values, .. } => {
+                let shape = self.shape(value, depth + 1)?;
+                self.closed_component(&shape, values, &[component, axis])
+            }
+            E::Parameter { ulid } => {
+                self.atom(Atom::Parameter(ulid.clone(), vec![component, axis]))
+            }
+            E::Conjugate { value } => self
+                .tensor(value, component, axis, depth + 1)?
+                .conjugate()
+                .ok(),
+            E::Gradient { value } if component < self.dimensions && axis < self.dimensions => self
+                .atom(match value.as_ref() {
+                    E::Field { ulid } => Atom::FieldGradient(ulid.clone(), vec![component, axis]),
+                    E::Direction { name, field_ulid }
+                        if name == self.name && field_ulid == self.field =>
+                    {
+                        Atom::TestGradient(vec![component, axis])
+                    }
+                    E::Test { field_ulid } if field_ulid == self.field => {
+                        Atom::TestGradient(vec![component, axis])
+                    }
+                    _ => return None,
+                }),
             _ => None,
         }
     }
     fn vector(&mut self, value: &E, axis: usize, depth: usize) -> Option<Polynomial> {
         self.step(depth)?;
         match value {
+            E::Apply { left, right } => self.apply(left, right, axis, depth + 1),
             E::Trace { value } => self.trace(value, vec![axis]),
             E::Field { ulid } => self.atom(Atom::Field(ulid.clone(), vec![axis])),
             E::Parameter { ulid } => self.atom(Atom::Parameter(ulid.clone(), vec![axis])),

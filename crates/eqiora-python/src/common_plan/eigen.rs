@@ -117,8 +117,17 @@ pub(super) fn resolve(
 ) -> PyResult<PyPlan> {
     let backend = crate::execution::resolved_linear_backend(policy.provider)
         .map_err(|d| validation_error(py, &d))?;
-    let native = CommonEigenPlan::resolve(model.borrow(py).artifact(), policy.native, backend)
-        .map_err(|d| validation_error(py, &[d]))?;
+    let model_ref = model.borrow(py);
+    let native = CommonEigenPlan::resolve(
+        model_ref.artifact(),
+        policy.native,
+        backend,
+        model_ref
+            .authored_formulation_projection()
+            .map_err(|d| validation_error(py, &[d]))?,
+    )
+    .map_err(|d| validation_error(py, &[d]))?;
+    drop(model_ref);
     let native = ResolvedCommonPlan::Eigen(Box::new(native));
     let (requested_solve, solve) = solve_handles_from_native(py, &native)?;
     Ok(PyPlan {

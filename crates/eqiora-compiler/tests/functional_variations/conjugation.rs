@@ -178,7 +178,7 @@ fn authored_pairing_retains_conjugation_and_argument_order_in_current_wire() {
         assert!(text.contains("\"inner\""));
         assert!(
             AuthoredFormulationProjection::decode(
-                text.replace("eqiora.authored-form/v10", "eqiora.authored-form/v9")
+                text.replace("eqiora.authored-form/v11", "eqiora.authored-form/v9")
                     .as_bytes()
             )
             .is_err()
@@ -369,8 +369,15 @@ fn body_parameter_coefficients_retain_closed_types_and_live_alias_dependencies()
     let form = model.authored_formulations().next().unwrap().projection();
     let bytes = std::str::from_utf8(form.canonical_bytes()).unwrap();
     assert!(bytes.contains("\"kind\":\"complex\""));
-    assert!(bytes.contains("\"value\":3.0"));
-    assert!(bytes.contains("\"value\":-1.0"));
+    let dimension = eqiora_core::DimExponents::from_integers([0, -2, 0, 0, 0, 0, 0]).unwrap();
+    for numerator in [3, -1] {
+        let expected = E::Rational {
+            numerator,
+            denominator: 1,
+            dimension: dimension.exponents(),
+        };
+        assert!(bytes.contains(&serde_json::to_string(&expected).unwrap()));
+    }
     let model = complex_form_with_fields(
         "integrate(body,bulk*inner(eta,q*c))",
         "parameter q:complex<1>=phase*2;",

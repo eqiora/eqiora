@@ -1,6 +1,35 @@
 use super::*;
 
 impl ExpressionContext<'_> {
+    pub(super) fn compile_apply(
+        &mut self,
+        expression: &Expr,
+        left: &Expr,
+        right: &Expr,
+    ) -> Result<AuthoredFormExpression, Diagnostic> {
+        use eqiora_schema::kernel::{FiniteBinaryOperation, typing::ExpressionType};
+        let left = self.compile(left)?;
+        let right = self.compile(right)?;
+        let support = merge_support(self.file, expression.range(), left.support, right.support)?;
+        let result = ExpressionType::<RawId>::new(left.value_type.clone(), None)
+            .finite_binary(
+                FiniteBinaryOperation::Apply,
+                ExpressionType::new(right.value_type.clone(), None),
+            )
+            .map_err(|_| {
+                error(
+                    self.file,
+                    expression.range(),
+                    "finite map application requires matching nominal endpoints and support",
+                )
+            })?;
+        Ok(typed(
+            AuthoredFormExpressionKind::Apply(Box::new(left), Box::new(right)),
+            result.value_type,
+            support,
+        ))
+    }
+
     pub(super) fn compile_contraction(
         &mut self,
         expression: &Expr,

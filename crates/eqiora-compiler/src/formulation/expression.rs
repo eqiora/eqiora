@@ -43,22 +43,69 @@ fn from_dag(
             .node(id)
             .ok_or_else(|| rejection("missing source expression"))?
         {
+            ExprNode::Constant(value) if !value.value_type().shape().is_scalar() => {
+                if value.value_type().array_rank() != 0 || value.value_type().map_bases().is_none()
+                {
+                    return Err(ProjectionFailure::Unsupported);
+                }
+                let shape = value
+                    .value_type()
+                    .shape()
+                    .extents()
+                    .iter()
+                    .map(|extent| extent.get())
+                    .collect::<Vec<_>>();
+                let count = shape
+                    .iter()
+                    .try_fold(1usize, |n, extent| n.checked_mul(*extent as usize))
+                    .ok_or(ProjectionFailure::Unsupported)?;
+                *remaining = remaining
+                    .checked_sub(count)
+                    .ok_or(ProjectionFailure::Unsupported)?;
+                let (source, target) = value
+                    .value_type()
+                    .map_bases()
+                    .ok_or(ProjectionFailure::Unsupported)?;
+                let basis = |basis: eqiora_core::FiniteBasis| {
+                    basis
+                        .atoms()
+                        .map(|atom| {
+                            (
+                                atom.space().expect("atomic basis").ulid().to_string(),
+                                atom.extent(),
+                                atom.is_dual(),
+                            )
+                        })
+                        .collect()
+                };
+                AuthoredFormExpressionV1::LinearMap {
+                    source_basis: basis(source),
+                    target_basis: basis(target),
+                    complex: value.value_type().scalar_domain() == ScalarDomain::Complex,
+                    dimension: value.value_type().dimension().exponents(),
+                    values: (0..count)
+                        .map(|i| value.component(i))
+                        .collect::<Option<Vec<_>>>()
+                        .ok_or(ProjectionFailure::Unsupported)?,
+                }
+            }
             ExprNode::Constant(value)
                 if value.value_type().shape().is_scalar()
                     && value.value_type().scalar_domain() == ScalarDomain::Complex =>
             {
                 let (real, imag) = value.component(0).ok_or(ProjectionFailure::Unsupported)?;
                 AuthoredFormExpressionV1::Complex {
-                    real: Box::new(AuthoredFormExpressionV1::Number { value: real }),
-                    imag: Box::new(AuthoredFormExpressionV1::Number { value: imag }),
+                    real: Box::new(literal(real, value.value_type().dimension())?),
+                    imag: Box::new(literal(imag, value.value_type().dimension())?),
                 }
             }
-            ExprNode::Constant(value) => AuthoredFormExpressionV1::Number {
-                value: value
+            ExprNode::Constant(value) => literal(
+                value
                     .real_scalar_value()
                     .ok_or(ProjectionFailure::Unsupported)?
                     .value(),
-            },
+                value.value_type().dimension(),
+            )?,
             ExprNode::Complex { real, imag } => AuthoredFormExpressionV1::Complex {
                 real: convert(*real)?,
                 imag: convert(*imag)?,
@@ -86,6 +133,14 @@ fn from_dag(
                 right: convert(*right)?,
             },
             ExprNode::Sub(left, right) => AuthoredFormExpressionV1::Sub {
+                left: convert(*left)?,
+                right: convert(*right)?,
+            },
+            ExprNode::FiniteBinary(
+                eqiora_schema::kernel::FiniteBinaryOperation::Apply,
+                left,
+                right,
+            ) => AuthoredFormExpressionV1::Apply {
                 left: convert(*left)?,
                 right: convert(*right)?,
             },
@@ -123,4 +178,20 @@ fn from_dag(
             }
         },
     )
+}
+
+fn literal(
+    value: f64,
+    dimension: eqiora_core::DimExponents,
+) -> Result<AuthoredFormExpressionV1, ProjectionFailure> {
+    if dimension == eqiora_core::DimExponents::DIMENSIONLESS {
+        return Ok(AuthoredFormExpressionV1::Number { value });
+    }
+    let rational = eqiora_schema::kernel::pure_operator::ExactRational::from_binary64(value)
+        .ok_or(ProjectionFailure::Unsupported)?;
+    Ok(AuthoredFormExpressionV1::Rational {
+        numerator: rational.numerator(),
+        denominator: rational.denominator(),
+        dimension: dimension.exponents(),
+    })
 }

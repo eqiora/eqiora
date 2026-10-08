@@ -33,7 +33,7 @@ use event_policy::WireEventPolicy;
 use forward_policy::WireForwardSensitivity;
 use temporal::{WireTemporal, WireTimeCoordinates, temporal_request};
 
-const SCHEMA: &str = "eqiora.resolved-common-plan/v11";
+const SCHEMA: &str = "eqiora.resolved-common-plan/v12";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 
@@ -350,6 +350,7 @@ impl WireResolvedCommonPlanV11 {
             effective_formulation: description.map(|description| description.effective().into()),
             authored_formulation_base64: match plan {
                 ResolvedCommonPlan::Scalar(plan) => plan.authored_formulation_bytes().map(encode),
+                ResolvedCommonPlan::Eigen(plan) => plan.authored_formulation_bytes().map(encode),
                 ResolvedCommonPlan::Elasticity(plan) => plan
                     .authored_formulation
                     .as_ref()
@@ -408,7 +409,6 @@ impl WireResolvedCommonPlanV11 {
                 || self.scaling.is_some()
                 || self.requested_formulation.is_some()
                 || self.effective_formulation != Some(WireFormulation::FiniteHermitianPencil)
-                || self.authored_formulation_base64.is_some()
             {
                 return Err(invalid(
                     "spectral Plan has incompatible controls or replay roots",
@@ -487,7 +487,16 @@ impl WireResolvedCommonPlanV11 {
                 .as_ref()
                 .ok_or_else(|| invalid("spectral controls are absent"))?
                 .to_native()?;
-            return CommonEigenPlan::resolve(&model, request, linear_backend)
+            let authored = self
+                .authored_formulation_base64
+                .as_ref()
+                .map(|value| {
+                    decode(value, "finite weak Formulation").and_then(|bytes| {
+                        eqiora_compiler::AuthoredFormulationProjection::decode(&bytes)
+                    })
+                })
+                .transpose()?;
+            return CommonEigenPlan::resolve(&model, request, linear_backend, authored.as_ref())
                 .map(|plan| ResolvedCommonPlan::Eigen(Box::new(plan)));
         }
         if self.family == WirePlanFamily::Algebraic {
