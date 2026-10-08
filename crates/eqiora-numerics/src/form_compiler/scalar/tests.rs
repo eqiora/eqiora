@@ -632,3 +632,5 @@ fn reachable_extra_strong_form_term_is_not_dropped() {
         "unmatched signed leaves",
     );
 }
+
+mod complex;

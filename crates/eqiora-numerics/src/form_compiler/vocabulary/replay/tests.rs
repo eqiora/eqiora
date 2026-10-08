@@ -34,7 +34,12 @@ fn scalar_replay_rejects_foreign_resources_missing_terms_and_wrong_roles() {
         root,
         divergence,
         divergence_sign: WeakSign::Positive,
-        source: node,
+        values: &[PrimalValueTerm {
+            source_node: node,
+            sign: WeakSign::Positive,
+            trial_dependent: false,
+        }],
+        conjugate_test: false,
         boundaries: &boundaries,
     };
     let mut mixed_boundaries = boundaries;

@@ -92,7 +92,12 @@ pub(crate) fn derive(
         root: volume.root,
         divergence: volume.divergence,
         divergence_sign: WeakSign::Positive,
-        source: volume.load_gradient,
+        values: &[super::super::vocabulary::PrimalValueTerm {
+            source_node: volume.load_gradient,
+            sign: WeakSign::Positive,
+            trial_dependent: false,
+        }],
+        conjugate_test: false,
         boundaries: &boundaries,
     };
     let correspondence = PrimalGalerkinCorrespondence::derive(source);
@@ -123,7 +128,12 @@ pub(crate) fn derive(
     Ok(Some((
         correspondence.formulation.kind,
         correspondence.formulation.boundary_treatment.id(),
-        correspondence.formulation.rules.map(FormulationRule::id),
+        correspondence
+            .formulation
+            .rules
+            .into_iter()
+            .map(FormulationRule::id)
+            .collect(),
     )))
 }
 

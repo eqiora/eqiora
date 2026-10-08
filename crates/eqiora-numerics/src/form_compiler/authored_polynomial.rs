@@ -1,5 +1,5 @@
-//! Exact bounded comparison of a first variation with the independently derived weak Law.
-//! Live energy replay and exact boundary-discharge checks precede this comparison.
+//! Exact bounded comparison of authored residuals and first variations with the weak Law.
+//! Live authored-dependence replay and exact boundary-discharge checks precede this comparison.
 use eqiora_compiler::{AuthoredFormExpressionV1 as E, AuthoredFormulationProjection};
 use eqiora_core::ValueType;
 use eqiora_schema::kernel::pure_operator::ExactRational;
@@ -25,7 +25,7 @@ enum Atom {
     TestGradient(Vec<usize>),
 }
 
-pub(super) fn matches_variation(
+pub(super) fn matches_weak_residual(
     projection: &AuthoredFormulationProjection,
     program: &KernelProgram,
     dimensions: usize,
@@ -55,7 +55,9 @@ pub(super) fn matches_variation(
             .integral(left)?
             .checked_add(&context.integral(right)?.checked_neg().ok()?)
             .ok()?;
-        Some(actual == expected)
+        // A whole residual reversal preserves the same equation; individual
+        // term sign or phase changes still fail exact channel equality.
+        Some(actual == expected || actual == expected.checked_neg().ok()?)
     };
     let mut compare = compare;
     compare().unwrap_or(false)

@@ -8,7 +8,7 @@ pub(crate) use regions::ExecutableScalarEquations;
 pub(super) fn describe_primal(
     kind: FormulationKind,
     boundary_treatment: &'static str,
-    rule_ids: [&'static str; 4],
+    rule_ids: Vec<&'static str>,
     requested: FormulationSelectionMode,
 ) -> CommonFormulationDescription {
     CommonFormulationDescription {

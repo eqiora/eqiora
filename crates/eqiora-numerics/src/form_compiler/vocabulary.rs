@@ -15,6 +15,8 @@ pub(super) const TEST_PAIRING: &str = "fem.derive.v1.test-pairing";
 pub(super) const DIVERGENCE_BY_PARTS: &str = "fem.derive.v1.divergence-by-parts";
 pub(super) const ZERO_TEST_TRACE_DISCHARGE: &str =
     "fem.derive.v2.boundary-discharge.zero-test-trace";
+pub(super) const VALUE_PAIRING: &str = "fem.derive.v1.value-pairing";
+pub(super) const CONJUGATED_TEST_PAIRING: &str = "fem.derive.v1.conjugated-test-pairing";
 pub(super) const SOURCE_PAIRING: &str = "fem.derive.v1.source-pairing";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,6 +72,8 @@ impl BoundaryTreatment {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum FormulationRule {
     TestPairing,
+    ConjugatedTestPairing,
+    ValuePairing,
     DivergenceByParts,
     ZeroTestTraceDischarge,
     TraceOrZeroFluxDischarge,
@@ -81,6 +85,8 @@ impl FormulationRule {
     pub(super) const fn id(self) -> &'static str {
         match self {
             Self::TestPairing => TEST_PAIRING,
+            Self::ConjugatedTestPairing => CONJUGATED_TEST_PAIRING,
+            Self::ValuePairing => VALUE_PAIRING,
             Self::DivergenceByParts => DIVERGENCE_BY_PARTS,
             Self::ZeroTestTraceDischarge => ZERO_TEST_TRACE_DISCHARGE,
             Self::TraceOrZeroFluxDischarge => "fem.derive.v1.boundary-discharge.trace-or-zero-flux",
@@ -105,7 +111,8 @@ pub(super) struct EffectiveFormulation {
     pub(super) trial: RawId,
     pub(super) test: RawId,
     pub(super) boundary_treatment: BoundaryTreatment,
-    pub(super) rules: [FormulationRule; 4],
+    pub(super) rules: Vec<FormulationRule>,
+    pub(super) conjugate_test: bool,
     pub(super) zero_on: Vec<RawId>,
     pub(super) direction: DirectionalProof,
     pub(super) assumptions: Vec<&'static str>,
@@ -145,6 +152,15 @@ pub(super) struct BoundarySource {
     pub(super) discharge: BoundaryDischarge,
 }
 
+/// A retained source occurrence paired with the test value. Reaction signs
+/// belong to the weak left side; load signs belong to the weak right side.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct PrimalValueTerm {
+    pub(super) source_node: ExprId,
+    pub(super) sign: WeakSign,
+    pub(super) trial_dependent: bool,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(super) struct PrimalGalerkinSource<'a> {
     pub(super) domain: RawId,
@@ -153,7 +169,8 @@ pub(super) struct PrimalGalerkinSource<'a> {
     pub(super) root: ExprId,
     pub(super) divergence: ExprId,
     pub(super) divergence_sign: WeakSign,
-    pub(super) source: ExprId,
+    pub(super) values: &'a [PrimalValueTerm],
+    pub(super) conjugate_test: bool,
     pub(super) boundaries: &'a [BoundarySource],
 }
 
@@ -174,8 +191,12 @@ impl PrimalGalerkinCorrespondence {
             .boundaries
             .iter()
             .any(|b| b.discharge == BoundaryDischarge::PrescribedFlux);
-        let rules = [
-            FormulationRule::TestPairing,
+        let mut rules = vec![
+            if source.conjugate_test {
+                FormulationRule::ConjugatedTestPairing
+            } else {
+                FormulationRule::TestPairing
+            },
             FormulationRule::DivergenceByParts,
             if has_prescribed {
                 FormulationRule::TraceOrPrescribedFlux
@@ -184,8 +205,11 @@ impl PrimalGalerkinCorrespondence {
             } else {
                 FormulationRule::ZeroTestTraceDischarge
             },
-            FormulationRule::SourcePairing,
         ];
+        if source.values.iter().any(|term| term.trial_dependent) {
+            rules.push(FormulationRule::ValuePairing);
+        }
+        rules.push(FormulationRule::SourcePairing);
         let mut relations = Vec::with_capacity(source.boundaries.len() + 1);
         relations.push(source.volume_relation);
         relations.extend(source.boundaries.iter().map(|boundary| boundary.relation));
@@ -222,15 +246,26 @@ impl PrimalGalerkinCorrespondence {
                 WeakSign::Negative => WeakSign::Positive,
             },
         }));
-        entries.push(CertificateEntry {
-            rule_id: rules[3].id(),
-            relation: source.volume_relation,
-            source_node: source.source,
-            slot: WeakTermSlot::Linear {
-                test: MatrixSlot::Test,
+        entries.extend(source.values.iter().map(|term| CertificateEntry {
+            rule_id: if term.trial_dependent {
+                VALUE_PAIRING
+            } else {
+                SOURCE_PAIRING
             },
-            sign: WeakSign::Positive,
-        });
+            relation: source.volume_relation,
+            source_node: term.source_node,
+            slot: if term.trial_dependent {
+                WeakTermSlot::Bilinear {
+                    test: MatrixSlot::Test,
+                    trial: MatrixSlot::Trial,
+                }
+            } else {
+                WeakTermSlot::Linear {
+                    test: MatrixSlot::Test,
+                }
+            },
+            sign: term.sign,
+        }));
 
         Self {
             law: LawIdentity {
@@ -257,6 +292,7 @@ impl PrimalGalerkinCorrespondence {
                 assumptions: eqiora_compiler::AuthoredFormulationProjection::required_assumptions()
                     .to_vec(),
                 rules,
+                conjugate_test: source.conjugate_test,
             },
             entries,
         }

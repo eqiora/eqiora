@@ -222,6 +222,11 @@ impl ElasticityDerivationSource<'_> {
                     self.balance_relation,
                     self.volume,
                     &boundary_sources,
+                    &[super::vocabulary::PrimalValueTerm {
+                        source_node: self.volume.load_gradient,
+                        sign: super::vocabulary::WeakSign::Positive,
+                        trial_dependent: false,
+                    }],
                 ))
                 .is_err()
         {
@@ -846,7 +851,12 @@ fn build_certificate(
         root: volume.root,
         divergence: volume.divergence,
         divergence_sign: super::vocabulary::WeakSign::Positive,
-        source: volume.load_gradient,
+        values: &[super::vocabulary::PrimalValueTerm {
+            source_node: volume.load_gradient,
+            sign: super::vocabulary::WeakSign::Positive,
+            trial_dependent: false,
+        }],
+        conjugate_test: false,
         boundaries: &boundary_sources,
     })
 }
@@ -869,6 +879,7 @@ fn correspondence_source<'a>(
     balance_relation: RawId,
     volume: VolumeNodes,
     boundaries: &'a [BoundarySource],
+    values: &'a [super::vocabulary::PrimalValueTerm],
 ) -> PrimalGalerkinSource<'a> {
     PrimalGalerkinSource {
         domain,
@@ -877,7 +888,8 @@ fn correspondence_source<'a>(
         root: volume.root,
         divergence: volume.divergence,
         divergence_sign: super::vocabulary::WeakSign::Positive,
-        source: volume.load_gradient,
+        values,
+        conjugate_test: false,
         boundaries,
     }
 }
