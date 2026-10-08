@@ -111,7 +111,7 @@ fn classify(
         | E::Rational { .. }
         | E::Parameter { .. }
         | E::Coordinate { .. }
-        | E::Components { .. } => constant(),
+        | E::LinearMap { .. } => constant(),
         E::Field { ulid } => {
             let id = field_id(ulid)?;
             if trials.contains(&id) {
@@ -308,8 +308,10 @@ impl AuthoredFormulationProjection {
                     push(value.as_ref());
                     None
                 }
-                E::Components { values, .. } => {
-                    complex |= values.iter().any(|(_, imag)| *imag != 0.0);
+                E::LinearMap {
+                    complex: domain, ..
+                } => {
+                    complex |= *domain;
                     None
                 }
                 E::Number { .. } | E::Rational { .. } | E::Coordinate { .. } => None,

@@ -33,7 +33,7 @@ pub(super) fn matches_weak_residual(
     left: &E,
     right: &E,
 ) -> bool {
-    let [(name, field, _, test_dimension)] = projection.test_restrictions() else {
+    let [(name, field, _, _)] = projection.test_restrictions() else {
         return false;
     };
     let [(_, authored_left, authored_right)] = projection.equations() else {
@@ -47,14 +47,6 @@ pub(super) fn matches_weak_residual(
         symbols: symbol_types(program),
     };
     let compare = || -> Option<bool> {
-        if projection.domain_ulid().is_none() {
-            let test_dimension = eqiora_core::DimExponents::from_rationals(*test_dimension)?;
-            if context.finite_residual_dimension(authored_left, authored_right, test_dimension)?
-                != context.finite_residual_dimension(left, right, test_dimension)?
-            {
-                return Some(false);
-            }
-        }
         let mut project = |value| {
             if projection.domain_ulid().is_some() {
                 context.integral(value)
@@ -301,8 +293,9 @@ impl Context<'_> {
     ) -> Option<Polynomial> {
         self.step(depth)?;
         match value {
-            E::Components { shape, values, .. } => {
-                self.closed_component(shape, values, &[component, axis])
+            E::LinearMap { values, .. } => {
+                let shape = self.shape(value, depth + 1)?;
+                self.closed_component(&shape, values, &[component, axis])
             }
             E::Parameter { ulid } => {
                 self.atom(Atom::Parameter(ulid.clone(), vec![component, axis]))

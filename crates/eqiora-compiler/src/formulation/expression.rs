@@ -62,9 +62,27 @@ fn from_dag(
                 *remaining = remaining
                     .checked_sub(count)
                     .ok_or(ProjectionFailure::Unsupported)?;
-                AuthoredFormExpressionV1::Components {
+                let (source, target) = value
+                    .value_type()
+                    .map_bases()
+                    .ok_or(ProjectionFailure::Unsupported)?;
+                let basis = |basis: eqiora_core::FiniteBasis| {
+                    basis
+                        .atoms()
+                        .map(|atom| {
+                            (
+                                atom.space().expect("atomic basis").ulid().to_string(),
+                                atom.extent(),
+                                atom.is_dual(),
+                            )
+                        })
+                        .collect()
+                };
+                AuthoredFormExpressionV1::LinearMap {
+                    source_basis: basis(source),
+                    target_basis: basis(target),
+                    complex: value.value_type().scalar_domain() == ScalarDomain::Complex,
                     dimension: value.value_type().dimension().exponents(),
-                    shape,
                     values: (0..count)
                         .map(|i| value.component(i))
                         .collect::<Option<Vec<_>>>()

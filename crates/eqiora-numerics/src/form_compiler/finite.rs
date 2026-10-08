@@ -53,6 +53,8 @@ pub(crate) fn admit_authored_finite_weak_form(
     {
         return Err(reject());
     }
+    super::finite_typing::check(projection, program, mode, &root_type.value_type)
+        .ok_or_else(reject)?;
     let residual = E::from_expression(typed.expression(), *root)?.ok_or_else(reject)?;
     let expected = E::Inner {
         left: Box::new(E::Test {

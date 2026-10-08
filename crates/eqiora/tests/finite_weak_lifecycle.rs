@@ -50,7 +50,12 @@ fn real_and_complex_weak_forms_execute_and_replay_with_exact_authored_identity()
             "[[2[J],math.complex(0[J],-1[J])],[math.complex(0[J],1[J]),2[J]]]",
         )
         .replace("lambda:1", "lambda:J");
+    let rectangular = SOURCE.replace("public component Wave", "space Other=orthonormal(first,second,third); public component Wave")
+        .replace("parameter h:map<complex<1>,Spin,Spin>=linear_map(Spin,Spin,[[2,math.complex(0,-1)],[math.complex(0,1),2]]);",
+        "parameter a:map<complex<1>,Other,Spin>=linear_map(Other,Spin,[[2,math.complex(0,-1),7],[math.complex(0,1),2,9]]); parameter b:map<complex<1>,Spin,Other>=linear_map(Spin,Other,[[1,0],[0,1],[0,0]]);")
+        .replace("apply(h,u)", "apply(a,apply(b,u))");
     for source in [
+        rectangular,
         physical,
         SOURCE.replace("test eta:1", "test eta:m"),
         SOURCE.to_owned(),
@@ -135,5 +140,82 @@ fn finite_correspondence_rejects_a_unit_only_coefficient_change() {
     assert!(
         resolve(&wrong).is_err(),
         "unitful weak scaling must not match the source residual"
+    );
+}
+
+#[test]
+fn replay_rejects_foreign_live_map_basis_even_inside_a_zero_term() {
+    use eqiora::compiler::{AuthoredFormExpressionV1 as E, AuthoredFormulationProjection};
+    let authored = resolve(SOURCE).unwrap();
+    let native_source = r#"
+space Spin=orthonormal(up,down); space Other=orthonormal(first,second);
+model Native() {
+ parameter h:map<complex<1>,Spin,Spin>=linear_map(Spin,Spin,[[2,math.complex(0,-1)],[math.complex(0,1),2]]);
+ parameter foreign:map<complex<1>,Other,Other>=linear_map(Other,Other,[[1,0],[0,1]]);
+ variable u:coordinates<complex<1>,Spin>; variable lambda:1;
+ relation states {apply(h,u)=lambda*u;}
+}
+"#;
+    let doc = ModelDocument::compile("native.eqi", native_source).unwrap();
+    let model = ModelEnvelope::from_program(doc.program()).unwrap();
+    let native = CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver, None).unwrap();
+    let text = std::str::from_utf8(authored.authored_formulation_bytes().unwrap())
+        .unwrap()
+        .replace(
+            &authored.mode_field().ulid().to_string(),
+            &native.mode_field().ulid().to_string(),
+        )
+        .replace(
+            &authored.eigenvalue_field().ulid().to_string(),
+            &native.eigenvalue_field().ulid().to_string(),
+        )
+        .replace(
+            &authored.relation().ulid().to_string(),
+            &native.relation().ulid().to_string(),
+        );
+    let projection = AuthoredFormulationProjection::decode(text.as_bytes()).unwrap();
+    let E::Inner { right, .. } = &projection.equations()[0].1 else {
+        panic!("weak inner");
+    };
+    let E::Apply { left, .. } = right.as_ref() else {
+        panic!("map application");
+    };
+    let text = text.replace(
+        &serde_json::to_string(left).unwrap(),
+        &serde_json::to_string(&E::Parameter {
+            ulid: doc.aliases()["h"].ulid().to_string(),
+        })
+        .unwrap(),
+    );
+    let valid = AuthoredFormulationProjection::decode(text.as_bytes()).unwrap();
+    CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver, Some(&valid)).unwrap();
+    let field = native.mode_field().ulid().to_string();
+    let invalid_pairing = E::Inner {
+        left: Box::new(E::Test {
+            field_ulid: field.clone(),
+        }),
+        right: Box::new(E::Apply {
+            left: Box::new(E::Parameter {
+                ulid: doc.aliases()["foreign"].ulid().to_string(),
+            }),
+            right: Box::new(E::Field { ulid: field }),
+        }),
+    };
+    let forged_left = E::Add {
+        left: Box::new(valid.equations()[0].1.clone()),
+        right: Box::new(E::Mul {
+            left: Box::new(E::Number { value: 0. }),
+            right: Box::new(invalid_pairing),
+        }),
+    };
+    let forged = text.replacen(
+        &serde_json::to_string(&valid.equations()[0].1).unwrap(),
+        &serde_json::to_string(&forged_left).unwrap(),
+        1,
+    );
+    let forged = AuthoredFormulationProjection::decode(forged.as_bytes()).unwrap();
+    assert!(
+        CommonEigenPlan::resolve(&model, request(), &FaerLinearSolver, Some(&forged)).is_err(),
+        "numeric cancellation must not erase an invalid nominal endpoint"
     );
 }

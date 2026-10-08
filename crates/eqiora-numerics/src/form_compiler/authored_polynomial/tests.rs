@@ -382,12 +382,21 @@ public component Wave() {
             right
         ));
     }
+    let E::Inner { right: applied, .. } = left else {
+        panic!("inner product");
+    };
+    let E::Apply { left: matrix, .. } = applied.as_ref() else {
+        panic!("map application");
+    };
+    let mut changed = matrix.as_ref().clone();
+    let E::LinearMap { values, .. } = &mut changed else {
+        panic!("closed matrix");
+    };
+    // Transposing this Hermitian matrix reverses both off-diagonal imaginary signs.
+    values[1].1 = 1.;
+    values[2].1 = -1.;
     let bad = E::Apply {
-        left: Box::new(E::Components {
-            dimension: eqiora_core::DimExponents::DIMENSIONLESS.exponents(),
-            shape: vec![2, 2],
-            values: vec![(2., 0.), (0., 1.), (0., -1.), (2., 0.)],
-        }),
+        left: Box::new(changed),
         right: Box::new(E::Field {
             ulid: field.clone(),
         }),
@@ -404,11 +413,11 @@ public component Wave() {
         ),
         right
     ));
-    let malformed = E::Components {
-        dimension: eqiora_core::DimExponents::DIMENSIONLESS.exponents(),
-        shape: vec![2, 2],
-        values: vec![(2., 0.); 3],
+    let mut malformed = matrix.as_ref().clone();
+    let E::LinearMap { values, .. } = &mut malformed else {
+        panic!("closed matrix");
     };
+    values.pop();
     assert!(context.tensor(&malformed, 0, 0, 0).is_none());
     assert!(
         context

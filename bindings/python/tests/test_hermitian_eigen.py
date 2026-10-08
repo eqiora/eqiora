@@ -188,7 +188,7 @@ def test_python_authored_finite_weak_form_execution_and_replay() -> None:
     form = json.loads(base64.b64decode(payload["authored_formulation_base64"]))
     def change_units(node):
         if isinstance(node, dict):
-            if node.get("kind") == "components":
+            if node.get("kind") == "linear-map":
                 node["dimension"][1] = [1, 1]
                 return True
             return any(change_units(value) for value in node.values())

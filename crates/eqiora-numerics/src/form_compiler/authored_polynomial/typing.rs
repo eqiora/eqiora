@@ -62,10 +62,26 @@ impl Context<'_> {
     pub(super) fn shape(&mut self, value: &E, depth: usize) -> Option<Vec<usize>> {
         self.step(depth)?;
         match value {
-            E::Components { shape, values, .. } => {
-                let shape = shape.iter().map(|n| *n as usize).collect::<Vec<_>>();
-                let count = shape.iter().try_fold(1usize, |a, b| a.checked_mul(*b))?;
-                (shape.len() == 2 && !shape.contains(&0) && count == values.len()).then_some(shape)
+            E::LinearMap {
+                source_basis,
+                target_basis,
+                values,
+                ..
+            } => {
+                let extent = |atoms: &[(String, u32, bool)]| {
+                    if !(1..=2).contains(&atoms.len()) {
+                        return None;
+                    }
+                    atoms.iter().try_fold(1usize, |n, (_, extent, _)| {
+                        if *extent == 0 {
+                            None
+                        } else {
+                            n.checked_mul(*extent as usize)
+                        }
+                    })
+                };
+                let shape = vec![extent(target_basis)?, extent(source_basis)?];
+                (shape[0].checked_mul(shape[1])? == values.len()).then_some(shape)
             }
             E::Component { value, indices } => {
                 let shape = self.shape(value, depth + 1)?;

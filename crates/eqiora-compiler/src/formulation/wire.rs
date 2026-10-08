@@ -180,10 +180,12 @@ pub enum AuthoredFormExpressionV1 {
         left: Box<Self>,
         right: Box<Self>,
     },
-    /// Closed component values after ordinary source specialization.
-    Components {
+    /// Closed map values with ordered atomic bases and their exact scalar domain.
+    LinearMap {
+        source_basis: Vec<(String, u32, bool)>,
+        target_basis: Vec<(String, u32, bool)>,
+        complex: bool,
         dimension: [(i32, i32); 7],
-        shape: Vec<u32>,
         values: Vec<(f64, f64)>,
     },
     Apply {
