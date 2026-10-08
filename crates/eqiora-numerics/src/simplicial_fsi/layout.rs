@@ -133,7 +133,7 @@ impl<const D: usize> FsiLayout<D> {
         &self,
         work: &dyn eqiora_assembly::AssemblyWork<f64>,
         target: eqiora_assembly::AssemblyTargetId,
-    ) -> Result<crate::region_assembly::InterfaceReactions, Diagnostic> {
+    ) -> Result<crate::region_assembly::InterfaceReactions<f64>, Diagnostic> {
         crate::region_assembly::InterfaceReactions::prepare(
             work,
             target,

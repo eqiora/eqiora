@@ -624,10 +624,12 @@ impl NativeNumericalAdmission {
         &self,
         backend: &dyn LinearSolverBackend,
         complete: impl FnOnce(
-            &crate::region_assembly::InterfaceReactions,
+            &crate::region_assembly::InterfaceReactions<f64>,
             &[f64],
-        )
-            -> Result<crate::region_assembly::RecoveredInterfaceReactions, Diagnostic>,
+        ) -> Result<
+            crate::region_assembly::RecoveredInterfaceReactions<f64>,
+            Diagnostic,
+        >,
     ) -> Result<CommonScalarRunOutput, Diagnostic> {
         self.revalidate()?;
         if backend.provider() != self.linear.provider

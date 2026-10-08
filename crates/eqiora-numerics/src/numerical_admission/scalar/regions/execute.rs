@@ -15,10 +15,12 @@ impl ExecutableScalarEquations {
         request: LinearSolveRequest<'_>,
         mesh: &CartesianMesh,
         complete: impl FnOnce(
-            &crate::region_assembly::InterfaceReactions,
+            &crate::region_assembly::InterfaceReactions<f64>,
             &[f64],
-        )
-            -> Result<crate::region_assembly::RecoveredInterfaceReactions, Diagnostic>,
+        ) -> Result<
+            crate::region_assembly::RecoveredInterfaceReactions<f64>,
+            Diagnostic,
+        >,
     ) -> Result<CommonScalarRunOutput, Diagnostic> {
         let dimension = mesh.topological_dimension();
         let domains = self.cell_domains(mesh)?;

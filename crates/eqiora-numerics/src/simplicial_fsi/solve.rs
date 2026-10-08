@@ -238,14 +238,14 @@ impl<'a, const D: usize> PreparedFixedReferenceFsiAssembly<'a, D> {
     pub(crate) fn reactions(
         &self,
         work: &dyn AssemblyWork<f64>,
-    ) -> Result<InterfaceReactions, Diagnostic> {
+    ) -> Result<InterfaceReactions<f64>, Diagnostic> {
         self.layout.reactions(work, self.target_roles.full())
     }
 
     pub(crate) fn finish(
         self,
         result: AssemblyResult<f64>,
-        reactions: InterfaceReactions,
+        reactions: InterfaceReactions<f64>,
     ) -> Result<FinalizedFixedReferenceFsiStep<D>, Diagnostic> {
         let (systems, assembly_report) = result.into_parts();
         if assembly_report.packet_count() != self.cell_count
@@ -404,7 +404,7 @@ struct FinalizedState<const D: usize> {
     assembly_target_roles: FixedReferenceFsiAssemblyTargetRoles,
     pressure_constant_action_norm: f64,
     assembly_report: AssemblyReport,
-    reactions: InterfaceReactions,
+    reactions: InterfaceReactions<f64>,
 }
 
 impl<const D: usize> FinalizedState<D> {
