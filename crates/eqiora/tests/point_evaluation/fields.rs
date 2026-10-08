@@ -11,7 +11,7 @@ use eqiora::solver::{
 };
 use eqiora_numerics::{
     AuthenticatedCommonMesh, CommonLinearRequest, CommonResult, CommonScalarPlan,
-    CommonSolvePolicy, CommonSpatialPolicy, ResolvedCommonPlan, resolve_common_plan,
+    CommonSolvePolicy, CommonSpatialPolicy, ResolvedCommonPlan,
 };
 use std::{collections::BTreeMap, num::NonZeroUsize};
 
@@ -105,7 +105,7 @@ fn heat_with_spatial(
         REFERENCE_SOLVER_PROVIDER,
     )
     .unwrap();
-    let plan = resolve_common_plan(
+    let plan = eqiora_numerics::ResolvedCommonPlan::resolve(
         &model,
         owner,
         spatial,

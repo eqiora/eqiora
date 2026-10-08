@@ -47,7 +47,7 @@ fn radial_diffusion_result_replays_and_converges_to_the_spherical_average() {
     };
     use eqiora_numerics::{
         AuthenticatedCommonMesh, CommonLinearRequest, CommonResult, CommonSolvePolicy,
-        CommonSpatialPolicy, ResolvedCommonPlan, resolve_common_plan,
+        CommonSpatialPolicy, ResolvedCommonPlan,
     };
     use std::{collections::HashMap, num::NonZeroUsize};
     let document = document(SOURCE);
@@ -70,7 +70,7 @@ fn radial_diffusion_result_replays_and_converges_to_the_spherical_average() {
             REFERENCE_SOLVER_PROVIDER,
         )
         .unwrap();
-        let plan = resolve_common_plan(
+        let plan = eqiora_numerics::ResolvedCommonPlan::resolve(
             &model,
             mesh,
             CommonSpatialPolicy::CellCentered,
@@ -168,7 +168,6 @@ fn select_document(
     };
     use eqiora_numerics::{
         AuthenticatedCommonMesh, CommonLinearRequest, CommonSolvePolicy, CommonSpatialPolicy,
-        resolve_common_plan,
     };
     let model = eqiora::artifact::ModelEnvelope::from_program(document.program()).unwrap();
     let radius = document.aliases()["radius"].downcast().unwrap();
@@ -184,7 +183,7 @@ fn select_document(
         REFERENCE_SOLVER_PROVIDER,
     )
     .unwrap();
-    let plan = resolve_common_plan(
+    let plan = eqiora_numerics::ResolvedCommonPlan::resolve(
         &model,
         mesh,
         CommonSpatialPolicy::CellCentered,

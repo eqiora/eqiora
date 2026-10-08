@@ -483,15 +483,17 @@ impl CommonSpatialPlanLineage {
     }
 }
 
-/// Resolve one canonical no-Mesh explicit ODE through the common native Plan sum.
-pub fn resolve_common_ode_plan(
-    model: &ModelEnvelope,
-    kernel: &KernelProgram,
-    temporal: CommonOdePolicy,
-    backend: TimeBackendCapabilities,
-) -> Result<ResolvedCommonPlan, Diagnostic> {
-    CommonOdePlan::resolve(model, kernel, temporal, backend)
-        .map(|plan| ResolvedCommonPlan::Ode(Box::new(plan)))
+impl ResolvedCommonPlan {
+    /// Resolve one canonical no-Mesh explicit ODE through the common native Plan sum.
+    pub fn resolve_ode(
+        model: &ModelEnvelope,
+        kernel: &KernelProgram,
+        temporal: CommonOdePolicy,
+        backend: TimeBackendCapabilities,
+    ) -> Result<ResolvedCommonPlan, Diagnostic> {
+        CommonOdePlan::resolve(model, kernel, temporal, backend)
+            .map(|plan| ResolvedCommonPlan::Ode(Box::new(plan)))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -829,6 +831,5 @@ mod steady_stokes;
 mod transient;
 pub use native::AuthenticatedCommonMesh;
 use native::*;
-pub use resolve::resolve_common_plan;
 #[cfg(test)]
 mod tests;

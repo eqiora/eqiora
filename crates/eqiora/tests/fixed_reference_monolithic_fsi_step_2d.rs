@@ -13,7 +13,6 @@ use eqiora_numerics::{
     CommonMethodRequest, CommonScopedSpatialPolicy, CommonSolvePolicy, CommonSpatialPolicy,
     IncompressibleScalingRequest2d, common::PhysicalBoundaryDisposition,
     fsi::FixedReferenceFsiCartesianModel2d, fsi::lower_fixed_reference_fsi_cartesian_2d,
-    resolve_common_plan,
 };
 use support::fixed_reference_fsi::{
     direct_document, exact_spatial_witness, execute_initial_step, packaged_document,
@@ -480,7 +479,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
         ("automatic scaling", None),
     ]
     .map(|(label, scaling)| {
-        let plan = resolve_common_plan(
+        let plan = eqiora_numerics::ResolvedCommonPlan::resolve(
             &common_model,
             resources.clone(),
             scoped.clone(),

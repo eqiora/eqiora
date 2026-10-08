@@ -1,8 +1,6 @@
 //! Independent cell antiderivatives exercised through public Model/Mesh/Plan/Result owners.
 use super::*;
-use eqiora_numerics::{
-    AuthenticatedCommonMesh, CommonSpatialPolicy, ResolvedCommonPlan, resolve_common_plan,
-};
+use eqiora_numerics::{AuthenticatedCommonMesh, CommonSpatialPolicy, ResolvedCommonPlan};
 use std::collections::HashMap;
 
 const FIELD_SOURCE: &str =
@@ -25,7 +23,7 @@ fn plan(
         FaerLinearSolver.provider(),
     )
     .unwrap();
-    resolve_common_plan(
+    eqiora_numerics::ResolvedCommonPlan::resolve(
         model,
         mesh,
         spatial,

@@ -11,7 +11,7 @@ use eqiora::meshing::{MeshEntity, MeshTopology};
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
     AuthenticatedCommonMesh, CommonElasticityPlan, CommonResult, CommonSolvePolicy,
-    CommonSpatialPolicy, resolve_common_plan,
+    CommonSpatialPolicy,
 };
 use serde_json::{Value, json};
 
@@ -259,7 +259,7 @@ fn try_accepted_source_on_with_traction(
         .unwrap(),
     );
     let model = ModelEnvelope::from_program(document.program()).unwrap();
-    let plan = resolve_common_plan(
+    let plan = eqiora_numerics::ResolvedCommonPlan::resolve(
         &model,
         owner,
         CommonSpatialPolicy::Q1,

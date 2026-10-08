@@ -132,6 +132,7 @@ EXPECTED_EQIORA_ALL = [
     "Observation",
     "Eigenpair",
     "TrajectoryObservation",
+    "FiniteSpectrum",
     "ObservableStateTangent",
     "integral",
     "measure",

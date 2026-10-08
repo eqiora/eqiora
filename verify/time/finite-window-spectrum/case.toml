@@ -1,0 +1,27 @@
+id = "time.finite-window-spectrum"
+status = "implemented"
+scope = "accepted-uniform-sample-componentwise-finite-dft"
+reference_kind = "independent-four-root-sums-and-discrete-parseval"
+capabilities = ["explicit-finite-window-spectrum", "typed-componentwise-dft", "trajectory-lineage", "discrete-normalization", "sampled-inverse"]
+
+[claim_boundary]
+forward = "+i,1/N"
+inverse = "-i,1"
+phase_reference = "first-included-sample"
+interval = "half-open-uniform-samples"
+windows = ["rectangular", "periodic-hann"]
+sample_counts = [3, 4]
+tested_component_counts = [1, 5, 6]
+precision = "binary64"
+continuous_transform_exact = false
+irregular_sampling = false
+harmonic_solution = false
+alias_free = false
+trajectory_derivatives = false
+spatial_trajectories = false
+fft_backend = false
+
+[evidence]
+runner = "cargo-library-test"
+package = "eqiora-numerics"
+test = "common_trajectory::spectrum::tests::finite_window_spectrum_claim"

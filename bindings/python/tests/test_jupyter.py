@@ -55,6 +55,22 @@ def test_invalid_binding_syntax_is_rejected_without_interpolation(shell, source,
     assert "model" not in shell.user_ns
 
 
+@pytest.mark.parametrize("name", ["__debug__", "__ｄｅｂｕｇ__"])
+def test_python_constant_cannot_receive_compiled_model(shell, source, monkeypatch, name):
+    # Python resolves __debug__ as a language constant, even if a namespace
+    # dictionary contains another value. Publishing a Model there loses handoff.
+    previous = object()
+    shell.user_ns["__debug__"] = previous
+
+    def forbidden_compile(**_kwargs):
+        pytest.fail("an unusable Python destination must reject before compilation")
+
+    monkeypatch.setattr(eqiora, "compile", forbidden_compile)
+    with pytest.raises(UsageError, match="Python variable name"):
+        shell.run_cell_magic("eqiora", name, source)
+    assert shell.user_ns["__debug__"] is previous
+
+
 def test_entry_and_named_python_bindings_reuse_compile(shell):
     source = "model Bound(parameter rate: 1) { variable result: 1; relation law { result = 2 * rate; } }"
     shell.user_ns["inputs"] = {"rate": 3.0}
