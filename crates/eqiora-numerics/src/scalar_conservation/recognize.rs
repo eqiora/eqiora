@@ -9,6 +9,13 @@ use super::*;
 pub(crate) fn recognize_scalar_conservation(
     program: &KernelProgram,
 ) -> Result<ScalarConservationDescriptor, Diagnostic> {
+    recognize_scalar_conservation_on_supports(program, cartesian_region_supports(program)?)
+}
+
+/// Exact geometric support, independent of the equation coefficient domain.
+pub(crate) fn cartesian_region_supports(
+    program: &KernelProgram,
+) -> Result<Vec<ScalarRegionSupport>, Diagnostic> {
     let mut supports = Vec::new();
     for node in program.nodes() {
         let KernelNode::Domain(domain) = node else {
@@ -41,7 +48,7 @@ pub(crate) fn recognize_scalar_conservation(
             boundaries,
         ));
     }
-    recognize_scalar_conservation_on_supports(program, supports)
+    Ok(supports)
 }
 
 pub(crate) fn recognize_scalar_conservation_on_supports(

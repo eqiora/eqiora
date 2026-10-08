@@ -308,9 +308,9 @@ pub(crate) struct ScalarConservationDescriptor {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ScalarRegionSupport {
-    domain: RawId,
-    bounds: Vec<[f64; 2]>,
-    boundaries: BTreeMap<(usize, BoundarySide), RawId>,
+    pub(crate) domain: RawId,
+    pub(crate) bounds: Vec<[f64; 2]>,
+    pub(crate) boundaries: BTreeMap<(usize, BoundarySide), RawId>,
 }
 
 impl ScalarRegionSupport {
@@ -350,6 +350,7 @@ mod boundary;
 mod descriptor_support;
 mod interface;
 mod recognize;
+pub(crate) use recognize::cartesian_region_supports;
 mod retained;
 mod support;
 

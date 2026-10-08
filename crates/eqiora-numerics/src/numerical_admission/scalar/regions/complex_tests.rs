@@ -21,6 +21,13 @@ fn execute(source: &str) -> CommonScalarRunOutput<C> {
         ]),
     )
     .unwrap();
+    let mesh = eqiora_meshing::CartesianMesh::from_axes(vec![vec![0., 3., 6.]]).unwrap();
+    let source_equations = ExecutableScalarEquations::<C>::source_regions(&program, &mesh).unwrap();
+    assert_eq!(source_equations, equations);
+    let equations = source_equations;
+    // Source bounds must cover whole cells in the exact supplied Mesh.
+    let crossed = eqiora_meshing::CartesianMesh::from_axes(vec![vec![-1., 3., 6.]]).unwrap();
+    assert!(ExecutableScalarEquations::<C>::source_regions(&program, &crossed).is_err());
     let structure = equations.algebraic_structure(None).unwrap();
     let mut policy = NativeLinearPolicy::exact::<C>(
         SolverPlan::new(
@@ -45,7 +52,7 @@ fn execute(source: &str) -> CommonScalarRunOutput<C> {
         .execute(
             NonZeroUsize::MIN,
             LinearSolveRequest::new(&backend, policy.solver),
-            &eqiora_meshing::CartesianMesh::from_axes(vec![vec![0., 3., 6.]]).unwrap(),
+            &mesh,
             |reactions, values| reactions.recover(values),
         )
         .unwrap();
