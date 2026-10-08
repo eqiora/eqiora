@@ -2,20 +2,20 @@
 use super::*;
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct RecoveredRegionField {
+pub(crate) struct RecoveredRegionField<S: Coefficient> {
     pub(crate) domain: RawId,
     pub(crate) value_type: eqiora_core::ValueType,
-    pub(crate) coefficients: BTreeMap<FieldDof, f64>,
+    pub(crate) coefficients: BTreeMap<FieldDof, S>,
 }
 
-impl RegionDofMap {
+impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
     /// Recover every requested exact Field, including essential and quotient values.
     /// The request must equal the complete admitted inventory; order is immaterial.
     pub(crate) fn recover(
         &self,
-        reduced: &[f64],
+        reduced: &[S],
         requested: &[RawId],
-    ) -> Result<BTreeMap<RawId, RecoveredRegionField>, Diagnostic> {
+    ) -> Result<BTreeMap<RawId, RecoveredRegionField<S>>, Diagnostic> {
         let inventory = requested.iter().copied().collect::<BTreeSet<_>>();
         if inventory.len() != requested.len() || inventory != self.fields.keys().copied().collect()
         {
@@ -63,15 +63,15 @@ impl RegionDofMap {
     }
 }
 
-impl RegionDofMap {
+impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
     /// Recover all physical Fields and apply every admitted exact state-rate relation.
     /// All validation and arithmetic complete before the new inventory is returned.
     pub(crate) fn recover_step(
         &self,
-        reduced: &[f64],
-        previous: &BTreeMap<RawId, RecoveredRegionField>,
+        reduced: &[S],
+        previous: &BTreeMap<RawId, RecoveredRegionField<S>>,
         step: &eqiora_realization::BackwardEulerStep,
-    ) -> Result<BTreeMap<RawId, RecoveredRegionField>, Diagnostic> {
+    ) -> Result<BTreeMap<RawId, RecoveredRegionField<S>>, Diagnostic> {
         self.validate_step_history(previous, step)?;
         let requested = self.fields.keys().copied().collect::<Vec<_>>();
         let mut recovered = self.recover(reduced, &requested)?;
@@ -87,7 +87,7 @@ impl RegionDofMap {
                     field: pair.rate().erase(),
                     ..key
                 };
-                *value += step.duration().value() * rate.coefficients[&rate_key];
+                *value += rate.coefficients[&rate_key] * step.duration().value();
                 if !value.is_finite() {
                     return Err(invalid("step state recovery produced a nonfinite value"));
                 }
@@ -102,11 +102,11 @@ impl RegionDofMap {
     }
 }
 
-impl RegionDofMap {
+impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
     /// Validate exact physical Field inventory and equality of shared quotient coordinates.
     pub(crate) fn validate_physical(
         &self,
-        fields: &BTreeMap<RawId, RecoveredRegionField>,
+        fields: &BTreeMap<RawId, RecoveredRegionField<S>>,
     ) -> Result<(), Diagnostic> {
         let mut globals = vec![None; self.full_count()];
         for (&id, (domain, layout)) in &self.fields {
@@ -137,10 +137,10 @@ impl RegionDofMap {
     }
 }
 
-impl RegionDofMap {
+impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
     pub(crate) fn validate_step_history(
         &self,
-        previous: &BTreeMap<RawId, RecoveredRegionField>,
+        previous: &BTreeMap<RawId, RecoveredRegionField<S>>,
         step: &eqiora_realization::BackwardEulerStep,
     ) -> Result<(), Diagnostic> {
         let expected = self

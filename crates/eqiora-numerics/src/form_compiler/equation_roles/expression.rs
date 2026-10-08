@@ -51,7 +51,11 @@ pub(super) fn coefficient_dependencies(dag: &ExprDag, root: ExprId) -> Option<BT
             ExprNode::Neg(value) | ExprNode::PowI(value, _) | ExprNode::UnaryMath(_, value) => {
                 pending.push(*value)
             }
-            ExprNode::Add(left, right)
+            ExprNode::Complex {
+                real: left,
+                imag: right,
+            }
+            | ExprNode::Add(left, right)
             | ExprNode::Sub(left, right)
             | ExprNode::Mul(left, right)
             | ExprNode::Div(left, right) => pending.extend([*left, *right]),
@@ -115,7 +119,11 @@ pub(super) fn principal(
             | ExprNode::PowI(value, _)
             | ExprNode::UnaryMath(_, value)
             | ExprNode::SymmetricPart(value) => pending.push((*value, in_divergence)),
-            ExprNode::Add(left, right)
+            ExprNode::Complex {
+                real: left,
+                imag: right,
+            }
+            | ExprNode::Add(left, right)
             | ExprNode::Sub(left, right)
             | ExprNode::Mul(left, right)
             | ExprNode::Div(left, right) => {

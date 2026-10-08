@@ -35,7 +35,7 @@ impl InterfaceReactions {
     pub(crate) fn prepare(
         work: &dyn AssemblyWork<f64>,
         target: AssemblyTargetId,
-        mapping: &RegionDofMap,
+        mapping: &RegionDofMap<f64>,
         packet_domains: &[RawId],
     ) -> Result<Self, Diagnostic> {
         let known = mapping

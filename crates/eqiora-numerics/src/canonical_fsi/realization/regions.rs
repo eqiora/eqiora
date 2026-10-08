@@ -120,7 +120,7 @@ pub(super) fn layout(
         }),
         plan.spatial().trace_quotients(),
     )?;
-    let mapping = RegionDofMap::new(
+    let mapping = RegionDofMap::<f64>::new(
         mesh,
         &layouts,
         ReferenceCell::simplex(2)?,

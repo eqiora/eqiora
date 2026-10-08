@@ -619,3 +619,5 @@ model VectorRegion() {
     wrong_space.get_mut(&domain).unwrap()[0].space = Space::simplex_p1_bubble();
     assert!(RegionDofMap::new(&mesh, &wrong_space, reference, &[domain; 4], &[], &fixed).is_err());
 }
+
+mod complex;
