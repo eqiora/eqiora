@@ -6,7 +6,11 @@ use ulid::Ulid;
 
 use super::{AuthoredFormExpression, AuthoredFormExpressionKind};
 
-const SCHEMA: &str = "eqiora.authored-form/v10";
+const SCHEMA: &str = "eqiora.authored-form/v11";
+const GLOBAL_WEAK_ASSUMPTIONS: &[&str] = &[
+    "finite-dimensional-test-space",
+    "nondegenerate-inner-product",
+];
 const MAX_BYTES: usize = 1024 * 1024;
 
 /// Ordered test name, trial Field, zero-trace boundaries and canonical SI dimension.
@@ -249,7 +253,7 @@ impl AuthoredFormulationProjection {
     pub(super) fn encode_weak(
         source_identity: String,
         name: String,
-        domain: RawId,
+        domain: Option<RawId>,
         tests: Vec<AuthoredTestRestriction>,
         equations: Vec<(String, AuthoredFormExpressionV1, AuthoredFormExpressionV1)>,
     ) -> Result<Self, Diagnostic> {
@@ -259,7 +263,9 @@ impl AuthoredFormulationProjection {
                 trial_ulids.push(trial.clone());
             }
         }
-        let assumptions = if trial_ulids.len() > 1 {
+        let assumptions = if domain.is_none() {
+            GLOBAL_WEAK_ASSUMPTIONS
+        } else if trial_ulids.len() > 1 {
             Self::mixed_assumptions()
         } else {
             Self::required_assumptions()
@@ -267,7 +273,7 @@ impl AuthoredFormulationProjection {
         let wire = WireForm {
             schema: SCHEMA.into(),
             source_identity,
-            domain_ulid: Some(ulid(domain)),
+            domain_ulid: domain.map(ulid),
             trial_ulids,
             name,
             binding: WireBinding::WeakTests { tests },
@@ -315,7 +321,7 @@ impl AuthoredFormulationProjection {
             .map(|gauge| (&gauge.compatibility.0, &gauge.compatibility.1))
     }
 
-    /// Decode exactly one bounded canonical v7 projection.
+    /// Decode exactly one bounded canonical v11 projection.
     ///
     /// # Errors
     /// Returns a diagnostic for an oversized, malformed, noncanonical, or
@@ -378,6 +384,9 @@ impl AuthoredFormulationProjection {
                 .iter()
                 .map(String::as_str)
                 .eq(match wire.binding {
+                    WireBinding::WeakTests { .. } if wire.domain_ulid.is_none() => {
+                        GLOBAL_WEAK_ASSUMPTIONS
+                    }
                     WireBinding::WeakTests { .. } if wire.trial_ulids.len() > 1 => {
                         Self::mixed_assumptions()
                     }
@@ -392,7 +401,9 @@ impl AuthoredFormulationProjection {
                 "scalar implication or required hypotheses differ from the admitted profile",
             ));
         }
-        if matches!(wire.binding, WireBinding::Finite { .. }) != wire.domain_ulid.is_none() {
+        if (matches!(wire.binding, WireBinding::Finite { .. }) && wire.domain_ulid.is_some())
+            || (matches!(wire.binding, WireBinding::Interval { .. }) && wire.domain_ulid.is_none())
+        {
             return Err(rejection(
                 "finite forms have no spatial Domain; spatial forms require one",
             ));
@@ -447,6 +458,11 @@ impl AuthoredFormulationProjection {
                         || !wire.trial_ulids.contains(trial)
                     {
                         return Err(rejection("test has repeated or foreign trial"));
+                    }
+                    if wire.domain_ulid.is_none() && !zero_on.is_empty() {
+                        return Err(rejection(
+                            "global weak tests cannot carry spatial boundary restrictions",
+                        ));
                     }
                     if zero_on.windows(2).any(|p| p[0] >= p[1]) {
                         return Err(rejection("test boundaries must be sorted and unique"));
@@ -746,7 +762,7 @@ mod tests {
         AuthoredFormulationProjection::encode_weak(
             "a".repeat(64),
             "weak".into(),
-            Id::<kinds::Domain>::from_ulid(id("01ARZ3NDEKTSV4RRFFQ69G5FAW")).erase(),
+            Some(Id::<kinds::Domain>::from_ulid(id("01ARZ3NDEKTSV4RRFFQ69G5FAW")).erase()),
             vec![(
                 "w".into(),
                 "01ARZ3NDEKTSV4RRFFQ69G5FAX".into(),
@@ -836,7 +852,7 @@ mod tests {
         let bytes = projection().canonical_bytes().to_vec();
         let old = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.authored-form/v10", "eqiora.authored-scalar-form/v3");
+            .replace("eqiora.authored-form/v11", "eqiora.authored-scalar-form/v3");
         assert!(AuthoredFormulationProjection::decode(old.as_bytes()).is_err());
     }
 
