@@ -62,12 +62,17 @@ fn compile(
 }
 
 fn resolve(source: &str) -> Result<ResolvedCommonPlan, Diagnostic> {
-    resolve_on(source, geometry(false))
+    resolve_on(
+        source,
+        geometry(false),
+        LinearSolver::BiConjugateGradientStabilized,
+    )
 }
 
 fn resolve_on(
     source: &str,
     geometry: CanonicalGeometryV1,
+    algorithm: LinearSolver,
 ) -> Result<ResolvedCommonPlan, Diagnostic> {
     let (program, projection) = compile(source, &geometry)?;
     let model = ModelEnvelope::from_program(&program).unwrap();
@@ -76,7 +81,7 @@ fn resolve_on(
         cartesian_box_resources(&geometry, &[2]),
         CommonSpatialPolicy::Q1,
         CommonSolvePolicy::Linear(exact_reference_linear(
-            LinearSolver::BiConjugateGradientStabilized,
+            algorithm,
             1e-12,
             1e-14,
             NonZeroUsize::new(64).unwrap(),
@@ -119,6 +124,16 @@ fn affine_complex_weak_form_has_independent_volume_and_boundary_solution() {
             .unwrap(),
         bytes
     );
+    // A has diagonal (6+6i,3+3i), so it is not Hermitian. A valid
+    // sesquilinear form must not grant the Hermitian-positive CG profile.
+    let error = resolve_on(SOURCE, geometry(false), LinearSolver::ConjugateGradient).unwrap_err();
+    for required in [
+        "solver backend does not support the exact",
+        "ConjugateGradient",
+        "General",
+    ] {
+        assert!(error.message().contains(required), "{error:?}");
+    }
     let real = SOURCE
         .replace("complex<m^2>", "m^2")
         .replace("complex<1/m>", "1/m")
@@ -146,12 +161,16 @@ fn affine_complex_weak_form_has_independent_volume_and_boundary_solution() {
             "math.complex(3[1/m],1[1/m])",
             "math.complex(-3[1/m],-1[1/m])",
         );
-    let reflected = resolve_on(&reflected, geometry(true))
-        .unwrap()
-        .as_scalar()
-        .unwrap()
-        .run_result(&REFERENCE_LINEAR_SOLVER)
-        .unwrap();
+    let reflected = resolve_on(
+        &reflected,
+        geometry(true),
+        LinearSolver::BiConjugateGradientStabilized,
+    )
+    .unwrap()
+    .as_scalar()
+    .unwrap()
+    .run_result(&REFERENCE_LINEAR_SOLVER)
+    .unwrap();
     // Reflect x -> 6-x. The prescribed end moves to x=6; the same
     // outward flux now acts on x=0 with normal -1 and derivative -2+i.
     for (actual, expected) in reflected

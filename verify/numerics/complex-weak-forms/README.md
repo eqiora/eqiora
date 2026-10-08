@@ -13,6 +13,9 @@ values. Ordinary Plan execution, Plan replay and Result replay retain the soluti
 Reflecting the Geometry support bindings checks a lower outward normal as well as
 the upper one. Wrong test conjugation, reaction phase, flux sign and imaginary
 volume load fail authored correspondence after the valid path has succeeded.
+The same admitted non-Hermitian form rejects a conjugate-gradient request at
+the exact solver-capability gate; sesquilinear typing does not certify Hermitian
+positive definiteness.
 
 This is evidence for a bounded stationary scalar path, not arbitrary weak forms,
 all spaces, refinement convergence, optional backends, finite Hermitian forms or

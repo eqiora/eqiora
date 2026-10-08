@@ -21,5 +21,7 @@ diag(A) = (6+6i, 3+3i)
 ```
 
 The non-real diagonal and different adjoint action exclude a Hermitian
-interpretation. Expectations bind these semantic values, not whole files or
+interpretation. Conjugate gradient therefore cannot acquire a Plan for this
+form: the requested complex/CG/general capability tuple must reject, after
+the identical source succeeds with BiCGStab. Expectations bind these semantic values, not whole files or
 generated artifacts. Exact bytes are compared only for canonical Plan/Result replay.
