@@ -1,5 +1,6 @@
 use super::*;
 
+mod complex;
 pub(super) mod interval;
 mod regions;
 mod transient;
@@ -33,9 +34,9 @@ pub(super) fn describe_primal(
     }
 }
 
-pub(super) fn resolve_common_scalar_portable(
+pub(super) fn resolve_common_scalar_portable<S: crate::spatial_expression::Coefficient>(
     admission: &NativeNumericalAdmission,
-    lowered: &ExecutableScalarEquations<f64>,
+    lowered: &ExecutableScalarEquations<S>,
     mesh: &CartesianMeshEnvelopeV1,
     cells: &[usize],
 ) -> Result<PortableRealizationGraph, Diagnostic> {
@@ -86,7 +87,12 @@ pub(super) fn resolve_common_scalar_portable(
     let solver = admission.linear.solver;
     admission.linear.capabilities.require_problem(
         solver,
-        eqiora_core::ScalarDomain::Real,
+        lowered
+            .fields()
+            .first()
+            .ok_or_else(|| invalid("scalar Plan has no unknown Fields"))?
+            .1
+            .scalar_domain(),
         ScalarType::F64,
         scalar_operator_properties(admission.spatial),
     )?;
@@ -147,7 +153,13 @@ impl CommonScalarPlan {
         self.admission.linear.provider
     }
 
-    fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
+    pub(super) fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
+        if matches!(
+            self.admission.recognized_model(),
+            RecognizedNativeModel::ComplexScalar(_)
+        ) {
+            return self.reauthenticate_complex();
+        }
         if matches!(
             self.admission.recognized_model(),
             RecognizedNativeModel::Coordinates(_)
@@ -207,7 +219,6 @@ impl CommonScalarPlan {
         formulation_selection: Option<FormulationSelectionMode>,
         authored_formulation: Option<&AuthoredFormulationProjection>,
     ) -> Result<Self, Diagnostic> {
-        let model_reference = model.artifact_reference()?;
         let NativeMeshResources::Cartesian {
             mesh, production, ..
         } = admission.resources()
@@ -314,6 +325,32 @@ impl CommonScalarPlan {
             }
         };
         let portable = resolve_common_scalar_portable(&admission, lowered, mesh, &cells)?;
+        Self::finish_admission(
+            model,
+            admission,
+            cells,
+            fields,
+            portable,
+            formulation,
+            accepted_authored_formulation,
+        )
+    }
+
+    fn finish_admission(
+        model: &ModelEnvelope,
+        admission: NativeNumericalAdmission,
+        cells: Box<[usize]>,
+        fields: Box<
+            [(
+                eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+                eqiora_core::ValueType,
+            )],
+        >,
+        portable: PortableRealizationGraph,
+        formulation: Option<CommonFormulationDescription>,
+        accepted_authored_formulation: Option<AuthoredFormulationProjection>,
+    ) -> Result<Self, Diagnostic> {
+        let model_reference = model.artifact_reference()?;
         let realization_digest = hex_bytes(&portable.digest()?);
         let (digests, mut identity_bytes) =
             static_plan_identity_lineage(&admission, &realization_digest)?;

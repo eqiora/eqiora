@@ -364,6 +364,7 @@ pub(super) struct NativeNumericalAdmission {
 pub(super) enum RecognizedNativeModel {
     Coordinates(Box<super::coordinate_grid::CellEquations>),
     Scalar(Box<ExecutableScalarEquations<f64>>),
+    ComplexScalar(Box<ExecutableScalarEquations<num_complex::Complex64>>),
     Elasticity(Box<IsotropicElasticityContinuum<2>>),
     Stokes(Box<SteadyStokesGeometryBinding2d>),
     Transient(Box<TransientIncompressibleNavierStokesCartesianModel2d>),
@@ -432,7 +433,15 @@ impl RecognizedNativeAdmission {
         nonlinear: Option<NonlinearSolvePlan>,
     ) -> Result<NativeNumericalAdmission, Diagnostic> {
         self.recognized.require_spatial_realization(spatial)?;
-        require_policy_compatibility(spatial, &linear)?;
+        require_policy_compatibility(
+            spatial,
+            &linear,
+            if matches!(self.recognized, RecognizedNativeModel::ComplexScalar(_)) {
+                eqiora_core::ScalarDomain::Complex
+            } else {
+                eqiora_core::ScalarDomain::Real
+            },
+        )?;
         validate_resources(spatial, &self.resources)?;
         if matches!(spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
             let RecognizedNativeModel::Scalar(equations) = &self.recognized else {
@@ -462,7 +471,8 @@ impl RecognizedNativeModel {
             ) | (
                 Self::Scalar(_),
                 NativeSpatialPolicy::ScalarQ1 | NativeSpatialPolicy::ScalarTpfa(_)
-            ) | (Self::Elasticity(_), NativeSpatialPolicy::ElasticityQ1)
+            ) | (Self::ComplexScalar(_), NativeSpatialPolicy::ScalarQ1)
+                | (Self::Elasticity(_), NativeSpatialPolicy::ElasticityQ1)
                 | (Self::Stokes(_), NativeSpatialPolicy::StokesMiniP1(_))
                 | (
                     Self::Transient(_) | Self::TransientGeometry(_),

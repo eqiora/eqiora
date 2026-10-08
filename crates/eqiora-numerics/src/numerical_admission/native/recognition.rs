@@ -158,7 +158,7 @@ pub(crate) fn resource_artifact_digests(
 pub(crate) fn recognize_exact_model(
     program: &KernelProgram,
     resources: &NativeMeshResources,
-    scalar: Result<ExecutableScalarEquations<f64>, Diagnostic>,
+    scalar: Result<RecognizedNativeModel, Diagnostic>,
     transient: Result<TransientIncompressibleNavierStokesCartesianModel2d, Diagnostic>,
     transient_geometry: Result<(), Diagnostic>,
     fsi: Result<FixedReferenceFsiCartesianModel2d, Diagnostic>,
@@ -183,7 +183,7 @@ pub(crate) fn recognize_exact_model(
                 "scalar conservation realization requires authenticated Cartesian resources",
             ));
         }
-        return scalar.map(Box::new).map(RecognizedNativeModel::Scalar);
+        return scalar;
     }
     if elasticity.is_ok() {
         let NativeMeshResources::Cartesian {
@@ -301,7 +301,36 @@ pub(crate) fn recognize_exact_model(
 pub(crate) fn lower_scalar_candidate(
     program: &KernelProgram,
     resources: &NativeMeshResources,
-) -> Result<ExecutableScalarEquations<f64>, Diagnostic> {
+) -> Result<RecognizedNativeModel, Diagnostic> {
+    match lower_scalar_typed::<f64>(program, resources) {
+        Ok(equations) => Ok(RecognizedNativeModel::Scalar(Box::new(equations))),
+        Err(real) => {
+            let complex = lower_scalar_typed::<num_complex::Complex64>(program, resources)
+                .map_err(|complex| {
+                    invalid(format!(
+                        "scalar real admission [{}]; complex admission [{}]",
+                        real.message(),
+                        complex.message()
+                    ))
+                })?;
+            if complex
+                .fields()
+                .iter()
+                .any(|(_, ty)| ty.scalar_domain() != eqiora_core::ScalarDomain::Complex)
+            {
+                return Err(invalid(
+                    "complex spatial execution requires every unknown Field to have its exact complex scalar domain",
+                ));
+            }
+            Ok(RecognizedNativeModel::ComplexScalar(Box::new(complex)))
+        }
+    }
+}
+
+fn lower_scalar_typed<S: crate::spatial_expression::Coefficient>(
+    program: &KernelProgram,
+    resources: &NativeMeshResources,
+) -> Result<ExecutableScalarEquations<S>, Diagnostic> {
     let NativeMeshResources::Cartesian {
         geometry,
         mesh,
@@ -332,6 +361,7 @@ pub(crate) fn lower_scalar_candidate(
 pub(crate) fn require_policy_compatibility(
     spatial: NativeSpatialPolicy,
     linear: &NativeLinearPolicy,
+    scalar_domain: eqiora_core::ScalarDomain,
 ) -> Result<(), Diagnostic> {
     let properties = match spatial {
         NativeSpatialPolicy::ScalarQ1
@@ -351,10 +381,7 @@ pub(crate) fn require_policy_compatibility(
             "linear solver, preconditioner, reduction, or placement is unsupported",
         ));
     }
-    linear.capabilities.require_problem(
-        linear.solver,
-        eqiora_core::ScalarDomain::Real,
-        ScalarType::F64,
-        properties,
-    )
+    linear
+        .capabilities
+        .require_problem(linear.solver, scalar_domain, ScalarType::F64, properties)
 }
