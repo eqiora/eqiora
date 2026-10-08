@@ -7,6 +7,8 @@ use eqiora_sem::KernelProgram;
 
 use super::{DerivedScalarGalerkinForm, typed_relation};
 
+mod dimensions;
+
 pub(crate) fn admit(
     projection: &AuthoredFormulationProjection,
     program: &KernelProgram,
@@ -19,6 +21,12 @@ pub(crate) fn admit(
     let expected_domain = derived.domain.ulid().to_string();
     let expected_trial = derived.field.ulid().to_string();
     let typed = typed_relation(program, derived.volume_relation)?;
+    dimensions::check(projection, program, derived, &typed).ok_or_else(|| {
+        rejection_with(
+            projection,
+            "weak residual dimension differs from the strong-law test pairing",
+        )
+    })?;
     let dag = typed.expression();
     let test = AuthoredFormExpressionV1::Test {
         field_ulid: expected_trial,
