@@ -36,92 +36,8 @@ pub(super) fn describe_primal(
     }
 }
 
-pub(super) fn resolve_common_scalar_portable<S: crate::spatial_expression::Coefficient>(
-    admission: &NativeNumericalAdmission,
-    lowered: &ExecutableLinearEquations<S>,
-    mesh: &CartesianMeshEnvelopeV1,
-    cells: &[usize],
-) -> Result<PortableRealizationGraph, Diagnostic> {
-    let artifact = mesh.artifact_reference()?;
-    let nonzero = |count| NonZeroUsize::new(count).expect("validated Cartesian cells are non-zero");
-    let mesh = match cells {
-        [x] => MeshPolicy::SuppliedCartesian1d {
-            artifact,
-            cells: [nonzero(*x)],
-        },
-        [x, y] => MeshPolicy::SuppliedCartesian {
-            artifact,
-            cells: [nonzero(*x), nonzero(*y)],
-        },
-        [x, y, z] => MeshPolicy::SuppliedCartesian3d {
-            artifact,
-            cells: [nonzero(*x), nonzero(*y), nonzero(*z)],
-        },
-        _ => {
-            return Err(invalid(
-                "common scalar Plan requires one to three Cartesian axes",
-            ));
-        }
-    };
-    let (method, space, quadrature) = match admission.spatial {
-        NativeSpatialPolicy::LinearFiniteElement(space)
-            if space == Space::continuous_lagrange(std::num::NonZeroU16::MIN) =>
-        {
-            (
-                DiscretizationMethod::ContinuousGalerkin,
-                space,
-                QuadraturePolicy::GaussLegendre {
-                    points_per_axis: NonZeroUsize::new(2).expect("two is non-zero"),
-                },
-            )
-        }
-        NativeSpatialPolicy::ScalarTpfa(_) => (
-            DiscretizationMethod::CellCenteredFiniteVolume,
-            Space::cell_constant(),
-            QuadraturePolicy::CellCentroid,
-        ),
-        NativeSpatialPolicy::LinearFiniteElement(_)
-        | NativeSpatialPolicy::CoordinateCellConstant
-        | NativeSpatialPolicy::ElasticityQ1
-        | NativeSpatialPolicy::StokesMiniP1(_)
-        | NativeSpatialPolicy::TransientMiniP1(_)
-        | NativeSpatialPolicy::TransientCellCentered(_) => {
-            return Err(invalid(
-                "common scalar portable graph received a non-scalar spatial policy",
-            ));
-        }
-    };
-    let solver = admission.linear.solver;
-    admission.linear.capabilities.require_problem(
-        solver,
-        lowered
-            .fields()
-            .first()
-            .ok_or_else(|| invalid("scalar Plan has no unknown Fields"))?
-            .1
-            .scalar_domain(),
-        ScalarType::F64,
-        scalar_operator_properties(admission.spatial),
-    )?;
-    PortableRealizationGraph::linear_regions(
-        RealizationLineage::explicit(
-            admission.program().model(),
-            SemanticRevision::new(admission.program().revision().0),
-            RealizationRevision::new(COMMON_SCALAR_REALIZATION_REVISION),
-        ),
-        lowered.discretizations(space, admission.spatial.scalar_constraint())?,
-        lowered.quotients()?,
-        Discretization::new(method, mesh, quadrature),
-        scalar_operator_properties(admission.spatial),
-        ScalarType::F64,
-        VectorLayoutKind::Replicated,
-        solver,
-        Target::HostCpu {
-            threads: admission.linear.workers,
-        },
-        ExecutionSchedule::Offline,
-    )
-}
+mod portable;
+use portable::resolve_common_scalar_portable;
 
 type ObservableSupport = (Vec<[f64; 2]>, Option<(usize, BoundarySide)>);
 
@@ -178,11 +94,6 @@ impl CommonScalarPlan {
             );
         }
 
-        let NativeMeshResources::Cartesian { mesh, .. } = self.admission.resources() else {
-            return Err(invalid(
-                "common scalar Plan lost its exact Cartesian Mesh materialization",
-            ));
-        };
         let RecognizedNativeModel::Scalar(lowered) = self.admission.recognized_model() else {
             return Err(invalid(
                 "common scalar Plan lost its recognized mathematical materialization",
@@ -216,12 +127,7 @@ impl CommonScalarPlan {
         }
         require_portable_realization(
             &self.portable,
-            resolve_common_scalar_portable(
-                &self.admission,
-                lowered,
-                mesh,
-                &self.cartesian_cells()?,
-            )?,
+            resolve_common_scalar_portable(&self.admission, lowered)?,
         )
     }
 
@@ -231,12 +137,6 @@ impl CommonScalarPlan {
         formulation_selection: Option<FormulationSelectionMode>,
         authored_formulation: Option<&AuthoredFormulationProjection>,
     ) -> Result<Self, Diagnostic> {
-        let NativeMeshResources::Cartesian { mesh, .. } = admission.resources() else {
-            return Err(invalid(
-                "scalar Q1/TPFA common Plan requires an authenticated Cartesian Mesh",
-            ));
-        };
-        let cells = admission.resources().cartesian_cells()?;
         let RecognizedNativeModel::Scalar(lowered) = admission.recognized_model() else {
             return Err(invalid(
                 "common scalar Plan admitted non-scalar mathematics",
@@ -331,7 +231,7 @@ impl CommonScalarPlan {
                 },
             }
         };
-        let portable = resolve_common_scalar_portable(&admission, lowered, mesh, &cells)?;
+        let portable = resolve_common_scalar_portable(&admission, lowered)?;
         Self::finish_admission(
             model,
             admission,

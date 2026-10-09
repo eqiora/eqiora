@@ -100,6 +100,50 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
             })
             .collect::<Vec<_>>();
         assert_eq!(native_output.fields[0].2, expected_coordinates);
+        let plan = if complex {
+            CommonScalarPlan::from_complex_admission(
+                &model,
+                native.clone(),
+                FormulationSelectionMode::Automatic,
+                None,
+            )
+        } else {
+            CommonScalarPlan::from_admission(
+                &model,
+                native.clone(),
+                Some(FormulationSelectionMode::Automatic),
+                None,
+            )
+        }
+        .unwrap();
+        plan.reauthenticate_portable_realization().unwrap();
+        assert!(plan.cartesian_cells().is_err());
+        let graph = plan.portable_realization();
+        let replay = PortableRealizationGraph::from_bytes(&graph.to_bytes().unwrap()).unwrap();
+        assert_eq!(&replay, graph);
+        assert_eq!(replay.fields()[0].space(), space);
+        assert!(matches!(
+            replay.domains()[0].discretization().mesh(),
+            MeshPolicy::ImportedSimplicial { .. }
+        ));
+        assert_eq!(
+            replay.domains()[0].discretization().quadrature(),
+            QuadraturePolicy::SimplexDuffyGaussLegendre {
+                spatial_dimension: NonZeroUsize::new(3).unwrap(),
+                points_per_axis: NonZeroUsize::new(3).unwrap()
+            }
+        );
+        let planned = plan.run(&REFERENCE_LINEAR_SOLVER).unwrap();
+        assert_eq!(planned.fields, native_output.fields);
+        // Space drift must invalidate the retained graph before any execution.
+        let mut drifted_plan = plan.clone();
+        drifted_plan.admission.spatial = NativeSpatialPolicy::LinearFiniteElement(if face {
+            Space::tetrahedral_edge()
+        } else {
+            Space::tetrahedral_face()
+        });
+        assert!(drifted_plan.run(&REFERENCE_LINEAR_SOLVER).is_err());
+
         let other_space = if face {
             Space::tetrahedral_edge()
         } else {
