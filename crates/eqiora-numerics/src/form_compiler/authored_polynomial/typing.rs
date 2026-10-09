@@ -48,7 +48,9 @@ impl Context<'_> {
             Atom::FieldGradient(id, indices) => (id.as_str(), indices, true),
             Atom::Test(indices) | Atom::TraceTest(indices) => (self.field, indices, false),
             Atom::TestGradient(indices) => (self.field, indices, true),
-            Atom::Measure(_) | Atom::Coordinate(..) => return Some(Polynomial::atom(atom)),
+            Atom::Measure(_) | Atom::Normal(..) | Atom::Coordinate(..) => {
+                return Some(Polynomial::atom(atom));
+            }
         };
         let ty = self.symbols.get(symbol)?;
         if ty.array_rank() != 0
@@ -84,6 +86,14 @@ impl Context<'_> {
     pub(super) fn shape(&mut self, value: &E, depth: usize) -> Option<Vec<usize>> {
         self.step(depth)?;
         match value {
+            E::TangentialTrace { value } => {
+                self.tangential_definition(value, depth + 1)?;
+                Some(if self.dimensions == 2 {
+                    vec![]
+                } else {
+                    vec![3]
+                })
+            }
             E::Curl { .. } | E::Cross { .. } => {
                 let rule = self.oriented_definition(value, depth + 1)?.result_rule();
                 if rule.rank() == 0 {
@@ -223,4 +233,21 @@ impl Context<'_> {
             _ => None,
         }
     }
+}
+
+pub(super) fn domain_supports(
+    program: &KernelProgram,
+) -> BTreeMap<String, eqiora_schema::kernel::typing::SpatialSupport<eqiora_core::RawId>> {
+    program
+        .nodes()
+        .filter_map(|node| {
+            let KernelNode::Domain(domain) = node else {
+                return None;
+            };
+            Some((
+                domain.id().ulid().to_string(),
+                program.spatial_support(domain.id())?.clone(),
+            ))
+        })
+        .collect()
 }

@@ -217,12 +217,21 @@ Focused tests compare 2D/3D curl-energy first and second variations against
 independently expanded antisymmetric gradient pairs, and complex cross pairings
 against signed component rows with explicit conjugation.
 
+Boundary-term component comparison also expands direct-field `tangential_trace`
+through the shared tangential lift used by Model `normal`. Each formal outward-normal
+component carries its exact boundary identity. The active integral must select a
+boundary of the trial's volume; a foreign parent, volume measure, missing boundary
+scope, or a typed Model normal from another boundary rejects before cancellation.
+Independent 2D/3D real and complex component tests check the signed rows and explicit
+conjugation. This is a local boundary-term comparison, not a curl integration-by-parts
+certificate or an executable vector boundary condition.
+
 For a planar scalar field, `dot(curl(eta),curl(u))` equals
 `dot(grad(eta),grad(u))`. This pairing reaches the existing scalar Q1 Poisson
 correspondence, Plan, solve, and Result replay. The unit-square test with four
 cells, unit source, and zero essential conditions has the independently derived
 central value `3/32`. This scalar realization does not provide vector curl-curl
-admission, tangential-trace correspondence, curl integration-by-parts boundary
+admission, curl integration-by-parts boundary
 discharge, or compatible edge elements.
 
 For twice continuously differentiable fields in a fixed Cartesian frame,
