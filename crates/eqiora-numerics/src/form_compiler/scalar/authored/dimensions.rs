@@ -104,7 +104,7 @@ impl Context<'_> {
             | E::Component { value, .. }
             | E::SymmetricPart { value }
             | E::Variation { value, .. } => self.expression(value, depth + 1),
-            E::Gradient { value } | E::Divergence { value } => {
+            E::Gradient { value } | E::Divergence { value } | E::Curl { value } => {
                 self.expression(value, depth + 1)?.div(length())
             }
             E::Add { left, right } | E::Sub { left, right } => {

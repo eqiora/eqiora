@@ -8,10 +8,12 @@ use std::collections::BTreeMap;
 
 mod coefficients;
 mod finite;
+mod oriented;
+mod pure;
 mod source;
 mod typing;
 use coefficients::Polynomial;
-use typing::symbol_types;
+use typing::{field_supports, symbol_types};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Atom {
@@ -45,6 +47,7 @@ pub(super) fn matches_weak_residual(
         dimensions,
         remaining: 65536,
         symbols: symbol_types(program),
+        supports: field_supports(program),
     };
     let compare = || -> Option<bool> {
         let mut project = |value| {
@@ -98,6 +101,7 @@ pub(super) fn matches_elastic_variation(
         dimensions: 2,
         remaining: 65536,
         symbols: symbol_types(program),
+        supports: field_supports(program),
     };
     let mut compare = || -> Option<bool> {
         let actual = context
@@ -153,6 +157,7 @@ struct Context<'a> {
     dimensions: usize,
     remaining: usize,
     symbols: BTreeMap<String, ValueType>,
+    supports: BTreeMap<String, eqiora_schema::kernel::typing::SpatialSupport<eqiora_core::RawId>>,
 }
 impl Context<'_> {
     fn integral(&mut self, value: &E) -> Option<Polynomial> {
@@ -229,6 +234,7 @@ impl Context<'_> {
     fn scalar(&mut self, value: &E, depth: usize) -> Option<Polynomial> {
         self.step(depth)?;
         Some(match value {
+            E::Curl { .. } => self.oriented_component(value, &[], depth + 1)?,
             E::Number { value } => Polynomial::constant(number(*value)?),
             E::Rational {
                 numerator,
@@ -323,6 +329,7 @@ impl Context<'_> {
     fn vector(&mut self, value: &E, axis: usize, depth: usize) -> Option<Polynomial> {
         self.step(depth)?;
         match value {
+            E::Curl { .. } | E::Cross { .. } => self.oriented_component(value, &[axis], depth + 1),
             E::Apply { left, right } => self.apply(left, right, axis, depth + 1),
             E::Trace { value } => self.trace(value, vec![axis]),
             E::Field { ulid } => self.atom(Atom::Field(ulid.clone(), vec![axis])),
