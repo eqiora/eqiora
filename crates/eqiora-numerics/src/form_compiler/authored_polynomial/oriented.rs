@@ -34,7 +34,7 @@ impl Context<'_> {
 
     // The coefficient ring forgets frames and supports. This local profile
     // admits operands on the trial's exact volume, before any cancellation.
-    fn physical_shape(&mut self, value: &E, depth: usize) -> Option<Vec<usize>> {
+    pub(super) fn physical_shape(&mut self, value: &E, depth: usize) -> Option<Vec<usize>> {
         self.step(depth)?;
         let shape = self.shape(value, depth + 1)?;
         match value {

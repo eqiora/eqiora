@@ -23,6 +23,8 @@ fn integral_sums_keep_exact_measures_and_traces() {
         dimensions: 2,
         remaining: 65536,
         supports: BTreeMap::new(),
+        domains: BTreeMap::new(),
+        integration_domain: None,
         symbols: BTreeMap::from([(
             "u".into(),
             eqiora_core::ValueType::scalar(
@@ -100,6 +102,8 @@ fn scalar_context(domain: eqiora_core::ScalarDomain) -> Context<'static> {
         dimensions: 2,
         remaining: 65536,
         supports: BTreeMap::new(),
+        domains: BTreeMap::new(),
+        integration_domain: None,
         symbols: ["u", "q"]
             .into_iter()
             .map(|name| {
@@ -260,6 +264,8 @@ fn live_strong_expression_and_authored_projection_keep_symbolic_complex_phase() 
         dimensions: 1,
         remaining: 65536,
         supports: field_supports(&program),
+        domains: domain_supports(&program),
+        integration_domain: None,
         symbols: symbol_types(&program),
     };
     let actual = context
@@ -316,6 +322,8 @@ public component Wave() {
         dimensions: 0,
         remaining: 65536,
         supports: field_supports(&program),
+        domains: domain_supports(&program),
+        integration_domain: None,
         symbols: symbol_types(&program),
     };
     let (_, left, right) = &projection.equations()[0];

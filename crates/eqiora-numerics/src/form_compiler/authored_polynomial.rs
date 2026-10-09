@@ -6,6 +6,7 @@ use eqiora_schema::kernel::pure_operator::ExactRational;
 use eqiora_sem::KernelProgram;
 use std::collections::BTreeMap;
 
+mod boundary;
 mod coefficients;
 mod finite;
 mod oriented;
@@ -13,11 +14,12 @@ mod pure;
 mod source;
 mod typing;
 use coefficients::Polynomial;
-use typing::{field_supports, symbol_types};
+use typing::{domain_supports, field_supports, symbol_types};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Atom {
     Measure(String),
+    Normal(String, usize),
     TraceField(String, Vec<usize>),
     TraceTest(Vec<usize>),
     Field(String, Vec<usize>),
@@ -48,6 +50,8 @@ pub(super) fn matches_weak_residual(
         remaining: 65536,
         symbols: symbol_types(program),
         supports: field_supports(program),
+        domains: domain_supports(program),
+        integration_domain: None,
     };
     let compare = || -> Option<bool> {
         let mut project = |value| {
@@ -102,6 +106,8 @@ pub(super) fn matches_elastic_variation(
         remaining: 65536,
         symbols: symbol_types(program),
         supports: field_supports(program),
+        domains: domain_supports(program),
+        integration_domain: None,
     };
     let mut compare = || -> Option<bool> {
         let actual = context
@@ -152,6 +158,8 @@ pub(super) fn matches_elastic_variation(
 }
 
 struct Context<'a> {
+    domains: BTreeMap<String, eqiora_schema::kernel::typing::SpatialSupport<eqiora_core::RawId>>,
+    integration_domain: Option<String>,
     name: &'a str,
     field: &'a str,
     dimensions: usize,
@@ -177,10 +185,17 @@ impl Context<'_> {
             E::Integrate {
                 domain_ulid,
                 integrand,
-            } => self
-                .scalar(integrand, depth + 1)?
-                .checked_mul(&Polynomial::atom(Atom::Measure(domain_ulid.clone())))
-                .ok(),
+            } => {
+                if self.integration_domain.is_some() {
+                    return None;
+                }
+                self.integration_domain = Some(domain_ulid.clone());
+                let value = self.scalar(integrand, depth + 1);
+                self.integration_domain = None;
+                value?
+                    .checked_mul(&Polynomial::atom(Atom::Measure(domain_ulid.clone())))
+                    .ok()
+            }
             E::Add { left, right } => self
                 .integral_at(left, depth + 1, allow_variation)?
                 .checked_add(&self.integral_at(right, depth + 1, allow_variation)?)
@@ -234,6 +249,7 @@ impl Context<'_> {
     fn scalar(&mut self, value: &E, depth: usize) -> Option<Polynomial> {
         self.step(depth)?;
         Some(match value {
+            E::TangentialTrace { value } => self.tangential_component(value, &[], depth + 1)?,
             E::Curl { .. } => self.oriented_component(value, &[], depth + 1)?,
             E::Number { value } => Polynomial::constant(number(*value)?),
             E::Rational {
@@ -329,6 +345,7 @@ impl Context<'_> {
     fn vector(&mut self, value: &E, axis: usize, depth: usize) -> Option<Polynomial> {
         self.step(depth)?;
         match value {
+            E::TangentialTrace { value } => self.tangential_component(value, &[axis], depth + 1),
             E::Curl { .. } | E::Cross { .. } => self.oriented_component(value, &[axis], depth + 1),
             E::Apply { left, right } => self.apply(left, right, axis, depth + 1),
             E::Trace { value } => self.trace(value, vec![axis]),

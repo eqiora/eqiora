@@ -26,6 +26,15 @@ impl Context<'_> {
             return None;
         }
         Some(match typed.expression().node(id)? {
+            ExprNode::NormalComponent(value) => {
+                self.source_normal(typed, id, *value, coordinate, depth + 1)?
+            }
+            ExprNode::Trace(value) => {
+                let boundary = self.boundary()?;
+                (typed.node_type(id)?.support.as_ref() == self.domains.get(&boundary))
+                    .then_some(())?;
+                self.source_restricted(typed, *value, coordinate, depth + 1)?
+            }
             ExprNode::Constant(value) => {
                 let flat = coordinate
                     .iter()

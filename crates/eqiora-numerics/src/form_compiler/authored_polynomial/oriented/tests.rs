@@ -250,6 +250,8 @@ fn nominal_three_coordinates_cannot_cancel_inside_a_physical_cross_product() {
         dimensions: 3,
         remaining: 65536,
         supports: field_supports(&program),
+        domains: domain_supports(&program),
+        integration_domain: None,
         symbols: symbol_types(&program),
     };
     assert!(context.vector(&forged, 0, 0).is_none());
@@ -295,6 +297,8 @@ fn foreign_volume_operands_cannot_disappear_through_cross_cancellation() {
         remaining: 65536,
         symbols: symbol_types(&program),
         supports: field_supports(&program),
+        domains: domain_supports(&program),
+        integration_domain: None,
     };
     let zero = Polynomial::constant(ExactRational::integer(0));
     for axis in 0..3 {
