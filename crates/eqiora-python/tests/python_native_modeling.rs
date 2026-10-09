@@ -181,7 +181,7 @@ spatial_model = eqiora.compile(source=eqiora.Module(
     eqiora.Relation(
         "upper_value",
         domain=upper_end,
-        equations=[(eqiora.trace(potential), 0)],
+        equations=[(eqiora.trace(potential, on=upper_end, from_=interval), 0)],
     ),
     eqiora.Relation(
         "balance",
@@ -472,6 +472,24 @@ rejected_model = eqiora.compile(source=eqiora.Module("foreign_parent", included,
             "EQ0603",
             &["foreign_parent", "lower"],
             Some("foreign or omitted parent Domain"),
+        )?;
+
+        assert_rejected_without_model(
+            py,
+            module,
+            c_str!(
+                r#"
+body = eqiora.Domain.box("body", (0.0, 1.0))
+face = body.boundary("face", axis=0, side=eqiora.BoundarySide.Lower)
+foreign = body.boundary("face", axis=0, side=eqiora.BoundarySide.Lower)
+u = eqiora.Field("u", role=eqiora.FieldRole.Variable, domain=body)
+law = eqiora.Relation("surface", domain=face, equations=[(eqiora.trace(u, on=foreign, from_=body), 0)])
+rejected_model = eqiora.compile(source=eqiora.Module("foreign_trace_target", body, face, u, law))
+"#
+            ),
+            "EQ0603",
+            &["foreign_trace_target", "surface"],
+            Some("foreign or omitted Domain"),
         )?;
 
         assert_rejected_without_model(

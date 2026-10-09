@@ -203,6 +203,9 @@ Relation's boundary scope. An explicit `on` also permits a trace in a `let`
 outside a Relation, but consuming it in an equation still requires the same
 boundary support. The retained trace/normal node carries the target identity.
 These selectors do not introduce physical interfaces, continuity or flux balance.
+Python `eqiora.lang` uses `on=wall, from_=body` with exact Support handles;
+native `eqiora.trace` accepts the corresponding Domain handles. Foreign owners
+or same-named replacement handles do not select the declared support.
 
 Authored weak forms retain `curl`, `cross`, `normal`, and `tangential_trace` as typed
 operators. Trace, normal and tangential trace accept the same exact `on`/`from`
