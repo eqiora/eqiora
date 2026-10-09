@@ -5,6 +5,29 @@ import eqiora
 import pytest
 
 
+@pytest.mark.parametrize("complex_values", [False, True])
+def test_hcurl_test_declaration_survives_python_source_compilation(complex_values):
+    q = eqiora.lang
+    module = eqiora.Module("main")
+    owner = module.component("CurlForm")
+    body = owner.volume("body", dimensions=3)
+    scalar = eqiora.ValueType.complex() if complex_values else eqiora.ValueType.real()
+    u = owner.field("u", role=eqiora.FieldRole.Variable,
+                    value_type=eqiora.ValueType.vector(scalar, 3), on=body)
+    law = owner.relation("law", q.equation(q.curl(q.curl(u)), 0), on=body)
+    v = owner.test("v", for_=u, regularity="hcurl")
+    pair = q.inner if complex_values else q.dot
+    owner.weak_form("weak", [law], equations=[(q.integrate(body, pair(q.curl(v), q.curl(u))), 0)])
+    source = module.to_eqi() + (
+        "\nmodel M() { domain body=box(0,1,0,1,0,1); "
+        "instance form:CurlForm(body=body); }"
+    )
+    model = eqiora.compile(source=source, entry="M")
+    assert model.authored_formulations[0].test_restrictions[0][4] == "hcurl"
+    with pytest.raises(eqiora.EqioraError, match="declared regularity"):
+        eqiora.compile(source=source.replace("in hcurl", "in l2"), entry="M")
+
+
 @pytest.mark.parametrize("dimensions", [2, 3])
 @pytest.mark.parametrize("complex_values", [False, True])
 def test_curl_and_tangential_trace_retain_exact_support(dimensions, complex_values, tmp_path):

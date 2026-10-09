@@ -5,7 +5,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 
 // Python tuple projection of the compiler-owned test inspection.
-type AuthoredTestRestriction = (String, String, Vec<String>, [(i32, i32); 7]);
+type AuthoredTestRestriction = (String, String, Vec<String>, [(i32, i32); 7], Option<String>);
 
 /// Immutable inspection of one fresh-compile authored mathematical form.
 #[pyclass(

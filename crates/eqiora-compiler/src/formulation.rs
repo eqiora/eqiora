@@ -298,13 +298,15 @@ pub(crate) fn compile_formulations(
         .collect()
 }
 
+type WeakTestDeclaration = (String, String, Vec<String>, Expr, Option<String>);
+
 #[allow(clippy::too_many_arguments)]
 fn compile_weak(
     file: &str,
     name: &str,
     relation_names: &[String],
     equations: &[(Expr, Expr)],
-    tests: &[(String, String, Vec<String>, Expr)],
+    tests: &[WeakTestDeclaration],
     range: TextRange,
     source_identity: AuthoredFormSourceIdentity,
     symbols: &ModelSymbols,
@@ -375,7 +377,7 @@ fn compile_weak(
     let mut named_tests = BTreeMap::new();
     let mut restrictions = Vec::new();
     let mut trials = Vec::new();
-    for (test, trial, boundaries, dimension) in tests {
+    for (test, trial, boundaries, dimension, regularity) in tests {
         let dimension = crate::dimensions::lower_dimension(file, dimension)?;
         let declaration_suffix = format!(".{test}");
         if index.coefficients.contains_key(test)
@@ -396,6 +398,27 @@ fn compile_weak(
         let trial = resolve_symbol(file, range, trial, symbols)?
             .downcast::<kinds::Field>()
             .ok_or_else(|| error(file, range, "test trial is not a Field"))?;
+        if matches!(regularity.as_deref(), Some("hcurl" | "hdiv")) {
+            let Some(KernelNode::Field(field)) = index.nodes.get(&trial.erase()).copied() else {
+                return Err(error(file, range, "test trial is not a live Field"));
+            };
+            let value_type = field.value_type();
+            if value_type.array_rank() != 0
+                || value_type.frame() != ValueFrame::SpatialCartesian
+                || !value_type
+                    .shape()
+                    .extents()
+                    .iter()
+                    .map(|extent| extent.get() as usize)
+                    .eq([ambient_dimension])
+            {
+                return Err(error(
+                    file,
+                    range,
+                    "hcurl and hdiv tests require a physical vector in the exact ambient dimension",
+                ));
+            }
+        }
         let zero_on = match domain {
             Some(domain) => restriction::resolve(
                 file,
@@ -419,6 +442,17 @@ fn compile_weak(
             trial.ulid().to_string(),
             zero_on,
             dimension.exponents(),
+            match (domain, regularity.as_deref()) {
+                (Some(_), name) => Some(name.unwrap_or("h1").to_owned()),
+                (None, None) => None,
+                (None, Some(_)) => {
+                    return Err(error(
+                        file,
+                        range,
+                        "global weak tests cannot declare spatial regularity",
+                    ));
+                }
+            },
         ));
         if !trials.contains(&trial) {
             trials.push(trial);

@@ -45,10 +45,16 @@ impl PrimalGalerkinCorrespondence {
         if authored.test_restrictions()[0].3 != test_dimension.exponents() {
             return Err("test dimension differs from the admitted direction");
         }
+        let regularity = authored.test_restrictions()[0].4.as_deref();
+        if regularity != Some("h1")
+            && !(self.formulation.test_regularity == "hcurl" && regularity == Some("hcurl"))
+        {
+            return Err("test regularity differs from the admitted derivative and trace profile");
+        }
         if authored
             .test_restrictions()
             .first()
-            .map(|(_, _, bounds, _)| bounds.as_slice())
+            .map(|(_, _, bounds, _, _)| bounds.as_slice())
             != Some(boundaries.as_slice())
         {
             return Err("test zero_on restriction differs from the essential boundary inventory");
@@ -112,6 +118,17 @@ impl PrimalGalerkinCorrespondence {
         }
         expected_rules.push(FormulationRule::SourcePairing);
         if self.formulation.conjugate_test != source.conjugate_test
+            || self.formulation.test_regularity
+                != if matches!(source.diffusion_rule, DiffusionRule::VectorCurlCurl)
+                    && source
+                        .boundaries
+                        .iter()
+                        .all(|boundary| boundary.discharge == BoundaryDischarge::ZeroFlux)
+                {
+                    "hcurl"
+                } else {
+                    "h1"
+                }
             || self.formulation.direction != DirectionalProof::StrongImpliesWeak
             || self.formulation.assumptions
                 != eqiora_compiler::AuthoredFormulationProjection::required_assumptions()

@@ -32,7 +32,7 @@ pub(in crate::form_compiler) fn check_pairing(
     boundaries: &[RawId],
     typed: &TypedResidual<RawId>,
 ) -> Option<()> {
-    let [(name, field, _, units)] = projection.test_restrictions() else {
+    let [(name, field, _, units, _)] = projection.test_restrictions() else {
         return None;
     };
     let [(_, left, right)] = projection.equations() else {

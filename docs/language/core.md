@@ -243,7 +243,7 @@ constructs, not arbitrary attributes.
 | `clock` | `periodic` for a requirement | No | No | Signature requirement or concrete `= periodic(...)` in an owning scope |
 | `support` | Required support contract | No | No | Signature requirement or exact derived product/boundary in a body |
 | `observable` | Required | Optional assertion | Optional assertion | Derived `= expression`; no solve unknown |
-| `test` | Required | Inferred from trial field | Inferred from trial field | `for field`, with an optional `zero_on` boundary restriction |
+| `test` | Required | Inferred from trial field | Inferred from trial field | `for field`, optional `in h1/hcurl/hdiv/l2`, and an optional `zero_on` boundary restriction |
 | `property` requirement | Required exact contract reference | No | No | Signature requirement bound to an exact release |
 | `coordinate` | Required coordinate dimension | Required | No | `from` exact coordinate factor; no initializer |
 | `space` | None | No | No | `= orthonormal(...)` or `= product(...)` |

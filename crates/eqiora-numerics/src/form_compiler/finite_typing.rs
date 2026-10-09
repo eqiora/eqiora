@@ -15,7 +15,7 @@ pub(super) fn check(
     mode: Id<kinds::Field>,
     residual: &ValueType,
 ) -> Option<()> {
-    let [(_, _, _, test_dimension)] = projection.test_restrictions() else {
+    let [(_, _, _, test_dimension, _)] = projection.test_restrictions() else {
         return None;
     };
     let [(_, left, right)] = projection.equations() else {

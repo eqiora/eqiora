@@ -17,7 +17,7 @@ pub(crate) fn admit_authored_finite_weak_form(
     };
     let mode_id = mode.ulid().to_string();
     let relation_id = relation.ulid().to_string();
-    let [(_, trial, boundaries, _)] = projection.test_restrictions() else {
+    let [(_, trial, boundaries, _, _)] = projection.test_restrictions() else {
         return Err(reject());
     };
     let [(equation, _, _)] = projection.equations() else {

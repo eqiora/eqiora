@@ -1971,14 +1971,14 @@ class Component:
     def test(self, name: str, *, for_: Expression, dimension: Dimension | None = None,
              regularity: str | None = None,
              zero_on: Support | BoundarySelectionSet | None = None) -> Expression:
-        """Declare a test for an exact trial and an optional homogeneous boundary restriction."""
+        """Declare a test, optional continuum regularity, and full zero-trace restriction."""
         self._source._ensure_open()
         if self._formulation is not None:
             raise ModuleError("test declarations must precede their owning weak form")
         test_type = ValueType.real(dimension)
         if not isinstance(for_, _Field) or for_._owner is not self._component_token:
             raise ModuleError("test trial must be a Field from this Component")
-        if regularity is not None and regularity not in {"h1", "hcurl", "hdiv", "l2"}:
+        if regularity is not None and (not isinstance(regularity, str) or regularity not in {"h1", "hcurl", "hdiv", "l2"}):
             raise ModuleError("test regularity must be one of: h1, hcurl, hdiv, l2")
         if len(self._test_restrictions) >= 8:
             raise ModuleError("weak form exceeds the 8-test limit")
