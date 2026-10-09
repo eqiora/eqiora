@@ -118,7 +118,7 @@ pub(super) fn recognize_volume(
 
 /// Classify local values without evaluating coefficients or sampling the trial.
 /// The memoized postorder traversal visits each source node at most once.
-fn value_degree(
+pub(in crate::form_compiler) fn value_degree(
     dag: &ExprDag,
     root: ExprId,
     field: RawId,

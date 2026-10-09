@@ -9,7 +9,7 @@ use eqiora_schema::kernel::{ExprDag, SymbolRef};
 /// This is directional mathematical inspection, not authored mixed execution or stability.
 /// # Errors
 /// Rejects any unsupported source, stale or incomplete inventory, or unmatched authored term.
-pub fn check_authored_mixed_formulation(
+pub(crate) fn check_authored_mixed_formulation(
     program: &KernelProgram,
     form: &AuthoredFormulationProjection,
 ) -> Result<(), Diagnostic> {

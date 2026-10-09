@@ -35,6 +35,7 @@ mod discrete_space;
 mod elliptic;
 mod finalized_spatial;
 mod form_compiler;
+pub use form_compiler::check_authored_spatial_formulation;
 mod interleaved_dofs;
 mod jacobian_audit;
 mod linearized_output;
@@ -44,7 +45,6 @@ mod region_assembly;
 pub use canonical_stokes::{
     IncompressibleScalingReceipt2d, IncompressibleScalingRequest2d, ScalingAuthority2d,
     ScalingComponent2d, ScalingComponentRecord2d, ScalingMode2d, ScalingRule2d,
-    check_authored_mixed_formulation,
 };
 pub use common_ode::{
     CommonOdePlan, CommonOdePolicy, CommonOdeRunRequest, CommonOdeState, CommonTimeTolerance,

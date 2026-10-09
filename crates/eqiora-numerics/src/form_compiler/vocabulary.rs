@@ -78,6 +78,7 @@ pub(super) enum FormulationRule {
     ValuePairing,
     DivergenceByParts,
     PlanarScalarCurlCurlByParts,
+    VectorCurlCurlByParts,
     ZeroTestTraceDischarge,
     TraceOrZeroFluxDischarge,
     TraceOrPrescribedFlux,
@@ -91,6 +92,7 @@ impl FormulationRule {
             Self::ConjugatedTestPairing => CONJUGATED_TEST_PAIRING,
             Self::ValuePairing => VALUE_PAIRING,
             Self::DivergenceByParts => DIVERGENCE_BY_PARTS,
+            Self::VectorCurlCurlByParts => "fem.derive.v1.vector-curl-curl-by-parts",
             Self::PlanarScalarCurlCurlByParts => "fem.derive.v1.planar-scalar-curl-curl-by-parts",
             Self::ZeroTestTraceDischarge => ZERO_TEST_TRACE_DISCHARGE,
             Self::TraceOrZeroFluxDischarge => "fem.derive.v1.boundary-discharge.trace-or-zero-flux",
@@ -169,11 +171,13 @@ pub(super) struct PrimalValueTerm {
 pub(super) enum DiffusionRule {
     Divergence,
     PlanarScalarCurlCurl,
+    VectorCurlCurl,
 }
 impl DiffusionRule {
     pub(super) const fn formulation_rule(self) -> FormulationRule {
         match self {
             Self::Divergence => FormulationRule::DivergenceByParts,
+            Self::VectorCurlCurl => FormulationRule::VectorCurlCurlByParts,
             Self::PlanarScalarCurlCurl => FormulationRule::PlanarScalarCurlCurlByParts,
         }
     }

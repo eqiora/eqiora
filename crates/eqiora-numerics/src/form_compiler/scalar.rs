@@ -22,8 +22,8 @@ use crate::form_compiler::vocabulary::{
     PrimalValueTerm,
 };
 
-mod authored;
-mod recognition;
+pub(super) mod authored;
+pub(super) mod recognition;
 #[cfg(test)]
 use crate::form_compiler::{
     DIVERGENCE_BY_PARTS, MatrixSlot, SOURCE_PAIRING, TEST_PAIRING, WeakSign, WeakTermSlot,
