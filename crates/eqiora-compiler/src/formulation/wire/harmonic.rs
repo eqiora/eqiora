@@ -14,7 +14,7 @@ pub(super) const ASSUMPTIONS: &[&str] = &[
 /// source compilation checks any explicit amplitude type or support assertion.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct HarmonicFormulationRequest {
+pub(in crate::formulation) struct HarmonicFormulationRequest {
     convention: String,
     normalization: String,
     angular_frequency: AuthoredFormExpressionV1,
@@ -39,31 +39,6 @@ impl HarmonicFormulationRequest {
             amplitudes,
         }
     }
-    /// Exact original Relations, including every transformed source and boundary.
-    pub fn relations(&self) -> &[String] {
-        &self.relations
-    }
-    /// Ordered amplitude names and exact original Field identities.
-    pub fn amplitudes(&self) -> &[(String, String)] {
-        &self.amplitudes
-    }
-    /// Exact original signal input Port identities and their peak amplitude expressions.
-    pub fn excitations(&self) -> &[(String, AuthoredFormExpressionV1)] {
-        &self.excitations
-    }
-    /// Positive real angular frequency; physical units alone do not imply this role.
-    pub fn angular_frequency(&self) -> &AuthoredFormExpressionV1 {
-        &self.angular_frequency
-    }
-    /// The retained phase convention, never inferred from a backend.
-    pub fn convention(&self) -> &str {
-        &self.convention
-    }
-    /// The retained amplitude normalization.
-    pub fn normalization(&self) -> &str {
-        &self.normalization
-    }
-
     pub(super) fn validate(&self, form: &WireForm) -> Result<(), Diagnostic> {
         if self.convention != "negative-exponential"
             || self.normalization != "peak"
@@ -162,8 +137,37 @@ impl AuthoredFormulationProjection {
             &serde_json::to_vec(&wire).map_err(|_| rejection("nonfinite harmonic request"))?,
         )
     }
-    /// Retained harmonic candidate. Decoding alone never proves its LTI assumptions.
-    pub fn harmonic_request(&self) -> Option<&HarmonicFormulationRequest> {
+    /// Harmonic angular-frequency expression. Decoding never proves its LTI assumptions.
+    pub fn harmonic_angular_frequency(&self) -> Option<&AuthoredFormExpressionV1> {
+        self.harmonic_request()
+            .map(|request| &request.angular_frequency)
+    }
+    /// Original Relations, including every transformed source and boundary.
+    pub fn harmonic_relations(&self) -> Option<&[String]> {
+        self.harmonic_request()
+            .map(|request| request.relations.as_slice())
+    }
+    /// Ordered harmonic amplitude names and exact original Field identities.
+    pub fn harmonic_amplitudes(&self) -> Option<&[(String, String)]> {
+        self.harmonic_request()
+            .map(|request| request.amplitudes.as_slice())
+    }
+    /// Original signal input Port identities and their peak amplitude expressions.
+    pub fn harmonic_excitations(&self) -> Option<&[(String, AuthoredFormExpressionV1)]> {
+        self.harmonic_request()
+            .map(|request| request.excitations.as_slice())
+    }
+    /// Retained harmonic phase convention, never inferred from a backend.
+    pub fn harmonic_convention(&self) -> Option<&str> {
+        self.harmonic_request()
+            .map(|request| request.convention.as_str())
+    }
+    /// Retained harmonic amplitude normalization.
+    pub fn harmonic_normalization(&self) -> Option<&str> {
+        self.harmonic_request()
+            .map(|request| request.normalization.as_str())
+    }
+    fn harmonic_request(&self) -> Option<&HarmonicFormulationRequest> {
         match &self.wire.binding {
             WireBinding::Harmonic { request } => Some(request),
             _ => None,

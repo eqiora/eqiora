@@ -39,7 +39,7 @@ mod value_types;
 
 pub use formulation::{
     AuthoredFormExpressionV1, AuthoredFormulationProjection, CompiledAuthoredFormulation,
-    HarmonicFormulationRequest, check_derived_interval_conservation,
+    check_derived_interval_conservation,
 };
 pub use lower::{CompiledModel, ModelSymbols, lower_module};
 pub use notation::{ModelNotation, QuantityIdentity, QuantityRole, ResolvedNotation};

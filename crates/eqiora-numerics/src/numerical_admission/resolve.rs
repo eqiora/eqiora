@@ -21,7 +21,9 @@ impl ResolvedCommonPlan {
         authored_formulation: Option<&AuthoredFormulationProjection>,
     ) -> Result<ResolvedCommonPlan, Diagnostic> {
         let method = method.into();
-        if let Some(form) = authored_formulation.filter(|form| form.harmonic_request().is_some()) {
+        if let Some(form) =
+            authored_formulation.filter(|form| form.harmonic_angular_frequency().is_some())
+        {
             if !matches!(
                 method,
                 CommonMethodRequest::Uniform(CommonSpatialPolicy::Q1)

@@ -32,9 +32,8 @@ mod variation;
 mod wire;
 
 pub use interval::check_derived_interval_conservation;
-pub use wire::{
-    AuthoredFormExpressionV1, AuthoredFormulationProjection, HarmonicFormulationRequest,
-};
+use wire::HarmonicFormulationRequest;
+pub use wire::{AuthoredFormExpressionV1, AuthoredFormulationProjection};
 
 /// One typed expression in an authored Formulation.
 #[derive(Debug, Clone, PartialEq)]

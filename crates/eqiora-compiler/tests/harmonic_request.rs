@@ -48,14 +48,18 @@ fn harmonic_request_retains_the_original_unknowns_and_initial_condition() {
 fn harmonic_request_owns_frequency_excitation_and_amplitude_mappings() {
     let model = CompiledModel::compile_selected("rc.eqi", source(), "RC", &[]).unwrap();
     let form = model.authored_formulations().next().unwrap();
-    let request = form.projection().harmonic_request().unwrap();
-    assert_eq!(request.convention(), "negative-exponential");
-    assert_eq!(request.normalization(), "peak");
-    assert_eq!(request.relations().len(), 1);
-    assert_eq!(request.excitations().len(), 1);
+    let request = form.projection();
+    assert_eq!(
+        request.harmonic_convention().unwrap(),
+        "negative-exponential"
+    );
+    assert_eq!(request.harmonic_normalization().unwrap(), "peak");
+    assert_eq!(request.harmonic_relations().unwrap().len(), 1);
+    assert_eq!(request.harmonic_excitations().unwrap().len(), 1);
     assert_eq!(
         request
-            .amplitudes()
+            .harmonic_amplitudes()
+            .unwrap()
             .iter()
             .map(|(name, _)| name.as_str())
             .collect::<Vec<_>>(),
@@ -120,7 +124,7 @@ fn harmonic_request_accepts_inline_dimensioned_frequency_and_excitation() {
             .next()
             .unwrap()
             .projection()
-            .harmonic_request()
+            .harmonic_angular_frequency()
             .is_some()
     );
 }

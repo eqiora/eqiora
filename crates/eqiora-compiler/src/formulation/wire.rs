@@ -9,7 +9,7 @@ use super::{AuthoredFormExpression, AuthoredFormExpressionKind};
 const SCHEMA: &str = "eqiora.authored-form/v12";
 
 mod harmonic;
-pub use harmonic::HarmonicFormulationRequest;
+pub(in crate::formulation) use harmonic::HarmonicFormulationRequest;
 const GLOBAL_WEAK_ASSUMPTIONS: &[&str] = &[
     "finite-dimensional-test-space",
     "nondegenerate-inner-product",

@@ -47,7 +47,7 @@ impl CommonAlgebraicPlan {
         authored: Option<&eqiora_compiler::AuthoredFormulationProjection>,
         backend: &dyn LinearSolverBackend,
     ) -> Result<Self, Diagnostic> {
-        if let Some(form) = authored.filter(|form| form.harmonic_request().is_some()) {
+        if let Some(form) = authored.filter(|form| form.harmonic_angular_frequency().is_some()) {
             if !matches!(solve, CommonSolvePolicy::Linear(_))
                 || enforcement.is_some()
                 || !residual_scales.is_empty()

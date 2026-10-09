@@ -15,7 +15,7 @@ use pyo3::types::{PyAny, PyBytes, PyModule, PyTuple};
 
 use crate::error::{compatibility_error, validation_error};
 use crate::meshing::PyMesh;
-use crate::model::{PyModel, PyModelDomainRef, PyModelFieldRef};
+use crate::model::{PyModel, PyModelFieldRef};
 use crate::model_io::{self, ArtifactFileSpec};
 
 const PLAN_FILE_SPEC: ArtifactFileSpec = ArtifactFileSpec {
@@ -44,7 +44,7 @@ mod solver_request;
 use policy::{
     PyBackwardEuler, PyCellCentered, PyCellCenteredTpfa, PyImplicitMidpoint, PyLinear, PyMiniP1,
     PyNewton, PyP1, PyPressureGauge2d, PyQ1, PyScopedSpatialBinding, PySolverPlanningObjective,
-    PyTsitouras45, ScopedSpatialKind,
+    PyTsitouras45, ScopedSpatialKind, spatial_handle_from_request,
 };
 pub(crate) use registration::register;
 mod scaling;
@@ -215,59 +215,6 @@ impl PyPlan {
             .borrow(py)
             .package_compilation_digest_value()
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))
-    }
-}
-
-fn spatial_handle_from_request(
-    py: Python<'_>,
-    model_digest: &str,
-    request: CommonMethodRequest,
-) -> PyResult<SpatialHandle> {
-    match request {
-        CommonMethodRequest::Uniform(policy)
-        | CommonMethodRequest::Exact {
-            spatial: policy, ..
-        } => {
-            let policy = match policy {
-                CommonSpatialPolicy::Q1 => SpatialPolicy::Q1,
-                CommonSpatialPolicy::CellCenteredTpfa => SpatialPolicy::CellCenteredTpfa,
-                CommonSpatialPolicy::MiniP1 => SpatialPolicy::MiniP1,
-                CommonSpatialPolicy::CellCentered => SpatialPolicy::CellCentered,
-                CommonSpatialPolicy::P1 => {
-                    return Err(PyTypeError::new_err(
-                        "uniform P1 is not an admitted common Plan policy",
-                    ));
-                }
-            };
-            Ok(SpatialHandle::Uniform(policy))
-        }
-        CommonMethodRequest::Scoped(bindings) => bindings
-            .into_iter()
-            .map(|binding| {
-                let policy = match binding.policy() {
-                    CommonSpatialPolicy::MiniP1 => ScopedSpatialKind::MiniP1,
-                    CommonSpatialPolicy::P1 => ScopedSpatialKind::P1,
-                    CommonSpatialPolicy::Q1
-                    | CommonSpatialPolicy::CellCenteredTpfa
-                    | CommonSpatialPolicy::CellCentered => {
-                        return Err(PyTypeError::new_err(
-                            "persisted scoped Plan contains an unsupported spatial policy",
-                        ));
-                    }
-                };
-                Py::new(
-                    py,
-                    PyScopedSpatialBinding {
-                        domain: PyModelDomainRef::from_exact(
-                            model_digest.to_owned(),
-                            binding.domain().ulid().to_string(),
-                        ),
-                        policy,
-                    },
-                )
-            })
-            .collect::<PyResult<Vec<_>>>()
-            .map(SpatialHandle::Scoped),
     }
 }
 

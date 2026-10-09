@@ -30,8 +30,8 @@ impl HarmonicReduction {
         form: &AuthoredFormulationProjection,
         geometry: Option<&eqiora_geometry::CanonicalGeometryV1>,
     ) -> Result<Self, Diagnostic> {
-        let request = form
-            .harmonic_request()
+        let angular_frequency = form
+            .harmonic_angular_frequency()
             .ok_or_else(|| invalid("missing harmonic request"))?;
         let original = ModelEnvelope::from_program(program)?;
         let mut seed = Sha256::new();
@@ -47,7 +47,7 @@ impl HarmonicReduction {
             let digest = hash.finalize();
             ulid::Ulid::from(u128::from_be_bytes(digest[..16].try_into().unwrap()))
         };
-        let frequency = coefficient::compile(program, request.angular_frequency(), None)?;
+        let frequency = coefficient::compile(program, angular_frequency, None)?;
         let frequency_type = ValueType::scalar(
             ScalarDomain::Real,
             eqiora_core::DimExponents::from_integers([0, 0, -1, 0, 0, 0, 0]).unwrap(),
@@ -71,7 +71,7 @@ impl HarmonicReduction {
         }
         let mut fields = BTreeMap::new();
         let mut amplitudes = Vec::new();
-        for (name, old) in request.amplitudes() {
+        for (name, old) in form.harmonic_amplitudes().expect("harmonic request") {
             let old = Id::<kinds::Field>::from_ulid(id(old)?);
             let Some(KernelNode::Field(field)) = program.node(old.erase()) else {
                 return Err(invalid(
@@ -85,13 +85,14 @@ impl HarmonicReduction {
             fields.insert(old.erase(), new);
             amplitudes.push((name.clone(), old, new));
         }
-        let selected = request
-            .relations()
+        let selected = form
+            .harmonic_relations()
+            .expect("harmonic request")
             .iter()
             .map(|value| id(value).map(|id| Id::<kinds::Relation>::from_ulid(id).erase()))
             .collect::<Result<BTreeSet<_>, _>>()?;
         let mut inputs = BTreeMap::new();
-        for (old, value) in request.excitations() {
+        for (old, value) in form.harmonic_excitations().expect("harmonic request") {
             let old = Id::<kinds::Port>::from_ulid(id(old)?);
             let Some(KernelNode::Port(port)) = program.node(old.erase()) else {
                 return Err(invalid(

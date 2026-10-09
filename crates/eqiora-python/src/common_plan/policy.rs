@@ -6,6 +6,7 @@ use std::hash::{Hash, Hasher};
 use std::num::NonZeroUsize;
 
 use super::solver_request::{PyLinearSolver, PyPreconditioner, PyReduction, PySolverProvider};
+use super::{CommonMethodRequest, CommonSpatialPolicy, SpatialHandle, SpatialPolicy};
 use eqiora::realization::NonlinearSolvePlan;
 use eqiora::solver::{SolverPlan, SolverPlanningObjective};
 use eqiora::{Id, kinds};
@@ -813,5 +814,58 @@ impl PyImplicitMidpoint {
             self.step_s(),
             self.relative_tolerance()
         )
+    }
+}
+
+pub(super) fn spatial_handle_from_request(
+    py: Python<'_>,
+    model_digest: &str,
+    request: CommonMethodRequest,
+) -> PyResult<SpatialHandle> {
+    match request {
+        CommonMethodRequest::Uniform(policy)
+        | CommonMethodRequest::Exact {
+            spatial: policy, ..
+        } => {
+            let policy = match policy {
+                CommonSpatialPolicy::Q1 => SpatialPolicy::Q1,
+                CommonSpatialPolicy::CellCenteredTpfa => SpatialPolicy::CellCenteredTpfa,
+                CommonSpatialPolicy::MiniP1 => SpatialPolicy::MiniP1,
+                CommonSpatialPolicy::CellCentered => SpatialPolicy::CellCentered,
+                CommonSpatialPolicy::P1 => {
+                    return Err(PyTypeError::new_err(
+                        "uniform P1 is not an admitted common Plan policy",
+                    ));
+                }
+            };
+            Ok(SpatialHandle::Uniform(policy))
+        }
+        CommonMethodRequest::Scoped(bindings) => bindings
+            .into_iter()
+            .map(|binding| {
+                let policy = match binding.policy() {
+                    CommonSpatialPolicy::MiniP1 => ScopedSpatialKind::MiniP1,
+                    CommonSpatialPolicy::P1 => ScopedSpatialKind::P1,
+                    CommonSpatialPolicy::Q1
+                    | CommonSpatialPolicy::CellCenteredTpfa
+                    | CommonSpatialPolicy::CellCentered => {
+                        return Err(PyTypeError::new_err(
+                            "persisted scoped Plan contains an unsupported spatial policy",
+                        ));
+                    }
+                };
+                Py::new(
+                    py,
+                    PyScopedSpatialBinding {
+                        domain: PyModelDomainRef::from_exact(
+                            model_digest.to_owned(),
+                            binding.domain().ulid().to_string(),
+                        ),
+                        policy,
+                    },
+                )
+            })
+            .collect::<PyResult<Vec<_>>>()
+            .map(SpatialHandle::Scoped),
     }
 }
