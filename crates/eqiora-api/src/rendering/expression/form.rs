@@ -183,6 +183,21 @@ impl Context<'_> {
                 vec![self.form(value, next)?, self.form(wrt, next)?],
             ),
             Form::Gradient { value } => Math::Gradient(Box::new(self.form(value, next)?)),
+            Form::Conjugate { value } => {
+                Math::Function("conj".into(), vec![self.form(value, next)?])
+            }
+            Form::Inner { left, right } => Math::Function(
+                "inner".into(),
+                vec![self.form(left, next)?, self.form(right, next)?],
+            ),
+            Form::Curl { value } => Math::Function("curl".into(), vec![self.form(value, next)?]),
+            Form::TangentialTrace { value } => {
+                Math::Function("tangential_trace".into(), vec![self.form(value, next)?])
+            }
+            Form::Cross { left, right } => Math::Function(
+                "cross".into(),
+                vec![self.form(left, next)?, self.form(right, next)?],
+            ),
             Form::Divergence { value } => {
                 Math::Function("div".into(), vec![self.form(value, next)?])
             }

@@ -96,3 +96,62 @@ fn single_vector_authoring_does_not_authenticate_an_incomplete_mixed_system() {
         "{error:?}"
     );
 }
+
+#[test]
+fn oriented_form_rendering_retains_operators_and_exact_semantic_references() {
+    for scalar in ["1", "complex<1>"] {
+        for (integral, operator) in [
+            (
+                "integrate(body,dot(curl(v),curl(math.conj(math.conj(u)))))",
+                "curl",
+            ),
+            (
+                "integrate(face,dot(tangential_trace(v),trace(u)))",
+                "tangential_trace",
+            ),
+            ("integrate(body,dot(cross(v,b),u))", "cross"),
+        ] {
+            let integral = if scalar == "complex<1>" {
+                integral.replace("dot(", "inner(")
+            } else {
+                integral.to_owned()
+            };
+            let source = format!(
+                r#"model M() {{
+            domain body=box(0,1,0,1,0,1);
+            domain face=boundary(body,axis=0,side=lower);
+            variable u:vector<{scalar},3> on body;
+            variable b:vector<1,3> on body;
+            relation law on body {{ curl(curl(u))=u*0[1/m^2]; }}
+            form weak for law {{ test v:1 for u zero_on face; {integral}=0; }}
+        }}"#
+            );
+            let model = ModelDocument::compile("oriented-rendering.eqi", &source).unwrap();
+            for profile in [
+                eqiora_lang::NotationProfile::Plain,
+                eqiora_lang::NotationProfile::Unicode,
+                eqiora_lang::NotationProfile::Latex,
+                eqiora_lang::NotationProfile::MathMl,
+                eqiora_lang::NotationProfile::Speech,
+            ] {
+                let rendered = model.render_formulations(profile).unwrap().remove(0);
+                assert!(rendered.plain().contains(operator), "{}", rendered.plain());
+                for symbol in [
+                    "u",
+                    if operator == "tangential_trace" {
+                        "face"
+                    } else {
+                        "body"
+                    },
+                ] {
+                    assert!(
+                        rendered
+                            .references()
+                            .iter()
+                            .any(|r| r.graph_id() == Some(model.aliases()[symbol]))
+                    );
+                }
+            }
+        }
+    }
+}
