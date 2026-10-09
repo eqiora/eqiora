@@ -261,12 +261,20 @@ pub enum ExprNode {
     SymmetricPart(ExprId),
     /// Lift a supported invariant scalar to its isotropic Cartesian tensor.
     IsotropicLift(ExprId),
-    /// Restriction of a parent-domain expression to the boundary Domain on
-    /// which the owning Relation is scoped.
-    Trace(ExprId),
-    /// Outward-normal component on the boundary Domain on which the owning
-    /// Relation is scoped.
-    NormalComponent(ExprId),
+    /// Restriction of a parent-domain expression to one exact boundary Domain.
+    Trace {
+        /// Parent-supported expression.
+        value: ExprId,
+        /// Boundary whose unique parent determines the selected side.
+        on: Id<kinds::Domain>,
+    },
+    /// Outward-normal component on one exact boundary Domain.
+    NormalComponent {
+        /// Parent- or boundary-supported tensor expression.
+        value: ExprId,
+        /// Boundary whose unique parent determines the outward orientation.
+        on: Id<kinds::Domain>,
+    },
     /// Apply one expression-local, content-addressed pure definition.
     PureOperatorApplication(PureOperatorApplication),
 }
@@ -335,8 +343,8 @@ impl ExprNode {
             | Self::Divergence(value)
             | Self::SymmetricPart(value)
             | Self::IsotropicLift(value)
-            | Self::Trace(value)
-            | Self::NormalComponent(value) => visit(*value),
+            | Self::Trace { value, .. }
+            | Self::NormalComponent { value, .. } => visit(*value),
             Self::CoordinatePartial {
                 value: left,
                 wrt: right,
@@ -753,14 +761,18 @@ impl ExprDagBuilder {
         self.push(ExprNode::IsotropicLift(value))
     }
 
-    /// Restrict an expression to the owning Relation's boundary Domain.
-    pub fn trace(&mut self, value: ExprId) -> Result<ExprId, Diagnostic> {
-        self.push(ExprNode::Trace(value))
+    /// Restrict an expression to one exact boundary Domain.
+    pub fn trace(&mut self, value: ExprId, on: Id<kinds::Domain>) -> Result<ExprId, Diagnostic> {
+        self.push(ExprNode::Trace { value, on })
     }
 
-    /// Take the outward-normal component on the owning Relation's boundary.
-    pub fn normal_component(&mut self, value: ExprId) -> Result<ExprId, Diagnostic> {
-        self.push(ExprNode::NormalComponent(value))
+    /// Take the outward-normal component on one exact boundary Domain.
+    pub fn normal_component(
+        &mut self,
+        value: ExprId,
+        on: Id<kinds::Domain>,
+    ) -> Result<ExprId, Diagnostic> {
+        self.push(ExprNode::NormalComponent { value, on })
     }
 
     /// Apply one closed pure-operator definition to prior expressions.

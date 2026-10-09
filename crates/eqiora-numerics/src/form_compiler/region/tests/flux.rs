@@ -51,7 +51,7 @@ fn check(
     let normal = typed.expression().roots()[0];
     assert!(matches!(
         typed.expression().node(normal),
-        Some(ExprNode::NormalComponent(_))
+        Some(ExprNode::NormalComponent { .. })
     ));
     form.require_boundary_flux(program, ids[side], relation, ids["u"], normal, false)
 }

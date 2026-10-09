@@ -576,8 +576,8 @@ fn validate_expression(
             )
             | ExprNode::Gradient(_)
             | ExprNode::Divergence(_)
-            | ExprNode::Trace(_)
-            | ExprNode::NormalComponent(_)
+            | ExprNode::Trace { .. }
+            | ExprNode::NormalComponent { .. }
             | ExprNode::PureOperatorApplication(_) => true,
             ExprNode::Symbol(SymbolRef::Field(id)) => id.erase() == field,
             ExprNode::Symbol(SymbolRef::Parameter(_)) => true,
@@ -650,8 +650,8 @@ pub(super) fn push_operands(node: &ExprNode, pending: &mut Vec<ExprId>) {
         | ExprNode::Divergence(value)
         | ExprNode::SymmetricPart(value)
         | ExprNode::IsotropicLift(value)
-        | ExprNode::NormalComponent(value)
-        | ExprNode::Trace(value) => pending.push(*value),
+        | ExprNode::NormalComponent { value, .. }
+        | ExprNode::Trace { value, .. } => pending.push(*value),
         ExprNode::Complex {
             real: left,
             imag: right,

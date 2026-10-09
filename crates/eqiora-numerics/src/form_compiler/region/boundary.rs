@@ -113,7 +113,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         let mut operators = Vec::new();
         for leaf in view.leaves() {
             match dag.node(leaf.value()) {
-                Some(ExprNode::Trace(value)) => {
+                Some(ExprNode::Trace { value, .. }) => {
                     let Some(ExprNode::Symbol(SymbolRef::Field(field))) = dag.node(*value) else {
                         continue;
                     };
@@ -135,7 +135,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                         operators.push((leaf, row, Some(field), PhysicalBoundaryQuantity::Trace));
                     }
                 }
-                Some(ExprNode::NormalComponent(_)) => {
+                Some(ExprNode::NormalComponent { .. }) => {
                     for row in self.rows.iter().filter(|row| !row.flux.is_empty()) {
                         if self
                             .require_boundary_flux(
@@ -195,7 +195,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             }
             Some(id) => {
                 let inner = match dag.node(id) {
-                    Some(ExprNode::Trace(value)) => *value,
+                    Some(ExprNode::Trace { value, .. }) => *value,
                     _ => id,
                 };
                 match dag.node(inner) {
@@ -214,7 +214,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                                 .collect::<Result<_, Diagnostic>>()?,
                         )
                     }
-                    Some(ExprNode::NormalComponent(tensor)) => {
+                    Some(ExprNode::NormalComponent { value: tensor, .. }) => {
                         let proof = OperatorApplicationProof::classify(
                             &typed,
                             *tensor,

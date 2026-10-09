@@ -99,6 +99,7 @@ fn standard_tensor_operators_expand_and_exact_equivalence_replays() {
             domain: "body",
             dimensions: 2,
         }),
+        |_| None,
         RootContract::ComponentwiseResidual,
         |_| Ok::<_, ()>(tensor_type.clone()),
     )
@@ -132,6 +133,7 @@ fn standard_tensor_operators_expand_and_exact_equivalence_replays() {
             domain: "body",
             dimensions: 2,
         }),
+        |_| None,
         RootContract::ComponentwiseResidual,
         |_| Ok::<_, ()>(volume_scalar("body")),
     )
@@ -236,6 +238,7 @@ fn component_lowering_retains_distinct_parameter_coordinates() {
     let typed = TypedResidual::infer(
         residual,
         Some(support.clone()),
+        |_| None,
         RootContract::ComponentwiseResidual,
         |symbol| {
             Ok::<_, ()>(match symbol {
@@ -304,11 +307,13 @@ fn trace_support_map_is_semantic_and_fails_closed_on_parent_identity() {
     };
     let mut expression = ExprDagBuilder::new();
     let value = expression.symbol(SymbolRef::Field(field)).expect("field");
-    let trace = expression.trace(value).expect("trace");
+    let on = Id::<kinds::Domain>::new();
+    let trace = expression.trace(value, on).expect("trace");
     let residual = expression.finish([trace]).expect("residual");
     let typed = TypedResidual::infer(
         residual,
         Some(boundary.clone()),
+        |id| (id == on).then(|| boundary.clone()),
         RootContract::ComponentwiseResidual,
         |_| {
             Ok::<_, ()>(ExpressionType::scalar(

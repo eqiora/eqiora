@@ -221,6 +221,8 @@ impl WireExpression {
                     references.extend(value.nominal_references())
                 }
                 WireExpressionNode::Sample { clock, .. } => references.push(clock),
+                WireExpressionNode::Trace { on, .. }
+                | WireExpressionNode::NormalComponent { on, .. } => references.push(on),
                 _ => {}
             }
         }
@@ -485,9 +487,11 @@ pub(crate) enum WireExpressionNode {
     },
     Trace {
         value: u32,
+        on: WireId,
     },
     NormalComponent {
         value: u32,
+        on: WireId,
     },
     SymmetricPart {
         value: u32,
@@ -674,11 +678,13 @@ impl WireExpressionNode {
             ExprNode::Divergence(value) => Self::Divergence {
                 value: value.index(),
             },
-            ExprNode::Trace(value) => Self::Trace {
+            ExprNode::Trace { value, on } => Self::Trace {
                 value: value.index(),
+                on: WireId::from_raw(on.erase()),
             },
-            ExprNode::NormalComponent(value) => Self::NormalComponent {
+            ExprNode::NormalComponent { value, on } => Self::NormalComponent {
                 value: value.index(),
+                on: WireId::from_raw(on.erase()),
             },
             ExprNode::SymmetricPart(value) => Self::SymmetricPart {
                 value: value.index(),
@@ -844,8 +850,12 @@ impl WireExpressionNode {
             ),
             Self::Gradient { value } => builder.gradient(operand(ids, *value)?),
             Self::Divergence { value } => builder.divergence(operand(ids, *value)?),
-            Self::Trace { value } => builder.trace(operand(ids, *value)?),
-            Self::NormalComponent { value } => builder.normal_component(operand(ids, *value)?),
+            Self::Trace { value, on } => {
+                builder.trace(operand(ids, *value)?, on.typed::<kinds::Domain>()?)
+            }
+            Self::NormalComponent { value, on } => {
+                builder.normal_component(operand(ids, *value)?, on.typed::<kinds::Domain>()?)
+            }
             Self::SymmetricPart { value } => builder.symmetric_part(operand(ids, *value)?),
             Self::IsotropicLift { value } => builder.isotropic_lift(operand(ids, *value)?),
             Self::PureOperatorApplication {

@@ -261,8 +261,10 @@ fn pure_operand(dag: &ExprDag, root: ExprId, expected: PureOperatorDefinition) -
 }
 fn boundary_discharge(dag: &ExprDag, root: ExprId, field: RawId) -> Option<BoundaryDischarge> {
     let (argument, discharge) = match dag.node(root)? {
-        ExprNode::Trace(argument) => (*argument, BoundaryDischarge::ZeroTestTrace),
-        ExprNode::NormalComponent(lift) => {
+        ExprNode::Trace {
+            value: argument, ..
+        } => (*argument, BoundaryDischarge::ZeroTestTrace),
+        ExprNode::NormalComponent { value: lift, .. } => {
             // n × curl(u) = 0, not n · curl(u) = 0. The shared lift
             // fixes the cross-product orientation before normal contraction.
             let curl = tangential_lift_operand(dag, *lift)?;

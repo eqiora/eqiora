@@ -249,7 +249,7 @@ pub(crate) fn lower_cartesian_boundary_relation(
         .filter(|leaf| {
             matches!(
                 expression.node(leaf.value()),
-                Some(ExprNode::Trace(_)) | Some(ExprNode::NormalComponent(_))
+                Some(ExprNode::Trace { .. }) | Some(ExprNode::NormalComponent { .. })
             )
         })
         .collect::<Vec<_>>();
@@ -324,7 +324,7 @@ fn scalar_boundary_top_roles(
         ExprNode::Neg(operator) if is_scalar_boundary_operator(expression, *operator) => {
             Some((*operator, None))
         }
-        ExprNode::Trace(_) | ExprNode::NormalComponent(_) => Some((root, None)),
+        ExprNode::Trace { .. } | ExprNode::NormalComponent { .. } => Some((root, None)),
         _ => None,
     }
 }
@@ -332,7 +332,7 @@ fn scalar_boundary_top_roles(
 fn is_scalar_boundary_operator(expression: &ExprDag, value: ExprId) -> bool {
     matches!(
         expression.node(value),
-        Some(ExprNode::Trace(_)) | Some(ExprNode::NormalComponent(_))
+        Some(ExprNode::Trace { .. }) | Some(ExprNode::NormalComponent { .. })
     )
 }
 
@@ -348,10 +348,13 @@ fn lower_scalar_boundary_operator(
     coordinate_dimension: usize,
 ) -> Result<ScalarEllipticCartesianBoundary, Diagnostic> {
     match expression.node(operator) {
-        Some(ExprNode::Trace(trace_operand)) if is_field(expression, *trace_operand, field) => {
+        Some(ExprNode::Trace {
+            value: trace_operand,
+            ..
+        }) if is_field(expression, *trace_operand, field) => {
             Ok(ScalarEllipticCartesianBoundary::Essential(value))
         }
-        Some(ExprNode::NormalComponent(flux)) => {
+        Some(ExprNode::NormalComponent { value: flux, .. }) => {
             let coefficient = lower_flux_coefficient(
                 program,
                 expression,

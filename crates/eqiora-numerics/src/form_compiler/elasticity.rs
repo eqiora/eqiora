@@ -819,7 +819,7 @@ fn exact_boundaries(
             let [root] = typed.expression().roots() else {
                 return Err(tape_error("elasticity boundary must have one typed root"));
             };
-            let Some(ExprNode::Trace(field)) = typed.expression().node(*root) else {
+            let Some(ExprNode::Trace { value: field, .. }) = typed.expression().node(*root) else {
                 return Err(tape_error("elasticity boundary is not an exact zero trace"));
             };
             if !matches!(

@@ -213,6 +213,12 @@ impl ExpressionContext<'_> {
         let typed = TypedResidual::infer(
             functional.expression().clone(),
             support.clone(),
+            |on| {
+                support
+                    .as_ref()
+                    .filter(|support| *support.domain() == on.erase())
+                    .cloned()
+            },
             RootContract::Observable,
             |symbol| match symbol {
                 SymbolRef::Coordinate {

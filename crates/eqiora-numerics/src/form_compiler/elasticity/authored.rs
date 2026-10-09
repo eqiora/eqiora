@@ -55,8 +55,8 @@ pub(crate) fn derive(
             return Ok(None);
         }
         let operators = view.leaves().iter().filter(|leaf| match (discharge,dag.node(leaf.value())) {
-            (BoundaryDischarge::ZeroTestTrace,Some(ExprNode::Trace(value))) => matches!(dag.node(*value),Some(ExprNode::Symbol(SymbolRef::Field(id))) if id.erase() == model.displacement()),
-            (BoundaryDischarge::ZeroFlux | BoundaryDischarge::PrescribedFlux,Some(ExprNode::NormalComponent(_))) => true,
+            (BoundaryDischarge::ZeroTestTrace,Some(ExprNode::Trace { value, .. })) => matches!(dag.node(*value),Some(ExprNode::Symbol(SymbolRef::Field(id))) if id.erase() == model.displacement()),
+            (BoundaryDischarge::ZeroFlux | BoundaryDischarge::PrescribedFlux,Some(ExprNode::NormalComponent { .. })) => true,
             _ => false,
         }).collect::<Vec<_>>();
         let [operator] = operators.as_slice() else {

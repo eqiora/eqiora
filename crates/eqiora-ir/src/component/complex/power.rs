@@ -77,6 +77,7 @@ mod tests {
         let typed = TypedResidual::infer(
             dag.finish([power]).unwrap(),
             None,
+            |_| None,
             RootContract::ComponentwiseResidual,
             |_| Ok::<_, ()>(ExpressionType::<()>::new(ty.clone(), None)),
         )
@@ -96,6 +97,7 @@ mod tests {
         let typed = TypedResidual::infer(
             dag.finish([power]).unwrap(),
             None,
+            |_| None,
             RootContract::ComponentwiseResidual,
             |_| Ok::<_, ()>(ExpressionType::<()>::new(ty.clone(), None)),
         )

@@ -67,7 +67,8 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             return Err(invalid("tested row has no constitutive boundary flux"));
         }
         let typed = typed_relation(program, relation)?;
-        let Some(ExprNode::NormalComponent(flux)) = typed.expression().node(normal) else {
+        let Some(ExprNode::NormalComponent { value: flux, .. }) = typed.expression().node(normal)
+        else {
             return Err(invalid(
                 "flux witness requires an exact normal-component operator",
             ));

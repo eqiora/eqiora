@@ -84,7 +84,7 @@ fn recognize_exterior_law_oriented(
     let normal = view.leaves().iter().find(|leaf| {
         matches!(
             expression.node(leaf.value()),
-            Some(ExprNode::NormalComponent(_))
+            Some(ExprNode::NormalComponent { .. })
         )
     });
     let robin = view.leaves().iter().find_map(|leaf| {
@@ -245,7 +245,7 @@ pub(super) fn validate_normal_flux(
     relation: RawId,
     dimensions: usize,
 ) -> Result<(), Diagnostic> {
-    let Some(ExprNode::NormalComponent(flux)) = expression.node(normal) else {
+    let Some(ExprNode::NormalComponent { value: flux, .. }) = expression.node(normal) else {
         return Err(lowering_error(
             relation,
             "expected an outward normal-flux expression",
@@ -310,7 +310,7 @@ fn physical_conormal_orientation(
     relation: RawId,
     dimensions: usize,
 ) -> Result<bool, Diagnostic> {
-    let Some(ExprNode::NormalComponent(flux)) = expression.node(normal) else {
+    let Some(ExprNode::NormalComponent { value: flux, .. }) = expression.node(normal) else {
         return Err(lowering_error(relation, "expected physical normal flux"));
     };
     let (coefficient, reversed) = super::retained::signed_flux_coefficient(

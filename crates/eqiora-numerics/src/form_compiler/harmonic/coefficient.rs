@@ -20,6 +20,7 @@ pub(super) fn compile(
     let typed = TypedResidual::infer(
         expression.clone(),
         support.clone(),
+        |_| None,
         RootContract::ValueRoots,
         |symbol| {
             let SymbolRef::Coordinate {

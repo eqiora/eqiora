@@ -150,9 +150,13 @@ mod tests {
             );
         }
         assert_eq!(dag.nodes().len(), 6);
-        let inferred = TypedResidual::<u32>::infer(dag, None, RootContract::EquationSides, |_| {
-            Err::<ExpressionType<u32>, ()>(())
-        })
+        let inferred = TypedResidual::<u32>::infer(
+            dag,
+            None,
+            |_| None,
+            RootContract::EquationSides,
+            |_| Err::<ExpressionType<u32>, ()>(()),
+        )
         .unwrap();
         assert_eq!(inferred.node_type(minimum), Some(&typed(integer)));
 
@@ -185,6 +189,7 @@ mod tests {
                 TypedResidual::<u32>::infer(
                     builder.finish([root, left]).unwrap(),
                     None,
+                    |_| None,
                     RootContract::EquationSides,
                     |_| Err::<ExpressionType<u32>, ()>(())
                 )

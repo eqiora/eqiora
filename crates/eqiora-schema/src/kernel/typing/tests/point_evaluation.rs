@@ -62,24 +62,30 @@ fn infer(probe: Probe) -> (ExprId, PointInference) {
     let side = matches!(probe, Probe::SideOnProduct).then_some(BoundarySide::Lower);
     let root = builder.evaluate_at(value, at, side).unwrap();
     let expression = builder.finish([root]).unwrap();
-    let typed = TypedResidual::infer(expression, None, RootContract::ValueRoots, |symbol| {
-        Ok(match symbol {
-            SymbolRef::Field(_) => {
-                let mut support = support.clone();
-                if matches!(probe, Probe::ForeignField) {
-                    let SpatialSupport::Coordinates { domain, .. } = &mut support else {
-                        unreachable!()
-                    };
-                    *domain = Id::<kinds::Domain>::new().erase();
+    let typed = TypedResidual::infer(
+        expression,
+        None,
+        |_| None,
+        RootContract::ValueRoots,
+        |symbol| {
+            Ok(match symbol {
+                SymbolRef::Field(_) => {
+                    let mut support = support.clone();
+                    if matches!(probe, Probe::ForeignField) {
+                        let SpatialSupport::Coordinates { domain, .. } = &mut support else {
+                            unreachable!()
+                        };
+                        *domain = Id::<kinds::Domain>::new().erase();
+                    }
+                    ExpressionType::scalar(DimExponents::DIMENSIONLESS, Some(support))
                 }
-                ExpressionType::scalar(DimExponents::DIMENSIONLESS, Some(support))
-            }
-            SymbolRef::Coordinate { factor, axis, .. } => {
-                ExpressionType::coordinate(&factor.erase(), axis, Some(&support)).unwrap()
-            }
-            _ => unreachable!(),
-        })
-    });
+                SymbolRef::Coordinate { factor, axis, .. } => {
+                    ExpressionType::coordinate(&factor.erase(), axis, Some(&support)).unwrap()
+                }
+                _ => unreachable!(),
+            })
+        },
+    );
     (root, typed)
 }
 

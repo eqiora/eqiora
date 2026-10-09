@@ -309,6 +309,26 @@ pub(super) struct TypedExpression {
 }
 
 impl ExpressionLowerer<'_> {
+    fn boundary_target(
+        &self,
+        expression: &LoweringExpression,
+    ) -> Result<Id<kinds::Domain>, Diagnostic> {
+        match self.support.as_ref() {
+            Some(SpatialSupport::Boundary { domain, .. }) => domain.downcast().ok_or_else(|| {
+                spatial_type_error(
+                    self.file,
+                    expression,
+                    typing::TypeViolation::<RawId>::BoundaryOperatorRequiresBoundaryScope,
+                )
+            }),
+            _ => Err(spatial_type_error(
+                self.file,
+                expression,
+                typing::TypeViolation::<RawId>::BoundaryOperatorRequiresBoundaryScope,
+            )),
+        }
+    }
+
     fn lower(&mut self, expression: &LoweringExpression) -> Result<TypedExpression, Diagnostic> {
         let key = (Arc::as_ptr(&expression.node) as usize, self.sampling);
         if let Some(lowered) = self.cache.get(&key) {
@@ -747,9 +767,9 @@ impl ExpressionLowerer<'_> {
                 .map_err(|error| self.builder_error(expression, error))?;
             let id = match operation {
                 crate::math::oriented::Operation::Curl => Ok(value),
-                crate::math::oriented::Operation::TangentialTrace => {
-                    self.builder.normal_component(value)
-                }
+                crate::math::oriented::Operation::TangentialTrace => self
+                    .builder
+                    .normal_component(value, self.boundary_target(expression)?),
             }
             .map_err(|error| self.builder_error(expression, error))?;
             return Ok(TypedExpression {
@@ -779,8 +799,16 @@ impl ExpressionLowerer<'_> {
                 ),
                 "symmetric_part" => (self.builder.symmetric_part(operand.id), operand.dimension),
                 "isotropic_lift" => (self.builder.isotropic_lift(operand.id), operand.dimension),
-                "trace" => (self.builder.trace(operand.id), operand.dimension),
-                "normal" => (self.builder.normal_component(operand.id), operand.dimension),
+                "trace" => (
+                    self.builder
+                        .trace(operand.id, self.boundary_target(expression)?),
+                    operand.dimension,
+                ),
+                "normal" => (
+                    self.builder
+                        .normal_component(operand.id, self.boundary_target(expression)?),
+                    operand.dimension,
+                ),
                 _ => unreachable!("spatial operator was matched"),
             };
             return result

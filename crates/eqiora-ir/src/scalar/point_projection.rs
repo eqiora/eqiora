@@ -110,9 +110,13 @@ impl ScalarOperatorIr {
             .zip(inputs)
             .map(|(symbol, value)| (symbol, ExpressionType::<()>::new(value.clone(), None)))
             .collect::<HashMap<_, _>>();
-        let typed = TypedResidual::infer(dag, None, RootContract::InitialResiduals, |symbol| {
-            types.get(&symbol).cloned().ok_or(())
-        })
+        let typed = TypedResidual::infer(
+            dag,
+            None,
+            |_| None,
+            RootContract::InitialResiduals,
+            |symbol| types.get(&symbol).cloned().ok_or(()),
+        )
         .map_err(|_| {
             ir_builder_error(
                 "typed scalar point has incompatible expression types or branch supports",

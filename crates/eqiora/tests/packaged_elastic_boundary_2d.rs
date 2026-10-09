@@ -170,7 +170,7 @@ fn assert_isotropic_boundary_relation(
         residuals,
         displacement_trace,
         |node| match node {
-            ExprNode::Trace(value) => Some(*value),
+            ExprNode::Trace { value, .. } => Some(*value),
             _ => None,
         },
         "displacement trace",
@@ -187,7 +187,7 @@ fn assert_isotropic_boundary_relation(
         residuals,
         outward_traction,
         |node| match node {
-            ExprNode::NormalComponent(value) => Some(*value),
+            ExprNode::NormalComponent { value, .. } => Some(*value),
             _ => None,
         },
         "parent-outward normal component",

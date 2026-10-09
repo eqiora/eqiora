@@ -48,8 +48,14 @@ fn map(node: &ExprNode, mut operand: impl FnMut(ExprId) -> ExprId) -> Result<Exp
         ExprNode::UnaryMath(op, a) => ExprNode::UnaryMath(*op, operand(*a)),
         ExprNode::Gradient(a) => ExprNode::Gradient(operand(*a)),
         ExprNode::Divergence(a) => ExprNode::Divergence(operand(*a)),
-        ExprNode::Trace(a) => ExprNode::Trace(operand(*a)),
-        ExprNode::NormalComponent(a) => ExprNode::NormalComponent(operand(*a)),
+        ExprNode::Trace { value, on } => ExprNode::Trace {
+            value: operand(*value),
+            on: *on,
+        },
+        ExprNode::NormalComponent { value, on } => ExprNode::NormalComponent {
+            value: operand(*value),
+            on: *on,
+        },
         _ => {
             return Err(invalid(
                 "unexpected operator in a generated harmonic expression",

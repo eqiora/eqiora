@@ -272,8 +272,8 @@ impl Context<'_> {
             | ExprNode::Divergence(value)
             | ExprNode::SymmetricPart(value)
             | ExprNode::IsotropicLift(value)
-            | ExprNode::Trace(value)
-            | ExprNode::NormalComponent(value) => {
+            | ExprNode::Trace { value, .. }
+            | ExprNode::NormalComponent { value, .. } => {
                 let name = match node {
                     ExprNode::Neg(_) => "negative",
                     ExprNode::Not(_) => "not",
@@ -285,7 +285,7 @@ impl Context<'_> {
                     ExprNode::Divergence(_) => "divergence",
                     ExprNode::SymmetricPart(_) => "symmetric part",
                     ExprNode::IsotropicLift(_) => "isotropic lift",
-                    ExprNode::Trace(_) => "trace",
+                    ExprNode::Trace { .. } => "trace",
                     _ => "normal component",
                 };
                 call(name, vec![self.lower(dag, *value, next)?])

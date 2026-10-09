@@ -152,8 +152,8 @@ pub(crate) fn operands(node: &ExprNode) -> Vec<ExprId> {
         | ExprNode::Divergence(value)
         | ExprNode::SymmetricPart(value)
         | ExprNode::IsotropicLift(value)
-        | ExprNode::Trace(value)
-        | ExprNode::NormalComponent(value) => vec![*value],
+        | ExprNode::Trace { value, .. }
+        | ExprNode::NormalComponent { value, .. } => vec![*value],
         ExprNode::Complex { real: a, imag: b }
         | ExprNode::FiniteBinary(_, a, b)
         | ExprNode::Compare(_, a, b)

@@ -530,7 +530,7 @@ fn boundary_entity_set(
     };
     let expression = &relation_expression(program, *relation)?;
     let root = unique_root(expression, *relation)?;
-    if matches!(expression.node(root), Some(ExprNode::Trace(value)) if is_field(expression, *value, velocity))
+    if matches!(expression.node(root), Some(ExprNode::Trace { value, .. }) if is_field(expression, *value, velocity))
     {
         return Ok("body");
     }

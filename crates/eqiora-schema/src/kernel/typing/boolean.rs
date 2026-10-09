@@ -172,9 +172,13 @@ mod tests {
                     .expect("checked scalar type"),
             ] {
                 assert!(
-                    TypedResidual::<u32>::infer(dag.clone(), None, contract, |_| Ok::<_, ()>(ty(
-                        value_type.clone()
-                    )))
+                    TypedResidual::<u32>::infer(
+                        dag.clone(),
+                        None,
+                        |_| None,
+                        contract,
+                        |_| Ok::<_, ()>(ty(value_type.clone()))
+                    )
                     .is_err()
                 );
             }
@@ -273,6 +277,7 @@ mod tests {
         TypedResidual::<u32>::infer(
             relation.expression().clone(),
             None,
+            |_| None,
             RootContract::EquationSides,
             |_| Err::<ExpressionType<u32>, ()>(()),
         )

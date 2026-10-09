@@ -237,21 +237,27 @@ mod tests {
         expression: ExprDag,
         supports: &[SpatialSupport<RawId>],
     ) -> Result<TypedResidual<RawId>, Vec<TypedResidualError<RawId, ()>>> {
-        TypedResidual::infer(expression, None, RootContract::ValueRoots, |symbol| {
-            let SymbolRef::Coordinate {
-                support,
-                factor,
-                axis,
-            } = symbol
-            else {
-                return Err(());
-            };
-            let support = supports
-                .iter()
-                .find(|candidate| *candidate.domain() == support.erase())
-                .ok_or(())?;
-            ExpressionType::coordinate(&factor.erase(), axis, Some(support)).map_err(|_| ())
-        })
+        TypedResidual::infer(
+            expression,
+            None,
+            |_| None,
+            RootContract::ValueRoots,
+            |symbol| {
+                let SymbolRef::Coordinate {
+                    support,
+                    factor,
+                    axis,
+                } = symbol
+                else {
+                    return Err(());
+                };
+                let support = supports
+                    .iter()
+                    .find(|candidate| *candidate.domain() == support.erase())
+                    .ok_or(())?;
+                ExpressionType::coordinate(&factor.erase(), axis, Some(support)).map_err(|_| ())
+            },
+        )
     }
 
     #[test]

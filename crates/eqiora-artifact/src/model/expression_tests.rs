@@ -1,6 +1,38 @@
 use super::*;
 
 #[test]
+fn boundary_operator_wire_requires_and_retains_each_exact_target() {
+    use eqiora_core::Id;
+    let first = Id::<kinds::Domain>::new();
+    let second = Id::<kinds::Domain>::new();
+    let mut builder = ExprDagBuilder::new();
+    let value = builder.symbol(SymbolRef::Field(Id::new())).unwrap();
+    let trace = builder.trace(value, first).unwrap();
+    let normal = builder.normal_component(value, second).unwrap();
+    let expression = builder.finish([trace, normal]).unwrap();
+    let wire = WireExpression::encode(&expression).unwrap();
+    let json = serde_json::to_value(&wire).unwrap();
+    let replay: WireExpression = serde_json::from_value(json.clone()).unwrap();
+    assert_eq!(replay.decode().unwrap(), expression);
+    for target in [first, second] {
+        assert!(
+            wire.semantic_references()
+                .iter()
+                .any(|id| { id.typed::<kinds::Domain>().ok() == Some(target) })
+        );
+    }
+    // Neither operator may recover its target from an enclosing Relation.
+    for index in [1, 2] {
+        let mut missing = json.clone();
+        missing["nodes"][index]
+            .as_object_mut()
+            .unwrap()
+            .remove("on");
+        assert!(serde_json::from_value::<WireExpression>(missing).is_err());
+    }
+}
+
+#[test]
 fn coordinate_factor_wire_retains_factor_kind_and_map_bindings() {
     use eqiora_core::Id;
     for factor in [

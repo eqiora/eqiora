@@ -239,9 +239,13 @@ impl KernelProgram {
         root_contract: RootContract,
     ) -> Result<TypedResidual<RawId>, Vec<Diagnostic>> {
         let relation_support = scope.and_then(|scope| self.spatial_supports.get(&scope).cloned());
-        TypedResidual::infer(expression, relation_support, root_contract, |symbol| {
-            symbol_type(symbol, &self.nodes, &self.edges, &self.spatial_supports)
-        })
+        TypedResidual::infer(
+            expression,
+            relation_support,
+            |on| self.spatial_support(on).cloned(),
+            root_contract,
+            |symbol| symbol_type(symbol, &self.nodes, &self.edges, &self.spatial_supports),
+        )
         .map_err(|errors| {
             errors
                 .into_iter()
@@ -263,6 +267,7 @@ impl KernelProgram {
         TypedResidual::infer(
             expression,
             Some(interface.clone()),
+            |on| self.spatial_support(on).cloned(),
             RootContract::ComponentwiseResidual,
             |symbol| {
                 let mut inferred =
@@ -777,6 +782,7 @@ fn validate_expression(
     match TypedResidual::infer(
         expression.clone(),
         relation_support.clone(),
+        |on| environment.spatial_supports.get(&on.erase()).cloned(),
         root_contract,
         |symbol| {
             symbol_type(

@@ -239,11 +239,14 @@ fn check_partials(
         node,
         ExprNode::Constant(_) | ExprNode::Add(..) | ExprNode::Neg(..) | ExprNode::Mul(..)
     )));
-    let typed =
-        TypedResidual::<()>::infer(dag.clone(), None, RootContract::InitialResiduals, |_| {
-            Err::<ExpressionType<()>, _>(())
-        })
-        .unwrap();
+    let typed = TypedResidual::<()>::infer(
+        dag.clone(),
+        None,
+        |_| None,
+        RootContract::InitialResiduals,
+        |_| Err::<ExpressionType<()>, _>(()),
+    )
+    .unwrap();
     for (root, dimension) in roots.iter().zip(dimensions) {
         assert_eq!(typed.node_type(*root).unwrap().dimension(), dimension);
     }

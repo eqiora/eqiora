@@ -286,6 +286,7 @@ fn compiled_definition_scalarizes_as_the_exact_dyadic_map() {
     let typed = TypedResidual::infer(
         expression,
         Some(support.clone()),
+        |_| None,
         RootContract::ComponentwiseResidual,
         |symbol| {
             assert!(matches!(symbol, SymbolRef::Field(field) if field == left || field == right));

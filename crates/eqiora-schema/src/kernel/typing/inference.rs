@@ -13,7 +13,9 @@ pub(super) fn infer_node<I: Clone + Eq, E>(
     expression: &ExprDag,
     node: &ExprNode,
     inferred: &[Option<ExpressionType<I>>],
-    relation_support: Option<&SpatialSupport<I>>,
+    boundary_support: &mut impl FnMut(
+        eqiora_core::Id<eqiora_core::entity::kinds::Domain>,
+    ) -> Option<SpatialSupport<I>>,
     symbol_type: &mut impl FnMut(SymbolRef) -> Result<ExpressionType<I>, E>,
 ) -> NodeInference<I, E> {
     let typed = match node {
@@ -254,17 +256,17 @@ pub(super) fn infer_node<I: Clone + Eq, E>(
             };
             isotropic_lift(&value)
         }
-        ExprNode::Trace(value) => {
+        ExprNode::Trace { value, on } => {
             let Some(value) = inferred_type(inferred, *value) else {
                 return NodeInference::Unavailable;
             };
-            trace(&value, relation_support)
+            trace(&value, boundary_support(*on).as_ref())
         }
-        ExprNode::NormalComponent(value) => {
+        ExprNode::NormalComponent { value, on } => {
             let Some(value) = inferred_type(inferred, *value) else {
                 return NodeInference::Unavailable;
             };
-            normal(&value, relation_support)
+            normal(&value, boundary_support(*on).as_ref())
         }
         ExprNode::PureOperatorApplication(application) => {
             let mut arguments = Vec::with_capacity(application.arguments().len());

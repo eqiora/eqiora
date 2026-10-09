@@ -259,7 +259,8 @@ fn check_surface_replay(compiled: &eqiora_compiler::CompiledModel, variation: &E
     };
     let typed = TypedResidual::infer(
         functional.expression().clone(),
-        Some(boundary),
+        Some(boundary.clone()),
+        |on| (*boundary.domain() == on.erase()).then(|| boundary.clone()),
         RootContract::Observable,
         |symbol| {
             nodes

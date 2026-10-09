@@ -341,7 +341,7 @@ fn boundary_operator_without_boundary_scope_is_rejected() {
 
     let mut expression = ExprDagBuilder::new();
     let value = expression.symbol(SymbolRef::Field(field)).expect("field");
-    let residual = expression.trace(value).expect("trace node");
+    let residual = expression.trace(value, Id::new()).expect("trace node");
     let mut transaction = Transaction::new("unscoped boundary operator");
     for node in [
         KernelNode::from(FieldDef::new(
