@@ -893,11 +893,21 @@ def grad(value: Expression) -> Expression:
 
     ...
 
+def inner(
+    left: Expression | float | int | complex,
+    right: Expression | float | int | complex,
+) -> Expression:
+    """Return the inner product, conjugating the first argument.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::inner``.
+    """
+    ...
+
 def dot(
     left: Expression | float | int | complex,
     right: Expression | float | int | complex,
 ) -> Expression:
-    """Return the inner product of two authored expressions.
+    """Return the bilinear dot product without complex conjugation.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::dot``.
     """
@@ -943,7 +953,7 @@ def integrate(
     domain: Support,
     integrand: Expression | float | int | complex,
 ) -> Expression:
-    """Return one volume integral over an exact Module Support.
+    """Return one volume or boundary integral over an exact Module Support.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::integrate``.
     """
@@ -1148,6 +1158,7 @@ __all__ = [
     "case",
     "coordinate",
     "dot",
+    "inner",
     "div",
     "grad",
     "integrate",
