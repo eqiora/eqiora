@@ -7,7 +7,7 @@ use eqiora_sem::KernelProgram;
 
 use super::{DerivedScalarGalerkinForm, typed_relation};
 
-mod dimensions;
+pub(in crate::form_compiler) mod dimensions;
 
 pub(crate) fn admit(
     projection: &AuthoredFormulationProjection,

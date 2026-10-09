@@ -245,6 +245,22 @@ This reduction requires the direct scalar composition; a sign inserted between
 curls, vector reductions and 3D curl-curl are not silently identified with it.
 It does not provide the general vector curl integration-by-parts certificate.
 
+For a real or complex physical 3-vector, the explicit Rust inspection
+`eqiora_numerics::check_authored_curl_formulation(program, projection)` checks a
+bounded strong-implies-weak correspondence without selecting a numerical method.
+It recognizes one direct shared `curl(curl(u))` occurrence on a Cartesian box,
+with signed linear algebraic value terms. All six exact box faces must carry
+homogeneous full-trace laws for `u`, and the test's `zero_on` inventory must
+match them. The curl Green identity is
+`∫Ω v·curl(curl(u)) = ∫Ω curl(v)·curl(u) − ∫∂Ω (n×v)·curl(u)`.
+The full zero test trace discharges its surface term. Complex fields use
+`inner(curl(v),curl(u))` and conjugated test value pairings. The checker
+reuses live source identities, correspondence replay, variation authentication,
+unit checking, and exact polynomial comparison; it does not sample field values.
+This explicit inspection leaves general vector authoring available. Tangential-only
+boundary laws, natural curl fluxes, reverse implication, uniqueness, vector numerical
+admission, compatible edge elements, and Maxwell execution remain outside it.
+
 For twice continuously differentiable fields in a fixed Cartesian frame,
 `div(curl(u)) = 0`, `curl(grad(f)) = 0`, and
 `curl(curl(u)) = grad(div(u)) − div(grad(u))` in 3D. Mixed partials commute

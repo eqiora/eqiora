@@ -35,6 +35,7 @@ mod discrete_space;
 mod elliptic;
 mod finalized_spatial;
 mod form_compiler;
+pub use form_compiler::check_authored_curl_formulation;
 mod interleaved_dofs;
 mod jacobian_audit;
 mod linearized_output;

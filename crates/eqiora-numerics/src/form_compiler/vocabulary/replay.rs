@@ -17,7 +17,7 @@ impl PrimalGalerkinCorrespondence {
             || authored.trial_ulids().len() != 1
             || authored.test_restrictions().len() != 1
         {
-            return Err("scalar primal correspondence requires one equation and test/trial");
+            return Err("primal correspondence requires one equation and test/trial");
         }
         if self
             .law

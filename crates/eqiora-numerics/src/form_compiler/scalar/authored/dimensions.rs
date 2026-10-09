@@ -10,6 +10,28 @@ pub(super) fn check(
     derived: &super::DerivedScalarGalerkinForm,
     typed: &TypedResidual<RawId>,
 ) -> Option<()> {
+    check_pairing(
+        projection,
+        program,
+        derived.domain,
+        derived.dimension,
+        &derived
+            .boundary_roles
+            .iter()
+            .map(|boundary| boundary.domain)
+            .collect::<Vec<_>>(),
+        typed,
+    )
+}
+
+pub(in crate::form_compiler) fn check_pairing(
+    projection: &AuthoredFormulationProjection,
+    program: &KernelProgram,
+    domain: RawId,
+    dimensions: usize,
+    boundaries: &[RawId],
+    typed: &TypedResidual<RawId>,
+) -> Option<()> {
     let [(name, field, _, units)] = projection.test_restrictions() else {
         return None;
     };
@@ -17,7 +39,7 @@ pub(super) fn check(
         return None;
     };
     let test = dimension(units)?;
-    let measure = length().pow(i32::try_from(derived.dimension).ok()?, 1)?;
+    let measure = length().pow(i32::try_from(dimensions).ok()?, 1)?;
     let expected = typed
         .node_type(*typed.expression().roots().first()?)?
         .dimension()
@@ -25,7 +47,9 @@ pub(super) fn check(
         .mul(measure)?;
     let mut context = Context {
         program,
-        derived,
+        domain,
+        dimensions,
+        boundaries,
         name,
         field,
         test,
@@ -43,7 +67,9 @@ pub(super) fn check(
 
 struct Context<'a> {
     program: &'a KernelProgram,
-    derived: &'a super::DerivedScalarGalerkinForm,
+    domain: RawId,
+    dimensions: usize,
+    boundaries: &'a [RawId],
     name: &'a str,
     field: &'a str,
     test: D,
@@ -93,8 +119,8 @@ impl Context<'_> {
                 factor_ulid,
                 axis,
             } if self.integration_domain.as_deref() == Some(support_ulid.as_str())
-                && factor_ulid == &self.derived.domain.ulid().to_string()
-                && *axis < self.derived.dimension =>
+                && factor_ulid == &self.domain.ulid().to_string()
+                && *axis < self.dimensions =>
             {
                 Some(length())
             }
@@ -142,15 +168,14 @@ impl Context<'_> {
                 if self.integration_domain.is_some() {
                     return None;
                 }
-                let dimension = if domain_ulid == &self.derived.domain.ulid().to_string() {
-                    self.derived.dimension
+                let dimension = if domain_ulid == &self.domain.ulid().to_string() {
+                    self.dimensions
                 } else if self
-                    .derived
-                    .boundary_roles
+                    .boundaries
                     .iter()
-                    .any(|boundary| domain_ulid == &boundary.domain.ulid().to_string())
+                    .any(|boundary| domain_ulid == &boundary.ulid().to_string())
                 {
-                    self.derived.dimension.checked_sub(1)?
+                    self.dimensions.checked_sub(1)?
                 } else {
                     return None;
                 };
