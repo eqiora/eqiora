@@ -159,3 +159,10 @@ lto = "thin"
 [profile.release.package.eqiora-python]
 opt-level = "s"
 codegen-units = 1
+
+# Compact authoring and parsing code without changing numerical optimization.
+[profile.release.package.eqiora-compiler]
+opt-level = "s"
+
+[profile.release.package.eqiora-lang]
+opt-level = "s"
