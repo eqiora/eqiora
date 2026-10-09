@@ -329,10 +329,21 @@ jobs:
           persist-credentials: false
       - name: Check root dependency policy
         if: needs.changes.outputs.dependency_policy == 'true'
-        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
-        with:
-          arguments: --all-features --locked
-          command: check
+        shell: bash
+        run: |
+          deny_dir="${RUNNER_TEMP:?}/eqiora-cargo-deny"
+          deny_archive="$deny_dir/cargo-deny.tar.gz"
+          mkdir -p "$deny_dir"
+          curl --fail --location --proto '=https' --tlsv1.2 --silent --show-error \
+            --output "$deny_archive" \
+            https://github.com/EmbarkStudios/cargo-deny/releases/download/0.20.2/cargo-deny-0.20.2-x86_64-unknown-linux-musl.tar.gz
+          printf '%s  %s\n' \
+            9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f \
+            "$deny_archive" | sha256sum --check --strict
+          tar --extract --gzip --file "$deny_archive" --directory "$deny_dir" \
+            --strip-components=1 cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny
+          rustup toolchain install stable --profile minimal
+          "$deny_dir/cargo-deny" --all-features --locked check
   cubecl_experiment:
     name: Isolated CubeCL contract experiment
     needs: changes

@@ -1834,6 +1834,7 @@ class FiniteSpectrum:
     def reconstruct_sample(self, sample: int) -> Any: ...
     def projection_type(self, projection: str) -> ValueType: ...
 
+@final
 class TrajectoryObservation:
     """Typed terminal or time-integrated value from exact accepted history.
 

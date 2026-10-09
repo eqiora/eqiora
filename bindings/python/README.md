@@ -5,12 +5,12 @@ Eqiora provides equation authoring, synchronous and asynchronous execution,
 NumPy and DLPack arrays, first-order differentiation with PyTorch and JAX,
 and optional Matplotlib plots plus notebook views.
 
-**Release — `0.1.2`.** Explore the [Gallery](https://eqiora.org/gallery/)
+**Release — `0.2.0`.** Explore the [Gallery](https://eqiora.org/gallery/)
 for complete modeling and simulation walkthroughs.
 
 ## Install
 
-Eqiora `0.1.2` supports ordinary-GIL CPython 3.11–3.14 on
+Eqiora `0.2.0` supports ordinary-GIL CPython 3.11–3.14 on
 manylinux x86-64:
 
 ```console
@@ -20,7 +20,7 @@ uv add eqiora
 ```
 
 In an existing uv project, just run `uv add eqiora`. A matching prebuilt wheel
-needs no Rust compiler. To select this release explicitly, use `uv add eqiora==0.1.2`.
+needs no Rust compiler. To select this release explicitly, use `uv add eqiora==0.2.0`.
 
 Automatic exact-cylinder meshing requires Gmsh 4.15.2. The conventional Linux
 installation is:
@@ -53,14 +53,14 @@ CSS, so a normal installation can emit the rich notebook view without fetching
 renderer assets at display time. Importing `eqiora` does not load anywidget,
 ipywidgets, or traitlets. The PyTorch extra
 declares `torch>=2.14,<2.15`; the tested version is PyTorch 2.14.0.
-JAX/JAXLIB 0.11.0 and Matplotlib 3.11.1 were also tested on CPython 3.13.
+The release candidate checks JAX/JAXLIB 0.11.0 and Matplotlib 3.11.1 on CPython 3.13.
 The JAX extra requires Python 3.12 or newer.
 
 ## Run a model
 
 Start with [Get started](https://eqiora.org/get-started/) for a complete decay
 example using the published package. For lessons that use features newer than
-`0.1.2`, follow the explicitly marked [development-build instructions](https://eqiora.org/get-started/#development-build).
+`0.2.0`, follow the explicitly marked [development-build instructions](https://eqiora.org/get-started/#development-build).
 
 A spatial workflow has five steps:
 
@@ -204,7 +204,7 @@ for complete setup, input shapes, and framework examples.
 
 ## Compatibility
 
-`0.1.2` is a pre-1.0 release. Python APIs and saved-file formats may change;
+`0.2.0` is a pre-1.0 release. Python APIs and saved-file formats may change;
 release notes describe changes and migrations. Corrections to a published
 package receive a new version.
 

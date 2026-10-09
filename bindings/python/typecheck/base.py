@@ -75,7 +75,7 @@ def check_execution(
     transient = eqiora.submit(plan, state=state, until_s=1.0, output_times_s=(1.0,))
     assert_type(transient, eqiora.Run[eqiora.Result])
     assert_type(transient.result(), eqiora.Result)
-    assert_type(array.numpy(copy=False), npt.NDArray[np.float64])
+    assert_type(array.numpy(copy=False), npt.NDArray[np.float64] | npt.NDArray[np.complex128])
 
     eqiora.Run[eqiora.Result](object())  # type: ignore[arg-type]
 
@@ -114,7 +114,7 @@ def check_fsi_result(plan: eqiora.Plan, state: eqiora.State) -> None:
     capability = plan.capability
     assert isinstance(capability, eqiora.fsi.FixedReferenceFsiPlanView)
     assert_type(
-        plan.temporal, eqiora.time.BackwardEuler | eqiora.time.Tsitouras45 | None
+        plan.temporal, eqiora.time.BackwardEuler | eqiora.time.Tsitouras45 | eqiora.time.ImplicitMidpoint | None
     )
     assert_type(
         eqiora.submit(plan, state=state, steps=2, output_steps=(1, 2)),

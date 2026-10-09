@@ -11,9 +11,9 @@ class HermitianEigen:
 
     Authority: ``crates/eqiora-python/src/common_plan/eigen.rs::PyHermitianEigen``.
     """
-    def __init__(self, *, count: int, provider: SolverProvider, residual_tolerance: float,
-                 normalization_tolerance: float, target: tuple[float, Dimension] | None = None,
-                 interval: tuple[tuple[float, Dimension], tuple[float, Dimension]] | None = None) -> None: ...
+    def __new__(cls, *, count: int, provider: SolverProvider, residual_tolerance: float,
+                normalization_tolerance: float, target: tuple[float, Dimension] | None = None,
+                interval: tuple[tuple[float, Dimension], tuple[float, Dimension]] | None = None) -> HermitianEigen: ...
     @property
     def count(self) -> int: ...
     @property

@@ -50,6 +50,8 @@ PYTHON_TEST_FIXTURES = (
     ),
 )
 PYTHON_TEST_RESOURCES = (
+    Path("verify/language/factor-integrals/models/nonlocal-interaction.eqi"),
+    Path("verify/language/factor-integrals/models/radial-diffusion.eqi"),
     Path("crates/eqiora-api/schemas/compile-v2.schema.json"),
     Path("docs/site/src/content/docs/reference/language/index.mdx"),
     Path("docs/site/src/content/docs/reference/language/declarations.mdx"),
@@ -70,6 +72,7 @@ PYTHON_TEST_RESOURCES = (
     Path("examples/decay.eqi"),
     Path("examples/standard-sampled-components/src/main.eqi"),
     Path("examples/python/coupled_scalar.py"),
+    Path("examples/python/steady_cylinder_source.py"),
     Path("examples/python/textbook_decay.py"),
     Path("examples/python/karman_vortex_street.py"),
     Path("docs/site/src/content/docs/gallery/karman-vortex-street.mdx"),
