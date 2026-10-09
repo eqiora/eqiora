@@ -6,6 +6,8 @@ use crate::lexer::TokenKind;
 
 use super::{ParsedComponentItem, Parser};
 
+mod harmonic;
+
 impl Parser<'_> {
     pub(super) fn parse_component(
         &mut self,
@@ -78,6 +80,9 @@ impl Parser<'_> {
             self.bump();
         }
         self.expect(TokenKind::LeftBrace, "`{` before authored Formulation")?;
+        if self.at_keyword("harmonic") {
+            return self.parse_harmonic_form(start, name, relations);
+        }
         let binding = if self.at_keyword("finite") {
             self.bump();
             let name = self

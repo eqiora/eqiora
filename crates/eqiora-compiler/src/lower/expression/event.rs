@@ -51,6 +51,24 @@ pub(in crate::lower) fn lower_event_guard(
 }
 
 impl ExpressionLowerer<'_> {
+    pub(super) fn require_eligible_evolution(
+        &self,
+        expression: &LoweringExpression,
+        callee: &str,
+        contract: &FieldContract,
+    ) -> Result<(), Diagnostic> {
+        if self.eligible_evolution(callee, contract) {
+            Ok(())
+        } else {
+            Err(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                self.file,
+                expression.range(),
+                "evolution operator requires an eligible declared state at the exact clock",
+            ))
+        }
+    }
+
     pub(super) fn eligible_evolution(&self, callee: &str, contract: &FieldContract) -> bool {
         let event = matches!(self.activation, ActivationSyntax::Named(name) if matches!(self.bindings.get(name), Some(Binding::Event(_))));
         let event_state = event && matches!(contract.activation, ActivationSyntax::Continuous);

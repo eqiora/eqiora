@@ -1,6 +1,23 @@
 use super::*;
 
 impl CommonFormulationDescription {
+    pub(super) fn harmonic(form: &AuthoredFormulationProjection) -> Self {
+        Self {
+            requested: FormulationSelectionMode::Authored,
+            kind: FormulationKind::HarmonicResponse,
+            boundary_treatment: "all-original-relations-and-explicit-harmonic-inputs",
+            rule_ids: Box::new([
+                "harmonic.derive.v1.fixed-domain-real-lti",
+                "harmonic.derive.v1.negative-exponential-peak",
+                "harmonic.derive.v1.complete-source-boundary-transformation",
+                "harmonic.derive.v1.response-restriction-not-initial-value-equivalence",
+            ]),
+            selection_reason_codes: Box::new(["eqiora.formulation.authored.harmonic-response/v1"]),
+            requested_source_identity: Some(form.source_identity().to_owned()),
+            source_relation: None,
+            state_coordinates: Box::new([]),
+        }
+    }
     pub(super) fn finite_hermitian(plan: &CommonEigenPlan) -> Self {
         let projected = plan.coordinate_embeddings().next().is_some();
         let mut rules = vec![

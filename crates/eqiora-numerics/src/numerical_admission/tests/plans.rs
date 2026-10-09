@@ -1,4 +1,5 @@
 mod complex;
+mod harmonic;
 mod interval;
 mod observables;
 mod weak_evidence;

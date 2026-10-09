@@ -1,0 +1,20 @@
+public component Wave(
+ support body:volume(ambient_dimension=1),
+ support left:boundary(parent=body),
+ support right:boundary(parent=body),
+ input force:1/s^2, input boundary_value:1
+) {
+ state u:1 on body;
+ initial {u=0; derivative(u)=0[1/s];}
+ relation balance on body {
+  derivative(derivative(u))+1[1/s]*derivative(u)-div(1[m^2/s^2]*grad(u))=force;
+ }
+ relation fixed on left {trace(u)=boundary_value;}
+ relation flux on right {normal(1[m^2/s^2]*grad(u))=0[m/s^2];}
+ form response for balance, fixed, flux {
+  harmonic(angular_frequency=1[1/s],convention=negative_exponential,normalization=peak);
+  excitation force=math.complex(-1[1/s^2],-3[1/s^2]);
+  excitation boundary_value=math.complex(2,1);
+  amplitude u_hat:complex<1> on body for u;
+ }
+}

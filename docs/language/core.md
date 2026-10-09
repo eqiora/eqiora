@@ -156,7 +156,12 @@ and correspondence checks; attaching a form preserves the original equations.
 Python `Module.model(...).weak_form(...)` follows this path too. Product tests
 cover finite Hermitian forms and scalar Q1 forms with complex boundary loads,
 including selected parameter and Geometry bindings and offline package replay.
-This authoring support does not implement a harmonic reduction request.
+`harmonic_form(...)` uses the same Model/Component owner for explicit angular frequency,
+negative-exponential peak convention, input excitations and original/amplitude Field mappings.
+The admitted fixed-domain real LTI profile derives a separate complex problem while retaining
+the original initial conditions. Common finite and scalar-Q1 Plans reconstruct real responses;
+they do not claim arbitrary initial-value equivalence. See the [RC specimen](harmonic-rc.md)
+and its bounded registered evidence for the precise execution boundary.
 
 ### Mathematical rendering
 

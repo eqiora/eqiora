@@ -73,6 +73,11 @@ macro_rules! owners {
             $visit(node.range, &$($mutable)? node.comments);
             for form in &$($mutable)? node.formulations {
                 $visit(form.range, &$($mutable)? form.comments);
+                if let crate::FormulationBinding::Harmonic { amplitudes, .. } = &$($mutable)? form.binding {
+                    for (amplitude, _) in amplitudes {
+                        $visit(amplitude.range, &$($mutable)? amplitude.comments);
+                    }
+                }
             }
             for item in &$($mutable)? node.items {
                 match item {
@@ -103,6 +108,11 @@ macro_rules! owners {
             $visit(node.range, &$($mutable)? node.comments);
             for form in &$($mutable)? node.formulations {
                 $visit(form.range, &$($mutable)? form.comments);
+                if let crate::FormulationBinding::Harmonic { amplitudes, .. } = &$($mutable)? form.binding {
+                    for (amplitude, _) in amplitudes {
+                        $visit(amplitude.range, &$($mutable)? amplitude.comments);
+                    }
+                }
             }
             for item in &$($mutable)? node.items {
                 match item {

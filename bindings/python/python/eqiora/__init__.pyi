@@ -1090,6 +1090,7 @@ class FormulationKind:
 
     FiniteHermitianPencil: ClassVar[FormulationKind]
     FirstOrderEvolution: ClassVar[FormulationKind]
+    HarmonicResponse: ClassVar[FormulationKind]
     PrimalGalerkin: ClassVar[FormulationKind]
     MixedGalerkin: ClassVar[FormulationKind]
     IntegralConservative: ClassVar[FormulationKind]
@@ -1173,6 +1174,12 @@ class Plan:
     def realization_digest(self) -> str | None: ...
     @property
     def model(self) -> Model: ...
+    @property
+    def harmonic_original_model(self) -> Model | None: ...
+    @property
+    def harmonic_amplitudes(self) -> tuple[tuple[str, FieldRef, FieldRef], ...]: ...
+    @property
+    def harmonic_angular_frequency(self) -> float | None: ...
     @property
     def mesh(self) -> meshing.Mesh | None: ...
     @property
@@ -1950,6 +1957,16 @@ class Result:
     Authority: ``crates/eqiora-python/src/result.rs::PyRunResult``.
     """
 
+    def reconstruct_harmonic_fields(
+        self, *, time_seconds: float
+    ) -> tuple[tuple[FieldRef, object, ValueType], ...]:
+        """Original finite real Fields, SI values and types; no initial-value equivalence."""
+        ...
+    def reconstruct_harmonic_field_block(
+        self, field: FieldRef, /, *, time_seconds: float, block: int = 0
+    ) -> Array:
+        """Real SI coefficients with the mapped amplitude block's association and layout."""
+        ...
     @property
     def eigenpair_count(self) -> int: ...
     @property

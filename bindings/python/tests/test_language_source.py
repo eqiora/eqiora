@@ -1439,7 +1439,7 @@ def test_plural_weak_form_authoring_preserves_bindings_and_equation_order():
         component.weak_form("invalid", [momentum], equations=[(v, p)] * 9)
     component.weak_form("mixed", [momentum, continuity],
                         equations=[(v * velocity, v * 0), (p * pressure, p * 0)])
-    with pytest.raises(q.ModuleError, match="one named weak form"):
+    with pytest.raises(q.ModuleError, match="one named form"):
         component.weak_form("second", [momentum], equations=[(v, p)])
     text = module.to_eqi()
     assert "test v: 1 for velocity zero_on exterior;" in text

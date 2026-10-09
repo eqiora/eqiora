@@ -30,6 +30,7 @@ mod algebraic;
 mod capability_view;
 mod eigen;
 mod enforcement;
+pub(crate) mod harmonic;
 use capability_view::{
     PyElasticityPlanView, PyFixedReferenceFsiPlanView, PyFormulationKind,
     PyFormulationSelectionMode, PyFormulationView, PyIncompressibleFlowPlanView, PyOdePlanView,
@@ -272,6 +273,30 @@ fn spatial_handle_from_request(
 
 #[pymethods]
 impl PyPlan {
+    /// Original real Model retained by a harmonic response restriction.
+    #[getter]
+    fn harmonic_original_model(&self, py: Python<'_>) -> PyResult<Option<PyModel>> {
+        harmonic::original_model(&self.native)
+            .map(|model| PyModel::from_artifact(py, model.clone()))
+            .transpose()
+    }
+
+    /// Named exact original/derived Field pairs in the declared amplitude order.
+    #[getter]
+    fn harmonic_amplitudes(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        harmonic::amplitudes(py, &self.native)
+    }
+
+    /// Positive angular frequency in inverse seconds, distinct from cyclic frequency.
+    #[getter]
+    fn harmonic_angular_frequency(&self) -> Option<f64> {
+        match &self.native {
+            ResolvedCommonPlan::Algebraic(plan) => plan.harmonic_angular_frequency(),
+            ResolvedCommonPlan::Scalar(plan) => plan.harmonic_angular_frequency(),
+            _ => None,
+        }
+    }
+
     /// Explicit finite mathematical enforcement, separate from the Model.
     #[getter]
     fn enforcement(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
@@ -974,6 +999,14 @@ fn resolve_plan(
     };
     drop(mesh_ref);
     drop(model_ref);
+    let model = if harmonic::original_model(&native).is_some() {
+        Py::new(
+            py,
+            PyModel::from_artifact(py, native.model_artifact().clone())?,
+        )?
+    } else {
+        model
+    };
     Ok(PyPlan {
         native,
         model,

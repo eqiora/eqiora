@@ -43,6 +43,7 @@ impl CommonScalarPlan {
             realization_digest,
         );
         Ok(Self {
+            harmonic: None,
             admission,
             portable,
             formulation: None,

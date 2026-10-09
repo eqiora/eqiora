@@ -18,7 +18,7 @@ from builtins import property as _property
 from typing import Final, Literal
 from types import MappingProxyType
 
-from .._eqiora import Dimension, FieldRole, ValueType, FiniteSpace, IndexSet, Enum as _NativeEnum, _nominal_type, Notation, ModuleError, _AstExpression as _Ast, _AstDeclaration, _AstDefinition, _AstModule, _module_from_declarations
+from .._eqiora import Dimension, FieldRole, ValueType, FiniteSpace, IndexSet, Enum as _NativeEnum, _nominal_type, Notation, ModuleError, _AstExpression as _Ast, _AstDeclaration, _AstDefinition, _AstFormulation, _AstModule, _module_from_declarations
 
 from ..units import Unit
 from .._source_bounds import _MAX_EXPRESSION_DEPTH, _MAX_EXPRESSION_NODES, _MAX_OUTPUT_BYTES
@@ -1307,7 +1307,7 @@ class Component:
         "_fields",
         "_ports",
         "_connections",
-        "_formulations",
+        "_formulation",
         "_test_restrictions",
         "_instances",
         "_name",
@@ -1372,9 +1372,7 @@ class Component:
             tuple[str, Support, Expression | None, Expression, Expression, tuple[str, ...]]
         ] = []
         self._test_restrictions: list[tuple[str, str, tuple[str, ...], ValueType]] = []
-        self._formulations: list[
-            tuple[str, tuple[Relation, ...], tuple[tuple[Expression, Expression], ...], tuple[str, ...]]
-        ] = []
+        self._formulation: tuple[_AstFormulation, tuple[str, ...], int] | None = None
         self._instances: list[tuple[str, Component, tuple[tuple[str, str], ...], tuple[str, ...]]] = []
         self._ports = []
         self._connections = []
@@ -1959,6 +1957,8 @@ class Component:
              zero_on: Support | BoundarySelectionSet | None = None) -> Expression:
         """Declare a test for an exact trial and an optional homogeneous boundary restriction."""
         self._source._ensure_open()
+        if self._formulation is not None:
+            raise ModuleError("test declarations must precede their owning weak form")
         test_type = ValueType.real(dimension)
         if not isinstance(for_, _Field) or for_._owner is not self._component_token:
             raise ModuleError("test trial must be a Field from this Component")
@@ -2008,8 +2008,8 @@ class Component:
                 if expression._owner is not None and expression._owner is not self._component_token:
                     raise ModuleError("form expressions must belong to this Component")
             pairs.append((left, right))
-        if self._formulations:
-            raise ModuleError("a Component admits one named weak form")
+        if self._formulation is not None:
+            raise ModuleError("a Component admits one named form")
         total_nodes = (
             sum(left._nodes + right._nodes
                 for item in self._relations for _, left, right in item[2])
@@ -2026,7 +2026,21 @@ class Component:
             raise ModuleError(f"Component exceeds the {_MAX_DECLARATIONS}-declaration limit")
         admitted, doc_lines = _name(name), _doc(doc)
         self._declaration_count += 1
-        self._formulations.append((admitted, tuple(relations), tuple(pairs), doc_lines))
+        native = _AstFormulation.weak(admitted, [relation._name for relation in relations],
+                                      self._test_restrictions,
+                                      [(left._ast, right._ast) for left, right in pairs])
+        self._formulation = (native, doc_lines, sum(left._nodes + right._nodes for left, right in pairs))
+
+    def harmonic_form(
+        self, name: str, relations: Sequence[Relation], *, angular_frequency: object,
+        convention: str, normalization: str,
+        excitations: Sequence[tuple[Expression, object]],
+        amplitudes: Sequence[tuple[str, Expression, ValueType]], doc: str | None = None,
+    ) -> None:
+        """Request a harmonic response with explicit frequency, inputs and amplitude mappings."""
+        from ._formulation import harmonic
+        harmonic(self, name, relations, angular_frequency, convention, normalization,
+                 excitations, amplitudes, doc)
 
     @_property
     def _qualified_name(self) -> str:
@@ -2136,7 +2150,7 @@ class Component:
         self._notations[name] = notation
 
     def _declaration(self, allocate) -> _AstDefinition:
-        if self._test_restrictions and not self._formulations:
+        if self._test_restrictions and self._formulation is None:
             raise ModuleError("test declaration requires its owning weak form")
         declarations = []
         def add(name, doc, factory):
@@ -2205,10 +2219,9 @@ class Component:
             add(name, doc, lambda n: _AstDeclaration.instance(
                 name, component._qualified_name, bindings, n))
         form = None
-        if self._formulations:
-            name, relations, equations, doc = self._formulations[0]
-            form = (name, [relation._name for relation in relations], self._test_restrictions,
-                    [(left._ast, right._ast) for left, right in equations], allocate(doc))
+        if self._formulation is not None:
+            native, doc, _ = self._formulation
+            form = (native, allocate(doc))
         ordinal = allocate(self._doc, self._source._notations.get(self._name))
         return _AstDefinition(self._name, self._kind == "model", declarations, form, ordinal)
 

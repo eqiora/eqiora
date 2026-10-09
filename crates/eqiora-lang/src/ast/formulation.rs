@@ -69,6 +69,13 @@ impl ComponentDecl {
 /// Mathematical variables introduced by an authored formulation.
 #[derive(Debug, Clone, PartialEq)]
 pub enum FormulationBinding {
+    /// Negative-exponential, peak-amplitude harmonic request. Frequency has an
+    /// angular role; amplitudes are declarations in the reduced problem only.
+    Harmonic {
+        angular_frequency: Expr,
+        excitations: Vec<(String, Expr)>,
+        amplitudes: Vec<(super::FieldDecl, String)>,
+    },
     /// Ordered global scalar Fields sharing one explicitly named finite coordinate space.
     Finite { name: String, trials: Vec<String> },
     /// Ordered tests with exact trials and optional zero-trace boundary restrictions.

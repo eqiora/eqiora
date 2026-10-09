@@ -20,6 +20,7 @@ mod dependence;
 mod expression;
 mod finite;
 mod gauge;
+mod harmonic;
 mod index;
 mod interval;
 use index::KernelIndex;
@@ -31,7 +32,9 @@ mod variation;
 mod wire;
 
 pub use interval::check_derived_interval_conservation;
-pub use wire::{AuthoredFormExpressionV1, AuthoredFormulationProjection};
+pub use wire::{
+    AuthoredFormExpressionV1, AuthoredFormulationProjection, HarmonicFormulationRequest,
+};
 
 /// One typed expression in an authored Formulation.
 #[derive(Debug, Clone, PartialEq)]
@@ -206,6 +209,20 @@ pub(crate) fn compile_formulations(
             let binding = component
                 .formulation_binding(name)
                 .expect("retained binder");
+            if matches!(binding, eqiora_lang::FormulationBinding::Harmonic { .. }) {
+                return harmonic::compile(
+                    file,
+                    name,
+                    relations,
+                    binding,
+                    range,
+                    source_identity,
+                    symbols,
+                    &index,
+                    geometry,
+                )
+                .map_err(|error| vec![error]);
+            }
             if matches!(binding, eqiora_lang::FormulationBinding::Finite { .. }) {
                 return finite::compile(
                     file,
@@ -259,7 +276,7 @@ pub(crate) fn compile_formulations(
                 )]);
             }
             let eqiora_lang::FormulationBinding::WeakTests { tests } = binding else {
-                unreachable!("finite and interval binders returned above");
+                unreachable!("other binders returned above");
             };
             compile_weak(
                 file,

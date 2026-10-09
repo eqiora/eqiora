@@ -78,6 +78,9 @@ impl CommonScalarPlan {
     }
 
     pub(super) fn reauthenticate_complex(&self) -> Result<(), Diagnostic> {
+        if self.harmonic.is_some() {
+            return self.reauthenticate_harmonic();
+        }
         self.admission.revalidate()?;
         let replayed = Self::from_complex_admission(
             self.admission.model(),

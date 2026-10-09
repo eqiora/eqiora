@@ -1,0 +1,27 @@
+id = "numerics.harmonic-response"
+status = "implemented"
+scope = "fixed-domain-real-lti-rc-rlc-and-two-cell-scalar-wave-response"
+reference_kind = "independent-circuit-algebra-wave-substitution-and-decaying-rc-transient"
+capabilities = ["harmonic-response-restriction", "negative-exponential-peak-reconstruction", "explicit-angular-frequency-conversion", "complete-source-boundary-transformation", "retained-original-initial-conditions"]
+
+[claim_boundary]
+scalar_precision = "binary64"
+phasor_convention = "exp(-i*omega*t)"
+amplitude_normalization = "peak"
+positive_angular_frequency = true
+rc_and_rlc_circuits = true
+scalar_wave_dimension = 1
+scalar_wave_q1_cells = 2
+settled_time_comparison = "positive-RC-two-initial-voltages"
+plan_and_result_replay = true
+arbitrary_initial_value_equivalence = false
+mixed_dc_or_nonlinear_harmonic_balance = false
+moving_domains = false
+optional_backends = false
+solved_response_derivatives = false
+python_and_package_authoring = false
+
+[evidence]
+runner = "cargo-library-test"
+package = "eqiora-numerics"
+test = "numerical_admission::tests::plans::harmonic::harmonic_response_has_independent_circuit_wave_and_transient_evidence"

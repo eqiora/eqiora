@@ -55,7 +55,7 @@ fn global_coordinate_weak_form_preserves_model_test_type_and_canonical_replay() 
     );
     let retired = String::from_utf8(projection.canonical_bytes().to_vec())
         .unwrap()
-        .replace("eqiora.authored-form/v11", "eqiora.authored-form/v10");
+        .replace("eqiora.authored-form/v12", "eqiora.authored-form/v11");
     assert!(AuthoredFormulationProjection::decode(retired.as_bytes()).is_err());
 }
 

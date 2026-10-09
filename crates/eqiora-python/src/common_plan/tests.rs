@@ -1,3 +1,5 @@
+#[path = "tests/harmonic.rs"]
+mod harmonic;
 #[path = "tests/transient.rs"]
 mod transient;
 

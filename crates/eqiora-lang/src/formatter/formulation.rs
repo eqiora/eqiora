@@ -44,6 +44,38 @@ pub(super) fn format_formulation(
     output.push_str(&declaration.name);
     writeln!(output, " for {} {{", declaration.relations.join(", ")).expect("String write");
     match &declaration.binding {
+        FormulationBinding::Harmonic {
+            angular_frequency,
+            excitations,
+            amplitudes,
+        } => {
+            write_indent(output, indent + 2);
+            output.push_str("harmonic(angular_frequency = ");
+            format_expression(angular_frequency, 0, output);
+            output.push_str(", convention = negative_exponential, normalization = peak);\n");
+            for (input, value) in excitations {
+                write_indent(output, indent + 2);
+                write!(output, "excitation {input} = ").expect("String write");
+                format_expression(value, 0, output);
+                output.push_str(";\n");
+            }
+            for (amplitude, original) in amplitudes {
+                output.begin(&amplitude.comments);
+                write_indent(output, indent + 2);
+                write!(
+                    output,
+                    "amplitude {}: ",
+                    amplitude.comments.named(&amplitude.name)
+                )
+                .expect("String write");
+                super::value_type::format_value_type(&amplitude.value_type, output);
+                if let Some(domain) = &amplitude.domain {
+                    write!(output, " on {domain}").expect("String write");
+                }
+                writeln!(output, " for {original};").expect("String write");
+                output.end();
+            }
+        }
         FormulationBinding::Finite { name, trials } => {
             write_indent(output, indent + 2);
             writeln!(output, "finite {name}({});", trials.join(", ")).expect("String write");

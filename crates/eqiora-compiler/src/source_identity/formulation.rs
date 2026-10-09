@@ -43,6 +43,41 @@ impl AuthoredFormSourceIdentity {
                 })?;
                 encoder.field(5, |encoder| encode_name(encoder, name, budget))?;
                 match binding {
+                    eqiora_lang::FormulationBinding::Harmonic {
+                        angular_frequency,
+                        excitations,
+                        amplitudes,
+                    } => {
+                        budget.account_members(excitations.len(), "harmonic excitations")?;
+                        budget.account_members(amplitudes.len(), "harmonic amplitudes")?;
+                        encoder.field(6, |e| {
+                            e.u16(4)?;
+                            encode_expression(e, angular_frequency, budget, 1)?;
+                            e.u32(as_u32(excitations.len(), "harmonic excitations")?)?;
+                            for (input, value) in excitations {
+                                encode_name(e, input, budget)?;
+                                encode_expression(e, value, budget, 1)?;
+                            }
+                            e.u32(as_u32(amplitudes.len(), "harmonic amplitudes")?)?;
+                            for (amplitude, original) in amplitudes {
+                                encode_name(e, amplitude.name(), budget)?;
+                                encode_name(e, original, budget)?;
+                                super::value_type::encode_value_type(
+                                    e,
+                                    amplitude.value_type(),
+                                    budget,
+                                    1,
+                                )?;
+                                if let Some(domain) = amplitude.domain() {
+                                    e.u8(1)?;
+                                    encode_name(e, domain, budget)?;
+                                } else {
+                                    e.u8(0)?;
+                                }
+                            }
+                            Ok(())
+                        })?;
+                    }
                     eqiora_lang::FormulationBinding::Finite { name, trials } => {
                         budget.account_members(trials.len(), "finite trial Fields")?;
                         encoder.field(6, |e| {

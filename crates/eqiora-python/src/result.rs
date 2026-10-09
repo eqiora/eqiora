@@ -27,6 +27,7 @@ use crate::trajectory::{PyBoundaryFlux, PyBoundaryForce, PyState, PyTrajectory};
 
 mod constraints;
 mod field_output;
+mod harmonic;
 mod nonlinear;
 pub(crate) use nonlinear::PyNonlinearSolveSummary;
 mod eigen;
@@ -198,6 +199,29 @@ impl PyRunResult {
 
 #[pymethods]
 impl PyRunResult {
+    /// Reconstruct original no-Mesh real Fields in SI units from peak amplitudes.
+    /// This response restriction does not impose arbitrary original initial conditions.
+    #[pyo3(signature = (*, time_seconds))]
+    fn reconstruct_harmonic_fields(
+        &self,
+        py: Python<'_>,
+        time_seconds: f64,
+    ) -> PyResult<Py<pyo3::types::PyTuple>> {
+        harmonic::reconstruct_fields(py, &self.native, time_seconds)
+    }
+
+    /// Reconstruct real spatial coefficients with the amplitude block's layout and SI units.
+    #[pyo3(signature = (field, /, *, time_seconds, block=0))]
+    fn reconstruct_harmonic_field_block(
+        &self,
+        py: Python<'_>,
+        field: &PyModelFieldRef,
+        time_seconds: f64,
+        block: usize,
+    ) -> PyResult<Py<PyArrayBuffer>> {
+        harmonic::reconstruct_block(py, &self.native, field, time_seconds, block)
+    }
+
     #[getter(eigenpair_count)]
     fn eigenpair_count_python(&self) -> usize {
         self.eigenpair_count()

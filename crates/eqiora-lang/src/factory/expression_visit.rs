@@ -28,6 +28,19 @@ impl super::SourceAstFactory {
         }
         for component in &mut document.components {
             let scope = Some(component.name.as_str());
+            for form in &mut component.formulations {
+                if let crate::FormulationBinding::Harmonic {
+                    angular_frequency,
+                    excitations,
+                    ..
+                } = &mut form.binding
+                {
+                    expression(scope, angular_frequency, &mut visit);
+                    for (_, value) in excitations {
+                        expression(scope, value, &mut visit);
+                    }
+                }
+            }
             signature(&mut component.signature, scope, &mut visit);
             for item in &mut component.items {
                 match item {
@@ -68,6 +81,19 @@ impl super::SourceAstFactory {
         }
         for model in &mut document.models {
             let scope = Some(model.name.as_str());
+            for form in &mut model.formulations {
+                if let crate::FormulationBinding::Harmonic {
+                    angular_frequency,
+                    excitations,
+                    ..
+                } = &mut form.binding
+                {
+                    expression(scope, angular_frequency, &mut visit);
+                    for (_, value) in excitations {
+                        expression(scope, value, &mut visit);
+                    }
+                }
+            }
             signature(&mut model.signature, scope, &mut visit);
             for item in &mut model.items {
                 match item {
