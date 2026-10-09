@@ -50,6 +50,8 @@ PYTHON_TEST_FIXTURES = (
     ),
 )
 PYTHON_TEST_RESOURCES = (
+    Path("verify/language/factor-integrals/models/nonlocal-interaction.eqi"),
+    Path("verify/language/factor-integrals/models/radial-diffusion.eqi"),
     Path("crates/eqiora-api/schemas/compile-v2.schema.json"),
     Path("docs/site/src/content/docs/reference/language/index.mdx"),
     Path("docs/site/src/content/docs/reference/language/declarations.mdx"),

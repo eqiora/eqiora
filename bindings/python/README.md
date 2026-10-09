@@ -53,7 +53,7 @@ CSS, so a normal installation can emit the rich notebook view without fetching
 renderer assets at display time. Importing `eqiora` does not load anywidget,
 ipywidgets, or traitlets. The PyTorch extra
 declares `torch>=2.14,<2.15`; the tested version is PyTorch 2.14.0.
-The release candidate checks JAX/JAXLIB 0.11.0 and Matplotlib 3.11.2 on CPython 3.13.
+The release candidate checks JAX/JAXLIB 0.11.0 and Matplotlib 3.11.1 on CPython 3.13.
 The JAX extra requires Python 3.12 or newer.
 
 ## Run a model
