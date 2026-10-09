@@ -646,7 +646,8 @@ fn validate_singular_support_shapes<I: Eq>(
                             SpatialSupport::Volume { domain, .. } => Some(domain),
                             SpatialSupport::Coordinates { .. }
                             | SpatialSupport::Boundary { .. }
-                            | SpatialSupport::Interface { .. } => None,
+                            | SpatialSupport::Interface { .. }
+                            | SpatialSupport::PhysicalInterface { .. } => None,
                         });
                 if expected != actual_dimensions {
                     diagnostics.push(source_error(
@@ -677,7 +678,8 @@ fn validate_singular_support_shapes<I: Eq>(
                     "volume",
                 ));
             }
-            (SpatialSupport::Interface { .. }, _) | (_, SpatialSupport::Interface { .. }) => {
+            (SpatialSupport::Interface { .. } | SpatialSupport::PhysicalInterface { .. }, _)
+            | (_, SpatialSupport::Interface { .. } | SpatialSupport::PhysicalInterface { .. }) => {
                 diagnostics.push(source_error(
                     codes::LANGUAGE_LOWERING_ERROR,
                     binding_file,

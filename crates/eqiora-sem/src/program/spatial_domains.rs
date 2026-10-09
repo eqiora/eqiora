@@ -620,8 +620,8 @@ pub(super) fn declared_spatial_supports(
         }
         let support = SpatialSupport::PhysicalInterface {
             domain,
-            boundaries,
-            parents: [*first, *second],
+            boundaries: Box::new(boundaries),
+            parents: Box::new([*first, *second]),
             dimensions: *dimensions,
         };
         supports.insert(domain, support);

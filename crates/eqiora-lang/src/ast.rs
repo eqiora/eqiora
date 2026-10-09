@@ -583,6 +583,8 @@ impl DomainDecl {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum DomainSyntax {
+    /// Ordered exact boundaries; the first supplies the interface common normal.
+    PhysicalInterface { boundaries: [String; 2] },
     /// Ordered product of exact enclosing coordinate-factor supports.
     Product { factors: Vec<String> },
     /// Cartesian coordinate sources, one lower/upper pair per axis.

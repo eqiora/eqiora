@@ -219,7 +219,7 @@ fn boundary_operator<I: Clone + Eq>(
             parents,
             dimensions,
             ..
-        }) => (parents, dimensions),
+        }) => (parents.as_slice(), dimensions),
         _ => return Err(TypeViolation::BoundaryOperatorRequiresBoundaryScope),
     };
     let operand_is_parent_volume = matches!(

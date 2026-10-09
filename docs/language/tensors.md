@@ -202,10 +202,30 @@ optional `from` must name its exact parent volume. Omitting `on` uses the owning
 Relation's boundary scope. An explicit `on` also permits a trace in a `let`
 outside a Relation, but consuming it in an equation still requires the same
 boundary support. The retained trace/normal node carries the target identity.
-These selectors do not introduce physical interfaces, continuity or flux balance.
+Boundary selectors alone do not declare an interface or impose continuity or flux balance.
 Python `eqiora.lang` uses `on=wall, from_=body` with exact Support handles;
 native `eqiora.trace` accepts the corresponding Domain handles. Foreign owners
 or same-named replacement handles do not select the declared support.
+
+A Cartesian physical interface can be declared separately from a conserving Connection:
+
+```eqiora
+domain contact = interface(left_face, right_face);
+```
+
+The ordered boundaries must coincide, have distinct parent regions, and have opposite
+outward normals. The first boundary supplies the common interface normal. For example,
+`trace(u_left, on=contact, from=left)` and `trace(u_right, on=contact, from=right)`
+retain the same interface target and each operand's exact parent region. An explicit
+`from` must match the operand's support. A difference or weighted combination of these
+traces is an authored expression; the interface declaration supplies no continuity or
+flux-balance equation. Normal and tangential traces on `contact` use its common normal,
+so reversing the boundary order reverses their orientation.
+
+This currently covers source/Kernel authoring, type checking and Model replay for
+Cartesian interfaces. Interface numerical evaluation, interface weak-form integration,
+and general Field regularity admission remain unfinished. Python interface declaration
+helpers are not yet provided.
 
 Authored weak forms retain `curl`, `cross`, `normal`, and `tangential_trace` as typed
 operators. Trace, normal and tangential trace accept the same exact `on`/`from`

@@ -134,6 +134,17 @@ pub(in crate::hierarchy) fn occurrence(
             parent: parent.to_string(),
             dimensions: *dimensions,
         },
+        SpatialSupport::PhysicalInterface {
+            domain,
+            boundaries,
+            parents,
+            dimensions,
+        } => SpatialSupport::PhysicalInterface {
+            domain: domain.to_string(),
+            boundaries: Box::new([boundaries[0].to_string(), boundaries[1].to_string()]),
+            parents: Box::new([parents[0].to_string(), parents[1].to_string()]),
+            dimensions: *dimensions,
+        },
         SpatialSupport::Interface {
             connection,
             dimensions,

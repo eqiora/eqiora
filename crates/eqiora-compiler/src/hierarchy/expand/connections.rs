@@ -297,4 +297,282 @@ impl RootExpansion<'_, '_> {
         }
         Ok(())
     }
+
+    pub(super) fn finalize_physical_connections(&mut self) -> Result<(), Diagnostic> {
+        if self.physical_ports.is_empty() && self.physical_connections.is_empty() {
+            return Ok(());
+        }
+        for fragment in &self.physical_connections {
+            if fragment
+                .topology
+                .members()
+                .iter()
+                .any(|member| self.spatial_periodic_ports.contains(member))
+            {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.model.file,
+                    self.model.range(),
+                    "one field-physical Port cannot belong to both ordinary and spatial-periodic Connections",
+                ));
+            }
+            let boundary_members = fragment
+                .topology
+                .members()
+                .iter()
+                .filter_map(|identity| {
+                    self.physical_ports.get(identity).and_then(|port| {
+                        let Some(PhysicalExposureContractIdentity::FieldBoundary {
+                            connector,
+                            boundary,
+                        }) = port.contract
+                        else {
+                            return None;
+                        };
+                        Some((*identity, connector, boundary))
+                    })
+                })
+                .collect::<Vec<_>>();
+            if boundary_members.is_empty() {
+                continue;
+            }
+            if boundary_members.len() != fragment.topology.members().len() {
+                return Err(source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.model.file,
+                    self.model.range(),
+                    "conserving Connection cannot mix scalar and field-physical Ports",
+                ));
+            }
+            let mut contracts = Vec::with_capacity(boundary_members.len());
+            let mut metric_validation_deferred = false;
+            for (_, connector, boundary) in &boundary_members {
+                let embedding = self.boundary_embeddings.get(boundary).ok_or_else(|| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.model.file,
+                        self.model.range(),
+                        "field-physical Port boundary has no Cartesian embedding recipe",
+                    )
+                })?;
+                let parent = *self.boundary_parents.get(boundary).ok_or_else(|| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.model.file,
+                        self.model.range(),
+                        "field-physical Port boundary has no exact parent identity",
+                    )
+                })?;
+                if let Some(embedding) = embedding {
+                    contracts.push(BoundaryPhysicalPortContract {
+                        connector: *connector,
+                        boundary: *boundary,
+                        parent,
+                        embedding: embedding.clone(),
+                    });
+                } else {
+                    metric_validation_deferred = true;
+                }
+            }
+            if !metric_validation_deferred {
+                validate_boundary_physical_connection(&contracts).map_err(|violation| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.model.file,
+                        self.model.range(),
+                        format!(
+                            "field-physical Connection is incompatible before topology normalization: {violation:?}"
+                        ),
+                    )
+                })?;
+            }
+        }
+        let endpoints = self
+            .physical_ports
+            .iter()
+            .filter(|(identity, _)| !self.spatial_periodic_ports.contains(identity))
+            .map(|(identity, occurrence)| {
+                OccurrencePhysicalEndpoint::new(
+                    *identity,
+                    occurrence.exposure_candidate,
+                    self.physical_owner_relations.contains_key(identity),
+                )
+            })
+            .collect::<Vec<_>>();
+        let fragments = self
+            .physical_connections
+            .iter()
+            .map(|fragment| {
+                OccurrenceConnectionFragment::new(
+                    fragment.topology.clone(),
+                    fragment.origin.instance_path.clone(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let normalized = normalize_occurrence_connections(
+            &endpoints,
+            &fragments,
+            self.elaborator.limits.connection_sets,
+        )
+        .map_err(|error| {
+            source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                self.model.file,
+                self.model.range(),
+                format!("invalid occurrence-level physical connection closure: {error}"),
+            )
+        })?;
+
+        let projection_count = normalized
+            .sets()
+            .iter()
+            .try_fold(0_usize, |count, set| {
+                count.checked_add(set.topology().eliminated_exposures().len())
+            })
+            .ok_or_else(|| hierarchy_error("physical exposure projection count overflows usize"))?;
+        let projection_limits = self.elaborator.limits.physical_exposures;
+        if projection_count > projection_limits.max_projections {
+            return Err(hierarchy_error(format!(
+                "physical exposure projections total {projection_count}, exceeding the {} limit",
+                projection_limits.max_projections
+            )));
+        }
+        self.physical_exposures
+            .try_reserve_exact(projection_count)
+            .map_err(|_| hierarchy_error("cannot reserve physical exposure projections"))?;
+        let mut cut_graph = ExposureCutIndex::new(
+            self.physical_ports.keys().copied(),
+            self.physical_ports.len(),
+            &fragments,
+        )?;
+        let mut projection_memberships = 0_usize;
+
+        let mut exposure_connections = BTreeMap::new();
+        for (set_index, set) in normalized.sets().iter().enumerate() {
+            let topology = set.topology();
+            let owner_fragment = set
+                .witness()
+                .lca_owner_candidate_fragment_indices()
+                .iter()
+                .copied()
+                .min_by(|left, right| {
+                    compare_physical_connection_origins(
+                        &self.physical_connections[*left].origin,
+                        &self.physical_connections[*right].origin,
+                    )
+                })
+                .expect("occurrence normalization proves one explicit LCA fragment");
+            let owner = &self.physical_connections[owner_fragment].origin;
+            debug_assert_eq!(owner.instance_path, *topology.owner_instance_path());
+            let key = ElaborationKey::anonymous_connection_with_limits(
+                self.namespace.clone(),
+                topology.owner_instance_path().clone(),
+                owner.declaration_path.clone(),
+                topology.retained_members().iter().copied(),
+                self.elaborator.limits.identity,
+            )?;
+            let full = key.full_identity()?;
+            let origins = set
+                .witness()
+                .contributing_fragment_indices()
+                .iter()
+                .map(|index| self.physical_connections[*index].origin.source.clone())
+                .collect::<Vec<_>>();
+            self.items.push(FlatItemBlueprint::Connection {
+                syntax: ConnectionSyntax::Conserving,
+                ports: topology
+                    .retained_members()
+                    .iter()
+                    .map(|member| self.physical_ports[member].identity.full)
+                    .map(internal_name)
+                    .collect(),
+                range: owner.source.definition.range,
+                identity: ConnectionIdentity { key, full, origins },
+            });
+            for exposure in topology.eliminated_exposures() {
+                if exposure_connections.insert(*exposure, full).is_some() {
+                    return Err(hierarchy_error(format!(
+                        "physical exposure {exposure} projects to more than one canonical Connection"
+                    )));
+                }
+                let occurrence = &self.physical_ports[exposure];
+                let interior = cut_graph.derive(
+                    *exposure,
+                    &occurrence.instance_path,
+                    topology.retained_members(),
+                    &fragments,
+                    projection_limits.max_traversal_memberships,
+                )?;
+                if interior.is_empty() || interior.len() == topology.retained_members().len() {
+                    return Err(hierarchy_error(format!(
+                        "physical exposure `{}` does not define a nonempty proper occurrence cut",
+                        occurrence.display_name
+                    )));
+                }
+                if interior.len() > projection_limits.max_members_per_cut {
+                    return Err(hierarchy_error(format!(
+                        "physical exposure `{}` cut has {} members, exceeding the {} limit",
+                        occurrence.display_name,
+                        interior.len(),
+                        projection_limits.max_members_per_cut
+                    )));
+                }
+                projection_memberships = projection_memberships
+                    .checked_add(interior.len())
+                    .ok_or_else(|| {
+                        hierarchy_error("physical exposure cut membership count overflows usize")
+                    })?;
+                if projection_memberships > projection_limits.max_memberships {
+                    return Err(hierarchy_error(format!(
+                        "physical exposure cuts total {projection_memberships} memberships, exceeding the {} limit",
+                        projection_limits.max_memberships
+                    )));
+                }
+                let contract = occurrence.contract.ok_or_else(|| {
+                    hierarchy_error(format!(
+                        "physical exposure `{}` has no closed nominal contract",
+                        occurrence.display_name
+                    ))
+                })?;
+                self.physical_exposures
+                    .push(PhysicalExposureProjectionBlueprint {
+                        selector: occurrence.display_name.clone(),
+                        exposure: occurrence.identity.clone(),
+                        connection: full,
+                        interior,
+                        contract,
+                    });
+            }
+            debug_assert!(
+                normalized
+                    .exposure_witnesses()
+                    .iter()
+                    .filter(|witness| witness.connection_set_index() == set_index)
+                    .all(|witness| exposure_connections.contains_key(&witness.exposure()))
+            );
+        }
+
+        self.items.retain(|item| match item {
+            FlatItemBlueprint::Port { identity, .. } => {
+                !exposure_connections.contains_key(&identity.full)
+            }
+            _ => true,
+        });
+        for exposure in exposure_connections.into_keys() {
+            let occurrence = &self.physical_ports[&exposure];
+            let removed = self.display_symbols.remove(&occurrence.display_name);
+            if !matches!(removed, Some(identity) if identity.full == exposure) {
+                return Err(hierarchy_error(format!(
+                    "physical exposure `{}` has no exact display-symbol entry",
+                    occurrence.display_name
+                )));
+            }
+        }
+        self.physical_exposures.sort_unstable_by(|left, right| {
+            left.selector
+                .cmp(&right.selector)
+                .then_with(|| left.exposure.full.cmp(&right.exposure.full))
+        });
+        Ok(())
+    }
 }

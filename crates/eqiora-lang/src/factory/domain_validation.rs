@@ -5,6 +5,17 @@ use super::{AstConstructionError, validate_finite, validate_identifier};
 
 pub(super) fn validate_domain_syntax(syntax: &DomainSyntax) -> Result<(), AstConstructionError> {
     match syntax {
+        DomainSyntax::PhysicalInterface { boundaries } => {
+            for boundary in boundaries {
+                validate_identifier(boundary, "interface boundary")?;
+            }
+            if boundaries[0] == boundaries[1] {
+                return Err(AstConstructionError::new(
+                    "physical interface requires distinct boundaries",
+                ));
+            }
+            Ok(())
+        }
         DomainSyntax::Product { factors } => {
             if factors.is_empty() {
                 return Err(AstConstructionError::new(

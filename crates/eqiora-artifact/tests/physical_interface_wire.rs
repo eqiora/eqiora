@@ -156,3 +156,43 @@ fn current_wire_requires_the_boundary_pair_and_rejects_the_previous_epoch() {
         .is_err()
     );
 }
+
+#[test]
+fn source_interface_reaches_model_admission_and_replay() {
+    let source = r#"model M() {
+        domain left=box(0,1);
+        domain right=box(1,3);
+        domain a=boundary(left,axis=0,side=upper);
+        domain b=boundary(right,axis=0,side=lower);
+        domain contact=interface(a,b);
+        variable u:1 on left;
+        variable v:1 on right;
+        relation law on contact { trace(u,on=contact,from=left)-trace(v,on=contact,from=right)=0; }
+    }"#;
+    let admit = |source: &str| {
+        let (transaction, model, _) = eqiora_compiler::compile("interface.eqi", source)
+            .unwrap()
+            .remove(0)
+            .into_parts();
+        let mut store = InMemoryGraphStore::new();
+        store.commit(transaction).unwrap();
+        KernelProgram::from_snapshot(&store.snapshot(), model)
+    };
+    let program = admit(source).unwrap();
+    let envelope = ModelEnvelope::from_program(&program).unwrap();
+    let bytes = envelope.canonical_json().unwrap();
+    let replay = ModelEnvelope::from_json(&bytes, ModelDecoderLimits::default())
+        .unwrap()
+        .to_program()
+        .unwrap();
+    assert_eq!(
+        StructuralSemanticFingerprint::from_program(&program).unwrap(),
+        StructuralSemanticFingerprint::from_program(&replay).unwrap()
+    );
+    let errors = admit(&source.replace("box(1,3)", "box(2,3)")).unwrap_err();
+    assert!(errors.iter().any(|error| {
+        error
+            .message()
+            .contains("coincide with opposite outward normals")
+    }));
+}

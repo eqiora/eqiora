@@ -45,6 +45,22 @@ impl RootExpansion<'_, '_> {
                         DomainSyntax::CartesianBox(bounds) => DomainSyntax::CartesianBox(
                             super::cartesian::rewrite_coordinates(self.model.file, bounds, scope)?,
                         ),
+                        DomainSyntax::PhysicalInterface { boundaries } => {
+                            let boundary = |name: &str| {
+                                resolve_local_kind(
+                                    self.model.file,
+                                    declaration.range(),
+                                    scope,
+                                    name,
+                                    |kind| matches!(kind, SymbolKind::Domain),
+                                    "physical interface boundary",
+                                )
+                                .map(|symbol| symbol.internal_name.clone())
+                            };
+                            DomainSyntax::PhysicalInterface {
+                                boundaries: [boundary(&boundaries[0])?, boundary(&boundaries[1])?],
+                            }
+                        }
                         DomainSyntax::Boundary { parent, axis, side } => {
                             let parent = resolve_local_kind(
                                 self.model.file,

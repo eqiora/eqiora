@@ -64,9 +64,9 @@ pub enum SpatialSupport<I> {
         /// Nominal interface Domain identity.
         domain: I,
         /// Ordered boundary identities; the first supplies the common normal.
-        boundaries: [I; 2],
+        boundaries: Box<[I; 2]>,
         /// Exact parent region for each ordered boundary.
-        parents: [I; 2],
+        parents: Box<[I; 2]>,
         /// Common ambient Cartesian dimension.
         dimensions: usize,
     },

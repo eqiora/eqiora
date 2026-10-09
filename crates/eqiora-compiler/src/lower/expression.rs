@@ -50,6 +50,7 @@ pub(super) fn lower_relation(
             Some(Binding::Domain(
                 _,
                 DomainContract::Spatial { .. }
+                | DomainContract::PhysicalInterface(_)
                 | DomainContract::CoordinateInterval(_)
                 | DomainContract::CoordinateProduct(_),
             )) => {}

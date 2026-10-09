@@ -2,6 +2,38 @@
 use eqiora_lang::{CallArguments, Expr, ExprKind};
 use eqiora_schema::kernel::typing::{self, ExpressionType, SpatialSupport};
 
+pub(crate) fn physical_interface_support<I: Clone + Eq>(
+    domain: I,
+    sides: [&SpatialSupport<I>; 2],
+) -> Result<SpatialSupport<I>, &'static str> {
+    let [
+        SpatialSupport::Boundary {
+            domain: first,
+            parent: left,
+            dimensions,
+        },
+        SpatialSupport::Boundary {
+            domain: second,
+            parent: right,
+            dimensions: other_dimensions,
+        },
+    ] = sides
+    else {
+        return Err("physical interface requires two exact boundary supports");
+    };
+    if first == second || left == right || dimensions != other_dimensions {
+        return Err(
+            "physical interface requires distinct boundaries and parents with equal ambient dimension",
+        );
+    }
+    Ok(SpatialSupport::PhysicalInterface {
+        domain,
+        boundaries: Box::new([first.clone(), second.clone()]),
+        parents: Box::new([left.clone(), right.clone()]),
+        dimensions: *dimensions,
+    })
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Operation {
     Trace,
@@ -35,6 +67,16 @@ impl Operation {
                         ..
                     }),
                 ) if domain == parent && dimensions == target_dimensions => {}
+                (
+                    SpatialSupport::Volume { domain, dimensions },
+                    Some(SpatialSupport::PhysicalInterface {
+                        parents,
+                        dimensions: target_dimensions,
+                        ..
+                    }),
+                ) if parents.contains(domain)
+                    && dimensions == target_dimensions
+                    && operand.support.as_ref() == Some(from) => {}
                 _ => {
                     return Err("from must name the selected boundary's exact parent volume".into());
                 }

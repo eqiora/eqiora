@@ -118,8 +118,8 @@ fn authored_scalar_jump_types_on_the_exact_two_sided_interface() {
     let typed = program.typed_relation_residual(relation).unwrap();
     let expected = SpatialSupport::PhysicalInterface {
         domain: interface.erase(),
-        boundaries: boundaries.map(Id::erase),
-        parents: regions.map(Id::erase),
+        boundaries: Box::new(boundaries.map(Id::erase)),
+        parents: Box::new(regions.map(Id::erase)),
         dimensions: 1,
     };
     for value in [left_trace, right_trace, jump] {

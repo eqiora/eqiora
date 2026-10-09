@@ -319,6 +319,10 @@ fn format_domain(declaration: &crate::DomainDecl, indent: usize, output: &mut co
         .expect("String write");
     }
     match &declaration.syntax {
+        DomainSyntax::PhysicalInterface { boundaries } => {
+            write!(output, "interface({}, {})", boundaries[0], boundaries[1])
+                .expect("String write");
+        }
         DomainSyntax::Product { factors } => {
             write!(output, "product({})", factors.join(", ")).expect("String write");
         }

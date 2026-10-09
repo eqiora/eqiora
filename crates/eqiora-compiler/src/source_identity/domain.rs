@@ -9,6 +9,13 @@ pub(super) fn encode_domain(
         encode_name(encoder, declaration.name(), budget)
     })?;
     encoder.field(2, |encoder| match declaration.syntax() {
+        DomainSyntax::PhysicalInterface { boundaries } => {
+            encoder.u16(6)?;
+            for boundary in boundaries {
+                encode_name(encoder, boundary, budget)?;
+            }
+            Ok(())
+        }
         DomainSyntax::Product { factors } => {
             encoder.u16(5)?;
             encoder.u32(as_u32(factors.len(), "coordinate factor count")?)?;

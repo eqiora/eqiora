@@ -39,6 +39,7 @@ impl Binding {
 
 #[derive(Debug, Clone)]
 pub(super) enum DomainContract {
+    PhysicalInterface([String; 2]),
     CoordinateInterval(DimExponents),
     CoordinateProduct(Vec<String>),
     Spatial {
@@ -105,6 +106,9 @@ pub(super) fn bind_domain(
     syntax: &DomainSyntax,
 ) -> Result<DomainContract, Diagnostic> {
     match syntax {
+        DomainSyntax::PhysicalInterface { boundaries } => {
+            Ok(DomainContract::PhysicalInterface(boundaries.clone()))
+        }
         DomainSyntax::Product { factors } => Ok(DomainContract::CoordinateProduct(factors.clone())),
         DomainSyntax::ScalarPhysical {
             across_type,

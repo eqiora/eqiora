@@ -282,8 +282,8 @@ fn coordinate_and_boundary_rules_use_relation_support() {
 fn physical_interface_traces_join_only_the_exact_adjacent_supports() {
     let interface = SpatialSupport::PhysicalInterface {
         domain: "contact",
-        boundaries: ["left_face", "right_face"],
-        parents: ["left", "right"],
+        boundaries: Box::new(["left_face", "right_face"]),
+        parents: Box::new(["left", "right"]),
         dimensions: 2,
     };
     let left = ExpressionType::scalar(DimExponents::DIMENSIONLESS, Some(volume("left")));

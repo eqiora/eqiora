@@ -14,7 +14,12 @@ pub(super) fn selected_supports(
         .map(|name| types::relation_support(file, range, name, bindings))
         .transpose()?
         .or_else(|| implicit.cloned())
-        .filter(|support| matches!(support, SpatialSupport::Boundary { .. }))
+        .filter(|support| {
+            matches!(
+                support,
+                SpatialSupport::Boundary { .. } | SpatialSupport::PhysicalInterface { .. }
+            )
+        })
         .ok_or_else(|| {
             source_error(
                 codes::LANGUAGE_TYPE_ERROR,
