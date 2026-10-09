@@ -515,7 +515,7 @@ ceiling = 8
 
 [[public_surface]]
 crate = "eqiora-schema"
-ceiling = 112
+ceiling = 113
 # #915: FiniteUnaryOperation and FiniteBinaryOperation close the vocabulary used
 # by source lowering, typed admission, reference execution, scalar IR and wire
 # replay. Fold them only if a shared existing operation owner retains these
@@ -559,8 +559,12 @@ second evaluator is added.
 source authoring, SEM trace admission, Model wire replay and structural identity.
 A private flag or adapter-owned spelling would duplicate the same six-way contract
 and could silently upgrade a borrowed Field. It is independent of numerical spaces.
+#995 also exposes TraceRegularityChecker so typed Model residuals and live weak-form
+boundary operands use one native-node trace proof, including the same smoothness
+and weak-boundary restrictions. Adapter-local flags would duplicate that calculus.
+The checker owns no persisted schema, numerical basis or separate expression language.
 """
-removal = "withdraw GeometryDigest or the closed coordinate recipes when accepted structural geometry/general coordinate owners subsume them; withdraw FieldRole and lower by one only if an existing shared typed owner carries the same algebraic/state choice without parallel encodings or consumer-specific constructor dispatch; lower the EnumDef allowance only if another accepted shared declaration owner retains its exact identity and ordered members without adapter-local registries; withdraw the two record owners only when an accepted existing owner retains nominal declaration identity and ordered typed expression roots without external metadata; withdraw SpatialRegularity and lower by one only when an accepted shared continuum-space owner retains the same authored per-Field hypothesis across typing, source and Model replay without adapter-local encodings"
+removal = "withdraw GeometryDigest or the closed coordinate recipes when accepted structural geometry/general coordinate owners subsume them; withdraw FieldRole and lower by one only if an existing shared typed owner carries the same algebraic/state choice without parallel encodings or consumer-specific constructor dispatch; lower the EnumDef allowance only if another accepted shared declaration owner retains its exact identity and ordered members without adapter-local registries; withdraw the two record owners only when an accepted existing owner retains nominal declaration identity and ordered typed expression roots without external metadata; withdraw SpatialRegularity and lower by one only when an accepted shared continuum-space owner retains the same authored per-Field hypothesis across typing, source and Model replay without adapter-local encodings; withdraw TraceRegularityChecker and lower by one only when all weak-form boundary operands use the same typed residual owner directly, retaining distinct actual Field and test hypotheses"
 
 [[public_surface]]
 crate = "eqiora-sem"

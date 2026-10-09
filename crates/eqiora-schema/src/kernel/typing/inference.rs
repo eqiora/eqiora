@@ -208,29 +208,7 @@ pub(super) fn infer_node<I: Clone + Eq, E>(
             let Some((value, selected)) = inferred_binary(inferred, *value, *wrt) else {
                 return NodeInference::Unavailable;
             };
-            if !matches!(
-                selected.support,
-                Some(SpatialSupport::Volume { .. } | SpatialSupport::Coordinates { .. })
-            ) {
-                return NodeInference::Type(TypeViolation::CoordinatePartialRequiresCoordinate);
-            }
-            if [&value, &selected].iter().any(|ty| {
-                !ty.shape().is_scalar()
-                    || ty.value_type.array_rank() != 0
-                    || ty.value_type.scalar_domain() != eqiora_core::ScalarDomain::Real
-            }) {
-                return NodeInference::Type(TypeViolation::RootRequiresRealScalar);
-            }
-            match combine_additive_support(&value.support, &selected.support) {
-                Err(error) => Err(error),
-                Ok(support) => value
-                    .dimension()
-                    .div(selected.dimension())
-                    .map(|dimension| ExpressionType::scalar(dimension, support))
-                    .ok_or(TypeViolation::DimensionOverflow {
-                        operation: "coordinate partial",
-                    }),
-            }
+            value.coordinate_partial(&selected)
         }
         ExprNode::Gradient(value) => {
             let Some(value) = inferred_type(inferred, *value) else {

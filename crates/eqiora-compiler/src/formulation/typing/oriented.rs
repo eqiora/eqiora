@@ -3,7 +3,10 @@ use super::*;
 use eqiora_schema::kernel::typing::{ExpressionType, SpatialSupport};
 
 impl ExpressionContext<'_> {
-    fn physical_support(&self, domain: Id<kinds::Domain>) -> SpatialSupport<RawId> {
+    pub(in crate::formulation) fn physical_support(
+        &self,
+        domain: Id<kinds::Domain>,
+    ) -> SpatialSupport<RawId> {
         let domain = domain.erase();
         match self.index.boundary_of.get(&domain) {
             Some(parent) => SpatialSupport::Boundary {

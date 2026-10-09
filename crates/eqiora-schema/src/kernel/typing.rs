@@ -21,6 +21,7 @@ mod integer;
 mod ordered_selection;
 mod pullback;
 mod regularity;
+pub use regularity::TraceRegularityChecker;
 mod roots;
 pub use roots::{residual, scalar_root};
 mod spatial;

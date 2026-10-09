@@ -120,7 +120,7 @@ fn oriented_form_rendering_retains_operators_and_exact_semantic_references() {
                 r#"model M() {{
             domain body=box(0,1,0,1,0,1);
             domain face=boundary(body,axis=0,side=lower);
-            variable u:vector<{scalar},3> on body;
+            variable u:vector<{scalar},3> on body in h1;
             variable b:vector<1,3> on body;
             relation law on body {{ curl(curl(u))=u*0[1/m^2]; }}
             form weak for law {{ test v:1 for u zero_on face; {integral}=0; }}

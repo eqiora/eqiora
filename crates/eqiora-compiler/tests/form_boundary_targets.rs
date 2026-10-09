@@ -12,7 +12,7 @@ fn source(operator: &str, target: &str, parent: &str) -> String {
         domain other=box(0,1,0,1);
         domain face=boundary(body,axis=0,side=lower);
         domain opposite=boundary(body,axis=0,side=upper);
-        variable u:{shape} on body;
+        variable u:{shape} on body in h1;
         relation law on body {{ u=u; }}
         form weak for law {{
             test eta:1 for u;
