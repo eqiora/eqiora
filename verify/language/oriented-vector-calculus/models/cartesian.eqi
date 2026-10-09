@@ -1,0 +1,26 @@
+model M() {
+    domain body=box(0,8,0,8,0,8);
+    domain lo=boundary(body,axis=0,side=lower);
+    domain hi=boundary(body,axis=0,side=upper);
+    coordinate x:m on body from body[0];
+    coordinate y:m on body from body[1];
+    coordinate z:m on body from body[2];
+    parameter ex:vector<1,3>=tensor_value(frame=body,components=[1,0,0]);
+    parameter ey:vector<1,3>=tensor_value(frame=body,components=[0,1,0]);
+    parameter ez:vector<1,3>=tensor_value(frame=body,components=[0,0,1]);
+    let F=ex*y*y*z+ey*z*z*x+ez*x*x*y;
+    let U=(2*ex+3*ey+5*ez)*x^0*1[m^3];
+    variable anchor:1;
+    relation retained { anchor=0; }
+    observable c0:m^2 on body=component(curl(F),indices=(0,));
+    observable c1:m^2 on body=component(curl(F),indices=(1,));
+    observable c2:m^2 on body=component(curl(F),indices=(2,));
+    observable cc0:m on body=component(curl(curl(F)),indices=(0,));
+    observable cc1:m on body=component(curl(curl(F)),indices=(1,));
+    observable cc2:m on body=component(curl(curl(F)),indices=(2,));
+    observable divergence:m on body=div(curl(F));
+    observable potential_curl:m on body=component(curl(grad(x*y*z)),indices=(0,));
+    observable laplace:m on body=component(div(grad(F)),indices=(0,));
+    observable lower_tangent:m^3 on lo=component(tangential_trace(U),indices=(1,));
+    observable upper_tangent:m^3 on hi=component(tangential_trace(U),indices=(1,));
+}

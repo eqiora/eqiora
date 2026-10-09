@@ -2,9 +2,6 @@
 use super::*;
 mod jacobian;
 
-type Resolver<'a> =
-    dyn FnMut(EvaluationInput, Option<&EvaluationPoint>) -> Result<ValueLiteral, Diagnostic> + 'a;
-
 pub(super) fn evaluate_selected(
     owner: RawId,
     expression: &ExprDag,
@@ -119,6 +116,36 @@ impl Evaluator<'_, '_> {
                 }
                 if point.is_some_and(|point| point.side().is_some()) {
                     super::point::require_side_regularity(expression, node)?;
+                }
+                if matches!(
+                    node,
+                    ExprNode::Gradient(_)
+                        | ExprNode::Divergence(_)
+                        | ExprNode::Trace(_)
+                        | ExprNode::NormalComponent(_)
+                ) {
+                    let program = self.program.ok_or_else(|| {
+                        Diagnostic::error(
+                            codes::NOT_IMPLEMENTED,
+                            "analytic spatial evaluation requires its exact KernelProgram",
+                        )
+                    })?;
+                    let point = point.ok_or_else(|| {
+                        Diagnostic::error(
+                            codes::NOT_IMPLEMENTED,
+                            "analytic spatial evaluation requires an exact point",
+                        )
+                    })?;
+                    values[index] = Some(super::spatial::evaluate(
+                        program,
+                        owner,
+                        expression,
+                        id,
+                        point,
+                        &mut self.component_work,
+                        self.resolve,
+                    )?);
+                    continue;
                 }
                 if let ExprNode::CoordinateMapFactor { factor, source, at } = node {
                     values[index] = Some(self.map_factor(id, *factor, source, at, point)?);

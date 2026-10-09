@@ -200,6 +200,7 @@ fn checked_coordinate(
     let support_type = program
         .spatial_support(support)
         .ok_or_else(|| invalid("evaluation support is outside the Model"))?;
+    let mut boundary_plane = None;
     let admitted_factor = match support_type {
         SpatialSupport::Coordinates { factors, .. } => factors
             .iter()
@@ -207,9 +208,36 @@ fn checked_coordinate(
         SpatialSupport::Volume { domain, dimensions } => {
             *domain == factor.erase() && axis < *dimensions
         }
+        SpatialSupport::Boundary {
+            domain,
+            parent,
+            dimensions,
+        } => {
+            let Some(KernelNode::Domain(boundary)) = program.node(*domain) else {
+                return Err(invalid("boundary point requires its exact Domain"));
+            };
+            let DomainKind::CartesianBoundary {
+                axis: normal_axis,
+                side: orientation,
+            } = boundary.kind()
+            else {
+                return Err(invalid(
+                    "boundary points require an admitted Cartesian boundary",
+                ));
+            };
+            if side.is_some() {
+                return Err(invalid("a boundary point does not imply a one-sided limit"));
+            }
+            boundary_plane = Some((*normal_axis, *orientation));
+            *parent == factor.erase() && axis < *dimensions
+        }
         _ => false,
     };
-    if !admitted_factor || support_type.intrinsic_dimensions() != count {
+    let expected_count = match support_type {
+        SpatialSupport::Boundary { dimensions, .. } => *dimensions,
+        _ => support_type.intrinsic_dimensions(),
+    };
+    if !admitted_factor || expected_count != count {
         return Err(invalid(
             "evaluation omits or substitutes an exact support coordinate",
         ));
@@ -242,6 +270,19 @@ fn checked_coordinate(
         return Err(invalid(
             "evaluation coordinate has wrong units or lies outside its exact support",
         ));
+    }
+    if let Some((normal_axis, orientation)) = boundary_plane
+        && axis == normal_axis
+    {
+        let plane = match orientation {
+            BoundarySide::Lower => bounds.lower(),
+            BoundarySide::Upper => bounds.upper(),
+        };
+        if value != plane {
+            return Err(invalid(
+                "boundary point does not lie on its exact oriented face",
+            ));
+        }
     }
     if (side == Some(BoundarySide::Lower) && value.value() == bounds.lower().value())
         || (side == Some(BoundarySide::Upper) && value.value() == bounds.upper().value())

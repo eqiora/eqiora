@@ -1,0 +1,20 @@
+id = "language.oriented-vector-calculus"
+status = "implemented"
+scope = "real-cartesian-coordinate-polynomial-curl-and-oriented-face-evaluation"
+reference_kind = "independent-component-derivatives-and-reversed-outward-normal"
+capabilities = ["cartesian-polynomial-curl", "nested-curl", "differential-identities", "oriented-tangential-trace", "exact-boundary-points", "model-replay", "ordinary-result-observation"]
+
+[claim_boundary]
+real_explicit_coordinate_polynomials = true
+right_handed_cartesian_frame = true
+actual_bound_parameter_values = true
+exact_parent_and_oriented_face = true
+unknown_field_reconstruction = false
+complex_spatial_evaluation = false
+arbitrary_boundary_charts = false
+finite_element_complex = false
+maxwell_solver = false
+
+[evidence]
+package = "eqiora"
+test = "oriented_vector_calculus"
