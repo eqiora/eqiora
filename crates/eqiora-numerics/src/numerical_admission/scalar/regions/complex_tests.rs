@@ -49,7 +49,7 @@ fn execute(source: &str) -> CommonScalarRunOutput<C> {
         .checked_complex_backend(&REFERENCE_LINEAR_SOLVER, Some(&structure))
         .unwrap();
     let output = equations
-        .execute(
+        .execute_cartesian(
             NonZeroUsize::MIN,
             LinearSolveRequest::new(&backend, policy.solver),
             &mesh,

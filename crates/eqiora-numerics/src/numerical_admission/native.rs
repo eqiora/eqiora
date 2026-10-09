@@ -662,7 +662,7 @@ impl NativeNumericalAdmission {
         if let RecognizedNativeModel::Coordinates(projection) = self.recognized_model() {
             return super::coordinate_grid::execute(self, projection, backend);
         }
-        let NativeMeshResources::Cartesian { mesh, .. } = self.resources() else {
+        let NativeMeshResources::Cartesian { .. } = self.resources() else {
             return Err(invalid(
                 "scalar elliptic execution requires Cartesian resources",
             ));
@@ -677,7 +677,13 @@ impl NativeNumericalAdmission {
         let backend: &dyn LinearSolverBackend = &checked_backend;
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
         if self.spatial == NativeSpatialPolicy::ScalarQ1 {
-            return lowered.execute(self.linear.workers, solve, mesh.mesh(), complete);
+            return lowered.execute(
+                self.linear.workers,
+                solve,
+                self.resources(),
+                Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+                complete,
+            );
         }
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
         match self.spatial {

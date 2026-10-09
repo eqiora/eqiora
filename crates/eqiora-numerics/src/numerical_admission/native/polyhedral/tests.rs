@@ -18,6 +18,24 @@ fn fixture_typed(
     extent: f64,
     complex: bool,
 ) -> (ModelEnvelope, KernelProgram, AuthenticatedCommonMesh) {
+    fixture_source(
+        groups,
+        duplicate_region,
+        permuted,
+        extent,
+        complex,
+        |source| source,
+    )
+}
+
+fn fixture_source(
+    groups: &[Vec<usize>],
+    duplicate_region: bool,
+    permuted: bool,
+    extent: f64,
+    complex: bool,
+    transform: impl FnOnce(String) -> String,
+) -> (ModelEnvelope, KernelProgram, AuthenticatedCommonMesh) {
     let mut sets = vec![NamedEntitySet::new("body", 3, vec![0])];
     if duplicate_region {
         sets.push(NamedEntitySet::new("other_body", 3, vec![0]));
@@ -92,6 +110,7 @@ fn fixture_typed(
     if complex {
         source = source.replace("vector<1,3>", "vector<complex<1>,3>");
     }
+    let source = transform(source);
     let compiled =
         CompiledModel::compile_selected("polyhedral-support.eqi", &source, "Flux", &bindings)
             .unwrap();
@@ -221,3 +240,5 @@ fn native_recognition_retains_real_and_complex_polyhedral_linear_equations() {
         );
     }
 }
+
+mod execution;

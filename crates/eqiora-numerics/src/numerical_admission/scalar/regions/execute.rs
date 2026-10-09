@@ -10,6 +10,41 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         &self,
         workers: NonZeroUsize,
         request: LinearSolveRequest<'_, S>,
+        resources: &NativeMeshResources,
+        space: Space,
+        complete: impl FnOnce(
+            &crate::region_assembly::InterfaceReactions<S>,
+            &[S],
+        ) -> Result<
+            crate::region_assembly::RecoveredInterfaceReactions<S>,
+            Diagnostic,
+        >,
+    ) -> Result<CommonScalarRunOutput<S>, Diagnostic> {
+        match resources {
+            NativeMeshResources::Cartesian { mesh, .. }
+                if space == Space::continuous_lagrange(std::num::NonZeroU16::MIN) =>
+            {
+                self.execute_cartesian(workers, request, mesh.mesh(), complete)
+            }
+            NativeMeshResources::GmshSimplicial { mesh, .. }
+                if matches!(
+                    space.family(),
+                    eqiora_realization::SpaceFamily::TetrahedralEdge
+                        | eqiora_realization::SpaceFamily::TetrahedralFace
+                ) =>
+            {
+                self.execute_moments(workers, request, mesh, space, complete)
+            }
+            _ => Err(invalid(
+                "linear execution requires a matching authenticated Mesh and Space",
+            )),
+        }
+    }
+
+    pub(in crate::numerical_admission) fn execute_cartesian(
+        &self,
+        workers: NonZeroUsize,
+        request: LinearSolveRequest<'_, S>,
         mesh: &CartesianMesh,
         complete: impl FnOnce(
             &crate::region_assembly::InterfaceReactions<S>,
@@ -155,3 +190,5 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
         })
     }
 }
+
+mod moments;

@@ -379,14 +379,12 @@ fn plural_chain_permutation_retains_exact_field_identity_and_result_recovery() {
     let mut permuted = equations.clone();
     permuted.regions.reverse();
     permuted.interfaces.reverse();
-    let NativeMeshResources::Cartesian { mesh, .. } = plan.admission.resources() else {
-        panic!("Cartesian mesh");
-    };
     let output = permuted
         .execute(
             plan.admission.linear.workers,
             LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.admission.linear.solver),
-            mesh.mesh(),
+            plan.admission.resources(),
+            Space::continuous_lagrange(std::num::NonZeroU16::MIN),
             |reactions, full| reactions.recover(full),
         )
         .unwrap();
