@@ -13,6 +13,7 @@ use eqiora_schema::kernel::{
 use super::{edge_targets, kernel_error};
 
 mod coordinates;
+mod physical_interface;
 pub(super) use coordinates::admit as admit_coordinate_supports;
 
 pub(super) fn resolve_cartesian_bounds(
@@ -29,7 +30,10 @@ pub(super) fn resolve_cartesian_bounds(
         };
         let dependencies = edge_targets(edges, domain, EdgeKind::DependsOn);
         let DomainKind::CartesianBox { coordinates } = definition.kind() else {
-            if matches!(definition.kind(), DomainKind::CoordinateProduct { .. }) {
+            if matches!(
+                definition.kind(),
+                DomainKind::CoordinateProduct { .. } | DomainKind::PhysicalInterface { .. }
+            ) {
                 continue; // Exact factor dependencies are checked by Domain validation.
             }
             if !dependencies.is_empty() {
@@ -181,6 +185,17 @@ pub(super) fn validate_domains(
         let diagnostics_before = diagnostics.len();
         let parents = edge_targets(edges, id, EdgeKind::BoundaryOf);
         match domain.kind() {
+            DomainKind::PhysicalInterface { boundaries } => {
+                if let Err(error) = physical_interface::validate(
+                    id,
+                    boundaries.map(|boundary| boundary.erase()),
+                    nodes,
+                    edges,
+                    cartesian_bounds,
+                ) {
+                    diagnostics.push(error);
+                }
+            }
             DomainKind::CoordinateProduct { factors } => {
                 if !parents.is_empty() {
                     diagnostics.push(kernel_error(

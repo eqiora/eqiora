@@ -395,6 +395,9 @@ impl WireNode {
     pub(crate) fn semantic_references(&self) -> Vec<&WireId> {
         match &self.definition {
             WireNodeDefinition::Domain {
+                domain: WireDomainKind::PhysicalInterface { boundaries },
+            } => boundaries.iter().collect(),
+            WireNodeDefinition::Domain {
                 domain: WireDomainKind::CoordinateProduct { factors },
             } => factors.iter().collect(),
             WireNodeDefinition::FiniteProduct { factors } => {
@@ -556,6 +559,9 @@ pub(crate) enum WireDomainKind {
     GeometryBoundary {
         entity_set: String,
     },
+    PhysicalInterface {
+        boundaries: [WireId; 2],
+    },
     ScalarPhysical {
         across_type: WireValueType,
         through_type: WireValueType,
@@ -601,6 +607,9 @@ impl WireDomainKind {
             },
             DomainKind::GeometryBoundary { entity_set } => Self::GeometryBoundary {
                 entity_set: entity_set.clone(),
+            },
+            DomainKind::PhysicalInterface { boundaries } => Self::PhysicalInterface {
+                boundaries: boundaries.map(|boundary| WireId::from_raw(boundary.erase())),
             },
             DomainKind::ScalarPhysical {
                 across_type,
@@ -657,6 +666,10 @@ impl WireDomainKind {
                 .map_err(|error| invalid_artifact(error.message())),
             Self::GeometryBoundary { entity_set } => DomainDef::geometry_boundary(id, entity_set)
                 .map_err(|error| invalid_artifact(error.message())),
+            Self::PhysicalInterface { boundaries } => {
+                DomainDef::physical_interface(id, [boundaries[0].typed()?, boundaries[1].typed()?])
+                    .map_err(|error| invalid_artifact(error.message()))
+            }
             Self::ScalarPhysical {
                 across_type,
                 through_type,

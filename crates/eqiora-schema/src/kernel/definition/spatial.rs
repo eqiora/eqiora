@@ -199,6 +199,10 @@ pub enum DomainKind {
     /// edge, so the digest is never repeated here: a boundary free to name a
     /// different geometry from its parent would be a boundary of nothing.
     GeometryBoundary { entity_set: String },
+    /// An ordered pair of coincident boundaries belonging to distinct regions.
+    /// The common normal is the first boundary's parent-outward normal.
+    /// This definition imposes neither continuity nor flux balance.
+    PhysicalInterface { boundaries: [Id<kinds::Domain>; 2] },
     /// One nominal scalar conserving domain. The Domain ID is part of the
     /// physical type; dimensions alone never make two domains compatible.
     ScalarPhysical {
@@ -359,6 +363,30 @@ impl DomainDef {
             kind: DomainKind::GeometryBoundary {
                 entity_set: named_entity_set(id, entity_set)?,
             },
+        })
+    }
+
+    /// Define a physical interface with an explicit orientation.
+    ///
+    /// Reversing the boundary order reverses the common normal. Whole-Model
+    /// admission checks exact boundary ownership, coincidence and opposite
+    /// outward normals; no conserving Connection is created.
+    ///
+    /// # Errors
+    /// Returns `EQ0302` for a repeated boundary or a self-reference.
+    pub fn physical_interface(
+        id: Id<kinds::Domain>,
+        boundaries: [Id<kinds::Domain>; 2],
+    ) -> Result<Self, Diagnostic> {
+        if boundaries[0] == boundaries[1] || boundaries.contains(&id) {
+            return Err(Diagnostic::error(
+                codes::INVALID_KERNEL_DEFINITION,
+                "physical interface requires two distinct external boundary Domains",
+            ));
+        }
+        Ok(Self {
+            id,
+            kind: DomainKind::PhysicalInterface { boundaries },
         })
     }
 
