@@ -49,6 +49,102 @@ impl PureOperatorDefinition {
         builder.finish(root.expect("three Cartesian axes"))
     }
 
+    /// Curl of a physical gradient, whose final axis is the derivative axis.
+    /// In 3D this maps grad(vector) to a vector; in 2D it maps grad(vector)
+    /// to the oriented scalar, or grad(scalar) to (partial_y, -partial_x).
+    /// The caller retains the physical gradient node and its exact support.
+    pub fn curl_from_gradient(
+        dimensions: u32,
+        operand_rank: u16,
+    ) -> Result<Self, PureOperatorError> {
+        match (dimensions, operand_rank) {
+            (3, 1) => {
+                let mut builder = CalculusBuilder::new([class(2, 3)?], class(1, 3)?)?;
+                let mut root = None;
+                for axis in 0..3 {
+                    let j = (axis + 1) % 3;
+                    let k = (axis + 2) % 3;
+                    let positive = builder.push(CalculusNode::FormalComponent {
+                        formal: 0,
+                        axes: [ComponentIndex::Fixed(k), ComponentIndex::Fixed(j)].into(),
+                    })?;
+                    let negative = builder.push(CalculusNode::FormalComponent {
+                        formal: 0,
+                        axes: [ComponentIndex::Fixed(j), ComponentIndex::Fixed(k)].into(),
+                    })?;
+                    let negative = builder.push(CalculusNode::Neg(negative))?;
+                    let difference = builder.push(CalculusNode::Add(positive, negative))?;
+                    let selector = builder.push(CalculusNode::KroneckerDelta(
+                        ComponentIndex::Result(0),
+                        ComponentIndex::Fixed(axis),
+                    ))?;
+                    let term = builder.push(CalculusNode::Mul(selector, difference))?;
+                    root = Some(match root {
+                        None => term,
+                        Some(sum) => builder.push(CalculusNode::Add(sum, term))?,
+                    });
+                }
+                builder.finish(root.expect("three axes"))
+            }
+            (2, 1) => {
+                let mut builder = CalculusBuilder::new([class(2, 2)?], class(0, 2)?)?;
+                let positive = builder.push(CalculusNode::FormalComponent {
+                    formal: 0,
+                    axes: [ComponentIndex::Fixed(1), ComponentIndex::Fixed(0)].into(),
+                })?;
+                let negative = builder.push(CalculusNode::FormalComponent {
+                    formal: 0,
+                    axes: [ComponentIndex::Fixed(0), ComponentIndex::Fixed(1)].into(),
+                })?;
+                let negative = builder.push(CalculusNode::Neg(negative))?;
+                let root = builder.push(CalculusNode::Add(positive, negative))?;
+                builder.finish(root)
+            }
+            (2, 0) => planar_rotation(),
+            _ => Err(PureOperatorError::FormalTypeMismatch),
+        }
+    }
+
+    /// Lift a vector so contraction of its final axis with outward n yields n cross u.
+    /// In 2D the normal contraction is n_x*u_y - n_y*u_x, an oriented scalar.
+    /// Boundary scope and exact parent identity remain owned by the normal node.
+    pub fn tangential_lift(dimensions: u32) -> Result<Self, PureOperatorError> {
+        match dimensions {
+            2 => planar_rotation(),
+            3 => {
+                let mut builder = CalculusBuilder::new([class(1, 3)?], class(2, 3)?)?;
+                let mut root = None;
+                for axis in 0..3 {
+                    let j = (axis + 1) % 3;
+                    let k = (axis + 2) % 3;
+                    let value = builder.push(CalculusNode::FormalComponent {
+                        formal: 0,
+                        axes: [ComponentIndex::Fixed(k)].into(),
+                    })?;
+                    let mut delta = |output, coordinate| {
+                        builder.push(CalculusNode::KroneckerDelta(
+                            ComponentIndex::Result(output),
+                            ComponentIndex::Fixed(coordinate),
+                        ))
+                    };
+                    let ij = [delta(0, axis)?, delta(1, j)?];
+                    let ji = [delta(0, j)?, delta(1, axis)?];
+                    let positive = builder.push(CalculusNode::Mul(ij[0], ij[1]))?;
+                    let negative = builder.push(CalculusNode::Mul(ji[0], ji[1]))?;
+                    let negative = builder.push(CalculusNode::Neg(negative))?;
+                    let selector = builder.push(CalculusNode::Add(positive, negative))?;
+                    let term = builder.push(CalculusNode::Mul(selector, value))?;
+                    root = Some(match root {
+                        None => term,
+                        Some(sum) => builder.push(CalculusNode::Add(sum, term))?,
+                    });
+                }
+                builder.finish(root.expect("three axes"))
+            }
+            _ => Err(PureOperatorError::FormalTypeMismatch),
+        }
+    }
+
     /// Algebraic diagonal sum of a full rank-two spatial tensor.
     pub fn matrix_trace(extent: u32) -> Result<Self, PureOperatorError> {
         if u64::from(extent) * 2 > MAX_NODES as u64 {
@@ -186,4 +282,29 @@ impl PureOperatorDefinition {
         }
         builder.finish(root.ok_or(PureOperatorError::InvalidNode)?)
     }
+}
+
+fn planar_rotation() -> Result<PureOperatorDefinition, PureOperatorError> {
+    let mut builder = CalculusBuilder::new([class(1, 2)?], class(1, 2)?)?;
+    let first = builder.push(CalculusNode::FormalComponent {
+        formal: 0,
+        axes: [ComponentIndex::Fixed(1)].into(),
+    })?;
+    let second = builder.push(CalculusNode::FormalComponent {
+        formal: 0,
+        axes: [ComponentIndex::Fixed(0)].into(),
+    })?;
+    let second = builder.push(CalculusNode::Neg(second))?;
+    let zero = builder.push(CalculusNode::KroneckerDelta(
+        ComponentIndex::Result(0),
+        ComponentIndex::Fixed(0),
+    ))?;
+    let one = builder.push(CalculusNode::KroneckerDelta(
+        ComponentIndex::Result(0),
+        ComponentIndex::Fixed(1),
+    ))?;
+    let first = builder.push(CalculusNode::Mul(zero, first))?;
+    let second = builder.push(CalculusNode::Mul(one, second))?;
+    let root = builder.push(CalculusNode::Add(first, second))?;
+    builder.finish(root)
 }

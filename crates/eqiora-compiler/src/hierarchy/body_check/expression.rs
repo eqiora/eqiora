@@ -692,6 +692,18 @@ impl ExpressionChecker<'_, '_, '_> {
             return typing::unary_math(function, &self.check(argument)?)
                 .map_err(|error| type_error(self.scope.file, expression, error));
         }
+        if let Some(operation) = crate::math::oriented::Operation::named(callee_name) {
+            return operation
+                .result_type(&self.check(argument)?, self.relation_support.as_ref())
+                .map_err(|message| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.scope.file,
+                        expression.range(),
+                        message,
+                    )
+                });
+        }
         if matches!(
             callee_name,
             "grad" | "div" | "symmetric_part" | "isotropic_lift" | "trace" | "normal"

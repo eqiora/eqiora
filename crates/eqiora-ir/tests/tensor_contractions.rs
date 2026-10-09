@@ -282,3 +282,50 @@ fn cross_differential_preserves_exact_coordinate_order_and_transpose_pairing() {
         );
     }
 }
+
+#[test]
+fn oriented_gradient_contractions_use_the_final_derivative_axis() {
+    // F=(y^2*z,z^2*x,x^2*y) at (x,y,z)=(2,3,5).
+    // Rows are component derivatives, columns x,y,z.
+    let gradient = tensor(&[3, 3], &[0., 30., 9., 25., 0., 20., 12., 4., 0.]);
+    let curl = PureOperatorDefinition::curl_from_gradient(3, 1).unwrap();
+    assert_eq!(execute(&curl, &[gradient]), [-16., -3., -5.]);
+    // curl(F)=(x^2-2*x*z,y^2-2*x*y,z^2-2*y*z), then curl(curl(F))=(-2*z,-2*x,-2*y).
+    let second_gradient = tensor(&[3, 3], &[-6., 0., -4., -6., 2., 0., 0., -10., 4.]);
+    assert_eq!(execute(&curl, &[second_gradient]), [-10., -4., -6.]);
+    let planar = PureOperatorDefinition::curl_from_gradient(2, 1).unwrap();
+    assert_eq!(
+        execute(&planar, &[tensor(&[2, 2], &[2., 3., 5., 7.])]),
+        [2.]
+    );
+    let scalar = PureOperatorDefinition::curl_from_gradient(2, 0).unwrap();
+    assert_eq!(execute(&scalar, &[tensor(&[2], &[3., 7.])]), [7., -3.]);
+    assert!(PureOperatorDefinition::curl_from_gradient(3, 0).is_err());
+    assert!(PureOperatorDefinition::curl_from_gradient(1, 1).is_err());
+    assert!(PureOperatorDefinition::curl_from_gradient(2, 2).is_err());
+}
+
+#[test]
+fn tangential_lift_retains_oriented_normal_contraction() {
+    let lift = PureOperatorDefinition::tangential_lift(3).unwrap();
+    let matrix = execute(&lift, &[tensor(&[3], &[2., 3., 5.])]);
+    assert_eq!(matrix, [0., 5., -3., -5., 0., 2., 3., -2., 0.]);
+    let normal = PureOperatorDefinition::contract(3, 2, 1, &[(1, 0)]).unwrap();
+    assert_eq!(
+        execute(
+            &normal,
+            &[tensor(&[3, 3], &matrix), tensor(&[3], &[1., 0., 0.])]
+        ),
+        [0., -5., 3.]
+    );
+    assert_eq!(
+        execute(
+            &normal,
+            &[tensor(&[3, 3], &matrix), tensor(&[3], &[-1., 0., 0.])]
+        ),
+        [0., 5., -3.]
+    );
+    let planar = PureOperatorDefinition::tangential_lift(2).unwrap();
+    assert_eq!(execute(&planar, &[tensor(&[2], &[2., 3.])]), [3., -2.]);
+    assert!(PureOperatorDefinition::tangential_lift(1).is_err());
+}

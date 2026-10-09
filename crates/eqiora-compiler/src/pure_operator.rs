@@ -27,6 +27,7 @@ use crate::diagnostics::source_error;
 pub(crate) fn is_builtin_operator(path: &eqiora_lang::NamePath) -> bool {
     crate::math::is_function(path)
         || crate::math::tensor::named(path.as_str())
+        || crate::math::oriented::Operation::named(path.as_str()).is_some()
         || (!path.is_qualified()
             && matches!(
                 path.as_str(),
