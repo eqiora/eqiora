@@ -13,6 +13,8 @@ use super::scaling::{PyIncompressibleScales, PyIncompressibleScalingReceipt2d};
 
 pub(super) fn space_name(space: Space) -> &'static str {
     match space.family() {
+        SpaceFamily::TetrahedralEdge => "tetrahedral-edge",
+        SpaceFamily::TetrahedralFace => "tetrahedral-face",
         SpaceFamily::SimplexP1Bubble => "simplex-p1-bubble",
         SpaceFamily::ContinuousLagrange { order } if order.get() == 1 => "continuous-lagrange-p1",
         SpaceFamily::CellConstant => "cell-constant",

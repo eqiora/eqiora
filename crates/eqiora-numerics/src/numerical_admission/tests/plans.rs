@@ -217,6 +217,16 @@ fn exercise_scalar_box(model: &ModelEnvelope, geometry: &CanonicalGeometryV1, ce
             Space::cell_constant()
         };
         assert_eq!(result.field_space(0), Some(expected_space));
+        let field = replayed.fields().next().unwrap().0;
+        let entities = replayed.field_coefficient_entities(field).unwrap();
+        assert_eq!(entities.len(), expected_shape.iter().product::<usize>());
+        assert!(entities.iter().all(|entity| entity.dimension()
+            == if spatial == CommonSpatialPolicy::Q1 {
+                0
+            } else {
+                cells.len()
+            }));
+
         // Both authored potentials are dimensionless. Point/constant coefficients
         // retain those units independently of Cartesian cell sizes.
         assert_eq!(
@@ -974,7 +984,7 @@ pub(super) fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_fie
         );
         let old = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.common-result/v12", "eqiora.common-result/v2");
+            .replace("eqiora.common-result/v13", "eqiora.common-result/v2");
         assert!(crate::CommonResult::from_bytes(old.as_bytes(), &replayed).is_err());
     }
 }

@@ -17,6 +17,32 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             Diagnostic,
         >,
     ) -> Result<CommonScalarRunOutput<S>, Diagnostic> {
+        let (mapping, forms) = self.moment_assembly(envelope, space)?;
+        let mesh = envelope.mesh();
+        let output = mapping.solve(mesh, forms, vec![], workers, request, complete)?;
+        Ok(CommonScalarRunOutput {
+            fields: output
+                .fields
+                .into_iter()
+                .map(|(field, recovered)| {
+                    (
+                        field.downcast().expect("Field"),
+                        recovered.value_type,
+                        recovered.coefficients.into_values().collect(),
+                        recovered.space,
+                    )
+                })
+                .collect(),
+            solve_report: output.solve_report,
+            assembly_report: output.assembly_report,
+            nullspace: None,
+        })
+    }
+    pub(in crate::numerical_admission) fn moment_assembly(
+        &self,
+        envelope: &SimplicialMeshEnvelopeV1,
+        space: Space,
+    ) -> Result<MomentAssembly<S>, Diagnostic> {
         let mesh = envelope.mesh();
         let identity = envelope.digest()?;
         if mesh.topological_dimension() != 3 || !self.interfaces.is_empty() {
@@ -72,23 +98,14 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             &traces,
             &BTreeMap::new(),
         )?;
-        let output = mapping.solve(mesh, forms, vec![], workers, request, complete)?;
-        Ok(CommonScalarRunOutput {
-            fields: output
-                .fields
-                .into_iter()
-                .map(|(field, recovered)| {
-                    (
-                        field.downcast().expect("Field"),
-                        recovered.value_type,
-                        recovered.coefficients.into_values().collect(),
-                        recovered.space,
-                    )
-                })
-                .collect(),
-            solve_report: output.solve_report,
-            assembly_report: output.assembly_report,
-            nullspace: None,
-        })
+        Ok((mapping, forms))
     }
 }
+
+type MomentAssembly<S> = (
+    RegionDofMap<S>,
+    Vec<(
+        crate::form_compiler::region::BoundRegionForm<S>,
+        QuadratureRule,
+    )>,
+);

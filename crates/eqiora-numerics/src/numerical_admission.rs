@@ -117,6 +117,8 @@ const POLICY_DOMAIN: &[u8] = b"eqiora.private-native-numerical-admission/v1\0";
 /// Closed spatial choice requested from the Model-first common resolver.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommonSpatialPolicy {
+    TetrahedralEdge,
+    TetrahedralFace,
     Q1,
     P1,
     CellCenteredTpfa,

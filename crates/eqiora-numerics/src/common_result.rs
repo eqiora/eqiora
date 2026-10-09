@@ -39,6 +39,8 @@ pub(crate) enum CommonResultFamily {
 /// Topological association of one result coefficient block.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CommonFieldAssociation {
+    Edge,
+    Face,
     Vertex,
     Cell,
     CellBubble,
@@ -276,6 +278,12 @@ impl CommonResult {
     ) -> Result<Self, Diagnostic> {
         require_elapsed(elapsed_seconds)?;
         let (association, space) = match plan.spatial() {
+            crate::CommonSpatialPolicy::TetrahedralEdge => {
+                (CommonFieldAssociation::Edge, Space::tetrahedral_edge())
+            }
+            crate::CommonSpatialPolicy::TetrahedralFace => {
+                (CommonFieldAssociation::Face, Space::tetrahedral_face())
+            }
             crate::CommonSpatialPolicy::Q1 => (
                 CommonFieldAssociation::Vertex,
                 eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
@@ -311,7 +319,15 @@ impl CommonResult {
                     field.ulid().to_string(),
                     value_type.scalar_domain(),
                     value_type.dimension(),
-                    Vec::new(),
+                    if matches!(
+                        space.family(),
+                        eqiora_realization::SpaceFamily::TetrahedralEdge
+                            | eqiora_realization::SpaceFamily::TetrahedralFace
+                    ) {
+                        vec![3]
+                    } else {
+                        Vec::new()
+                    },
                     space,
                     vec![CommonResultFieldBlock::new(
                         association,
@@ -691,6 +707,8 @@ impl CommonResult {
         };
         payload.fields.get(field)?.blocks.get(block).map(|block| {
             let association = match block.association {
+                CommonFieldAssociation::Edge => "edge",
+                CommonFieldAssociation::Face => "face",
                 CommonFieldAssociation::Vertex => "vertex",
                 CommonFieldAssociation::Cell => "cell",
                 CommonFieldAssociation::CellBubble => "cell-bubble",

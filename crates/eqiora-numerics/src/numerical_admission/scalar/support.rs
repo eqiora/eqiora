@@ -26,10 +26,14 @@ pub(super) fn field_support<S: crate::spatial_expression::Coefficient>(
         shape.push(end - start + usize::from(spatial == CommonSpatialPolicy::Q1));
     }
     let domains = equations.cell_domains(mesh)?;
-    let mut vertices = BTreeSet::new();
+    let mut entities = BTreeSet::new();
     for (index, domain) in domains.iter().enumerate() {
         if *domain == region.form.domain() {
-            vertices.extend(
+            if spatial == CommonSpatialPolicy::CellCenteredTpfa {
+                entities.insert(index);
+                continue;
+            }
+            entities.extend(
                 mesh.incidence(
                     eqiora_meshing::MeshEntity::new(mesh.topological_dimension(), index),
                     0,
@@ -40,5 +44,25 @@ pub(super) fn field_support<S: crate::spatial_expression::Coefficient>(
             );
         }
     }
-    Ok((shape, vertices.into_iter().collect()))
+    Ok((shape, entities.into_iter().collect()))
+}
+
+pub(super) fn moment_support<
+    S: crate::spatial_expression::Coefficient + crate::finalized_spatial::ResidualScalar + Send,
+>(
+    equations: &ExecutableLinearEquations<S>,
+    mesh: &SimplicialMeshEnvelopeV1,
+    field: eqiora_core::RawId,
+    space: Space,
+) -> Result<(Vec<usize>, Vec<usize>), Diagnostic> {
+    let (mapping, _) = equations.moment_assembly(mesh, space)?;
+    if mapping.field_layout(field).is_none() {
+        return Err(invalid("Field is absent from the exact moment layout"));
+    }
+    let entities = mapping
+        .keys()
+        .filter(|key| key.field == field)
+        .map(|key| key.entity.index())
+        .collect::<Vec<_>>();
+    Ok((vec![entities.len()], entities))
 }

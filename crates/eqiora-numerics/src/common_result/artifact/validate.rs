@@ -19,6 +19,12 @@ pub(super) fn validate_fields(
     let valid = match plan {
         ResolvedCommonPlan::Scalar(plan) => {
             let (space, association) = match plan.spatial() {
+                crate::CommonSpatialPolicy::TetrahedralEdge => {
+                    (Space::tetrahedral_edge(), CommonFieldAssociation::Edge)
+                }
+                crate::CommonSpatialPolicy::TetrahedralFace => {
+                    (Space::tetrahedral_face(), CommonFieldAssociation::Face)
+                }
                 crate::CommonSpatialPolicy::Q1 => (
                     Space::continuous_lagrange(std::num::NonZeroU16::MIN),
                     CommonFieldAssociation::Vertex,
@@ -48,7 +54,15 @@ pub(super) fn validate_fields(
                                 &id,
                                 value_type.scalar_domain(),
                                 value_type.dimension(),
-                                &[],
+                                if matches!(
+                                    space.family(),
+                                    eqiora_realization::SpaceFamily::TetrahedralEdge
+                                        | eqiora_realization::SpaceFamily::TetrahedralFace
+                                ) {
+                                    &[3]
+                                } else {
+                                    &[]
+                                },
                                 space,
                                 &[(association, shape.clone())],
                             )

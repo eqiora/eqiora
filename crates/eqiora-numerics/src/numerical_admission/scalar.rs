@@ -638,14 +638,11 @@ impl CommonScalarPlan {
     pub fn spatial(&self) -> CommonSpatialPolicy {
         match self.admission.spatial {
             NativeSpatialPolicy::CoordinateCellConstant => CommonSpatialPolicy::CellCentered,
-            NativeSpatialPolicy::LinearFiniteElement(space) => {
-                assert_eq!(
-                    space,
-                    Space::continuous_lagrange(std::num::NonZeroU16::MIN),
-                    "public scalar Plan admitted a foreign finite-element Space"
-                );
-                CommonSpatialPolicy::Q1
-            }
+            NativeSpatialPolicy::LinearFiniteElement(space) => match space.family() {
+                SpaceFamily::TetrahedralEdge => CommonSpatialPolicy::TetrahedralEdge,
+                SpaceFamily::TetrahedralFace => CommonSpatialPolicy::TetrahedralFace,
+                _ => CommonSpatialPolicy::Q1,
+            },
             NativeSpatialPolicy::ScalarTpfa(_) => CommonSpatialPolicy::CellCenteredTpfa,
             NativeSpatialPolicy::ElasticityQ1 => {
                 unreachable!("common scalar Plan cannot own elasticity policy")
@@ -712,6 +709,37 @@ impl CommonScalarPlan {
 }
 
 impl CommonScalarPlan {
+    /// Exact Mesh entities in coefficient order for one Field.
+    /// Orientation and measure are those of the retained Mesh; the coefficient
+    /// functional is the Field's Space in `portable_realization()`.
+    pub fn field_coefficient_entities(
+        &self,
+        field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+    ) -> Result<Vec<eqiora_meshing::MeshEntity>, Diagnostic> {
+        let representation = self
+            .portable
+            .fields()
+            .iter()
+            .find(|node| node.field() == field)
+            .ok_or_else(|| invalid("coefficient entities require an exact Plan Field"))?;
+        let dimension = match representation.space().family() {
+            SpaceFamily::ContinuousLagrange { .. } => 0,
+            SpaceFamily::TetrahedralEdge => 1,
+            SpaceFamily::TetrahedralFace => 2,
+            SpaceFamily::CellConstant => self.cartesian_cells()?.len(),
+            _ => {
+                return Err(invalid(
+                    "coefficient entities require a supported uniform Space",
+                ));
+            }
+        };
+        let (_, entities) = self.field_support(field.erase())?;
+        Ok(entities
+            .into_iter()
+            .map(|index| eqiora_meshing::MeshEntity::new(dimension, index))
+            .collect())
+    }
+
     pub(crate) fn field_support(
         &self,
         field: eqiora_core::RawId,
@@ -724,7 +752,27 @@ impl CommonScalarPlan {
             {
                 return Err(invalid("Field is outside coordinate Plan"));
             }
-            return Ok((self.cartesian_cells()?, Vec::new()));
+            let shape = self.cartesian_cells()?;
+            let count = shape
+                .iter()
+                .try_fold(1usize, |count, n| count.checked_mul(*n))
+                .ok_or_else(|| invalid("coordinate coefficient count overflows"))?;
+            return Ok((shape, (0..count).collect()));
+        }
+        if let (
+            NativeSpatialPolicy::LinearFiniteElement(space),
+            NativeMeshResources::GmshSimplicial { mesh, .. },
+        ) = (self.admission.spatial, self.admission.resources())
+        {
+            return match self.admission.recognized_model() {
+                RecognizedNativeModel::Scalar(equations) => {
+                    support::moment_support(equations, mesh, field, space)
+                }
+                RecognizedNativeModel::ComplexScalar(equations) => {
+                    support::moment_support(equations, mesh, field, space)
+                }
+                _ => Err(invalid("missing moment Field inventory")),
+            };
         }
         let NativeMeshResources::Cartesian { mesh, .. } = self.admission.resources() else {
             return Err(invalid("missing Cartesian mesh"));

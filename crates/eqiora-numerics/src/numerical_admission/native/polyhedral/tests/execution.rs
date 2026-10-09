@@ -135,6 +135,100 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
         );
         let planned = plan.run(&REFERENCE_LINEAR_SOLVER).unwrap();
         assert_eq!(planned.fields, native_output.fields);
+        let public = ResolvedCommonPlan::resolve(
+            &model,
+            owner.clone(),
+            if face {
+                CommonSpatialPolicy::TetrahedralFace
+            } else {
+                CommonSpatialPolicy::TetrahedralEdge
+            },
+            CommonSolvePolicy::Linear(
+                CommonLinearRequest::exact(policy, REFERENCE_LINEAR_SOLVER.provider()).unwrap(),
+            ),
+            None,
+            None,
+            &REFERENCE_LINEAR_SOLVER,
+            None,
+        )
+        .unwrap();
+        let bytes = public.to_bytes().unwrap();
+        let time = eqiora_time::TimeBackendCapabilities::new(
+            eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+            &[
+                eqiora_core::ScalarDomain::Real,
+                eqiora_core::ScalarDomain::Complex,
+            ],
+            &[eqiora_core::ScalarType::F64],
+        );
+        let public =
+            ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, time).unwrap();
+        assert_eq!(public.to_bytes().unwrap(), bytes);
+        let result = public
+            .as_scalar()
+            .unwrap()
+            .run_result(&REFERENCE_LINEAR_SOLVER)
+            .unwrap();
+        let field = public.as_scalar().unwrap().fields().next().unwrap().0;
+        let entities = public
+            .as_scalar()
+            .unwrap()
+            .field_coefficient_entities(field)
+            .unwrap();
+        assert_eq!(
+            entities,
+            (0..if face { 4 } else { 6 })
+                .map(|index| MeshEntity::new(if face { 2 } else { 1 }, index))
+                .collect::<Vec<_>>()
+        );
+
+        assert_eq!(result.field_space(0), Some(space));
+        assert_eq!(result.field(0).unwrap().2, &[3]);
+        assert_eq!(
+            result.field_coefficient_dimension(0),
+            Some(
+                eqiora_core::DimExponents::from_integers([
+                    0,
+                    if face { 2 } else { 1 },
+                    0,
+                    0,
+                    0,
+                    0,
+                    0
+                ])
+                .unwrap()
+            )
+        );
+        let (association, values, shape) = result.field_block(0, 0).unwrap();
+        assert_eq!(association, if face { "face" } else { "edge" });
+        assert_eq!(shape, &[if face { 4 } else { 6 }]);
+        assert_eq!(values, expected_coordinates);
+        let result_bytes = result.to_bytes().unwrap();
+        let result_replay = crate::CommonResult::from_bytes(&result_bytes, &public).unwrap();
+        assert_eq!(result_replay.to_bytes().unwrap(), result_bytes);
+        let text = String::from_utf8(result_bytes).unwrap();
+        for corrupted in [
+            text.replace("eqiora.common-result/v13", "eqiora.common-result/v12"),
+            text.replace(
+                if face {
+                    "tetrahedral-face"
+                } else {
+                    "tetrahedral-edge"
+                },
+                "continuous-lagrange-p1",
+            ),
+        ] {
+            assert_ne!(corrupted, text);
+            assert!(crate::CommonResult::from_bytes(corrupted.as_bytes(), &public).is_err());
+        }
+        let old = String::from_utf8(bytes).unwrap().replace(
+            "eqiora.resolved-common-plan/v13",
+            "eqiora.resolved-common-plan/v12",
+        );
+        assert!(
+            ResolvedCommonPlan::from_bytes(old.as_bytes(), &REFERENCE_LINEAR_SOLVER, time).is_err()
+        );
+
         // Space drift must invalidate the retained graph before any execution.
         let mut drifted_plan = plan.clone();
         drifted_plan.admission.spatial = NativeSpatialPolicy::LinearFiniteElement(if face {

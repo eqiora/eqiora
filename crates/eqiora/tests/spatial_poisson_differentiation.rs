@@ -174,7 +174,9 @@ fn verify_application_program(method: CommonSpatialPolicy) {
     let field_value_count = match method {
         CommonSpatialPolicy::Q1 => 13 * 13,
         CommonSpatialPolicy::CellCenteredTpfa => 12 * 12,
-        CommonSpatialPolicy::P1
+        CommonSpatialPolicy::TetrahedralEdge
+        | CommonSpatialPolicy::TetrahedralFace
+        | CommonSpatialPolicy::P1
         | CommonSpatialPolicy::MiniP1
         | CommonSpatialPolicy::CellCentered => {
             panic!("this Cartesian fixture does not admit the requested policy")
@@ -559,7 +561,9 @@ fn perturbed_field_values(method: CommonSpatialPolicy, values: ParameterValues) 
     let method = match method {
         CommonSpatialPolicy::Q1 => DiscretizationMethod::ContinuousGalerkin,
         CommonSpatialPolicy::CellCenteredTpfa => DiscretizationMethod::CellCenteredFiniteVolume,
-        CommonSpatialPolicy::P1
+        CommonSpatialPolicy::TetrahedralEdge
+        | CommonSpatialPolicy::TetrahedralFace
+        | CommonSpatialPolicy::P1
         | CommonSpatialPolicy::MiniP1
         | CommonSpatialPolicy::CellCentered => {
             panic!("this Cartesian fixture does not admit the requested policy")

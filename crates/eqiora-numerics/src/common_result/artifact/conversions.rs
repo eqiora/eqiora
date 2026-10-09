@@ -90,6 +90,8 @@ impl From<WireResultFamily> for CommonResultFamily {
 impl From<CommonFieldAssociation> for WireAssociation {
     fn from(value: CommonFieldAssociation) -> Self {
         match value {
+            CommonFieldAssociation::Edge => Self::Edge,
+            CommonFieldAssociation::Face => Self::Face,
             CommonFieldAssociation::Vertex => Self::Vertex,
             CommonFieldAssociation::Cell => Self::Cell,
             CommonFieldAssociation::CellBubble => Self::CellBubble,
@@ -100,6 +102,8 @@ impl From<CommonFieldAssociation> for WireAssociation {
 impl From<WireAssociation> for CommonFieldAssociation {
     fn from(value: WireAssociation) -> Self {
         match value {
+            WireAssociation::Edge => Self::Edge,
+            WireAssociation::Face => Self::Face,
             WireAssociation::Vertex => Self::Vertex,
             WireAssociation::Cell => Self::Cell,
             WireAssociation::CellBubble => Self::CellBubble,

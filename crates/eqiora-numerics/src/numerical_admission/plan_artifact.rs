@@ -33,7 +33,7 @@ use event_policy::WireEventPolicy;
 use forward_policy::WireForwardSensitivity;
 use temporal::{WireTemporal, WireTimeCoordinates, temporal_request};
 
-const SCHEMA: &str = "eqiora.resolved-common-plan/v12";
+const SCHEMA: &str = "eqiora.resolved-common-plan/v13";
 const ENCODING: &str = "canonical-json-rfc8259-v1";
 const MAX_BYTES: usize = 256 * 1024 * 1024;
 
@@ -53,6 +53,8 @@ enum WirePlanFamily {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 enum WireSpatialPolicy {
+    TetrahedralEdge,
+    TetrahedralFace,
     Q1,
     P1,
     CellCenteredTpfa,
@@ -751,6 +753,8 @@ impl WireScalingRequest {
 impl From<CommonSpatialPolicy> for WireSpatialPolicy {
     fn from(value: CommonSpatialPolicy) -> Self {
         match value {
+            CommonSpatialPolicy::TetrahedralEdge => Self::TetrahedralEdge,
+            CommonSpatialPolicy::TetrahedralFace => Self::TetrahedralFace,
             CommonSpatialPolicy::Q1 => Self::Q1,
             CommonSpatialPolicy::P1 => Self::P1,
             CommonSpatialPolicy::CellCenteredTpfa => Self::CellCenteredTpfa,
@@ -763,6 +767,8 @@ impl From<CommonSpatialPolicy> for WireSpatialPolicy {
 impl From<WireSpatialPolicy> for CommonSpatialPolicy {
     fn from(value: WireSpatialPolicy) -> Self {
         match value {
+            WireSpatialPolicy::TetrahedralEdge => Self::TetrahedralEdge,
+            WireSpatialPolicy::TetrahedralFace => Self::TetrahedralFace,
             WireSpatialPolicy::Q1 => Self::Q1,
             WireSpatialPolicy::P1 => Self::P1,
             WireSpatialPolicy::CellCenteredTpfa => Self::CellCenteredTpfa,
