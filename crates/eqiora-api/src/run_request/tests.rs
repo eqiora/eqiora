@@ -92,7 +92,7 @@ fn replay_rejects_cross_wired_roots_bad_base64_and_oversized_input() {
 
     let mut foreign_plan: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     mutate_embedded_json(&mut foreign_plan, "plan_base64", |plan| {
-        plan["family"] = serde_json::json!("scalar");
+        plan["family"] = serde_json::json!("linear");
     });
     assert!(decode_wire(&foreign_plan).is_err());
 

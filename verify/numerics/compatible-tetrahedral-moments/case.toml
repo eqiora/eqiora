@@ -1,0 +1,26 @@
+id = "numerics.compatible-tetrahedral-moments"
+status = "implemented"
+scope = "lowest-order-affine-tetrahedral-edge-and-face-moments"
+reference_kind = "independent-geometric-integrals-and-exact-cochain-identities"
+capabilities = ["real-complex-moment-plan-run-result-replay", "non-unit-polynomial-curl-and-divergence", "oriented-interface-traces", "explicit-gradient-gauge-consumer"]
+
+[falsifiers]
+geometry = "same-cardinality foreign mesh rejects execution"
+space = "nodal codec substitution and Plan Space drift reject replay or execution"
+orientation = "positive cell permutations preserve canonical moments, actions and shared traces"
+measure = "non-unit line and area integrals differ from point values and averages"
+cochain = "integer curl-gradient and divergence-curl compositions vanish exactly"
+gauge = "explicit gradient projection must preserve curl-curl action and satisfy the fixed rational representative"
+
+[evidence]
+runner = "cargo-library-test"
+package = "eqiora-numerics"
+test = "numerical_admission::native::polyhedral::tests::compatible_evidence::compatible_tetrahedral_moments_have_independent_actions_and_constraints"
+
+[claim_boundary]
+automatic_gauge_selection = false
+all_topology_nullspaces = false
+maxwell_spectra = false
+higher_order_or_curved_elements = false
+gmsh_provider_execution = false
+nonzero_natural_or_essential_moment_data = false

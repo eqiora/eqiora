@@ -10,13 +10,15 @@ use eqiora_schema::kernel::KernelNode;
 use eqiora_sem::KernelProgram;
 
 use crate::constrained_dofs::ConstrainedDofLayout;
-use crate::form_compiler::region::{RegionFieldLayout, basis, components};
+use crate::discrete_space::DiscreteSpace;
+use crate::form_compiler::region::{RegionFieldLayout, components};
 use crate::spatial_expression::Coefficient;
 
 use super::invalid;
 
 mod binding;
 mod recovery;
+mod solve;
 pub(crate) use binding::bind_region_topology;
 pub(crate) use recovery::RecoveredRegionField;
 
@@ -45,18 +47,19 @@ pub(crate) fn field_layouts(
             let scale = scales
                 .get(&field)
                 .ok_or_else(|| invalid("mapping Field has no exact physical scale"))?;
-            if scale.dim() != value_type.dimension()
+            if Some(scale.dim())
+                != binding
+                    .space()
+                    .coefficient_dimension(value_type.dimension())
                 || !scale.value().is_finite()
                 || scale.value() <= 0.0
             {
-                return Err(invalid("mapping Field scale differs from exact ValueType"));
+                return Err(invalid(
+                    "mapping coefficient scale differs from the exact Field and Space",
+                ));
             }
             let count = components(value_type, reference.dimension())?;
-            let local = basis(binding.space(), reference)?
-                .local_dofs()
-                .len()
-                .checked_mul(count)
-                .ok_or_else(|| invalid("mapping local DOF overflow"))?;
+            let local = DiscreteSpace::new(binding.space(), reference)?.field_dof_count(count)?;
             let end = offset
                 .checked_add(local)
                 .ok_or_else(|| invalid("mapping local DOF overflow"))?;
@@ -109,6 +112,7 @@ pub(crate) struct TraceBinding {
 pub(crate) struct RegionDofMap<S: Coefficient> {
     globals: BTreeMap<FieldDof, usize>,
     cells: Vec<Vec<usize>>,
+    cell_signs: Vec<Vec<i8>>,
     cell_keys: Vec<Vec<FieldDof>>,
     cell_domains: Vec<RawId>,
     traces: Vec<(ConformingTraceQuotient, BTreeSet<FieldDof>)>,
@@ -165,6 +169,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         }
         let reference_topology = ReferenceTopology::new(reference)?;
         let mut local_keys = Vec::new();
+        let mut cell_signs = Vec::new();
         let mut inventory = BTreeSet::new();
         for (index, domain) in cell_domains.iter().enumerate() {
             let region_fields = &layouts[domain];
@@ -179,35 +184,28 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
                 }
             }
             let mut keys = Vec::new();
+            let mut signs = Vec::new();
             for layout in region_fields {
                 if keys.len() != layout.range.start {
                     return Err(invalid(
                         "bound Field ranges do not match local basis ordering",
                     ));
                 }
-                for local in basis(layout.space, reference)?.local_dofs() {
-                    let entity = if local.entity_dimension() == dimension {
-                        if local.entity_ordinal() != 0 {
-                            return Err(invalid(
-                                "cell-interior basis has an invalid entity ordinal",
-                            ));
-                        }
-                        cell
-                    } else {
-                        mesh.incidence(cell, local.entity_dimension())
-                            .and_then(|entries| entries.get(local.entity_ordinal()).copied())
-                            .ok_or_else(|| {
-                                invalid("local basis support is absent from mesh incidence")
-                            })?
-                            .entity
-                    };
-                    for component in 0..layout.components {
+                let space = DiscreteSpace::new(layout.space, reference)?;
+                let replicas = space.field_dof_count(layout.components)? / space.local_dofs().len();
+                for ((entity, sign), local) in space
+                    .bind_cell(mesh, cell)?
+                    .into_iter()
+                    .zip(space.local_dofs())
+                {
+                    for component in 0..replicas {
                         keys.push(FieldDof {
                             field: layout.field,
                             entity,
                             slot: local.slot(),
                             component,
                         });
+                        signs.push(sign);
                     }
                 }
                 if keys.len() != layout.range.end {
@@ -218,6 +216,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
             }
             inventory.extend(keys.iter().copied());
             local_keys.push(keys);
+            cell_signs.push(signs);
         }
         // Sorted exact identity, rather than declaration or supplied Region order,
         // determines representatives and global algebraic numbering.
@@ -254,6 +253,16 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
                 || left.value_type != right.value_type
                 || left.components != right.components
                 || left.scale != right.scale
+                || !matches!(
+                    left.space.family(),
+                    eqiora_realization::SpaceFamily::ContinuousLagrange { .. }
+                        | eqiora_realization::SpaceFamily::SimplexP1Bubble
+                )
+                || !matches!(
+                    right.space.family(),
+                    eqiora_realization::SpaceFamily::ContinuousLagrange { .. }
+                        | eqiora_realization::SpaceFamily::SimplexP1Bubble
+                )
             {
                 return Err(invalid(
                     "trace quotient Field support, type, components or scales differ",
@@ -401,6 +410,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
         Ok(Self {
             globals,
             cells,
+            cell_signs,
             cell_keys: local_keys,
             cell_domains: cell_domains.to_vec(),
             traces: mapped_traces,
@@ -512,6 +522,13 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
             return Err(invalid("history Field has no exact local cell support"));
         }
         Ok(keys)
+    }
+
+    pub(crate) fn cell_signs(&self, cell: usize) -> Result<&[i8], Diagnostic> {
+        self.cell_signs
+            .get(cell)
+            .map(Vec::as_slice)
+            .ok_or_else(|| invalid("cell is outside oriented Field mapping"))
     }
 
     pub(crate) fn cell_map(

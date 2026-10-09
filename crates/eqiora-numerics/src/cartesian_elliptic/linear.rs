@@ -273,6 +273,7 @@ impl CartesianLinearAssembly {
                 );
             }
             region_cells.push(RegionAssemblyCell {
+                orientation: vec![1; local_count],
                 index,
                 geometry,
                 mappings: maps(&globals)?,

@@ -39,7 +39,23 @@ pub(crate) fn policy_identity(
         NativeSpatialPolicy::CoordinateCellConstant => {
             bytes.extend_from_slice(b"coordinate-cell-average-gauss2")
         }
-        NativeSpatialPolicy::ScalarQ1 => bytes.extend_from_slice(b"scalar-q1"),
+        NativeSpatialPolicy::LinearFiniteElement(space) => match space.family() {
+            SpaceFamily::ContinuousLagrange { order } if order == std::num::NonZeroU16::MIN => {
+                bytes.extend_from_slice(b"scalar-q1")
+            }
+            SpaceFamily::ContinuousLagrange { order } => {
+                bytes.extend_from_slice(b"linear-lagrange");
+                bytes.extend_from_slice(&order.get().to_be_bytes());
+            }
+            SpaceFamily::TetrahedralEdge => {
+                bytes.extend_from_slice(b"tetrahedral-edge-moment-duffy3")
+            }
+            SpaceFamily::TetrahedralFace => {
+                bytes.extend_from_slice(b"tetrahedral-face-moment-duffy3")
+            }
+            SpaceFamily::CellConstant => bytes.extend_from_slice(b"linear-cell-constant"),
+            SpaceFamily::SimplexP1Bubble => bytes.extend_from_slice(b"linear-simplex-p1-bubble"),
+        },
         NativeSpatialPolicy::ScalarTpfa(constraint) => {
             bytes.extend_from_slice(b"scalar-tpfa");
             if let Some(constraint) = constraint {
@@ -180,6 +196,8 @@ pub(crate) fn space_identity(space: Space) -> &'static [u8] {
     match space.family() {
         SpaceFamily::SimplexP1Bubble => b"simplex-p1-bubble",
         SpaceFamily::CellConstant => b"cell-constant",
+        SpaceFamily::TetrahedralEdge => b"tetrahedral-edge",
+        SpaceFamily::TetrahedralFace => b"tetrahedral-face",
         SpaceFamily::ContinuousLagrange { order } if order.get() == 1 => b"continuous-lagrange-p1",
         SpaceFamily::ContinuousLagrange { .. } => {
             unreachable!("closed common transient resolver only admits continuous P1")

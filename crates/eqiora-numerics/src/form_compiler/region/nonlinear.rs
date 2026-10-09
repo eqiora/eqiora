@@ -122,10 +122,11 @@ impl BoundRegionForm<f64> {
             .expect("validated natural Field");
         let test = &self.fields[row_index];
         let normal = super::boundary_integral::parent_outward_normal(cell, incidence)?;
-        let facet_space: Box<dyn crate::discrete_space::DiscreteSpace> = if dimension == 1 {
-            Box::new(crate::discrete_space::CellConstantSpace::new(
+        let facet_space: crate::discrete_space::DiscreteSpace = if dimension == 1 {
+            crate::discrete_space::DiscreteSpace::new(
+                eqiora_realization::Space::cell_constant(),
                 facet.reference_cell(),
-            ))
+            )?
         } else {
             basis(
                 eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),

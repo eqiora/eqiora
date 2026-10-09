@@ -131,7 +131,7 @@ fn plural_chain_ordinary_run_recovers_every_owned_field_and_oriented_interface()
         let order = (0..count).collect::<Vec<_>>();
         let (model, ids) = source_model(&chain_source(&order, &names), &names[..count]);
         let resolved = replay_plan(chain_plan(&model, count).unwrap(), &ResolveOnlyBackend);
-        let plan = resolved.as_scalar().unwrap();
+        let plan = resolved.as_linear().unwrap();
         assert_eq!(plan.portable_realization().domains().len(), count);
         assert_eq!(
             plan.portable_realization().transformations().len(),
@@ -201,7 +201,7 @@ fn plural_chain_reordered_declarations_and_field_names_preserve_support_recovery
         let (model, ids) = source_model(&chain_source(&order, &names), &names);
         let resolved = chain_plan(&model, 3).unwrap();
         let result = resolved
-            .as_scalar()
+            .as_linear()
             .unwrap()
             .run_result(&REFERENCE_LINEAR_SOLVER)
             .unwrap();
@@ -290,7 +290,7 @@ fn plural_chain_failed_run_publishes_no_result_and_leaves_reusable_plan() {
     let (model, _) = source_model(&chain_source(&[0, 1, 2], &names), &names);
     let resolved = chain_plan(&model, 3).unwrap();
     let before = resolved.to_bytes().unwrap();
-    let plan = resolved.as_scalar().unwrap();
+    let plan = resolved.as_linear().unwrap();
     assert!(plan.run_result(&FailingChainBackend).is_err());
     assert_eq!(resolved.to_bytes().unwrap(), before);
     assert_eq!(
@@ -307,11 +307,11 @@ fn plural_chain_last_connection_completion_failure_publishes_no_result() {
     let (model, _) = source_model(&chain_source(&[0, 1, 2], &names), &names);
     let resolved = chain_plan(&model, 3).unwrap();
     let before = resolved.to_bytes().unwrap();
-    let plan = resolved.as_scalar().unwrap();
+    let plan = resolved.as_linear().unwrap();
     let mut completed = Vec::new();
     let result = plan
         .admission
-        .execute_scalar_with_completion(&REFERENCE_LINEAR_SOLVER, |reactions, full| {
+        .execute_linear_with_completion(&REFERENCE_LINEAR_SOLVER, |reactions, full| {
             // The real solver and the sole Domain/Connection recovery have completed.
             // Fail validation of the last exact Connection before publishing any Result.
             let recovered = reactions.recover(full)?;
@@ -328,7 +328,7 @@ fn plural_chain_last_connection_completion_failure_publishes_no_result() {
             }
             Ok(recovered)
         })
-        .and_then(|output| crate::CommonResult::accept_scalar(plan.clone(), 0.0, output));
+        .and_then(|output| crate::CommonResult::accept_linear(plan.clone(), 0.0, output));
     assert!(result.is_err());
     assert_eq!(completed.len(), 2);
     assert_ne!(completed[0], completed[1]);
@@ -346,10 +346,10 @@ fn plural_chain_rejects_partial_misbound_and_wrong_support_result_inventory() {
     let names = ["alpha", "beta", "gamma"];
     let (model, _) = source_model(&chain_source(&[0, 1, 2], &names), &names);
     let resolved = chain_plan(&model, 3).unwrap();
-    let plan = resolved.as_scalar().unwrap();
+    let plan = resolved.as_linear().unwrap();
     let output = plan
         .admission
-        .execute_scalar(&REFERENCE_LINEAR_SOLVER)
+        .execute_linear(&REFERENCE_LINEAR_SOLVER)
         .unwrap();
     let mut missing = output.clone();
     missing.fields.pop();
@@ -362,9 +362,9 @@ fn plural_chain_rejects_partial_misbound_and_wrong_support_result_inventory() {
     let mut nonfinite = output.clone();
     nonfinite.fields[0].2[0] = f64::NAN;
     for invalid in [missing, duplicate, foreign, whole_mesh, nonfinite] {
-        assert!(crate::CommonResult::accept_scalar(plan.clone(), 0.0, invalid).is_err());
+        assert!(crate::CommonResult::accept_linear(plan.clone(), 0.0, invalid).is_err());
     }
-    assert!(crate::CommonResult::accept_scalar(plan.clone(), 0.0, output).is_ok());
+    assert!(crate::CommonResult::accept_linear(plan.clone(), 0.0, output).is_ok());
 }
 
 #[test]
@@ -372,25 +372,23 @@ fn plural_chain_permutation_retains_exact_field_identity_and_result_recovery() {
     let names = ["alpha", "beta", "gamma"];
     let (model, ids) = source_model(&chain_source(&[0, 1, 2], &names), &names);
     let resolved = chain_plan(&model, 3).unwrap();
-    let plan = resolved.as_scalar().unwrap();
-    let RecognizedNativeModel::Scalar(equations) = plan.admission.recognized_model() else {
+    let plan = resolved.as_linear().unwrap();
+    let RecognizedNativeModel::Linear(equations) = plan.admission.recognized_model() else {
         panic!("scalar inventory");
     };
     let mut permuted = equations.clone();
     permuted.regions.reverse();
     permuted.interfaces.reverse();
-    let NativeMeshResources::Cartesian { mesh, .. } = plan.admission.resources() else {
-        panic!("Cartesian mesh");
-    };
     let output = permuted
         .execute(
             plan.admission.linear.workers,
             LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.admission.linear.solver),
-            mesh.mesh(),
+            plan.admission.resources(),
+            Space::continuous_lagrange(std::num::NonZeroU16::MIN),
             |reactions, full| reactions.recover(full),
         )
         .unwrap();
-    let result = crate::CommonResult::accept_scalar(plan.clone(), 0.0, output).unwrap();
+    let result = crate::CommonResult::accept_linear(plan.clone(), 0.0, output).unwrap();
     for (region, name) in names.iter().enumerate() {
         let index = (0..3)
             .find(|&index| result.field(index).unwrap().0 == ids[*name].ulid().to_string())
@@ -452,7 +450,7 @@ fn plural_solver_admits_and_rechecks_exact_fields_for_manual_and_planned_runs() 
         )
         .unwrap();
         let resolved = replay_plan(resolved, supplied);
-        let plan = resolved.as_scalar().unwrap();
+        let plan = resolved.as_linear().unwrap();
         let profile = plan.admission.linear.planning_profile.as_ref().unwrap();
         profile.require_structure(Some(&expected)).unwrap();
         assert!(profile.require_structure(None).is_err());

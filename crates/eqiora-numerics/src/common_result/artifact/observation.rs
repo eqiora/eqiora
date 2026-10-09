@@ -4,7 +4,7 @@ use super::*;
 impl WireStaticObservation {
     pub(super) fn from_observation(value: &StaticObservation) -> Result<Self, Diagnostic> {
         Ok(match value {
-            StaticObservation::Scalar(evidence) => Self::Scalar {
+            StaticObservation::Linear(evidence) => Self::Linear {
                 nullspace: evidence
                     .as_ref()
                     .map(crate::nullspace::NullspaceEvidence::to_array),
@@ -25,7 +25,7 @@ impl WireStaticObservation {
 
     pub(super) fn replay(&self, family: WireResultFamily) -> Result<StaticObservation, Diagnostic> {
         let observation = match self {
-            Self::Scalar { nullspace } => StaticObservation::Scalar(
+            Self::Linear { nullspace } => StaticObservation::Linear(
                 nullspace.map(crate::nullspace::NullspaceEvidence::from_array),
             ),
             Self::Elasticity {
@@ -70,7 +70,7 @@ impl WireStaticObservation {
         };
         let matches = matches!(
             (family, &observation),
-            (WireResultFamily::Scalar, StaticObservation::Scalar(_))
+            (WireResultFamily::Linear, StaticObservation::Linear(_))
                 | (
                     WireResultFamily::Elasticity,
                     StaticObservation::Elasticity(_)

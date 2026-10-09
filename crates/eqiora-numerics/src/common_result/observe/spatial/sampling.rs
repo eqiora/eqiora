@@ -2,7 +2,7 @@
 use super::*;
 use crate::affine_fem::physical_gradient;
 use crate::common_result::CommonResultFieldBlock;
-use crate::discrete_space::BasisTabulation;
+use crate::discrete_space::{BasisTabulation, DiscreteSpace};
 use eqiora_core::{DynQuantity, ValueType};
 use eqiora_sem::EvaluationPoint;
 
@@ -130,7 +130,7 @@ fn reconstruct(
 ) -> Result<PointField, Diagnostic> {
     let plan = result
         .plan()
-        .as_scalar()
+        .as_linear()
         .ok_or_else(|| invalid("point Field reconstruction requires an admitted scalar Plan"))?;
     if plan.spatial() != CommonSpatialPolicy::Q1 {
         return Err(invalid(
@@ -211,7 +211,11 @@ fn reconstruct(
         .ok_or_else(|| invalid("point does not resolve to a retained cell"))?;
     let vertices = mesh.entity_vertices(cell).expect("authenticated vertices");
     let geometry = mesh.geometry_map(cell).expect("authenticated cell");
-    let basis = HypercubeQ1Space::new(dimension)?.tabulate(&reference)?;
+    let basis = DiscreteSpace::new(
+        eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+        eqiora_meshing::ReferenceCell::hypercube(dimension)?,
+    )?
+    .tabulate(&reference)?;
     q1_field(
         value_type,
         &owned,

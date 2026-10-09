@@ -9,7 +9,7 @@ use super::{
 };
 use crate::affine_fem::physical_gradient;
 use crate::continuum_kinematics::symmetric_gradient_bilinear_entry;
-use crate::discrete_space::{DiscreteSpace, SimplexP1BubbleSpace, SimplexP1Space};
+use crate::discrete_space::DiscreteSpace;
 use crate::operator::LocalOperator;
 use crate::simplicial_elliptic::SimplicialP1Field;
 
@@ -82,15 +82,21 @@ pub(crate) struct MiniBasis {
 }
 
 pub(crate) struct MiniSpaces {
-    velocity: SimplexP1BubbleSpace,
-    pressure: SimplexP1Space,
+    velocity: DiscreteSpace,
+    pressure: DiscreteSpace,
 }
 
 impl MiniSpaces {
     pub(crate) fn new() -> Result<Self, Diagnostic> {
         Ok(Self {
-            velocity: SimplexP1BubbleSpace::new(DIMENSION)?,
-            pressure: SimplexP1Space::new(DIMENSION)?,
+            velocity: DiscreteSpace::new(
+                eqiora_realization::Space::simplex_p1_bubble(),
+                eqiora_meshing::ReferenceCell::simplex(DIMENSION)?,
+            )?,
+            pressure: DiscreteSpace::new(
+                eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+                eqiora_meshing::ReferenceCell::simplex(DIMENSION)?,
+            )?,
         })
     }
 

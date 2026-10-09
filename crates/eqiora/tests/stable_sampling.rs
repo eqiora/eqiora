@@ -17,7 +17,7 @@ fn program() -> Arc<DifferentiableProgram> {
         .unwrap();
     Arc::new(
         DifferentiableProgram::compile(
-            eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(plan)),
+            eqiora_numerics::ResolvedCommonPlan::Linear(Box::new(plan)),
             &inputs,
             &output,
             None,

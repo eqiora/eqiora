@@ -87,7 +87,7 @@ fn application_program_is_not_published_without_an_accepted_primal() {
         .unwrap();
     assert!(
         DifferentiableProgram::compile(
-            eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(plan)),
+            eqiora_numerics::ResolvedCommonPlan::Linear(Box::new(plan)),
             &inputs,
             &output,
             None,
@@ -100,7 +100,7 @@ fn application_program_is_not_published_without_an_accepted_primal() {
 #[test]
 fn application_program_admission_is_exactly_the_verified_two_dimensional_slice() {
     let (_, plan) = document_and_plan(CommonSpatialPolicy::Q1);
-    assert_eq!(plan.cells(), [12, 12]);
+    assert_eq!(plan.cartesian_cells().unwrap(), [12, 12]);
 }
 
 #[test]
@@ -115,7 +115,7 @@ fn equal_primal_systems_do_not_alias_distinct_parameter_derivatives() {
         .field_ref(&plan.fields().next().unwrap().0.ulid().to_string())
         .unwrap();
     let program = DifferentiableProgram::compile(
-        eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(plan)),
+        eqiora_numerics::ResolvedCommonPlan::Linear(Box::new(plan)),
         &[diffusion],
         &output,
         None,
@@ -159,7 +159,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
         .unwrap();
     let inputs = [source_scale, diffusion, boundary];
     let program = DifferentiableProgram::compile(
-        eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(plan.clone())),
+        eqiora_numerics::ResolvedCommonPlan::Linear(Box::new(plan.clone())),
         &inputs,
         &output,
         None,
@@ -174,7 +174,9 @@ fn verify_application_program(method: CommonSpatialPolicy) {
     let field_value_count = match method {
         CommonSpatialPolicy::Q1 => 13 * 13,
         CommonSpatialPolicy::CellCenteredTpfa => 12 * 12,
-        CommonSpatialPolicy::P1
+        CommonSpatialPolicy::TetrahedralEdge
+        | CommonSpatialPolicy::TetrahedralFace
+        | CommonSpatialPolicy::P1
         | CommonSpatialPolicy::MiniP1
         | CommonSpatialPolicy::CellCentered => {
             panic!("this Cartesian fixture does not admit the requested policy")
@@ -351,7 +353,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
     assert!(program.jvp(&[1.0, 2.0, 3.0, 4.0]).is_err());
     assert!(program.vjp(&cotangent[..cotangent.len() - 1]).is_err());
     let recomputed = DifferentiableProgram::compile(
-        eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(plan)),
+        eqiora_numerics::ResolvedCommonPlan::Linear(Box::new(plan)),
         &inputs,
         &output,
         None,
@@ -375,7 +377,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
     );
     assert!(
         DifferentiableProgram::compile(
-            eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(foreign_plan.clone())),
+            eqiora_numerics::ResolvedCommonPlan::Linear(Box::new(foreign_plan.clone())),
             &inputs,
             &output,
             None,
@@ -386,7 +388,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
     let foreign_inputs = [foreign.parameter_ref("source_scale").unwrap()];
     assert!(
         DifferentiableProgram::compile(
-            eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(foreign_plan)),
+            eqiora_numerics::ResolvedCommonPlan::Linear(Box::new(foreign_plan)),
             &foreign_inputs,
             &output,
             None,
@@ -559,7 +561,9 @@ fn perturbed_field_values(method: CommonSpatialPolicy, values: ParameterValues) 
     let method = match method {
         CommonSpatialPolicy::Q1 => DiscretizationMethod::ContinuousGalerkin,
         CommonSpatialPolicy::CellCenteredTpfa => DiscretizationMethod::CellCenteredFiniteVolume,
-        CommonSpatialPolicy::P1
+        CommonSpatialPolicy::TetrahedralEdge
+        | CommonSpatialPolicy::TetrahedralFace
+        | CommonSpatialPolicy::P1
         | CommonSpatialPolicy::MiniP1
         | CommonSpatialPolicy::CellCentered => {
             panic!("this Cartesian fixture does not admit the requested policy")

@@ -130,6 +130,11 @@ fn fixture() -> (
             RecoveredRegionField {
                 domain: domain.erase(),
                 value_type,
+                space: if field == fluid_velocity {
+                    eqiora_realization::Space::simplex_p1_bubble()
+                } else {
+                    eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN)
+                },
                 coefficients,
             },
         );

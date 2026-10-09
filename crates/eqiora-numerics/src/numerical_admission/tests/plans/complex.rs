@@ -31,7 +31,7 @@ fn complex_spatial_plan_retains_types_exact_solver_and_replay() {
     };
     let plan = resolve(CommonSpatialPolicy::Q1, exact).unwrap();
     let plan = replay_plan(plan, &REFERENCE_LINEAR_SOLVER);
-    let scalar = plan.as_scalar().unwrap();
+    let scalar = plan.as_linear().unwrap();
     assert_eq!(
         scalar.fields().next().unwrap().1.scalar_domain(),
         eqiora_core::ScalarDomain::Complex
@@ -101,7 +101,7 @@ fn complex_spatial_plan_retains_types_exact_solver_and_replay() {
     let mut nonfinite = scalar.run(&REFERENCE_LINEAR_SOLVER).unwrap();
     nonfinite.fields[0].2[1] = f64::NAN;
     assert!(
-        crate::CommonResult::accept_scalar(scalar.clone(), 0., nonfinite)
+        crate::CommonResult::accept_linear(scalar.clone(), 0., nonfinite)
             .unwrap_err()
             .message()
             .contains("finite coefficients")

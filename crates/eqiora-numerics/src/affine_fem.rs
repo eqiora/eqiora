@@ -4,7 +4,7 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_meshing::{AffineGeometryMap, GeometryMap};
 
-use crate::discrete_space::{DiscreteSpace, SimplexP1Space};
+use crate::discrete_space::DiscreteSpace;
 
 pub(crate) fn dot(left: &[f64], right: &[f64]) -> f64 {
     left.iter()
@@ -33,7 +33,10 @@ pub(crate) fn physical_gradient(
 pub(crate) fn simplex_p1_physical_gradients<const D: usize>(
     geometry: &AffineGeometryMap,
 ) -> Result<Vec<Vec<f64>>, Diagnostic> {
-    let space = SimplexP1Space::new(D)?;
+    let space = DiscreteSpace::new(
+        eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+        eqiora_meshing::ReferenceCell::simplex(D)?,
+    )?;
     let centroid_coordinate = 1.0 / (D as f64 + 1.0);
     if geometry.reference_cell() != space.reference_cell() || geometry.physical_dimension() != D {
         return Err(Diagnostic::error(

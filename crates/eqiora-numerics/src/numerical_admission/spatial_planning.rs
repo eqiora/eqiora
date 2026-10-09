@@ -15,7 +15,15 @@ pub(super) fn resolve_scalar(
         ));
     };
     match spatial {
-        CommonSpatialPolicy::Q1 => Ok(NativeSpatialPolicy::ScalarQ1),
+        CommonSpatialPolicy::TetrahedralEdge => Ok(NativeSpatialPolicy::LinearFiniteElement(
+            Space::tetrahedral_edge(),
+        )),
+        CommonSpatialPolicy::TetrahedralFace => Ok(NativeSpatialPolicy::LinearFiniteElement(
+            Space::tetrahedral_face(),
+        )),
+        CommonSpatialPolicy::Q1 => Ok(NativeSpatialPolicy::LinearFiniteElement(
+            Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+        )),
         CommonSpatialPolicy::CellCenteredTpfa => Ok(NativeSpatialPolicy::ScalarTpfa(None)),
         CommonSpatialPolicy::MiniP1 => Err(invalid(
             "scalar-elliptic Model mathematics is incompatible with MINI/P1",
@@ -84,7 +92,10 @@ pub(super) fn resolve_transient(
     match spatial {
         CommonSpatialPolicy::MiniP1 => Ok(TransientSpatialDecision::MiniP1),
         CommonSpatialPolicy::CellCentered => Ok(TransientSpatialDecision::CellCentered),
-        CommonSpatialPolicy::Q1 | CommonSpatialPolicy::CellCenteredTpfa => Err(invalid(
+        CommonSpatialPolicy::TetrahedralEdge
+        | CommonSpatialPolicy::TetrahedralFace
+        | CommonSpatialPolicy::Q1
+        | CommonSpatialPolicy::CellCenteredTpfa => Err(invalid(
             "transient incompressible-flow mathematics requires MINI/P1 or CellCentered",
         )),
         CommonSpatialPolicy::P1 => Err(invalid(
@@ -161,7 +172,9 @@ mod tests {
     fn uniform_decisions_are_closed_before_mesh_admission() {
         assert_eq!(
             resolve_scalar(CommonSpatialRequest::Uniform(CommonSpatialPolicy::Q1)).unwrap(),
-            NativeSpatialPolicy::ScalarQ1
+            NativeSpatialPolicy::LinearFiniteElement(Space::continuous_lagrange(
+                std::num::NonZeroU16::MIN
+            ))
         );
         assert_eq!(
             resolve_scalar(CommonSpatialRequest::Uniform(

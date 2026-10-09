@@ -26,7 +26,7 @@ use eqiora_solver::{
 
 use crate::affine_fem::physical_gradient;
 use crate::constrained_dofs::ConstrainedDofLayout;
-use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
+use crate::discrete_space::DiscreteSpace;
 use crate::form_compiler::compile_cartesian_q1_elasticity_form_2d;
 use crate::interleaved_dofs::InterleavedDofValues;
 use crate::linear_elasticity::IsotropicElasticityMaterial;
@@ -160,7 +160,10 @@ impl CartesianQ1VectorField2d {
         E: Fn(&[f64]) -> ([f64; COMPONENTS], [[f64; DIMENSION]; COMPONENTS]) + ?Sized,
     {
         require_cell_rule(&self.mesh, quadrature)?;
-        let space = HypercubeQ1Space::new(DIMENSION)?;
+        let space = DiscreteSpace::new(
+            eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+            eqiora_meshing::ReferenceCell::hypercube(DIMENSION)?,
+        )?;
         let cell_count = self
             .mesh
             .entity_count(DIMENSION)
@@ -334,11 +337,14 @@ pub fn lower_cartesian_q1_linear_elasticity_local_action_2d(
     let cell_count = mesh
         .entity_count(DIMENSION)
         .expect("a two-dimensional mesh owns its cell stratum");
-    let local_width = HypercubeQ1Space::new(DIMENSION)?
-        .local_dofs()
-        .len()
-        .checked_mul(COMPONENTS)
-        .ok_or_else(|| invalid("elasticity local width overflows usize"))?;
+    let local_width = DiscreteSpace::new(
+        eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+        eqiora_meshing::ReferenceCell::hypercube(DIMENSION)?,
+    )?
+    .local_dofs()
+    .len()
+    .checked_mul(COMPONENTS)
+    .ok_or_else(|| invalid("elasticity local width overflows usize"))?;
     let coefficient_count = cell_count
         .checked_mul(local_width)
         .and_then(|count| count.checked_mul(local_width))

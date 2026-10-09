@@ -1,6 +1,6 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
-use eqiora_core::Diagnostic;
+use eqiora_core::{Diagnostic, DimExponents};
 
 use crate::invalid_realization;
 
@@ -35,10 +35,40 @@ impl Space {
         }
     }
 
+    /// Lowest-order tetrahedral edge element with oriented line-integral coefficients.
+    #[must_use]
+    pub const fn tetrahedral_edge() -> Self {
+        Self {
+            family: SpaceFamily::TetrahedralEdge,
+        }
+    }
+
+    /// Lowest-order tetrahedral face element with oriented flux-integral coefficients.
+    #[must_use]
+    pub const fn tetrahedral_face() -> Self {
+        Self {
+            family: SpaceFamily::TetrahedralFace,
+        }
+    }
+
     /// Declared family.
     #[must_use]
     pub const fn family(self) -> SpaceFamily {
         self.family
+    }
+
+    /// Physical dimension of a coefficient functional applied to a Field.
+    /// Scalar families retain Field units; oriented edge integrals multiply
+    /// them by length, and oriented face flux integrals by area.
+    /// Returns `None` if the resulting exact exponents exceed their bounds.
+    #[must_use]
+    pub fn coefficient_dimension(self, field_dimension: DimExponents) -> Option<DimExponents> {
+        let power = match self.family {
+            SpaceFamily::TetrahedralEdge => 1,
+            SpaceFamily::TetrahedralFace => 2,
+            _ => 0,
+        };
+        field_dimension.mul(DimExponents::from_integers([0, power, 0, 0, 0, 0, 0])?)
     }
 }
 
@@ -54,6 +84,14 @@ pub enum SpaceFamily {
     SimplexP1Bubble,
     /// Cell-local piecewise constant basis.
     CellConstant,
+    /// Lowest-order Nedelec first-kind tetrahedron. Each coefficient is the
+    /// integral of the tangential Field along an oriented edge, not an average.
+    /// Values use the covariant Piola map; coefficients carry Field units times length.
+    TetrahedralEdge,
+    /// Lowest-order Raviart–Thomas tetrahedron. Each coefficient is oriented
+    /// normal flux through a face, not a point value or normalized average.
+    /// Values use the contravariant Piola map; coefficients carry Field units times area.
+    TetrahedralFace,
 }
 
 /// Spatial numerical method family.
@@ -244,8 +282,17 @@ impl Discretization {
                 MeshPolicy::ImportedSimplicial { .. },
                 QuadraturePolicy::SimplexCentroid,
             ) if order == NonZeroU16::MIN => Ok(()),
+            (
+                DiscretizationMethod::ContinuousGalerkin,
+                SpaceFamily::TetrahedralEdge | SpaceFamily::TetrahedralFace,
+                MeshPolicy::ImportedSimplicial { .. },
+                QuadraturePolicy::SimplexDuffyGaussLegendre {
+                    spatial_dimension,
+                    points_per_axis,
+                },
+            ) if spatial_dimension.get() == 3 && points_per_axis.get() >= 3 => Ok(()),
             (DiscretizationMethod::ContinuousGalerkin, _, _, _) => Err(invalid_realization(
-                "continuous Galerkin requires generated or supplied Cartesian/Gauss-Legendre or imported affine-simplex/P1-centroid contracts in v0",
+                "continuous Galerkin requires generated or supplied Cartesian/Gauss-Legendre imported affine-simplex/P1-centroid, or tetrahedral moments with 3D Duffy quadrature of at least three points per axis",
             )),
             (DiscretizationMethod::CellCenteredFiniteVolume, _, _, _) => Err(invalid_realization(
                 "cell-centered finite volume requires a generated or supplied Cartesian mesh, cell-constant space, and centroid or Gauss-Legendre quadrature",

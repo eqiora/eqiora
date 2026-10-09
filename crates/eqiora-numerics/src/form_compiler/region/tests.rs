@@ -13,7 +13,9 @@ use super::*;
 
 mod boundary;
 mod complex;
+mod curl;
 mod flux;
+mod moments;
 mod nonlinear;
 mod prepared;
 mod scalar;

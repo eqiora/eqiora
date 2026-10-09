@@ -16,7 +16,7 @@ use eqiora_schema::kernel::{
 use eqiora_sem::KernelProgram;
 
 use crate::canonical::{boundary_parent, lowering_error, relations_on};
-use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
+use crate::discrete_space::DiscreteSpace;
 use crate::form_compiler::vocabulary::{
     BoundaryDischarge, BoundarySource, PrimalGalerkinCorrespondence, PrimalGalerkinSource,
     PrimalValueTerm,
@@ -205,7 +205,10 @@ pub(crate) fn compile_cartesian_q1_form(
     dimension: usize,
     quadrature: &QuadratureRule,
 ) -> Result<AdmittedScalarGalerkinForm<'static>, Diagnostic> {
-    let space = HypercubeQ1Space::new(dimension)?;
+    let space = DiscreteSpace::new(
+        eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+        eqiora_meshing::ReferenceCell::hypercube(dimension)?,
+    )?;
     if quadrature.reference_cell().family() != ReferenceCellFamily::Hypercube
         || quadrature.reference_cell() != space.reference_cell()
     {
@@ -259,7 +262,10 @@ impl AdmittedScalarGalerkinForm<'_> {
         geometry: &AffineGeometryMap,
         quadrature: &QuadratureRule,
     ) -> Result<(), Diagnostic> {
-        let space = HypercubeQ1Space::new(self.dimension)?;
+        let space = DiscreteSpace::new(
+            eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+            eqiora_meshing::ReferenceCell::hypercube(self.dimension)?,
+        )?;
         if space.reference_cell() != self.quadrature.rule.reference_cell()
             || geometry.reference_cell() != self.quadrature.rule.reference_cell()
             || geometry.physical_dimension() != self.dimension
@@ -677,7 +683,12 @@ fn validate_static_bounds(
             "derived Q1 work exceeds one or more frozen compiler bounds",
         ));
     }
-    let dofs = HypercubeQ1Space::new(dimension)?.local_dofs().len();
+    let dofs = DiscreteSpace::new(
+        eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+        eqiora_meshing::ReferenceCell::hypercube(dimension)?,
+    )?
+    .local_dofs()
+    .len();
     if dofs > MAX_LOCAL_DOFS {
         return Err(bounds_error(
             owner,

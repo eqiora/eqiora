@@ -15,7 +15,7 @@ use eqiora_meshing::{
 
 use crate::affine_fem::physical_gradient;
 use crate::continuum_kinematics::symmetric_gradient_bilinear_entry;
-use crate::discrete_space::{DiscreteSpace, SimplexP1BubbleSpace, SimplexP1Space};
+use crate::discrete_space::DiscreteSpace;
 
 /// Transport identity carried by the transient fluid relation.
 ///
@@ -171,8 +171,14 @@ impl<const D: usize> MiniScaledAffineCell<'_, D> {
         let velocity_basis_count = D + 2;
         let local_size = velocity_basis_count * D + p1_basis_count;
         let inverse = self.geometry.inverse_jacobian()?;
-        let velocity_space = SimplexP1BubbleSpace::new(D)?;
-        let pressure_space = SimplexP1Space::new(D)?;
+        let velocity_space = DiscreteSpace::new(
+            eqiora_realization::Space::simplex_p1_bubble(),
+            eqiora_meshing::ReferenceCell::simplex(D)?,
+        )?;
+        let pressure_space = DiscreteSpace::new(
+            eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+            eqiora_meshing::ReferenceCell::simplex(D)?,
+        )?;
         let mut matrix = vec![0.0; local_size * local_size];
         let mut rhs = vec![0.0; local_size];
 
@@ -307,8 +313,14 @@ impl<const D: usize> MiniTransientCell<'_, D> {
         let pressure_offset = velocity_basis_count * D;
         let local_dof_count = pressure_offset + p1_basis_count;
         let inverse = self.geometry.inverse_jacobian()?;
-        let velocity_space = SimplexP1BubbleSpace::new(D)?;
-        let pressure_space = SimplexP1Space::new(D)?;
+        let velocity_space = DiscreteSpace::new(
+            eqiora_realization::Space::simplex_p1_bubble(),
+            eqiora_meshing::ReferenceCell::simplex(D)?,
+        )?;
+        let pressure_space = DiscreteSpace::new(
+            eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+            eqiora_meshing::ReferenceCell::simplex(D)?,
+        )?;
         let mut residual = vec![0.0; local_dof_count];
 
         for point in quadrature.points() {
@@ -385,8 +397,14 @@ impl<const D: usize> MiniTransientCell<'_, D> {
         let local_dof_count = pressure_offset + p1_basis_count;
         let inverse = self.geometry.inverse_jacobian()?;
         let geometry_tangent = GeometryTangent::new(self.geometry, direction.current_geometry)?;
-        let velocity_space = SimplexP1BubbleSpace::new(D)?;
-        let pressure_space = SimplexP1Space::new(D)?;
+        let velocity_space = DiscreteSpace::new(
+            eqiora_realization::Space::simplex_p1_bubble(),
+            eqiora_meshing::ReferenceCell::simplex(D)?,
+        )?;
+        let pressure_space = DiscreteSpace::new(
+            eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+            eqiora_meshing::ReferenceCell::simplex(D)?,
+        )?;
         let transport_tangent =
             TransportTangent::new(self.transport, &inverse, &geometry_tangent, self.time_step)?;
         let mut residual = vec![0.0; local_dof_count];
@@ -890,46 +908,8 @@ impl<const D: usize> ConvectionPoint<'_, D> {
     }
 }
 
-fn evaluate_velocity<const D: usize>(
-    coefficients: &[[f64; D]],
-    basis: &[f64],
-    gradients: &[Vec<f64>],
-) -> ([f64; D], [[f64; D]; D]) {
-    let mut value = [0.0; D];
-    let mut gradient = [[0.0; D]; D];
-    for local in 0..coefficients.len() {
-        for component in 0..D {
-            value[component] += coefficients[local][component] * basis[local];
-            for axis in 0..D {
-                gradient[component][axis] +=
-                    coefficients[local][component] * gradients[local][axis];
-            }
-        }
-    }
-    (value, gradient)
-}
-
-fn evaluate_velocity_tangent<const D: usize>(
-    coefficients: &[[f64; D]],
-    coefficient_tangents: &[[f64; D]],
-    basis: &[f64],
-    gradients: &[Vec<f64>],
-    gradient_tangents: &[Vec<f64>],
-) -> ([f64; D], [[f64; D]; D]) {
-    let mut value = [0.0; D];
-    let mut gradient = [[0.0; D]; D];
-    for local in 0..coefficients.len() {
-        for component in 0..D {
-            value[component] += coefficient_tangents[local][component] * basis[local];
-            for axis in 0..D {
-                gradient[component][axis] += coefficient_tangents[local][component]
-                    * gradients[local][axis]
-                    + coefficients[local][component] * gradient_tangents[local][axis];
-            }
-        }
-    }
-    (value, gradient)
-}
+mod velocity;
+use velocity::{evaluate_velocity, evaluate_velocity_tangent};
 
 fn multiply_linearization<const D: usize>(
     left_tangent: &[f64],

@@ -69,6 +69,25 @@ impl VertexPermutation {
             .all(|(ordinal, &image)| ordinal == image)
     }
 
+    /// Sign of the permutation: `+1` for even and `-1` for odd parity.
+    /// This is the orientation multiplier for an oriented simplex, not a
+    /// replacement for the full permutation in higher-order trace maps.
+    #[must_use]
+    pub fn sign(&self) -> i8 {
+        let inversions = self
+            .images
+            .iter()
+            .enumerate()
+            .map(|(index, image)| {
+                self.images[index + 1..]
+                    .iter()
+                    .filter(|other| image > *other)
+                    .count()
+            })
+            .sum::<usize>();
+        if inversions % 2 == 0 { 1 } else { -1 }
+    }
+
     /// Compose `self` followed by `after`.
     ///
     /// # Errors

@@ -144,6 +144,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                                 relation,
                                 row.tested,
                                 leaf.value(),
+                                view.leaves().len() == 1,
                             )
                             .is_ok()
                         {

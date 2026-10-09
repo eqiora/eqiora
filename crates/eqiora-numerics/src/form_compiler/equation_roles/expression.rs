@@ -82,6 +82,13 @@ pub(super) fn principal(
                 trials.insert(field.erase());
             }
             ExprNode::Gradient(value) => {
+                // grad(div(u)) owns the vector principal trial just as
+                // div(grad(u)) does; a bare grad(p) remains a multiplier.
+                if let Some(ExprNode::Divergence(inner)) = dag.node(*value)
+                    && let Some(field) = field(dag, *inner)
+                {
+                    trials.insert(field);
+                }
                 if let Some(field) = field(dag, *value) {
                     if in_divergence {
                         trials.insert(field);
@@ -98,6 +105,14 @@ pub(super) fn principal(
                 pending.push((*value, in_divergence));
             }
             ExprNode::Divergence(value) => pending.push((*value, true)),
+            ExprNode::PureOperatorApplication(_)
+                if super::super::vector_curl::curl_curl_field(dag, id).is_some() =>
+            {
+                trials.insert(
+                    super::super::vector_curl::curl_curl_field(dag, id)
+                        .expect("checked vector curl-curl Field"),
+                );
+            }
             ExprNode::PureOperatorApplication(_)
                 if super::super::planar_curl::gradient(dag, id).is_some() =>
             {

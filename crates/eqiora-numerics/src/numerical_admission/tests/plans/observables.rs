@@ -22,7 +22,7 @@ public component HeatedBody(
 }
 "#;
 
-fn heat(source: &str) -> (ModelEnvelope, crate::CommonScalarPlan, crate::CommonResult) {
+fn heat(source: &str) -> (ModelEnvelope, crate::CommonLinearPlan, crate::CommonResult) {
     let geometry = cartesian_interval();
     let body = geometry.entity_set("body").unwrap();
     let model = compile_model(
@@ -483,7 +483,7 @@ fn constant_surface_density_uses_each_exact_face_area_and_mass_unit() {
     let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
     let result = crate::CommonResult::from_bytes(
         &result.to_bytes().unwrap(),
-        &crate::ResolvedCommonPlan::Scalar(Box::new(plan.clone())),
+        &crate::ResolvedCommonPlan::Linear(Box::new(plan.clone())),
     )
     .unwrap();
     let rule = QuadratureRule::tensor_product_gauss_legendre(2, 2).unwrap();

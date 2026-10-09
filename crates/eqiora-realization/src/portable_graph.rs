@@ -157,7 +157,7 @@ impl FieldRepresentationNode {
         self.field
     }
 
-    /// Scalar basis applied to every semantic component.
+    /// Space family defining the coefficient interpretation.
     #[must_use]
     pub const fn space(self) -> Space {
         self.space
@@ -631,6 +631,7 @@ impl PortableRealizationGraph {
                 ));
             }
         }
+        validation::validate_moment_spaces(self)?;
         validate_geometry_actions(self)?;
         if self.systems.len() != 1
             || self.linear_solves.len() != 1

@@ -117,6 +117,8 @@ const POLICY_DOMAIN: &[u8] = b"eqiora.private-native-numerical-admission/v1\0";
 /// Closed spatial choice requested from the Model-first common resolver.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommonSpatialPolicy {
+    TetrahedralEdge,
+    TetrahedralFace,
     Q1,
     P1,
     CellCenteredTpfa,
@@ -377,8 +379,8 @@ pub enum ResolvedCommonPlan {
     Algebraic(Box<CommonAlgebraicPlan>),
     /// Explicit no-Mesh ODE Plan.
     Ode(Box<CommonOdePlan>),
-    /// Scalar elliptic spatial Plan.
-    Scalar(Box<CommonScalarPlan>),
+    /// Linear scalar or vector spatial Plan.
+    Linear(Box<CommonLinearPlan>),
     /// Linear-elasticity spatial Plan.
     Elasticity(Box<CommonElasticityPlan>),
     /// Steady incompressible-flow spatial Plan.
@@ -395,7 +397,7 @@ impl ResolvedCommonPlan {
     #[must_use]
     pub fn formulation(&self) -> Option<CommonFormulationDescription> {
         match self {
-            Self::Scalar(plan) => plan.formulation(),
+            Self::Linear(plan) => plan.formulation(),
             Self::SteadyStokes(plan) => Some(plan.formulation()),
             Self::TransientFlow(plan) => Some(plan.formulation()),
             Self::Elasticity(plan) => plan.formulation.clone(),
@@ -622,9 +624,9 @@ struct CommonRunSchedule {
     identity: String,
 }
 
-/// Opaque common scalar Plan owning authenticated Model, Mesh, and policy state.
+/// Opaque common linear spatial Plan owning authenticated Model, Mesh, and policy state.
 #[derive(Debug, Clone, PartialEq)]
-pub struct CommonScalarPlan {
+pub struct CommonLinearPlan {
     harmonic: Option<crate::form_compiler::harmonic::HarmonicReduction>,
     admission: NativeNumericalAdmission,
     portable: PortableRealizationGraph,
@@ -637,15 +639,15 @@ pub struct CommonScalarPlan {
             eqiora_core::ValueType,
         )],
     >,
-    cells: Box<[usize]>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct CommonScalarRunOutput<S> {
+pub(crate) struct CommonLinearRunOutput<S> {
     pub(crate) fields: Vec<(
         eqiora_core::Id<eqiora_core::entity::kinds::Field>,
         eqiora_core::ValueType,
         Vec<S>,
+        eqiora_realization::Space,
     )>,
     pub(crate) solve_report: eqiora_solver::SolveReport,
     pub(crate) assembly_report: eqiora_assembly::AssemblyReport,
@@ -824,7 +826,7 @@ mod plan_artifact;
 mod resolve;
 mod resolved;
 mod scalar;
-pub(super) use scalar::ExecutableScalarEquations;
+pub(super) use scalar::ExecutableLinearEquations;
 mod solver_planning;
 mod spatial_planning;
 mod state;

@@ -6,7 +6,7 @@ use eqiora_solver::{
 };
 
 use super::{
-    CommonElasticityPlan, CommonFsiPlan, CommonOdePlan, CommonScalarPlan, CommonSteadyStokesPlan,
+    CommonElasticityPlan, CommonFsiPlan, CommonLinearPlan, CommonOdePlan, CommonSteadyStokesPlan,
     CommonTransientFlowPlan, ResolvedCommonPlan,
 };
 
@@ -33,7 +33,7 @@ impl ResolvedCommonPlan {
             Self::Eigen(plan) => plan.identity(),
             Self::Algebraic(plan) => plan.identity(),
             Self::Ode(plan) => plan.identity(),
-            Self::Scalar(plan) => plan.identity(),
+            Self::Linear(plan) => plan.identity(),
             Self::Elasticity(plan) => plan.identity(),
             Self::SteadyStokes(plan) => plan.identity(),
             Self::TransientFlow(plan) => plan.identity(),
@@ -48,7 +48,7 @@ impl ResolvedCommonPlan {
             Self::Eigen(plan) => plan.model_id(),
             Self::Algebraic(plan) => plan.model_id(),
             Self::Ode(plan) => plan.model_id(),
-            Self::Scalar(plan) => plan.model_id(),
+            Self::Linear(plan) => plan.model_id(),
             Self::Elasticity(plan) => plan.model_id(),
             Self::SteadyStokes(plan) => plan.model_id(),
             Self::TransientFlow(plan) => plan.model_id(),
@@ -63,7 +63,7 @@ impl ResolvedCommonPlan {
             Self::Eigen(plan) => plan.model_digest(),
             Self::Algebraic(plan) => plan.model_digest(),
             Self::Ode(plan) => plan.model_digest(),
-            Self::Scalar(plan) => plan.model_digest(),
+            Self::Linear(plan) => plan.model_digest(),
             Self::Elasticity(plan) => plan.model_digest(),
             Self::SteadyStokes(plan) => plan.model_digest(),
             Self::TransientFlow(plan) => plan.model_digest(),
@@ -78,7 +78,7 @@ impl ResolvedCommonPlan {
             Self::Eigen(plan) => plan.model_revision(),
             Self::Algebraic(plan) => plan.model_revision(),
             Self::Ode(plan) => plan.model_revision(),
-            Self::Scalar(plan) => plan.model_revision(),
+            Self::Linear(plan) => plan.model_revision(),
             Self::Elasticity(plan) => plan.model_revision(),
             Self::SteadyStokes(plan) => plan.model_revision(),
             Self::TransientFlow(plan) => plan.model_revision(),
@@ -91,7 +91,7 @@ impl ResolvedCommonPlan {
     pub fn geometry_digest(&self) -> Option<&str> {
         match self {
             Self::Eigen(_) | Self::Algebraic(_) | Self::Ode(_) => None,
-            Self::Scalar(plan) => plan.geometry_digest(),
+            Self::Linear(plan) => plan.geometry_digest(),
             Self::Elasticity(plan) => Some(plan.geometry_digest()),
             Self::SteadyStokes(plan) => Some(plan.geometry_digest()),
             Self::TransientFlow(plan) => Some(plan.geometry_digest()),
@@ -104,7 +104,7 @@ impl ResolvedCommonPlan {
     pub fn mesh_digest(&self) -> Option<&str> {
         match self {
             Self::Eigen(_) | Self::Algebraic(_) | Self::Ode(_) => None,
-            Self::Scalar(plan) => Some(plan.mesh_digest()),
+            Self::Linear(plan) => Some(plan.mesh_digest()),
             Self::Elasticity(plan) => Some(plan.mesh_digest()),
             Self::SteadyStokes(plan) => Some(plan.mesh_digest()),
             Self::TransientFlow(plan) => Some(plan.mesh_digest()),
@@ -117,7 +117,7 @@ impl ResolvedCommonPlan {
     pub fn correspondence_digest(&self) -> Option<&str> {
         match self {
             Self::Eigen(_) | Self::Algebraic(_) | Self::Ode(_) => None,
-            Self::Scalar(plan) => plan.correspondence_digest(),
+            Self::Linear(plan) => plan.correspondence_digest(),
             Self::Elasticity(plan) => Some(plan.correspondence_digest()),
             Self::SteadyStokes(plan) => Some(plan.correspondence_digest()),
             Self::TransientFlow(plan) => Some(plan.correspondence_digest()),
@@ -130,7 +130,7 @@ impl ResolvedCommonPlan {
     pub fn production_digest(&self) -> Option<&str> {
         match self {
             Self::Eigen(_) | Self::Algebraic(_) | Self::Ode(_) => None,
-            Self::Scalar(plan) => plan.production_digest(),
+            Self::Linear(plan) => plan.production_digest(),
             Self::Elasticity(plan) => Some(plan.production_digest()),
             Self::SteadyStokes(plan) => Some(plan.production_digest()),
             Self::TransientFlow(plan) => Some(plan.production_digest()),
@@ -143,7 +143,7 @@ impl ResolvedCommonPlan {
     pub fn realization_digest(&self) -> Option<&str> {
         match self {
             Self::Eigen(_) | Self::Algebraic(_) | Self::Ode(_) => None,
-            Self::Scalar(plan) => Some(plan.realization_digest()),
+            Self::Linear(plan) => Some(plan.realization_digest()),
             Self::Elasticity(plan) => Some(plan.realization_digest()),
             Self::SteadyStokes(plan) => Some(plan.realization_digest()),
             Self::TransientFlow(plan) => Some(plan.realization_digest()),
@@ -157,7 +157,7 @@ impl ResolvedCommonPlan {
         match self {
             Self::Algebraic(plan) => Some(plan.linear()),
             Self::Eigen(_) | Self::Ode(_) => None,
-            Self::Scalar(plan) => Some(plan.linear()),
+            Self::Linear(plan) => Some(plan.linear()),
             Self::Elasticity(plan) => Some(plan.linear()),
             Self::SteadyStokes(plan) => Some(plan.linear()),
             Self::TransientFlow(plan) => Some(plan.linear()),
@@ -171,7 +171,7 @@ impl ResolvedCommonPlan {
         match self {
             Self::Algebraic(plan) => Some(plan.solver_provider()),
             Self::Eigen(_) | Self::Ode(_) => None,
-            Self::Scalar(plan) => Some(plan.admission.linear.provider),
+            Self::Linear(plan) => Some(plan.admission.linear.provider),
             Self::Elasticity(plan) => Some(plan.admission.linear.provider),
             Self::SteadyStokes(plan) => Some(plan.admission.linear.provider),
             Self::TransientFlow(plan) => Some(plan.admission.linear.provider),
@@ -183,7 +183,7 @@ impl ResolvedCommonPlan {
         match self {
             Self::Algebraic(plan) => Some((plan.linear.execution, 1)),
             Self::Eigen(_) | Self::Ode(_) => None,
-            Self::Scalar(plan) => Some((
+            Self::Linear(plan) => Some((
                 plan.admission.linear.execution,
                 plan.admission.linear.workers.get(),
             )),
@@ -209,8 +209,10 @@ impl ResolvedCommonPlan {
         match self {
             Self::Algebraic(_) => Some(LinearOperatorProperties::General),
             Self::Eigen(_) | Self::Ode(_) => None,
-            Self::Scalar(plan) => Some(match plan.admission.spatial {
-                super::NativeSpatialPolicy::ScalarQ1 => LinearOperatorProperties::General,
+            Self::Linear(plan) => Some(match plan.admission.spatial {
+                super::NativeSpatialPolicy::LinearFiniteElement(_) => {
+                    LinearOperatorProperties::General
+                }
                 super::NativeSpatialPolicy::CoordinateCellConstant
                 | super::NativeSpatialPolicy::ScalarTpfa(_) => {
                     LinearOperatorProperties::SymmetricPositiveDefinite
@@ -232,7 +234,7 @@ impl ResolvedCommonPlan {
             Self::Eigen(plan) => plan.solver_provider().id().as_str(),
             Self::Algebraic(plan) => plan.solver_provider().id().as_str(),
             Self::Ode(plan) => plan.backend().id(),
-            Self::Scalar(plan) => plan.admission.linear.provider.id().as_str(),
+            Self::Linear(plan) => plan.admission.linear.provider.id().as_str(),
             Self::Elasticity(plan) => plan.admission.linear.provider.id().as_str(),
             Self::SteadyStokes(plan) => plan.admission.linear.provider.id().as_str(),
             Self::TransientFlow(plan) => plan.solver_provider().id().as_str(),
@@ -247,7 +249,7 @@ impl ResolvedCommonPlan {
             Self::Eigen(plan) => plan.solver_provider().implementation_version(),
             Self::Algebraic(plan) => plan.solver_provider().implementation_version(),
             Self::Ode(plan) => plan.backend().version(),
-            Self::Scalar(plan) => plan.admission.linear.provider.implementation_version(),
+            Self::Linear(plan) => plan.admission.linear.provider.implementation_version(),
             Self::Elasticity(plan) => plan.admission.linear.provider.implementation_version(),
             Self::SteadyStokes(plan) => plan.admission.linear.provider.implementation_version(),
             Self::TransientFlow(plan) => plan.solver_provider().implementation_version(),
@@ -259,7 +261,7 @@ impl ResolvedCommonPlan {
         match self {
             Self::Algebraic(plan) => Some(&plan.linear),
             Self::Eigen(_) | Self::Ode(_) => None,
-            Self::Scalar(plan) => Some(&plan.admission.linear),
+            Self::Linear(plan) => Some(&plan.admission.linear),
             Self::Elasticity(plan) => Some(&plan.admission.linear),
             Self::SteadyStokes(plan) => Some(&plan.admission.linear),
             Self::TransientFlow(plan) => Some(&plan.admission.linear),
@@ -319,11 +321,11 @@ impl ResolvedCommonPlan {
         }
     }
 
-    /// Borrow the exact scalar Plan when this is the scalar variant.
+    /// Borrow the exact linear spatial Plan when this is the linear variant.
     #[must_use]
-    pub fn as_scalar(&self) -> Option<&CommonScalarPlan> {
+    pub fn as_linear(&self) -> Option<&CommonLinearPlan> {
         match self {
-            Self::Scalar(plan) => Some(plan),
+            Self::Linear(plan) => Some(plan),
             _ => None,
         }
     }

@@ -116,3 +116,51 @@ class ScopedSpatialPolicy:
     @property
     def quadrature(self) -> str: ...
 ```
+
+<a id="api-eqiora-fem-TetrahedralEdge"></a>
+
+## `TetrahedralEdge`
+
+Lowest-order affine tetrahedral oriented tangential line integrals.
+
+Static real/complex vector fields with homogeneous natural boundaries.
+Coefficients include the entity measure; they are not point values.
+
+```python
+@final
+class TetrahedralEdge:
+    def __new__(cls) -> Self: ...
+    @property
+    def method(self) -> str: ...
+    @property
+    def space(self) -> str: ...
+    @property
+    def quadrature(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-fem-TetrahedralFace"></a>
+
+## `TetrahedralFace`
+
+Lowest-order affine tetrahedral oriented normal flux integrals.
+
+Static real/complex vector fields with homogeneous natural boundaries.
+Coefficients include the entity measure; they are not point values.
+
+```python
+@final
+class TetrahedralFace:
+    def __new__(cls) -> Self: ...
+    @property
+    def method(self) -> str: ...
+    @property
+    def space(self) -> str: ...
+    @property
+    def quadrature(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+```

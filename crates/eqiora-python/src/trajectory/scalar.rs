@@ -9,7 +9,7 @@ impl PyState {
         source_request_identity: Option<&str>,
         source_trajectory_identity: Option<&str>,
     ) -> PyResult<Self> {
-        let scalar = plan.scalar_native().expect("scalar State Plan");
+        let scalar = plan.linear_native().expect("scalar State Plan");
         let mesh = plan.mesh_handle(py);
         let mesh_digest = mesh.borrow(py).exact_mesh_digest().to_owned();
         let snapshot = PyFieldSnapshot::from_common_scalar(py, scalar, &native, &mesh_digest)?;

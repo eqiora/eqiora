@@ -1,3 +1,4 @@
+mod moments;
 use eqiora_compiler::compile;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use eqiora_meshing::{AffineGeometryMap, QuadratureRule, ReferenceCell};

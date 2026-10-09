@@ -5,7 +5,7 @@ use eqiora_meshing::{
 };
 
 use super::*;
-use crate::discrete_space::{CellConstantSpace, DiscreteSpace, HypercubeQ1Space, SimplexP1Space};
+use crate::discrete_space::DiscreteSpace;
 
 impl<S: Coefficient> BoundRegionForm<S> {
     /// Integrate physical parent-outward flux into the complete parent-cell map.
@@ -36,6 +36,15 @@ impl<S: Coefficient> BoundRegionForm<S> {
             .position(|layout| layout.field == field)
             .ok_or_else(|| invalid("natural flux has a foreign tested Field"))?;
         let layout = &self.fields[row];
+        if matches!(
+            layout.space.family(),
+            eqiora_realization::SpaceFamily::TetrahedralEdge
+                | eqiora_realization::SpaceFamily::TetrahedralFace
+        ) {
+            return Err(invalid(
+                "moment spaces require tangential/normal trace admission before natural facet assembly",
+            ));
+        }
         let space = super::binding::basis(layout.space, self.reference)?;
         let topology = ReferenceTopology::new(self.reference)?;
         let expected = topology
@@ -49,10 +58,16 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 "natural flux vertex embedding differs from its exact parent facet",
             ));
         }
-        let facet_space: Box<dyn DiscreteSpace> = match facet.reference_cell().family() {
-            ReferenceCellFamily::Point => Box::new(CellConstantSpace::new(facet.reference_cell())),
-            ReferenceCellFamily::Simplex => Box::new(SimplexP1Space::new(dimension - 1)?),
-            ReferenceCellFamily::Hypercube => Box::new(HypercubeQ1Space::new(dimension - 1)?),
+        let facet_reference = facet.reference_cell();
+        let facet_space = match facet_reference.family() {
+            ReferenceCellFamily::Point => {
+                DiscreteSpace::new(eqiora_realization::Space::cell_constant(), facet_reference)?
+            }
+            ReferenceCellFamily::Simplex | ReferenceCellFamily::Hypercube => {
+                let space =
+                    eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN);
+                DiscreteSpace::new(space, facet_reference)?
+            }
         };
         if facet_space.local_dofs().len() != parent_vertices.len() {
             return Err(invalid(

@@ -130,7 +130,7 @@ impl CommonResult {
     /// # Errors
     /// Rejects a Model that cannot be admitted in this Result's observation context.
     pub fn observation_program(&self) -> Result<eqiora_sem::KernelProgram, Diagnostic> {
-        if let Some(plan) = self.plan().as_scalar() {
+        if let Some(plan) = self.plan().as_linear() {
             Ok(plan.observation_program().clone())
         } else if let Some(plan) = self.plan().as_elasticity() {
             Ok(plan.observation_program().clone())
@@ -164,7 +164,7 @@ impl CommonResult {
                     ],
                     value.exact_bounds,
                 )),
-                StaticObservation::Scalar(_) | StaticObservation::SteadyStokes(_) => None,
+                StaticObservation::Linear(_) | StaticObservation::SteadyStokes(_) => None,
             },
             _ => None,
         }
@@ -174,7 +174,7 @@ impl CommonResult {
         match &self.payload {
             CommonResultPayload::Static(payload) => match &payload.observation {
                 StaticObservation::SteadyStokes(value) => Some((value.scalars, value.vectors)),
-                StaticObservation::Scalar(_) | StaticObservation::Elasticity(_) => None,
+                StaticObservation::Linear(_) | StaticObservation::Elasticity(_) => None,
             },
             _ => None,
         }

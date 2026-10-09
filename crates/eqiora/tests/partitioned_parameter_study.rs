@@ -16,7 +16,7 @@ fn partition_expansion_matches_complete_ordered_points_for_both_methods() {
             .unwrap();
         let program = Arc::new(
             DifferentiableProgram::compile(
-                eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(plan)),
+                eqiora_numerics::ResolvedCommonPlan::Linear(Box::new(plan)),
                 &inputs,
                 &field,
                 None,

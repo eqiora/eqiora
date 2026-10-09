@@ -6,9 +6,7 @@ use eqiora_core::{Diagnostic, DimExponents, DynQuantity, RawId, ValueType};
 use eqiora_meshing::{ReferenceCell, ReferenceCellFamily};
 use eqiora_realization::{BackwardEulerStateBinding, Space, SpaceFamily};
 
-use crate::discrete_space::{
-    DiscreteSpace, HypercubeQ1Space, SimplexP1BubbleSpace, SimplexP1Space,
-};
+use crate::discrete_space::DiscreteSpace;
 
 use super::{CompiledRegionForm, Role, components, invalid};
 
@@ -82,13 +80,9 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 .get(&row.tested)
                 .ok_or_else(|| invalid("missing exact region Field binding"))?;
             let value_type = &self.roles.fields[&row.tested].1;
-            positive_scale(binding.scale, value_type)?;
+            positive_scale(binding.scale, value_type, binding.space)?;
             let count = components(value_type, self.dimension)?;
-            let local = basis(binding.space, reference)?
-                .local_dofs()
-                .len()
-                .checked_mul(count)
-                .ok_or_else(|| invalid("region local DOF count overflow"))?;
+            let local = basis(binding.space, reference)?.field_dof_count(count)?;
             let end = offset
                 .checked_add(local)
                 .ok_or_else(|| invalid("region local DOF count overflow"))?;
@@ -110,15 +104,23 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                     .value_type
                     .dimension()
                     .mul(measure)
+                    .and_then(|dim| {
+                        dim.div(
+                            binding
+                                .space
+                                .coefficient_dimension(DimExponents::DIMENSIONLESS)?,
+                        )
+                    })
                     .and_then(|dim| dim.mul(multiplier.dim()))
                     != Some(DimExponents::DIMENSIONLESS)
             {
                 return Err(invalid(
-                    "row normalization must cancel exact residual units times geometric measure",
+                    "row normalization must cancel residual units times measure and test-basis units",
                 ));
             }
             multipliers.push(multiplier.value());
         }
+        super::compatibility::validate(self, &layouts, time)?;
         let (eliminations, states) = state_layouts(&self.roles, &layouts, time)?;
         let mut previous = BTreeMap::new();
         for term in self.rows.iter().flat_map(|row| &row.terms) {
@@ -173,35 +175,49 @@ impl<S: Coefficient> BoundRegionForm<S> {
     }
 }
 
-fn positive_scale(scale: DynQuantity, value_type: &ValueType) -> Result<(), Diagnostic> {
-    if scale.dim() != value_type.dimension() || !scale.value().is_finite() || scale.value() <= 0.0 {
+fn positive_scale(
+    scale: DynQuantity,
+    value_type: &ValueType,
+    space: Space,
+) -> Result<(), Diagnostic> {
+    if Some(scale.dim()) != space.coefficient_dimension(value_type.dimension())
+        || !scale.value().is_finite()
+        || scale.value() <= 0.0
+    {
         return Err(invalid(
-            "Field scale must be positive finite and match its exact ValueType units",
+            "Field scale must be positive finite and match its exact Space coefficient units",
         ));
     }
     Ok(())
 }
 
-pub(crate) fn basis(
-    space: Space,
-    reference: ReferenceCell,
-) -> Result<Box<dyn DiscreteSpace>, Diagnostic> {
+pub(crate) fn basis(space: Space, reference: ReferenceCell) -> Result<DiscreteSpace, Diagnostic> {
     match (space.family(), reference.family()) {
         (SpaceFamily::ContinuousLagrange { order }, ReferenceCellFamily::Simplex)
             if order.get() == 1 =>
         {
-            Ok(Box::new(SimplexP1Space::new(reference.dimension())?))
+            DiscreteSpace::new(
+                Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+                reference,
+            )
         }
         (SpaceFamily::ContinuousLagrange { order }, ReferenceCellFamily::Hypercube)
             if order.get() == 1 =>
         {
-            Ok(Box::new(HypercubeQ1Space::new(reference.dimension())?))
+            DiscreteSpace::new(
+                Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+                reference,
+            )
         }
         (SpaceFamily::SimplexP1Bubble, ReferenceCellFamily::Simplex) => {
-            Ok(Box::new(SimplexP1BubbleSpace::new(reference.dimension())?))
+            DiscreteSpace::new(Space::simplex_p1_bubble(), reference)
         }
+        (
+            SpaceFamily::TetrahedralEdge | SpaceFamily::TetrahedralFace,
+            ReferenceCellFamily::Simplex,
+        ) => DiscreteSpace::new(space, reference),
         _ => Err(invalid(
-            "region form requires P1, Q1 or simplex P1-bubble bases",
+            "region form requires P1, Q1, simplex P1-bubble or tetrahedral moment bases",
         )),
     }
 }
@@ -269,7 +285,11 @@ pub(crate) fn state_layout(
     rate: &RegionFieldLayout,
 ) -> Result<RegionFieldLayout, Diagnostic> {
     let second = DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("time");
-    positive_scale(state.state_scale().quantity(), value_type)?;
+    positive_scale(
+        state.state_scale().quantity(),
+        value_type,
+        state.state_space(),
+    )?;
     if state.pair().rate().erase() != rate.field
         || state.state_space() != rate.space
         || value_type.dimension().div(second) != Some(rate.value_type.dimension())

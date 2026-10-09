@@ -49,6 +49,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         relation: RawId,
         field: RawId,
         normal: ExprId,
+        homogeneous: bool,
     ) -> Result<(), Diagnostic> {
         if crate::canonical::boundary_parent(program, boundary) != Some(self.domain)
             || !crate::canonical::relations_on(program, boundary).contains(&relation)
@@ -80,23 +81,54 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             dimension: self.dimension,
             coefficients: &coefficients,
         };
-        let mut candidate = super::lowering::boundary_flux(&context, *flux, row)?;
+        let candidate = super::lowering::boundary_flux(&context, *flux, row)?;
         if candidate.len() != row.flux.len() {
             return Err(invalid(
                 "boundary flux differs from the complete volume constitutive flux",
             ));
         }
-        for expected in &row.flux {
-            let Some(index) = candidate
-                .iter()
-                .position(|term| expected.same_coefficient(term))
-            else {
-                return Err(invalid(
-                    "boundary flux differs from the exact Field/operator/coefficient identity",
-                ));
-            };
-            candidate.remove(index);
+        if same_flux(&row.flux, candidate.clone()) {
+            return Ok(());
         }
-        Ok(())
+        // Only a homogeneous equation may reverse its complete constitutive
+        // flux without changing the prescribed datum. Individual terms cannot
+        // change sign independently; all operator/Field identities stay exact.
+        if homogeneous {
+            let reversed = candidate
+                .into_iter()
+                .map(|mut term| {
+                    let coefficient = match &mut term {
+                        FluxTerm::Trial(term) => &mut term.coefficient,
+                        FluxTerm::Isotropic(value) => value,
+                    };
+                    *coefficient = coefficient
+                        .clone()
+                        .multiply(Data::constant(self.dimension, <S as From<f64>>::from(-1.0)));
+                    term
+                })
+                .collect();
+            if same_flux(&row.flux, reversed) {
+                return Ok(());
+            }
+        }
+        Err(invalid(
+            "boundary flux differs from the exact Field/operator/coefficient identity",
+        ))
     }
+}
+
+fn same_flux<S: Coefficient>(expected: &[FluxTerm<S>], mut candidate: Vec<FluxTerm<S>>) -> bool {
+    if expected.len() != candidate.len() {
+        return false;
+    }
+    for expected in expected {
+        let Some(index) = candidate
+            .iter()
+            .position(|term| expected.same_coefficient(term))
+        else {
+            return false;
+        };
+        candidate.remove(index);
+    }
+    true
 }

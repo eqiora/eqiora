@@ -98,7 +98,7 @@ fn check_planar_curl_pairing(strong_operator: &str, complex: bool) {
         resolve(&model, &projection).unwrap(),
         &REFERENCE_LINEAR_SOLVER,
     );
-    let formulation = plan.as_scalar().unwrap().formulation().unwrap();
+    let formulation = plan.as_linear().unwrap().formulation().unwrap();
     let rules = formulation.rule_ids();
     let expected_rule = if strong_operator == "curl(curl(u))" {
         "fem.derive.v1.planar-scalar-curl-curl-by-parts"
@@ -107,7 +107,7 @@ fn check_planar_curl_pairing(strong_operator: &str, complex: bool) {
     };
     assert!(rules.contains(&expected_rule), "{rules:?}");
     let result = plan
-        .as_scalar()
+        .as_linear()
         .unwrap()
         .run_result(&REFERENCE_LINEAR_SOLVER)
         .unwrap();

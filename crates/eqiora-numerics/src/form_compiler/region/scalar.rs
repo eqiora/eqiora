@@ -1,5 +1,4 @@
 use eqiora_core::{DimExponents, DynQuantity, Id, entity::kinds};
-use eqiora_meshing::ReferenceCell;
 use eqiora_realization::Space;
 
 use super::*;
@@ -66,39 +65,44 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         Ok(form)
     }
 
-    pub(in crate::form_compiler) fn bind_scalar(
+    pub(in crate::form_compiler) fn si_bindings(
         &self,
-        time: Option<&RegionTimeBinding>,
-    ) -> Result<BoundRegionForm<S>, Diagnostic> {
+        space: Space,
+    ) -> Result<(Vec<RegionFieldBinding>, BTreeMap<RawId, DynQuantity>), Diagnostic> {
         let form = self;
         let dimension = self.dimension;
         let fields = form
             .fields()
-            .map(|(field, value_type)| RegionFieldBinding {
-                field,
-                space: Space::continuous_lagrange(std::num::NonZeroU16::MIN),
-                scale: DynQuantity::new(1.0, value_type.dimension()),
+            .map(|(field, value_type)| {
+                Ok(RegionFieldBinding {
+                    field,
+                    space,
+                    scale: DynQuantity::new(
+                        1.0,
+                        space
+                            .coefficient_dimension(value_type.dimension())
+                            .ok_or_else(|| invalid("coefficient functional dimension overflow"))?,
+                    ),
+                })
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
         let measure = DimExponents::from_integers([0, dimension as i32, 0, 0, 0, 0, 0])
-            .ok_or_else(|| invalid("scalar measure dimension overflow"))?;
+            .ok_or_else(|| invalid("region measure dimension overflow"))?;
         let multipliers = form
             .rows()
             .map(|(relation, _, value_type)| {
                 let dimension = value_type
                     .dimension()
                     .mul(measure)
+                    .and_then(|dim| {
+                        dim.div(space.coefficient_dimension(DimExponents::DIMENSIONLESS)?)
+                    })
                     .and_then(|dim| dim.pow(-1, 1))
-                    .ok_or_else(|| invalid("scalar row normalization dimension overflow"))?;
+                    .ok_or_else(|| invalid("region row normalization dimension overflow"))?;
                 Ok((relation, DynQuantity::new(1.0, dimension)))
             })
             .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
-        form.bind(
-            ReferenceCell::hypercube(dimension)?,
-            &fields,
-            &multipliers,
-            time,
-        )
+        Ok((fields, multipliers))
     }
 }
 

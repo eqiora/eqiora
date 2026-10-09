@@ -22,6 +22,8 @@ pub(crate) use reactions::{InterfaceReactions, RecoveredInterfaceReactions};
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct RegionAssemblyCell<S: Coefficient> {
     pub(crate) index: usize,
+    /// Local functional orientation relative to each shared global coefficient.
+    pub(crate) orientation: Vec<i8>,
     pub(crate) geometry: AffineGeometryMap,
     pub(crate) mappings: Vec<TargetAssemblyMap<S>>,
     pub(crate) previous: BTreeMap<RawId, Vec<S>>,
@@ -86,6 +88,13 @@ impl<S: Coefficient + Send + Sync> PreparedRegionAssembly<S> {
             }
             form.validate_cell(&cell.geometry, quadrature, &cell.previous)?;
             let local_count = form.fields().last().expect("bound nonempty form").range.end;
+            if cell.orientation.len() != local_count
+                || cell.orientation.iter().any(|sign| !matches!(sign, -1 | 1))
+            {
+                return Err(invalid(
+                    "prepared cell requires exact local coefficient orientations",
+                ));
+            }
             validate_maps(plan, local_count, &cell.mappings)?;
             prepared.push(form.prepare_cell(&cell.geometry, quadrature)?);
         }
@@ -132,7 +141,9 @@ impl<S: Coefficient + Send + Sync> AssemblyWork<S> for PreparedRegionAssembly<S>
             .get(packet_index)
             .ok_or_else(|| invalid("region assembly packet is outside the prepared mesh"))?;
         AssemblyPacket::new(
-            self.prepared[packet_index].evaluate(&cell.previous)?,
+            self.prepared[packet_index]
+                .evaluate(&cell.previous)?
+                .reoriented(&cell.orientation, &cell.orientation)?,
             cell.mappings.clone(),
         )
     }

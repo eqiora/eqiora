@@ -76,13 +76,21 @@ pub(super) fn derive<S: Coefficient>(
             ));
         }
     }
-    if boundary_count != 2 * dimension
-        || !geometry_backed
-            && (0..dimension).any(|axis| {
+    // Geometry selections may group several facets, and need not describe a box.
+    // This owner checks laws on declared supports. The resource binding must
+    // additionally prove exact, disjoint coverage of the physical frontier.
+    if geometry_backed && boundary_count == 0 {
+        return Err(super::invalid(
+            "linear block requires declared Geometry boundary supports",
+        ));
+    }
+    if !geometry_backed
+        && (boundary_count != 2 * dimension
+            || (0..dimension).any(|axis| {
                 [BoundarySide::Lower, BoundarySide::Upper]
                     .iter()
                     .any(|side| !sides.contains(&(axis, *side)))
-            })
+            }))
     {
         return Err(super::invalid(
             "linear block requires every Cartesian boundary side",

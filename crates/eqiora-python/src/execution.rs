@@ -495,7 +495,7 @@ impl PyRun {
         profile: bool,
     ) -> PyResult<Self> {
         let plan_ref = plan.borrow(py);
-        if plan_ref.scalar_native().is_some()
+        if plan_ref.linear_native().is_some()
             && plan_ref.native().backward_euler().is_some()
             && request.is_none()
         {
@@ -525,10 +525,10 @@ impl PyRun {
                 "eqiora-common-ode-run",
                 false,
             ),
-            (ResolvedCommonPlan::Scalar(native), None) => (
+            (ResolvedCommonPlan::Linear(native), None) => (
                 RunIdentity::from_common_plan(native),
-                NativeRunJob::Scalar(native.clone()),
-                "eqiora-common-scalar-run",
+                NativeRunJob::Linear(native.clone()),
+                "eqiora-common-linear-run",
                 true,
             ),
             (ResolvedCommonPlan::Elasticity(native), None) => (
@@ -544,7 +544,7 @@ impl PyRun {
                 true,
             ),
             (
-                ResolvedCommonPlan::TransientFlow(_) | ResolvedCommonPlan::Scalar(_),
+                ResolvedCommonPlan::TransientFlow(_) | ResolvedCommonPlan::Linear(_),
                 Some(CommonRunRequest::Transient(request)),
             ) => (
                 RunIdentity::from_common_transient(&request),
@@ -588,7 +588,7 @@ impl PyRun {
                 ));
             }
             (
-                ResolvedCommonPlan::Scalar(_)
+                ResolvedCommonPlan::Linear(_)
                 | ResolvedCommonPlan::Elasticity(_)
                 | ResolvedCommonPlan::SteadyStokes(_)
                 | ResolvedCommonPlan::Ode(_),

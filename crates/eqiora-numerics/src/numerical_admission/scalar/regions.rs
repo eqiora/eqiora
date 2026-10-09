@@ -2,17 +2,23 @@ use super::*;
 use crate::spatial_expression::Coefficient;
 use eqiora_core::RawId;
 
-/// Checked scalar equations and their exact Cartesian support.
+use super::super::native::polyhedral::PolyhedralRegionSupport;
+
 #[derive(Debug, Clone, PartialEq)]
-pub(in crate::numerical_admission) struct ScalarRegion<S: Coefficient> {
-    pub(in crate::numerical_admission) form:
-        crate::form_compiler::linear::CompiledLinearBlockForm<S>,
-    pub(in crate::numerical_admission) bounds: Vec<[f64; 2]>,
-    pub(in crate::numerical_admission) boundaries:
-        BTreeMap<(usize, BoundarySide), eqiora_core::RawId>,
+enum LinearRegionSupport {
+    Cartesian(ScalarRegionSupport),
+    Polyhedral(PolyhedralRegionSupport),
 }
 
-impl<S: Coefficient> ScalarRegion<S> {
+/// Checked linear equations and their exact physical support.
+#[derive(Debug, Clone, PartialEq)]
+pub(in crate::numerical_admission) struct LinearRegion<S: Coefficient> {
+    pub(in crate::numerical_admission) form:
+        crate::form_compiler::linear::CompiledLinearBlockForm<S>,
+    support: LinearRegionSupport,
+}
+
+impl<S: Coefficient> LinearRegion<S> {
     pub(in crate::numerical_admission) fn new(
         program: &KernelProgram,
         domain: eqiora_core::RawId,
@@ -25,6 +31,13 @@ impl<S: Coefficient> ScalarRegion<S> {
             bounds.len(),
             &std::collections::BTreeSet::new(),
         )?;
+        if form
+            .fields()
+            .iter()
+            .any(|(_, value_type)| !value_type.shape().is_scalar())
+        {
+            return Err(invalid("scalar Region requires invariant scalar Fields"));
+        }
         let expected = boundaries.values().copied().collect::<BTreeSet<_>>();
         if form
             .boundary_laws()
@@ -37,9 +50,21 @@ impl<S: Coefficient> ScalarRegion<S> {
         }
         Ok(Self {
             form,
-            bounds,
-            boundaries,
+            support: LinearRegionSupport::Cartesian(ScalarRegionSupport::new(
+                domain, bounds, boundaries,
+            )),
         })
+    }
+
+    pub(in crate::numerical_admission) fn cartesian(
+        &self,
+    ) -> Result<&ScalarRegionSupport, Diagnostic> {
+        match &self.support {
+            LinearRegionSupport::Cartesian(support) => Ok(support),
+            LinearRegionSupport::Polyhedral(_) => {
+                Err(invalid("this operation requires Cartesian Region support"))
+            }
+        }
     }
 
     pub(in crate::numerical_admission) fn domain_id(
@@ -56,14 +81,8 @@ impl<S: Coefficient> ScalarRegion<S> {
         &self,
         program: &KernelProgram,
     ) -> Result<ScalarConservationDescriptor, Diagnostic> {
-        let descriptor = recognize_scalar_conservation_on_supports(
-            program,
-            vec![ScalarRegionSupport::new(
-                self.form.domain(),
-                self.bounds.clone(),
-                self.boundaries.clone(),
-            )],
-        )?;
+        let descriptor =
+            recognize_scalar_conservation_on_supports(program, vec![self.cartesian()?.clone()])?;
         let regions = descriptor.regions().collect::<Vec<_>>();
         let [region] = regions.as_slice() else {
             return Err(invalid("steady scalar conservation requires one region"));
@@ -89,13 +108,19 @@ impl<S: Coefficient> ScalarRegion<S> {
         &self,
         program: &KernelProgram,
     ) -> Result<Option<crate::form_compiler::DerivedScalarGalerkinForm>, Diagnostic> {
-        if self.form.fields().len() != 1 {
+        if self.form.fields().len() != 1
+            || self
+                .form
+                .fields()
+                .iter()
+                .any(|(_, ty)| !ty.shape().is_scalar())
+        {
             return Ok(None);
         }
         Ok(crate::form_compiler::derive_candidate_with_dimension(
             program,
             self.form.domain(),
-            self.bounds.len(),
+            self.form.dimension(),
         )
         .ok()
         .flatten())
@@ -104,13 +129,13 @@ impl<S: Coefficient> ScalarRegion<S> {
 
 /// One ordered mathematical inventory; Region count never selects an executor.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct ExecutableScalarEquations<S: Coefficient> {
-    pub(in crate::numerical_admission) regions: Vec<ScalarRegion<S>>,
+pub(crate) struct ExecutableLinearEquations<S: Coefficient> {
+    pub(in crate::numerical_admission) regions: Vec<LinearRegion<S>>,
     pub(in crate::numerical_admission) interfaces:
         Vec<crate::scalar_conservation::ScalarMaterialInterface>,
 }
 
-impl<S: Coefficient> ExecutableScalarEquations<S> {
+impl<S: Coefficient> ExecutableLinearEquations<S> {
     pub(in crate::numerical_admission) fn new(
         program: &KernelProgram,
         domain: RawId,
@@ -118,11 +143,79 @@ impl<S: Coefficient> ExecutableScalarEquations<S> {
         boundaries: BTreeMap<(usize, BoundarySide), RawId>,
     ) -> Result<Self, Diagnostic> {
         Ok(Self {
-            regions: vec![ScalarRegion::new(program, domain, bounds, boundaries)?],
+            regions: vec![LinearRegion::new(program, domain, bounds, boundaries)?],
             interfaces: vec![],
         })
     }
-    pub(in crate::numerical_admission) fn single(&self) -> Result<&ScalarRegion<S>, Diagnostic> {
+    pub(in crate::numerical_admission) fn polyhedral(
+        program: &KernelProgram,
+        resources: &NativeMeshResources,
+    ) -> Result<Self, Diagnostic> {
+        let supports = super::super::native::polyhedral::bind_model_support(program, resources)?;
+        let mut regions = Vec::new();
+        for (domain, support) in supports {
+            let form = crate::form_compiler::linear::CompiledLinearBlockForm::<S>::derive(
+                program,
+                domain,
+                3,
+                &BTreeSet::new(),
+            )?;
+            if form.is_transient() {
+                return Err(invalid(
+                    "polyhedral linear equations do not admit temporal execution",
+                ));
+            }
+            for (_, ty) in form.fields() {
+                if crate::form_compiler::region::components(ty, 3)? != 3
+                    || ty.scalar_domain() != S::DOMAIN
+                {
+                    return Err(invalid(
+                        "polyhedral compatible equations require exact real or complex spatial three-vectors",
+                    ));
+                }
+            }
+            if form
+                .boundary_laws()
+                .values()
+                .any(|laws| laws.keys().copied().collect::<BTreeSet<_>>() != support.boundaries)
+            {
+                return Err(invalid(
+                    "compiled boundary laws differ from authenticated polyhedral supports",
+                ));
+            }
+            regions.push(LinearRegion {
+                form,
+                support: LinearRegionSupport::Polyhedral(support),
+            });
+        }
+        Ok(Self {
+            regions,
+            interfaces: vec![],
+        })
+    }
+
+    pub(in crate::numerical_admission) fn validate_moment_space(
+        &self,
+        space: Space,
+    ) -> Result<(), Diagnostic> {
+        if !self.interfaces.is_empty() {
+            return Err(invalid(
+                "moment admission does not admit full-value trace quotients",
+            ));
+        }
+        let reference = eqiora_meshing::ReferenceCell::simplex(3)?;
+        for region in &self.regions {
+            if !matches!(region.support, LinearRegionSupport::Polyhedral(_)) {
+                return Err(invalid(
+                    "moment admission requires authenticated polyhedral support",
+                ));
+            }
+            region.form.bind_space(reference, space)?;
+        }
+        Ok(())
+    }
+
+    pub(in crate::numerical_admission) fn single(&self) -> Result<&LinearRegion<S>, Diagnostic> {
         let [region] = self.regions.as_slice() else {
             return Err(invalid(
                 "this numerical operation requires one exact Region",
@@ -211,10 +304,9 @@ impl<S: Coefficient> ExecutableScalarEquations<S> {
             )?;
             // The shared binding rejects storage without a temporal Plan.
             form.volume()?;
-            regions.push(ScalarRegion {
+            regions.push(LinearRegion {
                 form,
-                bounds: support.bounds,
-                boundaries: support.boundaries,
+                support: LinearRegionSupport::Cartesian(support),
             });
         }
         regions.sort_by_key(|region| region.form.domain());
@@ -232,6 +324,7 @@ impl<S: Coefficient> ExecutableScalarEquations<S> {
     ) -> Result<Vec<RawId>, Diagnostic> {
         let dimension = mesh.topological_dimension();
         for region in &self.regions {
+            let region = region.cartesian()?;
             if region.bounds.len() != dimension
                 || region.bounds.iter().enumerate().any(|(axis, bounds)| {
                     let coordinates = mesh.axis_coordinates(axis).expect("Cartesian axis");
@@ -257,6 +350,9 @@ impl<S: Coefficient> ExecutableScalarEquations<S> {
                 .regions
                 .iter()
                 .filter(|region| {
+                    let region = region
+                        .cartesian()
+                        .expect("Cartesian supports checked above");
                     region.bounds.len() == dimension
                         && vertices.iter().all(|vertex| {
                             let point = mesh
@@ -285,7 +381,7 @@ impl<S: Coefficient> ExecutableScalarEquations<S> {
     }
 }
 
-impl<S: Coefficient> ExecutableScalarEquations<S> {
+impl<S: Coefficient> ExecutableLinearEquations<S> {
     pub(in crate::numerical_admission) fn discretizations(
         &self,
         space: Space,

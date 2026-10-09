@@ -1,6 +1,7 @@
 //! Fail-closed semantic validation for decoded common Result content.
 
 use eqiora_core::{Diagnostic, DimExponents};
+use eqiora_realization::Space;
 use eqiora_solver::{
     ExecutionProvider, ProviderLibrary, SERIAL_EXECUTION_PROVIDER, SolverProvider,
 };
@@ -16,14 +17,21 @@ pub(super) fn validate_fields(
     fields: &[CommonResultField],
 ) -> Result<(), Diagnostic> {
     let valid = match plan {
-        ResolvedCommonPlan::Scalar(plan) => {
+        ResolvedCommonPlan::Linear(plan) => {
             let (space, association) = match plan.spatial() {
-                crate::CommonSpatialPolicy::Q1 => {
-                    ("continuous-lagrange-p1", CommonFieldAssociation::Vertex)
+                crate::CommonSpatialPolicy::TetrahedralEdge => {
+                    (Space::tetrahedral_edge(), CommonFieldAssociation::Edge)
                 }
+                crate::CommonSpatialPolicy::TetrahedralFace => {
+                    (Space::tetrahedral_face(), CommonFieldAssociation::Face)
+                }
+                crate::CommonSpatialPolicy::Q1 => (
+                    Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+                    CommonFieldAssociation::Vertex,
+                ),
                 crate::CommonSpatialPolicy::CellCenteredTpfa
                 | crate::CommonSpatialPolicy::CellCentered => {
-                    ("cell-constant", CommonFieldAssociation::Cell)
+                    (Space::cell_constant(), CommonFieldAssociation::Cell)
                 }
                 _ => {
                     return Err(invalid(
@@ -46,7 +54,15 @@ pub(super) fn validate_fields(
                                 &id,
                                 value_type.scalar_domain(),
                                 value_type.dimension(),
-                                &[],
+                                if matches!(
+                                    space.family(),
+                                    eqiora_realization::SpaceFamily::TetrahedralEdge
+                                        | eqiora_realization::SpaceFamily::TetrahedralFace
+                                ) {
+                                    &[3]
+                                } else {
+                                    &[]
+                                },
                                 space,
                                 &[(association, shape.clone())],
                             )
@@ -63,7 +79,7 @@ pub(super) fn validate_fields(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
                     &[2],
-                    "continuous-lagrange-p1",
+                    Space::continuous_lagrange(std::num::NonZeroU16::MIN),
                     &[(CommonFieldAssociation::Vertex, vec![vertices, 2])],
                 )
         }
@@ -80,7 +96,7 @@ pub(super) fn validate_fields(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension"),
                     &[2],
-                    "simplex-p1-bubble",
+                    Space::simplex_p1_bubble(),
                     &[
                         (CommonFieldAssociation::Vertex, vec![vertices, 2]),
                         (CommonFieldAssociation::CellBubble, vec![cells, 2]),
@@ -93,7 +109,7 @@ pub(super) fn validate_fields(
                     DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0])
                         .expect("bounded dimension"),
                     &[],
-                    "continuous-lagrange-p1",
+                    Space::continuous_lagrange(std::num::NonZeroU16::MIN),
                     &[(CommonFieldAssociation::Vertex, vec![vertices])],
                 )
         }
@@ -117,7 +133,7 @@ fn field_matches(
     scalar_domain: eqiora_core::ScalarDomain,
     dimension: DimExponents,
     value_shape: &[usize],
-    space: &str,
+    space: Space,
     blocks: &[(CommonFieldAssociation, Vec<usize>)],
 ) -> bool {
     field.field_id == id
@@ -152,7 +168,7 @@ pub(super) fn require_family(
             ResolvedCommonPlan::Algebraic(_),
             WireResultFamily::Algebraic
         ) | (ResolvedCommonPlan::Eigen(_), WireResultFamily::Eigen)
-            | (ResolvedCommonPlan::Scalar(_), WireResultFamily::Scalar)
+            | (ResolvedCommonPlan::Linear(_), WireResultFamily::Linear)
             | (
                 ResolvedCommonPlan::Elasticity(_),
                 WireResultFamily::Elasticity
@@ -185,7 +201,7 @@ pub(super) fn require_trajectory_family(
         (family, trajectory),
         (WireResultFamily::Ode, CommonTrajectory::Ode { .. })
             | (
-                WireResultFamily::TransientFlow | WireResultFamily::Scalar,
+                WireResultFamily::TransientFlow | WireResultFamily::Linear,
                 CommonTrajectory::SpatialTransient { .. }
             )
             | (

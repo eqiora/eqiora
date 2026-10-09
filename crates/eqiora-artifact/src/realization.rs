@@ -471,8 +471,10 @@ impl WireSpace {
                 Ok(Self::ContinuousLagrange { order: order.get() })
             }
             SpaceFamily::CellConstant => Ok(Self::CellConstant),
-            SpaceFamily::SimplexP1Bubble => Err(invalid_artifact(
-                "realization artifact v1 cannot encode a simplex P1-bubble space; a versioned wire extension is required",
+            SpaceFamily::SimplexP1Bubble
+            | SpaceFamily::TetrahedralEdge
+            | SpaceFamily::TetrahedralFace => Err(invalid_artifact(
+                "realization artifact v1 cannot encode this space family; a versioned wire extension is required",
             )),
         }
     }

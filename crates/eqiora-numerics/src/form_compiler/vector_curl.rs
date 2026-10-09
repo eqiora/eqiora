@@ -226,7 +226,7 @@ fn signed(value: E, sign: WeakSign) -> E {
     }
 }
 
-fn curl_curl_field(dag: &ExprDag, root: ExprId) -> Option<RawId> {
+pub(super) fn curl_curl_field(dag: &ExprDag, root: ExprId) -> Option<RawId> {
     let field = curl_operand(dag, curl_operand(dag, root)?)?;
     let ExprNode::Symbol(SymbolRef::Field(field)) = dag.node(field)? else {
         return None;
@@ -235,7 +235,7 @@ fn curl_curl_field(dag: &ExprDag, root: ExprId) -> Option<RawId> {
 }
 
 // Exact shared definitions are required in both the volume and boundary laws.
-fn curl_operand(dag: &ExprDag, root: ExprId) -> Option<ExprId> {
+pub(super) fn curl_operand(dag: &ExprDag, root: ExprId) -> Option<ExprId> {
     let gradient = pure_operand(
         dag,
         root,
@@ -245,6 +245,9 @@ fn curl_operand(dag: &ExprDag, root: ExprId) -> Option<ExprId> {
         return None;
     };
     Some(*value)
+}
+pub(super) fn tangential_lift_operand(dag: &ExprDag, root: ExprId) -> Option<ExprId> {
+    pure_operand(dag, root, PureOperatorDefinition::tangential_lift(3).ok()?)
 }
 fn pure_operand(dag: &ExprDag, root: ExprId, expected: PureOperatorDefinition) -> Option<ExprId> {
     let ExprNode::PureOperatorApplication(application) = dag.node(root)? else {
@@ -262,7 +265,7 @@ fn boundary_discharge(dag: &ExprDag, root: ExprId, field: RawId) -> Option<Bound
         ExprNode::NormalComponent(lift) => {
             // n × curl(u) = 0, not n · curl(u) = 0. The shared lift
             // fixes the cross-product orientation before normal contraction.
-            let curl = pure_operand(dag, *lift, PureOperatorDefinition::tangential_lift(3).ok()?)?;
+            let curl = tangential_lift_operand(dag, *lift)?;
             (curl_operand(dag, curl)?, BoundaryDischarge::ZeroFlux)
         }
         _ => return None,

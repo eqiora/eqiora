@@ -3,7 +3,7 @@ use super::*;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) enum NativeSpatialPolicy {
     CoordinateCellConstant,
-    ScalarQ1,
+    LinearFiniteElement(Space),
     ScalarTpfa(Option<eqiora_solver::AlgebraicConstraint>),
     ElasticityQ1,
     StokesMiniP1(IncompressibleFlowScaleProfile2d),
@@ -328,6 +328,8 @@ impl AuthenticatedCommonMesh {
     }
 
     /// Re-import and own one exact bounded Gmsh 4.15.2 provider observation.
+    /// Affine tetrahedra require exact convex-polyhedral Geometry correspondence;
+    /// accepting these resources does not admit a numerical space or flow solver.
     pub fn gmsh_4152(
         geometry: CanonicalGeometryV1,
         policy: eqiora_artifact::GmshMeshPolicyV1,
@@ -339,6 +341,24 @@ impl AuthenticatedCommonMesh {
 }
 
 impl NativeMeshResources {
+    pub(super) fn cartesian_cells(&self) -> Result<Vec<usize>, Diagnostic> {
+        let mesh = match self {
+            Self::Cartesian { mesh, .. } => mesh.mesh(),
+            Self::Coordinates(grid) => grid.mesh.mesh(),
+            _ => {
+                return Err(invalid(
+                    "axis cell counts require an authenticated Cartesian mesh",
+                ));
+            }
+        };
+        (0..mesh.topological_dimension())
+            .map(|axis| {
+                mesh.axis_cell_count(axis)
+                    .ok_or_else(|| invalid("Cartesian mesh omitted an axis"))
+            })
+            .collect()
+    }
+
     pub(super) fn geometry(&self) -> Result<&CanonicalGeometryV1, Diagnostic> {
         match self {
             Self::Coordinates(_) => Err(invalid("coordinate-factor grid has no physical Geometry")),
@@ -363,8 +383,8 @@ pub(super) struct NativeNumericalAdmission {
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum RecognizedNativeModel {
     Coordinates(Box<super::coordinate_grid::CellEquations>),
-    Scalar(Box<ExecutableScalarEquations<f64>>),
-    ComplexScalar(Box<ExecutableScalarEquations<num_complex::Complex64>>),
+    Linear(Box<ExecutableLinearEquations<f64>>),
+    ComplexLinear(Box<ExecutableLinearEquations<num_complex::Complex64>>),
     Elasticity(Box<IsotropicElasticityContinuum<2>>),
     Stokes(Box<SteadyStokesGeometryBinding2d>),
     Transient(Box<TransientIncompressibleNavierStokesCartesianModel2d>),
@@ -436,15 +456,35 @@ impl RecognizedNativeAdmission {
         require_policy_compatibility(
             spatial,
             &linear,
-            if matches!(self.recognized, RecognizedNativeModel::ComplexScalar(_)) {
+            if matches!(self.recognized, RecognizedNativeModel::ComplexLinear(_)) {
                 eqiora_core::ScalarDomain::Complex
             } else {
                 eqiora_core::ScalarDomain::Real
             },
         )?;
         validate_resources(spatial, &self.resources)?;
+        if let NativeSpatialPolicy::LinearFiniteElement(space) = spatial
+            && matches!(
+                space.family(),
+                SpaceFamily::TetrahedralEdge | SpaceFamily::TetrahedralFace
+            )
+        {
+            if temporal.is_some() || nonlinear.is_some() {
+                return Err(invalid("moment admission requires static linear equations"));
+            }
+            match &self.recognized {
+                RecognizedNativeModel::Linear(equations) => {
+                    equations.validate_moment_space(space)?
+                }
+                RecognizedNativeModel::ComplexLinear(equations) => {
+                    equations.validate_moment_space(space)?
+                }
+                _ => return Err(invalid("moment admission requires linear equations")),
+            }
+        }
+
         if matches!(spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
-            let RecognizedNativeModel::Scalar(equations) = &self.recognized else {
+            let RecognizedNativeModel::Linear(equations) = &self.recognized else {
                 return Err(invalid("TPFA requires scalar equations"));
             };
             equations.conservation_descriptor(&self.program)?;
@@ -469,10 +509,12 @@ impl RecognizedNativeModel {
                 Self::Coordinates(_),
                 NativeSpatialPolicy::CoordinateCellConstant
             ) | (
-                Self::Scalar(_),
-                NativeSpatialPolicy::ScalarQ1 | NativeSpatialPolicy::ScalarTpfa(_)
-            ) | (Self::ComplexScalar(_), NativeSpatialPolicy::ScalarQ1)
-                | (Self::Elasticity(_), NativeSpatialPolicy::ElasticityQ1)
+                Self::Linear(_),
+                NativeSpatialPolicy::LinearFiniteElement(_) | NativeSpatialPolicy::ScalarTpfa(_)
+            ) | (
+                Self::ComplexLinear(_),
+                NativeSpatialPolicy::LinearFiniteElement(_)
+            ) | (Self::Elasticity(_), NativeSpatialPolicy::ElasticityQ1)
                 | (Self::Stokes(_), NativeSpatialPolicy::StokesMiniP1(_))
                 | (
                     Self::Transient(_) | Self::TransientGeometry(_),
@@ -628,17 +670,17 @@ impl NativeNumericalAdmission {
         Ok((resolved, portable, velocity, pressure))
     }
 
-    pub(super) fn execute_scalar(
+    pub(super) fn execute_linear(
         &self,
         backend: &dyn LinearSolverBackend,
-    ) -> Result<CommonScalarRunOutput<f64>, Diagnostic> {
-        if let RecognizedNativeModel::ComplexScalar(equations) = self.recognized_model() {
-            return self.execute_complex_scalar(equations, backend);
+    ) -> Result<CommonLinearRunOutput<f64>, Diagnostic> {
+        if let RecognizedNativeModel::ComplexLinear(equations) = self.recognized_model() {
+            return self.execute_complex_linear(equations, backend);
         }
-        self.execute_scalar_with_completion(backend, |reactions, full| reactions.recover(full))
+        self.execute_linear_with_completion(backend, |reactions, full| reactions.recover(full))
     }
 
-    pub(super) fn execute_scalar_with_completion(
+    pub(super) fn execute_linear_with_completion(
         &self,
         backend: &dyn LinearSolverBackend,
         complete: impl FnOnce(
@@ -648,7 +690,7 @@ impl NativeNumericalAdmission {
             crate::region_assembly::RecoveredInterfaceReactions<f64>,
             Diagnostic,
         >,
-    ) -> Result<CommonScalarRunOutput<f64>, Diagnostic> {
+    ) -> Result<CommonLinearRunOutput<f64>, Diagnostic> {
         self.revalidate()?;
         if backend.provider() != self.linear.provider
             || backend.capabilities() != self.linear.capabilities
@@ -660,30 +702,31 @@ impl NativeNumericalAdmission {
         if let RecognizedNativeModel::Coordinates(projection) = self.recognized_model() {
             return super::coordinate_grid::execute(self, projection, backend);
         }
-        let NativeMeshResources::Cartesian { mesh, .. } = self.resources() else {
+        let RecognizedNativeModel::Linear(lowered) = self.recognized_model() else {
             return Err(invalid(
-                "scalar elliptic execution requires Cartesian resources",
-            ));
-        };
-        let RecognizedNativeModel::Scalar(lowered) = self.recognized_model() else {
-            return Err(invalid(
-                "native numerical admission does not own recognized scalar-elliptic meaning",
+                "native numerical admission does not own recognized linear-region meaning",
             ));
         };
         let structure = lowered.algebraic_structure(self.spatial.scalar_constraint())?;
         let checked_backend = self.linear.checked_backend(backend, Some(&structure))?;
         let backend: &dyn LinearSolverBackend = &checked_backend;
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
-        if self.spatial == NativeSpatialPolicy::ScalarQ1 {
-            return lowered.execute(self.linear.workers, solve, mesh.mesh(), complete);
+        if let NativeSpatialPolicy::LinearFiniteElement(space) = self.spatial {
+            return lowered.execute(
+                self.linear.workers,
+                solve,
+                self.resources(),
+                space,
+                complete,
+            );
         }
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
         match self.spatial {
             NativeSpatialPolicy::CoordinateCellConstant => {
                 unreachable!("coordinate cells executed above")
             }
-            NativeSpatialPolicy::ScalarQ1 => {
-                unreachable!("Q1 executed through linear block assembly")
+            NativeSpatialPolicy::LinearFiniteElement(_) => {
+                unreachable!("finite elements executed through linear block assembly")
             }
             NativeSpatialPolicy::ScalarTpfa(_) => {
                 let finalized = self.assemble_scalar_tpfa()?;
@@ -693,11 +736,12 @@ impl NativeNumericalAdmission {
                 let [(field, value_type)] = lowered.single()?.form.fields() else {
                     return Err(invalid("TPFA requires one admitted Field"));
                 };
-                Ok(CommonScalarRunOutput {
+                Ok(CommonLinearRunOutput {
                     fields: vec![(
                         field.downcast().expect("compiled Field identity"),
                         value_type.clone(),
                         solution.cell_values().to_vec(),
+                        eqiora_realization::Space::cell_constant(),
                     )],
                     nullspace: solution.nullspace_evidence().cloned(),
                     solve_report: solution.solve_report().clone(),
@@ -752,6 +796,7 @@ impl NativeNumericalAdmission {
 }
 
 mod identity;
+pub(super) mod polyhedral;
 mod recognition;
 mod resources;
 mod scalar;

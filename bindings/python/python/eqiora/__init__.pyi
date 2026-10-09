@@ -822,6 +822,8 @@ class FieldOutput:
     @property
     def dimension(self) -> tuple[Fraction, Fraction, Fraction, Fraction, Fraction, Fraction, Fraction]: ...
     @property
+    def coefficient_dimension(self) -> tuple[Fraction, Fraction, Fraction, Fraction, Fraction, Fraction, Fraction]: ...
+    @property
     def value_shape(self) -> tuple[int, ...]: ...
     @property
     def space(self) -> str: ...
@@ -1043,10 +1045,10 @@ class Model:
     def __hash__(self) -> int: ...
 
 @final
-class ScalarPlanView:
-    """Scalar-valued Fields resolved from one Model.
+class LinearPlanView:
+    """Scalar or vector Fields in one resolved linear spatial Model.
 
-    Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PyScalarPlanView``.
+    Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PyLinearPlanView``.
     """
     @property
     def kind(self) -> str: ...
@@ -1185,11 +1187,30 @@ class Plan:
     @property
     def formulation(self) -> FormulationView | None: ...
     @property
-    def capability(self) -> ScalarPlanView | solve.AlgebraicPlanView | solve.EigenPlanView | time.OdePlanView | solid.ElasticityPlanView | fluid.IncompressibleFlowPlanView | fsi.FixedReferenceFsiPlanView: ...
+    def capability(self) -> LinearPlanView | solve.AlgebraicPlanView | solve.EigenPlanView | time.OdePlanView | solid.ElasticityPlanView | fluid.IncompressibleFlowPlanView | fsi.FixedReferenceFsiPlanView: ...
     @property
     def fields(self) -> tuple[FieldRef, ...]: ...
+    def field_coefficient_entities(self, field: FieldRef, /) -> tuple[tuple[int, int], ...]:
+        """Mesh (dimension, index) entities in exact coefficient order."""
+        ...
+    def field_gradient_modes(self, field: FieldRef, /) -> dict[tuple[int, int], tuple[tuple[tuple[int, int], int], ...]]:
+        """Independent vertex-gradient columns with signed edge entries.
+
+        Removes one constant potential per connected component. These span
+        discrete gradients, not every possible null mode of the Model operator.
+        Entity pairs are (dimension, index) in this Plan's exact Mesh.
+        """
+        ...
+    def field_exterior_derivative(self, field: FieldRef, /) -> dict[tuple[int, int], tuple[tuple[tuple[int, int], int], ...]]:
+        """Signed face-integrated curl or cell-integrated divergence rows.
+
+        Entries reference coefficient entities; zero row action is the
+        corresponding differential constraint. No measure division is implied.
+        Entity pairs are (dimension, index) in this Plan's exact Mesh.
+        """
+        ...
     @property
-    def spatial(self) -> fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None: ...
+    def spatial(self) -> fem.Q1 | fem.TetrahedralEdge | fem.TetrahedralFace | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None: ...
     @property
     def solve(self) -> solve_module.ResolvedLinear | solve_module.ResolvedNewton | solve_module.HermitianEigen | None: ...
     @property
@@ -2333,7 +2354,7 @@ def resolve(
     model: Model,
     *,
     mesh: meshing.Mesh | None = None,
-    spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None = None,
+    spatial: fem.Q1 | fem.TetrahedralEdge | fem.TetrahedralFace | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None = None,
     formulation: FormulationKind | None = None,
     solve: solve.Linear | solve.Newton | solve.HermitianEigen | None = None,
     scaling: fluid.IncompressibleScaling | dict[ConstraintRef, tuple[float, Dimension]] | None = None,
@@ -2499,7 +2520,7 @@ __all__ = [
     "ProfilePhase",
     "Revision",
     "ResolvedExecution",
-    "ScalarPlanView",
+    "LinearPlanView",
     "Run",
     "RunStatus",
     "Series",

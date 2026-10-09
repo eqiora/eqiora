@@ -158,7 +158,7 @@ impl WireCommonSpatialStateV1 {
 
     fn replay(&self, plan: &ResolvedCommonPlan) -> Result<CommonState, Diagnostic> {
         let state = match (plan, &self.payload) {
-            (ResolvedCommonPlan::Scalar(plan), WireStatePayload::Scalar { values }) => {
+            (ResolvedCommonPlan::Linear(plan), WireStatePayload::Scalar { values }) => {
                 plan.scalar_state(self.time_s, values.clone())?
             }
             (ResolvedCommonPlan::TransientFlow(plan), WireStatePayload::MiniP1 { .. }) => {
@@ -174,7 +174,7 @@ impl WireCommonSpatialStateV1 {
                 ResolvedCommonPlan::Eigen(_)
                 | ResolvedCommonPlan::Algebraic(_)
                 | ResolvedCommonPlan::Ode(_)
-                | ResolvedCommonPlan::Scalar(_)
+                | ResolvedCommonPlan::Linear(_)
                 | ResolvedCommonPlan::Elasticity(_)
                 | ResolvedCommonPlan::SteadyStokes(_),
                 _,

@@ -1,0 +1,453 @@
+use super::*;
+use crate::spatial_expression::Coefficient;
+use num_complex::Complex64 as C;
+
+fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
+    complex: bool,
+    face: bool,
+    backend: &dyn LinearSolverBackend<S>,
+) {
+    let space = if face {
+        Space::tetrahedral_face()
+    } else {
+        Space::tetrahedral_edge()
+    };
+    let policy = SolverPlan::new(
+        LinearSolver::BiConjugateGradientStabilized,
+        1e-13,
+        1e-14,
+        NonZeroUsize::new(2000).unwrap(),
+    )
+    .unwrap();
+    for permuted in [false, true] {
+        let (model, program, owner) = fixture_source(
+            &[vec![0, 1, 2, 3]],
+            false,
+            permuted,
+            2.,
+            complex,
+            |source| {
+                let potential = "2*coordinate(0)+3*coordinate(1)+4*coordinate(2)";
+                let (ty, value) = if complex {
+                    (
+                        "complex<m>",
+                        format!("math.complex({potential},2*({potential}))"),
+                    )
+                } else {
+                    ("m", potential.to_owned())
+                };
+                let operator = if face {
+                    "-grad(div(u))"
+                } else {
+                    "curl(curl(u))"
+                };
+                let source = source.replace("relation balance", &format!("parameter a:m^2=2[m^2]; variable potential:{ty} on body; relation prescribed on body {{ potential={value}; }} relation balance"));
+                let source = source.replace(
+                    "curl(curl(u)) = 0",
+                    &format!("a*({operator})+u=grad(potential)"),
+                );
+                source.replace(
+                    "tangential_trace(-curl(u))",
+                    if face {
+                        "normal(a*isotropic_lift(div(u)))"
+                    } else {
+                        "tangential_trace(-a*curl(u))"
+                    },
+                )
+            },
+        );
+        let equations =
+            ExecutableLinearEquations::<S>::polyhedral(&program, &owner.resources).unwrap();
+        let output = equations
+            .execute(
+                NonZeroUsize::MIN,
+                LinearSolveRequest::new(backend, policy),
+                &owner.resources,
+                space,
+                |reactions, values| reactions.recover(values),
+            )
+            .unwrap();
+        let recognized = RecognizedNativeAdmission::recognize(&model, owner.clone()).unwrap();
+        let mut linear = NativeLinearPolicy::exact::<S>(policy, backend).unwrap();
+        linear.planning_profile = Some(
+            eqiora_solver::HostSerialSolverProfile::general_canonical_csr()
+                .with_structure(equations.algebraic_structure(None).unwrap())
+                .unwrap(),
+        );
+        let native = recognized
+            .clone()
+            .complete(
+                NativeSpatialPolicy::LinearFiniteElement(space),
+                linear.clone(),
+                None,
+                None,
+            )
+            .unwrap();
+        native.revalidate().unwrap();
+        let native_output = native.execute_linear(&REFERENCE_LINEAR_SOLVER).unwrap();
+        assert_eq!(native_output.fields[0].0, output.fields[0].0);
+        assert_eq!(native_output.fields[0].1, output.fields[0].1);
+        assert_eq!(native_output.fields[0].3, space);
+        let expected_coordinates = output.fields[0]
+            .2
+            .iter()
+            .flat_map(|v| {
+                if complex {
+                    vec![v.re(), v.im()]
+                } else {
+                    vec![v.re()]
+                }
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(native_output.fields[0].2, expected_coordinates);
+        let plan = if complex {
+            CommonLinearPlan::from_complex_admission(
+                &model,
+                native.clone(),
+                FormulationSelectionMode::Automatic,
+                None,
+            )
+        } else {
+            CommonLinearPlan::from_admission(
+                &model,
+                native.clone(),
+                Some(FormulationSelectionMode::Automatic),
+                None,
+            )
+        }
+        .unwrap();
+        plan.reauthenticate_portable_realization().unwrap();
+        assert!(plan.cartesian_cells().is_err());
+        let graph = plan.portable_realization();
+        let replay = PortableRealizationGraph::from_bytes(&graph.to_bytes().unwrap()).unwrap();
+        assert_eq!(&replay, graph);
+        assert_eq!(replay.fields()[0].space(), space);
+        assert!(matches!(
+            replay.domains()[0].discretization().mesh(),
+            MeshPolicy::ImportedSimplicial { .. }
+        ));
+        assert_eq!(
+            replay.domains()[0].discretization().quadrature(),
+            QuadraturePolicy::SimplexDuffyGaussLegendre {
+                spatial_dimension: NonZeroUsize::new(3).unwrap(),
+                points_per_axis: NonZeroUsize::new(3).unwrap()
+            }
+        );
+        let planned = plan.run(&REFERENCE_LINEAR_SOLVER).unwrap();
+        assert_eq!(planned.fields, native_output.fields);
+        let public = ResolvedCommonPlan::resolve(
+            &model,
+            owner.clone(),
+            if face {
+                CommonSpatialPolicy::TetrahedralFace
+            } else {
+                CommonSpatialPolicy::TetrahedralEdge
+            },
+            CommonSolvePolicy::Linear(
+                CommonLinearRequest::exact(policy, REFERENCE_LINEAR_SOLVER.provider()).unwrap(),
+            ),
+            None,
+            None,
+            &REFERENCE_LINEAR_SOLVER,
+            None,
+        )
+        .unwrap();
+        let bytes = public.to_bytes().unwrap();
+        let time = eqiora_time::TimeBackendCapabilities::new(
+            eqiora_time::TimeBackendIdentity::new("eqiora.test.time", "1"),
+            &[
+                eqiora_core::ScalarDomain::Real,
+                eqiora_core::ScalarDomain::Complex,
+            ],
+            &[eqiora_core::ScalarType::F64],
+        );
+        let public =
+            ResolvedCommonPlan::from_bytes(&bytes, &REFERENCE_LINEAR_SOLVER, time).unwrap();
+        assert_eq!(public.to_bytes().unwrap(), bytes);
+        let result = public
+            .as_linear()
+            .unwrap()
+            .run_result(&REFERENCE_LINEAR_SOLVER)
+            .unwrap();
+        let field = public.as_linear().unwrap().fields().next().unwrap().0;
+        let entities = public
+            .as_linear()
+            .unwrap()
+            .field_coefficient_entities(field)
+            .unwrap();
+        assert_eq!(
+            entities,
+            (0..if face { 4 } else { 6 })
+                .map(|index| MeshEntity::new(if face { 2 } else { 1 }, index))
+                .collect::<Vec<_>>()
+        );
+
+        inspect_compatible(public.as_linear().unwrap(), field, face);
+        assert_eq!(result.field_space(0), Some(space));
+        assert_eq!(result.field(0).unwrap().2, &[3]);
+        assert_eq!(
+            result.field_coefficient_dimension(0),
+            Some(
+                eqiora_core::DimExponents::from_integers([
+                    0,
+                    if face { 2 } else { 1 },
+                    0,
+                    0,
+                    0,
+                    0,
+                    0
+                ])
+                .unwrap()
+            )
+        );
+        let (association, values, shape) = result.field_block(0, 0).unwrap();
+        assert_eq!(association, if face { "face" } else { "edge" });
+        assert_eq!(shape, &[if face { 4 } else { 6 }]);
+        assert_eq!(values, expected_coordinates);
+        let result_bytes = result.to_bytes().unwrap();
+        let result_replay = crate::CommonResult::from_bytes(&result_bytes, &public).unwrap();
+        assert_eq!(result_replay.to_bytes().unwrap(), result_bytes);
+        let text = String::from_utf8(result_bytes).unwrap();
+        for corrupted in [
+            text.replace("eqiora.common-result/v14", "eqiora.common-result/v13"),
+            text.replace(
+                if face {
+                    "tetrahedral-face"
+                } else {
+                    "tetrahedral-edge"
+                },
+                "continuous-lagrange-p1",
+            ),
+        ] {
+            assert_ne!(corrupted, text);
+            assert!(crate::CommonResult::from_bytes(corrupted.as_bytes(), &public).is_err());
+        }
+        let old = String::from_utf8(bytes).unwrap().replace(
+            "eqiora.resolved-common-plan/v14",
+            "eqiora.resolved-common-plan/v13",
+        );
+        assert!(
+            ResolvedCommonPlan::from_bytes(old.as_bytes(), &REFERENCE_LINEAR_SOLVER, time).is_err()
+        );
+
+        // Space drift must invalidate the retained graph before any execution.
+        let mut drifted_plan = plan.clone();
+        drifted_plan.admission.spatial = NativeSpatialPolicy::LinearFiniteElement(if face {
+            Space::tetrahedral_edge()
+        } else {
+            Space::tetrahedral_face()
+        });
+        assert!(drifted_plan.run(&REFERENCE_LINEAR_SOLVER).is_err());
+        assert!(drifted_plan.field_exterior_derivative(field).is_err());
+        assert!(drifted_plan.field_gradient_modes(field).is_err());
+
+        let other_space = if face {
+            Space::tetrahedral_edge()
+        } else {
+            Space::tetrahedral_face()
+        };
+        let other = NativeSpatialPolicy::LinearFiniteElement(other_space);
+        assert_ne!(
+            native.policy_identity,
+            policy_identity(other, &linear, None, None)
+        );
+        assert!(
+            recognized
+                .clone()
+                .complete(other, linear.clone(), None, None)
+                .is_err()
+        );
+        let mut drift = native.clone();
+        drift.spatial = other;
+        assert!(drift.execute_linear(&REFERENCE_LINEAR_SOLVER).is_err());
+        for unsupported in [
+            Space::cell_constant(),
+            Space::simplex_p1_bubble(),
+            Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+        ] {
+            assert!(
+                recognized
+                    .clone()
+                    .complete(
+                        NativeSpatialPolicy::LinearFiniteElement(unsupported),
+                        linear.clone(),
+                        None,
+                        None
+                    )
+                    .is_err()
+            );
+        }
+        assert_eq!(output.fields.len(), 1);
+        let (_, ty, coefficients, actual_space) = &output.fields[0];
+        assert_eq!(*actual_space, space);
+        assert_eq!(ty.shape().component_count(), Some(3));
+        assert_eq!(coefficients.len(), if face { 4 } else { 6 });
+        let NativeMeshResources::GmshSimplicial { mesh, .. } = &owner.resources else {
+            unreachable!()
+        };
+        // The exact constant solution (2,3,4), times (1+2i) for complex,
+        // has zero curl/divergence. Canonical entity integrals are independent
+        // of the local basis and of either positive cell vertex ordering.
+        for (index, actual) in coefficients.iter().enumerate() {
+            let vertices = mesh
+                .mesh()
+                .entity_vertices(MeshEntity::new(if face { 2 } else { 1 }, index))
+                .unwrap();
+            let a = &mesh.mesh().vertices()[vertices[0].index()];
+            let b = &mesh.mesh().vertices()[vertices[1].index()];
+            let v: [f64; 3] = std::array::from_fn(|i| b[i] - a[i]);
+            let measure = if face {
+                let c = &mesh.mesh().vertices()[vertices[2].index()];
+                let w: [f64; 3] = std::array::from_fn(|i| c[i] - a[i]);
+                [
+                    v[1] * w[2] - v[2] * w[1],
+                    v[2] * w[0] - v[0] * w[2],
+                    v[0] * w[1] - v[1] * w[0],
+                ]
+                .map(|x| x * 0.5)
+            } else {
+                v
+            };
+            let moment = (0..3).map(|i| [2., 3., 4.][i] * measure[i]).sum::<f64>();
+            let expected = C::new(moment, if complex { 2. * moment } else { 0. });
+            assert!(
+                (C::new(actual.re(), actual.im()) - expected).norm()
+                    <= 1e-9 * expected.norm().max(1.)
+            );
+        }
+        let (_, _, foreign) = fixture(&[vec![0, 1, 2, 3]], false, permuted, 5.);
+        let error = equations
+            .execute(
+                NonZeroUsize::MIN,
+                LinearSolveRequest::new(backend, policy),
+                &foreign.resources,
+                space,
+                |reactions, values| reactions.recover(values),
+            )
+            .unwrap_err();
+        assert!(
+            error
+                .message()
+                .contains("Mesh differs from authenticated Model support")
+        );
+        let wrong = if face {
+            Space::tetrahedral_edge()
+        } else {
+            Space::tetrahedral_face()
+        };
+        assert!(
+            equations
+                .execute(
+                    NonZeroUsize::MIN,
+                    LinearSolveRequest::new(backend, policy),
+                    &owner.resources,
+                    wrong,
+                    |reactions, values| reactions.recover(values)
+                )
+                .is_err()
+        );
+        let error = equations
+            .execute(
+                NonZeroUsize::MIN,
+                LinearSolveRequest::new(backend, policy),
+                &owner.resources,
+                space,
+                |_, _| Err(invalid("injected recovery failure")),
+            )
+            .unwrap_err();
+        assert!(error.message().contains("injected recovery failure"));
+    }
+}
+
+#[test]
+pub(super) fn authenticated_polyhedral_equations_execute_real_and_complex_moments() {
+    for face in [false, true] {
+        execute::<f64>(false, face, &REFERENCE_LINEAR_SOLVER);
+        execute::<C>(true, face, &REFERENCE_LINEAR_SOLVER);
+    }
+}
+
+fn inspect_compatible(
+    plan: &CommonLinearPlan,
+    field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+    face: bool,
+) {
+    let entity = MeshEntity::new;
+    let derivative = plan.field_exterior_derivative(field).unwrap();
+    // From the oriented boundary of [0,1,2,3], independently of basis values.
+    if face {
+        assert!(plan.field_gradient_modes(field).is_err());
+        assert_eq!(
+            derivative,
+            BTreeMap::from([(
+                entity(3, 0),
+                vec![
+                    (entity(2, 0), -1),
+                    (entity(2, 1), 1),
+                    (entity(2, 2), -1),
+                    (entity(2, 3), 1),
+                ]
+            )])
+        );
+        // Flux of (x,y,z) through faces 012,013,023 is zero; through 123
+        // it is 12. The cell-integrated divergence is 3 * volume(=4), not 3.
+        let radial_flux = [0, 0, 0, 12];
+        assert_eq!(
+            derivative[&entity(3, 0)]
+                .iter()
+                .map(|(face, sign)| i32::from(*sign) * radial_flux[face.index()])
+                .sum::<i32>(),
+            12
+        );
+    } else {
+        let expected = [
+            [1, -1, 0, 1, 0, 0],
+            [1, 0, -1, 0, 1, 0],
+            [0, 1, -1, 0, 0, 1],
+            [0, 0, 0, 1, -1, 1],
+        ];
+        for (face, row) in &derivative {
+            let mut actual = [0; 6];
+            for (edge, sign) in row {
+                actual[edge.index()] = *sign;
+            }
+            assert_eq!(actual, expected[face.index()]);
+        }
+        assert_eq!(derivative.len(), 4);
+        let modes = plan.field_gradient_modes(field).unwrap();
+        assert_eq!(
+            modes.keys().copied().collect::<Vec<_>>(),
+            vec![entity(0, 1), entity(0, 2), entity(0, 3)]
+        );
+        let gradients = [
+            [1, 0, 0, -1, -1, 0],
+            [0, 1, 0, 1, 0, -1],
+            [0, 0, 1, 0, 1, 1],
+        ];
+        for (vertex, column) in &modes {
+            let mut actual = [0; 6];
+            for (edge, sign) in column {
+                actual[edge.index()] = *sign;
+            }
+            assert_eq!(actual, gradients[vertex.index() - 1]);
+            for row in derivative.values() {
+                assert_eq!(
+                    row.iter()
+                        .map(|(edge, sign)| i32::from(*sign) * i32::from(actual[edge.index()]))
+                        .sum::<i32>(),
+                    0
+                );
+            }
+        }
+        // D*C is an exact integer identity, distinct from solve tolerances.
+        for (edge, _) in expected[0].iter().enumerate() {
+            assert_eq!(
+                (-expected[0][edge] + expected[1][edge] - expected[2][edge] + expected[3][edge]),
+                0
+            );
+        }
+    }
+    let foreign = eqiora_core::Id::from_ulid(ulid::Ulid::from(u128::from(field.ulid()) ^ 1));
+    assert!(plan.field_exterior_derivative(foreign).is_err());
+    assert!(plan.field_gradient_modes(foreign).is_err());
+}

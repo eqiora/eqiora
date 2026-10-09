@@ -1,5 +1,6 @@
 use super::{CommonFieldAssociation, invalid};
 use eqiora_core::{Diagnostic, DimExponents, ScalarDomain};
+use eqiora_realization::{Space, SpaceFamily};
 
 /// Finite coefficients whose scalar-domain width is checked by the owning Field.
 #[derive(Debug, Clone, PartialEq)]
@@ -50,7 +51,7 @@ pub(crate) struct CommonResultField {
     pub(super) scalar_domain: ScalarDomain,
     pub(super) dimension: DimExponents,
     pub(super) value_shape: Vec<usize>,
-    pub(super) space: String,
+    pub(super) space: Space,
     pub(super) blocks: Vec<CommonResultFieldBlock>,
 }
 
@@ -60,11 +61,14 @@ impl CommonResultField {
         scalar_domain: ScalarDomain,
         dimension: DimExponents,
         value_shape: Vec<usize>,
-        space: impl Into<String>,
+        space: Space,
         blocks: Vec<CommonResultFieldBlock>,
     ) -> Result<Self, Diagnostic> {
-        let space = space.into();
-        if field_id.is_empty() || space.is_empty() || blocks.is_empty() {
+        space_name(space)?;
+        space
+            .coefficient_dimension(dimension)
+            .ok_or_else(|| invalid("Result coefficient dimension overflows"))?;
+        if field_id.is_empty() || blocks.is_empty() {
             return Err(invalid(
                 "Result Field requires exact identity, space, and coefficient blocks",
             ));
@@ -114,6 +118,31 @@ impl CommonResultField {
     }
     #[must_use]
     pub fn space(&self) -> &str {
-        &self.space
+        space_name(self.space).expect("validated Result Space")
+    }
+}
+
+/// Canonical codec/presentation spelling; numerical meaning stays in Space.
+pub(super) fn space_name(space: Space) -> Result<&'static str, Diagnostic> {
+    match space.family() {
+        SpaceFamily::ContinuousLagrange { order } if order == std::num::NonZeroU16::MIN => {
+            Ok("continuous-lagrange-p1")
+        }
+        SpaceFamily::CellConstant => Ok("cell-constant"),
+        SpaceFamily::SimplexP1Bubble => Ok("simplex-p1-bubble"),
+        SpaceFamily::TetrahedralEdge => Ok("tetrahedral-edge"),
+        SpaceFamily::TetrahedralFace => Ok("tetrahedral-face"),
+        _ => Err(invalid("unsupported Result coefficient Space")),
+    }
+}
+
+pub(super) fn space_from_name(name: &str) -> Result<Space, Diagnostic> {
+    match name {
+        "continuous-lagrange-p1" => Ok(Space::continuous_lagrange(std::num::NonZeroU16::MIN)),
+        "cell-constant" => Ok(Space::cell_constant()),
+        "simplex-p1-bubble" => Ok(Space::simplex_p1_bubble()),
+        "tetrahedral-edge" => Ok(Space::tetrahedral_edge()),
+        "tetrahedral-face" => Ok(Space::tetrahedral_face()),
+        _ => Err(invalid("unsupported Result coefficient Space")),
     }
 }

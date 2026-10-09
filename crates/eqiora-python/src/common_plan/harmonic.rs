@@ -6,7 +6,7 @@ pub(crate) fn original_model(
 ) -> Option<&eqiora::artifact::ModelEnvelope> {
     match plan {
         ResolvedCommonPlan::Algebraic(plan) => plan.harmonic_original_model(),
-        ResolvedCommonPlan::Scalar(plan) => plan.harmonic_original_model(),
+        ResolvedCommonPlan::Linear(plan) => plan.harmonic_original_model(),
         _ => None,
     }
 }
@@ -22,7 +22,7 @@ pub(super) fn amplitudes(py: Python<'_>, plan: &ResolvedCommonPlan) -> PyResult<
         .to_string();
     let pairs: Vec<_> = match plan {
         ResolvedCommonPlan::Algebraic(plan) => plan.harmonic_amplitudes().collect(),
-        ResolvedCommonPlan::Scalar(plan) => plan.harmonic_amplitudes().collect(),
+        ResolvedCommonPlan::Linear(plan) => plan.harmonic_amplitudes().collect(),
         _ => unreachable!("harmonic original owner"),
     };
     PyTuple::new(

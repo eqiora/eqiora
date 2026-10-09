@@ -11,7 +11,7 @@ use eqiora_sem::KernelProgram;
 
 use super::super::{CommonFieldAssociation, CommonResult, CommonResultPayload, invalid};
 use crate::CommonSpatialPolicy;
-use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
+use crate::discrete_space::DiscreteSpace;
 
 mod projection;
 mod sampling;
@@ -49,7 +49,7 @@ pub(super) fn integrate(
     })?;
     let mesh = artifact.mesh();
     let dimension = mesh.topological_dimension();
-    let (bounds, boundary, field_types, support) = if let Some(plan) = result.plan().as_scalar() {
+    let (bounds, boundary, field_types, support) = if let Some(plan) = result.plan().as_linear() {
         if plan.spatial() != CommonSpatialPolicy::Q1 {
             return Err(invalid(
                 "spatial Observable reconstruction requires the accepted Q1 field space",
@@ -142,7 +142,10 @@ pub(super) fn integrate(
         _ => None,
     };
     let directions = tangent.map_or([None, None], StateDerivative::directions);
-    let space = HypercubeQ1Space::new(dimension)?;
+    let space = DiscreteSpace::new(
+        eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+        eqiora_meshing::ReferenceCell::hypercube(dimension)?,
+    )?;
     let mut total = 0.0;
     for cell_index in 0..mesh
         .entity_count(dimension)

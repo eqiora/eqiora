@@ -178,11 +178,8 @@ pub(crate) fn recognize_exact_model(
         ));
     }
     if scalar.is_ok() {
-        if !matches!(resources, NativeMeshResources::Cartesian { .. }) {
-            return Err(invalid(
-                "scalar conservation realization requires authenticated Cartesian resources",
-            ));
-        }
+        // The linear lowerer has already bound the exact resource family and
+        // Model supports. Numerical space compatibility belongs to resolution.
         return scalar;
     }
     if elasticity.is_ok() {
@@ -303,7 +300,7 @@ pub(crate) fn lower_scalar_candidate(
     resources: &NativeMeshResources,
 ) -> Result<RecognizedNativeModel, Diagnostic> {
     match lower_scalar_typed::<f64>(program, resources) {
-        Ok(equations) => Ok(RecognizedNativeModel::Scalar(Box::new(equations))),
+        Ok(equations) => Ok(RecognizedNativeModel::Linear(Box::new(equations))),
         Err(real) => {
             let complex = lower_scalar_typed::<num_complex::Complex64>(program, resources)
                 .map_err(|complex| {
@@ -322,7 +319,7 @@ pub(crate) fn lower_scalar_candidate(
                     "complex spatial execution requires every unknown Field to have its exact complex scalar domain",
                 ));
             }
-            Ok(RecognizedNativeModel::ComplexScalar(Box::new(complex)))
+            Ok(RecognizedNativeModel::ComplexLinear(Box::new(complex)))
         }
     }
 }
@@ -330,7 +327,10 @@ pub(crate) fn lower_scalar_candidate(
 fn lower_scalar_typed<S: crate::spatial_expression::Coefficient>(
     program: &KernelProgram,
     resources: &NativeMeshResources,
-) -> Result<ExecutableScalarEquations<S>, Diagnostic> {
+) -> Result<ExecutableLinearEquations<S>, Diagnostic> {
+    if resources.geometry()?.polyhedral_vertices().is_some() {
+        return ExecutableLinearEquations::polyhedral(program, resources);
+    }
     let NativeMeshResources::Cartesian {
         geometry,
         mesh,
@@ -351,11 +351,11 @@ fn lower_scalar_typed<S: crate::spatial_expression::Coefficient>(
         })
         .count();
     if source_domains > 0 {
-        return ExecutableScalarEquations::source_regions(program, mesh.mesh());
+        return ExecutableLinearEquations::source_regions(program, mesh.mesh());
     }
     let (domain, bounds, boundaries) =
         geometry_cartesian_support(program, geometry, mesh, correspondence)?;
-    ExecutableScalarEquations::new(program, domain, bounds, boundaries)
+    ExecutableLinearEquations::new(program, domain, bounds, boundaries)
 }
 
 pub(crate) fn require_policy_compatibility(
@@ -364,7 +364,7 @@ pub(crate) fn require_policy_compatibility(
     scalar_domain: eqiora_core::ScalarDomain,
 ) -> Result<(), Diagnostic> {
     let properties = match spatial {
-        NativeSpatialPolicy::ScalarQ1
+        NativeSpatialPolicy::LinearFiniteElement(_)
         | NativeSpatialPolicy::TransientMiniP1(_)
         | NativeSpatialPolicy::TransientCellCentered(_) => LinearOperatorProperties::General,
         NativeSpatialPolicy::CoordinateCellConstant | NativeSpatialPolicy::ScalarTpfa(_) => {

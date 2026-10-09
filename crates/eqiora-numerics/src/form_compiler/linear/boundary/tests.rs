@@ -1,3 +1,4 @@
+mod geometry;
 use super::*;
 use crate::canonical_boundary::PhysicalBoundaryQuantity;
 use crate::form_compiler::linear::CompiledLinearBlockForm;

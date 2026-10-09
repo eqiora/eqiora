@@ -4,14 +4,39 @@ pub(crate) fn validate_resources(
     spatial: NativeSpatialPolicy,
     resources: &NativeMeshResources,
 ) -> Result<(), Diagnostic> {
+    if matches!(
+        spatial,
+        NativeSpatialPolicy::StokesMiniP1(_) | NativeSpatialPolicy::TransientMiniP1(_)
+    ) && resources.geometry()?.ambient_dimension() != 2
+    {
+        return Err(invalid(
+            "this flow realization requires two-dimensional Geometry",
+        ));
+    }
     match (spatial, resources) {
         (NativeSpatialPolicy::CoordinateCellConstant, NativeMeshResources::Coordinates(_)) => {
             Ok(())
         }
+        (NativeSpatialPolicy::ScalarTpfa(_), resources @ NativeMeshResources::Cartesian { .. }) => {
+            validate_cartesian_resources(resources)
+        }
         (
-            NativeSpatialPolicy::ScalarQ1 | NativeSpatialPolicy::ScalarTpfa(_),
+            NativeSpatialPolicy::LinearFiniteElement(space),
             resources @ NativeMeshResources::Cartesian { .. },
-        ) => validate_cartesian_resources(resources),
+        ) if space == Space::continuous_lagrange(std::num::NonZeroU16::MIN) => {
+            validate_cartesian_resources(resources)
+        }
+        (
+            NativeSpatialPolicy::LinearFiniteElement(space),
+            resources @ NativeMeshResources::GmshSimplicial { geometry, mesh, .. },
+        ) if matches!(
+            space.family(),
+            SpaceFamily::TetrahedralEdge | SpaceFamily::TetrahedralFace
+        ) && geometry.polyhedral_vertices().is_some()
+            && mesh.dimension() == 3 =>
+        {
+            validate_simplicial_resources(resources)
+        }
         (NativeSpatialPolicy::ElasticityQ1, resources @ NativeMeshResources::Cartesian { .. }) => {
             validate_cartesian_resources(resources)
         }
@@ -150,8 +175,10 @@ pub(crate) fn validate_simplicial_resources(
             unreachable!("rejected above")
         }
     };
-    if mesh.dimension() != 2 {
-        return Err(invalid("simplicial common Mesh must be two-dimensional"));
+    if mesh.dimension() != resources.geometry()?.ambient_dimension() {
+        return Err(invalid(
+            "simplicial common Mesh dimension differs from Geometry",
+        ));
     }
     Ok(())
 }
@@ -162,7 +189,26 @@ pub(crate) fn derive_gmsh_resources(
     provider_output: Vec<u8>,
 ) -> Result<NativeMeshResources, Diagnostic> {
     let quality = eqiora_meshing::MeshQualityGate::new(policy.minimum_mean_ratio())?;
-    let (mesh, correspondence) = if geometry.region().is_some() {
+    let (mesh, correspondence) = if geometry.polyhedral_vertices().is_some() {
+        let imported = import_msh41(
+            &provider_output,
+            Msh41Policy::mesh(3, quality)?,
+            |_, _, _| {},
+        )?;
+        let boundary_facets = (0..imported.entity_count(2).unwrap_or(0))
+            .filter(|&index| imported.is_boundary_entity(MeshEntity::new(2, index)) == Some(true))
+            .count();
+        if boundary_facets > policy.maximum_boundary_facets() {
+            return Err(invalid(
+                "polyhedral mesh exceeds the declared boundary facet budget",
+            ));
+        }
+        let mesh = SimplicialMeshEnvelopeV1::from_mesh(&imported)?;
+        let definition = eqiora_artifact::GeometryDefinitionV1::from_canonical(&geometry)?;
+        let correspondence =
+            GeometryMeshCorrespondenceEnvelopeV1::from_polyhedra(&definition, &mesh)?;
+        (mesh, correspondence)
+    } else if geometry.region().is_some() {
         let imported = import_msh41(
             &provider_output,
             Msh41Policy::mesh(2, quality)?,

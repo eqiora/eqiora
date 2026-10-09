@@ -7,7 +7,7 @@ use eqiora::api::{
     EvaluationMapOccurrence, EvaluationMapPlan, ModelDocument,
 };
 use eqiora::diagnostic::codes;
-use eqiora_numerics::CommonScalarPlan;
+use eqiora_numerics::CommonLinearPlan;
 use support::common_scalar_plan::document_and_plans;
 
 const P0: [f64; 3] = [1.0, 1.0, 0.0];
@@ -311,7 +311,7 @@ fn programs() -> [Arc<DifferentiableProgram>; 2] {
     [q1, tpfa].map(|plan| Arc::new(program_for(&document, plan)))
 }
 
-fn program_for(document: &ModelDocument, plan: CommonScalarPlan) -> DifferentiableProgram {
+fn program_for(document: &ModelDocument, plan: CommonLinearPlan) -> DifferentiableProgram {
     let inputs = [
         document.parameter_ref("source_scale").unwrap(),
         document.parameter_ref("diffusion").unwrap(),
@@ -321,7 +321,7 @@ fn program_for(document: &ModelDocument, plan: CommonScalarPlan) -> Differentiab
         .field_ref(&plan.fields().next().unwrap().0.ulid().to_string())
         .unwrap();
     DifferentiableProgram::compile(
-        eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(plan)),
+        eqiora_numerics::ResolvedCommonPlan::Linear(Box::new(plan)),
         &inputs,
         &output,
         None,

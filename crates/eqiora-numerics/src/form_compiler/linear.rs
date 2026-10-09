@@ -1,4 +1,4 @@
-//! Checked linear scalar equations with one shared Q1 element evaluator.
+//! Checked linear equations with shared region assembly and exact boundary coverage.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -85,8 +85,19 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                 }
             }
         }
-        for (_, value_type) in roles.fields.values() {
-            require_scalar::<S>(value_type)?;
+        let scalar_profile = roles
+            .fields
+            .values()
+            .all(|(_, value_type)| value_type.shape().is_scalar());
+        if !scalar_profile && !interface_boundaries.is_empty() {
+            return Err(invalid(
+                "vector linear blocks do not yet admit interface boundary quotients",
+            ));
+        }
+        if scalar_profile {
+            for (_, value_type) in roles.fields.values() {
+                require_scalar::<S>(value_type)?;
+            }
         }
         let mut residuals = BTreeMap::new();
         for (relation, role) in &roles.relations {
@@ -121,6 +132,10 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                 .expect("typed root")
                 .value_type
                 .clone();
+            residual_types.push(value_type.clone());
+            if !scalar_profile {
+                continue;
+            }
             require_scalar::<S>(&value_type)?;
             let context = Context {
                 program,
@@ -167,39 +182,45 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
                 storage.insert(*field, row.storage[field].clone());
             }
             rows.push(row);
-            residual_types.push(value_type);
         }
-        let volume_rows = residuals
-            .iter()
-            .zip(rows)
-            .zip(&residual_types)
-            .map(
-                |(((field, relation), mut row), residual_type)| ScalarRow::<S> {
-                    relation: *relation,
-                    field: *field,
-                    residual_type: residual_type.clone(),
-                    diffusion: row
-                        .diffusion
-                        .remove(field)
-                        .expect("admitted principal diffusion"),
-                    reaction: row.reaction,
-                    storage: row.storage,
-                    forcing: row
-                        .constant
-                        .multiply(Data::constant(dimension, <S as From<f64>>::from(-1.0))),
-                },
-            )
-            .collect();
-        let initial = temporal::initial_values(
-            program,
-            domain,
-            dimension,
-            &storage,
-            &coefficients,
-            !storage.is_empty(),
-        )?;
-        let volume =
-            CompiledRegionForm::<S>::scalar(domain, dimension, roles.clone(), volume_rows)?;
+        let (volume, initial) = if scalar_profile {
+            let volume_rows = residuals
+                .iter()
+                .zip(rows)
+                .zip(&residual_types)
+                .map(
+                    |(((field, relation), mut row), residual_type)| ScalarRow::<S> {
+                        relation: *relation,
+                        field: *field,
+                        residual_type: residual_type.clone(),
+                        diffusion: row
+                            .diffusion
+                            .remove(field)
+                            .expect("admitted principal diffusion"),
+                        reaction: row.reaction,
+                        storage: row.storage,
+                        forcing: row
+                            .constant
+                            .multiply(Data::constant(dimension, <S as From<f64>>::from(-1.0))),
+                    },
+                )
+                .collect();
+            let initial = temporal::initial_values(
+                program,
+                domain,
+                dimension,
+                &storage,
+                &coefficients,
+                !storage.is_empty(),
+            )?;
+            let volume =
+                CompiledRegionForm::<S>::scalar(domain, dimension, roles.clone(), volume_rows)?;
+            (volume, initial)
+        } else {
+            let volume = CompiledRegionForm::<S>::derive(program, domain, dimension)?;
+            volume.require_static_linear()?;
+            (volume, BTreeMap::new())
+        };
         let boundary = boundary::derive(
             program,
             domain,
@@ -252,12 +273,16 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
         &self.boundary_laws
     }
 
+    /// Existing scalar Cartesian execution profile; vector callers must bind
+    /// their actual Space and coefficient normalization explicitly.
     pub(crate) fn volume(&self) -> Result<BoundRegionForm<S>, Diagnostic> {
-        let time = self.step.map(|step| super::region::RegionTimeBinding {
-            step,
-            states: Vec::new(),
-        });
-        self.volume.bind_scalar(time.as_ref())
+        for (_, value_type) in &self.fields {
+            require_scalar::<S>(value_type)?;
+        }
+        self.bind_space(
+            eqiora_meshing::ReferenceCell::hypercube(self.dimension)?,
+            eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+        )
     }
 }
 

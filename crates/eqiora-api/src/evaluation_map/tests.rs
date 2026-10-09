@@ -11,7 +11,7 @@ use eqiora_core::Diagnostic;
 use eqiora_core::diagnostic::codes;
 use eqiora_geometry::{GeometryGraph, PlanarTopologyHandle};
 use eqiora_numerics::{
-    AuthenticatedCommonMesh, CommonScalarPlan, CommonSolvePolicy, CommonSpatialPolicy,
+    AuthenticatedCommonMesh, CommonLinearPlan, CommonSolvePolicy, CommonSpatialPolicy,
 };
 use eqiora_realization::RealizationRevision;
 use eqiora_solver::REFERENCE_LINEAR_SOLVER;
@@ -408,7 +408,7 @@ pub(super) fn program_for(
         .field_ref(&plan.fields().next().unwrap().0.ulid().to_string())
         .unwrap();
     DifferentiableProgram::compile(
-        eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(plan)),
+        eqiora_numerics::ResolvedCommonPlan::Linear(Box::new(plan)),
         &inputs,
         &output,
         None,
@@ -512,7 +512,7 @@ fn plan_for(
     document: &ModelDocument,
     spatial: CommonSpatialPolicy,
     revision: RealizationRevision,
-) -> CommonScalarPlan {
+) -> CommonLinearPlan {
     let geometry = document
         .geometry_authority
         .first()
@@ -571,7 +571,7 @@ fn plan_for(
         None,
     )
     .unwrap()
-    .as_scalar()
+    .as_linear()
     .cloned()
     .expect("fixture retains its admitted scalar Plan")
 }

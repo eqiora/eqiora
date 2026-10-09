@@ -24,8 +24,7 @@ use eqiora::realization::{
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, SolverPlan};
 use eqiora_numerics::{
-    common::DiscreteSpace, common::HypercubeQ1Space, common::PhysicalBoundaryDisposition,
-    solid::CartesianQ1VectorField2d,
+    common::DiscreteSpace, common::PhysicalBoundaryDisposition, solid::CartesianQ1VectorField2d,
     solid::finalize_resolved_conforming_isotropic_elasticity_cartesian_pair_2d_with_assembly,
     solid::lower_conforming_isotropic_elasticity_cartesian_pair_2d,
 };
@@ -225,7 +224,11 @@ fn recovered_interface_traction(
     side: BoundarySide,
 ) -> [f64; 2] {
     let mesh = field.mesh();
-    let space = HypercubeQ1Space::new(2).expect("Q1 space");
+    let space = DiscreteSpace::new(
+        Space::continuous_lagrange(NonZeroU16::MIN),
+        eqiora::meshing::ReferenceCell::hypercube(2).unwrap(),
+    )
+    .expect("Q1 space");
     let rule = QuadratureRule::gauss_legendre(2).expect("facet rule");
     let normal_cell = if side == BoundarySide::Lower {
         0

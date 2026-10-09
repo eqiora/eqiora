@@ -105,6 +105,7 @@ impl<const D: usize> FixedReferenceFsiState<D> {
             let field = RecoveredRegionField {
                 domain: rate.domain,
                 value_type: layout.value_type,
+                space: layout.space,
                 coefficients,
             };
             if fields.insert(id, field).is_some() {

@@ -24,7 +24,7 @@ use self::execution::{
 };
 use crate::affine_fem::physical_gradient;
 use crate::canonical_boundary::PhysicalBoundaryDisposition;
-use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
+use crate::discrete_space::DiscreteSpace;
 use crate::form_compiler::vocabulary::{
     BoundarySource, PrimalGalerkinCorrespondence, PrimalGalerkinSource,
 };
@@ -401,7 +401,10 @@ pub(crate) fn derive_cartesian_q1_elasticity_form_2d(
 pub(crate) fn compile_cartesian_q1_elasticity_form_2d(
     quadrature: &QuadratureRule,
 ) -> Result<AdmittedCartesianQ1ElasticityForm2d<'static>, Diagnostic> {
-    let space = HypercubeQ1Space::new(DIMENSION)?;
+    let space = DiscreteSpace::new(
+        eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+        eqiora_meshing::ReferenceCell::hypercube(DIMENSION)?,
+    )?;
     if quadrature.reference_cell().family() != ReferenceCellFamily::Hypercube
         || quadrature.reference_cell() != space.reference_cell()
     {
@@ -447,7 +450,10 @@ fn cumulative_local_form(
 ) -> Result<CartesianElasticityDifferentialActions2d, Diagnostic> {
     validate_realization(geometry, quadrature, admitted_quadrature)?;
     let inverse = geometry.inverse_jacobian()?;
-    let space = HypercubeQ1Space::new(DIMENSION)?;
+    let space = DiscreteSpace::new(
+        eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+        eqiora_meshing::ReferenceCell::hypercube(DIMENSION)?,
+    )?;
     let mut matrix = [0.0; LOCAL_DOFS * LOCAL_DOFS];
     let mut rhs = [0.0; LOCAL_DOFS];
     let mut residual = [0.0; LOCAL_DOFS];

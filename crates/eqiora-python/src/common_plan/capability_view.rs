@@ -13,6 +13,8 @@ use super::scaling::{PyIncompressibleScales, PyIncompressibleScalingReceipt2d};
 
 pub(super) fn space_name(space: Space) -> &'static str {
     match space.family() {
+        SpaceFamily::TetrahedralEdge => "tetrahedral-edge",
+        SpaceFamily::TetrahedralFace => "tetrahedral-face",
         SpaceFamily::SimplexP1Bubble => "simplex-p1-bubble",
         SpaceFamily::ContinuousLagrange { order } if order.get() == 1 => "continuous-lagrange-p1",
         SpaceFamily::CellConstant => "cell-constant",
@@ -247,25 +249,25 @@ impl PyOdePlanView {
     }
 }
 
-/// Scalar-valued Fields resolved from one Model.
+/// Scalar or vector Fields in one resolved linear spatial Model.
 #[pyclass(
-    name = "ScalarPlanView",
+    name = "LinearPlanView",
     module = "eqiora._eqiora",
     frozen,
     skip_from_py_object
 )]
 #[derive(Debug)]
-pub(crate) struct PyScalarPlanView {
+pub(crate) struct PyLinearPlanView {
     pub(super) fields: Vec<PyModelFieldRef>,
     pub(super) coefficient_sampling: &'static str,
     pub(super) face_coefficient_policy: &'static str,
 }
 
 #[pymethods]
-impl PyScalarPlanView {
+impl PyLinearPlanView {
     #[getter]
     const fn kind(&self) -> &'static str {
-        "scalar"
+        "linear"
     }
 
     #[getter]
@@ -288,7 +290,7 @@ impl PyScalarPlanView {
     }
     fn __repr__(&self) -> String {
         format!(
-            "ScalarPlanView(fields={:?}, coefficient_sampling={:?}, face_coefficient_policy={:?})",
+            "LinearPlanView(fields={:?}, coefficient_sampling={:?}, face_coefficient_policy={:?})",
             self.fields
                 .iter()
                 .map(PyModelFieldRef::exact_id)
@@ -319,7 +321,7 @@ mod scalar_fields_tests {
             )?;
             let view = Py::new(
                 py,
-                PyScalarPlanView {
+                PyLinearPlanView {
                     fields: fields.to_vec(),
                     coefficient_sampling: "quadrature-point",
                     face_coefficient_policy: "not-applicable",

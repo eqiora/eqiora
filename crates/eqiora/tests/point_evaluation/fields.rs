@@ -10,7 +10,7 @@ use eqiora::solver::{
     LinearSolver, REFERENCE_LINEAR_SOLVER, REFERENCE_SOLVER_PROVIDER, SolverPlan,
 };
 use eqiora_numerics::{
-    AuthenticatedCommonMesh, CommonLinearRequest, CommonResult, CommonScalarPlan,
+    AuthenticatedCommonMesh, CommonLinearPlan, CommonLinearRequest, CommonResult,
     CommonSolvePolicy, CommonSpatialPolicy, ResolvedCommonPlan,
 };
 use std::{collections::BTreeMap, num::NonZeroUsize};
@@ -34,14 +34,14 @@ public component HeatedBody(
 }
 "#;
 
-fn heat(source: &str) -> (ModelDocument, CommonScalarPlan, CommonResult) {
+fn heat(source: &str) -> (ModelDocument, CommonLinearPlan, CommonResult) {
     heat_with_spatial(source, CommonSpatialPolicy::Q1)
 }
 
 fn heat_with_spatial(
     source: &str,
     spatial: CommonSpatialPolicy,
-) -> (ModelDocument, CommonScalarPlan, CommonResult) {
+) -> (ModelDocument, CommonLinearPlan, CommonResult) {
     let graph = GeometryGraph::new();
     let interval = graph.interval([0.0, 1.0]).unwrap();
     let boundaries = interval.boundaries();
@@ -116,7 +116,7 @@ fn heat_with_spatial(
         None,
     )
     .unwrap()
-    .as_scalar()
+    .as_linear()
     .unwrap()
     .clone();
     let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
@@ -133,7 +133,7 @@ fn point_observables_reconstruct_off_node_affine_q1_values() {
     let model = ModelEnvelope::from_program(document.program()).unwrap();
     let replay = CommonResult::from_bytes(
         &result.to_bytes().unwrap(),
-        &ResolvedCommonPlan::Scalar(Box::new(plan)),
+        &ResolvedCommonPlan::Linear(Box::new(plan)),
     )
     .unwrap();
     // T(x)=300+2*x and dT/dx=2, independently of the retained coefficients.

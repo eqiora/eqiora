@@ -128,7 +128,7 @@ fn resolve_scalar_box(
     model: &ModelEnvelope,
     resources: AuthenticatedCommonMesh,
     spatial: CommonSpatialPolicy,
-) -> CommonScalarPlan {
+) -> CommonLinearPlan {
     let linear = exact_reference_linear(
         if spatial == CommonSpatialPolicy::CellCenteredTpfa {
             LinearSolver::ConjugateGradient
@@ -150,7 +150,7 @@ fn resolve_scalar_box(
         None,
     )
     .unwrap()
-    .as_scalar()
+    .as_linear()
     .cloned()
     .expect("fixture retains its admitted scalar Plan")
 }
@@ -184,7 +184,7 @@ fn exercise_scalar_box(model: &ModelEnvelope, geometry: &CanonicalGeometryV1, ce
         CommonSpatialPolicy::CellCenteredTpfa,
     ] {
         let plan = resolve_scalar_box(model, cartesian_box_resources(geometry, cells), spatial);
-        assert_eq!(plan.cells(), cells);
+        assert_eq!(plan.cartesian_cells().unwrap(), cells);
         match (
             cells.len(),
             plan.portable_realization().domains()[0]
@@ -194,16 +194,16 @@ fn exercise_scalar_box(model: &ModelEnvelope, geometry: &CanonicalGeometryV1, ce
             (1, MeshPolicy::SuppliedCartesian1d { .. })
             | (2, MeshPolicy::SuppliedCartesian { .. })
             | (3, MeshPolicy::SuppliedCartesian3d { .. }) => {}
-            _ => panic!("common scalar Plan lost its exact Cartesian dimension"),
+            _ => panic!("common linear Plan lost its exact Cartesian dimension"),
         }
         let replayed = replay_plan(
-            ResolvedCommonPlan::Scalar(Box::new(plan.clone())),
+            ResolvedCommonPlan::Linear(Box::new(plan.clone())),
             &ResolveOnlyBackend,
         )
-        .as_scalar()
+        .as_linear()
         .cloned()
         .expect("fixture retains its admitted scalar Plan");
-        assert_eq!(replayed.cells(), cells);
+        assert_eq!(replayed.cartesian_cells().unwrap(), cells);
         let result = replayed.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
         let expected_shape = match spatial {
             CommonSpatialPolicy::Q1 => cells.iter().map(|count| count + 1).collect::<Vec<_>>(),
@@ -211,6 +211,35 @@ fn exercise_scalar_box(model: &ModelEnvelope, geometry: &CanonicalGeometryV1, ce
             _ => unreachable!("exercise admits scalar policies only"),
         };
         assert_eq!(result.field_block(0, 0).unwrap().2, expected_shape);
+        let expected_space = if spatial == CommonSpatialPolicy::Q1 {
+            Space::continuous_lagrange(std::num::NonZeroU16::MIN)
+        } else {
+            Space::cell_constant()
+        };
+        assert_eq!(result.field_space(0), Some(expected_space));
+        let field = replayed.fields().next().unwrap().0;
+        let entities = replayed.field_coefficient_entities(field).unwrap();
+        assert_eq!(entities.len(), expected_shape.iter().product::<usize>());
+        assert!(entities.iter().all(|entity| entity.dimension()
+            == if spatial == CommonSpatialPolicy::Q1 {
+                0
+            } else {
+                cells.len()
+            }));
+
+        // Both authored potentials are dimensionless. Point/constant coefficients
+        // retain those units independently of Cartesian cell sizes.
+        assert_eq!(
+            result.field_coefficient_dimension(0),
+            Some(DimExponents::DIMENSIONLESS)
+        );
+        let decoded =
+            crate::CommonResult::from_bytes(&result.to_bytes().unwrap(), result.plan()).unwrap();
+        assert_eq!(decoded.field_space(0), Some(expected_space));
+        assert_eq!(
+            decoded.field_coefficient_dimension(0),
+            Some(DimExponents::DIMENSIONLESS)
+        );
     }
 }
 
@@ -234,7 +263,7 @@ pub(super) fn scalar_q1_and_tpfa_consume_one_exact_anisotropic_common_mesh() {
             None,
         )
         .unwrap()
-        .as_scalar()
+        .as_linear()
         .unwrap()
         .admission
         .clone()
@@ -282,15 +311,15 @@ pub(super) fn scalar_q1_and_tpfa_consume_one_exact_anisotropic_common_mesh() {
     assert_eq!(q1.resources(), &caller_resources);
     assert_eq!(tpfa.resources(), &caller_resources);
     assert_eq!(q1.resources(), q1_repeat.resources());
-    assert!(q1.execute_scalar(&AlternateScalarBackend).is_err());
+    assert!(q1.execute_linear(&AlternateScalarBackend).is_err());
     assert_eq!(
-        q1.execute_scalar(&REFERENCE_LINEAR_SOLVER).unwrap().fields[0]
+        q1.execute_linear(&REFERENCE_LINEAR_SOLVER).unwrap().fields[0]
             .2
             .len(),
         12
     );
     assert_eq!(
-        tpfa.execute_scalar(&REFERENCE_LINEAR_SOLVER)
+        tpfa.execute_linear(&REFERENCE_LINEAR_SOLVER)
             .unwrap()
             .fields[0]
             .2
@@ -322,7 +351,7 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
         )
         .unwrap();
         replay_plan(resolved, &ResolveOnlyBackend)
-            .as_scalar()
+            .as_linear()
             .cloned()
             .expect("fixture retains its admitted scalar Plan")
     };
@@ -387,7 +416,7 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
         hex_bytes(&q1.portable_realization().digest().unwrap())
     );
     assert_eq!(q1.model_digest(), model.digest().unwrap().to_string());
-    assert_eq!(q1.cells(), [2, 3]);
+    assert_eq!(q1.cartesian_cells().unwrap(), [2, 3]);
     let mut crossed_realization = q1.clone();
     crossed_realization.portable = tpfa.portable_realization().clone();
     assert!(crossed_realization.run(&REFERENCE_LINEAR_SOLVER).is_err());
@@ -594,7 +623,9 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
             NativeNumericalAdmission::admit(
                 &model,
                 resources(&geometry),
-                NativeSpatialPolicy::ScalarQ1,
+                NativeSpatialPolicy::LinearFiniteElement(Space::continuous_lagrange(
+                    std::num::NonZeroU16::MIN
+                )),
                 NativeLinearPolicy::exact::<f64>(solver, &REFERENCE_LINEAR_SOLVER).unwrap(),
             )
             .is_err()
@@ -761,7 +792,9 @@ pub(super) fn admission_rejects_policy_and_resource_cross_wires() {
         NativeNumericalAdmission::admit(
             &model,
             foreign_resources,
-            NativeSpatialPolicy::ScalarQ1,
+            NativeSpatialPolicy::LinearFiniteElement(Space::continuous_lagrange(
+                std::num::NonZeroU16::MIN
+            )),
             linear(),
         )
         .is_err()
@@ -806,6 +839,30 @@ fn scalar_parameter_points_share_the_run_primal_and_preserve_operator_properties
             })
             .unwrap();
         let output = plan.run(&REFERENCE_LINEAR_SOLVER).unwrap();
+        let expected_space = match spatial {
+            CommonSpatialPolicy::Q1 => {
+                eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN)
+            }
+            CommonSpatialPolicy::CellCenteredTpfa => eqiora_realization::Space::cell_constant(),
+            _ => unreachable!(),
+        };
+        assert_eq!(output.fields[0].3, expected_space);
+        crate::CommonResult::accept_linear(plan.clone(), 0.0, output.clone()).unwrap();
+        // Preserve every value, type and ID while changing only its coefficient
+        // interpretation. Neither equal shape nor a finite solve authenticates it.
+        for substituted in [
+            eqiora_realization::Space::tetrahedral_edge(),
+            eqiora_realization::Space::tetrahedral_face(),
+        ] {
+            let mut corrupted = output.clone();
+            corrupted.fields[0].3 = substituted;
+            assert!(
+                crate::CommonResult::accept_linear(plan.clone(), 0.0, corrupted)
+                    .unwrap_err()
+                    .message()
+                    .contains("coefficient Space")
+            );
+        }
         let field = plan.differentiate(&[parameter], None).unwrap();
         let relation = field.relation();
         assert_eq!(
@@ -899,13 +956,13 @@ pub(super) fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_fie
             CommonSpatialPolicy::Q1,
         );
         assert_eq!(plan.fields().len(), usize::try_from(count).unwrap());
-        let resolved = ResolvedCommonPlan::Scalar(Box::new(plan));
+        let resolved = ResolvedCommonPlan::Linear(Box::new(plan));
         assert_eq!(
             resolved.operator_properties(),
             Some(LinearOperatorProperties::General)
         );
         let replayed = replay_plan(resolved, &ResolveOnlyBackend);
-        let ResolvedCommonPlan::Scalar(plan) = &replayed else {
+        let ResolvedCommonPlan::Linear(plan) = &replayed else {
             unreachable!()
         };
         let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
@@ -927,7 +984,7 @@ pub(super) fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_fie
         );
         let old = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.common-result/v12", "eqiora.common-result/v2");
+            .replace("eqiora.common-result/v14", "eqiora.common-result/v2");
         assert!(crate::CommonResult::from_bytes(old.as_bytes(), &replayed).is_err());
     }
 }

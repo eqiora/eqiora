@@ -13,6 +13,7 @@ use super::scalar::{continuous_activations, require_closed_dag, typed_relation};
 
 mod binding;
 mod boundary;
+mod compatibility;
 pub(crate) use boundary::RegionBoundaryLaw;
 mod boundary_integral;
 mod evaluate;
@@ -167,6 +168,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                     Pairing::Value | Pairing::Gradient => {
                         test_type.shape() == trial.1.shape() && test_type.frame() == trial.1.frame()
                     }
+                    Pairing::Curl => dimension == 3 && !test_scalar && !trial_scalar,
                     Pairing::SymmetricGradient | Pairing::Divergence => {
                         !test_scalar && !trial_scalar
                     }

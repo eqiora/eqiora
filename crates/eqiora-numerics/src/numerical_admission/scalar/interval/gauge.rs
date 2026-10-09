@@ -6,7 +6,7 @@ use eqiora_solver::AlgebraicConstraint;
 
 pub(in crate::numerical_admission) fn admit(
     program: &KernelProgram,
-    equations: &ExecutableScalarEquations<f64>,
+    equations: &ExecutableLinearEquations<f64>,
     authored: &AuthoredFormulationProjection,
 ) -> Result<Option<AlgebraicConstraint>, Diagnostic> {
     let Some(fields) = authored.gauge_field_ulids() else {

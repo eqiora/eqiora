@@ -5,6 +5,8 @@ use super::*;
 pub(crate) struct RecoveredRegionField<S: Coefficient> {
     pub(crate) domain: RawId,
     pub(crate) value_type: eqiora_core::ValueType,
+    /// The exact coefficient functionals, including moment versus nodal meaning.
+    pub(crate) space: eqiora_realization::Space,
     pub(crate) coefficients: BTreeMap<FieldDof, S>,
 }
 
@@ -33,6 +35,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
                     RecoveredRegionField {
                         domain: *domain,
                         value_type: layout.value_type.clone(),
+                        space: layout.space,
                         coefficients: BTreeMap::new(),
                     },
                 )
@@ -115,11 +118,12 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
                 .ok_or_else(|| invalid("history omits an exact algebraic Field"))?;
             if field.domain != *domain
                 || field.value_type != layout.value_type
+                || field.space != layout.space
                 || field.coefficients.keys().copied().collect::<BTreeSet<_>>()
                     != self.keys().filter(|key| key.field == id).collect()
             {
                 return Err(invalid(
-                    "history has stale Field/Domain/type or coordinate ownership",
+                    "history has stale Field/Domain/type/Space or coordinate ownership",
                 ));
             }
             for (&key, &physical) in &field.coefficients {
@@ -175,6 +179,7 @@ impl<S: Coefficient + Send + Sync> RegionDofMap<S> {
                 })
                 .collect::<BTreeSet<_>>();
             if old.domain != domain
+                || old.space != state.state_space()
                 || old.coefficients.keys().copied().collect::<BTreeSet<_>>() != keys
                 || old.coefficients.values().any(|value| !value.is_finite())
             {

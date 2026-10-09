@@ -1,5 +1,7 @@
 //! Closed Python numerical-policy requests consumed by the root resolver.
+mod moments;
 mod ode;
+pub(super) use moments::{PyTetrahedralEdge, PyTetrahedralFace};
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -832,9 +834,11 @@ pub(super) fn spatial_handle_from_request(
                 CommonSpatialPolicy::CellCenteredTpfa => SpatialPolicy::CellCenteredTpfa,
                 CommonSpatialPolicy::MiniP1 => SpatialPolicy::MiniP1,
                 CommonSpatialPolicy::CellCentered => SpatialPolicy::CellCentered,
+                CommonSpatialPolicy::TetrahedralEdge => SpatialPolicy::TetrahedralEdge,
+                CommonSpatialPolicy::TetrahedralFace => SpatialPolicy::TetrahedralFace,
                 CommonSpatialPolicy::P1 => {
                     return Err(PyTypeError::new_err(
-                        "uniform P1 is not an admitted common Plan policy",
+                        "this finite-element Space has no Python policy projection",
                     ));
                 }
             };
@@ -846,7 +850,9 @@ pub(super) fn spatial_handle_from_request(
                 let policy = match binding.policy() {
                     CommonSpatialPolicy::MiniP1 => ScopedSpatialKind::MiniP1,
                     CommonSpatialPolicy::P1 => ScopedSpatialKind::P1,
-                    CommonSpatialPolicy::Q1
+                    CommonSpatialPolicy::TetrahedralEdge
+                    | CommonSpatialPolicy::TetrahedralFace
+                    | CommonSpatialPolicy::Q1
                     | CommonSpatialPolicy::CellCenteredTpfa
                     | CommonSpatialPolicy::CellCentered => {
                         return Err(PyTypeError::new_err(

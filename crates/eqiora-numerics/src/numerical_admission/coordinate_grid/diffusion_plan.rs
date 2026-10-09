@@ -11,7 +11,7 @@ pub(super) fn execute(
     grid: &CoordinateGrid,
     equation: &Diffusion,
     backend: &dyn LinearSolverBackend,
-) -> Result<CommonScalarRunOutput<f64>, Diagnostic> {
+) -> Result<CommonLinearRunOutput<f64>, Diagnostic> {
     let axis = grid.mesh.mesh().axis_coordinates(0).expect("radial axis");
     let count = axis.len() - 1;
     if count > 1_048_576 {
@@ -118,14 +118,20 @@ pub(super) fn execute(
     if flux.iter().any(|value| !value.is_finite()) {
         return Err(invalid("radial flux reconstruction must be finite"));
     }
-    Ok(CommonScalarRunOutput {
+    Ok(CommonLinearRunOutput {
         fields: vec![
             (
                 equation.concentration,
                 equation.concentration_type.clone(),
                 values,
+                eqiora_realization::Space::cell_constant(),
             ),
-            (equation.flux, equation.flux_type.clone(), flux),
+            (
+                equation.flux,
+                equation.flux_type.clone(),
+                flux,
+                eqiora_realization::Space::cell_constant(),
+            ),
         ],
         nullspace: None,
         solve_report,

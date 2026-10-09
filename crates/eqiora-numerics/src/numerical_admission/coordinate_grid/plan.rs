@@ -8,28 +8,15 @@ use eqiora_assembly::{
 };
 use eqiora_realization::{DomainFieldDiscretization, FieldSpaceBinding};
 
-impl CommonScalarPlan {
+impl CommonLinearPlan {
     pub(in crate::numerical_admission) fn from_coordinate_admission(
         model: &ModelEnvelope,
         admission: NativeNumericalAdmission,
     ) -> Result<Self, Diagnostic> {
-        let NativeMeshResources::Coordinates(grid) = admission.resources() else {
-            return Err(invalid(
-                "coordinate Plan requires an authenticated factor grid",
-            ));
-        };
         let RecognizedNativeModel::Coordinates(projection) = admission.recognized_model() else {
             return Err(invalid("coordinate Plan lost its cell-integrated equality"));
         };
-        let cells = (0..grid.source.factors.len())
-            .map(|axis| {
-                grid.mesh
-                    .mesh()
-                    .axis_cell_count(axis)
-                    .expect("authenticated grid axis")
-            })
-            .collect::<Vec<_>>()
-            .into_boxed_slice();
+        let cells = admission.resources().cartesian_cells()?;
         let fields = projection.fields().into_boxed_slice();
         let portable = portable(&admission, &cells)?;
         let realization_digest = hex_bytes(&portable.digest()?);
@@ -50,7 +37,6 @@ impl CommonScalarPlan {
             authored_formulation: None,
             lineage,
             fields,
-            cells,
         })
     }
 }
@@ -135,7 +121,7 @@ pub(in crate::numerical_admission) fn execute(
     admission: &NativeNumericalAdmission,
     projection: &CellEquations,
     backend: &dyn LinearSolverBackend,
-) -> Result<CommonScalarRunOutput<f64>, Diagnostic> {
+) -> Result<CommonLinearRunOutput<f64>, Diagnostic> {
     let NativeMeshResources::Coordinates(grid) = admission.resources() else {
         return Err(invalid("coordinate cell execution requires its exact grid"));
     };
@@ -183,8 +169,13 @@ pub(in crate::numerical_admission) fn execute(
         .solve(&core.linear_problem()?)?;
     core.validate_solution(&solution)?;
     let (values, solve_report) = solution.into_parts();
-    Ok(CommonScalarRunOutput {
-        fields: vec![(projection.field, projection.value_type.clone(), values)],
+    Ok(CommonLinearRunOutput {
+        fields: vec![(
+            projection.field,
+            projection.value_type.clone(),
+            values,
+            eqiora_realization::Space::cell_constant(),
+        )],
         nullspace: None,
         solve_report,
         assembly_report,

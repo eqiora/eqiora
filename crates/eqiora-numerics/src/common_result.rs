@@ -1,6 +1,7 @@
 //! Producer-independent ownership of accepted common execution results.
 
 use eqiora_core::{Diagnostic, DimExponents};
+use eqiora_realization::Space;
 use eqiora_solver::{
     ConvergenceReason, LinearOperatorOrientation, LinearSolver, PreconditionerPolicy,
     ReductionPolicy,
@@ -8,9 +9,9 @@ use eqiora_solver::{
 
 use crate::common_trajectory::CommonTrajectoryParameterSensitivity;
 use crate::numerical_admission::{
-    CommonElasticityRunOutput, CommonScalarRunOutput, CommonSteadyStokesRunOutput,
+    CommonElasticityRunOutput, CommonLinearRunOutput, CommonSteadyStokesRunOutput,
 };
-use crate::{CommonScalarPlan, CommonTrajectory, ResolvedCommonPlan};
+use crate::{CommonLinearPlan, CommonTrajectory, ResolvedCommonPlan};
 
 mod artifact;
 mod evidence;
@@ -27,7 +28,7 @@ mod eigen;
 pub(crate) enum CommonResultFamily {
     Eigen,
     Algebraic,
-    Scalar,
+    Linear,
     Elasticity,
     SteadyStokes,
     Ode,
@@ -38,6 +39,8 @@ pub(crate) enum CommonResultFamily {
 /// Topological association of one result coefficient block.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CommonFieldAssociation {
+    Edge,
+    Face,
     Vertex,
     Cell,
     CellBubble,
@@ -150,7 +153,7 @@ struct SteadyStokesResultObservation {
 
 #[derive(Debug, Clone, PartialEq)]
 enum StaticObservation {
-    Scalar(Option<crate::nullspace::NullspaceEvidence>),
+    Linear(Option<crate::nullspace::NullspaceEvidence>),
     Elasticity(ElasticityResultObservation),
     SteadyStokes(SteadyStokesResultObservation),
 }
@@ -268,47 +271,63 @@ impl CommonResult {
     }
 
     /// Accept the complete scalar Field inventory from one validated solve.
-    pub(crate) fn accept_scalar(
-        plan: CommonScalarPlan,
+    pub(crate) fn accept_linear(
+        plan: CommonLinearPlan,
         elapsed_seconds: f64,
-        output: CommonScalarRunOutput<f64>,
+        output: CommonLinearRunOutput<f64>,
     ) -> Result<Self, Diagnostic> {
         require_elapsed(elapsed_seconds)?;
-        if output.fields.len() != plan.fields().len()
-            || output.fields.iter().zip(plan.fields()).any(
-                |((actual, value_type, _), (expected, expected_type))| {
-                    *actual != expected || value_type != expected_type
-                },
-            )
-        {
-            return Err(invalid(
-                "scalar output differs from the complete typed Plan Field inventory",
-            ));
-        }
-        plan.check_nullspace_evidence(&output.fields[0].2, output.nullspace.as_ref())?;
         let (association, space) = match plan.spatial() {
-            crate::CommonSpatialPolicy::Q1 => {
-                (CommonFieldAssociation::Vertex, "continuous-lagrange-p1")
+            crate::CommonSpatialPolicy::TetrahedralEdge => {
+                (CommonFieldAssociation::Edge, Space::tetrahedral_edge())
             }
+            crate::CommonSpatialPolicy::TetrahedralFace => {
+                (CommonFieldAssociation::Face, Space::tetrahedral_face())
+            }
+            crate::CommonSpatialPolicy::Q1 => (
+                CommonFieldAssociation::Vertex,
+                eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+            ),
             crate::CommonSpatialPolicy::CellCenteredTpfa
-            | crate::CommonSpatialPolicy::CellCentered => {
-                (CommonFieldAssociation::Cell, "cell-constant")
-            }
+            | crate::CommonSpatialPolicy::CellCentered => (
+                CommonFieldAssociation::Cell,
+                eqiora_realization::Space::cell_constant(),
+            ),
             _ => {
                 return Err(invalid(
                     "scalar Result received a non-scalar spatial policy",
                 ));
             }
         };
+        if output.fields.len() != plan.fields().len()
+            || output.fields.iter().zip(plan.fields()).any(
+                |((actual, value_type, _, actual_space), (expected, expected_type))| {
+                    *actual != expected || value_type != expected_type || *actual_space != space
+                },
+            )
+        {
+            return Err(invalid(
+                "scalar output differs from the complete typed Plan Field inventory or coefficient Space",
+            ));
+        }
+        plan.check_nullspace_evidence(&output.fields[0].2, output.nullspace.as_ref())?;
         let fields = output
             .fields
             .into_iter()
-            .map(|(field, value_type, values)| {
+            .map(|(field, value_type, values, _)| {
                 CommonResultField::new(
                     field.ulid().to_string(),
                     value_type.scalar_domain(),
                     value_type.dimension(),
-                    Vec::new(),
+                    if matches!(
+                        space.family(),
+                        eqiora_realization::SpaceFamily::TetrahedralEdge
+                            | eqiora_realization::SpaceFamily::TetrahedralFace
+                    ) {
+                        vec![3]
+                    } else {
+                        Vec::new()
+                    },
                     space,
                     vec![CommonResultFieldBlock::new(
                         association,
@@ -319,13 +338,13 @@ impl CommonResult {
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         Self::finish_static(
-            ResolvedCommonPlan::Scalar(Box::new(plan)),
-            CommonResultFamily::Scalar,
+            ResolvedCommonPlan::Linear(Box::new(plan)),
+            CommonResultFamily::Linear,
             elapsed_seconds,
             fields,
             CommonSolveEvidence::from_report(&output.solve_report),
             CommonAssemblyEvidence::from_report(&output.assembly_report),
-            StaticObservation::Scalar(output.nullspace),
+            StaticObservation::Linear(output.nullspace),
         )
     }
 
@@ -347,7 +366,7 @@ impl CommonResult {
             eqiora_core::ScalarDomain::Real,
             DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
             vec![2],
-            "continuous-lagrange-p1",
+            Space::continuous_lagrange(std::num::NonZeroU16::MIN),
             vec![CommonResultFieldBlock::new(
                 CommonFieldAssociation::Vertex,
                 values,
@@ -390,7 +409,7 @@ impl CommonResult {
             eqiora_core::ScalarDomain::Real,
             DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension"),
             vec![2],
-            "simplex-p1-bubble",
+            Space::simplex_p1_bubble(),
             vec![
                 CommonResultFieldBlock::new(
                     CommonFieldAssociation::Vertex,
@@ -409,7 +428,7 @@ impl CommonResult {
             eqiora_core::ScalarDomain::Real,
             DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension"),
             Vec::new(),
-            "continuous-lagrange-p1",
+            Space::continuous_lagrange(std::num::NonZeroU16::MIN),
             vec![CommonResultFieldBlock::new(
                 CommonFieldAssociation::Vertex,
                 pressure.to_vec(),
@@ -482,7 +501,7 @@ impl CommonResult {
             CommonTrajectory::SpatialTransient { request, .. } => (
                 request.plan().clone(),
                 match request.plan() {
-                    ResolvedCommonPlan::Scalar(_) => CommonResultFamily::Scalar,
+                    ResolvedCommonPlan::Linear(_) => CommonResultFamily::Linear,
                     _ => CommonResultFamily::TransientFlow,
                 },
                 None,
@@ -578,7 +597,7 @@ impl CommonResult {
         match self.family {
             CommonResultFamily::Eigen => "eigen",
             CommonResultFamily::Algebraic => "algebraic",
-            CommonResultFamily::Scalar => "scalar",
+            CommonResultFamily::Linear => "linear",
             CommonResultFamily::Elasticity => "elasticity",
             CommonResultFamily::SteadyStokes => "steady-stokes",
             CommonResultFamily::Ode => "ode",
@@ -631,6 +650,26 @@ impl CommonResult {
         }
     }
 
+    /// Exact finite-dimensional Space of a static Field's coefficients.
+    #[must_use]
+    pub fn field_space(&self, field: usize) -> Option<Space> {
+        let CommonResultPayload::Static(payload) = &self.payload else {
+            return None;
+        };
+        payload.fields.get(field).map(|field| field.space)
+    }
+
+    /// Physical units of coefficient functionals, distinct from Field value units.
+    /// Edge/face moments include length/area; nodal and cell-constant values retain Field units.
+    #[must_use]
+    pub fn field_coefficient_dimension(&self, field: usize) -> Option<DimExponents> {
+        let CommonResultPayload::Static(payload) = &self.payload else {
+            return None;
+        };
+        let field = payload.fields.get(field)?;
+        field.space.coefficient_dimension(field.dimension)
+    }
+
     /// Exact scalar domain of a static Field. Complex coefficient buffers store
     /// adjacent real/imaginary coordinates for each logical scalar coefficient.
     #[must_use]
@@ -668,6 +707,8 @@ impl CommonResult {
         };
         payload.fields.get(field)?.blocks.get(block).map(|block| {
             let association = match block.association {
+                CommonFieldAssociation::Edge => "edge",
+                CommonFieldAssociation::Face => "face",
                 CommonFieldAssociation::Vertex => "vertex",
                 CommonFieldAssociation::Cell => "cell",
                 CommonFieldAssociation::CellBubble => "cell-bubble",

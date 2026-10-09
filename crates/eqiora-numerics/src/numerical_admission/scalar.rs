@@ -1,12 +1,13 @@
 use super::*;
 
+mod compatible;
 mod complex;
 mod harmonic;
 pub(super) mod interval;
 mod regions;
 mod support;
 mod transient;
-pub(crate) use regions::ExecutableScalarEquations;
+pub(crate) use regions::ExecutableLinearEquations;
 
 pub(super) fn describe_primal(
     kind: FormulationKind,
@@ -36,91 +37,12 @@ pub(super) fn describe_primal(
     }
 }
 
-pub(super) fn resolve_common_scalar_portable<S: crate::spatial_expression::Coefficient>(
-    admission: &NativeNumericalAdmission,
-    lowered: &ExecutableScalarEquations<S>,
-    mesh: &CartesianMeshEnvelopeV1,
-    cells: &[usize],
-) -> Result<PortableRealizationGraph, Diagnostic> {
-    let artifact = mesh.artifact_reference()?;
-    let nonzero = |count| NonZeroUsize::new(count).expect("validated Cartesian cells are non-zero");
-    let mesh = match cells {
-        [x] => MeshPolicy::SuppliedCartesian1d {
-            artifact,
-            cells: [nonzero(*x)],
-        },
-        [x, y] => MeshPolicy::SuppliedCartesian {
-            artifact,
-            cells: [nonzero(*x), nonzero(*y)],
-        },
-        [x, y, z] => MeshPolicy::SuppliedCartesian3d {
-            artifact,
-            cells: [nonzero(*x), nonzero(*y), nonzero(*z)],
-        },
-        _ => {
-            return Err(invalid(
-                "common scalar Plan requires one to three Cartesian axes",
-            ));
-        }
-    };
-    let (method, space, quadrature) = match admission.spatial {
-        NativeSpatialPolicy::ScalarQ1 => (
-            DiscretizationMethod::ContinuousGalerkin,
-            Space::continuous_lagrange(std::num::NonZeroU16::MIN),
-            QuadraturePolicy::GaussLegendre {
-                points_per_axis: NonZeroUsize::new(2).expect("two is non-zero"),
-            },
-        ),
-        NativeSpatialPolicy::ScalarTpfa(_) => (
-            DiscretizationMethod::CellCenteredFiniteVolume,
-            Space::cell_constant(),
-            QuadraturePolicy::CellCentroid,
-        ),
-        NativeSpatialPolicy::CoordinateCellConstant
-        | NativeSpatialPolicy::ElasticityQ1
-        | NativeSpatialPolicy::StokesMiniP1(_)
-        | NativeSpatialPolicy::TransientMiniP1(_)
-        | NativeSpatialPolicy::TransientCellCentered(_) => {
-            return Err(invalid(
-                "common scalar portable graph received a non-scalar spatial policy",
-            ));
-        }
-    };
-    let solver = admission.linear.solver;
-    admission.linear.capabilities.require_problem(
-        solver,
-        lowered
-            .fields()
-            .first()
-            .ok_or_else(|| invalid("scalar Plan has no unknown Fields"))?
-            .1
-            .scalar_domain(),
-        ScalarType::F64,
-        scalar_operator_properties(admission.spatial),
-    )?;
-    PortableRealizationGraph::linear_regions(
-        RealizationLineage::explicit(
-            admission.program().model(),
-            SemanticRevision::new(admission.program().revision().0),
-            RealizationRevision::new(COMMON_SCALAR_REALIZATION_REVISION),
-        ),
-        lowered.discretizations(space, admission.spatial.scalar_constraint())?,
-        lowered.quotients()?,
-        Discretization::new(method, mesh, quadrature),
-        scalar_operator_properties(admission.spatial),
-        ScalarType::F64,
-        VectorLayoutKind::Replicated,
-        solver,
-        Target::HostCpu {
-            threads: admission.linear.workers,
-        },
-        ExecutionSchedule::Offline,
-    )
-}
+mod portable;
+use portable::resolve_common_linear_portable;
 
 type ObservableSupport = (Vec<[f64; 2]>, Option<(usize, BoundarySide)>);
 
-impl CommonScalarPlan {
+impl CommonLinearPlan {
     pub(crate) fn check_nullspace_evidence(
         &self,
         values: &[f64],
@@ -158,7 +80,7 @@ impl CommonScalarPlan {
     pub(super) fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
         if matches!(
             self.admission.recognized_model(),
-            RecognizedNativeModel::ComplexScalar(_)
+            RecognizedNativeModel::ComplexLinear(_)
         ) {
             return self.reauthenticate_complex();
         }
@@ -169,18 +91,13 @@ impl CommonScalarPlan {
             self.admission.revalidate()?;
             return require_portable_realization(
                 &self.portable,
-                coordinate_grid::portable(&self.admission, &self.cells)?,
+                coordinate_grid::portable(&self.admission, &self.cartesian_cells()?)?,
             );
         }
 
-        let NativeMeshResources::Cartesian { mesh, .. } = self.admission.resources() else {
+        let RecognizedNativeModel::Linear(lowered) = self.admission.recognized_model() else {
             return Err(invalid(
-                "common scalar Plan lost its exact Cartesian Mesh materialization",
-            ));
-        };
-        let RecognizedNativeModel::Scalar(lowered) = self.admission.recognized_model() else {
-            return Err(invalid(
-                "common scalar Plan lost its recognized mathematical materialization",
+                "common linear Plan lost its recognized mathematical materialization",
             ));
         };
         if matches!(self.admission.spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
@@ -211,7 +128,7 @@ impl CommonScalarPlan {
         }
         require_portable_realization(
             &self.portable,
-            resolve_common_scalar_portable(&self.admission, lowered, mesh, &self.cells)?,
+            resolve_common_linear_portable(&self.admission, lowered)?,
         )
     }
 
@@ -221,28 +138,17 @@ impl CommonScalarPlan {
         formulation_selection: Option<FormulationSelectionMode>,
         authored_formulation: Option<&AuthoredFormulationProjection>,
     ) -> Result<Self, Diagnostic> {
-        let NativeMeshResources::Cartesian {
-            mesh, production, ..
-        } = admission.resources()
-        else {
+        let RecognizedNativeModel::Linear(lowered) = admission.recognized_model() else {
             return Err(invalid(
-                "scalar Q1/TPFA common Plan requires an authenticated Cartesian Mesh",
-            ));
-        };
-        let cells = production
-            .cartesian_cells()
-            .ok_or_else(|| invalid("common scalar Plan lost its Cartesian production policy"))?
-            .cells()
-            .to_vec()
-            .into_boxed_slice();
-        let RecognizedNativeModel::Scalar(lowered) = admission.recognized_model() else {
-            return Err(invalid(
-                "common scalar Plan admitted non-scalar mathematics",
+                "common linear Plan admitted non-linear-region mathematics",
             ));
         };
         if admission.temporal.is_some() {
             let region = lowered.single()?;
-            if admission.spatial != NativeSpatialPolicy::ScalarQ1
+            if admission.spatial
+                != NativeSpatialPolicy::LinearFiniteElement(Space::continuous_lagrange(
+                    std::num::NonZeroU16::MIN,
+                ))
                 || region.form.fields().len() != 1
                 || !region.form.is_transient()
                 || !lowered.interfaces.is_empty()
@@ -326,11 +232,10 @@ impl CommonScalarPlan {
                 },
             }
         };
-        let portable = resolve_common_scalar_portable(&admission, lowered, mesh, &cells)?;
+        let portable = resolve_common_linear_portable(&admission, lowered)?;
         Self::finish_admission(
             model,
             admission,
-            cells,
             fields,
             portable,
             formulation,
@@ -341,7 +246,6 @@ impl CommonScalarPlan {
     fn finish_admission(
         model: &ModelEnvelope,
         admission: NativeNumericalAdmission,
-        cells: Box<[usize]>,
         fields: Box<
             [(
                 eqiora_core::Id<eqiora_core::entity::kinds::Field>,
@@ -380,7 +284,7 @@ impl CommonScalarPlan {
             push_framed(&mut identity_bytes, authored.canonical_bytes());
         }
         let identity =
-            domain_separated_identity(b"eqiora.common-scalar-plan/v2\0", &identity_bytes);
+            domain_separated_identity(b"eqiora.common-linear-plan/v1\0", &identity_bytes);
         let lineage = CommonSpatialPlanLineage::new(
             identity,
             model_reference.model().ulid().to_string(),
@@ -396,16 +300,15 @@ impl CommonScalarPlan {
             authored_formulation: accepted_authored_formulation,
             lineage,
             fields,
-            cells,
         })
     }
 
     pub(crate) fn run(
         &self,
         backend: &dyn LinearSolverBackend,
-    ) -> Result<CommonScalarRunOutput<f64>, Diagnostic> {
+    ) -> Result<CommonLinearRunOutput<f64>, Diagnostic> {
         self.reauthenticate_portable_realization()?;
-        self.admission.execute_scalar(backend)
+        self.admission.execute_linear(backend)
     }
 
     /// Effective primal Galerkin Formulation for Q1, when one is admitted.
@@ -430,7 +333,7 @@ impl CommonScalarPlan {
                 "scalar storage execution requires an exact State and Run schedule",
             ));
         }
-        crate::CommonResult::accept_scalar(self.clone(), 0.0, self.run(backend)?)
+        crate::CommonResult::accept_linear(self.clone(), 0.0, self.run(backend)?)
     }
 
     /// Accept one selected Parameter point through this Plan's exact supplied Mesh and policies.
@@ -465,9 +368,9 @@ impl CommonScalarPlan {
         }
         self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
-        let RecognizedNativeModel::Scalar(template) = self.admission.recognized_model() else {
+        let RecognizedNativeModel::Linear(template) = self.admission.recognized_model() else {
             return Err(invalid(
-                "common scalar Plan lost its recognized mathematics",
+                "common linear Plan lost its recognized mathematics",
             ));
         };
         let equations = template;
@@ -497,7 +400,7 @@ impl CommonScalarPlan {
                 "common scalar differentiation requires exact Cartesian resources",
             ));
         };
-        let dimension = self.cells.len();
+        let dimension = self.cartesian_cells()?.len();
         let mesh = mesh.mesh();
         let source = |coordinates: &[f64]| bound.source().evaluate(coordinates).unwrap_or(f64::NAN);
         let coefficient = |coordinates: &[f64]| {
@@ -525,7 +428,7 @@ impl CommonScalarPlan {
             threads: NonZeroUsize::MIN,
         };
         let finalized = match self.admission.spatial {
-            NativeSpatialPolicy::ScalarQ1 => {
+            NativeSpatialPolicy::LinearFiniteElement(_) => {
                 let quadrature = QuadratureRule::tensor_product_gauss_legendre(dimension, 2)?;
                 let form = equations
                     .single()?
@@ -537,7 +440,7 @@ impl CommonScalarPlan {
                         mesh,
                         &quadrature,
                         &REFERENCE_ASSEMBLY_BACKEND,
-                        &equations.single()?.boundaries,
+                        &equations.single()?.cartesian()?.boundaries,
                     )?;
                 FinalizedScalarEllipticCartesianProblem::finite_element_blocks(
                     self.portable.clone(),
@@ -726,26 +629,31 @@ impl CommonScalarPlan {
             .map(|(field, value_type)| (*field, value_type))
     }
 
-    #[must_use]
-    pub fn cells(&self) -> &[usize] {
-        &self.cells
+    /// Axis cell counts of the authenticated Cartesian mesh or coordinate grid.
+    /// Simplicial resources have no Cartesian axis inventory and return an error.
+    pub fn cartesian_cells(&self) -> Result<Vec<usize>, Diagnostic> {
+        self.admission.resources().cartesian_cells()
     }
 
     #[must_use]
     pub fn spatial(&self) -> CommonSpatialPolicy {
         match self.admission.spatial {
             NativeSpatialPolicy::CoordinateCellConstant => CommonSpatialPolicy::CellCentered,
-            NativeSpatialPolicy::ScalarQ1 => CommonSpatialPolicy::Q1,
+            NativeSpatialPolicy::LinearFiniteElement(space) => match space.family() {
+                SpaceFamily::TetrahedralEdge => CommonSpatialPolicy::TetrahedralEdge,
+                SpaceFamily::TetrahedralFace => CommonSpatialPolicy::TetrahedralFace,
+                _ => CommonSpatialPolicy::Q1,
+            },
             NativeSpatialPolicy::ScalarTpfa(_) => CommonSpatialPolicy::CellCenteredTpfa,
             NativeSpatialPolicy::ElasticityQ1 => {
-                unreachable!("common scalar Plan cannot own elasticity policy")
+                unreachable!("common linear Plan cannot own elasticity policy")
             }
             NativeSpatialPolicy::StokesMiniP1(_) => {
-                unreachable!("common scalar Plan cannot own Stokes policy")
+                unreachable!("common linear Plan cannot own Stokes policy")
             }
             NativeSpatialPolicy::TransientMiniP1(_)
             | NativeSpatialPolicy::TransientCellCentered(_) => {
-                unreachable!("common scalar Plan cannot own transient-flow policy")
+                unreachable!("common linear Plan cannot own transient-flow policy")
             }
         }
     }
@@ -758,7 +666,7 @@ impl CommonScalarPlan {
 
 pub(super) fn scalar_operator_properties(spatial: NativeSpatialPolicy) -> LinearOperatorProperties {
     match spatial {
-        NativeSpatialPolicy::ScalarQ1 => LinearOperatorProperties::General,
+        NativeSpatialPolicy::LinearFiniteElement(_) => LinearOperatorProperties::General,
         NativeSpatialPolicy::CoordinateCellConstant | NativeSpatialPolicy::ScalarTpfa(None) => {
             LinearOperatorProperties::SymmetricPositiveDefinite
         }
@@ -767,7 +675,7 @@ pub(super) fn scalar_operator_properties(spatial: NativeSpatialPolicy) -> Linear
     }
 }
 
-impl CommonScalarPlan {
+impl CommonLinearPlan {
     pub(crate) fn observation_program(&self) -> &KernelProgram {
         self.admission.program()
     }
@@ -776,7 +684,7 @@ impl CommonScalarPlan {
         &self,
         domain: eqiora_core::RawId,
     ) -> Result<ObservableSupport, Diagnostic> {
-        let RecognizedNativeModel::Scalar(equations) = self.admission.recognized_model() else {
+        let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
             return Err(invalid("Observable requires the exact scalar Plan support"));
         };
         let region = equations
@@ -784,22 +692,55 @@ impl CommonScalarPlan {
             .iter()
             .find(|region| {
                 region.form.domain() == domain
-                    || region
-                        .boundaries
-                        .values()
-                        .any(|boundary| *boundary == domain)
+                    || region.cartesian().is_ok_and(|support| {
+                        support
+                            .boundaries
+                            .values()
+                            .any(|boundary| *boundary == domain)
+                    })
             })
             .ok_or_else(|| invalid("Observable Domain is outside exact Region inventory"))?;
         let boundary = if domain == region.form.domain() {
             None
         } else {
-            Some(region.boundaries.iter().find_map(|(side, id)| (*id == domain).then_some(*side)).ok_or_else(|| invalid("Observable Domain is not the exact volume or boundary realized by this Plan"))?)
+            Some(region.cartesian()?.boundaries.iter().find_map(|(side, id)| (*id == domain).then_some(*side)).ok_or_else(|| invalid("Observable Domain is not the exact volume or boundary realized by this Plan"))?)
         };
-        Ok((region.bounds.clone(), boundary))
+        Ok((region.cartesian()?.bounds.clone(), boundary))
     }
 }
 
-impl CommonScalarPlan {
+impl CommonLinearPlan {
+    /// Exact Mesh entities in coefficient order for one Field.
+    /// Orientation and measure are those of the retained Mesh; the coefficient
+    /// functional is the Field's Space in `portable_realization()`.
+    pub fn field_coefficient_entities(
+        &self,
+        field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+    ) -> Result<Vec<eqiora_meshing::MeshEntity>, Diagnostic> {
+        let representation = self
+            .portable
+            .fields()
+            .iter()
+            .find(|node| node.field() == field)
+            .ok_or_else(|| invalid("coefficient entities require an exact Plan Field"))?;
+        let dimension = match representation.space().family() {
+            SpaceFamily::ContinuousLagrange { .. } => 0,
+            SpaceFamily::TetrahedralEdge => 1,
+            SpaceFamily::TetrahedralFace => 2,
+            SpaceFamily::CellConstant => self.cartesian_cells()?.len(),
+            _ => {
+                return Err(invalid(
+                    "coefficient entities require a supported uniform Space",
+                ));
+            }
+        };
+        let (_, entities) = self.field_support(field.erase())?;
+        Ok(entities
+            .into_iter()
+            .map(|index| eqiora_meshing::MeshEntity::new(dimension, index))
+            .collect())
+    }
+
     pub(crate) fn field_support(
         &self,
         field: eqiora_core::RawId,
@@ -812,16 +753,36 @@ impl CommonScalarPlan {
             {
                 return Err(invalid("Field is outside coordinate Plan"));
             }
-            return Ok((self.cells.to_vec(), Vec::new()));
+            let shape = self.cartesian_cells()?;
+            let count = shape
+                .iter()
+                .try_fold(1usize, |count, n| count.checked_mul(*n))
+                .ok_or_else(|| invalid("coordinate coefficient count overflows"))?;
+            return Ok((shape, (0..count).collect()));
+        }
+        if let (
+            NativeSpatialPolicy::LinearFiniteElement(space),
+            NativeMeshResources::GmshSimplicial { mesh, .. },
+        ) = (self.admission.spatial, self.admission.resources())
+        {
+            return match self.admission.recognized_model() {
+                RecognizedNativeModel::Linear(equations) => {
+                    support::moment_support(equations, mesh, field, space)
+                }
+                RecognizedNativeModel::ComplexLinear(equations) => {
+                    support::moment_support(equations, mesh, field, space)
+                }
+                _ => Err(invalid("missing moment Field inventory")),
+            };
         }
         let NativeMeshResources::Cartesian { mesh, .. } = self.admission.resources() else {
             return Err(invalid("missing Cartesian mesh"));
         };
         match self.admission.recognized_model() {
-            RecognizedNativeModel::Scalar(equations) => {
+            RecognizedNativeModel::Linear(equations) => {
                 support::field_support(equations, mesh.mesh(), field, self.spatial())
             }
-            RecognizedNativeModel::ComplexScalar(equations) => {
+            RecognizedNativeModel::ComplexLinear(equations) => {
                 support::field_support(equations, mesh.mesh(), field, self.spatial())
             }
             _ => Err(invalid("missing scalar inventory")),

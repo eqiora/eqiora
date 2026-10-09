@@ -53,7 +53,7 @@ fn check(
         typed.expression().node(normal),
         Some(ExprNode::NormalComponent(_))
     ));
-    form.require_boundary_flux(program, ids[side], relation, ids["u"], normal)
+    form.require_boundary_flux(program, ids[side], relation, ids["u"], normal, false)
 }
 
 #[test]
@@ -81,7 +81,8 @@ fn vector_stress_boundary_matches_complete_exact_operator_and_parameter_inventor
             ids["right"],
             ids["left_law"],
             ids["u"],
-            typed.expression().roots()[0]
+            typed.expression().roots()[0],
+            false
         )
         .is_err()
     );
@@ -186,6 +187,7 @@ fn uniform_stress_weak_volume_and_oriented_facet_loads_cancel_exactly() {
         vec![(bound, simplex_duffy_gauss_legendre(2, 2).unwrap())],
         &[form.domain()],
         vec![RegionAssemblyCell {
+            orientation: vec![1; 6],
             index: 0,
             geometry: cell,
             mappings: vec![TargetAssemblyMap::new(

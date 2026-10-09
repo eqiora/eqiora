@@ -62,26 +62,4 @@ impl PyMesh {
             } => correspondence.planar_rectangle_v2_entity_set_entities(geometry, name),
         }
     }
-
-    pub(crate) fn viewer_entity_vertices(
-        &self,
-        entity: MeshEntity,
-    ) -> Result<Vec<usize>, Diagnostic> {
-        let vertices = match &self.source {
-            AcceptedMeshSource::CoordinateFactors { owner } => owner
-                .cartesian_mesh()
-                .and_then(|mesh| mesh.mesh().entity_vertices(entity)),
-            AcceptedMeshSource::SourceOwned { mesh, .. } => mesh.mesh().entity_vertices(entity),
-            AcceptedMeshSource::SourceOwnedCartesian { mesh, .. } => {
-                mesh.mesh().entity_vertices(entity)
-            }
-        }
-        .ok_or_else(|| {
-            Diagnostic::error(
-                codes::INVALID_ARTIFACT,
-                "accepted Mesh omitted correspondence-selected entity connectivity",
-            )
-        })?;
-        Ok(vertices.iter().map(|vertex| vertex.index()).collect())
-    }
 }

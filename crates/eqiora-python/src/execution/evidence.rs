@@ -1,5 +1,5 @@
 use eqiora_numerics::{
-    CommonElasticityPlan, CommonFsiRunRequest, CommonOdeRunRequest, CommonScalarPlan,
+    CommonElasticityPlan, CommonFsiRunRequest, CommonLinearPlan, CommonOdeRunRequest,
     CommonSteadyStokesPlan, CommonTransientRunRequest,
 };
 use pyo3::prelude::*;
@@ -159,7 +159,7 @@ impl RunIdentity {
             eqiora_numerics::ResolvedCommonPlan::Algebraic(plan) => {
                 Self::from_common_algebraic(plan)
             }
-            eqiora_numerics::ResolvedCommonPlan::Scalar(plan) => Self::from_common_plan(plan),
+            eqiora_numerics::ResolvedCommonPlan::Linear(plan) => Self::from_common_plan(plan),
             eqiora_numerics::ResolvedCommonPlan::Elasticity(plan) => {
                 Self::from_common_elasticity(plan)
             }
@@ -184,7 +184,7 @@ impl RunIdentity {
         }
     }
 
-    pub(crate) fn from_common_plan(plan: &CommonScalarPlan) -> Self {
+    pub(crate) fn from_common_plan(plan: &CommonLinearPlan) -> Self {
         Self::from_static(
             plan.model_id(),
             plan.model_digest(),

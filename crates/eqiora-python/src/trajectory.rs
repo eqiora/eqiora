@@ -98,7 +98,7 @@ impl PyState {
         source_request_identity: Option<&str>,
         source_trajectory_identity: Option<&str>,
     ) -> PyResult<Self> {
-        if plan.scalar_native().is_some() {
+        if plan.linear_native().is_some() {
             return Self::from_scalar(
                 py,
                 plan,
@@ -157,7 +157,7 @@ impl PyState {
     ) -> PyResult<Self> {
         let mut state = match plan.native() {
             eqiora_numerics::ResolvedCommonPlan::TransientFlow(_)
-            | eqiora_numerics::ResolvedCommonPlan::Scalar(_) => Self::from_common(
+            | eqiora_numerics::ResolvedCommonPlan::Linear(_) => Self::from_common(
                 py,
                 plan,
                 native,
@@ -272,7 +272,7 @@ impl PyState {
                 Self::from_common_ode(py, plan, native, None)
             }
             eqiora_numerics::ResolvedCommonPlan::TransientFlow(_)
-            | eqiora_numerics::ResolvedCommonPlan::Scalar(_) => {
+            | eqiora_numerics::ResolvedCommonPlan::Linear(_) => {
                 let native = CommonState::from_bytes(data, plan.native())
                     .map_err(|diagnostic| crate::error::validation_error(py, &[diagnostic]))?;
                 Self::from_common(py, plan, native, 0, None, None)?
@@ -363,7 +363,7 @@ impl PyState {
                 .map_err(|d| crate::error::validation_error(py, &[d]))?;
             return Ok(Self::from_common_algebraic(py, plan, state));
         }
-        if let Some(scalar) = plan.scalar_native() {
+        if let Some(scalar) = plan.linear_native() {
             if fields.is_some() || time_s.is_some() {
                 return Err(PyValueError::new_err(
                     "scalar State.initial consumes its exact source initial condition",
@@ -472,7 +472,7 @@ impl PyState {
                 Self::from_common_ode(py, plan, state, Some(result.plan_key_value())),
             );
         }
-        if let Some(scalar) = plan.scalar_native() {
+        if let Some(scalar) = plan.linear_native() {
             return result
                 .common_state_at(py, scalar.identity(), time_s)
                 .ok_or_else(|| {

@@ -1,32 +1,18 @@
 //! Complex spatial Plan admission uses the shared equation and realization owners.
 use super::*;
 
-impl CommonScalarPlan {
+impl CommonLinearPlan {
     pub(in crate::numerical_admission) fn from_complex_admission(
         model: &ModelEnvelope,
         admission: NativeNumericalAdmission,
         selection: FormulationSelectionMode,
         authored: Option<&AuthoredFormulationProjection>,
     ) -> Result<Self, Diagnostic> {
-        let RecognizedNativeModel::ComplexScalar(equations) = admission.recognized_model() else {
+        let RecognizedNativeModel::ComplexLinear(equations) = admission.recognized_model() else {
             return Err(invalid(
-                "complex scalar Plan requires its exact typed equations",
+                "complex linear Plan requires its exact typed equations",
             ));
         };
-        let NativeMeshResources::Cartesian {
-            mesh, production, ..
-        } = admission.resources()
-        else {
-            return Err(invalid(
-                "complex scalar Plan requires authenticated Cartesian resources",
-            ));
-        };
-        let cells = production
-            .cartesian_cells()
-            .ok_or_else(|| invalid("complex scalar Plan lost Cartesian production"))?
-            .cells()
-            .to_vec()
-            .into_boxed_slice();
         let fields = equations
             .fields()
             .into_iter()
@@ -65,11 +51,10 @@ impl CommonScalarPlan {
                 ));
             }
         };
-        let portable = resolve_common_scalar_portable(&admission, equations, mesh, &cells)?;
+        let portable = resolve_common_linear_portable(&admission, equations)?;
         Self::finish_admission(
             model,
             admission,
-            cells,
             fields,
             portable,
             formulation,
@@ -92,7 +77,7 @@ impl CommonScalarPlan {
         )?;
         if replayed != *self {
             return Err(invalid(
-                "complex scalar Plan changed during exact internal replay",
+                "complex linear Plan changed during exact internal replay",
             ));
         }
         Ok(())
@@ -100,14 +85,16 @@ impl CommonScalarPlan {
 }
 
 impl NativeNumericalAdmission {
-    pub(in crate::numerical_admission) fn execute_complex_scalar(
+    pub(in crate::numerical_admission) fn execute_complex_linear(
         &self,
-        equations: &ExecutableScalarEquations<num_complex::Complex64>,
+        equations: &ExecutableLinearEquations<num_complex::Complex64>,
         backend: &dyn LinearSolverBackend,
-    ) -> Result<CommonScalarRunOutput<f64>, Diagnostic> {
+    ) -> Result<CommonLinearRunOutput<f64>, Diagnostic> {
         self.revalidate()?;
-        let NativeMeshResources::Cartesian { mesh, .. } = self.resources() else {
-            return Err(invalid("complex scalar Run lost Cartesian resources"));
+        let NativeSpatialPolicy::LinearFiniteElement(space) = self.spatial else {
+            return Err(invalid(
+                "complex linear Run requires a finite-element Space",
+            ));
         };
         let structure = equations.algebraic_structure(None)?;
         let checked = self
@@ -116,14 +103,15 @@ impl NativeNumericalAdmission {
         let output = equations.execute(
             self.linear.workers,
             LinearSolveRequest::new(&checked, self.linear.solver),
-            mesh.mesh(),
+            self.resources(),
+            space,
             |reactions, values| reactions.recover(values),
         )?;
-        Ok(CommonScalarRunOutput {
+        Ok(CommonLinearRunOutput {
             fields: output
                 .fields
                 .into_iter()
-                .map(|(field, ty, values)| {
+                .map(|(field, ty, values, space)| {
                     (
                         field,
                         ty,
@@ -131,6 +119,7 @@ impl NativeNumericalAdmission {
                             .into_iter()
                             .flat_map(|value| [value.re, value.im])
                             .collect(),
+                        space,
                     )
                 })
                 .collect(),

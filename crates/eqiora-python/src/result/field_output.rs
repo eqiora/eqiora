@@ -9,6 +9,46 @@ use crate::array::PyArrayBuffer;
 use crate::meshing::PyMesh;
 use crate::model::PyModelFieldRef;
 
+/// Project support-entity count without interpreting vector moments as nodal components.
+pub(super) fn coefficient_count(
+    space: eqiora::realization::Space,
+    value_shape: &[usize],
+    complex: bool,
+    coordinate_count: usize,
+    logical_shape: &[usize],
+) -> PyResult<usize> {
+    use eqiora::realization::SpaceFamily;
+    let invalid = || {
+        pyo3::exceptions::PyRuntimeError::new_err(
+            "common Result Field block contradicts its coefficient layout",
+        )
+    };
+    let width = match space.family() {
+        SpaceFamily::TetrahedralEdge | SpaceFamily::TetrahedralFace => {
+            if value_shape != [3] || logical_shape.len() != 1 {
+                return Err(invalid());
+            }
+            1
+        }
+        _ => value_shape
+            .iter()
+            .try_fold(1usize, |n, extent| n.checked_mul(*extent))
+            .filter(|width| *width > 0)
+            .ok_or_else(invalid)?,
+    };
+    let count = logical_shape
+        .iter()
+        .try_fold(1usize, |n, extent| n.checked_mul(*extent))
+        .ok_or_else(invalid)?;
+    if logical_shape.is_empty()
+        || count.checked_mul(if complex { 2 } else { 1 }) != Some(coordinate_count)
+        || !count.is_multiple_of(width)
+    {
+        return Err(invalid());
+    }
+    Ok(count / width)
+}
+
 pub(crate) struct FieldOutputBlock {
     association: &'static str,
     values: Py<PyArrayBuffer>,
@@ -59,6 +99,7 @@ pub(crate) struct PyFieldOutput {
     field: Py<PyModelFieldRef>,
     mesh: Py<PyMesh>,
     dimension: DimExponents,
+    coefficient_dimension: DimExponents,
     value_shape: Vec<usize>,
     space: &'static str,
     blocks: Vec<FieldOutputBlock>,
@@ -69,6 +110,7 @@ impl PyFieldOutput {
         field: Py<PyModelFieldRef>,
         mesh: Py<PyMesh>,
         dimension: DimExponents,
+        coefficient_dimension: DimExponents,
         value_shape: Vec<usize>,
         space: &'static str,
         blocks: Vec<FieldOutputBlock>,
@@ -77,6 +119,7 @@ impl PyFieldOutput {
             field,
             mesh,
             dimension,
+            coefficient_dimension,
             value_shape,
             space,
             blocks,
@@ -132,6 +175,12 @@ impl PyFieldOutput {
         crate::modeling::dimension::exponents(py, self.dimension)
     }
 
+    /// SI dimension of the stored coefficients, including the Space functional's measure.
+    #[getter]
+    fn coefficient_dimension(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        crate::modeling::dimension::exponents(py, self.coefficient_dimension)
+    }
+
     /// Exact mathematical component shape; an empty tuple is scalar.
     #[getter]
     fn value_shape(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
@@ -178,5 +227,62 @@ impl PyFieldOutput {
                 .map(|block| block.association)
                 .collect::<Vec<_>>(),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::coefficient_count;
+    use eqiora::realization::Space;
+
+    #[test]
+    fn moment_counts_are_entities_even_for_complex_vectors() {
+        for complex in [false, true] {
+            let coordinates = if complex { 2 } else { 1 };
+            // One tetrahedron has six edge integrals and four face fluxes.
+            assert_eq!(
+                coefficient_count(
+                    Space::tetrahedral_edge(),
+                    &[3],
+                    complex,
+                    6 * coordinates,
+                    &[6]
+                )
+                .unwrap(),
+                6
+            );
+            assert_eq!(
+                coefficient_count(
+                    Space::tetrahedral_face(),
+                    &[3],
+                    complex,
+                    4 * coordinates,
+                    &[4]
+                )
+                .unwrap(),
+                4
+            );
+            // Replicated nodal vectors still carry three components at every vertex.
+            assert_eq!(
+                coefficient_count(
+                    Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+                    &[3],
+                    complex,
+                    12 * coordinates,
+                    &[4, 3]
+                )
+                .unwrap(),
+                4
+            );
+        }
+    }
+
+    #[test]
+    fn inconsistent_coefficient_layouts_reject() {
+        let edge = Space::tetrahedral_edge();
+        assert!(coefficient_count(edge, &[3], false, 18, &[6, 3]).is_err());
+        assert!(coefficient_count(edge, &[], false, 6, &[6]).is_err());
+        assert!(coefficient_count(edge, &[3], true, 11, &[6]).is_err());
+        assert!(coefficient_count(edge, &[3], true, 0, &[usize::MAX]).is_err());
     }
 }

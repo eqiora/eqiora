@@ -23,9 +23,9 @@ use crate::{
     SemanticRevision, invalid_realization,
 };
 
-const SCHEMA: &str = "eqiora.portable-realization-graph/v2";
+const SCHEMA: &str = "eqiora.portable-realization-graph/v3";
 const ENCODING: &str = "eqiora.canonical-json/v1";
-const DIGEST_DOMAIN: &[u8] = b"eqiora.portable-realization-graph/v2\0";
+const DIGEST_DOMAIN: &[u8] = b"eqiora.portable-realization-graph/v3\0";
 const MAX_BYTES: usize = 8 * 1024 * 1024;
 const MAX_NODES_PER_ARENA: usize = 100_000;
 

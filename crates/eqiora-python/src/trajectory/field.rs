@@ -885,7 +885,7 @@ fn common_block(
 impl PyFieldSnapshot {
     pub(super) fn from_common_scalar(
         py: Python<'_>,
-        plan: &eqiora_numerics::CommonScalarPlan,
+        plan: &eqiora_numerics::CommonLinearPlan,
         state: &CommonState,
         mesh_digest: &str,
     ) -> PyResult<Self> {

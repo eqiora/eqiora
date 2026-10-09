@@ -3,7 +3,7 @@ use eqiora_compiler::compile;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use num_complex::Complex64 as C;
 
-fn execute(source: &str) -> CommonScalarRunOutput<C> {
+fn execute(source: &str) -> CommonLinearRunOutput<C> {
     let (transaction, model, symbols) = compile("complex-spatial-execution.eqi", source)
         .unwrap()
         .remove(0)
@@ -11,7 +11,7 @@ fn execute(source: &str) -> CommonScalarRunOutput<C> {
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
     let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
-    let equations = ExecutableScalarEquations::<C>::new(
+    let equations = ExecutableLinearEquations::<C>::new(
         &program,
         symbols.get("body").unwrap(),
         vec![[0., 6.]],
@@ -22,12 +22,12 @@ fn execute(source: &str) -> CommonScalarRunOutput<C> {
     )
     .unwrap();
     let mesh = eqiora_meshing::CartesianMesh::from_axes(vec![vec![0., 3., 6.]]).unwrap();
-    let source_equations = ExecutableScalarEquations::<C>::source_regions(&program, &mesh).unwrap();
+    let source_equations = ExecutableLinearEquations::<C>::source_regions(&program, &mesh).unwrap();
     assert_eq!(source_equations, equations);
     let equations = source_equations;
     // Source bounds must cover whole cells in the exact supplied Mesh.
     let crossed = eqiora_meshing::CartesianMesh::from_axes(vec![vec![-1., 3., 6.]]).unwrap();
-    assert!(ExecutableScalarEquations::<C>::source_regions(&program, &crossed).is_err());
+    assert!(ExecutableLinearEquations::<C>::source_regions(&program, &crossed).is_err());
     let structure = equations.algebraic_structure(None).unwrap();
     let mut policy = NativeLinearPolicy::exact::<C>(
         SolverPlan::new(
@@ -49,7 +49,7 @@ fn execute(source: &str) -> CommonScalarRunOutput<C> {
         .checked_complex_backend(&REFERENCE_LINEAR_SOLVER, Some(&structure))
         .unwrap();
     let output = equations
-        .execute(
+        .execute_cartesian(
             NonZeroUsize::MIN,
             LinearSolveRequest::new(&backend, policy.solver),
             &mesh,

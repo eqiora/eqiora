@@ -10,6 +10,7 @@ enum Position {
     Strong,
     Flux,
     Isotropic,
+    CurlFlux,
 }
 
 pub(super) fn lower<S: Coefficient>(
@@ -98,6 +99,47 @@ fn expression<S: Coefficient>(
             }
             coefficient.evaluate(&vec![0.0; context.dimension])?;
             Ok(())
+        }
+        ExprNode::PureOperatorApplication(_)
+            if matches!(position, Position::Strong)
+                && context.dimension == 3
+                && super::super::vector_curl::curl_operand(context.dag, id).is_some() =>
+        {
+            if coefficient.spatial() {
+                return Err(invalid(
+                    "spatial multiplier outside curl-curl requires product-rule lowering",
+                ));
+            }
+            let inner = super::super::vector_curl::curl_operand(context.dag, id)
+                .expect("checked curl operator");
+            let field = super::super::vector_curl::curl_operand(context.dag, inner)
+                .ok_or_else(|| invalid("region curl term requires exact nested vector curls"))?;
+            trial(context, field, coefficient, row, Pairing::Curl)
+        }
+        ExprNode::PureOperatorApplication(_)
+            if matches!(position, Position::Flux)
+                && context.dimension == 3
+                && super::super::vector_curl::tangential_lift_operand(context.dag, id)
+                    .is_some() =>
+        {
+            let curl = super::super::vector_curl::tangential_lift_operand(context.dag, id)
+                .expect("checked tangential lift");
+            // T(a)n = n × a and div T(a) = curl(a). The existing flux
+            // convention is -div(q), hence q = -T(curl(u)) for +curl-curl.
+            // Store the coefficient of the positive volume curl pairing.
+            expression(
+                context,
+                curl,
+                negative(coefficient),
+                row,
+                Position::CurlFlux,
+                depth + 1,
+            )
+        }
+        ExprNode::PureOperatorApplication(_) if matches!(position, Position::CurlFlux) => {
+            let field = super::super::vector_curl::curl_operand(context.dag, id)
+                .ok_or_else(|| invalid("tangential constitutive flux requires one exact curl"))?;
+            trial(context, field, coefficient, row, Pairing::Curl)
         }
         ExprNode::PureOperatorApplication(_)
             if matches!(position, Position::Strong)
@@ -248,7 +290,9 @@ fn expression<S: Coefficient>(
             let pairing = match position {
                 Position::Strong => Pairing::Value,
                 Position::Isotropic => Pairing::TestDivergenceTrialValue,
-                Position::Flux => return Err(invalid("unsupported bare Field flux")),
+                Position::Flux | Position::CurlFlux => {
+                    return Err(invalid("unsupported bare Field flux"));
+                }
             };
             trial(context, id, coefficient, row, pairing)
         }
@@ -315,7 +359,8 @@ fn trial<S: Coefficient>(
     };
     if matches!(
         pairing,
-        Pairing::Gradient
+        Pairing::Curl
+            | Pairing::Gradient
             | Pairing::SymmetricGradient
             | Pairing::Divergence
             | Pairing::TestDivergenceTrialValue

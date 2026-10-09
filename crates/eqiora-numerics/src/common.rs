@@ -12,8 +12,7 @@ pub use crate::canonical_boundary::{
     PhysicalBoundaryQuantity, PrescribedBoundaryLaw,
 };
 pub use crate::discrete_space::{
-    CellConstantSpace, DiscreteSpace, HypercubeQ1Space, LocalDof, SimplexP1BubbleSpace,
-    SimplexP1Space,
+    BasisTabulation, DiscreteSpace, LocalDof, PhysicalBasisTabulation,
 };
 pub use crate::operator::LocalOperator;
 pub use crate::simplicial_elliptic::SimplicialP1Field;

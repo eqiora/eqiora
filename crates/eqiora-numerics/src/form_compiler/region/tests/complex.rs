@@ -28,6 +28,18 @@ fn fixture(source: &str) -> (KernelProgram, BTreeMap<String, RawId>) {
     (program, ids)
 }
 
+fn scalar_bound(form: &CompiledRegionForm<C>) -> Result<BoundRegionForm<C>, Diagnostic> {
+    let (fields, rows) = form.si_bindings(eqiora_realization::Space::continuous_lagrange(
+        std::num::NonZeroU16::MIN,
+    ))?;
+    form.bind(
+        ReferenceCell::hypercube(form.dimension)?,
+        &fields,
+        &rows,
+        None,
+    )
+}
+
 fn interval() -> AffineGeometryMap {
     AffineGeometryMap::new(ReferenceCell::hypercube(1).unwrap(), 1, vec![3.], vec![3.]).unwrap()
 }
@@ -44,7 +56,7 @@ fn complex_close(actual: C, expected: C) {
 fn complex_helmholtz_region_retains_phase_reaction_and_imaginary_load() {
     let (program, ids) = fixture(HELMHOLTZ);
     let form = CompiledRegionForm::<C>::derive(&program, ids["body"], 1).unwrap();
-    let bound = form.bind_scalar(None).unwrap();
+    let bound = scalar_bound(&form).unwrap();
     let rule = QuadratureRule::gauss_legendre(2).unwrap();
     let local = bound.prepare_affine(&interval(), &rule).unwrap();
     // Independently on [0,6]: K=a/6[[1,-1],[-1,1]],
@@ -82,8 +94,8 @@ fn complex_helmholtz_region_retains_phase_reaction_and_imaginary_load() {
             ],
             &[C::new(6., 6.), C::new(1., 2.), C::new(1., 3.)],
         )
-        .unwrap()
-        .bind_scalar(None)
+        .unwrap();
+    let rebound = scalar_bound(&rebound)
         .unwrap()
         .prepare_affine(&interval(), &rule)
         .unwrap();
@@ -103,7 +115,7 @@ fn complex_boundary_law_preserves_constitutive_phase_and_parent_orientation() {
         .boundary_law(&program, ids["wall"], ids["law"])
         .unwrap();
     assert_eq!(law.evaluate(&[0.], &[-1.]).unwrap(), [C::new(-2., 4.)]);
-    let bound = form.bind_scalar(None).unwrap();
+    let bound = scalar_bound(&form).unwrap();
     for (side, x, sign) in [(0, 0., -1.), (1, 6., 1.)] {
         let facet = AffineGeometryMap::new(ReferenceCell::point(), 1, vec![x], vec![]).unwrap();
         let incidence = EntityIncidence {
@@ -148,11 +160,12 @@ fn complex_region_assembly_eliminates_fixed_phase_without_conjugating_trial() {
         AssemblyPacketSetIdentityV1::from_sha256([91; 32]),
         &plan,
         vec![(
-            form.bind_scalar(None).unwrap(),
+            scalar_bound(&form).unwrap(),
             QuadratureRule::gauss_legendre(2).unwrap(),
         )],
         &[ids["body"]],
         vec![RegionAssemblyCell {
+            orientation: vec![1; 2],
             index: 0,
             geometry: interval(),
             mappings: vec![TargetAssemblyMap::new(

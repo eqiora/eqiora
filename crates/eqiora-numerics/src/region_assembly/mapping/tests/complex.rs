@@ -68,6 +68,15 @@ fn complex_mapping_recovers_scaled_fields_and_rebinds_prescriptions() {
         ])
     );
     mapping.validate_physical(&physical).unwrap();
+    let mut wrong_space = physical.clone();
+    wrong_space.get_mut(&field).unwrap().space = Space::cell_constant();
+    assert!(
+        mapping
+            .validate_physical(&wrong_space)
+            .unwrap_err()
+            .message()
+            .contains("Space")
+    );
     assert!(mapping.recover(&free, &[]).is_err());
     assert!(
         mapping
@@ -131,6 +140,7 @@ fn complex_mapping_recovers_scaled_fields_and_rebinds_prescriptions() {
     let target = plan.target_id(0).unwrap();
     let cells = (0..2)
         .map(|index| RegionAssemblyCell {
+            orientation: assembled_map.cell_signs(index).unwrap().to_vec(),
             index,
             geometry: mesh.geometry_map(MeshEntity::new(1, index)).unwrap(),
             mappings: vec![TargetAssemblyMap::new(
@@ -190,6 +200,7 @@ fn complex_mapping_recovers_scaled_fields_and_rebinds_prescriptions() {
     let target = action_plan.target_id(0).unwrap();
     let cells = (0..2)
         .map(|index| RegionAssemblyCell {
+            orientation: action_map.cell_signs(index).unwrap().to_vec(),
             index,
             geometry: mesh.geometry_map(MeshEntity::new(1, index)).unwrap(),
             mappings: vec![TargetAssemblyMap::new(

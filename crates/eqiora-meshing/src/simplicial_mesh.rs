@@ -10,6 +10,8 @@ use crate::{
     MeshTopology, OrientationCode, ReferenceCell, ReferenceTopology, VertexPermutation,
 };
 
+mod boundary;
+
 const MAX_MESH_ENTITIES: usize = 8_000_000;
 
 /// Fail-closed conditioning policy for accepted affine simplex cells.
@@ -221,24 +223,6 @@ impl SimplicialMesh {
             .copied()
     }
 
-    /// Resolve an orientation code into its exact vertex permutation.
-    #[must_use]
-    pub fn orientation_permutation(
-        &self,
-        code: OrientationCode,
-        arity: usize,
-    ) -> Option<VertexPermutation> {
-        if code == OrientationCode::identity() {
-            return Some(VertexPermutation::identity(arity));
-        }
-        let images = self
-            .orientation_codes
-            .iter()
-            .find_map(|(images, &candidate)| (candidate == code.code()).then(|| images.clone()))?;
-        (images.len() == arity)
-            .then(|| VertexPermutation::new(images).expect("interned orientation is a permutation"))
-    }
-
     /// Linearize one entity map under an accepted vertex-velocity field.
     ///
     /// # Errors
@@ -334,6 +318,23 @@ impl SimplicialMesh {
 }
 
 impl MeshTopology for SimplicialMesh {
+    /// Resolve an orientation code into its exact vertex permutation.
+    fn orientation_permutation(
+        &self,
+        code: OrientationCode,
+        arity: usize,
+    ) -> Option<VertexPermutation> {
+        if code == OrientationCode::identity() {
+            return Some(VertexPermutation::identity(arity));
+        }
+        let images = self
+            .orientation_codes
+            .iter()
+            .find_map(|(images, &candidate)| (candidate == code.code()).then(|| images.clone()))?;
+        (images.len() == arity)
+            .then(|| VertexPermutation::new(images).expect("interned orientation is a permutation"))
+    }
+
     fn topological_dimension(&self) -> usize {
         self.dimension
     }

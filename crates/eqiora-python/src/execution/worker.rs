@@ -10,7 +10,7 @@ use eqiora::solver::{
     LinearSolverBackend, REFERENCE_LINEAR_SOLVER, REFERENCE_SOLVER_PROVIDER, SolverProvider,
 };
 use eqiora_numerics::{
-    CommonElasticityPlan, CommonFsiRunRequest, CommonOdeRunRequest, CommonResult, CommonScalarPlan,
+    CommonElasticityPlan, CommonFsiRunRequest, CommonLinearPlan, CommonOdeRunRequest, CommonResult,
     CommonSteadyStokesPlan, CommonTrajectory, CommonTransientRunRequest,
 };
 
@@ -27,7 +27,7 @@ pub(super) enum NativeRunJob {
         Box<eqiora_numerics::CommonAlgebraicPlan>,
         eqiora_numerics::CommonAlgebraicState,
     ),
-    Scalar(Box<CommonScalarPlan>),
+    Linear(Box<CommonLinearPlan>),
     Elasticity(Box<CommonElasticityPlan>),
     SteadyStokes(Box<CommonSteadyStokesPlan>),
     Transient(Box<CommonTransientRunRequest>),
@@ -40,7 +40,7 @@ impl NativeRunJob {
         match self {
             Self::Eigen(_) => "eigen",
             Self::Algebraic(..) => "algebraic",
-            Self::Scalar(..) => "scalar",
+            Self::Linear(..) => "linear",
             Self::Elasticity(..) => "elasticity",
             Self::SteadyStokes(..) => "steady_stokes",
             Self::Transient(..) => "transient_flow",
@@ -115,7 +115,7 @@ fn execute_job(
                 None,
             )))
         }
-        NativeRunJob::Scalar(plan) => {
+        NativeRunJob::Linear(plan) => {
             let started = Instant::now();
             let backend = resolved_linear_backend(plan.solver_provider())?;
             let _solve = solve_phase(1).entered();
