@@ -1,5 +1,7 @@
 //! Closed Python numerical-policy requests consumed by the root resolver.
+mod moments;
 mod ode;
+pub(super) use moments::{PyTetrahedralEdge, PyTetrahedralFace};
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -832,9 +834,9 @@ pub(super) fn spatial_handle_from_request(
                 CommonSpatialPolicy::CellCenteredTpfa => SpatialPolicy::CellCenteredTpfa,
                 CommonSpatialPolicy::MiniP1 => SpatialPolicy::MiniP1,
                 CommonSpatialPolicy::CellCentered => SpatialPolicy::CellCentered,
-                CommonSpatialPolicy::TetrahedralEdge
-                | CommonSpatialPolicy::TetrahedralFace
-                | CommonSpatialPolicy::P1 => {
+                CommonSpatialPolicy::TetrahedralEdge => SpatialPolicy::TetrahedralEdge,
+                CommonSpatialPolicy::TetrahedralFace => SpatialPolicy::TetrahedralFace,
+                CommonSpatialPolicy::P1 => {
                     return Err(PyTypeError::new_err(
                         "this finite-element Space has no Python policy projection",
                     ));

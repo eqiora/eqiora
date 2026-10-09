@@ -1191,7 +1191,7 @@ class Plan:
     @property
     def fields(self) -> tuple[FieldRef, ...]: ...
     @property
-    def spatial(self) -> fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None: ...
+    def spatial(self) -> fem.Q1 | fem.TetrahedralEdge | fem.TetrahedralFace | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None: ...
     @property
     def solve(self) -> solve_module.ResolvedLinear | solve_module.ResolvedNewton | solve_module.HermitianEigen | None: ...
     @property
@@ -2335,7 +2335,7 @@ def resolve(
     model: Model,
     *,
     mesh: meshing.Mesh | None = None,
-    spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None = None,
+    spatial: fem.Q1 | fem.TetrahedralEdge | fem.TetrahedralFace | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None = None,
     formulation: FormulationKind | None = None,
     solve: solve.Linear | solve.Newton | solve.HermitianEigen | None = None,
     scaling: fluid.IncompressibleScaling | dict[ConstraintRef, tuple[float, Dimension]] | None = None,

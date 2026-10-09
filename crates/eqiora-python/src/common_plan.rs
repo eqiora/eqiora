@@ -44,7 +44,8 @@ mod solver_request;
 use policy::{
     PyBackwardEuler, PyCellCentered, PyCellCenteredTpfa, PyImplicitMidpoint, PyLinear, PyMiniP1,
     PyNewton, PyP1, PyPressureGauge2d, PyQ1, PyScopedSpatialBinding, PySolverPlanningObjective,
-    PyTsitouras45, ScopedSpatialKind, spatial_handle_from_request,
+    PyTetrahedralEdge, PyTetrahedralFace, PyTsitouras45, ScopedSpatialKind,
+    spatial_handle_from_request,
 };
 pub(crate) use registration::register;
 mod scaling;
@@ -59,6 +60,8 @@ use resolved_execution::PyResolvedExecution;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SpatialPolicy {
     Q1,
+    TetrahedralEdge,
+    TetrahedralFace,
     CellCenteredTpfa,
     MiniP1,
     CellCentered,
@@ -388,17 +391,21 @@ impl PyPlan {
                         .collect(),
                     coefficient_sampling: match plan.spatial() {
                         eqiora_numerics::CommonSpatialPolicy::Q1
+                        | eqiora_numerics::CommonSpatialPolicy::TetrahedralEdge
+                        | eqiora_numerics::CommonSpatialPolicy::TetrahedralFace
                         | eqiora_numerics::CommonSpatialPolicy::CellCentered => "quadrature-point",
                         eqiora_numerics::CommonSpatialPolicy::CellCenteredTpfa => "facet-centroid",
-                        _ => unreachable!("common scalar Plan cannot own a non-scalar policy"),
+                        _ => unreachable!("common linear Plan cannot own this policy"),
                     },
                     face_coefficient_policy: match plan.spatial() {
                         eqiora_numerics::CommonSpatialPolicy::Q1
+                        | eqiora_numerics::CommonSpatialPolicy::TetrahedralEdge
+                        | eqiora_numerics::CommonSpatialPolicy::TetrahedralFace
                         | eqiora_numerics::CommonSpatialPolicy::CellCentered => "not-applicable",
                         eqiora_numerics::CommonSpatialPolicy::CellCenteredTpfa => {
                             "direct-centroid-evaluation"
                         }
-                        _ => unreachable!("common scalar Plan cannot own a non-scalar policy"),
+                        _ => unreachable!("common linear Plan cannot own this policy"),
                     },
                 },
             )
@@ -553,6 +560,12 @@ impl PyPlan {
         self.spatial
             .as_ref()
             .map(|spatial| match spatial {
+                SpatialHandle::Uniform(SpatialPolicy::TetrahedralEdge) => {
+                    Py::new(py, PyTetrahedralEdge).map(Py::into_any)
+                }
+                SpatialHandle::Uniform(SpatialPolicy::TetrahedralFace) => {
+                    Py::new(py, PyTetrahedralFace).map(Py::into_any)
+                }
                 SpatialHandle::Uniform(SpatialPolicy::Q1) => Py::new(py, PyQ1).map(Py::into_any),
                 SpatialHandle::Uniform(SpatialPolicy::CellCenteredTpfa) => {
                     Py::new(py, PyCellCenteredTpfa).map(Py::into_any)
@@ -743,6 +756,22 @@ fn resolve_plan(
         (
             CommonMethodRequest::Uniform(CommonSpatialPolicy::Q1),
             SpatialHandle::Uniform(SpatialPolicy::Q1),
+        )
+    } else if spatial_value
+        .extract::<PyRef<'_, PyTetrahedralEdge>>()
+        .is_ok()
+    {
+        (
+            CommonMethodRequest::Uniform(CommonSpatialPolicy::TetrahedralEdge),
+            SpatialHandle::Uniform(SpatialPolicy::TetrahedralEdge),
+        )
+    } else if spatial_value
+        .extract::<PyRef<'_, PyTetrahedralFace>>()
+        .is_ok()
+    {
+        (
+            CommonMethodRequest::Uniform(CommonSpatialPolicy::TetrahedralFace),
+            SpatialHandle::Uniform(SpatialPolicy::TetrahedralFace),
         )
     } else if spatial_value
         .extract::<PyRef<'_, PyCellCenteredTpfa>>()
