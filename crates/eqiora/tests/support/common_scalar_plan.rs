@@ -25,7 +25,7 @@ public component DifferentiatedPoisson(
   parameter boundary_offset: 1
 ) {
 
-  variable potential: 1 on square;
+  variable potential: 1 on square in h1;
   relation balance on square {
     -div(diffusion * grad(potential))
       - source_scale * math.sin(wave_number * coordinate(0))

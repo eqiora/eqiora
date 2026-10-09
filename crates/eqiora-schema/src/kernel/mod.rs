@@ -33,7 +33,7 @@ pub use definition::{
     CartesianCoordinateSource, ClockDomainDef, ClockKind, ConnectionDef, ConnectionSemantics,
     DomainDef, DomainKind, EventDirection, FieldDef, FieldRole, GeometryDigest, KernelNode,
     ParameterDef, PortDef, PortPayload, RelationConditionKind, RelationDef, RelationMeaning,
-    RepresentationDef, RepresentationKind, SignalDirection,
+    RepresentationDef, RepresentationKind, SignalDirection, SpatialRegularity,
 };
 pub use expression::property::{PropertyDerivatives, PropertyMeaning, PropertyRelease};
 pub use expression::{

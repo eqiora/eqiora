@@ -155,6 +155,7 @@ fn factory_constructs_an_uninitialized_scalar_field() {
         "pressure",
         None,
         FieldRoleSyntax::Variable,
+        eqiora_schema::kernel::SpatialRegularity::Unspecified,
         ActivationSyntax::Continuous,
         value_type,
         range,

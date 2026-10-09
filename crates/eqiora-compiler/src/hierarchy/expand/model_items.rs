@@ -190,6 +190,7 @@ impl RootExpansion<'_, '_> {
                             &scope.symbolic_parameters(),
                         )?,
                         role: declaration.role(),
+                        spatial_regularity: declaration.spatial_regularity(),
                         activation,
                         range: declaration.range(),
                         identity,

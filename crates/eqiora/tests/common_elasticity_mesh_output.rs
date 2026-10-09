@@ -26,7 +26,7 @@ const SOURCE: &str = r#"public component MixedBoundaryElasticity2d(
   parameter length_scale: m
 ) {
 
-  variable displacement: vector<m, 2> on body;
+  variable displacement: vector<m, 2> on body in smooth;
   variable load_potential: kg / (m * s ^ 2) on body;
   relation load on body {
     load_potential - 2 * mu * coordinate(0) / length_scale = 0;

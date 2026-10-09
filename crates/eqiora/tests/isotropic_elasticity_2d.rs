@@ -280,8 +280,8 @@ fn elasticity_finalization_requires_an_admitted_spd_operator() {
 fn canonical_lowering_fails_closed_at_physical_identity_and_model_boundaries() {
     let wrong_dimensions = MANUFACTURED
         .replace(
-            "variable displacement: vector<m, 2> on body;",
-            "variable displacement: vector<1, 2> on body;",
+            "variable displacement: vector<m, 2> on body in h1;",
+            "variable displacement: vector<1, 2> on body in h1;",
         )
         .replace(
             "variable load_potential: kg / (m * s ^ 2) on body;",

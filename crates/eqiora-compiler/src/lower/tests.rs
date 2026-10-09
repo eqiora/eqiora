@@ -712,7 +712,7 @@ fn compiler_rejects_spatial_boundary_unit_mismatch() {
 model bar() {
   domain body = box(0, 1);
   domain loaded = boundary(body, axis = 0, side = upper);
-  variable u: m on body; initial { u = 0; }
+  variable u: m on body in smooth; initial { u = 0; }
   parameter stiffness: kg * m / s ^ 2 = 10[kg * m / s ^ 2];
   parameter wrong_load: m = 1[m];
   relation load on loaded {

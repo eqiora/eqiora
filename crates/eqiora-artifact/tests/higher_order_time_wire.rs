@@ -172,7 +172,7 @@ fn current_model_epoch_requires_explicit_positive_derivative_orders() {
     let model = ModelEnvelope::from_program(&program).unwrap();
     let bytes = model.canonical_json().unwrap();
     let original: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(original["schema"], "eqiora.model-envelope/v43");
+    assert_eq!(original["schema"], "eqiora.model-envelope/v44");
     ModelEnvelope::from_json(&bytes, Default::default())
         .unwrap()
         .to_program()

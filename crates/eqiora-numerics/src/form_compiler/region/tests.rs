@@ -27,8 +27,8 @@ const MIXED: &str = "model Mixed() {
 
  parameter density: kg / m ^ 3 = 3;
  parameter viscosity: kg / (m * s) = 2;
- state v: vector<m / s, 2> on body;
- variable p: kg / (m * s ^ 2) on body;
+ state v: vector<m / s, 2> on body in smooth;
+ variable p: kg / (m * s ^ 2) on body in h1;
  relation balance on body {
   density * derivative(v) - div(2 * viscosity * symmetric_part(grad(v)) - isotropic_lift(p)) = 0;
  }
@@ -42,7 +42,7 @@ const ELIMINATED: &str = "model Elastic() {
  parameter mu: kg / (m * s ^ 2) = 2;
  parameter lambda: kg / (m * s ^ 2) = 5;
  state v: vector<m / s, 2> on body;
- state d: vector<m, 2> on body;
+ state d: vector<m, 2> on body in h1;
  relation kinematics on body { derivative(d) - v = 0; }
  relation balance on body {
   density * derivative(v) - div(2 * mu * symmetric_part(grad(d)) + lambda * isotropic_lift(div(d))) = 0;
@@ -367,7 +367,7 @@ fn derivative_of_eliminated_state_uses_rate_without_unused_previous_coefficients
         "model Kinematic() {
         domain body = box(0, 1, 0, 1);
         parameter drag: kg / (m ^ 3 * s) = 3;
-        state d: vector<m, 2> on body;
+        state d: vector<m, 2> on body in h1;
         variable v: vector<m / s, 2> on body;
         relation pair on body { derivative(d) - v = 0; }
         relation balance on body { drag * derivative(d) = 0; }

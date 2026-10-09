@@ -43,6 +43,7 @@ fn owned_flat_model_formats_and_parses_identically() {
         "temperature",
         Some("body".to_owned()),
         crate::FieldRoleSyntax::Variable,
+        eqiora_schema::kernel::SpatialRegularity::Unspecified,
         ActivationSyntax::Continuous,
         crate::ValueTypeSyntax::real(dimension()),
         range(0, 0),
@@ -366,6 +367,7 @@ fn owned_field_slots_and_bindings_format_and_parse_identically() {
         "state",
         Some("body".to_owned()),
         crate::FieldRoleSyntax::Variable,
+        eqiora_schema::kernel::SpatialRegularity::Unspecified,
         ActivationSyntax::Continuous,
         SourceAstFactory::value_type(
             crate::ValueTypeSyntaxKind::Vector {
@@ -514,6 +516,7 @@ fn factory_constructs_closed_field_physical_source_shapes() {
         "velocity",
         None,
         crate::FieldRoleSyntax::Variable,
+        eqiora_schema::kernel::SpatialRegularity::Unspecified,
         ActivationSyntax::Continuous,
         SourceAstFactory::value_type(
             crate::ValueTypeSyntaxKind::Array {

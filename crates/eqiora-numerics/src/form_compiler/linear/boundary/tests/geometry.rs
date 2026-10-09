@@ -38,7 +38,7 @@ fn derive_geometry(
         ("curl(curl(u))", "tangential_trace(-curl(u)) = 0")
     };
     source += &format!(
-        ") {{ variable u: vector<1,3> on body; relation volume on body {{ {operator} = 0; }}"
+        ") {{ variable u: vector<1,3> on body in smooth; relation volume on body {{ {operator} = 0; }}"
     );
     for i in 0..groups.len() {
         if omit && i == 0 {

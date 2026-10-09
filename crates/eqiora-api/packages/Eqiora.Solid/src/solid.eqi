@@ -29,7 +29,7 @@ public component IsotropicBalance2d(
 public component DisplacementTractionInterface2d(
   support body: volume(ambient_dimension = 2),
   support exterior: complete_exterior(parent = body),
-  variable displacement: vector<m, 2> on body,
+  variable displacement: vector<m, 2> on body in smooth,
   parameter shear_modulus: kg / (m * s ^ 2),
   parameter first_lame_parameter: kg / (m * s ^ 2),
   port mechanical[boundary in exterior]: DisplacementTractionBoundary over boundary
@@ -47,7 +47,7 @@ public component DisplacementTractionInterface2d(
 public component PlaneStrainLinearElasticity2d(
   support body: volume(ambient_dimension = 2),
   support exterior: complete_exterior(parent = body),
-  variable displacement: vector<m, 2> on body,
+  variable displacement: vector<m, 2> on body in smooth,
   variable load_potential: kg / (m * s ^ 2) on body,
   parameter young_modulus: kg / (m * s ^ 2),
   parameter poisson_ratio: 1,
@@ -78,7 +78,7 @@ public component PlaneStrainLinearElasticity2d(
 public component PlaneStressLinearElasticity2d(
   support body: volume(ambient_dimension = 2),
   support exterior: complete_exterior(parent = body),
-  variable displacement: vector<m, 2> on body,
+  variable displacement: vector<m, 2> on body in smooth,
   variable load_potential: kg / (m * s ^ 2) on body,
   parameter young_modulus: kg / (m * s ^ 2),
   parameter poisson_ratio: 1,
@@ -109,7 +109,7 @@ public component PlaneStressLinearElasticity2d(
 public component PlaneStrainMaterial2d(
   support body: volume(ambient_dimension = 2),
   support exterior: complete_exterior(parent = body),
-  variable displacement: vector<m, 2> on body,
+  variable displacement: vector<m, 2> on body in smooth,
   variable load_potential: kg / (m * s ^ 2) on body,
   property young_modulus: YoungModulus,
   property poisson_ratio: PoissonRatio,
@@ -131,7 +131,7 @@ public component PlaneStrainMaterial2d(
 public component PlaneStressMaterial2d(
   support body: volume(ambient_dimension = 2),
   support exterior: complete_exterior(parent = body),
-  variable displacement: vector<m, 2> on body,
+  variable displacement: vector<m, 2> on body in smooth,
   variable load_potential: kg / (m * s ^ 2) on body,
   property young_modulus: YoungModulus,
   property poisson_ratio: PoissonRatio,
@@ -173,7 +173,7 @@ public component TractionFree2d(
 public component PrescribedDisplacement2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  variable displacement: vector<m, 2> on body,
+  variable displacement: vector<m, 2> on body in h1,
   port mechanical: DisplacementTractionBoundary over face
 ) {
   relation prescribed_displacement on face {
@@ -184,7 +184,7 @@ public component PrescribedDisplacement2d(
 public component PrescribedTraction2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  variable traction: vector<kg / (m * s ^ 2), 2> on body,
+  variable traction: vector<kg / (m * s ^ 2), 2> on body in h1,
   port mechanical: DisplacementTractionBoundary over face
 ) {
   relation prescribed_traction on face {

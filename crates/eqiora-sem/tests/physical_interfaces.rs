@@ -7,13 +7,47 @@ use eqiora_schema::{
     Model, ModelView,
     kernel::{
         ActivationDef, AxisBounds, BoundarySide, DomainDef, ExprDagBuilder, FieldDef, FieldRole,
-        KernelNode, RelationDef, RepresentationDef, SymbolRef, typing::SpatialSupport,
+        KernelNode, RelationDef, RepresentationDef, SpatialRegularity, SymbolRef,
+        typing::SpatialSupport,
     },
 };
 use eqiora_sem::KernelProgram;
 
 #[test]
 fn authored_scalar_jump_types_on_the_exact_two_sided_interface() {
+    for regularity in [SpatialRegularity::H1, SpatialRegularity::Smooth] {
+        interface_program(regularity).unwrap();
+    }
+}
+
+#[test]
+fn interface_trace_requires_authored_field_regularity() {
+    for regularity in [SpatialRegularity::Unspecified, SpatialRegularity::L2] {
+        let errors = interface_program(regularity).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message().contains("regularity")),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn scalar_weak_vector_spaces_are_rejected() {
+    for (regularity, message) in [
+        (SpatialRegularity::HCurl, "H(curl) requires"),
+        (SpatialRegularity::HDiv, "H(div) requires"),
+    ] {
+        let errors = interface_program(regularity).unwrap_err();
+        assert!(
+            errors.iter().any(|error| error.message().contains(message)),
+            "{errors:?}"
+        );
+    }
+}
+
+fn interface_program(regularity: SpatialRegularity) -> Result<(), Vec<eqiora_core::Diagnostic>> {
     let regions = [Id::<kinds::Domain>::new(), Id::new()];
     let boundaries = [Id::<kinds::Domain>::new(), Id::new()];
     let interface = Id::<kinds::Domain>::new();
@@ -65,6 +99,7 @@ fn authored_scalar_jump_types_on_the_exact_two_sided_interface() {
                 ValueType::scalar(ScalarDomain::Real, DimExponents::DIMENSIONLESS).unwrap(),
                 FieldRole::Variable,
             )
+            .with_spatial_regularity(regularity)
             .into(),
         );
     }
@@ -114,7 +149,7 @@ fn authored_scalar_jump_types_on_the_exact_two_sided_interface() {
     transaction.push(Op::DefineOntologyView { view: view.into() });
     let mut store = InMemoryGraphStore::new();
     store.commit(transaction).unwrap();
-    let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+    let program = KernelProgram::from_snapshot(&store.snapshot(), model)?;
     let typed = program.typed_relation_residual(relation).unwrap();
     let expected = SpatialSupport::PhysicalInterface {
         domain: interface.erase(),
@@ -134,4 +169,5 @@ fn authored_scalar_jump_types_on_the_exact_two_sided_interface() {
             .iter()
             .any(|edge| edge.kind() == EdgeKind::Connects)
     );
+    Ok(())
 }

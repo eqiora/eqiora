@@ -5,10 +5,10 @@ model Main() {
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
 
-  variable velocity: vector<m / s, 2> on body;
-  variable pressure: kg / (m * s ^ 2) on body;
+  variable velocity: vector<m / s, 2> on body in smooth;
+  variable pressure: kg / (m * s ^ 2) on body in h1;
   variable force_potential: kg / (m * s ^ 2) on body;
-  variable ambient_pressure: kg / (m * s ^ 2) on body;
+  variable ambient_pressure: kg / (m * s ^ 2) on body in h1;
   parameter force_gradient: kg / (m ^ 2 * s ^ 2) = 0.75;
   parameter pressure_zero_coordinate: m = 2;
   parameter ambient_pressure_value: kg / (m * s ^ 2) = 4.5;

@@ -20,7 +20,7 @@ public component Energy(
     parameter phase:complex<1>=math.complex(0,1)
 ) {{
     {fields}
-    variable c:complex<1> on body;
+    variable c:complex<1> on body in h1;
     relation stationarity on body {{ bulk*phase*c-div(gradient*grad(c))=0; }}
     relation left_value on left {{ trace(c)=0; }}
     relation right_value on right {{ trace(c)=0; }}

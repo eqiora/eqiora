@@ -3,7 +3,7 @@ model axial_bar() {
   domain fixed_end = boundary(bar, axis = 0, side = lower);
   domain loaded_end = boundary(bar, axis = 0, side = upper);
 
-  variable displacement: m on bar;
+  variable displacement: m on bar in smooth;
   parameter youngs_modulus: kg / m / s ^ 2 = 200e9;
   parameter area: m ^ 2 = 0.01;
   parameter applied_force: kg * m / s ^ 2 = 10000;

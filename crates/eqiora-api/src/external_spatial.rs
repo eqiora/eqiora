@@ -129,7 +129,7 @@ public component FluidBoundaryLaw(
   support fluid: volume(ambient_dimension = 2), support inlet: boundary(parent = fluid), support outlet: boundary(parent = fluid), support walls: boundary(parent = fluid), support cylinder: boundary(parent = fluid),
   parameter value: 1
 ) {
-  variable state: 1 on fluid;
+  variable state: 1 on fluid in h1;
   relation volume_law on fluid { state - value = 0; }
   relation inlet_law on inlet { trace(state) = 0; }
   relation outlet_law on outlet { trace(state) = 0; }
@@ -170,10 +170,10 @@ public component SteadyFlowPastCylinder(
   parameter channel_height: m
 ) {
 
-  variable velocity: vector<m / s, 2> on fluid;
-  variable pressure: kg / (m * s ^ 2) on fluid;
+  variable velocity: vector<m / s, 2> on fluid in smooth;
+  variable pressure: kg / (m * s ^ 2) on fluid in h1;
   variable force_potential: kg / (m * s ^ 2) on fluid;
-  variable inlet_profile: m / s on fluid;
+  variable inlet_profile: m / s on fluid in h1;
 
   relation force_definition on fluid {
     force_potential - zero_pressure = 0;
@@ -868,7 +868,7 @@ public component SteadyFlowPastCylinder(
         assert!(
             compile_bound_fixture(
                 "wrong-parent.eqi",
-                "public component Law(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body)) { variable x: 1 on body; relation value on body { x = 0; } relation boundary on wall { trace(x) = 0; } }",
+                "public component Law(support body: volume(ambient_dimension = 2), support wall: boundary(parent = body)) { variable x: 1 on body in h1; relation value on body { x = 0; } relation boundary on wall { trace(x) = 0; } }",
                 &geometry,
                 "Law",
                 &wrong_parent,

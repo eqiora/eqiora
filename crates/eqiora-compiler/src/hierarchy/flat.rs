@@ -98,6 +98,7 @@ pub(super) enum FlatItemBlueprint {
         representation: Option<String>,
         value_type: eqiora_lang::ValueTypeSyntax,
         role: eqiora_lang::FieldRoleSyntax,
+        spatial_regularity: eqiora_schema::kernel::SpatialRegularity,
         activation: ActivationSyntax,
         range: TextRange,
         identity: EntityIdentity,
@@ -450,6 +451,7 @@ impl ExpandedBlueprint {
                     representation,
                     value_type,
                     role,
+                    spatial_regularity,
                     activation,
                     range,
                     ..
@@ -459,6 +461,7 @@ impl ExpandedBlueprint {
                     representation: representation.clone(),
                     value_type: value_type.clone(),
                     role: *role,
+                    spatial_regularity: *spatial_regularity,
                     activation: activation.clone(),
                     range: *range,
                 },

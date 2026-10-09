@@ -2,6 +2,6 @@ model Valid() {}
 
 model Invalid() {
   domain line = box(0, 1);
-  variable state: 1 on line;
+  variable state: 1 on line in h1;
   relation invalid on line { trace(state) - state = 0; }
 }

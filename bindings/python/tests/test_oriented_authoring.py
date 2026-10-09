@@ -44,10 +44,10 @@ def test_curl_and_tangential_trace_retain_exact_support(dimensions, complex_valu
     face = owner.boundary("face", parent=body)
     scalar = eqiora.ValueType.complex() if complex_values else eqiora.ValueType.real()
     vector = eqiora.ValueType.vector(scalar, dimensions)
-    u = owner.field("u", role=eqiora.FieldRole.Variable, value_type=vector, on=body)
+    u = owner.field("u", spatial_regularity=eqiora.SpatialRegularity.H1, role=eqiora.FieldRole.Variable, value_type=vector, on=body)
     owner.relation("interior", q.equation(q.curl(q.curl(u)), -q.div(q.grad(u))), on=body)
     # The trace has the same oriented boundary scope but different planar output shape.
-    f = owner.field("f", role=eqiora.FieldRole.Variable, value_type=scalar, on=body)
+    f = owner.field("f", spatial_regularity=eqiora.SpatialRegularity.H1, role=eqiora.FieldRole.Variable, value_type=scalar, on=body)
     boundary_value = q.trace(u) if dimensions == 3 else q.trace(f)
     owner.relation("boundary_value", q.equation(q.tangential_trace(u), boundary_value), on=face)
     emitted = module.to_eqi()

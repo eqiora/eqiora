@@ -21,9 +21,9 @@ def periodic_transport(*, wrong_axis=False):
     side = module.component("PeriodicTransportSide2d")
     body = side.volume("body", dimensions=2)
     face = side.boundary("face", parent=body)
-    concentration = side.field_requirement("concentration", value_type=CONCENTRATION,
+    concentration = side.field_requirement("concentration", spatial_regularity=eqiora.SpatialRegularity.Smooth, value_type=CONCENTRATION,
                                             role=eqiora.FieldRole.Variable, on=body)
-    potential = side.field_requirement("flow_potential", value_type=POTENTIAL,
+    potential = side.field_requirement("flow_potential", spatial_regularity=eqiora.SpatialRegularity.Smooth, value_type=POTENTIAL,
                                         role=eqiora.FieldRole.Variable, on=body)
     diffusivity = side.parameter("diffusivity", value_type=POTENTIAL)
     port = side.port("transport", connector=connector, on=face)
@@ -36,10 +36,10 @@ def periodic_transport(*, wrong_axis=False):
     root = module.model("Main")
     body = root.volume("body", dimensions=2)
     faces = {name: root.boundary(name, parent=body) for name in ("left", "right", "bottom", "top")}
-    concentration = root.field("concentration", value_type=CONCENTRATION,
+    concentration = root.field("concentration", spatial_regularity=eqiora.SpatialRegularity.Smooth, value_type=CONCENTRATION,
                                 role=eqiora.FieldRole.State, on=body)
     root.initial(left=concentration, right=q.quantity(1, eqiora.units.K))
-    potential = root.field("flow_potential", value_type=POTENTIAL,
+    potential = root.field("flow_potential", spatial_regularity=eqiora.SpatialRegularity.Smooth, value_type=POTENTIAL,
                            role=eqiora.FieldRole.Variable, on=body)
     speed = root.parameter("speed", value_type=VELOCITY)
     diffusivity = root.parameter("diffusivity", value_type=POTENTIAL)

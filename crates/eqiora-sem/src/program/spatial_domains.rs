@@ -416,6 +416,11 @@ pub(super) fn validate_fields(
         let KernelNode::Field(field) = node else {
             continue;
         };
+        super::spatial_regularity::validate_field(
+            field,
+            field_support(id, edges, spatial_supports).as_ref(),
+            diagnostics,
+        );
         let clocks = edge_targets(edges, id, EdgeKind::ClockedBy);
         if clocks.len() > 1 {
             diagnostics.push(kernel_error(

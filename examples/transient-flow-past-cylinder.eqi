@@ -13,10 +13,10 @@ public component TransientFlowPastCylinder(
   parameter inlet_speed: m / s,
   parameter channel_height: m
 ) {
-  state velocity: vector<m / s, 2> on fluid;
-  variable pressure: kg / (m * s ^ 2) on fluid;
+  state velocity: vector<m / s, 2> on fluid in smooth;
+  variable pressure: kg / (m * s ^ 2) on fluid in h1;
   variable force_potential: kg / (m * s ^ 2) on fluid;
-  variable inlet_profile: m / s on fluid;
+  variable inlet_profile: m / s on fluid in h1;
 
   relation force_definition on fluid {
     force_potential - zero_pressure = 0;

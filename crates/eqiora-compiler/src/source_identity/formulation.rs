@@ -4,7 +4,7 @@ use super::*;
 use crate::formulation::source::FormulationSource;
 
 const MAGIC: &[u8; 8] = b"EQIORAFM";
-const CANONICAL_FORMULATION_VERSION: u16 = 8;
+const CANONICAL_FORMULATION_VERSION: u16 = 9;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct AuthoredFormSourceIdentity([u8; 32]);
@@ -67,6 +67,10 @@ impl AuthoredFormSourceIdentity {
                                     amplitude.value_type(),
                                     budget,
                                     1,
+                                )?;
+                                super::encode_spatial_regularity(
+                                    e,
+                                    amplitude.spatial_regularity(),
                                 )?;
                                 if let Some(domain) = amplitude.domain() {
                                     e.u8(1)?;

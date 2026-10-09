@@ -18,7 +18,7 @@ def specimen():
     left = owner.boundary("left", parent=body)
     right = owner.boundary("right", parent=body)
     x = owner.coordinate("x", value_type=q.ValueType.real(LENGTH), on=body, factor=body, axis=0)
-    temperature = owner.field("temperature", on=body, role=q.FieldRole.Variable,
+    temperature = owner.field("temperature", spatial_regularity=q.SpatialRegularity.H1, on=body, role=q.FieldRole.Variable,
                               value_type=q.ValueType.real(TEMPERATURE))
     owner.relation("balance", q.lang.equation(-q.lang.div(q.lang.grad(temperature)),
                    q.lang.quantity(0, q.units.K/q.units.m**2)), on=body)

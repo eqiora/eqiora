@@ -72,7 +72,7 @@ model native_poisson() {
   domain lower_end = boundary(interval, axis = 0, side = lower);
   domain upper_end = boundary(interval, axis = 0, side = upper);
 
-  variable potential: 1 on interval;
+  variable potential: 1 on interval in h1;
   parameter source_scale: 1 / m ^ 2 = 1;
   relation balance on interval {
     -div(grad(potential)) - source_scale = 0;
@@ -222,7 +222,7 @@ def test_native_declarations_share_the_canonical_compile_and_run_path() -> None:
     )
 
     model = eqiora.compile(source=eqiora.Module("decay", state, rate, flow, eqiora.Initial((state, 1.0))))
-    assert json.loads(model.to_bytes())["schema"] == "eqiora.model-envelope/v43"
+    assert json.loads(model.to_bytes())["schema"] == "eqiora.model-envelope/v44"
     field = model.field(model.field_ids[0])
     plan = eqiora.resolve(
         model,
@@ -269,7 +269,7 @@ def test_source_and_native_models_share_only_structural_identity() -> None:
     assert source != native
     assert source.structural_fingerprint == native.structural_fingerprint
     assert source.structural_fingerprint.generation == (
-        "eqiora.structural-semantic-fingerprint/v38"
+        "eqiora.structural-semantic-fingerprint/v39"
     )
     assert len(source.structural_fingerprint.digest) == 64
     assert source.structurally_equivalent(native)
@@ -304,7 +304,7 @@ def test_native_spatial_model_reuses_shared_support_and_operator_semantics() -> 
         "potential",
         role=eqiora.FieldRole.Variable,
         domain=interval,
-
+        spatial_regularity=eqiora.SpatialRegularity.H1,
     )
     source_scale = eqiora.Parameter(
         "source_scale",

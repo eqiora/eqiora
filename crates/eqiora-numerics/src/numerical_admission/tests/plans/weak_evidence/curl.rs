@@ -40,7 +40,7 @@ fn check_planar_curl_pairing(strong_operator: &str, complex: bool) {
     let source = r#"public component Poisson(
         support body:volume(ambient_dimension=2), support surface:complete_exterior(parent=body)
     ) {
-        variable u:1 on body;
+        variable u:1 on body in h1;
         relation law on body { -div(grad(u))=1[1/m^2]; }
         relation fixed[face in surface] on face { trace(u)=0; }
         form weak for law {

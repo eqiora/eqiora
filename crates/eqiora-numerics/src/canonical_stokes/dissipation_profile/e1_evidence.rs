@@ -355,10 +355,10 @@ fn e1_scaffold_source(sealed: &SealedE1Input) -> Result<String, Diagnostic> {
   domain outer_y_minus = boundary(fluid, axis = 1, side = lower);
   domain outer_y_plus = boundary(fluid, axis = 1, side = upper);
 
-  variable velocity: vector<m / s, 2> on fluid;
+  variable velocity: vector<m / s, 2> on fluid in h1;
   variable pressure: kg / (m * s ^ 2) on fluid;
   variable force_potential: kg / (m * s ^ 2) on fluid;
-  variable chi: m ^ 2 / s on fluid;
+  variable chi: m ^ 2 / s on fluid in smooth;
   parameter mu: kg / (m * s) = {viscosity:?};
   parameter speed: m / s = {speed:?};
   parameter zero_pressure: kg / (m * s ^ 2) = 0;

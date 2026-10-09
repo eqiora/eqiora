@@ -20,6 +20,7 @@ pub(crate) mod signal_connections;
 mod snapshot_admission;
 use relation_admission::validate_relations;
 mod spatial_domains;
+mod spatial_regularity;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -252,6 +253,10 @@ impl KernelProgram {
                 .map(|error| typed_residual_diagnostic(owner, error))
                 .collect()
         })
+        .and_then(|typed| {
+            spatial_regularity::validate_traces(&typed, owner, &self.nodes)?;
+            Ok(typed)
+        })
     }
 
     pub(crate) fn type_boundary_junction_residual(
@@ -283,6 +288,10 @@ impl KernelProgram {
                 .into_iter()
                 .map(|error| typed_residual_diagnostic(connection.erase(), error))
                 .collect()
+        })
+        .and_then(|typed| {
+            spatial_regularity::validate_traces(&typed, connection.erase(), &self.nodes)?;
+            Ok(typed)
         })
     }
 }
@@ -794,6 +803,11 @@ fn validate_expression(
         },
     ) {
         Ok(typed) => {
+            if let Err(errors) =
+                spatial_regularity::validate_traces(&typed, owner, environment.nodes)
+            {
+                diagnostics.extend(errors);
+            }
             if let Some(KernelNode::Relation(relation)) = environment.nodes.get(&owner) {
                 match relation.meaning() {
                     eqiora_schema::kernel::RelationMeaning::Conditions(_) => {

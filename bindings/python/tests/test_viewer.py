@@ -25,7 +25,7 @@ public component ViewerPoisson(
   parameter source_scale: 1 / m ^ 2
 ) {
 
-  variable potential: 1 on square;
+  variable potential: 1 on square in h1;
   relation balance on square {
     -div(diffusion * grad(potential)) - source_scale = 0;
   }
@@ -48,7 +48,7 @@ public component ViewerElasticity(
   parameter length_scale: m
 ) {
 
-  variable displacement: vector<m, 2> on square;
+  variable displacement: vector<m, 2> on square in smooth;
   variable load_potential: kg / (m * s ^ 2) on square;
   relation load on square {
     load_potential - 2 * stiffness * coordinate(0) / length_scale = 0;

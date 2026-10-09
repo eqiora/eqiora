@@ -13,7 +13,7 @@ def wave_module(owner_kind):
     left, right = (owner.boundary(name, parent=body) for name in ("left", "right"))
     force = owner.input("force", value_type=eqiora.ValueType.real(eqiora.Dimension(time=-2)))
     boundary = owner.input("boundary_value", value_type=eqiora.ValueType.real())
-    u = owner.field("u", value_type=eqiora.ValueType.real(), role=eqiora.FieldRole.State, on=body)
+    u = owner.field("u", spatial_regularity=eqiora.SpatialRegularity.Smooth, value_type=eqiora.ValueType.real(), role=eqiora.FieldRole.State, on=body)
     owner.initial((u, 0), (q.derivative(u), q.quantity(0, units.s**-1)))
     flux = q.quantity(1, units.m**2 / units.s**2) * q.grad(u)
     balance = owner.relation("balance", q.equation(

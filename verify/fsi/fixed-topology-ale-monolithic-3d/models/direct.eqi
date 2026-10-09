@@ -23,8 +23,8 @@ public component ZeroVelocity3d(
 public component NewtonianMechanicalInterface3d(
   support body: volume(ambient_dimension = 3),
   support exterior: complete_exterior(parent = body),
-  variable velocity: vector<m / s, 3> on body,
-  variable pressure: kg / (m * s ^ 2) on body,
+  variable velocity: vector<m / s, 3> on body in smooth,
+  variable pressure: kg / (m * s ^ 2) on body in h1,
   parameter dynamic_viscosity: kg / (m * s),
   port mechanical[boundary in exterior]: VelocityTractionBoundary over boundary
 ) {
@@ -41,8 +41,8 @@ public component NewtonianMechanicalInterface3d(
 public component ElastodynamicMechanicalInterface3d(
   support body: volume(ambient_dimension = 3),
   support exterior: complete_exterior(parent = body),
-  variable displacement: vector<m, 3> on body,
-  variable velocity: vector<m / s, 3> on body,
+  variable displacement: vector<m, 3> on body in smooth,
+  variable velocity: vector<m / s, 3> on body in h1,
   parameter mu: kg / (m * s ^ 2),
   parameter lambda: kg / (m * s ^ 2),
   port mechanical[boundary in exterior]: VelocityTractionBoundary over boundary
@@ -74,8 +74,8 @@ model Main() {
   domain solid_z_lower = boundary(solid, axis = 2, side = lower);
   domain solid_z_upper = boundary(solid, axis = 2, side = upper);
 
-  state fluid_velocity: vector<m / s, 3> on fluid;
-  variable fluid_pressure: kg / (m * s ^ 2) on fluid;
+  state fluid_velocity: vector<m / s, 3> on fluid in smooth;
+  variable fluid_pressure: kg / (m * s ^ 2) on fluid in h1;
   variable fluid_load_potential: kg / (m * s ^ 2) on fluid;
   parameter fluid_density: kg / m ^ 3 = 1;
   parameter fluid_viscosity: kg / (m * s) = 0.2;
@@ -96,8 +96,8 @@ model Main() {
     div(fluid_velocity) = 0;
   }
 
-  state solid_displacement: vector<m, 3> on solid;
-  state solid_velocity: vector<m / s, 3> on solid;
+  state solid_displacement: vector<m, 3> on solid in smooth;
+  state solid_velocity: vector<m / s, 3> on solid in h1;
   variable solid_load_potential: kg / (m * s ^ 2) on solid;
   parameter solid_density: kg / m ^ 3 = 1;
   parameter solid_mu: kg / (m * s ^ 2) = 2;

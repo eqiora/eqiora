@@ -222,7 +222,7 @@ model potential_probe() {
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
 
-  variable probe: m ^ 3 on body;
+  variable probe: m ^ 3 on body in h1;
   relation balance on body {
 -div(grad(probe)) - (coordinate(0) + 2 * coordinate(1)) = 0;
   }

@@ -165,8 +165,8 @@ fn source_interface_reaches_model_admission_and_replay() {
         domain a=boundary(left,axis=0,side=upper);
         domain b=boundary(right,axis=0,side=lower);
         domain contact=interface(a,b);
-        variable u:1 on left;
-        variable v:1 on right;
+        variable u:1 on left in h1;
+        variable v:1 on right in h1;
         relation law on contact { trace(u,on=contact,from=left)-trace(v,on=contact,from=right)=0; }
     }"#;
     let admit = |source: &str| {

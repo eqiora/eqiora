@@ -10,8 +10,8 @@ public connector ScalarTransportBoundary {
 public component PeriodicTransportSide2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  variable concentration: K on body,
-  variable flow_potential: m ^ 2 / s on body,
+  variable concentration: K on body in smooth,
+  variable flow_potential: m ^ 2 / s on body in smooth,
   parameter diffusivity: m ^ 2 / s,
   port transport: ScalarTransportBoundary over face
 ) {
@@ -30,9 +30,9 @@ model Main() {
   domain x_upper = boundary(body, axis = 0, side = upper);
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
-  state concentration: K on body;
+  state concentration: K on body in smooth;
   initial { concentration = 0; }
-  variable flow_potential: m ^ 2 / s on body;
+  variable flow_potential: m ^ 2 / s on body in smooth;
   parameter speed: m / s = 1;
   parameter diffusivity: m ^ 2 / s = 0.2;
   parameter inflow_concentration: K = 1;

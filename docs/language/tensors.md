@@ -223,9 +223,44 @@ flux-balance equation. Normal and tangential traces on `contact` use its common 
 so reversing the boundary order reverses their orientation.
 
 This currently covers source/Kernel authoring, type checking and Model replay for
-Cartesian interfaces. Interface numerical evaluation, interface weak-form integration,
-and general Field regularity admission remain unfinished. Python interface declaration
-helpers are not yet provided.
+Cartesian interfaces. Interface numerical evaluation and interface weak-form integration
+remain unfinished. Python interface declaration helpers are not yet provided.
+
+### Field regularity at a boundary
+
+A spatial Field declares its continuum regularity on its own physical volume:
+
+```eqiora
+variable temperature: K on body in h1;
+variable flux: vector<W / m^2, 3> on body in hdiv;
+```
+
+The available declarations are `l2`, `h1`, `hcurl`, `hdiv`, and `smooth`.
+Omitting the declaration leaves regularity unspecified; neither unspecified nor L2
+Fields admit a boundary trace. H1 admits a full trace, H(div) a normal trace, and
+H(curl) an oriented tangential trace. H(curl) requires a Cartesian vector in two or
+three dimensions. H(div) admits Cartesian tensors with rowwise divergence and
+normal contraction on the last spatial axis, without outer array axes.
+
+These are authored hypotheses, not proofs about a solution or its numerical basis.
+Each Field owns its assertion independently, including on opposite sides of an
+interface. No assertion implies continuity between regions. Component Field slots
+can require a profile; forwarding a Field retains the caller's actual profile.
+Native and Python Fields use `SpatialRegularity` through `with_spatial_regularity`
+and the `spatial_regularity` keyword, respectively.
+
+The bounded expression checker preserves linear combinations and smooth scalar
+multipliers. Tracing spatial derivatives currently requires `smooth`, meaning
+smoothness up to the exact support boundary. This is a deliberately strong classical
+hypothesis: H1 alone does not authorize a boundary value of its gradient. A numerical
+element choice cannot supply the missing hypothesis, and a Field assertion does not
+automatically apply to its time derivative.
+
+Weak normal and tangential traces retain their weak boundary character. Linear
+operations and smooth scalar multiplication are admitted; products of weak traces,
+nonlinear component maps, and other unsupported distribution operations reject.
+Full weak-form trial-space admission remains a separate boundary from these Model
+expression checks.
 
 Authored weak forms retain `curl`, `cross`, `normal`, and `tangential_trace` as typed
 operators. Trace, normal and tangential trace accept the same exact `on`/`from`

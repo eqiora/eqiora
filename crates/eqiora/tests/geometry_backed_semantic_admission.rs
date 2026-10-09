@@ -295,17 +295,20 @@ fn boundary_relation_model(
             DomainDef::geometry_boundary(ids.boundary, boundary_set).expect("geometry boundary"),
         ),
         KernelNode::from(RepresentationDef::continuum(ids.representation)),
-        KernelNode::from(FieldDef::new(
-            ids.field,
-            eqiora_core::ValueType::shaped(
-                eqiora_core::ScalarDomain::Real,
-                DimExponents::DIMENSIONLESS,
-                ValueShape::new([2]).expect("two-component vector"),
-                ValueFrame::SpatialCartesian,
+        KernelNode::from(
+            FieldDef::new(
+                ids.field,
+                eqiora_core::ValueType::shaped(
+                    eqiora_core::ScalarDomain::Real,
+                    DimExponents::DIMENSIONLESS,
+                    ValueShape::new([2]).expect("two-component vector"),
+                    ValueFrame::SpatialCartesian,
+                )
+                .expect("spatial Field"),
+                eqiora::kernel::FieldRole::Variable,
             )
-            .expect("spatial Field"),
-            eqiora::kernel::FieldRole::Variable,
-        )),
+            .with_spatial_regularity(eqiora::kernel::SpatialRegularity::H1),
+        ),
         KernelNode::from(
             RelationDef::new(
                 ids.relation,

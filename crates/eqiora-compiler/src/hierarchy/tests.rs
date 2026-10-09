@@ -142,7 +142,7 @@ public component BoundaryLaw(support body: volume(ambient_dimension = 2), suppor
 
 
 
-  variable state: 1 on body; initial { state = 0; }
+  variable state: 1 on body in h1; initial { state = 0; }
   relation volume_law on body { state - value = 0; }
   relation wall_law on wall { trace(state) = 0; }
 }

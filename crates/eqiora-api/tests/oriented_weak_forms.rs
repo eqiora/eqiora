@@ -53,7 +53,7 @@ fn single_vector_authoring_does_not_authenticate_an_incomplete_mixed_system() {
         support surface:complete_exterior(parent=body),
         parameter mu:kg/m/s, parameter load:kg/m/s^2, parameter length:m
     ) {
-        variable u:vector<m/s,2> on body;
+        variable u:vector<m/s,2> on body in h1;
         variable p:kg/m/s^2 on body;
         variable F:kg/m/s^2 on body;
         relation force on body { F-load*coordinate(0)/length=0; }

@@ -79,7 +79,7 @@ impl Scope {
                         if let Some(value) = self.value_activation(name) {
                             return Some(value);
                         }
-                        if let Some((_, activation)) = self.field_evolution.get(name) {
+                        if let Some((_, activation, _)) = self.field_metadata.get(name) {
                             return Some(declared(activation));
                         }
                         self.symbol(name)

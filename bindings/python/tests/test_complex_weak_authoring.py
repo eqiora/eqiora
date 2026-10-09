@@ -58,7 +58,7 @@ def test_spatial_weak_authoring_includes_complex_boundary_load(tmp_path, owner):
     f = component.parameter("f", value_type=scalar)
     slope = component.parameter("s", value_type=eqiora.ValueType.complex(eqiora.Dimension(length=-1)))
     flux = component.parameter("g", value_type=eqiora.ValueType.complex(eqiora.Dimension(length=1)))
-    u = component.field("u", value_type=scalar, role=eqiora.FieldRole.Variable, on=body)
+    u = component.field("u", spatial_regularity=eqiora.SpatialRegularity.Smooth, value_type=scalar, role=eqiora.FieldRole.Variable, on=body)
     balance = component.relation("balance", q.equation(-q.div(a*q.grad(u))+reaction*u, f+slope*q.coordinate(0)), on=body)
     component.relation("fixed", q.equation(q.trace(u), 1+3j), on=left)
     component.relation("natural", q.equation(q.normal(a*q.grad(u)), flux), on=right)

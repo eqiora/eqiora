@@ -5,7 +5,7 @@ model Main() {
   domain y_lower = boundary(square, axis = 1, side = lower);
   domain y_upper = boundary(square, axis = 1, side = upper);
 
-  variable potential: 1 on square;
+  variable potential: 1 on square in h1;
   parameter wave_number: 1 / m = 3.141592653589793;
   parameter source_scale: 1 / m ^ 2 = 19.739208802178716;
 

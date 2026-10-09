@@ -9,7 +9,7 @@ model ScalarBalance() {
   domain lower_face = boundary(body, axis = 0, side = lower);
   domain upper_face = boundary(body, axis = 0, side = upper);
 
-  state state: 1 on body;
+  state state: 1 on body in smooth;
   parameter capacity: s / m ^ 2 = 2;
   parameter conductivity: 1 = 3;
   parameter source_density: 1 / m ^ 2 = 0.5;
@@ -45,7 +45,7 @@ public connector ScalarBoundary {
 public component ScalarInterface1d(
   support body: volume(ambient_dimension = 1),
   support face: boundary(parent = body),
-  variable state: 1 on body,
+  variable state: 1 on body in smooth,
   parameter coefficient: 1,
   port interface: ScalarBoundary over face
 ) {
@@ -64,8 +64,8 @@ model CompositeBalance() {
   domain right_lower = boundary(right, axis = 0, side = lower);
   domain right_upper = boundary(right, axis = 0, side = upper);
 
-  variable left_state: 1 on left;
-  variable right_state: 1 on right;
+  variable left_state: 1 on left in smooth;
+  variable right_state: 1 on right in smooth;
   parameter left_coefficient: 1 = 2;
   parameter right_coefficient: 1 = 7;
 
@@ -435,7 +435,7 @@ fn cartesian_regions(dimensions: &[usize]) -> String {
             }
         }
         source.push_str(&format!(
-            "  variable state_{region}: 1 on body_{region};\n  relation balance_{region} on body_{region} {{ -div(coefficient * grad(state_{region})) = 0; }}\n"
+            "  variable state_{region}: 1 on body_{region} in h1;\n  relation balance_{region} on body_{region} {{ -div(coefficient * grad(state_{region})) = 0; }}\n"
         ));
         for axis in 0..dimensions {
             for side in ["lower", "upper"] {

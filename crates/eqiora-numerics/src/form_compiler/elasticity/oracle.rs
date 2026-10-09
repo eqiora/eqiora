@@ -567,10 +567,10 @@ fn derivation_rejects_ambiguous_incomplete_foreign_and_mixed_roles() {
     assert_derivation_rejects(&duplicated_coefficient, "duplicated Lamé coefficient role");
 
     let duplicate_unknown = SOURCE.replace(
-        "variable displacement: vector<m, 2> on body;",
+        "variable displacement: vector<m, 2> on body in h1;",
         concat!(
-            "variable displacement: vector<m, 2> on body;\n",
-            "  variable foreign_displacement: vector<m, 2> on body;",
+            "variable displacement: vector<m, 2> on body in h1;\n",
+            "  variable foreign_displacement: vector<m, 2> on body in h1;",
         ),
     );
     assert_derivation_rejects(&duplicate_unknown, "duplicate displacement role");
@@ -612,15 +612,20 @@ fn derivation_rejects_ambiguous_incomplete_foreign_and_mixed_roles() {
     );
     assert_derivation_rejects(&duplicate_boundary, "ambiguous boundary role");
 
-    let mixed_boundary = SOURCE.replace(
-        "relation x_upper_value on x_upper { trace(displacement) = 0; }",
-        concat!(
-            "relation x_upper_value on x_upper {\n",
-            "    normal(2 * mu * symmetric_part(grad(displacement))\n",
-            "      + lambda * isotropic_lift(div(displacement))) = 0;\n",
-            "  }",
-        ),
-    );
+    let mixed_boundary = SOURCE
+        .replace(
+            "variable displacement: vector<m, 2> on body in h1;",
+            "variable displacement: vector<m, 2> on body in smooth;",
+        )
+        .replace(
+            "relation x_upper_value on x_upper { trace(displacement) = 0; }",
+            concat!(
+                "relation x_upper_value on x_upper {\n",
+                "    normal(2 * mu * symmetric_part(grad(displacement))\n",
+                "      + lambda * isotropic_lift(div(displacement))) = 0;\n",
+                "  }",
+            ),
+        );
     assert_derivation_rejects(&mixed_boundary, "mixed boundary role");
 
     let mut oversized_terms = vec!["0 * (pressure_gradient * coordinate(0))"; 4_097];

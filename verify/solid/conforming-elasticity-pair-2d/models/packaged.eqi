@@ -10,9 +10,9 @@ model Main() {
   domain right_y_lower = boundary(right, axis = 1, side = lower);
   domain right_y_upper = boundary(right, axis = 1, side = upper);
 
-  variable left_displacement: vector<m, 2> on left;
+  variable left_displacement: vector<m, 2> on left in smooth;
   variable left_load_potential: kg / (m * s ^ 2) on left;
-  variable right_displacement: vector<m, 2> on right;
+  variable right_displacement: vector<m, 2> on right in smooth;
   variable right_load_potential: kg / (m * s ^ 2) on right;
   parameter mu_left: kg / (m * s ^ 2) = 3;
   parameter mu_right: kg / (m * s ^ 2) = 6;

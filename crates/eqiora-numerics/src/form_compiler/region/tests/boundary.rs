@@ -91,7 +91,7 @@ fn eliminated_state_trace_keeps_original_state_and_tested_rate() {
 #[test]
 fn vector_potential_trace_and_normal_lift_retain_mathematical_data() {
     let potential = "domain wall = boundary(body,axis=0,side=lower);
-        variable phi: m^2/s on body;
+        variable phi: m^2/s on body in smooth;
         parameter a: 1/s = 3;
         parameter b: 1/s = 5;
         relation potential on body { phi = a*coordinate(0)^2 + b*coordinate(1)^2; }
@@ -106,7 +106,7 @@ fn vector_potential_trace_and_normal_lift_retain_mathematical_data() {
     );
     let normal = "domain wall = boundary(body,axis=0,side=lower);
         parameter p0: kg/(m*s^2) = 3;
-        variable pressure_data: kg/(m*s^2) on body;
+        variable pressure_data: kg/(m*s^2) on body in h1;
         relation data on body { pressure_data = p0; }
         relation law on wall { normal(2*viscosity*symmetric_part(grad(v))-isotropic_lift(p)) = normal(isotropic_lift(pressure_data)); }";
     let (program, form, ids) = boundary_fixture(MIXED, normal);
@@ -128,8 +128,8 @@ fn vector_potential_trace_and_normal_lift_retain_mathematical_data() {
 #[test]
 fn one_dimensional_vector_keeps_its_gradient_datum_shape() {
     let source = "model One() { domain body = box(0, 1);
-        variable v: vector<m, 1> on body;
-        variable phi: m^2 on body;
+        variable v: vector<m, 1> on body in h1;
+        variable phi: m^2 on body in smooth;
         relation potential on body { phi = coordinate(0)^2; }
         relation balance on body { -div(grad(v)) = 0; }
     }";
@@ -163,7 +163,7 @@ fn additive_normal_data_keeps_relative_sign_under_whole_equation_reversal() {
         let addition = format!(
             "domain wall = boundary(body,axis=0,side=lower);
             parameter p0: kg/(m*s^2) = 3;
-            variable pressure_data: kg/(m*s^2) on body;
+            variable pressure_data: kg/(m*s^2) on body in h1;
             relation data on body {{ pressure_data = p0; }}
             relation law on wall {{ {equation} = 0; }}"
         );

@@ -256,6 +256,7 @@ model M @{\mathcal{M}}() {
         "renamed_estimate",
         field.domain().map(str::to_owned),
         field.role(),
+        field.spatial_regularity(),
         field.activation().clone(),
         field.value_type().clone(),
         field.range(),

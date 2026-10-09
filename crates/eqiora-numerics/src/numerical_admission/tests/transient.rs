@@ -311,7 +311,10 @@ pub(super) fn transient_common_plan_resolves_exact_mini_and_supplied_cartesian_r
     }
     // Replacing one essential boundary with zero traction removes the pressure
     // nullspace mathematically; the solver profile must lose exactly that gauge.
-    let source = TRANSIENT_SOURCE.replace(
+    let source = TRANSIENT_SOURCE
+        .replace("state velocity: vector<m / s, 2> on body in h1;", "state velocity: vector<m / s, 2> on body in smooth;")
+        .replace("variable pressure: kg / (m * s ^ 2) on body;", "variable pressure: kg / (m * s ^ 2) on body in h1;")
+        .replace(
         "relation y_upper_value on y_upper { trace(velocity) = 0; }",
         "relation y_upper_value on y_upper { normal(2 * dynamic_viscosity * symmetric_part(grad(velocity)) - isotropic_lift(pressure)) = 0; }",
     );

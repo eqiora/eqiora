@@ -22,8 +22,8 @@ public connector VelocityTractionBoundary {
 public component NewtonianInterface2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  variable velocity: vector<m / s, 2> on body,
-  variable pressure: kg / (m * s ^ 2) on body,
+  variable velocity: vector<m / s, 2> on body in smooth,
+  variable pressure: kg / (m * s ^ 2) on body in h1,
   parameter dynamic_viscosity: kg / (m * s),
   port mechanical: VelocityTractionBoundary over face
 ) {
@@ -40,8 +40,8 @@ public component NewtonianInterface2d(
 public component ElasticInterface2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  variable displacement: vector<m, 2> on body,
-  variable velocity: vector<m / s, 2> on body,
+  variable displacement: vector<m, 2> on body in smooth,
+  variable velocity: vector<m / s, 2> on body in h1,
   parameter mu: kg / (m * s ^ 2),
   parameter lambda: kg / (m * s ^ 2),
   port mechanical: VelocityTractionBoundary over face
@@ -69,11 +69,11 @@ model Main() {
   domain solid_y_upper = boundary(solid, axis = 1, side = upper);
 
 
-  state fluid_velocity: vector<m / s, 2> on fluid;
-  variable pressure: kg / (m * s ^ 2) on fluid;
+  state fluid_velocity: vector<m / s, 2> on fluid in smooth;
+  variable pressure: kg / (m * s ^ 2) on fluid in h1;
   variable fluid_load: kg / (m * s ^ 2) on fluid;
-  state displacement: vector<m, 2> on solid;
-  state solid_velocity: vector<m / s, 2> on solid;
+  state displacement: vector<m, 2> on solid in smooth;
+  state solid_velocity: vector<m / s, 2> on solid in h1;
   variable solid_load: kg / (m * s ^ 2) on solid;
 
   parameter fluid_density: kg / m ^ 3 = 2;

@@ -18,7 +18,7 @@ public component BoundaryState(
   support interface: boundary(parent = body),
 ) {
 
-  variable state: 1 on body;
+  variable state: 1 on body in h1;
   relation volume_law on body { state = 0; }
   relation interface_law on interface { trace(state) = 0; }
 }
@@ -212,7 +212,7 @@ component BoundaryState(
   support interface: boundary(parent = body),
 ) {
 
-  variable state: 1 on body;
+  variable state: 1 on body in h1;
   relation law on interface { trace(state) = 0; }
 }
 "#;

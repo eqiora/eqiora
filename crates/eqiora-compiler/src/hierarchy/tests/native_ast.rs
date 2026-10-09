@@ -42,6 +42,7 @@ fn source_and_factory_admit_boundary_field_support() {
                     field.name(),
                     field.domain().map(str::to_owned),
                     field.role(),
+                    field.spatial_regularity(),
                     field.activation().clone(),
                     field.value_type().clone(),
                     field.range(),

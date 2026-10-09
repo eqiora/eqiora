@@ -420,8 +420,26 @@ fn format_unknown_head(declaration: &FieldDecl, output: &mut crate::formatter::c
     if let Some(domain) = &declaration.domain {
         write!(output, " on {domain}").expect("String write");
     }
+    format_spatial_regularity(declaration.spatial_regularity(), output);
     if let crate::ast::ActivationSyntax::Named(clock) = &declaration.activation {
         write!(output, " at {clock}").expect("String write");
+    }
+}
+
+fn format_spatial_regularity(
+    regularity: eqiora_schema::kernel::SpatialRegularity,
+    output: &mut crate::formatter::comments::Output,
+) {
+    let regularity = match regularity {
+        eqiora_schema::kernel::SpatialRegularity::Unspecified => None,
+        eqiora_schema::kernel::SpatialRegularity::L2 => Some("l2"),
+        eqiora_schema::kernel::SpatialRegularity::H1 => Some("h1"),
+        eqiora_schema::kernel::SpatialRegularity::HCurl => Some("hcurl"),
+        eqiora_schema::kernel::SpatialRegularity::HDiv => Some("hdiv"),
+        eqiora_schema::kernel::SpatialRegularity::Smooth => Some("smooth"),
+    };
+    if let Some(regularity) = regularity {
+        write!(output, " in {regularity}").expect("String write");
     }
 }
 

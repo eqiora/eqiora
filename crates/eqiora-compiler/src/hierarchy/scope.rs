@@ -157,7 +157,14 @@ pub(super) struct Scope {
     boundary_sets: BTreeMap<String, ResolvedBoundarySet<FullElaborationIdentity>>,
     children: BTreeMap<String, InstanceInterface>,
     spatial_supports: BTreeMap<String, SpatialSupport<FullElaborationIdentity>>,
-    pub(super) field_evolution: BTreeMap<String, (eqiora_lang::FieldRoleSyntax, ActivationSyntax)>,
+    pub(super) field_metadata: BTreeMap<
+        String,
+        (
+            eqiora_lang::FieldRoleSyntax,
+            ActivationSyntax,
+            eqiora_schema::kernel::SpatialRegularity,
+        ),
+    >,
     field_types: BTreeMap<String, ExpressionType<FullElaborationIdentity>>,
     values: BTreeMap<String, lets::ScopedValue>,
     pure_operators: BTreeMap<String, (PureOperatorDefinition, Vec<String>)>,

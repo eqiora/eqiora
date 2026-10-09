@@ -5,8 +5,8 @@ model Main() {
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
 
-  state displacement: vector<m, 2> on body;
-  state velocity: vector<m / s, 2> on body;
+  state displacement: vector<m, 2> on body in smooth;
+  state velocity: vector<m / s, 2> on body in h1;
   variable load_potential: kg / (m * s ^ 2) on body;
   parameter load_gradient: kg / (m ^ 2 * s ^ 2) = 2;
   parameter load_origin: m = 1;

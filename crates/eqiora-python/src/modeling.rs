@@ -12,6 +12,8 @@ mod indexing;
 mod nominal;
 mod observable;
 mod predicates;
+mod regularity;
+pub(crate) use regularity::PySpatialRegularity;
 pub(crate) mod value_literal;
 mod value_type;
 pub(crate) use value_type::PyValueType;
@@ -223,12 +225,13 @@ pub(crate) struct PyField {
 #[pymethods]
 impl PyField {
     #[new]
-    #[pyo3(signature = (name, *, role, domain=None, value_type=None))]
+    #[pyo3(signature = (name, *, role, domain=None, value_type=None, spatial_regularity=PySpatialRegularity::Unspecified))]
     fn new(
         name: String,
         role: PyFieldRole,
         domain: Option<&PyDomain>,
         value_type: Option<&PyValueType>,
+        spatial_regularity: PySpatialRegularity,
     ) -> Self {
         let value_type = value_type.map_or_else(
             || {
@@ -241,7 +244,14 @@ impl PyField {
             None => DraftField::new(name, value_type, role.into()),
             Some(domain) => DraftField::spatial(name, &domain.value, value_type, role.into()),
         };
-        Self { value }
+        Self {
+            value: value.with_spatial_regularity(spatial_regularity.into()),
+        }
+    }
+
+    #[getter]
+    fn spatial_regularity(&self) -> PySpatialRegularity {
+        self.value.spatial_regularity().into()
     }
 
     #[getter]
@@ -870,6 +880,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyBoundarySide>()?;
     module.add_class::<PyDomain>()?;
     module.add_class::<PyFieldRole>()?;
+    module.add_class::<PySpatialRegularity>()?;
     module.add_class::<PyInitial>()?;
     module.add_class::<PyField>()?;
     module.add_class::<PyParameter>()?;

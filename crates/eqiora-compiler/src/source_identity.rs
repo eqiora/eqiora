@@ -63,7 +63,7 @@ use property::{encode_material_composition, encode_property_contract, encode_pro
 use visibility::encode_visibility;
 
 const MAGIC: &[u8; 8] = b"EQIORASU";
-const CANONICAL_VERSION: u16 = 32;
+const CANONICAL_VERSION: u16 = 33;
 const COMPONENT_CONNECTION_ITEM_TAG: u16 = 6;
 const MODEL_CONNECTION_ITEM_TAG: u16 = 8;
 const COMPONENT_PORT_FAMILY_ITEM_TAG: u16 = 11;
@@ -556,7 +556,24 @@ fn encode_field(
     encoder.field(5, |encoder| {
         encode_activation(encoder, declaration.activation(), budget)
     })?;
+    encoder.field(6, |encoder| {
+        encode_spatial_regularity(encoder, declaration.spatial_regularity())
+    })?;
     Ok(())
+}
+
+fn encode_spatial_regularity(
+    encoder: &mut Encoder,
+    regularity: eqiora_schema::kernel::SpatialRegularity,
+) -> Result<(), Diagnostic> {
+    encoder.u8(match regularity {
+        eqiora_schema::kernel::SpatialRegularity::Unspecified => 0,
+        eqiora_schema::kernel::SpatialRegularity::L2 => 1,
+        eqiora_schema::kernel::SpatialRegularity::H1 => 2,
+        eqiora_schema::kernel::SpatialRegularity::HCurl => 3,
+        eqiora_schema::kernel::SpatialRegularity::HDiv => 4,
+        eqiora_schema::kernel::SpatialRegularity::Smooth => 5,
+    })
 }
 
 fn encode_port(

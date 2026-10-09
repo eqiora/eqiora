@@ -151,6 +151,7 @@ impl super::ModelDeclarations {
                         .as_ref()
                         .map(|scope| scope.domain.name().to_owned()),
                     role: field.role,
+                    spatial_regularity: field.spatial_regularity,
                     activation: ActivationSyntax::Continuous,
                     value_type: value_type::project(
                         &field.value_type,

@@ -9,7 +9,7 @@ public component HeatedBody(
   parameter conductivity: W / (m * K),
   parameter heating: W / m^3
 ) {
-  variable temperature: K on body;
+  variable temperature: K on body in h1;
   relation prescribed_x_lower on x_lower { trace(temperature) = 300[K]; }
   relation prescribed_x_upper on x_upper { trace(temperature) = 300[K]; }
   relation prescribed_y_lower on y_lower { trace(temperature) = 300[K]; }
@@ -37,7 +37,7 @@ public component TransientHeatedBody(
   parameter heating: W / m^3,
   parameter capacity: J / (m^3 * K)
 ) {
-  state temperature: K on body;
+  state temperature: K on body in h1;
   initial { temperature = 300[K]; }
   relation prescribed_x_lower on x_lower { trace(temperature) = 300[K]; }
   relation prescribed_x_upper on x_upper { trace(temperature) = 300[K]; }

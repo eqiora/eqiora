@@ -162,6 +162,7 @@ impl RootExpansion<'_, '_> {
                 representation,
                 value_type: syntax.clone(),
                 role: declaration.role(),
+                spatial_regularity: declaration.spatial_regularity(),
                 activation: activation.clone(),
                 range: declaration.range(),
                 identity,

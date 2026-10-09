@@ -86,7 +86,7 @@ def test_component_relation_before_law_preserves_both_authoring_paths():
     component = module.component("Balance")
     body = component.volume("body", dimensions=1)
     boundary = component.boundary("left", parent=body)
-    value = component.field("value", on=body, role=eqiora.FieldRole.Variable,
+    value = component.field("value", spatial_regularity=eqiora.SpatialRegularity.H1, on=body, role=eqiora.FieldRole.Variable,
                             value_type=eqiora.ValueType.real())
     component.relation("trace", q.equation(q.trace(value), 0), on=boundary)
     component.law("balance", on=body, flux=-q.grad(value), source=0)
@@ -105,7 +105,7 @@ def test_steady_law_model_replay_executes_with_exact_geometry_admission():
     body = component.volume("body", dimensions=1)
     left = component.boundary("left", parent=body)
     right = component.boundary("right", parent=body)
-    value = component.field("u", on=body, role=eqiora.FieldRole.Variable,
+    value = component.field("u", spatial_regularity=eqiora.SpatialRegularity.H1, on=body, role=eqiora.FieldRole.Variable,
                             value_type=eqiora.ValueType.real())
     component.law("balance", on=body, flux=-2 * q.grad(value),
                   source=q.quantity(4, eqiora.units.one / eqiora.units.m**2))

@@ -49,7 +49,7 @@ fn source(reaction: &[Vec<f64>], reverse: bool) -> String {
         (0..count).collect()
     };
     for &i in &order {
-        source += &format!("variable f{i}: 1 on body;\n");
+        source += &format!("variable f{i}: 1 on body in h1;\n");
     }
     for &i in &order {
         source += &format!("relation row{i} on body {{ -div({} * grad(f{i}))", i + 2);

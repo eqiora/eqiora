@@ -81,6 +81,7 @@ fn explicit_complex_rhs_zero_keeps_its_type_in_the_equation_sides() {
                 domain: None,
                 representation: None,
                 value_type,
+                spatial_regularity: eqiora_schema::kernel::SpatialRegularity::Unspecified,
                 role: eqiora_lang::FieldRoleSyntax::Variable,
                 activation: eqiora_lang::ActivationSyntax::Continuous,
                 range,

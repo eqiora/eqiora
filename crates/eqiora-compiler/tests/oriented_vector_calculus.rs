@@ -7,7 +7,7 @@ fn curl_and_oriented_trace_retain_spatial_nodes_and_exact_component_definitions(
     let source = r#"model M() {
         domain body=box(0,1,0,1,0,1);
         domain face=boundary(body,axis=0,side=upper);
-        variable u:vector<m,3> on body;
+        variable u:vector<m,3> on body in h1;
         relation interior on body { curl(curl(u))=-div(grad(u)); }
         relation boundary_value on face { tangential_trace(u)=trace(u); }
     }"#;
@@ -47,7 +47,7 @@ fn planar_curl_reductions_are_selected_by_declared_shape_and_dimension() {
     let source = r#"model M() {
         domain body=box(0,1,0,1);
         domain face=boundary(body,axis=0,side=upper);
-        variable u:vector<m,2> on body;
+        variable u:vector<m,2> on body in hcurl;
         variable f:m on body;
         relation scalar_curl on body { curl(u)=1; }
         relation vector_curl on body { curl(f)=grad(f); }

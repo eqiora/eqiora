@@ -21,13 +21,18 @@ fn python_transient_solver_inventory_executes_nonzero_flow_and_replays() -> PyRe
         py.run(c_str!(r#"
 import numpy as np
 
+# The outlet traction traces derivatives of the classical velocity profile.
+source = source.replace("on body in h1;", "on body in smooth;")
+source = source.replace("variable pressure: kg / (m * s ^ 2) on body;",
+                        "variable pressure: kg / (m * s ^ 2) on body in h1;")
+
 # Import an ordinary authenticated affine-triangle Mesh artifact.
 mesh = eqiora.meshing.Mesh.from_bytes(mesh_bytes)
 # Reuse the registered transient equations with a nonzero inlet and zero
 # traction elsewhere. The independent oracle below is global incompressibility,
 # not an assumed stationary profile at an open convective boundary.
 source = source.replace("  relation force_definition", """
-  variable inlet_profile: m / s on body;
+  variable inlet_profile: m / s on body in h1;
   parameter inlet_speed: m / s = 1;
   relation inlet_definition on body { inlet_profile - inlet_speed = 0; }
   relation force_definition""")

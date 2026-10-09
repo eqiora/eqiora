@@ -10,6 +10,9 @@ use eqiora_schema::kernel::{
 };
 use serde::{Deserialize, Serialize};
 
+mod regularity;
+use regularity::WireSpatialRegularity;
+
 use crate::{ArtifactDigest, invalid_artifact};
 
 use super::relation::WireRelationMeaning;
@@ -62,6 +65,7 @@ impl WireNode {
             KernelNode::Field(value) => WireNodeDefinition::Field {
                 value_type: WireValueType::encode(value.value_type())?,
                 role: WireFieldRole::encode(value.role()),
+                spatial_regularity: WireSpatialRegularity::encode(value.spatial_regularity()),
             },
             KernelNode::Parameter(value) => WireNodeDefinition::Parameter {
                 value: WireValueLiteral::encode(value.value())?,
@@ -193,11 +197,16 @@ impl WireNode {
                 }
                 .into())
             }
-            WireNodeDefinition::Field { value_type, role } => Ok(FieldDef::new(
+            WireNodeDefinition::Field {
+                value_type,
+                role,
+                spatial_regularity,
+            } => Ok(FieldDef::new(
                 self.id.typed::<kinds::Field>()?,
                 value_type.decode()?,
                 role.decode(),
             )
+            .with_spatial_regularity(spatial_regularity.decode())
             .into()),
             WireNodeDefinition::Parameter { value } => {
                 Ok(ParameterDef::new(self.id.typed::<kinds::Parameter>()?, value.decode()?).into())
@@ -503,6 +512,7 @@ pub(crate) enum WireNodeDefinition {
     Field {
         value_type: WireValueType,
         role: WireFieldRole,
+        spatial_regularity: WireSpatialRegularity,
     },
     Parameter {
         value: WireValueLiteral,

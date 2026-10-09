@@ -166,7 +166,7 @@ model Balance() {
   domain body = box(0, 1);
   domain lower_face = boundary(body, axis = 0, side = lower);
   domain upper_face = boundary(body, axis = 0, side = upper);
-  variable u: 1 on body;
+  variable u: 1 on body in smooth;
   parameter k: 1 = 2;
   parameter q: 1 / m ^ 2 = 4;
   parameter outward: 1 / m = 2;

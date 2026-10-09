@@ -21,7 +21,7 @@ public component HeatedBody(
   support left: boundary(parent = body),
   support right: boundary(parent = body)
 ) {
-  variable temperature: K on body;
+  variable temperature: K on body in smooth;
   parameter capacity: J / (K * m) = 3;
   parameter conductivity: W * m / K = 2;
   relation balance on body { -div(grad(temperature)) = 12[K/m^2]; }

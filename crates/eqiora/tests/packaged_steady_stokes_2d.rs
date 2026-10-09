@@ -865,8 +865,8 @@ fn canonical_stokes_recognizer_rejects_semantic_near_misses() {
 
     let wrong_dimensions = DIRECT
         .replace(
-            "variable velocity: vector<m / s, 2> on body;",
-            "variable velocity: vector<1, 2> on body;",
+            "variable velocity: vector<m / s, 2> on body in h1;",
+            "variable velocity: vector<1, 2> on body in h1;",
         )
         .replace(
             "variable pressure: kg / (m * s ^ 2) on body;",

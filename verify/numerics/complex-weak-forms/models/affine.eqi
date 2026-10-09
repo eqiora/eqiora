@@ -8,7 +8,7 @@ public component Wave(
  parameter f:complex<1>=math.complex(-2,4);
  parameter s:complex<1/m>=math.complex(3[1/m],1[1/m]);
  parameter g:complex<m>=math.complex(18[m],6[m]);
- variable u:complex<1> on body;
+ variable u:complex<1> on body in smooth;
  relation balance on body {-div(a*grad(u))+q*u=f+s*coordinate(0);}
  relation fixed on left {trace(u)=math.complex(1,3);}
  relation flux on right {normal(a*grad(u))=g;}

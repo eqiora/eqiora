@@ -155,11 +155,12 @@ impl PyAstDeclaration {
         name: String,
         kind: &PyAstType,
         role: &str,
-        support: Option<String>,
+        spatial: (Option<String>, crate::modeling::PySpatialRegularity),
         clock: Option<String>,
         signature: &str,
         ordinal: u32,
     ) -> PyResult<Self> {
+        let (support, spatial_regularity) = spatial;
         let role = match role {
             "state" => FieldRoleSyntax::State,
             "variable" => FieldRoleSyntax::Variable,
@@ -169,6 +170,7 @@ impl PyAstDeclaration {
             name,
             support,
             role,
+            spatial_regularity.into(),
             activation(clock),
             kind.value.clone(),
             range(ordinal),

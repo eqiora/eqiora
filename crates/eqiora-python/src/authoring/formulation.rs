@@ -85,6 +85,7 @@ impl PyAstFormulation {
                     name,
                     support,
                     FieldRoleSyntax::Variable,
+                    eqiora::kernel::SpatialRegularity::Unspecified,
                     ActivationSyntax::Continuous,
                     kind.value.clone(),
                     TextRange::default(),

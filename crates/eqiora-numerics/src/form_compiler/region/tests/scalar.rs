@@ -153,7 +153,7 @@ fn scalar_q1_uses_the_same_value_and_gradient_contractions() {
 
         parameter reaction: 1 / m ^ 2 = 3;
         parameter load: 1 / m ^ 2 = 5;
-        variable u: 1 on body;
+        variable u: 1 on body in h1;
         relation balance on body { -div(2 * grad(u)) + reaction * u - load = 0; }
         relation bc0 on left { trace(u) = 0; }
         relation bc1 on right { trace(u) = 0; }

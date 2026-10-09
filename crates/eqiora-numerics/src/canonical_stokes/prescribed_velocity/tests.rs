@@ -56,10 +56,10 @@ model stokes_e1_prescribed_velocity() {
   domain outer_y_minus = boundary(fluid, axis = 1, side = lower);
   domain outer_y_plus = boundary(fluid, axis = 1, side = upper);
 
-  variable velocity: vector<m / s, 2> on fluid;
+  variable velocity: vector<m / s, 2> on fluid in h1;
   variable pressure: kg / (m * s ^ 2) on fluid;
   variable force_potential: kg / (m * s ^ 2) on fluid;
-  variable chi: m ^ 2 / s on fluid;
+  variable chi: m ^ 2 / s on fluid in smooth;
   parameter mu: kg / (m * s) = 1;
   parameter U: m / s = 1;
   parameter zero_pressure: kg / (m * s ^ 2) = 0;
@@ -458,8 +458,8 @@ fn finalize_profile_with_transport(
 fn normal_only_incomplete_and_equal_value_identity_mutants_fail_closed() {
     let normal_source = SOURCE
         .replace(
-            "  variable chi: m ^ 2 / s on fluid;",
-            "  variable chi: m ^ 2 / s on fluid;\n  variable normal_speed: m / s on fluid;",
+            "  variable chi: m ^ 2 / s on fluid in smooth;",
+            "  variable chi: m ^ 2 / s on fluid in smooth;\n  variable normal_speed: m / s on fluid in h1;",
         )
         .replace(
             "  relation define_chi on fluid { chi - U * coordinate(0) = 0; }",
@@ -482,8 +482,8 @@ fn normal_only_incomplete_and_equal_value_identity_mutants_fail_closed() {
 
     let drift_source = SOURCE
         .replace(
-            "  variable chi: m ^ 2 / s on fluid;",
-            "  variable chi: m ^ 2 / s on fluid;\n  variable chi_alt: m ^ 2 / s on fluid;",
+            "  variable chi: m ^ 2 / s on fluid in smooth;",
+            "  variable chi: m ^ 2 / s on fluid in smooth;\n  variable chi_alt: m ^ 2 / s on fluid in smooth;",
         )
         .replace(
             "  parameter U: m / s = 1;",

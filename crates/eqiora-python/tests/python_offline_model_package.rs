@@ -31,7 +31,7 @@ public component PoissonLaw(
   property diffusivity: Diffusivity
 ) {
 
-  variable potential: 1 on region;
+  variable potential: 1 on region in h1;
   relation balance on region {
     -div(diffusivity * grad(potential))
       - source_scale * math.sin(wave_number * coordinate(0))
@@ -240,7 +240,7 @@ bottom = law.boundary("bottom", parent=region)
 top = law.boundary("top", parent=region)
 source_scale = law.parameter("source_scale", value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)))
 diffusivity = law.property("diffusivity", contract=contract)
-potential = law.field("potential", role=eqiora.FieldRole.Variable, on=region, value_type=eqiora.ValueType.real())
+potential = law.field("potential", role=eqiora.FieldRole.Variable, on=region, spatial_regularity=eqiora.SpatialRegularity.H1, value_type=eqiora.ValueType.real())
 law.relation("balance", eqiora.lang.equation(-q.div(diffusivity * q.grad(potential)) - source_scale, 0), on=region)
 law.relation("left_value", eqiora.lang.equation(q.trace(potential), 0), on=left)
 law.relation("right_value", eqiora.lang.equation(q.trace(potential), 0), on=right)

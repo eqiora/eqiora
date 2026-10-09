@@ -187,7 +187,7 @@ def selected_exterior(*, component=False):
     body = root.volume("body", dimensions=2)
     exterior = root.complete_exterior("exterior", parent=body)
     member = exterior.member("face")
-    value = root.field("value", value_type=DISPLACEMENT,
+    value = root.field("value", spatial_regularity=eqiora.SpatialRegularity.H1, value_type=DISPLACEMENT,
                        role=eqiora.FieldRole.Variable, on=body)
     root.relation("interior", q.equation(value - value, 0), on=body)
     root.relation("exterior_law", q.equation(q.trace(value) - q.trace(value), 0), on=member)
