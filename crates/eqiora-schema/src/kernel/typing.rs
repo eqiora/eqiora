@@ -59,6 +59,17 @@ pub enum SpatialSupport<I> {
         /// Number of axes on the parent volume.
         dimensions: usize,
     },
+    /// One physical interface with ordered exact sides and no implicit law.
+    PhysicalInterface {
+        /// Nominal interface Domain identity.
+        domain: I,
+        /// Ordered boundary identities; the first supplies the common normal.
+        boundaries: [I; 2],
+        /// Exact parent region for each ordered boundary.
+        parents: [I; 2],
+        /// Common ambient Cartesian dimension.
+        dimensions: usize,
+    },
     /// One validated maximal field-interface class.
     ///
     /// This is a derived typing support identified by its conserving
@@ -79,7 +90,8 @@ impl<I> SpatialSupport<I> {
         match self {
             Self::Coordinates { domain, .. }
             | Self::Volume { domain, .. }
-            | Self::Boundary { domain, .. } => domain,
+            | Self::Boundary { domain, .. }
+            | Self::PhysicalInterface { domain, .. } => domain,
             Self::Interface { connection, .. } => connection,
         }
     }
@@ -91,6 +103,7 @@ impl<I> SpatialSupport<I> {
             Self::Coordinates { .. } => None,
             Self::Volume { dimensions, .. }
             | Self::Boundary { dimensions, .. }
+            | Self::PhysicalInterface { dimensions, .. }
             | Self::Interface { dimensions, .. } => Some(*dimensions),
         }
     }
@@ -101,9 +114,9 @@ impl<I> SpatialSupport<I> {
         match self {
             Self::Coordinates { factors, .. } => factors.iter().map(|(_, _, axes)| axes).sum(),
             Self::Volume { dimensions, .. } => *dimensions,
-            Self::Boundary { dimensions, .. } | Self::Interface { dimensions, .. } => {
-                dimensions.saturating_sub(1)
-            }
+            Self::Boundary { dimensions, .. }
+            | Self::PhysicalInterface { dimensions, .. }
+            | Self::Interface { dimensions, .. } => dimensions.saturating_sub(1),
         }
     }
 
@@ -111,7 +124,10 @@ impl<I> SpatialSupport<I> {
     #[must_use]
     pub const fn parent(&self) -> Option<&I> {
         match self {
-            Self::Coordinates { .. } | Self::Volume { .. } | Self::Interface { .. } => None,
+            Self::Coordinates { .. }
+            | Self::Volume { .. }
+            | Self::PhysicalInterface { .. }
+            | Self::Interface { .. } => None,
             Self::Boundary { parent, .. } => Some(parent),
         }
     }

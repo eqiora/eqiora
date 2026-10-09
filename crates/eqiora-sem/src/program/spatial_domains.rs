@@ -592,5 +592,39 @@ pub(super) fn declared_spatial_supports(
             _ => {}
         }
     }
+    for (&domain, node) in nodes {
+        let KernelNode::Domain(definition) = node else {
+            continue;
+        };
+        let DomainKind::PhysicalInterface { boundaries } = definition.kind() else {
+            continue;
+        };
+        let boundaries = boundaries.map(|boundary| boundary.erase());
+        let [
+            Some(SpatialSupport::Boundary {
+                parent: first,
+                dimensions,
+                ..
+            }),
+            Some(SpatialSupport::Boundary {
+                parent: second,
+                dimensions: other_dimensions,
+                ..
+            }),
+        ] = boundaries.map(|boundary| supports.get(&boundary))
+        else {
+            continue;
+        };
+        if dimensions != other_dimensions {
+            continue;
+        }
+        let support = SpatialSupport::PhysicalInterface {
+            domain,
+            boundaries,
+            parents: [*first, *second],
+            dimensions: *dimensions,
+        };
+        supports.insert(domain, support);
+    }
     supports
 }
