@@ -202,11 +202,28 @@ physical vector trial is admitted without a separate Geometry binding.
 support. Complex forms use explicit `inner` pairings to retain conjugate-linear
 test dependence; `cross` itself remains bilinear. Current authored-form artifacts
 use `eqiora.authored-form/v13`; previous epochs are rejected. This authoring and
-replay support does not establish strong/weak correspondence, discharge boundary
-conditions, or select a numerical vector-space realization. A one-trial vector
+replay support does not by itself establish strong/weak correspondence, discharge
+boundary conditions, or select a numerical vector-space realization. A one-trial vector
 form can describe only one equation of a coupled Model; it is not a checked
 mixed system. Mixed correspondence still requires the complete velocity/pressure
 equation and test inventory.
+
+The bounded exact weak-residual comparator expands first-gradient curl and 3D
+cross products through the same pure component definitions as the Model calculus.
+It requires physical operands on the trial's exact Cartesian volume; foreign
+supports and nominal vector frames reject before algebraic cancellation. Curl
+operands in this profile are direct Fields, tests, or variation directions.
+Focused tests compare 2D/3D curl-energy first and second variations against
+independently expanded antisymmetric gradient pairs, and complex cross pairings
+against signed component rows with explicit conjugation.
+
+For a planar scalar field, `dot(curl(eta),curl(u))` equals
+`dot(grad(eta),grad(u))`. This pairing reaches the existing scalar Q1 Poisson
+correspondence, Plan, solve, and Result replay. The unit-square test with four
+cells, unit source, and zero essential conditions has the independently derived
+central value `3/32`. This scalar realization does not provide vector curl-curl
+admission, tangential-trace correspondence, curl integration-by-parts boundary
+discharge, or compatible edge elements.
 
 For twice continuously differentiable fields in a fixed Cartesian frame,
 `div(curl(u)) = 0`, `curl(grad(f)) = 0`, and

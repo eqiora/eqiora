@@ -4,6 +4,7 @@ use num_complex::Complex64 as C;
 
 mod actions;
 mod coordinate_replay;
+mod curl;
 mod profiles;
 
 const SOURCE: &str = include_str!(concat!(

@@ -3,6 +3,28 @@ use super::*;
 use eqiora_core::ScalarDomain;
 use eqiora_schema::kernel::KernelNode;
 
+pub(super) fn field_supports(
+    program: &KernelProgram,
+) -> BTreeMap<String, eqiora_schema::kernel::typing::SpatialSupport<eqiora_core::RawId>> {
+    program
+        .edges()
+        .iter()
+        .filter(|edge| edge.kind() == eqiora_graph::EdgeKind::DefinedOn)
+        .filter_map(|edge| {
+            let KernelNode::Field(field) = program.node(edge.from())? else {
+                return None;
+            };
+            let KernelNode::Domain(domain) = program.node(edge.to())? else {
+                return None;
+            };
+            Some((
+                field.id().ulid().to_string(),
+                program.spatial_support(domain.id())?.clone(),
+            ))
+        })
+        .collect()
+}
+
 pub(super) fn symbol_types(program: &KernelProgram) -> BTreeMap<String, ValueType> {
     program
         .nodes()
@@ -62,6 +84,14 @@ impl Context<'_> {
     pub(super) fn shape(&mut self, value: &E, depth: usize) -> Option<Vec<usize>> {
         self.step(depth)?;
         match value {
+            E::Curl { .. } | E::Cross { .. } => {
+                let rule = self.oriented_definition(value, depth + 1)?.result_rule();
+                if rule.rank() == 0 {
+                    Some(vec![])
+                } else {
+                    Some(vec![rule.spatial_extent()? as usize; rule.rank()])
+                }
+            }
             E::LinearMap {
                 source_basis,
                 target_basis,

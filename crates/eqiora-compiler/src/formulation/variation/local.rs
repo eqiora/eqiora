@@ -729,4 +729,94 @@ mod tests {
             assert_eq!(derived.definition.result_rule().dimension(), Some(density));
         }
     }
+
+    #[test]
+    fn curl_energy_variations_match_independent_antisymmetric_gradient_pairs() {
+        let field = Id::<kinds::Field>::from_ulid("01ARZ3NDEKTSV4RRFFQ69G5FAX".parse().unwrap());
+        let domain =
+            Id::<kinds::Domain>::from_ulid("01ARZ3NDEKTSV4RRFFQ69G5FAW".parse().unwrap()).erase();
+        let length = DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap();
+        let density = DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).unwrap();
+        for dimensions in [2, 3] {
+            let mut dag = ExprDagBuilder::new();
+            let u = dag.symbol(SymbolRef::Field(field)).unwrap();
+            let gradient = dag.gradient(u).unwrap();
+            let curl = dag
+                .pure_operator(
+                    &PureOperatorDefinition::curl_from_gradient(dimensions, 1).unwrap(),
+                    [gradient],
+                )
+                .unwrap();
+            let square = if dimensions == 2 {
+                dag.mul(curl, curl).unwrap()
+            } else {
+                dag.pure_operator(
+                    &PureOperatorDefinition::contract(3, 1, 1, &[(0, 0)]).unwrap(),
+                    [curl, curl],
+                )
+                .unwrap()
+            };
+            let stiffness = dag.constant(DynQuantity::new(1.5, density)).unwrap();
+            let energy = dag.mul(stiffness, square).unwrap();
+            let support = SpatialSupport::Volume {
+                domain,
+                dimensions: dimensions as usize,
+            };
+            let typed = TypedResidual::infer(
+                dag.finish([energy]).unwrap(),
+                Some(support.clone()),
+                RootContract::Observable,
+                |symbol| {
+                    if symbol != SymbolRef::Field(field) {
+                        return Err(());
+                    }
+                    Ok(ExpressionType::new(
+                        ValueType::shaped(
+                            ScalarDomain::Real,
+                            length,
+                            ValueShape::new([dimensions]).unwrap(),
+                            eqiora_core::ValueFrame::SpatialCartesian,
+                        )
+                        .unwrap(),
+                        Some(support.clone()),
+                    ))
+                },
+            )
+            .unwrap();
+            // Independently, psi = 3/2 sum_{i<j}(u_j,i-u_i,j)^2.
+            // Its first variation is 3 sum (u_j,i-u_i,j)(eta_j,i-eta_i,j);
+            // the second replaces u by zeta. Each mixed term is negative,
+            // diagonal gradients contribute zero, and no conjugation occurs.
+            for order in [1, 2] {
+                let derived = derive(&typed, field, order).unwrap();
+                let slot = |input: Input| {
+                    derived
+                        .inputs
+                        .iter()
+                        .position(|(candidate, _)| *candidate == input)
+                        .unwrap()
+                };
+                let mut expected = ExactPolynomial::constant(ExactRational::integer(0));
+                for i in 0..dimensions {
+                    for j in i + 1..dimensions {
+                        let g = [[j, i], [i, j]]
+                            .map(|indices| slot(Input::Gradient(field, indices.to_vec())));
+                        let eta = g.map(|input| slot(Input::Direction { input, order: 1 }));
+                        let other = if order == 1 {
+                            g
+                        } else {
+                            g.map(|input| slot(Input::Direction { input, order: 2 }))
+                        };
+                        for (a, b, sign) in [(0, 0, 3), (1, 1, 3), (0, 1, -3), (1, 0, -3)] {
+                            expected = expected
+                                .checked_add(&product(sign, other[a], eta[b]))
+                                .unwrap();
+                        }
+                    }
+                }
+                assert_eq!(polynomial(&derived), expected);
+                assert_eq!(derived.definition.result_rule().dimension(), Some(density));
+            }
+        }
+    }
 }
