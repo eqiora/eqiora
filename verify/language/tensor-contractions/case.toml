@@ -2,7 +2,7 @@ id = "language.tensor-contractions"
 status = "implemented"
 scope = "bounded-full-coordinate-spatial-tensor-constitutive-evaluation"
 reference_kind = "independent-component-expansion-and-full-shear-energy"
-capabilities = ["explicit-spatial-tensor-contraction", "rank-four-constitutive-map", "full-coordinate-shear-energy", "complex-bilinear-contraction", "tensor-projection-compositions"]
+capabilities = ["explicit-spatial-tensor-contraction", "rank-four-constitutive-map", "full-coordinate-shear-energy", "complex-bilinear-contraction", "tensor-projection-compositions", "right-handed-three-vector-cross-product"]
 
 [claim_boundary]
 ordinary_source_to_model_evaluation = true

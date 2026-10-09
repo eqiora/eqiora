@@ -120,3 +120,46 @@ fn equal_extents_do_not_identify_foreign_supports_or_nominal_spaces() {
         assert!(compile("bad-tensor.eqi", &source).is_err(), "{expression}");
     }
 }
+
+#[test]
+fn right_handed_cross_product_matches_independent_determinants() {
+    check_relations(
+        include_str!("../../../verify/language/tensor-contractions/models/cross.eqi"),
+        0.0,
+    );
+}
+
+#[test]
+fn cross_rejects_foreign_supports_and_equal_size_nominal_frames() {
+    let source = r#"model M() {
+        domain left=box(0,1,0,1,0,1);
+        domain right=box(0,1,0,1,0,1);
+        variable a:vector<1,3> on left;
+        variable b:vector<1,3> on left;
+        relation r on left { cross(a,b)=a; }
+    }"#;
+    compile("same-support.eqi", source).unwrap();
+    let errors = compile(
+        "foreign-support.eqi",
+        &source.replace("b:vector<1,3> on left", "b:vector<1,3> on right"),
+    )
+    .unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message().contains("exact spatial support")),
+        "{errors:?}"
+    );
+    for source in [
+        "space S=orthonormal(a,b,c); model M() { variable a:coordinates<1,S>; variable b:coordinates<1,S>; relation r { cross(a,b)=a; } }",
+        "model M() { variable a:array<1,3>; variable b:array<1,3>; relation r { cross(a,b)=a; } }",
+    ] {
+        let errors = compile("wrong-frame.eqi", source).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message().contains("exact type rule")),
+            "{errors:?}"
+        );
+    }
+}

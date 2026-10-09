@@ -3098,6 +3098,16 @@ Contract explicitly paired full-coordinate tensor axes.
 def contract(left: object, right: object, *, axes: Sequence[tuple[int, int]]) -> Expression: ...
 ```
 
+<a id="api-eqiora-lang-cross"></a>
+
+### `eqiora.lang.cross`
+
+Right-handed cross product of exact Cartesian three-vectors, without conjugation.
+
+```python
+def cross(left: object, right: object) -> Expression: ...
+```
+
 <a id="api-eqiora-lang-Inequality"></a>
 
 ### `eqiora.lang.Inequality`
