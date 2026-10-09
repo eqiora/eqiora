@@ -4,6 +4,7 @@ use num_complex::Complex64 as C;
 
 mod actions;
 mod coordinate_replay;
+mod profiles;
 
 const SOURCE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -97,6 +98,7 @@ fn resolve_on(
 fn affine_complex_weak_form_has_independent_volume_and_boundary_solution() {
     let (program, projection) = compile(SOURCE, &geometry(false)).unwrap();
     actions::check(&program, &projection);
+    profiles::check();
     let plan = replay_plan(resolve(SOURCE).unwrap(), &REFERENCE_LINEAR_SOLVER);
     let result = plan
         .as_scalar()
