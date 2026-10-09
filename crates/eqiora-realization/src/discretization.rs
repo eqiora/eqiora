@@ -1,6 +1,6 @@
 use std::num::{NonZeroU16, NonZeroUsize};
 
-use eqiora_core::Diagnostic;
+use eqiora_core::{Diagnostic, DimExponents};
 
 use crate::invalid_realization;
 
@@ -55,6 +55,20 @@ impl Space {
     #[must_use]
     pub const fn family(self) -> SpaceFamily {
         self.family
+    }
+
+    /// Physical dimension of a coefficient functional applied to a Field.
+    /// Scalar families retain Field units; oriented edge integrals multiply
+    /// them by length, and oriented face flux integrals by area.
+    /// Returns `None` if the resulting exact exponents exceed their bounds.
+    #[must_use]
+    pub fn coefficient_dimension(self, field_dimension: DimExponents) -> Option<DimExponents> {
+        let power = match self.family {
+            SpaceFamily::TetrahedralEdge => 1,
+            SpaceFamily::TetrahedralFace => 2,
+            _ => 0,
+        };
+        field_dimension.mul(DimExponents::from_integers([0, power, 0, 0, 0, 0, 0])?)
     }
 }
 

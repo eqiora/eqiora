@@ -153,6 +153,7 @@ fn complex_region_assembly_eliminates_fixed_phase_without_conjugating_trial() {
         )],
         &[ids["body"]],
         vec![RegionAssemblyCell {
+            orientation: vec![1; 2],
             index: 0,
             geometry: interval(),
             mappings: vec![TargetAssemblyMap::new(

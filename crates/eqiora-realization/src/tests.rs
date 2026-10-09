@@ -8,6 +8,27 @@ use eqiora_solver::{LinearSolver, SolverPlan};
 
 use super::*;
 
+#[test]
+fn coefficient_dimensions_follow_functionals_not_value_component_counts() {
+    use eqiora_core::DimExponents;
+    let velocity = DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).unwrap();
+    for space in [
+        Space::continuous_lagrange(NonZeroU16::MIN),
+        Space::simplex_p1_bubble(),
+        Space::cell_constant(),
+    ] {
+        assert_eq!(space.coefficient_dimension(velocity), Some(velocity));
+    }
+    assert_eq!(
+        Space::tetrahedral_edge().coefficient_dimension(velocity),
+        DimExponents::from_integers([0, 2, -1, 0, 0, 0, 0])
+    );
+    assert_eq!(
+        Space::tetrahedral_face().coefficient_dimension(velocity),
+        DimExponents::from_integers([0, 3, -1, 0, 0, 0, 0])
+    );
+}
+
 fn scalar_interval_requirements() -> RealizationRequirements {
     RealizationRequirements::new(
         NonZeroUsize::MIN,

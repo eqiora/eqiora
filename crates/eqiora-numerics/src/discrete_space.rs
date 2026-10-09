@@ -4,6 +4,7 @@ use eqiora_core::diagnostic::codes;
 use eqiora_meshing::{ReferenceCell, ReferenceCellFamily, ReferenceTopology, VertexPermutation};
 use eqiora_realization::{Space, SpaceFamily};
 
+mod binding;
 mod compatible;
 mod mapped;
 mod scalar;

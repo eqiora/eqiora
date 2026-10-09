@@ -79,7 +79,7 @@ pub(crate) enum FieldBlockRole {
     CoefficientData,
 }
 
-/// One exact Semantic Field and its Realization-owned scalar basis.
+/// One exact Semantic Field and its Realization-owned coefficient functionals.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FieldBlock {
     domain: Id<kinds::Domain>,
@@ -102,10 +102,22 @@ impl FieldBlock {
         if role == FieldBlockRole::CoefficientData
             || !scale.value().is_finite()
             || scale.value() <= 0.0
-            || scale.dim() != value_type.dimension()
+            || Some(scale.dim()) != space.coefficient_dimension(value_type.dimension())
         {
             return Err(invalid(
-                "an algebraic or eliminated Field block requires a finite positive scale with the Field dimension",
+                "an algebraic or eliminated Field block requires a finite positive scale with its coefficient dimension",
+            ));
+        }
+        if matches!(
+            space.family(),
+            SpaceFamily::TetrahedralEdge | SpaceFamily::TetrahedralFace
+        ) && (value_type.array_rank() != 0
+            || value_type.shape().rank() != 1
+            || value_type.shape().component_count() != Some(3)
+            || value_type.frame() != ValueFrame::SpatialCartesian)
+        {
+            return Err(invalid(
+                "tetrahedral moment coefficients require one physical three-vector Field",
             ));
         }
         Ok(Self {

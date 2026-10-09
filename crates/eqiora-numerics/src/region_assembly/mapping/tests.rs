@@ -260,6 +260,7 @@ fn model_derived_chain_assembles_solves_and_recovers_every_exact_field() {
             .collect();
         let cells = (0..2 * count)
             .map(|index| RegionAssemblyCell {
+                orientation: mapping.cell_signs(index).unwrap().to_vec(),
                 index,
                 geometry: mesh.geometry_map(MeshEntity::new(1, index)).unwrap(),
                 mappings: vec![
@@ -561,6 +562,7 @@ model VectorRegion() {
     let quadrature = QuadratureRule::tensor_product_gauss_legendre(2, 2).unwrap();
     let cells = (0..4)
         .map(|index| RegionAssemblyCell {
+            orientation: mapping.cell_signs(index).unwrap().to_vec(),
             index,
             geometry: mesh.geometry_map(MeshEntity::new(2, index)).unwrap(),
             previous: BTreeMap::new(),

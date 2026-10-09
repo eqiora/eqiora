@@ -77,6 +77,7 @@ pub(super) fn check(program: &KernelProgram, projection: &AuthoredFormulationPro
         &[domain; 2],
         (0..2)
             .map(|index| RegionAssemblyCell {
+                orientation: vec![1; maps[index].unknowns().len()],
                 index,
                 geometry: cell(index),
                 mappings: vec![TargetAssemblyMap::new(target, maps[index].clone())],

@@ -186,6 +186,7 @@ fn uniform_stress_weak_volume_and_oriented_facet_loads_cancel_exactly() {
         vec![(bound, simplex_duffy_gauss_legendre(2, 2).unwrap())],
         &[form.domain()],
         vec![RegionAssemblyCell {
+            orientation: vec![1; 6],
             index: 0,
             geometry: cell,
             mappings: vec![TargetAssemblyMap::new(

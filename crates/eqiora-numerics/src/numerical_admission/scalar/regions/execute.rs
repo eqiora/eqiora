@@ -153,6 +153,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             .enumerate()
             .map(|(index, _)| {
                 Ok(RegionAssemblyCell {
+                    orientation: mapping.cell_signs(index)?.to_vec(),
                     index,
                     geometry: mesh
                         .geometry_map(MeshEntity::new(dimension, index))

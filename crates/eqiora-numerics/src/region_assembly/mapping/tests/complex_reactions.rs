@@ -115,6 +115,7 @@ fn complex_domain_and_interface_actions_retain_phase_and_exact_owners() {
             .collect();
         let cells = (0..2)
             .map(|index| RegionAssemblyCell {
+                orientation: mapping.cell_signs(index).unwrap().to_vec(),
                 index,
                 geometry: mesh.geometry_map(MeshEntity::new(1, index)).unwrap(),
                 mappings: vec![TargetAssemblyMap::new(

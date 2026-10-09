@@ -75,6 +75,17 @@ pub struct EntityIncidence {
 /// either direction, so cell closures and facet-to-cell adjacency share one
 /// operation instead of separate dimension-specific APIs.
 pub trait MeshTopology {
+    /// Resolve an incidence orientation in this mesh's own code inventory.
+    /// The default admits only the identity code; meshes with nontrivial
+    /// orientations must resolve their exact vertex permutations.
+    fn orientation_permutation(
+        &self,
+        code: OrientationCode,
+        arity: usize,
+    ) -> Option<crate::VertexPermutation> {
+        (code == OrientationCode::identity()).then(|| crate::VertexPermutation::identity(arity))
+    }
+
     /// Topological mesh dimension.
     fn topological_dimension(&self) -> usize;
 

@@ -1,6 +1,8 @@
 use super::*;
 use num_complex::Complex64 as C;
 
+mod global;
+
 fn vector_local<S: Scalar + ComplexFloat<Real = f64> + From<f64> + AddAssign + SubAssign>(
     space: Space,
     pairings: &[Pairing],

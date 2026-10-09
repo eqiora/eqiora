@@ -1,12 +1,15 @@
 use super::{BasisTabulation, Diagnostic, DiscreteSpace, ReferenceTopology, SpaceFamily};
 
 pub(super) fn orientation_sign(images: &[usize]) -> i8 {
-    let inversions = images
+    let mut canonical = images.to_vec();
+    canonical.sort_unstable();
+    let ranks = images
         .iter()
-        .enumerate()
-        .map(|(i, a)| images[i + 1..].iter().filter(|b| a > *b).count())
-        .sum::<usize>();
-    if inversions % 2 == 0 { 1 } else { -1 }
+        .map(|image| canonical.binary_search(image).expect("image in closure"))
+        .collect();
+    eqiora_meshing::VertexPermutation::new(ranks)
+        .expect("distinct entity vertices")
+        .sign()
 }
 
 pub(super) fn tabulate(

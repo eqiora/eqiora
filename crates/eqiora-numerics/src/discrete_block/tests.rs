@@ -16,6 +16,61 @@ const TIME: DimExponents =
     DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).expect("bounded dimension");
 
 #[test]
+fn moment_blocks_require_coefficient_units_and_physical_vector_shape() {
+    let ids = MinimalIds::new();
+    let vector = ValueType::shaped(
+        ScalarDomain::Real,
+        LENGTH,
+        ValueShape::new([3]).unwrap(),
+        ValueFrame::SpatialCartesian,
+    )
+    .unwrap();
+    for (space, exponent) in [
+        (Space::tetrahedral_edge(), 2),
+        (Space::tetrahedral_face(), 3),
+    ] {
+        let units = DimExponents::from_integers([0, exponent, 0, 0, 0, 0, 0]).unwrap();
+        assert!(
+            FieldBlock::discrete(
+                ids.domain,
+                ids.fields[0],
+                space,
+                vector.clone(),
+                DynQuantity::new(1.0, units),
+                FieldBlockRole::Algebraic
+            )
+            .is_ok()
+        );
+        assert!(
+            FieldBlock::discrete(
+                ids.domain,
+                ids.fields[0],
+                space,
+                vector.clone(),
+                DynQuantity::new(1.0, LENGTH),
+                FieldBlockRole::Algebraic
+            )
+            .is_err()
+        );
+        let channels = ValueType::scalar(ScalarDomain::Real, LENGTH)
+            .unwrap()
+            .array(3)
+            .unwrap();
+        assert!(
+            FieldBlock::discrete(
+                ids.domain,
+                ids.fields[0],
+                space,
+                channels,
+                DynQuantity::new(1.0, units),
+                FieldBlockRole::Algebraic
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
 fn block_identity_preserves_complete_field_types_without_admitting_nonreal_execution() {
     let mut system = minimal(MinimalIds::new(), false);
     let real = ValueType::scalar(ScalarDomain::Real, LENGTH).expect("numeric scalar type");
