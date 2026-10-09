@@ -13,6 +13,42 @@ fn class(rank: u16, extent: u32) -> Result<PureValueClass, PureOperatorError> {
 }
 
 impl PureOperatorDefinition {
+    /// Bilinear three-dimensional cross product in the right-handed Cartesian frame.
+    /// Complex inputs use the same algebraic products, without conjugation.
+    pub fn cross_product() -> Result<Self, PureOperatorError> {
+        let vector = class(1, 3)?;
+        let mut builder = CalculusBuilder::new([vector, vector], vector)?;
+        let mut root = None;
+        for axis in 0..3 {
+            let next = (axis + 1) % 3;
+            let last = (axis + 2) % 3;
+            let mut component = |formal, coordinate| {
+                builder.push(CalculusNode::FormalComponent {
+                    formal,
+                    axes: [ComponentIndex::Fixed(coordinate)].into(),
+                })
+            };
+            let a = component(0, next)?;
+            let b = component(1, last)?;
+            let c = component(0, last)?;
+            let d = component(1, next)?;
+            let positive = builder.push(CalculusNode::Mul(a, b))?;
+            let negative = builder.push(CalculusNode::Mul(c, d))?;
+            let negative = builder.push(CalculusNode::Neg(negative))?;
+            let difference = builder.push(CalculusNode::Add(positive, negative))?;
+            let selector = builder.push(CalculusNode::KroneckerDelta(
+                ComponentIndex::Result(0),
+                ComponentIndex::Fixed(axis),
+            ))?;
+            let term = builder.push(CalculusNode::Mul(selector, difference))?;
+            root = Some(match root {
+                None => term,
+                Some(sum) => builder.push(CalculusNode::Add(sum, term))?,
+            });
+        }
+        builder.finish(root.expect("three Cartesian axes"))
+    }
+
     /// Algebraic diagonal sum of a full rank-two spatial tensor.
     pub fn matrix_trace(extent: u32) -> Result<Self, PureOperatorError> {
         if u64::from(extent) * 2 > MAX_NODES as u64 {

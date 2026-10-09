@@ -3,7 +3,7 @@
 These [target-language](core.md) rules specify bounded tensor and local-map operations.
 The current spatial profile executes full-coordinate ranks one through four via
 `component`, `permute_axes`, `transpose`, `outer`, `contract`, `matrix_trace` and
-`componentwise_product`. Uniform real/complex source evaluation is independently
+`componentwise_product`, plus the three-vector `cross`. Uniform real/complex source evaluation is independently
 checked by [the tensor contraction case](../../verify/language/tensor-contractions/README.md).
 Finite-map trace and identity, and real determinant/inverse with composition execute through the
 ordinary source/native/Python Model/Plan/Result path. Hermitian `inner` remains a specified target.
@@ -41,6 +41,16 @@ listed pairs of axes. A pair identifies an axis of `A` and an axis of `B`; contr
 must have equal extents and compatible frame/dual roles. An axis may occur only once.
 The result orders uncontracted axes of `A` first, then those of `B`, preserving each order.
 The contraction multiplies physical dimensions and never conjugates implicitly.
+
+`cross(a, b)` is the bilinear cross product of two spatial Cartesian three-vectors
+in the model-global right-handed frame, with `(e0, e1, e2)` positively oriented.
+Its components are `(a1*b2-a2*b1, a2*b0-a0*b2, a0*b1-a1*b0)`; exchanging operands
+reverses the sign. Physical dimensions multiply. Real and complex operands share
+this rule without implicit conjugation. Two-dimensional vectors, channel arrays,
+nominal coordinate spaces and foreign supports reject; no implicit embedding or
+local-frame conversion occurs. Python authoring uses `eqiora.lang.cross(a, b)`.
+The retained pure-operator graph supplies evaluation and differentiation. This
+algebraic operation alone supplies no curl, oriented trace or compatible finite element.
 
 `inner(A, B)` instead contracts all corresponding components after conjugating the first
 operand. The two tensor shapes and axis roles must agree. Rank-two `transpose(T)` swaps its

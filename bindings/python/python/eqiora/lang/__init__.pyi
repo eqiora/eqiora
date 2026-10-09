@@ -1118,7 +1118,7 @@ def quantity(value: int | float | Decimal, unit: Unit) -> Expression:
 
 __all__ = [
     "matrix_trace", "determinant", "inverse", "transpose", "adjoint", "apply", "compose", "pair", "tensor_product", "permute_factors",
-    "Observable", "variation", "contract",
+    "Observable", "variation", "contract", "cross",
     "Inequality", "Complementarity", "inequality", "complementarity",
     "equal",
     "not_equal",
@@ -1298,5 +1298,13 @@ def contract(left: object, right: object, *, axes: Sequence[tuple[int, int]]) ->
     """Contract explicitly paired full-coordinate tensor axes.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::contract``.
+    """
+    ...
+
+
+def cross(left: object, right: object) -> Expression:
+    """Right-handed cross product of exact Cartesian three-vectors, without conjugation.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::cross``.
     """
     ...

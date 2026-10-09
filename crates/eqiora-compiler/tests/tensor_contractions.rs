@@ -74,3 +74,28 @@ fn source_spatial_transpose_preserves_units_and_uses_pure_component_calculus() {
         _ => false,
     }));
 }
+
+#[test]
+fn cross_product_source_requires_three_cartesian_components() {
+    let source = r#"model M() {
+        domain body=box(0,1,0,1,0,1);
+        parameter a:vector<m,3>=tensor_value(frame=body,components=[1,2,3]);
+        parameter b:vector<N,3>=tensor_value(frame=body,components=[5,7,11]);
+        relation determinant_reference {
+            component(cross(a,b),indices=(0,))=1[J];
+            component(cross(a,b),indices=(1,))=4[J];
+            component(cross(a,b),indices=(2,))=-3[J];
+        }
+    }"#;
+    let models = compile("cross.eqi", source).unwrap();
+    assert!(models[0].transaction().ops().iter().any(|op| matches!(op,
+        Op::DefineKernelNode { node: KernelNode::Relation(relation) }
+            if relation.expression().nodes().iter().any(|node| matches!(node, ExprNode::PureOperatorApplication(_))))));
+    let planar = source
+        .replace("box(0,1,0,1,0,1)", "box(0,1,0,1)")
+        .replace("vector<m,3>", "vector<m,2>")
+        .replace("vector<N,3>", "vector<N,2>")
+        .replace("[1,2,3]", "[1,2]")
+        .replace("[5,7,11]", "[5,7]");
+    assert!(compile("planar-cross.eqi", &planar).is_err());
+}

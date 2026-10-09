@@ -201,3 +201,84 @@ fn scalar_component_projection_preserves_axes_and_bounds() {
         vec![5.0, 61.0, 146.0]
     );
 }
+
+#[test]
+fn cross_product_retains_orientation_and_complex_bilinearity() {
+    let cross = PureOperatorDefinition::cross_product().unwrap();
+    let a = tensor(&[3], &[1., 2., 3.]);
+    let b = tensor(&[3], &[5., 7., 11.]);
+    // Direct determinant expansion: (22-21, 15-11, 7-10).
+    assert_eq!(execute(&cross, &[a.clone(), b.clone()]), [1., 4., -3.]);
+    assert_eq!(execute(&cross, &[b.clone(), a]), [-1., -4., 3.]);
+    let ty = ValueType::shaped(
+        ScalarDomain::Complex,
+        DimExponents::DIMENSIONLESS,
+        ValueShape::new([3]).unwrap(),
+        ValueFrame::SpatialCartesian,
+    )
+    .unwrap();
+    let complex = ValueLiteral::new(ty, [(1., 1.), (2., 0.), (3., 0.)]).unwrap();
+    // (1+i,2,3) cross (5,7,11) = (1,4-11i,-3+7i).
+    assert_eq!(execute(&cross, &[complex, b]), [1., 0., 4., -11., -3., 7.]);
+    let wrong = [tensor(&[2], &[1., 2.]), tensor(&[2], &[3., 4.])]
+        .map(|value| ExpressionType::<()>::new(value.value_type().clone(), None));
+    assert!(cross.instantiate(&wrong).is_err());
+}
+
+#[test]
+fn cross_differential_preserves_exact_coordinate_order_and_transpose_pairing() {
+    use eqiora_core::Id;
+    use eqiora_ir::{DifferentiationRole, LinearizedRelation, RelationCotangent, RelationTangent};
+    use eqiora_schema::kernel::SymbolRef;
+    let symbol = SymbolRef::Field(Id::new());
+    let mut builder = ExprDagBuilder::new();
+    let a = builder.symbol(symbol).unwrap();
+    let b = builder.constant(tensor(&[3], &[5., 7., 11.])).unwrap();
+    let root = builder
+        .pure_operator(&PureOperatorDefinition::cross_product().unwrap(), [a, b])
+        .unwrap();
+    let typed = TypedResidual::<()>::infer(
+        builder.finish([root]).unwrap(),
+        None,
+        RootContract::ComponentwiseResidual,
+        |_| {
+            Ok::<_, ()>(ExpressionType::new(
+                tensor(&[3], &[1., 2., 3.]).value_type().clone(),
+                None,
+            ))
+        },
+    )
+    .unwrap();
+    let scalar = ComponentScalarization::lower(&typed).unwrap();
+    let linear = scalar
+        .linearize(|coordinate| {
+            assert_eq!(coordinate.symbol(), symbol);
+            Some((
+                [1., 2., 3.][coordinate.component_index()[0] as usize],
+                DifferentiationRole::Unknown,
+            ))
+        })
+        .unwrap();
+    let direction = linear
+        .unknown_coordinates()
+        .iter()
+        .map(|coordinate| [2., -1., 4.][coordinate.component_index()[0] as usize])
+        .collect::<Vec<_>>();
+    let mut tangent = [0.; 3];
+    linear
+        .jvp(RelationTangent::Unknown(&direction), &mut tangent)
+        .unwrap();
+    // (2,-1,4) cross (5,7,11): (-11-28,20-22,14+5).
+    assert_eq!(tangent, [-39., -2., 19.]);
+    let mut adjoint = vec![0.; linear.unknown_dimension()];
+    linear
+        .vjp(&[3., -2., 1.], RelationCotangent::Unknown(&mut adjoint))
+        .unwrap();
+    // b cross cotangent = (7+22,33-5,-10-21).
+    for (coordinate, actual) in linear.unknown_coordinates().iter().zip(adjoint) {
+        assert_eq!(
+            actual,
+            [29., 28., -31.][coordinate.component_index()[0] as usize]
+        );
+    }
+}

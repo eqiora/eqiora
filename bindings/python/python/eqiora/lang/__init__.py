@@ -1169,6 +1169,11 @@ def dot(left: object, right: object) -> Expression:
     return _binary_function("dot", left, right)
 
 
+def cross(left: object, right: object) -> Expression:
+    """Return the right-handed Cartesian 3D cross product without conjugation."""
+    return _binary_function("cross", left, right)
+
+
 def quotient(left: object, right: object) -> Expression:
     """Exact integer quotient truncated toward zero; overflow and zero divisors reject."""
     return _binary_function("quotient", left, right)
@@ -2951,6 +2956,7 @@ __all__ = [
     "map_orientation",
     "variation",
     "contract",
+    "cross",
     "jvp",
     "vjp",
     "derivative",

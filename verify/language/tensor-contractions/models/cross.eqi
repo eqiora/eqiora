@@ -1,0 +1,17 @@
+model Cross() {
+    domain body=box(0,1,0,1,0,1);
+    parameter a:vector<m,3>=tensor_value(frame=body,components=[1,2,3]);
+    parameter b:vector<N,3>=tensor_value(frame=body,components=[5,7,11]);
+    parameter z:vector<complex<m>,3>=tensor_value(frame=body,components=[math.complex(1,1),2,3]);
+    relation determinant_reference {
+        component(cross(a,b),indices=(0,))=1[J];
+        component(cross(a,b),indices=(1,))=4[J];
+        component(cross(a,b),indices=(2,))=-3[J];
+        component(cross(b,a),indices=(0,))=-1[J];
+        component(cross(b,a),indices=(1,))=-4[J];
+        component(cross(b,a),indices=(2,))=3[J];
+        component(cross(z,b),indices=(0,))=math.complex(1[J],0[J]);
+        component(cross(z,b),indices=(1,))=math.complex(4[J],-11[J]);
+        component(cross(z,b),indices=(2,))=math.complex(-3[J],7[J]);
+    }
+}

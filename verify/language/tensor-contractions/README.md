@@ -12,6 +12,12 @@ The independent references are:
 - `(1+2i)(4-3i) + (3-i)(-2+5i) = (10+5i)+(-1+17i) = 9+22i`.
   Conjugating either operand changes this result. Integer-valued binary64
   arithmetic in these examples is exact, so equality uses zero tolerance.
+- In the right-handed Cartesian frame, `(1,2,3) m × (5,7,11) N = (1,4,-3) J`
+  by the determinant minors `(22-21,15-11,7-10)`. Exchanging operands gives
+  `(-1,-4,3) J`; replacing the first component by `1+i` gives
+  `(1,4-11i,-3+7i) J`. These binary64 integer operations are exact (zero tolerance).
+  Foreign supports, equal-sized nominal coordinates and channel arrays reject.
+  This extends the algebraic claim only: no curl, tangential trace or spatial solve.
 - A full 2D stiffness tensor has normal coefficients 10 and 20 Pa, coupling
   coefficients 3 Pa, and all four shear coefficients 4 Pa. The source compares
   contraction with explicit component expansions. For strain off-diagonals

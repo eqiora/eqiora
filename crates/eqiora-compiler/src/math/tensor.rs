@@ -11,13 +11,14 @@ pub(crate) enum Operation {
     Permute(Vec<u16>),
     Contract(Vec<(u16, u16)>),
     Outer,
+    Cross,
     ComponentwiseProduct,
 }
 
 pub(crate) fn named(name: &str) -> bool {
     matches!(
         name,
-        "component" | "permute_axes" | "contract" | "outer" | "componentwise_product"
+        "component" | "permute_axes" | "contract" | "outer" | "componentwise_product" | "cross"
     )
 }
 
@@ -30,7 +31,7 @@ pub(crate) fn source<'a>(
         "component" => (1, Some("indices")),
         "permute_axes" => (1, Some("order")),
         "contract" => (2, Some("axes")),
-        "outer" | "componentwise_product" => (2, None),
+        "outer" | "componentwise_product" | "cross" => (2, None),
         _ => return Err("unknown tensor operation"),
     };
     if operands.len() != arity || options.len() != usize::from(key.is_some()) {
@@ -67,6 +68,7 @@ pub(crate) fn source<'a>(
                 .collect::<Result<_, _>>()?,
         ),
         "outer" => Operation::Outer,
+        "cross" => Operation::Cross,
         "componentwise_product" => Operation::ComponentwiseProduct,
         _ => unreachable!("checked operation"),
     };
@@ -115,6 +117,7 @@ impl Operation {
             })
             .collect::<Result<Vec<_>, _>>()?;
         match (self, ranks.as_slice()) {
+            (Self::Cross, [1, 1]) if extent == 3 => PureOperatorDefinition::cross_product(),
             (Self::ComponentwiseProduct, [left, right]) if left == right => {
                 PureOperatorDefinition::componentwise_product(extent, *left)
             }
