@@ -99,6 +99,29 @@ fn expression<S: Coefficient>(
             coefficient.evaluate(&vec![0.0; context.dimension])?;
             Ok(())
         }
+        ExprNode::PureOperatorApplication(_)
+            if matches!(position, Position::Strong)
+                && context.dimension == 2
+                && super::super::planar_curl::gradient(context.dag, id).is_some() =>
+        {
+            if coefficient.spatial() {
+                return Err(invalid(
+                    "spatial multiplier outside curl-curl requires product-rule lowering",
+                ));
+            }
+            let gradient =
+                super::super::planar_curl::gradient(context.dag, id).expect("checked composition");
+            // curl(curl(u)) = -div(grad(u)); parts therefore keeps the
+            // gradient-pairing coefficient positive in this explicit 2D reduction.
+            expression(
+                context,
+                gradient,
+                coefficient,
+                row,
+                Position::Flux,
+                depth + 1,
+            )
+        }
         ExprNode::Divergence(value) if matches!(position, Position::Strong) => {
             if coefficient.spatial() {
                 return Err(invalid(

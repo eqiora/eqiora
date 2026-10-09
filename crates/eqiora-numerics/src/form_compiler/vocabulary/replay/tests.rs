@@ -33,6 +33,7 @@ fn scalar_replay_rejects_foreign_resources_missing_terms_and_wrong_roles() {
         volume_relation: relation(),
         root,
         divergence,
+        diffusion_rule: crate::form_compiler::vocabulary::DiffusionRule::Divergence,
         divergence_sign: WeakSign::Positive,
         values: &[PrimalValueTerm {
             source_node: node,
@@ -124,6 +125,14 @@ fn scalar_replay_rejects_foreign_resources_missing_terms_and_wrong_roles() {
         };
         assert!(candidate.replay(source).is_err(), "reversed sign {index}");
     }
+    assert!(
+        valid
+            .replay(PrimalGalerkinSource {
+                diffusion_rule: DiffusionRule::PlanarScalarCurlCurl,
+                ..source
+            })
+            .is_err()
+    );
     // Source drift must also fail: a consistent old certificate cannot admit new input.
     assert!(
         valid

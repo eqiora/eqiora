@@ -4,13 +4,14 @@ use eqiora_core::{Diagnostic, RawId};
 use eqiora_schema::kernel::{ExprDag, ExprId, ExprNode, SymbolRef};
 
 use super::{BoundaryNodes, VolumeNodes, certificate_error, push_operands};
-use crate::form_compiler::vocabulary::WeakSign;
+use crate::form_compiler::vocabulary::{DiffusionRule, WeakSign};
 
 pub(super) fn recognize_volume(
     expression: &ExprDag,
     owner: RawId,
     field: RawId,
     complex_trial: bool,
+    dimension: usize,
 ) -> Result<VolumeNodes, Diagnostic> {
     use crate::additive_residual::{AdditiveResidualView, AdditiveSign};
     use crate::form_compiler::vocabulary::PrimalValueTerm;
@@ -21,19 +22,24 @@ pub(super) fn recognize_volume(
         value_degree(expression, value, field, owner, false, complex_trial)
             .is_ok_and(|degree| degree == 0)
     })?;
-    let divergences = view
+    let operators = view
         .leaves()
         .iter()
         .filter_map(|leaf| {
             if let Some(ExprNode::Divergence(flux)) = expression.node(leaf.value()) {
-                Some((leaf, *flux))
+                Some((leaf, *flux, DiffusionRule::Divergence))
+            } else if dimension == 2 {
+                super::super::planar_curl::gradient(expression, leaf.value())
+                    .map(|gradient| (leaf, gradient, DiffusionRule::PlanarScalarCurlCurl))
             } else {
                 None
             }
         })
         .collect::<Vec<_>>();
-    let [(operator, flux)] = divergences.as_slice() else {
-        return Err(view.mismatch("volume residual requires exactly one diffusion divergence"));
+    let [(operator, flux, diffusion_rule)] = operators.as_slice() else {
+        return Err(
+            view.mismatch("volume residual requires exactly one admitted diffusion operator")
+        );
     };
     let gradients = gradient_nodes(expression, *flux, field);
     if gradients.len() != 1 {
@@ -96,8 +102,11 @@ pub(super) fn recognize_volume(
     Ok(VolumeNodes {
         root,
         divergence: operator.value(),
+        diffusion_rule: *diffusion_rule,
         bilinear_flux: *flux,
-        divergence_sign: if operator.sign() == AdditiveSign::Negative {
+        divergence_sign: if (operator.sign() == AdditiveSign::Negative)
+            == (*diffusion_rule == DiffusionRule::Divergence)
+        {
             WeakSign::Positive
         } else {
             WeakSign::Negative

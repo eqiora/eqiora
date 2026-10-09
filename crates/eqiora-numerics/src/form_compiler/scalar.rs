@@ -71,6 +71,7 @@ pub(crate) struct DerivedScalarGalerkinForm {
 struct VolumeNodes {
     root: ExprId,
     divergence: ExprId,
+    diffusion_rule: super::vocabulary::DiffusionRule,
     bilinear_flux: ExprId,
     divergence_sign: super::vocabulary::WeakSign,
     gradient: ExprId,
@@ -190,6 +191,7 @@ impl DerivedScalarGalerkinForm {
                 volume_relation: self.volume_relation,
                 root: self.volume_nodes.root,
                 divergence: self.volume_nodes.divergence,
+                diffusion_rule: self.volume_nodes.diffusion_rule,
                 divergence_sign: self.volume_nodes.divergence_sign,
                 values: &self.volume_nodes.values,
                 conjugate_test: self.conjugate_test,
@@ -344,7 +346,13 @@ pub(crate) fn derive_candidate_with_dimension(
         }
         _ => return Err(role_error(field, "principal trial must be an exact Field")),
     };
-    let volume = recognize_volume(typed.expression(), volume_relation, field, conjugate_test)?;
+    let volume = recognize_volume(
+        typed.expression(),
+        volume_relation,
+        field,
+        conjugate_test,
+        dimension,
+    )?;
     let boundaries = boundary_inventory(program, domain, field, dimension, &typed, &volume)?;
     let Some(boundary_roles) = boundaries else {
         return Ok(None);
@@ -563,7 +571,8 @@ fn validate_expression(
             | ExprNode::Gradient(_)
             | ExprNode::Divergence(_)
             | ExprNode::Trace(_)
-            | ExprNode::NormalComponent(_) => true,
+            | ExprNode::NormalComponent(_)
+            | ExprNode::PureOperatorApplication(_) => true,
             ExprNode::Symbol(SymbolRef::Field(id)) => id.erase() == field,
             ExprNode::Symbol(SymbolRef::Parameter(_)) => true,
             _ => false,
@@ -873,6 +882,7 @@ fn build_certificate(
         volume_relation,
         root: volume.root,
         divergence: volume.divergence,
+        diffusion_rule: volume.diffusion_rule,
         divergence_sign: volume.divergence_sign,
         values: &volume.values,
         conjugate_test,

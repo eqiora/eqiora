@@ -850,6 +850,7 @@ fn build_certificate(
         volume_relation: balance_relation,
         root: volume.root,
         divergence: volume.divergence,
+        diffusion_rule: crate::form_compiler::vocabulary::DiffusionRule::Divergence,
         divergence_sign: super::vocabulary::WeakSign::Positive,
         values: &[super::vocabulary::PrimalValueTerm {
             source_node: volume.load_gradient,
@@ -887,6 +888,7 @@ fn correspondence_source<'a>(
         volume_relation: balance_relation,
         root: volume.root,
         divergence: volume.divergence,
+        diffusion_rule: crate::form_compiler::vocabulary::DiffusionRule::Divergence,
         divergence_sign: super::vocabulary::WeakSign::Positive,
         values,
         conjugate_test: false,

@@ -98,7 +98,7 @@ impl PrimalGalerkinCorrespondence {
             } else {
                 FormulationRule::TestPairing
             },
-            FormulationRule::DivergenceByParts,
+            source.diffusion_rule.formulation_rule(),
             if has_prescribed {
                 FormulationRule::TraceOrPrescribedFlux
             } else if has_natural {
@@ -153,7 +153,7 @@ impl PrimalGalerkinCorrespondence {
         )?;
         check_entry(
             entries.next(),
-            DIVERGENCE_BY_PARTS,
+            source.diffusion_rule.formulation_rule().id(),
             source.volume_relation,
             source.divergence,
             WeakTermSlot::Bilinear {
