@@ -210,7 +210,9 @@ impl ResolvedCommonPlan {
             Self::Algebraic(_) => Some(LinearOperatorProperties::General),
             Self::Eigen(_) | Self::Ode(_) => None,
             Self::Scalar(plan) => Some(match plan.admission.spatial {
-                super::NativeSpatialPolicy::ScalarQ1 => LinearOperatorProperties::General,
+                super::NativeSpatialPolicy::LinearFiniteElement(_) => {
+                    LinearOperatorProperties::General
+                }
                 super::NativeSpatialPolicy::CoordinateCellConstant
                 | super::NativeSpatialPolicy::ScalarTpfa(_) => {
                     LinearOperatorProperties::SymmetricPositiveDefinite

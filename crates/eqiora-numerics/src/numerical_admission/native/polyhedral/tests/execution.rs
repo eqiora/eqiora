@@ -20,7 +20,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
     )
     .unwrap();
     for permuted in [false, true] {
-        let (_, program, owner) = fixture_source(
+        let (model, program, owner) = fixture_source(
             &[vec![0, 1, 2, 3]],
             false,
             permuted,
@@ -67,6 +67,75 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
                 |reactions, values| reactions.recover(values),
             )
             .unwrap();
+        let recognized = RecognizedNativeAdmission::recognize(&model, owner.clone()).unwrap();
+        let mut linear = NativeLinearPolicy::exact::<S>(policy, backend).unwrap();
+        linear.planning_profile = Some(
+            eqiora_solver::HostSerialSolverProfile::general_canonical_csr()
+                .with_structure(equations.algebraic_structure(None).unwrap())
+                .unwrap(),
+        );
+        let native = recognized
+            .clone()
+            .complete(
+                NativeSpatialPolicy::LinearFiniteElement(space),
+                linear.clone(),
+                None,
+                None,
+            )
+            .unwrap();
+        native.revalidate().unwrap();
+        let native_output = native.execute_scalar(&REFERENCE_LINEAR_SOLVER).unwrap();
+        assert_eq!(native_output.fields[0].0, output.fields[0].0);
+        assert_eq!(native_output.fields[0].1, output.fields[0].1);
+        assert_eq!(native_output.fields[0].3, space);
+        let expected_coordinates = output.fields[0]
+            .2
+            .iter()
+            .flat_map(|v| {
+                if complex {
+                    vec![v.re(), v.im()]
+                } else {
+                    vec![v.re()]
+                }
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(native_output.fields[0].2, expected_coordinates);
+        let other_space = if face {
+            Space::tetrahedral_edge()
+        } else {
+            Space::tetrahedral_face()
+        };
+        let other = NativeSpatialPolicy::LinearFiniteElement(other_space);
+        assert_ne!(
+            native.policy_identity,
+            policy_identity(other, &linear, None, None)
+        );
+        assert!(
+            recognized
+                .clone()
+                .complete(other, linear.clone(), None, None)
+                .is_err()
+        );
+        let mut drift = native.clone();
+        drift.spatial = other;
+        assert!(drift.execute_scalar(&REFERENCE_LINEAR_SOLVER).is_err());
+        for unsupported in [
+            Space::cell_constant(),
+            Space::simplex_p1_bubble(),
+            Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+        ] {
+            assert!(
+                recognized
+                    .clone()
+                    .complete(
+                        NativeSpatialPolicy::LinearFiniteElement(unsupported),
+                        linear.clone(),
+                        None,
+                        None
+                    )
+                    .is_err()
+            );
+        }
         assert_eq!(output.fields.len(), 1);
         let (_, ty, coefficients, actual_space) = &output.fields[0];
         assert_eq!(*actual_space, space);

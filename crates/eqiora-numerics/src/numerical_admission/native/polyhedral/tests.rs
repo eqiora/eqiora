@@ -219,7 +219,9 @@ fn native_recognition_retains_real_and_complex_polyhedral_linear_equations() {
         let (model, _, owner) = fixture_typed(&[vec![0, 1, 2, 3]], false, true, 2., complex);
         let recognized = RecognizedNativeAdmission::recognize(&model, owner).unwrap();
         for spatial in [
-            NativeSpatialPolicy::ScalarQ1,
+            NativeSpatialPolicy::LinearFiniteElement(Space::continuous_lagrange(
+                std::num::NonZeroU16::MIN,
+            )),
             NativeSpatialPolicy::ScalarTpfa(None),
         ] {
             let error = validate_resources(spatial, &recognized.resources).unwrap_err();

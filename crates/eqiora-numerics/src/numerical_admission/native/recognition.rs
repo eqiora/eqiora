@@ -364,7 +364,7 @@ pub(crate) fn require_policy_compatibility(
     scalar_domain: eqiora_core::ScalarDomain,
 ) -> Result<(), Diagnostic> {
     let properties = match spatial {
-        NativeSpatialPolicy::ScalarQ1
+        NativeSpatialPolicy::LinearFiniteElement(_)
         | NativeSpatialPolicy::TransientMiniP1(_)
         | NativeSpatialPolicy::TransientCellCentered(_) => LinearOperatorProperties::General,
         NativeSpatialPolicy::CoordinateCellConstant | NativeSpatialPolicy::ScalarTpfa(_) => {

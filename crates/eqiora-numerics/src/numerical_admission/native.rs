@@ -3,7 +3,7 @@ use super::*;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) enum NativeSpatialPolicy {
     CoordinateCellConstant,
-    ScalarQ1,
+    LinearFiniteElement(Space),
     ScalarTpfa(Option<eqiora_solver::AlgebraicConstraint>),
     ElasticityQ1,
     StokesMiniP1(IncompressibleFlowScaleProfile2d),
@@ -463,6 +463,26 @@ impl RecognizedNativeAdmission {
             },
         )?;
         validate_resources(spatial, &self.resources)?;
+        if let NativeSpatialPolicy::LinearFiniteElement(space) = spatial
+            && matches!(
+                space.family(),
+                SpaceFamily::TetrahedralEdge | SpaceFamily::TetrahedralFace
+            )
+        {
+            if temporal.is_some() || nonlinear.is_some() {
+                return Err(invalid("moment admission requires static linear equations"));
+            }
+            match &self.recognized {
+                RecognizedNativeModel::Scalar(equations) => {
+                    equations.validate_moment_space(space)?
+                }
+                RecognizedNativeModel::ComplexScalar(equations) => {
+                    equations.validate_moment_space(space)?
+                }
+                _ => return Err(invalid("moment admission requires linear equations")),
+            }
+        }
+
         if matches!(spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
             let RecognizedNativeModel::Scalar(equations) = &self.recognized else {
                 return Err(invalid("TPFA requires scalar equations"));
@@ -490,9 +510,11 @@ impl RecognizedNativeModel {
                 NativeSpatialPolicy::CoordinateCellConstant
             ) | (
                 Self::Scalar(_),
-                NativeSpatialPolicy::ScalarQ1 | NativeSpatialPolicy::ScalarTpfa(_)
-            ) | (Self::ComplexScalar(_), NativeSpatialPolicy::ScalarQ1)
-                | (Self::Elasticity(_), NativeSpatialPolicy::ElasticityQ1)
+                NativeSpatialPolicy::LinearFiniteElement(_) | NativeSpatialPolicy::ScalarTpfa(_)
+            ) | (
+                Self::ComplexScalar(_),
+                NativeSpatialPolicy::LinearFiniteElement(_)
+            ) | (Self::Elasticity(_), NativeSpatialPolicy::ElasticityQ1)
                 | (Self::Stokes(_), NativeSpatialPolicy::StokesMiniP1(_))
                 | (
                     Self::Transient(_) | Self::TransientGeometry(_),
@@ -680,11 +702,6 @@ impl NativeNumericalAdmission {
         if let RecognizedNativeModel::Coordinates(projection) = self.recognized_model() {
             return super::coordinate_grid::execute(self, projection, backend);
         }
-        let NativeMeshResources::Cartesian { .. } = self.resources() else {
-            return Err(invalid(
-                "scalar elliptic execution requires Cartesian resources",
-            ));
-        };
         let RecognizedNativeModel::Scalar(lowered) = self.recognized_model() else {
             return Err(invalid(
                 "native numerical admission does not own recognized scalar-elliptic meaning",
@@ -694,12 +711,12 @@ impl NativeNumericalAdmission {
         let checked_backend = self.linear.checked_backend(backend, Some(&structure))?;
         let backend: &dyn LinearSolverBackend = &checked_backend;
         let solve = LinearSolveRequest::new(backend, self.linear.solver);
-        if self.spatial == NativeSpatialPolicy::ScalarQ1 {
+        if let NativeSpatialPolicy::LinearFiniteElement(space) = self.spatial {
             return lowered.execute(
                 self.linear.workers,
                 solve,
                 self.resources(),
-                Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+                space,
                 complete,
             );
         }
@@ -708,8 +725,8 @@ impl NativeNumericalAdmission {
             NativeSpatialPolicy::CoordinateCellConstant => {
                 unreachable!("coordinate cells executed above")
             }
-            NativeSpatialPolicy::ScalarQ1 => {
-                unreachable!("Q1 executed through linear block assembly")
+            NativeSpatialPolicy::LinearFiniteElement(_) => {
+                unreachable!("finite elements executed through linear block assembly")
             }
             NativeSpatialPolicy::ScalarTpfa(_) => {
                 let finalized = self.assemble_scalar_tpfa()?;

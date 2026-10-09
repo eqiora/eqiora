@@ -110,7 +110,7 @@ impl ResolvedCommonPlan {
                     spatial = NativeSpatialPolicy::ScalarTpfa(constraint);
                 }
                 let (formulation_selection, properties) = match spatial {
-                    NativeSpatialPolicy::ScalarQ1 => (
+                    NativeSpatialPolicy::LinearFiniteElement(_) => (
                         Some(resolve_formulation_request(
                             formulation,
                             FormulationKind::PrimalGalerkin,
@@ -159,7 +159,10 @@ impl ResolvedCommonPlan {
                 .map(|plan| ResolvedCommonPlan::Scalar(Box::new(plan)))
             }
             RecognizedNativeModel::ComplexScalar(equations) => {
-                if resolve_scalar(spatial)? != NativeSpatialPolicy::ScalarQ1
+                if resolve_scalar(spatial)?
+                    != NativeSpatialPolicy::LinearFiniteElement(Space::continuous_lagrange(
+                        std::num::NonZeroU16::MIN,
+                    ))
                     || scaling.is_some()
                     || temporal.is_some()
                 {
@@ -200,8 +203,14 @@ impl ResolvedCommonPlan {
                 .with_structure(structure)?;
                 profile.require_plan(linear.solver)?;
                 linear.planning_profile = Some(profile);
-                let admission =
-                    recognized.complete(NativeSpatialPolicy::ScalarQ1, linear, None, None)?;
+                let admission = recognized.complete(
+                    NativeSpatialPolicy::LinearFiniteElement(Space::continuous_lagrange(
+                        std::num::NonZeroU16::MIN,
+                    )),
+                    linear,
+                    None,
+                    None,
+                )?;
                 CommonScalarPlan::from_complex_admission(
                     model,
                     admission,

@@ -97,8 +97,10 @@ impl NativeNumericalAdmission {
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonScalarRunOutput<f64>, Diagnostic> {
         self.revalidate()?;
-        let NativeMeshResources::Cartesian { .. } = self.resources() else {
-            return Err(invalid("complex scalar Run lost Cartesian resources"));
+        let NativeSpatialPolicy::LinearFiniteElement(space) = self.spatial else {
+            return Err(invalid(
+                "complex linear Run requires a finite-element Space",
+            ));
         };
         let structure = equations.algebraic_structure(None)?;
         let checked = self
@@ -108,7 +110,7 @@ impl NativeNumericalAdmission {
             self.linear.workers,
             LinearSolveRequest::new(&checked, self.linear.solver),
             self.resources(),
-            Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+            space,
             |reactions, values| reactions.recover(values),
         )?;
         Ok(CommonScalarRunOutput {

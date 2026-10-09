@@ -64,19 +64,24 @@ pub(super) fn resolve_common_scalar_portable<S: crate::spatial_expression::Coeff
         }
     };
     let (method, space, quadrature) = match admission.spatial {
-        NativeSpatialPolicy::ScalarQ1 => (
-            DiscretizationMethod::ContinuousGalerkin,
-            Space::continuous_lagrange(std::num::NonZeroU16::MIN),
-            QuadraturePolicy::GaussLegendre {
-                points_per_axis: NonZeroUsize::new(2).expect("two is non-zero"),
-            },
-        ),
+        NativeSpatialPolicy::LinearFiniteElement(space)
+            if space == Space::continuous_lagrange(std::num::NonZeroU16::MIN) =>
+        {
+            (
+                DiscretizationMethod::ContinuousGalerkin,
+                space,
+                QuadraturePolicy::GaussLegendre {
+                    points_per_axis: NonZeroUsize::new(2).expect("two is non-zero"),
+                },
+            )
+        }
         NativeSpatialPolicy::ScalarTpfa(_) => (
             DiscretizationMethod::CellCenteredFiniteVolume,
             Space::cell_constant(),
             QuadraturePolicy::CellCentroid,
         ),
-        NativeSpatialPolicy::CoordinateCellConstant
+        NativeSpatialPolicy::LinearFiniteElement(_)
+        | NativeSpatialPolicy::CoordinateCellConstant
         | NativeSpatialPolicy::ElasticityQ1
         | NativeSpatialPolicy::StokesMiniP1(_)
         | NativeSpatialPolicy::TransientMiniP1(_)
@@ -239,7 +244,10 @@ impl CommonScalarPlan {
         };
         if admission.temporal.is_some() {
             let region = lowered.single()?;
-            if admission.spatial != NativeSpatialPolicy::ScalarQ1
+            if admission.spatial
+                != NativeSpatialPolicy::LinearFiniteElement(Space::continuous_lagrange(
+                    std::num::NonZeroU16::MIN,
+                ))
                 || region.form.fields().len() != 1
                 || !region.form.is_transient()
                 || !lowered.interfaces.is_empty()
@@ -519,7 +527,7 @@ impl CommonScalarPlan {
             threads: NonZeroUsize::MIN,
         };
         let finalized = match self.admission.spatial {
-            NativeSpatialPolicy::ScalarQ1 => {
+            NativeSpatialPolicy::LinearFiniteElement(_) => {
                 let quadrature = QuadratureRule::tensor_product_gauss_legendre(dimension, 2)?;
                 let form = equations
                     .single()?
@@ -730,7 +738,14 @@ impl CommonScalarPlan {
     pub fn spatial(&self) -> CommonSpatialPolicy {
         match self.admission.spatial {
             NativeSpatialPolicy::CoordinateCellConstant => CommonSpatialPolicy::CellCentered,
-            NativeSpatialPolicy::ScalarQ1 => CommonSpatialPolicy::Q1,
+            NativeSpatialPolicy::LinearFiniteElement(space) => {
+                assert_eq!(
+                    space,
+                    Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+                    "public scalar Plan admitted a foreign finite-element Space"
+                );
+                CommonSpatialPolicy::Q1
+            }
             NativeSpatialPolicy::ScalarTpfa(_) => CommonSpatialPolicy::CellCenteredTpfa,
             NativeSpatialPolicy::ElasticityQ1 => {
                 unreachable!("common scalar Plan cannot own elasticity policy")
@@ -753,7 +768,7 @@ impl CommonScalarPlan {
 
 pub(super) fn scalar_operator_properties(spatial: NativeSpatialPolicy) -> LinearOperatorProperties {
     match spatial {
-        NativeSpatialPolicy::ScalarQ1 => LinearOperatorProperties::General,
+        NativeSpatialPolicy::LinearFiniteElement(_) => LinearOperatorProperties::General,
         NativeSpatialPolicy::CoordinateCellConstant | NativeSpatialPolicy::ScalarTpfa(None) => {
             LinearOperatorProperties::SymmetricPositiveDefinite
         }

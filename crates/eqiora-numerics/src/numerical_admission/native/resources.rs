@@ -17,10 +17,26 @@ pub(crate) fn validate_resources(
         (NativeSpatialPolicy::CoordinateCellConstant, NativeMeshResources::Coordinates(_)) => {
             Ok(())
         }
+        (NativeSpatialPolicy::ScalarTpfa(_), resources @ NativeMeshResources::Cartesian { .. }) => {
+            validate_cartesian_resources(resources)
+        }
         (
-            NativeSpatialPolicy::ScalarQ1 | NativeSpatialPolicy::ScalarTpfa(_),
+            NativeSpatialPolicy::LinearFiniteElement(space),
             resources @ NativeMeshResources::Cartesian { .. },
-        ) => validate_cartesian_resources(resources),
+        ) if space == Space::continuous_lagrange(std::num::NonZeroU16::MIN) => {
+            validate_cartesian_resources(resources)
+        }
+        (
+            NativeSpatialPolicy::LinearFiniteElement(space),
+            resources @ NativeMeshResources::GmshSimplicial { geometry, mesh, .. },
+        ) if matches!(
+            space.family(),
+            SpaceFamily::TetrahedralEdge | SpaceFamily::TetrahedralFace
+        ) && geometry.polyhedral_vertices().is_some()
+            && mesh.dimension() == 3 =>
+        {
+            validate_simplicial_resources(resources)
+        }
         (NativeSpatialPolicy::ElasticityQ1, resources @ NativeMeshResources::Cartesian { .. }) => {
             validate_cartesian_resources(resources)
         }

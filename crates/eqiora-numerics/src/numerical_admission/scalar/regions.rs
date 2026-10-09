@@ -194,6 +194,27 @@ impl<S: Coefficient> ExecutableLinearEquations<S> {
         })
     }
 
+    pub(in crate::numerical_admission) fn validate_moment_space(
+        &self,
+        space: Space,
+    ) -> Result<(), Diagnostic> {
+        if !self.interfaces.is_empty() {
+            return Err(invalid(
+                "moment admission does not admit full-value trace quotients",
+            ));
+        }
+        let reference = eqiora_meshing::ReferenceCell::simplex(3)?;
+        for region in &self.regions {
+            if !matches!(region.support, LinearRegionSupport::Polyhedral(_)) {
+                return Err(invalid(
+                    "moment admission requires authenticated polyhedral support",
+                ));
+            }
+            region.form.bind_space(reference, space)?;
+        }
+        Ok(())
+    }
+
     pub(in crate::numerical_admission) fn single(&self) -> Result<&LinearRegion<S>, Diagnostic> {
         let [region] = self.regions.as_slice() else {
             return Err(invalid(
