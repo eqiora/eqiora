@@ -6,9 +6,10 @@ use ulid::Ulid;
 
 use super::{AuthoredFormExpression, AuthoredFormExpressionKind};
 
-const SCHEMA: &str = "eqiora.authored-form/v13";
+const SCHEMA: &str = "eqiora.authored-form/v14";
 
 mod harmonic;
+mod regularity;
 pub(in crate::formulation) use harmonic::HarmonicFormulationRequest;
 const GLOBAL_WEAK_ASSUMPTIONS: &[&str] = &[
     "finite-dimensional-test-space",
@@ -16,8 +17,8 @@ const GLOBAL_WEAK_ASSUMPTIONS: &[&str] = &[
 ];
 const MAX_BYTES: usize = 1024 * 1024;
 
-/// Ordered test name, trial Field, zero-trace boundaries and canonical SI dimension.
-type AuthoredTestRestriction = (String, String, Vec<String>, [(i32, i32); 7]);
+/// Ordered test name, trial Field, zero-trace boundaries, SI dimension and spatial regularity.
+type AuthoredTestRestriction = (String, String, Vec<String>, [(i32, i32); 7], Option<String>);
 
 /// Exact compiler-owned projection of one authored Formulation.
 ///
@@ -286,7 +287,7 @@ impl AuthoredFormulationProjection {
         equations: Vec<(String, AuthoredFormExpressionV1, AuthoredFormExpressionV1)>,
     ) -> Result<Self, Diagnostic> {
         let mut trial_ulids = Vec::new();
-        for (_, trial, _, _) in &tests {
+        for (_, trial, _, _, _) in &tests {
             if !trial_ulids.contains(trial) {
                 trial_ulids.push(trial.clone());
             }
@@ -473,14 +474,18 @@ impl AuthoredFormulationProjection {
                 {
                     return Err(rejection("equations and test/trial inventories differ"));
                 }
-                if second_direction && (tests[0].2 != tests[1].2 || tests[0].3 != tests[1].3) {
+                if second_direction
+                    && (tests[0].2 != tests[1].2
+                        || tests[0].3 != tests[1].3
+                        || tests[0].4 != tests[1].4)
+                {
                     return Err(rejection(
-                        "second variation directions require identical dimension and boundary restrictions",
+                        "second variation directions require identical dimension, regularity and boundary restrictions",
                     ));
                 }
                 let mut seen = std::collections::BTreeSet::new();
                 let mut test_names = std::collections::BTreeSet::new();
-                for (test_name, trial, zero_on, dimension) in tests {
+                for (test_name, trial, zero_on, dimension, _) in tests {
                     if eqiora_core::DimExponents::from_rationals(*dimension)
                         .is_none_or(|value| value.exponents() != *dimension)
                     {
@@ -539,6 +544,7 @@ impl AuthoredFormulationProjection {
                 ));
             }
         }
+        regularity::check(&wire)?;
         Ok(Self {
             wire,
             canonical_bytes: bytes.into(),
@@ -555,8 +561,8 @@ impl AuthoredFormulationProjection {
     pub const fn required_assumptions() -> &'static [&'static str] {
         &[
             "fixed-domain",
-            "classical-divergence-and-boundary-trace",
-            "admissible-h1-test-with-zero-essential-trace",
+            "classical-spatial-derivatives-and-boundary-trace",
+            "admissible-tests-with-declared-regularity-and-essential-traces",
         ]
     }
     /// Exact hypotheses bound by this projection's identity.
@@ -570,10 +576,10 @@ impl AuthoredFormulationProjection {
     pub fn name(&self) -> &str {
         &self.wire.name
     }
-    /// Named tests with their exact trial Field and zero-trace supports.
+    /// Named tests with their exact trial, zero-trace supports, dimension and spatial regularity.
     #[must_use]
     #[allow(clippy::type_complexity)]
-    pub fn test_restrictions(&self) -> &[(String, String, Vec<String>, [(i32, i32); 7])] {
+    pub fn test_restrictions(&self) -> &[AuthoredTestRestriction] {
         match &self.wire.binding {
             WireBinding::WeakTests { tests } => tests,
             _ => &[],
@@ -822,6 +828,7 @@ mod tests {
                 "01ARZ3NDEKTSV4RRFFQ69G5FAX".into(),
                 vec!["01ARZ3NDEKTSV4RRFFQ69G5FAY".into()],
                 DimExponents::DIMENSIONLESS.exponents(),
+                Some("h1".into()),
             )],
             vec![(
                 "01ARZ3NDEKTSV4RRFFQ69G5FAV".into(),
@@ -887,6 +894,7 @@ mod tests {
                 "01ARZ3NDEKTSV4RRFFQ69G5FAZ".into(),
                 vec![],
                 DimExponents::DIMENSIONLESS.exponents(),
+                Some("h1".into()),
             ));
         }
         wire.assumptions = AuthoredFormulationProjection::mixed_assumptions()
@@ -906,7 +914,7 @@ mod tests {
         let bytes = projection().canonical_bytes().to_vec();
         let old = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.authored-form/v13", "eqiora.authored-scalar-form/v3");
+            .replace("eqiora.authored-form/v14", "eqiora.authored-scalar-form/v3");
         assert!(AuthoredFormulationProjection::decode(old.as_bytes()).is_err());
     }
 

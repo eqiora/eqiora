@@ -120,6 +120,7 @@ pub(super) struct EffectiveFormulation {
     pub(super) rules: Vec<FormulationRule>,
     pub(super) conjugate_test: bool,
     pub(super) zero_on: Vec<RawId>,
+    pub(super) test_regularity: &'static str,
     pub(super) direction: DirectionalProof,
     pub(super) assumptions: Vec<&'static str>,
 }
@@ -312,6 +313,16 @@ impl PrimalGalerkinCorrespondence {
                     .map(|boundary| boundary.domain)
                     .collect(),
                 direction: DirectionalProof::StrongImpliesWeak,
+                test_regularity: if matches!(source.diffusion_rule, DiffusionRule::VectorCurlCurl)
+                    && source
+                        .boundaries
+                        .iter()
+                        .all(|boundary| boundary.discharge == BoundaryDischarge::ZeroFlux)
+                {
+                    "hcurl"
+                } else {
+                    "h1"
+                },
                 assumptions: eqiora_compiler::AuthoredFormulationProjection::required_assumptions()
                     .to_vec(),
                 rules,

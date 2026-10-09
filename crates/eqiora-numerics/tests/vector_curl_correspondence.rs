@@ -279,6 +279,11 @@ fn homogeneous_natural_curl_laws_discharge_their_exact_faces() {
                 "",
             );
         check(&natural).unwrap();
+        let hcurl = natural.replace("test eta:1 for u;", "test eta:1 for u in hcurl;");
+        let (program, form) = compile(&hcurl);
+        assert_eq!(form.test_restrictions()[0].4.as_deref(), Some("hcurl"));
+        let replay = AuthoredFormulationProjection::decode(form.canonical_bytes()).unwrap();
+        check_authored_spatial_formulation(&program, &replay).unwrap();
         let mixed = original
             .replace(
                 "relation fixed0lower on b0lower {trace(u)=0;}",

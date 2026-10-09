@@ -1386,7 +1386,7 @@ class Component:
         self._laws: list[
             tuple[str, Support, Expression | None, Expression, Expression, tuple[str, ...]]
         ] = []
-        self._test_restrictions: list[tuple[str, str, tuple[str, ...], ValueType]] = []
+        self._test_restrictions: list[tuple[str, str, tuple[str, ...], ValueType, str | None]] = []
         self._formulation: tuple[_AstFormulation, tuple[str, ...], int] | None = None
         self._instances: list[tuple[str, Component, tuple[tuple[str, str], ...], tuple[str, ...]]] = []
         self._ports = []
@@ -1969,14 +1969,17 @@ class Component:
         return declare(self, name, on, flux, source, storage, doc)
 
     def test(self, name: str, *, for_: Expression, dimension: Dimension | None = None,
+             regularity: str | None = None,
              zero_on: Support | BoundarySelectionSet | None = None) -> Expression:
-        """Declare a test for an exact trial and an optional homogeneous boundary restriction."""
+        """Declare a test, optional continuum regularity, and full zero-trace restriction."""
         self._source._ensure_open()
         if self._formulation is not None:
             raise ModuleError("test declarations must precede their owning weak form")
         test_type = ValueType.real(dimension)
         if not isinstance(for_, _Field) or for_._owner is not self._component_token:
             raise ModuleError("test trial must be a Field from this Component")
+        if regularity is not None and (not isinstance(regularity, str) or regularity not in {"h1", "hcurl", "hdiv", "l2"}):
+            raise ModuleError("test regularity must be one of: h1, hcurl, hdiv, l2")
         if len(self._test_restrictions) >= 8:
             raise ModuleError("weak form exceeds the 8-test limit")
         if zero_on is None:
@@ -1991,7 +1994,7 @@ class Component:
                 raise ModuleError("test restriction must be closed outside a boundary binder")
             boundaries = (zero_on._name,)
         admitted = self._add_name(name)
-        self._test_restrictions.append((admitted, for_._name, boundaries, test_type))
+        self._test_restrictions.append((admitted, for_._name, boundaries, test_type, regularity))
         return Expression(_CREATE, _Ast.name(admitted), self._component_token)
 
     def weak_form(

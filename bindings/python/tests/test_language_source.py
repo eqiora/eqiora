@@ -1431,7 +1431,9 @@ def test_plural_weak_form_authoring_preserves_bindings_and_equation_order():
                                role=eqiora.FieldRole.Variable, on=body)
     momentum = component.relation("momentum", q.equation(velocity, 0), on=body)
     continuity = component.relation("continuity", q.equation(pressure, 0), on=body)
-    v = component.test("v", for_=velocity, zero_on=exterior)
+    with pytest.raises(q.ModuleError, match="test regularity"):
+        component.test("unsupported", for_=velocity, regularity="H1")
+    v = component.test("v", for_=velocity, regularity="h1", zero_on=exterior)
     p = component.test("p", for_=pressure)
     with pytest.raises(q.ModuleError, match="distinct"):
         component.weak_form("invalid", [momentum, momentum], equations=[(v, p)])
@@ -1442,7 +1444,7 @@ def test_plural_weak_form_authoring_preserves_bindings_and_equation_order():
     with pytest.raises(q.ModuleError, match="one named form"):
         component.weak_form("second", [momentum], equations=[(v, p)])
     text = module.to_eqi()
-    assert "test v: 1 for velocity zero_on exterior;" in text
+    assert "test v: 1 for velocity in h1 zero_on exterior;" in text
     assert "test p: 1 for pressure;" in text
     assert "form mixed for momentum, continuity" in text
     assert text.index("v * velocity") < text.index("p * pressure")

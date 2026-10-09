@@ -61,14 +61,16 @@ pub(super) fn check_terms(
     }
     for trial in [source.velocity, source.pressure] {
         let id = trial.ulid().to_string();
-        let Some((_, _, bounds, dimension)) = form
+        let Some((_, _, bounds, dimension, regularity)) = form
             .test_restrictions()
             .iter()
-            .find(|(_, field, _, _)| field == &id)
+            .find(|(_, field, _, _, _)| field == &id)
         else {
             return Err(reject());
         };
-        if *dimension != eqiora_core::DimExponents::DIMENSIONLESS.exponents()
+        if !matches!(regularity.as_deref(), Some("h1"))
+            && !(trial == source.pressure && regularity.as_deref() == Some("l2"))
+            || *dimension != eqiora_core::DimExponents::DIMENSIONLESS.exponents()
             || (trial == source.velocity && bounds != &boundary_ids)
             || (trial == source.pressure && !bounds.is_empty())
         {

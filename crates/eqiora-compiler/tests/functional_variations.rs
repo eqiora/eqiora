@@ -342,7 +342,7 @@ fn second_variation_rejects_different_direction_restrictions() {
     assert!(
         errors.iter().any(|error| error
             .message()
-            .contains("identical dimension and boundary restrictions")),
+            .contains("identical dimension, regularity and boundary restrictions")),
         "{errors:?}"
     );
 
@@ -359,12 +359,14 @@ fn second_variation_rejects_different_direction_restrictions() {
     let form = compiled.authored_formulations().next().unwrap();
     let text = std::str::from_utf8(form.projection().canonical_bytes()).unwrap();
     let second = &form.projection().test_restrictions()[1];
-    for dimension in [false, true] {
+    for restriction in ["dimension", "boundary", "regularity"] {
         let mut mutated = second.clone();
-        if dimension {
-            mutated.3[1].0 = 1;
-        } else {
-            mutated.2.pop();
+        match restriction {
+            "dimension" => mutated.3[1].0 = 1,
+            "regularity" => mutated.4 = Some("l2".into()),
+            _ => {
+                mutated.2.pop();
+            }
         }
         let bytes = text.replace(
             &serde_json::to_string(second).unwrap(),
@@ -375,7 +377,7 @@ fn second_variation_rejects_different_direction_restrictions() {
         assert!(
             error
                 .message()
-                .contains("identical dimension and boundary restrictions"),
+                .contains("identical dimension, regularity and boundary restrictions"),
             "{error:?}"
         );
     }

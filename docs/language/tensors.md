@@ -201,7 +201,7 @@ physical vector trial is admitted without a separate Geometry binding.
 `tangential_trace` requires integration on an exact boundary of the operand's
 support. Complex forms use explicit `inner` pairings to retain conjugate-linear
 test dependence; `cross` itself remains bilinear. Current authored-form artifacts
-use `eqiora.authored-form/v13`; previous epochs are rejected. This authoring and
+use `eqiora.authored-form/v14`; previous epochs are rejected. This authoring and
 replay support does not by itself establish strong/weak correspondence, discharge
 boundary conditions, or select a numerical vector-space realization. A one-trial vector
 form can describe only one equation of a coupled Model; it is not a checked
@@ -245,6 +245,17 @@ This reduction requires the direct scalar composition; a sign inserted between
 curls, vector reductions and 3D curl-curl are not silently identified with it.
 It does not provide the general vector curl integration-by-parts certificate.
 
+Spatial weak tests default to H1. A declaration such as `test v:1 for u in hcurl;`
+selects a continuum regularity hypothesis independently of any element or mesh.
+The closed labels are `h1`, `hcurl`, `hdiv`, and `l2`; global finite tests have no
+spatial regularity label. H(curl) and H(div) tests require physical vectors.
+The weaker profiles admit value pairings and direct first curl or divergence,
+respectively; L2 admits value pairings. Full `zero_on` traces require H1.
+Products inside derivatives and higher derivative compositions remain outside
+these weaker profiles. Canonical projection decoding rechecks these restrictions;
+the declaration does not prove regularity of a solution or admit a numerical space.
+Python `Component.test(..., regularity="hcurl")` emits the same declaration.
+
 For a real or complex physical 3-vector, the explicit Rust inspection
 `eqiora_numerics::check_authored_spatial_formulation(program, projection)` checks a
 bounded strong-implies-weak correspondence without selecting a numerical method.
@@ -255,6 +266,8 @@ law `tangential_trace(curl(u)) = 0`. The test's `zero_on` inventory must
 match exactly the full-trace faces; natural faces leave the test unrestricted. The curl Green identity is
 `∫Ω v·curl(curl(u)) = ∫Ω curl(v)·curl(u) − ∫∂Ω (n×v)·curl(u)`.
 The full zero test trace or `n × curl(u) = 0` discharges its surface term.
+When every face is natural, the conditional Green correspondence also admits
+H(curl) tests; full-trace faces retain the stronger H1 requirement.
 The latter uses `(n×v)·curl(u) = −v·(n×curl(u))`; a zero normal component
 `n·curl(u) = 0` is insufficient and rejects. The shared tangential lift and
 curl definitions bind that distinction to the retained source nodes. Complex fields use

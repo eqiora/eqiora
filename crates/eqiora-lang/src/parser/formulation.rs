@@ -146,6 +146,12 @@ impl Parser<'_> {
                     .expect_identifier("trial Field name")?
                     .text()
                     .to_owned();
+                let regularity = if self.at_keyword("in") {
+                    self.bump();
+                    Some(self.expect_identifier("test regularity")?.text().to_owned())
+                } else {
+                    None
+                };
                 let mut zero_on = Vec::new();
                 if self.at_keyword("zero_on") {
                     self.bump();
@@ -162,7 +168,7 @@ impl Parser<'_> {
                     }
                 }
                 self.expect(TokenKind::Semicolon, "`;` after test declaration")?;
-                tests.push((name, trial, zero_on, dimension));
+                tests.push((name, trial, zero_on, dimension, regularity));
                 if !self.at_keyword("test") {
                     break;
                 }

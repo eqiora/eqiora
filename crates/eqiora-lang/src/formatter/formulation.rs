@@ -81,11 +81,14 @@ pub(super) fn format_formulation(
             writeln!(output, "finite {name}({});", trials.join(", ")).expect("String write");
         }
         FormulationBinding::WeakTests { tests } => {
-            for (name, trial, zero_on, dimension) in tests {
+            for (name, trial, zero_on, dimension, regularity) in tests {
                 write_indent(output, indent + 2);
                 write!(output, "test {name}: ").expect("String write");
                 format_expression(dimension, 0, output);
                 write!(output, " for {trial}").expect("String write");
+                if let Some(regularity) = regularity {
+                    write!(output, " in {regularity}").expect("String write");
+                }
                 if !zero_on.is_empty() {
                     write!(output, " zero_on {}", zero_on.join(", ")).expect("String write");
                 }
@@ -175,6 +178,16 @@ mod tests {
     }
 
     #[test]
+    fn test_regularity_qualifier_roundtrips_before_boundary_restriction() {
+        let source = "component C() { form weak for balance { test v:1 for field in hcurl zero_on wall; integrate(body,v)=integrate(body,v); } }";
+        let first = parse("regularity.eqi", source).into_document().unwrap();
+        let formatted = format(&first);
+        assert!(formatted.contains("test v: 1 for field in hcurl zero_on wall;"));
+        let second = parse("regularity.eqi", &formatted).into_document().unwrap();
+        assert_eq!(format(&second), formatted);
+    }
+
+    #[test]
     fn primal_form_has_one_canonical_roundtrip() {
         let source = "component D(support region:volume(ambient_dimension=2)) {variable u: 1 on region;relation balance on region{-div(grad(u))=f;}form weak for balance { test w: 1 for u zero_on surface;integrate(region,dot(grad(w),grad(u)))=integrate(region,w*f);}}";
         let first = parse("form.eqi", source).into_document().unwrap();
@@ -209,15 +222,16 @@ mod tests {
         assert_eq!(
             tests
                 .iter()
-                .map(|(name, trial, boundaries, _)| (
+                .map(|(name, trial, boundaries, _, regularity)| (
                     name.as_str(),
                     trial.as_str(),
-                    boundaries.clone()
+                    boundaries.clone(),
+                    regularity.as_deref(),
                 ))
                 .collect::<Vec<_>>(),
             vec![
-                ("v", "velocity", vec!["surface".into()]),
-                ("q", "pressure", vec![])
+                ("v", "velocity", vec!["surface".into()], None),
+                ("q", "pressure", vec![], None)
             ]
         );
         assert!(formatted.contains("test q: 1 for pressure;"));

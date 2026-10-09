@@ -64,7 +64,7 @@ plan = eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=linear)
 assert model.authored_formulations[0].name == 'weak'
 assert model.authored_formulations[0].test_restrictions[0][0] == 'w'
 assert model.authored_formulations[0].implication == 'strong-implies-weak'
-assert model.authored_formulations[0].assumptions == ['fixed-domain', 'classical-divergence-and-boundary-trace', 'admissible-h1-test-with-zero-essential-trace']
+assert model.authored_formulations[0].assumptions == ['fixed-domain', 'classical-spatial-derivatives-and-boundary-trace', 'admissible-tests-with-declared-regularity-and-essential-traces']
 assert len(model.authored_formulations[0].test_restrictions[0][2]) == 4
 assert plan.formulation.requested == eqiora.FormulationSelectionMode.Authored
 assert plan.formulation.requested_source_identity == model.authored_formulations[0].source_identity

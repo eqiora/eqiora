@@ -66,6 +66,8 @@ impl ComponentDecl {
     }
 }
 
+type WeakTestDeclaration = (String, String, Vec<String>, Expr, Option<String>);
+
 /// Mathematical variables introduced by an authored formulation.
 #[derive(Debug, Clone, PartialEq)]
 pub enum FormulationBinding {
@@ -78,10 +80,8 @@ pub enum FormulationBinding {
     },
     /// Ordered global scalar Fields sharing one explicitly named finite coordinate space.
     Finite { name: String, trials: Vec<String> },
-    /// Ordered tests with exact trials and optional zero-trace boundary restrictions.
-    WeakTests {
-        tests: Vec<(String, String, Vec<String>, Expr)>,
-    },
+    /// Ordered tests with exact trials, optional continuum regularity, and optional zero-trace boundary restrictions.
+    WeakTests { tests: Vec<WeakTestDeclaration> },
     /// Every ordered mathematical interval within the named parent support.
     Interval {
         name: String,

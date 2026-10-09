@@ -37,7 +37,7 @@ pub(super) fn matches_weak_residual(
     left: &E,
     right: &E,
 ) -> bool {
-    let [(name, field, _, _)] = projection.test_restrictions() else {
+    let [(name, field, _, _, _)] = projection.test_restrictions() else {
         return false;
     };
     let [(_, authored_left, authored_right)] = projection.equations() else {
@@ -90,7 +90,7 @@ pub(super) fn matches_elastic_variation(
     load: eqiora_schema::kernel::ExprId,
     tractions: &[ElasticTractionTerm],
 ) -> bool {
-    let [(name, field, _, _)] = projection.test_restrictions() else {
+    let [(name, field, _, _, _)] = projection.test_restrictions() else {
         return false;
     };
     let Some(domain) = projection.domain_ulid() else {

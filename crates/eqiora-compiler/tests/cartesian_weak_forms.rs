@@ -95,7 +95,7 @@ fn oriented_forms_retain_closed_operators_and_replay() {
         );
         assert!(
             AuthoredFormulationProjection::decode(
-                wire.replace("eqiora.authored-form/v13", "eqiora.authored-form/v12")
+                wire.replace("eqiora.authored-form/v14", "eqiora.authored-form/v12")
                     .as_bytes(),
             )
             .is_err()

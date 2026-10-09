@@ -184,10 +184,13 @@ pub(super) fn checked_form(
                     "weak Formulation requires a test",
                 ));
             }
-            for (name, trial, zero_on, dimension) in tests {
+            for (name, trial, zero_on, dimension, regularity) in tests {
                 super::expression::validate_expression(dimension)?;
                 checked_identifier(name.clone(), "test function")?;
                 checked_identifier(trial.clone(), "trial Field")?;
+                if let Some(regularity) = regularity {
+                    checked_identifier(regularity.clone(), "test regularity")?;
+                }
                 for name in zero_on {
                     checked_identifier(name.clone(), "test boundary")?;
                 }
