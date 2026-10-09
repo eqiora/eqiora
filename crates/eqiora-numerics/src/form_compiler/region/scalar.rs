@@ -1,5 +1,4 @@
 use eqiora_core::{DimExponents, DynQuantity, Id, entity::kinds};
-use eqiora_meshing::ReferenceCell;
 use eqiora_realization::Space;
 
 use super::*;
@@ -66,10 +65,9 @@ impl<S: Coefficient> CompiledRegionForm<S> {
         Ok(form)
     }
 
-    pub(in crate::form_compiler) fn bind_scalar(
+    pub(in crate::form_compiler) fn scalar_bindings(
         &self,
-        time: Option<&RegionTimeBinding>,
-    ) -> Result<BoundRegionForm<S>, Diagnostic> {
+    ) -> Result<(Vec<RegionFieldBinding>, BTreeMap<RawId, DynQuantity>), Diagnostic> {
         let form = self;
         let dimension = self.dimension;
         let fields = form
@@ -93,12 +91,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
                 Ok((relation, DynQuantity::new(1.0, dimension)))
             })
             .collect::<Result<BTreeMap<_, _>, Diagnostic>>()?;
-        form.bind(
-            ReferenceCell::hypercube(dimension)?,
-            &fields,
-            &multipliers,
-            time,
-        )
+        Ok((fields, multipliers))
     }
 }
 

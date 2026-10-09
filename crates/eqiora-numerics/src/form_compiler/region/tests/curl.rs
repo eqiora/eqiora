@@ -126,6 +126,7 @@ fn curl_constitutive_flux_preserves_the_green_identity_sign() {
             ids["law"],
             ids["u"],
             law.expression().roots()[0],
+            false,
         );
         assert_eq!(result.is_ok(), valid, "{flux}: {result:?}");
     }

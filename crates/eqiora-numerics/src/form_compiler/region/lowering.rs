@@ -10,6 +10,7 @@ enum Position {
     Strong,
     Flux,
     Isotropic,
+    CurlFlux,
 }
 
 pub(super) fn lower<S: Coefficient>(
@@ -123,12 +124,22 @@ fn expression<S: Coefficient>(
         {
             let curl = super::super::vector_curl::tangential_lift_operand(context.dag, id)
                 .expect("checked tangential lift");
-            let field = super::super::vector_curl::curl_operand(context.dag, curl)
-                .ok_or_else(|| invalid("tangential constitutive flux requires one exact curl"))?;
             // T(a)n = n × a and div T(a) = curl(a). The existing flux
             // convention is -div(q), hence q = -T(curl(u)) for +curl-curl.
             // Store the coefficient of the positive volume curl pairing.
-            trial(context, field, negative(coefficient), row, Pairing::Curl)
+            expression(
+                context,
+                curl,
+                negative(coefficient),
+                row,
+                Position::CurlFlux,
+                depth + 1,
+            )
+        }
+        ExprNode::PureOperatorApplication(_) if matches!(position, Position::CurlFlux) => {
+            let field = super::super::vector_curl::curl_operand(context.dag, id)
+                .ok_or_else(|| invalid("tangential constitutive flux requires one exact curl"))?;
+            trial(context, field, coefficient, row, Pairing::Curl)
         }
         ExprNode::PureOperatorApplication(_)
             if matches!(position, Position::Strong)
@@ -279,7 +290,9 @@ fn expression<S: Coefficient>(
             let pairing = match position {
                 Position::Strong => Pairing::Value,
                 Position::Isotropic => Pairing::TestDivergenceTrialValue,
-                Position::Flux => return Err(invalid("unsupported bare Field flux")),
+                Position::Flux | Position::CurlFlux => {
+                    return Err(invalid("unsupported bare Field flux"));
+                }
             };
             trial(context, id, coefficient, row, pairing)
         }

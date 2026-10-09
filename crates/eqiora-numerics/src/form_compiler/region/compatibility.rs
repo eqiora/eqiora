@@ -71,3 +71,23 @@ pub(super) fn validate<S: Coefficient>(
     }
     Ok(())
 }
+
+impl<S: Coefficient> CompiledRegionForm<S> {
+    pub(in crate::form_compiler) fn require_static_linear(&self) -> Result<(), Diagnostic> {
+        if self
+            .rows
+            .iter()
+            .any(|row| !row.dyadics.is_empty() || row.terms.iter().any(|term| term.derivative))
+            || self
+                .roles
+                .relations
+                .values()
+                .any(|role| matches!(role.kind, Role::Kinematic { .. }))
+        {
+            return Err(invalid(
+                "vector linear blocks currently require static linear equations",
+            ));
+        }
+        Ok(())
+    }
+}
