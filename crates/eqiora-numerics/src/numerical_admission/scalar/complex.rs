@@ -102,7 +102,7 @@ impl CommonScalarPlan {
 impl NativeNumericalAdmission {
     pub(in crate::numerical_admission) fn execute_complex_scalar(
         &self,
-        equations: &ExecutableScalarEquations<num_complex::Complex64>,
+        equations: &ExecutableLinearEquations<num_complex::Complex64>,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonScalarRunOutput<f64>, Diagnostic> {
         self.revalidate()?;

@@ -4,7 +4,7 @@ use crate::region_assembly::mapping::{FieldDof, RegionDofMap, bind_region_topolo
 use eqiora_meshing::{CartesianMesh, MeshEntity, MeshGeometry, MeshTopology};
 
 impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
-    ExecutableScalarEquations<S>
+    ExecutableLinearEquations<S>
 {
     pub(in crate::numerical_admission) fn execute(
         &self,
@@ -48,19 +48,20 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             QuadratureRule::tensor_product_gauss_legendre(dimension - 1, 2)?
         };
         for region in &self.regions {
+            let support = region.cartesian()?;
             for (field, _) in region.form.fields() {
-                for (&(axis, side), boundary) in &region.boundaries {
+                for (&(axis, side), boundary) in &support.boundaries {
                     let Some(law) = region.form.boundary_laws()[field].get(boundary) else {
                         continue;
                     };
-                    let coordinate = region.bounds[axis][usize::from(side == BoundarySide::Upper)];
+                    let coordinate = support.bounds[axis][usize::from(side == BoundarySide::Upper)];
                     for index in 0..mesh.entity_count(dimension - 1).expect("facets") {
                         let facet = MeshEntity::new(dimension - 1, index);
                         let vertices = mesh.entity_vertices(facet).expect("facet vertices");
                         if !vertices.iter().all(|vertex| {
                             let point = mesh.vertex_coordinates(*vertex).expect("vertex");
                             point[axis] == coordinate
-                                && region
+                                && support
                                     .bounds
                                     .iter()
                                     .enumerate()

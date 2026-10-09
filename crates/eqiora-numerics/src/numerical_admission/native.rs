@@ -365,8 +365,8 @@ pub(super) struct NativeNumericalAdmission {
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum RecognizedNativeModel {
     Coordinates(Box<super::coordinate_grid::CellEquations>),
-    Scalar(Box<ExecutableScalarEquations<f64>>),
-    ComplexScalar(Box<ExecutableScalarEquations<num_complex::Complex64>>),
+    Scalar(Box<ExecutableLinearEquations<f64>>),
+    ComplexScalar(Box<ExecutableLinearEquations<num_complex::Complex64>>),
     Elasticity(Box<IsotropicElasticityContinuum<2>>),
     Stokes(Box<SteadyStokesGeometryBinding2d>),
     Transient(Box<TransientIncompressibleNavierStokesCartesianModel2d>),
@@ -398,11 +398,6 @@ impl RecognizedNativeAdmission {
         } else {
             replay_program(model, resources.geometry()?)?
         };
-        if !matches!(resources, NativeMeshResources::Coordinates(_))
-            && resources.geometry()?.polyhedral_vertices().is_some()
-        {
-            polyhedral::validate_model_support(&program, &resources)?;
-        }
         let recognized = if let NativeMeshResources::Coordinates(grid) = &resources {
             RecognizedNativeModel::Coordinates(Box::new(
                 super::coordinate_grid::CellEquations::lower(&program, grid)?,
@@ -760,7 +755,7 @@ impl NativeNumericalAdmission {
 }
 
 mod identity;
-mod polyhedral;
+pub(super) mod polyhedral;
 mod recognition;
 mod resources;
 mod scalar;

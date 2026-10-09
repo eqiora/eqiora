@@ -2,7 +2,7 @@
 use super::*;
 
 pub(super) fn field_support<S: crate::spatial_expression::Coefficient>(
-    equations: &ExecutableScalarEquations<S>,
+    equations: &ExecutableLinearEquations<S>,
     mesh: &eqiora_meshing::CartesianMesh,
     field: eqiora_core::RawId,
     spatial: CommonSpatialPolicy,
@@ -13,7 +13,7 @@ pub(super) fn field_support<S: crate::spatial_expression::Coefficient>(
         .find(|region| region.form.fields().iter().any(|(id, _)| *id == field))
         .ok_or_else(|| invalid("Field absent from exact Region inventory"))?;
     let mut shape = Vec::new();
-    for (axis, bounds) in region.bounds.iter().enumerate() {
+    for (axis, bounds) in region.cartesian()?.bounds.iter().enumerate() {
         let coordinates = mesh.axis_coordinates(axis).expect("axis");
         let start = coordinates
             .iter()

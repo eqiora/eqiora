@@ -5,10 +5,17 @@ use crate::region_assembly::mapping::bind_region_topology;
 use eqiora_core::RawId;
 use eqiora_schema::kernel::{DomainKind, KernelNode};
 
-pub(super) fn validate_model_support(
+#[derive(Debug, Clone, PartialEq)]
+pub(in crate::numerical_admission) struct PolyhedralRegionSupport {
+    pub(in crate::numerical_admission) mesh: eqiora_artifact::ArtifactDigest,
+    pub(in crate::numerical_admission) cells: Vec<CellId>,
+    pub(in crate::numerical_admission) boundaries: BTreeSet<RawId>,
+}
+
+pub(in crate::numerical_admission) fn bind_model_support(
     program: &KernelProgram,
     resources: &NativeMeshResources,
-) -> Result<(), Diagnostic> {
+) -> Result<BTreeMap<RawId, PolyhedralRegionSupport>, Diagnostic> {
     let NativeMeshResources::GmshSimplicial {
         geometry,
         mesh,
@@ -22,7 +29,8 @@ pub(super) fn validate_model_support(
     };
     let definition = eqiora_artifact::GeometryDefinitionV1::from_canonical(geometry)?;
     correspondence.validate_against_polyhedra(&definition, mesh)?;
-    let mut regions = BTreeSet::new();
+    let mut regions = BTreeMap::new();
+    let mesh_identity = mesh.digest()?;
     let mut membership = Vec::new();
     for node in program.nodes() {
         let KernelNode::Domain(domain) = node else {
@@ -46,7 +54,14 @@ pub(super) fn validate_model_support(
                 "polyhedral Model region requires nonempty volume membership",
             ));
         }
-        regions.insert(domain.id().erase());
+        regions.insert(
+            domain.id().erase(),
+            PolyhedralRegionSupport {
+                mesh: mesh_identity.clone(),
+                cells: cells.iter().map(|cell| CellId::new(cell.index())).collect(),
+                boundaries: BTreeSet::new(),
+            },
+        );
         membership.extend(
             cells
                 .into_iter()
@@ -83,8 +98,13 @@ pub(super) fn validate_model_support(
             continue;
         };
         let parent = boundary_parent(program, boundary.id().erase())
-            .filter(|parent| regions.contains(parent))
+            .filter(|parent| regions.contains_key(parent))
             .ok_or_else(|| invalid("polyhedral Model boundary has no selected parent region"))?;
+        regions
+            .get_mut(&parent)
+            .expect("validated parent")
+            .boundaries
+            .insert(boundary.id().erase());
         let facets = correspondence.polyhedral_entity_set_entities(&definition, entity_set)?;
         if facets.is_empty() {
             return Err(invalid("polyhedral Model boundary membership is empty"));
@@ -111,7 +131,7 @@ pub(super) fn validate_model_support(
             "polyhedral Model boundaries do not completely cover the physical frontier",
         ));
     }
-    Ok(())
+    Ok(regions)
 }
 
 #[cfg(test)]

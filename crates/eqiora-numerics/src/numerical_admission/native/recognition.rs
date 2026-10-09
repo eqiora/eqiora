@@ -178,11 +178,8 @@ pub(crate) fn recognize_exact_model(
         ));
     }
     if scalar.is_ok() {
-        if !matches!(resources, NativeMeshResources::Cartesian { .. }) {
-            return Err(invalid(
-                "scalar conservation realization requires authenticated Cartesian resources",
-            ));
-        }
+        // The linear lowerer has already bound the exact resource family and
+        // Model supports. Numerical space compatibility belongs to resolution.
         return scalar;
     }
     if elasticity.is_ok() {
@@ -330,7 +327,10 @@ pub(crate) fn lower_scalar_candidate(
 fn lower_scalar_typed<S: crate::spatial_expression::Coefficient>(
     program: &KernelProgram,
     resources: &NativeMeshResources,
-) -> Result<ExecutableScalarEquations<S>, Diagnostic> {
+) -> Result<ExecutableLinearEquations<S>, Diagnostic> {
+    if resources.geometry()?.polyhedral_vertices().is_some() {
+        return ExecutableLinearEquations::polyhedral(program, resources);
+    }
     let NativeMeshResources::Cartesian {
         geometry,
         mesh,
@@ -351,11 +351,11 @@ fn lower_scalar_typed<S: crate::spatial_expression::Coefficient>(
         })
         .count();
     if source_domains > 0 {
-        return ExecutableScalarEquations::source_regions(program, mesh.mesh());
+        return ExecutableLinearEquations::source_regions(program, mesh.mesh());
     }
     let (domain, bounds, boundaries) =
         geometry_cartesian_support(program, geometry, mesh, correspondence)?;
-    ExecutableScalarEquations::new(program, domain, bounds, boundaries)
+    ExecutableLinearEquations::new(program, domain, bounds, boundaries)
 }
 
 pub(crate) fn require_policy_compatibility(

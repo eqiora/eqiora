@@ -825,7 +825,7 @@ mod plan_artifact;
 mod resolve;
 mod resolved;
 mod scalar;
-pub(super) use scalar::ExecutableScalarEquations;
+pub(super) use scalar::ExecutableLinearEquations;
 mod solver_planning;
 mod spatial_planning;
 mod state;

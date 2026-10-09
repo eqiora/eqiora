@@ -8,6 +8,16 @@ fn fixture(
     permuted: bool,
     extent: f64,
 ) -> (ModelEnvelope, KernelProgram, AuthenticatedCommonMesh) {
+    fixture_typed(groups, duplicate_region, permuted, extent, false)
+}
+
+fn fixture_typed(
+    groups: &[Vec<usize>],
+    duplicate_region: bool,
+    permuted: bool,
+    extent: f64,
+    complex: bool,
+) -> (ModelEnvelope, KernelProgram, AuthenticatedCommonMesh) {
     let mut sets = vec![NamedEntitySet::new("body", 3, vec![0])];
     if duplicate_region {
         sets.push(NamedEntitySet::new("other_body", 3, vec![0]));
@@ -79,6 +89,9 @@ fn fixture(
             },
         )
     }));
+    if complex {
+        source = source.replace("vector<1,3>", "vector<complex<1>,3>");
+    }
     let compiled =
         CompiledModel::compile_selected("polyhedral-support.eqi", &source, "Flux", &bindings)
             .unwrap();
@@ -109,9 +122,9 @@ fn complete_polyhedral_selections_bind_before_numerical_recognition() {
     ] {
         for permuted in [false, true] {
             let (model, program, owner) = fixture(&groups, false, permuted, 2.);
-            validate_model_support(&program, &owner.resources).unwrap();
+            bind_model_support(&program, &owner.resources).unwrap();
             let replay = replay_program(&model, owner.geometry().unwrap()).unwrap();
-            validate_model_support(&replay, &owner.resources).unwrap();
+            bind_model_support(&replay, &owner.resources).unwrap();
             let domain = program
                 .nodes()
                 .find_map(|node| match node {
@@ -159,7 +172,7 @@ fn normal_model_admission_rejects_missing_overlapping_and_duplicated_supports() 
     ] {
         let (model, program, owner) = fixture(&groups, duplicate, false, 2.);
         assert!(
-            validate_model_support(&program, &owner.resources)
+            bind_model_support(&program, &owner.resources)
                 .unwrap_err()
                 .message()
                 .contains(diagnostic)
@@ -169,6 +182,42 @@ fn normal_model_admission_rejects_missing_overlapping_and_duplicated_supports() 
     }
     let (_, program, _) = fixture(&[vec![0, 1, 2, 3]], false, false, 2.);
     let (_, _, foreign) = fixture(&[vec![0, 1, 2, 3]], false, false, 5.);
-    let error = validate_model_support(&program, &foreign.resources).unwrap_err();
+    let error = bind_model_support(&program, &foreign.resources).unwrap_err();
     assert!(error.message().contains("foreign Geometry"));
+}
+
+#[test]
+fn native_recognition_retains_real_and_complex_polyhedral_linear_equations() {
+    for complex in [false, true] {
+        let (model, _, owner) = fixture_typed(&[vec![0, 1, 2, 3]], false, true, 2., complex);
+        let recognized = RecognizedNativeAdmission::recognize(&model, owner).unwrap();
+        for spatial in [
+            NativeSpatialPolicy::ScalarQ1,
+            NativeSpatialPolicy::ScalarTpfa(None),
+        ] {
+            let error = validate_resources(spatial, &recognized.resources).unwrap_err();
+            assert!(error.message().contains("authenticated common Mesh kind"));
+        }
+        let fields = match recognized.recognized {
+            RecognizedNativeModel::Scalar(equations) if !complex => {
+                assert!(equations.single().unwrap().cartesian().is_err());
+                equations.fields()
+            }
+            RecognizedNativeModel::ComplexScalar(equations) if complex => {
+                assert!(equations.single().unwrap().cartesian().is_err());
+                equations.fields()
+            }
+            _ => panic!("wrong scalar domain or equation family"),
+        };
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields[0].1.shape().component_count(), Some(3));
+        assert_eq!(
+            fields[0].1.scalar_domain(),
+            if complex {
+                eqiora_core::ScalarDomain::Complex
+            } else {
+                eqiora_core::ScalarDomain::Real
+            }
+        );
+    }
 }

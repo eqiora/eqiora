@@ -32,14 +32,15 @@ impl CommonScalarPlan {
             return Err(invalid("missing Cartesian Mesh"));
         };
         let field = region.form.fields()[0].0;
-        for (&(axis, side), boundary) in &region.boundaries {
+        for (&(axis, side), boundary) in &region.cartesian()?.boundaries {
             let law = &region.form.boundary_laws()[&field][boundary];
             if law.quantity != crate::canonical_boundary::PhysicalBoundaryQuantity::Trace {
                 return Err(invalid(
                     "scalar storage requires complete essential boundary data",
                 ));
             }
-            let coordinate = region.bounds[axis][usize::from(side == BoundarySide::Upper)];
+            let coordinate =
+                region.cartesian()?.bounds[axis][usize::from(side == BoundarySide::Upper)];
             for (index, value) in values.iter().enumerate() {
                 let point = mesh
                     .mesh()
@@ -109,7 +110,7 @@ impl CommonScalarPlan {
             mesh.mesh(),
             &QuadratureRule::tensor_product_gauss_legendre(mesh.dimension(), 2)?,
             &REFERENCE_ASSEMBLY_BACKEND,
-            &region.boundaries,
+            &region.cartesian()?.boundaries,
             values,
         )
     }

@@ -6,7 +6,7 @@ pub(super) mod interval;
 mod regions;
 mod support;
 mod transient;
-pub(crate) use regions::ExecutableScalarEquations;
+pub(crate) use regions::ExecutableLinearEquations;
 
 pub(super) fn describe_primal(
     kind: FormulationKind,
@@ -38,7 +38,7 @@ pub(super) fn describe_primal(
 
 pub(super) fn resolve_common_scalar_portable<S: crate::spatial_expression::Coefficient>(
     admission: &NativeNumericalAdmission,
-    lowered: &ExecutableScalarEquations<S>,
+    lowered: &ExecutableLinearEquations<S>,
     mesh: &CartesianMeshEnvelopeV1,
     cells: &[usize],
 ) -> Result<PortableRealizationGraph, Diagnostic> {
@@ -537,7 +537,7 @@ impl CommonScalarPlan {
                         mesh,
                         &quadrature,
                         &REFERENCE_ASSEMBLY_BACKEND,
-                        &equations.single()?.boundaries,
+                        &equations.single()?.cartesian()?.boundaries,
                     )?;
                 FinalizedScalarEllipticCartesianProblem::finite_element_blocks(
                     self.portable.clone(),
@@ -784,18 +784,20 @@ impl CommonScalarPlan {
             .iter()
             .find(|region| {
                 region.form.domain() == domain
-                    || region
-                        .boundaries
-                        .values()
-                        .any(|boundary| *boundary == domain)
+                    || region.cartesian().is_ok_and(|support| {
+                        support
+                            .boundaries
+                            .values()
+                            .any(|boundary| *boundary == domain)
+                    })
             })
             .ok_or_else(|| invalid("Observable Domain is outside exact Region inventory"))?;
         let boundary = if domain == region.form.domain() {
             None
         } else {
-            Some(region.boundaries.iter().find_map(|(side, id)| (*id == domain).then_some(*side)).ok_or_else(|| invalid("Observable Domain is not the exact volume or boundary realized by this Plan"))?)
+            Some(region.cartesian()?.boundaries.iter().find_map(|(side, id)| (*id == domain).then_some(*side)).ok_or_else(|| invalid("Observable Domain is not the exact volume or boundary realized by this Plan"))?)
         };
-        Ok((region.bounds.clone(), boundary))
+        Ok((region.cartesian()?.bounds.clone(), boundary))
     }
 }
 
