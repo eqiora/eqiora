@@ -91,6 +91,7 @@ pub(crate) fn derive(
         volume_relation: relation,
         root: volume.root,
         divergence: volume.divergence,
+        diffusion_rule: crate::form_compiler::vocabulary::DiffusionRule::Divergence,
         divergence_sign: WeakSign::Positive,
         values: &[super::super::vocabulary::PrimalValueTerm {
             source_node: volume.load_gradient,

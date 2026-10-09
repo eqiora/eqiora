@@ -112,6 +112,12 @@ impl<S: Coefficient> Context<'_, S> {
         };
         match self.dag.node(id) {
             Some(ExprNode::Divergence(_)) => Ok(Some(1)),
+            Some(ExprNode::PureOperatorApplication(_))
+                if self.dimension == 2
+                    && super::super::planar_curl::gradient(self.dag, id).is_some() =>
+            {
+                Ok(Some(-1))
+            }
             Some(ExprNode::Neg(a)) => Ok(orientation(*a)?.map(|sign| -sign)),
             Some(ExprNode::Add(a, b)) => merge(orientation(*a)?, orientation(*b)?),
             Some(ExprNode::Sub(a, b)) => {
@@ -162,6 +168,18 @@ impl<S: Coefficient> Context<'_, S> {
                 }
             }
             Some(ExprNode::Div(a, b)) => terms(*a)?.scale(one().divide(self.data(*b, depth + 1)?)),
+            Some(ExprNode::PureOperatorApplication(_))
+                if self.dimension == 2
+                    && super::super::planar_curl::gradient(self.dag, id).is_some() =>
+            {
+                let gradient = super::super::planar_curl::gradient(self.dag, id)
+                    .expect("checked planar composition");
+                let (field, coefficient) = self.flux(gradient, depth + 1)?;
+                let mut terms =
+                    Terms::data(Data::constant(self.dimension, <S as From<f64>>::from(0.0)));
+                terms.diffusion.insert(field, coefficient);
+                Ok(terms)
+            }
             Some(ExprNode::Divergence(flux)) => {
                 let (field, coefficient) = self.flux(*flux, depth + 1)?;
                 let mut terms =

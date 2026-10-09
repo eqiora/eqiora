@@ -234,6 +234,17 @@ central value `3/32`. This scalar realization does not provide vector curl-curl
 admission, curl integration-by-parts boundary
 discharge, or compatible edge elements.
 
+For a 2D scalar trial, a retained strong `curl(curl(u))` also reaches this
+Q1 path. Its two exact shared curl definitions establish
+`curl(curl(u)) = -div(grad(u))`; the correspondence records the distinct
+`fem.derive.v1.planar-scalar-curl-curl-by-parts` rule and retains the original
+source occurrence. Focused real/complex tests replay the Plan and Result and
+check the unit-square coefficient `3/32`, or `(3/32)(1+2i)` for load `1+2i`.
+Reversing only the strong operator or weak stiffness fails correspondence.
+This reduction requires the direct scalar composition; a sign inserted between
+curls, vector reductions and 3D curl-curl are not silently identified with it.
+It does not provide the general vector curl integration-by-parts certificate.
+
 For twice continuously differentiable fields in a fixed Cartesian frame,
 `div(curl(u)) = 0`, `curl(grad(f)) = 0`, and
 `curl(curl(u)) = grad(div(u)) − div(grad(u))` in 3D. Mixed partials commute

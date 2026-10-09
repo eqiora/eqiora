@@ -77,6 +77,7 @@ pub(super) enum FormulationRule {
     ConjugatedTestPairing,
     ValuePairing,
     DivergenceByParts,
+    PlanarScalarCurlCurlByParts,
     ZeroTestTraceDischarge,
     TraceOrZeroFluxDischarge,
     TraceOrPrescribedFlux,
@@ -90,6 +91,7 @@ impl FormulationRule {
             Self::ConjugatedTestPairing => CONJUGATED_TEST_PAIRING,
             Self::ValuePairing => VALUE_PAIRING,
             Self::DivergenceByParts => DIVERGENCE_BY_PARTS,
+            Self::PlanarScalarCurlCurlByParts => "fem.derive.v1.planar-scalar-curl-curl-by-parts",
             Self::ZeroTestTraceDischarge => ZERO_TEST_TRACE_DISCHARGE,
             Self::TraceOrZeroFluxDischarge => "fem.derive.v1.boundary-discharge.trace-or-zero-flux",
             Self::TraceOrPrescribedFlux => {
@@ -163,6 +165,20 @@ pub(super) struct PrimalValueTerm {
     pub(super) trial_dependent: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum DiffusionRule {
+    Divergence,
+    PlanarScalarCurlCurl,
+}
+impl DiffusionRule {
+    pub(super) const fn formulation_rule(self) -> FormulationRule {
+        match self {
+            Self::Divergence => FormulationRule::DivergenceByParts,
+            Self::PlanarScalarCurlCurl => FormulationRule::PlanarScalarCurlCurlByParts,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(super) struct PrimalGalerkinSource<'a> {
     pub(super) domain: RawId,
@@ -170,6 +186,7 @@ pub(super) struct PrimalGalerkinSource<'a> {
     pub(super) volume_relation: RawId,
     pub(super) root: ExprId,
     pub(super) divergence: ExprId,
+    pub(super) diffusion_rule: DiffusionRule,
     pub(super) divergence_sign: WeakSign,
     pub(super) values: &'a [PrimalValueTerm],
     pub(super) conjugate_test: bool,
@@ -199,7 +216,7 @@ impl PrimalGalerkinCorrespondence {
             } else {
                 FormulationRule::TestPairing
             },
-            FormulationRule::DivergenceByParts,
+            source.diffusion_rule.formulation_rule(),
             if has_prescribed {
                 FormulationRule::TraceOrPrescribedFlux
             } else if has_natural {

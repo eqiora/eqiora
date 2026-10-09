@@ -98,6 +98,13 @@ pub(super) fn principal(
                 pending.push((*value, in_divergence));
             }
             ExprNode::Divergence(value) => pending.push((*value, true)),
+            ExprNode::PureOperatorApplication(_)
+                if super::super::planar_curl::gradient(dag, id).is_some() =>
+            {
+                let gradient = super::super::planar_curl::gradient(dag, id)
+                    .expect("checked planar composition");
+                pending.push((gradient, true));
+            }
             ExprNode::PureOperatorApplication(application) if in_divergence => {
                 let dyadic = eqiora_ir::PureOperatorDefinition::dyadic_product()
                     .expect("canonical closed dyadic definition");
