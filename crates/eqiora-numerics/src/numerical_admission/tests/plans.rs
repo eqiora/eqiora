@@ -211,6 +211,25 @@ fn exercise_scalar_box(model: &ModelEnvelope, geometry: &CanonicalGeometryV1, ce
             _ => unreachable!("exercise admits scalar policies only"),
         };
         assert_eq!(result.field_block(0, 0).unwrap().2, expected_shape);
+        let expected_space = if spatial == CommonSpatialPolicy::Q1 {
+            Space::continuous_lagrange(std::num::NonZeroU16::MIN)
+        } else {
+            Space::cell_constant()
+        };
+        assert_eq!(result.field_space(0), Some(expected_space));
+        // Both authored potentials are dimensionless. Point/constant coefficients
+        // retain those units independently of Cartesian cell sizes.
+        assert_eq!(
+            result.field_coefficient_dimension(0),
+            Some(DimExponents::DIMENSIONLESS)
+        );
+        let decoded =
+            crate::CommonResult::from_bytes(&result.to_bytes().unwrap(), result.plan()).unwrap();
+        assert_eq!(decoded.field_space(0), Some(expected_space));
+        assert_eq!(
+            decoded.field_coefficient_dimension(0),
+            Some(DimExponents::DIMENSIONLESS)
+        );
     }
 }
 

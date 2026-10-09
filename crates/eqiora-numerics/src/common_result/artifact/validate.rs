@@ -1,6 +1,7 @@
 //! Fail-closed semantic validation for decoded common Result content.
 
 use eqiora_core::{Diagnostic, DimExponents};
+use eqiora_realization::Space;
 use eqiora_solver::{
     ExecutionProvider, ProviderLibrary, SERIAL_EXECUTION_PROVIDER, SolverProvider,
 };
@@ -18,12 +19,13 @@ pub(super) fn validate_fields(
     let valid = match plan {
         ResolvedCommonPlan::Scalar(plan) => {
             let (space, association) = match plan.spatial() {
-                crate::CommonSpatialPolicy::Q1 => {
-                    ("continuous-lagrange-p1", CommonFieldAssociation::Vertex)
-                }
+                crate::CommonSpatialPolicy::Q1 => (
+                    Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+                    CommonFieldAssociation::Vertex,
+                ),
                 crate::CommonSpatialPolicy::CellCenteredTpfa
                 | crate::CommonSpatialPolicy::CellCentered => {
-                    ("cell-constant", CommonFieldAssociation::Cell)
+                    (Space::cell_constant(), CommonFieldAssociation::Cell)
                 }
                 _ => {
                     return Err(invalid(
@@ -63,7 +65,7 @@ pub(super) fn validate_fields(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
                     &[2],
-                    "continuous-lagrange-p1",
+                    Space::continuous_lagrange(std::num::NonZeroU16::MIN),
                     &[(CommonFieldAssociation::Vertex, vec![vertices, 2])],
                 )
         }
@@ -80,7 +82,7 @@ pub(super) fn validate_fields(
                     eqiora_core::ScalarDomain::Real,
                     DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension"),
                     &[2],
-                    "simplex-p1-bubble",
+                    Space::simplex_p1_bubble(),
                     &[
                         (CommonFieldAssociation::Vertex, vec![vertices, 2]),
                         (CommonFieldAssociation::CellBubble, vec![cells, 2]),
@@ -93,7 +95,7 @@ pub(super) fn validate_fields(
                     DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0])
                         .expect("bounded dimension"),
                     &[],
-                    "continuous-lagrange-p1",
+                    Space::continuous_lagrange(std::num::NonZeroU16::MIN),
                     &[(CommonFieldAssociation::Vertex, vec![vertices])],
                 )
         }
@@ -117,7 +119,7 @@ fn field_matches(
     scalar_domain: eqiora_core::ScalarDomain,
     dimension: DimExponents,
     value_shape: &[usize],
-    space: &str,
+    space: Space,
     blocks: &[(CommonFieldAssociation, Vec<usize>)],
 ) -> bool {
     field.field_id == id

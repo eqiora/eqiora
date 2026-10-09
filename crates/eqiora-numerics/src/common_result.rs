@@ -1,6 +1,7 @@
 //! Producer-independent ownership of accepted common execution results.
 
 use eqiora_core::{Diagnostic, DimExponents};
+use eqiora_realization::Space;
 use eqiora_solver::{
     ConvergenceReason, LinearOperatorOrientation, LinearSolver, PreconditionerPolicy,
     ReductionPolicy,
@@ -274,16 +275,14 @@ impl CommonResult {
         output: CommonScalarRunOutput<f64>,
     ) -> Result<Self, Diagnostic> {
         require_elapsed(elapsed_seconds)?;
-        let (association, space, expected_space) = match plan.spatial() {
+        let (association, space) = match plan.spatial() {
             crate::CommonSpatialPolicy::Q1 => (
                 CommonFieldAssociation::Vertex,
-                "continuous-lagrange-p1",
                 eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
             ),
             crate::CommonSpatialPolicy::CellCenteredTpfa
             | crate::CommonSpatialPolicy::CellCentered => (
                 CommonFieldAssociation::Cell,
-                "cell-constant",
                 eqiora_realization::Space::cell_constant(),
             ),
             _ => {
@@ -295,9 +294,7 @@ impl CommonResult {
         if output.fields.len() != plan.fields().len()
             || output.fields.iter().zip(plan.fields()).any(
                 |((actual, value_type, _, actual_space), (expected, expected_type))| {
-                    *actual != expected
-                        || value_type != expected_type
-                        || *actual_space != expected_space
+                    *actual != expected || value_type != expected_type || *actual_space != space
                 },
             )
         {
@@ -353,7 +350,7 @@ impl CommonResult {
             eqiora_core::ScalarDomain::Real,
             DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).expect("bounded dimension"),
             vec![2],
-            "continuous-lagrange-p1",
+            Space::continuous_lagrange(std::num::NonZeroU16::MIN),
             vec![CommonResultFieldBlock::new(
                 CommonFieldAssociation::Vertex,
                 values,
@@ -396,7 +393,7 @@ impl CommonResult {
             eqiora_core::ScalarDomain::Real,
             DimExponents::from_integers([0, 1, -1, 0, 0, 0, 0]).expect("bounded dimension"),
             vec![2],
-            "simplex-p1-bubble",
+            Space::simplex_p1_bubble(),
             vec![
                 CommonResultFieldBlock::new(
                     CommonFieldAssociation::Vertex,
@@ -415,7 +412,7 @@ impl CommonResult {
             eqiora_core::ScalarDomain::Real,
             DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).expect("bounded dimension"),
             Vec::new(),
-            "continuous-lagrange-p1",
+            Space::continuous_lagrange(std::num::NonZeroU16::MIN),
             vec![CommonResultFieldBlock::new(
                 CommonFieldAssociation::Vertex,
                 pressure.to_vec(),
@@ -635,6 +632,26 @@ impl CommonResult {
             | CommonResultPayload::Algebraic { .. }
             | CommonResultPayload::Trajectory { .. } => None,
         }
+    }
+
+    /// Exact finite-dimensional Space of a static Field's coefficients.
+    #[must_use]
+    pub fn field_space(&self, field: usize) -> Option<Space> {
+        let CommonResultPayload::Static(payload) = &self.payload else {
+            return None;
+        };
+        payload.fields.get(field).map(|field| field.space)
+    }
+
+    /// Physical units of coefficient functionals, distinct from Field value units.
+    /// Edge/face moments include length/area; nodal and cell-constant values retain Field units.
+    #[must_use]
+    pub fn field_coefficient_dimension(&self, field: usize) -> Option<DimExponents> {
+        let CommonResultPayload::Static(payload) = &self.payload else {
+            return None;
+        };
+        let field = payload.fields.get(field)?;
+        field.space.coefficient_dimension(field.dimension)
     }
 
     /// Exact scalar domain of a static Field. Complex coefficient buffers store

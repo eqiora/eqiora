@@ -551,7 +551,7 @@ impl WireField {
             },
             dimension: dimension_to_wire(field.dimension),
             value_shape: encode_shape(&field.value_shape)?,
-            space: field.space.clone(),
+            space: field.space().to_owned(),
             blocks: field
                 .blocks
                 .iter()
@@ -569,7 +569,7 @@ impl WireField {
             },
             dimension_from_wire(self.dimension)?,
             decode_shape(&self.value_shape)?,
-            self.space.clone(),
+            super::fields::space_from_name(&self.space)?,
             self.blocks
                 .iter()
                 .map(WireFieldBlock::replay)
