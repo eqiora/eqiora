@@ -41,6 +41,7 @@ fn declared_spatial_supports<'a>(
         .collect::<BTreeMap<_, _>>();
     let mut boundaries = Vec::new();
     let mut products = Vec::new();
+    let mut interfaces = Vec::new();
     for declaration in domains {
         match declaration.syntax() {
             DomainSyntax::CartesianBox(bounds) if !bounds.is_empty() => {
@@ -54,6 +55,9 @@ fn declared_spatial_supports<'a>(
             }
             DomainSyntax::Boundary { parent, .. } => boundaries.push((declaration, parent)),
             DomainSyntax::Product { .. } => products.push(declaration),
+            DomainSyntax::PhysicalInterface { boundaries } => {
+                interfaces.push((declaration, boundaries))
+            }
             _ => {}
         }
     }
@@ -80,7 +84,7 @@ fn declared_spatial_supports<'a>(
                 declaration.range(),
                 "boundary support binding cannot use a boundary-of-boundary Domain",
             )),
-            Some(SpatialSupport::Interface { .. }) => diagnostics.push(source_error(
+            Some(SpatialSupport::Interface { .. } | SpatialSupport::PhysicalInterface { .. }) => diagnostics.push(source_error(
                 codes::LANGUAGE_LOWERING_ERROR,
                 file,
                 declaration.range(),
@@ -91,6 +95,26 @@ fn declared_spatial_supports<'a>(
                 "physical boundary requires an ambient physical volume, not abstract coordinate factors",
             )),
             None => {}
+        }
+    }
+    for (declaration, boundaries) in interfaces {
+        let support = match [supports.get(&boundaries[0]), supports.get(&boundaries[1])] {
+            [Some(first), Some(second)] => crate::math::boundary::physical_interface_support(
+                declaration.name().to_owned(),
+                [first, second],
+            ),
+            _ => Err("physical interface references an unresolved boundary"),
+        };
+        match support {
+            Ok(support) => {
+                supports.insert(declaration.name().to_owned(), support);
+            }
+            Err(message) => diagnostics.push(source_error(
+                codes::LANGUAGE_TYPE_ERROR,
+                file,
+                declaration.range(),
+                message,
+            )),
         }
     }
     if diagnostics.is_empty() {

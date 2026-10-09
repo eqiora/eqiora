@@ -598,7 +598,10 @@ fn validate_definition_bodies_and_parameters(
                             })
                         }
                         eqiora_schema::kernel::typing::SpatialSupport::Coordinates { .. }
-                        | eqiora_schema::kernel::typing::SpatialSupport::Interface { .. } => None,
+                        | eqiora_schema::kernel::typing::SpatialSupport::Interface { .. }
+                        | eqiora_schema::kernel::typing::SpatialSupport::PhysicalInterface {
+                            ..
+                        } => None,
                     },
                     |name| model_boundary_sets.get(name).cloned(),
                     |name| {

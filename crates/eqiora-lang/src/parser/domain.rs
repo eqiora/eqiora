@@ -93,6 +93,22 @@ impl Parser<'_> {
             };
             self.expect(TokenKind::RightParen, "`)` after boundary selector")?;
             DomainSyntax::Boundary { parent, axis, side }
+        } else if self.at_keyword("interface") {
+            self.bump();
+            self.expect(TokenKind::LeftParen, "`(` after `interface`")?;
+            let first = self
+                .expect_identifier("first interface boundary")?
+                .text()
+                .to_owned();
+            self.expect(TokenKind::Comma, "`,` between interface boundaries")?;
+            let second = self
+                .expect_identifier("second interface boundary")?
+                .text()
+                .to_owned();
+            self.expect(TokenKind::RightParen, "`)` after interface boundaries")?;
+            DomainSyntax::PhysicalInterface {
+                boundaries: [first, second],
+            }
         } else if self.at_keyword("scalar_physical") {
             let (across_name, across_type, through_name, through_type) =
                 self.parse_scalar_physical_types()?;
@@ -104,7 +120,7 @@ impl Parser<'_> {
             }
         } else {
             self.error_here(
-                "expected `box(...)`, `boundary(...)`, or `scalar_physical(...)` Domain contract",
+                "expected `box(...)`, `boundary(...)`, `interface(...)`, or `scalar_physical(...)` Domain contract",
             );
             return None;
         };

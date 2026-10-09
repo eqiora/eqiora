@@ -144,6 +144,16 @@ fn describe_support(support: Option<&SpatialSupport<String>>) -> String {
                 "support boundary {domain}; parent {parent}; axes {dimensions} (definition-local identity)"
             )
         }
+        Some(SpatialSupport::PhysicalInterface {
+            domain,
+            boundaries,
+            parents,
+            dimensions,
+        }) => {
+            format!(
+                "support physical interface {domain}; boundaries {boundaries:?}; parents {parents:?}; axes {dimensions} (definition-local identity)"
+            )
+        }
         Some(SpatialSupport::Interface {
             connection,
             dimensions,

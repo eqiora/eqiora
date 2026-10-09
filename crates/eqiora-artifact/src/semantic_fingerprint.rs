@@ -34,9 +34,9 @@ use values::{
     encode_literal, encode_optional_literal, encode_quantity, encode_value_type, type_reference,
 };
 
-const FINGERPRINT_DOMAIN_V37: &[u8] = b"eqiora.structural-semantic-fingerprint/v37\0";
+const FINGERPRINT_DOMAIN_V38: &[u8] = b"eqiora.structural-semantic-fingerprint/v38\0";
 const PROJECTION_MAGIC: &[u8; 8] = b"EQIORASF";
-const GENERATION_V37: u16 = 37;
+const GENERATION_V38: u16 = 38;
 
 /// Current generation of the structural semantic projection.
 ///
@@ -63,7 +63,7 @@ pub enum SemanticFingerprintGeneration {
     /// pullbacks with ordered selectors and signed Jacobian, volume scale, and orientation,
     /// and exact positive time-derivative orders retaining the authored Field identity,
     /// and the exact boundary target of every trace and outward-normal component.
-    V37,
+    V38,
 }
 
 impl SemanticFingerprintGeneration {
@@ -71,19 +71,19 @@ impl SemanticFingerprintGeneration {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::V37 => "eqiora.structural-semantic-fingerprint/v37",
+            Self::V38 => "eqiora.structural-semantic-fingerprint/v38",
         }
     }
 
     const fn code(self) -> u16 {
         match self {
-            Self::V37 => GENERATION_V37,
+            Self::V38 => GENERATION_V38,
         }
     }
 
     const fn hash_domain(self) -> &'static [u8] {
         match self {
-            Self::V37 => FINGERPRINT_DOMAIN_V37,
+            Self::V38 => FINGERPRINT_DOMAIN_V38,
         }
     }
 }
@@ -226,7 +226,7 @@ impl ProjectionIdentity {
         limits: SemanticFingerprintLimits,
     ) -> Result<Self, Diagnostic> {
         validate_limits(limits)?;
-        let generation = SemanticFingerprintGeneration::V37;
+        let generation = SemanticFingerprintGeneration::V38;
         let graph = ProjectionGraph::from_program(program, limits)?;
         let canonical = Canonicalizer::new(&graph, limits).canonicalize()?;
         let mut hasher = Sha256::new();
@@ -621,6 +621,21 @@ fn encode_domain_kind(
             encoder.u8(7)?;
             encoder.bytes(entity_set.as_bytes())
         }
+        DomainKind::PhysicalInterface { boundaries } => {
+            encoder.u8(10)?;
+            for (side, boundary) in boundaries.iter().enumerate() {
+                let mut label = Encoder::new(32);
+                label.u8(6)?;
+                label.usize(side)?;
+                push_reference(
+                    references,
+                    label.finish()?,
+                    lookup(ids, boundary.erase(), "physical interface boundary")?,
+                    budget,
+                )?;
+            }
+            Ok(())
+        }
         _ => Err(newer_vocabulary("Domain kind")),
     }
 }
@@ -715,7 +730,7 @@ fn validate_limits(limits: SemanticFingerprintLimits) -> Result<(), Diagnostic> 
 
 fn newer_vocabulary(subject: &str) -> Diagnostic {
     fingerprint_error(format!(
-        "{subject} is newer than structural semantic fingerprint generation v37"
+        "{subject} is newer than structural semantic fingerprint generation v38"
     ))
 }
 

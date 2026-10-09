@@ -63,9 +63,9 @@ pub(super) fn evaluate(
         error("tensor_value frame is not an existing Cartesian volume or boundary")
     })?;
     let dimensions = match support {
-        SpatialSupport::Volume { dimensions, .. } | SpatialSupport::Boundary { dimensions, .. } => {
-            dimensions
-        }
+        SpatialSupport::Volume { dimensions, .. }
+        | SpatialSupport::Boundary { dimensions, .. }
+        | SpatialSupport::PhysicalInterface { dimensions, .. } => dimensions,
         SpatialSupport::Coordinates { .. } | SpatialSupport::Interface { .. } => {
             return Err(error(
                 "tensor_value requires a declared volume or boundary frame",

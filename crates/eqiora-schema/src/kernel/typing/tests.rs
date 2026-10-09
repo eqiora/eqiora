@@ -279,6 +279,58 @@ fn coordinate_and_boundary_rules_use_relation_support() {
 }
 
 #[test]
+fn physical_interface_traces_join_only_the_exact_adjacent_supports() {
+    let interface = SpatialSupport::PhysicalInterface {
+        domain: "contact",
+        boundaries: Box::new(["left_face", "right_face"]),
+        parents: Box::new(["left", "right"]),
+        dimensions: 2,
+    };
+    let left = ExpressionType::scalar(DimExponents::DIMENSIONLESS, Some(volume("left")));
+    let right = ExpressionType::scalar(DimExponents::DIMENSIONLESS, Some(volume("right")));
+    assert!(additive(&left, &right).is_err());
+    let left_trace = trace(&left, Some(&interface)).unwrap();
+    let right_trace = trace(&right, Some(&interface)).unwrap();
+    assert_eq!(
+        additive(&left_trace, &right_trace).unwrap().support,
+        Some(interface.clone())
+    );
+    for support in [
+        volume("foreign"),
+        SpatialSupport::Volume {
+            domain: "left",
+            dimensions: 3,
+        },
+    ] {
+        assert!(
+            trace(
+                &ExpressionType::scalar(DimExponents::DIMENSIONLESS, Some(support)),
+                Some(&interface)
+            )
+            .is_err()
+        );
+    }
+    for shape in [
+        ValueShape::new([2]).unwrap(),
+        ValueShape::new([2, 2]).unwrap(),
+    ] {
+        let operand = ExpressionType::shaped(
+            DimExponents::DIMENSIONLESS,
+            shape.clone(),
+            ValueFrame::SpatialCartesian,
+            Some(volume("right")),
+        )
+        .unwrap();
+        let traced = trace(&operand, Some(&interface)).unwrap();
+        assert_eq!(traced.shape(), &shape);
+        let contracted = normal(&operand, Some(&interface)).unwrap();
+        assert_eq!(contracted.shape(), &shape.remove_last().unwrap().0);
+        assert_eq!(normal(&traced, Some(&interface)).unwrap(), contracted);
+        assert_eq!(contracted.support, Some(interface.clone()));
+    }
+}
+
+#[test]
 fn boundary_operators_require_the_complete_parent_support() {
     let boundary = SpatialSupport::Boundary {
         domain: "wall",

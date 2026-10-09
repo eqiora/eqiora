@@ -9,6 +9,27 @@ pub(in crate::lower) fn relation_support(
     bindings: &BTreeMap<String, Binding>,
 ) -> Result<SpatialSupport<RawId>, Diagnostic> {
     match bindings.get(name) {
+        Some(Binding::Domain(id, DomainContract::PhysicalInterface(boundaries))) => {
+            let side = |name: &str| {
+                if !matches!(
+                    bindings.get(name),
+                    Some(Binding::Domain(
+                        _,
+                        DomainContract::Spatial {
+                            parent: Some(_),
+                            ..
+                        }
+                    ))
+                ) {
+                    return Err(unresolved(file, range, name, "physical interface boundary"));
+                }
+                relation_support(file, range, name, bindings)
+            };
+            let first = side(&boundaries[0])?;
+            let second = side(&boundaries[1])?;
+            crate::math::boundary::physical_interface_support(id.erase(), [&first, &second])
+                .map_err(|message| source_error(codes::LANGUAGE_TYPE_ERROR, file, range, message))
+        }
         Some(Binding::Domain(id, DomainContract::CoordinateProduct(_))) => {
             let mut pending = vec![name];
             let mut seen = BTreeSet::new();

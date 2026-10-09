@@ -215,6 +215,7 @@ impl RootExpansion<'_, '_> {
                     );
                 }
                 DomainSyntax::Product { .. }
+                | DomainSyntax::PhysicalInterface { .. }
                 | DomainSyntax::Boundary { .. }
                 | DomainSyntax::ScalarPhysical { .. } => {}
                 _ => {

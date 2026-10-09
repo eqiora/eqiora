@@ -13,6 +13,26 @@ pub(super) fn lower_domain(
 ) -> Result<(DomainDef, Option<RawId>, Vec<RawId>), Diagnostic> {
     match (lowering_contract, contract) {
         (
+            LoweringDomainContract::Source(DomainSyntax::PhysicalInterface { boundaries }),
+            DomainContract::PhysicalInterface(_),
+        ) => {
+            let boundary = |name: &str| match bindings.get(name) {
+                Some(Binding::Domain(
+                    id,
+                    DomainContract::Spatial {
+                        parent: Some(_), ..
+                    },
+                )) => Ok(*id),
+                _ => Err(unresolved(file, range, name, "physical interface boundary")),
+            };
+            let boundaries = [boundary(&boundaries[0])?, boundary(&boundaries[1])?];
+            DomainDef::physical_interface(id, boundaries)
+                .map(|definition| (definition, None, boundaries.map(Id::erase).to_vec()))
+                .map_err(|error| {
+                    source_error(codes::LANGUAGE_TYPE_ERROR, file, range, error.message())
+                })
+        }
+        (
             LoweringDomainContract::Source(DomainSyntax::Product { factors }),
             DomainContract::CoordinateProduct(_),
         ) => {

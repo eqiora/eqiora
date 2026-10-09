@@ -160,7 +160,8 @@ pub fn trace<I: Clone + Eq>(
     boundary_operator(operand, relation, false)
 }
 
-/// Type an outward-normal contraction.
+/// Type a normal contraction: parent-outward on a boundary, or along the
+/// declared common normal on a physical interface.
 pub fn normal<I: Clone + Eq>(
     operand: &ExpressionType<I>,
     relation: Option<&SpatialSupport<I>>,
@@ -210,18 +211,21 @@ fn boundary_operator<I: Clone + Eq>(
     relation: Option<&SpatialSupport<I>>,
     normal_component: bool,
 ) -> Result<ExpressionType<I>, TypeViolation<I>> {
-    let Some(SpatialSupport::Boundary {
-        parent,
-        domain,
-        dimensions,
-    }) = relation
-    else {
-        return Err(TypeViolation::BoundaryOperatorRequiresBoundaryScope);
+    let (parents, dimensions): (&[I], _) = match relation {
+        Some(SpatialSupport::Boundary {
+            parent, dimensions, ..
+        }) => (std::slice::from_ref(parent), dimensions),
+        Some(SpatialSupport::PhysicalInterface {
+            parents,
+            dimensions,
+            ..
+        }) => (parents.as_slice(), dimensions),
+        _ => return Err(TypeViolation::BoundaryOperatorRequiresBoundaryScope),
     };
     let operand_is_parent_volume = matches!(
         operand.support.as_ref(),
         Some(SpatialSupport::Volume { domain, dimensions: operand_dimensions })
-            if domain == parent && operand_dimensions == dimensions
+            if parents.contains(domain) && operand_dimensions == dimensions
     );
     let operand_is_this_boundary = normal_component
         && operand
@@ -256,11 +260,7 @@ fn boundary_operator<I: Clone + Eq>(
         operand.dimension(),
         shape,
         frame,
-        Some(SpatialSupport::Boundary {
-            domain: domain.clone(),
-            parent: parent.clone(),
-            dimensions: *dimensions,
-        }),
+        relation.cloned(),
     )
 }
 

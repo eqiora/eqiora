@@ -273,15 +273,17 @@ impl<'e, 'd> ModelBodyChecker<'e, 'd> {
                             dimensions: bounds.len(),
                         })),
                     ))),
-                    DomainSyntax::Product { .. } => Ok(declared_supports
-                        .get(declaration.name())
-                        .cloned()
-                        .map(|support| {
-                            (
-                                declaration.name(),
-                                SymbolContract::Domain(DomainContract::Spatial(support)),
-                            )
-                        })),
+                    DomainSyntax::Product { .. } | DomainSyntax::PhysicalInterface { .. } => {
+                        Ok(declared_supports
+                            .get(declaration.name())
+                            .cloned()
+                            .map(|support| {
+                                (
+                                    declaration.name(),
+                                    SymbolContract::Domain(DomainContract::Spatial(support)),
+                                )
+                            }))
+                    }
                     DomainSyntax::Boundary { .. } => Ok(None),
                     DomainSyntax::ScalarPhysical {
                         across_name,

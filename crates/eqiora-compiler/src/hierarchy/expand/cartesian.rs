@@ -94,6 +94,33 @@ impl RootExpansion<'_, '_> {
             self.boundary_sides
                 .insert(identities.entities[declaration.name()].full, (*axis, side));
         }
+        for item in model.items() {
+            let Item::Domain(declaration) = item else {
+                continue;
+            };
+            let DomainSyntax::PhysicalInterface { boundaries } = declaration.syntax() else {
+                continue;
+            };
+            let support = match [
+                scope.spatial_support(&boundaries[0]),
+                scope.spatial_support(&boundaries[1]),
+            ] {
+                [Some(first), Some(second)] => crate::math::boundary::physical_interface_support(
+                    identities.entities[declaration.name()].full,
+                    [first, second],
+                ),
+                _ => Err("physical interface references an unresolved boundary"),
+            }
+            .map_err(|message| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    self.model.file,
+                    declaration.range(),
+                    message,
+                )
+            })?;
+            scope.insert_spatial_support(declaration.name().to_owned(), support);
+        }
         Ok(())
     }
 }
