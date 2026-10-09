@@ -82,6 +82,13 @@ pub(super) fn principal(
                 trials.insert(field.erase());
             }
             ExprNode::Gradient(value) => {
+                // grad(div(u)) owns the vector principal trial just as
+                // div(grad(u)) does; a bare grad(p) remains a multiplier.
+                if let Some(ExprNode::Divergence(inner)) = dag.node(*value)
+                    && let Some(field) = field(dag, *inner)
+                {
+                    trials.insert(field);
+                }
                 if let Some(field) = field(dag, *value) {
                     if in_divergence {
                         trials.insert(field);

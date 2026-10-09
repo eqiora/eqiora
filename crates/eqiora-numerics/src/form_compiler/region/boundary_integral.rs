@@ -36,6 +36,15 @@ impl<S: Coefficient> BoundRegionForm<S> {
             .position(|layout| layout.field == field)
             .ok_or_else(|| invalid("natural flux has a foreign tested Field"))?;
         let layout = &self.fields[row];
+        if matches!(
+            layout.space.family(),
+            eqiora_realization::SpaceFamily::TetrahedralEdge
+                | eqiora_realization::SpaceFamily::TetrahedralFace
+        ) {
+            return Err(invalid(
+                "moment spaces require tangential/normal trace admission before natural facet assembly",
+            ));
+        }
         let space = super::binding::basis(layout.space, self.reference)?;
         let topology = ReferenceTopology::new(self.reference)?;
         let expected = topology
