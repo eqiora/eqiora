@@ -217,6 +217,72 @@ fn every_positive_vertex_permutation_preserves_physical_fields() {
 }
 
 #[test]
+fn sheared_polynomial_derivatives_follow_geometric_moments() {
+    let vertices = [
+        [1.0, -2.0, 3.0],
+        [3.0, -1.0, 3.0],
+        [2.0, 1.0, 4.0],
+        [2.0, -1.0, 7.0],
+    ];
+    let geometry = map(&vertices);
+    let edge = element(Space::tetrahedral_edge())
+        .tabulate_on(&geometry, &[0.25; 3])
+        .unwrap();
+    let face = element(Space::tetrahedral_face())
+        .tabulate_on(&geometry, &[0.25; 3])
+        .unwrap();
+    let center: [f64; 3] =
+        std::array::from_fn(|axis| vertices.iter().map(|p| p[axis]).sum::<f64>() / 4.0);
+    let edges = EDGES.map(|[a, b]| {
+        let midpoint: [f64; 3] =
+            std::array::from_fn(|axis| (vertices[a][axis] + vertices[b][axis]) / 2.0);
+        dot(
+            &[-midpoint[1], midpoint[0], 0.0],
+            &subtract(&vertices[b], &vertices[a]),
+        )
+    });
+    let faces = FACES.map(|[a, b, c]| {
+        let center: [f64; 3] = std::array::from_fn(|axis| {
+            (vertices[a][axis] + vertices[b][axis] + vertices[c][axis]) / 3.0
+        });
+        dot(
+            &center,
+            &cross(
+                subtract(&vertices[b], &vertices[a]),
+                subtract(&vertices[c], &vertices[a]),
+            ),
+        ) / 2.0
+    });
+    for (actual, expected) in value(&edge, &edges)
+        .into_iter()
+        .zip([-center[1], center[0], 0.0])
+    {
+        close(actual, expected);
+    }
+    for (actual, expected) in value(&face, &faces).into_iter().zip(center) {
+        close(actual, expected);
+    }
+    for (axis, expected) in [0.0, 0.0, 2.0].into_iter().enumerate() {
+        close(
+            edges
+                .iter()
+                .enumerate()
+                .map(|(dof, c)| c * edge.curl(dof).unwrap()[axis])
+                .sum(),
+            expected,
+        );
+    }
+    close(
+        faces
+            .iter()
+            .enumerate()
+            .map(|(dof, c)| c * face.divergence(dof).unwrap())
+            .sum(),
+        3.0,
+    );
+}
+
+#[test]
 fn rejects_wrong_cells_orders_embedded_and_inverted_maps() {
     for space in [Space::tetrahedral_edge(), Space::tetrahedral_face()] {
         for cell in [

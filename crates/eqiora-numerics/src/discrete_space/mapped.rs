@@ -1,6 +1,6 @@
 use eqiora_meshing::{AffineGeometryMap, GeometryMap};
 
-use super::{Diagnostic, DiscreteSpace, SpaceFamily, invalid_space};
+use super::{Diagnostic, DiscreteSpace, MAX_BASIS_ENTRIES, SpaceFamily, invalid_space};
 
 /// Basis values and derivatives in physical coordinates on a positive square
 /// affine cell. Derivatives are element-local; they do not assert full-gradient
@@ -74,6 +74,56 @@ impl PhysicalBasisTabulation {
 }
 
 impl DiscreteSpace {
+    pub(crate) fn field_dof_count(&self, components: usize) -> Result<usize, Diagnostic> {
+        if components == 0 || (self.vector_element() && components != 3) {
+            return Err(invalid_space(
+                "Field shape is incompatible with the selected basis",
+            ));
+        }
+        self.local_dofs
+            .len()
+            .checked_mul(if self.vector_element() { 1 } else { components })
+            .filter(|count| *count <= MAX_BASIS_ENTRIES)
+            .ok_or_else(|| invalid_space("Field basis size exceeds resource limits"))
+    }
+
+    // Scalar families replicate over semantic components; vector moment bases
+    // already span their physical vector values and must never be replicated.
+    pub(crate) fn tabulate_field_on(
+        &self,
+        map: &AffineGeometryMap,
+        reference: &[f64],
+        components: usize,
+    ) -> Result<PhysicalBasisTabulation, Diagnostic> {
+        let count = self.field_dof_count(components)?;
+        let entries = count
+            .checked_mul(components)
+            .and_then(|n| n.checked_mul(self.cell.dimension()))
+            .filter(|n| *n <= MAX_BASIS_ENTRIES)
+            .ok_or_else(|| invalid_space("Field tabulation exceeds resource limits"))?;
+        let tabulation = self.tabulate_on(map, reference)?;
+        if tabulation.value_dimension == components {
+            return Ok(tabulation);
+        }
+        let dimension = tabulation.dimension;
+        let mut values = vec![0.0; count * components];
+        let mut gradients = vec![0.0; entries];
+        for dof in 0..self.local_dofs.len() {
+            for component in 0..components {
+                let index = (dof * components + component) * components + component;
+                values[index] = tabulation.values[dof];
+                gradients[index * dimension..(index + 1) * dimension]
+                    .copy_from_slice(tabulation.gradient(dof).expect("validated scalar gradient"));
+            }
+        }
+        Ok(PhysicalBasisTabulation {
+            dimension,
+            value_dimension: components,
+            values,
+            gradients,
+        })
+    }
+
     /// Map a reference tabulation to a positive square affine cell. Scalar bases
     /// use the chain rule, edge moments the covariant Piola map, and face flux
     /// moments the contravariant Piola map. Map selection is owned by `Space`.
