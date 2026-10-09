@@ -60,7 +60,7 @@ momentum_law=component.relation("momentum",q.equation(-q.div(2*mu*q.symmetric_pa
 continuity_law=component.relation("continuity",q.equation(q.div(u),0),on=body)
 component.relation("fixed",q.equation(q.trace(u),0),on=surface.member("face"))
 v=component.test("v",for_=u,zero_on=surface)
-pressure_test=component.test("q",for_=p)
+pressure_test=component.test("q",for_=p,regularity="l2")
 component.weak_form("weak",[momentum_law,continuity_law],equations=[
  (q.integrate(body,q.frobenius(q.grad(v),2*mu*q.symmetric_part(q.grad(u)))-p*q.div(v)),q.integrate(body,q.dot(v,q.grad(F)))),
  (q.integrate(body,pressure_test*q.div(u)),0),
@@ -69,6 +69,7 @@ python_model=eqiora.compile(source=module,geometry=geometry,entry="Flow",binding
 emitted_model=eqiora.compile(source=module.to_eqi(),geometry=geometry,entry="Flow",bindings=bindings)
 assert python_model.authored_formulations[0].source_identity==emitted_model.authored_formulations[0].source_identity
 assert python_model.authored_formulations[0].kind=="mixed-galerkin"
+assert [test[4] for test in python_model.authored_formulations[0].test_restrictions]==["h1","l2"]
 # A one-trial vector expression is now valid typed primal authoring. It does
 # not acquire the checked mixed-system classification or pressure hypotheses.
 # The API regression test also submits this subset to the live mixed checker.
