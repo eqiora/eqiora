@@ -13,6 +13,7 @@ pub struct ModelDecl {
     pub(crate) name: String,
     pub(crate) signature: Vec<super::SignatureItem>,
     pub(crate) items: Vec<Item>,
+    pub(crate) formulations: Vec<super::formulation::FormulationDecl>,
     pub(crate) range: TextRange,
 }
 

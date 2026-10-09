@@ -96,94 +96,90 @@ impl SourceAstFactory {
         equalities: (Vec<(Expr, Expr)>, TextRange),
         range: TextRange,
     ) -> Result<ComponentDecl, AstConstructionError> {
-        super::signature::validate_signature(&signature)?;
-        for item in &items {
-            validate_component_item(item)?;
-        }
-        let (equations, formulation_range) = equalities;
-        if equations.is_empty() {
-            return Err(AstConstructionError::new(
-                "Formulation requires an equality",
-            ));
-        }
-        for (left, right) in &equations {
-            validate_expression(left)?;
-            validate_expression(right)?;
-        }
-        let (form_name, relations, binding) = form;
-        let form_name = checked_identifier(form_name, "Formulation")?;
-        if relations.is_empty() {
-            return Err(AstConstructionError::new("Formulation requires a Relation"));
-        }
-        for relation in &relations {
-            checked_identifier(relation.clone(), "Formulation Relation")?;
-        }
-        match &binding {
-            crate::FormulationBinding::Finite { name, trials } => {
-                checked_identifier(name.clone(), "finite coordinate space")?;
-                if trials.is_empty() {
-                    return Err(AstConstructionError::new(
-                        "finite Formulation requires a trial Field",
-                    ));
-                }
-                for (index, trial) in trials.iter().enumerate() {
-                    checked_identifier(trial.clone(), "finite trial Field")?;
-                    if trial == name || trials[..index].contains(trial) {
-                        return Err(AstConstructionError::new("finite binders must be distinct"));
-                    }
-                }
-            }
-            crate::FormulationBinding::WeakTests { tests } => {
-                if tests.is_empty() {
-                    return Err(AstConstructionError::new(
-                        "weak Formulation requires a test",
-                    ));
-                }
-                for (name, trial, zero_on, dimension) in tests {
-                    super::expression::validate_expression(dimension)?;
-                    checked_identifier(name.clone(), "test function")?;
-                    checked_identifier(trial.clone(), "trial Field")?;
-                    for name in zero_on {
-                        checked_identifier(name.clone(), "test boundary")?;
-                    }
-                }
-            }
-            crate::FormulationBinding::Interval {
-                name,
-                lower,
-                upper,
-                domain,
-            } => {
-                for name in [name, lower, upper, domain] {
-                    checked_identifier(name.clone(), "interval binder")?;
-                }
-                if name == lower || name == upper || lower == upper {
-                    return Err(AstConstructionError::new(
-                        "interval binders must be distinct",
-                    ));
-                }
-            }
-        }
-        let formulation_range = checked_range(formulation_range)?;
-        let range = checked_range(range)?;
-        Ok(ComponentDecl {
-            comments: Default::default(),
-            visibility,
-            name: checked_identifier(name, "component")?,
-            signature,
-            items,
-            formulations: vec![FormulationDecl {
-                comments: Default::default(),
-                name: form_name,
-                binding,
-                relations,
-                equations,
-                gauge: None,
-                range: formulation_range,
-            }],
-            range,
-        })
+        let mut component = Self::component(visibility, name, signature, items, range)?;
+        component.formulations.push(checked_form(form, equalities)?);
+        Ok(component)
     }
+}
+
+pub(super) fn checked_form(
+    form: (String, Vec<String>, crate::FormulationBinding),
+    equalities: (Vec<(Expr, Expr)>, TextRange),
+) -> Result<FormulationDecl, AstConstructionError> {
+    let (equations, formulation_range) = equalities;
+    if equations.is_empty() {
+        return Err(AstConstructionError::new(
+            "Formulation requires an equality",
+        ));
+    }
+    for (left, right) in &equations {
+        validate_expression(left)?;
+        validate_expression(right)?;
+    }
+    let (form_name, relations, binding) = form;
+    let form_name = checked_identifier(form_name, "Formulation")?;
+    if relations.is_empty() {
+        return Err(AstConstructionError::new("Formulation requires a Relation"));
+    }
+    for relation in &relations {
+        checked_identifier(relation.clone(), "Formulation Relation")?;
+    }
+    match &binding {
+        crate::FormulationBinding::Finite { name, trials } => {
+            checked_identifier(name.clone(), "finite coordinate space")?;
+            if trials.is_empty() {
+                return Err(AstConstructionError::new(
+                    "finite Formulation requires a trial Field",
+                ));
+            }
+            for (index, trial) in trials.iter().enumerate() {
+                checked_identifier(trial.clone(), "finite trial Field")?;
+                if trial == name || trials[..index].contains(trial) {
+                    return Err(AstConstructionError::new("finite binders must be distinct"));
+                }
+            }
+        }
+        crate::FormulationBinding::WeakTests { tests } => {
+            if tests.is_empty() {
+                return Err(AstConstructionError::new(
+                    "weak Formulation requires a test",
+                ));
+            }
+            for (name, trial, zero_on, dimension) in tests {
+                super::expression::validate_expression(dimension)?;
+                checked_identifier(name.clone(), "test function")?;
+                checked_identifier(trial.clone(), "trial Field")?;
+                for name in zero_on {
+                    checked_identifier(name.clone(), "test boundary")?;
+                }
+            }
+        }
+        crate::FormulationBinding::Interval {
+            name,
+            lower,
+            upper,
+            domain,
+        } => {
+            for name in [name, lower, upper, domain] {
+                checked_identifier(name.clone(), "interval binder")?;
+            }
+            if name == lower || name == upper || lower == upper {
+                return Err(AstConstructionError::new(
+                    "interval binders must be distinct",
+                ));
+            }
+        }
+    }
+    let formulation_range = checked_range(formulation_range)?;
+    Ok(FormulationDecl {
+        comments: Default::default(),
+        name: form_name,
+        binding,
+        relations,
+        equations,
+        gauge: None,
+        range: formulation_range,
+    })
 }
 
 fn validate_component_item(item: &ComponentItem) -> Result<(), AstConstructionError> {

@@ -8,7 +8,7 @@ use eqiora_core::{
     Diagnostic, DimExponents, Id, RawId, ScalarDomain, ValueFrame, ValueShape, ValueType,
 };
 use eqiora_graph::{EdgeKind, Op, Transaction};
-use eqiora_lang::{BinaryOp, ComponentDecl, Expr, ExprKind, NamePath, TextRange, UnaryOp};
+use eqiora_lang::{BinaryOp, Expr, ExprKind, NamePath, TextRange, UnaryOp};
 use eqiora_schema::kernel::{KernelNode, ParameterDef};
 
 use crate::diagnostics::source_error;
@@ -24,6 +24,8 @@ mod index;
 mod interval;
 use index::KernelIndex;
 mod restriction;
+pub(crate) mod source;
+use source::FormulationSource;
 mod typing;
 mod variation;
 mod wire;
@@ -174,9 +176,9 @@ impl CompiledAuthoredFormulation {
     }
 }
 
-pub(crate) fn compile_component_formulations(
+pub(crate) fn compile_formulations(
     file: &str,
-    component: &ComponentDecl,
+    component: &impl FormulationSource,
     symbols: &ModelSymbols,
     transaction: &Transaction,
     geometry: Option<&eqiora_geometry::CanonicalGeometryV1>,
@@ -191,10 +193,10 @@ pub(crate) fn compile_component_formulations(
             codes::LANGUAGE_TYPE_ERROR,
             file,
             component.range(),
-            "the Formulation compiler accepts exactly one named form per Component",
+            "the Formulation compiler accepts exactly one named form per Model or Component",
         )]);
     }
-    let source_identity = AuthoredFormSourceIdentity::from_component(component)
+    let source_identity = AuthoredFormSourceIdentity::from_source(component)
         .map_err(|diagnostic| vec![diagnostic])?;
     let mut index = KernelIndex::new(transaction);
     index.coefficients = coefficients;

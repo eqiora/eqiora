@@ -150,6 +150,14 @@ exact-Kernel-identity labels with no invented source locations. Value edits pres
 labels when the occurrence inventory is unchanged; structural edits rebuild their
 complete identity-only catalog.
 
+Selected `model` and `component` declarations can place authored `form` blocks
+following their ordinary declarations. Both use the same test, trial, dimension
+and correspondence checks; attaching a form preserves the original equations.
+Python `Module.model(...).weak_form(...)` follows this path too. Product tests
+cover finite Hermitian forms and scalar Q1 forms with complex boundary loads,
+including selected parameter and Geometry bindings and offline package replay.
+This authoring support does not implement a harmonic reduction request.
+
 ### Mathematical rendering
 
 `model.render_equations("law", "mathml")` presents the retained left and right

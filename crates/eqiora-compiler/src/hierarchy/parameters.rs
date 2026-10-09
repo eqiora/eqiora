@@ -20,8 +20,10 @@ mod bindings;
 mod dependencies;
 mod selected;
 pub(in crate::hierarchy) use array_types::{extent_expressions, specialize_type};
-pub(in crate::hierarchy) use selected::{
-    resolve_formulation_coefficients, resolve_selected_parameters,
+pub(in crate::hierarchy) use selected::resolve_selected_parameters;
+mod formulation;
+pub(in crate::hierarchy) use formulation::{
+    resolve_formulation_coefficients, resolve_model_formulation_coefficients,
 };
 mod expression_eval;
 pub(in crate::hierarchy) mod frames;

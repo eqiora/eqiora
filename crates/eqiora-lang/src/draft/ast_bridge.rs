@@ -327,6 +327,7 @@ impl super::ModelDeclarations {
             visibility: VisibilitySyntax::Public,
             name: self.name.clone(),
             items,
+            formulations: Vec::new(),
             range,
         };
         let mut document =

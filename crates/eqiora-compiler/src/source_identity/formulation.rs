@@ -1,6 +1,7 @@
 //! Separate canonical identity for authored formulations.
 
 use super::*;
+use crate::formulation::source::FormulationSource;
 
 const MAGIC: &[u8; 8] = b"EQIORAFM";
 const CANONICAL_FORMULATION_VERSION: u16 = 7;
@@ -9,7 +10,7 @@ const CANONICAL_FORMULATION_VERSION: u16 = 7;
 pub(crate) struct AuthoredFormSourceIdentity([u8; 32]);
 
 impl AuthoredFormSourceIdentity {
-    pub(crate) fn from_component(component: &ComponentDecl) -> Result<Self, Diagnostic> {
+    pub(crate) fn from_source(component: &impl FormulationSource) -> Result<Self, Diagnostic> {
         let limits = LocalSourceIdentityLimits::default();
         let mut budget = Budget::new(limits);
         budget.account_members(component.formulations().len(), "Formulation")?;
@@ -150,7 +151,7 @@ mod tests {
         let model_identity =
             |source: &str| LocalSourceIdentity::from_document(&document(source)).unwrap();
         let form_identity = |source: &str| {
-            AuthoredFormSourceIdentity::from_component(&document(source).components()[0]).unwrap()
+            AuthoredFormSourceIdentity::from_source(&document(source).components()[0]).unwrap()
         };
 
         assert_eq!(model_identity(without), model_identity(first));
@@ -182,7 +183,7 @@ mod tests {
     fn plural_identity_binds_each_relation_test_and_equality() {
         let source = "component C() { form weak for momentum,incompressibility { test v:1 for velocity zero_on surface; test q:1 for pressure; integrate(body,v)=integrate(body,force); integrate(body,q)=integrate(body,0); } }";
         let identity = |source: &str| {
-            AuthoredFormSourceIdentity::from_component(&document(source).components()[0]).unwrap()
+            AuthoredFormSourceIdentity::from_source(&document(source).components()[0]).unwrap()
         };
         assert_eq!(identity(source), identity(&format(&document(source))));
         for changed in [

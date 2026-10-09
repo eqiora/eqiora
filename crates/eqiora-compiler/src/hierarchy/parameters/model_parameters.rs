@@ -12,6 +12,16 @@ fn resolve(
     frames: BTreeMap<String, SpatialSupport<String>>,
     records: &RecordContext,
 ) -> Result<SymbolicParameterMap, Vec<Diagnostic>> {
+    resolver(file, model, required_policy, frames, records)?.resolve_all(resolve_clock)
+}
+
+pub(super) fn resolver<'a>(
+    file: &'a str,
+    model: &ModelDecl,
+    required_policy: RequiredParameterPolicy,
+    frames: BTreeMap<String, SpatialSupport<String>>,
+    records: &RecordContext,
+) -> Result<SymbolicParameterResolver<'a>, Vec<Diagnostic>> {
     let mut declarations = model
         .signature()
         .iter()
@@ -34,7 +44,7 @@ fn resolve(
             );
         }
     }
-    SymbolicParameterResolver {
+    Ok(SymbolicParameterResolver {
         declaration_file: file,
         declarations: records::expand(
             file,
@@ -49,8 +59,7 @@ fn resolve(
         resolved: BTreeMap::new(),
         required_policy,
         frames,
-    }
-    .resolve_all(resolve_clock)
+    })
 }
 
 pub(in crate::hierarchy) fn resolve_model_parameters_symbolically(

@@ -6,11 +6,12 @@ import eqiora
 import pytest
 
 
-def test_finite_weak_authoring_preserves_spectral_phase(tmp_path):
+@pytest.mark.parametrize("owner", ["component", "model"])
+def test_finite_weak_authoring_preserves_spectral_phase(tmp_path, owner):
     q = eqiora.lang
     module = eqiora.Module("main")
     spin = module.space("Spin", labels=("up", "down"))
-    component = module.component("Wave")
+    component = getattr(module, owner)("Wave")
     scalar = eqiora.ValueType.complex()
     h = component.parameter("h", value_type=eqiora.ValueType.linear_map(scalar, spin, spin))
     component.set_default(h, component.linear_map(spin, spin, ((2, -1j), (1j, 2))))
@@ -43,10 +44,11 @@ def test_finite_weak_authoring_preserves_spectral_phase(tmp_path):
     assert identities[0] != identities[2]
 
 
-def test_spatial_weak_authoring_includes_complex_boundary_load(tmp_path):
+@pytest.mark.parametrize("owner", ["component", "model"])
+def test_spatial_weak_authoring_includes_complex_boundary_load(tmp_path, owner):
     q = eqiora.lang
     module = eqiora.Module("main")
-    component = module.component("Wave")
+    component = getattr(module, owner)("Wave")
     body = component.volume("body", dimensions=1)
     left = component.boundary("left", parent=body)
     right = component.boundary("right", parent=body)

@@ -101,6 +101,9 @@ macro_rules! owners {
         for node in &$($mutable)? $document.models {
             signature!(node, $visit $(, $mutable)?);
             $visit(node.range, &$($mutable)? node.comments);
+            for form in &$($mutable)? node.formulations {
+                $visit(form.range, &$($mutable)? form.comments);
+            }
             for item in &$($mutable)? node.items {
                 match item {
                     Item::IndexSet(value) => $visit(value.range, &$($mutable)? value.comments),

@@ -42,8 +42,42 @@ impl SourceAstFactory {
             name: checked_identifier(name, "model")?,
             signature,
             items,
+            formulations: Vec::new(),
             range: checked_range(range)?,
         })
+    }
+
+    /// Construct a Model with one bound mathematical formulation after its members.
+    ///
+    /// # Errors
+    /// Rejects invalid members, identifiers, expressions, or byte ranges.
+    pub fn model_with_form(
+        visibility: VisibilitySyntax,
+        name: impl Into<String>,
+        signature: Vec<crate::SignatureItem>,
+        items: Vec<Item>,
+        form: (String, Vec<String>, crate::FormulationBinding),
+        equalities: (Vec<(crate::Expr, crate::Expr)>, TextRange),
+        range: TextRange,
+    ) -> Result<ModelDecl, AstConstructionError> {
+        let mut model = Self::model(visibility, name, signature, items, range)?;
+        model
+            .formulations
+            .push(super::component::checked_form(form, equalities)?);
+        Ok(model)
+    }
+
+    /// Replace a Model signature while retaining its declarations and authored forms.
+    ///
+    /// # Errors
+    /// Rejects an invalid signature.
+    pub fn with_model_signature(
+        mut model: ModelDecl,
+        signature: Vec<crate::SignatureItem>,
+    ) -> Result<ModelDecl, AstConstructionError> {
+        super::signature::validate_signature(&signature)?;
+        model.signature = signature;
+        Ok(model)
     }
 
     /// Add one explicit semantic module import to a source document.

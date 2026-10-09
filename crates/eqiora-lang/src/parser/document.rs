@@ -193,7 +193,22 @@ impl Parser<'_> {
         let signature = self.parse_signature()?;
         self.expect(TokenKind::LeftBrace, "`{` after model name")?;
         let mut items = Vec::new();
+        let mut formulations = Vec::new();
+        let mut formulations_started = false;
         while !self.at(TokenKind::RightBrace) && !self.at(TokenKind::Eof) {
+            if self.at_keyword("form") {
+                formulations_started = true;
+                match self.parse_formulation() {
+                    Some(formulation) => formulations.push(formulation),
+                    None => self.recover_item(),
+                }
+                continue;
+            }
+            if formulations_started {
+                self.error_here("model declarations must precede authored forms");
+                self.recover_item();
+                continue;
+            }
             match self.parse_item() {
                 Some(item) => items.push(item),
                 None => self.recover_item(),
@@ -208,6 +223,7 @@ impl Parser<'_> {
             name,
             signature,
             items,
+            formulations,
             range: TextRange::new(declaration_start, end),
         })
     }
