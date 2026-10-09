@@ -306,7 +306,7 @@ impl ModelDocument {
             if form.projection().test_restrictions().len() > 1
                 && form.projection().trial_ulids().len() > 1
             {
-                eqiora_numerics::check_authored_mixed_formulation(
+                eqiora_numerics::check_authored_spatial_formulation(
                     document.program(),
                     form.projection(),
                 )

@@ -23,7 +23,7 @@ use std::collections::BTreeMap;
 /// # Errors
 /// Rejects unsupported sources, stale identities, incomplete boundary conditions,
 /// incompatible units, or a weak residual differing from the curl Green identity.
-pub fn check_authored_curl_formulation(
+pub(super) fn check(
     program: &KernelProgram,
     form: &AuthoredFormulationProjection,
 ) -> Result<(), Diagnostic> {

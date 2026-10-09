@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 mod authored;
-pub use authored::check_authored_mixed_formulation;
+pub(crate) use authored::check_authored_mixed_formulation;
 
 use eqiora_core::{Diagnostic, RawId};
 use eqiora_schema::kernel::{ExprId, ExprNode};

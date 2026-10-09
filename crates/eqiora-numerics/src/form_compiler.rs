@@ -9,7 +9,6 @@ pub(crate) mod harmonic;
 mod planar_curl;
 mod vector_curl;
 pub(crate) use finite::admit_authored_finite_weak_form;
-pub use vector_curl::check_authored_curl_formulation;
 pub(crate) mod equation_roles;
 pub(crate) mod linear;
 pub(crate) mod region;
@@ -48,4 +47,26 @@ pub(crate) fn check_authored_dependence(
             "authored form coefficient or argument is not a live Field or Parameter",
         )),
     })
+}
+
+/// Check a bounded authored spatial weak form against its live strong Laws.
+///
+/// One test/trial selects 3D vector curl-curl inspection with complete homogeneous
+/// full traces on a Cartesian box. Plural tests/trials select the existing real
+/// steady Stokes inspection with complete homogeneous velocity traces. Neither
+/// path selects a numerical method or proves stability or reverse implication.
+/// General spatial authoring remains available independently of this inspection.
+///
+/// # Errors
+/// Rejects unsupported profiles, incomplete test/trial or boundary inventories,
+/// stale source identities, or authored terms that do not match the strong Laws.
+pub fn check_authored_spatial_formulation(
+    program: &eqiora_sem::KernelProgram,
+    form: &eqiora_compiler::AuthoredFormulationProjection,
+) -> Result<(), eqiora_core::Diagnostic> {
+    if form.trial_ulids().len() == 1 {
+        vector_curl::check(program, form)
+    } else {
+        crate::canonical_stokes::check_authored_mixed_formulation(program, form)
+    }
 }

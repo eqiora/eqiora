@@ -246,7 +246,7 @@ curls, vector reductions and 3D curl-curl are not silently identified with it.
 It does not provide the general vector curl integration-by-parts certificate.
 
 For a real or complex physical 3-vector, the explicit Rust inspection
-`eqiora_numerics::check_authored_curl_formulation(program, projection)` checks a
+`eqiora_numerics::check_authored_spatial_formulation(program, projection)` checks a
 bounded strong-implies-weak correspondence without selecting a numerical method.
 It recognizes one direct shared `curl(curl(u))` occurrence on a Cartesian box,
 with signed linear algebraic value terms. All six exact box faces must carry

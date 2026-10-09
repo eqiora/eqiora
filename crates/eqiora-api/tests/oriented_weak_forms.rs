@@ -78,7 +78,7 @@ fn single_vector_authoring_does_not_authenticate_an_incomplete_mixed_system() {
         .next()
         .unwrap()
         .projection();
-    eqiora_numerics::check_authored_mixed_formulation(complete.program(), full).unwrap();
+    eqiora_numerics::check_authored_spatial_formulation(complete.program(), full).unwrap();
     let subset = source
         .replace("momentum,continuity", "momentum")
         .replace("test q:1 for p;", "")
@@ -88,11 +88,11 @@ fn single_vector_authoring_does_not_authenticate_an_incomplete_mixed_system() {
     assert_eq!(form.trial_ulids().len(), 1);
     assert_eq!(form.equations().len(), 1);
     let error =
-        eqiora_numerics::check_authored_mixed_formulation(partial.program(), form).unwrap_err();
+        eqiora_numerics::check_authored_spatial_formulation(partial.program(), form).unwrap_err();
     assert!(
         error
             .message()
-            .contains("unmatched equation, term, test/trial, boundary, or assumption"),
+            .contains("curl correspondence requires a spatial 3D Cartesian box"),
         "{error:?}"
     );
 }
