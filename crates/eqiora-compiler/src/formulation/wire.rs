@@ -6,7 +6,7 @@ use ulid::Ulid;
 
 use super::{AuthoredFormExpression, AuthoredFormExpressionKind};
 
-const SCHEMA: &str = "eqiora.authored-form/v12";
+const SCHEMA: &str = "eqiora.authored-form/v13";
 
 mod harmonic;
 pub(in crate::formulation) use harmonic::HarmonicFormulationRequest;
@@ -165,6 +165,16 @@ pub enum AuthoredFormExpressionV1 {
     },
     Gradient {
         value: Box<Self>,
+    },
+    Curl {
+        value: Box<Self>,
+    },
+    TangentialTrace {
+        value: Box<Self>,
+    },
+    Cross {
+        left: Box<Self>,
+        right: Box<Self>,
     },
     Divergence {
         value: Box<Self>,
@@ -708,6 +718,18 @@ pub(super) fn expression(value: &AuthoredFormExpression) -> AuthoredFormExpressi
         AuthoredFormExpressionKind::Gradient(value) => AuthoredFormExpressionV1::Gradient {
             value: Box::new(expression(value)),
         },
+        AuthoredFormExpressionKind::Curl(value) => AuthoredFormExpressionV1::Curl {
+            value: Box::new(expression(value)),
+        },
+        AuthoredFormExpressionKind::TangentialTrace(value) => {
+            AuthoredFormExpressionV1::TangentialTrace {
+                value: Box::new(expression(value)),
+            }
+        }
+        AuthoredFormExpressionKind::Cross(left, right) => AuthoredFormExpressionV1::Cross {
+            left: Box::new(expression(left)),
+            right: Box::new(expression(right)),
+        },
         AuthoredFormExpressionKind::Divergence(value) => AuthoredFormExpressionV1::Divergence {
             value: Box::new(expression(value)),
         },
@@ -884,7 +906,7 @@ mod tests {
         let bytes = projection().canonical_bytes().to_vec();
         let old = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.authored-form/v12", "eqiora.authored-scalar-form/v3");
+            .replace("eqiora.authored-form/v13", "eqiora.authored-scalar-form/v3");
         assert!(AuthoredFormulationProjection::decode(old.as_bytes()).is_err());
     }
 

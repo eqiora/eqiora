@@ -102,6 +102,9 @@ pub(crate) enum AuthoredFormExpressionKind {
     /// Spatial gradient.
     Gradient(Box<AuthoredFormExpression>),
     Divergence(Box<AuthoredFormExpression>),
+    Curl(Box<AuthoredFormExpression>),
+    TangentialTrace(Box<AuthoredFormExpression>),
+    Cross(Box<AuthoredFormExpression>, Box<AuthoredFormExpression>),
     SymmetricPart(Box<AuthoredFormExpression>),
     Frobenius(Box<AuthoredFormExpression>, Box<AuthoredFormExpression>),
     /// Scalar sine.
@@ -338,13 +341,31 @@ fn compile_weak(
                 .ok_or_else(|| error(file, range, "form has no exact Domain"))
         })
         .transpose()?;
-    if domain.is_some() && geometry.is_none() {
-        return Err(error(
-            file,
-            range,
-            "spatial forms require exact Geometry support bindings",
-        ));
-    }
+    let (ambient_dimension, topological_dimension) = match domain {
+        Some(domain) => match index.nodes.get(&domain.erase()).copied() {
+            Some(KernelNode::Domain(definition)) => match definition.kind() {
+                eqiora_schema::kernel::DomainKind::CartesianBox { coordinates } => {
+                    (coordinates.len(), coordinates.len())
+                }
+                _ => geometry
+                    .map(|geometry| {
+                        (
+                            geometry.ambient_dimension(),
+                            geometry.topological_dimension(),
+                        )
+                    })
+                    .ok_or_else(|| {
+                        error(
+                            file,
+                            range,
+                            "spatial forms require exact Cartesian or Geometry support",
+                        )
+                    })?,
+            },
+            _ => return Err(error(file, range, "form has no exact physical Domain")),
+        },
+        None => (0, 0),
+    };
     if relations
         .iter()
         .any(|r| index.applies_on.get(&r.erase()).copied() != domain.map(Id::erase))
@@ -407,8 +428,8 @@ fn compile_weak(
         file,
         symbols,
         index,
-        ambient_dimension: geometry.map_or(0, |value| value.ambient_dimension()),
-        topological_dimension: geometry.map_or(0, |value| value.topological_dimension()),
+        ambient_dimension,
+        topological_dimension,
         relation_domain: domain,
         tests: named_tests,
         integration_domain: None,
