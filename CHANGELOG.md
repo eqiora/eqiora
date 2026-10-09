@@ -6,6 +6,58 @@ are recorded here.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-09
+
+### Added
+
+- Added typed real and complex finite Models across shared linear, Newton,
+  time, sensitivity, Hermitian eigenproblem, harmonic-response, and finite-window
+  Fourier observation paths. Exact coordinate bases, source identities, and
+  replay lineage remain attached to the admitted profiles.
+- Added authored scalar and elastic energy variations, complex scalar Q1 weak
+  forms, and finite spectral forms through ordinary Model, Formulation, Plan,
+  Run, and Result owners. Solver admission distinguishes Hermitian and
+  non-Hermitian operators; registered cases cover the bounded solution and
+  operator claims independently.
+- Added dimensioned coordinate products, coordinate partials, bounded integrals
+  and moving endpoints, coordinate pullbacks, radial diffusion, nonlocal kernel
+  actions, and exact-support Result observations within their documented
+  execution profiles.
+- Added oriented Cartesian curl, cross products, directional derivatives,
+  exact boundary trace targets, and explicit regularity for weak test functions.
+  Compatible tetrahedral vector moments reach shared linear Plans.
+- Added ordered Cartesian physical-interface declarations and one-sided
+  scalar, vector, and tensor trace authoring and replay. This release does not
+  add numerical physical-interface integration, transmission execution, or
+  general Field regularity admission; an interface creates no implicit
+  continuity or flux law.
+- Expanded compiler-owned editor assistance with typed hover, completion,
+  exact declaration navigation and references, workspace refresh, and atomic
+  UTF-16 edits. Python wheels include Jupyter source-cell highlighting,
+  completion, and hover, with native IPython compilation.
+
+### Changed
+
+- Advanced the pre-1.0 Model and Model Transaction formats to v43, structural
+  semantic fingerprints to V38, and local-source canonical identity to v32.
+  Superseded artifact epochs are rejected; they are not silently migrated.
+  Repository consumers and bundled package identities use the current formats.
+- Prepared shared mathematical forms and reusable linear providers for repeated
+  execution, and derived MINI transport and natural outlet flux from authored
+  equations. The developed Reynolds-100 wake presentation remains explicitly
+  outside benchmark validation.
+
+### Fixed
+
+- Reject deficient equation blocks, singular initial points, and irregular
+  continuous DAE tangents at their existing semantic and execution boundaries.
+  Preserve source provenance in those diagnostics.
+- Resolve simultaneous event resets by explicit priority, preserve exact reduced
+  dimension powers, and retain authoritative editor text across document lifetimes.
+- Reject boundary operators whose operand lacks the complete exact parent
+  support, reject foreign physical-interface sides, and retain ordered normal
+  orientation through Model replay.
+
 ## [0.1.2] - 2026-09-15
 
 ### Added
@@ -582,7 +634,8 @@ Detailed claims and nonclaims are the responsibility of the
 [capability matrix](docs/capability-matrix.md) and registered
 [`verify/`](verify/) cases rather than this summary.
 
-[Unreleased]: https://github.com/nkiyohara/eqiora/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/eqiora/eqiora/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/eqiora/eqiora/releases/tag/v0.2.0
 [0.1.2]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.2
 [0.1.1]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.1
 [0.1.0]: https://github.com/nkiyohara/eqiora/releases/tag/v0.1.0
