@@ -2550,7 +2550,7 @@ def through(port: ConservingPort) -> Expression: ...
 Return the boundary trace of a symbolic expression.
 
 ```python
-def trace(value: _ExpressionLike) -> Expression: ...
+def trace(value: _ExpressionLike, *, on: Domain | None=None, from_: Domain | None=None) -> Expression: ...
 ```
 
 <a id="api-eqiora-diff"></a>
@@ -3130,7 +3130,7 @@ def curl(value: object) -> Expression: ...
 Oriented n cross value on the exact parent boundary, scalar in 2D.
 
 ```python
-def tangential_trace(value: object) -> Expression: ...
+def tangential_trace(value: object, *, on: Support | None=None, from_: Support | None=None) -> Expression: ...
 ```
 
 <a id="api-eqiora-lang-Inequality"></a>
@@ -3865,7 +3865,7 @@ math: _Math
 Return the language outward-normal contraction of one expression.
 
 ```python
-def normal(value: Expression) -> Expression: ...
+def normal(value: object, *, on: Support | None=None, from_: Support | None=None) -> Expression: ...
 ```
 
 <a id="api-eqiora-lang-ordinal"></a>
@@ -4051,7 +4051,7 @@ def tensor_value(*, frame: Support, components: Sequence[object] | Expression) -
 Return the language boundary trace of one expression.
 
 ```python
-def trace(value: Expression) -> Expression: ...
+def trace(value: object, *, on: Support | None=None, from_: Support | None=None) -> Expression: ...
 ```
 
 <a id="module-eqiora-units"></a>
