@@ -440,7 +440,7 @@ fn inspect_compatible(
             }
         }
         // D*C is an exact integer identity, distinct from solve tolerances.
-        for edge in 0..6 {
+        for (edge, _) in expected[0].iter().enumerate() {
             assert_eq!(
                 (-expected[0][edge] + expected[1][edge] - expected[2][edge] + expected[3][edge]),
                 0

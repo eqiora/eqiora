@@ -165,17 +165,17 @@ fn local_curl_gram_action_and_gradient_kernel_have_independent_values() {
 
 #[test]
 fn every_positive_vertex_permutation_preserves_physical_fields() {
-    for a in 0..4 {
-        for b in 0..4 {
-            for c in 0..4 {
-                for d in 0..4 {
+    for (a, vertex_a) in VERTICES.iter().enumerate() {
+        for (b, vertex_b) in VERTICES.iter().enumerate() {
+            for (c, vertex_c) in VERTICES.iter().enumerate() {
+                for (d, vertex_d) in VERTICES.iter().enumerate() {
                     let Ok(permutation) = VertexPermutation::new(vec![a, b, c, d]) else {
                         continue;
                     };
                     if compatible::orientation_sign(permutation.images()) < 0 {
                         continue;
                     }
-                    let vertices = [VERTICES[a], VERTICES[b], VERTICES[c], VERTICES[d]];
+                    let vertices = [*vertex_a, *vertex_b, *vertex_c, *vertex_d];
                     let transformed = map(&vertices);
                     let reference = [0.125, 0.25, 0.5];
                     let mut physical = [0.0; 3];
