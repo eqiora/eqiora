@@ -218,8 +218,11 @@ fn boundary_operator<I: Clone + Eq>(
     else {
         return Err(TypeViolation::BoundaryOperatorRequiresBoundaryScope);
     };
-    let operand_is_parent_volume =
-        operand.support.as_ref().map(SpatialSupport::domain) == Some(parent);
+    let operand_is_parent_volume = matches!(
+        operand.support.as_ref(),
+        Some(SpatialSupport::Volume { domain, dimensions: operand_dimensions })
+            if domain == parent && operand_dimensions == dimensions
+    );
     let operand_is_this_boundary = normal_component
         && operand
             .support

@@ -274,6 +274,72 @@ fn coordinate_and_boundary_rules_use_relation_support() {
 }
 
 #[test]
+fn boundary_operators_require_the_complete_parent_support() {
+    let boundary = SpatialSupport::Boundary {
+        domain: "wall",
+        parent: "body",
+        dimensions: 2,
+    };
+    let value = ExpressionType::shaped(
+        DimExponents::DIMENSIONLESS,
+        ValueShape::new([2]).unwrap(),
+        ValueFrame::SpatialCartesian,
+        Some(volume("body")),
+    )
+    .unwrap();
+    let traced = trace(&value, Some(&boundary)).unwrap();
+    assert_eq!(traced.value_type, value.value_type);
+    assert_eq!(traced.support, Some(boundary.clone()));
+    let normal_value = normal(&value, Some(&boundary)).unwrap();
+    assert!(normal_value.shape().is_scalar());
+    assert_eq!(normal_value.support, Some(boundary.clone()));
+    assert_eq!(normal(&traced, Some(&boundary)).unwrap(), normal_value);
+
+    // Equal nominal names do not turn another kind or dimension of support
+    // into this boundary's exact parent volume.
+    for support in [
+        volume("foreign"),
+        SpatialSupport::Volume {
+            domain: "body",
+            dimensions: 3,
+        },
+        SpatialSupport::Coordinates {
+            domain: "body",
+            factors: vec![("x", DimExponents::DIMENSIONLESS, 2)],
+        },
+        SpatialSupport::Boundary {
+            domain: "body",
+            parent: "other",
+            dimensions: 2,
+        },
+        SpatialSupport::Interface {
+            connection: "body",
+            dimensions: 2,
+        },
+        SpatialSupport::Boundary {
+            domain: "wall",
+            parent: "body",
+            dimensions: 3,
+        },
+    ] {
+        let operand = ExpressionType::new(value.value_type.clone(), Some(support));
+        for result in [
+            trace(&operand, Some(&boundary)),
+            normal(&operand, Some(&boundary)),
+        ] {
+            assert!(matches!(
+                result,
+                Err(TypeViolation::BoundaryOperandSupportMismatch)
+            ));
+        }
+    }
+    assert!(matches!(
+        trace(&traced, Some(&boundary)),
+        Err(TypeViolation::BoundaryOperandSupportMismatch)
+    ));
+}
+
+#[test]
 fn generic_pure_application_derives_shape_support_and_dimension_from_its_table() {
     let left = Id::<kinds::Field>::new();
     let right = Id::<kinds::Field>::new();
