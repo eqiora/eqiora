@@ -267,3 +267,41 @@ fn vector_energy_variation_replays_its_live_functional() {
     );
     assert!(check_authored_spatial_formulation(&program, &forged).is_err());
 }
+
+#[test]
+fn homogeneous_natural_curl_laws_discharge_their_exact_faces() {
+    for complex in [false, true] {
+        let original = source(complex);
+        let natural = original
+            .replace("trace(u)=0;", "tangential_trace(curl(u))=0;")
+            .replace(
+                " zero_on b0lower,b0upper,b1lower,b1upper,b2lower,b2upper",
+                "",
+            );
+        check(&natural).unwrap();
+        let mixed = original
+            .replace(
+                "relation fixed0lower on b0lower {trace(u)=0;}",
+                "relation fixed0lower on b0lower {tangential_trace(curl(u))=0;}",
+            )
+            .replace("zero_on b0lower,", "zero_on ");
+        check(&mixed).unwrap();
+        for wrong in [
+            natural.replace("tangential_trace(curl(u))", "normal(curl(u))"),
+            natural.replace("tangential_trace(curl(u))", "tangential_trace(u)"),
+            natural.replace("tangential_trace(curl(u))", "tangential_trace(curl(-u))"),
+        ] {
+            let error = check(&wrong).unwrap_err();
+            assert!(error.message().contains("tangential-curl law"), "{error:?}");
+        }
+        let unnecessary = natural.replace("test eta:1 for u;", "test eta:1 for u zero_on b0lower;");
+        assert!(
+            check(&unnecessary)
+                .unwrap_err()
+                .message()
+                .contains("zero_on")
+        );
+        let missing = mixed.replace("zero_on b0upper,", "zero_on ");
+        assert!(check(&missing).unwrap_err().message().contains("zero_on"));
+    }
+}

@@ -51,8 +51,9 @@ pub(crate) fn check_authored_dependence(
 
 /// Check a bounded authored spatial weak form against its live strong Laws.
 ///
-/// One test/trial selects 3D vector curl-curl inspection with complete homogeneous
-/// full traces on a Cartesian box. Plural tests/trials select the existing real
+/// One test/trial selects 3D vector curl-curl inspection with homogeneous full
+/// traces or natural tangential-curl laws on every Cartesian box face. Plural
+/// tests/trials select the existing real
 /// steady Stokes inspection with complete homogeneous velocity traces. Neither
 /// path selects a numerical method or proves stability or reverse implication.
 /// General spatial authoring remains available independently of this inspection.
