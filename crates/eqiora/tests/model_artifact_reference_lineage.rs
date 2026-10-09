@@ -26,7 +26,7 @@ model scalar_physical_with_spatial_field() {
   domain electrical = scalar_physical(across voltage: kg * m ^ 2 / (s ^ 3 * A), through current: A);
 
 
-  variable potential: 1 on interval;
+  variable potential: 1 on interval in h1;
   port terminal_a: electrical;
   port terminal_b: electrical;
 
@@ -74,7 +74,7 @@ model field_boundary_with_spatial_field() {
   domain top = boundary(area, axis = 1, side = upper);
 
 
-  variable potential: 1 on area;
+  variable potential: 1 on area in h1;
   instance side_a: BoundarySide(
     body = area,
     interface = left

@@ -339,9 +339,9 @@ public material composition ReferenceMaterial {{
     let (boundary_fields, x_lower_condition, x_upper_condition) = if prescribed_boundaries {
         (
             r#"  variable displacement_potential: m ^ 2 on body;
-  variable boundary_displacement: vector<m, 2> on body;
+  variable boundary_displacement: vector<m, 2> on body in h1;
   variable traction_potential: kg / s ^ 2 on body;
-  variable boundary_traction: vector<kg / (m * s ^ 2), 2> on body;
+  variable boundary_traction: vector<kg / (m * s ^ 2), 2> on body in h1;
   parameter displacement_scale: m = 1;
   parameter traction_scale: kg / (m * s ^ 2) = 2;
   relation displacement_potential_definition on body {
@@ -387,7 +387,7 @@ public material composition ReferenceMaterial {{
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
 
-  variable displacement: vector<m, 2> on body;
+  variable displacement: vector<m, 2> on body in smooth;
   variable load_potential: kg / (m * s ^ 2) on body;
   parameter zero_load: kg / (m * s ^ 2) = 0;
 {material_parameters}

@@ -18,7 +18,7 @@ from builtins import property as _property
 from typing import Final, Literal
 from types import MappingProxyType
 
-from .._eqiora import Dimension, FieldRole, ValueType, FiniteSpace, IndexSet, Enum as _NativeEnum, _nominal_type, Notation, ModuleError, _AstExpression as _Ast, _AstDeclaration, _AstDefinition, _AstFormulation, _AstModule, _module_from_declarations
+from .._eqiora import Dimension, FieldRole, SpatialRegularity, ValueType, FiniteSpace, IndexSet, Enum as _NativeEnum, _nominal_type, Notation, ModuleError, _AstExpression as _Ast, _AstDeclaration, _AstDefinition, _AstFormulation, _AstModule, _module_from_declarations
 
 from ..units import Unit
 from .._source_bounds import _MAX_EXPRESSION_DEPTH, _MAX_EXPRESSION_NODES, _MAX_OUTPUT_BYTES
@@ -1403,7 +1403,7 @@ class Component:
         ] = []
         self._fields: list[
             tuple[
-                Expression, Support, str, FieldRole, Clock | None, tuple[str, ...]
+                Expression, Support | None, str, FieldRole, Clock | None, SpatialRegularity, tuple[str, ...]
             ]
         ] = []
         self._observables: list[tuple[str, Expression, str, Support | None, tuple[str, ...]]] = []
@@ -1766,10 +1766,13 @@ class Component:
 
     def field_requirement(
         self, name: str, *, on: Support | None = None, value_type: ValueType, role: FieldRole,
-        at: Clock | None = None, doc: str | None = None,
+        at: Clock | None = None,
+        spatial_regularity: SpatialRegularity = SpatialRegularity.Unspecified,
+        doc: str | None = None,
     ) -> Expression:
         """Declare a borrowed Field; an occurrence never allocates its storage."""
-        field = self.field(name, on=on, value_type=value_type, role=role, at=at, doc=doc)
+        field = self.field(name, on=on, value_type=value_type, role=role, at=at,
+                           spatial_regularity=spatial_regularity, doc=doc)
         self._requirements.add(field)
         return field
 
@@ -1858,6 +1861,7 @@ class Component:
         value_type: ValueType | Record | ImportedRecord,
         role: FieldRole,
         at: Clock | None = None,
+        spatial_regularity: SpatialRegularity = SpatialRegularity.Unspecified,
         doc: str | None = None,
     ) -> Expression:
         """Declare a spatial Field, optionally activated by an exact local clock."""
@@ -1873,28 +1877,32 @@ class Component:
         syntax = value_type._type_syntax(self._source) if is_record else self._type_syntax(value_type)
         if not isinstance(role, FieldRole):
             raise TypeError("role must be an eqiora.FieldRole")
+        if not isinstance(spatial_regularity, SpatialRegularity):
+            raise TypeError("spatial_regularity must be an eqiora.SpatialRegularity")
         doc_lines = _doc(doc)
         admitted = self._add_name(name)
         expression = RecordField(self._component_token, admitted, value_type) if is_record else _Field(self._component_token, admitted)
-        self._fields.append((expression, on, syntax, role, at, doc_lines))
+        self._fields.append((expression, on, syntax, role, at, spatial_regularity, doc_lines))
         return expression
 
     def input(
         self, name: str, *, value_type: ValueType, on: Support | None = None,
-        at: Clock | None = None, doc: str | None = None,
+        at: Clock | None = None, spatial_regularity: SpatialRegularity = SpatialRegularity.Unspecified,
+        doc: str | None = None,
     ) -> Expression:
         """Declare a causal input; runtime samples are supplied after static compilation."""
-        field = self.field(name, on=on, value_type=value_type, role=FieldRole.Variable, at=at, doc=doc)
+        field = self.field(name, on=on, value_type=value_type, role=FieldRole.Variable, at=at, spatial_regularity=spatial_regularity, doc=doc)
         self._causal[field] = "input"
         self._requirements.add(field)
         return field
 
     def output(
         self, name: str, *, value_type: ValueType, on: Support | None = None,
-        at: Clock | None = None, doc: str | None = None,
+        at: Clock | None = None, spatial_regularity: SpatialRegularity = SpatialRegularity.Unspecified,
+        doc: str | None = None,
     ) -> Expression:
         """Declare a causal output defined by an ordinary body relation."""
-        field = self.field(name, on=on, value_type=value_type, role=FieldRole.Variable, at=at, doc=doc)
+        field = self.field(name, on=on, value_type=value_type, role=FieldRole.Variable, at=at, spatial_regularity=spatial_regularity, doc=doc)
         self._causal[field] = "output"
         return field
 
@@ -2233,11 +2241,11 @@ class Component:
         for index_set, doc in self._index_sets:
             add(index_set.name, doc, lambda n: _AstDeclaration.index_set(
                 index_set.name, _Ast.number(str(index_set.extent)), n))
-        for field, support, kind, role, clock, doc in self._fields:
+        for field, support, kind, role, clock, regularity, doc in self._fields:
             position = self._causal.get(field, "field" if field in self._requirements else "")
             add(field._name, doc, lambda n: _AstDeclaration.field(
                 field._name, kind, "state" if role == FieldRole.State else "variable",
-                None if support is None else support._name,
+                (None if support is None else support._name, regularity),
                 None if clock is None else clock._name, position, n))
         for name, kind, support, factor, doc in self._coordinates:
             add(name, doc, lambda n: _AstDeclaration.coordinate(name, kind, support._name, factor, n))

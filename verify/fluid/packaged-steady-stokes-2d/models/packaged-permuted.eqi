@@ -22,7 +22,7 @@ model Main() {
   relation x_upper_value on x_upper { trace(velocity) = 0; }
   variable pressure: kg / (m * s ^ 2) on body;
   domain x_lower = boundary(body, axis = 0, side = lower);
-  variable velocity: vector<m / s, 2> on body;
+  variable velocity: vector<m / s, 2> on body in h1;
   relation y_lower_value on y_lower { trace(velocity) = 0; }
   domain y_lower = boundary(body, axis = 1, side = lower);
   parameter wave_number: 1 / m = 6.283185307179586;

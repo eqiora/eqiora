@@ -72,7 +72,7 @@ const CONSTANT: &str = "model Wave() {
  domain right=boundary(body,axis=0,side=upper);
  parameter a:complex<m^2>=math.complex(6[m^2],6[m^2]);
  parameter q:complex<1>=math.complex(1,1);
- variable u:complex<1> on body;
+ variable u:complex<1> on body in h1;
  relation balance on body { -div(a*grad(u))+q*u=math.complex(-2,4); }
  relation fixed_left on left { trace(u)=math.complex(1,3); }
  relation fixed_right on right { trace(u)=math.complex(1,3); }
@@ -95,6 +95,7 @@ fn shared_spatial_executor_retains_complex_boundary_load_and_field_values() {
 #[test]
 fn shared_spatial_executor_retains_oriented_complex_natural_flux() {
     let source = CONSTANT
+        .replace("on body in h1;", "on body in smooth;")
         .replace("math.complex(6[m^2],6[m^2])", "math.complex(3[m^2],1[m^2])")
         .replace("math.complex(1,1)", "math.complex(0,0)")
         .replace("math.complex(-2,4)", "math.complex(0,0)")

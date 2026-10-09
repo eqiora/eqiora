@@ -308,6 +308,7 @@ fn coordinate_coefficient_fails_closed_without_affinity_or_domain_positivity() {
 fn mixed_natural_boundary_reuses_the_volume_coefficient_for_fem_and_fvm() {
     let coefficient = "diffusion * (1 + wave_number * coordinate(0))";
     let source = SOURCE
+        .replace("potential: 1 on square in h1;", "potential: 1 on square in smooth;")
         .replace(
             "diffusion * grad(potential)",
             &format!("{coefficient} * grad(potential)"),

@@ -650,6 +650,7 @@ pub struct FieldDecl {
     pub(crate) name: String,
     pub(crate) domain: Option<String>,
     pub(crate) role: FieldRoleSyntax,
+    pub(crate) spatial_regularity: eqiora_schema::kernel::SpatialRegularity,
     pub(crate) activation: ActivationSyntax,
     pub(crate) value_type: ValueTypeSyntax,
     pub(crate) activation_name_range: Option<TextRange>,
@@ -657,6 +658,12 @@ pub struct FieldDecl {
 }
 
 impl FieldDecl {
+    /// Authored continuum regularity on this Field's own support.
+    #[must_use]
+    pub const fn spatial_regularity(&self) -> eqiora_schema::kernel::SpatialRegularity {
+        self.spatial_regularity
+    }
+
     /// Exact authored activation-name token; absent without an assertion or source tokens.
     #[must_use]
     pub const fn activation_name_range(&self) -> Option<TextRange> {

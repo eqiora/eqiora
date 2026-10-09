@@ -20,6 +20,7 @@ mod inference;
 mod integer;
 mod ordered_selection;
 mod pullback;
+mod regularity;
 mod roots;
 pub use roots::{residual, scalar_root};
 mod spatial;
@@ -219,6 +220,10 @@ pub enum TypeViolation<I> {
     BoundaryOperatorRequiresBoundaryScope,
     /// Boundary operator input is not supported on the exact parent volume.
     BoundaryOperandSupportMismatch,
+    /// Authored continuum regularity does not admit this boundary trace.
+    TraceRegularityInsufficient,
+    /// A weak boundary trace was used as an ordinary pointwise value.
+    WeakTraceOperationUnsupported,
     /// Normal component received a scalar.
     NormalRequiresTensor,
     /// A content-addressed pure definition rejected its exact application.
@@ -358,6 +363,12 @@ impl<I: fmt::Debug> fmt::Display for TypeViolation<I> {
             Self::BoundaryOperatorRequiresBoundaryScope => {
                 formatter.write_str("trace/normal operator requires an AppliesOn boundary Domain")
             }
+            Self::TraceRegularityInsufficient => formatter.write_str(
+                "boundary trace exceeds the operand's authored spatial regularity",
+            ),
+            Self::WeakTraceOperationUnsupported => formatter.write_str(
+                "weak boundary trace requires an admitted linear operation or smooth multiplier",
+            ),
             Self::BoundaryOperandSupportMismatch => formatter.write_str(
                 "boundary operator operand must be supported on its exact parent Domain",
             ),

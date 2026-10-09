@@ -12,7 +12,7 @@ public component PoissonInterval(
   support right: boundary(parent = body),
   parameter source_scale: 1 / m ^ 2
 ) {
-  variable potential: 1 on body;
+  variable potential: 1 on body in h1;
   relation balance on body {
     -div(grad(potential)) - source_scale = 0;
   }
@@ -32,7 +32,7 @@ public component PoissonBox(
   support z_upper: boundary(parent = body),
   parameter source_scale: 1 / m ^ 2
 ) {
-  variable potential: 1 on body;
+  variable potential: 1 on body in h1;
   relation balance on body {
     -div(grad(potential)) - source_scale = 0;
   }
@@ -929,7 +929,7 @@ pub(super) fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_fie
   \n",
         );
         for row in 0..count {
-            source += &format!("variable f{row}: 1 on body;\n");
+            source += &format!("variable f{row}: 1 on body in h1;\n");
         }
         for row in 0..count {
             let coefficients = (0..count)
@@ -1072,11 +1072,16 @@ pub(super) fn mathematical_resolution_ignores_names_and_rejects_changed_operator
     );
     assert!(!error.message().contains("native capability"));
 
-    let flux_boundary = POISSON_INTERVAL.replacen(
-        "relation right_value on right { trace(potential) = 0; }",
-        "relation right_value on right { normal(grad(potential)) = 0; }",
-        1,
-    );
+    let flux_boundary = POISSON_INTERVAL
+        .replace(
+            "potential: 1 on body in h1;",
+            "potential: 1 on body in smooth;",
+        )
+        .replacen(
+            "relation right_value on right { trace(potential) = 0; }",
+            "relation right_value on right { normal(grad(potential)) = 0; }",
+            1,
+        );
     let flux_model = scalar_box_model(
         &geometry,
         &flux_boundary,

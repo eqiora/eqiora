@@ -11,8 +11,8 @@ model Boundaries() {
  domain left = boundary(body, axis = 0, side = lower);
  domain right = boundary(body, axis = 0, side = upper);
 
- variable u: 1 on body;
- variable v: 1 on body;
+ variable u: 1 on body in smooth;
+ variable v: 1 on body in smooth;
  parameter k: 1 = 2;
  parameter other: 1 = 2;
  parameter q: 1 / m = 3;
@@ -106,7 +106,7 @@ fn flux_preserves_parameter_identity_not_just_its_value() {
             .replace("normal(k * grad(u))", "normal((2 * k) * grad(u))"),
     )
     .unwrap();
-    derive(&SOURCE.replace("parameter k: 1 = 2;", "parameter k: 1 = 2; variable a: 1 on body; relation coefficient on body { a - k = 0; }")
+    derive(&SOURCE.replace("parameter k: 1 = 2;", "parameter k: 1 = 2; variable a: 1 on body in smooth; relation coefficient on body { a - k = 0; }")
         .replace("k * grad(u)", "a * grad(u)")).unwrap();
 }
 

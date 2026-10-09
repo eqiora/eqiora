@@ -794,6 +794,7 @@ pub struct DraftField {
     name: String,
     value_type: ValueType,
     role: crate::ast::FieldRoleSyntax,
+    spatial_regularity: eqiora_schema::kernel::SpatialRegularity,
     spatial_scope: Option<DraftSpatialScope>,
 }
 
@@ -803,6 +804,22 @@ struct DraftSpatialScope {
 }
 
 impl DraftField {
+    /// Authored regularity on this Field's own support.
+    #[must_use]
+    pub const fn spatial_regularity(&self) -> eqiora_schema::kernel::SpatialRegularity {
+        self.spatial_regularity
+    }
+
+    /// Assert continuum regularity independently of numerical representation.
+    #[must_use]
+    pub const fn with_spatial_regularity(
+        mut self,
+        regularity: eqiora_schema::kernel::SpatialRegularity,
+    ) -> Self {
+        self.spatial_regularity = regularity;
+        self
+    }
+
     /// Declare one unknown with its complete type and explicit evolution role.
     #[must_use]
     pub fn new(
@@ -815,6 +832,7 @@ impl DraftField {
             name: name.into(),
             value_type,
             role,
+            spatial_regularity: eqiora_schema::kernel::SpatialRegularity::Unspecified,
             spatial_scope: None,
         }
     }
@@ -832,6 +850,7 @@ impl DraftField {
             name: name.into(),
             value_type,
             role,
+            spatial_regularity: eqiora_schema::kernel::SpatialRegularity::Unspecified,
             spatial_scope: Some(DraftSpatialScope {
                 domain: domain.clone(),
             }),

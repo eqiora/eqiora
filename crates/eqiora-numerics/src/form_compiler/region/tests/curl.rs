@@ -20,7 +20,7 @@ fn fixture<S: Coefficient>(
         domain body = box(0, 2, 0, 3, 0, 4);
         domain wall = boundary(body, axis=0, side=lower);
         parameter a: {parameter};
-        variable u: vector<{scalar}, 3> on body;
+        variable u: vector<{scalar}, 3> on body in smooth;
         relation balance on body {{ {volume} = 0; }}
         relation law on wall {{ {flux} = 0; }}
     }}"

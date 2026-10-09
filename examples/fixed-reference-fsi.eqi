@@ -33,11 +33,11 @@ public component FixedReferenceFsi2d(
 
   // Unknown continuum fields are scoped explicitly to the fluid or solid support.
 
-  state fluid_velocity: vector<m / s, 2> on fluid;
-  variable fluid_pressure: kg / (m * s ^ 2) on fluid;
+  state fluid_velocity: vector<m / s, 2> on fluid in smooth;
+  variable fluid_pressure: kg / (m * s ^ 2) on fluid in h1;
   variable fluid_load_potential: kg / (m * s ^ 2) on fluid;
-  state solid_displacement: vector<m, 2> on solid;
-  state solid_velocity: vector<m / s, 2> on solid;
+  state solid_displacement: vector<m, 2> on solid in smooth;
+  state solid_velocity: vector<m / s, 2> on solid in h1;
   variable solid_load_potential: kg / (m * s ^ 2) on solid;
 
   // Fluid: transient Stokes momentum balance with incompressibility.

@@ -15,7 +15,7 @@ fn model_and_form_tangential_pairings_match_independent_oriented_boundary_rows()
                 domain face=boundary(body,axis=0,side=lower);
                 domain opposite=boundary(body,axis=0,side=upper);
                 domain foreign=boundary(other,axis=0,side=lower);
-                variable u:vector<{scalar},{dimensions}> on body;
+                variable u:vector<{scalar},{dimensions}> on body in h1;
                 variable v:vector<{scalar},{dimensions}> on other;
                 relation other_law on other {{v=v;}}
                 relation law on body {{u=u;}}

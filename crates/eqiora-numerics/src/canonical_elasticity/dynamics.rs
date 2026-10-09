@@ -580,7 +580,7 @@ model dynamic_solid_3d() {
   domain z_upper = boundary(solid, axis = 2, side = upper);
 
   state displacement: vector<m, 3> on solid;
-  state velocity: vector<m / s, 3> on solid;
+  state velocity: vector<m / s, 3> on solid in h1;
   variable load: kg / (m * s ^ 2) on solid;
   parameter density: kg / m ^ 3 = 3;
   parameter mu: kg / (m * s ^ 2) = 4;

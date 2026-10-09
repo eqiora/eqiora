@@ -48,7 +48,7 @@ fn fixture(face: bool, complex: bool, permuted: bool) -> (Vec<u8>, Vec<u8>) {
         potential.to_owned()
     };
     let source = format!("public component Flux(support body:volume(ambient_dimension=3), support wall:boundary(parent=body)) {{
-        parameter a:m^2=2[m^2]; variable u:{vector} on body;
+        parameter a:m^2=2[m^2]; variable u:{vector} on body in smooth;
         variable potential:{scalar} on body;
         relation prescribed on body {{ potential={potential}; }}
         relation balance on body {{ a*({operator})+u=grad(potential); }}

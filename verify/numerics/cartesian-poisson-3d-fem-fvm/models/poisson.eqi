@@ -7,7 +7,7 @@ model manufactured_poisson_cube() {
   domain z_lower = boundary(cube, axis = 2, side = lower);
   domain z_upper = boundary(cube, axis = 2, side = upper);
 
-  variable potential: 1 on cube;
+  variable potential: 1 on cube in h1;
   parameter wave_number: 1 / m = 3.141592653589793;
   parameter source_scale: 1 / m ^ 2 = 29.608813203268074;
 

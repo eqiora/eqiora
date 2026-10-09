@@ -536,8 +536,9 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     return None;
                 }
                 parent_scope.field_type(target).cloned().map(|value| {
-                    let (role, activation) = parent_scope.field_evolution[target].clone();
-                    FieldContract::continuum(value, role, activation)
+                    let (role, activation, regularity) =
+                        parent_scope.field_metadata[target].clone();
+                    FieldContract::continuum(value, role, regularity, activation)
                 })
             },
         )
@@ -584,16 +585,9 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
             )
             .map_err(one_diagnostic)?;
             scope.insert_symbol(slot.clone(), symbol);
-            let requirement = field_interface.field(&slot).expect("resolved requirement");
-            let activation = match &requirement.activation {
-                eqiora_lang::ActivationSyntax::Named(clock) => {
-                    eqiora_lang::ActivationSyntax::Named(clocks[clock].clone())
-                }
-                other => other.clone(),
-            };
             scope
-                .field_evolution
-                .insert(slot.clone(), (requirement.role, activation));
+                .field_metadata
+                .insert(slot.clone(), parent_scope.field_metadata[&target].clone());
             scope.insert_field_type(slot, field_type);
         }
         self.record_properties(
@@ -839,7 +833,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     let support = declaration
                         .domain()
                         .and_then(|domain| scope.spatial_support(domain).cloned());
-                    scope.field_evolution.insert(
+                    scope.field_metadata.insert(
                         declaration.name().to_owned(),
                         (
                             declaration.role(),
@@ -850,6 +844,7 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                                 &scope,
                             )
                             .map_err(one_diagnostic)?,
+                            declaration.spatial_regularity(),
                         ),
                     );
                     let field_type = field_expression_type(
@@ -1061,15 +1056,16 @@ impl<'a, 'd> RootExpansion<'a, 'd> {
                     .record_for_type(&component.namespace, field.value_type())
                 {
                     for (name, _) in record.definition.members() {
-                        scope.field_evolution.insert(
+                        scope.field_metadata.insert(
                             format!("{}.{name}", field.name()),
-                            (field.role(), activation.clone()),
+                            (field.role(), activation.clone(), field.spatial_regularity()),
                         );
                     }
                 } else {
-                    scope
-                        .field_evolution
-                        .insert(field.name().to_owned(), (field.role(), activation));
+                    scope.field_metadata.insert(
+                        field.name().to_owned(),
+                        (field.role(), activation, field.spatial_regularity()),
+                    );
                 }
             }
         }

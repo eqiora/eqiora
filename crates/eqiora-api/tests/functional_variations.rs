@@ -34,7 +34,7 @@ public component Energy(
     support right:boundary(parent=body),
     parameter a:J/m
 ) {
-    variable c:1 on body;
+    variable c:1 on body in h1;
     relation balance on body { a*c=0; }
     relation left_value on left { trace(c)=0; }
     relation right_value on right { trace(c)=0; }
@@ -223,7 +223,7 @@ fn composite_observable_references_are_typed_and_replayable() {
     );
     let prior_schema = String::from_utf8(bytes.clone())
         .unwrap()
-        .replace("eqiora.model-envelope/v43", "eqiora.model-envelope/v31");
+        .replace("eqiora.model-envelope/v44", "eqiora.model-envelope/v31");
     assert_ne!(prior_schema.as_bytes(), bytes);
     assert!(
         ModelEnvelope::from_json(prior_schema.as_bytes(), ModelDecoderLimits::default()).is_err()

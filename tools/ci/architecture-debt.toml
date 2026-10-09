@@ -144,7 +144,7 @@ removal = "split by responsibility in the lane that next modifies it"
 
 [[file_lines]]
 path = "crates/eqiora-compiler/src/hierarchy/expand.rs"
-ceiling = 1222
+ceiling = 1218
 reason = "predates the predicate; not yet triaged"
 removal = "split by responsibility in the lane that next modifies it"
 
@@ -515,7 +515,7 @@ ceiling = 8
 
 [[public_surface]]
 crate = "eqiora-schema"
-ceiling = 111
+ceiling = 112
 # #915: FiniteUnaryOperation and FiniteBinaryOperation close the vocabulary used
 # by source lowering, typed admission, reference execution, scalar IR and wire
 # replay. Fold them only if a shared existing operation owner retains these
@@ -555,8 +555,12 @@ and occurrence expression owners shared by compiler, SEM and canonical replay.
 Homogeneous ValueType cannot carry mixed member types, and unrelated Fields lose
 nominal identity. Existing ExprDag owns member expressions; no RecordValue or
 second evaluator is added.
+#995 adds SpatialRegularity as the closed Field hypothesis shared by native and
+source authoring, SEM trace admission, Model wire replay and structural identity.
+A private flag or adapter-owned spelling would duplicate the same six-way contract
+and could silently upgrade a borrowed Field. It is independent of numerical spaces.
 """
-removal = "withdraw GeometryDigest or the closed coordinate recipes when accepted structural geometry/general coordinate owners subsume them; withdraw FieldRole and lower by one only if an existing shared typed owner carries the same algebraic/state choice without parallel encodings or consumer-specific constructor dispatch; lower the EnumDef allowance only if another accepted shared declaration owner retains its exact identity and ordered members without adapter-local registries; withdraw the two record owners only when an accepted existing owner retains nominal declaration identity and ordered typed expression roots without external metadata"
+removal = "withdraw GeometryDigest or the closed coordinate recipes when accepted structural geometry/general coordinate owners subsume them; withdraw FieldRole and lower by one only if an existing shared typed owner carries the same algebraic/state choice without parallel encodings or consumer-specific constructor dispatch; lower the EnumDef allowance only if another accepted shared declaration owner retains its exact identity and ordered members without adapter-local registries; withdraw the two record owners only when an accepted existing owner retains nominal declaration identity and ordered typed expression roots without external metadata; withdraw SpatialRegularity and lower by one only when an accepted shared continuum-space owner retains the same authored per-Field hypothesis across typing, source and Model replay without adapter-local encodings"
 
 [[public_surface]]
 crate = "eqiora-sem"

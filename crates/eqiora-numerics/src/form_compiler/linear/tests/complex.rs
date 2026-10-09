@@ -8,7 +8,7 @@ const HELMHOLTZ: &str = "model Wave() {
  parameter a:complex<m^2>=math.complex(-6[m^2],6[m^2]);
  parameter q:complex<1>=math.complex(3,-1);
  parameter f:complex<1>=math.complex(1,3);
- variable u:complex<1> on body;
+ variable u:complex<1> on body in smooth;
  relation balance on body { -div(a*grad(u))+q*u=f; }
  relation fixed on left { trace(u)=math.complex(1,2); }
  relation flux on right { normal(a*grad(u))=math.complex(2[m],-4[m]); }

@@ -48,7 +48,7 @@ fn source_cartesian_law_retains_automatic_tpfa_without_geometry_interval_claim()
       domain left = boundary(body, axis = 0, side = lower);
       domain right = boundary(body, axis = 0, side = upper);
       parameter source_scale: 1 / m ^ 2 = 1;
-      variable potential: 1 on body;
+      variable potential: 1 on body in h1;
       law balance on body { flux -grad(potential); source source_scale; }
       relation lower on left { trace(potential) = 0; }
       relation upper on right { trace(potential) = 0; }
@@ -79,7 +79,7 @@ public component NeumannInterval(
     parameter lower_load: 1 / m,
     parameter upper_load: 1 / m
 ) {
-    variable potential: 1 on body;
+    variable potential: 1 on body in smooth;
     law balance on body { flux -grad(potential); source source_value; }
     relation lower on left { normal(grad(potential)) = lower_load; }
     relation upper on right { normal(grad(potential)) = upper_load; }

@@ -21,8 +21,8 @@ public component SteadyNewtonianBalance2d(
 public component VelocityTractionInterface2d(
   support body: volume(ambient_dimension = 2),
   support exterior: complete_exterior(parent = body),
-  variable velocity: vector<m / s, 2> on body,
-  variable pressure: kg / (m * s ^ 2) on body,
+  variable velocity: vector<m / s, 2> on body in smooth,
+  variable pressure: kg / (m * s ^ 2) on body in h1,
   parameter dynamic_viscosity: kg / (m * s),
   port mechanical[boundary in exterior]: mechanics.VelocityTractionBoundary over boundary
 ) {
@@ -39,8 +39,8 @@ public component VelocityTractionInterface2d(
 public component SteadyStokes2d(
   support body: volume(ambient_dimension = 2),
   support exterior: complete_exterior(parent = body),
-  variable velocity: vector<m / s, 2> on body,
-  variable pressure: kg / (m * s ^ 2) on body,
+  variable velocity: vector<m / s, 2> on body in smooth,
+  variable pressure: kg / (m * s ^ 2) on body in h1,
   variable force_potential: kg / (m * s ^ 2) on body,
   parameter dynamic_viscosity: kg / (m * s),
   port mechanical[boundary in exterior]: mechanics.VelocityTractionBoundary over boundary
@@ -88,7 +88,7 @@ public component TractionFree2d(
 public component NormalPressureOutlet2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  variable exterior_pressure: kg / (m * s ^ 2) on body,
+  variable exterior_pressure: kg / (m * s ^ 2) on body in h1,
   port mechanical: mechanics.VelocityTractionBoundary over face
 ) {
   relation prescribed_traction on face {
@@ -100,7 +100,7 @@ public component NormalPressureOutlet2d(
 public component NormalVelocityInlet2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  variable speed: m / s on body,
+  variable speed: m / s on body in h1,
   port mechanical: mechanics.VelocityTractionBoundary over face
 ) {
   relation prescribed_velocity on face {
@@ -111,7 +111,7 @@ public component NormalVelocityInlet2d(
 public component PrescribedVelocity2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  variable velocity: vector<m / s, 2> on body,
+  variable velocity: vector<m / s, 2> on body in h1,
   port mechanical: mechanics.VelocityTractionBoundary over face
 ) {
   relation prescribed_velocity on face {
@@ -122,7 +122,7 @@ public component PrescribedVelocity2d(
 public component PrescribedTraction2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
-  variable traction: vector<kg / (m * s ^ 2), 2> on body,
+  variable traction: vector<kg / (m * s ^ 2), 2> on body in h1,
   port mechanical: mechanics.VelocityTractionBoundary over face
 ) {
   relation prescribed_traction on face {

@@ -6,7 +6,7 @@ model ReferenceElasticBody() {
   domain right = boundary(body, axis = 0, side = upper);
   domain bottom = boundary(body, axis = 1, side = lower);
   domain top = boundary(body, axis = 1, side = upper);
-  variable displacement: vector<m, 2> on body;
+  variable displacement: vector<m, 2> on body in smooth;
   variable load_potential: Pa on body;
   relation unloaded on body { load_potential = 0[Pa]; }
 

@@ -12,7 +12,7 @@ model additive_poisson() {
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
 
-  variable potential: 1 on body;
+  variable potential: 1 on body in h1;
   parameter diffusion: 1 = 2;
   parameter source: 1 / m ^ 2 = 3;
   parameter value: 1 = 4;

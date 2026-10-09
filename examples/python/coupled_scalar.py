@@ -18,8 +18,8 @@ public component CoupledScalar(
   support right: boundary(parent = body)
 ) {
 
-  variable u: 1 on body;
-  variable v: 1 on body;
+  variable u: 1 on body in h1;
+  variable v: 1 on body in h1;
   parameter length: m = 1;
   parameter reaction_scale: 1 / m ^ 2 = 1;
 

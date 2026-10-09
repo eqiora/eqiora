@@ -32,7 +32,7 @@ def module(*, doc="A caller-bound diffusion interval."):
     body = owner.volume("body", dimensions=1)
     left = owner.boundary("left", parent=body)
     right = owner.boundary("right", parent=body)
-    value = owner.field("u", on=body, role=eqiora.FieldRole.Variable,
+    value = owner.field("u", spatial_regularity=eqiora.SpatialRegularity.H1, on=body, role=eqiora.FieldRole.Variable,
                         value_type=eqiora.ValueType.real())
     owner.relation("balance", q.equation(
         -q.div(q.grad(value)), q.quantity(2, eqiora.units.one / eqiora.units.m**2),

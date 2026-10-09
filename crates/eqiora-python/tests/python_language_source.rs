@@ -135,19 +135,19 @@ def cylinder_source(*, doc="Equations-only steady incompressible flow component.
     channel_height = stokes.parameter("channel_height", value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
 
     velocity = stokes.field(
-        "velocity", role=eqiora.FieldRole.Variable, on=fluid, value_type=(
+        "velocity", role=eqiora.FieldRole.Variable, on=fluid, spatial_regularity=eqiora.SpatialRegularity.Smooth, value_type=(
             eqiora.ValueType.vector(eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1)), velocity_extent)
             if velocity_extent is not None else eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1))
         )
     )
     pressure = stokes.field(
-        "pressure", role=eqiora.FieldRole.Variable, on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2))
+        "pressure", role=eqiora.FieldRole.Variable, on=fluid, spatial_regularity=eqiora.SpatialRegularity.H1, value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2))
     )
     force_potential = stokes.field(
         "force_potential", role=eqiora.FieldRole.Variable, on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2))
     )
     inlet_profile = stokes.field(
-        "inlet_profile", role=eqiora.FieldRole.Variable, on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1))
+        "inlet_profile", role=eqiora.FieldRole.Variable, on=fluid, spatial_regularity=eqiora.SpatialRegularity.H1, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1))
     )
 
     stokes.relation("force_definition", eqiora.lang.equation(force_potential - zero_pressure, 0), on=fluid)
@@ -345,7 +345,7 @@ for operator in (q.trace, q.normal, q.tangential_trace):
     component = source.component('BoundaryOps')
     body = component.volume('body', dimensions=2)
     face = component.boundary('face', parent=body)
-    value = component.field('u', role=eqiora.FieldRole.Variable, on=body,
+    value = component.field('u', role=eqiora.FieldRole.Variable, on=body, spatial_regularity=eqiora.SpatialRegularity.H1,
                             value_type=eqiora.ValueType.vector(eqiora.ValueType.real(), 2))
     component.relation('bulk', q.equation(value, value), on=body)
     component.relation('surface', q.equation(operator(value, on=face, from_=body), 0), on=face)

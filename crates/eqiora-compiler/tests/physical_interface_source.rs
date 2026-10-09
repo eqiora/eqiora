@@ -11,8 +11,8 @@ fn source(expression: &str) -> String {
         domain left_face=boundary(left,axis=0,side=upper);
         domain right_face=boundary(right,axis=0,side=lower);
         domain contact=interface(left_face,right_face);
-        variable u_left:1 on left;
-        variable u_right:1 on right;
+        variable u_left:1 on left in smooth;
+        variable u_right:1 on right in smooth;
         relation law on contact {{ {expression}=0; }}
     }}"#
     )

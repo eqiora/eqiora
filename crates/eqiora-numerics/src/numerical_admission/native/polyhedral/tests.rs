@@ -84,8 +84,7 @@ fn fixture_cells(
     if duplicate_region {
         source += ", support other: volume(ambient_dimension = 3)";
     }
-    source +=
-        ") { variable u: vector<1,3> on body; relation balance on body { curl(curl(u)) = 0; }";
+    source += ") { variable u: vector<1,3> on body in smooth; relation balance on body { curl(curl(u)) = 0; }";
     for i in 0..groups.len() {
         source += &format!("relation law{i} on side{i} {{ tangential_trace(-curl(u)) = 0; }}");
     }

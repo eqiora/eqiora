@@ -122,7 +122,7 @@ wave_source = """public component Wave(
  support left:boundary(parent=body), support right:boundary(parent=body),
  input force:1/s^2, input boundary_value:1
 ) {
- state u:1 on body;
+ state u:1 on body in smooth;
  initial {u=0; derivative(u)=0[1/s];}
  relation balance on body {
   derivative(derivative(u))+1[1/s]*derivative(u)-div(1[m^2/s^2]*grad(u))=force;

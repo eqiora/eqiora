@@ -15,7 +15,7 @@ names=("left","right","bottom","top")
 geometry=graph.build(rectangle,named_topology={"body":rectangle.region,**dict(zip(names,rectangle.boundaries))})
 source='''
 public component Flow(support body:volume(ambient_dimension=2),support surface:complete_exterior(parent=body),parameter mu:kg/m/s,parameter load:kg/m/s^2,parameter length:m) {
- variable u:vector<m/s,2> on body;
+ variable u:vector<m/s,2> on body in h1;
  variable p:kg/m/s^2 on body;
  variable F:kg/m/s^2 on body;
  relation force on body { F - load*coordinate(0)/length = 0; }
@@ -49,7 +49,7 @@ body=component.volume("body",dimensions=2)
 surface=component.complete_exterior("surface",parent=body)
 velocity_type=eqiora.ValueType.vector(eqiora.ValueType.real(eqiora.Dimension(length=1,time=-1)),2)
 pressure_type=eqiora.ValueType.real(eqiora.Dimension(mass=1,length=-1,time=-2))
-u=component.field("u",value_type=velocity_type,role=eqiora.FieldRole.Variable,on=body)
+u=component.field("u",spatial_regularity=eqiora.SpatialRegularity.H1,value_type=velocity_type,role=eqiora.FieldRole.Variable,on=body)
 p=component.field("p",value_type=pressure_type,role=eqiora.FieldRole.Variable,on=body)
 F=component.field("F",value_type=pressure_type,role=eqiora.FieldRole.Variable,on=body)
 mu=component.parameter("mu",value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1,length=-1,time=-1)))

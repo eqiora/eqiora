@@ -225,6 +225,7 @@ pub(crate) enum LoweringItem {
         representation: Option<String>,
         value_type: eqiora_lang::ValueTypeSyntax,
         role: eqiora_lang::FieldRoleSyntax,
+        spatial_regularity: eqiora_schema::kernel::SpatialRegularity,
         activation: ActivationSyntax,
         range: TextRange,
     },
@@ -511,6 +512,7 @@ pub(crate) fn lower_typed_model(
                 domain,
                 representation,
                 role,
+                spatial_regularity,
                 activation,
                 range,
                 ..
@@ -521,7 +523,7 @@ pub(crate) fn lower_typed_model(
                 resolve_field_contract(file, *range, &contract, &bindings).map(|value_type| FieldDef::new(id, value_type, match role {
                             eqiora_lang::FieldRoleSyntax::Variable => eqiora_schema::kernel::FieldRole::Variable,
                             eqiora_lang::FieldRoleSyntax::State => eqiora_schema::kernel::FieldRole::State,
-                        }))
+                        }).with_spatial_regularity(*spatial_regularity))
                     .and_then(|definition| {
                         nodes.push(definition.into());
                         if let ActivationSyntax::Named(clock) = activation {

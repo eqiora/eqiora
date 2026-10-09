@@ -5,7 +5,7 @@ model shape_optimized_poisson_plane() {
   domain y_lower = boundary(rectangle, axis = 1, side = lower);
   domain y_upper = boundary(rectangle, axis = 1, side = upper);
 
-  variable potential: 1 on rectangle;
+  variable potential: 1 on rectangle in h1;
   parameter load: 1 / m ^ 2 = 1;
 
   relation balance on rectangle {

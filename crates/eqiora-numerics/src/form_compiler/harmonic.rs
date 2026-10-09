@@ -130,11 +130,10 @@ impl HarmonicReduction {
                     let new = *fields
                         .get(&old)
                         .ok_or_else(|| invalid("unmapped harmonic unknown"))?;
-                    KernelNode::Field(FieldDef::new(
-                        new,
-                        complex(field.value_type())?,
-                        FieldRole::Variable,
-                    ))
+                    KernelNode::Field(
+                        FieldDef::new(new, complex(field.value_type())?, FieldRole::Variable)
+                            .with_spatial_regularity(field.spatial_regularity()),
+                    )
                 }
                 KernelNode::Relation(relation) if relation.is_initial() => continue,
                 KernelNode::Relation(relation) => {

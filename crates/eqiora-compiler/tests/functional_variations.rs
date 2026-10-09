@@ -63,7 +63,7 @@ public component Energy(
     parameter bulk:{bulk_unit},
     parameter gradient:{gradient_unit}
 ) {{
-    variable c:{field_unit} on body;
+    variable c:{field_unit} on body in h1;
     relation stationarity on body {{ bulk*c-div(gradient*grad(c))=0; }}
     relation left_value on left {{ trace(c)=0; }}
     relation right_value on right {{ trace(c)=0; }}

@@ -157,7 +157,7 @@ fn rejects_wrong_closure_source_boundary_and_extra_relation() {
     );
     assert!(try_recognize(&source_term).is_err());
 
-    let boundary = SOURCE.replace(
+    let boundary = SOURCE.replace("state density: kg / m ^ 3 on interval;", "state density: kg / m ^ 3 on interval in h1;").replace(
         "relation velocity_definition on interval {",
         "relation lower_law on lower { trace(density) = 0; }\n  relation velocity_definition on interval {",
     );

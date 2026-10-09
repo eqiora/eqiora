@@ -79,6 +79,13 @@ pub(super) fn compile(
             ));
         }
         let support = index.defined_on.get(&id).copied();
+        if amplitude.spatial_regularity() != eqiora_schema::kernel::SpatialRegularity::Unspecified
+            && amplitude.spatial_regularity() != field.spatial_regularity()
+        {
+            return Err(invalid(
+                "harmonic amplitude regularity assertion differs from its original Field",
+            ));
+        }
         if let Some(assertion) = amplitude.domain()
             && Some(resolve_symbol(file, amplitude.range(), assertion, symbols)?) != support
         {

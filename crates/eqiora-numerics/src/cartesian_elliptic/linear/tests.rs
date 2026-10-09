@@ -38,7 +38,7 @@ fn authored(reaction: &[Vec<f64>], reverse: bool) -> (String, Vec<String>) {
         "model Coupled() { domain body = box(0, 1); domain left = boundary(body, axis = 0, side = lower); domain right = boundary(body, axis = 0, side = upper); parameter inverse_area: 1 / m ^ 2 = 1;\n",
     );
     for &row in &order {
-        source += &format!("variable {}: 1 on body;\n", names[row]);
+        source += &format!("variable {}: 1 on body in smooth;\n", names[row]);
     }
     for &row in &order {
         source += &format!(
@@ -374,7 +374,7 @@ model Heat() {
  domain body = box(0, 1);
  domain left = boundary(body, axis = 0, side = lower);
  domain right = boundary(body, axis = 0, side = upper);
- state u: 1 on body;
+ state u: 1 on body in h1;
  parameter c: s / m^2 = 3;
  parameter q: 1 / m^2 = 4;
  initial { u = 2; }

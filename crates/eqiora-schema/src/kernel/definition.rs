@@ -9,6 +9,8 @@ use eqiora_core::{
 use super::{BoundaryPhysicalConnector, ExprDag, RationalTime};
 use eqiora_core::{ValueFrame, ValueLiteral, ValueType};
 
+mod regularity;
+pub use regularity::SpatialRegularity;
 mod relation;
 mod spatial;
 pub use relation::{RelationConditionKind, RelationDef, RelationMeaning};
@@ -83,6 +85,7 @@ pub struct FieldDef {
     id: Id<kinds::Field>,
     value_type: ValueType,
     role: FieldRole,
+    spatial_regularity: SpatialRegularity,
 }
 
 impl FieldDef {
@@ -93,7 +96,22 @@ impl FieldDef {
             id,
             value_type,
             role,
+            spatial_regularity: SpatialRegularity::Unspecified,
         }
+    }
+
+    /// Assert continuum regularity on this Field's own spatial support.
+    /// Model admission checks the support and shape; this asserts no interface law.
+    #[must_use]
+    pub const fn with_spatial_regularity(mut self, regularity: SpatialRegularity) -> Self {
+        self.spatial_regularity = regularity;
+        self
+    }
+
+    /// Authored continuum regularity; a numerical basis cannot supply this assertion.
+    #[must_use]
+    pub const fn spatial_regularity(&self) -> SpatialRegularity {
+        self.spatial_regularity
     }
 
     /// Typed Field ID.

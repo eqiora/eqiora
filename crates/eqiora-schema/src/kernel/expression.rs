@@ -281,7 +281,7 @@ pub enum ExprNode {
 }
 
 impl ExprNode {
-    fn try_for_each_operand<E>(
+    pub(super) fn try_for_each_operand<E>(
         &self,
         mut visit: impl FnMut(ExprId) -> Result<(), E>,
     ) -> Result<(), E> {

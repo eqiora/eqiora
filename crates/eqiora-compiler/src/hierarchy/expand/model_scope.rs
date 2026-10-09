@@ -252,9 +252,14 @@ impl RootExpansion<'_, '_> {
                 )?;
                 for (name, value_type) in record.definition.members() {
                     let local = format!("{}.{name}", declaration.name());
-                    scope
-                        .field_evolution
-                        .insert(local.clone(), (declaration.role(), activation.clone()));
+                    scope.field_metadata.insert(
+                        local.clone(),
+                        (
+                            declaration.role(),
+                            activation.clone(),
+                            declaration.spatial_regularity(),
+                        ),
+                    );
                     scope.insert_field_type(
                         local,
                         eqiora_schema::kernel::typing::ExpressionType::new(
@@ -271,7 +276,7 @@ impl RootExpansion<'_, '_> {
                 support,
                 &scope.symbolic_parameters(),
             )?;
-            scope.field_evolution.insert(
+            scope.field_metadata.insert(
                 declaration.name().to_owned(),
                 (
                     declaration.role(),
@@ -281,6 +286,7 @@ impl RootExpansion<'_, '_> {
                         declaration.range(),
                         scope,
                     )?,
+                    declaration.spatial_regularity(),
                 ),
             );
             if scope

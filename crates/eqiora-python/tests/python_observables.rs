@@ -57,7 +57,7 @@ interval = graph.interval(bounds=(0.0, 1.0))
 geometry = graph.build(interval, named_topology={"body": interval.region, "left": interval.boundaries[0], "right": interval.boundaries[1]})
 source = """
 public component Heat(support body: volume(ambient_dimension=1), support left: boundary(parent=body), support right: boundary(parent=body)) {
-  variable temperature: K on body;
+  variable temperature: K on body in h1;
   parameter capacity: J/(K*m)=3;
   relation balance on body { -div(grad(temperature))=12[K/m^2]; }
   relation left_value on left { trace(temperature)=300[K]; }

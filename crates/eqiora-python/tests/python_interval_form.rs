@@ -15,7 +15,7 @@ interval = graph.interval(bounds=(0.0, 8.0))
 geometry = graph.build(interval, named_topology={"body": interval.region, "left": interval.boundaries[0], "right": interval.boundaries[1]})
 source = '''
 public component Balance(support body: volume(ambient_dimension=1), support left:boundary(parent=body), support right:boundary(parent=body), parameter k:kg*m/s^3/K, parameter s:kg/m/s^3) {
- variable T:K on body;
+ variable T:K on body in h1;
  law balance on body { flux -k*grad(T); source s; }
  relation left_value on left { trace(T)=0; }
  relation right_value on right { trace(T)=0; }
@@ -159,7 +159,7 @@ interval = graph.interval(bounds=(0.0, 1.0))
 geometry = graph.build(interval, named_topology={"body": interval.region, "left": interval.boundaries[0], "right": interval.boundaries[1]})
 source = '''
 public component Neumann(support body:volume(ambient_dimension=1), support left:boundary(parent=body), support right:boundary(parent=body), parameter s:1/m^2, parameter lower_load:1/m, parameter upper_load:1/m) {
- variable u:1 on body;
+ variable u:1 on body in smooth;
  law balance on body { flux -grad(u); source s; }
  relation lower on left { normal(grad(u))=lower_load; }
  relation upper on right { normal(grad(u))=upper_load; }

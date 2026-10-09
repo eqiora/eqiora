@@ -5,7 +5,7 @@ model gmsh_imported_simplicial_poisson() {
   domain y_lower = boundary(square, axis = 1, side = lower);
   domain y_upper = boundary(square, axis = 1, side = upper);
 
-  variable potential: 1 on square;
+  variable potential: 1 on square in h1;
   parameter source_scale: 1 / m ^ 2 = 1;
 
   relation balance on square {

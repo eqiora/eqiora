@@ -30,6 +30,7 @@ pub(super) struct FieldContract<I> {
     value: ExpressionType<I>,
     representation: FieldRepresentationContract,
     pub(super) role: eqiora_lang::FieldRoleSyntax,
+    spatial_regularity: eqiora_schema::kernel::SpatialRegularity,
     pub(super) activation: eqiora_lang::ActivationSyntax,
 }
 
@@ -37,12 +38,14 @@ impl<I> FieldContract<I> {
     pub(super) fn continuum(
         value: ExpressionType<I>,
         role: eqiora_lang::FieldRoleSyntax,
+        spatial_regularity: eqiora_schema::kernel::SpatialRegularity,
         activation: eqiora_lang::ActivationSyntax,
     ) -> Self {
         Self {
             value,
             representation: FieldRepresentationContract::Continuum,
             role,
+            spatial_regularity,
             activation,
         }
     }
@@ -176,6 +179,7 @@ fn field_slot_contract(
         field: FieldContract::continuum(
             value,
             declaration.role(),
+            declaration.spatial_regularity(),
             declaration.activation().clone(),
         ),
     })
@@ -211,6 +215,7 @@ pub(super) fn component_field_contracts(
                 FieldContract::continuum(
                     value,
                     declaration.role(),
+                    declaration.spatial_regularity(),
                     declaration.activation().clone(),
                 ),
             );
@@ -245,6 +250,7 @@ pub(super) fn model_field_contracts(
                 FieldContract::continuum(
                     value,
                     declaration.role(),
+                    declaration.spatial_regularity(),
                     declaration.activation().clone(),
                 ),
             );
@@ -268,6 +274,7 @@ fn record_field_contracts(
                 FieldContract::continuum(
                     ExpressionType::new(value.clone(), support.clone()),
                     declaration.role(),
+                    declaration.spatial_regularity(),
                     declaration.activation().clone(),
                 ),
             )
@@ -407,6 +414,7 @@ pub(super) fn resolve_instance_fields<I: Clone + Eq>(
             value: ExpressionType::new(slot.field.value.value_type.clone(), support),
             representation: slot.field.representation,
             role: slot.field.role,
+            spatial_regularity: slot.field.spatial_regularity,
             activation: match &slot.field.activation {
                 eqiora_lang::ActivationSyntax::Continuous => {
                     eqiora_lang::ActivationSyntax::Continuous
@@ -489,6 +497,8 @@ fn field_contract_mismatch<I: Eq>(
         "exact spatial support"
     } else if expected.role == eqiora_lang::FieldRoleSyntax::State && actual.role != expected.role {
         "declared state role"
+    } else if !provides_regularity(actual.spatial_regularity, expected.spatial_regularity) {
+        "authored spatial regularity"
     } else if expected.activation != actual.activation {
         "exact activation"
     } else if expected.representation != actual.representation {
@@ -499,6 +509,21 @@ fn field_contract_mismatch<I: Eq>(
     Some(format!(
         "Field slot `{slot}` and its target disagree in {mismatch}"
     ))
+}
+
+fn provides_regularity(
+    actual: eqiora_schema::kernel::SpatialRegularity,
+    required: eqiora_schema::kernel::SpatialRegularity,
+) -> bool {
+    use eqiora_schema::kernel::SpatialRegularity::*;
+    match required {
+        Unspecified => true,
+        L2 => actual != Unspecified,
+        H1 => matches!(actual, H1 | Smooth),
+        HCurl => matches!(actual, HCurl | H1 | Smooth),
+        HDiv => matches!(actual, HDiv | H1 | Smooth),
+        Smooth => actual == Smooth,
+    }
 }
 
 #[cfg(test)]
@@ -566,11 +591,13 @@ model Main() {{
         let array = FieldContract::continuum(
             ExpressionType::<()>::new(spatial(vec![2]).array(2).unwrap(), None),
             eqiora_lang::FieldRoleSyntax::Variable,
+            eqiora_schema::kernel::SpatialRegularity::Unspecified,
             eqiora_lang::ActivationSyntax::Continuous,
         );
         let tensor = FieldContract::continuum(
             ExpressionType::<()>::new(spatial(vec![2, 2]), None),
             eqiora_lang::FieldRoleSyntax::Variable,
+            eqiora_schema::kernel::SpatialRegularity::Unspecified,
             eqiora_lang::ActivationSyntax::Continuous,
         );
         assert!(field_contract_mismatch("input", &array, &array).is_none());
@@ -638,6 +665,7 @@ model Use() {
             )
             .unwrap(),
             eqiora_lang::FieldRoleSyntax::Variable,
+            eqiora_schema::kernel::SpatialRegularity::Unspecified,
             eqiora_lang::ActivationSyntax::Continuous,
         );
         let resolved = resolve_instance_fields(

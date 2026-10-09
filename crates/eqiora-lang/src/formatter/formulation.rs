@@ -72,6 +72,7 @@ pub(super) fn format_formulation(
                 if let Some(domain) = &amplitude.domain {
                     write!(output, " on {domain}").expect("String write");
                 }
+                super::format_spatial_regularity(amplitude.spatial_regularity(), output);
                 writeln!(output, " for {original};").expect("String write");
                 output.end();
             }

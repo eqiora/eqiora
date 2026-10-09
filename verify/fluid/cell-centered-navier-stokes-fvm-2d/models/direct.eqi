@@ -8,7 +8,7 @@ model Main() {
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
 
-  state velocity: vector<m / s, 2> on body;
+  state velocity: vector<m / s, 2> on body in h1;
   variable pressure: kg / (m * s ^ 2) on body;
   variable force_potential: kg / (m * s ^ 2) on body;
   parameter density: kg / m ^ 3 = 1;

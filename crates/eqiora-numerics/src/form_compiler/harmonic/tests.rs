@@ -246,3 +246,32 @@ fn nonlinear_time_varying_and_dc_inputs_reject_before_solve() {
         assert!(error.message().contains(diagnostic), "{error:?}");
     }
 }
+
+#[test]
+fn harmonic_reduction_preserves_the_original_spatial_trace_hypothesis() {
+    for (syntax, expected) in [
+        ("h1", SpatialRegularity::H1),
+        ("smooth", SpatialRegularity::Smooth),
+    ] {
+        let source = format!(
+            "model RC() {{ domain body=box(0,1); domain wall=boundary(body,axis=0,side=lower); \
+             state u:1 on body in {syntax}; \
+             relation evolution on body {{ derivative(u)=0[1/s]; }} \
+             relation boundary_value on wall {{ trace(u)=0; }} \
+             form response for evolution,boundary_value {{ \
+             harmonic(angular_frequency=1[1/s],convention=negative_exponential,normalization=peak); \
+             amplitude u_hat:complex<1> on body for u; }} }}"
+        );
+        let (program, form) = compile(&source);
+        let reduction = HarmonicReduction::derive(&program, &form, None).unwrap();
+        let reduced = reduction.reduced.to_program().unwrap();
+        let fields = reduced
+            .nodes()
+            .filter_map(|node| match node {
+                KernelNode::Field(field) => Some(field.spatial_regularity()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(fields, [expected]);
+    }
+}

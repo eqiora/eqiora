@@ -15,8 +15,8 @@ model Main() {
   domain solid_z_lower = boundary(solid, axis = 2, side = lower);
   domain solid_z_upper = boundary(solid, axis = 2, side = upper);
 
-  state fluid_velocity: vector<m / s, 3> on fluid;
-  variable pressure: kg / (m * s ^ 2) on fluid;
+  state fluid_velocity: vector<m / s, 3> on fluid in smooth;
+  variable pressure: kg / (m * s ^ 2) on fluid in h1;
   variable fluid_load: kg / (m * s ^ 2) on fluid;
   parameter zero_fluid_load: kg / (m * s ^ 2) = 0;
   relation fluid_load_definition on fluid {
@@ -41,8 +41,8 @@ model Main() {
     dynamic_viscosity = 0.2[kg / (m * s)]
   );
 
-  state displacement: vector<m, 3> on solid;
-  state solid_velocity: vector<m / s, 3> on solid;
+  state displacement: vector<m, 3> on solid in smooth;
+  state solid_velocity: vector<m / s, 3> on solid in h1;
   variable solid_load: kg / (m * s ^ 2) on solid;
   parameter zero_solid_load: kg / (m * s ^ 2) = 0;
   relation solid_load_definition on solid {

@@ -966,7 +966,9 @@ Immutable typed field declaration.
 ```python
 @final
 class Field:
-    def __new__(cls, name: str, *, domain: Domain | None=None, role: FieldRole, value_type: ValueType | None=None) -> Self: ...
+    def __new__(cls, name: str, *, domain: Domain | None=None, role: FieldRole, value_type: ValueType | None=None, spatial_regularity: SpatialRegularity=SpatialRegularity.Unspecified) -> Self: ...
+    @property
+    def spatial_regularity(self) -> SpatialRegularity: ...
     @property
     def name(self) -> str: ...
     @property
@@ -1867,6 +1869,25 @@ Author-declared evolution role independent of spatial support.
 class FieldRole:
     Variable: ClassVar[FieldRole]
     State: ClassVar[FieldRole]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+```
+
+<a id="api-eqiora-SpatialRegularity"></a>
+
+## `SpatialRegularity`
+
+Authored continuum regularity, independent of the numerical basis.
+
+```python
+@final
+class SpatialRegularity:
+    Unspecified: ClassVar[SpatialRegularity]
+    L2: ClassVar[SpatialRegularity]
+    H1: ClassVar[SpatialRegularity]
+    HCurl: ClassVar[SpatialRegularity]
+    HDiv: ClassVar[SpatialRegularity]
+    Smooth: ClassVar[SpatialRegularity]
     def __eq__(self, other: object, /) -> bool: ...
     def __hash__(self) -> int: ...
 ```

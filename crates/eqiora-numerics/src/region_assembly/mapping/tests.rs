@@ -33,7 +33,7 @@ public connector ScalarBoundary {
 public component Interface(
   support body: volume(ambient_dimension = 1),
   support face: boundary(parent = body),
-  variable value: 1 on body,
+  variable value: 1 on body in smooth,
   parameter conductivity: 1,
   port edge: ScalarBoundary over face
 ) {
@@ -52,7 +52,7 @@ model Chain() {
   domain body{index} = box({index}, {end});
   domain lower{index} = boundary(body{index}, axis = 0, side = lower);
   domain upper{index} = boundary(body{index}, axis = 0, side = upper);
-  variable value{index}: 1 on body{index};
+  variable value{index}: 1 on body{index} in smooth;
   relation balance{index} on body{index} {{ -div(conductivity * grad(value{index})) = 0; }}
 "#,
             end = index + 1
@@ -485,7 +485,7 @@ model VectorRegion() {
   domain right = boundary(body,axis=0,side=upper);
   domain bottom = boundary(body,axis=1,side=lower);
   domain top = boundary(body,axis=1,side=upper);
-  variable value: vector<1,2> on body;
+  variable value: vector<1,2> on body in smooth;
   parameter conductivity: 1 = 3;
   parameter endpoint: vector<1,2> = tensor_value(frame=body,components=[1,2]);
   relation balance on body { -div(conductivity * grad(value)) = 0; }

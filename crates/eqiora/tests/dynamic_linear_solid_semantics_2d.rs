@@ -360,8 +360,8 @@ fn kinematic_inertia_stress_density_and_closure_near_misses_fail_closed() {
     );
 
     let scalar_velocity = DIRECT.replace(
-        "state velocity: vector<m / s, 2> on body;",
-        "state velocity: m / s on body;",
+        "state velocity: vector<m / s, 2> on body in h1;",
+        "state velocity: m / s on body in h1;",
     );
     assert_typed_source_rejects(&scalar_velocity, "shape");
 

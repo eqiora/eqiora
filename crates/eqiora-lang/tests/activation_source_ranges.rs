@@ -36,6 +36,7 @@ fn authored_activation_names_have_exact_ranges_without_changing_activation_value
                     value.name(),
                     value.domain().map(str::to_owned),
                     value.role(),
+                    value.spatial_regularity(),
                     value.activation().clone(),
                     value.value_type().clone(),
                     value.range(),

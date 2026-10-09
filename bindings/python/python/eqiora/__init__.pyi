@@ -432,6 +432,22 @@ class Domain:
     def __hash__(self) -> int: ...
 
 @final
+class SpatialRegularity:
+    """Authored continuum regularity, independent of the numerical basis.
+
+    Authority: ``crates/eqiora-python/src/modeling/regularity.rs::PySpatialRegularity``.
+    """
+
+    Unspecified: ClassVar[SpatialRegularity]
+    L2: ClassVar[SpatialRegularity]
+    H1: ClassVar[SpatialRegularity]
+    HCurl: ClassVar[SpatialRegularity]
+    HDiv: ClassVar[SpatialRegularity]
+    Smooth: ClassVar[SpatialRegularity]
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+
+@final
 class FieldRole:
     """Author-declared evolution role independent of spatial support.
 
@@ -486,7 +502,10 @@ class Field:
         domain: Domain | None = None,
         role: FieldRole,
         value_type: ValueType | None = None,
+        spatial_regularity: SpatialRegularity = SpatialRegularity.Unspecified,
     ) -> Self: ...
+    @property
+    def spatial_regularity(self) -> SpatialRegularity: ...
     @property
     def name(self) -> str: ...
     @property
@@ -2513,6 +2532,7 @@ __all__ = [
     "QuantityLabel",
     "Plan",
     "FieldRole",
+    "SpatialRegularity",
     "Initial",
     "Relation",
     "Result",

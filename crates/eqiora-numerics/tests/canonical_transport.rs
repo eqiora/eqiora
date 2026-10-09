@@ -121,8 +121,8 @@ fn transport_initializer_rejects_missing_extra_and_inapplicable_equations() {
             "{condition}: {error:?}"
         );
     }
-    let wrong_support = SOURCE.replace("state concentration: K on body;",
-        "domain other = box(0,2,0,1); state foreign: K on other; state concentration: K on body;")
+    let wrong_support = SOURCE.replace("state concentration: K on body in smooth;",
+        "domain other = box(0,2,0,1); state foreign: K on other in smooth; state concentration: K on body in smooth;")
         .replace("initial { concentration = 0; }", "initial { concentration = foreign; }");
     assert!(compile("wrong-support-initial.eqi", &wrong_support).is_err());
     for shaped in ["array<K, 2>", "vector<K, 2>"] {

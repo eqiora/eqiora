@@ -3,7 +3,7 @@ model poisson() {
   domain lower_end = boundary(interval, axis = 0, side = lower);
   domain upper_end = boundary(interval, axis = 0, side = upper);
 
-  variable potential: 1 on interval;
+  variable potential: 1 on interval in h1;
   parameter source_scale: 1 / m ^ 2 = 1;
 
   relation balance on interval {

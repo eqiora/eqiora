@@ -108,12 +108,12 @@ def cylinder_source(
     inlet_speed = stokes.parameter("inlet_speed", value_type=eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1)))
     channel_height = stokes.parameter("channel_height", value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)))
 
-    velocity = stokes.field("velocity", role=eqiora.FieldRole.Variable, on=fluid, value_type=velocity_type)
-    pressure = stokes.field("pressure", role=eqiora.FieldRole.Variable, on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2)))
+    velocity = stokes.field("velocity", spatial_regularity=eqiora.SpatialRegularity.Smooth, role=eqiora.FieldRole.Variable, on=fluid, value_type=velocity_type)
+    pressure = stokes.field("pressure", spatial_regularity=eqiora.SpatialRegularity.H1, role=eqiora.FieldRole.Variable, on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2)))
     force_potential = stokes.field(
         "force_potential", role=eqiora.FieldRole.Variable, on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2))
     )
-    inlet_profile = stokes.field("inlet_profile", role=eqiora.FieldRole.Variable, on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1)))
+    inlet_profile = stokes.field("inlet_profile", spatial_regularity=eqiora.SpatialRegularity.H1, role=eqiora.FieldRole.Variable, on=fluid, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1, time=-1)))
 
     stokes.relation("force_definition", q.equation(force_potential, zero_pressure), on=fluid)
     stokes.relation(
@@ -233,7 +233,7 @@ def scalar_property_source(*, doc: str = "Reference scalar diffusivity release."
     law_top = law.boundary("top", parent=law_region)
     law_source_scale = law.parameter("source_scale", value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)))
     diffusivity = law.property("diffusivity", contract=contract)
-    potential = law.field("potential", role=eqiora.FieldRole.Variable, on=law_region, value_type=eqiora.ValueType.real())
+    potential = law.field("potential", spatial_regularity=eqiora.SpatialRegularity.H1, role=eqiora.FieldRole.Variable, on=law_region, value_type=eqiora.ValueType.real())
     law.relation(
         "balance",
         q.equation(-q.div(diffusivity * q.grad(potential)) - law_source_scale, 0),
@@ -825,7 +825,7 @@ def runtime_heatflux_alias_source(*, aliases=True, assert_support=False):
     left = component.boundary("left", parent=region)
     coefficient = component.parameter("coefficient", value_type=eqiora.ValueType.real())
     forcing = component.parameter("forcing", value_type=eqiora.ValueType.real(eqiora.Dimension(length=-2)))
-    potential = component.field("potential", on=region, role=eqiora.FieldRole.Variable,
+    potential = component.field("potential", spatial_regularity=eqiora.SpatialRegularity.H1, on=region, role=eqiora.FieldRole.Variable,
                                 value_type=eqiora.ValueType.real())
     flux = coefficient * q.grad(potential)
     if aliases:
@@ -950,7 +950,7 @@ def test_alias_support_assertion_rejects_inference_or_context_changes(kind):
     source = eqiora.Module("main")
     component = source.component("InvalidSupport")
     region = component.volume("region", dimensions=2)
-    value = component.field("value", on=region, role=eqiora.FieldRole.Variable,
+    value = component.field("value", spatial_regularity=eqiora.SpatialRegularity.H1, on=region, role=eqiora.FieldRole.Variable,
                             value_type=eqiora.ValueType.real())
     support = region
     expression = value * 2
@@ -963,7 +963,7 @@ def test_alias_support_assertion_rejects_inference_or_context_changes(kind):
         entry = "Selected"
         selected = source.component(entry)
         selected_region = selected.volume("region", dimensions=2)
-        selected_value = selected.field("value", on=selected_region,
+        selected_value = selected.field("value", spatial_regularity=eqiora.SpatialRegularity.H1, on=selected_region,
                                         role=eqiora.FieldRole.Variable,
                                         value_type=eqiora.ValueType.real())
         selected.relation("balance", q.equation(selected_value, 0), on=selected_region)

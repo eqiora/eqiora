@@ -26,9 +26,9 @@ fn source(complex: bool, face: bool, first_law: Option<&str>, boundaries: usize)
         "model MomentBlock() {{
         domain body = box(0,2,0,3,0,4);
         parameter a: {parameter};
-        variable potential: m^2 on body;
+        variable potential: m^2 on body in smooth;
         relation potential_definition on body {{ potential = coordinate(1)^2; }}
-        variable u: vector<{scalar},3> on body;
+        variable u: vector<{scalar},3> on body in smooth;
         relation balance on body {{ a*({differential}) = 0; }}
     "
     );

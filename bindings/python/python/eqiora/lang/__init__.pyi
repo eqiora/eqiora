@@ -11,7 +11,7 @@ from decimal import Decimal
 from ..units import Unit
 from os import PathLike
 from typing import Final, Literal, Never, final, overload
-from .. import Dimension, FieldRole, ValueType, FiniteSpace, IndexSet, _ModelDeclaration
+from .. import Dimension, FieldRole, SpatialRegularity, ValueType, FiniteSpace, IndexSet, _ModelDeclaration
 
 class Connector:
     """Immutable nominal scalar across/through declaration owned by one Module.
@@ -450,7 +450,7 @@ class Component:
     ) -> PropertyRequirement: ...
     @overload
     def field(self, name: str, *, on: Support | None = None, value_type: Record | ImportedRecord,
-              role: FieldRole, at: Clock | None = None, doc: str | None = None) -> RecordField: ...
+              role: FieldRole, at: Clock | None = None, spatial_regularity: SpatialRegularity = SpatialRegularity.Unspecified, doc: str | None = None) -> RecordField: ...
     @overload
     def field(
         self,
@@ -460,6 +460,7 @@ class Component:
         value_type: ValueType,
         role: FieldRole,
         at: Clock | None = None,
+        spatial_regularity: SpatialRegularity = SpatialRegularity.Unspecified,
         doc: str | None = None,
     ) -> Expression: ...
     def observable(
@@ -526,16 +527,20 @@ class Component:
     def clock_requirement(self, name: str, *, doc: str | None = None) -> Clock: ...
     def field_requirement(
         self, name: str, *, value_type: ValueType, role: FieldRole,
-        on: Support | None = None, at: Clock | None = None, doc: str | None = None,
+        on: Support | None = None, at: Clock | None = None,
+        spatial_regularity: SpatialRegularity = SpatialRegularity.Unspecified,
+        doc: str | None = None,
     ) -> Expression: ...
     def set_default(self, parameter: Expression, value: Expression | int | float | complex) -> None: ...
     def input(
         self, name: str, *, value_type: ValueType, on: Support | None = None,
-        at: Clock | None = None, doc: str | None = None,
+        at: Clock | None = None, spatial_regularity: SpatialRegularity = SpatialRegularity.Unspecified,
+        doc: str | None = None,
     ) -> Expression: ...
     def output(
         self, name: str, *, value_type: ValueType, on: Support | None = None,
-        at: Clock | None = None, doc: str | None = None,
+        at: Clock | None = None, spatial_regularity: SpatialRegularity = SpatialRegularity.Unspecified,
+        doc: str | None = None,
     ) -> Expression: ...
 
 @final

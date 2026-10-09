@@ -5,7 +5,7 @@ model linear_potential_isotropic_elasticity_plane() {
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
 
-  variable displacement: vector<m, 2> on body;
+  variable displacement: vector<m, 2> on body in h1;
   variable load_potential: kg / (m * s ^ 2) on body;
   parameter mu: kg / (m * s ^ 2) = 3;
   parameter lambda: kg / (m * s ^ 2) = 2;

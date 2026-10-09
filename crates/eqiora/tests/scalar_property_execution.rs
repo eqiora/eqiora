@@ -358,7 +358,7 @@ public component {core}(
   parameter source_scale: 1 / m ^ 2,
   parameter boundary_offset: 1
 ) {{
-  variable {field}: 1 on square;
+  variable {field}: 1 on square in h1;
   relation balance on square {{
     -div({coefficient} * grad({field}))
       - source_scale * math.sin(wave_number * coordinate(0))
@@ -525,7 +525,7 @@ public component DiffusionLaw(
   parameter boundary_offset: 1,
 {coefficient_declarations}
 ) {{
-  variable potential: 1 on square;
+  variable potential: 1 on square in h1;
   relation balance on square {{
     -div((conductivity / capacity) * grad(potential))
       - source_scale * math.sin(wave_number * coordinate(0))

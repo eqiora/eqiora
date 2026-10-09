@@ -161,9 +161,9 @@ upper_end = interval.boundary(
 
 potential = eqiora.Field(
     "potential",
-        role=eqiora.FieldRole.Variable,
+    role=eqiora.FieldRole.Variable,
     domain=interval,
-
+    spatial_regularity=eqiora.SpatialRegularity.H1,
 )
 source_scale = eqiora.Parameter(
     "source_scale",
@@ -482,7 +482,7 @@ rejected_model = eqiora.compile(source=eqiora.Module("foreign_parent", included,
 body = eqiora.Domain.box("body", (0.0, 1.0))
 face = body.boundary("face", axis=0, side=eqiora.BoundarySide.Lower)
 foreign = body.boundary("face", axis=0, side=eqiora.BoundarySide.Lower)
-u = eqiora.Field("u", role=eqiora.FieldRole.Variable, domain=body)
+u = eqiora.Field("u", role=eqiora.FieldRole.Variable, domain=body, spatial_regularity=eqiora.SpatialRegularity.H1)
 law = eqiora.Relation("surface", domain=face, equations=[(eqiora.trace(u, on=foreign, from_=body), 0)])
 rejected_model = eqiora.compile(source=eqiora.Module("foreign_trace_target", body, face, u, law))
 "#
@@ -499,7 +499,7 @@ rejected_model = eqiora.compile(source=eqiora.Module("foreign_trace_target", bod
                 r#"
 interval = eqiora.Domain.box("interval", (0.0, 1.0))
 
-field = eqiora.Field("u", role=eqiora.FieldRole.Variable, domain=interval)
+field = eqiora.Field("u", role=eqiora.FieldRole.Variable, domain=interval, spatial_regularity=eqiora.SpatialRegularity.H1)
 invalid = eqiora.Relation(
     "invalid",
     domain=interval,

@@ -15,7 +15,7 @@ public component AuthoredPoisson(
   parameter other_source: 1 / m ^ 2
 ) {
 
-  variable potential: 1 on square;
+  variable potential: 1 on square in h1;
   law balance on square { flux -diffusion * grad(potential); source source_scale; }
   relation x_lower_value on x_lower { trace(potential) = 0; }
   relation x_upper_value on x_upper { trace(potential) = 0; }
@@ -109,7 +109,7 @@ else:
     raise AssertionError("doubled functional derivative was accepted as the exact strong law")
 # The right and horizontal sides carry natural flux laws; the direction is
 # constrained only on the essential left side. No extra zero trace is invented.
-natural_source = energy_source.replace("zero_on x_lower, x_upper, y_lower, y_upper", "zero_on x_lower")
+natural_source = energy_source.replace("potential: 1 on square in h1;", "potential: 1 on square in smooth;").replace("zero_on x_lower, x_upper, y_lower, y_upper", "zero_on x_lower")
 for name in ("x_upper", "y_lower", "y_upper"):
     natural_source = natural_source.replace(
         f"relation {name}_value on {name} {{ trace(potential) = 0; }}",
@@ -275,7 +275,7 @@ energy_module = eqiora.Module("energy")
 component = energy_module.component("Energy")
 body = component.volume("body", dimensions=2)
 surface = component.complete_exterior("surface", parent=body)
-u = component.field("u", value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)), role=eqiora.FieldRole.Variable, on=body)
+u = component.field("u", spatial_regularity=eqiora.SpatialRegularity.H1, value_type=eqiora.ValueType.real(eqiora.Dimension(length=1)), role=eqiora.FieldRole.Variable, on=body)
 k = component.parameter("k", value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, time=-2)))
 f = component.parameter("f", value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-2)))
 balance = component.law("balance", on=body, flux=-k*q.grad(u), source=f)
@@ -371,7 +371,7 @@ module = eqiora.Module("main")
 component = module.component("Diffusion")
 body = component.volume("body", dimensions=2)
 surface = component.complete_exterior("surface", parent=body)
-u = component.field("u", value_type=eqiora.ValueType.real(eqiora.Dimension(temperature=1)), role=eqiora.FieldRole.Variable, on=body)
+u = component.field("u", spatial_regularity=eqiora.SpatialRegularity.H1, value_type=eqiora.ValueType.real(eqiora.Dimension(temperature=1)), role=eqiora.FieldRole.Variable, on=body)
 k = component.parameter("k", value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=1, time=-3, temperature=-1)))
 f = component.parameter("f", value_type=eqiora.ValueType.real(eqiora.Dimension(mass=1, length=-1, time=-3)))
 heat = component.law("heat", on=body, flux=-k*q.grad(u), source=f)

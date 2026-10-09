@@ -47,7 +47,7 @@ public component Energy(
     support right:boundary(parent=body),
     parameter bulk:J/m, parameter gradient:J*m
 ) {
-    variable c:1 on body;
+    variable c:1 on body in smooth;
     relation stationarity on body { bulk*c-div(gradient*grad(c))=0; }
     relation left_natural on left { normal(grad(c))=0; }
     relation right_natural on right { normal(grad(c))=0; }
@@ -120,7 +120,7 @@ public component Energy(
     support right:boundary(parent=body),
     parameter bulk:J, parameter gradient:J
 ) {{
-    variable c:1 on body;
+    variable c:1 on body in h1;
     relation stationarity on body {{ bulk*c=0; }}
     observable energy:J=integral(bulk*trace(c)*trace(c)/2-gradient*trace(c),measure(right));
     form surface for stationarity {{
@@ -360,7 +360,7 @@ public component Energy(
     support right:boundary(parent=body),
     parameter bulk:J/m, parameter gradient:J*m
 ) {{
-    variable c:1 on body;
+    variable c:1 on body in smooth;
     relation stationarity on body {{ bulk*c-div(gradient*grad(c))=0; }}
     relation left_natural on left {{ normal(grad(c))=0; }}
     relation right_natural on right {{ normal(grad(c))=0; }}

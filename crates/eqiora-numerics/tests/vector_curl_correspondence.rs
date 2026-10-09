@@ -5,8 +5,9 @@ use eqiora_numerics::check_authored_spatial_formulation;
 use eqiora_sem::KernelProgram;
 
 fn source(complex: bool) -> String {
-    let mut source =
-        String::from("model M(){ domain body=box(0,1,0,1,0,1); variable u:vector<1,3> on body;");
+    let mut source = String::from(
+        "model M(){ domain body=box(0,1,0,1,0,1); variable u:vector<1,3> on body in smooth;",
+    );
     let mut names = Vec::new();
     for axis in 0..3 {
         for side in ["lower", "upper"] {

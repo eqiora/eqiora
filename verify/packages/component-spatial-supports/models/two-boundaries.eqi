@@ -2,7 +2,7 @@ component BoundaryState(
   support body: volume(ambient_dimension = 2),
   support interface: boundary(parent = body),
 ) {
-  variable state: 1 on body;
+  variable state: 1 on body in h1;
   relation volume_law on body { state = 0; }
   relation coordinate_law on body { coordinate(1) - coordinate(1) = 0; }
   relation interface_law on interface { trace(state) = 0; }

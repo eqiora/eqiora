@@ -142,6 +142,7 @@ EXPECTED_EQIORA_ALL = [
     "QuantityLabel",
     "Plan",
     "FieldRole",
+    "SpatialRegularity",
     "Initial",
     "Relation",
     "Result",

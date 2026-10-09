@@ -16,11 +16,11 @@ fn fixture(
         parameter lambda: 1 = 5;
         parameter p0: 1 = 3;
         parameter other0: 1 = 3;
-        variable p: 1 on body;
-        variable other: 1 on body;
+        variable p: 1 on body in h1;
+        variable other: 1 on body in h1;
         relation pressure on body {{ p = p0; }}
         relation other_pressure on body {{ other = other0; }}
-        variable u: vector<m, 2> on body;
+        variable u: vector<m, 2> on body in smooth;
         relation balance on body {{
             -div(2*mu*symmetric_part(grad(u)) + lambda*isotropic_lift(div(u)) + isotropic_lift(p)) = 0;
         }}

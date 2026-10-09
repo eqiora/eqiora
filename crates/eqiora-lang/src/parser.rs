@@ -502,6 +502,23 @@ impl Parser<'_> {
         } else {
             None
         };
+        let spatial_regularity = if self.at_keyword("in") {
+            self.bump();
+            let name = self.expect_identifier("Field spatial regularity")?;
+            match name.text() {
+                "l2" => eqiora_schema::kernel::SpatialRegularity::L2,
+                "h1" => eqiora_schema::kernel::SpatialRegularity::H1,
+                "hcurl" => eqiora_schema::kernel::SpatialRegularity::HCurl,
+                "hdiv" => eqiora_schema::kernel::SpatialRegularity::HDiv,
+                "smooth" => eqiora_schema::kernel::SpatialRegularity::Smooth,
+                _ => {
+                    self.error_here("Field regularity must be l2, h1, hcurl, hdiv, or smooth");
+                    return None;
+                }
+            }
+        } else {
+            eqiora_schema::kernel::SpatialRegularity::Unspecified
+        };
         let (activation, activation_name_range) = if self.at_keyword("at") {
             self.bump();
             let token = self.expect_identifier("unknown clock")?;
@@ -525,6 +542,7 @@ impl Parser<'_> {
             name,
             domain,
             role,
+            spatial_regularity,
             activation,
             value_type,
             range: TextRange::new(start, end),

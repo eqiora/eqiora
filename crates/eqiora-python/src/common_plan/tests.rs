@@ -26,7 +26,7 @@ public component PoissonRectangle(
   parameter source_scale: 1 / m ^ 2
 ) {
 
-  variable potential: 1 on region;
+  variable potential: 1 on region in h1;
   relation balance on region {
     -div(grad(potential))
       - source_scale * math.sin(wave_number * coordinate(0))
@@ -53,7 +53,7 @@ public component MixedBoundaryElasticity(
   parameter length_scale: m
 ) {
 
-  variable displacement: vector<m, 2> on region;
+  variable displacement: vector<m, 2> on region in smooth;
   variable load_potential: kg / (m * s ^ 2) on region;
   relation load on region {
     load_potential - 2 * mu * coordinate(0) / length_scale = 0;

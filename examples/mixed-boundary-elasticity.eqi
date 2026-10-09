@@ -15,7 +15,7 @@ public component MixedBoundaryElasticity2d(
 
   // The displacement is the unknown; load_potential defines a manufactured body load.
 
-  variable displacement: vector<m, 2> on body;
+  variable displacement: vector<m, 2> on body in smooth;
   variable load_potential: kg / (m * s ^ 2) on body;
 
   relation load on body {

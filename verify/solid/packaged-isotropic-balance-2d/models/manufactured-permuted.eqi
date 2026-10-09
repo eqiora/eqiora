@@ -24,7 +24,7 @@ model Main() {
   domain y_upper = boundary(body, axis = 1, side = upper);
   relation x_upper_value on x_upper { trace(displacement) = 0; }
   domain x_lower = boundary(body, axis = 0, side = lower);
-  variable displacement: vector<m, 2> on body;
+  variable displacement: vector<m, 2> on body in h1;
   relation y_lower_value on y_lower { trace(displacement) = 0; }
   domain y_lower = boundary(body, axis = 1, side = lower);
   parameter wave_number: 1 / m = 3.141592653589793;

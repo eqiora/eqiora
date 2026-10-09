@@ -313,8 +313,8 @@ model Main() {
   domain solid_right_y_lower = boundary(solid_right, axis = 1, side = lower);
   domain solid_right_y_upper = boundary(solid_right, axis = 1, side = upper);
 
-  state fluid_velocity: vector<m / s, 2> on fluid;
-  variable fluid_pressure: kg / (m * s ^ 2) on fluid;
+  state fluid_velocity: vector<m / s, 2> on fluid in smooth;
+  variable fluid_pressure: kg / (m * s ^ 2) on fluid in h1;
   variable fluid_load_potential: kg / (m * s ^ 2) on fluid;
   parameter fluid_density: kg / m ^ 3 = 2;
   parameter fluid_viscosity: kg / (m * s) = 0.5;
@@ -327,8 +327,8 @@ model Main() {
   }
   relation incompressibility on fluid { div(fluid_velocity) = 0; }
 
-  state solid_left_displacement: vector<m, 2> on solid_left;
-  state solid_left_velocity: vector<m / s, 2> on solid_left;
+  state solid_left_displacement: vector<m, 2> on solid_left in smooth;
+  state solid_left_velocity: vector<m / s, 2> on solid_left in h1;
   variable solid_left_load_potential: kg / (m * s ^ 2) on solid_left;
   parameter solid_left_density: kg / m ^ 3 = 3;
   parameter solid_left_mu: kg / (m * s ^ 2) = 2;
@@ -346,8 +346,8 @@ model Main() {
       - grad(solid_left_load_potential) = 0;
   }
 
-  state solid_right_displacement: vector<m, 2> on solid_right;
-  state solid_right_velocity: vector<m / s, 2> on solid_right;
+  state solid_right_displacement: vector<m, 2> on solid_right in smooth;
+  state solid_right_velocity: vector<m / s, 2> on solid_right in h1;
   variable solid_right_load_potential: kg / (m * s ^ 2) on solid_right;
   parameter solid_right_density: kg / m ^ 3 = 3;
   parameter solid_right_mu: kg / (m * s ^ 2) = 7;

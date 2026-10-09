@@ -358,7 +358,7 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
             "  instance x_lower_condition: fluid.NoSlip2d(\n    body = body, face = x_lower\n  );",
         ),
         Inlet::NormalVelocity => (
-            r#"  variable inlet_speed: m / s on body;
+            r#"  variable inlet_speed: m / s on body in h1;
   parameter inlet_speed_value: m / s = 1;
   relation inlet_speed_definition on body {
     inlet_speed - inlet_speed_value = 0;
@@ -372,7 +372,7 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
         ),
         Inlet::PrescribedVelocity => (
             r#"  variable inlet_potential: m ^ 2 / s on body;
-  variable inlet_velocity: vector<m / s, 2> on body;
+  variable inlet_velocity: vector<m / s, 2> on body in h1;
   parameter inlet_speed: m / s = 1;
   relation inlet_potential_definition on body {
     inlet_potential - inlet_speed * coordinate(0) = 0;
@@ -398,7 +398,7 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
             "  instance x_upper_condition: fluid.TractionFree2d(\n    body = body, face = x_upper\n  );",
         ),
         Outlet::NormalPressure => (
-            r#"  variable exterior_pressure: kg / (m * s ^ 2) on body;
+            r#"  variable exterior_pressure: kg / (m * s ^ 2) on body in h1;
   parameter ambient_pressure: kg / (m * s ^ 2) = 2;
   relation exterior_pressure_definition on body {
     exterior_pressure - ambient_pressure = 0;
@@ -412,7 +412,7 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
         ),
         Outlet::PrescribedTraction => (
             r#"  variable traction_potential: kg / s ^ 2 on body;
-  variable outlet_traction: vector<kg / (m * s ^ 2), 2> on body;
+  variable outlet_traction: vector<kg / (m * s ^ 2), 2> on body in h1;
   parameter outlet_stress: kg / (m * s ^ 2) = 2;
   relation traction_potential_definition on body {
     traction_potential - outlet_stress * coordinate(0) = 0;
@@ -436,8 +436,8 @@ fn root_source(curated: bool, inlet: Inlet, outlet: Outlet) -> String {
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
 
-  variable velocity: vector<m / s, 2> on body;
-  variable pressure: kg / (m * s ^ 2) on body;
+  variable velocity: vector<m / s, 2> on body in smooth;
+  variable pressure: kg / (m * s ^ 2) on body in h1;
   variable force_potential: kg / (m * s ^ 2) on body;
   parameter dynamic_viscosity: kg / (m * s) = 2;
   parameter zero_pressure: kg / (m * s ^ 2) = 0;

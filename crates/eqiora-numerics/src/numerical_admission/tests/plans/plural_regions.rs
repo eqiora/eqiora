@@ -18,7 +18,7 @@ public connector ScalarBoundary {
 public component Interface(
   support body: volume(ambient_dimension = 1),
   support face: boundary(parent = body),
-  variable value: 1 on body,
+  variable value: 1 on body in smooth,
   parameter conductivity: 1,
   port edge: ScalarBoundary over face
 ) {
@@ -38,7 +38,7 @@ model Chain() {
   domain body{index} = box({index}, {end});
   domain lower{index} = boundary(body{index}, axis = 0, side = lower);
   domain upper{index} = boundary(body{index}, axis = 0, side = upper);
-  variable {name}: 1 on body{index};
+  variable {name}: 1 on body{index} in smooth;
   relation balance{index} on body{index} {{ -div(conductivity * grad({name})) = 0; }}
   observable integral{index}: m = integral({name}, measure(body{index}));
   observable lower_flux{index}: 1/m = integral(normal(conductivity * grad({name})), measure(lower{index}));

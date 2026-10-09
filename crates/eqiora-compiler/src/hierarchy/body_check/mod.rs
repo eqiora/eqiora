@@ -198,7 +198,7 @@ mod tests {
 model Poisson() {
   domain body = box(0, 1, 0, 1);
   domain wall = boundary(body, axis = 0, side = lower);
-  variable u: 1 on body; initial { u = 0; }
+  variable u: 1 on body in h1; initial { u = 0; }
   relation balance on body { -div(grad(u)) = 0; }
   relation boundary on wall { trace(u) = 0; }
 }

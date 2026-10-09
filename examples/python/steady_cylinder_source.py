@@ -1,7 +1,7 @@
 """Author the steady-cylinder equations as one Eqiora Language Source."""
 
 from eqiora import lang as q
-from eqiora import Dimension, FieldRole, Module, ValueType
+from eqiora import Dimension, FieldRole, Module, SpatialRegularity, ValueType
 
 def build_source() -> Module:
     """Return the complete equations-only steady-cylinder Component."""
@@ -29,12 +29,12 @@ def build_source() -> Module:
     channel_height = stokes.parameter("channel_height", value_type=ValueType.real(Dimension(length=1)))
 
     velocity = stokes.field(
-        "velocity", role=FieldRole.Variable,
+        "velocity", spatial_regularity=SpatialRegularity.Smooth, role=FieldRole.Variable,
         on=fluid,
         value_type=ValueType.vector(ValueType.real(Dimension(length=1, time=-1)), 2),
     )
     pressure = stokes.field(
-        "pressure", role=FieldRole.Variable,
+        "pressure", spatial_regularity=SpatialRegularity.H1, role=FieldRole.Variable,
         on=fluid,
         value_type=ValueType.real(Dimension(mass=1, length=-1, time=-2)),
     )
@@ -43,7 +43,7 @@ def build_source() -> Module:
         on=fluid,
         value_type=ValueType.real(Dimension(mass=1, length=-1, time=-2)),
     )
-    inlet_profile = stokes.field("inlet_profile", role=FieldRole.Variable, on=fluid, value_type=ValueType.real(Dimension(length=1, time=-1)))
+    inlet_profile = stokes.field("inlet_profile", spatial_regularity=SpatialRegularity.H1, role=FieldRole.Variable, on=fluid, value_type=ValueType.real(Dimension(length=1, time=-1)))
 
     stokes.relation('force_definition', q.equation(force_potential - zero_pressure, 0), on=fluid)
     stokes.relation('inlet_profile_definition', q.equation(inlet_profile - 4 * inlet_speed * q.coordinate(1) * (channel_height - q.coordinate(1)) / channel_height ** 2, 0), on=fluid)

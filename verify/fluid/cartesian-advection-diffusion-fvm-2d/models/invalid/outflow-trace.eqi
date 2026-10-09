@@ -5,7 +5,7 @@ model Main() {
   domain y_lower = boundary(body, axis = 1, side = lower);
   domain y_upper = boundary(body, axis = 1, side = upper);
 
-  state concentration: K on body;
+  state concentration: K on body in smooth;
   initial { concentration = 0; }
   variable flow_potential: m ^ 2 / s on body;
   parameter speed: m / s = 1;
