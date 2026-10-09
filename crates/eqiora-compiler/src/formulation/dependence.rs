@@ -139,13 +139,18 @@ fn classify(
         E::Neg { value }
         | E::Trace { value }
         | E::Gradient { value }
+        | E::Curl { value }
+        | E::TangentialTrace { value }
         | E::Divergence { value }
         | E::SymmetricPart { value }
         | E::Component { value, .. }
         | E::Integrate {
             integrand: value, ..
         } => child(value, conjugated)?,
-        E::Inner { left, right } | E::Dot { left, right } | E::Frobenius { left, right } => {
+        E::Inner { left, right }
+        | E::Cross { left, right }
+        | E::Dot { left, right }
+        | E::Frobenius { left, right } => {
             let left = child(left, conjugated ^ matches!(value, E::Inner { .. }))?;
             let right = child(right, conjugated)?;
             product(&left, &right, budget)?
@@ -277,6 +282,7 @@ impl AuthoredFormulationProjection {
                 | E::Apply { left, right }
                 | E::Div { left, right }
                 | E::Inner { left, right }
+                | E::Cross { left, right }
                 | E::Dot { left, right }
                 | E::Frobenius { left, right } => {
                     push(left.as_ref());
@@ -291,6 +297,8 @@ impl AuthoredFormulationProjection {
                 E::Neg { value }
                 | E::Trace { value }
                 | E::Gradient { value }
+                | E::Curl { value }
+                | E::TangentialTrace { value }
                 | E::Divergence { value }
                 | E::SymmetricPart { value }
                 | E::Sin { value }

@@ -195,6 +195,19 @@ Equal coordinates or equal box sizes cannot substitute another parent or face.
 Python authors the same expressions with `eqiora.lang.curl` and
 `eqiora.lang.tangential_trace`.
 
+Authored weak forms retain `curl`, `cross`, and `tangential_trace` as typed
+operators. A Cartesian Model Domain supplies its own ambient dimension; one
+physical vector trial is admitted without a separate Geometry binding.
+`tangential_trace` requires integration on an exact boundary of the operand's
+support. Complex forms use explicit `inner` pairings to retain conjugate-linear
+test dependence; `cross` itself remains bilinear. Current authored-form artifacts
+use `eqiora.authored-form/v13`; previous epochs are rejected. This authoring and
+replay support does not establish strong/weak correspondence, discharge boundary
+conditions, or select a numerical vector-space realization. A one-trial vector
+form can describe only one equation of a coupled Model; it is not a checked
+mixed system. Mixed correspondence still requires the complete velocity/pressure
+equation and test inventory.
+
 For twice continuously differentiable fields in a fixed Cartesian frame,
 `div(curl(u)) = 0`, `curl(grad(f)) = 0`, and
 `curl(curl(u)) = grad(div(u)) − div(grad(u))` in 3D. Mixed partials commute

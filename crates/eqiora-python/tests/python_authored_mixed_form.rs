@@ -69,14 +69,15 @@ python_model=eqiora.compile(source=module,geometry=geometry,entry="Flow",binding
 emitted_model=eqiora.compile(source=module.to_eqi(),geometry=geometry,entry="Flow",bindings=bindings)
 assert python_model.authored_formulations[0].source_identity==emitted_model.authored_formulations[0].source_identity
 assert python_model.authored_formulations[0].kind=="mixed-galerkin"
-# Deleting an entire mixed equation must not reclassify the vector form as scalar.
+# A one-trial vector expression is now valid typed primal authoring. It does
+# not acquire the checked mixed-system classification or pressure hypotheses.
+# The API regression test also submits this subset to the live mixed checker.
 incomplete=source.replace("momentum, continuity", "momentum").replace("  test q:1 for p;", "").replace("  integrate(body,q*div(u)) = 0;", "")
-try:
- eqiora.compile(source=incomplete,geometry=geometry,entry="Flow",bindings=bindings)
-except eqiora.ValidationError:
- pass
-else:
- raise AssertionError("incomplete vector system bypassed the mixed checker")
+partial=eqiora.compile(source=incomplete,geometry=geometry,entry="Flow",bindings=bindings)
+partial_form,=partial.authored_formulations
+assert partial_form.kind=="primal"
+assert len(partial_form.relation_ids)==len(partial_form.trial_field_ids)==1
+assert "admissible-l2-pressure-test" not in partial_form.assumptions
 # Source order carries explicit equation ownership; joint permutation is admissible.
 momentum="  integrate(body,frobenius(grad(v),2*mu*symmetric_part(grad(u)))-p*div(v)) = integrate(body,dot(v,grad(F)));"
 continuity="  integrate(body,q*div(u)) = 0;"

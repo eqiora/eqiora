@@ -2,6 +2,7 @@
 use super::*;
 
 mod contraction;
+mod oriented;
 
 impl ExpressionContext<'_> {
     pub(super) fn compile_root(
@@ -126,11 +127,7 @@ impl ExpressionContext<'_> {
         let raw = resolve_symbol(self.file, expression.range(), name, self.symbols)?;
         match self.index.nodes.get(&raw).copied() {
             Some(KernelNode::Field(field))
-                if field.shape().rank() <= 1
-                    && (self.tests.len() > 1
-                        || field.shape().is_scalar()
-                        || (self.relation_domain.is_none()
-                            && field.value_type().coordinate_basis().is_some()))
+                if self.admits_field_type(field.value_type())
                     && matches!(
                         field.value_type().scalar_domain(),
                         ScalarDomain::Real | ScalarDomain::Complex
@@ -170,6 +167,18 @@ impl ExpressionContext<'_> {
                 format!("`{name}` is not a scalar Field or Parameter"),
             )),
         }
+    }
+
+    fn admits_field_type(&self, value: &ValueType) -> bool {
+        value.array_rank() == 0
+            && (value.shape().is_scalar()
+                || (self.relation_domain.is_some()
+                    && value.frame() == ValueFrame::SpatialCartesian
+                    && value.shape().rank() == 1
+                    && value.shape().extents()[0].get() as usize == self.ambient_dimension)
+                || (self.relation_domain.is_none()
+                    && value.shape().rank() <= 1
+                    && value.coordinate_basis().is_some()))
     }
 
     fn field_support(
@@ -315,7 +324,14 @@ impl ExpressionContext<'_> {
         if self.relation_domain.is_none()
             && matches!(
                 name,
-                "coordinate" | "trace" | "grad" | "div" | "symmetric_part" | "integrate"
+                "coordinate"
+                    | "trace"
+                    | "grad"
+                    | "div"
+                    | "curl"
+                    | "tangential_trace"
+                    | "symmetric_part"
+                    | "integrate"
             )
         {
             return Err(error(
@@ -326,6 +342,10 @@ impl ExpressionContext<'_> {
         }
         match (name, arguments) {
             ("coordinate", [axis]) => self.compile_coordinate(expression, axis),
+            ("curl" | "tangential_trace", [argument]) => {
+                self.compile_oriented(expression, name, argument)
+            }
+            ("cross", [left, right]) => self.compile_cross(expression, left, right),
             ("math.sin", [argument]) => {
                 let argument = self.compile(argument)?;
                 require_scalar(self.file, expression.range(), &argument)?;
@@ -560,10 +580,7 @@ impl ExpressionContext<'_> {
                 "test trial is not a Field",
             ));
         };
-        if (self.tests.len() == 1
-            && !field.shape().is_scalar()
-            && !(self.relation_domain.is_none() && field.value_type().coordinate_basis().is_some()))
-            || field.shape().rank() > 1
+        if !self.admits_field_type(field.value_type())
             || !matches!(
                 field.value_type().scalar_domain(),
                 ScalarDomain::Real | ScalarDomain::Complex
