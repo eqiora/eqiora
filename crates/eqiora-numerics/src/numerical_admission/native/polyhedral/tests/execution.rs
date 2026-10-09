@@ -360,7 +360,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
 }
 
 #[test]
-fn authenticated_polyhedral_equations_execute_real_and_complex_moments() {
+pub(super) fn authenticated_polyhedral_equations_execute_real_and_complex_moments() {
     for face in [false, true] {
         execute::<f64>(false, face, &REFERENCE_LINEAR_SOLVER);
         execute::<C>(true, face, &REFERENCE_LINEAR_SOLVER);
