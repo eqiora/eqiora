@@ -6,6 +6,10 @@ use eqiora_schema::kernel::typing::{SpatialSupport, TypedResidual};
 use eqiora_schema::kernel::{ExprId, ExprNode, SymbolRef};
 
 impl Context<'_> {
+    pub(super) fn selected_boundary(&self, on: &str) -> Option<()> {
+        (self.boundary()? == on).then_some(())
+    }
+
     pub(super) fn boundary(&self) -> Option<String> {
         let boundary = self.integration_domain.as_ref()?;
         let SpatialSupport::Boundary {
@@ -23,6 +27,42 @@ impl Context<'_> {
         };
         (parent == domain && *dimensions == self.dimensions && dimensions == trial_dimensions)
             .then(|| boundary.clone())
+    }
+
+    pub(super) fn normal_component(
+        &mut self,
+        value: &E,
+        on: &str,
+        coordinate: &[usize],
+        depth: usize,
+    ) -> Option<Polynomial> {
+        self.step(depth)?;
+        self.selected_boundary(on)?;
+        let boundary = self.boundary()?;
+        let mut shape = self.physical_shape(value, depth + 1)?;
+        if shape.pop()? != self.dimensions
+            || coordinate.len() != shape.len()
+            || coordinate
+                .iter()
+                .zip(&shape)
+                .any(|(index, extent)| index >= extent)
+        {
+            return None;
+        }
+        let mut sum = Polynomial::constant(ExactRational::integer(0));
+        for axis in 0..self.dimensions {
+            let mut indices = coordinate.to_vec();
+            indices.push(axis);
+            sum = sum
+                .checked_add(
+                    &self
+                        .trace(value, indices)?
+                        .checked_mul(&Polynomial::atom(Atom::Normal(boundary.clone(), axis)))
+                        .ok()?,
+                )
+                .ok()?;
+        }
+        Some(sum)
     }
 
     pub(super) fn tangential_definition(

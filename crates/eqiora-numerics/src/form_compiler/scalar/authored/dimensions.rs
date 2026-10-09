@@ -126,7 +126,8 @@ impl Context<'_> {
             }
             E::Neg { value }
             | E::Conjugate { value }
-            | E::Trace { value }
+            | E::Trace { value, .. }
+            | E::NormalTrace { value, .. }
             | E::Component { value, .. }
             | E::SymmetricPart { value }
             | E::Variation { value, .. } => self.expression(value, depth + 1),

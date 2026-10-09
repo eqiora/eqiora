@@ -25,14 +25,75 @@ impl ExpressionContext<'_> {
         )
     }
 
-    pub(super) fn compile_oriented(
+    pub(super) fn compile_boundary(
         &mut self,
         expression: &Expr,
         name: &str,
+        arguments: &eqiora_lang::CallArguments,
+    ) -> Result<AuthoredFormExpression, Diagnostic> {
+        use crate::math::boundary::Operation;
+        let selected = crate::math::boundary::source(arguments)
+            .map_err(|message| error(self.file, expression.range(), message))?;
+        let resolve = |name: &str| {
+            let raw = resolve_symbol(self.file, expression.range(), name, self.symbols)?;
+            raw.downcast::<kinds::Domain>()
+                .filter(|_| matches!(self.index.nodes.get(&raw), Some(KernelNode::Domain(_))))
+                .ok_or_else(|| {
+                    error(
+                        self.file,
+                        expression.range(),
+                        "boundary selector must name an exact Domain",
+                    )
+                })
+        };
+        let target = selected
+            .on
+            .map(resolve)
+            .transpose()?
+            .or(self.integration_domain)
+            .filter(|domain| {
+                self.index.boundary_of.get(&domain.erase()).copied()
+                    == self.relation_domain.map(Id::erase)
+            })
+            .ok_or_else(|| {
+                error(
+                    self.file,
+                    expression.range(),
+                    "trace requires an exact boundary of the Relation Domain",
+                )
+            })?;
+        let from = selected
+            .from
+            .map(resolve)
+            .transpose()?
+            .map(|domain| self.physical_support(domain));
+        let target_type = self.physical_support(target);
+        let argument = self.compile(selected.value)?;
+        let operation = Operation::named(name).expect("boundary vocabulary");
+        let result = operation
+            .result_type(
+                &self.oriented_type(&argument),
+                Some(&target_type),
+                from.as_ref(),
+            )
+            .map_err(|message| error(self.file, expression.range(), message))?;
+        let kind = match operation {
+            Operation::Trace => AuthoredFormExpressionKind::Trace(Box::new(argument)),
+            Operation::Tangential => {
+                AuthoredFormExpressionKind::TangentialTrace(Box::new(argument))
+            }
+            Operation::Normal => AuthoredFormExpressionKind::NormalTrace(Box::new(argument)),
+        };
+        Ok(typed(kind, result.value_type, Some(target)))
+    }
+
+    pub(super) fn compile_curl(
+        &mut self,
+        expression: &Expr,
         argument: &Expr,
     ) -> Result<AuthoredFormExpression, Diagnostic> {
         use crate::math::oriented::Operation;
-        let operation = Operation::named(name).expect("closed oriented vocabulary");
+        let operation = Operation::Curl;
         let argument = self.compile(argument)?;
         let context = self
             .integration_domain
@@ -44,12 +105,7 @@ impl ExpressionContext<'_> {
             .support
             .as_ref()
             .and_then(|value| value.domain().downcast());
-        let kind = match operation {
-            Operation::Curl => AuthoredFormExpressionKind::Curl(Box::new(argument)),
-            Operation::TangentialTrace => {
-                AuthoredFormExpressionKind::TangentialTrace(Box::new(argument))
-            }
-        };
+        let kind = AuthoredFormExpressionKind::Curl(Box::new(argument));
         Ok(typed(kind, result.value_type, support))
     }
 

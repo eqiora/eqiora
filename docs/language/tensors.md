@@ -204,13 +204,16 @@ outside a Relation, but consuming it in an equation still requires the same
 boundary support. The retained trace/normal node carries the target identity.
 These selectors do not introduce physical interfaces, continuity or flux balance.
 
-Authored weak forms retain `curl`, `cross`, and `tangential_trace` as typed
-operators. A Cartesian Model Domain supplies its own ambient dimension; one
+Authored weak forms retain `curl`, `cross`, `normal`, and `tangential_trace` as typed
+operators. Trace, normal and tangential trace accept the same exact `on`/`from`
+selectors; their retained target must equal the integral support. H(div) tests
+admit a normal trace, while a full trace still requires H1. H(curl) admits a
+tangential trace; L2 admits neither boundary trace. A Cartesian Model Domain supplies its own ambient dimension; one
 physical vector trial is admitted without a separate Geometry binding.
 `tangential_trace` requires integration on an exact boundary of the operand's
 support. Complex forms use explicit `inner` pairings to retain conjugate-linear
 test dependence; `cross` itself remains bilinear. Current authored-form artifacts
-use `eqiora.authored-form/v14`; previous epochs are rejected. This authoring and
+use `eqiora.authored-form/v15`; previous epochs are rejected. This authoring and
 replay support does not by itself establish strong/weak correspondence, discharge
 boundary conditions, or select a numerical vector-space realization. A one-trial vector
 form can describe only one equation of a coupled Model; it is not a checked

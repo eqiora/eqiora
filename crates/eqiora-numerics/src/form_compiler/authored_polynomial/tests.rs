@@ -5,6 +5,7 @@ fn integral_sums_keep_exact_measures_and_traces() {
         field_ulid: "u".into(),
     };
     let trace = E::Trace {
+        on_ulid: "right".into(),
         value: Box::new(test.clone()),
     };
     let integral = |domain: &str, value: E| E::Integrate {
@@ -17,13 +18,27 @@ fn integral_sums_keep_exact_measures_and_traces() {
         left: Box::new(bulk.clone()),
         right: Box::new(surface.clone()),
     };
+    use eqiora_schema::kernel::typing::SpatialSupport;
+    let id = |n| {
+        eqiora_core::Id::<eqiora_core::entity::kinds::Domain>::from_ulid(ulid::Ulid::from(n))
+            .erase()
+    };
+    let volume = SpatialSupport::Volume {
+        domain: id(1_u128),
+        dimensions: 2,
+    };
+    let boundary = SpatialSupport::Boundary {
+        domain: id(2_u128),
+        parent: id(1_u128),
+        dimensions: 2,
+    };
     let mut context = Context {
         name: "eta",
         field: "u",
         dimensions: 2,
         remaining: 65536,
-        supports: BTreeMap::new(),
-        domains: BTreeMap::new(),
+        supports: BTreeMap::from([("u".into(), volume.clone())]),
+        domains: BTreeMap::from([("body".into(), volume), ("right".into(), boundary)]),
         integration_domain: None,
         symbols: BTreeMap::from([(
             "u".into(),
@@ -63,6 +78,36 @@ fn integral_sums_keep_exact_measures_and_traces() {
         context.integral(&opposite_sides),
         context.integral(&E::Number { value: 0.0 })
     );
+    // A matching spelling cannot substitute a volume or a foreign-parent boundary.
+    let admitted = context.domains["right"].clone();
+    for invalid in [
+        SpatialSupport::Volume {
+            domain: id(2_u128),
+            dimensions: 2,
+        },
+        SpatialSupport::Boundary {
+            domain: id(2_u128),
+            parent: id(3_u128),
+            dimensions: 2,
+        },
+        SpatialSupport::Boundary {
+            domain: id(2_u128),
+            parent: id(1_u128),
+            dimensions: 3,
+        },
+    ] {
+        context.domains.insert("right".into(), invalid);
+        assert!(context.integral(&surface).is_none());
+    }
+    context.domains.insert("right".into(), admitted);
+    context.supports.insert(
+        "u".into(),
+        SpatialSupport::Volume {
+            domain: id(3_u128),
+            dimensions: 2,
+        },
+    );
+    assert!(context.integral(&surface).is_none());
     let product = E::Mul {
         left: Box::new(bulk),
         right: Box::new(surface),

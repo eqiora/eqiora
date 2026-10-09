@@ -6,7 +6,7 @@ use ulid::Ulid;
 
 use super::{AuthoredFormExpression, AuthoredFormExpressionKind};
 
-const SCHEMA: &str = "eqiora.authored-form/v14";
+const SCHEMA: &str = "eqiora.authored-form/v15";
 
 mod harmonic;
 mod regularity;
@@ -158,6 +158,11 @@ pub enum AuthoredFormExpressionV1 {
         exponent: i32,
     },
     Trace {
+        on_ulid: String,
+        value: Box<Self>,
+    },
+    NormalTrace {
+        on_ulid: String,
         value: Box<Self>,
     },
     CoordinatePartial {
@@ -171,6 +176,7 @@ pub enum AuthoredFormExpressionV1 {
         value: Box<Self>,
     },
     TangentialTrace {
+        on_ulid: String,
         value: Box<Self>,
     },
     Cross {
@@ -350,7 +356,7 @@ impl AuthoredFormulationProjection {
             .map(|gauge| (&gauge.compatibility.0, &gauge.compatibility.1))
     }
 
-    /// Decode exactly one bounded canonical v11 projection.
+    /// Decode exactly one bounded projection in the current canonical schema.
     ///
     /// # Errors
     /// Returns a diagnostic for an oversized, malformed, noncanonical, or
@@ -718,8 +724,13 @@ pub(super) fn expression(value: &AuthoredFormExpression) -> AuthoredFormExpressi
             base: Box::new(expression(base)),
             exponent: *exponent,
         },
-        AuthoredFormExpressionKind::Trace(value) => AuthoredFormExpressionV1::Trace {
-            value: Box::new(expression(value)),
+        AuthoredFormExpressionKind::Trace(operand) => AuthoredFormExpressionV1::Trace {
+            on_ulid: ulid(value.support.expect("typed trace boundary").erase()),
+            value: Box::new(expression(operand)),
+        },
+        AuthoredFormExpressionKind::NormalTrace(operand) => AuthoredFormExpressionV1::NormalTrace {
+            on_ulid: ulid(value.support.expect("typed normal trace boundary").erase()),
+            value: Box::new(expression(operand)),
         },
         AuthoredFormExpressionKind::Gradient(value) => AuthoredFormExpressionV1::Gradient {
             value: Box::new(expression(value)),
@@ -727,9 +738,15 @@ pub(super) fn expression(value: &AuthoredFormExpression) -> AuthoredFormExpressi
         AuthoredFormExpressionKind::Curl(value) => AuthoredFormExpressionV1::Curl {
             value: Box::new(expression(value)),
         },
-        AuthoredFormExpressionKind::TangentialTrace(value) => {
+        AuthoredFormExpressionKind::TangentialTrace(operand) => {
             AuthoredFormExpressionV1::TangentialTrace {
-                value: Box::new(expression(value)),
+                on_ulid: ulid(
+                    value
+                        .support
+                        .expect("typed tangential trace boundary")
+                        .erase(),
+                ),
+                value: Box::new(expression(operand)),
             }
         }
         AuthoredFormExpressionKind::Cross(left, right) => AuthoredFormExpressionV1::Cross {
@@ -914,7 +931,7 @@ mod tests {
         let bytes = projection().canonical_bytes().to_vec();
         let old = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.authored-form/v14", "eqiora.authored-scalar-form/v3");
+            .replace("eqiora.authored-form/v15", "eqiora.authored-scalar-form/v3");
         assert!(AuthoredFormulationProjection::decode(old.as_bytes()).is_err());
     }
 

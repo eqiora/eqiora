@@ -230,8 +230,11 @@ impl Context<'_> {
         }
     }
     fn trace(&self, value: &E, indices: Vec<usize>) -> Option<Polynomial> {
+        self.boundary()?;
         self.atom(match value {
-            E::Field { ulid } => Atom::TraceField(ulid.clone(), indices),
+            E::Field { ulid } if self.supports.get(ulid)? == self.supports.get(self.field)? => {
+                Atom::TraceField(ulid.clone(), indices)
+            }
             E::Test { field_ulid } if field_ulid == self.field => Atom::TraceTest(indices),
             E::Direction { name, field_ulid } if name == self.name && field_ulid == self.field => {
                 Atom::TraceTest(indices)
@@ -249,7 +252,13 @@ impl Context<'_> {
     fn scalar(&mut self, value: &E, depth: usize) -> Option<Polynomial> {
         self.step(depth)?;
         Some(match value {
-            E::TangentialTrace { value } => self.tangential_component(value, &[], depth + 1)?,
+            E::NormalTrace { value, on_ulid } => {
+                self.normal_component(value, on_ulid, &[], depth + 1)?
+            }
+            E::TangentialTrace { value, on_ulid } => {
+                self.selected_boundary(on_ulid)?;
+                self.tangential_component(value, &[], depth + 1)?
+            }
             E::Curl { .. } => self.oriented_component(value, &[], depth + 1)?,
             E::Number { value } => Polynomial::constant(number(*value)?),
             E::Rational {
@@ -260,7 +269,10 @@ impl Context<'_> {
                 ExactRational::new(*numerator, i64::try_from(*denominator).ok()?).ok()?,
             ),
             E::Field { ulid } => self.atom(Atom::Field(ulid.clone(), vec![]))?,
-            E::Trace { value } => self.trace(value, vec![])?,
+            E::Trace { value, on_ulid } => {
+                self.selected_boundary(on_ulid)?;
+                self.trace(value, vec![])?
+            }
             E::Parameter { ulid } => self.atom(Atom::Parameter(ulid.clone(), vec![]))?,
             E::Coordinate {
                 support_ulid,
@@ -345,10 +357,19 @@ impl Context<'_> {
     fn vector(&mut self, value: &E, axis: usize, depth: usize) -> Option<Polynomial> {
         self.step(depth)?;
         match value {
-            E::TangentialTrace { value } => self.tangential_component(value, &[axis], depth + 1),
+            E::NormalTrace { value, on_ulid } => {
+                self.normal_component(value, on_ulid, &[axis], depth + 1)
+            }
+            E::TangentialTrace { value, on_ulid } => {
+                self.selected_boundary(on_ulid)?;
+                self.tangential_component(value, &[axis], depth + 1)
+            }
             E::Curl { .. } | E::Cross { .. } => self.oriented_component(value, &[axis], depth + 1),
             E::Apply { left, right } => self.apply(left, right, axis, depth + 1),
-            E::Trace { value } => self.trace(value, vec![axis]),
+            E::Trace { value, on_ulid } => {
+                self.selected_boundary(on_ulid)?;
+                self.trace(value, vec![axis])
+            }
             E::Field { ulid } => self.atom(Atom::Field(ulid.clone(), vec![axis])),
             E::Parameter { ulid } => self.atom(Atom::Parameter(ulid.clone(), vec![axis])),
             E::Direction { name, field_ulid } if name == self.name && field_ulid == self.field => {

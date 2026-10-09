@@ -16,12 +16,17 @@ pub(super) fn evaluate(
     coordinates: &[f64],
     fields: &BTreeMap<RawId, PointField>,
 ) -> Result<f64, Diagnostic> {
-    let E::Integrate { integrand, .. } = variation else {
+    let E::Integrate {
+        integrand,
+        domain_ulid,
+    } = variation
+    else {
         return Err(invalid(
             "local variation must retain its exact spatial integral",
         ));
     };
     let mut projection = Projection {
+        boundary: domain_ulid,
         program,
         coordinates,
         fields,
@@ -39,6 +44,7 @@ pub(super) fn evaluate(
 }
 
 struct Projection<'a> {
+    boundary: &'a str,
     program: &'a KernelProgram,
     coordinates: &'a [f64],
     fields: &'a BTreeMap<RawId, PointField>,
@@ -70,7 +76,14 @@ impl Projection<'_> {
             E::Gradient { value } if !gradient => {
                 return self.scalar(value, indices, true, depth + 1);
             }
-            E::Trace { value } => return self.scalar(value, indices, gradient, depth + 1),
+            E::Trace { value, on_ulid } => {
+                if on_ulid != self.boundary {
+                    return Err(invalid(
+                        "variation trace target differs from its integration boundary",
+                    ));
+                }
+                return self.scalar(value, indices, gradient, depth + 1);
+            }
             E::Field { ulid }
             | E::Direction {
                 field_ulid: ulid, ..
