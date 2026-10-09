@@ -398,6 +398,11 @@ impl RecognizedNativeAdmission {
         } else {
             replay_program(model, resources.geometry()?)?
         };
+        if !matches!(resources, NativeMeshResources::Coordinates(_))
+            && resources.geometry()?.polyhedral_vertices().is_some()
+        {
+            polyhedral::validate_model_support(&program, &resources)?;
+        }
         let recognized = if let NativeMeshResources::Coordinates(grid) = &resources {
             RecognizedNativeModel::Coordinates(Box::new(
                 super::coordinate_grid::CellEquations::lower(&program, grid)?,
@@ -755,6 +760,7 @@ impl NativeNumericalAdmission {
 }
 
 mod identity;
+mod polyhedral;
 mod recognition;
 mod resources;
 mod scalar;
