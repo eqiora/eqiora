@@ -82,7 +82,7 @@ fn harmonic_response_has_independent_circuit_wave_and_transient_evidence() {
     assert_eq!(values.len(), 6);
     // U=2+i has zero spatial gradient, and (-omega^2-i*omega)*U=-1-3i.
     // It meets the prescribed left amplitude and zero right normal derivative exactly.
-    for node in values.chunks_exact(2) {
+    for node in values.as_chunks::<2>().0 {
         assert!(
             (node[0] - 2.).abs() < 1e-10 && (node[1] - 1.).abs() < 1e-10,
             "{node:?}"
