@@ -249,16 +249,20 @@ For a real or complex physical 3-vector, the explicit Rust inspection
 `eqiora_numerics::check_authored_spatial_formulation(program, projection)` checks a
 bounded strong-implies-weak correspondence without selecting a numerical method.
 It recognizes one direct shared `curl(curl(u))` occurrence on a Cartesian box,
-with signed linear algebraic value terms. All six exact box faces must carry
-homogeneous full-trace laws for `u`, and the test's `zero_on` inventory must
-match them. The curl Green identity is
+with signed linear algebraic value terms. Each of the six exact box faces must
+carry either a homogeneous full-trace law for `u` or the homogeneous natural
+law `tangential_trace(curl(u)) = 0`. The test's `zero_on` inventory must
+match exactly the full-trace faces; natural faces leave the test unrestricted. The curl Green identity is
 `∫Ω v·curl(curl(u)) = ∫Ω curl(v)·curl(u) − ∫∂Ω (n×v)·curl(u)`.
-The full zero test trace discharges its surface term. Complex fields use
+The full zero test trace or `n × curl(u) = 0` discharges its surface term.
+The latter uses `(n×v)·curl(u) = −v·(n×curl(u))`; a zero normal component
+`n·curl(u) = 0` is insufficient and rejects. The shared tangential lift and
+curl definitions bind that distinction to the retained source nodes. Complex fields use
 `inner(curl(v),curl(u))` and conjugated test value pairings. The checker
 reuses live source identities, correspondence replay, variation authentication,
 unit checking, and exact polynomial comparison; it does not sample field values.
 This explicit inspection leaves general vector authoring available. Tangential-only
-boundary laws, natural curl fluxes, reverse implication, uniqueness, vector numerical
+essential laws, nonzero natural curl data, reverse implication, uniqueness, vector numerical
 admission, compatible edge elements, and Maxwell execution remain outside it.
 
 For twice continuously differentiable fields in a fixed Cartesian frame,

@@ -15,10 +15,11 @@ use std::collections::BTreeMap;
 /// Check an authored 3D vector curl-curl form without choosing a numerical method.
 ///
 /// This bounded strong-implies-weak check admits one direct curl-curl occurrence,
-/// linear algebraic reaction/load terms, and homogeneous full traces on all six
-/// Cartesian box faces. Complex trials require conjugated test pairing.
+/// linear algebraic reaction/load terms, and one homogeneous full-trace or
+/// tangential-curl law on each Cartesian box face. Complex trials require
+/// conjugated test pairing. Only full-trace faces restrict the test to zero.
 /// It establishes neither reverse implication nor uniqueness, H(curl) conformity,
-/// tangential-only boundary conditions, or a numerical Maxwell realization.
+/// tangential-only essential conditions, nonzero curl flux, or a numerical Maxwell realization.
 ///
 /// # Errors
 /// Rejects unsupported sources, stale identities, incomplete boundary conditions,
@@ -135,7 +136,8 @@ pub(super) fn check(
         divergence: operator.value(),
         diffusion_rule: DiffusionRule::VectorCurlCurl,
         // ∫ v·curl curl u = ∫ curl v·curl u − ∮ (n×v)·curl u.
-        // Full zero test trace discharges the surface term without a flux law.
+        // Full zero test trace or the live natural law n×curl(u)=0
+        // discharges the surface term. The latter leaves the test unrestricted.
         divergence_sign: sign(operator.sign() == AdditiveSign::Positive),
         values: &values,
         conjugate_test: complex,
@@ -225,25 +227,47 @@ fn signed(value: E, sign: WeakSign) -> E {
 }
 
 fn curl_curl_field(dag: &ExprDag, root: ExprId) -> Option<RawId> {
-    let expected = PureOperatorDefinition::curl_from_gradient(3, 1).ok()?;
-    let operand = |id| {
-        let ExprNode::PureOperatorApplication(application) = dag.node(id)? else {
-            return None;
-        };
-        (dag.definition(application.definition())? == &expected).then_some(())?;
-        let [argument] = application.arguments() else {
-            return None;
-        };
-        let ExprNode::Gradient(value) = dag.node(*argument)? else {
-            return None;
-        };
-        Some(*value)
-    };
-    let field = operand(operand(root)?)?;
+    let field = curl_operand(dag, curl_operand(dag, root)?)?;
     let ExprNode::Symbol(SymbolRef::Field(field)) = dag.node(field)? else {
         return None;
     };
     Some(field.erase())
+}
+
+// Exact shared definitions are required in both the volume and boundary laws.
+fn curl_operand(dag: &ExprDag, root: ExprId) -> Option<ExprId> {
+    let gradient = pure_operand(
+        dag,
+        root,
+        PureOperatorDefinition::curl_from_gradient(3, 1).ok()?,
+    )?;
+    let ExprNode::Gradient(value) = dag.node(gradient)? else {
+        return None;
+    };
+    Some(*value)
+}
+fn pure_operand(dag: &ExprDag, root: ExprId, expected: PureOperatorDefinition) -> Option<ExprId> {
+    let ExprNode::PureOperatorApplication(application) = dag.node(root)? else {
+        return None;
+    };
+    (dag.definition(application.definition())? == &expected).then_some(())?;
+    let [argument] = application.arguments() else {
+        return None;
+    };
+    Some(*argument)
+}
+fn boundary_discharge(dag: &ExprDag, root: ExprId, field: RawId) -> Option<BoundaryDischarge> {
+    let (argument, discharge) = match dag.node(root)? {
+        ExprNode::Trace(argument) => (*argument, BoundaryDischarge::ZeroTestTrace),
+        ExprNode::NormalComponent(lift) => {
+            // n × curl(u) = 0, not n · curl(u) = 0. The shared lift
+            // fixes the cross-product orientation before normal contraction.
+            let curl = pure_operand(dag, *lift, PureOperatorDefinition::tangential_lift(3).ok()?)?;
+            (curl_operand(dag, curl)?, BoundaryDischarge::ZeroFlux)
+        }
+        _ => return None,
+    };
+    matches!(dag.node(argument), Some(ExprNode::Symbol(SymbolRef::Field(id))) if id.erase() == field).then_some(discharge)
 }
 
 fn boundaries(
@@ -254,7 +278,7 @@ fn boundaries(
     let reject = || {
         lowering_error(
             volume,
-            "curl correspondence requires one homogeneous full trace on each of six exact box faces",
+            "curl correspondence requires one homogeneous full trace or tangential-curl law on each of six exact box faces",
         )
     };
     let mut sides = BTreeMap::new();
@@ -288,13 +312,7 @@ fn boundaries(
         let [trace] = nonzero.as_slice() else {
             return Err(reject());
         };
-        let Some(ExprNode::Trace(argument)) = dag.node(trace.value()) else {
-            return Err(reject());
-        };
-        if !matches!(dag.node(*argument), Some(ExprNode::Symbol(SymbolRef::Field(id))) if id.erase() == field)
-        {
-            return Err(reject());
-        }
+        let discharge = boundary_discharge(dag, trace.value(), field).ok_or_else(reject)?;
         if sides
             .insert(
                 (*axis, *side),
@@ -302,7 +320,7 @@ fn boundaries(
                     domain: id,
                     relation: *relation,
                     operator_node: trace.value(),
-                    discharge: BoundaryDischarge::ZeroTestTrace,
+                    discharge,
                 },
             )
             .is_some()
