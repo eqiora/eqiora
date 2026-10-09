@@ -70,6 +70,7 @@ PYTHON_TEST_RESOURCES = (
     Path("examples/decay.eqi"),
     Path("examples/standard-sampled-components/src/main.eqi"),
     Path("examples/python/coupled_scalar.py"),
+    Path("examples/python/steady_cylinder_source.py"),
     Path("examples/python/textbook_decay.py"),
     Path("examples/python/karman_vortex_street.py"),
     Path("docs/site/src/content/docs/gallery/karman-vortex-street.mdx"),

@@ -149,6 +149,11 @@ undocumented_unsafe_blocks = "deny"
 [profile.test.package.eqiora-compiler]
 opt-level = 0
 
+# Eliminate cross-crate duplication from the installed native distribution.
+# The four interpreter wheels must fit the existing candidate family bounds.
+[profile.release]
+lto = "thin"
+
 # Keep per-interpreter Python adapter code compact; numerical crates retain the
 # normal release optimization profile.
 [profile.release.package.eqiora-python]
