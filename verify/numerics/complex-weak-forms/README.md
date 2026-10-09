@@ -25,3 +25,11 @@ does not claim a public matrix-free Plan selection.
 Run through the repository gate with `--case numerics.complex-weak-forms`.
 The [derivation](references/README.md) and [expected values](expected/README.md)
 are independent of implementation output.
+
+The same registered path also solves an explicit complex Helmholtz specialization
+with `a=6`, `q=-1+i`, `f=-4-2i`, `s=-1+3i` and outward flux `12-6i`
+in the fixture's coherent units. Its exact affine coefficients remain
+`(1+3i,7,13-3i)`. A real zero-reaction, zero-source diffusion specialization
+with `a=6`, left value `1` and right flux `12` gives `(1,7,13)`. These reuse
+the same compiler, Q1 assembly and solver; they do not infer a harmonic ansatz
+or qualify frequency sweeps, resonances or radiation conditions.

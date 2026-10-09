@@ -25,3 +25,11 @@ interpretation. Conjugate gradient therefore cannot acquire a Plan for this
 form: the requested complex/CG/general capability tuple must reject, after
 the identical source succeeds with BiCGStab. Expectations bind these semantic values, not whole files or
 generated artifacts. Exact bytes are compared only for canonical Plan/Result replay.
+
+For the Helmholtz specialization, `u=1+3i+(2-i)x` has `u''=0`,
+`(-1+i)u=-4-2i+(-1+3i)x` and `6u'=12-6i` at the right boundary.
+The two-cell reduced matrix is `[[2+2i,-2.5+0.5i],[-2.5+0.5i,1+i]]`;
+its determinant is `-6+6.5i`, so the manufactured solution is unique.
+For real pure diffusion, the reduced matrix is `[[4,-2],[-2,2]]`,
+with determinant `4`; `u=1+2x` has zero volume source and right flux `12`.
+These independent equations justify the nodal expectations without reading solver output.
