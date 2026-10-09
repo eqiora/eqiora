@@ -8,6 +8,7 @@ use super::{AuthoredFormExpression, AuthoredFormExpressionKind};
 
 const SCHEMA: &str = "eqiora.authored-form/v15";
 
+mod field_traces;
 mod harmonic;
 mod regularity;
 pub(in crate::formulation) use harmonic::HarmonicFormulationRequest;

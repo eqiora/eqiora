@@ -504,6 +504,42 @@ fn compile_weak(
         restrictions,
         compiled,
     )?;
+    projection.check_field_trace_regularity(
+        &mut |id| {
+            use eqiora_schema::kernel::{SpatialRegularity, typing::ExpressionType};
+            match index.nodes.get(&id).copied() {
+                Some(KernelNode::Field(field)) => {
+                    let support = index
+                        .defined_on
+                        .get(&id)
+                        .and_then(|id| id.downcast())
+                        .map(|domain| context.physical_support(domain));
+                    Ok((
+                        ExpressionType::new(field.value_type().clone(), support),
+                        field.spatial_regularity(),
+                    ))
+                }
+                Some(KernelNode::Parameter(parameter)) => Ok((
+                    ExpressionType::new(parameter.value_type().clone(), None),
+                    SpatialRegularity::Unspecified,
+                )),
+                _ => Err(wire::rejection(
+                    "Field trace identity is outside the live Model",
+                )),
+            }
+        },
+        &mut |domain| {
+            if !matches!(
+                index.nodes.get(&domain.erase()),
+                Some(KernelNode::Domain(_))
+            ) {
+                return Err(wire::rejection(
+                    "Field trace support is outside the live Model",
+                ));
+            }
+            Ok(context.physical_support(domain))
+        },
+    )?;
     projection.check_complex_dependence(&mut |id| match index.nodes.get(&id).copied() {
         Some(KernelNode::Field(field)) => Ok(field.value_type().clone()),
         Some(KernelNode::Parameter(parameter)) => Ok(parameter.value_type().clone()),

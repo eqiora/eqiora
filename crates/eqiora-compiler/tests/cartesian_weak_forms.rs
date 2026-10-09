@@ -7,7 +7,7 @@ fn source(dimensions: usize) -> String {
         r#"model M() {{
         domain body=box({bounds});
         domain face=boundary(body,axis=0,side=lower);
-        variable u:vector<1,{dimensions}> on body;
+        variable u:vector<1,{dimensions}> on body in h1;
         relation law on body {{ -div(grad(u))+u*1[1/m^2]=u*0[1/m^2]; }}
         form weak for law {{
             test v:1 for u zero_on face;
