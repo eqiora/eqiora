@@ -35,6 +35,22 @@ impl Space {
         }
     }
 
+    /// Lowest-order tetrahedral edge element with oriented line-integral coefficients.
+    #[must_use]
+    pub const fn tetrahedral_edge() -> Self {
+        Self {
+            family: SpaceFamily::TetrahedralEdge,
+        }
+    }
+
+    /// Lowest-order tetrahedral face element with oriented flux-integral coefficients.
+    #[must_use]
+    pub const fn tetrahedral_face() -> Self {
+        Self {
+            family: SpaceFamily::TetrahedralFace,
+        }
+    }
+
     /// Declared family.
     #[must_use]
     pub const fn family(self) -> SpaceFamily {
@@ -54,6 +70,14 @@ pub enum SpaceFamily {
     SimplexP1Bubble,
     /// Cell-local piecewise constant basis.
     CellConstant,
+    /// Lowest-order Nedelec first-kind tetrahedron. Each coefficient is the
+    /// integral of the tangential Field along an oriented edge, not an average.
+    /// Values use the covariant Piola map; coefficients carry Field units times length.
+    TetrahedralEdge,
+    /// Lowest-order Raviart–Thomas tetrahedron. Each coefficient is oriented
+    /// normal flux through a face, not a point value or normalized average.
+    /// Values use the contravariant Piola map; coefficients carry Field units times area.
+    TetrahedralFace,
 }
 
 /// Spatial numerical method family.

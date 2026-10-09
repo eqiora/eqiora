@@ -180,6 +180,8 @@ pub(crate) fn space_identity(space: Space) -> &'static [u8] {
     match space.family() {
         SpaceFamily::SimplexP1Bubble => b"simplex-p1-bubble",
         SpaceFamily::CellConstant => b"cell-constant",
+        SpaceFamily::TetrahedralEdge => b"tetrahedral-edge",
+        SpaceFamily::TetrahedralFace => b"tetrahedral-face",
         SpaceFamily::ContinuousLagrange { order } if order.get() == 1 => b"continuous-lagrange-p1",
         SpaceFamily::ContinuousLagrange { .. } => {
             unreachable!("closed common transient resolver only admits continuous P1")

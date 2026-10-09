@@ -35,10 +35,11 @@ impl PositivePhysicalScale {
     }
 }
 
-/// Exact Semantic Field to scalar discrete-space binding.
+/// Exact Semantic Field to discrete-space binding.
 ///
-/// A shaped Field uses the same scalar basis for each semantic component; the
-/// Field shape remains mathematical meaning and is not repeated here.
+/// Scalar families replicate their basis over semantic components; edge/face
+/// families describe vector integral moments. The Field shape remains semantic
+/// meaning. A binding alone does not admit that family for Plan execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct FieldSpaceBinding {
     field: Id<kinds::Field>,
@@ -58,7 +59,7 @@ impl FieldSpaceBinding {
         self.field
     }
 
-    /// Scalar basis applied to every component of the Field.
+    /// Space family defining the coefficient interpretation.
     #[must_use]
     pub const fn space(self) -> Space {
         self.space

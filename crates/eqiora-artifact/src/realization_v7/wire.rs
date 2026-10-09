@@ -227,6 +227,8 @@ pub(crate) enum WireSpace {
     ContinuousLagrange { order: u16 },
     SimplexP1Bubble,
     CellConstant,
+    TetrahedralEdge,
+    TetrahedralFace,
 }
 
 impl WireSpace {
@@ -237,6 +239,8 @@ impl WireSpace {
             }
             SpaceFamily::SimplexP1Bubble => Self::SimplexP1Bubble,
             SpaceFamily::CellConstant => Self::CellConstant,
+            SpaceFamily::TetrahedralEdge => Self::TetrahedralEdge,
+            SpaceFamily::TetrahedralFace => Self::TetrahedralFace,
         }
     }
 
@@ -247,6 +251,8 @@ impl WireSpace {
                 .ok_or_else(|| invalid_artifact("Lagrange order must be non-zero")),
             Self::SimplexP1Bubble => Ok(Space::simplex_p1_bubble()),
             Self::CellConstant => Ok(Space::cell_constant()),
+            Self::TetrahedralEdge => Ok(Space::tetrahedral_edge()),
+            Self::TetrahedralFace => Ok(Space::tetrahedral_face()),
         }
     }
 }

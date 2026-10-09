@@ -779,9 +779,11 @@ fn validate_trace_selection(
         trace_signatures[index] = match binding.space().family() {
             SpaceFamily::ContinuousLagrange { order } => order.get(),
             SpaceFamily::SimplexP1Bubble => 1,
-            SpaceFamily::CellConstant => {
+            SpaceFamily::CellConstant
+            | SpaceFamily::TetrahedralEdge
+            | SpaceFamily::TetrahedralFace => {
                 return Err(invalid_realization(
-                    "a cell-constant space has no admitted conforming trace signature",
+                    "this space has no admitted full-value conforming trace signature",
                 ));
             }
         };

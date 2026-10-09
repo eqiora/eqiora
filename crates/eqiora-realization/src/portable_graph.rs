@@ -157,7 +157,7 @@ impl FieldRepresentationNode {
         self.field
     }
 
-    /// Scalar basis applied to every semantic component.
+    /// Space family defining the coefficient interpretation.
     #[must_use]
     pub const fn space(self) -> Space {
         self.space

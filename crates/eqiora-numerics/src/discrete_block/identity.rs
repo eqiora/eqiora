@@ -120,6 +120,8 @@ fn hash_space(hash: &mut Sha256, space: Space) {
         }
         SpaceFamily::SimplexP1Bubble => hash.update([1]),
         SpaceFamily::CellConstant => hash.update([2]),
+        SpaceFamily::TetrahedralEdge => hash.update([3]),
+        SpaceFamily::TetrahedralFace => hash.update([4]),
     }
 }
 
