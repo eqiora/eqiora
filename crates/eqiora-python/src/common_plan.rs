@@ -11,7 +11,7 @@ use eqiora_numerics::{
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyBytes, PyModule, PyTuple};
+use pyo3::types::{PyAny, PyBytes, PyDict, PyModule, PyTuple};
 
 use crate::error::{compatibility_error, validation_error};
 use crate::meshing::PyMesh;
@@ -28,6 +28,7 @@ const PLAN_FILE_SPEC: ArtifactFileSpec = ArtifactFileSpec {
 
 mod algebraic;
 mod capability_view;
+mod compatible;
 mod eigen;
 mod enforcement;
 pub(crate) mod harmonic;
@@ -555,6 +556,36 @@ impl PyPlan {
         };
         Ok(PyTuple::new(py, fields)?.unbind())
     }
+    /// Exact Mesh (dimension, index) entities in one linear Field's coefficient order.
+    #[pyo3(signature = (field, /))]
+    fn field_coefficient_entities(
+        &self,
+        py: Python<'_>,
+        field: PyRef<'_, PyModelFieldRef>,
+    ) -> PyResult<Py<PyTuple>> {
+        compatible::entities(py, self, &field)
+    }
+
+    /// Independent vertex-gradient columns with oriented edge entries; not a whole-operator nullspace claim.
+    #[pyo3(signature = (field, /))]
+    fn field_gradient_modes(
+        &self,
+        py: Python<'_>,
+        field: PyRef<'_, PyModelFieldRef>,
+    ) -> PyResult<Py<PyDict>> {
+        compatible::gradient_modes(py, self, &field)
+    }
+
+    /// Exact face-integrated curl or cell-integrated divergence rows on this Field's support.
+    #[pyo3(signature = (field, /))]
+    fn field_exterior_derivative(
+        &self,
+        py: Python<'_>,
+        field: PyRef<'_, PyModelFieldRef>,
+    ) -> PyResult<Py<PyDict>> {
+        compatible::exterior_derivative(py, self, &field)
+    }
+
     #[getter]
     fn spatial(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
         self.spatial

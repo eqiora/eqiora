@@ -182,6 +182,7 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
                 .collect::<Vec<_>>()
         );
 
+        inspect_compatible(public.as_linear().unwrap(), field, face);
         assert_eq!(result.field_space(0), Some(space));
         assert_eq!(result.field(0).unwrap().2, &[3]);
         assert_eq!(
@@ -237,6 +238,8 @@ fn execute<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>(
             Space::tetrahedral_face()
         });
         assert!(drifted_plan.run(&REFERENCE_LINEAR_SOLVER).is_err());
+        assert!(drifted_plan.field_exterior_derivative(field).is_err());
+        assert!(drifted_plan.field_gradient_modes(field).is_err());
 
         let other_space = if face {
             Space::tetrahedral_edge()
@@ -362,4 +365,89 @@ fn authenticated_polyhedral_equations_execute_real_and_complex_moments() {
         execute::<f64>(false, face, &REFERENCE_LINEAR_SOLVER);
         execute::<C>(true, face, &REFERENCE_LINEAR_SOLVER);
     }
+}
+
+fn inspect_compatible(
+    plan: &CommonLinearPlan,
+    field: eqiora_core::Id<eqiora_core::entity::kinds::Field>,
+    face: bool,
+) {
+    let entity = MeshEntity::new;
+    let derivative = plan.field_exterior_derivative(field).unwrap();
+    // From the oriented boundary of [0,1,2,3], independently of basis values.
+    if face {
+        assert!(plan.field_gradient_modes(field).is_err());
+        assert_eq!(
+            derivative,
+            BTreeMap::from([(
+                entity(3, 0),
+                vec![
+                    (entity(2, 0), -1),
+                    (entity(2, 1), 1),
+                    (entity(2, 2), -1),
+                    (entity(2, 3), 1),
+                ]
+            )])
+        );
+        // Flux of (x,y,z) through faces 012,013,023 is zero; through 123
+        // it is 12. The cell-integrated divergence is 3 * volume(=4), not 3.
+        let radial_flux = [0, 0, 0, 12];
+        assert_eq!(
+            derivative[&entity(3, 0)]
+                .iter()
+                .map(|(face, sign)| i32::from(*sign) * radial_flux[face.index()])
+                .sum::<i32>(),
+            12
+        );
+    } else {
+        let expected = [
+            [1, -1, 0, 1, 0, 0],
+            [1, 0, -1, 0, 1, 0],
+            [0, 1, -1, 0, 0, 1],
+            [0, 0, 0, 1, -1, 1],
+        ];
+        for (face, row) in &derivative {
+            let mut actual = [0; 6];
+            for (edge, sign) in row {
+                actual[edge.index()] = *sign;
+            }
+            assert_eq!(actual, expected[face.index()]);
+        }
+        assert_eq!(derivative.len(), 4);
+        let modes = plan.field_gradient_modes(field).unwrap();
+        assert_eq!(
+            modes.keys().copied().collect::<Vec<_>>(),
+            vec![entity(0, 1), entity(0, 2), entity(0, 3)]
+        );
+        let gradients = [
+            [1, 0, 0, -1, -1, 0],
+            [0, 1, 0, 1, 0, -1],
+            [0, 0, 1, 0, 1, 1],
+        ];
+        for (vertex, column) in &modes {
+            let mut actual = [0; 6];
+            for (edge, sign) in column {
+                actual[edge.index()] = *sign;
+            }
+            assert_eq!(actual, gradients[vertex.index() - 1]);
+            for row in derivative.values() {
+                assert_eq!(
+                    row.iter()
+                        .map(|(edge, sign)| i32::from(*sign) * i32::from(actual[edge.index()]))
+                        .sum::<i32>(),
+                    0
+                );
+            }
+        }
+        // D*C is an exact integer identity, distinct from solve tolerances.
+        for edge in 0..6 {
+            assert_eq!(
+                (-expected[0][edge] + expected[1][edge] - expected[2][edge] + expected[3][edge]),
+                0
+            );
+        }
+    }
+    let foreign = eqiora_core::Id::from_ulid(ulid::Ulid::from(u128::from(field.ulid()) ^ 1));
+    assert!(plan.field_exterior_derivative(foreign).is_err());
+    assert!(plan.field_gradient_modes(foreign).is_err());
 }

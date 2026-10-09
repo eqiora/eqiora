@@ -139,6 +139,41 @@ plan = eqiora.Plan.from_bytes(plan_wire)
 assert plan.to_bytes() == plan_wire and plan.spatial == policy
 result = eqiora.run(plan)
 field = plan.capability.fields[0]
+entities = plan.field_coefficient_entities(field)
+assert entities == tuple((2 if face else 1,i) for i in range(4 if face else 6))
+derivative = plan.field_exterior_derivative(field)
+if face:
+    assert derivative == {(3,0): (((2,0),-1),((2,1),1),((2,2),-1),((2,3),1))}
+    try:
+        plan.field_gradient_modes(field)
+    except eqiora.ValidationError:
+        pass
+    else:
+        raise AssertionError("face flux coefficients were interpreted as edge gradients")
+else:
+    modes = plan.field_gradient_modes(field)
+    assert modes == {
+        (0,1): (((1,0),1),((1,3),-1),((1,4),-1)),
+        (0,2): (((1,1),1),((1,3),1),((1,5),-1)),
+        (0,3): (((1,2),1),((1,4),1),((1,5),1)),
+    }
+    assert len(derivative) == 4
+    for column in modes.values():
+        coefficients = dict(column)
+        for row in derivative.values():
+            assert sum(sign*coefficients.get(entity,0) for entity,sign in row) == 0
+if "previous_field" in globals() and previous_field.model_digest != field.model_digest:
+    for inspect in (plan.field_coefficient_entities, plan.field_exterior_derivative, plan.field_gradient_modes):
+        try:
+            inspect(previous_field)
+        except TypeError:
+            pass
+        else:
+            raise AssertionError("coefficient inspection crossed Model identity")
+previous_field = field
+# Mutating a returned dictionary cannot alter the retained Plan topology.
+derivative.clear()
+assert plan.field_exterior_derivative(field)
 # Canonically ascending vertex orientations. Integrate (2,3,4) along
 # each edge or dot it with half the oriented face cross product.
 expected = [12.,-12.,12.,36.] if face else [4.,9.,16.,5.,12.,7.]

@@ -55,14 +55,43 @@ pub(super) fn moment_support<
     field: eqiora_core::RawId,
     space: Space,
 ) -> Result<(Vec<usize>, Vec<usize>), Diagnostic> {
+    let (entities, _) = moment_topology(equations, mesh, field, space)?;
+    Ok((
+        vec![entities.len()],
+        entities.into_iter().map(|entity| entity.index()).collect(),
+    ))
+}
+
+pub(super) fn moment_topology<
+    S: crate::spatial_expression::Coefficient + crate::finalized_spatial::ResidualScalar + Send,
+>(
+    equations: &ExecutableLinearEquations<S>,
+    mesh: &SimplicialMeshEnvelopeV1,
+    field: eqiora_core::RawId,
+    space: Space,
+) -> Result<
+    (
+        Vec<eqiora_meshing::MeshEntity>,
+        Vec<eqiora_meshing::MeshEntity>,
+    ),
+    Diagnostic,
+> {
     let (mapping, _) = equations.moment_assembly(mesh, space)?;
-    if mapping.field_layout(field).is_none() {
-        return Err(invalid("Field is absent from the exact moment layout"));
-    }
+    let (domain, _) = mapping
+        .field_layout(field)
+        .ok_or_else(|| invalid("Field is absent from the exact moment layout"))?;
     let entities = mapping
         .keys()
         .filter(|key| key.field == field)
-        .map(|key| key.entity.index())
-        .collect::<Vec<_>>();
-    Ok((vec![entities.len()], entities))
+        .map(|key| key.entity)
+        .collect();
+    let cells = mapping
+        .cell_domains()
+        .iter()
+        .enumerate()
+        .filter_map(|(index, cell_domain)| {
+            (*cell_domain == domain).then_some(eqiora_meshing::MeshEntity::new(3, index))
+        })
+        .collect();
+    Ok((entities, cells))
 }

@@ -1,5 +1,6 @@
 use super::*;
 
+mod compatible;
 mod complex;
 mod harmonic;
 pub(super) mod interval;
