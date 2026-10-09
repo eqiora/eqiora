@@ -61,59 +61,71 @@ impl PyAstDefinition {
             }
         }
         let range = TextRange::new(ordinal, ordinal.saturating_add(1));
+        let form = form
+            .map(|(name, relations, tests, equations, ordinal)| {
+                if relations.len() > 8 || tests.len() > 8 || equations.len() > 8 {
+                    return Err(syntax_error("weak form exceeds the 8-item inventory limit"));
+                }
+                let tests = tests
+                    .into_iter()
+                    .map(|(name, trial, zero_on, kind)| {
+                        if !kind.value.shape().is_scalar()
+                            || kind.value.scalar_domain() != eqiora::ScalarDomain::Real
+                        {
+                            return Err(syntax_error("test dimension requires a real scalar type"));
+                        }
+                        Ok((name, trial, zero_on, super::boundaries::dimension(&kind)?))
+                    })
+                    .collect::<PyResult<_>>()?;
+                let equations = equations
+                    .into_iter()
+                    .map(|(left, right)| (left.value.clone(), right.value.clone()))
+                    .collect();
+                Ok((
+                    (
+                        name,
+                        relations,
+                        eqiora::language::FormulationBinding::WeakTests { tests },
+                    ),
+                    (
+                        equations,
+                        TextRange::new(ordinal, ordinal.saturating_add(1)),
+                    ),
+                ))
+            })
+            .transpose()?;
         let value = if model {
-            if form.is_some() {
-                return Err(syntax_error("a weak form belongs to a Component"));
-            }
             let items = items.into_iter().map(model_item).collect::<PyResult<_>>()?;
             Definition::Model(
-                Ast::model(VisibilitySyntax::Public, name, signature, items, range)
-                    .map_err(syntax_error)?,
-            )
-        } else if let Some((form_name, relations, tests, equations, form_ordinal)) = form {
-            if relations.len() > 8 || tests.len() > 8 || equations.len() > 8 {
-                return Err(syntax_error("weak form exceeds the 8-item inventory limit"));
-            }
-            Definition::Component(
-                Ast::component_with_form(
-                    VisibilitySyntax::Public,
-                    name,
-                    signature,
-                    items,
-                    (
-                        form_name,
-                        relations,
-                        eqiora::language::FormulationBinding::WeakTests {
-                            tests: tests
-                                .into_iter()
-                                .map(|(name, trial, zero_on, kind)| {
-                                    if !kind.value.shape().is_scalar()
-                                        || kind.value.scalar_domain() != eqiora::ScalarDomain::Real
-                                    {
-                                        return Err(syntax_error(
-                                            "test dimension requires a real scalar type",
-                                        ));
-                                    }
-                                    Ok((name, trial, zero_on, super::boundaries::dimension(&kind)?))
-                                })
-                                .collect::<PyResult<_>>()?,
-                        },
+                match form {
+                    Some((form, equalities)) => Ast::model_with_form(
+                        VisibilitySyntax::Public,
+                        name,
+                        signature,
+                        items,
+                        form,
+                        equalities,
+                        range,
                     ),
-                    (
-                        equations
-                            .into_iter()
-                            .map(|(left, right)| (left.value.clone(), right.value.clone()))
-                            .collect(),
-                        TextRange::new(form_ordinal, form_ordinal.saturating_add(1)),
-                    ),
-                    range,
-                )
+                    None => Ast::model(VisibilitySyntax::Public, name, signature, items, range),
+                }
                 .map_err(syntax_error)?,
             )
         } else {
             Definition::Component(
-                Ast::component(VisibilitySyntax::Public, name, signature, items, range)
-                    .map_err(syntax_error)?,
+                match form {
+                    Some((form, equalities)) => Ast::component_with_form(
+                        VisibilitySyntax::Public,
+                        name,
+                        signature,
+                        items,
+                        form,
+                        equalities,
+                        range,
+                    ),
+                    None => Ast::component(VisibilitySyntax::Public, name, signature, items, range),
+                }
+                .map_err(syntax_error)?,
             )
         };
         Ok(Self { value })

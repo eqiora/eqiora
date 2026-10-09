@@ -417,10 +417,11 @@ fn compile(
                 + prepared.parameters().len(),
             limits.max_declarations,
         )?;
-        return RootExpansion::new(elaborator, definition, size)
+        let compiled = RootExpansion::new(elaborator, definition.clone(), size)
             .map_err(|error| vec![error])?
             .expand_bound(prepared.supports(), &prepared.clocks, prepared.properties())?
-            .compile(limits);
+            .compile(limits)?;
+        return formulation::attach_model(elaborator, &definition, bindings, &prepared, compiled);
     }
     let path = NamePath::from_segments(entry.split('.'), TextRange::default())
         .map_err(|error| vec![hierarchy_error(error.message())])?;
@@ -881,14 +882,8 @@ fn bind_model(
             .map_err(|error| vec![hierarchy_error(error.message())])
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-    SourceAstFactory::model(
-        model.visibility(),
-        model.name(),
-        signature,
-        model.items().to_vec(),
-        model.range(),
-    )
-    .map_err(|error| vec![hierarchy_error(error.message())])
+    SourceAstFactory::with_model_signature(model.clone(), signature)
+        .map_err(|error| vec![hierarchy_error(error.message())])
 }
 
 fn record_product_path(

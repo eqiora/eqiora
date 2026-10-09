@@ -49,14 +49,26 @@ impl SourceAstFactory {
         for connector in &mut document.connectors {
             rewrite_connector(&mut connector.syntax, &mut rewrite);
         }
-        for component in &mut document.components {
-            for formulation in &mut component.formulations {
+        for forms in document
+            .components
+            .iter_mut()
+            .map(|owner| &mut owner.formulations)
+            .chain(
+                document
+                    .models
+                    .iter_mut()
+                    .map(|owner| &mut owner.formulations),
+            )
+        {
+            for formulation in forms {
                 if let crate::FormulationBinding::WeakTests { tests } = &mut formulation.binding {
                     for (_, _, _, dimension) in tests {
                         *dimension = rewrite(dimension);
                     }
                 }
             }
+        }
+        for component in &mut document.components {
             for item in &mut component.signature {
                 rewrite_signature(item, &mut rewrite);
             }

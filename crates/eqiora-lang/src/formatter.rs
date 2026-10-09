@@ -173,6 +173,9 @@ pub fn format(document: &Document) -> String {
         for item in &model.items {
             format_item(item, 2, &mut output);
         }
+        for form in &model.formulations {
+            formulation::format_formulation(form, 2, &mut output);
+        }
         output.push_str("}\n");
         output.end();
     }

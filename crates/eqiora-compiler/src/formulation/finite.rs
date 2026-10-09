@@ -12,7 +12,7 @@ pub(super) const ASSUMPTIONS: &[&str] = &[
 #[allow(clippy::too_many_arguments)]
 pub(super) fn compile(
     file: &str,
-    component: &ComponentDecl,
+    component: &impl FormulationSource,
     form: (&str, &[String], &[(Expr, Expr)], TextRange),
     binding: &FormulationBinding,
     source_identity: AuthoredFormSourceIdentity,
