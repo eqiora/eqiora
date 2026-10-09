@@ -715,7 +715,7 @@ fn validate_limits(limits: SemanticFingerprintLimits) -> Result<(), Diagnostic> 
 
 fn newer_vocabulary(subject: &str) -> Diagnostic {
     fingerprint_error(format!(
-        "{subject} is newer than structural semantic fingerprint generation v36"
+        "{subject} is newer than structural semantic fingerprint generation v37"
     ))
 }
 

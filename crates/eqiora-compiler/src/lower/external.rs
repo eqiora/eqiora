@@ -178,6 +178,17 @@ impl LoweringExpression {
                 callee: callee.clone(),
                 argument: argument.clone_shared(cache),
             },
+            LoweringExpressionNode::Boundary {
+                operation,
+                argument,
+                on,
+                from,
+            } => LoweringExpressionNode::Boundary {
+                operation: *operation,
+                argument: argument.clone_shared(cache),
+                on: on.clone(),
+                from: from.clone(),
+            },
             LoweringExpressionNode::Sample { value, clock } => LoweringExpressionNode::Sample {
                 value: value.clone_shared(cache),
                 clock: clock.clone(),

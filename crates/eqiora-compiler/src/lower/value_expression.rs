@@ -91,6 +91,12 @@ pub(super) enum LoweringExpressionNode {
         callee: String,
         argument: LoweringExpression,
     },
+    Boundary {
+        operation: crate::math::boundary::Operation,
+        argument: LoweringExpression,
+        on: Option<String>,
+        from: Option<String>,
+    },
     Sample {
         value: LoweringExpression,
         clock: String,
@@ -387,6 +393,25 @@ impl LoweringExpression {
     pub(crate) fn call(callee: String, argument: Self, range: TextRange) -> Self {
         Self {
             node: Arc::new(LoweringExpressionNode::Call { callee, argument }),
+            range,
+            structural_parameters: None,
+        }
+    }
+
+    pub(crate) fn boundary(
+        operation: crate::math::boundary::Operation,
+        argument: Self,
+        on: Option<String>,
+        from: Option<String>,
+        range: TextRange,
+    ) -> Self {
+        Self {
+            node: Arc::new(LoweringExpressionNode::Boundary {
+                operation,
+                argument,
+                on,
+                from,
+            }),
             range,
             structural_parameters: None,
         }

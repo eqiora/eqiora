@@ -1,3 +1,4 @@
+mod boundary;
 mod relation;
 pub(super) use relation::{validate_relation_expression, validate_relation_family_expression};
 mod aliases;
@@ -424,6 +425,9 @@ impl ExpressionChecker<'_, '_, '_> {
         arguments: &eqiora_lang::CallArguments,
     ) -> Result<ExpressionType<String>, Diagnostic> {
         let callee_name = callee.as_str();
+        if let Some(operation) = crate::math::boundary::Operation::named(callee_name) {
+            return self.check_boundary(expression, operation, arguments);
+        }
         if crate::math::tensor::named(callee_name) {
             let (operation, operands) = crate::math::tensor::source(callee_name, arguments)
                 .map_err(|message| {
@@ -643,15 +647,7 @@ impl ExpressionChecker<'_, '_, '_> {
                 format!("builtin operator `{callee_name}` requires exactly one argument"),
             ));
         };
-        if callee_name == "trace" && self.is_boundary_port_selection(argument) {
-            return Err(source_error(
-                codes::LANGUAGE_TYPE_ERROR,
-                self.scope.file,
-                expression.range(),
-                "physical Port quantities require their declared `port.member` name",
-            ));
-        }
-        if self.intrinsic && matches!(callee_name, "coordinate" | "trace" | "normal") {
+        if self.intrinsic && callee_name == "coordinate" {
             return Err(source_error(
                 codes::LANGUAGE_TYPE_ERROR,
                 self.scope.file,
@@ -706,7 +702,7 @@ impl ExpressionChecker<'_, '_, '_> {
         }
         if matches!(
             callee_name,
-            "grad" | "div" | "symmetric_part" | "isotropic_lift" | "trace" | "normal"
+            "grad" | "div" | "symmetric_part" | "isotropic_lift"
         ) {
             let operand = self.check(argument)?;
             let result = match callee_name {
@@ -714,8 +710,6 @@ impl ExpressionChecker<'_, '_, '_> {
                 "div" => typing::divergence(&operand),
                 "symmetric_part" => typing::symmetric_part(&operand),
                 "isotropic_lift" => typing::isotropic_lift(&operand),
-                "trace" => typing::trace(&operand, self.relation_support.as_ref()),
-                "normal" => typing::normal(&operand, self.relation_support.as_ref()),
                 _ => unreachable!("spatial operator was matched"),
             };
             return result.map_err(|error| type_error(self.scope.file, expression, error));

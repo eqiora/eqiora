@@ -195,6 +195,15 @@ Equal coordinates or equal box sizes cannot substitute another parent or face.
 Python authors the same expressions with `eqiora.lang.curl` and
 `eqiora.lang.tangential_trace`.
 
+Source Model expressions may select a boundary explicitly with
+`trace(u, on=wall, from=body)`, `normal(u, on=wall, from=body)`, or
+`tangential_trace(u, on=wall, from=body)`. `on` names an exact boundary Domain;
+optional `from` must name its exact parent volume. Omitting `on` uses the owning
+Relation's boundary scope. An explicit `on` also permits a trace in a `let`
+outside a Relation, but consuming it in an equation still requires the same
+boundary support. The retained trace/normal node carries the target identity.
+These selectors do not introduce physical interfaces, continuity or flux balance.
+
 Authored weak forms retain `curl`, `cross`, and `tangential_trace` as typed
 operators. A Cartesian Model Domain supplies its own ambient dimension; one
 physical vector trial is admitted without a separate Geometry binding.

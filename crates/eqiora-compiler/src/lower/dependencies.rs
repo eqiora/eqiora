@@ -72,6 +72,14 @@ impl LoweringExpression {
                 LoweringExpressionNode::Name(name) if include_symbols => {
                     names.insert(name.clone());
                 }
+                LoweringExpressionNode::Boundary {
+                    argument, on, from, ..
+                } => {
+                    pending.push(argument);
+                    if include_symbols {
+                        names.extend(on.iter().chain(from.iter()).cloned());
+                    }
+                }
                 LoweringExpressionNode::Not(value)
                 | LoweringExpressionNode::Neg(value)
                 | LoweringExpressionNode::Index { value, .. }
