@@ -1555,6 +1555,7 @@ Values use coherent SI units. Time integration multiplies the declared
 Observable dimension by seconds; it does not integrate output samples.
 
 ```python
+@final
 class TrajectoryObservation:
     @property
     def interval_s(self) -> tuple[float, float]: ...

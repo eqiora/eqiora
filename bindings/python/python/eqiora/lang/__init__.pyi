@@ -488,7 +488,7 @@ class Component:
     ) -> Relation:
         ...
 
-    def test(self, name: str, *, for_: Expression, dimension: Dimension | None = None, zero_on: Support | BoundarySelectionSet | None = None) -> Expression: ...
+    def test(self, name: str, *, for_: Expression, dimension: Dimension | None = None, regularity: str | None = None, zero_on: Support | BoundarySelectionSet | None = None) -> Expression: ...
     def weak_form(
         self,
         name: str,
@@ -1175,6 +1175,10 @@ __all__ = [
     "ordinal",
     "partial",
     "evaluate",
+    "pullback",
+    "jacobian_determinant",
+    "volume_jacobian",
+    "map_orientation",
     "jvp",
     "vjp",
     "derivative",

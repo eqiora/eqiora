@@ -1561,6 +1561,7 @@ Values use coherent SI units. Time integration multiplies the declared
 Observable dimension by seconds; it does not integrate output samples.
 
 ```python
+@final
 class TrajectoryObservation:
     @property
     def interval_s(self) -> tuple[float, float]: ...
@@ -3330,7 +3331,7 @@ class Component:
     def observable(self, name: str, expression: Expression | int | float | complex, *, value_type: ValueType, on: Support | None=None, integrate_over: Support | None=None, doc: str | None=None) -> Observable: ...
     def relation(self, name: str, condition: Equation | Inequality | Complementarity, *additional_conditions: Equation | Inequality | Complementarity, on: Support | None=None, at: Clock | Event | None=None, doc: str | None=None) -> Relation: ...
     def law(self, name: str, *, on: Support, flux: Expression, source: Expression, storage: Expression | None=None, doc: str | None=None) -> Relation: ...
-    def test(self, name: str, *, for_: Expression, dimension: Dimension | None=None, zero_on: Support | BoundarySelectionSet | None=None) -> Expression: ...
+    def test(self, name: str, *, for_: Expression, dimension: Dimension | None=None, regularity: str | None=None, zero_on: Support | BoundarySelectionSet | None=None) -> Expression: ...
     def weak_form(self, name: str, relations: Sequence[Relation], *, equations: Sequence[tuple[object, object]], doc: str | None=None) -> None: ...
     def harmonic_form(self, name: str, relations: Sequence[Relation], *, angular_frequency: object, convention: str, normalization: str, excitations: Sequence[tuple[Expression, object]], amplitudes: Sequence[tuple[str, Expression, ValueType]], doc: str | None=None) -> None: ...
     def port(self, name: str, *, connector: Connector, on: Support | None=None, doc: str | None=None) -> Port | FieldPort: ...
@@ -3899,6 +3900,46 @@ Bind every coordinate of an exact support using its admitted point reconstructio
 
 ```python
 def evaluate(value: object, *, at: Sequence[tuple[Expression, object]], side: Literal['lower', 'upper'] | None=None) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-pullback"></a>
+
+### `eqiora.lang.pullback`
+
+Author an explicit coordinate map operation.
+
+```python
+def pullback(value: object, *, from_: Sequence[Expression], at: Sequence[tuple[Expression, object]]) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-jacobian_determinant"></a>
+
+### `eqiora.lang.jacobian_determinant`
+
+Author an explicit coordinate map operation.
+
+```python
+def jacobian_determinant(*, from_: Sequence[Expression], at: Sequence[tuple[Expression, object]]) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-volume_jacobian"></a>
+
+### `eqiora.lang.volume_jacobian`
+
+Author an explicit coordinate map operation.
+
+```python
+def volume_jacobian(*, from_: Sequence[Expression], at: Sequence[tuple[Expression, object]]) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-map_orientation"></a>
+
+### `eqiora.lang.map_orientation`
+
+Author an explicit coordinate map operation.
+
+```python
+def map_orientation(*, from_: Sequence[Expression], at: Sequence[tuple[Expression, object]]) -> Expression: ...
 ```
 
 <a id="api-eqiora-lang-jvp"></a>
@@ -4857,7 +4898,7 @@ Dense Hermitian selection with a declared provider and typed controls.
 ```python
 @final
 class HermitianEigen:
-    def __init__(self, *, count: int, provider: SolverProvider, residual_tolerance: float, normalization_tolerance: float, target: tuple[float, Dimension] | None=None, interval: tuple[tuple[float, Dimension], tuple[float, Dimension]] | None=None) -> None: ...
+    def __new__(cls, *, count: int, provider: SolverProvider, residual_tolerance: float, normalization_tolerance: float, target: tuple[float, Dimension] | None=None, interval: tuple[tuple[float, Dimension], tuple[float, Dimension]] | None=None) -> HermitianEigen: ...
     @property
     def count(self) -> int: ...
     @property
