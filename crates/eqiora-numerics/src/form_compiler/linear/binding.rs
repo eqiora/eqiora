@@ -59,3 +59,15 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
         self.volume.bind(reference, fields, rows, time.as_ref())
     }
 }
+
+impl<S: Coefficient> CompiledLinearBlockForm<S> {
+    /// Unit-valued SI normalization derived from the selected coefficient functional.
+    pub(crate) fn bind_space(
+        &self,
+        reference: eqiora_meshing::ReferenceCell,
+        space: eqiora_realization::Space,
+    ) -> Result<crate::form_compiler::region::BoundRegionForm<S>, Diagnostic> {
+        let (fields, rows) = self.volume.si_bindings(space)?;
+        self.bind_volume(reference, &fields, &rows)
+    }
+}

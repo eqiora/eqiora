@@ -279,11 +279,9 @@ impl<S: Coefficient> CompiledLinearBlockForm<S> {
         for (_, value_type) in &self.fields {
             require_scalar::<S>(value_type)?;
         }
-        let (fields, rows) = self.volume.scalar_bindings()?;
-        self.bind_volume(
+        self.bind_space(
             eqiora_meshing::ReferenceCell::hypercube(self.dimension)?,
-            &fields,
-            &rows,
+            eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
         )
     }
 }

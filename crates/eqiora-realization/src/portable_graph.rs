@@ -631,6 +631,7 @@ impl PortableRealizationGraph {
                 ));
             }
         }
+        validation::validate_moment_spaces(self)?;
         validate_geometry_actions(self)?;
         if self.systems.len() != 1
             || self.linear_solves.len() != 1

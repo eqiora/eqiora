@@ -71,7 +71,7 @@ fn bind<S: Coefficient>(
     // Residual units are 1, volume has units m³, and moment test functions
     // have units m⁻¹ or m⁻². These exponents are independently specified.
     let power = if face { 2 } else { 1 };
-    form.bind_volume(
+    let expected = form.bind_volume(
         ReferenceCell::simplex(3)?,
         &[RegionFieldBinding {
             field: form.fields()[0].0,
@@ -92,7 +92,65 @@ fn bind<S: Coefficient>(
                 DimExponents::from_integers([0, power - 3, 0, 0, 0, 0, 0]).unwrap(),
             ),
         )]),
-    )
+    )?;
+    let actual = form.bind_space(
+        ReferenceCell::simplex(3)?,
+        if face {
+            Space::tetrahedral_face()
+        } else {
+            Space::tetrahedral_edge()
+        },
+    )?;
+    assert_eq!(actual, expected);
+    Ok(actual)
+}
+
+#[test]
+fn si_binding_retains_physical_field_units_in_moment_functionals() {
+    for face in [false, true] {
+        let source = source(false, face, None, 6).replace("vector<1,3>", "vector<m,3>");
+        let form = derive::<f64>(&source).unwrap();
+        let (space, power) = if face {
+            (Space::tetrahedral_face(), 2)
+        } else {
+            (Space::tetrahedral_edge(), 1)
+        };
+        let reference = ReferenceCell::simplex(3).unwrap();
+        // A metre-valued vector has edge integrals in m² or face fluxes in m³.
+        // Residual m times volume m³ times reciprocal moment-basis units gives
+        // row multipliers m⁻³ (edge) or m⁻² (face), independently of tabulation.
+        let expected = form
+            .bind_volume(
+                reference,
+                &[RegionFieldBinding {
+                    field: form.fields()[0].0,
+                    space,
+                    scale: DynQuantity::new(
+                        1.,
+                        DimExponents::from_integers([0, power + 1, 0, 0, 0, 0, 0]).unwrap(),
+                    ),
+                }],
+                &BTreeMap::from([(
+                    form.relations[0],
+                    DynQuantity::new(
+                        1.,
+                        DimExponents::from_integers([0, power - 4, 0, 0, 0, 0, 0]).unwrap(),
+                    ),
+                )]),
+            )
+            .unwrap();
+        assert_eq!(form.bind_space(reference, space).unwrap(), expected);
+        let incompatible = if face {
+            Space::tetrahedral_edge()
+        } else {
+            Space::tetrahedral_face()
+        };
+        assert!(form.bind_space(reference, incompatible).is_err());
+        assert!(
+            form.bind_space(ReferenceCell::hypercube(3).unwrap(), space)
+                .is_err()
+        );
+    }
 }
 
 #[test]

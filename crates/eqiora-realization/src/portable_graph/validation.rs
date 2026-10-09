@@ -340,3 +340,38 @@ pub(super) fn validate_system(
 pub(super) fn strictly_sorted_unique_by<T, K: Ord>(values: &[T], key: impl Fn(&T) -> K) -> bool {
     values.windows(2).all(|pair| key(&pair[0]) < key(&pair[1]))
 }
+
+/// Moment coefficient meaning is checked on construction and canonical decode.
+pub(super) fn validate_moment_spaces(graph: &PortableRealizationGraph) -> Result<(), Diagnostic> {
+    let mut moments = false;
+    for field in &graph.fields {
+        if matches!(
+            field.space.family(),
+            crate::SpaceFamily::TetrahedralEdge | crate::SpaceFamily::TetrahedralFace
+        ) {
+            moments = true;
+            graph
+                .domain(field.domain)
+                .expect("validated Domain reference")
+                .discretization
+                .validate_space(field.space)?;
+        }
+    }
+    if moments
+        && (!graph.transformations.is_empty()
+            || !graph.geometry_actions.is_empty()
+            || !graph.nonlinear_solves.is_empty()
+            || graph.systems.iter().any(|system| {
+                system.scaling != SystemScaling::Dimensional
+                    || system
+                        .blocks
+                        .iter()
+                        .any(|block| !matches!(block, SystemBlock::Field(_)))
+            }))
+    {
+        return Err(invalid_realization(
+            "tetrahedral moments require a static dimensional linear graph without unadmitted transformations or constraints",
+        ));
+    }
+    Ok(())
+}
