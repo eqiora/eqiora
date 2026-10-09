@@ -187,6 +187,8 @@ fn materialize_common_result_unprofiled(
             "continuous-lagrange-p1" => "continuous-lagrange-p1",
             "cell-constant" => "cell-constant",
             "simplex-p1-bubble" => "simplex-p1-bubble",
+            "tetrahedral-edge" => "tetrahedral-edge",
+            "tetrahedral-face" => "tetrahedral-face",
             _ => {
                 return Err(PyRuntimeError::new_err(
                     "common Result Field declared an unknown exact space",
@@ -197,18 +199,24 @@ fn materialize_common_result_unprofiled(
             py,
             PyModelFieldRef::from_exact(identity.model_digest().to_owned(), field_id.clone()),
         )?;
-        let value_width =
-            value_shape.iter().product::<usize>().max(1) * if complex { 2 } else { 1 };
+        let coefficient_dimension = result
+            .field_coefficient_dimension(field_index)
+            .ok_or_else(|| PyRuntimeError::new_err("common Result omitted coefficient units"))?;
+        let typed_space = result
+            .field_space(field_index)
+            .ok_or_else(|| PyRuntimeError::new_err("common Result omitted typed Space"))?;
         let blocks = (0..result.field_block_count(field_index))
             .map(|block_index| {
                 let (association, values, logical_shape) = result
                     .field_block(field_index, block_index)
                     .ok_or_else(|| PyRuntimeError::new_err("common Result omitted Field block"))?;
-                if !values.len().is_multiple_of(value_width) {
-                    return Err(PyRuntimeError::new_err(
-                        "common Result Field block contradicts its value shape",
-                    ));
-                }
+                let coefficient_count = field_output::coefficient_count(
+                    typed_space,
+                    &value_shape,
+                    complex,
+                    values.len(),
+                    logical_shape,
+                )?;
                 Ok(FieldOutputBlock::new(
                     association,
                     if complex {
@@ -224,7 +232,7 @@ fn materialize_common_result_unprofiled(
                     } else {
                         PyArrayBuffer::from_owned_result(py, values.to_vec())?
                     },
-                    values.len() / value_width,
+                    coefficient_count,
                     logical_shape.to_vec(),
                 ))
             })
@@ -237,6 +245,7 @@ fn materialize_common_result_unprofiled(
                     .expect("spatial field owns mesh")
                     .clone_ref(py),
                 dimension,
+                coefficient_dimension,
                 value_shape,
                 space,
                 blocks,

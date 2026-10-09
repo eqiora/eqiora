@@ -48,6 +48,7 @@ array = output.values("vertex")
 assert output.coefficient_count("vertex") == 5
 assert output.logical_shape("vertex") == (5,)
 assert output.value_shape == ()
+assert output.coefficient_dimension == output.dimension == (0, 0, 0, 0, 0, 0, 0)
 assert array.shape == (5,) and array.strides == (16,)
 assert array.dtype == "complex128" and array.device == "cpu"
 assert array.byte_order == sys.byteorder
