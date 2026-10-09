@@ -13,6 +13,7 @@ type TestInput<'py> = (
     String,
     Vec<String>,
     PyRef<'py, crate::modeling::PyValueType>,
+    Option<String>,
 );
 type AmplitudeInput<'py> = (String, String, PyRef<'py, PyAstType>, Option<String>);
 
@@ -38,13 +39,19 @@ impl PyAstFormulation {
         }
         let tests = tests
             .into_iter()
-            .map(|(name, trial, zero_on, kind)| {
+            .map(|(name, trial, zero_on, kind, regularity)| {
                 if !kind.value.shape().is_scalar()
                     || kind.value.scalar_domain() != eqiora::ScalarDomain::Real
                 {
                     return Err(syntax_error("test dimension requires a real scalar type"));
                 }
-                Ok((name, trial, zero_on, super::boundaries::dimension(&kind)?))
+                Ok((
+                    name,
+                    trial,
+                    zero_on,
+                    super::boundaries::dimension(&kind)?,
+                    regularity,
+                ))
             })
             .collect::<PyResult<_>>()?;
         Ok(Self {

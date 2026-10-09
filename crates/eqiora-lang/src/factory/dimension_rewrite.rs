@@ -69,7 +69,7 @@ impl SourceAstFactory {
                     }
                 }
                 if let crate::FormulationBinding::WeakTests { tests } = &mut formulation.binding {
-                    for (_, _, _, dimension) in tests {
+                    for (_, _, _, dimension, _) in tests {
                         *dimension = rewrite(dimension);
                     }
                 }
