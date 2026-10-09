@@ -1,8 +1,11 @@
 # Specimen: harmonic RC response
 
-This target-language specimen fixes a bounded harmonic Formulation. It uses the same resistor/capacitor
-mathematics as the time-domain model, not a separate AC component implementation. The source
-form and its complex execution are specified here and are not yet delivered capabilities.
+This specimen fixes an implemented, bounded harmonic Formulation. It uses the same
+resistor/capacitor mathematics as the time-domain model. Source and Python Module requests
+share the compiler's AST and the common complex Plan/Result owners. The
+[registered case](../../verify/numerics/harmonic-response/README.md) independently verifies
+RC/RLC amplitudes, a one-dimensional scalar wave, reconstruction, conventions and a positive-RC
+transient comparison. It does not establish arbitrary harmonic or frequency-sweep workflows.
 
 ## Original model and reduction request
 
@@ -132,7 +135,46 @@ positive with this negative-exponential convention. A conventional positive-expo
 reactive-power sign cannot be copied without an explicit conversion.
 
 Reject missing excitation, wrong amplitude dimensions, a foreign original-value mapping,
-nonpositive R/C inputs for this specimen's decay assumptions, and an unsupported nonlinear
-or time-varying replacement. A floating connector-network version must still supply a ground;
+and an unsupported nonlinear or time-varying replacement. The transient-decay comparison
+requires strictly positive R and C; nonpositive values invalidate that decay claim even
+when a formal harmonic response exists. Harmonic admission alone does not certify stability.
+A floating connector-network version must still supply a ground;
 the grounded scalar equations here do not authorize implicit grounding elsewhere. A source
 or boundary omitted by a reduction must fail correspondence rather than become zero by default.
+
+## Python authoring and reconstruction
+
+`Module.model(...)` and `Module.component(...)` expose `harmonic_form(...)`. Given the
+original Relation, input, Parameter and Field handles corresponding to the source above:
+
+```python
+rc.harmonic_form(
+    "harmonic_response", [network], angular_frequency=omega,
+    convention="negative_exponential", normalization="peak",
+    excitations=[(source, drive)],
+    amplitudes=[
+        ("voltage_hat", voltage, eqiora.ValueType.complex(volts)),
+        ("current_hat", current, eqiora.ValueType.complex(amps)),
+    ],
+)
+```
+
+Here `volts` and `amps` are the original `Dimension` values. Each amplitude triple names
+the amplitude, its original Field, and its full complex `ValueType`; spatial support is
+inherited from that Field. Amplitudes are local to the Formulation and are not additional
+unknowns in the original Model. Each Component/Model owns one named form; weak tests are
+declared before their owning weak form and do not belong to a harmonic request.
+
+Resolve through the ordinary linear solve policy with a complex-capable provider.
+`plan.model` is the distinct amplitude Model, while `plan.harmonic_original_model` retains
+the real Model including its initial conditions. `plan.harmonic_amplitudes` is an ordered
+tuple of `(name, original_field, amplitude_field)` exact references;
+`plan.harmonic_angular_frequency` is in inverse seconds.
+
+For a finite Result, `result.reconstruct_harmonic_fields(time_seconds=t)` returns
+`(original_field, real_value, original_value_type)` tuples in coherent SI units. For a
+scalar spatial Result, `result.reconstruct_harmonic_field_block(original_field,
+time_seconds=t, block=0)` returns real coefficients with the mapped amplitude block's
+association and layout. These are restricted harmonic responses, not initial-value
+solutions. A Field reference from the amplitude Model cannot substitute for its original
+Field in reconstruction. Unsupported response derivatives reject explicitly.

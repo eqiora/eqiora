@@ -7,6 +7,7 @@ mod declaration;
 mod definition;
 mod dimensions;
 mod expression;
+mod formulation;
 mod imported_properties;
 mod imports;
 mod law;
@@ -31,6 +32,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyAstExpression>()?;
     declaration::register(module)?;
     module.add_class::<definition::PyAstDefinition>()?;
+    module.add_class::<formulation::PyAstFormulation>()?;
     module.add_class::<PyAstModule>()?;
     module.add_function(wrap_pyfunction!(compile::_compile_module, module)?)?;
     Ok(())

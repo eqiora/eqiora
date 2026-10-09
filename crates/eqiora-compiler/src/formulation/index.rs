@@ -6,6 +6,7 @@ pub(super) struct KernelIndex<'a> {
     pub(super) nodes: BTreeMap<RawId, &'a KernelNode>,
     pub(super) applies_on: BTreeMap<RawId, RawId>,
     pub(super) defined_on: BTreeMap<RawId, RawId>,
+    pub(super) clocked_by: BTreeMap<RawId, RawId>,
     pub(super) boundary_of: BTreeMap<RawId, RawId>,
 }
 
@@ -15,6 +16,7 @@ impl<'a> KernelIndex<'a> {
         let mut applies_on = BTreeMap::new();
         let mut defined_on = BTreeMap::new();
         let mut boundary_of = BTreeMap::new();
+        let mut clocked_by = BTreeMap::new();
         for op in transaction.ops() {
             match op {
                 Op::DefineKernelNode { node } => {
@@ -41,6 +43,13 @@ impl<'a> KernelIndex<'a> {
                 } => {
                     boundary_of.insert(*from, *to);
                 }
+                Op::Connect {
+                    from,
+                    to,
+                    edge: EdgeKind::ClockedBy,
+                } => {
+                    clocked_by.insert(*from, *to);
+                }
                 _ => {}
             }
         }
@@ -50,6 +59,7 @@ impl<'a> KernelIndex<'a> {
             applies_on,
             defined_on,
             boundary_of,
+            clocked_by,
         }
     }
 }

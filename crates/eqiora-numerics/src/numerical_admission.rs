@@ -403,7 +403,8 @@ impl ResolvedCommonPlan {
                 plan.system().lowering_proof(),
             )),
             Self::Eigen(plan) => Some(CommonFormulationDescription::finite_hermitian(plan)),
-            Self::Algebraic(_) | Self::Fsi(_) => None,
+            Self::Algebraic(plan) => plan.formulation(),
+            Self::Fsi(_) => None,
         }
     }
 }
@@ -624,6 +625,7 @@ struct CommonRunSchedule {
 /// Opaque common scalar Plan owning authenticated Model, Mesh, and policy state.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommonScalarPlan {
+    harmonic: Option<crate::form_compiler::harmonic::HarmonicReduction>,
     admission: NativeNumericalAdmission,
     portable: PortableRealizationGraph,
     formulation: Option<CommonFormulationDescription>,

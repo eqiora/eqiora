@@ -61,6 +61,13 @@ impl SourceAstFactory {
             )
         {
             for formulation in forms {
+                if let crate::FormulationBinding::Harmonic { amplitudes, .. } =
+                    &mut formulation.binding
+                {
+                    for (amplitude, _) in amplitudes {
+                        amplitude.value_type.rewrite_dimension(&mut rewrite);
+                    }
+                }
                 if let crate::FormulationBinding::WeakTests { tests } = &mut formulation.binding {
                     for (_, _, _, dimension) in tests {
                         *dimension = rewrite(dimension);

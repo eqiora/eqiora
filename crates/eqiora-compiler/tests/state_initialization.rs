@@ -136,8 +136,10 @@ fn only_declared_continuous_states_have_authored_time_derivatives() {
     );
     for source in [
         "model M() { variable x: 1; relation law { derivative(x) = 0; } }",
+        "model M() { variable x: 1; relation law { derivative(derivative(x)) = 0; } }",
         "model M() { variable x: 1; initial { derivative(x) = 0; } }",
         "model M() { clock c = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 at c; relation law { derivative(x) = 0; } }",
+        "model M() { clock c = periodic(1[s] / 1, phase = 0[s] / 1); state x: 1 at c; relation law { derivative(derivative(x)) = 0; } }",
     ] {
         assert!(compile("bad.eqi", source).is_err(), "{source}");
     }

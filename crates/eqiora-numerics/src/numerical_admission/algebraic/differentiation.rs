@@ -19,6 +19,11 @@ impl CommonAlgebraicPlan {
         observable: Id<kinds::Observable>,
         backend: &dyn LinearSolverBackend,
     ) -> Result<CommonScalarDifferentiationPoint, Diagnostic> {
+        if self.harmonic.is_some() {
+            return Err(invalid(
+                "harmonic solved-response derivatives require the retained reduction chain and are not admitted",
+            ));
+        }
         if initial != &self.state_from_values(initial.values().to_vec())?
             || backend.provider() != self.linear.provider
         {

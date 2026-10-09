@@ -15,7 +15,7 @@ use pyo3::types::{PyAny, PyBytes, PyModule, PyTuple};
 
 use crate::error::{compatibility_error, validation_error};
 use crate::meshing::PyMesh;
-use crate::model::{PyModel, PyModelDomainRef, PyModelFieldRef};
+use crate::model::{PyModel, PyModelFieldRef};
 use crate::model_io::{self, ArtifactFileSpec};
 
 const PLAN_FILE_SPEC: ArtifactFileSpec = ArtifactFileSpec {
@@ -30,6 +30,7 @@ mod algebraic;
 mod capability_view;
 mod eigen;
 mod enforcement;
+pub(crate) mod harmonic;
 use capability_view::{
     PyElasticityPlanView, PyFixedReferenceFsiPlanView, PyFormulationKind,
     PyFormulationSelectionMode, PyFormulationView, PyIncompressibleFlowPlanView, PyOdePlanView,
@@ -43,7 +44,7 @@ mod solver_request;
 use policy::{
     PyBackwardEuler, PyCellCentered, PyCellCenteredTpfa, PyImplicitMidpoint, PyLinear, PyMiniP1,
     PyNewton, PyP1, PyPressureGauge2d, PyQ1, PyScopedSpatialBinding, PySolverPlanningObjective,
-    PyTsitouras45, ScopedSpatialKind,
+    PyTsitouras45, ScopedSpatialKind, spatial_handle_from_request,
 };
 pub(crate) use registration::register;
 mod scaling;
@@ -217,61 +218,32 @@ impl PyPlan {
     }
 }
 
-fn spatial_handle_from_request(
-    py: Python<'_>,
-    model_digest: &str,
-    request: CommonMethodRequest,
-) -> PyResult<SpatialHandle> {
-    match request {
-        CommonMethodRequest::Uniform(policy)
-        | CommonMethodRequest::Exact {
-            spatial: policy, ..
-        } => {
-            let policy = match policy {
-                CommonSpatialPolicy::Q1 => SpatialPolicy::Q1,
-                CommonSpatialPolicy::CellCenteredTpfa => SpatialPolicy::CellCenteredTpfa,
-                CommonSpatialPolicy::MiniP1 => SpatialPolicy::MiniP1,
-                CommonSpatialPolicy::CellCentered => SpatialPolicy::CellCentered,
-                CommonSpatialPolicy::P1 => {
-                    return Err(PyTypeError::new_err(
-                        "uniform P1 is not an admitted common Plan policy",
-                    ));
-                }
-            };
-            Ok(SpatialHandle::Uniform(policy))
-        }
-        CommonMethodRequest::Scoped(bindings) => bindings
-            .into_iter()
-            .map(|binding| {
-                let policy = match binding.policy() {
-                    CommonSpatialPolicy::MiniP1 => ScopedSpatialKind::MiniP1,
-                    CommonSpatialPolicy::P1 => ScopedSpatialKind::P1,
-                    CommonSpatialPolicy::Q1
-                    | CommonSpatialPolicy::CellCenteredTpfa
-                    | CommonSpatialPolicy::CellCentered => {
-                        return Err(PyTypeError::new_err(
-                            "persisted scoped Plan contains an unsupported spatial policy",
-                        ));
-                    }
-                };
-                Py::new(
-                    py,
-                    PyScopedSpatialBinding {
-                        domain: PyModelDomainRef::from_exact(
-                            model_digest.to_owned(),
-                            binding.domain().ulid().to_string(),
-                        ),
-                        policy,
-                    },
-                )
-            })
-            .collect::<PyResult<Vec<_>>>()
-            .map(SpatialHandle::Scoped),
-    }
-}
-
 #[pymethods]
 impl PyPlan {
+    /// Original real Model retained by a harmonic response restriction.
+    #[getter]
+    fn harmonic_original_model(&self, py: Python<'_>) -> PyResult<Option<PyModel>> {
+        harmonic::original_model(&self.native)
+            .map(|model| PyModel::from_artifact(py, model.clone()))
+            .transpose()
+    }
+
+    /// Named exact original/derived Field pairs in the declared amplitude order.
+    #[getter]
+    fn harmonic_amplitudes(&self, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+        harmonic::amplitudes(py, &self.native)
+    }
+
+    /// Positive angular frequency in inverse seconds, distinct from cyclic frequency.
+    #[getter]
+    fn harmonic_angular_frequency(&self) -> Option<f64> {
+        match &self.native {
+            ResolvedCommonPlan::Algebraic(plan) => plan.harmonic_angular_frequency(),
+            ResolvedCommonPlan::Scalar(plan) => plan.harmonic_angular_frequency(),
+            _ => None,
+        }
+    }
+
     /// Explicit finite mathematical enforcement, separate from the Model.
     #[getter]
     fn enforcement(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
@@ -974,6 +946,14 @@ fn resolve_plan(
     };
     drop(mesh_ref);
     drop(model_ref);
+    let model = if harmonic::original_model(&native).is_some() {
+        Py::new(
+            py,
+            PyModel::from_artifact(py, native.model_artifact().clone())?,
+        )?
+    } else {
+        model
+    };
     Ok(PyPlan {
         native,
         model,

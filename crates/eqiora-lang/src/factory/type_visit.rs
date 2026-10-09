@@ -31,6 +31,13 @@ impl super::SourceAstFactory {
         }
         for component in &mut document.components {
             let scope = Some(component.name.as_str());
+            for form in &mut component.formulations {
+                if let crate::FormulationBinding::Harmonic { amplitudes, .. } = &mut form.binding {
+                    for (amplitude, _) in amplitudes {
+                        visit(scope, &mut amplitude.value_type);
+                    }
+                }
+            }
             for item in &mut component.signature {
                 signature(item, scope, &mut visit);
             }
@@ -54,6 +61,13 @@ impl super::SourceAstFactory {
         }
         for model in &mut document.models {
             let scope = Some(model.name.as_str());
+            for form in &mut model.formulations {
+                if let crate::FormulationBinding::Harmonic { amplitudes, .. } = &mut form.binding {
+                    for (amplitude, _) in amplitudes {
+                        visit(scope, &mut amplitude.value_type);
+                    }
+                }
+            }
             for item in &mut model.signature {
                 signature(item, scope, &mut visit);
             }

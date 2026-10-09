@@ -1,6 +1,7 @@
 use super::*;
 
 mod complex;
+mod harmonic;
 pub(super) mod interval;
 mod regions;
 mod support;
@@ -388,6 +389,7 @@ impl CommonScalarPlan {
             realization_digest,
         );
         Ok(Self {
+            harmonic: None,
             admission,
             portable,
             formulation,
@@ -440,6 +442,11 @@ impl CommonScalarPlan {
         selected: &[eqiora_core::Id<eqiora_core::entity::kinds::Parameter>],
         values: Option<&[f64]>,
     ) -> Result<CommonScalarDifferentiationPoint, Diagnostic> {
+        if self.harmonic.is_some() {
+            return Err(invalid(
+                "harmonic solved-response derivatives require the retained reduction chain and are not admitted",
+            ));
+        }
         if self.admission.spatial.scalar_constraint().is_some() {
             return Err(invalid(
                 "constrained TPFA differentiation has no admitted linearization",

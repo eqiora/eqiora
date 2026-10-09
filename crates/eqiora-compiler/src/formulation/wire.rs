@@ -6,7 +6,10 @@ use ulid::Ulid;
 
 use super::{AuthoredFormExpression, AuthoredFormExpressionKind};
 
-const SCHEMA: &str = "eqiora.authored-form/v11";
+const SCHEMA: &str = "eqiora.authored-form/v12";
+
+mod harmonic;
+pub(in crate::formulation) use harmonic::HarmonicFormulationRequest;
 const GLOBAL_WEAK_ASSUMPTIONS: &[&str] = &[
     "finite-dimensional-test-space",
     "nondegenerate-inner-product",
@@ -56,6 +59,9 @@ pub(super) struct WireGauge {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub(super) enum WireBinding {
+    Harmonic {
+        request: HarmonicFormulationRequest,
+    },
     Finite {
         name: String,
     },
@@ -359,6 +365,13 @@ impl AuthoredFormulationProjection {
                 "source identity is not one canonical SHA-256 digest",
             ));
         }
+        if let WireBinding::Harmonic { request } = &wire.binding {
+            request.validate(&wire)?;
+            return Ok(Self {
+                wire,
+                canonical_bytes: bytes.into(),
+            });
+        }
         if wire.equations.is_empty()
             || wire.equations.len() > 8
             || wire.trial_ulids.is_empty()
@@ -387,6 +400,7 @@ impl AuthoredFormulationProjection {
         }
         if wire.implication
             != match wire.binding {
+                WireBinding::Harmonic { .. } => harmonic::IMPLICATION,
                 WireBinding::Finite { .. } => "strong-equivalent-finite",
                 WireBinding::WeakTests { .. } => "strong-implies-weak",
                 WireBinding::Interval { .. } => "strong-implies-interval-conservation",
@@ -402,6 +416,7 @@ impl AuthoredFormulationProjection {
                     WireBinding::WeakTests { .. } if wire.trial_ulids.len() > 1 => {
                         Self::mixed_assumptions()
                     }
+                    WireBinding::Harmonic { .. } => harmonic::ASSUMPTIONS,
                     WireBinding::Finite { .. } => super::finite::ASSUMPTIONS,
                     WireBinding::WeakTests { .. } => Self::required_assumptions(),
                     WireBinding::Interval { .. } => super::interval::ASSUMPTIONS,
@@ -432,6 +447,7 @@ impl AuthoredFormulationProjection {
         }
         let mut names = vec![wire.name.as_str()];
         match &wire.binding {
+            WireBinding::Harmonic { .. } => {}
             WireBinding::Finite { name } => {
                 names.push(name);
                 if wire.equations.len() != wire.trial_ulids.len() {
@@ -868,7 +884,7 @@ mod tests {
         let bytes = projection().canonical_bytes().to_vec();
         let old = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.authored-form/v11", "eqiora.authored-scalar-form/v3");
+            .replace("eqiora.authored-form/v12", "eqiora.authored-scalar-form/v3");
         assert!(AuthoredFormulationProjection::decode(old.as_bytes()).is_err());
     }
 

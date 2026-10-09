@@ -484,6 +484,15 @@ impl Parser<'_> {
             return None;
         };
         let start = self.bump().range().start();
+        self.parse_field_head(start, role, terminated)
+    }
+
+    fn parse_field_head(
+        &mut self,
+        start: u32,
+        role: crate::ast::FieldRoleSyntax,
+        terminated: bool,
+    ) -> Option<FieldDecl> {
         let name = self.declaration_name("declaration name")?.text().to_owned();
         self.expect(TokenKind::Colon, "`:` before mathematical type")?;
         let value_type = self.parse_value_type()?;

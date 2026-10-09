@@ -497,6 +497,12 @@ class Component:
         equations: Sequence[tuple[object, object]],
         doc: str | None = None,
     ) -> None: ...
+    def harmonic_form(
+        self, name: str, relations: Sequence[Relation], *, angular_frequency: object,
+        convention: str, normalization: str,
+        excitations: Sequence[tuple[Expression, object]],
+        amplitudes: Sequence[tuple[str, Expression, ValueType]], doc: str | None = None,
+    ) -> None: ...
     def port(self, name: str, *, connector: Connector, on: Support | None = None,
              doc: str | None = None) -> Port | FieldPort:
         """Declare a named physical endpoint using this Module's nominal Connector.

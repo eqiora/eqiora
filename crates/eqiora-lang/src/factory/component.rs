@@ -74,6 +74,11 @@ impl SourceAstFactory {
             .iter_mut()
             .find(|form| form.name == form_name)
             .ok_or_else(|| AstConstructionError::new("gauge requires an existing Formulation"))?;
+        if matches!(form.binding, crate::FormulationBinding::Harmonic { .. }) {
+            return Err(AstConstructionError::new(
+                "harmonic requests do not declare gauges",
+            ));
+        }
         if form.gauge.is_some() {
             return Err(AstConstructionError::new(
                 "Formulation already declares a gauge",
@@ -107,7 +112,13 @@ pub(super) fn checked_form(
     equalities: (Vec<(Expr, Expr)>, TextRange),
 ) -> Result<FormulationDecl, AstConstructionError> {
     let (equations, formulation_range) = equalities;
-    if equations.is_empty() {
+    let harmonic = matches!(form.2, crate::FormulationBinding::Harmonic { .. });
+    if harmonic && !equations.is_empty() {
+        return Err(AstConstructionError::new(
+            "harmonic requests derive their amplitude equations",
+        ));
+    }
+    if !harmonic && equations.is_empty() {
         return Err(AstConstructionError::new(
             "Formulation requires an equality",
         ));
@@ -125,6 +136,34 @@ pub(super) fn checked_form(
         checked_identifier(relation.clone(), "Formulation Relation")?;
     }
     match &binding {
+        crate::FormulationBinding::Harmonic {
+            angular_frequency,
+            excitations,
+            amplitudes,
+        } => {
+            validate_expression(angular_frequency)?;
+            for (input, value) in excitations {
+                checked_identifier(input.clone(), "harmonic input")?;
+                validate_expression(value)?;
+            }
+            if amplitudes.is_empty() {
+                return Err(AstConstructionError::new(
+                    "harmonic request requires amplitude mappings",
+                ));
+            }
+            for (amplitude, original) in amplitudes {
+                checked_identifier(original.clone(), "original harmonic unknown")?;
+                checked_identifier(amplitude.name().to_owned(), "harmonic amplitude")?;
+                checked_range(amplitude.range())?;
+                if amplitude.role() != crate::FieldRoleSyntax::Variable
+                    || amplitude.activation() != &crate::ActivationSyntax::Continuous
+                {
+                    return Err(AstConstructionError::new(
+                        "harmonic amplitude has no evolution role or clock",
+                    ));
+                }
+            }
+        }
         crate::FormulationBinding::Finite { name, trials } => {
             checked_identifier(name.clone(), "finite coordinate space")?;
             if trials.is_empty() {

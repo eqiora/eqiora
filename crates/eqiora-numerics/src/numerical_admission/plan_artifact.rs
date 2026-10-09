@@ -83,6 +83,8 @@ struct WireScopedSpatialPolicy {
 enum WireFormulation {
     FiniteHermitianPencil,
     FirstOrderEvolution,
+    /// Restriction of fixed-domain real LTI mathematics to a declared harmonic response.
+    HarmonicResponse,
     PrimalGalerkin,
     MixedGalerkin,
     IntegralConservative,
@@ -327,7 +329,15 @@ impl ResolvedCommonPlan {
 
 impl WireResolvedCommonPlanV11 {
     fn from_plan(plan: &ResolvedCommonPlan) -> Result<Self, Diagnostic> {
-        let model = plan_model_artifact(plan).canonical_json()?;
+        let model = plan
+            .as_algebraic()
+            .and_then(|plan| plan.harmonic_original_model())
+            .or_else(|| {
+                plan.as_scalar()
+                    .and_then(|plan| plan.harmonic_original_model())
+            })
+            .unwrap_or_else(|| plan_model_artifact(plan))
+            .canonical_json()?;
         let mesh = plan_authenticated_mesh(plan)
             .map(|mesh| mesh.to_bytes().map(|bytes| encode(&bytes)))
             .transpose()?;
@@ -426,7 +436,10 @@ impl WireResolvedCommonPlanV11 {
                 || self.temporal.is_some()
                 || self.scaling.is_some()
                 || self.requested_formulation.is_some()
-                || self.effective_formulation.is_some()
+                || !matches!(
+                    self.effective_formulation,
+                    None | Some(WireFormulation::HarmonicResponse)
+                )
                 || self.solve.is_none()
             {
                 return Err(invalid(
@@ -464,7 +477,11 @@ impl WireResolvedCommonPlanV11 {
                 || self.requested_formulation.is_some()
                 || !matches!(
                     self.effective_formulation,
-                    Some(WireFormulation::PrimalGalerkin | WireFormulation::IntegralConservative)
+                    Some(
+                        WireFormulation::PrimalGalerkin
+                            | WireFormulation::IntegralConservative
+                            | WireFormulation::HarmonicResponse
+                    )
                 ))
         {
             return Err(invalid(
@@ -760,6 +777,7 @@ impl From<FormulationKind> for WireFormulation {
         match value {
             FormulationKind::FiniteHermitianPencil => Self::FiniteHermitianPencil,
             FormulationKind::FirstOrderEvolution => Self::FirstOrderEvolution,
+            FormulationKind::HarmonicResponse => Self::HarmonicResponse,
             FormulationKind::PrimalGalerkin => Self::PrimalGalerkin,
             FormulationKind::MixedGalerkin => Self::MixedGalerkin,
             FormulationKind::IntegralConservative => Self::IntegralConservative,
@@ -772,6 +790,7 @@ impl From<WireFormulation> for FormulationKind {
         match value {
             WireFormulation::FiniteHermitianPencil => Self::FiniteHermitianPencil,
             WireFormulation::FirstOrderEvolution => Self::FirstOrderEvolution,
+            WireFormulation::HarmonicResponse => Self::HarmonicResponse,
             WireFormulation::PrimalGalerkin => Self::PrimalGalerkin,
             WireFormulation::MixedGalerkin => Self::MixedGalerkin,
             WireFormulation::IntegralConservative => Self::IntegralConservative,

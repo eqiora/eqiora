@@ -3,11 +3,13 @@
 use super::*;
 use eqiora_realization::{NonlinearSolvePlan, PositivePhysicalScale};
 mod differentiation;
+mod harmonic;
 mod problem;
 use crate::finite_constraints::{ConstraintAssessment, ConstraintRef, FiniteConstraintEnforcement};
 use crate::physical_network::{
     ScalarPhysicalAffineProblem, lower_scalar_physical_affine, solve_scalar_physical_affine,
 };
+use eqiora_core::{Id, entity::kinds};
 use eqiora_schema::kernel::{KernelNode, SymbolRef};
 use eqiora_sem::PhysicalUnknown;
 use eqiora_solver::{FixedOrderInnerProduct, ReplicatedLinearExecution, SERIAL_LINEAR_EXECUTION};
@@ -20,6 +22,7 @@ pub struct CommonAlgebraicPlan {
     kernel: KernelProgram,
     problem: AlgebraicProblem,
     authored: Option<eqiora_compiler::AuthoredFormulationProjection>,
+    harmonic: Option<crate::form_compiler::harmonic::HarmonicReduction>,
     gauge: Option<crate::finite_constraints::FiniteGauge>,
     complex_system: Option<eqiora_solver::CanonicalCsrSystemView<num_complex::Complex64>>,
     pub(super) linear: NativeLinearPolicy,
@@ -44,6 +47,32 @@ impl CommonAlgebraicPlan {
         authored: Option<&eqiora_compiler::AuthoredFormulationProjection>,
         backend: &dyn LinearSolverBackend,
     ) -> Result<Self, Diagnostic> {
+        if let Some(form) = authored.filter(|form| form.harmonic_angular_frequency().is_some()) {
+            if !matches!(solve, CommonSolvePolicy::Linear(_))
+                || enforcement.is_some()
+                || !residual_scales.is_empty()
+            {
+                return Err(invalid(
+                    "harmonic response requires an unconstrained linear solve",
+                ));
+            }
+            let original = model.to_program().map_err(|errors| {
+                errors
+                    .into_iter()
+                    .next()
+                    .expect("Model admission diagnostic")
+            })?;
+            let reduction =
+                crate::form_compiler::harmonic::HarmonicReduction::derive(&original, form, None)?;
+            let mut plan = Self::resolve(&reduction.reduced, solve, None, &[], None, backend)?;
+            let mut identity = plan.identity.as_bytes().to_vec();
+            push_framed(&mut identity, model.digest()?.to_string().as_bytes());
+            push_framed(&mut identity, form.canonical_bytes());
+            plan.identity = finite_digest(b"eqiora.common-algebraic-harmonic-plan/v1\0", &identity);
+            plan.authored = Some(form.clone());
+            plan.harmonic = Some(reduction);
+            return Ok(plan);
+        }
         let (request, nonlinear) = match solve {
             CommonSolvePolicy::Linear(request) => (request, None),
             CommonSolvePolicy::Newton { linear, nonlinear } => (linear, Some(nonlinear)),
@@ -144,6 +173,7 @@ impl CommonAlgebraicPlan {
             kernel,
             problem,
             authored: authored.cloned(),
+            harmonic: None,
             gauge,
             complex_system,
             linear,
@@ -191,6 +221,37 @@ impl CommonAlgebraicPlan {
     #[must_use]
     pub fn model_artifact(&self) -> &ModelEnvelope {
         &self.model
+    }
+
+    /// Original time-domain Model, including its initial conditions, for a harmonic response.
+    pub fn harmonic_original_model(&self) -> Option<&ModelEnvelope> {
+        self.harmonic.as_ref().map(|reduction| &reduction.original)
+    }
+
+    /// Requested and effective harmonic response restriction, when admitted.
+    pub fn formulation(&self) -> Option<CommonFormulationDescription> {
+        self.harmonic.as_ref().map(|_| {
+            CommonFormulationDescription::harmonic(
+                self.authored.as_ref().expect("retained harmonic request"),
+            )
+        })
+    }
+
+    /// Ordered names, original real Fields and derived complex amplitude Fields.
+    pub fn harmonic_amplitudes(
+        &self,
+    ) -> impl Iterator<Item = (&str, Id<kinds::Field>, Id<kinds::Field>)> {
+        self.harmonic
+            .iter()
+            .flat_map(|reduction| reduction.amplitudes.iter())
+            .map(|(name, original, amplitude)| (name.as_str(), *original, *amplitude))
+    }
+
+    /// Positive angular frequency for the retained negative-exponential, peak convention.
+    pub fn harmonic_angular_frequency(&self) -> Option<f64> {
+        self.harmonic
+            .as_ref()
+            .map(|reduction| reduction.angular_frequency)
     }
     #[must_use]
     pub fn kernel(&self) -> &KernelProgram {

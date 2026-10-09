@@ -43,9 +43,10 @@ impl ExpressionLowerer<'_> {
             let dimension = typing::time_derivative(&operand, order)
                 .map_err(|_| dimension_overflow(self.file, expression.range()))?
                 .dimension();
-            // Reuse the exact same continuous-state and activation checks as
-            // the first derivative before constructing the higher-order symbol.
-            self.lower_call(expression, "derivative", terminal)?;
+            // Validate without emitting an unused first-derivative node. The
+            // original Model's semantic projection must remain a closed DAG.
+            self.require_eligible_evolution(expression, "derivative", contract)?;
+            self.dependencies.insert(field.erase());
             let id = self
                 .builder
                 .symbol(SymbolRef::Derivative(field, order))

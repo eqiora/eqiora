@@ -803,15 +803,7 @@ impl ExpressionLowerer<'_> {
             ));
         }
         if matches!(callee, "derivative" | "pre" | "next") {
-            let eligible = self.eligible_evolution(callee, &contract);
-            if !eligible {
-                return Err(source_error(
-                    codes::LANGUAGE_TYPE_ERROR,
-                    self.file,
-                    expression.range(),
-                    "evolution operator requires an eligible declared state at the exact clock",
-                ));
-            }
+            self.require_eligible_evolution(expression, callee, &contract)?;
         }
         if matches!(callee, "pre" | "next") && !self.allow_discrete_symbols {
             return Err(source_error(

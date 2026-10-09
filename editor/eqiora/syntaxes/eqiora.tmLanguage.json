@@ -34,7 +34,7 @@
           }
         },
         {
-          "match": "\\b(variable|state|parameter|observable|support|coordinate|port|relation|law|instance|domain|clock|event|let|form)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "match": "\\b(variable|state|parameter|observable|support|coordinate|port|relation|law|instance|domain|clock|event|let|form|amplitude|excitation)\\s+([A-Za-z_][A-Za-z0-9_]*)",
           "captures": { "1": { "name": "storage.type.eqiora" }, "2": { "name": "variable.other.definition.eqiora" } }
         }
       ]
@@ -48,7 +48,7 @@
     "keywords": {
       "patterns": [{
         "name": "keyword.control.eqiora",
-        "match": "\\b(?:across|ambient_dimension|analytic|as|at|axis|boundaries|boundary|branch|case|citation|clock|compatibility|complete_exterior|component|components|composition|connect|connector|contract|crossing|data|delta|derivatives|dimension|direction|discrete|domain|else|endpoint_derivative|enum|event|field|finite|first_open_intervals|first_partials|flux(?!\\s*\\()|for|form|frame|from|gauge|holding|identity|if|implements|import|in|initial|input|instance|interpolation|interval|knot_derivative|law|license|let|lower|material|missing|model|observable|on|operator|orientation|outside|output|over|pairing|parameter|parent|period|periodic|phase|piecewise_affine|port|preprocessing|priority|private|property|public|pure|rational|record|reference|reject|relation|release|scalar|shape|side|signal|source_unit|spatial|state|support|table|test|then|through|trace(?!\\s*\\()|unconditional|upper|validity|value|value_only|variable|volume|wrt|zero_on)\\b"
+        "match": "\\b(?:across|ambient_dimension|amplitude|analytic|angular_frequency|as|at|axis|boundaries|boundary|branch|case|citation|clock|compatibility|complete_exterior|component|components|composition|connect|connector|contract|convention|crossing|data|delta|derivatives|dimension|direction|discrete|domain|else|endpoint_derivative|enum|event|excitation|field|finite|first_open_intervals|first_partials|flux(?!\\s*\\()|for|form|frame|from|gauge|harmonic|holding|identity|if|implements|import|in|initial|input|instance|interpolation|interval|knot_derivative|law|license|let|lower|material|missing|model|normalization|observable|on|operator|orientation|outside|output|over|pairing|parameter|parent|period|periodic|phase|piecewise_affine|port|preprocessing|priority|private|property|public|pure|rational|record|reference|reject|relation|release|scalar|shape|side|signal|source_unit|spatial|state|support|table|test|then|through|trace(?!\\s*\\()|unconditional|upper|validity|value|value_only|variable|volume|wrt|zero_on)\\b"
       }]
     },
     "functions": {
@@ -60,7 +60,7 @@
     "constants": {
       "patterns": [{
         "name": "constant.language.eqiora",
-        "match": "\\b(?:any|euclidean_boundary_duality|falling|false|invariant|parent_outward|rising|spatial_scalar|spatial_vector|true)\\b"
+        "match": "\\b(?:any|euclidean_boundary_duality|falling|false|invariant|negative_exponential|parent_outward|peak|rising|spatial_scalar|spatial_vector|true)\\b"
       }]
     },
     "units": {

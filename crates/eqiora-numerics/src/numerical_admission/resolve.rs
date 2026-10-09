@@ -20,11 +20,52 @@ impl ResolvedCommonPlan {
         stokes_backend: &dyn LinearSolverBackend,
         authored_formulation: Option<&AuthoredFormulationProjection>,
     ) -> Result<ResolvedCommonPlan, Diagnostic> {
+        let method = method.into();
+        if let Some(form) =
+            authored_formulation.filter(|form| form.harmonic_angular_frequency().is_some())
+        {
+            if !matches!(
+                method,
+                CommonMethodRequest::Uniform(CommonSpatialPolicy::Q1)
+            ) || !matches!(solve, CommonSolvePolicy::Linear(_))
+                || scaling.is_some()
+                || temporal.is_some()
+            {
+                return Err(invalid(
+                    "harmonic spatial response requires Q1 and a linear solve without time stepping or flow scaling",
+                ));
+            }
+            let geometry = owner.resources.geometry()?;
+            let program = replay_program(model, geometry)?;
+            let reduction = crate::form_compiler::harmonic::HarmonicReduction::derive(
+                &program,
+                form,
+                Some(geometry),
+            )?;
+            let inner = Self::resolve(
+                &reduction.reduced,
+                owner,
+                method,
+                solve,
+                None,
+                None,
+                stokes_backend,
+                None,
+            )?;
+            let Self::Scalar(plan) = inner else {
+                return Err(invalid(
+                    "harmonic spatial reduction requires the shared complex scalar path",
+                ));
+            };
+            return plan
+                .with_harmonic(reduction, form.clone())
+                .map(|plan| Self::Scalar(Box::new(plan)));
+        }
         let recognized = RecognizedNativeAdmission::recognize(model, owner)?;
         if let Some(projection) = authored_formulation {
             crate::form_compiler::check_authored_dependence(projection, &recognized.program)?;
         }
-        let (spatial, formulation) = method.into().split();
+        let (spatial, formulation) = method.split();
         match &recognized.recognized {
             RecognizedNativeModel::Coordinates(projection) => {
                 if spatial != CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCentered)

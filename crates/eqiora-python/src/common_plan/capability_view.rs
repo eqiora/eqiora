@@ -38,6 +38,8 @@ pub(super) fn space_name(space: Space) -> &'static str {
 pub(crate) enum PyFormulationKind {
     FiniteHermitianPencil,
     FirstOrderEvolution,
+    /// Restriction of fixed-domain real LTI mathematics to a declared harmonic response.
+    HarmonicResponse,
     PrimalGalerkin,
     MixedGalerkin,
     IntegralConservative,
@@ -48,6 +50,7 @@ impl From<FormulationKind> for PyFormulationKind {
         match value {
             FormulationKind::FiniteHermitianPencil => Self::FiniteHermitianPencil,
             FormulationKind::FirstOrderEvolution => Self::FirstOrderEvolution,
+            FormulationKind::HarmonicResponse => Self::HarmonicResponse,
             FormulationKind::PrimalGalerkin => Self::PrimalGalerkin,
             FormulationKind::MixedGalerkin => Self::MixedGalerkin,
             FormulationKind::IntegralConservative => Self::IntegralConservative,
@@ -60,6 +63,7 @@ impl From<PyFormulationKind> for FormulationKind {
         match value {
             PyFormulationKind::FiniteHermitianPencil => Self::FiniteHermitianPencil,
             PyFormulationKind::FirstOrderEvolution => Self::FirstOrderEvolution,
+            PyFormulationKind::HarmonicResponse => Self::HarmonicResponse,
             PyFormulationKind::PrimalGalerkin => Self::PrimalGalerkin,
             PyFormulationKind::MixedGalerkin => Self::MixedGalerkin,
             PyFormulationKind::IntegralConservative => Self::IntegralConservative,

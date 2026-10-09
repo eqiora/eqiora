@@ -27,7 +27,7 @@ def declare(
     total += sum(sum(term._nodes for term in item[2:5] if term is not None)
                  for item in component._laws)
     total += sum(term._nodes for term in terms if term is not None)
-    total += sum(item[1]._nodes + item[2]._nodes for item in component._formulations)
+    total += component._formulation[2] if component._formulation is not None else 0
     if total > _MAX_EXPRESSION_NODES:
         raise ModuleError(f"Component Law expressions exceed the {_MAX_EXPRESSION_NODES}-node limit")
     docs = _doc(doc)

@@ -38,6 +38,14 @@ impl ExpressionContext<'_> {
                     .expect("real scalar type"),
                 None,
             )),
+            ExprKind::Quantity { .. } => {
+                let (dag, value_type) = crate::lower::lower_parameter_coefficient(
+                    self.file,
+                    &crate::lower::LoweringExpression::from_source(expression),
+                    &BTreeMap::new(),
+                )?;
+                coefficient_alias(&dag, value_type)
+            }
             ExprKind::Name(name) if self.tests.contains_key(name.as_str()) => {
                 self.compile_test(expression, name)
             }

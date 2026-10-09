@@ -46,6 +46,8 @@ pub enum FormulationKind {
     FiniteHermitianPencil,
     /// Source-preserving first-order coordinates and companion equations for time evolution.
     FirstOrderEvolution,
+    /// Restriction of fixed-domain real LTI mathematics to a declared harmonic response.
+    HarmonicResponse,
     /// Primal test/trial pairing produced by Galerkin derivation.
     PrimalGalerkin,
     /// Mixed test/trial pairing with more than one field role.

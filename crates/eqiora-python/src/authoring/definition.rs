@@ -7,7 +7,7 @@ use eqiora::language::{
 use pyo3::prelude::*;
 
 use super::declaration::{Declaration, PyAstDeclaration};
-use super::expression::{PyAstExpression, syntax_error};
+use super::expression::syntax_error;
 
 #[derive(Clone)]
 pub(super) enum Definition {
@@ -26,19 +26,6 @@ pub(super) struct PyAstDefinition {
     pub(super) value: Definition,
 }
 
-type FormInput<'py> = (
-    String,
-    Vec<String>,
-    Vec<(
-        String,
-        String,
-        Vec<String>,
-        PyRef<'py, crate::modeling::PyValueType>,
-    )>,
-    Vec<(PyRef<'py, PyAstExpression>, PyRef<'py, PyAstExpression>)>,
-    u32,
-);
-
 #[pymethods]
 impl PyAstDefinition {
     #[new]
@@ -46,7 +33,7 @@ impl PyAstDefinition {
         name: String,
         model: bool,
         declarations: Vec<PyRef<'_, PyAstDeclaration>>,
-        form: Option<FormInput<'_>>,
+        form: Option<(PyRef<'_, super::formulation::PyAstFormulation>, u32)>,
         ordinal: u32,
     ) -> PyResult<Self> {
         if declarations.len() > 256 {
@@ -61,39 +48,19 @@ impl PyAstDefinition {
             }
         }
         let range = TextRange::new(ordinal, ordinal.saturating_add(1));
-        let form = form
-            .map(|(name, relations, tests, equations, ordinal)| {
-                if relations.len() > 8 || tests.len() > 8 || equations.len() > 8 {
-                    return Err(syntax_error("weak form exceeds the 8-item inventory limit"));
-                }
-                let tests = tests
-                    .into_iter()
-                    .map(|(name, trial, zero_on, kind)| {
-                        if !kind.value.shape().is_scalar()
-                            || kind.value.scalar_domain() != eqiora::ScalarDomain::Real
-                        {
-                            return Err(syntax_error("test dimension requires a real scalar type"));
-                        }
-                        Ok((name, trial, zero_on, super::boundaries::dimension(&kind)?))
-                    })
-                    .collect::<PyResult<_>>()?;
-                let equations = equations
-                    .into_iter()
-                    .map(|(left, right)| (left.value.clone(), right.value.clone()))
-                    .collect();
-                Ok((
-                    (
-                        name,
-                        relations,
-                        eqiora::language::FormulationBinding::WeakTests { tests },
-                    ),
-                    (
-                        equations,
-                        TextRange::new(ordinal, ordinal.saturating_add(1)),
-                    ),
-                ))
-            })
-            .transpose()?;
+        let form = form.map(|(form, ordinal)| {
+            (
+                (
+                    form.name.clone(),
+                    form.relations.clone(),
+                    form.binding.clone(),
+                ),
+                (
+                    form.equations.clone(),
+                    TextRange::new(ordinal, ordinal.saturating_add(1)),
+                ),
+            )
+        });
         let value = if model {
             let items = items.into_iter().map(model_item).collect::<PyResult<_>>()?;
             Definition::Model(

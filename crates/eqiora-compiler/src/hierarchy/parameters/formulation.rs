@@ -96,6 +96,21 @@ fn resolve(
     }
     let mut referenced = BTreeSet::new();
     for (name, _, equations, _) in component.formulations() {
+        if let Some(eqiora_lang::FormulationBinding::Harmonic {
+            angular_frequency,
+            excitations,
+            ..
+        }) = component.formulation_binding(name)
+        {
+            for expression in
+                std::iter::once(angular_frequency).chain(excitations.iter().map(|(_, value)| value))
+            {
+                let _ = expression.rewrite_name_paths(|name| {
+                    referenced.insert(name.as_str().to_owned());
+                    None
+                });
+            }
+        }
         let gauge = component.formulation_gauge(name);
         for (left, right) in equations.iter().chain(
             gauge
