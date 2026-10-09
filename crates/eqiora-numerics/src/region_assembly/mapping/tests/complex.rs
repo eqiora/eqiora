@@ -68,6 +68,15 @@ fn complex_mapping_recovers_scaled_fields_and_rebinds_prescriptions() {
         ])
     );
     mapping.validate_physical(&physical).unwrap();
+    let mut wrong_space = physical.clone();
+    wrong_space.get_mut(&field).unwrap().space = Space::cell_constant();
+    assert!(
+        mapping
+            .validate_physical(&wrong_space)
+            .unwrap_err()
+            .message()
+            .contains("Space")
+    );
     assert!(mapping.recover(&free, &[]).is_err());
     assert!(
         mapping

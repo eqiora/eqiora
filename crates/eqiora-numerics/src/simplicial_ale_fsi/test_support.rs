@@ -203,6 +203,7 @@ pub(super) fn physical_state<const D: usize>(
             RecoveredRegionField {
                 domain: domain.erase(),
                 value_type: vector_type::<D>(),
+                space: eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
                 coefficients,
             },
         )
@@ -232,6 +233,9 @@ pub(super) fn physical_state<const D: usize>(
                 RecoveredRegionField {
                     domain: fluid_domain().erase(),
                     value_type: scalar_type(),
+                    space: eqiora_realization::Space::continuous_lagrange(
+                        std::num::NonZeroU16::MIN,
+                    ),
                     coefficients: pressure_coefficients,
                 },
             ),

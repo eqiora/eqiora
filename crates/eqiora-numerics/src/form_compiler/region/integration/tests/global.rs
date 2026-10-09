@@ -4,6 +4,7 @@ use crate::form_compiler::region::RegionFieldLayout;
 use crate::region_assembly::mapping::RegionDofMap;
 use crate::spatial_expression::Coefficient;
 
+mod recovery;
 mod traces;
 use eqiora_assembly::{CooAssembler, LinearSystem};
 use eqiora_core::{RawId, ScalarDomain};
