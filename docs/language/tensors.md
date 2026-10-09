@@ -272,6 +272,16 @@ under this regularity assumption. The Laplacian remains `div(grad(.))`;
 these equalities do not assert that a finite-element or finite-volume
 representation preserves the differential identities.
 
+A spatial directional derivative contracts the coordinate axis of the gradient
+with an explicitly declared physical direction whose Cartesian frame and spatial
+support are compatible. For a scalar `f`, use `contract(grad(f),a,axes=((0,0),))`;
+for a vector `u`,
+use `contract(grad(u),a,axes=((1,0),))`, since the derivative axis is last.
+The direction is not normalized implicitly: dimensions are `[f][a]/length`
+or `[u][a]/length`. A velocity direction therefore gives a rate, while a
+dimensionless direction gives a derivative per length. This physical-coordinate
+contraction is distinct from a variation with respect to a function-space trial.
+
 For smooth 3D fields and an outward-oriented, piecewise smooth boundary,
 the bilinear integration-by-parts pairing is
 `∫Ω curl(u) · v = ∫Ω u · curl(v) + ∫∂Ω (n × u) · v`.
