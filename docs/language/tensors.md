@@ -203,7 +203,10 @@ support. Complex forms use explicit `inner` pairings to retain conjugate-linear
 test dependence; `cross` itself remains bilinear. Current authored-form artifacts
 use `eqiora.authored-form/v13`; previous epochs are rejected. This authoring and
 replay support does not establish strong/weak correspondence, discharge boundary
-conditions, or select a numerical vector-space realization.
+conditions, or select a numerical vector-space realization. A one-trial vector
+form can describe only one equation of a coupled Model; it is not a checked
+mixed system. Mixed correspondence still requires the complete velocity/pressure
+equation and test inventory.
 
 For twice continuously differentiable fields in a fixed Cartesian frame,
 `div(curl(u)) = 0`, `curl(grad(f)) = 0`, and
