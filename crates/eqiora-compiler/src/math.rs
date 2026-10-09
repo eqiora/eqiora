@@ -1,4 +1,5 @@
 pub(crate) mod finite;
+pub(crate) mod oriented;
 pub(crate) mod piecewise;
 pub(crate) mod tensor;
 use eqiora_core::Diagnostic;

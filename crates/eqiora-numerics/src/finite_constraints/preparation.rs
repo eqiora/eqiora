@@ -112,7 +112,13 @@ pub(crate) fn lower_finite_constraints(
                     domain.kind(),
                     eqiora_schema::kernel::DomainKind::CoordinateInterval { .. }
                         | eqiora_schema::kernel::DomainKind::CoordinateProduct { .. }
-                ) => {}
+                        | eqiora_schema::kernel::DomainKind::CartesianBox { .. }
+                        | eqiora_schema::kernel::DomainKind::CartesianBoundary { .. }
+                ) =>
+            {
+                // Analytic Observables may own exact spatial point contexts.
+                // Fields and Relations still reject every spatial support.
+            }
             // Nominal finite sets retain the identity of already expanded sums and arrays;
             // they add no solve coordinate. Field and operand admission stay independent.
             KernelNode::Relation(_)

@@ -177,6 +177,26 @@ Right-handed cross product of exact Cartesian three-vectors, without conjugation
 def cross(left: object, right: object) -> Expression: ...
 ```
 
+<a id="api-eqiora-lang-curl"></a>
+
+## `curl`
+
+Cartesian curl: 3D vector, 2D vector-to-scalar, or 2D scalar-to-vector.
+
+```python
+def curl(value: object) -> Expression: ...
+```
+
+<a id="api-eqiora-lang-tangential_trace"></a>
+
+## `tangential_trace`
+
+Oriented n cross value on the exact parent boundary, scalar in 2D.
+
+```python
+def tangential_trace(value: object) -> Expression: ...
+```
+
 <a id="api-eqiora-lang-Inequality"></a>
 
 ## `Inequality`

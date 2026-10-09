@@ -35,7 +35,7 @@ pub(in crate::hierarchy::body_check) fn validate_observable(
     )?;
     let mut checker = ExpressionChecker {
         scope,
-        relation_support: support.clone(),
+        relation_support: support.clone().or(output.clone()),
         family_scope: None,
         allow_discrete_symbols: false,
         initial: false,

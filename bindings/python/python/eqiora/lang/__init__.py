@@ -1149,6 +1149,16 @@ def grad(value: object) -> Expression:
     return _unary("grad", value)
 
 
+def curl(value: object) -> Expression:
+    """Return Cartesian curl with explicit 3D or planar shape conventions."""
+    return _unary("curl", value)
+
+
+def tangential_trace(value: object) -> Expression:
+    """Return n cross value on its exact oriented boundary (scalar in 2D)."""
+    return _unary("tangential_trace", value)
+
+
 def _binary_function(name: str, left: object, right: object) -> Expression:
     left_expression = _expression(left)
     right_expression = _expression(right)
@@ -2957,6 +2967,8 @@ __all__ = [
     "variation",
     "contract",
     "cross",
+    "curl",
+    "tangential_trace",
     "jvp",
     "vjp",
     "derivative",

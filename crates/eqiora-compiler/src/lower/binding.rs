@@ -340,6 +340,8 @@ fn is_reserved(name: &str) -> bool {
             | "derivative"
             | "pre"
             | "next"
+            | "curl"
+            | "tangential_trace"
             | "grad"
             | "div"
             | "symmetric_part"

@@ -176,6 +176,51 @@ measure dimension. Operands on different boundaries, different parents, or a vol
 and its boundary do not become interchangeable; apply explicit trace or normal
 operations first. Conserving-interface supports remain outside this pure profile.
 
+## Oriented Cartesian calculus
+
+`curl(u)` uses a right-handed Cartesian frame and the derivative axis last:
+`grad(u)[i,j] = ∂u_i/∂x_j`. In three dimensions it returns
+`(∂y u_z − ∂z u_y, ∂z u_x − ∂x u_z, ∂x u_y − ∂y u_x)`.
+In two dimensions, vector curl returns the scalar `∂x u_y − ∂y u_x`,
+and scalar curl returns `(∂y f, −∂x f)`. Shape and ambient dimension select
+these explicit conventions; a 3D scalar curl, channel array, or nominal basis
+vector does not silently embed into physical space. Curl divides the operand's
+unit by length and retains its exact volume support.
+
+On an exact boundary of that volume, `tangential_trace(u)` means `n × u`
+in 3D and `n_x u_y − n_y u_x` in 2D. This oriented trace differs from the
+unoriented tangential projection `u − n(n · u)`: reversing the normal reverses
+the trace. It retains the operand's unit and acquires the exact boundary support.
+Equal coordinates or equal box sizes cannot substitute another parent or face.
+Python authors the same expressions with `eqiora.lang.curl` and
+`eqiora.lang.tangential_trace`.
+
+For twice continuously differentiable fields in a fixed Cartesian frame,
+`div(curl(u)) = 0`, `curl(grad(f)) = 0`, and
+`curl(curl(u)) = grad(div(u)) − div(grad(u))` in 3D. Mixed partials commute
+under this regularity assumption. The Laplacian remains `div(grad(.))`;
+these equalities do not assert that a finite-element or finite-volume
+representation preserves the differential identities.
+
+For smooth 3D fields and an outward-oriented, piecewise smooth boundary,
+the bilinear integration-by-parts pairing is
+`∫Ω curl(u) · v = ∫Ω u · curl(v) + ∫∂Ω (n × u) · v`.
+Each side has units `[u][v] length²`. A Hermitian pairing must explicitly
+conjugate the corresponding factor. Weak extensions require admitted trace
+and regularity spaces; this syntax alone does not provide those spaces.
+
+The reference evaluator admits real explicit coordinate polynomials on Cartesian
+volumes, including nested gradient/divergence/curl compositions. The admitted
+arithmetic is constants, Parameters, coordinates, addition/subtraction, multiplication,
+nonnegative integer powers and polynomial pure component maps; division and
+nonpolynomial functions are outside this profile. Parameters are read from the
+actual evaluation bindings. Native `EvaluationPoint` also admits
+Cartesian faces using the complete parent coordinate inventory and the exact
+face position; normal orientation is distinct from a one-sided limit request.
+This profile does not reconstruct unknown spatial Fields, evaluate complex
+spatial polynomials, supply general boundary charts, solve Maxwell equations,
+or provide compatible edge elements. Unsupported expressions reject explicitly.
+
 ## Finite Hamiltonians and declared evolution conditions
 
 A finite Hamiltonian is an energy-valued linear map on a declared orthonormal basis.

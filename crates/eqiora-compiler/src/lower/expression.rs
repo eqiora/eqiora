@@ -723,6 +723,40 @@ impl ExpressionLowerer<'_> {
                 .map(|id| TypedExpression { id, dimension })
                 .map_err(|diagnostic| self.builder_error(expression, diagnostic));
         }
+        if let Some(operation) = crate::math::oriented::Operation::named(callee) {
+            let operand_type =
+                types::expression_type(self.file, argument, self.bindings, self.support.as_ref())?;
+            let (definition, input_type) =
+                operation.definition(&operand_type).map_err(|message| {
+                    source_error(
+                        codes::LANGUAGE_TYPE_ERROR,
+                        self.file,
+                        expression.range(),
+                        message,
+                    )
+                })?;
+            let operand = self.lower(argument)?;
+            let input = match operation {
+                crate::math::oriented::Operation::Curl => self.builder.gradient(operand.id),
+                crate::math::oriented::Operation::TangentialTrace => Ok(operand.id),
+            }
+            .map_err(|error| self.builder_error(expression, error))?;
+            let value = self
+                .builder
+                .pure_operator(&definition, [input])
+                .map_err(|error| self.builder_error(expression, error))?;
+            let id = match operation {
+                crate::math::oriented::Operation::Curl => Ok(value),
+                crate::math::oriented::Operation::TangentialTrace => {
+                    self.builder.normal_component(value)
+                }
+            }
+            .map_err(|error| self.builder_error(expression, error))?;
+            return Ok(TypedExpression {
+                id,
+                dimension: input_type.dimension(),
+            });
+        }
         if matches!(
             callee,
             "grad" | "div" | "symmetric_part" | "isotropic_lift" | "trace" | "normal"

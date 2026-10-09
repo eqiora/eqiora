@@ -1118,7 +1118,7 @@ def quantity(value: int | float | Decimal, unit: Unit) -> Expression:
 
 __all__ = [
     "matrix_trace", "determinant", "inverse", "transpose", "adjoint", "apply", "compose", "pair", "tensor_product", "permute_factors",
-    "Observable", "variation", "contract", "cross",
+    "Observable", "variation", "contract", "cross", "curl", "tangential_trace",
     "Inequality", "Complementarity", "inequality", "complementarity",
     "equal",
     "not_equal",
@@ -1306,5 +1306,21 @@ def cross(left: object, right: object) -> Expression:
     """Right-handed cross product of exact Cartesian three-vectors, without conjugation.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::cross``.
+    """
+    ...
+
+
+def curl(value: object) -> Expression:
+    """Cartesian curl: 3D vector, 2D vector-to-scalar, or 2D scalar-to-vector.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::curl``.
+    """
+    ...
+
+
+def tangential_trace(value: object) -> Expression:
+    """Oriented n cross value on the exact parent boundary, scalar in 2D.
+
+    Authority: ``bindings/python/python/eqiora/lang/__init__.py::tangential_trace``.
     """
     ...
