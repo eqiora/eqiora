@@ -184,7 +184,12 @@ pub(in crate::numerical_admission) fn execute(
     core.validate_solution(&solution)?;
     let (values, solve_report) = solution.into_parts();
     Ok(CommonScalarRunOutput {
-        fields: vec![(projection.field, projection.value_type.clone(), values)],
+        fields: vec![(
+            projection.field,
+            projection.value_type.clone(),
+            values,
+            eqiora_realization::Space::cell_constant(),
+        )],
         nullspace: None,
         solve_report,
         assembly_report,

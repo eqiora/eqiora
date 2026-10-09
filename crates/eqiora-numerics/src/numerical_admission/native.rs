@@ -698,6 +698,7 @@ impl NativeNumericalAdmission {
                         field.downcast().expect("compiled Field identity"),
                         value_type.clone(),
                         solution.cell_values().to_vec(),
+                        eqiora_realization::Space::cell_constant(),
                     )],
                     nullspace: solution.nullspace_evidence().cloned(),
                     solve_report: solution.solve_report().clone(),

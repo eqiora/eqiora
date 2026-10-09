@@ -646,6 +646,7 @@ pub(crate) struct CommonScalarRunOutput<S> {
         eqiora_core::Id<eqiora_core::entity::kinds::Field>,
         eqiora_core::ValueType,
         Vec<S>,
+        eqiora_realization::Space,
     )>,
     pub(crate) solve_report: eqiora_solver::SolveReport,
     pub(crate) assembly_report: eqiora_assembly::AssemblyReport,

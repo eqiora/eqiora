@@ -232,6 +232,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                     field.downcast().expect("Field"),
                     recovered.value_type,
                     recovered.coefficients.into_values().collect(),
+                    recovered.space,
                 ))
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;

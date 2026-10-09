@@ -123,7 +123,7 @@ impl NativeNumericalAdmission {
             fields: output
                 .fields
                 .into_iter()
-                .map(|(field, ty, values)| {
+                .map(|(field, ty, values, space)| {
                     (
                         field,
                         ty,
@@ -131,6 +131,7 @@ impl NativeNumericalAdmission {
                             .into_iter()
                             .flat_map(|value| [value.re, value.im])
                             .collect(),
+                        space,
                     )
                 })
                 .collect(),

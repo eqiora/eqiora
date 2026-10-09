@@ -274,36 +274,42 @@ impl CommonResult {
         output: CommonScalarRunOutput<f64>,
     ) -> Result<Self, Diagnostic> {
         require_elapsed(elapsed_seconds)?;
-        if output.fields.len() != plan.fields().len()
-            || output.fields.iter().zip(plan.fields()).any(
-                |((actual, value_type, _), (expected, expected_type))| {
-                    *actual != expected || value_type != expected_type
-                },
-            )
-        {
-            return Err(invalid(
-                "scalar output differs from the complete typed Plan Field inventory",
-            ));
-        }
-        plan.check_nullspace_evidence(&output.fields[0].2, output.nullspace.as_ref())?;
-        let (association, space) = match plan.spatial() {
-            crate::CommonSpatialPolicy::Q1 => {
-                (CommonFieldAssociation::Vertex, "continuous-lagrange-p1")
-            }
+        let (association, space, expected_space) = match plan.spatial() {
+            crate::CommonSpatialPolicy::Q1 => (
+                CommonFieldAssociation::Vertex,
+                "continuous-lagrange-p1",
+                eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+            ),
             crate::CommonSpatialPolicy::CellCenteredTpfa
-            | crate::CommonSpatialPolicy::CellCentered => {
-                (CommonFieldAssociation::Cell, "cell-constant")
-            }
+            | crate::CommonSpatialPolicy::CellCentered => (
+                CommonFieldAssociation::Cell,
+                "cell-constant",
+                eqiora_realization::Space::cell_constant(),
+            ),
             _ => {
                 return Err(invalid(
                     "scalar Result received a non-scalar spatial policy",
                 ));
             }
         };
+        if output.fields.len() != plan.fields().len()
+            || output.fields.iter().zip(plan.fields()).any(
+                |((actual, value_type, _, actual_space), (expected, expected_type))| {
+                    *actual != expected
+                        || value_type != expected_type
+                        || *actual_space != expected_space
+                },
+            )
+        {
+            return Err(invalid(
+                "scalar output differs from the complete typed Plan Field inventory or coefficient Space",
+            ));
+        }
+        plan.check_nullspace_evidence(&output.fields[0].2, output.nullspace.as_ref())?;
         let fields = output
             .fields
             .into_iter()
-            .map(|(field, value_type, values)| {
+            .map(|(field, value_type, values, _)| {
                 CommonResultField::new(
                     field.ulid().to_string(),
                     value_type.scalar_domain(),

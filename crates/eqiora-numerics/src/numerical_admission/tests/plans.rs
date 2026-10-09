@@ -806,6 +806,30 @@ fn scalar_parameter_points_share_the_run_primal_and_preserve_operator_properties
             })
             .unwrap();
         let output = plan.run(&REFERENCE_LINEAR_SOLVER).unwrap();
+        let expected_space = match spatial {
+            CommonSpatialPolicy::Q1 => {
+                eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN)
+            }
+            CommonSpatialPolicy::CellCenteredTpfa => eqiora_realization::Space::cell_constant(),
+            _ => unreachable!(),
+        };
+        assert_eq!(output.fields[0].3, expected_space);
+        crate::CommonResult::accept_scalar(plan.clone(), 0.0, output.clone()).unwrap();
+        // Preserve every value, type and ID while changing only its coefficient
+        // interpretation. Neither equal shape nor a finite solve authenticates it.
+        for substituted in [
+            eqiora_realization::Space::tetrahedral_edge(),
+            eqiora_realization::Space::tetrahedral_face(),
+        ] {
+            let mut corrupted = output.clone();
+            corrupted.fields[0].3 = substituted;
+            assert!(
+                crate::CommonResult::accept_scalar(plan.clone(), 0.0, corrupted)
+                    .unwrap_err()
+                    .message()
+                    .contains("coefficient Space")
+            );
+        }
         let field = plan.differentiate(&[parameter], None).unwrap();
         let relation = field.relation();
         assert_eq!(
