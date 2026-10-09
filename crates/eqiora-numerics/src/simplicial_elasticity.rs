@@ -17,7 +17,7 @@ use eqiora_solver::{LinearOperatorProperties, LinearProblem, LinearSolveRequest,
 use crate::affine_fem::simplex_p1_physical_gradients;
 use crate::constrained_dofs::ConstrainedDofLayout;
 use crate::continuum_kinematics::symmetric_gradient;
-use crate::discrete_space::{DiscreteSpace, SimplexP1Space};
+use crate::discrete_space::DiscreteSpace;
 use crate::interleaved_dofs::InterleavedDofValues;
 use crate::linear_elasticity::IsotropicElasticityMaterial;
 use crate::operator::LocalOperator;
@@ -317,7 +317,10 @@ impl LocalOperator<AffineGeometryMap> for SimplicialElasticityCell {
     ) -> Result<LocalContribution<f64>, Diagnostic> {
         require_geometry_rule(geometry, quadrature)?;
         let gradients = simplex_p1_physical_gradients::<DIMENSION>(geometry)?;
-        let space = SimplexP1Space::new(DIMENSION)?;
+        let space = DiscreteSpace::new(
+            eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+            eqiora_meshing::ReferenceCell::simplex(DIMENSION)?,
+        )?;
         let mut matrix = vec![0.0; LOCAL_DOFS * LOCAL_DOFS];
         let mut rhs = vec![0.0; LOCAL_DOFS];
         for point in quadrature.points() {

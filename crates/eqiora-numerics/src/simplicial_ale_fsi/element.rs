@@ -127,7 +127,7 @@ mod tests {
     use eqiora_meshing::{FixedTopologyGeometryAction3d, FixedTopologyGeometryState3d};
 
     use super::*;
-    use crate::discrete_space::{DiscreteSpace, SimplexP1BubbleSpace};
+    use crate::discrete_space::DiscreteSpace;
 
     const STEP: f64 = 0.2;
 
@@ -668,7 +668,11 @@ model Mathematics() {{ domain body = box({bounds});
         )
         .unwrap();
 
-        let bubble_space = SimplexP1BubbleSpace::new(DIMENSION).unwrap();
+        let bubble_space = DiscreteSpace::new(
+            eqiora_realization::Space::simplex_p1_bubble(),
+            eqiora_meshing::ReferenceCell::simplex(DIMENSION).unwrap(),
+        )
+        .unwrap();
         let bubble_integral = quadrature
             .points()
             .iter()

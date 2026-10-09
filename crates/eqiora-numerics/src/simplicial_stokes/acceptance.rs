@@ -10,7 +10,7 @@ use super::{
     COMPONENTS, DIMENSION, P1_BASIS_COUNT, REQUIRED_ERROR_QUADRATURE_EXACTNESS,
     REQUIRED_QUADRATURE_EXACTNESS, invalid,
 };
-use crate::discrete_space::{DiscreteSpace, SimplexP1Space};
+use crate::discrete_space::DiscreteSpace;
 
 pub(super) fn require_compatible_boundary_flux(
     mesh: &SimplicialMesh,
@@ -193,7 +193,10 @@ pub(crate) fn integrate_pressure(
     pressure: &[f64],
 ) -> Result<f64, Diagnostic> {
     let mut result = 0.0;
-    let pressure_space = SimplexP1Space::new(DIMENSION)?;
+    let pressure_space = DiscreteSpace::new(
+        eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+        eqiora_meshing::ReferenceCell::simplex(DIMENSION)?,
+    )?;
     for cell_index in 0..mesh.entity_count(DIMENSION).expect("mesh owns cells") {
         let cell = MeshEntity::new(DIMENSION, cell_index);
         let geometry = mesh

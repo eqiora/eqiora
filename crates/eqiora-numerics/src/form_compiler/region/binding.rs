@@ -6,9 +6,7 @@ use eqiora_core::{Diagnostic, DimExponents, DynQuantity, RawId, ValueType};
 use eqiora_meshing::{ReferenceCell, ReferenceCellFamily};
 use eqiora_realization::{BackwardEulerStateBinding, Space, SpaceFamily};
 
-use crate::discrete_space::{
-    DiscreteSpace, HypercubeQ1Space, SimplexP1BubbleSpace, SimplexP1Space,
-};
+use crate::discrete_space::DiscreteSpace;
 
 use super::{CompiledRegionForm, Role, components, invalid};
 
@@ -182,23 +180,26 @@ fn positive_scale(scale: DynQuantity, value_type: &ValueType) -> Result<(), Diag
     Ok(())
 }
 
-pub(crate) fn basis(
-    space: Space,
-    reference: ReferenceCell,
-) -> Result<Box<dyn DiscreteSpace>, Diagnostic> {
+pub(crate) fn basis(space: Space, reference: ReferenceCell) -> Result<DiscreteSpace, Diagnostic> {
     match (space.family(), reference.family()) {
         (SpaceFamily::ContinuousLagrange { order }, ReferenceCellFamily::Simplex)
             if order.get() == 1 =>
         {
-            Ok(Box::new(SimplexP1Space::new(reference.dimension())?))
+            DiscreteSpace::new(
+                Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+                reference,
+            )
         }
         (SpaceFamily::ContinuousLagrange { order }, ReferenceCellFamily::Hypercube)
             if order.get() == 1 =>
         {
-            Ok(Box::new(HypercubeQ1Space::new(reference.dimension())?))
+            DiscreteSpace::new(
+                Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+                reference,
+            )
         }
         (SpaceFamily::SimplexP1Bubble, ReferenceCellFamily::Simplex) => {
-            Ok(Box::new(SimplexP1BubbleSpace::new(reference.dimension())?))
+            DiscreteSpace::new(Space::simplex_p1_bubble(), reference)
         }
         _ => Err(invalid(
             "region form requires P1, Q1 or simplex P1-bubble bases",

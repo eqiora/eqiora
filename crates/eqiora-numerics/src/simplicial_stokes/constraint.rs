@@ -4,7 +4,7 @@ use eqiora_meshing::{AffineGeometryMap, QuadratureRule};
 
 use super::acceptance::require_local_geometry;
 use super::{CONSTRAINT_LOCAL_DOF_COUNT, CONSTRAINT_LOCAL_GAUGE, DIMENSION, P1_BASIS_COUNT};
-use crate::discrete_space::{DiscreteSpace, SimplexP1Space};
+use crate::discrete_space::DiscreteSpace;
 use crate::operator::LocalOperator;
 
 /// Cell-local occurrence of one global zero-integral pressure constraint.
@@ -36,7 +36,10 @@ fn integrated_pressure_basis(
     quadrature: &QuadratureRule,
 ) -> Result<[f64; P1_BASIS_COUNT], Diagnostic> {
     require_local_geometry(geometry, quadrature)?;
-    let pressure_space = SimplexP1Space::new(DIMENSION)?;
+    let pressure_space = DiscreteSpace::new(
+        eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+        eqiora_meshing::ReferenceCell::simplex(DIMENSION)?,
+    )?;
     let mut integrated = [0.0; P1_BASIS_COUNT];
     for point in quadrature.points() {
         let basis = pressure_space.tabulate(&point.coordinates)?;

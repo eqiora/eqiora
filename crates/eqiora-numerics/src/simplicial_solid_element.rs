@@ -6,7 +6,7 @@ use eqiora_core::diagnostic::codes;
 use eqiora_meshing::{AffineGeometryMap, GeometryMap, QuadratureRule};
 
 use crate::affine_fem::simplex_p1_physical_gradients;
-use crate::discrete_space::{DiscreteSpace, SimplexP1Space};
+use crate::discrete_space::DiscreteSpace;
 use crate::linear_elasticity::IsotropicElasticityMaterial;
 
 #[allow(clippy::too_many_arguments)]
@@ -23,7 +23,10 @@ pub(crate) fn p1_solid_backward_euler_velocity<const D: usize>(
     power_scale: f64,
 ) -> Result<LocalContribution<f64>, Diagnostic> {
     require_contract::<D>(geometry, quadrature, density)?;
-    let space = SimplexP1Space::new(D)?;
+    let space = DiscreteSpace::new(
+        eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+        eqiora_meshing::ReferenceCell::simplex(D)?,
+    )?;
     let basis_count = space.local_dofs().len();
     if previous_vertex_velocity.len() != basis_count
         || previous_vertex_displacement.len() != basis_count

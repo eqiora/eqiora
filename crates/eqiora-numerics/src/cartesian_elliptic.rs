@@ -23,7 +23,7 @@ use crate::affine_fem::{dot, physical_gradient, weighted_gradient, weighted_grad
 use crate::assembled_linearization::AssembledLinearizedRelation;
 use crate::canonical::ScalarEllipticCartesianModel;
 use crate::constrained_dofs::ConstrainedDofLayout;
-use crate::discrete_space::{DiscreteSpace, HypercubeQ1Space};
+use crate::discrete_space::DiscreteSpace;
 use crate::form_compiler::{
     AdmittedScalarGalerkinForm, DerivedScalarGalerkinForm, compile_cartesian_q1_form,
 };
@@ -105,7 +105,10 @@ impl CartesianQ1Field {
     {
         require_cell_rule(&self.mesh, quadrature)?;
         let dimension = self.mesh.topological_dimension();
-        let space = HypercubeQ1Space::new(dimension)?;
+        let space = DiscreteSpace::new(
+            eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+            eqiora_meshing::ReferenceCell::hypercube(dimension)?,
+        )?;
         let mut squared_error = 0.0;
         for cell_index in 0..self
             .mesh
@@ -467,7 +470,12 @@ where
     validate_problem(mesh, quadrature)?;
     let dimension = mesh.topological_dimension();
     let cell_count = mesh.entity_count(dimension).expect("mesh owns cells");
-    let local_width = HypercubeQ1Space::new(dimension)?.local_dofs().len();
+    let local_width = DiscreteSpace::new(
+        eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+        eqiora_meshing::ReferenceCell::hypercube(dimension)?,
+    )?
+    .local_dofs()
+    .len();
     let coefficients_per_cell = local_width
         .checked_mul(local_width)
         .ok_or_else(|| invalid("Cartesian Q1 local-action shape overflows usize"))?;
@@ -736,7 +744,10 @@ pub fn linearize_scalar_elliptic_cartesian_fem(
         }
     }
     let mut design_jacobian = vec![0.0; unknown_dimension * design_dimension];
-    let space = HypercubeQ1Space::new(dimension)?;
+    let space = DiscreteSpace::new(
+        eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+        eqiora_meshing::ReferenceCell::hypercube(dimension)?,
+    )?;
     let mut parameter_tangent = vec![0.0; model.parameter_fields().len()];
 
     for (coordinate, action) in selected.actions.iter().copied().enumerate() {
@@ -834,7 +845,12 @@ pub fn linearize_scalar_elliptic_cartesian_fem(
         let facet_quadrature = scalar_facet_quadrature(dimension)?;
         let facet_dimension = dimension - 1;
         let facet_space = (facet_dimension > 0)
-            .then(|| HypercubeQ1Space::new(facet_dimension))
+            .then(|| {
+                DiscreteSpace::new(
+                    eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+                    eqiora_meshing::ReferenceCell::hypercube(facet_dimension)?,
+                )
+            })
             .transpose()?;
         for facet_index in 0..mesh
             .entity_count(facet_dimension)

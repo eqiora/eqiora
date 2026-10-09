@@ -18,7 +18,7 @@ use crate::affine_fem::{dot, physical_gradient, weighted_gradient, weighted_grad
 use crate::assembled_linearization::AssembledLinearizedRelation;
 use crate::canonical::ScalarEllipticCartesianModel;
 use crate::constrained_dofs::ConstrainedDofLayout;
-use crate::discrete_space::{DiscreteSpace, SimplexP1Space};
+use crate::discrete_space::DiscreteSpace;
 use crate::operator::LocalOperator;
 use crate::simplicial_motion::SimplicialMeshVelocity;
 use crate::spatial_design::SpatialDesignCoordinate;
@@ -281,7 +281,10 @@ pub fn linearize_scalar_elliptic_simplicial_fem(
     let design_dimension = selected.coordinates.len();
     let unknown_dimension = solution.algebraic_values.len();
     let free_indices = free_index_map(mesh, &solution.free_vertices)?;
-    let space = SimplexP1Space::new(dimension)?;
+    let space = DiscreteSpace::new(
+        eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+        eqiora_meshing::ReferenceCell::simplex(dimension)?,
+    )?;
     let mut design_jacobian = vec![0.0; unknown_dimension * design_dimension];
     let mut parameter_tangent = vec![0.0; model.parameter_fields().len()];
 
@@ -399,7 +402,10 @@ pub fn linearize_scalar_elliptic_simplicial_compliance(
     let dimension = mesh.topological_dimension();
     let design_dimension = selected.coordinates.len();
     let free_indices = free_index_map(mesh, &solution.free_vertices)?;
-    let space = SimplexP1Space::new(dimension)?;
+    let space = DiscreteSpace::new(
+        eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+        eqiora_meshing::ReferenceCell::simplex(dimension)?,
+    )?;
     let mut value = 0.0;
     let mut unknown_cotangent = vec![0.0; solution.algebraic_values.len()];
 
@@ -500,7 +506,10 @@ impl LocalOperator<AffineGeometryMap> for SimplicialEllipticCell<'_> {
     ) -> Result<LocalContribution<f64>, Diagnostic> {
         require_geometry_rule(geometry, quadrature)?;
         let dimension = geometry.reference_cell().dimension();
-        let space = SimplexP1Space::new(dimension)?;
+        let space = DiscreteSpace::new(
+            eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+            eqiora_meshing::ReferenceCell::simplex(dimension)?,
+        )?;
         let dof_count = dimension + 1;
         let inverse = geometry.inverse_jacobian()?;
         let mut matrix = vec![0.0; dof_count * dof_count];

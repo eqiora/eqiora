@@ -18,7 +18,7 @@ use super::assembly::{
 use super::contract::{AleFsiState, AleFsiStepPlan};
 use super::element::{AleMiniFluidCell, AleMiniFluidDirection};
 use super::{P1HarmonicMeshMotionAction, invalid};
-use crate::discrete_space::{DiscreteSpace, SimplexP1BubbleSpace};
+use crate::discrete_space::DiscreteSpace;
 use crate::simplicial_fsi::FixedReferenceFsiPartition;
 
 pub(super) struct NewtonEvidence {
@@ -259,7 +259,10 @@ fn compatible_constant_free_stream_probe<const D: usize>(
     coefficients[D + 1] = [0.0; D];
     let zero_velocity = vec![[0.0; D]; D + 2];
     let zero_pressure = vec![0.0; D + 1];
-    let bubble_space = SimplexP1BubbleSpace::new(D)?;
+    let bubble_space = DiscreteSpace::new(
+        eqiora_realization::Space::simplex_p1_bubble(),
+        eqiora_meshing::ReferenceCell::simplex(D)?,
+    )?;
     let mut probed_moving_fluid_cell_count = 0_usize;
     let mut gcl_active_moving_fluid_cell_count = 0_usize;
     let mut residual_squared = 0.0;
@@ -779,7 +782,11 @@ mod tests {
         plan: &AleFsiStepPlan<3>,
         quadrature: &QuadratureRule,
     ) -> f64 {
-        let bubble_space = SimplexP1BubbleSpace::new(3).unwrap();
+        let bubble_space = DiscreteSpace::new(
+            eqiora_realization::Space::simplex_p1_bubble(),
+            eqiora_meshing::ReferenceCell::simplex(3).unwrap(),
+        )
+        .unwrap();
         let momentum_row_scale = plan.scale().velocity() / plan.scale().power();
         let constant: [f64; 3] =
             std::array::from_fn(|axis| plan.scale().velocity() * (-0.5_f64).powi(axis as i32));

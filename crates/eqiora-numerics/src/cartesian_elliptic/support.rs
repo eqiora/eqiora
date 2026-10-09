@@ -313,7 +313,10 @@ where
             vec![integrate_boundary_flux(geometry, quadrature, flux)?],
         );
     }
-    let space = HypercubeQ1Space::new(dimension)?;
+    let space = DiscreteSpace::new(
+        eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+        eqiora_meshing::ReferenceCell::hypercube(dimension)?,
+    )?;
     let dof_count = space.local_dofs().len();
     let mut rhs = vec![0.0; dof_count];
     let mut physical = vec![0.0; geometry.physical_dimension()];

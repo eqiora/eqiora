@@ -4,7 +4,7 @@ use eqiora_meshing::{AffineGeometryMap, QuadratureRule};
 
 use super::acceptance::require_facet_geometry;
 use super::{COMPONENTS, FACET_BASIS_COUNT, FACET_LOCAL_DOF_COUNT};
-use crate::discrete_space::{DiscreteSpace, SimplexP1Space};
+use crate::discrete_space::DiscreteSpace;
 use crate::operator::LocalOperator;
 
 /// One constant prescribed-traction action on a P1 boundary trace.
@@ -34,7 +34,10 @@ fn integrated_traction_action(
     quadrature: &QuadratureRule,
 ) -> Result<Vec<f64>, Diagnostic> {
     require_facet_geometry(geometry, quadrature)?;
-    let space = SimplexP1Space::new(1)?;
+    let space = DiscreteSpace::new(
+        eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+        eqiora_meshing::ReferenceCell::simplex(1)?,
+    )?;
     let mut action = vec![0.0; FACET_LOCAL_DOF_COUNT];
     for point in quadrature.points() {
         let basis = space.tabulate(&point.coordinates)?;

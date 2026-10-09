@@ -8,7 +8,7 @@ use eqiora_solver::{
     LinearSolveRequest, LinearSolver, PreconditionerPolicy, SolveReport,
 };
 
-use crate::discrete_space::{DiscreteSpace, SimplexP1BubbleSpace, SimplexP1Space};
+use crate::discrete_space::DiscreteSpace;
 
 const DIMENSION: usize = 2;
 const MAX_DENSE_COEFFICIENTS: usize = 16_000_000;
@@ -289,9 +289,17 @@ pub(super) fn cell_basis(
     }
     let reference = canonical_reference_point(lambda, tolerance)?;
     let tabulation = if bubble {
-        SimplexP1BubbleSpace::new(DIMENSION)?.tabulate(&reference)?
+        DiscreteSpace::new(
+            eqiora_realization::Space::simplex_p1_bubble(),
+            eqiora_meshing::ReferenceCell::simplex(DIMENSION)?,
+        )?
+        .tabulate(&reference)?
     } else {
-        SimplexP1Space::new(DIMENSION)?.tabulate(&reference)?
+        DiscreteSpace::new(
+            eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN),
+            eqiora_meshing::ReferenceCell::simplex(DIMENSION)?,
+        )?
+        .tabulate(&reference)?
     };
     let values = tabulation.values().to_vec();
     let gradients = (0..values.len())

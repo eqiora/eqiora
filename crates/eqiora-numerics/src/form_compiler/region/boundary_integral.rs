@@ -5,7 +5,7 @@ use eqiora_meshing::{
 };
 
 use super::*;
-use crate::discrete_space::{CellConstantSpace, DiscreteSpace, HypercubeQ1Space, SimplexP1Space};
+use crate::discrete_space::DiscreteSpace;
 
 impl<S: Coefficient> BoundRegionForm<S> {
     /// Integrate physical parent-outward flux into the complete parent-cell map.
@@ -49,10 +49,16 @@ impl<S: Coefficient> BoundRegionForm<S> {
                 "natural flux vertex embedding differs from its exact parent facet",
             ));
         }
-        let facet_space: Box<dyn DiscreteSpace> = match facet.reference_cell().family() {
-            ReferenceCellFamily::Point => Box::new(CellConstantSpace::new(facet.reference_cell())),
-            ReferenceCellFamily::Simplex => Box::new(SimplexP1Space::new(dimension - 1)?),
-            ReferenceCellFamily::Hypercube => Box::new(HypercubeQ1Space::new(dimension - 1)?),
+        let facet_reference = facet.reference_cell();
+        let facet_space = match facet_reference.family() {
+            ReferenceCellFamily::Point => {
+                DiscreteSpace::new(eqiora_realization::Space::cell_constant(), facet_reference)?
+            }
+            ReferenceCellFamily::Simplex | ReferenceCellFamily::Hypercube => {
+                let space =
+                    eqiora_realization::Space::continuous_lagrange(std::num::NonZeroU16::MIN);
+                DiscreteSpace::new(space, facet_reference)?
+            }
         };
         if facet_space.local_dofs().len() != parent_vertices.len() {
             return Err(invalid(
