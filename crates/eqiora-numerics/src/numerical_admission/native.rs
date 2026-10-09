@@ -328,6 +328,8 @@ impl AuthenticatedCommonMesh {
     }
 
     /// Re-import and own one exact bounded Gmsh 4.15.2 provider observation.
+    /// Affine tetrahedra require exact convex-polyhedral Geometry correspondence;
+    /// accepting these resources does not admit a numerical space or flow solver.
     pub fn gmsh_4152(
         geometry: CanonicalGeometryV1,
         policy: eqiora_artifact::GmshMeshPolicyV1,
