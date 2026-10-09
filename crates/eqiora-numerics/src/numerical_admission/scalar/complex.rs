@@ -13,20 +13,12 @@ impl CommonScalarPlan {
                 "complex scalar Plan requires its exact typed equations",
             ));
         };
-        let NativeMeshResources::Cartesian {
-            mesh, production, ..
-        } = admission.resources()
-        else {
+        let NativeMeshResources::Cartesian { mesh, .. } = admission.resources() else {
             return Err(invalid(
                 "complex scalar Plan requires authenticated Cartesian resources",
             ));
         };
-        let cells = production
-            .cartesian_cells()
-            .ok_or_else(|| invalid("complex scalar Plan lost Cartesian production"))?
-            .cells()
-            .to_vec()
-            .into_boxed_slice();
+        let cells = admission.resources().cartesian_cells()?;
         let fields = equations
             .fields()
             .into_iter()
@@ -69,7 +61,6 @@ impl CommonScalarPlan {
         Self::finish_admission(
             model,
             admission,
-            cells,
             fields,
             portable,
             formulation,

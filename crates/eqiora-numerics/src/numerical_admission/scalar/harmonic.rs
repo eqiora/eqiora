@@ -28,7 +28,6 @@ impl CommonScalarPlan {
         let mut plan = Self::finish_admission(
             &reduction.reduced,
             self.admission,
-            self.cells,
             self.fields,
             self.portable,
             Some(description),

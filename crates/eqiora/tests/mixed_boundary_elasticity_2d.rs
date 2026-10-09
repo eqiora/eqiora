@@ -25,7 +25,6 @@ use eqiora::sem::KernelProgram;
 use eqiora::solver::{LinearSolver, LinearSolverBackend, REFERENCE_LINEAR_SOLVER, SolverPlan};
 use eqiora_numerics::{
     common::DiscreteSpace,
-    common::HypercubeQ1Space,
     common::PhysicalBoundaryDisposition,
     common::ScalarSpatialExpression,
     solid::CartesianLinearElasticity2dSolution,
@@ -264,7 +263,11 @@ fn recovered_traction_resultants(
     first_lame_parameter: f64,
 ) -> [[[f64; 2]; 2]; 2] {
     let mesh = solution.displacement().mesh();
-    let space = HypercubeQ1Space::new(2).expect("Q1 space");
+    let space = DiscreteSpace::new(
+        Space::continuous_lagrange(NonZeroU16::MIN),
+        eqiora::meshing::ReferenceCell::hypercube(2).unwrap(),
+    )
+    .expect("Q1 space");
     let rule = QuadratureRule::gauss_legendre(2).expect("facet rule");
     let mut resultants = [[[0.0; 2]; 2]; 2];
 

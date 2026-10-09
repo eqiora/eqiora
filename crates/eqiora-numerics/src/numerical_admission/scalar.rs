@@ -169,7 +169,7 @@ impl CommonScalarPlan {
             self.admission.revalidate()?;
             return require_portable_realization(
                 &self.portable,
-                coordinate_grid::portable(&self.admission, &self.cells)?,
+                coordinate_grid::portable(&self.admission, &self.cartesian_cells()?)?,
             );
         }
 
@@ -211,7 +211,12 @@ impl CommonScalarPlan {
         }
         require_portable_realization(
             &self.portable,
-            resolve_common_scalar_portable(&self.admission, lowered, mesh, &self.cells)?,
+            resolve_common_scalar_portable(
+                &self.admission,
+                lowered,
+                mesh,
+                &self.cartesian_cells()?,
+            )?,
         )
     }
 
@@ -221,20 +226,12 @@ impl CommonScalarPlan {
         formulation_selection: Option<FormulationSelectionMode>,
         authored_formulation: Option<&AuthoredFormulationProjection>,
     ) -> Result<Self, Diagnostic> {
-        let NativeMeshResources::Cartesian {
-            mesh, production, ..
-        } = admission.resources()
-        else {
+        let NativeMeshResources::Cartesian { mesh, .. } = admission.resources() else {
             return Err(invalid(
                 "scalar Q1/TPFA common Plan requires an authenticated Cartesian Mesh",
             ));
         };
-        let cells = production
-            .cartesian_cells()
-            .ok_or_else(|| invalid("common scalar Plan lost its Cartesian production policy"))?
-            .cells()
-            .to_vec()
-            .into_boxed_slice();
+        let cells = admission.resources().cartesian_cells()?;
         let RecognizedNativeModel::Scalar(lowered) = admission.recognized_model() else {
             return Err(invalid(
                 "common scalar Plan admitted non-scalar mathematics",
@@ -330,7 +327,6 @@ impl CommonScalarPlan {
         Self::finish_admission(
             model,
             admission,
-            cells,
             fields,
             portable,
             formulation,
@@ -341,7 +337,6 @@ impl CommonScalarPlan {
     fn finish_admission(
         model: &ModelEnvelope,
         admission: NativeNumericalAdmission,
-        cells: Box<[usize]>,
         fields: Box<
             [(
                 eqiora_core::Id<eqiora_core::entity::kinds::Field>,
@@ -396,7 +391,6 @@ impl CommonScalarPlan {
             authored_formulation: accepted_authored_formulation,
             lineage,
             fields,
-            cells,
         })
     }
 
@@ -497,7 +491,7 @@ impl CommonScalarPlan {
                 "common scalar differentiation requires exact Cartesian resources",
             ));
         };
-        let dimension = self.cells.len();
+        let dimension = self.cartesian_cells()?.len();
         let mesh = mesh.mesh();
         let source = |coordinates: &[f64]| bound.source().evaluate(coordinates).unwrap_or(f64::NAN);
         let coefficient = |coordinates: &[f64]| {
@@ -726,9 +720,10 @@ impl CommonScalarPlan {
             .map(|(field, value_type)| (*field, value_type))
     }
 
-    #[must_use]
-    pub fn cells(&self) -> &[usize] {
-        &self.cells
+    /// Axis cell counts of the authenticated Cartesian mesh or coordinate grid.
+    /// Simplicial resources have no Cartesian axis inventory and return an error.
+    pub fn cartesian_cells(&self) -> Result<Vec<usize>, Diagnostic> {
+        self.admission.resources().cartesian_cells()
     }
 
     #[must_use]
@@ -814,7 +809,7 @@ impl CommonScalarPlan {
             {
                 return Err(invalid("Field is outside coordinate Plan"));
             }
-            return Ok((self.cells.to_vec(), Vec::new()));
+            return Ok((self.cartesian_cells()?, Vec::new()));
         }
         let NativeMeshResources::Cartesian { mesh, .. } = self.admission.resources() else {
             return Err(invalid("missing Cartesian mesh"));

@@ -637,7 +637,6 @@ pub struct CommonScalarPlan {
             eqiora_core::ValueType,
         )],
     >,
-    cells: Box<[usize]>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

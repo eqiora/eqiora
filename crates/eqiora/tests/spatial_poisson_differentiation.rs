@@ -100,7 +100,7 @@ fn application_program_is_not_published_without_an_accepted_primal() {
 #[test]
 fn application_program_admission_is_exactly_the_verified_two_dimensional_slice() {
     let (_, plan) = document_and_plan(CommonSpatialPolicy::Q1);
-    assert_eq!(plan.cells(), [12, 12]);
+    assert_eq!(plan.cartesian_cells().unwrap(), [12, 12]);
 }
 
 #[test]

@@ -141,6 +141,14 @@ fn complete_polyhedral_selections_bind_before_numerical_recognition() {
     ] {
         for permuted in [false, true] {
             let (model, program, owner) = fixture(&groups, false, permuted, 2.);
+            assert!(
+                owner
+                    .resources
+                    .cartesian_cells()
+                    .unwrap_err()
+                    .message()
+                    .contains("axis cell counts")
+            );
             bind_model_support(&program, &owner.resources).unwrap();
             let replay = replay_program(&model, owner.geometry().unwrap()).unwrap();
             bind_model_support(&replay, &owner.resources).unwrap();

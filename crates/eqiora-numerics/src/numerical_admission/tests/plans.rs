@@ -184,7 +184,7 @@ fn exercise_scalar_box(model: &ModelEnvelope, geometry: &CanonicalGeometryV1, ce
         CommonSpatialPolicy::CellCenteredTpfa,
     ] {
         let plan = resolve_scalar_box(model, cartesian_box_resources(geometry, cells), spatial);
-        assert_eq!(plan.cells(), cells);
+        assert_eq!(plan.cartesian_cells().unwrap(), cells);
         match (
             cells.len(),
             plan.portable_realization().domains()[0]
@@ -203,7 +203,7 @@ fn exercise_scalar_box(model: &ModelEnvelope, geometry: &CanonicalGeometryV1, ce
         .as_scalar()
         .cloned()
         .expect("fixture retains its admitted scalar Plan");
-        assert_eq!(replayed.cells(), cells);
+        assert_eq!(replayed.cartesian_cells().unwrap(), cells);
         let result = replayed.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
         let expected_shape = match spatial {
             CommonSpatialPolicy::Q1 => cells.iter().map(|count| count + 1).collect::<Vec<_>>(),
@@ -387,7 +387,7 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
         hex_bytes(&q1.portable_realization().digest().unwrap())
     );
     assert_eq!(q1.model_digest(), model.digest().unwrap().to_string());
-    assert_eq!(q1.cells(), [2, 3]);
+    assert_eq!(q1.cartesian_cells().unwrap(), [2, 3]);
     let mut crossed_realization = q1.clone();
     crossed_realization.portable = tpfa.portable_realization().clone();
     assert!(crossed_realization.run(&REFERENCE_LINEAR_SOLVER).is_err());

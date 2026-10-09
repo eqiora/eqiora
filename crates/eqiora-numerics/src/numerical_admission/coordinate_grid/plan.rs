@@ -13,23 +13,10 @@ impl CommonScalarPlan {
         model: &ModelEnvelope,
         admission: NativeNumericalAdmission,
     ) -> Result<Self, Diagnostic> {
-        let NativeMeshResources::Coordinates(grid) = admission.resources() else {
-            return Err(invalid(
-                "coordinate Plan requires an authenticated factor grid",
-            ));
-        };
         let RecognizedNativeModel::Coordinates(projection) = admission.recognized_model() else {
             return Err(invalid("coordinate Plan lost its cell-integrated equality"));
         };
-        let cells = (0..grid.source.factors.len())
-            .map(|axis| {
-                grid.mesh
-                    .mesh()
-                    .axis_cell_count(axis)
-                    .expect("authenticated grid axis")
-            })
-            .collect::<Vec<_>>()
-            .into_boxed_slice();
+        let cells = admission.resources().cartesian_cells()?;
         let fields = projection.fields().into_boxed_slice();
         let portable = portable(&admission, &cells)?;
         let realization_digest = hex_bytes(&portable.digest()?);
@@ -50,7 +37,6 @@ impl CommonScalarPlan {
             authored_formulation: None,
             lineage,
             fields,
-            cells,
         })
     }
 }

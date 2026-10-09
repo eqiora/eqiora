@@ -341,6 +341,24 @@ impl AuthenticatedCommonMesh {
 }
 
 impl NativeMeshResources {
+    pub(super) fn cartesian_cells(&self) -> Result<Vec<usize>, Diagnostic> {
+        let mesh = match self {
+            Self::Cartesian { mesh, .. } => mesh.mesh(),
+            Self::Coordinates(grid) => grid.mesh.mesh(),
+            _ => {
+                return Err(invalid(
+                    "axis cell counts require an authenticated Cartesian mesh",
+                ));
+            }
+        };
+        (0..mesh.topological_dimension())
+            .map(|axis| {
+                mesh.axis_cell_count(axis)
+                    .ok_or_else(|| invalid("Cartesian mesh omitted an axis"))
+            })
+            .collect()
+    }
+
     pub(super) fn geometry(&self) -> Result<&CanonicalGeometryV1, Diagnostic> {
         match self {
             Self::Coordinates(_) => Err(invalid("coordinate-factor grid has no physical Geometry")),

@@ -15,7 +15,12 @@ impl CommonScalarPlan {
         time_s: f64,
         values: Vec<f64>,
     ) -> Result<CommonState, Diagnostic> {
-        let count = self.cells.iter().map(|n| n + 1).product::<usize>() * self.fields.len();
+        let count = self
+            .cartesian_cells()?
+            .iter()
+            .map(|n| n + 1)
+            .product::<usize>()
+            * self.fields.len();
         if self.admission.temporal.is_none()
             || values.len() != count
             || values.iter().any(|v| !v.is_finite())
@@ -73,7 +78,11 @@ impl CommonScalarPlan {
             return Err(invalid("missing scalar equations"));
         };
         let initial = equations.single()?.form.initial_values()?;
-        let count = self.cells.iter().map(|n| n + 1).product::<usize>();
+        let count = self
+            .cartesian_cells()?
+            .iter()
+            .map(|n| n + 1)
+            .product::<usize>();
         let values = self
             .fields
             .iter()
