@@ -320,7 +320,7 @@ fn coordinate_grid_common_plan_solves_and_replays_complete_cell_field() {
     .unwrap();
     assert_eq!(plan, replay);
     let result = replay
-        .as_scalar()
+        .as_linear()
         .unwrap()
         .run_result(&REFERENCE_LINEAR_SOLVER)
         .unwrap();

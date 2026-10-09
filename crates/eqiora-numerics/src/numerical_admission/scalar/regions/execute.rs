@@ -19,7 +19,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             crate::region_assembly::RecoveredInterfaceReactions<S>,
             Diagnostic,
         >,
-    ) -> Result<CommonScalarRunOutput<S>, Diagnostic> {
+    ) -> Result<CommonLinearRunOutput<S>, Diagnostic> {
         match resources {
             NativeMeshResources::Cartesian { mesh, .. }
                 if space == Space::continuous_lagrange(std::num::NonZeroU16::MIN) =>
@@ -53,7 +53,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             crate::region_assembly::RecoveredInterfaceReactions<S>,
             Diagnostic,
         >,
-    ) -> Result<CommonScalarRunOutput<S>, Diagnostic> {
+    ) -> Result<CommonLinearRunOutput<S>, Diagnostic> {
         let dimension = mesh.topological_dimension();
         let domains = self.cell_domains(mesh)?;
         let layouts = self
@@ -182,7 +182,7 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
                 )
             })
             .collect();
-        Ok(CommonScalarRunOutput {
+        Ok(CommonLinearRunOutput {
             nullspace: None,
             fields,
             solve_report: output.solve_report,

@@ -81,6 +81,8 @@ class TetrahedralEdge:
 
     Static real/complex vector fields with homogeneous natural boundaries.
     Coefficients include the entity measure; they are not point values.
+
+    Authority: ``crates/eqiora-python/src/common_plan/policy/moments.rs::PyTetrahedralEdge``.
     """
     def __new__(cls) -> Self: ...
     @property
@@ -99,6 +101,8 @@ class TetrahedralFace:
 
     Static real/complex vector fields with homogeneous natural boundaries.
     Coefficients include the entity measure; they are not point values.
+
+    Authority: ``crates/eqiora-python/src/common_plan/policy/moments.rs::PyTetrahedralFace``.
     """
     def __new__(cls) -> Self: ...
     @property

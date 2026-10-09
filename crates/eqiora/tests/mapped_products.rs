@@ -19,7 +19,7 @@ fn public_q1_and_tpfa_map_products_use_retained_evaluations() {
             .unwrap();
         let program = Arc::new(
             DifferentiableProgram::compile(
-                eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(plan)),
+                eqiora_numerics::ResolvedCommonPlan::Linear(Box::new(plan)),
                 &inputs,
                 &field,
                 None,

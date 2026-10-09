@@ -10,7 +10,7 @@ pub(super) fn reconstruct_block(
     time_seconds: f64,
     block: usize,
 ) -> PyResult<Py<PyArrayBuffer>> {
-    let plan = result.plan().as_scalar().ok_or_else(|| {
+    let plan = result.plan().as_linear().ok_or_else(|| {
         capability_error(
             py,
             "reconstruct_harmonic_field_block requires a spatial harmonic Result",

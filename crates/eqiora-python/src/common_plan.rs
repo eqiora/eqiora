@@ -6,7 +6,7 @@ use std::hash::{Hash, Hasher};
 use eqiora::artifact::CanonicalModelArtifact;
 use eqiora::backends::faer::FaerLinearSolver;
 use eqiora_numerics::{
-    CommonFsiPlan, CommonMethodRequest, CommonOdePlan, CommonScalarPlan, CommonScopedSpatialPolicy,
+    CommonFsiPlan, CommonLinearPlan, CommonMethodRequest, CommonOdePlan, CommonScopedSpatialPolicy,
     CommonSolvePolicy, CommonSpatialPolicy, CommonTransientFlowPlan, ResolvedCommonPlan,
 };
 use pyo3::exceptions::PyTypeError;
@@ -33,8 +33,8 @@ mod enforcement;
 pub(crate) mod harmonic;
 use capability_view::{
     PyElasticityPlanView, PyFixedReferenceFsiPlanView, PyFormulationKind,
-    PyFormulationSelectionMode, PyFormulationView, PyIncompressibleFlowPlanView, PyOdePlanView,
-    PyScalarPlanView, space_name,
+    PyFormulationSelectionMode, PyFormulationView, PyIncompressibleFlowPlanView, PyLinearPlanView,
+    PyOdePlanView, space_name,
 };
 mod event_policy;
 mod forward_policy;
@@ -199,9 +199,9 @@ impl PyPlan {
         }
     }
 
-    pub(crate) fn scalar_native(&self) -> Option<&CommonScalarPlan> {
+    pub(crate) fn linear_native(&self) -> Option<&CommonLinearPlan> {
         match &self.native {
-            ResolvedCommonPlan::Scalar(plan) => Some(plan),
+            ResolvedCommonPlan::Linear(plan) => Some(plan),
             _ => None,
         }
     }
@@ -242,7 +242,7 @@ impl PyPlan {
     fn harmonic_angular_frequency(&self) -> Option<f64> {
         match &self.native {
             ResolvedCommonPlan::Algebraic(plan) => plan.harmonic_angular_frequency(),
-            ResolvedCommonPlan::Scalar(plan) => plan.harmonic_angular_frequency(),
+            ResolvedCommonPlan::Linear(plan) => plan.harmonic_angular_frequency(),
             _ => None,
         }
     }
@@ -377,9 +377,9 @@ impl PyPlan {
                 },
             )
             .map(Py::into_any),
-            ResolvedCommonPlan::Scalar(plan) => Py::new(
+            ResolvedCommonPlan::Linear(plan) => Py::new(
                 py,
-                PyScalarPlanView {
+                PyLinearPlanView {
                     fields: plan
                         .fields()
                         .map(|(field, _)| {
@@ -523,7 +523,7 @@ impl PyPlan {
                 })
                 .map(|field| PyModelFieldRef::from_exact(model_digest.clone(), field.to_string()))
                 .collect(),
-            ResolvedCommonPlan::Scalar(plan) => plan
+            ResolvedCommonPlan::Linear(plan) => plan
                 .fields()
                 .map(|(field, _)| {
                     PyModelFieldRef::from_exact(model_digest.clone(), field.ulid().to_string())
@@ -968,7 +968,7 @@ fn resolve_plan(
             unreachable!("spatial resolver cannot return an ODE Plan")
         }
         ResolvedCommonPlan::Algebraic(_)
-        | ResolvedCommonPlan::Scalar(_)
+        | ResolvedCommonPlan::Linear(_)
         | ResolvedCommonPlan::Elasticity(_)
         | ResolvedCommonPlan::SteadyStokes(_)
         | ResolvedCommonPlan::Fsi(_) => ResolvedSolveHandle::Linear(linear),

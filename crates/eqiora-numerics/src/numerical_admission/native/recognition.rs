@@ -300,7 +300,7 @@ pub(crate) fn lower_scalar_candidate(
     resources: &NativeMeshResources,
 ) -> Result<RecognizedNativeModel, Diagnostic> {
     match lower_scalar_typed::<f64>(program, resources) {
-        Ok(equations) => Ok(RecognizedNativeModel::Scalar(Box::new(equations))),
+        Ok(equations) => Ok(RecognizedNativeModel::Linear(Box::new(equations))),
         Err(real) => {
             let complex = lower_scalar_typed::<num_complex::Complex64>(program, resources)
                 .map_err(|complex| {
@@ -319,7 +319,7 @@ pub(crate) fn lower_scalar_candidate(
                     "complex spatial execution requires every unknown Field to have its exact complex scalar domain",
                 ));
             }
-            Ok(RecognizedNativeModel::ComplexScalar(Box::new(complex)))
+            Ok(RecognizedNativeModel::ComplexLinear(Box::new(complex)))
         }
     }
 }

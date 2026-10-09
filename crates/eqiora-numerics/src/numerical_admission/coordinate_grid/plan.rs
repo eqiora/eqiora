@@ -8,7 +8,7 @@ use eqiora_assembly::{
 };
 use eqiora_realization::{DomainFieldDiscretization, FieldSpaceBinding};
 
-impl CommonScalarPlan {
+impl CommonLinearPlan {
     pub(in crate::numerical_admission) fn from_coordinate_admission(
         model: &ModelEnvelope,
         admission: NativeNumericalAdmission,
@@ -121,7 +121,7 @@ pub(in crate::numerical_admission) fn execute(
     admission: &NativeNumericalAdmission,
     projection: &CellEquations,
     backend: &dyn LinearSolverBackend,
-) -> Result<CommonScalarRunOutput<f64>, Diagnostic> {
+) -> Result<CommonLinearRunOutput<f64>, Diagnostic> {
     let NativeMeshResources::Coordinates(grid) = admission.resources() else {
         return Err(invalid("coordinate cell execution requires its exact grid"));
     };
@@ -169,7 +169,7 @@ pub(in crate::numerical_admission) fn execute(
         .solve(&core.linear_problem()?)?;
     core.validate_solution(&solution)?;
     let (values, solve_report) = solution.into_parts();
-    Ok(CommonScalarRunOutput {
+    Ok(CommonLinearRunOutput {
         fields: vec![(
             projection.field,
             projection.value_type.clone(),

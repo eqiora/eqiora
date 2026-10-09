@@ -293,7 +293,7 @@ impl CommonTransientRunRequest {
         backend: &dyn LinearSolverBackend,
         stop_at_boundary: impl FnMut(usize, &CommonState) -> bool,
     ) -> Result<ControlFlow<(usize, CommonState), Vec<(usize, CommonState)>>, Diagnostic> {
-        if let ResolvedCommonPlan::Scalar(plan) = &self.plan {
+        if let ResolvedCommonPlan::Linear(plan) = &self.plan {
             let step_s = plan
                 .admission
                 .temporal

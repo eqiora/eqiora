@@ -383,8 +383,8 @@ pub(super) struct NativeNumericalAdmission {
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum RecognizedNativeModel {
     Coordinates(Box<super::coordinate_grid::CellEquations>),
-    Scalar(Box<ExecutableLinearEquations<f64>>),
-    ComplexScalar(Box<ExecutableLinearEquations<num_complex::Complex64>>),
+    Linear(Box<ExecutableLinearEquations<f64>>),
+    ComplexLinear(Box<ExecutableLinearEquations<num_complex::Complex64>>),
     Elasticity(Box<IsotropicElasticityContinuum<2>>),
     Stokes(Box<SteadyStokesGeometryBinding2d>),
     Transient(Box<TransientIncompressibleNavierStokesCartesianModel2d>),
@@ -456,7 +456,7 @@ impl RecognizedNativeAdmission {
         require_policy_compatibility(
             spatial,
             &linear,
-            if matches!(self.recognized, RecognizedNativeModel::ComplexScalar(_)) {
+            if matches!(self.recognized, RecognizedNativeModel::ComplexLinear(_)) {
                 eqiora_core::ScalarDomain::Complex
             } else {
                 eqiora_core::ScalarDomain::Real
@@ -473,10 +473,10 @@ impl RecognizedNativeAdmission {
                 return Err(invalid("moment admission requires static linear equations"));
             }
             match &self.recognized {
-                RecognizedNativeModel::Scalar(equations) => {
+                RecognizedNativeModel::Linear(equations) => {
                     equations.validate_moment_space(space)?
                 }
-                RecognizedNativeModel::ComplexScalar(equations) => {
+                RecognizedNativeModel::ComplexLinear(equations) => {
                     equations.validate_moment_space(space)?
                 }
                 _ => return Err(invalid("moment admission requires linear equations")),
@@ -484,7 +484,7 @@ impl RecognizedNativeAdmission {
         }
 
         if matches!(spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
-            let RecognizedNativeModel::Scalar(equations) = &self.recognized else {
+            let RecognizedNativeModel::Linear(equations) = &self.recognized else {
                 return Err(invalid("TPFA requires scalar equations"));
             };
             equations.conservation_descriptor(&self.program)?;
@@ -509,10 +509,10 @@ impl RecognizedNativeModel {
                 Self::Coordinates(_),
                 NativeSpatialPolicy::CoordinateCellConstant
             ) | (
-                Self::Scalar(_),
+                Self::Linear(_),
                 NativeSpatialPolicy::LinearFiniteElement(_) | NativeSpatialPolicy::ScalarTpfa(_)
             ) | (
-                Self::ComplexScalar(_),
+                Self::ComplexLinear(_),
                 NativeSpatialPolicy::LinearFiniteElement(_)
             ) | (Self::Elasticity(_), NativeSpatialPolicy::ElasticityQ1)
                 | (Self::Stokes(_), NativeSpatialPolicy::StokesMiniP1(_))
@@ -670,17 +670,17 @@ impl NativeNumericalAdmission {
         Ok((resolved, portable, velocity, pressure))
     }
 
-    pub(super) fn execute_scalar(
+    pub(super) fn execute_linear(
         &self,
         backend: &dyn LinearSolverBackend,
-    ) -> Result<CommonScalarRunOutput<f64>, Diagnostic> {
-        if let RecognizedNativeModel::ComplexScalar(equations) = self.recognized_model() {
-            return self.execute_complex_scalar(equations, backend);
+    ) -> Result<CommonLinearRunOutput<f64>, Diagnostic> {
+        if let RecognizedNativeModel::ComplexLinear(equations) = self.recognized_model() {
+            return self.execute_complex_linear(equations, backend);
         }
-        self.execute_scalar_with_completion(backend, |reactions, full| reactions.recover(full))
+        self.execute_linear_with_completion(backend, |reactions, full| reactions.recover(full))
     }
 
-    pub(super) fn execute_scalar_with_completion(
+    pub(super) fn execute_linear_with_completion(
         &self,
         backend: &dyn LinearSolverBackend,
         complete: impl FnOnce(
@@ -690,7 +690,7 @@ impl NativeNumericalAdmission {
             crate::region_assembly::RecoveredInterfaceReactions<f64>,
             Diagnostic,
         >,
-    ) -> Result<CommonScalarRunOutput<f64>, Diagnostic> {
+    ) -> Result<CommonLinearRunOutput<f64>, Diagnostic> {
         self.revalidate()?;
         if backend.provider() != self.linear.provider
             || backend.capabilities() != self.linear.capabilities
@@ -702,9 +702,9 @@ impl NativeNumericalAdmission {
         if let RecognizedNativeModel::Coordinates(projection) = self.recognized_model() {
             return super::coordinate_grid::execute(self, projection, backend);
         }
-        let RecognizedNativeModel::Scalar(lowered) = self.recognized_model() else {
+        let RecognizedNativeModel::Linear(lowered) = self.recognized_model() else {
             return Err(invalid(
-                "native numerical admission does not own recognized scalar-elliptic meaning",
+                "native numerical admission does not own recognized linear-region meaning",
             ));
         };
         let structure = lowered.algebraic_structure(self.spatial.scalar_constraint())?;
@@ -736,7 +736,7 @@ impl NativeNumericalAdmission {
                 let [(field, value_type)] = lowered.single()?.form.fields() else {
                     return Err(invalid("TPFA requires one admitted Field"));
                 };
-                Ok(CommonScalarRunOutput {
+                Ok(CommonLinearRunOutput {
                     fields: vec![(
                         field.downcast().expect("compiled Field identity"),
                         value_type.clone(),

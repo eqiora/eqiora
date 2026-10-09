@@ -102,7 +102,7 @@ fn affine_complex_weak_form_has_independent_volume_and_boundary_solution() {
     profiles::check();
     let plan = replay_plan(resolve(SOURCE).unwrap(), &REFERENCE_LINEAR_SOLVER);
     let result = plan
-        .as_scalar()
+        .as_linear()
         .unwrap()
         .run_result(&REFERENCE_LINEAR_SOLVER)
         .unwrap();
@@ -150,7 +150,7 @@ fn affine_complex_weak_form_has_independent_volume_and_boundary_solution() {
         .replace("math.complex(1,3)", "1");
     let real = resolve(&real)
         .unwrap()
-        .as_scalar()
+        .as_linear()
         .unwrap()
         .run_result(&REFERENCE_LINEAR_SOLVER)
         .unwrap();
@@ -170,7 +170,7 @@ fn affine_complex_weak_form_has_independent_volume_and_boundary_solution() {
         LinearSolver::BiConjugateGradientStabilized,
     )
     .unwrap()
-    .as_scalar()
+    .as_linear()
     .unwrap()
     .run_result(&REFERENCE_LINEAR_SOLVER)
     .unwrap();

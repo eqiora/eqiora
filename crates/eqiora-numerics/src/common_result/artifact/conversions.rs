@@ -62,7 +62,7 @@ impl From<CommonResultFamily> for WireResultFamily {
         match value {
             CommonResultFamily::Eigen => Self::Eigen,
             CommonResultFamily::Algebraic => Self::Algebraic,
-            CommonResultFamily::Scalar => Self::Scalar,
+            CommonResultFamily::Linear => Self::Linear,
             CommonResultFamily::Elasticity => Self::Elasticity,
             CommonResultFamily::SteadyStokes => Self::SteadyStokes,
             CommonResultFamily::Ode => Self::Ode,
@@ -77,7 +77,7 @@ impl From<WireResultFamily> for CommonResultFamily {
         match value {
             WireResultFamily::Eigen => Self::Eigen,
             WireResultFamily::Algebraic => Self::Algebraic,
-            WireResultFamily::Scalar => Self::Scalar,
+            WireResultFamily::Linear => Self::Linear,
             WireResultFamily::Elasticity => Self::Elasticity,
             WireResultFamily::SteadyStokes => Self::SteadyStokes,
             WireResultFamily::Ode => Self::Ode,

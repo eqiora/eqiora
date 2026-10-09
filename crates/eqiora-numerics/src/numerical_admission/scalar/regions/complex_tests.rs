@@ -3,7 +3,7 @@ use eqiora_compiler::compile;
 use eqiora_graph::{GraphStore, InMemoryGraphStore};
 use num_complex::Complex64 as C;
 
-fn execute(source: &str) -> CommonScalarRunOutput<C> {
+fn execute(source: &str) -> CommonLinearRunOutput<C> {
     let (transaction, model, symbols) = compile("complex-spatial-execution.eqi", source)
         .unwrap()
         .remove(0)

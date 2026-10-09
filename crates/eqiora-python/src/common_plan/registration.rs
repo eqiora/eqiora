@@ -25,7 +25,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyResolvedExecution>()?;
     module.add_class::<algebraic::PyAlgebraicPlanView>()?;
     module.add_class::<PyOdePlanView>()?;
-    module.add_class::<PyScalarPlanView>()?;
+    module.add_class::<PyLinearPlanView>()?;
     module.add_class::<PyElasticityPlanView>()?;
     module.add_class::<PyIncompressibleFlowPlanView>()?;
     module.add_class::<PyFormulationKind>()?;

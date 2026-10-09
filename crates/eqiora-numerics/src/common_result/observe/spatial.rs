@@ -49,7 +49,7 @@ pub(super) fn integrate(
     })?;
     let mesh = artifact.mesh();
     let dimension = mesh.topological_dimension();
-    let (bounds, boundary, field_types, support) = if let Some(plan) = result.plan().as_scalar() {
+    let (bounds, boundary, field_types, support) = if let Some(plan) = result.plan().as_linear() {
         if plan.spatial() != CommonSpatialPolicy::Q1 {
             return Err(invalid(
                 "spatial Observable reconstruction requires the accepted Q1 field space",

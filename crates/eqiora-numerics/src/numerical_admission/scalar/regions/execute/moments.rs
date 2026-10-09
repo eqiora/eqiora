@@ -16,11 +16,11 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             crate::region_assembly::RecoveredInterfaceReactions<S>,
             Diagnostic,
         >,
-    ) -> Result<CommonScalarRunOutput<S>, Diagnostic> {
+    ) -> Result<CommonLinearRunOutput<S>, Diagnostic> {
         let (mapping, forms) = self.moment_assembly(envelope, space)?;
         let mesh = envelope.mesh();
         let output = mapping.solve(mesh, forms, vec![], workers, request, complete)?;
-        Ok(CommonScalarRunOutput {
+        Ok(CommonLinearRunOutput {
             fields: output
                 .fields
                 .into_iter()

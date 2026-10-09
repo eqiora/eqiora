@@ -228,11 +228,11 @@ fn native_recognition_retains_real_and_complex_polyhedral_linear_equations() {
             assert!(error.message().contains("authenticated common Mesh kind"));
         }
         let fields = match recognized.recognized {
-            RecognizedNativeModel::Scalar(equations) if !complex => {
+            RecognizedNativeModel::Linear(equations) if !complex => {
                 assert!(equations.single().unwrap().cartesian().is_err());
                 equations.fields()
             }
-            RecognizedNativeModel::ComplexScalar(equations) if complex => {
+            RecognizedNativeModel::ComplexLinear(equations) if complex => {
                 assert!(equations.single().unwrap().cartesian().is_err());
                 equations.fields()
             }

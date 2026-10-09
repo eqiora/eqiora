@@ -87,7 +87,7 @@ fn application_program_is_not_published_without_an_accepted_primal() {
         .unwrap();
     assert!(
         DifferentiableProgram::compile(
-            eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(plan)),
+            eqiora_numerics::ResolvedCommonPlan::Linear(Box::new(plan)),
             &inputs,
             &output,
             None,
@@ -115,7 +115,7 @@ fn equal_primal_systems_do_not_alias_distinct_parameter_derivatives() {
         .field_ref(&plan.fields().next().unwrap().0.ulid().to_string())
         .unwrap();
     let program = DifferentiableProgram::compile(
-        eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(plan)),
+        eqiora_numerics::ResolvedCommonPlan::Linear(Box::new(plan)),
         &[diffusion],
         &output,
         None,
@@ -159,7 +159,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
         .unwrap();
     let inputs = [source_scale, diffusion, boundary];
     let program = DifferentiableProgram::compile(
-        eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(plan.clone())),
+        eqiora_numerics::ResolvedCommonPlan::Linear(Box::new(plan.clone())),
         &inputs,
         &output,
         None,
@@ -353,7 +353,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
     assert!(program.jvp(&[1.0, 2.0, 3.0, 4.0]).is_err());
     assert!(program.vjp(&cotangent[..cotangent.len() - 1]).is_err());
     let recomputed = DifferentiableProgram::compile(
-        eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(plan)),
+        eqiora_numerics::ResolvedCommonPlan::Linear(Box::new(plan)),
         &inputs,
         &output,
         None,
@@ -377,7 +377,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
     );
     assert!(
         DifferentiableProgram::compile(
-            eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(foreign_plan.clone())),
+            eqiora_numerics::ResolvedCommonPlan::Linear(Box::new(foreign_plan.clone())),
             &inputs,
             &output,
             None,
@@ -388,7 +388,7 @@ fn verify_application_program(method: CommonSpatialPolicy) {
     let foreign_inputs = [foreign.parameter_ref("source_scale").unwrap()];
     assert!(
         DifferentiableProgram::compile(
-            eqiora_numerics::ResolvedCommonPlan::Scalar(Box::new(foreign_plan)),
+            eqiora_numerics::ResolvedCommonPlan::Linear(Box::new(foreign_plan)),
             &foreign_inputs,
             &output,
             None,

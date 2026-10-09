@@ -1012,6 +1012,8 @@ class FieldOutput:
     @property
     def dimension(self) -> tuple[Fraction, Fraction, Fraction, Fraction, Fraction, Fraction, Fraction]: ...
     @property
+    def coefficient_dimension(self) -> tuple[Fraction, Fraction, Fraction, Fraction, Fraction, Fraction, Fraction]: ...
+    @property
     def value_shape(self) -> tuple[int, ...]: ...
     @property
     def space(self) -> str: ...
@@ -1838,11 +1840,11 @@ class Plan:
     @property
     def formulation(self) -> FormulationView | None: ...
     @property
-    def capability(self) -> ScalarPlanView | solve.AlgebraicPlanView | solve.EigenPlanView | time.OdePlanView | solid.ElasticityPlanView | fluid.IncompressibleFlowPlanView | fsi.FixedReferenceFsiPlanView: ...
+    def capability(self) -> LinearPlanView | solve.AlgebraicPlanView | solve.EigenPlanView | time.OdePlanView | solid.ElasticityPlanView | fluid.IncompressibleFlowPlanView | fsi.FixedReferenceFsiPlanView: ...
     @property
     def fields(self) -> tuple[FieldRef, ...]: ...
     @property
-    def spatial(self) -> fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None: ...
+    def spatial(self) -> fem.Q1 | fem.TetrahedralEdge | fem.TetrahedralFace | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None: ...
     @property
     def solve(self) -> solve_module.ResolvedLinear | solve_module.ResolvedNewton | solve_module.HermitianEigen | None: ...
     @property
@@ -2087,15 +2089,15 @@ class ResolvedExecution:
     def __repr__(self) -> str: ...
 ```
 
-<a id="api-eqiora-ScalarPlanView"></a>
+<a id="api-eqiora-LinearPlanView"></a>
 
-### `eqiora.ScalarPlanView`
+### `eqiora.LinearPlanView`
 
-Scalar-valued Fields resolved from one Model.
+Scalar or vector Fields in one resolved linear spatial Model.
 
 ```python
 @final
-class ScalarPlanView:
+class LinearPlanView:
     @property
     def kind(self) -> str: ...
     @property
@@ -2446,7 +2448,7 @@ resource. Spatial paths retain their exact Mesh without regeneration;
 structural no-Mesh ODE paths reject spatial resources.
 
 ```python
-def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, formulation: FormulationKind | None=None, solve: solve.Linear | solve.Newton | solve.HermitianEigen | None=None, scaling: fluid.IncompressibleScaling | dict[ConstraintRef, tuple[float, Dimension]] | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | time.ImplicitMidpoint | None=None, enforcement: solve.ActiveSet | solve.StrictInterior | None=None) -> Plan: ...
+def resolve(model: Model, *, mesh: meshing.Mesh | None=None, spatial: fem.Q1 | fem.TetrahedralEdge | fem.TetrahedralFace | fem.MiniP1 | fvm.CellCenteredTpfa | fvm.CellCentered | tuple[fem.ScopedSpatialPolicy, ...] | None=None, formulation: FormulationKind | None=None, solve: solve.Linear | solve.Newton | solve.HermitianEigen | None=None, scaling: fluid.IncompressibleScaling | dict[ConstraintRef, tuple[float, Dimension]] | None=None, temporal: time.BackwardEuler | time.Tsitouras45 | time.ImplicitMidpoint | None=None, enforcement: solve.ActiveSet | solve.StrictInterior | None=None) -> Plan: ...
 ```
 
 <a id="api-eqiora-ProjectUpdate"></a>
@@ -4597,6 +4599,54 @@ class ScopedSpatialPolicy:
     def spaces(self) -> tuple[str, str | None]: ...
     @property
     def quadrature(self) -> str: ...
+```
+
+<a id="api-eqiora-fem-TetrahedralEdge"></a>
+
+### `eqiora.fem.TetrahedralEdge`
+
+Lowest-order affine tetrahedral oriented tangential line integrals.
+
+Static real/complex vector fields with homogeneous natural boundaries.
+Coefficients include the entity measure; they are not point values.
+
+```python
+@final
+class TetrahedralEdge:
+    def __new__(cls) -> Self: ...
+    @property
+    def method(self) -> str: ...
+    @property
+    def space(self) -> str: ...
+    @property
+    def quadrature(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+```
+
+<a id="api-eqiora-fem-TetrahedralFace"></a>
+
+### `eqiora.fem.TetrahedralFace`
+
+Lowest-order affine tetrahedral oriented normal flux integrals.
+
+Static real/complex vector fields with homogeneous natural boundaries.
+Coefficients include the entity measure; they are not point values.
+
+```python
+@final
+class TetrahedralFace:
+    def __new__(cls) -> Self: ...
+    @property
+    def method(self) -> str: ...
+    @property
+    def space(self) -> str: ...
+    @property
+    def quadrature(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
 ```
 
 <a id="module-eqiora-fvm"></a>

@@ -130,7 +130,7 @@ fn reconstruct(
 ) -> Result<PointField, Diagnostic> {
     let plan = result
         .plan()
-        .as_scalar()
+        .as_linear()
         .ok_or_else(|| invalid("point Field reconstruction requires an admitted scalar Plan"))?;
     if plan.spatial() != CommonSpatialPolicy::Q1 {
         return Err(invalid(

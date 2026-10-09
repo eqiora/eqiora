@@ -113,7 +113,7 @@ fn structural_and_quantum_source_plans_retain_roles_units_and_provider_identity(
         assert_eq!(restored, resolved);
         assert_eq!(restored.as_eigen().unwrap().mode_field(), plan.mode_field());
         let wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(wire["schema"], "eqiora.resolved-common-plan/v13");
+        assert_eq!(wire["schema"], "eqiora.resolved-common-plan/v14");
         for (key, value) in [
             ("count", serde_json::json!(1)),
             ("algorithm", serde_json::json!("unsupported")),
@@ -201,7 +201,7 @@ fn common_results_replay_selection_evidence_and_partial_convergence() {
         assert_eq!(replay, result);
         assert_eq!(replay.to_bytes().unwrap(), bytes);
         let wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(wire["schema"], "eqiora.common-result/v13");
+        assert_eq!(wire["schema"], "eqiora.common-result/v14");
         // Semantic rejection occurs before content-digest and canonical-byte checks.
         let mut forged = wire.clone();
         forged["content"]["payload"]["spectral"]["candidates"][0]["residual"] = 0.5.into();

@@ -129,8 +129,12 @@ linear = eqiora.solve.Linear(algorithm=eqiora.solve.LinearSolver.BiConjugateGrad
     relative_tolerance=1e-13,absolute_tolerance=1e-14,maximum_iterations=2000)
 plan = eqiora.resolve(model,mesh=mesh,spatial=policy,solve=linear)
 assert plan.spatial == policy
+assert isinstance(plan.capability, eqiora.LinearPlanView)
+assert plan.capability.kind == "linear"
+assert not hasattr(eqiora, "ScalarPlanView")
 assert plan.capability.coefficient_sampling == "quadrature-point"
 plan_wire = plan.to_bytes()
+assert b'"family":"linear"' in plan_wire
 plan = eqiora.Plan.from_bytes(plan_wire)
 assert plan.to_bytes() == plan_wire and plan.spatial == policy
 result = eqiora.run(plan)

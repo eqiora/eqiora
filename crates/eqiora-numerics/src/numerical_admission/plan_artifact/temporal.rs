@@ -130,7 +130,7 @@ pub(super) fn temporal_request(plan: &ResolvedCommonPlan) -> Option<WireTemporal
                 })
                 .collect(),
         }),
-        ResolvedCommonPlan::Scalar(plan) => {
+        ResolvedCommonPlan::Linear(plan) => {
             plan.admission
                 .temporal
                 .map(|temporal| WireTemporal::BackwardEuler {

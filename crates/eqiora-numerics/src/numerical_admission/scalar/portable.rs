@@ -1,7 +1,7 @@
 //! One exact numerical graph derived from retained linear admission resources.
 use super::*;
 
-pub(super) fn resolve_common_scalar_portable<S: crate::spatial_expression::Coefficient>(
+pub(super) fn resolve_common_linear_portable<S: crate::spatial_expression::Coefficient>(
     admission: &NativeNumericalAdmission,
     lowered: &ExecutableLinearEquations<S>,
 ) -> Result<PortableRealizationGraph, Diagnostic> {

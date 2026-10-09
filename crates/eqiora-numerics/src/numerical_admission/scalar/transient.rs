@@ -1,10 +1,10 @@
 use super::*;
 use eqiora_meshing::MeshEntity;
 
-impl CommonScalarPlan {
+impl CommonLinearPlan {
     /// Exact support of the admitted single scalar storage Field.
     pub fn storage_domain_id(&self) -> Result<String, Diagnostic> {
-        let RecognizedNativeModel::Scalar(equations) = self.admission.recognized_model() else {
+        let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
             return Err(invalid("missing scalar equations"));
         };
         Ok(equations.single()?.form.domain().ulid().to_string())
@@ -29,7 +29,7 @@ impl CommonScalarPlan {
                 "scalar State requires a transient Plan and complete finite Q1 coefficients",
             ));
         }
-        let RecognizedNativeModel::Scalar(equations) = self.admission.recognized_model() else {
+        let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
             return Err(invalid("missing scalar equations"));
         };
         let region = equations.single()?;
@@ -74,7 +74,7 @@ impl CommonScalarPlan {
         }
         self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
-        let RecognizedNativeModel::Scalar(equations) = self.admission.recognized_model() else {
+        let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
             return Err(invalid("missing scalar equations"));
         };
         let initial = equations.single()?.form.initial_values()?;
@@ -106,7 +106,7 @@ impl CommonScalarPlan {
             .admission
             .temporal
             .ok_or_else(|| invalid("scalar storage requires BackwardEuler"))?;
-        let RecognizedNativeModel::Scalar(equations) = self.admission.recognized_model() else {
+        let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
             return Err(invalid("missing scalar equations"));
         };
         let region = equations.single()?;
@@ -132,7 +132,7 @@ impl CommonScalarPlan {
     ) -> Result<CommonState, Diagnostic> {
         self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
-        let RecognizedNativeModel::Scalar(equations) = self.admission.recognized_model() else {
+        let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
             return Err(invalid("missing scalar inventory"));
         };
         let structure = equations.algebraic_structure(None)?;
@@ -164,7 +164,7 @@ impl CommonScalarPlan {
 impl ResolvedCommonPlan {
     pub(crate) fn spatial_state_space_identity(&self) -> Result<String, Diagnostic> {
         match self {
-            Self::Scalar(plan) if plan.admission.temporal.is_some() => {
+            Self::Linear(plan) if plan.admission.temporal.is_some() => {
                 Ok(plan.identity().to_owned())
             }
             Self::TransientFlow(plan) => Ok(plan.state_space_identity()),

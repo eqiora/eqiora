@@ -1,16 +1,16 @@
 //! Complex spatial Plan admission uses the shared equation and realization owners.
 use super::*;
 
-impl CommonScalarPlan {
+impl CommonLinearPlan {
     pub(in crate::numerical_admission) fn from_complex_admission(
         model: &ModelEnvelope,
         admission: NativeNumericalAdmission,
         selection: FormulationSelectionMode,
         authored: Option<&AuthoredFormulationProjection>,
     ) -> Result<Self, Diagnostic> {
-        let RecognizedNativeModel::ComplexScalar(equations) = admission.recognized_model() else {
+        let RecognizedNativeModel::ComplexLinear(equations) = admission.recognized_model() else {
             return Err(invalid(
-                "complex scalar Plan requires its exact typed equations",
+                "complex linear Plan requires its exact typed equations",
             ));
         };
         let fields = equations
@@ -51,7 +51,7 @@ impl CommonScalarPlan {
                 ));
             }
         };
-        let portable = resolve_common_scalar_portable(&admission, equations)?;
+        let portable = resolve_common_linear_portable(&admission, equations)?;
         Self::finish_admission(
             model,
             admission,
@@ -77,7 +77,7 @@ impl CommonScalarPlan {
         )?;
         if replayed != *self {
             return Err(invalid(
-                "complex scalar Plan changed during exact internal replay",
+                "complex linear Plan changed during exact internal replay",
             ));
         }
         Ok(())
@@ -85,11 +85,11 @@ impl CommonScalarPlan {
 }
 
 impl NativeNumericalAdmission {
-    pub(in crate::numerical_admission) fn execute_complex_scalar(
+    pub(in crate::numerical_admission) fn execute_complex_linear(
         &self,
         equations: &ExecutableLinearEquations<num_complex::Complex64>,
         backend: &dyn LinearSolverBackend,
-    ) -> Result<CommonScalarRunOutput<f64>, Diagnostic> {
+    ) -> Result<CommonLinearRunOutput<f64>, Diagnostic> {
         self.revalidate()?;
         let NativeSpatialPolicy::LinearFiniteElement(space) = self.spatial else {
             return Err(invalid(
@@ -107,7 +107,7 @@ impl NativeNumericalAdmission {
             space,
             |reactions, values| reactions.recover(values),
         )?;
-        Ok(CommonScalarRunOutput {
+        Ok(CommonLinearRunOutput {
             fields: output
                 .fields
                 .into_iter()

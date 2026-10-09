@@ -17,7 +17,7 @@ pub(super) fn validate_fields(
     fields: &[CommonResultField],
 ) -> Result<(), Diagnostic> {
     let valid = match plan {
-        ResolvedCommonPlan::Scalar(plan) => {
+        ResolvedCommonPlan::Linear(plan) => {
             let (space, association) = match plan.spatial() {
                 crate::CommonSpatialPolicy::TetrahedralEdge => {
                     (Space::tetrahedral_edge(), CommonFieldAssociation::Edge)
@@ -168,7 +168,7 @@ pub(super) fn require_family(
             ResolvedCommonPlan::Algebraic(_),
             WireResultFamily::Algebraic
         ) | (ResolvedCommonPlan::Eigen(_), WireResultFamily::Eigen)
-            | (ResolvedCommonPlan::Scalar(_), WireResultFamily::Scalar)
+            | (ResolvedCommonPlan::Linear(_), WireResultFamily::Linear)
             | (
                 ResolvedCommonPlan::Elasticity(_),
                 WireResultFamily::Elasticity
@@ -201,7 +201,7 @@ pub(super) fn require_trajectory_family(
         (family, trajectory),
         (WireResultFamily::Ode, CommonTrajectory::Ode { .. })
             | (
-                WireResultFamily::TransientFlow | WireResultFamily::Scalar,
+                WireResultFamily::TransientFlow | WireResultFamily::Linear,
                 CommonTrajectory::SpatialTransient { .. }
             )
             | (

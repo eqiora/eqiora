@@ -1045,10 +1045,10 @@ class Model:
     def __hash__(self) -> int: ...
 
 @final
-class ScalarPlanView:
-    """Scalar-valued Fields resolved from one Model.
+class LinearPlanView:
+    """Scalar or vector Fields in one resolved linear spatial Model.
 
-    Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PyScalarPlanView``.
+    Authority: ``crates/eqiora-python/src/common_plan/capability_view.rs::PyLinearPlanView``.
     """
     @property
     def kind(self) -> str: ...
@@ -1187,7 +1187,7 @@ class Plan:
     @property
     def formulation(self) -> FormulationView | None: ...
     @property
-    def capability(self) -> ScalarPlanView | solve.AlgebraicPlanView | solve.EigenPlanView | time.OdePlanView | solid.ElasticityPlanView | fluid.IncompressibleFlowPlanView | fsi.FixedReferenceFsiPlanView: ...
+    def capability(self) -> LinearPlanView | solve.AlgebraicPlanView | solve.EigenPlanView | time.OdePlanView | solid.ElasticityPlanView | fluid.IncompressibleFlowPlanView | fsi.FixedReferenceFsiPlanView: ...
     @property
     def fields(self) -> tuple[FieldRef, ...]: ...
     @property
@@ -2501,7 +2501,7 @@ __all__ = [
     "ProfilePhase",
     "Revision",
     "ResolvedExecution",
-    "ScalarPlanView",
+    "LinearPlanView",
     "Run",
     "RunStatus",
     "Series",

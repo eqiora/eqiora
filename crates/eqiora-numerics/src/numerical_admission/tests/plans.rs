@@ -128,7 +128,7 @@ fn resolve_scalar_box(
     model: &ModelEnvelope,
     resources: AuthenticatedCommonMesh,
     spatial: CommonSpatialPolicy,
-) -> CommonScalarPlan {
+) -> CommonLinearPlan {
     let linear = exact_reference_linear(
         if spatial == CommonSpatialPolicy::CellCenteredTpfa {
             LinearSolver::ConjugateGradient
@@ -150,7 +150,7 @@ fn resolve_scalar_box(
         None,
     )
     .unwrap()
-    .as_scalar()
+    .as_linear()
     .cloned()
     .expect("fixture retains its admitted scalar Plan")
 }
@@ -194,13 +194,13 @@ fn exercise_scalar_box(model: &ModelEnvelope, geometry: &CanonicalGeometryV1, ce
             (1, MeshPolicy::SuppliedCartesian1d { .. })
             | (2, MeshPolicy::SuppliedCartesian { .. })
             | (3, MeshPolicy::SuppliedCartesian3d { .. }) => {}
-            _ => panic!("common scalar Plan lost its exact Cartesian dimension"),
+            _ => panic!("common linear Plan lost its exact Cartesian dimension"),
         }
         let replayed = replay_plan(
-            ResolvedCommonPlan::Scalar(Box::new(plan.clone())),
+            ResolvedCommonPlan::Linear(Box::new(plan.clone())),
             &ResolveOnlyBackend,
         )
-        .as_scalar()
+        .as_linear()
         .cloned()
         .expect("fixture retains its admitted scalar Plan");
         assert_eq!(replayed.cartesian_cells().unwrap(), cells);
@@ -263,7 +263,7 @@ pub(super) fn scalar_q1_and_tpfa_consume_one_exact_anisotropic_common_mesh() {
             None,
         )
         .unwrap()
-        .as_scalar()
+        .as_linear()
         .unwrap()
         .admission
         .clone()
@@ -311,15 +311,15 @@ pub(super) fn scalar_q1_and_tpfa_consume_one_exact_anisotropic_common_mesh() {
     assert_eq!(q1.resources(), &caller_resources);
     assert_eq!(tpfa.resources(), &caller_resources);
     assert_eq!(q1.resources(), q1_repeat.resources());
-    assert!(q1.execute_scalar(&AlternateScalarBackend).is_err());
+    assert!(q1.execute_linear(&AlternateScalarBackend).is_err());
     assert_eq!(
-        q1.execute_scalar(&REFERENCE_LINEAR_SOLVER).unwrap().fields[0]
+        q1.execute_linear(&REFERENCE_LINEAR_SOLVER).unwrap().fields[0]
             .2
             .len(),
         12
     );
     assert_eq!(
-        tpfa.execute_scalar(&REFERENCE_LINEAR_SOLVER)
+        tpfa.execute_linear(&REFERENCE_LINEAR_SOLVER)
             .unwrap()
             .fields[0]
             .2
@@ -351,7 +351,7 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
         )
         .unwrap();
         replay_plan(resolved, &ResolveOnlyBackend)
-            .as_scalar()
+            .as_linear()
             .cloned()
             .expect("fixture retains its admitted scalar Plan")
     };
@@ -847,7 +847,7 @@ fn scalar_parameter_points_share_the_run_primal_and_preserve_operator_properties
             _ => unreachable!(),
         };
         assert_eq!(output.fields[0].3, expected_space);
-        crate::CommonResult::accept_scalar(plan.clone(), 0.0, output.clone()).unwrap();
+        crate::CommonResult::accept_linear(plan.clone(), 0.0, output.clone()).unwrap();
         // Preserve every value, type and ID while changing only its coefficient
         // interpretation. Neither equal shape nor a finite solve authenticates it.
         for substituted in [
@@ -857,7 +857,7 @@ fn scalar_parameter_points_share_the_run_primal_and_preserve_operator_properties
             let mut corrupted = output.clone();
             corrupted.fields[0].3 = substituted;
             assert!(
-                crate::CommonResult::accept_scalar(plan.clone(), 0.0, corrupted)
+                crate::CommonResult::accept_linear(plan.clone(), 0.0, corrupted)
                     .unwrap_err()
                     .message()
                     .contains("coefficient Space")
@@ -956,13 +956,13 @@ pub(super) fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_fie
             CommonSpatialPolicy::Q1,
         );
         assert_eq!(plan.fields().len(), usize::try_from(count).unwrap());
-        let resolved = ResolvedCommonPlan::Scalar(Box::new(plan));
+        let resolved = ResolvedCommonPlan::Linear(Box::new(plan));
         assert_eq!(
             resolved.operator_properties(),
             Some(LinearOperatorProperties::General)
         );
         let replayed = replay_plan(resolved, &ResolveOnlyBackend);
-        let ResolvedCommonPlan::Scalar(plan) = &replayed else {
+        let ResolvedCommonPlan::Linear(plan) = &replayed else {
             unreachable!()
         };
         let result = plan.run_result(&REFERENCE_LINEAR_SOLVER).unwrap();
@@ -984,7 +984,7 @@ pub(super) fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_fie
         );
         let old = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.common-result/v13", "eqiora.common-result/v2");
+            .replace("eqiora.common-result/v14", "eqiora.common-result/v2");
         assert!(crate::CommonResult::from_bytes(old.as_bytes(), &replayed).is_err());
     }
 }

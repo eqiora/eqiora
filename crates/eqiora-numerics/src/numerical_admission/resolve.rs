@@ -52,14 +52,14 @@ impl ResolvedCommonPlan {
                 stokes_backend,
                 None,
             )?;
-            let Self::Scalar(plan) = inner else {
+            let Self::Linear(plan) = inner else {
                 return Err(invalid(
                     "harmonic spatial reduction requires the shared complex scalar path",
                 ));
             };
             return plan
                 .with_harmonic(reduction, form.clone())
-                .map(|plan| Self::Scalar(Box::new(plan)));
+                .map(|plan| Self::Linear(Box::new(plan)));
         }
         let recognized = RecognizedNativeAdmission::recognize(model, owner)?;
         if let Some(projection) = authored_formulation {
@@ -94,11 +94,11 @@ impl ResolvedCommonPlan {
                     temporal,
                     None,
                 )?;
-                CommonScalarPlan::from_coordinate_admission(model, admission)
-                    .map(|plan| ResolvedCommonPlan::Scalar(Box::new(plan)))
+                CommonLinearPlan::from_coordinate_admission(model, admission)
+                    .map(|plan| ResolvedCommonPlan::Linear(Box::new(plan)))
             }
 
-            RecognizedNativeModel::Scalar(equations) => {
+            RecognizedNativeModel::Linear(equations) => {
                 let mut spatial = resolve_scalar(spatial)?;
                 if matches!(spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
                     let constraint = authored_formulation
@@ -114,7 +114,7 @@ impl ResolvedCommonPlan {
                         Some(resolve_formulation_request(
                             formulation,
                             FormulationKind::PrimalGalerkin,
-                            "scalar-elliptic Q1",
+                            "linear finite-element form",
                         )?),
                         LinearOperatorProperties::General,
                     ),
@@ -144,21 +144,21 @@ impl ResolvedCommonPlan {
                         .regions
                         .iter()
                         .any(|region| region.form.is_transient()),
-                    "scalar conservation form",
+                    "linear conservation form",
                     properties,
                     Some(structure),
                     stokes_backend,
                 )?;
                 let admission = recognized.complete(spatial, linear, temporal, None)?;
-                CommonScalarPlan::from_admission(
+                CommonLinearPlan::from_admission(
                     model,
                     admission,
                     formulation_selection,
                     authored_formulation,
                 )
-                .map(|plan| ResolvedCommonPlan::Scalar(Box::new(plan)))
+                .map(|plan| ResolvedCommonPlan::Linear(Box::new(plan)))
             }
-            RecognizedNativeModel::ComplexScalar(equations) => {
+            RecognizedNativeModel::ComplexLinear(equations) => {
                 let spatial = resolve_scalar(spatial)?;
                 if !matches!(spatial, NativeSpatialPolicy::LinearFiniteElement(_))
                     || scaling.is_some()
@@ -171,7 +171,7 @@ impl ResolvedCommonPlan {
                 let selection = resolve_formulation_request(
                     formulation,
                     FormulationKind::PrimalGalerkin,
-                    "complex scalar Q1",
+                    "complex linear finite-element form",
                 )?;
                 let CommonSolvePolicy::Linear(request) = solve else {
                     return Err(invalid(
@@ -202,13 +202,13 @@ impl ResolvedCommonPlan {
                 profile.require_plan(linear.solver)?;
                 linear.planning_profile = Some(profile);
                 let admission = recognized.complete(spatial, linear, None, None)?;
-                CommonScalarPlan::from_complex_admission(
+                CommonLinearPlan::from_complex_admission(
                     model,
                     admission,
                     selection,
                     authored_formulation,
                 )
-                .map(|plan| ResolvedCommonPlan::Scalar(Box::new(plan)))
+                .map(|plan| ResolvedCommonPlan::Linear(Box::new(plan)))
             }
             RecognizedNativeModel::Elasticity(continuum) => {
                 let selection = resolve_formulation_request(

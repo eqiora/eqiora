@@ -15,7 +15,7 @@ use eqiora::package::{
 };
 use eqiora::solver::REFERENCE_LINEAR_SOLVER;
 use eqiora_numerics::{
-    AuthenticatedCommonMesh, CommonResult, CommonScalarPlan, CommonSolvePolicy, CommonSpatialPolicy,
+    AuthenticatedCommonMesh, CommonLinearPlan, CommonResult, CommonSolvePolicy, CommonSpatialPolicy,
 };
 
 const VERSION: &str = "1.0.0";
@@ -648,7 +648,7 @@ fn rectangle_geometry() -> CanonicalGeometryV1 {
         .unwrap()
 }
 
-fn resolve_scalar(document: &ModelDocument, geometry: &CanonicalGeometryV1) -> CommonScalarPlan {
+fn resolve_scalar(document: &ModelDocument, geometry: &CanonicalGeometryV1) -> CommonLinearPlan {
     let cells = CartesianMeshCellsV2::new([6, 6]).unwrap();
     let (mesh, correspondence) =
         GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_cartesian(
@@ -697,14 +697,14 @@ fn resolve_scalar(document: &ModelDocument, geometry: &CanonicalGeometryV1) -> C
         None,
     )
     .unwrap()
-    .as_scalar()
+    .as_linear()
     .cloned()
     .expect("fixture retains its admitted scalar Plan")
 }
 
 fn assert_same_scalar_result(left: &CommonResult, right: &CommonResult) {
-    assert_eq!(left.family_name(), "scalar");
-    assert_eq!(right.family_name(), "scalar");
+    assert_eq!(left.family_name(), "linear");
+    assert_eq!(right.family_name(), "linear");
     assert_eq!(left.field_count(), 1);
     assert_eq!(right.field_count(), 1);
     let left = left.field_block(0, 0).unwrap();

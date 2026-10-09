@@ -199,7 +199,7 @@ impl Context<'_> {
                 self.used_rules.insert(domain);
                 let mut sum = 0.0;
                 let mut correction = 0.0;
-                let cells = match (orientation == 0.0, self.result.plan().as_scalar()) {
+                let cells = match (orientation == 0.0, self.result.plan().as_linear()) {
                     (true, _) => Vec::new(),
                     (false, Some(plan)) => {
                         plan.factor_quadrature_cells(&selected, self.remaining)?
@@ -359,8 +359,8 @@ impl Context<'_> {
                     .evaluate(id, point, None, depth + 1)
                     .map(|value| value.0);
             }
-            SymbolRef::Field(id) if self.result.plan().as_scalar().is_some() => {
-                let plan = self.result.plan().as_scalar().expect("matched scalar Plan");
+            SymbolRef::Field(id) if self.result.plan().as_linear().is_some() => {
+                let plan = self.result.plan().as_linear().expect("matched scalar Plan");
                 let index = plan
                     .fields()
                     .position(|(candidate, _)| candidate == id)

@@ -166,7 +166,7 @@ fn gauge_compatibility_matches_actual_source_and_signed_boundary_loads() {
         let recognized =
             RecognizedNativeAdmission::recognize(&model, cartesian_box_resources(&geometry, &[4]))
                 .unwrap();
-        let RecognizedNativeModel::Scalar(equations) = &recognized.recognized else {
+        let RecognizedNativeModel::Linear(equations) = &recognized.recognized else {
             panic!("scalar");
         };
         super::super::super::scalar::interval::admit_gauge(
@@ -235,7 +235,7 @@ fn authored_neumann_plan_binds_and_replays_zero_integral_tpfa_execution() {
     let plan = resolve(LinearSolver::MinimumResidual, Some(&authored)).unwrap();
     let replayed = replay_plan(plan.clone(), &ResolveOnlyBackend);
     assert_eq!(replayed, plan);
-    let scalar = replayed.as_scalar().unwrap();
+    let scalar = replayed.as_linear().unwrap();
     assert!(matches!(
         scalar.admission.spatial,
         NativeSpatialPolicy::ScalarTpfa(Some(_))
@@ -291,7 +291,7 @@ fn authored_neumann_plan_binds_and_replays_zero_integral_tpfa_execution() {
     let without_gauge = resolve(LinearSolver::ConjugateGradient, None).unwrap();
     assert!(
         without_gauge
-            .as_scalar()
+            .as_linear()
             .unwrap()
             .run(&REFERENCE_LINEAR_SOLVER)
             .is_err()

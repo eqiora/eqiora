@@ -95,7 +95,7 @@ fn radial_diffusion_result_replays_and_converges_to_the_spherical_average() {
         )
         .unwrap();
         let result = plan
-            .as_scalar()
+            .as_linear()
             .unwrap()
             .run_result(&REFERENCE_LINEAR_SOLVER)
             .unwrap();
@@ -120,7 +120,7 @@ fn radial_diffusion_result_replays_and_converges_to_the_spherical_average() {
                 "n={n}, {name}: {actual} vs {expected}"
             );
         }
-        for (field_index, (id, _)) in plan.as_scalar().unwrap().fields().enumerate() {
+        for (field_index, (id, _)) in plan.as_linear().unwrap().fields().enumerate() {
             let (_, values, shape) = result.field_block(field_index, 0).unwrap();
             assert_eq!(shape, [n]);
             for (i, value) in values.iter().enumerate() {
@@ -273,7 +273,7 @@ fn radial_fixed_parameters_keep_small_physical_scales_and_ignore_field_names() {
     ] {
         let (model, document, plan) = select(&source).unwrap();
         let result = plan
-            .as_scalar()
+            .as_linear()
             .unwrap()
             .run_result(&REFERENCE_LINEAR_SOLVER)
             .unwrap();
@@ -305,7 +305,7 @@ fn radial_operator_cannot_claim_positive_definiteness_after_conductance_underflo
         );
     let (_, _, plan) = select(&source).unwrap();
     let error = plan
-        .as_scalar()
+        .as_linear()
         .unwrap()
         .run_result(&eqiora::solver::REFERENCE_LINEAR_SOLVER)
         .unwrap_err();
@@ -319,7 +319,7 @@ fn radial_measure_scales_with_the_declared_radius() {
     let source = SOURCE.replace("r=1[m]", "r=2[m]");
     let (model, document, plan) = select_document(document_with_radius(&source, 2.0)).unwrap();
     let result = plan
-        .as_scalar()
+        .as_linear()
         .unwrap()
         .run_result(&eqiora::solver::REFERENCE_LINEAR_SOLVER)
         .unwrap();
@@ -348,7 +348,7 @@ fn radial_measure_rejects_unrepresentable_positive_cell_volumes() {
         .replace("r=1[m]", "r=outer");
     let (_, _, plan) = select_document(document_with_radius(&source, 1e-150)).unwrap();
     let error = plan
-        .as_scalar()
+        .as_linear()
         .unwrap()
         .run_result(&eqiora::solver::REFERENCE_LINEAR_SOLVER)
         .unwrap_err();

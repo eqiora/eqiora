@@ -227,7 +227,7 @@ impl WireCommonTrajectoryV3 {
                     output_steps,
                     states,
                 },
-                plan @ (ResolvedCommonPlan::TransientFlow(_) | ResolvedCommonPlan::Scalar(_)),
+                plan @ (ResolvedCommonPlan::TransientFlow(_) | ResolvedCommonPlan::Linear(_)),
             ) => {
                 require_plan_identity(plan.identity(), plan_identity)?;
                 let initial =

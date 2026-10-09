@@ -37,11 +37,11 @@ pub(super) fn describe_primal(
 }
 
 mod portable;
-use portable::resolve_common_scalar_portable;
+use portable::resolve_common_linear_portable;
 
 type ObservableSupport = (Vec<[f64; 2]>, Option<(usize, BoundarySide)>);
 
-impl CommonScalarPlan {
+impl CommonLinearPlan {
     pub(crate) fn check_nullspace_evidence(
         &self,
         values: &[f64],
@@ -79,7 +79,7 @@ impl CommonScalarPlan {
     pub(super) fn reauthenticate_portable_realization(&self) -> Result<(), Diagnostic> {
         if matches!(
             self.admission.recognized_model(),
-            RecognizedNativeModel::ComplexScalar(_)
+            RecognizedNativeModel::ComplexLinear(_)
         ) {
             return self.reauthenticate_complex();
         }
@@ -94,9 +94,9 @@ impl CommonScalarPlan {
             );
         }
 
-        let RecognizedNativeModel::Scalar(lowered) = self.admission.recognized_model() else {
+        let RecognizedNativeModel::Linear(lowered) = self.admission.recognized_model() else {
             return Err(invalid(
-                "common scalar Plan lost its recognized mathematical materialization",
+                "common linear Plan lost its recognized mathematical materialization",
             ));
         };
         if matches!(self.admission.spatial, NativeSpatialPolicy::ScalarTpfa(_)) {
@@ -127,7 +127,7 @@ impl CommonScalarPlan {
         }
         require_portable_realization(
             &self.portable,
-            resolve_common_scalar_portable(&self.admission, lowered)?,
+            resolve_common_linear_portable(&self.admission, lowered)?,
         )
     }
 
@@ -137,9 +137,9 @@ impl CommonScalarPlan {
         formulation_selection: Option<FormulationSelectionMode>,
         authored_formulation: Option<&AuthoredFormulationProjection>,
     ) -> Result<Self, Diagnostic> {
-        let RecognizedNativeModel::Scalar(lowered) = admission.recognized_model() else {
+        let RecognizedNativeModel::Linear(lowered) = admission.recognized_model() else {
             return Err(invalid(
-                "common scalar Plan admitted non-scalar mathematics",
+                "common linear Plan admitted non-linear-region mathematics",
             ));
         };
         if admission.temporal.is_some() {
@@ -231,7 +231,7 @@ impl CommonScalarPlan {
                 },
             }
         };
-        let portable = resolve_common_scalar_portable(&admission, lowered)?;
+        let portable = resolve_common_linear_portable(&admission, lowered)?;
         Self::finish_admission(
             model,
             admission,
@@ -283,7 +283,7 @@ impl CommonScalarPlan {
             push_framed(&mut identity_bytes, authored.canonical_bytes());
         }
         let identity =
-            domain_separated_identity(b"eqiora.common-scalar-plan/v2\0", &identity_bytes);
+            domain_separated_identity(b"eqiora.common-linear-plan/v1\0", &identity_bytes);
         let lineage = CommonSpatialPlanLineage::new(
             identity,
             model_reference.model().ulid().to_string(),
@@ -305,9 +305,9 @@ impl CommonScalarPlan {
     pub(crate) fn run(
         &self,
         backend: &dyn LinearSolverBackend,
-    ) -> Result<CommonScalarRunOutput<f64>, Diagnostic> {
+    ) -> Result<CommonLinearRunOutput<f64>, Diagnostic> {
         self.reauthenticate_portable_realization()?;
-        self.admission.execute_scalar(backend)
+        self.admission.execute_linear(backend)
     }
 
     /// Effective primal Galerkin Formulation for Q1, when one is admitted.
@@ -332,7 +332,7 @@ impl CommonScalarPlan {
                 "scalar storage execution requires an exact State and Run schedule",
             ));
         }
-        crate::CommonResult::accept_scalar(self.clone(), 0.0, self.run(backend)?)
+        crate::CommonResult::accept_linear(self.clone(), 0.0, self.run(backend)?)
     }
 
     /// Accept one selected Parameter point through this Plan's exact supplied Mesh and policies.
@@ -367,9 +367,9 @@ impl CommonScalarPlan {
         }
         self.reauthenticate_portable_realization()?;
         self.admission.revalidate()?;
-        let RecognizedNativeModel::Scalar(template) = self.admission.recognized_model() else {
+        let RecognizedNativeModel::Linear(template) = self.admission.recognized_model() else {
             return Err(invalid(
-                "common scalar Plan lost its recognized mathematics",
+                "common linear Plan lost its recognized mathematics",
             ));
         };
         let equations = template;
@@ -645,14 +645,14 @@ impl CommonScalarPlan {
             },
             NativeSpatialPolicy::ScalarTpfa(_) => CommonSpatialPolicy::CellCenteredTpfa,
             NativeSpatialPolicy::ElasticityQ1 => {
-                unreachable!("common scalar Plan cannot own elasticity policy")
+                unreachable!("common linear Plan cannot own elasticity policy")
             }
             NativeSpatialPolicy::StokesMiniP1(_) => {
-                unreachable!("common scalar Plan cannot own Stokes policy")
+                unreachable!("common linear Plan cannot own Stokes policy")
             }
             NativeSpatialPolicy::TransientMiniP1(_)
             | NativeSpatialPolicy::TransientCellCentered(_) => {
-                unreachable!("common scalar Plan cannot own transient-flow policy")
+                unreachable!("common linear Plan cannot own transient-flow policy")
             }
         }
     }
@@ -674,7 +674,7 @@ pub(super) fn scalar_operator_properties(spatial: NativeSpatialPolicy) -> Linear
     }
 }
 
-impl CommonScalarPlan {
+impl CommonLinearPlan {
     pub(crate) fn observation_program(&self) -> &KernelProgram {
         self.admission.program()
     }
@@ -683,7 +683,7 @@ impl CommonScalarPlan {
         &self,
         domain: eqiora_core::RawId,
     ) -> Result<ObservableSupport, Diagnostic> {
-        let RecognizedNativeModel::Scalar(equations) = self.admission.recognized_model() else {
+        let RecognizedNativeModel::Linear(equations) = self.admission.recognized_model() else {
             return Err(invalid("Observable requires the exact scalar Plan support"));
         };
         let region = equations
@@ -708,7 +708,7 @@ impl CommonScalarPlan {
     }
 }
 
-impl CommonScalarPlan {
+impl CommonLinearPlan {
     /// Exact Mesh entities in coefficient order for one Field.
     /// Orientation and measure are those of the retained Mesh; the coefficient
     /// functional is the Field's Space in `portable_realization()`.
@@ -765,10 +765,10 @@ impl CommonScalarPlan {
         ) = (self.admission.spatial, self.admission.resources())
         {
             return match self.admission.recognized_model() {
-                RecognizedNativeModel::Scalar(equations) => {
+                RecognizedNativeModel::Linear(equations) => {
                     support::moment_support(equations, mesh, field, space)
                 }
-                RecognizedNativeModel::ComplexScalar(equations) => {
+                RecognizedNativeModel::ComplexLinear(equations) => {
                     support::moment_support(equations, mesh, field, space)
                 }
                 _ => Err(invalid("missing moment Field inventory")),
@@ -778,10 +778,10 @@ impl CommonScalarPlan {
             return Err(invalid("missing Cartesian mesh"));
         };
         match self.admission.recognized_model() {
-            RecognizedNativeModel::Scalar(equations) => {
+            RecognizedNativeModel::Linear(equations) => {
                 support::field_support(equations, mesh.mesh(), field, self.spatial())
             }
-            RecognizedNativeModel::ComplexScalar(equations) => {
+            RecognizedNativeModel::ComplexLinear(equations) => {
                 support::field_support(equations, mesh.mesh(), field, self.spatial())
             }
             _ => Err(invalid("missing scalar inventory")),

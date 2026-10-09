@@ -12,7 +12,7 @@ fn materialize_common_spatial_trajectory(
     if !matches!(
         plan.native(),
         ResolvedCommonPlan::TransientFlow(_)
-            | ResolvedCommonPlan::Scalar(_)
+            | ResolvedCommonPlan::Linear(_)
             | ResolvedCommonPlan::Fsi(_)
     ) {
         return Err(PyRuntimeError::new_err(
@@ -267,7 +267,7 @@ fn materialize_common_result_unprofiled(
         Py::new(py, solve)?.into_any()
     };
     let evidence = match result.family_name() {
-        "algebraic" | "scalar" => None,
+        "algebraic" | "linear" => None,
         "elasticity" => Some(StaticScientificEvidence::LinearElasticity(Py::new(
             py,
             PyLinearElasticityEvidence::from_result(py, identity.plan_key(), &result)?,

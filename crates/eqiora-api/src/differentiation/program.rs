@@ -184,7 +184,7 @@ fn accept_plan_point(
     backend: &dyn LinearSolverBackend,
 ) -> Result<CommonScalarDifferentiationPoint, Diagnostic> {
     match plan {
-        ResolvedCommonPlan::Scalar(plan) => {
+        ResolvedCommonPlan::Linear(plan) => {
             if initial.is_some() || !plan.fields().any(|(field, _)| field.erase() == output) {
                 return Err(invalid(
                     "spatial differentiation requires a Plan Field and no finite seed",

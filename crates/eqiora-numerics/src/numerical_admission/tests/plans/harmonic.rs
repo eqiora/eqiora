@@ -64,7 +64,7 @@ fn harmonic_response_has_independent_circuit_wave_and_transient_evidence() {
         description.requested_source_identity(),
         Some(form.source_identity())
     );
-    let scalar = plan.as_scalar().unwrap();
+    let scalar = plan.as_linear().unwrap();
     assert_eq!(scalar.harmonic_original_model(), Some(&original));
     assert_eq!(scalar.harmonic_amplitudes().count(), 1);
     assert_ne!(
@@ -73,7 +73,7 @@ fn harmonic_response_has_independent_circuit_wave_and_transient_evidence() {
     );
     let plan = replay_plan(plan, &REFERENCE_LINEAR_SOLVER);
     let result = plan
-        .as_scalar()
+        .as_linear()
         .unwrap()
         .run_result(&REFERENCE_LINEAR_SOLVER)
         .unwrap();
@@ -92,7 +92,7 @@ fn harmonic_response_has_independent_circuit_wave_and_transient_evidence() {
         crate::CommonResult::from_bytes(&result.to_bytes().unwrap(), &plan).unwrap(),
         result
     );
-    let scalar = plan.as_scalar().unwrap();
+    let scalar = plan.as_linear().unwrap();
     let (_, original_field, amplitude) = scalar.harmonic_amplitudes().next().unwrap();
     assert_eq!(scalar.harmonic_angular_frequency(), Some(1.));
     let seconds = eqiora_core::DimExponents::from_integers([0, 0, 1, 0, 0, 0, 0]).unwrap();

@@ -9,9 +9,9 @@ use eqiora_solver::{
 
 use crate::common_trajectory::CommonTrajectoryParameterSensitivity;
 use crate::numerical_admission::{
-    CommonElasticityRunOutput, CommonScalarRunOutput, CommonSteadyStokesRunOutput,
+    CommonElasticityRunOutput, CommonLinearRunOutput, CommonSteadyStokesRunOutput,
 };
-use crate::{CommonScalarPlan, CommonTrajectory, ResolvedCommonPlan};
+use crate::{CommonLinearPlan, CommonTrajectory, ResolvedCommonPlan};
 
 mod artifact;
 mod evidence;
@@ -28,7 +28,7 @@ mod eigen;
 pub(crate) enum CommonResultFamily {
     Eigen,
     Algebraic,
-    Scalar,
+    Linear,
     Elasticity,
     SteadyStokes,
     Ode,
@@ -153,7 +153,7 @@ struct SteadyStokesResultObservation {
 
 #[derive(Debug, Clone, PartialEq)]
 enum StaticObservation {
-    Scalar(Option<crate::nullspace::NullspaceEvidence>),
+    Linear(Option<crate::nullspace::NullspaceEvidence>),
     Elasticity(ElasticityResultObservation),
     SteadyStokes(SteadyStokesResultObservation),
 }
@@ -271,10 +271,10 @@ impl CommonResult {
     }
 
     /// Accept the complete scalar Field inventory from one validated solve.
-    pub(crate) fn accept_scalar(
-        plan: CommonScalarPlan,
+    pub(crate) fn accept_linear(
+        plan: CommonLinearPlan,
         elapsed_seconds: f64,
-        output: CommonScalarRunOutput<f64>,
+        output: CommonLinearRunOutput<f64>,
     ) -> Result<Self, Diagnostic> {
         require_elapsed(elapsed_seconds)?;
         let (association, space) = match plan.spatial() {
@@ -338,13 +338,13 @@ impl CommonResult {
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         Self::finish_static(
-            ResolvedCommonPlan::Scalar(Box::new(plan)),
-            CommonResultFamily::Scalar,
+            ResolvedCommonPlan::Linear(Box::new(plan)),
+            CommonResultFamily::Linear,
             elapsed_seconds,
             fields,
             CommonSolveEvidence::from_report(&output.solve_report),
             CommonAssemblyEvidence::from_report(&output.assembly_report),
-            StaticObservation::Scalar(output.nullspace),
+            StaticObservation::Linear(output.nullspace),
         )
     }
 
@@ -501,7 +501,7 @@ impl CommonResult {
             CommonTrajectory::SpatialTransient { request, .. } => (
                 request.plan().clone(),
                 match request.plan() {
-                    ResolvedCommonPlan::Scalar(_) => CommonResultFamily::Scalar,
+                    ResolvedCommonPlan::Linear(_) => CommonResultFamily::Linear,
                     _ => CommonResultFamily::TransientFlow,
                 },
                 None,
@@ -597,7 +597,7 @@ impl CommonResult {
         match self.family {
             CommonResultFamily::Eigen => "eigen",
             CommonResultFamily::Algebraic => "algebraic",
-            CommonResultFamily::Scalar => "scalar",
+            CommonResultFamily::Linear => "linear",
             CommonResultFamily::Elasticity => "elasticity",
             CommonResultFamily::SteadyStokes => "steady-stokes",
             CommonResultFamily::Ode => "ode",
