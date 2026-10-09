@@ -1,3 +1,4 @@
+mod solve;
 use super::*;
 use crate::form_compiler::region::RegionFieldBinding;
 use eqiora_core::{DimExponents, DynQuantity};

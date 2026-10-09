@@ -1,11 +1,6 @@
 use super::*;
 use crate::canonical_boundary::PhysicalBoundaryQuantity;
 use crate::region_assembly::mapping::{FieldDof, RegionDofMap, bind_region_topology};
-use crate::region_assembly::{PreparedRegionAssembly, RegionAssemblyCell};
-use eqiora_assembly::{
-    AssemblyBackend, AssemblyPacket, AssemblyPacketSetIdentityV1, AssemblyPlan, AssemblyTarget,
-    TargetAssemblyMap,
-};
 use eqiora_meshing::{CartesianMesh, MeshEntity, MeshGeometry, MeshTopology};
 
 impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
@@ -132,115 +127,30 @@ impl<S: Coefficient + crate::finalized_spatial::ResidualScalar + Send>
             }
         }
         let mapping = RegionDofMap::new(mesh, &layouts, reference, &domains, &traces, &prescribed)?;
-        let plan = AssemblyPlan::new(vec![
-            AssemblyTarget::new(mapping.free_count())?,
-            AssemblyTarget::new(mapping.full_count())?,
-        ])?;
-        let maps = |index| {
-            Ok::<_, Diagnostic>(vec![
-                TargetAssemblyMap::new(
-                    plan.target_id(0).expect("target"),
-                    mapping.cell_map(index, true)?,
-                ),
-                TargetAssemblyMap::new(
-                    plan.target_id(1).expect("full target"),
-                    mapping.cell_map(index, false)?,
-                ),
-            ])
-        };
-        let cells = domains
-            .iter()
-            .enumerate()
-            .map(|(index, _)| {
-                Ok(RegionAssemblyCell {
-                    orientation: mapping.cell_signs(index)?.to_vec(),
-                    index,
-                    geometry: mesh
-                        .geometry_map(MeshEntity::new(dimension, index))
-                        .expect("cell geometry"),
-                    mappings: maps(index)?,
-                    previous: BTreeMap::new(),
-                })
-            })
-            .collect::<Result<Vec<_>, Diagnostic>>()?;
-        let mut packet_domains = domains.clone();
-        let packets = natural
-            .into_iter()
-            .map(|(index, local)| {
-                packet_domains.push(domains[index]);
-                AssemblyPacket::new(local, maps(index)?)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
         let quadrature = QuadratureRule::tensor_product_gauss_legendre(dimension, 2)?;
         let forms = self
             .regions
             .iter()
             .map(|region| Ok((region.form.volume()?, quadrature.clone())))
             .collect::<Result<Vec<_>, Diagnostic>>()?;
-        let work = PreparedRegionAssembly::new(
-            AssemblyPacketSetIdentityV1::Unbound,
-            &plan,
-            forms,
-            &domains,
-            cells,
-            packets,
-        )?;
-        let reactions = crate::region_assembly::InterfaceReactions::prepare(
-            &work,
-            plan.target_id(1).expect("full target"),
-            &mapping,
-            &packet_domains,
-        )?;
-        let (systems, assembly_report) = REFERENCE_ASSEMBLY_BACKEND
-            .assemble(&plan, &work)?
-            .into_parts();
-        let canonical = Arc::new(eqiora_solver::CanonicalCsrSystemView::new(
-            &systems[0],
-            eqiora_solver::LinearOperatorProperties::General,
-        )?);
-        let core = crate::finalized_spatial::FinalizedLinearCore::new(
-            request.plan(),
-            VectorLayoutKind::Replicated,
-            Target::HostCpu { threads: workers },
-            canonical,
-        );
-        let solution = request.solve(&core.linear_problem()?)?;
-        core.validate_solution(&solution)?;
-        let (values, solve_report) = solution.into_parts();
-        complete(&reactions, &mapping.lift(&values, false)?)?;
-        let expected =
-            self.regions
-                .iter()
-                .flat_map(|region| {
-                    region.form.fields().iter().map(move |(field, value_type)| {
-                        (*field, (region.form.domain(), value_type))
-                    })
-                })
-                .collect::<BTreeMap<_, _>>();
-        let inventory = expected.keys().copied().collect::<Vec<_>>();
-        let fields = mapping
-            .recover(&values, &inventory)?
+        let output = mapping.solve(mesh, forms, natural, workers, request, complete)?;
+        let fields = output
+            .fields
             .into_iter()
             .map(|(field, recovered)| {
-                let (domain, value_type) = expected[&field];
-                if recovered.domain != domain || &recovered.value_type != value_type {
-                    return Err(invalid(
-                        "Run recovery differs from exact Field type or Domain",
-                    ));
-                }
-                Ok((
+                (
                     field.downcast().expect("Field"),
                     recovered.value_type,
                     recovered.coefficients.into_values().collect(),
                     recovered.space,
-                ))
+                )
             })
-            .collect::<Result<Vec<_>, Diagnostic>>()?;
+            .collect();
         Ok(CommonScalarRunOutput {
             nullspace: None,
             fields,
-            solve_report,
-            assembly_report,
+            solve_report: output.solve_report,
+            assembly_report: output.assembly_report,
         })
     }
 }

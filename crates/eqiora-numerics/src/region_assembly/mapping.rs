@@ -18,6 +18,7 @@ use super::invalid;
 
 mod binding;
 mod recovery;
+mod solve;
 pub(crate) use binding::bind_region_topology;
 pub(crate) use recovery::RecoveredRegionField;
 
