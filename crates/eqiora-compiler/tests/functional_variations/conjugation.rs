@@ -178,7 +178,7 @@ fn authored_pairing_retains_conjugation_and_argument_order_in_current_wire() {
         assert!(text.contains("\"inner\""));
         assert!(
             AuthoredFormulationProjection::decode(
-                text.replace("eqiora.authored-form/v14", "eqiora.authored-form/v9")
+                text.replace("eqiora.authored-form/v15", "eqiora.authored-form/v9")
                     .as_bytes()
             )
             .is_err()

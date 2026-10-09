@@ -152,14 +152,17 @@ pub(super) fn reduce(
             }
             ExprNode::Gradient(a)
             | ExprNode::Divergence(a)
-            | ExprNode::Trace(a)
-            | ExprNode::NormalComponent(a) => {
+            | ExprNode::Trace { value: a, .. }
+            | ExprNode::NormalComponent { value: a, .. } => {
                 let (a, d) = get(*a);
                 let node = match node {
                     ExprNode::Gradient(_) => ExprNode::Gradient(a),
                     ExprNode::Divergence(_) => ExprNode::Divergence(a),
-                    ExprNode::Trace(_) => ExprNode::Trace(a),
-                    _ => ExprNode::NormalComponent(a),
+                    ExprNode::Trace { on, .. } => ExprNode::Trace { value: a, on: *on },
+                    ExprNode::NormalComponent { on, .. } => {
+                        ExprNode::NormalComponent { value: a, on: *on }
+                    }
+                    _ => unreachable!("spatial operator matched"),
                 };
                 (node, d)
             }

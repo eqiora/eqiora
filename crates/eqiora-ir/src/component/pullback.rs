@@ -108,6 +108,7 @@ mod tests {
         let typed = TypedResidual::infer(
             builder.finish([root]).unwrap(),
             None,
+            |_| None,
             RootContract::ValueRoots,
             |symbol| {
                 let SymbolRef::Coordinate {

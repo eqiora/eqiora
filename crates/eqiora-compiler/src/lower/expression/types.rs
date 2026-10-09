@@ -320,6 +320,9 @@ fn expression_type_cached(
             }
             .map_err(violation)
         }
+        LoweringExpressionNode::Boundary { .. } => {
+            super::boundary::infer(file, expression, bindings, support, &mut infer)
+        }
         LoweringExpressionNode::Call { callee, argument } => {
             if callee == "sin" {
                 return Err(source_error(
@@ -459,23 +462,23 @@ fn expression_type_cached(
             if let Some(function) = crate::math::unary_function(callee) {
                 return typing::unary_math(function, &operand).map_err(violation);
             }
-            if let Some(operation) = crate::math::oriented::Operation::named(callee) {
-                return operation.result_type(&operand, support).map_err(|message| {
-                    source_error(
-                        codes::LANGUAGE_TYPE_ERROR,
-                        file,
-                        expression.range(),
-                        message,
-                    )
-                });
+            if callee == "curl" {
+                return crate::math::oriented::Operation::Curl
+                    .result_type(&operand, support)
+                    .map_err(|message| {
+                        source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            file,
+                            expression.range(),
+                            message,
+                        )
+                    });
             }
             match callee.as_str() {
                 "grad" => typing::gradient(&operand),
                 "div" => typing::divergence(&operand),
                 "symmetric_part" => typing::symmetric_part(&operand),
                 "isotropic_lift" => typing::isotropic_lift(&operand),
-                "trace" => typing::trace(&operand, support),
-                "normal" => typing::normal(&operand, support),
                 "derivative" => typing::time_derivative(&operand, std::num::NonZeroU32::MIN),
                 "pre" | "next" | "hold" => Ok(operand),
                 _ => {

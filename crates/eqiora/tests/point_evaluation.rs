@@ -194,7 +194,7 @@ fn point_fingerprint_retains_bindings_and_side_and_rejects_displaced_wire() {
     let bytes = model.canonical_json().unwrap();
     let displaced = String::from_utf8(bytes.clone())
         .unwrap()
-        .replace("eqiora.model-envelope/v41", "eqiora.model-envelope/v36");
+        .replace("eqiora.model-envelope/v42", "eqiora.model-envelope/v36");
     assert_ne!(displaced.as_bytes(), bytes);
     assert!(ModelDocument::replay(displaced.as_bytes()).is_err());
 }

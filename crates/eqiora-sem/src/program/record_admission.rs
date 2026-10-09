@@ -38,6 +38,7 @@ pub(super) fn validate(
                 let inferred = TypedResidual::<()>::infer(
                     expression.clone(),
                     None,
+                    |_| None,
                     RootContract::ValueRoots,
                     |symbol| {
                         let value_type = match symbol {

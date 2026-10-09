@@ -195,10 +195,10 @@ fn direct_disposition<const D: usize>(
         return Ok(None);
     };
     match expression.node(*root) {
-        Some(ExprNode::Trace(value)) if is_field(expression, *value, trace_field) => {
+        Some(ExprNode::Trace { value, .. }) if is_field(expression, *value, trace_field) => {
             Ok(Some(PhysicalBoundaryDisposition::TraceZero))
         }
-        Some(ExprNode::NormalComponent(stress)) => {
+        Some(ExprNode::NormalComponent { value: stress, .. }) => {
             require_matching_stress(
                 program,
                 expression,
@@ -248,14 +248,14 @@ fn prescribed_traction<const D: usize>(
     };
     let (normal, datum) = if matches!(
         expression.node(first.value()),
-        Some(ExprNode::NormalComponent(_))
+        Some(ExprNode::NormalComponent { .. })
     ) {
         (first, second)
     } else {
         (second, first)
     };
     let (
-        Some(ExprNode::NormalComponent(stress)),
+        Some(ExprNode::NormalComponent { value: stress, .. }),
         Some(ExprNode::Symbol(SymbolRef::Parameter(parameter))),
     ) = (
         expression.node(normal.value()),
@@ -353,12 +353,12 @@ fn interface_port(
         let Some(ExprNode::Sub(left, right)) = expression.node(root) else {
             continue;
         };
-        if matches!(expression.node(*left), Some(ExprNode::Trace(value)) if is_field(expression, *value, trace_field))
+        if matches!(expression.node(*left), Some(ExprNode::Trace { value, .. }) if is_field(expression, *value, trace_field))
         {
             trace_port = port_trace(expression, *right);
             continue;
         }
-        if let Some(ExprNode::NormalComponent(stress)) = expression.node(*left)
+        if let Some(ExprNode::NormalComponent { value: stress, .. }) = expression.node(*left)
             && let Some(port) = port_flux(expression, *right)
         {
             require_matching_stress(

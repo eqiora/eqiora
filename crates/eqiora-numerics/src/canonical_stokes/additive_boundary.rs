@@ -23,13 +23,20 @@ pub(super) fn additive_prescribed_complete_velocity_parts(
         return Ok(None);
     }
     for (velocity_trace, potential_trace) in [(first, second), (second, first)] {
-        let Some(ExprNode::Trace(velocity_value)) = expression.node(velocity_trace.value()) else {
+        let Some(ExprNode::Trace {
+            value: velocity_value,
+            ..
+        }) = expression.node(velocity_trace.value())
+        else {
             continue;
         };
         if !is_field(expression, *velocity_value, velocity) {
             continue;
         }
-        let Some(ExprNode::Trace(gradient)) = expression.node(potential_trace.value()) else {
+        let Some(ExprNode::Trace {
+            value: gradient, ..
+        }) = expression.node(potential_trace.value())
+        else {
             continue;
         };
         let Some(ExprNode::Gradient(potential)) = expression.node(*gradient) else {
@@ -60,7 +67,8 @@ pub(super) fn additive_prescribed_normal_velocity_parts(
         if !is_velocity_or_port_trace(expression, trace.value(), velocity) {
             continue;
         }
-        let Some(ExprNode::NormalComponent(tensor)) = expression.node(normal.value()) else {
+        let Some(ExprNode::NormalComponent { value: tensor, .. }) = expression.node(normal.value())
+        else {
             continue;
         };
         let typed = typed_relation(program, relation)?;
@@ -90,7 +98,7 @@ pub(super) fn additive_prescribed_normal_velocity_parts(
 
 fn is_velocity_or_port_trace(expression: &ExprDag, value: ExprId, velocity: RawId) -> bool {
     match expression.node(value) {
-        Some(ExprNode::Trace(field)) => is_field(expression, *field, velocity),
+        Some(ExprNode::Trace { value: field, .. }) => is_field(expression, *field, velocity),
         Some(ExprNode::Symbol(SymbolRef::PortTrace(_))) => true,
         _ => false,
     }

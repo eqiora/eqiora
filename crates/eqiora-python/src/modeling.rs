@@ -803,9 +803,20 @@ pub(crate) fn div(value: &Bound<'_, PyAny>) -> PyResult<PyExpression> {
 
 /// Boundary trace of one symbolic expression.
 #[pyfunction]
-pub(crate) fn trace(value: &Bound<'_, PyAny>) -> PyResult<PyExpression> {
+#[pyo3(signature = (value, *, on=None, from_=None))]
+pub(crate) fn trace(
+    value: &Bound<'_, PyAny>,
+    on: Option<&PyDomain>,
+    from_: Option<&PyDomain>,
+) -> PyResult<PyExpression> {
     expression_from_python(value)
-        .map(DraftExpression::trace)
+        .map(|value| {
+            DraftExpression::trace(
+                value,
+                on.map(|domain| &domain.value),
+                from_.map(|domain| &domain.value),
+            )
+        })
         .map(PyExpression::new)
 }
 

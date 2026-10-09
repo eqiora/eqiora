@@ -158,12 +158,13 @@ fn require_and_select_validate_all_static_operands_without_numeric_conditions() 
         let selected = builder.select(truth, guarded, value).unwrap();
         let dag = builder.finish([selected, value]).unwrap();
         assert_eq!(
-            TypedResidual::<u32>::infer(dag, None, RootContract::EquationSides, |_| Err::<
-                ExpressionType<u32>,
-                (),
-            >(
-                ()
-            ))
+            TypedResidual::<u32>::infer(
+                dag,
+                None,
+                |_| None,
+                RootContract::EquationSides,
+                |_| Err::<ExpressionType<u32>, ()>(())
+            )
             .is_ok(),
             !numeric_guard
         );

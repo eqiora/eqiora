@@ -120,6 +120,7 @@ pub(super) fn check(
     TypedResidual::infer(
         law.expression().clone(),
         Some(support.clone()),
+        |_| None,
         RootContract::EquationSides,
         |symbol| match symbol {
             SymbolRef::Coordinate {

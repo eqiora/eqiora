@@ -626,7 +626,7 @@ fn spatial_draft_projects_only_to_existing_source_ast_forms() {
         "lower_value",
         &lower,
         [(
-            DraftExpression::trace(field.expression()),
+            DraftExpression::trace(field.expression(), Some(&lower), Some(&interval)),
             DraftExpression::constant(crate::DecimalLiteral::parse("0").unwrap()),
         )],
     );

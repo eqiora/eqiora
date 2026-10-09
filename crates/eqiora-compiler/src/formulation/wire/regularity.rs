@@ -17,6 +17,7 @@ enum Demand {
     Curl,
     Div,
     Trace,
+    Normal,
     Tangential,
     Unsupported,
 }
@@ -52,13 +53,18 @@ pub(super) fn check(wire: &WireForm) -> Result<(), Diagnostic> {
         spaces.insert(trial.as_str(), space);
     }
     for (_, left, right) in &wire.equations {
-        visit(left, Demand::Value, &spaces)?;
-        visit(right, Demand::Value, &spaces)?;
+        visit(left, Demand::Value, &spaces, None)?;
+        visit(right, Demand::Value, &spaces, None)?;
     }
     Ok(())
 }
 
-fn visit(value: &E, demand: Demand, spaces: &BTreeMap<&str, Space>) -> Result<(), Diagnostic> {
+fn visit(
+    value: &E,
+    demand: Demand,
+    spaces: &BTreeMap<&str, Space>,
+    integration_domain: Option<&str>,
+) -> Result<(), Diagnostic> {
     // The existing H1/classical profile stays available. We admit only direct
     // first-order graph derivatives for the new, weaker test-space declarations;
     // this is not a general regularity inference or distribution-product engine.
@@ -81,7 +87,7 @@ fn visit(value: &E, demand: Demand, spaces: &BTreeMap<&str, Space>) -> Result<()
                 Some(Space::Curl) => {
                     matches!(demand, Demand::Value | Demand::Curl | Demand::Tangential)
                 }
-                Some(Space::Div) => matches!(demand, Demand::Value | Demand::Div),
+                Some(Space::Div) => matches!(demand, Demand::Value | Demand::Div | Demand::Normal),
                 Some(Space::L2) => demand == Demand::Value,
             };
             if !admitted {
@@ -90,19 +96,64 @@ fn visit(value: &E, demand: Demand, spaces: &BTreeMap<&str, Space>) -> Result<()
                 ));
             }
         }
-        E::Gradient { value } => visit(value, derivative(Demand::Gradient), spaces)?,
-        E::Curl { value } => visit(value, derivative(Demand::Curl), spaces)?,
-        E::Divergence { value } => visit(value, derivative(Demand::Div), spaces)?,
-        E::Trace { value } => visit(value, derivative(Demand::Trace), spaces)?,
-        E::TangentialTrace { value } => visit(value, derivative(Demand::Tangential), spaces)?,
-        E::CoordinatePartial { value, wrt } => {
-            visit(value, derivative(Demand::Gradient), spaces)?;
-            visit(wrt, Demand::Unsupported, spaces)?;
+        E::Gradient { value } => visit(
+            value,
+            derivative(Demand::Gradient),
+            spaces,
+            integration_domain,
+        )?,
+        E::Curl { value } => visit(value, derivative(Demand::Curl), spaces, integration_domain)?,
+        E::Divergence { value } => {
+            visit(value, derivative(Demand::Div), spaces, integration_domain)?
         }
-        E::Neg { value } | E::Conjugate { value } => visit(value, demand, spaces)?,
+        E::Trace {
+            value: operand,
+            on_ulid,
+        }
+        | E::NormalTrace {
+            value: operand,
+            on_ulid,
+        }
+        | E::TangentialTrace {
+            value: operand,
+            on_ulid,
+        } => {
+            if integration_domain != Some(on_ulid.as_str())
+                || on_ulid
+                    .parse::<ulid::Ulid>()
+                    .ok()
+                    .map(|id| id.to_string())
+                    .as_ref()
+                    != Some(on_ulid)
+            {
+                return Err(rejection(
+                    "trace target must be the exact canonical integration boundary",
+                ));
+            }
+            let requested = if matches!(value, E::Trace { .. }) {
+                Demand::Trace
+            } else if matches!(value, E::NormalTrace { .. }) {
+                Demand::Normal
+            } else {
+                Demand::Tangential
+            };
+            visit(operand, derivative(requested), spaces, integration_domain)?;
+        }
+        E::CoordinatePartial { value, wrt } => {
+            visit(
+                value,
+                derivative(Demand::Gradient),
+                spaces,
+                integration_domain,
+            )?;
+            visit(wrt, Demand::Unsupported, spaces, integration_domain)?;
+        }
+        E::Neg { value } | E::Conjugate { value } => {
+            visit(value, demand, spaces, integration_domain)?
+        }
         E::Add { left, right } | E::Sub { left, right } => {
-            visit(left, demand, spaces)?;
-            visit(right, demand, spaces)?;
+            visit(left, demand, spaces, integration_domain)?;
+            visit(right, demand, spaces, integration_domain)?;
         }
         E::Complex {
             real: left,
@@ -115,22 +166,28 @@ fn visit(value: &E, demand: Demand, spaces: &BTreeMap<&str, Space>) -> Result<()
         | E::Inner { left, right }
         | E::Apply { left, right }
         | E::Dot { left, right } => {
-            visit(left, composed, spaces)?;
-            visit(right, composed, spaces)?;
+            visit(left, composed, spaces, integration_domain)?;
+            visit(right, composed, spaces, integration_domain)?;
+        }
+        E::Integrate {
+            domain_ulid,
+            integrand,
+        } => {
+            if integration_domain.is_some() {
+                return Err(rejection("weak forms cannot contain nested integrals"));
+            }
+            visit(integrand, composed, spaces, Some(domain_ulid))?;
         }
         E::Component { value, .. }
         | E::Variation { value, .. }
         | E::SymmetricPart { value }
         | E::Sin { value }
         | E::Pow { base: value, .. }
-        | E::Integrate {
-            integrand: value, ..
-        }
         | E::IntervalIntegral {
             integrand: value, ..
         }
         | E::EndpointFlux { flux: value, .. } => {
-            visit(value, composed, spaces)?;
+            visit(value, composed, spaces, integration_domain)?;
         }
         E::Number { .. }
         | E::Rational { .. }

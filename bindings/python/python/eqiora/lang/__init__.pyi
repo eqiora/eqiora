@@ -1069,7 +1069,7 @@ def next(value: Expression) -> Expression:
     """
     ...
 
-def trace(value: Expression) -> Expression:
+def trace(value: object, *, on: Support | None = None, from_: Support | None = None) -> Expression:
     """Return the language boundary trace of one expression.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::trace``.
@@ -1077,7 +1077,7 @@ def trace(value: Expression) -> Expression:
 
     ...
 
-def normal(value: Expression) -> Expression:
+def normal(value: object, *, on: Support | None = None, from_: Support | None = None) -> Expression:
     """Return the language outward-normal contraction of one expression.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::normal``.
@@ -1318,7 +1318,7 @@ def curl(value: object) -> Expression:
     ...
 
 
-def tangential_trace(value: object) -> Expression:
+def tangential_trace(value: object, *, on: Support | None = None, from_: Support | None = None) -> Expression:
     """Oriented n cross value on the exact parent boundary, scalar in 2D.
 
     Authority: ``bindings/python/python/eqiora/lang/__init__.py::tangential_trace``.

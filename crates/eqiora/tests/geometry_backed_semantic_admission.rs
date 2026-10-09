@@ -279,7 +279,9 @@ fn boundary_relation_model(
     let field_value = expression
         .symbol(SymbolRef::Field(ids.field))
         .expect("Field symbol");
-    let trace = expression.trace(field_value).expect("boundary trace");
+    let trace = expression
+        .trace(field_value, ids.boundary)
+        .expect("boundary trace");
     let mut nodes = vec![
         KernelNode::from(
             DomainDef::geometry_region(

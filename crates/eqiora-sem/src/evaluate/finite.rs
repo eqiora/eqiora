@@ -33,11 +33,14 @@ pub(super) fn unary(
         let input = builder.constant(value.clone())?;
         let root = builder.finite_unary(operation, input)?;
         let dag = builder.finish([root])?;
-        let typed =
-            TypedResidual::<()>::infer(dag, None, RootContract::ComponentwiseResidual, |_| {
-                Err::<ExpressionType<()>, _>(())
-            })
-            .map_err(|_| invalid("finite map invariant typing failed"))?;
+        let typed = TypedResidual::<()>::infer(
+            dag,
+            None,
+            |_| None,
+            RootContract::ComponentwiseResidual,
+            |_| Err::<ExpressionType<()>, _>(()),
+        )
+        .map_err(|_| invalid("finite map invariant typing failed"))?;
         let components = eqiora_ir::ComponentScalarization::lower(&typed)?.evaluate(|_| None)?;
         if output.scalar_domain() == eqiora_core::ScalarDomain::Complex {
             return ValueLiteral::new(

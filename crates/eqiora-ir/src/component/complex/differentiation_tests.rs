@@ -21,6 +21,7 @@ fn complex_and_nonholomorphic_products_obey_the_real_pairing() {
         dag.finish([square, conjugate, abs2, real, imag, scaled])
             .unwrap(),
         None,
+        |_| None,
         RootContract::ComponentwiseResidual,
         |symbol| {
             let domain = if symbol == field {

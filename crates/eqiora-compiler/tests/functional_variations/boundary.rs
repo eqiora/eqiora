@@ -18,7 +18,7 @@ fn density(e: &E, c: f64, cx: f64, x: f64, bulk: &str, gradient: &str) -> f64 {
         E::Direction { name, .. } if name == "eta" => 1.0 + x,
         E::Direction { name, .. } if name == "zeta" => 3.0 - x,
         E::Test { .. } => 1.0 + x,
-        E::Trace { value } => eval(value),
+        E::Trace { value, .. } => eval(value),
         E::Neg { value } => -eval(value),
         E::Add { left, right } => eval(left) + eval(right),
         E::Mul { left, right } => eval(left) * eval(right),
@@ -259,7 +259,8 @@ fn check_surface_replay(compiled: &eqiora_compiler::CompiledModel, variation: &E
     };
     let typed = TypedResidual::infer(
         functional.expression().clone(),
-        Some(boundary),
+        Some(boundary.clone()),
+        |on| (*boundary.domain() == on.erase()).then(|| boundary.clone()),
         RootContract::Observable,
         |symbol| {
             nodes

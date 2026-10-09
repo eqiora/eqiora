@@ -110,6 +110,7 @@ mod tests {
             TypedResidual::infer(
                 builder.finish([selected, a]).unwrap(),
                 None,
+                |_| None,
                 RootContract::EquationSides,
                 |_| Err::<ExpressionType<()>, ()>(())
             )

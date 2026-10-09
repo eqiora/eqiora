@@ -130,6 +130,7 @@ pub(crate) fn admit(
                 domain_ulid: boundary.domain.ulid().to_string(),
                 integrand: Box::new(AuthoredFormExpressionV1::Mul {
                     left: Box::new(conjugate(AuthoredFormExpressionV1::Trace {
+                        on_ulid: boundary.domain.ulid().to_string(),
                         value: Box::new(test.clone()),
                     })),
                     right: Box::new(value),
@@ -215,9 +216,18 @@ pub(crate) fn equivalent(
             },
         ) => a == b && a_support == b_support && a_factor == b_factor,
         (Expression::Test { field_ulid: a }, Expression::Test { field_ulid: b }) => a == b,
+        (
+            Expression::Trace {
+                value: a,
+                on_ulid: a_on,
+            },
+            Expression::Trace {
+                value: b,
+                on_ulid: b_on,
+            },
+        ) => a_on == b_on && equivalent(a, b),
         (Expression::Neg { value: a }, Expression::Neg { value: b })
         | (Expression::Conjugate { value: a }, Expression::Conjugate { value: b })
-        | (Expression::Trace { value: a }, Expression::Trace { value: b })
         | (Expression::Gradient { value: a }, Expression::Gradient { value: b })
         | (Expression::Sin { value: a }, Expression::Sin { value: b }) => equivalent(a, b),
         (

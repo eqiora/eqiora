@@ -99,8 +99,8 @@ pub(super) fn evaluate(
             ExprNode::Neg(a)
             | ExprNode::Gradient(a)
             | ExprNode::Divergence(a)
-            | ExprNode::Trace(a)
-            | ExprNode::NormalComponent(a)
+            | ExprNode::Trace { value: a, .. }
+            | ExprNode::NormalComponent { value: a, .. }
             | ExprNode::PowI(a, _) => {
                 pending.push(*a);
                 None
@@ -374,11 +374,17 @@ impl Projection<'_> {
                 }
                 sum.ok_or_else(|| reject("empty divergence"))?
             }
-            ExprNode::Trace(value) => self.component(*value, indices, depth + 1)?,
-            ExprNode::NormalComponent(value) => {
-                let Some(KernelNode::Domain(domain)) =
-                    self.program.node(self.point.domain().erase())
-                else {
+            ExprNode::Trace { value, on } => {
+                if *on != self.point.domain() {
+                    return Err(reject("trace evaluation requires its exact boundary"));
+                }
+                self.component(*value, indices, depth + 1)?
+            }
+            ExprNode::NormalComponent { value, on } => {
+                if *on != self.point.domain() {
+                    return Err(reject("normal evaluation requires its exact boundary"));
+                }
+                let Some(KernelNode::Domain(domain)) = self.program.node(on.erase()) else {
                     return Err(reject("missing boundary"));
                 };
                 let DomainKind::CartesianBoundary { axis, side } = domain.kind() else {

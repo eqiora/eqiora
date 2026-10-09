@@ -84,8 +84,8 @@ pub(in crate::interpreter) fn variables(
             | ExprNode::Divergence(value)
             | ExprNode::SymmetricPart(value)
             | ExprNode::IsotropicLift(value)
-            | ExprNode::Trace(value)
-            | ExprNode::NormalComponent(value) => pending.push(*value),
+            | ExprNode::Trace { value, .. }
+            | ExprNode::NormalComponent { value, .. } => pending.push(*value),
             ExprNode::CoordinatePartial {
                 value: left,
                 wrt: right,

@@ -26,6 +26,7 @@ fn execute(definition: &PureOperatorDefinition, inputs: &[ValueLiteral]) -> Vec<
     let typed = TypedResidual::<()>::infer(
         builder.finish([root]).unwrap(),
         None,
+        |_| None,
         RootContract::ComponentwiseResidual,
         |_| -> Result<ExpressionType<()>, ()> { unreachable!("closed constants") },
     )
@@ -240,6 +241,7 @@ fn cross_differential_preserves_exact_coordinate_order_and_transpose_pairing() {
     let typed = TypedResidual::<()>::infer(
         builder.finish([root]).unwrap(),
         None,
+        |_| None,
         RootContract::ComponentwiseResidual,
         |_| {
             Ok::<_, ()>(ExpressionType::new(

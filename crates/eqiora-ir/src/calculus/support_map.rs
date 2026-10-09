@@ -114,7 +114,7 @@ impl<I: Clone + Eq> SupportMap<I> {
         residual: &TypedResidual<I>,
         value: ExprId,
     ) -> Result<Option<Self>, CalculusError> {
-        let Some(ExprNode::Trace(operand)) = residual.expression().node(value) else {
+        let Some(ExprNode::Trace { value: operand, .. }) = residual.expression().node(value) else {
             return Ok(None);
         };
         let source = residual.node_types()[expr_index(*operand, residual.node_types().len())?]
@@ -215,11 +215,13 @@ mod tests {
         };
         let mut expression = ExprDagBuilder::new();
         let field_value = expression.symbol(SymbolRef::Field(field)).unwrap();
-        let trace = expression.trace(field_value).unwrap();
+        let on = Id::<kinds::Domain>::new();
+        let trace = expression.trace(field_value, on).unwrap();
         let dag = expression.finish([trace]).unwrap();
         let typed = TypedResidual::infer(
             dag,
             Some(boundary.clone()),
+            |id| (id == on).then(|| boundary.clone()),
             RootContract::ComponentwiseResidual,
             |_| {
                 Ok::<_, ()>(ExpressionType::scalar(

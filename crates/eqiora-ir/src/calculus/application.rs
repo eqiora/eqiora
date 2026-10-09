@@ -219,6 +219,7 @@ mod tests {
                 domain: "body",
                 dimensions: 2,
             }),
+            |_| None,
             RootContract::ComponentwiseResidual,
             |_| Ok::<_, ()>(tensor_type.clone()),
         )
@@ -264,6 +265,7 @@ mod tests {
         let typed = TypedResidual::infer(
             dag,
             Some(support),
+            |_| None,
             RootContract::ComponentwiseResidual,
             |_| Ok::<_, ()>(vector_type.clone()),
         )

@@ -195,13 +195,28 @@ Equal coordinates or equal box sizes cannot substitute another parent or face.
 Python authors the same expressions with `eqiora.lang.curl` and
 `eqiora.lang.tangential_trace`.
 
-Authored weak forms retain `curl`, `cross`, and `tangential_trace` as typed
-operators. A Cartesian Model Domain supplies its own ambient dimension; one
+Source Model expressions may select a boundary explicitly with
+`trace(u, on=wall, from=body)`, `normal(u, on=wall, from=body)`, or
+`tangential_trace(u, on=wall, from=body)`. `on` names an exact boundary Domain;
+optional `from` must name its exact parent volume. Omitting `on` uses the owning
+Relation's boundary scope. An explicit `on` also permits a trace in a `let`
+outside a Relation, but consuming it in an equation still requires the same
+boundary support. The retained trace/normal node carries the target identity.
+These selectors do not introduce physical interfaces, continuity or flux balance.
+Python `eqiora.lang` uses `on=wall, from_=body` with exact Support handles;
+native `eqiora.trace` accepts the corresponding Domain handles. Foreign owners
+or same-named replacement handles do not select the declared support.
+
+Authored weak forms retain `curl`, `cross`, `normal`, and `tangential_trace` as typed
+operators. Trace, normal and tangential trace accept the same exact `on`/`from`
+selectors; their retained target must equal the integral support. H(div) tests
+admit a normal trace, while a full trace still requires H1. H(curl) admits a
+tangential trace; L2 admits neither boundary trace. A Cartesian Model Domain supplies its own ambient dimension; one
 physical vector trial is admitted without a separate Geometry binding.
 `tangential_trace` requires integration on an exact boundary of the operand's
 support. Complex forms use explicit `inner` pairings to retain conjugate-linear
 test dependence; `cross` itself remains bilinear. Current authored-form artifacts
-use `eqiora.authored-form/v14`; previous epochs are rejected. This authoring and
+use `eqiora.authored-form/v15`; previous epochs are rejected. This authoring and
 replay support does not by itself establish strong/weak correspondence, discharge
 boundary conditions, or select a numerical vector-space realization. A one-trial vector
 form can describe only one equation of a coupled Model; it is not a checked

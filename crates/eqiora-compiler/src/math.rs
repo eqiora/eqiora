@@ -1,3 +1,4 @@
+pub(crate) mod boundary;
 pub(crate) mod finite;
 pub(crate) mod oriented;
 pub(crate) mod piecewise;

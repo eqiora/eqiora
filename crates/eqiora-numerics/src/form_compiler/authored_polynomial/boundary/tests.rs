@@ -89,6 +89,36 @@ fn model_and_form_tangential_pairings_match_independent_oriented_boundary_rows()
                     )
                     .unwrap()
             };
+            // Normal contraction is the component pairing sum_i n_i u_i,
+            // with no conjugation and no tangential lift.
+            let expected_normal = (0..dimensions).fold(
+                Polynomial::constant(ExactRational::integer(0)),
+                |sum, axis| {
+                    sum.checked_add(
+                        &Polynomial::atom(Atom::Normal(face.clone(), axis))
+                            .checked_mul(&Polynomial::symbol(
+                                Atom::TraceField(field.clone(), vec![axis]),
+                                complex,
+                            ))
+                            .unwrap(),
+                    )
+                    .unwrap()
+                },
+            );
+            let normal = E::NormalTrace {
+                on_ulid: face.clone(),
+                value: Box::new(E::Field {
+                    ulid: field.clone(),
+                }),
+            };
+            assert_eq!(context.scalar(&normal, 0), Some(expected_normal));
+            let wrong_normal = E::NormalTrace {
+                on_ulid: symbols.get("opposite").unwrap().ulid().to_string(),
+                value: Box::new(E::Field {
+                    ulid: field.clone(),
+                }),
+            };
+            assert!(context.scalar(&wrong_normal, 0).is_none());
             let rows = if dimensions == 2 {
                 vec![(0, 1)]
             } else {
@@ -96,6 +126,7 @@ fn model_and_form_tangential_pairings_match_independent_oriented_boundary_rows()
             };
             let mut pairing = Polynomial::constant(ExactRational::integer(0));
             let tangent = E::TangentialTrace {
+                on_ulid: face.clone(),
                 value: Box::new(E::Field {
                     ulid: field.clone(),
                 }),
@@ -163,7 +194,8 @@ fn model_and_form_tangential_pairings_match_independent_oriented_boundary_rows()
                 integrand: integrand.clone(),
             };
             assert_ne!(context.integral(&opposite), Some(expected));
-            assert!(context.integral(&opposite).is_some());
+            // Moving only the measure must not reinterpret the retained trace targets.
+            assert!(context.integral(&opposite).is_none());
             assert!(
                 context
                     .tangential_component(

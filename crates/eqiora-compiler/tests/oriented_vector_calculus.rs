@@ -22,7 +22,7 @@ fn curl_and_oriented_trace_retain_spatial_nodes_and_exact_component_definitions(
         {
             for node in relation.expression().nodes() {
                 gradient |= matches!(node, ExprNode::Gradient(_));
-                normal |= matches!(node, ExprNode::NormalComponent(_));
+                normal |= matches!(node, ExprNode::NormalComponent { .. });
                 pure |= matches!(node, ExprNode::PureOperatorApplication(_));
             }
         }

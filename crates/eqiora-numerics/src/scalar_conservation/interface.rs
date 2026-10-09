@@ -67,13 +67,13 @@ pub(super) fn recognize_interface_side(
                 expression.node(port.value()),
             ) {
                 (
-                    Some(ExprNode::Trace(value)),
+                    Some(ExprNode::Trace { value, .. }),
                     Some(ExprNode::Symbol(SymbolRef::PortTrace(id))),
                 ) if is_field(expression, *value, field) => {
                     trace_binding = Some((*root, id.erase()))
                 }
                 (
-                    Some(ExprNode::NormalComponent(_)),
+                    Some(ExprNode::NormalComponent { .. }),
                     Some(ExprNode::Symbol(SymbolRef::PortFlux(id))),
                 ) => {
                     validate_normal_flux(

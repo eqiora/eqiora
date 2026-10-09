@@ -2415,7 +2415,7 @@ def through(port: ConservingPort) -> Expression:
 
     ...
 
-def trace(value: _ExpressionLike) -> Expression:
+def trace(value: _ExpressionLike, *, on: Domain | None = None, from_: Domain | None = None) -> Expression:
     """Return the boundary trace of a symbolic expression.
 
     Authority: ``crates/eqiora-python/src/modeling.rs::trace``.

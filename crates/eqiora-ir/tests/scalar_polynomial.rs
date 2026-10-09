@@ -60,9 +60,13 @@ fn dimensioned_linear_operator_has_typed_zero_second_derivative_and_bounded_orde
     assert!(
         matches!(dag.node(second),Some(ExprNode::Constant(value)) if value.is_zero() && value.value_type().dimension()==t.pow(-1,1).unwrap())
     );
-    TypedResidual::<()>::infer(dag.clone(), None, RootContract::InitialResiduals, |_| {
-        Err::<ExpressionType<()>, _>(())
-    })
+    TypedResidual::<()>::infer(
+        dag.clone(),
+        None,
+        |_| None,
+        RootContract::InitialResiduals,
+        |_| Err::<ExpressionType<()>, _>(()),
+    )
     .unwrap();
     assert_eq!(
         ScalarOperatorIr::lower(&dag)

@@ -177,7 +177,26 @@ impl Context<'_> {
                 ],
             ),
             Form::Neg { value } => Math::Negative(Box::new(self.form(value, next)?)),
-            Form::Trace { value } => Math::Function("trace".into(), vec![self.form(value, next)?]),
+            Form::Trace { value, on_ulid } => Math::Function(
+                "trace".into(),
+                vec![
+                    self.form(value, next)?,
+                    self.quantity(
+                        self.exact(on_ulid, EntityKind::Domain)?,
+                        QuantityRole::Value,
+                    )?,
+                ],
+            ),
+            Form::NormalTrace { value, on_ulid } => Math::Function(
+                "normal".into(),
+                vec![
+                    self.form(value, next)?,
+                    self.quantity(
+                        self.exact(on_ulid, EntityKind::Domain)?,
+                        QuantityRole::Value,
+                    )?,
+                ],
+            ),
             Form::CoordinatePartial { value, wrt } => Math::Function(
                 "partial".into(),
                 vec![self.form(value, next)?, self.form(wrt, next)?],
@@ -191,9 +210,16 @@ impl Context<'_> {
                 vec![self.form(left, next)?, self.form(right, next)?],
             ),
             Form::Curl { value } => Math::Function("curl".into(), vec![self.form(value, next)?]),
-            Form::TangentialTrace { value } => {
-                Math::Function("tangential_trace".into(), vec![self.form(value, next)?])
-            }
+            Form::TangentialTrace { value, on_ulid } => Math::Function(
+                "tangential_trace".into(),
+                vec![
+                    self.form(value, next)?,
+                    self.quantity(
+                        self.exact(on_ulid, EntityKind::Domain)?,
+                        QuantityRole::Value,
+                    )?,
+                ],
+            ),
             Form::Cross { left, right } => Math::Function(
                 "cross".into(),
                 vec![self.form(left, next)?, self.form(right, next)?],

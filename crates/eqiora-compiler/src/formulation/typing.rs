@@ -88,6 +88,11 @@ impl ExpressionContext<'_> {
             ExprKind::Binary { op, left, right } => {
                 self.compile_binary(expression, *op, left, right)
             }
+            ExprKind::Call { callee, arguments }
+                if matches!(callee.as_str(), "trace" | "normal" | "tangential_trace") =>
+            {
+                self.compile_boundary(expression, callee.as_str(), arguments)
+            }
             ExprKind::Call { callee, arguments } if callee.as_str() == "variation" => {
                 self.compile_variation(expression, arguments)
             }
@@ -342,9 +347,7 @@ impl ExpressionContext<'_> {
         }
         match (name, arguments) {
             ("coordinate", [axis]) => self.compile_coordinate(expression, axis),
-            ("curl" | "tangential_trace", [argument]) => {
-                self.compile_oriented(expression, name, argument)
-            }
+            ("curl", [argument]) => self.compile_curl(expression, argument),
             ("cross", [left, right]) => self.compile_cross(expression, left, right),
             ("math.sin", [argument]) => {
                 let argument = self.compile(argument)?;
@@ -360,26 +363,6 @@ impl ExpressionContext<'_> {
                     AuthoredFormExpressionKind::Sin(Box::new(argument.clone())),
                     argument.value_type.clone(),
                     argument.support,
-                ))
-            }
-            ("trace", [argument]) => {
-                let boundary = self.integration_domain.filter(|domain| {
-                    self.index.boundary_of.get(&domain.erase()).copied()
-                        == self.relation_domain.map(Id::erase)
-                }).ok_or_else(|| error(self.file, expression.range(),
-                    "trace requires integration on an exact boundary of the Relation Domain"))?;
-                let argument = self.compile(argument)?;
-                if argument.support != self.relation_domain {
-                    return Err(error(
-                        self.file,
-                        expression.range(),
-                        "trace requires an expression on the exact parent volume",
-                    ));
-                }
-                Ok(typed(
-                    AuthoredFormExpressionKind::Trace(Box::new(argument.clone())),
-                    argument.value_type.clone(),
-                    Some(boundary),
                 ))
             }
             ("grad", [argument]) => {

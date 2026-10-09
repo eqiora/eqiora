@@ -23,6 +23,7 @@ fn check(
     let typed = TypedResidual::infer(
         dag,
         support.clone(),
+        |_| None,
         RootContract::RelationOperands,
         |symbol| {
             if symbol == SymbolRef::Field(first) {

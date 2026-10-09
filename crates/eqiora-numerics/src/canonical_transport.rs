@@ -524,10 +524,12 @@ fn lower_boundary_relation(
         ));
     }
     match expression.node(operator) {
-        Some(ExprNode::Trace(argument)) if is_field(expression, *argument, state) => {
+        Some(ExprNode::Trace {
+            value: argument, ..
+        }) if is_field(expression, *argument, state) => {
             Ok(ScalarTransportCartesianBoundary::PrescribedTrace(value))
         }
-        Some(ExprNode::NormalComponent(flux)) => {
+        Some(ExprNode::NormalComponent { value: flux, .. }) => {
             let coefficient =
                 lower_flux_coefficient(program, expression, *flux, state, relation, 2)?;
             if !coefficient.is_same_coefficient_as(diffusivity) {
@@ -565,12 +567,15 @@ fn lower_spatial_periodic_boundary_relation(
                 "periodic transport boundary roots must be oriented equality residuals",
             ));
         };
-        if matches!(expression.node(*left), Some(ExprNode::Trace(value)) if is_field(expression, *value, state))
+        if matches!(expression.node(*left), Some(ExprNode::Trace { value, .. }) if is_field(expression, *value, state))
         {
             trace_port = port_trace_symbol(expression, *right);
             continue;
         }
-        if let Some(ExprNode::NormalComponent(total_flux)) = expression.node(*left) {
+        if let Some(ExprNode::NormalComponent {
+            value: total_flux, ..
+        }) = expression.node(*left)
+        {
             flux_port = port_flux_symbol(expression, *right);
             validate_total_transport_flux(
                 program,

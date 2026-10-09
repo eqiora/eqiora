@@ -86,7 +86,14 @@ impl Context<'_> {
     pub(super) fn shape(&mut self, value: &E, depth: usize) -> Option<Vec<usize>> {
         self.step(depth)?;
         match value {
-            E::TangentialTrace { value } => {
+            E::NormalTrace { value, on_ulid } => {
+                self.selected_boundary(on_ulid)?;
+                self.boundary()?;
+                let mut shape = self.physical_shape(value, depth + 1)?;
+                (shape.pop()? == self.dimensions).then_some(shape)
+            }
+            E::TangentialTrace { value, on_ulid } => {
+                self.selected_boundary(on_ulid)?;
                 self.tangential_definition(value, depth + 1)?;
                 Some(if self.dimensions == 2 {
                     vec![]
@@ -161,9 +168,11 @@ impl Context<'_> {
                     depth + 1,
                 )
             }
-            E::Trace { value } | E::Conjugate { value } | E::Neg { value } => {
+            E::Trace { value, on_ulid } => {
+                self.selected_boundary(on_ulid)?;
                 self.shape(value, depth + 1)
             }
+            E::Conjugate { value } | E::Neg { value } => self.shape(value, depth + 1),
             E::Gradient { value } => {
                 let mut shape = self.shape(value, depth + 1)?;
                 shape.push(self.dimensions);

@@ -389,6 +389,7 @@ pub(super) fn validate(
         if let Ok(typed) = TypedResidual::infer(
             observable.expression().clone(),
             support.cloned(),
+            |on| spatial_supports.get(&on.erase()).cloned(),
             RootContract::Observable,
             |symbol| symbol_type(symbol, nodes, edges, spatial_supports),
         ) {

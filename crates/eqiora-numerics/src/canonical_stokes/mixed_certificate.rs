@@ -650,7 +650,7 @@ fn boundary_root_metadata(
     let is_flux = view.leaves().iter().any(|leaf| {
         matches!(
             expression.node(leaf.value()),
-            Some(ExprNode::NormalComponent(_))
+            Some(ExprNode::NormalComponent { .. })
                 | Some(ExprNode::Symbol(
                     eqiora_schema::kernel::SymbolRef::PortFlux(_)
                 ))
@@ -659,7 +659,7 @@ fn boundary_root_metadata(
     let is_trace = view.leaves().iter().any(|leaf| {
         matches!(
             expression.node(leaf.value()),
-            Some(ExprNode::Trace(_))
+            Some(ExprNode::Trace { .. })
                 | Some(ExprNode::Symbol(
                     eqiora_schema::kernel::SymbolRef::PortTrace(_)
                 ))

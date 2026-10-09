@@ -446,6 +446,9 @@ impl<I: Clone + Eq> TypedResidual<I> {
     pub fn infer<E>(
         expression: ExprDag,
         relation_support: Option<SpatialSupport<I>>,
+        mut boundary_support: impl FnMut(
+            eqiora_core::Id<eqiora_core::entity::kinds::Domain>,
+        ) -> Option<SpatialSupport<I>>,
         root_contract: RootContract,
         mut symbol_type: impl FnMut(SymbolRef) -> Result<ExpressionType<I>, E>,
     ) -> Result<Self, Vec<TypedResidualError<I, E>>> {
@@ -459,7 +462,7 @@ impl<I: Clone + Eq> TypedResidual<I> {
                 &expression,
                 node,
                 &inferred,
-                relation_support.as_ref(),
+                &mut boundary_support,
                 &mut symbol_type,
             );
             let value = match result {

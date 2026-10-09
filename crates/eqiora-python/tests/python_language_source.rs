@@ -329,6 +329,55 @@ text = source.to_eqi()
     })
 }
 
+#[test]
+fn explicit_boundary_selectors_use_shared_compilation_and_lexical_ownership() -> PyResult<()> {
+    Python::initialize();
+    Python::attach(|py| {
+        let locals = PyDict::new(py);
+        locals.set_item("eqiora", public_module(py)?)?;
+        py.run(c_str!(r#"
+q = eqiora.lang
+graph = eqiora.geometry.GeometryGraph()
+rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+geometry = graph.build(rectangle, named_topology={"body": rectangle.region, "face": rectangle.boundaries[0], "rest": rectangle.boundaries[1:]})
+for operator in (q.trace, q.normal, q.tangential_trace):
+    source = eqiora.Module('main')
+    component = source.component('BoundaryOps')
+    body = component.volume('body', dimensions=2)
+    face = component.boundary('face', parent=body)
+    value = component.field('u', role=eqiora.FieldRole.Variable, on=body,
+                            value_type=eqiora.ValueType.vector(eqiora.ValueType.real(), 2))
+    component.relation('bulk', q.equation(value, value), on=body)
+    component.relation('surface', q.equation(operator(value, on=face, from_=body), 0), on=face)
+    foreign = eqiora.Module('foreign').component('Foreign')
+    foreign_body = foreign.volume('body', dimensions=2)
+    foreign_face = foreign.boundary('face', parent=foreign_body)
+    for selector in ({'on': foreign_face}, {'on': face, 'from_': foreign_body}):
+        try:
+            operator(value, **selector)
+        except q.ModuleError:
+            pass
+        else:
+            raise AssertionError('foreign support was accepted')
+    try:
+        operator(value, on='face')
+    except TypeError:
+        pass
+    else:
+        raise AssertionError('string support was accepted')
+    text = source.to_eqi()
+    assert 'on = face' in text and 'from = body' in text, text
+    compiled = eqiora.compile(source=source, geometry=geometry, entry='BoundaryOps', bindings={
+        'body': geometry.selection('body'),
+        'face': (geometry.selection('face'), geometry.selection('body')),
+    })
+    replay = eqiora.Model.from_bytes(compiled.to_bytes())
+    assert replay.digest == compiled.digest
+"#), Some(&locals), Some(&locals))?;
+        Ok(())
+    })
+}
+
 fn public_module(py: Python<'_>) -> PyResult<Bound<'_, PyModule>> {
     let native = pyo3::wrap_pymodule!(_eqiora::_eqiora)(py);
     let package_directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

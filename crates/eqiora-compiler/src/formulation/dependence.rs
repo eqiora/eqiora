@@ -137,10 +137,11 @@ fn classify(
         }
         E::Conjugate { value } => child(value, !conjugated)?,
         E::Neg { value }
-        | E::Trace { value }
+        | E::Trace { value, .. }
+        | E::NormalTrace { value, .. }
         | E::Gradient { value }
         | E::Curl { value }
-        | E::TangentialTrace { value }
+        | E::TangentialTrace { value, .. }
         | E::Divergence { value }
         | E::SymmetricPart { value }
         | E::Component { value, .. }
@@ -295,10 +296,11 @@ impl AuthoredFormulationProjection {
                     None
                 }
                 E::Neg { value }
-                | E::Trace { value }
+                | E::Trace { value, .. }
+                | E::NormalTrace { value, .. }
                 | E::Gradient { value }
                 | E::Curl { value }
-                | E::TangentialTrace { value }
+                | E::TangentialTrace { value, .. }
                 | E::Divergence { value }
                 | E::SymmetricPart { value }
                 | E::Sin { value }

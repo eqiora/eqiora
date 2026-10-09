@@ -408,8 +408,48 @@ impl DraftExpression {
 
     /// Boundary trace of one expression.
     #[must_use]
-    pub fn trace(value: Self) -> Self {
-        Self::call("trace", vec![value])
+    pub fn trace(
+        value: Self,
+        on: Option<&DraftSpatialDomain>,
+        from: Option<&DraftSpatialDomain>,
+    ) -> Self {
+        let mut children = vec![value];
+        let mut names = Vec::new();
+        for (name, domain) in [("on", on), ("from", from)] {
+            if let Some(domain) = domain {
+                let mut reference = Self::leaf(ExprKind::Name(domain.name().to_owned()));
+                reference.references = Arc::new(vec![NativeReference::Domain(domain.clone())]);
+                names.push(name);
+                children.push(reference);
+            }
+        }
+        Self::compose(children, |values| {
+            let mut values = values.into_iter();
+            let positional = vec![values.next().expect("trace operand")];
+            let arguments = if names.is_empty() {
+                crate::CallArguments::Positional(positional)
+            } else {
+                crate::CallArguments::Mixed {
+                    positional,
+                    named: names
+                        .into_iter()
+                        .zip(values)
+                        .map(|(name, value)| {
+                            crate::SourceAstFactory::named_binding(
+                                name,
+                                value,
+                                TextRange::default(),
+                            )
+                            .expect("fixed selector name")
+                        })
+                        .collect(),
+                }
+            };
+            ExprKind::Call {
+                callee: NamePath::from_parsed_segments(vec!["trace".into()], TextRange::default()),
+                arguments,
+            }
+        })
     }
 
     pub(super) fn binary(self, operator: BinaryOp, right: Self) -> Self {

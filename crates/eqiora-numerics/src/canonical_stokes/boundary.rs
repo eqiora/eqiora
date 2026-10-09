@@ -440,7 +440,7 @@ fn direct_disposition(
         [leaf]
             if matches!(
                 expression.node(leaf.value()),
-                Some(ExprNode::Trace(value)) if is_field(expression, *value, velocity)
+                Some(ExprNode::Trace { value, .. }) if is_field(expression, *value, velocity)
             ) =>
         {
             Ok(Some(BoundaryCandidate {
@@ -451,10 +451,12 @@ fn direct_disposition(
         [leaf]
             if matches!(
                 expression.node(leaf.value()),
-                Some(ExprNode::NormalComponent(_))
+                Some(ExprNode::NormalComponent { .. })
             ) =>
         {
-            let Some(ExprNode::NormalComponent(stress)) = expression.node(leaf.value()) else {
+            let Some(ExprNode::NormalComponent { value: stress, .. }) =
+                expression.node(leaf.value())
+            else {
                 unreachable!("guard proves normal component")
             };
             require_matching_stress(expression, *stress, relation, stress_context)?;
@@ -625,7 +627,8 @@ fn direct_normal_pressure_field(
         let Some(field) = normal_pressure_field(&typed, pressure_value, relation)? else {
             continue;
         };
-        let Some(ExprNode::NormalComponent(stress)) = expression.node(traction) else {
+        let Some(ExprNode::NormalComponent { value: stress, .. }) = expression.node(traction)
+        else {
             continue;
         };
         require_matching_stress(expression, *stress, relation, context)?;
@@ -762,7 +765,7 @@ fn normal_pressure_field(
     owner: RawId,
 ) -> Result<Option<RawId>, Diagnostic> {
     let expression = residual.expression();
-    let Some(ExprNode::NormalComponent(tensor)) = expression.node(value) else {
+    let Some(ExprNode::NormalComponent { value: tensor, .. }) = expression.node(value) else {
         return Ok(None);
     };
     let Some(proof) =
@@ -856,12 +859,13 @@ fn interface_port(
             continue;
         }
         for (operator, port) in [(left, right), (right, left)] {
-            if matches!(expression.node(operator.value()), Some(ExprNode::Trace(value)) if is_field(expression, *value, velocity))
+            if matches!(expression.node(operator.value()), Some(ExprNode::Trace { value, .. }) if is_field(expression, *value, velocity))
             {
                 trace_port = port_trace(expression, port.value());
                 continue;
             }
-            if let Some(ExprNode::NormalComponent(stress)) = expression.node(operator.value())
+            if let Some(ExprNode::NormalComponent { value: stress, .. }) =
+                expression.node(operator.value())
                 && let Some(port) = port_flux(expression, port.value())
             {
                 require_matching_stress(expression, *stress, relation, stress_context)?;

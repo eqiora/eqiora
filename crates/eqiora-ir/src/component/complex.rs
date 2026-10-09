@@ -140,6 +140,7 @@ mod tests {
             dag.finish([product, conjugate, magnitude, real, imaginary])
                 .unwrap(),
             None,
+            |_| None,
             RootContract::ComponentwiseResidual,
             |_| Ok::<_, ()>(ExpressionType::<()>::new(channels.clone(), None)),
         )
@@ -231,6 +232,7 @@ mod tests {
         let typed = TypedResidual::infer(
             dag.finish([projected]).unwrap(),
             None,
+            |_| None,
             RootContract::ComponentwiseResidual,
             |_| -> Result<ExpressionType<()>, ()> { unreachable!() },
         )
@@ -256,6 +258,7 @@ mod tests {
         let typed = TypedResidual::infer(
             dag.finish([residual]).unwrap(),
             None,
+            |_| None,
             RootContract::ComponentwiseResidual,
             |_| Ok::<_, ()>(ExpressionType::<()>::new(complex.clone(), None)),
         )

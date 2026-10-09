@@ -202,15 +202,20 @@ fn typed_residual_separates_componentwise_relations_from_scalar_activations() {
     let typed = TypedResidual::infer(
         expression.clone(),
         None,
+        |_| None,
         RootContract::ComponentwiseResidual,
         |_| Ok::<_, ()>(vector.clone()),
     )
     .unwrap();
     assert_eq!(typed.node_type(root).unwrap().shape().extents()[0].get(), 2);
 
-    let errors = TypedResidual::infer(expression, None, RootContract::ScalarActivation, |_| {
-        Ok::<_, ()>(vector.clone())
-    })
+    let errors = TypedResidual::infer(
+        expression,
+        None,
+        |_| None,
+        RootContract::ScalarActivation,
+        |_| Ok::<_, ()>(vector.clone()),
+    )
     .unwrap_err();
     assert!(matches!(
         errors.as_slice(),
@@ -340,6 +345,61 @@ fn boundary_operators_require_the_complete_parent_support() {
 }
 
 #[test]
+fn trace_target_is_resolved_from_the_node_without_a_relation_scope() {
+    let field = Id::<kinds::Field>::new();
+    let on = Id::<kinds::Domain>::new();
+    let boundary = SpatialSupport::Boundary {
+        domain: "wall",
+        parent: "body",
+        dimensions: 2,
+    };
+    let mut builder = super::super::ExprDagBuilder::new();
+    let value = builder.symbol(SymbolRef::Field(field)).unwrap();
+    let traced = builder.trace(value, on).unwrap();
+    let expression = builder.finish([traced]).unwrap();
+    let resolve_field = |_| {
+        Ok::<_, ()>(ExpressionType::scalar(
+            DimExponents::DIMENSIONLESS,
+            Some(volume("body")),
+        ))
+    };
+    let typed = TypedResidual::infer(
+        expression.clone(),
+        None,
+        |id| (id == on).then(|| boundary.clone()),
+        RootContract::ValueRoots,
+        resolve_field,
+    )
+    .unwrap();
+    assert_eq!(
+        typed.node_type(traced).unwrap().support,
+        Some(boundary.clone())
+    );
+    // A Relation's scope cannot supply a missing or foreign explicit target.
+    assert!(
+        TypedResidual::infer(
+            expression.clone(),
+            Some(boundary.clone()),
+            |_| None,
+            RootContract::ValueRoots,
+            resolve_field,
+        )
+        .is_err()
+    );
+    // Resolving an explicit boundary does not waive the owning equation's support.
+    assert!(
+        TypedResidual::infer(
+            expression,
+            Some(volume("body")),
+            |id| (id == on).then(|| boundary.clone()),
+            RootContract::ComponentwiseResidual,
+            resolve_field,
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn generic_pure_application_derives_shape_support_and_dimension_from_its_table() {
     let left = Id::<kinds::Field>::new();
     let right = Id::<kinds::Field>::new();
@@ -359,6 +419,7 @@ fn generic_pure_application_derives_shape_support_and_dimension_from_its_table()
     let typed = TypedResidual::infer(
         expression,
         Some(volume("body")),
+        |_| None,
         RootContract::ComponentwiseResidual,
         |symbol| {
             let dimension = match symbol {
@@ -414,6 +475,7 @@ fn generic_pure_application_rejects_argument_type_and_support_mismatches() {
     let support_errors = TypedResidual::infer(
         expression.clone(),
         Some(volume("body")),
+        |_| None,
         RootContract::ComponentwiseResidual,
         |symbol| {
             Ok::<_, ()>(match symbol {
@@ -435,6 +497,7 @@ fn generic_pure_application_rejects_argument_type_and_support_mismatches() {
     let type_errors = TypedResidual::infer(
         expression,
         Some(volume("body")),
+        |_| None,
         RootContract::ComponentwiseResidual,
         |symbol| {
             Ok::<_, ()>(match symbol {
@@ -513,6 +576,7 @@ fn coordinate_partial_requires_exact_selector_and_divides_by_its_unit() {
             TypedResidual::infer(
                 expression,
                 Some(phase.clone()),
+                |_| None,
                 RootContract::ComponentwiseResidual,
                 |symbol| {
                     Ok::<_, ()>(match symbol {

@@ -1137,6 +1137,28 @@ def _unary(name: str, value: object) -> Expression:
         _binders=expression._binders, _sources=expression._sources)
 
 
+def _boundary_operator(name: str, value: object, on: Support | None,
+                       from_: Support | None) -> Expression:
+    expression = _expression(value)
+    owner = expression._owner
+    names = []
+    arguments = []
+    for key, support in (("on", on), ("from", from_)):
+        if support is None:
+            continue
+        if not isinstance(support, Support):
+            raise TypeError("boundary selectors require eqiora.lang.Support handles")
+        if owner is not None and owner is not support._component:
+            raise ModuleError("boundary selectors and operand must belong to the same lexical owner")
+        owner = support._component
+        names.append(key)
+        arguments.append(_Ast.name(support._name))
+    ast = (_Ast.mixed_call(name, [expression._ast], names, arguments)
+           if names else _Ast.call(name, [expression._ast]))
+    return Expression(_CREATE, ast, owner,
+                      _binders=expression._binders, _sources=expression._sources)
+
+
 def coordinate(axis: int) -> Expression:
     if isinstance(axis, bool) or not isinstance(axis, int):
         raise TypeError("coordinate axis must be an integer")
@@ -1154,9 +1176,10 @@ def curl(value: object) -> Expression:
     return _unary("curl", value)
 
 
-def tangential_trace(value: object) -> Expression:
-    """Return n cross value on its exact oriented boundary (scalar in 2D)."""
-    return _unary("tangential_trace", value)
+def tangential_trace(value: object, *, on: Support | None = None,
+                     from_: Support | None = None) -> Expression:
+    """Return n cross value on the selected boundary (scalar in 2D)."""
+    return _boundary_operator("tangential_trace", value, on, from_)
 
 
 def _binary_function(name: str, left: object, right: object) -> Expression:
@@ -1246,12 +1269,16 @@ def next(value: Expression) -> Expression:
     return _unary("next", value)
 
 
-def trace(value: object) -> Expression:
-    return _unary("trace", value)
+def trace(value: object, *, on: Support | None = None,
+          from_: Support | None = None) -> Expression:
+    """Trace on an exact boundary; omitted on uses the surrounding scope."""
+    return _boundary_operator("trace", value, on, from_)
 
 
-def normal(value: object) -> Expression:
-    return _unary("normal", value)
+def normal(value: object, *, on: Support | None = None,
+           from_: Support | None = None) -> Expression:
+    """Contract with the selected boundary normal, preserving exact support."""
+    return _boundary_operator("normal", value, on, from_)
 
 
 def frobenius(left: object, right: object) -> Expression:

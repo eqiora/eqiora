@@ -22,6 +22,7 @@ fn typed_constant_arrays_retain_both_complex_parts() {
         let typed = TypedResidual::infer(
             builder.finish([root]).unwrap(),
             None::<SpatialSupport<()>>,
+            |_| None,
             RootContract::ComponentwiseResidual,
             |_| -> Result<ExpressionType<()>, ()> { unreachable!("constant has no symbols") },
         )
@@ -49,6 +50,7 @@ fn scalarization_retains_exact_field_identity_for_both_complex_parts() {
         let typed = TypedResidual::infer(
             expression.clone(),
             None::<SpatialSupport<()>>,
+            |_| None,
             RootContract::ComponentwiseResidual,
             |_| {
                 Ok::<_, ()>(ExpressionType::new(
@@ -90,19 +92,27 @@ fn vector_root_scalarizes_in_root_then_row_major_component_order() {
     let scaled = expression.mul(trace, scale).unwrap();
     let dag = expression.finish([scaled]).unwrap();
     let vector = ValueShape::new([2]).unwrap();
-    let typed = TypedResidual::infer(dag, None, RootContract::ComponentwiseResidual, |symbol| {
-        Ok::<_, ()>(match symbol {
-            SymbolRef::PortTrace(_) => ExpressionType::shaped(
-                DimExponents::DIMENSIONLESS,
-                vector.clone(),
-                eqiora_core::ValueFrame::SpatialCartesian,
-                None::<eqiora_schema::kernel::typing::SpatialSupport<()>>,
-            )
-            .unwrap(),
-            SymbolRef::Parameter(_) => ExpressionType::scalar(DimExponents::DIMENSIONLESS, None),
-            _ => unreachable!(),
-        })
-    })
+    let typed = TypedResidual::infer(
+        dag,
+        None,
+        |_| None,
+        RootContract::ComponentwiseResidual,
+        |symbol| {
+            Ok::<_, ()>(match symbol {
+                SymbolRef::PortTrace(_) => ExpressionType::shaped(
+                    DimExponents::DIMENSIONLESS,
+                    vector.clone(),
+                    eqiora_core::ValueFrame::SpatialCartesian,
+                    None::<eqiora_schema::kernel::typing::SpatialSupport<()>>,
+                )
+                .unwrap(),
+                SymbolRef::Parameter(_) => {
+                    ExpressionType::scalar(DimExponents::DIMENSIONLESS, None)
+                }
+                _ => unreachable!(),
+            })
+        },
+    )
     .unwrap();
     let lowering = ComponentScalarization::lower(&typed).unwrap();
 
@@ -132,19 +142,27 @@ fn multiple_roots_preserve_root_then_last_axis_fastest_order() {
     let tensor_root = expression.symbol(SymbolRef::PortFlux(second)).unwrap();
     let dag = expression.finish([scalar_root, tensor_root]).unwrap();
     let tensor = ValueShape::new([2, 2]).unwrap();
-    let typed = TypedResidual::infer(dag, None, RootContract::ComponentwiseResidual, |symbol| {
-        Ok::<_, ()>(match symbol {
-            SymbolRef::PortTrace(_) => ExpressionType::scalar(DimExponents::DIMENSIONLESS, None),
-            SymbolRef::PortFlux(_) => ExpressionType::shaped(
-                DimExponents::DIMENSIONLESS,
-                tensor.clone(),
-                eqiora_core::ValueFrame::SpatialCartesian,
-                None::<eqiora_schema::kernel::typing::SpatialSupport<()>>,
-            )
-            .unwrap(),
-            _ => unreachable!(),
-        })
-    })
+    let typed = TypedResidual::infer(
+        dag,
+        None,
+        |_| None,
+        RootContract::ComponentwiseResidual,
+        |symbol| {
+            Ok::<_, ()>(match symbol {
+                SymbolRef::PortTrace(_) => {
+                    ExpressionType::scalar(DimExponents::DIMENSIONLESS, None)
+                }
+                SymbolRef::PortFlux(_) => ExpressionType::shaped(
+                    DimExponents::DIMENSIONLESS,
+                    tensor.clone(),
+                    eqiora_core::ValueFrame::SpatialCartesian,
+                    None::<eqiora_schema::kernel::typing::SpatialSupport<()>>,
+                )
+                .unwrap(),
+                _ => unreachable!(),
+            })
+        },
+    )
     .unwrap();
     let lowering = ComponentScalarization::lower(&typed).unwrap();
 
@@ -180,6 +198,7 @@ fn symmetric_part_reads_direct_and_swapped_tensor_coordinates() {
     let typed = TypedResidual::infer(
         dag,
         Some(support.clone()),
+        |_| None,
         RootContract::ComponentwiseResidual,
         |_| {
             Ok::<_, ()>(
@@ -240,6 +259,7 @@ fn isotropic_lift_preserves_ordered_scalar_reads_for_every_component() {
     let typed = TypedResidual::infer(
         dag,
         Some(support.clone()),
+        |_| None,
         RootContract::ComponentwiseResidual,
         |_| Ok::<_, ()>(ExpressionType::scalar(dimension, Some(support.clone()))),
     )
@@ -282,6 +302,7 @@ fn generic_dyadic_application_scalarizes_from_its_ordered_definition() {
     let typed = TypedResidual::infer(
         dag,
         Some(support),
+        |_| None,
         RootContract::ComponentwiseResidual,
         |_| Ok::<_, ()>(vector_type.clone()),
     )
@@ -345,6 +366,7 @@ mod channel_tests {
         let typed = TypedResidual::infer(
             dag.finish([channels, selected]).unwrap(),
             None,
+            |_| None,
             RootContract::ComponentwiseResidual,
             |_| -> Result<ExpressionType<()>, ()> { unreachable!() },
         )
@@ -379,6 +401,7 @@ fn selected_numeric_roots_do_not_admit_or_demand_discrete_roots() {
     let typed = TypedResidual::infer(
         builder.finish([real, real, integer, integer]).unwrap(),
         None::<SpatialSupport<()>>,
+        |_| None,
         RootContract::InitialConditions,
         |_| -> Result<ExpressionType<()>, ()> { unreachable!("constant has no symbols") },
     )
@@ -413,6 +436,7 @@ fn constant_rate_matrix_retains_complex_parts_without_freezing_other_symbols() {
         let typed = TypedResidual::infer(
             builder.finish([root]).unwrap(),
             None::<SpatialSupport<()>>,
+            |_| None,
             RootContract::ComponentwiseResidual,
             |_| Ok::<_, ()>(ExpressionType::new(ty.clone(), None)),
         )

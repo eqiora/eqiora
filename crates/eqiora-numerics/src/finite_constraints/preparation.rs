@@ -179,6 +179,7 @@ pub(crate) fn lower_finite_constraints(
         let typed = TypedResidual::<eqiora_core::RawId>::infer(
             expression.clone(),
             None,
+            |_| None,
             RootContract::RelationOperands,
             |symbol| {
                 let value_type = match symbol {

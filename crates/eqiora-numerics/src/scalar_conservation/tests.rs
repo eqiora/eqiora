@@ -144,7 +144,7 @@ fn projects_transient_storage_source_and_robin_without_physics_names() {
     let expression = typed.expression();
     assert!(matches!(
         expression.node(lineage.operator_expression()),
-        Some(ExprNode::NormalComponent(_))
+        Some(ExprNode::NormalComponent { .. })
     ));
     assert!(matches!(
         expression.node(lineage.datum_expression().unwrap()),
@@ -156,7 +156,7 @@ fn projects_transient_storage_source_and_robin_without_physics_names() {
     ));
     assert!(matches!(
         expression.node(lineage.robin_trace_expression().unwrap()),
-        Some(ExprNode::Trace(_))
+        Some(ExprNode::Trace { .. })
     ));
 }
 

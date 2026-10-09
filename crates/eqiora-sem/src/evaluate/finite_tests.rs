@@ -35,9 +35,13 @@ fn evaluate(dag: &ExprDag) -> Result<Vec<ValueLiteral>, Diagnostic> {
     )
 }
 fn typed(dag: ExprDag) -> TypedResidual<()> {
-    TypedResidual::infer(dag, None, RootContract::ComponentwiseResidual, |_| {
-        Err::<ExpressionType<()>, _>(())
-    })
+    TypedResidual::infer(
+        dag,
+        None,
+        |_| None,
+        RootContract::ComponentwiseResidual,
+        |_| Err::<ExpressionType<()>, _>(()),
+    )
     .unwrap()
 }
 

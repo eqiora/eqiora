@@ -121,8 +121,8 @@ impl Evaluator<'_, '_> {
                     node,
                     ExprNode::Gradient(_)
                         | ExprNode::Divergence(_)
-                        | ExprNode::Trace(_)
-                        | ExprNode::NormalComponent(_)
+                        | ExprNode::Trace { .. }
+                        | ExprNode::NormalComponent { .. }
                 ) {
                     let program = self.program.ok_or_else(|| {
                         Diagnostic::error(

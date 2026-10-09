@@ -65,6 +65,7 @@ pub(super) fn evaluate(
                 let typed = TypedResidual::<()>::infer(
                     builder.finish([root])?,
                     None,
+                    |_| None,
                     RootContract::ComponentwiseResidual,
                     |_| Err::<ExpressionType<()>, ()>(()),
                 )

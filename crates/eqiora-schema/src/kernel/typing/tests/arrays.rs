@@ -151,11 +151,14 @@ fn constructed_nodes_flow_through_dag_typing_and_operand_validation() {
     let channels = builder.array([pair, pair]).unwrap();
     let selected = builder.index(channels, 1).unwrap();
     let dag = builder.finish([selected]).unwrap();
-    let typed =
-        TypedResidual::<&str>::infer(dag, None, RootContract::ComponentwiseResidual, |_| {
-            Err::<ExpressionType<&str>, _>(())
-        })
-        .unwrap();
+    let typed = TypedResidual::<&str>::infer(
+        dag,
+        None,
+        |_| None,
+        RootContract::ComponentwiseResidual,
+        |_| Err::<ExpressionType<&str>, _>(()),
+    )
+    .unwrap();
     assert_eq!(
         typed
             .node_type(selected)

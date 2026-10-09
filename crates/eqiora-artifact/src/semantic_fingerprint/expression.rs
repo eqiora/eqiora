@@ -318,15 +318,25 @@ pub(super) fn encode_expression(
                 *value,
                 &canonical_index,
             )?,
-            ExprNode::Trace(value) => {
-                unary_expr(encoder, ExpressionTag::Trace, *value, &canonical_index)?
+            ExprNode::Trace { value, on } | ExprNode::NormalComponent { value, on } => {
+                let tag = if matches!(node, ExprNode::Trace { .. }) {
+                    ExpressionTag::Trace
+                } else {
+                    ExpressionTag::NormalComponent
+                };
+                unary_expr(encoder, tag, *value, &canonical_index)?;
+                let mut label = Encoder::new(32);
+                label.u8(3)?;
+                label.u8(scope)?;
+                label.u32(index)?;
+                label.u8(14)?;
+                push_reference(
+                    references,
+                    label.finish()?,
+                    lookup(ids, on.erase(), "boundary operator support")?,
+                    budget,
+                )?;
             }
-            ExprNode::NormalComponent(value) => unary_expr(
-                encoder,
-                ExpressionTag::NormalComponent,
-                *value,
-                &canonical_index,
-            )?,
             ExprNode::PureOperatorApplication(application) => {
                 encoder.u8(ExpressionTag::PureOperator as u8)?;
                 encoder.raw(&application.definition().bytes())?;
@@ -537,8 +547,8 @@ fn expression_operands(node: &ExprNode) -> Vec<eqiora_schema::kernel::ExprId> {
         | ExprNode::Divergence(value)
         | ExprNode::SymmetricPart(value)
         | ExprNode::IsotropicLift(value)
-        | ExprNode::Trace(value)
-        | ExprNode::NormalComponent(value) => vec![*value],
+        | ExprNode::Trace { value, .. }
+        | ExprNode::NormalComponent { value, .. } => vec![*value],
         ExprNode::Add(left, right)
         | ExprNode::FiniteBinary(_, left, right)
         | ExprNode::Sub(left, right)

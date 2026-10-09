@@ -256,11 +256,19 @@ pub(super) fn recognize_essential_trace(
     }
     let root = expression.roots()[0];
     let direct = match expression.node(root) {
-        Some(ExprNode::Trace(argument)) => Some((root, *argument, None)),
+        Some(ExprNode::Trace {
+            value: argument, ..
+        }) => Some((root, *argument, None)),
         Some(ExprNode::Sub(trace, datum)) => {
-            if let Some(ExprNode::Trace(argument)) = expression.node(*trace) {
+            if let Some(ExprNode::Trace {
+                value: argument, ..
+            }) = expression.node(*trace)
+            {
                 Some((*trace, *argument, Some(*datum)))
-            } else if let Some(ExprNode::Trace(argument)) = expression.node(*datum) {
+            } else if let Some(ExprNode::Trace {
+                value: argument, ..
+            }) = expression.node(*datum)
+            {
                 Some((*datum, *argument, Some(*trace)))
             } else {
                 None
@@ -276,7 +284,9 @@ pub(super) fn recognize_essential_trace(
             .leaves()
             .iter()
             .filter_map(|leaf| match expression.node(leaf.value()) {
-                Some(ExprNode::Trace(argument)) => Some((leaf, *argument)),
+                Some(ExprNode::Trace {
+                    value: argument, ..
+                }) => Some((leaf, *argument)),
                 _ => None,
             })
             .collect::<Vec<_>>();
@@ -341,7 +351,7 @@ pub(super) fn recognize_flux(
         .leaves()
         .iter()
         .filter_map(|leaf| match dag.node(leaf.value()) {
-            Some(ExprNode::NormalComponent(flux)) => Some((leaf, *flux)),
+            Some(ExprNode::NormalComponent { value: flux, .. }) => Some((leaf, *flux)),
             _ => None,
         })
         .collect::<Vec<_>>();

@@ -5,6 +5,7 @@ pub use finite::{FiniteBinaryOperation, FiniteUnaryOperation};
 
 pub mod property;
 mod scalar_projection;
+mod spatial;
 mod time_derivative;
 mod unary_math;
 
@@ -261,12 +262,20 @@ pub enum ExprNode {
     SymmetricPart(ExprId),
     /// Lift a supported invariant scalar to its isotropic Cartesian tensor.
     IsotropicLift(ExprId),
-    /// Restriction of a parent-domain expression to the boundary Domain on
-    /// which the owning Relation is scoped.
-    Trace(ExprId),
-    /// Outward-normal component on the boundary Domain on which the owning
-    /// Relation is scoped.
-    NormalComponent(ExprId),
+    /// Restriction of a parent-domain expression to one exact boundary Domain.
+    Trace {
+        /// Parent-supported expression.
+        value: ExprId,
+        /// Boundary whose unique parent determines the selected side.
+        on: Id<kinds::Domain>,
+    },
+    /// Outward-normal component on one exact boundary Domain.
+    NormalComponent {
+        /// Parent- or boundary-supported tensor expression.
+        value: ExprId,
+        /// Boundary whose unique parent determines the outward orientation.
+        on: Id<kinds::Domain>,
+    },
     /// Apply one expression-local, content-addressed pure definition.
     PureOperatorApplication(PureOperatorApplication),
 }
@@ -335,8 +344,8 @@ impl ExprNode {
             | Self::Divergence(value)
             | Self::SymmetricPart(value)
             | Self::IsotropicLift(value)
-            | Self::Trace(value)
-            | Self::NormalComponent(value) => visit(*value),
+            | Self::Trace { value, .. }
+            | Self::NormalComponent { value, .. } => visit(*value),
             Self::CoordinatePartial {
                 value: left,
                 wrt: right,
@@ -673,11 +682,6 @@ impl ExprDagBuilder {
         self.push(ExprNode::UnaryMath(function, value))
     }
 
-    /// Take the physical-space gradient.
-    pub fn gradient(&mut self, value: ExprId) -> Result<ExprId, Diagnostic> {
-        self.push(ExprNode::Gradient(value))
-    }
-
     /// Retain an exact coordinate derivative for representation-specific admission.
     /// # Errors
     /// Rejects operands outside this builder or expression arena limits.
@@ -736,31 +740,6 @@ impl ExprDagBuilder {
             ));
         }
         self.push(ExprNode::CoordinateMapFactor { factor, source, at })
-    }
-
-    /// Take the physical-space divergence.
-    pub fn divergence(&mut self, value: ExprId) -> Result<ExprId, Diagnostic> {
-        self.push(ExprNode::Divergence(value))
-    }
-
-    /// Take the symmetric part of a square Cartesian rank-two tensor.
-    pub fn symmetric_part(&mut self, value: ExprId) -> Result<ExprId, Diagnostic> {
-        self.push(ExprNode::SymmetricPart(value))
-    }
-
-    /// Lift a supported invariant scalar to an isotropic Cartesian tensor.
-    pub fn isotropic_lift(&mut self, value: ExprId) -> Result<ExprId, Diagnostic> {
-        self.push(ExprNode::IsotropicLift(value))
-    }
-
-    /// Restrict an expression to the owning Relation's boundary Domain.
-    pub fn trace(&mut self, value: ExprId) -> Result<ExprId, Diagnostic> {
-        self.push(ExprNode::Trace(value))
-    }
-
-    /// Take the outward-normal component on the owning Relation's boundary.
-    pub fn normal_component(&mut self, value: ExprId) -> Result<ExprId, Diagnostic> {
-        self.push(ExprNode::NormalComponent(value))
     }
 
     /// Apply one closed pure-operator definition to prior expressions.

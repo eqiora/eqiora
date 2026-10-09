@@ -37,6 +37,7 @@ pub(super) fn typed_expression(
     TypedResidual::infer(
         expression.clone(),
         None,
+        |_| None,
         RootContract::ComponentwiseResidual,
         |symbol| {
             let ty = match symbol {

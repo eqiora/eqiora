@@ -99,6 +99,8 @@ pub(crate) enum AuthoredFormExpressionKind {
     Pow(Box<AuthoredFormExpression>, i32),
     /// Restrict a parent-volume Field or direction to the integration boundary.
     Trace(Box<AuthoredFormExpression>),
+    /// Outward-normal contraction with independently admitted trace regularity.
+    NormalTrace(Box<AuthoredFormExpression>),
     /// Spatial gradient.
     Gradient(Box<AuthoredFormExpression>),
     Divergence(Box<AuthoredFormExpression>),

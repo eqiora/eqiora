@@ -131,8 +131,8 @@ pub(super) fn contains_state_symbol(expression: &ExprDag, root: ExprId) -> bool 
                 | ExprNode::Divergence(value)
                 | ExprNode::SymmetricPart(value)
                 | ExprNode::IsotropicLift(value)
-                | ExprNode::Trace(value)
-                | ExprNode::NormalComponent(value),
+                | ExprNode::Trace { value, .. }
+                | ExprNode::NormalComponent { value, .. },
             ) => visit(expression, *value, seen),
             Some(
                 ExprNode::Add(left, right)
@@ -151,7 +151,7 @@ pub(super) fn contains_state_symbol(expression: &ExprDag, root: ExprId) -> bool 
 }
 
 pub(super) fn is_trace(expression: &ExprDag, value: ExprId, field: RawId) -> bool {
-    matches!(expression.node(value), Some(ExprNode::Trace(inner)) if is_field(expression, *inner, field))
+    matches!(expression.node(value), Some(ExprNode::Trace { value: inner, .. }) if is_field(expression, *inner, field))
 }
 
 pub(super) fn is_field(expression: &ExprDag, value: ExprId, field: RawId) -> bool {

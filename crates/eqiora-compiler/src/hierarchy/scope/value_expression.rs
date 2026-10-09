@@ -51,6 +51,41 @@ pub(in crate::hierarchy) fn rewrite_expression_with_boundary_member(
         }
     }
     let lowered = match expression.kind() {
+        ExprKind::Call { callee, arguments }
+            if crate::math::boundary::Operation::named(callee.as_str()).is_some() =>
+        {
+            let selected = crate::math::boundary::source(arguments).map_err(|message| {
+                source_error(
+                    codes::LANGUAGE_TYPE_ERROR,
+                    file,
+                    expression.range(),
+                    message,
+                )
+            })?;
+            let resolve = |name: &str| {
+                let path = NamePath::from_segments([name], expression.range())
+                    .expect("parsed support name");
+                scope
+                    .resolve_symbol(&path)
+                    .filter(|symbol| matches!(symbol.kind, SymbolKind::Domain))
+                    .map(|symbol| symbol.internal_name.clone())
+                    .ok_or_else(|| {
+                        source_error(
+                            codes::LANGUAGE_TYPE_ERROR,
+                            file,
+                            expression.range(),
+                            format!("boundary selector `{name}` must resolve to an exact Domain"),
+                        )
+                    })
+            };
+            LoweringExpression::boundary(
+                crate::math::boundary::Operation::named(callee.as_str()).unwrap(),
+                rewrite_expression_with_boundary_member(file, selected.value, scope, active)?,
+                selected.on.map(resolve).transpose()?,
+                selected.from.map(resolve).transpose()?,
+                expression.range(),
+            )
+        }
         ExprKind::Call { callee, arguments } if crate::math::tensor::named(callee.as_str()) => {
             let (operation, operands) = crate::math::tensor::source(callee.as_str(), arguments)
                 .map_err(|message| {

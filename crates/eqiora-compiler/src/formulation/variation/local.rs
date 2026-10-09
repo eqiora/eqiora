@@ -282,7 +282,7 @@ impl Projection<'_> {
                 };
                 self.input(&Input::Gradient(*field, coordinate.to_vec()))?
             }
-            ExprNode::Trace(value) => {
+            ExprNode::Trace { value, .. } => {
                 if !matches!(
                     self.typed.expression().node(*value),
                     Some(ExprNode::Symbol(SymbolRef::Field(_)))
@@ -573,6 +573,7 @@ mod tests {
         let typed = TypedResidual::infer(
             dag.finish([energy]).unwrap(),
             Some(support.clone()),
+            |_| None,
             RootContract::Observable,
             |symbol| {
                 if symbol == SymbolRef::Field(field) {
@@ -665,6 +666,7 @@ mod tests {
         let typed = TypedResidual::infer(
             dag.finish([energy]).unwrap(),
             Some(support.clone()),
+            |_| None,
             RootContract::Observable,
             |symbol| {
                 if symbol != SymbolRef::Field(field) {
@@ -765,6 +767,7 @@ mod tests {
             let typed = TypedResidual::infer(
                 dag.finish([energy]).unwrap(),
                 Some(support.clone()),
+                |_| None,
                 RootContract::Observable,
                 |symbol| {
                     if symbol != SymbolRef::Field(field) {

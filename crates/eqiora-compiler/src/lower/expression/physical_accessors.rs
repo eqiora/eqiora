@@ -114,6 +114,9 @@ impl LoweringExpression {
                 }
                 LoweringExpressionNode::Neg(value)
                 | LoweringExpressionNode::Not(value)
+                | LoweringExpressionNode::Boundary {
+                    argument: value, ..
+                }
                 | LoweringExpressionNode::Index { value, .. }
                 | LoweringExpressionNode::Sample { value, .. } => pending.push(value),
                 LoweringExpressionNode::Array(elements) => pending.extend(elements),

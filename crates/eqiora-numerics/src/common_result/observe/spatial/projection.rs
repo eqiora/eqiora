@@ -276,8 +276,8 @@ impl Projection<'_> {
                 coordinate,
                 depth,
             )?,
-            ExprNode::Trace(value) => self.component(*value, coordinate, depth + 1)?,
-            ExprNode::NormalComponent(value) => {
+            ExprNode::Trace { value, .. } => self.component(*value, coordinate, depth + 1)?,
+            ExprNode::NormalComponent { value, .. } => {
                 let (axis, sign) = self
                     .normal
                     .ok_or_else(|| invalid("normal Observable requires an oriented boundary"))?;

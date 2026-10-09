@@ -344,6 +344,17 @@ impl Resolver<'_> {
                 callee: callee.clone(),
                 argument: self.resolve(argument, None)?,
             },
+            LoweringExpressionNode::Boundary {
+                operation,
+                argument,
+                on,
+                from,
+            } => LoweringExpressionNode::Boundary {
+                operation: *operation,
+                argument: self.resolve(argument, None)?,
+                on: on.clone(),
+                from: from.clone(),
+            },
             LoweringExpressionNode::Partial { value, wrt } => LoweringExpressionNode::Partial {
                 value: self.resolve(value, Some(ScalarDomain::Real))?,
                 wrt: wrt.clone(),

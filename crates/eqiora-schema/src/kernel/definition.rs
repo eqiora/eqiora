@@ -756,6 +756,7 @@ mod tests {
             TypedResidual::<()>::infer(
                 expression,
                 None,
+                |_| None,
                 RootContract::InitialConditions,
                 |_| Ok::<_, ()>(ExpressionType::new(temperature.clone(), None))
             )

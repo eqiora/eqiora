@@ -15,6 +15,7 @@ fn complex_quotient_primal_and_real_pairing_products() {
     let typed = TypedResidual::infer(
         dag.finish([q]).unwrap(),
         None,
+        |_| None,
         RootContract::ComponentwiseResidual,
         |_| {
             Ok::<_, ()>(ExpressionType::<()>::new(
