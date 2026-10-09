@@ -637,12 +637,29 @@ jobs:
         dependency = workflow.split("  dependency_policy:\n", maxsplit=1)[1].split(
             "\n  cubecl_experiment:", maxsplit=1
         )[0]
-        action = (
-            "EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25"
-        )
-        self.assertEqual(dependency.count(action), 1)
+        self.assertNotIn("EmbarkStudios/cargo-deny-action@", dependency)
         self.assertIn("name: Check root dependency policy", dependency)
-        self.assertIn("arguments: --all-features --locked", dependency)
+        self.assertIn(
+            "https://github.com/EmbarkStudios/cargo-deny/releases/download/0.20.2/"
+            "cargo-deny-0.20.2-x86_64-unknown-linux-musl.tar.gz",
+            dependency,
+        )
+        self.assertIn(
+            "9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f",
+            dependency,
+        )
+        verification = dependency.index("sha256sum --check --strict")
+        extraction = dependency.index("tar --extract --gzip")
+        execution = dependency.index(
+            '"$deny_dir/cargo-deny" --all-features --locked check'
+        )
+        self.assertLess(verification, extraction)
+        self.assertLess(extraction, execution)
+        self.assertIn(
+            "--strip-components=1 "
+            "cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny",
+            dependency,
+        )
         self.assertNotIn("src-tauri", dependency)
 
         dependabot = (REPOSITORY_ROOT / ".github/dependabot.yml").read_text(
