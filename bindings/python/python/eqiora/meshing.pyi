@@ -118,6 +118,14 @@ class Mesh:
     def coordinates(self) -> npt.NDArray[np.float64]: ...
     @property
     def cells(self) -> npt.NDArray[np.uint32]: ...
+    def entity_vertices(self, entity: tuple[int, int]) -> tuple[int, ...]:
+        """Ordered vertex indices for a (dimension, index) entity in this exact Mesh.
+
+        Combine with coordinates in coherent SI units to interpret oriented line/area
+        moments. The order belongs to the retained Mesh, including top-cell ordering.
+        Unknown entities reject; the returned tuple is immutable.
+        """
+        ...
     @property
     def minimum_mean_ratio(self) -> float: ...
     @property

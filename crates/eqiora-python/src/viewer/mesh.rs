@@ -133,7 +133,7 @@ pub(super) fn add_mesh(py: Python<'_>, builder: &mut SceneBuilder, mesh: &PyMesh
                 PyOverflowError::new_err("viewer selection entity index exceeds uint32")
             })?);
             let vertices = mesh
-                .viewer_entity_vertices(entity)
+                .entity_vertex_indices(entity)
                 .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
             if width
                 .replace(vertices.len())

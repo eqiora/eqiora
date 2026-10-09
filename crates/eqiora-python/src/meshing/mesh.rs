@@ -90,6 +90,28 @@ struct MeshLineage {
 }
 
 impl PyMesh {
+    pub(crate) fn entity_vertex_indices(
+        &self,
+        entity: MeshEntity,
+    ) -> Result<Vec<usize>, Diagnostic> {
+        let vertices = match &self.source {
+            AcceptedMeshSource::CoordinateFactors { owner } => owner
+                .cartesian_mesh()
+                .and_then(|mesh| mesh.mesh().entity_vertices(entity)),
+            AcceptedMeshSource::SourceOwned { mesh, .. } => mesh.mesh().entity_vertices(entity),
+            AcceptedMeshSource::SourceOwnedCartesian { mesh, .. } => {
+                mesh.mesh().entity_vertices(entity)
+            }
+        }
+        .ok_or_else(|| {
+            Diagnostic::error(
+                codes::INVALID_ARTIFACT,
+                "entity is absent from the accepted Mesh topology",
+            )
+        })?;
+        Ok(vertices.iter().map(|vertex| vertex.index()).collect())
+    }
+
     pub(crate) fn exact_mesh_digest(&self) -> &str {
         &self.lineage.mesh_digest
     }
@@ -271,6 +293,16 @@ impl PyMesh {
     #[getter]
     fn cells(&self, py: Python<'_>) -> PyResult<Py<PyArray2<u32>>> {
         self.cells.numpy(py)
+    }
+
+    /// Ordered vertex indices for a (dimension, index) entity in this exact Mesh.
+    /// Edge/face order defines the retained moment orientation; coordinates use
+    /// coherent SI units, so line/area measures can be derived without averaging.
+    fn entity_vertices(&self, py: Python<'_>, entity: (usize, usize)) -> PyResult<Py<PyTuple>> {
+        let indices = self
+            .entity_vertex_indices(MeshEntity::new(entity.0, entity.1))
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))?;
+        Ok(PyTuple::new(py, indices)?.unbind())
     }
 
     /// Minimum mean ratio measured over every accepted cell.

@@ -141,6 +141,28 @@ result = eqiora.run(plan)
 field = plan.capability.fields[0]
 entities = plan.field_coefficient_entities(field)
 assert entities == tuple((2 if face else 1,i) for i in range(4 if face else 6))
+# The exact retained entity order supplies orientation and measure, not an
+# inferred nodal placement. Integrate the independent constant vector (2,3,4).
+import itertools
+import numpy as np
+connectivity = tuple(mesh.entity_vertices(entity) for entity in entities)
+assert connectivity == tuple(itertools.combinations(range(4), 3 if face else 2))
+assert mesh.entity_vertices((3,0)) == tuple(mesh.cells[0])
+assert mesh.entity_vertices((0,2)) == (2,)
+geometric_moments = []
+for vertices in connectivity:
+    points = mesh.coordinates[list(vertices)]
+    direction = np.cross(points[1]-points[0], points[2]-points[0])/2 if face else points[1]-points[0]
+    geometric_moments.append(float(np.dot([2.,3.,4.], direction)))
+for invalid in ((4,0),(3,1),(1,6),(2,4)):
+    try:
+        mesh.entity_vertices(invalid)
+    except eqiora.ValidationError:
+        pass
+    else:
+        raise AssertionError("unknown Mesh entity gained connectivity")
+replayed_mesh = eqiora.meshing.Mesh.from_bytes(mesh.to_bytes())
+assert tuple(replayed_mesh.entity_vertices(entity) for entity in entities) == connectivity
 derivative = plan.field_exterior_derivative(field)
 if face:
     assert derivative == {(3,0): (((2,0),-1),((2,1),1),((2,2),-1),((2,3),1))}
@@ -177,6 +199,7 @@ assert plan.field_exterior_derivative(field)
 # Canonically ascending vertex orientations. Integrate (2,3,4) along
 # each edge or dot it with half the oriented face cross product.
 expected = [12.,-12.,12.,36.] if face else [4.,9.,16.,5.,12.,7.]
+assert geometric_moments == expected
 if is_complex:
     expected = [v*(1+2j) for v in expected]
 for output in (result.output(field), eqiora.Result.from_bytes(plan,result.to_bytes()).output(field)):
