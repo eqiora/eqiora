@@ -13,6 +13,7 @@ use super::*;
 
 mod boundary;
 mod complex;
+mod curl;
 mod flux;
 mod nonlinear;
 mod prepared;

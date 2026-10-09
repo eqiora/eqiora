@@ -99,6 +99,14 @@ pub(super) fn principal(
             }
             ExprNode::Divergence(value) => pending.push((*value, true)),
             ExprNode::PureOperatorApplication(_)
+                if super::super::vector_curl::curl_curl_field(dag, id).is_some() =>
+            {
+                trials.insert(
+                    super::super::vector_curl::curl_curl_field(dag, id)
+                        .expect("checked vector curl-curl Field"),
+                );
+            }
+            ExprNode::PureOperatorApplication(_)
                 if super::super::planar_curl::gradient(dag, id).is_some() =>
             {
                 let gradient = super::super::planar_curl::gradient(dag, id)

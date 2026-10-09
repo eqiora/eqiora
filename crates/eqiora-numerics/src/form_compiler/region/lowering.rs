@@ -101,6 +101,37 @@ fn expression<S: Coefficient>(
         }
         ExprNode::PureOperatorApplication(_)
             if matches!(position, Position::Strong)
+                && context.dimension == 3
+                && super::super::vector_curl::curl_operand(context.dag, id).is_some() =>
+        {
+            if coefficient.spatial() {
+                return Err(invalid(
+                    "spatial multiplier outside curl-curl requires product-rule lowering",
+                ));
+            }
+            let inner = super::super::vector_curl::curl_operand(context.dag, id)
+                .expect("checked curl operator");
+            let field = super::super::vector_curl::curl_operand(context.dag, inner)
+                .ok_or_else(|| invalid("region curl term requires exact nested vector curls"))?;
+            trial(context, field, coefficient, row, Pairing::Curl)
+        }
+        ExprNode::PureOperatorApplication(_)
+            if matches!(position, Position::Flux)
+                && context.dimension == 3
+                && super::super::vector_curl::tangential_lift_operand(context.dag, id)
+                    .is_some() =>
+        {
+            let curl = super::super::vector_curl::tangential_lift_operand(context.dag, id)
+                .expect("checked tangential lift");
+            let field = super::super::vector_curl::curl_operand(context.dag, curl)
+                .ok_or_else(|| invalid("tangential constitutive flux requires one exact curl"))?;
+            // T(a)n = n × a and div T(a) = curl(a). The existing flux
+            // convention is -div(q), hence q = -T(curl(u)) for +curl-curl.
+            // Store the coefficient of the positive volume curl pairing.
+            trial(context, field, negative(coefficient), row, Pairing::Curl)
+        }
+        ExprNode::PureOperatorApplication(_)
+            if matches!(position, Position::Strong)
                 && context.dimension == 2
                 && super::super::planar_curl::gradient(context.dag, id).is_some() =>
         {
@@ -315,7 +346,8 @@ fn trial<S: Coefficient>(
     };
     if matches!(
         pairing,
-        Pairing::Gradient
+        Pairing::Curl
+            | Pairing::Gradient
             | Pairing::SymmetricGradient
             | Pairing::Divergence
             | Pairing::TestDivergenceTrialValue

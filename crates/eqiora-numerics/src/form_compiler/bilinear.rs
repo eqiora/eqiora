@@ -5,6 +5,7 @@ pub(super) enum Pairing {
     Value,
     Gradient,
     SymmetricGradient,
+    Curl,
     Divergence,
     TestDivergenceTrialValue,
     TestValueTrialDivergence,
@@ -29,6 +30,7 @@ impl Pairing {
     pub(super) fn accepts(self, dimension: usize, test: usize, trial: usize) -> bool {
         match self {
             Self::Value | Self::Gradient => test == trial,
+            Self::Curl => dimension == 3 && test == 3 && trial == 3,
             Self::SymmetricGradient | Self::Divergence => test == dimension && trial == dimension,
             Self::TestDivergenceTrialValue => test == dimension && trial == 1,
             Self::TestValueTrialDivergence => test == 1 && trial == dimension,
@@ -50,6 +52,13 @@ impl Pairing {
                     .sum::<f64>();
                 0.5 * (crate::affine_fem::dot(test.gradient, trial.gradient) + transpose)
             }
+            Self::Curl => [(2, 1), (0, 2), (1, 0)]
+                .into_iter()
+                .map(|(i, j)| {
+                    (test.gradient[3 * i + j] - test.gradient[3 * j + i])
+                        * (trial.gradient[3 * i + j] - trial.gradient[3 * j + i])
+                })
+                .sum(),
             Self::Divergence => test.divergence() * trial.divergence(),
             Self::TestDivergenceTrialValue => test.divergence() * trial.value[0],
             Self::TestValueTrialDivergence => test.value[0] * trial.divergence(),
