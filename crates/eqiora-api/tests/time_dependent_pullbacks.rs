@@ -299,3 +299,24 @@ fn reverse_directions(value: &mut serde_json::Value) -> usize {
         _ => 0,
     }
 }
+
+#[test]
+fn unknown_mapped_density_storage_reaches_law_admission_and_replay() {
+    let map = "from=(xi,eta),at=(x=(1+0.5[1/s]*time())*xi,y=eta)";
+    let storage = format!("pullback(q,{map})*volume_jacobian({map})");
+    let source = source("0", "1")
+        .replace("state anchor:1;", "state q:kg/m^2 on body in smooth; state anchor:1;")
+        .replace("observable rate:1=", &format!("law inventory on reference {{ storage {storage}; flux -0[kg/m/s]*grad(xi); source 0[kg/m^2/s]; }} observable rate:1="));
+    let document = ModelDocument::compile("mapped-density-law.eqi", &source).unwrap();
+    let bytes = document.canonical_json().unwrap();
+    let replay = ModelDocument::replay(&bytes).unwrap();
+    assert_eq!(replay.canonical_json().unwrap(), bytes);
+    // This reaches unknown-density storage correspondence, not a numerical solve.
+    assert!(
+        replay
+            .program()
+            .nodes()
+            .any(|node| matches!(node, KernelNode::Relation(relation)
+        if matches!(relation.meaning(), eqiora_schema::kernel::RelationMeaning::Conservation(_))))
+    );
+}

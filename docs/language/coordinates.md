@@ -73,7 +73,11 @@ For constant physical density ρ=2, the reference density ρ|J| has rate 2λ eve
 is checked independently against the exact mapped-row time rates, including the map's
 source/target identities; an action with a different motion or a non-time parameter
 rejects. Explicit polynomial pullbacks use simultaneous coordinate substitution.
-Unknown mapped Fields and nested factor-valued motion remain outside this proof profile.
+First unknown continuous scalar pullbacks retain the same exact map for physical time
+and coordinate derivatives in storage correspondence, including density times volume scale.
+Focused tests reject omitted time, transport or volume terms, a different Field, a different
+map and a different coordinate partial. Nested unknown-Field pullbacks and nested factor-valued
+motion remain outside this proof profile, including canceled dependencies.
 This storage correspondence does not establish the relative transport flux or a numerical
 volume balance, select a material velocity, or admit a new ALE execution path.
 

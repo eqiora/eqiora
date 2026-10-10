@@ -5,7 +5,7 @@ use crate::kernel::{CoordinateMapFactor, ExprDag, ExprId, ExprNode, SymbolRef};
 
 #[derive(PartialEq, Eq)]
 struct Map {
-    factor: CoordinateMapFactor,
+    factor: Option<CoordinateMapFactor>,
     source: Vec<Atom>,
     targets: Vec<Atom>,
     rows: Vec<Polynomial>,
@@ -13,19 +13,26 @@ struct Map {
 }
 
 #[derive(Default)]
-pub(in super::super) struct Maps(Vec<Map>);
+pub(in super::super) struct Maps {
+    maps: Vec<Map>,
+    partials: Vec<(crate::kernel::SymbolRef, Atom)>,
+    fields: Vec<MappedField>,
+}
+
+mod fields;
+use fields::MappedField;
 
 impl Maps {
     pub(in super::super) fn dynamic(&self, index: usize) -> bool {
-        let map = &self.0[index];
-        map.factor != CoordinateMapFactor::Orientation
+        let map = &self.maps[index];
+        map.factor != Some(CoordinateMapFactor::Orientation)
             && map.rates.iter().any(|rate| rate.terms().len() != 0)
     }
 
     pub(super) fn intern<'a>(
         &mut self,
         dag: &ExprDag,
-        factor: CoordinateMapFactor,
+        factor: Option<CoordinateMapFactor>,
         source: &[ExprId],
         at: &[(ExprId, ExprId)],
         get: &impl Fn(ExprId) -> Result<&'a Polynomial, Error>,
@@ -42,7 +49,7 @@ impl Maps {
             .collect::<Result<_, _>>()?;
         let mut rows = Vec::with_capacity(at.len());
         for (_, id) in at {
-            require_profile(dag, *id, true, budget)?;
+            require_profile(dag, *id, true, false, budget)?;
             let row = get(*id)?;
             // Nested map factors and derivative-valued motion need a separate proof.
             if row.terms().any(|(atoms, _)| {
@@ -78,14 +85,14 @@ impl Maps {
             .sum::<usize>()
             + candidate.source.len()
             + candidate.targets.len();
-        for (index, prior) in self.0.iter().enumerate() {
+        for (index, prior) in self.maps.iter().enumerate() {
             budget.charge(size)?;
             if prior == &candidate {
                 return Ok(index);
             }
         }
-        let index = self.0.len();
-        self.0.push(candidate);
+        let index = self.maps.len();
+        self.maps.push(candidate);
         Ok(index)
     }
 
@@ -108,7 +115,7 @@ impl Maps {
         if terms.next().is_some() || coefficient != ExactRational::integer(1) {
             return Err(Error::UnsupportedExpression);
         }
-        let map = &self.0[*index];
+        let map = &self.maps[*index];
         if directions.len() != map.rates.len() {
             return Err(Error::Mismatch);
         }
@@ -137,59 +144,27 @@ fn selector(dag: &ExprDag, id: ExprId) -> Result<Atom, Error> {
     }
 }
 
-pub(super) fn pullback<'a>(
-    dag: &ExprDag,
-    value_id: ExprId,
-    value: &Polynomial,
-    at: &[(ExprId, ExprId)],
-    get: &impl Fn(ExprId) -> Result<&'a Polynomial, Error>,
-    budget: &mut Budget,
-) -> Result<Polynomial, Error> {
-    require_profile(dag, value_id, false, budget)?;
-    budget.charge(at.len())?;
-    let bindings = at
-        .iter()
-        .map(|(target, mapped)| Ok((selector(dag, *target)?, get(*mapped)?)))
-        .collect::<Result<Vec<_>, Error>>()?;
-    let mut result = Polynomial::constant(ExactRational::integer(0));
-    for (atoms, coefficient) in value.terms() {
-        let mut term = Polynomial::constant(coefficient);
-        for atom in atoms {
-            // Unknown spatial Fields require retained mapped Field/gradient atoms.
-            // They cannot be treated as fixed scalars under a changing map.
-            if !matches!(atom, Atom::Coordinate(..) | Atom::Parameter(_) | Atom::Time) {
-                return Err(Error::UnsupportedExpression);
-            }
-            budget.charge(bindings.len())?;
-            let replacement = bindings.iter().find(|(target, _)| target == atom);
-            term = term
-                .checked_mul(replacement.map_or(&Polynomial::atom(*atom), |(_, value)| *value))?;
-            budget.polynomial(&term)?;
-        }
-        result = result.checked_add(&term)?;
-        budget.polynomial(&result)?;
-    }
-    Ok(result)
-}
-
 // Check the authored dependency profile before polynomial cancellation can hide
 // an unsupported Field or a factor-valued mapped row.
 fn require_profile(
     dag: &ExprDag,
     root: ExprId,
     allow_fields: bool,
+    allow_rates: bool,
     budget: &mut Budget,
 ) -> Result<(), Error> {
-    let mut pending = vec![root];
+    let mut pending = vec![(root, allow_fields, allow_rates)];
     let mut visited = std::collections::BTreeSet::new();
-    while let Some(id) = pending.pop() {
-        if !visited.insert(id) {
+    while let Some((id, allow_fields, allow_rates)) = pending.pop() {
+        if !visited.insert((id, allow_fields, allow_rates)) {
             continue;
         }
         budget.charge(1)?;
         let node = dag.node(id).ok_or(Error::InvalidExpression)?;
         match node {
             ExprNode::Symbol(SymbolRef::Field(_)) if allow_fields => {}
+            ExprNode::Symbol(SymbolRef::Derivative(_, std::num::NonZeroU32::MIN))
+                if allow_rates => {}
             ExprNode::Symbol(
                 SymbolRef::Coordinate { .. } | SymbolRef::Parameter(_) | SymbolRef::Time,
             ) => {}
@@ -200,9 +175,12 @@ fn require_profile(
             }
             _ => {}
         }
+        // Nested explicit polynomial pullbacks remain admissible. Unknown
+        // mapped Fields are a first-map profile, even if cancellation hides them.
+        let nested = matches!(node, ExprNode::Pullback { .. });
         node.try_for_each_operand(|operand| {
             budget.charge(1)?;
-            pending.push(operand);
+            pending.push((operand, allow_fields && !nested, allow_rates && !nested));
             Ok::<_, Error>(())
         })?;
     }

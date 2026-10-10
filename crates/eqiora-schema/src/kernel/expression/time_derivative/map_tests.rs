@@ -100,19 +100,21 @@ fn explicit_pullback_uses_simultaneous_coordinate_substitution() {
 }
 
 #[test]
-fn mapped_unknown_fields_do_not_gain_admission_by_cancellation() {
+fn mapped_derivative_storage_does_not_gain_admission_by_cancellation() {
     let mut builder = ExprDagBuilder::new();
     let reference = Id::new();
     let target = Id::new();
     let xi = builder.coordinate(reference, reference, 0).unwrap();
     let x = builder.coordinate(target, target, 0).unwrap();
-    let field = builder.symbol(SymbolRef::Field(Id::new())).unwrap();
+    let field = builder
+        .symbol(SymbolRef::Derivative(Id::new(), std::num::NonZeroU32::MIN))
+        .unwrap();
     let canceled = builder.sub(field, field).unwrap();
     let storage = builder.pullback(canceled, vec![xi], vec![(x, xi)]).unwrap();
     let zero = constant(&mut builder, 0.0);
     let dag = builder.finish([zero]).unwrap();
     assert_eq!(
         dag.verify_time_derivative(storage, zero),
-        Err(TimeDerivativeProofError::UnsupportedExpression)
+        Err(TimeDerivativeProofError::UnsupportedStorageSymbol)
     );
 }

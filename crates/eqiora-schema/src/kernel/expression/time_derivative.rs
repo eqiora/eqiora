@@ -2,6 +2,8 @@
 
 #[cfg(test)]
 mod map_tests;
+#[cfg(test)]
+mod mapped_field_tests;
 mod projection;
 #[cfg(test)]
 mod tests;
@@ -69,6 +71,8 @@ enum Atom {
     Coordinate(Id<kinds::Domain>, Id<kinds::Domain>, usize),
     Map(usize),
     MapRate(usize),
+    Partial(usize),
+    MappedField(usize),
 }
 
 impl Atom {
@@ -83,6 +87,8 @@ impl Atom {
             }
             Self::Map(index) => (5, 0, 0, index),
             Self::MapRate(index) => (6, 0, 0, index),
+            Self::Partial(index) => (7, 0, 0, index),
+            Self::MappedField(index) => (8, 0, 0, index),
         }
     }
 }
@@ -117,10 +123,12 @@ impl ExprDag {
     /// powers, and retained scalar polynomial pure definitions. Exact coordinate-map
     /// factors retain their selectors and normalized polynomial rows; an accumulation
     /// action must independently match each mapped-row time rate and use model time.
-    /// Explicit polynomial pullbacks substitute exact coordinate identities; unknown
-    /// mapped Fields and nested factor-valued motion remain unsupported. Only
-    /// accumulation may read Field derivatives. Branches, guards, divisions, other
-    /// spatial operators, discrete reads, Ports and other scalar functions reject, even when
+    /// Explicit polynomial pullbacks substitute exact coordinate identities. First
+    /// mapped continuous scalar Fields retain their exact map, physical time rate
+    /// and coordinate partials in the independent chain rule. Nested unknown-Field
+    /// pullbacks and nested factor-valued motion remain unsupported. Only
+    /// accumulation may read Field time derivatives and mapped first coordinate
+    /// partials. Branches, guards, divisions, other spatial operators, discrete reads, Ports and other scalar functions reject, even when
     /// an algebraic cancellation would hide them.
     ///
     /// Binary64 literals mean their exact dyadic values, never a guessed decimal
@@ -143,7 +151,7 @@ impl ExprDag {
         let mut maps = projection::Maps::default();
         let storage = projection::normalize(self, storage, false, &mut budget, &mut maps)?;
         let accumulation = projection::normalize(self, accumulation, true, &mut budget, &mut maps)?;
-        let expected = derivative(&storage, &maps, &mut budget)?;
+        let expected = derivative(&storage, &mut maps, &mut budget)?;
         if expected == accumulation {
             Ok(())
         } else {
@@ -154,7 +162,7 @@ impl ExprDag {
 
 fn derivative(
     value: &Polynomial,
-    maps: &projection::Maps,
+    maps: &mut projection::Maps,
     budget: &mut Budget,
 ) -> Result<Polynomial, TimeDerivativeProofError> {
     let mut expected = Polynomial::constant(ExactRational::integer(0));
@@ -164,9 +172,12 @@ fn derivative(
             let atom = atoms[start];
             let end = start + atoms[start..].partition_point(|other| *other == atom);
             let rate = match atom {
-                Atom::Field(field) => Some(Some(Atom::Derivative(field))),
-                Atom::Time => Some(None),
-                Atom::Map(index) if maps.dynamic(index) => Some(Some(Atom::MapRate(index))),
+                Atom::Field(field) => Some(Polynomial::atom(Atom::Derivative(field))),
+                Atom::Time => Some(Polynomial::constant(ExactRational::integer(1))),
+                Atom::Map(index) if maps.dynamic(index) => {
+                    Some(Polynomial::atom(Atom::MapRate(index)))
+                }
+                Atom::MappedField(index) => Some(maps.field_rate(index, budget)?),
                 _ => None,
             };
             if let Some(rate) = rate {
@@ -178,11 +189,12 @@ fn derivative(
                 budget.charge(atoms.len() + 1)?;
                 let mut factors = atoms.to_vec();
                 factors.remove(start);
-                if let Some(rate) = rate {
-                    factors.push(rate);
-                    factors.sort();
-                }
-                expected.add_term(factors, coefficient)?;
+                let mut term = Polynomial::constant(ExactRational::integer(0));
+                term.add_term(factors, coefficient)?;
+                let term = term.checked_mul(&rate)?;
+                budget.polynomial(&term)?;
+                expected = expected.checked_add(&term)?;
+                budget.polynomial(&expected)?;
             }
             start = end;
         }
