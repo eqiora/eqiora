@@ -65,19 +65,31 @@ where
         let mut jacobian = vec![vec![0.0; size]; size];
         for column in 0..size {
             let step = 1.490_116_119_384_765_6e-8 * values[column].abs().max(1.0);
-            let mut perturbed = values.clone();
-            perturbed[column] += step;
-            let perturbed_residuals = residual(&perturbed)?;
-            if perturbed_residuals.len() != size {
-                return Err(Diagnostic::error(
-                    codes::NONSQUARE_SYSTEM,
-                    "residual equation count changed during nonlinear evaluation",
-                )
-                .with_graph_path(path));
-            }
-            require_finite(&perturbed, &perturbed_residuals, &path)?;
+            let mut evaluate = |direction: f64| {
+                let mut perturbed = values.clone();
+                perturbed[column] += direction * step;
+                let result = residual(&perturbed)?;
+                if result.len() != size {
+                    return Err(Diagnostic::error(
+                        codes::NONSQUARE_SYSTEM,
+                        "residual equation count changed during nonlinear evaluation",
+                    )
+                    .with_graph_path(path.clone()));
+                }
+                require_finite(&perturbed, &result, &path)?;
+                Ok(result)
+            };
+            // A closed validity boundary may admit only the negative probe.
+            // Both probes read the same trial state; neither commits a step.
+            let (perturbed_residuals, signed_step) = match evaluate(1.0) {
+                Ok(result) => (result, step),
+                Err(error) if error.code() == codes::NONFINITE_EVALUATION => {
+                    (evaluate(-1.0)?, -step)
+                }
+                Err(error) => return Err(error),
+            };
             for row in 0..size {
-                jacobian[row][column] = (perturbed_residuals[row] - residuals[row]) / step;
+                jacobian[row][column] = (perturbed_residuals[row] - residuals[row]) / signed_step;
             }
         }
 
@@ -232,5 +244,69 @@ mod tests {
 
         assert!((solution[0] - 1.791_287_847_477_92).abs() < 1.0e-9);
         assert!((solution[1] - 1.791_287_847_477_92).abs() < 1.0e-9);
+    }
+
+    #[test]
+    fn closed_domain_endpoint_uses_an_inward_probe_without_weakening_rank_checks() {
+        let settings = NonlinearSettings {
+            absolute_tolerance: 1e-12,
+            relative_tolerance: 0.0,
+            max_iterations: 8,
+        };
+        for target in [1.0, 0.5] {
+            let result = solve_initial(vec![1.0], settings, GraphPath::new(["bounded"]), |x| {
+                if x[0] > 1.0 {
+                    return Err(Diagnostic::error(
+                        codes::NONFINITE_EVALUATION,
+                        "outside domain",
+                    ));
+                }
+                Ok(vec![x[0] - target])
+            })
+            .unwrap();
+            assert!((result[0] - target).abs() < 1e-12);
+        }
+        let error = solve_initial(vec![1.0], settings, GraphPath::new(["singular"]), |x| {
+            if x[0] > 1.0 {
+                return Err(Diagnostic::error(
+                    codes::NONFINITE_EVALUATION,
+                    "outside domain",
+                ));
+            }
+            Ok(vec![0.0])
+        })
+        .unwrap_err();
+        assert_eq!(error.code(), codes::NONLINEAR_SOLVE_FAILED);
+    }
+
+    #[test]
+    fn unavailable_probes_and_structural_errors_still_reject() {
+        let settings = NonlinearSettings {
+            absolute_tolerance: 1e-12,
+            relative_tolerance: 0.0,
+            max_iterations: 8,
+        };
+        let error = solve_initial(vec![1.0], settings, GraphPath::new(["isolated"]), |x| {
+            if x[0] != 1.0 {
+                return Err(Diagnostic::error(
+                    codes::NONFINITE_EVALUATION,
+                    "isolated point",
+                ));
+            }
+            Ok(vec![0.0])
+        })
+        .unwrap_err();
+        assert_eq!(error.code(), codes::NONFINITE_EVALUATION);
+        let mut calls = 0;
+        let error = solve_initial(vec![1.0], settings, GraphPath::new(["shape"]), |x| {
+            calls += 1;
+            Ok(if x[0] > 1.0 { vec![] } else { vec![0.0] })
+        })
+        .unwrap_err();
+        assert_eq!(error.code(), codes::NONSQUARE_SYSTEM);
+        assert_eq!(
+            calls, 2,
+            "structural failures must not try the other direction"
+        );
     }
 }

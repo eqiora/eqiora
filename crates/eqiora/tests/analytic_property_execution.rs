@@ -147,8 +147,7 @@ fn independent_partials_keep_other_inputs_fixed_and_reject_outside_validity() {
     }
 }
 
-#[test]
-fn exact_offline_package_keeps_public_analytic_contract_and_release() {
+fn packaged_model(source: &str) -> eqiora::package::PackagedModelDocument {
     use eqiora::package::*;
     fn package(name: &str, source: &str, dependencies: &[PackageReleaseV1]) -> PackageReleaseV1 {
         let path = NormalizedRelativePath::parse("src/main.eqi").unwrap();
@@ -174,7 +173,7 @@ fn exact_offline_package_keeps_public_analytic_contract_and_release() {
         .unwrap();
         prepare_package_release_v1(sources, dependencies).unwrap()
     }
-    let (declarations, consumer) = SOURCE.split_once("component Thermal").unwrap();
+    let (declarations, consumer) = source.split_once("component Thermal").unwrap();
     let properties = package(
         "org.example.Fluid",
         &declarations
@@ -202,7 +201,12 @@ fn exact_offline_package_keeps_public_analytic_contract_and_release() {
     let mut store = InMemoryPackageStore::default();
     store.insert(&properties).unwrap();
     store.insert(&root).unwrap();
-    let packaged = PackagedModelDocument::compile_locked(&store, &resolution, "Main").unwrap();
+    PackagedModelDocument::compile_locked(&store, &resolution, "Main").unwrap()
+}
+
+#[test]
+fn exact_offline_package_keeps_public_analytic_contract_and_release() {
+    let packaged = packaged_model(SOURCE);
     let result = Interpreter::new()
         .run(
             packaged.model().program(),
@@ -256,4 +260,141 @@ fn release_provenance_changes_exact_artifacts_without_changing_mathematical_stru
         let changed = ModelDocument::compile("changed-math.eqi", &changed_math).unwrap();
         assert!(!first.structurally_equivalent(&changed).unwrap());
     }
+}
+
+fn evolving_source() -> String {
+    SOURCE
+        .replace("parameter temperature: K", "parameter initial_temperature: K")
+        .replace(
+            "  variable k:",
+            "  state temperature: K;\n  initial { temperature = initial_temperature; }\n  relation heating { derivative(temperature) = 5[K / s]; }\n  variable k:",
+        )
+        .replace("temperature = 320[K]", "initial_temperature = 320[K]")
+        .replace("temperature = 340[K]", "initial_temperature = 340[K]")
+}
+
+#[test]
+fn evolving_state_inputs_match_the_direct_law_without_losing_release_lineage() {
+    let source = evolving_source();
+    let direct = source
+        .replace(
+            "conductivity(T = temperature, p = pressure)",
+            "10[kg * m / s ^ 3 / K] + 0.1[kg * m / s ^ 3 / K ^ 2] * (temperature - 300[K]) + 0.001[kg * m / s ^ 3 / K ^ 3] * (temperature - 300[K]) ^ 2 + 0.00001[m ^ 2 / s / K] * pressure",
+        )
+        .replace(", property conductivity: Conductivity", "")
+        .replace(", conductivity = Fluid", "");
+    let config = ReferenceConfig::new(2.0, 0.25)
+        .unwrap()
+        .with_initial_guess(320.0)
+        .unwrap()
+        .with_nonlinear_tolerances(1e-11, 0.0)
+        .unwrap();
+    let mut traces = Vec::new();
+    for (source, expected_bindings) in [(&source, 2), (&direct, 0)] {
+        let model = ModelDocument::compile("evolving-conductivity.eqi", source).unwrap();
+        let packaged = packaged_model(source);
+        for model in [&model, packaged.model()] {
+            let envelope = ModelEnvelope::from_program(model.program()).unwrap();
+            let reopened = envelope.to_program().unwrap();
+            for program in [model.program(), &reopened] {
+                let bindings = program
+                    .nodes()
+                    .filter_map(|node| match node {
+                        KernelNode::Relation(value) => Some(value.expression().properties().len()),
+                        _ => None,
+                    })
+                    .sum::<usize>();
+                assert_eq!(bindings, expected_bindings);
+                let trajectory = Interpreter::new().run(program, config).unwrap();
+                let mut trace = Vec::new();
+                for (name, initial, pressure) in
+                    [("warm", 320.0, 100000.0), ("hot", 340.0, 200000.0)]
+                {
+                    let field = model.field_ref(&format!("{name}.k")).unwrap().id().erase();
+                    let samples = trajectory
+                        .samples()
+                        .iter()
+                        .filter(|sample| sample.coordinate() == field);
+                    let mut count = 0;
+                    for sample in samples {
+                        // Constant heating integrates exactly under backward Euler:
+                        // T(t)=T(0)+5t. Substitute into the declared two-input polynomial.
+                        let delta = initial + 5.0 * sample.time() - 300.0;
+                        let expected =
+                            10.0 + 0.1 * delta + 0.001 * delta * delta + 0.00001 * pressure;
+                        assert!((sample.value().value() - expected).abs() < 1e-9);
+                        trace.push((sample.time(), sample.value().value()));
+                        count += 1;
+                    }
+                    assert_eq!(count, 9);
+                }
+                traces.push(trace);
+            }
+        }
+    }
+    for trace in &traces[1..] {
+        for ((time, value), (reference_time, reference)) in trace.iter().zip(&traces[0]) {
+            assert_eq!(time, reference_time);
+            assert!((value - reference).abs() < 1e-9);
+        }
+    }
+}
+
+#[test]
+fn state_input_near_validity_boundary_uses_an_admissible_newton_probe() {
+    let source = evolving_source()
+        .replace(
+            "initial_temperature = 320[K]",
+            "initial_temperature = 399.999999[K]",
+        )
+        .replace(
+            "initial_temperature = 340[K]",
+            "initial_temperature = 399.999999[K]",
+        );
+    let model = ModelDocument::compile("boundary-conductivity.eqi", &source).unwrap();
+    let config = ReferenceConfig::new(0.0, 0.25)
+        .unwrap()
+        .with_initial_guess(399.999999)
+        .unwrap()
+        .with_nonlinear_tolerances(1e-11, 0.0)
+        .unwrap();
+    let trajectory = Interpreter::new().run(model.program(), config).unwrap();
+    // This interior point has a valid analytic derivative, but the default positive
+    // finite-difference probe (about 6e-6 K) crosses the 400 K guard.
+    let delta = 399.999999 - 300.0;
+    let thermal = 10.0 + 0.1 * delta + 0.001 * delta * delta;
+    for (name, expected) in [("warm.k", thermal + 1.0), ("hot.k", thermal + 2.0)] {
+        let field = model.field_ref(name).unwrap().id().erase();
+        assert!((trajectory.last_value(field).unwrap().value() - expected).abs() < 1e-9);
+    }
+    // A value at the exact endpoint does not supply the analytic derivative
+    // demanded by initial regularity. Numerical probing must not bypass it.
+    let boundary = source.replace("399.999999[K]", "400[K]");
+    let boundary = ModelDocument::compile("endpoint-conductivity.eqi", &boundary).unwrap();
+    let error = Interpreter::new()
+        .run(
+            boundary.program(),
+            config.with_initial_guess(400.0).unwrap(),
+        )
+        .unwrap_err();
+    assert!(
+        error.iter().any(|diagnostic| diagnostic
+            .message()
+            .contains("derivative is undefined at a demanded comparison boundary")),
+        "{error:?}"
+    );
+    let invalid = source.replace(
+        "initial_temperature = 399.999999[K]",
+        "initial_temperature = 401[K]",
+    );
+    let model = ModelDocument::compile("outside-conductivity.eqi", &invalid).unwrap();
+    let error = Interpreter::new()
+        .run(model.program(), config.with_initial_guess(401.0).unwrap())
+        .unwrap_err();
+    assert!(
+        error.iter().any(|diagnostic| diagnostic
+            .message()
+            .contains("required expression domain condition")),
+        "{error:?}"
+    );
 }
