@@ -356,6 +356,45 @@ impl ExpressionContext<'_> {
             ));
         }
         match (name, arguments) {
+            ("derivative", [argument]) => {
+                let argument = self.compile(argument)?;
+                require_scalar(self.file, expression.range(), &argument)?;
+                let AuthoredFormExpressionKind::Field(field) = argument.kind else {
+                    return Err(error(
+                        self.file,
+                        expression.range(),
+                        "weak time differentiation requires one exact scalar State Field",
+                    ));
+                };
+                if !matches!(self.index.nodes.get(&field.erase()).copied(), Some(KernelNode::Field(value)) if value.role() == eqiora_schema::kernel::FieldRole::State)
+                    || self.index.clocked_by.get(&field.erase()).is_some_and(|clock| {
+                        !matches!(self.index.nodes.get(clock), Some(KernelNode::ClockDomain(value)) if value.kind() == eqiora_schema::kernel::ClockKind::Continuous)
+                    })
+                {
+                    return Err(error(
+                        self.file,
+                        expression.range(),
+                        "weak time differentiation requires one exact scalar State Field",
+                    ));
+                }
+                let native = eqiora_schema::kernel::typing::ExpressionType::new(
+                    argument.value_type.clone(),
+                    argument
+                        .support
+                        .map(|support| self.physical_support(support)),
+                );
+                let value_type = eqiora_schema::kernel::typing::time_derivative(
+                    &native,
+                    std::num::NonZeroU32::MIN,
+                )
+                .map_err(|_| wire::rejection("invalid time derivative type"))?
+                .value_type;
+                Ok(typed(
+                    AuthoredFormExpressionKind::TimeDerivative(field),
+                    value_type,
+                    argument.support,
+                ))
+            }
             ("coordinate", [axis]) => self.compile_coordinate(expression, axis),
             ("curl", [argument]) => self.compile_curl(expression, argument),
             ("cross", [left, right]) => self.compile_cross(expression, left, right),

@@ -38,7 +38,7 @@ impl Context<'_> {
         self.step(depth)?;
         let shape = self.shape(value, depth + 1)?;
         match value {
-            E::Field { ulid } => {
+            E::Field { ulid } | E::TimeDerivative { field_ulid: ulid } => {
                 self.physical_field(ulid, &shape)?;
             }
             E::Parameter { ulid } => {

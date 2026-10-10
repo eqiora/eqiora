@@ -74,6 +74,14 @@ impl Context<'_, '_> {
                 self.native
                     .push(ExprNode::Symbol(SymbolRef::Field(id)), ty, assertion)
             }
+            E::TimeDerivative { field_ulid } => {
+                let id = Id::<kinds::Field>::from_ulid(identity(field_ulid)?);
+                let (ty, _) = (self.resolve)(id.erase())?;
+                let order = std::num::NonZeroU32::MIN;
+                let ty = typed(typing::time_derivative(&ty, order))?;
+                self.native
+                    .operation(ExprNode::Symbol(SymbolRef::Derivative(id, order)), ty)
+            }
             E::Coordinate {
                 support_ulid,
                 factor_ulid,
@@ -325,7 +333,7 @@ impl Context<'_, '_> {
             ));
         }
         self.remaining -= 1;
-        let mut field = matches!(value, E::Field { .. });
+        let mut field = matches!(value, E::Field { .. } | E::TimeDerivative { .. });
         for child in children(value) {
             field |= self.scan(child, depth + 1)?;
         }
@@ -382,6 +390,7 @@ fn children(value: &E) -> Vec<&E> {
         | E::EndpointFlux { flux: value, .. }
         | E::Pow { base: value, .. } => vec![value],
         E::Field { .. }
+        | E::TimeDerivative { .. }
         | E::Parameter { .. }
         | E::Test { .. }
         | E::Direction { .. }

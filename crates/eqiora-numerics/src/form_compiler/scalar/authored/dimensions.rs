@@ -103,6 +103,23 @@ impl Context<'_> {
                 };
                 Some(field.dimension())
             }
+            E::TimeDerivative { field_ulid } if field_ulid == self.field => {
+                let id = Id::<kinds::Field>::from_ulid(field_ulid.parse().ok()?);
+                let KernelNode::Field(field) = self.program.node(id.erase())? else {
+                    return None;
+                };
+                if field.role() != eqiora_schema::kernel::FieldRole::State
+                    || self.program.edges().iter().any(|edge| {
+                        edge.from() == id.erase() && edge.kind() == eqiora_graph::EdgeKind::ClockedBy
+                            && !matches!(self.program.node(edge.to()), Some(KernelNode::ClockDomain(clock)) if clock.kind() == eqiora_schema::kernel::ClockKind::Continuous)
+                    })
+                {
+                    return None;
+                }
+                field
+                    .dimension()
+                    .div(D::from_integers([0, 0, 1, 0, 0, 0, 0])?)
+            }
             E::Parameter { ulid } => {
                 let id = Id::<kinds::Parameter>::from_ulid(ulid.parse().ok()?);
                 let KernelNode::Parameter(parameter) = self.program.node(id.erase())? else {

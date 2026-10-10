@@ -23,6 +23,7 @@ enum Atom {
     TraceField(String, Vec<usize>),
     TraceTest(Vec<usize>),
     Field(String, Vec<usize>),
+    TimeDerivative(String, Vec<usize>),
     Parameter(String, Vec<usize>),
     Coordinate(String, String, usize),
     Test(Vec<usize>),
@@ -269,6 +270,9 @@ impl Context<'_> {
                 ExactRational::new(*numerator, i64::try_from(*denominator).ok()?).ok()?,
             ),
             E::Field { ulid } => self.atom(Atom::Field(ulid.clone(), vec![]))?,
+            E::TimeDerivative { field_ulid } if field_ulid == self.field => {
+                self.atom(Atom::TimeDerivative(field_ulid.clone(), vec![]))?
+            }
             E::Trace { value, on_ulid } => {
                 self.selected_boundary(on_ulid)?;
                 self.trace(value, vec![])?

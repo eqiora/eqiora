@@ -192,6 +192,7 @@ fn visit(
         E::Number { .. }
         | E::Rational { .. }
         | E::Field { .. }
+        | E::TimeDerivative { .. }
         | E::Parameter { .. }
         | E::Coordinate { .. }
         | E::LinearMap { .. } => {}
